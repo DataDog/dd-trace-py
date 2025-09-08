@@ -10,24 +10,23 @@ from time import sleep
 
 import pytest
 
+from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
+from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
+from ddtrace.appsec._iast._iast_request_context_base import _num_objects_tainted_in_request
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking import TaintRange
 from ddtrace.appsec._iast._taint_tracking import are_all_text_all_ranges
-from ddtrace.appsec._iast._taint_tracking import debug_taint_map
 from ddtrace.appsec._iast._taint_tracking import get_range_by_hash
 from ddtrace.appsec._iast._taint_tracking import get_ranges
-from ddtrace.appsec._iast._taint_tracking import num_objects_tainted
-from ddtrace.appsec._iast._taint_tracking import set_ranges
 from ddtrace.appsec._iast._taint_tracking import shift_taint_range
 from ddtrace.appsec._iast._taint_tracking import shift_taint_ranges
-from ddtrace.appsec._iast._taint_tracking._context import create_context
-from ddtrace.appsec._iast._taint_tracking._context import reset_context
-from ddtrace.appsec._iast._taint_tracking._context import reset_contexts
+from ddtrace.appsec._iast._taint_tracking._context import debug_taint_map
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import is_notinterned_notfasttainted_unicode
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import set_fast_tainted_if_notinterned_unicode
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject_with_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import bytearray_extend_aspect as extend_aspect
@@ -308,7 +307,7 @@ def test_collisions_bytearray():
 def test_set_get_ranges_str():
     s1 = "abcde😁"
     s2 = "defg"
-    set_ranges(s1, [_RANGE1, _RANGE2])
+    taint_pyobject_with_ranges(s1, [_RANGE1, _RANGE2])
     assert get_ranges(s1) == [_RANGE1, _RANGE2]
     assert not get_ranges(s2)
 
@@ -316,8 +315,8 @@ def test_set_get_ranges_str():
 def test_set_get_ranges_other():
     s1 = 12345
     s2 = None
-    set_ranges(s1, [_RANGE1, _RANGE2])
-    set_ranges(s2, [_RANGE1, _RANGE2])
+    taint_pyobject_with_ranges(s1, [_RANGE1, _RANGE2])
+    taint_pyobject_with_ranges(s2, [_RANGE1, _RANGE2])
     with pytest.raises(
         ValueError,
         match=re.escape("iast::propagation::native::error::Get ranges error: Invalid type of candidate_text variable"),
@@ -334,7 +333,7 @@ def test_set_get_ranges_other():
 def test_set_get_ranges_bytes():
     b1 = b"ABCDE"
     b2 = b"DEFG"
-    set_ranges(b1, [_RANGE2, _RANGE1])
+    taint_pyobject_with_ranges(b1, [_RANGE2, _RANGE1])
     assert get_ranges(b1) == [_RANGE2, _RANGE1]
     assert not get_ranges(b2) == [_RANGE2, _RANGE1]
 
@@ -342,7 +341,7 @@ def test_set_get_ranges_bytes():
 def test_set_get_ranges_bytearray():
     b1 = bytearray(b"abcdef")
     b2 = bytearray(b"abcdef")
-    set_ranges(b1, [_RANGE1, _RANGE2])
+    taint_pyobject_with_ranges(b1, [_RANGE1, _RANGE2])
     assert get_ranges(b1) == [_RANGE1, _RANGE2]
     assert not get_ranges(b2) == [_RANGE1, _RANGE2]
 
@@ -435,9 +434,9 @@ def test_are_all_text_all_ranges():
     source4 = Source(name="name4", value="value4", origin=OriginType.COOKIE)
     range3 = TaintRange(2, 3, source3)
     range4 = TaintRange(4, 5, source4)
-    set_ranges(s1, [_RANGE1, _RANGE2])
-    set_ranges(s2, [range3, _RANGE2])
-    set_ranges(s3, [range4, _RANGE1])
+    taint_pyobject_with_ranges(s1, [_RANGE1, _RANGE2])
+    taint_pyobject_with_ranges(s2, [range3, _RANGE2])
+    taint_pyobject_with_ranges(s3, [range4, _RANGE1])
     all_ranges, candidate_ranges = are_all_text_all_ranges(s1, (s2, s3, num))
     # Ranges are inserted at the start except the candidate ones that are appended
     assert all_ranges == [range3, _RANGE2, range4, _RANGE1, _RANGE1, _RANGE2]
@@ -456,11 +455,11 @@ def test_get_range_by_hash():
 
 
 def test_num_objects_tainted():
-    create_context()
+    _iast_start_request()
     a_1 = "abc123_len1"
     a_2 = "def456__len2"
     a_3 = "ghi789___len3"
-    assert num_objects_tainted() == 0
+    assert _num_objects_tainted_in_request() == 0
     a_1 = taint_pyobject(
         a_1,
         source_name="test_num_objects_tainted",
@@ -479,39 +478,37 @@ def test_num_objects_tainted():
         source_value=a_3,
         source_origin=OriginType.PARAMETER,
     )
-    assert num_objects_tainted() == 3
+    assert _num_objects_tainted_in_request() == 3
 
 
 def test_reset_objects():
-    create_context()
-
     a_1 = "abc123"
     a_2 = "def456"
-    assert num_objects_tainted() == 0
+    assert _num_objects_tainted_in_request() == 0
     a_1 = taint_pyobject(
         a_1,
         source_name="test_num_objects_tainted",
         source_value=a_1,
         source_origin=OriginType.PARAMETER,
     )
-    assert num_objects_tainted() == 1
+    assert _num_objects_tainted_in_request() == 1
 
-    reset_context()
-    create_context()
+    _iast_finish_request()
+    _iast_start_request()
     a_2 = taint_pyobject(
         a_2,
         source_name="test_num_objects_tainted",
         source_value=a_2,
         source_origin=OriginType.PARAMETER,
     )
-    assert num_objects_tainted() == 1
+    assert _num_objects_tainted_in_request() == 1
 
-    reset_context()
-    create_context()
+    _iast_finish_request()
+    _iast_start_request()
 
-    assert num_objects_tainted() == 0
+    assert _num_objects_tainted_in_request() == 0
 
-    reset_context()
+    _iast_finish_request()
 
 
 def context_loop():
@@ -528,7 +525,7 @@ def context_loop():
 
 
 def reset_contexts_loop():
-    create_context()
+    _iast_start_request()
 
     a_1 = "abc123"
     for i in range(25):
@@ -539,7 +536,7 @@ def reset_contexts_loop():
             source_origin=OriginType.PARAMETER,
         )
         sleep(0.01)
-    reset_contexts()
+    _iast_finish_request()
 
 
 async def async_context_loop(task_id: int):

@@ -43,7 +43,6 @@ from ddtrace.appsec._iast._taint_tracking import copy_ranges_from_strings
 from ddtrace.appsec._iast._taint_tracking import get_ranges
 from ddtrace.appsec._iast._taint_tracking import new_pyobject_id
 from ddtrace.appsec._iast._taint_tracking import parse_params
-from ddtrace.appsec._iast._taint_tracking import set_ranges
 from ddtrace.appsec._iast._taint_tracking import shift_taint_range
 from ddtrace.appsec._iast._taint_tracking._native import aspects  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._taint_objects import copy_ranges_to_iterable_with_strings

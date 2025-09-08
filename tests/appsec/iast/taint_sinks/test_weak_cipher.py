@@ -1,6 +1,8 @@
 import pytest
 
 from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
+from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
+from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
 from ddtrace.appsec._iast._patch_modules import _testing_unpatch_iast
 from ddtrace.appsec._iast.constants import VULN_WEAK_CIPHER_TYPE
 from tests.appsec.iast.conftest import iast_context
@@ -10,8 +12,6 @@ from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import cipher_blowfi
 from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import cipher_des
 from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import cipher_secure
 from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import cryptography_algorithm
-from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
-from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 from tests.appsec.iast.iast_utils import get_line_and_hash
 
 
@@ -185,9 +185,9 @@ def test_weak_cipher_rc4_unpatched(iast_context_defaults):
 
 
 def test_weak_cipher_deduplication(iast_context_deduplication_enabled):
-    _end_iast_context_and_oce()
+    _iast_finish_request()
     for num_vuln_expected in [1, 0, 0]:
-        _start_iast_context_and_oce()
+        _iast_start_request()
         for _ in range(0, 5):
             cryptography_algorithm("Blowfish")
 
@@ -199,7 +199,7 @@ def test_weak_cipher_deduplication(iast_context_deduplication_enabled):
             assert span_report
 
             assert len(span_report.vulnerabilities) == num_vuln_expected
-        _end_iast_context_and_oce()
+        _iast_finish_request()
 
 
 def test_weak_cipher_secure(iast_context_defaults):

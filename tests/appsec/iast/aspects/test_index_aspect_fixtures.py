@@ -3,9 +3,8 @@ import sys
 
 import pytest
 
+from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
 from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking._context import create_context
-from ddtrace.appsec._iast._taint_tracking._context import reset_context
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 from tests.appsec.iast.iast_utils import _iast_patched_module
@@ -103,7 +102,6 @@ def test_index_error_with_tainted_gives_one_log_metric(telemetry_writer):
 def test_propagate_ranges_with_no_context(caplog):
     """Test taint_pyobject without context. This test is to ensure that the function does not raise an exception."""
     input_str = "abcde"
-    create_context()
     string_input = taint_pyobject(
         pyobject=input_str,
         source_name="test_add_aspect_tainting_left_hand",
@@ -112,7 +110,7 @@ def test_propagate_ranges_with_no_context(caplog):
     )
     assert get_tainted_ranges(string_input)
 
-    reset_context()
+    _iast_finish_request()
     with override_global_config(dict(_iast_debug=True)), caplog.at_level(logging.DEBUG):
         result = mod.do_index(string_input, 3)
         assert result == "d"

@@ -64,7 +64,6 @@ __all__ = [
     "common_replace",
     "copy_and_shift_ranges_from_strings",
     "copy_ranges_from_strings",
-    "debug_taint_map",
     "get_range_by_hash",
     "get_ranges",
     "is_in_taint_map",

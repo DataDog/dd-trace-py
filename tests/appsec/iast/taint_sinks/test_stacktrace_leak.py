@@ -1,13 +1,13 @@
 import os
 
 from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
+from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
+from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
 from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.appsec._iast.taint_sinks.stacktrace_leak import check_and_report_stacktrace_leak
 from ddtrace.appsec._iast.taint_sinks.stacktrace_leak import get_report_stacktrace_later
 from ddtrace.appsec._iast.taint_sinks.stacktrace_leak import iast_check_stacktrace_leak
-from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
-from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 
 
 def _load_html_django_stacktrace():
@@ -47,7 +47,7 @@ def test_check_stacktrace_leak_text(iast_context_defaults):
 
 def test_stacktrace_leak_deduplication(iast_context_deduplication_enabled):
     for num_vuln_expected in [1, 0, 0]:
-        _start_iast_context_and_oce()
+        _iast_start_request()
         for _ in range(0, 5):
             iast_check_stacktrace_leak(_load_text_stacktrace())
 
@@ -61,17 +61,17 @@ def test_stacktrace_leak_deduplication(iast_context_deduplication_enabled):
             assert len(span_report.vulnerabilities) == num_vuln_expected
             vulnerability = list(span_report.vulnerabilities)[0]
             assert vulnerability.type == VULN_STACKTRACE_LEAK
-        _end_iast_context_and_oce()
+        _iast_finish_request()
     VulnerabilityBase._prepare_report._reset_cache()
 
 
 def test_check_stacktrace_leak_text_outside_context(iast_context_deduplication_enabled):
-    _end_iast_context_and_oce()
+    _iast_finish_request()
 
     # Report stacktrace outside the context
     iast_check_stacktrace_leak(_load_text_stacktrace())
     assert get_report_stacktrace_later() is not None
-    _start_iast_context_and_oce()
+    _iast_start_request()
 
     # Check the stacktrace, now with a context, like the beginning of a request
     check_and_report_stacktrace_leak()
@@ -85,4 +85,4 @@ def test_check_stacktrace_leak_text_outside_context(iast_context_deduplication_e
         == 'Module: ".usr.local.lib.python3.9.site-packages.constraints.py"\nException: ValueError'
     )
     assert get_report_stacktrace_later() is None
-    _end_iast_context_and_oce()
+    _iast_finish_request()

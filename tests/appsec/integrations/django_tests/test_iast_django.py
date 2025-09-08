@@ -6,6 +6,8 @@ import pytest
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._constants import STACK_TRACE
+from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
+from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
 from ddtrace.appsec._iast._patch_modules import _apply_custom_security_controls
 from ddtrace.appsec._iast._patch_modules import _testing_unpatch_iast
 from ddtrace.appsec._iast.constants import VULN_CMDI
@@ -16,8 +18,6 @@ from ddtrace.appsec._iast.constants import VULN_SSRF
 from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
 from ddtrace.appsec._iast.constants import VULN_UNVALIDATED_REDIRECT
 from ddtrace.settings.asm import config as asm_config
-from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
-from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.appsec.iast.iast_utils import load_iast_report
 from tests.appsec.integrations.django_tests.utils import _aux_appsec_get_root_span
@@ -987,7 +987,7 @@ def test_django_command_injection_security_control(client, tracer, security_cont
     ):
         _apply_custom_security_controls().patch()
         span = TracerSpanContainer(tracer)
-        _start_iast_context_and_oce()
+        _iast_start_request()
         root_span, _ = _aux_appsec_get_root_span(
             client,
             span,
@@ -1003,7 +1003,7 @@ def test_django_command_injection_security_control(client, tracer, security_cont
             assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_SUPPRESSED_VULNERABILITY + ".command_injection")
         else:
             assert loaded is not None
-        _end_iast_context_and_oce()
+        _iast_finish_request()
         span.reset()
         _testing_unpatch_iast()
 

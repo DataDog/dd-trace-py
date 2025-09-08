@@ -5,12 +5,12 @@ from pytest_memray import LeaksFilterFunction
 from pytest_memray import Stack
 
 from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
+from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
+from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
+from ddtrace.appsec._iast._iast_request_context_base import _num_objects_tainted_in_request
 from ddtrace.appsec._iast._stacktrace import get_info_frame
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import active_map_addreses_size
-from ddtrace.appsec._iast._taint_tracking import num_objects_tainted
-from ddtrace.appsec._iast._taint_tracking._context import create_context
-from ddtrace.appsec._iast._taint_tracking._context import reset_context
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 from tests.appsec.iast.iast_utils import _iast_patched_module
@@ -68,7 +68,7 @@ def test_propagation_memory_check(origin1, origin2, iast_context_defaults):
     _num_objects_tainted = 0
     _active_map_addreses_size = 0
     for _ in range(LOOPS):
-        create_context()
+        _iast_start_request()
         tainted_string_1 = taint_pyobject(
             origin1, source_name="path1", source_value=origin1, source_origin=OriginType.PATH
         )
@@ -83,7 +83,7 @@ def test_propagation_memory_check(origin1, origin2, iast_context_defaults):
         assert len(get_tainted_ranges(result)) == 1
 
         if _num_objects_tainted == 0:
-            _num_objects_tainted = num_objects_tainted()
+            _num_objects_tainted = _num_objects_tainted_in_request()
             assert _num_objects_tainted > 0
         if _active_map_addreses_size == 0:
             _active_map_addreses_size = active_map_addreses_size()
@@ -93,7 +93,7 @@ def test_propagation_memory_check(origin1, origin2, iast_context_defaults):
         # hence the number of tainted objects may be the same or less
         # assert num_objects_tainted() - 3 <= _num_objects_tainted <= num_objects_tainted() + 3
         assert _active_map_addreses_size == active_map_addreses_size()
-        reset_context()
+        _iast_finish_request()
 
 
 @pytest.mark.asyncio
@@ -124,7 +124,7 @@ async def test_propagation_memory_check_async(origin1, origin2, iast_context_def
     _num_objects_tainted = 0
     _active_map_addreses_size = 0
     for _ in range(LOOPS):
-        create_context()
+        _iast_start_request()
         tainted_string_1 = taint_pyobject(
             origin1, source_name="path1", source_value=origin1, source_origin=OriginType.PATH
         )
@@ -139,7 +139,7 @@ async def test_propagation_memory_check_async(origin1, origin2, iast_context_def
         assert len(get_tainted_ranges(result)) == 6
 
         if _num_objects_tainted == 0:
-            _num_objects_tainted = num_objects_tainted()
+            _num_objects_tainted = _num_objects_tainted_in_request()
             assert _num_objects_tainted > 0
         if _active_map_addreses_size == 0:
             _active_map_addreses_size = active_map_addreses_size()
@@ -149,7 +149,7 @@ async def test_propagation_memory_check_async(origin1, origin2, iast_context_def
         # hence the number of tainted objects may be the same or less
         # assert num_objects_tainted() - 3 <= _num_objects_tainted <= num_objects_tainted() + 3
         assert _active_map_addreses_size == active_map_addreses_size()
-        reset_context()
+        _iast_finish_request()
 
 
 @pytest.mark.limit_leaks("460 B", filter_fn=IASTFilter())

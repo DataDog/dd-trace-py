@@ -1,16 +1,16 @@
 from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
+from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
+from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
 from ddtrace.appsec._iast.taint_sinks.insecure_cookie import _iast_response_cookies
-from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
-from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 
 
 def test_insecure_cookie_deduplication(iast_context_deduplication_enabled):
-    _end_iast_context_and_oce()
+    _iast_finish_request(shoud_update_global_vulnerability_limit=False)
     for num_vuln_expected in [1, 0, 0]:
-        _start_iast_context_and_oce()
+        _iast_start_request()
         for _ in range(0, 5):
             _iast_response_cookies(
                 lambda *args, **kwargs: None,
@@ -29,13 +29,14 @@ def test_insecure_cookie_deduplication(iast_context_deduplication_enabled):
             assert len(span_report.vulnerabilities) == num_vuln_expected
             vulnerability = list(span_report.vulnerabilities)[0]
             assert vulnerability.type == VULN_INSECURE_COOKIE
-        _end_iast_context_and_oce()
+        _iast_finish_request(shoud_update_global_vulnerability_limit=False)
 
 
 def test_no_httponly_cookie_deduplication(iast_context_deduplication_enabled):
-    _end_iast_context_and_oce()
+    _iast_finish_request(shoud_update_global_vulnerability_limit=False)
+
     for num_vuln_expected in [1, 0, 0]:
-        _start_iast_context_and_oce()
+        _iast_start_request()
         for _ in range(0, 5):
             _iast_response_cookies(
                 lambda *args, **kwargs: None,
@@ -54,13 +55,14 @@ def test_no_httponly_cookie_deduplication(iast_context_deduplication_enabled):
             assert len(span_report.vulnerabilities) == num_vuln_expected
             vulnerability = list(span_report.vulnerabilities)[0]
             assert vulnerability.type == VULN_NO_HTTPONLY_COOKIE
-        _end_iast_context_and_oce()
+        _iast_finish_request(shoud_update_global_vulnerability_limit=False)
 
 
 def test_no_samesite_cookie_deduplication(iast_context_deduplication_enabled):
-    _end_iast_context_and_oce()
+    _iast_finish_request(shoud_update_global_vulnerability_limit=False)
+
     for num_vuln_expected in [1, 0, 0]:
-        _start_iast_context_and_oce()
+        _iast_start_request()
         for _ in range(0, 5):
             _iast_response_cookies(
                 lambda *args, **kwargs: None,
@@ -79,13 +81,14 @@ def test_no_samesite_cookie_deduplication(iast_context_deduplication_enabled):
             assert len(span_report.vulnerabilities) == num_vuln_expected
             vulnerability = list(span_report.vulnerabilities)[0]
             assert vulnerability.type == VULN_NO_SAMESITE_COOKIE
-        _end_iast_context_and_oce()
+        _iast_finish_request(shoud_update_global_vulnerability_limit=False)
 
 
 def test_all_cookies_deduplication(iast_context_deduplication_enabled):
-    _end_iast_context_and_oce()
+    _iast_finish_request(shoud_update_global_vulnerability_limit=False)
+
     for num_vuln_expected in [3, 0, 0]:
-        _start_iast_context_and_oce()
+        _iast_start_request()
         for _ in range(0, 5):
             _iast_response_cookies(
                 lambda *args, **kwargs: None,
@@ -106,13 +109,14 @@ def test_all_cookies_deduplication(iast_context_deduplication_enabled):
             assert VULN_NO_SAMESITE_COOKIE in vulnerability_types
             assert VULN_NO_HTTPONLY_COOKIE in vulnerability_types
             assert VULN_INSECURE_COOKIE in vulnerability_types
-        _end_iast_context_and_oce()
+        _iast_finish_request(shoud_update_global_vulnerability_limit=False)
 
 
 def test_all_cookies_two_different_sinks_deduplication(iast_context_deduplication_enabled):
-    _end_iast_context_and_oce()
+    _iast_finish_request(shoud_update_global_vulnerability_limit=False)
+
     for num_vuln_expected in [6, 0, 0]:
-        _start_iast_context_and_oce()
+        _iast_start_request()
         for _ in range(0, 5):
             _iast_response_cookies(
                 lambda *args, **kwargs: None,
@@ -139,13 +143,14 @@ def test_all_cookies_two_different_sinks_deduplication(iast_context_deduplicatio
             assert VULN_NO_SAMESITE_COOKIE in vulnerability_types
             assert VULN_NO_HTTPONLY_COOKIE in vulnerability_types
             assert VULN_INSECURE_COOKIE in vulnerability_types
-        _end_iast_context_and_oce()
+        _iast_finish_request(shoud_update_global_vulnerability_limit=False)
 
 
 def test_all_cookies_three_different_sinks_deduplication(iast_context_deduplication_enabled):
-    _end_iast_context_and_oce()
+    _iast_finish_request(shoud_update_global_vulnerability_limit=False)
+
     for num_vuln_expected in [6, 0, 0]:
-        _start_iast_context_and_oce()
+        _iast_start_request()
         for _ in range(0, 5):
             _iast_response_cookies(
                 lambda *args, **kwargs: None,
@@ -178,4 +183,4 @@ def test_all_cookies_three_different_sinks_deduplication(iast_context_deduplicat
             assert VULN_NO_SAMESITE_COOKIE in vulnerability_types
             assert VULN_NO_HTTPONLY_COOKIE in vulnerability_types
             assert VULN_INSECURE_COOKIE in vulnerability_types
-        _end_iast_context_and_oce()
+        _iast_finish_request(shoud_update_global_vulnerability_limit=False)

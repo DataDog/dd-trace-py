@@ -5,6 +5,7 @@ from hypothesis import given
 from hypothesis.strategies import one_of
 import pytest
 
+from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking import TaintRange
@@ -12,10 +13,8 @@ from ddtrace.appsec._iast._taint_tracking import _aspect_rsplit
 from ddtrace.appsec._iast._taint_tracking import _aspect_split
 from ddtrace.appsec._iast._taint_tracking import _aspect_splitlines
 from ddtrace.appsec._iast._taint_tracking import get_ranges
-from ddtrace.appsec._iast._taint_tracking import taint_pyobject_with_ranges
-from ddtrace.appsec._iast._taint_tracking._context import create_context
-from ddtrace.appsec._iast._taint_tracking._context import reset_context
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject_with_ranges
 from tests.appsec.iast.aspects.test_aspect_helpers import _build_sample_range
 from tests.appsec.iast.iast_utils import non_empty_text
 from tests.utils import override_global_config
@@ -176,7 +175,6 @@ def test_aspect_splitlines_keepend_true():
 def test_propagate_ranges_with_no_context(caplog):
     """Test taint_pyobject without context. This test is to ensure that the function does not raise an exception."""
     input_str = "abc|def"
-    create_context()
     string_input = taint_pyobject(
         pyobject=input_str,
         source_name="test_add_aspect_tainting_left_hand",
@@ -185,7 +183,7 @@ def test_propagate_ranges_with_no_context(caplog):
     )
     assert get_ranges(string_input)
 
-    reset_context()
+    _iast_finish_request()
     with override_global_config(dict(_iast_debug=True)), caplog.at_level(logging.DEBUG):
         result = wrap_somesplit(_aspect_split, string_input, "|")
         assert result == ["abc", "def"]

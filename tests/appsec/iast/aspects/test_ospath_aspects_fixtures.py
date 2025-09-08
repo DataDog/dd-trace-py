@@ -5,11 +5,10 @@ from unittest import mock
 
 import pytest
 
+from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking import TaintRange
-from ddtrace.appsec._iast._taint_tracking._context import create_context
-from ddtrace.appsec._iast._taint_tracking._context import reset_context
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 from tests.appsec.iast.iast_utils import _iast_patched_module
@@ -151,7 +150,6 @@ def test_ospathsplitdrive_tainted():
 def test_propagate_ranges_with_no_context(caplog):
     """Test taint_pyobject without context. This test is to ensure that the function does not raise an exception."""
     input_str = "abcde"
-    create_context()
     string_input = taint_pyobject(
         pyobject=input_str,
         source_name="test_add_aspect_tainting_left_hand",
@@ -160,12 +158,9 @@ def test_propagate_ranges_with_no_context(caplog):
     )
     assert get_tainted_ranges(string_input)
 
-    reset_context()
+    _iast_finish_request()
     with override_global_config(dict(_iast_debug=True)), caplog.at_level(logging.DEBUG):
         result = mod.do_os_path_join(string_input, "bar")
         assert result == "abcde/bar"
     log_messages = [record.message for record in caplog.get_records("call")]
     assert not any("iast::" in message for message in log_messages), log_messages
-
-
-# TODO: add tests for os.path.splitdrive and os.path.normcase under Windows

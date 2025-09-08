@@ -9,10 +9,9 @@ from hypothesis import given
 from hypothesis.strategies import text
 import pytest
 
+from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
-from ddtrace.appsec._iast._taint_tracking._context import create_context
-from ddtrace.appsec._iast._taint_tracking._context import reset_context
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
@@ -245,14 +244,13 @@ class TestOperatorFormatReplacement(BaseReplacement):
 def test_propagate_ranges_with_no_context(caplog):
     """Test taint_pyobject without context. This test is to ensure that the function does not raise an exception."""
     string_to_taint = "-1234 {} {} {} {test_kwarg} {test_var}"
-    create_context()
     string_input = taint_pyobject(
         pyobject=string_to_taint,
         source_name="test_add_aspect_tainting_left_hand",
         source_value=string_to_taint,
         source_origin=OriginType.PARAMETER,
     )
-    reset_context()
+    _iast_finish_request()
     with override_global_config(dict(_iast_debug=True)), caplog.at_level(logging.DEBUG):
         result_2 = mod.do_args_kwargs_4(string_input, 6, test_var=1)
 

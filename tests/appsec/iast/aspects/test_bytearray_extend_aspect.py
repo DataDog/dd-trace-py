@@ -3,11 +3,10 @@ import logging
 
 import pytest
 
+from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking import TaintRange
-from ddtrace.appsec._iast._taint_tracking._context import create_context
-from ddtrace.appsec._iast._taint_tracking._context import reset_context
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 from tests.appsec.iast.iast_utils import _iast_patched_module
@@ -112,12 +111,11 @@ class TestByteArrayExtendAspect(object):
 
 @pytest.mark.skip_iast_check_logs
 def test_propagate_ranges_with_no_context(caplog):
-    create_context()
     ba1 = bytearray(b"123")
     ba2 = taint_pyobject(
         pyobject=bytearray(b"456"), source_name="test", source_value="foo", source_origin=OriginType.PARAMETER
     )
-    reset_context()
+    _iast_finish_request()
     with override_global_config(dict(_iast_debug=True)), caplog.at_level(logging.DEBUG):
         result = mod.do_bytearray_extend(ba1, ba2)
         assert result == bytearray(b"123456")

@@ -4,9 +4,8 @@ import logging
 
 import pytest
 
+from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
 from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking._context import create_context
-from ddtrace.appsec._iast._taint_tracking._context import reset_context
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 from tests.appsec.iast.iast_utils import _iast_patched_module
@@ -528,12 +527,11 @@ class TestOperatorJoinReplacement(object):
 
 @pytest.mark.skip_iast_check_logs
 def test_propagate_ranges_with_no_context(caplog):
-    create_context()
     string_input = taint_pyobject(
         pyobject="-joiner-", source_name="joiner", source_value="foo", source_origin=OriginType.PARAMETER
     )
     it = ["a", "b", "c"]
-    reset_context()
+    _iast_finish_request()
     with override_global_config(dict(_iast_debug=True)), caplog.at_level(logging.DEBUG):
         result = mod.do_join(string_input, it)
         assert result == "a-joiner-b-joiner-c"
@@ -543,7 +541,6 @@ def test_propagate_ranges_with_no_context(caplog):
 
 @pytest.mark.skip_iast_check_logs
 def test_propagate_ranges_with_no_context_with_var(caplog):
-    create_context()
     string_input = taint_pyobject(
         pyobject="-joiner-", source_name="joiner", source_value="foo", source_origin=OriginType.PARAMETER
     )
@@ -552,7 +549,7 @@ def test_propagate_ranges_with_no_context_with_var(caplog):
         "b",
         "c",
     ]
-    reset_context()
+    _iast_finish_request()
     with override_global_config(dict(_iast_debug=True)), caplog.at_level(logging.DEBUG):
         result = mod.do_join(string_input, it)
         assert result == "a-joiner-b-joiner-c"
@@ -562,7 +559,6 @@ def test_propagate_ranges_with_no_context_with_var(caplog):
 
 @pytest.mark.skip_iast_check_logs
 def test_propagate_ranges_with_no_context_with_equal_var(caplog):
-    create_context()
     string_input = taint_pyobject(
         pyobject="-joiner-", source_name="joiner", source_value="foo", source_origin=OriginType.PARAMETER
     )
@@ -570,7 +566,7 @@ def test_propagate_ranges_with_no_context_with_equal_var(caplog):
         pyobject="abcdef", source_name="joined", source_value="abcdef", source_origin=OriginType.PARAMETER
     )
 
-    reset_context()
+    _iast_finish_request()
     with override_global_config(dict(_iast_debug=True)), caplog.at_level(logging.DEBUG):
         result = mod.do_join(string_input, [a_tainted, a_tainted, a_tainted])
         assert result == "abcdef-joiner-abcdef-joiner-abcdef"
