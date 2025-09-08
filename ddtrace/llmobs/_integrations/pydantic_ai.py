@@ -136,7 +136,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         span._set_ctx_items(
             {
                 NAME: tool_name,
-                METADATA: {"description": tool_description},
+                METADATA: {"description": tool_description} if tool_description else {},
                 INPUT_VALUE: tool_input,
             }
         )

@@ -1156,7 +1156,7 @@ class OaiSpanAdapter:
         for item in messages:
             message = {}
             # Handle content-based messages
-            if hasattr(item, "content"):
+            if hasattr(item, "content") and item.content:
                 text = ""
                 for content in item.content:
                     if hasattr(content, "text") or hasattr(content, "refusal"):
