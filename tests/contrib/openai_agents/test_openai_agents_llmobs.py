@@ -571,7 +571,8 @@ async def test_llmobs_multiple_agent_handoffs(agents, mock_tracer, request_vcr, 
                             {
                                 "tool_id": mock.ANY,
                                 "name": "",
-                                "result": "united beat liverpool 2-1 yesterday. also a lot of other stuff happened. like super important stuff. blah blah blah.",
+                                "result": "united beat liverpool 2-1 yesterday. also a lot of other stuff happened."
+                                "like super important stuff. blah blah blah.",
                                 "type": "function_call_output",
                             }
                         ],
@@ -681,7 +682,8 @@ async def test_llmobs_single_agent_with_tool_errors(
                             {
                                 "tool_id": mock.ANY,
                                 "name": "",
-                                "result": "An error occurred while running the tool. Please try again. Error: This is a test error",
+                                "result": "An error occurred while running the tool."
+                                "Please try again. Error: This is a test error",
                                 "type": "function_call_output",
                             }
                         ],
