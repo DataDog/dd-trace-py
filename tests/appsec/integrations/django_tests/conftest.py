@@ -15,6 +15,7 @@ from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
 from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
+from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -60,7 +61,8 @@ def tracer():
 
     # Yield to our test
     core.tracer = tracer
-    yield tracer
+    with override_config("django", dict(_tracer=tracer)):
+        yield tracer
     tracer.pop()
     core.tracer = original_tracer
     # Reset the tracer pinned to Django and unpatch
