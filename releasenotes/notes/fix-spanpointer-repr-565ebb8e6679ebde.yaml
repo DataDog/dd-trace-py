@@ -1,0 +1,3 @@
+fixes:
+  - |
+    span pointer: This fix resolves an issue where the __repr__ method is trying to access non-existent direction and hash attributes directly
