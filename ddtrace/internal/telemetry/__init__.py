@@ -7,6 +7,8 @@ This is normally started automatically when ``ddtrace`` is imported. It can be d
 import os
 import typing as t
 
+from ddtrace import _INSTRUMENTATION_ENABLED
+
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.formats import asbool
@@ -185,5 +187,6 @@ def _hiding_otel_config(otel_env, dd_env):
     )
 
 
-# TODO: Remove this once the telemetry feature is refactored to a better design
-report_configuration(agent_config)
+if _INSTRUMENTATION_ENABLED:
+    # TODO: Remove this once the telemetry feature is refactored to a better design
+    report_configuration(agent_config)
