@@ -21,7 +21,7 @@ candidate:
     - pipeline: $PARENT_PIPELINE_ID
       job: download_ddtrace_artifacts
   script: |
-    cp pywheels/*-cp39-cp39-manylinux*_x86_64*.whl ./candidate.whl
+    cp pywheels/*-cp39-cp39-manylinux*_x86_64*.whl ./ddtrace-3-cp39-cp39-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
   artifacts:
     paths:
       - "*.whl"
@@ -55,7 +55,7 @@ candidate:
       - platform/artifacts/
     expire_in: 3 months
   variables:
-    DDTRACE_INSTALL_VERSION: "./candidate.whl"
+    DDTRACE_INSTALL_VERSION: "./ddtrace-3-cp39-cp39-manylinux2014_x86_64.manylinux_2_17_x86_64.whl"
 
     # Benchmark's env variables. Modify to tweak benchmark parameters.
     DD_TRACE_DEBUG: "false"
