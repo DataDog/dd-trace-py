@@ -429,6 +429,7 @@ def test_dataset_pull_exists_but_no_records(llmobs, test_dataset, test_dataset_r
 
 
 def test_dataset_pull_exists_with_record(llmobs, test_dataset_one_record):
+    wait_for_backend(4)
     dataset = llmobs.pull_dataset(dataset_name=test_dataset_one_record.name)
     assert dataset.project.get("name") == "test-project"
     assert dataset.project.get("_id")
@@ -660,6 +661,8 @@ def test_dataset_modify_record_on_input(llmobs, test_dataset, test_dataset_recor
     assert test_dataset.name == test_dataset.name
     assert test_dataset.description == test_dataset.description
 
+    wait_for_backend(4)
+
     # assert that the version is consistent with a new pull
 
     ds = llmobs.pull_dataset(dataset_name=test_dataset.name)
@@ -741,10 +744,9 @@ def test_dataset_extend(llmobs, test_dataset):
     assert ds._version == 2
     assert len(ds) == 3
     assert ds[2]["input_data"] == {"prompt": "What is the capital of France?"}
-    # france was first inserted so it is last (last updated)
-    # then order is reversed for the append
-    assert ds[0]["input_data"] == {"prompt": "What is the capital of Sweden?"}
-    assert ds[1]["input_data"] == {"prompt": "What is the capital of Italy?"}
+    # order is non deterministic
+    assert ds[1]["input_data"] == {"prompt": "What is the capital of Sweden?"}
+    assert ds[0]["input_data"] == {"prompt": "What is the capital of Italy?"}
     assert ds.name == test_dataset.name
     assert ds.description == test_dataset.description
 

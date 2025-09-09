@@ -21,8 +21,8 @@ interactions:
     uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/97aeb674-3464-45a7-a1eb-5ba857779c54/datasets
   response:
     body:
-      string: '{"data":{"id":"2b8768ec-f3c0-4f7e-8fad-baf27e4e45c6","type":"datasets","attributes":{"author":{"id":"de473b30-eb9f-11e9-a77a-c7405862b8bd"},"created_at":"2025-09-09T03:55:52.765772044Z","current_version":0,"description":"A
-        second test dataset","name":"test-dataset-2","project_id":"97aeb674-3464-45a7-a1eb-5ba857779c54","updated_at":"2025-09-09T03:55:52.765772044Z"}}}'
+      string: '{"data":{"id":"28acc97e-4d31-421d-893e-5da3e3a59465","type":"datasets","attributes":{"author":{"id":"de473b30-eb9f-11e9-a77a-c7405862b8bd"},"created_at":"2025-09-09T04:32:00.950884448Z","current_version":0,"description":"A
+        second test dataset","name":"test-dataset-2","project_id":"97aeb674-3464-45a7-a1eb-5ba857779c54","updated_at":"2025-09-09T04:32:00.950884448Z"}}}'
     headers:
       content-length:
       - '368'
@@ -31,7 +31,7 @@ interactions:
       content-type:
       - application/vnd.api+json
       date:
-      - Tue, 09 Sep 2025 03:55:52 GMT
+      - Tue, 09 Sep 2025 04:32:00 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       vary:
