@@ -1078,7 +1078,7 @@ class LLMObs(Service):
             )
         if prompt is not None:
             try:
-                validated_prompt = _validate_prompt(prompt, _get_ml_app(span))
+                validated_prompt = _validate_prompt(prompt)
                 self._set_dict_attribute(span, INPUT_PROMPT, validated_prompt)
             except (ValueError, TypeError) as e:
                 raise e
@@ -1423,7 +1423,7 @@ class LLMObs(Service):
                 span.name = _name
             if prompt is not None:
                 try:
-                    validated_prompt = _validate_prompt(prompt, _get_ml_app(span), strict_validation=False)
+                    validated_prompt = _validate_prompt(prompt, strict_validation=False)
                     cls._set_dict_attribute(span, INPUT_PROMPT, validated_prompt)
                 except (ValueError, TypeError) as e:
                     error = "invalid_prompt"

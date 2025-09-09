@@ -47,13 +47,11 @@ STANDARD_INTEGRATION_SPAN_NAMES = (
 )
 
 
-def _validate_prompt(
-    prompt: Union[Dict[str, Any], Prompt], ml_app: Optional[str] = None, strict_validation: bool = True
-) -> ValidatedPromptDict:
+def _validate_prompt(prompt: Union[Dict[str, Any], Prompt], strict_validation: bool = True) -> ValidatedPromptDict:
     if not isinstance(prompt, dict):
         raise TypeError(f"Prompt must be a dictionary, got {type(prompt).__name__}.")
 
-    # Stage 1: Extract values
+    ml_app = config._llmobs_ml_app or DEFAULT_PROMPT_ML_APP
     prompt_id = prompt.get("id")
     version = prompt.get("version")
     tags = prompt.get("tags")
@@ -63,16 +61,13 @@ def _validate_prompt(
     ctx_variable_keys = prompt.get("rag_context_variables")
     query_variable_keys = prompt.get("rag_query_variables")
 
-    # Stage 2: Strict validation and sanity checks
     if strict_validation:
         _strict_validate_prompt(prompt)
 
     if template and chat_template:
         raise ValueError("Only one of 'template' or 'chat_template' can be provided, not both.")
 
-    # Stage 3: Set defaults
-    final_ml_app = ml_app or DEFAULT_PROMPT_ML_APP
-    final_prompt_id = prompt_id or f"{final_ml_app}_{DEFAULT_PROMPT_NAME}"
+    final_prompt_id = prompt_id or f"{ml_app}_{DEFAULT_PROMPT_NAME}"
     final_ctx_variable_keys = ctx_variable_keys or ["context"]
     final_query_variable_keys = query_variable_keys or ["question"]
 
