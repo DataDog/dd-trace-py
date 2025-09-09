@@ -541,7 +541,7 @@ def test_dataset_estimate_size(llmobs, test_dataset):
     "test_dataset_records",
     [[DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"})]],
 )
-def test_dataset_modify_single_record_on_optional_field(llmobs, test_dataset, test_dataset_records):
+def test_dataset_modify_record_on_optional(llmobs, test_dataset, test_dataset_records):
     assert test_dataset._version == 1
 
     test_dataset.update(0, {"expected_output": None})
@@ -583,9 +583,8 @@ def test_dataset_modify_single_record_on_optional_field(llmobs, test_dataset, te
         ]
     ],
 )
-def test_dataset_modify_single_record_on_input_should_not_effect_others(llmobs, test_dataset, test_dataset_records):
+def test_dataset_modify_record_on_input(llmobs, test_dataset, test_dataset_records):
     assert test_dataset._version == 1
-
     test_dataset.update(0, {"input_data": "A"})
     assert test_dataset[0]["input_data"] == "A"
     assert test_dataset[0]["expected_output"] == {"answer": "Paris"}

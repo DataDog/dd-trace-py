@@ -1,0 +1,47 @@
+interactions:
+- request:
+    body: '{"data": {"type": "datasets", "id": "b05bf30a-f4e9-4c50-a6ad-1f02486804d6",
+      "attributes": {"insert_records": [], "update_records": [{"input": "A", "expected_output":
+      null, "metadata": null, "id": "e9e99009-b4e4-450e-8a40-1303755c342d"}], "delete_records":
+      []}}}'
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '261'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.3
+    method: POST
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/b05bf30a-f4e9-4c50-a6ad-1f02486804d6/batch_update
+  response:
+    body:
+      string: '{"data":[{"id":"ddbba7d2-b0af-459a-9a4b-e4270e30a10b","type":"datasets","attributes":{"author":{"id":"de473b30-eb9f-11e9-a77a-c7405862b8bd"},"created_at":"2025-09-09T03:08:46.763804745Z","dataset_id":"b05bf30a-f4e9-4c50-a6ad-1f02486804d6","expected_output":{"answer":"Paris"},"input":"A","metadata":{"difficulty":"easy"},"updated_at":"2025-09-09T03:08:46.763804819Z","version":2}}]}'
+    headers:
+      content-length:
+      - '382'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Tue, 09 Sep 2025 03:08:46 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
