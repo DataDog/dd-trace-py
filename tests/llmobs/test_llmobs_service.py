@@ -866,13 +866,13 @@ def test_annotate_prompt_wrong_type(llmobs, mock_llmobs_logs):
         llmobs.annotate(span=span, prompt="prompt")
         assert span._get_ctx_item(INPUT_PROMPT) is None
         mock_llmobs_logs.warning.assert_called_once_with(
-            "Failed to validate prompt with error:", "Prompt must be a dictionary, got str.", exc_info=True
+            "Failed to validate prompt with error:", "Prompt must be a dictionary, received str.", exc_info=True
         )
         mock_llmobs_logs.reset_mock()
 
         llmobs.annotate(span=span, prompt={"template": 1})
         mock_llmobs_logs.warning.assert_called_once_with(
-            "Failed to validate prompt with error:", "'template' must be str, got int.", exc_info=True
+            "Failed to validate prompt with error:", "template: 1 must be a string, received int", exc_info=True
         )
         mock_llmobs_logs.reset_mock()
 
