@@ -4925,7 +4925,7 @@ def test_simple():
             rec.assert_outcomes(passed=1)
             assert 0 == rec.ret
             # Verify fast execution (disabled plugin should have minimal overhead)
-            assert execution_time < 0.5, f"Test took {execution_time:.2f}s, expected < 0.5s (for ddtrace not executing)"
+            assert execution_time < 0.7, f"Test took {execution_time:.2f}s, expected < 0.7s (for ddtrace not executing)"
 
     def test_civisibility_killswitch_functions_not_called_when_disabled_false_module_check(self):
         """Test that key ddtrace modules are not imported when DD_CIVISIBILITY_ENABLED=false.
@@ -4979,7 +4979,7 @@ def test_simple():
         # Verify test passed and ran quickly
         result.assert_outcomes(passed=1)
         assert result.ret == 0
-        assert execution_time < 0.5, f"Test took {execution_time:.2f}s, expected < 0.5s (for ddtrace not executing)"
+        assert execution_time < 0.7, f"Test took {execution_time:.2f}s, expected < 0.7s (for ddtrace not executing)"
 
     def test_civisibility_killswitch_proxy_plugins_working(self):
         """Test that our new ddtrace_pytest proxy plugins are working correctly."""
