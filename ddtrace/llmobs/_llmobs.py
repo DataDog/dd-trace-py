@@ -1423,7 +1423,6 @@ class LLMObs(Service):
                 span.name = _name
             if prompt is not None:
                 try:
-                    # strict validation disabled to allow for retro-compatibility
                     validated_prompt = _validate_prompt(prompt, _get_ml_app(span), strict_validation=False)
                     cls._set_dict_attribute(span, INPUT_PROMPT, validated_prompt)
                 except (ValueError, TypeError) as e:
