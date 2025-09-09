@@ -98,7 +98,7 @@ def track_user(
     usr_role = meta.pop("role", None) or meta.pop("usr.role", None)
     _trace_utils.set_user(
         None,
-        user_id,
+        str(user_id) if user_id is not None else "",
         name=usr_name if isinstance(usr_name, str) else None,
         email=usr_email if isinstance(usr_email, str) else None,
         scope=usr_scope if isinstance(usr_scope, str) else None,

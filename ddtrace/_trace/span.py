@@ -372,7 +372,7 @@ class Span(object):
         INT_TYPES = (net.TARGET_PORT,)
         if key in INT_TYPES and not val_is_an_int:
             try:
-                value = int(value)
+                value = int(value) if value is not None else None
                 val_is_an_int = True
             except (ValueError, TypeError):
                 pass
