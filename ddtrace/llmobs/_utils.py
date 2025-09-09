@@ -49,7 +49,7 @@ STANDARD_INTEGRATION_SPAN_NAMES = (
 
 def _validate_prompt(prompt: Union[Dict[str, Any], Prompt], strict_validation: bool = True) -> ValidatedPromptDict:
     if not isinstance(prompt, dict):
-        raise TypeError(f"Prompt must be a dictionary, got {type(prompt).__name__}.")
+        raise TypeError(f"Prompt must be a dictionary, received {type(prompt).__name__}.")
 
     ml_app = config._llmobs_ml_app
     prompt_id = prompt.get("id")
@@ -77,27 +77,31 @@ def _validate_prompt(prompt: Union[Dict[str, Any], Prompt], strict_validation: b
     final_query_variable_keys = query_variable_keys or ["question"]
 
     if not isinstance(final_prompt_id, str):
-        raise TypeError(f"prompt_id {final_prompt_id} must be a string.")
+        raise TypeError(f"prompt_id {final_prompt_id} must be a string, received {type(final_prompt_id).__name__}")
 
     if not (isinstance(final_ctx_variable_keys, list) and all(isinstance(i, str) for i in final_ctx_variable_keys)):
-        raise TypeError("ctx_variables must be a list of strings.")
+        raise TypeError(f"ctx_variables must be a list of strings, received {type(final_ctx_variable_keys).__name__}")
 
     if not (isinstance(final_query_variable_keys, list) and all(isinstance(i, str) for i in final_query_variable_keys)):
-        raise TypeError("query_variables must be a list of strings.")
+        raise TypeError(
+            f"query_variables must be a list of strings, received {type(final_query_variable_keys).__name__}"
+        )
 
     if version and not isinstance(version, str):
-        raise TypeError(f"version: {version} must be a string.")
+        raise TypeError(f"version: {version} must be a string, received {type(version).__name__}")
 
     if tags:
         if not isinstance(tags, dict):
-            raise TypeError(f"tags: {tags} must be a dictionary of string key-value pairs.")
+            raise TypeError(
+                f"tags: {tags} must be a dictionary of string key-value pairs, received {type(tags).__name__}"
+            )
         if not all(isinstance(k, str) for k in tags):
             raise TypeError("Keys of 'tags' must all be strings.")
         if not all(isinstance(k, str) for k in tags.values()):
             raise TypeError("Values of 'tags' must all be strings.")
 
     if template and not isinstance(template, str):
-        raise TypeError(f"template: {template} must be a string.")
+        raise TypeError(f"template: {template} must be a string, received {type(template).__name__}")
 
     if chat_template:
         if not isinstance(chat_template, list):
@@ -110,7 +114,9 @@ def _validate_prompt(prompt: Union[Dict[str, Any], Prompt], strict_validation: b
 
     if variables:
         if not isinstance(variables, dict):
-            raise TypeError(f"variables: {variables} must be a dictionary with string keys.")
+            raise TypeError(
+                f"variables: {variables} must be a dictionary with string keys, received {type(variables).__name__}"
+            )
         if not all(isinstance(k, str) for k in variables):
             raise TypeError("Keys of 'variables' must all be strings.")
 
