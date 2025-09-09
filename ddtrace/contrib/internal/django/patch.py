@@ -431,7 +431,7 @@ def _patch(django):
     def _(m):
         from .response import instrument_module
 
-        instrument_module(django)
+        instrument_module(django, m)
 
     @when_imported("django.contrib.auth")
     def _(m):
@@ -527,7 +527,7 @@ def _unpatch(django):
 
     from .response import uninstrument_module
 
-    uninstrument_module(django)
+    uninstrument_module(django, django.core.handlers.base)
 
 
 def unpatch():

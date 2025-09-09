@@ -180,10 +180,10 @@ def traced_get_response(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[
                     return response  # noqa: B012
 
 
-def instrument_module(django: ModuleType) -> None:
-    if not is_wrapped_with(django.core.handlers.base.BaseHandler.get_response, traced_get_response):
+def instrument_module(django: ModuleType, django_core_handlers_base: ModuleType) -> None:
+    if not is_wrapped_with(django_core_handlers_base.BaseHandler.get_response, traced_get_response):
         wrap(
-            django.core.handlers.base.BaseHandler.get_response,
+            django_core_handlers_base.BaseHandler.get_response,
             traced_get_response,
         )
 
@@ -191,14 +191,14 @@ def instrument_module(django: ModuleType) -> None:
         # Have to inline this import as the module contains syntax incompatible with Python 3.5 and below
         from ._asgi import traced_get_response_async
 
-        if not is_wrapped_with(django.core.handlers.base.BaseHandler.get_response_async, traced_get_response_async):
-            wrap(django.core.handlers.base.BaseHandler.get_response_async, traced_get_response_async)
+        if not is_wrapped_with(django_core_handlers_base.BaseHandler.get_response_async, traced_get_response_async):
+            wrap(django_core_handlers_base.BaseHandler.get_response_async, traced_get_response_async)
 
 
-def uninstrument_module(django: ModuleType) -> None:
-    if is_wrapped_with(django.core.handlers.base.BaseHandler.get_response, traced_get_response):
+def uninstrument_module(django: ModuleType, django_core_handlers_base: ModuleType) -> None:
+    if is_wrapped_with(django_core_handlers_base.BaseHandler.get_response, traced_get_response):
         unwrap(
-            django.core.handlers.base.BaseHandler.get_response,
+            django_core_handlers_base.BaseHandler.get_response,
             traced_get_response,
         )
 
@@ -206,8 +206,8 @@ def uninstrument_module(django: ModuleType) -> None:
         # Have to inline this import as the module contains syntax incompatible with Python 3.5 and below
         from ._asgi import traced_get_response_async
 
-        if is_wrapped_with(django.core.handlers.base.BaseHandler.get_response_async, traced_get_response_async):
+        if is_wrapped_with(django_core_handlers_base.BaseHandler.get_response_async, traced_get_response_async):
             unwrap(
-                django.core.handlers.base.BaseHandler.get_response_async,
+                django_core_handlers_base.BaseHandler.get_response_async,
                 traced_get_response_async,
             )
