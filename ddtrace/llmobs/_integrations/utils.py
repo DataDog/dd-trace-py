@@ -553,9 +553,12 @@ def openai_get_input_messages_from_response_input(
     processed, _ = _openai_parse_input_response_messages(messages)
     return processed
 
-def _openai_parse_input_response_messages(messages: List[Any], system_instructions: str = "") -> Tuple[List[Dict[str, Any]], List[str]]:
+
+def _openai_parse_input_response_messages(
+    messages: List[Any], system_instructions: str = ""
+) -> Tuple[List[Dict[str, Any]], List[str]]:
     """
-    Parses input messages from the openai responses api into a list of processed messages 
+    Parses input messages from the openai responses api into a list of processed messages
     and a list of tool call IDs.
 
     Args:
@@ -654,9 +657,10 @@ def openai_get_output_messages_from_response(response: Optional[Any]) -> List[Di
 
     return processed_messages
 
+
 def _openai_parse_output_response_messages(messages: List[Any]) -> Tuple[List[Dict[str, Any]], List[ToolCall]]:
     """
-    Parses output messages from the openai responses api into a list of processed messages 
+    Parses output messages from the openai responses api into a list of processed messages
     and a list of tool call outputs.
 
     Args:
@@ -675,7 +679,7 @@ def _openai_parse_output_response_messages(messages: List[Any]) -> Tuple[List[Di
 
         if message_type == "message":
             text = ""
-            for content in _get_attr(item, "content", []):
+            for content in _get_attr(item, "content", []) or []:
                 text += str(_get_attr(content, "text", "") or "")
                 text += str(_get_attr(content, "refusal", "") or "")
             message.update({"role": _get_attr(item, "role", "assistant"), "content": text})
@@ -720,9 +724,8 @@ def _openai_parse_output_response_messages(messages: List[Any]) -> Tuple[List[Di
             message.update({"content": str(item)})
 
         processed.append(message)
-    
-    return processed, tool_call_outputs
 
+    return processed, tool_call_outputs
 
 
 def openai_get_metadata_from_response(

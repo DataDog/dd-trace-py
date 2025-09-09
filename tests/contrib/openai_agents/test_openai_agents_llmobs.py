@@ -435,7 +435,12 @@ async def test_llmobs_single_agent_with_tool_calls_llmobs(
                         ],
                         "role": "assistant",
                     },
-                    {"role": "user", "tool_results": [{"tool_id": mock.ANY, "name": "", "result": "3", "type": "function_call_output"}]},
+                    {
+                        "role": "user",
+                        "tool_results": [
+                            {"tool_id": mock.ANY, "name": "", "result": "3", "type": "function_call_output"}
+                        ],
+                    },
                 ],
                 [{"role": "assistant", "content": result.final_output}],
             ),
@@ -560,7 +565,17 @@ async def test_llmobs_multiple_agent_handoffs(agents, mock_tracer, request_vcr, 
                         ],
                         "role": "assistant",
                     },
-                    {"role": "user", "tool_results": [{"tool_id": mock.ANY, "name": "", "result": "united beat liverpool 2-1 yesterday. also a lot of other stuff happened. like super important stuff. blah blah blah.", "type": "function_call_output"}]},
+                    {
+                        "role": "user",
+                        "tool_results": [
+                            {
+                                "tool_id": mock.ANY,
+                                "name": "",
+                                "result": "united beat liverpool 2-1 yesterday. also a lot of other stuff happened. like super important stuff. blah blah blah.",
+                                "type": "function_call_output",
+                            }
+                        ],
+                    },
                 ],
                 [
                     {"role": "assistant", "content": mock.ANY},
@@ -660,7 +675,17 @@ async def test_llmobs_single_agent_with_tool_errors(
                         ],
                         "role": "assistant",
                     },
-                    {"role": "user", "tool_results": [{"tool_id": mock.ANY, "name": "", "result": "An error occurred while running the tool. Please try again. Error: This is a test error", "type": "function_call_output"}]},
+                    {
+                        "role": "user",
+                        "tool_results": [
+                            {
+                                "tool_id": mock.ANY,
+                                "name": "",
+                                "result": "An error occurred while running the tool. Please try again. Error: This is a test error",
+                                "type": "function_call_output",
+                            }
+                        ],
+                    },
                 ],
                 [{"role": "assistant", "content": result.final_output}],
             ),
