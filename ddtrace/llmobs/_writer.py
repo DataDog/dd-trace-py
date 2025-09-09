@@ -587,8 +587,11 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         project_id = response_data["data"]["id"]
 
         if not project_id:
-            raise ValueError(
-                f"project ID is required for dataset & experiments features " f"(project name: {project_name})"
+            logger.error(
+                "got empty project ID for project %s in response, code=%d, resp=%s",
+                project_name,
+                resp.status,
+                resp.get_json(),
             )
 
         project = Project(name=project_name, _id=project_id)
