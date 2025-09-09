@@ -224,3 +224,6 @@ tests/contrib/aws_lambda            @DataDog/apm-serverless
 # Data Streams Monitoring
 ddtrace/internal/datastreams        @DataDog/data-streams-monitoring
 tests/datastreams                   @DataDog/data-streams-monitoring
+
+# ddtrace_pytest namespace
+ddtrace_pytest                      @DataDog/ci-app-libraries
