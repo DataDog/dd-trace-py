@@ -1,5 +1,6 @@
 from typing import Dict
 from typing import List
+from typing import Optional
 from typing import Tuple
 
 import mock
@@ -122,9 +123,9 @@ def _assert_expected_agent_run(
     expected_span_names: List[str],
     spans,
     llmobs_events,
-    llm_calls: List[Tuple[List[Dict], List[Dict]]] = None,
-    tool_calls: List[dict] = None,
-    previous_tool_events: List[dict] = None,
+    llm_calls: Optional[List[Tuple[List[Dict], List[Dict]]]] = None,
+    tool_calls: Optional[List[dict]] = None,
+    previous_tool_events: Optional[List[dict]] = None,
     is_chat=False,
 ) -> List[dict]:
     """Assert expected LLMObs events matches actual events for an agent run

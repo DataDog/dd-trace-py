@@ -46,7 +46,7 @@ KNOWN_MODEL_PREFIX_TO_PROVIDER = {
 
 
 def extract_provider_and_model_name(
-    kwargs: Optional[Dict[str, Any]] = None, instance: Any = None, model_name_attr: Optional[str] = None
+    kwargs: Optional[Dict[str, Any]] = None, instance: Optional[Any] = None, model_name_attr: Optional[str] = None
 ) -> Tuple[str, str]:
     """
     Function to extract provider and model name from either kwargs or instance attributes.

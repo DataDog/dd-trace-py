@@ -7,6 +7,7 @@ from re import Match
 from typing import Any
 from typing import Iterator
 from typing import Literal  # noqa:F401
+from typing import Optional
 from typing import Tuple
 
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
@@ -35,7 +36,7 @@ class Constant_Class(type):
 
         return aux()
 
-    def get(self, k: str, default: Any = None) -> Any:
+    def get(self, k: str, default: Optional[Any] = None) -> Any:
         return self.__dict__.get(k, default)
 
     def __contains__(self, k: str) -> bool:

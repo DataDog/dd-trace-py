@@ -172,7 +172,7 @@ class DDWaf(WAF):
         self,
         ctx: ddwaf_context_capsule,
         data: DDWafRulesType,
-        ephemeral_data: DDWafRulesType = None,
+        ephemeral_data: Optional[DDWafRulesType] = None,
         timeout_ms: float = DEFAULT.WAF_TIMEOUT,
     ) -> DDWaf_result:
         start = time.monotonic()

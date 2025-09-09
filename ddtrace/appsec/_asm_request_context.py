@@ -337,7 +337,7 @@ def set_waf_address(address: str, value: Any) -> None:
         core.set_item(address, value)
 
 
-def get_value(category: str, address: str, default: Any = None) -> Any:
+def get_value(category: str, address: str, default: Optional[Any] = None) -> Any:
     env = _get_asm_context()
     if env is None:
         extra = {"product": "appsec", "more_info": f"::{category}::{address}", "stack_limit": 4}
@@ -349,7 +349,7 @@ def get_value(category: str, address: str, default: Any = None) -> Any:
     return default
 
 
-def get_waf_address(address: str, default: Any = None) -> Any:
+def get_waf_address(address: str, default: Optional[Any] = None) -> Any:
     return get_value(_WAF_ADDRESSES, address, default=default)
 
 
@@ -467,7 +467,7 @@ def get_data_sent() -> Set[str]:
 
 def asm_request_context_set(
     remote_ip: Optional[str] = None,
-    headers: Any = None,
+    headers: Optional[Any] = None,
     headers_case_sensitive: bool = False,
     block_request_callable: Optional[Callable] = None,
 ) -> None:

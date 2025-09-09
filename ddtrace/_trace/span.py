@@ -343,7 +343,7 @@ class Span(object):
         self.context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] = value
         return value
 
-    def set_tag(self, key: _TagNameType, value: Any = None) -> None:
+    def set_tag(self, key: _TagNameType, value: Optional[Any] = None) -> None:
         """Set a tag key/value pair on the span.
 
         Keys must be strings, values must be ``str``-able.
