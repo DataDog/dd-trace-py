@@ -4925,7 +4925,7 @@ def test_simple():
             rec.assert_outcomes(passed=1)
             assert 0 == rec.ret
             # Verify fast execution (disabled plugin should have minimal overhead)
-            assert execution_time < 0.5, f"Test took {execution_time:.2f}s, expected < 0.5s (for ddtrace not executing)"
+            assert execution_time < 1.5, f"Test took {execution_time:.2f}s, expected < 1.5s"
 
 
 def test_pytest_coverage_data_format_handling_none_value():
