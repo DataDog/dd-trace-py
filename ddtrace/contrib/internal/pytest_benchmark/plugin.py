@@ -1,7 +1,7 @@
-import os
+from ddtrace import _INSTRUMENTATION_ENABLED
 
 
-if os.getenv("DD_CIVISIBILITY_ENABLED", "true").lower() in ("true", "1"):
+if _INSTRUMENTATION_ENABLED:
     from ddtrace import DDTraceDeprecationWarning
     from ddtrace.contrib.internal.pytest.plugin import is_enabled as is_ddtrace_enabled
     from ddtrace.vendor.debtcollector import deprecate

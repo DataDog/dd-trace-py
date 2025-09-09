@@ -9,17 +9,15 @@ LOADED_MODULES = frozenset(sys.modules.keys())
 import ddtrace.internal._unpatched  # noqa
 
 from .version import get_version  # noqa: E402
+from ._instrumentation_enabled import resolve_instrumentation_enabled
 
 __version__ = get_version()
+_INSTRUMENTATION_ENABLED = resolve_instrumentation_enabled(global_default=True)
 
-__all__ = [
-    "patch",
-    "patch_all",
-    "config",
-    "DDTraceDeprecationWarning",
-]
 
-if os.getenv("DD_CIVISIBILITY_ENABLED", "true").lower() in ("true", "1"):
+__all__ = ["patch", "patch_all", "config", "DDTraceDeprecationWarning", "_INSTRUMENTATION_ENABLED"]
+
+if _INSTRUMENTATION_ENABLED:
     from ._logger import configure_ddtrace_logger
 
     # configure ddtrace logger before other modules log

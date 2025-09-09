@@ -14,6 +14,8 @@ to be run at specific points during pytest execution. The most important hooks u
 
 import os
 
+from ddtrace import _INSTRUMENTATION_ENABLED
+
 
 DDTRACE_HELP_MSG = "Enable tracing of pytest functions."
 NO_DDTRACE_HELP_MSG = "Disable tracing of pytest functions."
@@ -70,7 +72,7 @@ def pytest_addoption(parser):
     parser.addini("ddtrace-patch-all", PATCH_ALL_HELP_MSG, type="bool")
     parser.addini("ddtrace-include-class-name", DDTRACE_INCLUDE_CLASS_HELP_MSG, type="bool")
 
-    if os.getenv("DD_CIVISIBILITY_ENABLED", "true").lower() not in ("true", "1"):
+    if not _INSTRUMENTATION_ENABLED:
         return
 
     from ddtrace.settings.asm import config as asm_config
@@ -81,7 +83,7 @@ def pytest_addoption(parser):
         _iast_pytest_activation()
 
 
-if os.getenv("DD_CIVISIBILITY_ENABLED", "true").lower() in ("true", "1"):
+if _INSTRUMENTATION_ENABLED:
     from typing import Dict  # noqa:F401
 
     import pytest

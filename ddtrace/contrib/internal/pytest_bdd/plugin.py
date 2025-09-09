@@ -1,7 +1,7 @@
-import os
+from ddtrace import _INSTRUMENTATION_ENABLED
 
 
-if os.getenv("DD_CIVISIBILITY_ENABLED", "true").lower() in ("true", "1"):
+if _INSTRUMENTATION_ENABLED:
     from ddtrace import config
 
     # pytest-bdd default settings
