@@ -13,7 +13,6 @@ from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.llmobs._integrations.mcp import CLIENT_TOOL_CALL_OPERATION_NAME
 from ddtrace.llmobs._integrations.mcp import SERVER_TOOL_CALL_OPERATION_NAME
@@ -77,10 +76,7 @@ def _set_distributed_headers_into_mcp_request(pin, request):
 
         new_request_root = type(request.root)(**request_dict)
         return type(request)(new_request_root)
-    except Exception as e:
-        telemetry_writer.add_integration_error_log(
-            "Error injecting distributed tracing headers into MCP request metadata: {error}".format(error=e), e
-        )
+    except Exception:
         log.error("Error injecting distributed tracing headers into MCP request metadata", exc_info=True)
         return request
 
@@ -122,8 +118,7 @@ async def traced_call_tool(mcp, pin, func, instance, args, kwargs):
             span, args=args, kwargs=kwargs, response=result, operation=CLIENT_TOOL_CALL_OPERATION_NAME
         )
         return result
-    except Exception as e:
-        telemetry_writer.add_integration_error_log("Error in MCP client tool call", e)
+    except Exception:
         integration.llmobs_set_tags(
             span, args=args, kwargs=kwargs, response=None, operation=CLIENT_TOOL_CALL_OPERATION_NAME
         )
@@ -147,11 +142,7 @@ async def traced_tool_manager_call_tool(mcp, pin, func, instance, args, kwargs):
             span, args=args, kwargs=kwargs, response=result, operation=SERVER_TOOL_CALL_OPERATION_NAME
         )
         return result
-    except Exception as e:
-        telemetry_writer.add_integration_error_log("Error in MCP server tool manager call", e)
-        telemetry_writer.add_integration_error_log(
-            "Error injecting distributed tracing headers into MCP request metadata: {error}".format(error=e), e
-        )
+    except Exception:
         integration.llmobs_set_tags(
             span, args=args, kwargs=kwargs, response=None, operation=SERVER_TOOL_CALL_OPERATION_NAME
         )

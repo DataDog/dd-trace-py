@@ -13,6 +13,7 @@ from typing import Optional  # noqa:F401
 from typing import Set  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
+from typing import LiteralString
 import urllib.parse as parse
 
 from ddtrace.internal.endpoints import endpoint_collection
@@ -20,6 +21,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.http import get_connection
 from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings._telemetry import config
+from ddtrace.internal.packages import is_user_code
 
 from ...internal import atexit
 from ...internal import forksafe
@@ -523,7 +525,7 @@ class TelemetryWriter(PeriodicService):
             # Logs are hashed using the message, level, tags, and stack_trace. This should prevent duplicatation.
             self._logs.add(data)
 
-    def add_integration_error_log(self, msg: str, exc: BaseException) -> None:
+    def add_integration_error_log(self, msg: LiteralString, exc: BaseException) -> None:
         if config.LOG_COLLECTION_ENABLED:
             stack_trace = self._format_stack_trace(exc)
             self.add_log(
@@ -533,12 +535,12 @@ class TelemetryWriter(PeriodicService):
             )
 
     def _format_stack_trace(self, exc: BaseException) -> Optional[str]:
-        exc_type, exc_value, exc_traceback = type(exc), exc, exc.__traceback__
+        exc_type, _, exc_traceback = type(exc), exc, exc.__traceback__
         if exc_traceback:
             tb = traceback.extract_tb(exc_traceback)
             formatted_tb = ["Traceback (most recent call last):"]
             for filename, lineno, funcname, srcline in tb:
-                if self._should_redact(filename):
+                if is_user_code(filename):
                     formatted_tb.append("  <REDACTED>")
                     formatted_tb.append("    <REDACTED>")
                 else:
@@ -546,19 +548,20 @@ class TelemetryWriter(PeriodicService):
                     formatted_line = f'  File "{relative_filename}", line {lineno}, in {funcname}\n    {srcline}'
                     formatted_tb.append(formatted_line)
             if exc_type:
-                formatted_tb.append(f"{exc_type.__module__}.{exc_type.__name__}: {exc_value}")
+                formatted_tb.append(f"{exc_type.__module__}.{exc_type.__name__}: <REDACTED>")
             return "\n".join(formatted_tb)
 
         return None
 
-    def _should_redact(self, filename: str) -> bool:
-        return "ddtrace" not in filename
-
     def _format_file_path(self, filename: str) -> str:
         try:
-            return os.path.relpath(filename, start=self.CWD)
+            if 'site-packages' in filename:
+                return filename.split('site-packages', 1)[1].lstrip('/')
+            elif 'lib/python' in filename:
+                return filename.split('lib/python', 1)[1].split('/', 1)[1] if '/' in filename.split('lib/python', 1)[1] else 'python_stdlib'
+            return '<REDACTED>'
         except ValueError:
-            return filename
+            return '<REDACTED>'
 
     def add_gauge_metric(
         self, namespace: TELEMETRY_NAMESPACE, name: str, value: float, tags: Optional[MetricTagType] = None
