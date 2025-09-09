@@ -4950,19 +4950,21 @@ def test_simple():
 
                 # When killswitch is active, these modules should not be imported
                 ddtrace_modules_imported = any([
-                    logger_module_imported, 
+                    logger_module_imported,
                     telemetry_module_imported,
                     core_ddtrace_imported,
                     config_module_imported
                 ])
-                
+
                 # Only ddtrace_pytest proxy modules should be imported, not core ddtrace
                 proxy_modules = [m for m in sys.modules.keys() if m.startswith('ddtrace_pytest')]
-                ddtrace_modules = [m for m in sys.modules.keys() if m.startswith('ddtrace') and not m.startswith('ddtrace_pytest')]
-                
+                ddtrace_modules = [
+                    m for m in sys.modules.keys() if m.startswith("ddtrace") and not m.startswith("ddtrace_pytest")
+                ]
+
                 print(f"Proxy modules imported: {proxy_modules}")
                 print(f"Core ddtrace modules imported: {ddtrace_modules}")
-                
+
                 assert not ddtrace_modules_imported, f"Core ddtrace modules were imported: {ddtrace_modules}"
                 assert len(proxy_modules) > 0, "Expected ddtrace_pytest proxy modules to be imported"
         """
@@ -4978,34 +4980,31 @@ def test_simple():
         result.assert_outcomes(passed=1)
         assert result.ret == 0
         assert execution_time < 0.5, f"Test took {execution_time:.2f}s, expected < 0.5s (for ddtrace not executing)"
-    
+
     def test_civisibility_killswitch_proxy_plugins_working(self):
         """Test that our new ddtrace_pytest proxy plugins are working correctly."""
         py_file = self.testdir.makepyfile(
             """
             def test_proxy_plugins_loaded():
                 import sys
-                
+
                 # Verify that ddtrace_pytest proxy modules are loaded
                 proxy_modules = [m for m in sys.modules.keys() if m.startswith('ddtrace_pytest')]
                 assert len(proxy_modules) > 0, f"Expected ddtrace_pytest modules, found: {proxy_modules}"
-                
+
                 # Verify that when disabled, no core ddtrace modules are loaded
-                ddtrace_modules = [m for m in sys.modules.keys() if m.startswith('ddtrace') and not m.startswith('ddtrace_pytest')]
+                ddtrace_modules = [
+                    m for m in sys.modules.keys() if m.startswith("ddtrace") and not m.startswith("ddtrace_pytest")
+                ]
                 assert len(ddtrace_modules) == 0, f"Unexpected core ddtrace modules loaded: {ddtrace_modules}"
-                
+
                 print(f"✓ Proxy modules working correctly: {proxy_modules}")
                 assert True
         """
         )
 
         # Test with killswitch disabled - should use proxy modules only
-        result = self.subprocess_run(
-            "--ddtrace", 
-            py_file.basename, 
-            "-v", 
-            env={"DD_CIVISIBILITY_ENABLED": "false"}
-        )
+        result = self.subprocess_run("--ddtrace", py_file.basename, "-v", env={"DD_CIVISIBILITY_ENABLED": "false"})
         result.assert_outcomes(passed=1)
         assert result.ret == 0
 
