@@ -50,7 +50,6 @@ STANDARD_INTEGRATION_SPAN_NAMES = (
 def _validate_prompt(
     prompt: Union[Dict[str, Any], Prompt], ml_app: Optional[str] = None, strict_validation: bool = True
 ) -> ValidatedPromptDict:
-    # Stage 0: Check if dict
     if not isinstance(prompt, dict):
         raise TypeError(f"Prompt must be a dictionary, got {type(prompt).__name__}.")
 
@@ -68,7 +67,6 @@ def _validate_prompt(
     if strict_validation:
         _strict_validate_prompt(prompt)
 
-    # Ensure only one of `template` or `chat_template` is provided
     if template and chat_template:
         raise ValueError("Only one of 'template' or 'chat_template' can be provided, not both.")
 
@@ -78,53 +76,49 @@ def _validate_prompt(
     final_ctx_variable_keys = ctx_variable_keys or ["context"]
     final_query_variable_keys = query_variable_keys or ["question"]
 
-    # Stage 4: Type checks
     if not isinstance(final_prompt_id, str):
-        raise TypeError(f"'id' must be str, got {type(final_prompt_id).__name__}.")
+        raise TypeError(f"prompt_id {final_prompt_id} must be a string.")
 
     if not (isinstance(final_ctx_variable_keys, list) and all(isinstance(i, str) for i in final_ctx_variable_keys)):
-        raise TypeError("'rag_context_variables' must be a List[str].")
+        raise TypeError("ctx_variables must be a list of strings.")
 
     if not (isinstance(final_query_variable_keys, list) and all(isinstance(i, str) for i in final_query_variable_keys)):
-        raise TypeError("'rag_query_variables' must be a List[str].")
+        raise TypeError("query_variables must be a list of strings.")
 
     if version and not isinstance(version, str):
-        raise TypeError(f"'version' must be str, got {type(version).__name__}.")
+        raise TypeError(f"version: {version} must be a string.")
 
     if tags:
         if not isinstance(tags, dict):
-            raise TypeError(f"'tags' must be Dict, got {type(tags).__name__}")
+            raise TypeError(f"tags: {tags} must be a dictionary of string key-value pairs.")
         if not all(isinstance(k, str) for k in tags):
             raise TypeError("Keys of 'tags' must all be strings.")
         if not all(isinstance(k, str) for k in tags.values()):
             raise TypeError("Values of 'tags' must all be strings.")
 
     if template and not isinstance(template, str):
-        raise TypeError(f"'template' must be str, got {type(template).__name__}.")
+        raise TypeError(f"template: {template} must be a string.")
 
     if chat_template:
         if not isinstance(chat_template, list):
-            raise TypeError("'chat_template' must be a list.")
+            raise TypeError("chat_template must be a list of dictionaries with string-string key value pairs.")
         for ct in chat_template:
-            if not (isinstance(ct, dict) and {"role", "content"}.issubset(ct)):
-                raise TypeError("Each 'chat_template' entry should be dict[str,str] with role and content keys.")
+            if not (isinstance(ct, dict) and all(k in ct for k in ("role", "content"))):
+                raise TypeError(
+                    "Each 'chat_template' entry should be a string-string dictionary with role and content keys."
+                )
 
     if variables:
         if not isinstance(variables, dict):
-            raise TypeError(f"'variables' must be Dict, got {type(variables).__name__}")
+            raise TypeError(f"variables: {variables} must be a dictionary with string keys.")
         if not all(isinstance(k, str) for k in variables):
             raise TypeError("Keys of 'variables' must all be strings.")
 
-    # Stage 5: Transformations
-    # Ensure chat_template is standardized List[dict[role:str, content:str]]
-    final_chat_template = None
+    final_chat_template = []
     if chat_template:
-        final_chat_template = []
         for msg in chat_template:
-            if isinstance(msg, dict):
-                final_chat_template.append(Message(role=msg["role"], content=msg["content"]))
+            final_chat_template.append(Message(role=msg["role"], content=msg["content"]))
 
-    # Stage 6: Produce output
     validated_prompt: ValidatedPromptDict = {}
     if final_prompt_id:
         validated_prompt["id"] = final_prompt_id
