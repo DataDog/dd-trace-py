@@ -1,4 +1,5 @@
 stages:
+  - build
   - test
   - gate
   - notify
@@ -11,6 +12,19 @@ include:
 
 variables:
   MACROBENCHMARKS_CI_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/benchmarking-platform:dd-trace-py-macrobenchmarks
+
+candidate:
+  image: $PACKAGE_IMAGE
+  stage: build
+  tags: [ "arch:amd64" ]
+  needs:
+    - pipeline: $PARENT_PIPELINE_ID
+      job: download_ddtrace_artifacts
+  script: |
+    cp pywheels/*-cp39-cp39-manylinux*_x86_64*.whl ./candidate.whl
+  artifacts:
+    paths:
+      - "*.whl"
 
 .macrobenchmarks:
   stage: test
@@ -41,6 +55,8 @@ variables:
       - platform/artifacts/
     expire_in: 3 months
   variables:
+    DDTRACE_INSTALL_VERSION: "./candidate.whl"
+
     # Benchmark's env variables. Modify to tweak benchmark parameters.
     DD_TRACE_DEBUG: "false"
     DD_RUNTIME_METRICS_ENABLED: "false"
@@ -79,7 +95,6 @@ baseline:
     DD_BENCHMARKS_CONFIGURATION: baseline
     BP_PYTHON_SCENARIO_DIR: flask-realworld
     BP_ENDPOINT: http://0.0.0.0:8000/api/articles
-    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
     DD_SERVICE: "ddtrace-mb-baseline"
 
 
@@ -89,7 +104,6 @@ tracing-runtime-metrics-enabled:
     DD_BENCHMARKS_CONFIGURATION: only-tracing
     BP_PYTHON_SCENARIO_DIR: flask-realworld
     BP_ENDPOINT: http://0.0.0.0:8000/api/articles
-    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
     DD_TRACE_ENABLED: "true"
     DD_RUNTIME_METRICS_ENABLED: "false"
     DD_SERVICE: "ddtrace-mb-tracing-runtime-metrics-enabled"
@@ -100,7 +114,6 @@ tracing-rc-disabled-telemetry-disabled:
     DD_BENCHMARKS_CONFIGURATION: only-tracing
     BP_PYTHON_SCENARIO_DIR: flask-realworld
     BP_ENDPOINT: http://0.0.0.0:8000/api/articles
-    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
     DD_TRACE_ENABLED: "true"
     DD_PROFILING_ENABLED: "false"
     DD_REMOTE_CONFIGURATION_ENABLED: "false"
@@ -113,7 +126,6 @@ tracing-rc-enabled-telemetry-disabled:
     DD_BENCHMARKS_CONFIGURATION: only-tracing
     BP_PYTHON_SCENARIO_DIR: flask-realworld
     BP_ENDPOINT: http://0.0.0.0:8000/api/articles
-    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
     DD_TRACE_ENABLED: "true"
     DD_PROFILING_ENABLED: "false"
     DD_REMOTE_CONFIGURATION_ENABLED: "true"
@@ -126,7 +138,6 @@ tracing-rc-disabled-telemetry-enabled:
     DD_BENCHMARKS_CONFIGURATION: only-tracing
     BP_PYTHON_SCENARIO_DIR: flask-realworld
     BP_ENDPOINT: http://0.0.0.0:8000/api/articles
-    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
     DD_TRACE_ENABLED: "true"
     DD_PROFILING_ENABLED: "false"
     DD_REMOTE_CONFIGURATION_ENABLED: "false"
@@ -139,7 +150,6 @@ tracing-rc-enabled-telemetry-enabled:
     DD_BENCHMARKS_CONFIGURATION: only-tracing
     BP_PYTHON_SCENARIO_DIR: flask-realworld
     BP_ENDPOINT: http://0.0.0.0:8000/api/articles
-    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
     DD_TRACE_ENABLED: "true"
     DD_PROFILING_ENABLED: "false"
     DD_REMOTE_CONFIGURATION_ENABLED: "true"
@@ -152,7 +162,6 @@ tracing-native-writer-enabled:
     DD_BENCHMARKS_CONFIGURATION: only-tracing
     BP_PYTHON_SCENARIO_DIR: flask-realworld
     BP_ENDPOINT: http://0.0.0.0:8000/api/articles
-    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
     DD_TRACE_ENABLED: "true"
     DD_PROFILING_ENABLED: "false"
     DD_INSTRUMENTATION_TELEMETRY_ENABLED: "true"
@@ -165,7 +174,6 @@ tracing-native-writer-enabled-stats-enabled:
     DD_BENCHMARKS_CONFIGURATION: only-tracing
     BP_PYTHON_SCENARIO_DIR: flask-realworld
     BP_ENDPOINT: http://0.0.0.0:8000/api/articles
-    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
     DD_TRACE_ENABLED: "true"
     DD_PROFILING_ENABLED: "false"
     DD_INSTRUMENTATION_TELEMETRY_ENABLED: "true"
@@ -179,7 +187,6 @@ tracing-profiling-enabled:
     DD_BENCHMARKS_CONFIGURATION: only-tracing
     BP_PYTHON_SCENARIO_DIR: flask-realworld
     BP_ENDPOINT: http://0.0.0.0:8000/api/articles
-    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
     DD_TRACE_ENABLED: "true"
     DD_PROFILING_ENABLED: "true"
     DD_SERVICE: "ddtrace-mb-tracing-profiling-enabled"
@@ -190,7 +197,6 @@ appsec-enabled-iast-disabled-ep-disabled:
     DD_BENCHMARKS_CONFIGURATION: only-tracing
     BP_PYTHON_SCENARIO_DIR: flask-realworld
     BP_ENDPOINT: http://0.0.0.0:8000/api/articles
-    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
     DD_TRACE_ENABLED: "true"
     DD_PROFILING_ENABLED: "false"
     DD_APPSEC_ENABLED: "true"
@@ -204,7 +210,6 @@ appsec-enabled-iast-disabled-ep-disabled-profiling-enabled:
     DD_BENCHMARKS_CONFIGURATION: only-tracing
     BP_PYTHON_SCENARIO_DIR: flask-realworld
     BP_ENDPOINT: http://0.0.0.0:8000/api/articles
-    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
     DD_TRACE_ENABLED: "true"
     DD_PROFILING_ENABLED: "true"
     DD_APPSEC_ENABLED: "true"
@@ -218,7 +223,6 @@ appsec-disabled-iast-enabled-ep-disabled:
     DD_BENCHMARKS_CONFIGURATION: only-tracing
     BP_PYTHON_SCENARIO_DIR: flask-realworld
     BP_ENDPOINT: http://0.0.0.0:8000/api/articles
-    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
     DD_TRACE_ENABLED: "true"
     DD_PROFILING_ENABLED: "false"
     DD_APPSEC_ENABLED: "false"
@@ -232,7 +236,6 @@ appsec-disabled-iast-enabled-ep-disabled-profiling-enabled:
     DD_BENCHMARKS_CONFIGURATION: only-tracing
     BP_PYTHON_SCENARIO_DIR: flask-realworld
     BP_ENDPOINT: http://0.0.0.0:8000/api/articles
-    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
     DD_TRACE_ENABLED: "true"
     DD_PROFILING_ENABLED: "true"
     DD_APPSEC_ENABLED: "false"
@@ -246,7 +249,6 @@ appsec-enabled-iast-enabled-ep-disabled:
     DD_BENCHMARKS_CONFIGURATION: only-tracing
     BP_PYTHON_SCENARIO_DIR: flask-realworld
     BP_ENDPOINT: http://0.0.0.0:8000/api/articles
-    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
     DD_TRACE_ENABLED: "true"
     DD_PROFILING_ENABLED: "false"
     DD_APPSEC_ENABLED: "true"
@@ -260,7 +262,6 @@ appsec-enabled-iast-disabled-ep-enabled:
     DD_BENCHMARKS_CONFIGURATION: only-tracing
     BP_PYTHON_SCENARIO_DIR: flask-realworld
     BP_ENDPOINT: http://0.0.0.0:8000/api/articles
-    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
     DD_TRACE_ENABLED: "true"
     DD_PROFILING_ENABLED: "false"
     DD_APPSEC_ENABLED: "true"
@@ -274,7 +275,6 @@ vuln-baseline:
     DD_BENCHMARKS_CONFIGURATION: baseline
     BP_PYTHON_SCENARIO_DIR: flask-realworld
     BP_ENDPOINT: http://0.0.0.0:8000/iast/articles?string1=Hi&password=root1234
-    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
     IAST_WORST: "true"
     DD_SERVICE: "ddtrace-mb-vuln-baseline"
 
@@ -284,7 +284,6 @@ vuln-appsec-disabled-iast-disabled-ep-disabled:
     DD_BENCHMARKS_CONFIGURATION: only-tracing
     BP_PYTHON_SCENARIO_DIR: flask-realworld
     BP_ENDPOINT: http://0.0.0.0:8000/iast/articles?string1=Hi&password=root1234
-    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
     DD_TRACE_ENABLED: "true"
     DD_PROFILING_ENABLED: "false"
     DD_APPSEC_ENABLED: "false"
@@ -299,7 +298,6 @@ vuln-appsec-disabled-iast-enabled-ep-disabled:
     DD_BENCHMARKS_CONFIGURATION: only-tracing
     BP_PYTHON_SCENARIO_DIR: flask-realworld
     BP_ENDPOINT: http://0.0.0.0:8000/iast/articles?string1=Hi&password=root1234
-    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
     DD_TRACE_ENABLED: "true"
     DD_PROFILING_ENABLED: "false"
     DD_APPSEC_ENABLED: "false"
@@ -314,7 +312,6 @@ vuln-appsec-disabled-iast-enabled-ep-disabled-profiling-enabled:
     DD_BENCHMARKS_CONFIGURATION: only-tracing
     BP_PYTHON_SCENARIO_DIR: flask-realworld
     BP_ENDPOINT: http://0.0.0.0:8000/iast/articles?string1=Hi&password=root1234
-    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
     DD_TRACE_ENABLED: "true"
     DD_PROFILING_ENABLED: "true"
     DD_APPSEC_ENABLED: "false"
@@ -329,7 +326,6 @@ vuln-appsec-enabled-iast-enabled-ep-disabled:
     DD_BENCHMARKS_CONFIGURATION: only-tracing
     BP_ENDPOINT: http://0.0.0.0:8000/iast/articles?string1=Hi&password=root1234
     BP_PYTHON_SCENARIO_DIR: flask-realworld
-    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
     DD_APPSEC_ENABLED: "true"
     DD_IAST_ENABLED: "true"
     DD_APPSEC_RASP_ENABLED: "false"
@@ -342,7 +338,6 @@ attack-appsec-disabled-iast-disabled-ep-disabled:
     DD_BENCHMARKS_CONFIGURATION: only-tracing
     BP_PYTHON_SCENARIO_DIR: flask-realworld
     BP_ENDPOINT: http://0.0.0.0:8000/api/articles?q=select%20pg_sleep
-    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
     DD_TRACE_ENABLED: "true"
     DD_PROFILING_ENABLED: "false"
     DD_APPSEC_ENABLED: "false"
@@ -357,7 +352,6 @@ attack-appsec-enabled-iast-disabled-ep-enabled:
     DD_BENCHMARKS_CONFIGURATION: only-tracing
     BP_PYTHON_SCENARIO_DIR: flask-realworld
     BP_ENDPOINT: http://0.0.0.0:8000/api/articles?q=select%20pg_sleep
-    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
     DD_TRACE_ENABLED: "true"
     DD_PROFILING_ENABLED: "false"
     DD_APPSEC_ENABLED: "true"
@@ -372,7 +366,6 @@ attack-appsec-enabled-iast-disabled-ep-enabled-profiling-enabled:
     DD_BENCHMARKS_CONFIGURATION: only-tracing
     BP_PYTHON_SCENARIO_DIR: flask-realworld
     BP_ENDPOINT: http://0.0.0.0:8000/api/articles?q=select%20pg_sleep
-    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
     DD_TRACE_ENABLED: "true"
     DD_PROFILING_ENABLED: "true"
     DD_APPSEC_ENABLED: "true"
@@ -387,7 +380,6 @@ attack-appsec-enabled-iast-enabled-ep-enabled:
     DD_BENCHMARKS_CONFIGURATION: only-tracing
     BP_PYTHON_SCENARIO_DIR: flask-realworld
     BP_ENDPOINT: http://0.0.0.0:8000/api/articles?q=select%20pg_sleep
-    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
     DD_TRACE_ENABLED: "true"
     DD_PROFILING_ENABLED: "false"
     DD_APPSEC_ENABLED: "true"
