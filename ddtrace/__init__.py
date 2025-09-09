@@ -7,9 +7,9 @@ LOADED_MODULES = frozenset(sys.modules.keys())
 
 # Ensure we capture references to unpatched modules as early as possible
 import ddtrace.internal._unpatched  # noqa
+from ddtrace.internal._instrumentation_enabled import resolve_instrumentation_enabled
 
 from .version import get_version  # noqa: E402
-from ._instrumentation_enabled import resolve_instrumentation_enabled
 
 __version__ = get_version()
 _INSTRUMENTATION_ENABLED = resolve_instrumentation_enabled(global_default=True)

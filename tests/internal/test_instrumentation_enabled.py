@@ -3,10 +3,10 @@ from unittest.mock import patch
 
 import pytest
 
-from ddtrace._instrumentation_enabled import FALSE_VALUES
-from ddtrace._instrumentation_enabled import TRUE_VALUES
-from ddtrace._instrumentation_enabled import getenv_bool
-from ddtrace._instrumentation_enabled import resolve_instrumentation_enabled
+from ddtrace.internal._instrumentation_enabled import FALSE_VALUES
+from ddtrace.internal._instrumentation_enabled import TRUE_VALUES
+from ddtrace.internal._instrumentation_enabled import getenv_bool
+from ddtrace.internal._instrumentation_enabled import resolve_instrumentation_enabled
 
 
 class TestGetenvBool:
