@@ -1,7 +1,7 @@
 interactions:
 - request:
-    body: '{"data": {"type": "projects", "attributes": {"name": "test-project-dne-sdk",
-      "description": ""}}}'
+    body: '{"data": {"type": "datasets", "attributes": {"name": "test-dataset-2",
+      "description": "A second test dataset"}}}'
     headers:
       Accept:
       - '*/*'
@@ -11,26 +11,27 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '97'
+      - '112'
       ? !!python/object/apply:multidict._multidict.istr
       - Content-Type
       : - application/json
       User-Agent:
       - python-requests/2.32.3
     method: POST
-    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/projects
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/97aeb674-3464-45a7-a1eb-5ba857779c54/datasets
   response:
     body:
-      string: '{"data":{"id":"905824bc-ccec-4444-a48d-401931d5065b","type":"projects","attributes":{"author":{"id":"de473b30-eb9f-11e9-a77a-c7405862b8bd"},"created_at":"2025-07-22T23:28:17.093498Z","name":"test-project-dne-sdk","updated_at":"2025-07-22T23:28:17.093498Z"}}}'
+      string: '{"data":{"id":"28acc97e-4d31-421d-893e-5da3e3a59465","type":"datasets","attributes":{"author":{"id":"de473b30-eb9f-11e9-a77a-c7405862b8bd"},"created_at":"2025-09-09T04:32:00.950884448Z","current_version":0,"description":"A
+        second test dataset","name":"test-dataset-2","project_id":"97aeb674-3464-45a7-a1eb-5ba857779c54","updated_at":"2025-09-09T04:32:00.950884448Z"}}}'
     headers:
       content-length:
-      - '258'
+      - '368'
       content-security-policy:
       - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
       content-type:
       - application/vnd.api+json
       date:
-      - Tue, 09 Sep 2025 04:34:32 GMT
+      - Tue, 09 Sep 2025 04:32:00 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       vary:
