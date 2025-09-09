@@ -565,24 +565,38 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         logger.debug("successfully uploaded with code %d", resp.status)
 
     def project_create_or_get(self, name: Optional[str] = None) -> Project:
+        default_project_name = self._default_project.get("name", "")
+        project_name = default_project_name
+
         if not name:
-            return self._default_project
+            if self._default_project.get("_id"):
+                # default project already initialized, use it
+                return self._default_project
+        else:
+            project_name = name
 
         path = "/api/unstable/llm-obs/v1/projects"
         resp = self.request(
             "POST",
             path,
-            body={"data": {"type": "projects", "attributes": {"name": name, "description": ""}}},
+            body={"data": {"type": "projects", "attributes": {"name": project_name, "description": ""}}},
         )
         if resp.status != 200:
-            raise ValueError(f"Failed to create project {name}: {resp.status} {resp.get_json()}")
+            raise ValueError(f"Failed to create project {project_name}: {resp.status} {resp.get_json()}")
         response_data = resp.get_json()
         project_id = response_data["data"]["id"]
 
         if not project_id:
-            raise ValueError(f"project ID is required for dataset & experiments features (project name: {name})")
+            raise ValueError(
+                f"project ID is required for dataset & experiments features " f"(project name: {project_name})"
+            )
 
-        return Project(name=name, _id=project_id)
+        project = Project(name=project_name, _id=project_id)
+        # after the initial GET of the project ID, store it
+        if project_name == default_project_name:
+            self._default_project = project
+
+        return project
 
     def experiment_create(
         self,

@@ -184,7 +184,6 @@ class LLMObs(Service):
     enabled = False
     _app_key: str = os.getenv("DD_APP_KEY", "")
     _project_name: str = os.getenv("DD_LLMOBS_PROJECT_NAME", DEFAULT_PROJECT_NAME)
-    _project: Project = Project(name="", _id="")
 
     def __init__(
         self,
@@ -214,7 +213,7 @@ class LLMObs(Service):
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
             _app_key=self._app_key,
-            _default_project=self._project,
+            _default_project=Project(name=self._project_name, _id=""),
             is_agentless=True,  # agent proxy doesn't seem to work for experiments
         )
 
@@ -606,17 +605,6 @@ class LLMObs(Service):
             cls._instance = cls(tracer=_tracer, span_processor=span_processor)
             cls.enabled = True
             cls._instance.start()
-
-            try:
-                default_project = cls._instance._dne_client.project_create_or_get(cls._project_name)
-                cls._instance._project = default_project
-                cls._instance._dne_client._default_project = default_project
-            except Exception as e:
-                log.error(
-                    "failed to get project ID with %s, dataset & experiments features may not be functional: %s",
-                    cls._project_name,
-                    e,
-                )
 
             # Register hooks for span events
             core.on("trace.span_start", cls._instance._on_span_start)
