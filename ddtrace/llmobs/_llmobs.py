@@ -1961,7 +1961,7 @@ class LLMObs(Service):
             rag_query_variables=rag_query_variable_keys,
         )
         try:
-            _strict_validate_prompt(prompt)
+            _validate_prompt(prompt)
         except (ValueError, TypeError) as e:
             log.warning("Failed to validate prompt with error: %s", e)
             raise ValueError("Invalid prompt provided.") from e

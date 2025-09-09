@@ -62,7 +62,12 @@ def _validate_prompt(prompt: Union[Dict[str, Any], Prompt], strict_validation: b
     query_variable_keys = prompt.get("rag_query_variables")
 
     if strict_validation:
-        _strict_validate_prompt(prompt)
+        if prompt_id is None:
+            raise ValueError("'id' must be provided")
+        if template is None and chat_template is None:
+            raise ValueError("One of 'template' or 'chat_template' must be provided to annotate a prompt.")
+        if template and chat_template:
+            raise ValueError("Only one of 'template' or 'chat_template' can be provided, not both.")
 
     if template and chat_template:
         raise ValueError("Only one of 'template' or 'chat_template' can be provided, not both.")
@@ -133,26 +138,6 @@ def _validate_prompt(prompt: Union[Dict[str, Any], Prompt], strict_validation: b
         validated_prompt[INTERNAL_QUERY_VARIABLE_KEYS] = final_query_variable_keys
 
     return validated_prompt
-
-
-def _strict_validate_prompt(prompt: Union[Dict[str, Any], Prompt]):
-    """
-    Validate prompt dictionary under strict validation mode. Ensures that :
-    - 'id' is mandatory
-    - 'template' or 'chat_template' is mandatory
-    """
-    prompt_id = prompt.get("id")
-    template = prompt.get("template")
-    chat_template = prompt.get("chat_template")
-
-    if prompt_id is None:
-        raise ValueError("'id' must be provided")
-
-    if template is None and chat_template is None:
-        raise ValueError("One of 'template' or 'chat_template' must be provided to annotate a prompt.")
-
-    if template and chat_template:
-        raise ValueError("Only one of 'template' or 'chat_template' can be provided, not both.")
 
 
 class LinkTracker:
