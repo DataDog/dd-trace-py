@@ -1,7 +1,7 @@
 from __future__ import absolute_import
 
 import threading
-import typing  # noqa:F401
+import typing
 
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
 from ddtrace.internal.datadog.profiling import stack_v2
@@ -19,20 +19,18 @@ class ThreadingLockCollector(_lock.LockCollector):
 
     PROFILED_LOCK_CLASS = _ProfiledThreadingLock
 
-    def _get_patch_target(self):
-        # type: (...) -> typing.Any
+    def _get_patch_target(self) -> typing.Type[threading.Lock]:
         return threading.Lock
 
     def _set_patch_target(
         self,
-        value,  # type: typing.Any
-    ):
-        # type: (...) -> None
+        value: typing.Any,
+    ) -> None:
         threading.Lock = value
 
 
 # Also patch threading.Thread so echion can track thread lifetimes
-def init_stack_v2():
+def init_stack_v2() -> None:
     if config.stack.v2_enabled and stack_v2.is_available:
         _thread_set_native_id = ddtrace_threading.Thread._set_native_id
         _thread_bootstrap_inner = ddtrace_threading.Thread._bootstrap_inner
