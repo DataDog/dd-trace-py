@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 from typing import Optional
 
 
@@ -20,7 +21,7 @@ def getenv_bool(name: str) -> Optional[bool]:
 
 
 # Precedence: earlier wins. Second item = value that means "enabled" (and its default).
-TOGGLES: dict[str, bool] = {
+TOGGLES: Dict[str, bool] = {
     "_DD_INSTRUMENTATION_DISABLED": False,  # enabled when value == False
     "DD_CIVISIBILITY_ENABLED": True,  # enabled when value == True
 }
