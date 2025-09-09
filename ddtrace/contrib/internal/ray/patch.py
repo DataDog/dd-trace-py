@@ -3,7 +3,6 @@ from functools import wraps
 import inspect
 import logging
 import os
-import threading
 import socket
 from typing import Any
 from typing import Callable
@@ -11,16 +10,6 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
-import ray
-from ray._private.inspect_util import is_class_method
-from ray._private.inspect_util import is_function_or_method
-from ray._private.inspect_util import is_static_method
-import ray._private.worker
-import ray.actor
-import ray.dashboard.modules.job.job_manager
-from ray.dashboard.modules.job.job_manager import generate_job_id
-import ray.dashboard.modules.job.job_supervisor
-import ray.exceptions
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
@@ -28,6 +17,7 @@ from ddtrace import tracer
 from ddtrace._trace.span import Span
 from ddtrace.constants import _DJM_ENABLED_KEY
 from ddtrace.constants import _FILTER_KEPT_KEY
+from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
@@ -39,7 +29,20 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation.http import _TraceContext
 from ddtrace.settings._config import _get_config
+import ray
+from ray._private.inspect_util import is_class_method
+from ray._private.inspect_util import is_function_or_method
+from ray._private.inspect_util import is_static_method
+import ray._private.worker
+import ray.actor
+import ray.dashboard.modules.job.job_manager
+from ray.dashboard.modules.job.job_manager import generate_job_id
+import ray.dashboard.modules.job.job_supervisor
+import ray.exceptions
 
+from .span_manager import start_long_running_job
+from .span_manager import stop_long_running_job
+from .span_manager import long_running_ray_span
 from .utils import _extract_tracing_context_from_env
 from .utils import _inject_context_in_env
 from .utils import _inject_context_in_kwargs
@@ -56,6 +59,8 @@ config._add(
     dict(
         _default_service=schematize_service_name("ray"),
         ray_spans_only=asbool(_get_config("DD_TRACE_RAY_SPANS_ONLY", default=True)),
+        resubmit_interval=float(_get_config("DD_TRACE_RAY_RESUBMIT_LONG_RUNNING_INTERVAL", default=10.0)),
+        watch_delay=float(_get_config("DD_TRACE_RAY_WATCH_LONG_RUNNING_DELAY", default=10.0)),
     ),
 )
 
@@ -66,27 +71,6 @@ def _supported_versions() -> Dict[str, str]:
 
 def get_version() -> str:
     return str(getattr(ray, "__version__", ""))
-
-
-class _JobSpanManager:
-    def __init__(self):
-        self._spans = {}
-        self._lock = threading.Lock()
-
-    def add_span(self, submission_id: str, span: Span):
-        with self._lock:
-            self._spans[submission_id] = span
-
-    def remove_span(self, submission_id: str) -> Optional[Span]:
-        with self._lock:
-            return self._spans.pop(submission_id, None)
-
-    def get_span(self, submission_id: str) -> Optional[Span]:
-        with self._lock:
-            return self._spans.get(submission_id)
-
-
-_job_span_manager = _JobSpanManager()
 
 
 class RayTraceProcessor:
@@ -103,6 +87,8 @@ class RayTraceProcessor:
                 span.set_metric(_FILTER_KEPT_KEY, 1)
                 span.set_metric(_SPAN_MEASURED_KEY, 1)
                 span.set_metric(_SAMPLING_PRIORITY_KEY, 2)
+
+                # add host name for GPU Monitoring correlation
                 span.set_tag_str(_HOSTNAME_KEY, socket.gethostname())
             filtered_spans.append(span)
         return filtered_spans
@@ -128,24 +114,24 @@ def _wrap_task_execution(wrapped, *args, **kwargs):
     # Extract context from parent span
     extracted_context = _TraceContext._extract(kwargs["_dd_trace_ctx"])
     kwargs.pop("_dd_trace_ctx")
-    tracer.context_provider.activate(extracted_context)
 
     function_name = getattr(wrapped, "__name__", "unknown_function")
     function_module = getattr(wrapped, "__module__", "unknown_module")
 
-    with tracer.trace(
-        f"{function_module}.{function_name}", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.RAY
-    ) as span:
-        span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
-        _inject_ray_span_tags(span)
-
+    with long_running_ray_span(
+        f"{function_module}.{function_name}",
+        service=os.environ.get("_RAY_SUBMISSION_ID"),
+        span_type=SpanTypes.RAY,
+        child_of=extracted_context,
+        activate=True
+    ) as task_execute_span:
         try:
             result = wrapped(*args, **kwargs)
-            span.set_tag_str("ray.task.status", "success")
+            task_execute_span.set_tag_str("ray.task.status", "success")
             return result
         except Exception as e:
-            span.set_tag_str("ray.task.status", "error")
-            raise e
+            task_execute_span.set_tag_str("ray.task.status", "error")
+            raise
 
 
 def traced_submit_task(wrapped, instance, args, kwargs):
@@ -200,11 +186,9 @@ def traced_submit_job(wrapped, instance, args, kwargs):
     job_span = tracer.start_span("ray.job", service=submission_id, span_type=SpanTypes.RAY)
     job_span.set_tag_str("component", "ray")
     job_span.set_tag_str("ray.submission_id", submission_id)
-    # This will allow to finish the span at the end of the job
-    _job_span_manager.add_span(submission_id, job_span)
-
-    # Set global span as the root span
     tracer.context_provider.activate(job_span)
+    start_long_running_job(job_span)
+
     try:
         with tracer.trace("ray.job.submit", service=submission_id, span_type=SpanTypes.RAY) as submit_span:
             submit_span.set_tag_str("component", "ray")
@@ -226,7 +210,6 @@ def traced_submit_job(wrapped, instance, args, kwargs):
         job_span.set_tag_str("ray.job.status", "error")
         job_span.error = 1
         job_span.set_exc_info(type(e), e, e.__traceback__)
-        _job_span_manager.remove_span(submission_id)
         job_span.finish()
         raise e
 
@@ -264,54 +247,51 @@ def traced_actor_method_call(wrapped, instance, args, kwargs):
 
 def job_supervisor_run_wrapper(method: Callable[..., Any]) -> Any:
     async def _traced_run_method(self: Any, *args: Any, _dd_trace_ctx=None, **kwargs: Any) -> Any:
-        from ddtrace import tracer as dd_tracer
+        from ddtrace import tracer
         from ddtrace.ext import SpanTypes
 
-        if not dd_tracer or _dd_trace_ctx is None:
+        if not tracer or _dd_trace_ctx is None:
             return await method(self, *args, **kwargs)
 
         context = _TraceContext._extract(_dd_trace_ctx)
-        dd_tracer.context_provider.activate(context)
+        submission_id = os.environ.get("_RAY_SUBMISSION_ID")
 
-        job_submission_id = os.environ.get("_RAY_SUBMISSION_ID")
-
-        with dd_tracer.trace(
-            f"{self.__class__.__name__}.{method.__name__}", service=job_submission_id, span_type=SpanTypes.RAY
-        ) as span:
-            span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
-            _inject_ray_span_tags(span)
+        with long_running_ray_span(
+            f"{self.__class__.__name__}.{method.__name__}",
+            service=submission_id,
+            span_type=SpanTypes.RAY,
+            child_of=context,
+            activate=True
+        ) as supervisor_run_span:
+            _inject_context_in_env(supervisor_run_span.context)
 
             try:
-                _inject_context_in_env(span.context)
-
                 await method(self, *args, **kwargs)
             except ray.exceptions.AsyncioActorExit as e:
-                # if the job succedded we removed from the span
+                # if the job succeeded we remove from the span
                 # the error used to exit the actor
-                job_info = await self._job_info_client.get_info(job_submission_id)
+                job_info = await self._job_info_client.get_info(submission_id)
+
                 if str(job_info.status) == "FAILED":
                     raise e
-            except Exception as e:
-                raise e
 
     return _traced_run_method
 
 
 @contextmanager
 def _trace_actor_method(self: Any, method: Callable[..., Any], dd_trace_ctx):
-    if tracer.current_span() is None:
+    context = tracer.context_provider.active()
+    if context is None:
         context = _TraceContext._extract(dd_trace_ctx)
-        tracer.context_provider.activate(context)
 
-    with tracer.trace(
+    with long_running_ray_span(
         f"{self.__class__.__name__}.{method.__name__}",
         service=os.environ.get("_RAY_SUBMISSION_ID"),
         span_type=SpanTypes.RAY,
-    ) as span:
-        span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
-        _inject_ray_span_tags(span)
-
-        yield span
+        child_of=context,
+        activate=True,
+    ) as actor_execute_span:
+        yield actor_execute_span
 
 
 def _inject_tracing_actor_method(method: Callable[..., Any]) -> Any:
@@ -392,21 +372,9 @@ async def traced_end_job(wrapped, instance, args, kwargs):
 
     result = await wrapped(*args, **kwargs)
 
-    # At this stage, the job is finished
     job_id = args[0]
-    job_span = _job_span_manager.get_span(job_id)
-    if job_span is None:
-        return result
-
     job_info = await instance._job_info_client.get_info(job_id)
-    job_span.set_tag_str("ray.job.status", job_info.status)
-    job_span.set_tag_str("ray.job.message", job_info.message)
-
-    # Set error tags if job failed
-    if str(job_info.status) == "FAILED":
-        job_span.error = 1
-        job_span.set_tag_str("error.message", job_info.message)
-    job_span.finish()
+    stop_long_running_job(job_id, job_info)
 
     return result
 
