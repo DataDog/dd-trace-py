@@ -262,7 +262,8 @@ def test_psycopg3_query_default(always_create_database_spans: bool, client, snap
 )
 @pytest.mark.parametrize("django_asgi", ["application", "channels_application"])
 def test_asgi_200(django_asgi):
-    with daphne_client(django_asgi) as (client, _):
+    env = {"TEST_INCLUDE_ASYNC_ONLY_MIDDLEWARE": "1"}
+    with daphne_client(django_asgi, additional_env=env) as (client, _):
         resp = client.get("/", timeout=10)
         assert resp.status_code == 200
         assert resp.content == b"Hello, test app."
