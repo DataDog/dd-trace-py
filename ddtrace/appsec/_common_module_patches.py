@@ -222,7 +222,7 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
                     # api10 response handler for regular reponses
                     if response.__class__.__name__ == "HTTPResponse":
                         addresses = {
-                            "DOWN_RES_STATUS": response.status,
+                            "DOWN_RES_STATUS": str(response.status),
                             "DOWN_RES_HEADERS": _build_headers(response.getheaders()),
                         }
                         if use_body:
@@ -242,7 +242,7 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
                             response_headers = None
                         if status_code is not None or response_headers is not None:
                             call_waf_callback(
-                                {"DOWN_RES_STATUS": status_code, "DOWN_RES_HEADERS": response_headers},
+                                {"DOWN_RES_STATUS": str(status_code), "DOWN_RES_HEADERS": response_headers},
                                 rule_type=EXPLOIT_PREVENTION.TYPE.SSRF,
                             )
                     raise
