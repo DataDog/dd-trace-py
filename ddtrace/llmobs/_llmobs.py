@@ -97,7 +97,6 @@ from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.llmobs._utils import _is_evaluation_span
-from ddtrace.llmobs._utils import _strict_validate_prompt
 from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import enforce_message_role
 from ddtrace.llmobs._utils import safe_json
