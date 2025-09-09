@@ -28,7 +28,7 @@ candidate:
 
 .macrobenchmarks:
   stage: test
-  needs: []
+  needs: [ "candidate" ]
   tags: ["runner:apm-k8s-same-cpu"]
   timeout: 1h
   retry:
