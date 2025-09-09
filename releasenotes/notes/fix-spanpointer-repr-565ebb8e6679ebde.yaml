@@ -1,3 +1,3 @@
 fixes:
   - |
-    span pointer: This fix resolves an issue where the __repr__ method is trying to access non-existent direction and hash attributes directly
+    tracing: Fixes a bug where calling __repr__ on SpanPointer objected raised an AttributeError. This caused aws_lambdas to crash when debug logs were enabled.

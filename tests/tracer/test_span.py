@@ -9,6 +9,7 @@ import mock
 import pytest
 
 from ddtrace._trace._span_link import SpanLink
+from ddtrace._trace._span_pointer import _SpanPointer
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace.context import Context
 from ddtrace.constants import _SPAN_MEASURED_KEY
@@ -872,6 +873,7 @@ def test_span_pprint():
     root.set_metric("m", 1.0)
     root._add_event("message", {"importance": 10}, 16789898242)
     root.set_link(trace_id=99, span_id=10, attributes={"link.name": "s1_to_s2", "link.kind": "scheduled_by"})
+    root._add_span_pointer("test_kind", _SpanPointerDirection.DOWNSTREAM, "test_hash_123", {"extra": "attr"})
 
     root.finish()
     actual = root._pprint()
@@ -887,6 +889,8 @@ def test_span_pprint():
         "[SpanLink(trace_id=99, span_id=10, attributes={'link.name': 's1_to_s2', 'link.kind': 'scheduled_by'}, "
         "tracestate=None, flags=None, dropped_attributes=0)]"
     ) in actual
+    assert "SpanPointer(trace_id=0, span_id=0, kind=span-pointer" in actual
+    assert "direction=d, hash=test_hash_123" in actual
     assert (
         f"context=Context(trace_id={root.trace_id}, span_id={root.span_id}, _meta={{}}, "
         "_metrics={}, _span_links=[], _baggage={}, _is_remote=False)"
