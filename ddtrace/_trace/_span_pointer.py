@@ -64,7 +64,7 @@ class _SpanPointer(SpanLink):
     def __repr__(self):
         return (
             f"SpanPointer(trace_id={self.trace_id}, span_id={self.span_id}, kind={self.kind}, "
-            f"direction={self.direction}, hash={self.hash}, attributes={self.attributes})"
+            f"direction={self.attributes.get('ptr.dir')}, hash={self.attributes.get('ptr.hash')}, attributes={self.attributes})"
         )
 
 
