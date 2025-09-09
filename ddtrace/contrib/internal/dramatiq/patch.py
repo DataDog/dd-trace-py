@@ -4,7 +4,6 @@ from typing import Dict
 from typing import Tuple
 
 import dramatiq
-
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -12,7 +11,6 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.settings._config import Config
-
 
 def get_version() -> str:
     return str(dramatiq.__version__)
@@ -54,7 +52,7 @@ def _traced_send_with_options_function(integration_config: Config) -> Callable[[
     itself. The duration of this span is the duration of the send_with_options()
     call itself.
     """
-
+   
     def _traced_send_with_options(
         func: Callable[[Any], Any], instance: dramatiq.Actor, args: Tuple[Any], kwargs: Dict[Any, Any]
     ) -> Callable[[Any], Any]:
@@ -69,6 +67,7 @@ def _traced_send_with_options_function(integration_config: Config) -> Callable[[
                 "actor.options": instance.options,
             },
         ) as ctx, ctx.span:
+            print("the ctx.span is ------> ", ctx.span)
             return func(*args, **kwargs)
 
     return _traced_send_with_options
