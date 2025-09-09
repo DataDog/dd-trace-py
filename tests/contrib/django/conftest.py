@@ -33,11 +33,11 @@ def clear_django_caches():
     from ddtrace.contrib.internal.django import cache
     from ddtrace.contrib.internal.django import database
 
-    cache.get_service_name.invalidate()
-    cache.func_cache_operation.invalidate()
-    database.get_conn_config.invalidate()
-    database.get_conn_service_name.invalidate()
-    database.get_traced_cursor_cls.invalidate()
+    cache.get_service_name.cache_clear()
+    cache.func_cache_operation.cache_clear()
+    database.get_conn_config.cache_clear()
+    database.get_conn_service_name.cache_clear()
+    database.get_traced_cursor_cls.cache_clear()
 
 
 @pytest.fixture

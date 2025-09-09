@@ -1,0 +1,49 @@
+interactions:
+- request:
+    body: "------------boundary------\r\nContent-Disposition: form-data; name=\"file\";
+      filename=\"tmp.csv\"\r\nContent-Type: text/csv\r\n\r\ninput,expected_output,metadata\r\n\"{\"\"in0\"\":
+      \"\"r0v1\"\", \"\"in1\"\": \"\"r0v2\"\", \"\"in2\"\": \"\"r0v3\"\"}\",\"{\"\"out0\"\":
+      \"\"r0v4\"\", \"\"out1\"\": \"\"r0v5\"\"}\",{}\r\n\"{\"\"in0\"\": \"\"r1v1\"\",
+      \"\"in1\"\": \"\"r1v2\"\", \"\"in2\"\": \"\"r1v3\"\"}\",\"{\"\"out0\"\": \"\"r1v4\"\",
+      \"\"out1\"\": \"\"r1v5\"\"}\",{}\r\n\r\n------------boundary--------\r\n"
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '397'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - multipart/form-data; boundary=----------boundary------
+      User-Agent:
+      - python-requests/2.32.3
+    method: POST
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/0fe0c8dd-a7a8-40ab-9f2f-c5917c5739cf/records/upload
+  response:
+    body:
+      string: ''
+    headers:
+      content-length:
+      - '0'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Tue, 09 Sep 2025 04:32:20 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

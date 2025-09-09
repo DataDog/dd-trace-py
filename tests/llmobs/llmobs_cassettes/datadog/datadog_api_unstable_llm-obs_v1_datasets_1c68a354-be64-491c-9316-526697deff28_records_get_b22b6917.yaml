@@ -1,0 +1,47 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Length
+      : - '0'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.3
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/1c68a354-be64-491c-9316-526697deff28/records
+  response:
+    body:
+      string: '{"data":[{"id":"5cb0b133-2448-4f15-b154-42e6d1399509","type":"datasets","attributes":{"author":{"id":"de473b30-eb9f-11e9-a77a-c7405862b8bd"},"created_at":"2025-09-09T04:33:51.78111Z","dataset_id":"1c68a354-be64-491c-9316-526697deff28","input":{"prompt":"What
+        is the capital of Sealand?"},"updated_at":"2025-09-09T04:33:51.78111Z"}},{"id":"76f1a407-6cb2-42f8-a361-6e517411ee37","type":"datasets","attributes":{"author":{"id":"de473b30-eb9f-11e9-a77a-c7405862b8bd"},"created_at":"2025-09-09T04:33:46.922316Z","dataset_id":"1c68a354-be64-491c-9316-526697deff28","expected_output":{"answer":"Paris"},"input":{"prompt":"What
+        is the capital of France?"},"updated_at":"2025-09-09T04:33:46.922316Z"}}],"meta":{"after":""}}'
+    headers:
+      content-length:
+      - '714'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Tue, 09 Sep 2025 04:33:54 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

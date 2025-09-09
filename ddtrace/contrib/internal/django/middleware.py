@@ -1,3 +1,4 @@
+from inspect import iscoroutinefunction
 from inspect import isfunction
 from types import FunctionType
 from typing import Any
@@ -134,17 +135,42 @@ def traced_auth_middleware_process_request(func: FunctionType, args: Tuple[Any],
 def traced_middleware_factory(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
     middleware = func(*args, **kwargs)
 
-    if isfunction(middleware):
-        if hasattr(func, "__module__") and hasattr(func, "__qualname__"):
-            resource = f"{func.__module__}.{func.__qualname__}"
-        else:
-            resource = func_name(func)
+    if not isfunction(middleware):
+        return middleware
 
+    if hasattr(func, "__module__") and hasattr(func, "__qualname__"):
+        resource = f"{func.__module__}.{func.__qualname__}"
+    else:
+        resource = func_name(func)
+
+    if iscoroutinefunction(middleware):
+        # Handle async middleware - create async wrapper
+        async def traced_async_middleware_func(*args, **kwargs):
+            # The first argument for all middleware is the request object
+            # DEV: Do `optional=true` to avoid raising an error for middleware that don't follow the convention
+            # DEV: This is a function, so no `self` argument, so request is at position 0
+            request = get_argument_value(args, kwargs, 0, "request", optional=True)
+
+            with core.context_with_data(
+                "django.middleware.func",
+                span_name="django.middleware",
+                resource=resource,
+                tags={
+                    COMPONENT: config_django.integration_name,
+                },
+                tracer=config_django._tracer,
+                request=request,
+            ):
+                return await middleware(*args, **kwargs)
+
+        return traced_async_middleware_func
+    else:
+        # Handle sync middleware - use original wrapping approach
         def traced_middleware_func(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
             # The first argument for all middleware is the request object
             # DEV: Do `optional=true` to avoid raising an error for middleware that don't follow the convention
             # DEV: This is a function, so no `self` argument, so request is at position 0
-            request = get_argument_value(args, kwargs, 0, "request")
+            request = get_argument_value(args, kwargs, 0, "request", optional=True)
 
             with core.context_with_data(
                 "django.middleware.func",

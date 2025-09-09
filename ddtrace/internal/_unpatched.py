@@ -15,6 +15,7 @@ import sys
 
 previous_loaded_modules = frozenset(sys.modules.keys())
 from subprocess import Popen as unpatched_Popen  # noqa # nosec B404
+from os import close as unpatched_close  # noqa: F401, E402
 
 loaded_modules = frozenset(sys.modules.keys())
 for module in previous_loaded_modules - loaded_modules:
