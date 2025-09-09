@@ -1,11 +1,11 @@
 """
 ddtrace_pytest - Simple proxy plugins for ddtrace pytest integration with killswitch support.
 
-This package provides ultra-simple proxy plugins that use import * branching to conditionally
+This package provides simple proxy plugins that use `import *` branching to conditionally
 load ddtrace pytest functionality based on the DD_CIVISIBILITY_ENABLED environment variable.
 
-When DD_CIVISIBILITY_ENABLED=false/0: imports from disabled_* modules (no-op implementations)
-When DD_CIVISIBILITY_ENABLED=true/1:  imports from real ddtrace plugin modules
+When DD_CIVISIBILITY_ENABLED=true/1:  imports from actual ddtrace plugin modules, else expose
+disabled functionality to avoid breaking (for example, for pytest options exposed by ddtrace)
 """
 
 import os
