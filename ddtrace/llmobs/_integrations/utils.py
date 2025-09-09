@@ -555,7 +555,7 @@ def openai_get_input_messages_from_response_input(
 
 
 def _openai_parse_input_response_messages(
-    messages: List[Any], system_instructions: str = ""
+    messages: Optional[Union[str, List[Dict[str, Any]]]], system_instructions: Optional[str] = None
 ) -> Tuple[List[Dict[str, Any]], List[str]]:
     """
     Parses input messages from the openai responses api into a list of processed messages
@@ -701,19 +701,13 @@ def _openai_parse_output_response_messages(messages: List[Any]) -> Tuple[List[Di
             name = _get_attr(item, "name", "")
             raw_arguments = _get_attr(item, "input", "") or _get_attr(item, "arguments", OAI_HANDOFF_TOOL_ARG)
             arguments = safe_load_json(raw_arguments)
-            tool_call_outputs.append(
-                (
-                    item.call_id,
-                    name,
-                    raw_arguments,
-                )
-            )
             tool_call_info = ToolCall(
                 tool_id=call_id,
                 arguments=arguments,
                 name=name,
                 type=_get_attr(item, "type", "function"),
             )
+            tool_call_outputs.append(tool_call_info)
             message.update(
                 {
                     "tool_calls": [tool_call_info],
@@ -1123,12 +1117,12 @@ class OaiSpanAdapter:
         """
         return _openai_parse_input_response_messages(self.input, self.response_system_instructions)
 
-    def llmobs_output_messages(self) -> Tuple[List[Dict[str, Any]], List[Tuple[str, str, str]]]:
+    def llmobs_output_messages(self) -> Tuple[List[Dict[str, Any]], List[ToolCall]]:
         """Returns processed output messages for LLM Obs LLM spans.
 
         Returns:
             - A list of processed messages
-            - A list of tool call data (name, id, args) for span linking purposes
+            - A list of tool calls for span linking purposes
         """
         if not self.response or not self.response.output:
             return [], []
