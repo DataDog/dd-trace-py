@@ -696,13 +696,13 @@ class LLMObs(Service):
             expected_output_columns = []
         if metadata_columns is None:
             metadata_columns = []
-        ds = cls._instance._dne_client.dataset_create(dataset_name, project_name, description)
 
         # Store the original field size limit to restore it later
         original_field_size_limit = csv.field_size_limit()
 
         csv.field_size_limit(EXPERIMENT_CSV_FIELD_MAX_SIZE)  # 10mb
 
+        records = []
         try:
             with open(csv_path, mode="r") as csvfile:
                 content = csvfile.readline().strip()
@@ -729,7 +729,7 @@ class LLMObs(Service):
                     raise ValueError(f"Metadata columns not found in CSV header: {missing_metadata_columns}")
 
                 for row in rows:
-                    ds.append(
+                    records.append(
                         DatasetRecord(
                             input_data={col: row[col] for col in input_data_columns},
                             expected_output={col: row[col] for col in expected_output_columns},
@@ -742,6 +742,9 @@ class LLMObs(Service):
             # Always restore the original field size limit
             csv.field_size_limit(original_field_size_limit)
 
+        ds = cls._instance._dne_client.dataset_create(dataset_name, project_name, description)
+        for r in records:
+            ds.append(r)
         if len(ds) > 0:
             cls._instance._dne_client.dataset_bulk_upload(ds._id, ds._records)
         return ds

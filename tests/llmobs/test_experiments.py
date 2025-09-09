@@ -113,7 +113,7 @@ def test_dataset_large_num_records(llmobs):
         records.append({"input_data": f"input_{i}", "expected_output": f"output_{i}"})
 
     ds = llmobs.create_dataset(
-        name="test-dataset-large-num-records",
+        dataset_name="test-dataset-large-num-records",
         description="A test dataset with a large number of records",
         records=records,
     )
@@ -216,7 +216,7 @@ def test_dataset_csv_empty_csv(llmobs):
     with pytest.raises(ValueError, match=re.escape("CSV file appears to be empty or header is missing.")):
         llmobs.create_dataset_from_csv(
             csv_path=csv_path,
-            dataset_name="test-dataset-bad-csv",
+            dataset_name="test-dataset-empty-csv",
             description="not a real csv dataset",
             input_data_columns=["in0", "in1", "in2"],
             expected_output_columns=["out0"],
@@ -271,7 +271,7 @@ def test_dataset_csv(llmobs, tmp_csv_file_for_upload):
         try:
             dataset = llmobs.create_dataset_from_csv(
                 csv_path=csv_path,
-                dataset_name="test-dataset-good-csv",
+                dataset_name="test-dataset-good-csv-1",
                 description="A good csv dataset",
                 input_data_columns=["in0", "in1", "in2"],
                 expected_output_columns=["out0", "out1"],
@@ -684,8 +684,8 @@ def test_dataset_extend(llmobs, test_dataset):
     assert ds[2]["input_data"] == {"prompt": "What is the capital of France?"}
     # france was first inserted so it is last (last updated)
     # then order is reversed for the append
-    assert ds[1]["input_data"] == {"prompt": "What is the capital of Sweden?"}
-    assert ds[0]["input_data"] == {"prompt": "What is the capital of Italy?"}
+    assert ds[0]["input_data"] == {"prompt": "What is the capital of Sweden?"}
+    assert ds[1]["input_data"] == {"prompt": "What is the capital of Italy?"}
     assert ds.name == test_dataset.name
     assert ds.description == test_dataset.description
 
@@ -874,13 +874,15 @@ def test_dataset_delete_after_append(llmobs, test_dataset):
 
 
 def test_project_create_new_project(llmobs):
-    project_id = llmobs._instance._dne_client.project_create_or_get(dataset_name="test-project-dne-sdk")
-    assert project_id == "905824bc-ccec-4444-a48d-401931d5065b"
+    project = llmobs._instance._dne_client.project_create_or_get(name="test-project-dne-sdk")
+    assert project.get("_id") == "905824bc-ccec-4444-a48d-401931d5065b"
+    assert project.get("name") == "test-project-dne-sdk"
 
 
 def test_project_get_existing_project(llmobs):
-    project_id = llmobs._instance._dne_client.project_create_or_get(dataset_name="test-project")
-    assert project_id == "f0a6723e-a7e8-4efd-a94a-b892b7b6fbf9"
+    project = llmobs._instance._dne_client.project_create_or_get(name="test-project")
+    assert project.get("_id") == "f0a6723e-a7e8-4efd-a94a-b892b7b6fbf9"
+    assert project.get("name") == "test-project"
 
 
 def test_experiment_invalid_task_type_raises(llmobs, test_dataset_one_record):
@@ -1013,7 +1015,7 @@ def test_experiment_init(llmobs, test_dataset_one_record):
     assert exp._evaluators == [dummy_evaluator]
     assert exp._project_name == "test-project"
     assert exp._description == "lorem ipsum"
-    assert exp._project is None
+    assert exp._project_id is None
     assert exp._run_name is None
     assert exp._id is None
 
@@ -1028,7 +1030,8 @@ def test_experiment_create(llmobs, test_dataset_one_record):
         tags={"tag1": "value1", "tag2": "value2"},
         config={"models": ["gpt-4.1"]},
     )
-    project_id = llmobs._instance._dne_client.project_create_or_get("test-project")
+    project = llmobs._instance._dne_client.project_create_or_get("test-project")
+    project_id = project.get("_id")
     exp_id, exp_run_name = llmobs._instance._dne_client.experiment_create(
         exp.name, exp._dataset._id, project_id, exp._dataset._version, exp._config
     )
