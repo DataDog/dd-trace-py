@@ -38,6 +38,28 @@ def _derive_logs_timeout(config: "ExporterConfig"):
     return get_config("OTEL_EXPORTER_OTLP_LOGS_TIMEOUT", config.DEFAULT_TIMEOUT, int)
 
 
+def _derive_metrics_endpoint(config: "ExporterConfig"):
+    if config.LOGS_PROTOCOL.lower() in ("http/json", "http/protobuf"):
+        default_endpoint = (
+            f"http://{get_agent_hostname()}:{ExporterConfig.HTTP_PORT}{ExporterConfig.HTTP_METRICS_ENDPOINT}"
+        )
+    else:
+        default_endpoint = f"http://{get_agent_hostname()}:{ExporterConfig.GRPC_PORT}"
+    return get_config(["OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "OTEL_EXPORTER_OTLP_ENDPOINT"], default_endpoint)
+
+
+def _derive_metrics_protocol(config: "ExporterConfig"):
+    return get_config("OTEL_EXPORTER_OTLP_METRICS_PROTOCOL", config.PROTOCOL)
+
+
+def _derive_metrics_headers(config: "ExporterConfig"):
+    return get_config("OTEL_EXPORTER_OTLP_METRICS_HEADERS", config.HEADERS)
+
+
+def _derive_metrics_timeout(config: "ExporterConfig"):
+    return get_config("OTEL_EXPORTER_OTLP_METRICS_TIMEOUT", config.DEFAULT_TIMEOUT, int)
+
+
 class OpenTelemetryConfig(DDConfig):
     __prefix__ = "otel"
 
@@ -48,6 +70,7 @@ class ExporterConfig(DDConfig):
     GRPC_PORT: int = 4317
     HTTP_PORT: int = 4318
     HTTP_LOGS_ENDPOINT: str = "/v1/logs"
+    HTTP_METRICS_ENDPOINT: str = "/v1/metrics"
     DEFAULT_HEADERS: str = ""
     DEFAULT_TIMEOUT: int = 10000
 
@@ -60,6 +83,11 @@ class ExporterConfig(DDConfig):
     LOGS_ENDPOINT = DDConfig.d(str, _derive_logs_endpoint)
     LOGS_HEADERS = DDConfig.d(str, _derive_logs_headers)
     LOGS_TIMEOUT = DDConfig.d(int, _derive_logs_timeout)
+
+    METRICS_PROTOCOL = DDConfig.d(str, _derive_metrics_protocol)
+    METRICS_ENDPOINT = DDConfig.d(str, _derive_metrics_endpoint)
+    METRICS_HEADERS = DDConfig.d(str, _derive_metrics_headers)
+    METRICS_TIMEOUT = DDConfig.d(int, _derive_metrics_timeout)
 
 
 OpenTelemetryConfig.include(ExporterConfig, namespace="exporter")
