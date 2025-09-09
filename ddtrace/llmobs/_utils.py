@@ -51,7 +51,7 @@ def _validate_prompt(prompt: Union[Dict[str, Any], Prompt], strict_validation: b
     if not isinstance(prompt, dict):
         raise TypeError(f"Prompt must be a dictionary, got {type(prompt).__name__}.")
 
-    ml_app = config._llmobs_ml_app or DEFAULT_PROMPT_ML_APP
+    ml_app = config._llmobs_ml_app
     prompt_id = prompt.get("id")
     version = prompt.get("version")
     tags = prompt.get("tags")
