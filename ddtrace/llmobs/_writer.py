@@ -487,7 +487,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             resp = self.request("GET", list_path, timeout=self.LIST_RECORDS_TIMEOUT)
             if resp.status != 200:
                 raise ValueError(
-                    f"Failed to pull {page_num}th page of dataset records {dataset_name}: "
+                    f"Failed to pull dataset records for {dataset_name}, page={page_num}: "
                     f"{resp.status} {resp.get_json()}"
                 )
             records_data = resp.get_json()
@@ -565,7 +565,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         logger.debug("successfully uploaded with code %d", resp.status)
 
     def project_create_or_get(self, name: Optional[str] = None) -> Project:
-        default_project_name = self._default_project.get("name", "")
+        default_project_name = self._default_project["name"]
         project_name = default_project_name
 
         if not name:
