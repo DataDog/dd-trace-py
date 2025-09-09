@@ -2,6 +2,8 @@ import importlib
 import os
 from types import ModuleType
 from typing import TYPE_CHECKING  # noqa:F401
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
 from typing import Set
 from typing import Union
 
@@ -30,7 +32,7 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger(__name__)
 
 # Default set of modules to automatically patch or not
-PATCH_MODULES = {
+PATCH_MODULES: Dict[str, Union[bool, Any]] = {
     "aioredis": True,
     "aiomysql": True,
     "aredis": True,

@@ -487,7 +487,7 @@ class Tracer(object):
                 service = config.service
 
         # Update the service name based on any mapping
-        service = config.service_mapping.get(service, service)
+        service = config.service_mapping.get(service or "", service)
 
         links = context._span_links if not parent else []
         if trace_id or links or context._baggage:
@@ -537,7 +537,7 @@ class Tracer(object):
 
         # Apply default global tags.
         if self._tags:
-            span.set_tags(self._tags)
+            span.set_tags(self._tags)  # type: ignore[arg-type]
 
         if config.env:
             span.set_tag_str(ENV_KEY, config.env)

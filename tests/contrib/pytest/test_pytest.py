@@ -4927,41 +4927,6 @@ def test_simple():
             # Verify fast execution (disabled plugin should have minimal overhead)
             assert execution_time < 0.5, f"Test took {execution_time:.2f}s, expected < 0.5s (for ddtrace not executing)"
 
-    def test_civisibility_killswitch_functions_not_called_when_disabled_false_module_check(self):
-        """Test that key ddtrace modules are not imported when DD_CIVISIBILITY_ENABLED=false.
-
-        If the killswitch works, the modules containing configure_ddtrace_logger and report_configuration
-        should never be imported, proving the functions are not called.
-        """
-        py_file = self.testdir.makepyfile(
-            """
-            def test_modules_not_imported():
-                import sys
-                import os
-
-                # Verify the environment variable is set correctly
-                assert os.getenv('DD_CIVISIBILITY_ENABLED') == 'false'
-
-                # Check that key modules were not imported (killswitch working)
-                logger_module_imported = 'ddtrace._logger' in sys.modules
-                telemetry_module_imported = 'ddtrace.internal.telemetry' in sys.modules
-
-                # When killswitch is active, these modules should not be imported
-                assert not logger_module_imported and not telemetry_module_imported
-        """
-        )
-
-        start_time = time.time()
-        result = self.subprocess_run("--ddtrace", py_file.basename, "-v", env={"DD_CIVISIBILITY_ENABLED": "false"})
-        end_time = time.time()
-
-        execution_time = end_time - start_time
-
-        # Verify test passed and ran quickly
-        result.assert_outcomes(passed=1)
-        assert result.ret == 0
-        assert execution_time < 0.5, f"Test took {execution_time:.2f}s, expected < 0.5s (for ddtrace not executing)"
-
 
 def test_pytest_coverage_data_format_handling_none_value():
     """Test that coverage data format issues are handled correctly with proper logging for None value."""

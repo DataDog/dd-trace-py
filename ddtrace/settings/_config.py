@@ -11,6 +11,7 @@ from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
+from ddtrace.internal._instrumentation_enabled import _INSTRUMENTATION_ENABLED
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.telemetry import telemetry_writer
@@ -37,6 +38,7 @@ from ..internal.telemetry import get_config as _get_config
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
 from ._inferred_base_service import detect_service
+from ._protocol import ConfigProtocol
 from .endpoint_config import fetch_config_from_endpoint
 from .http import HttpConfig
 from .integration import IntegrationConfig
@@ -781,4 +783,66 @@ class Config(object):
         return value.lower()
 
 
-config = Config()
+if _INSTRUMENTATION_ENABLED:
+    config: ConfigProtocol = Config()
+else:
+    # Return a stub that implements ConfigProtocol
+    class _NullConfig:
+        # Implement all the Protocol attributes with sensible defaults
+        _data_streams_enabled: bool = False
+        _from_endpoint: Dict[str, Any] = {}
+        _remote_config_enabled: bool = False
+        _sca_enabled: bool = False
+        _trace_safe_instrumentation_enabled: bool = False
+        _modules_to_report: Any = None
+        _report_handled_errors: Any = None
+        _configured_modules: Any = None
+        _instrument_user_code: bool = False
+        _instrument_third_party_code: bool = False
+        _instrument_all: bool = False
+        _stacktrace_resolver: Any = None
+        _enabled: bool = False
+        _http_tag_query_string: bool = False
+        _health_metrics_enabled: bool = False
+        _trace_writer_interval_seconds: float = 1.0
+        _trace_writer_connection_reuse: bool = False
+        _trace_writer_log_err_payload: bool = False
+        _trace_api: str = "v0.5"
+        _trace_writer_buffer_size: int = 1000
+        _trace_writer_payload_size: int = 1000
+        _http: Any = None
+        _logs_injection: bool = False
+        _dd_site: Any = None
+        _dd_api_key: Any = None
+        _llmobs_ml_app: Any = None
+        _llmobs_instrumented_proxy_urls: Any = None
+        _llmobs_agentless_enabled: Any = False
+        _trace_compute_stats: bool = False
+        _tracing_enabled: bool = False
+
+        # Common properties
+        service: Any = None
+        env: Any = None
+        version: Any = None
+        tags: Dict[str, Any] = {}
+        service_mapping: Dict[str, str] = {}
+
+        def __getattr__(self, name: str) -> Any:
+            # Handle dynamic attributes and integration configs
+            if name.endswith("_enabled"):
+                return False
+            if name.endswith("_timeout"):
+                return 0
+            if name.startswith("_") and "interval" in name:
+                return 1.0
+            if name.startswith("_") and ("size" in name or "limit" in name):
+                return 1000
+            return False
+
+        def _add_extra_service(self, service_name: str) -> None:
+            pass  # No-op for null config
+
+        def _get_extra_services(self) -> Any:
+            return set()
+
+    config: ConfigProtocol = _NullConfig()  # type: ignore[no-redef]

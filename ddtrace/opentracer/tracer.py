@@ -106,8 +106,8 @@ class Tracer(opentracing.Tracer):
             trace_processors = self._config[keys.SETTINGS]["FILTERS"]  # type: ignore[index]
             self._dd_tracer._span_aggregator.user_processors = trace_processors
 
-        if self._config[keys.ENABLED]:
-            self._dd_tracer.enabled = self._config[keys.ENABLED]
+        if self._config[keys.ENABLED] is not None:
+            self._dd_tracer.enabled = bool(self._config[keys.ENABLED])
 
         if (
             self._config[keys.AGENT_HOSTNAME]

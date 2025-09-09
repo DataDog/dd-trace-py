@@ -33,3 +33,6 @@ def resolve_instrumentation_enabled(global_default: bool = True) -> bool:
         if val is not None:
             return val == enabled_value  # enabled iff env value equals its "enabled" value
     return global_default  # fallback (enabled by default)
+
+
+_INSTRUMENTATION_ENABLED: bool = resolve_instrumentation_enabled(global_default=True)

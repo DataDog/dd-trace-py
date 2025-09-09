@@ -14,7 +14,7 @@ to be run at specific points during pytest execution. The most important hooks u
 
 import os
 
-from ddtrace import _INSTRUMENTATION_ENABLED
+from ddtrace.internal._instrumentation_enabled import _INSTRUMENTATION_ENABLED
 
 
 DDTRACE_HELP_MSG = "Enable tracing of pytest functions."

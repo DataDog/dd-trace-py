@@ -7,7 +7,7 @@ This is normally started automatically when ``ddtrace`` is imported. It can be d
 import os
 import typing as t
 
-from ddtrace import _INSTRUMENTATION_ENABLED
+from ddtrace.internal._instrumentation_enabled import _INSTRUMENTATION_ENABLED
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.formats import asbool

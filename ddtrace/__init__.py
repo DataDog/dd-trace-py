@@ -1,5 +1,10 @@
 import sys
 import os
+from typing import TYPE_CHECKING
+from typing import Any
+from typing import Dict
+
+from .settings._protocol import ConfigProtocol
 
 
 LOADED_MODULES = frozenset(sys.modules.keys())
@@ -8,9 +13,8 @@ LOADED_MODULES = frozenset(sys.modules.keys())
 import ddtrace.internal._unpatched  # noqa
 from ._logger import configure_ddtrace_logger
 
-from .internal._instrumentation_enabled import resolve_instrumentation_enabled
+from .internal._instrumentation_enabled import _INSTRUMENTATION_ENABLED
 
-_INSTRUMENTATION_ENABLED = resolve_instrumentation_enabled(global_default=True)
 
 if _INSTRUMENTATION_ENABLED:
     # configure ddtrace logger before other modules log
@@ -23,11 +27,7 @@ from .version import get_version  # noqa: E402
 
 __version__ = get_version()
 
-
-if _INSTRUMENTATION_ENABLED:
-    from .settings._config import config
-else:
-    config = None  # type:ignore
+from .settings._config import config
 
 # Enable telemetry writer and excepthook as early as possible to ensure we capture any exceptions from initialization
 import ddtrace.internal.telemetry  # noqa: E402

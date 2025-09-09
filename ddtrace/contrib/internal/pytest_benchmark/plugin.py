@@ -1,4 +1,4 @@
-from ddtrace import _INSTRUMENTATION_ENABLED
+from ddtrace.internal._instrumentation_enabled import _INSTRUMENTATION_ENABLED
 
 
 if _INSTRUMENTATION_ENABLED:
