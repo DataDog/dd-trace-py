@@ -1,0 +1,47 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Length
+      : - '0'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.3
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/1707dcaf-1364-48f1-bf28-6c8c39cda1d0/records
+  response:
+    body:
+      string: '{"data":[{"id":"8e779a74-3c64-4c7d-acd4-99824f0f7fa0","type":"datasets","attributes":{"author":{"id":"de473b30-eb9f-11e9-a77a-c7405862b8bd"},"created_at":"2025-09-09T02:53:23.252637Z","dataset_id":"1707dcaf-1364-48f1-bf28-6c8c39cda1d0","input":{"prompt":"What
+        is the capital of Sweden?"},"updated_at":"2025-09-09T02:53:23.252637Z"}},{"id":"084fa9f5-9f1c-4b6c-8017-2799c9869224","type":"datasets","attributes":{"author":{"id":"de473b30-eb9f-11e9-a77a-c7405862b8bd"},"created_at":"2025-09-09T02:53:18.413174Z","dataset_id":"1707dcaf-1364-48f1-bf28-6c8c39cda1d0","expected_output":{"answer":"Rome"},"input":{"prompt":"What
+        is the capital of Italy?"},"updated_at":"2025-09-09T02:53:18.413174Z"}}],"meta":{"after":""}}'
+    headers:
+      content-length:
+      - '713'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Tue, 09 Sep 2025 02:53:27 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
