@@ -87,6 +87,23 @@ def test_dataset_one_record(llmobs):
     llmobs._delete_dataset(dataset_id=ds._id)
 
 
+@pytest.fixture
+def test_dataset_one_record_separate_project(llmobs):
+    records = [
+        DatasetRecord(
+            input_data={"prompt": "What is the capital of Massachusetts?"}, expected_output={"answer": "Boston"}
+        )
+    ]
+    ds = llmobs.create_dataset(
+        dataset_name="test-dataset-857", project_name="boston-project", description="A boston dataset", records=records
+    )
+    wait_for_backend()
+
+    yield ds
+
+    llmobs._delete_dataset(dataset_id=ds._id)
+
+
 # this fixture is needed because the tmp file call in _writer.py's dataset_bulk_upload
 # will result in random names, causing a new POST request every time to the upload endpoint
 # leading to repeated CI test failures
@@ -128,6 +145,20 @@ def test_dataset_create_delete(llmobs):
     dataset = llmobs.create_dataset(dataset_name="test-dataset-2", description="A second test dataset")
     assert dataset._id is not None
     assert dataset.url == f"https://app.datadoghq.com/llm/datasets/{dataset._id}"
+    assert dataset.project.get("name") == "test-project"
+    assert dataset.project.get("_id")
+
+    llmobs._delete_dataset(dataset_id=dataset._id)
+
+
+def test_dataset_create_delete_project_override(llmobs):
+    dataset = llmobs.create_dataset(
+        dataset_name="test-dataset-2", project_name="second project", description="A second test dataset"
+    )
+    assert dataset._id is not None
+    assert dataset.url == f"https://app.datadoghq.com/llm/datasets/{dataset._id}"
+    assert dataset.project.get("name") == "second project"
+    assert dataset.project.get("_id")
 
     llmobs._delete_dataset(dataset_id=dataset._id)
 
@@ -276,6 +307,8 @@ def test_dataset_csv(llmobs, tmp_csv_file_for_upload):
                 input_data_columns=["in0", "in1", "in2"],
                 expected_output_columns=["out0", "out1"],
             )
+            assert dataset.project.get("name") == "test-project"
+            assert dataset.project.get("_id")
             dataset_id = dataset._id
             assert len(dataset) == 2
             assert len(dataset[0]["input_data"]) == 3
@@ -323,6 +356,8 @@ def test_dataset_csv_pipe_separated(llmobs, tmp_csv_file_for_upload):
                 metadata_columns=["m0"],
                 csv_delimiter="|",
             )
+            assert dataset.project.get("name") == "test-project"
+            assert dataset.project.get("_id")
             dataset_id = dataset._id
             assert len(dataset) == 2
             assert len(dataset[0]["input_data"]) == 3
@@ -364,8 +399,15 @@ def test_dataset_pull_non_existent(llmobs):
         llmobs.pull_dataset(dataset_name="test-dataset-non-existent")
 
 
+def test_dataset_pull_non_existent_project(llmobs):
+    with pytest.raises(ValueError):
+        llmobs.pull_dataset(dataset_name="test-dataset-non-existent", project_name="some project")
+
+
 def test_dataset_pull_large_num_records(llmobs, test_dataset_large_num_records):
     pds = llmobs.pull_dataset(dataset_name=test_dataset_large_num_records.name)
+    assert pds.project.get("name") == "test-project"
+    assert pds.project.get("_id")
     assert len(pds) == len(test_dataset_large_num_records)
     assert pds.name == test_dataset_large_num_records.name
     assert pds.description == test_dataset_large_num_records.description
@@ -380,18 +422,36 @@ def test_dataset_pull_large_num_records(llmobs, test_dataset_large_num_records):
 @pytest.mark.parametrize("test_dataset_records", [[]])
 def test_dataset_pull_exists_but_no_records(llmobs, test_dataset, test_dataset_records, test_dataset_name):
     dataset = llmobs.pull_dataset(dataset_name=test_dataset.name)
+    assert dataset.project.get("name") == "test-project"
+    assert dataset.project.get("_id")
     assert dataset._id is not None
     assert len(dataset) == 0
 
 
 def test_dataset_pull_exists_with_record(llmobs, test_dataset_one_record):
     dataset = llmobs.pull_dataset(dataset_name=test_dataset_one_record.name)
+    assert dataset.project.get("name") == "test-project"
+    assert dataset.project.get("_id")
     assert len(dataset) == 1
     assert dataset[0]["input_data"] == {"prompt": "What is the capital of France?"}
     assert dataset[0]["expected_output"] == {"answer": "Paris"}
     assert dataset.name == test_dataset_one_record.name
     assert dataset.description == test_dataset_one_record.description
     assert dataset._version == test_dataset_one_record._version == 1
+
+
+def test_dataset_pull_from_project(llmobs, test_dataset_one_record_separate_project):
+    dataset = llmobs.pull_dataset(
+        dataset_name=test_dataset_one_record_separate_project.name, project_name="boston-project"
+    )
+    assert dataset.project.get("name") == "boston-project"
+    assert dataset.project.get("_id")
+    assert len(dataset) == 1
+    assert dataset[0]["input_data"] == {"prompt": "What is the capital of Massachusetts?"}
+    assert dataset[0]["expected_output"] == {"answer": "Boston"}
+    assert dataset.name == test_dataset_one_record_separate_project.name
+    assert dataset.description == test_dataset_one_record_separate_project.description
+    assert dataset._version == test_dataset_one_record_separate_project._version == 1
 
 
 @pytest.mark.parametrize(
