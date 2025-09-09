@@ -14,7 +14,7 @@ from ray.runtime_context import get_runtime_context
 from ddtrace.propagation.http import _TraceContext
 
 
-DEFAULT_JOB_NAME = "unspecified-ray-job"
+DEFAULT_JOB_NAME = "unspecified.ray.job"
 JOB_NAME_REGEX = re.compile(r"^[A-Za-z0-9\.]+")
 
 
