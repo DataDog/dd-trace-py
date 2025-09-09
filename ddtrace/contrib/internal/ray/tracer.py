@@ -3,8 +3,10 @@ from ddtrace.constants import _DJM_ENABLED_KEY
 from ddtrace.constants import _FILTER_KEPT_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
+from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.trace import TraceFilter
 from ddtrace.trace import tracer
+import socket
 
 
 RAY_JOB_ID_TAG_KEY = "ray.job_id"
@@ -22,6 +24,9 @@ class RayTraceFilter(TraceFilter):
                 span.set_metric(_FILTER_KEPT_KEY, 1)
                 span.set_metric(_SPAN_MEASURED_KEY, 1)
                 span.set_metric(_SAMPLING_PRIORITY_KEY, 2)
+
+                # Add host name tag 
+                span.set_tag_str(_HOSTNAME_KEY, socket.gethostname())
         return trace
 
 
