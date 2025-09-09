@@ -9,7 +9,6 @@ import mock
 import pytest
 
 from ddtrace._trace._span_link import SpanLink
-from ddtrace._trace._span_pointer import _SpanPointer
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace.context import Context
 from ddtrace.constants import _SPAN_MEASURED_KEY
