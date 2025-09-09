@@ -1,19 +1,6 @@
 #include "helpers.h"
-#include "context/taint_engine_context.h"
-#include "initializer/initializer.h"
 #include "utils/python_error_guard.h"
-#include "utils/string_utils.h"
-
 #include <algorithm>
-
-// Returns a tuple with (all ranges, ranges of candidate_text)
-tuple<TaintRangeRefs, TaintRangeRefs>
-are_all_text_all_ranges(PyObject* candidate_text,
-                        const py::tuple& parameter_list,
-                        const TaintedObjectMapTypePtr& tx_map);
-
-tuple<TaintRangeRefs, TaintRangeRefs>
-api_are_all_text_all_ranges(py::handle& candidate_text, const py::tuple& parameter_list);
 
 using namespace pybind11::literals;
 namespace py = pybind11;
@@ -37,10 +24,6 @@ api_common_replace(const py::str& string_method,
 
     const auto tx_map = taint_engine_context->get_tainted_object_map(candidate_text.ptr());
 
-    /*    std::cerr << "api_common_replace: candidate_text = '" << StrType(candidate_text) << "'" << std::endl;
-        std::cerr << "api_common_replace: tx_map is "
-        << (!tx_map ? "null" : (tx_map->empty() ? "empty" : "non-empty"))
-        << std::endl;*/
     if (not tx_map or tx_map->empty()) {
         return res;
     }

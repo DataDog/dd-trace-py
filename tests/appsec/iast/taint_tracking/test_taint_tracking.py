@@ -63,10 +63,9 @@ def test_taint_object_with_no_context_should_be_noop():
     arg = "all tainted"
     tainted_text = taint_pyobject(arg, source_name="request_body", source_value=arg, source_origin=OriginType.PARAMETER)
     assert tainted_text == arg
-    assert _num_objects_tainted_in_request() == 0
+    assert _num_objects_tainted_in_request() is None
 
 
-@pytest.mark.skip_iast_check_logs
 def test_propagate_ranges_with_no_context(caplog):
     _iast_finish_request()
     with override_global_config(dict(_iast_debug=True)), caplog.at_level(logging.DEBUG):
@@ -74,22 +73,18 @@ def test_propagate_ranges_with_no_context(caplog):
             pyobject="abcde", source_name="abcde", source_value="abcde", source_origin=OriginType.PARAMETER
         )
         assert string_input == "abcde"
-    log_messages = [record.message for record in caplog.get_records("call")]
-    assert any("iast::" in message for message in log_messages), log_messages
 
 
-@pytest.mark.skip_iast_check_logs
-def test_call_to_taint_pyobject_with_ranges_directly_raises_a_exception(caplog):
+def test_call_to_taint_pyobject_with_ranges_directly_NOT_raises_a_exception():
     from ddtrace.appsec._iast._taint_tracking import Source as TaintRangeSource
 
     _iast_finish_request()
     input_str = "abcde"
-    with pytest.raises(ValueError) as excinfo:
-        taint_pyobject_with_ranges(
-            input_str,
-            [TaintRange(0, len(input_str), TaintRangeSource(input_str, "sample_value", OriginType.PARAMETER), [])],
-        )
-    assert str(excinfo.value).startswith("iast::propagation::native::error::Tainted Map isn't initialized")
+    res = taint_pyobject_with_ranges(
+        input_str,
+        [TaintRange(0, len(input_str), TaintRangeSource(input_str, "sample_value", OriginType.PARAMETER), [])],
+    )
+    assert res is False
 
 
 def test_taint_ranges_as_evidence_info_tainted_op1_add():

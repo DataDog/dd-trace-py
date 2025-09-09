@@ -27,7 +27,7 @@
 //   ContextVar. At end: finish_request_context(context_id).
 // - Propagation and aspects can use the fast path by reading context_id from
 //   the ContextVar and calling into get_tainted_object_map_by_ctx_id().
-
+//
 #pragma once
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
@@ -54,7 +54,10 @@ class TaintEngineContext
 
     // Fast-path: get the taint map for a known context_id (slot index).
     // Returns nullptr if the slot is empty or out of lifecycle.
-    TaintedObjectMapTypePtr get_tainted_object_map_by_ctx_id(size_t ctx_id) { return request_context_slots[ctx_id]; }
+    // AIDEV-NOTE: This is declared (not inline) to allow bounds checking and
+    // debug logging in the implementation. Avoids potential SIGSEGV when an
+    // invalid ctx_id is passed (e.g., after races while resetting contexts).
+    TaintedObjectMapTypePtr get_tainted_object_map_by_ctx_id(size_t ctx_id);
 
     // Slow-path: find and return the taint map that contains the given
     // tainted object across all active slots. Returns nullptr if not found or

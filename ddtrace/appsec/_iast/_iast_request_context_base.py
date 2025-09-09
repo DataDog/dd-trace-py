@@ -61,11 +61,10 @@ class IASTContextException(Exception):
 
 def _iast_start_request(span=None):
     context_id = None
-
     if asm_config._iast_enabled:
         if oce.acquire_request(span):
             _old_context_id = IAST_CONTEXT.get()
-            if _old_context_id:
+            if _old_context_id is not None:
                 raise IASTContextException("Trying to start a new context but an IAST context already present")
             context_id = start_request_context()
             if context_id is not None:
@@ -90,12 +89,16 @@ def _iast_finish_request(span: Optional["Span"] = None, shoud_update_global_vuln
     if context_id is not None:
         finish_request_context(context_id)
         IAST_CONTEXT.set(None)
+        return True
+
+    return False
 
 
 def is_iast_request_enabled():
-    print(f"IAST REQUEST CONTEXT! {_get_iast_context_id()}")
     return _get_iast_context_id() is not None
 
 
 def _num_objects_tainted_in_request():
-    return debug_debug_num_tainted_objects(_get_iast_context_id())
+    context_id = _get_iast_context_id()
+    if context_id is not None:
+        return debug_debug_num_tainted_objects(context_id)

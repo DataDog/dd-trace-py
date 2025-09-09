@@ -22,7 +22,6 @@
 //
 #include "taint_engine_context.h"
 #include "taint_tracking/tainted_object.h"
-#include <cstdint>
 #include <cstdlib>
 #include <initializer_list>
 
@@ -100,17 +99,24 @@ TaintEngineContext::start_request_context()
             return i;
         }
     }
-    // Saturated
-    return -1;
+    return std::nullopt;
 }
 
 void
 TaintEngineContext::finish_request_context(size_t ctx_id)
 {
-    if (request_context_slots[ctx_id]) {
-        request_context_slots[ctx_id]->clear();
+    // AIDEV-NOTE: Bounds-checked and verbose to avoid crashes during races.
+    const auto cap = request_context_slots.size();
+    if (ctx_id >= cap) {
+        return;
     }
-    request_context_slots[ctx_id] = nullptr;
+
+    auto& slot = request_context_slots[ctx_id];
+    if (!slot) {
+        return;
+    }
+    slot->clear();
+    slot = nullptr;
 }
 
 void
@@ -131,6 +137,7 @@ TaintEngineContext::get_tainted_object_map(PyObject* tainted_object)
         if (!context_map) {
             continue;
         }
+
         const auto& to_initial = get_tainted_object(tainted_object, context_map);
         if (to_initial && !to_initial->get_ranges().empty()) {
             return context_map;
@@ -179,6 +186,16 @@ TaintEngineContext::debug_num_tainted_objects(size_t ctx_id)
         return static_cast<int>(ctx_map->size());
     }
     return 0;
+}
+
+TaintedObjectMapTypePtr
+TaintEngineContext::get_tainted_object_map_by_ctx_id(size_t ctx_id)
+{
+    const auto cap = request_context_slots.size();
+    if (ctx_id >= cap) {
+        return nullptr;
+    }
+    return request_context_slots[ctx_id];
 }
 
 void

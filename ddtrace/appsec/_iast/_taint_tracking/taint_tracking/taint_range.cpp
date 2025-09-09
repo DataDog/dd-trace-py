@@ -89,16 +89,15 @@ api_shift_taint_ranges(const TaintRangeRefs& source_taint_ranges,
     return shift_taint_ranges(source_taint_ranges, offset);
 }
 
-py::object
+bool
 api_set_ranges(py::handle& str, const TaintRangeRefs& ranges, const size_t contextid)
 {
     const auto tx_map = taint_engine_context->get_tainted_object_map_by_ctx_id(contextid);
-
     if (not tx_map) {
-        throw py::value_error(MSG_ERROR_TAINT_MAP);
+        return false;
     }
-    set_ranges(str.ptr(), ranges, tx_map);
-    return py::none();
+    const bool ok = set_ranges(str.ptr(), ranges, tx_map);
+    return ok;
 }
 
 /**
@@ -133,15 +132,9 @@ api_taint_pyobject(PyObject* self, PyObject* const* args, const Py_ssize_t nargs
         PyObject* tainted_object = args[0];
         PyObject* ctx_obj = args[5];
         size_t context_id = PyLong_AsSize_t(ctx_obj);
-        if (context_id == (size_t)-1 && PyErr_Occurred()) {
-            PyErr_Clear();
-            py::set_error(PyExc_ValueError, "invalid context_id");
-            return nullptr;
-        }
         const auto tx_map = taint_engine_context->get_tainted_object_map_by_ctx_id(context_id);
         if (not tx_map) {
-            py::set_error(PyExc_ValueError, MSG_ERROR_TAINT_MAP);
-            return nullptr;
+            return tainted_object;
         }
 
         pyobject_n = new_pyobject_id(tainted_object);
@@ -223,6 +216,7 @@ set_ranges(PyObject* str, const TaintRangeRefs& ranges, const TaintedObjectMapTy
     }
 
     tx_map->insert({ obj_id, std::make_pair(get_internal_hash(str), new_tainted_object) });
+
     return true;
 }
 
@@ -254,7 +248,7 @@ api_get_ranges(const py::handle& string_input)
 
     auto [ranges, ranges_error] = get_ranges(string_input.ptr(), tx_map);
     if (ranges_error) {
-        throw py::value_error(MSG_ERROR_GET_RANGES_TYPE);
+        return {};
     }
     return ranges;
 }
@@ -304,9 +298,9 @@ api_copy_and_shift_ranges_from_strings(py::handle& str_1,
 TaintedObjectPtr
 get_tainted_object(PyObject* str, const TaintedObjectMapTypePtr& tx_map)
 {
-    if (not str)
+    if (not str) {
         return nullptr;
-
+    }
     if (is_notinterned_notfasttainted_unicode(str) or tx_map->empty()) {
         return nullptr;
     }
