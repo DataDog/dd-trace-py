@@ -13,8 +13,7 @@ class AsyncioLockCollector(_lock.LockCollector):
 
     PROFILED_LOCK_CLASS = _ProfiledAsyncioLock
 
-    def _start_service(self):
-        # type: (...) -> None
+    def _start_service(self) -> None:
         """Start collecting lock usage."""
         try:
             import asyncio
@@ -23,12 +22,11 @@ class AsyncioLockCollector(_lock.LockCollector):
         self._asyncio_module = asyncio
         return super(AsyncioLockCollector, self)._start_service()
 
-    def _get_patch_target(self):
-        # type: (...) -> typing.Any
+    def _get_patch_target(self) -> typing.Any:
         return self._asyncio_module.Lock
 
     def _set_patch_target(
-        self, value  # type: typing.Any
-    ):
-        # type: (...) -> None
+        self,
+        value: typing.Any,
+    ) -> None:
         self._asyncio_module.Lock = value  # type: ignore[misc]
