@@ -115,6 +115,41 @@ async def test_pipeline(traced_redis_cluster):
     assert span.get_metric("redis.pipeline_length") == 3
 
 
+@pytest.mark.snapshot(wait_for_num_traces=1)
+@pytest.mark.asyncio
+async def test_pipeline_command_stack_count_matches_metric(redis_cluster):
+    patch()
+    try:
+        async with redis_cluster.pipeline(transaction=False) as p:
+            p.set("a", 1)
+            p.get("a")
+            await p.execute()
+    finally:
+        unpatch()
+
+
+@pytest.mark.asyncio
+async def test_pipeline_command_stack_parity_when_visible(traced_redis_cluster):
+    cluster, test_spans = traced_redis_cluster
+    async with cluster.pipeline(transaction=False) as p:
+        p.set("a", 1)
+        p.get("a")
+        queued = None
+        if hasattr(p, "command_stack"):
+            queued = len(p.command_stack)
+        elif hasattr(p, "_command_stack"):
+            queued = len(p._command_stack)
+        await p.execute()
+
+    traces = test_spans.pop_traces()
+    spans = traces[0]
+    span = spans[0]
+    assert span.resource == "SET\nGET"
+    assert span.get_metric("redis.pipeline_length") == 2
+    if queued is not None:
+        assert span.get_metric("redis.pipeline_length") == queued
+
+
 @pytest.mark.skipif(redis.VERSION < (4, 3, 0), reason="redis.asyncio.cluster is not implemented in redis<4.3.0")
 @pytest.mark.asyncio
 async def test_patch_unpatch(redis_cluster):

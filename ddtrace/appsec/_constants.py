@@ -236,6 +236,12 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
     SQLI_SYSTEM_ADDRESS: Literal["server.db.system"] = "server.db.system"
     LOGIN_FAILURE: Literal["server.business_logic.users.login.failure"] = "server.business_logic.users.login.failure"
     LOGIN_SUCCESS: Literal["server.business_logic.users.login.success"] = "server.business_logic.users.login.success"
+    DOWN_REQ_HEADERS: Literal["server.io.net.request.headers"] = "server.io.net.request.headers"
+    DOWN_REQ_METHOD: Literal["server.io.net.request.method"] = "server.io.net.request.method"
+    DOWN_REQ_BODY: Literal["server.io.net.request.body"] = "server.io.net.request.body"
+    DOWN_RES_STATUS: Literal["server.io.net.response.status"] = "server.io.net.response.status"
+    DOWN_RES_HEADERS: Literal["server.io.net.response.headers"] = "server.io.net.response.headers"
+    DOWN_RES_BODY: Literal["server.io.net.response.body"] = "server.io.net.response.body"
 
 
 class SPAN_DATA_NAMES(metaclass=Constant_Class):
