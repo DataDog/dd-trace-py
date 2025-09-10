@@ -4,6 +4,7 @@ This test verifies that when DD_CIVISIBILITY_ENABLED is set to false/0,
 CI Visibility is disabled and pytest traces go to the regular agent
 instead of citestcycle intake, even when DD_CIVISIBILITY_AGENTLESS_ENABLED=1.
 """
+
 import os
 import subprocess
 import tempfile
@@ -170,9 +171,7 @@ def test_simple():
     )
 
     # Run pytest with ddtrace-run
-    with mock.patch("requests.post", side_effect=mock_request), mock.patch(
-        "requests.get", side_effect=mock_request
-    ):
+    with mock.patch("requests.post", side_effect=mock_request), mock.patch("requests.get", side_effect=mock_request):
         result = subprocess.run(
             ["python", "-m", "ddtrace.commands.ddtrace_run", "pytest", "--ddtrace", str(test_file)],
             env=env,
@@ -244,9 +243,7 @@ def test_simple():
     )
 
     # Run pytest with ddtrace-run
-    with mock.patch("requests.post", side_effect=mock_request), mock.patch(
-        "requests.get", side_effect=mock_request
-    ):
+    with mock.patch("requests.post", side_effect=mock_request), mock.patch("requests.get", side_effect=mock_request):
         result = subprocess.run(
             ["python", "-m", "ddtrace.commands.ddtrace_run", "pytest", "--ddtrace", str(test_file)],
             env=env,
