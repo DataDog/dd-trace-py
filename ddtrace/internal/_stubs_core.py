@@ -13,6 +13,7 @@ if _INSTRUMENTATION_ENABLED:
     import logging
 
     import wrapt
+    from wrapt.importer import when_imported
 else:
     # Provide minimal stubs when instrumentation is disabled
 
@@ -109,6 +110,9 @@ else:
 
                 return decorator
 
+    def when_imported(x):
+        return lambda y: None
+
 
 # Configuration stubs
 class _NullConfig:
@@ -124,11 +128,6 @@ class _NullConfig:
         if name.endswith("_enabled"):
             return False
         return None
-
-
-# Helper function stubs
-def when_imported(x):
-    return lambda y: None
 
 
 # Export the core stubs
