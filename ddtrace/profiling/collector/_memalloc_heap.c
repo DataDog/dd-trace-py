@@ -333,12 +333,40 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
         return;
     }
 
+#ifndef _PY312_AND_LATER
+    /* Prior to Python 3.12, and particularly in Python 3.11, collecting
+       tracebacks while intercepting allocations is prone to crashes. We
+       currently use the C Python API to collect tracebacks, which can
+       do allocations. These allocations can in turn trigger garbage collection,
+       allowing other code to run. In the past we've seen this lead to
+       GIL release and cause corruption in the memory profiler.
+
+       This can also lead to use-after-free crashes. For example, calling
+       realloc to grow a data structure, we can trigger garbage collection which
+       visits the data structure. The underlying reallocaiton will have already
+       happened (we want to track the new address) but the data structure will
+       still point to old memory since our wrapper hasn't returned.
+
+       Python 3.12 doesn't trigger GC during allocation. Instead, a flag is set
+       for GC to run later, at a safe point in the interpreter. But for earlier
+       versions, we disable GC temporarily. This will allow a small, temporary
+       increase in memory usage during sampling. But it is overall cheap (mostly
+       just toggling a boolean) and the alternative is hard-to-diagnose crashes.
+     */
+    PyGC_Disable();
+#endif
+
     /* The weight of the allocation is described above, but briefly: it's the
        count of bytes allocated since the last sample, including this one, which
        will tend to be larger for large allocations and smaller for small
        allocations, and close to the average sampling interval so that the sum
        of sample live allocations stays close to the actual heap size */
     traceback_t* tb = memalloc_get_traceback(max_nframe, ptr, size, domain, global_heap_tracker.allocated_memory);
+
+#ifndef _PY312_AND_LATER
+    PyGC_Enable();
+#endif
+
     if (!tb) {
         memalloc_yield_guard();
         return;
