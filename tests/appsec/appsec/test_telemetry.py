@@ -272,37 +272,38 @@ def test_log_metric_error_ddwaf_update_deduplication_timelapse(telemetry_writer)
 
 
 @pytest.mark.parametrize(
-    "environment,appsec_enabled,rc_enabled,expected_result,expected_origin",
+    "environment,appsec_enabled,rc_enabled,expected_result,ssi_enabled,expected_origin",
     (
-        ({}, False, False, 0, APPSEC.ENABLED_ORIGIN_UNKNOWN),
-        ({APPSEC_ENV: "true"}, True, False, 1, APPSEC.ENABLED_ORIGIN_ENV),
-        ({APPSEC_ENV: "true", "_DD_PY_SSI_INJECT": "1"}, True, False, 1, APPSEC.ENABLED_ORIGIN_SSI),
-        ({}, True, False, 1, APPSEC.ENABLED_ORIGIN_UNKNOWN),
-        ({}, True, True, 1, APPSEC.ENABLED_ORIGIN_UNKNOWN),
-        ({}, False, True, 1, APPSEC.ENABLED_ORIGIN_RC),
-        ({"_DD_PY_SSI_INJECT": "true"}, False, True, 1, APPSEC.ENABLED_ORIGIN_RC),
-        ({APPSEC_ENV: "true"}, True, True, 1, APPSEC.ENABLED_ORIGIN_ENV),
+        ({}, False, False, 0, False, APPSEC.ENABLED_ORIGIN_UNKNOWN),
+        ({APPSEC_ENV: "true"}, True, False, 1, False, APPSEC.ENABLED_ORIGIN_ENV),
+        ({APPSEC_ENV: "true", "_DD_PY_SSI_INJECT": "1"}, True, False, 1, True, APPSEC.ENABLED_ORIGIN_SSI),
+        ({}, True, False, 1, False, APPSEC.ENABLED_ORIGIN_UNKNOWN),
+        ({}, True, True, 1, False, APPSEC.ENABLED_ORIGIN_UNKNOWN),
+        ({}, False, True, 1, False, APPSEC.ENABLED_ORIGIN_RC),
+        ({"_DD_PY_SSI_INJECT": "true"}, False, True, 1, True, APPSEC.ENABLED_ORIGIN_RC),
+        ({APPSEC_ENV: "true"}, True, True, 1, False, APPSEC.ENABLED_ORIGIN_ENV),
         (
             {APPSEC_ENV: "true"},
             False,
             True,
             0,
+            False,
             APPSEC.ENABLED_ORIGIN_ENV,
         ),  # 0 because RC should not change the value if env var is set
     ),
 )
 def test_appsec_enabled_metric(
-    environment, appsec_enabled, rc_enabled, expected_result, expected_origin, telemetry_writer, tracer
+    environment, appsec_enabled, rc_enabled, expected_result, ssi_enabled, expected_origin, telemetry_writer, tracer
 ):
     """Test that an internal error is logged when the WAF returns an internal error."""
     # Restore defaults and enabling telemetry appsec service
-    with override_global_config({"_asm_enabled": True}):
+    with override_global_config({"_asm_enabled": True, "_lib_was_injected": False}):
         tracer.configure(appsec_enabled=appsec_enabled, appsec_enabled_origin=APPSEC.ENABLED_ORIGIN_UNKNOWN)
     telemetry_writer._flush_configuration_queue()
 
     # Start the test
     with override_env(environment), override_global_config(
-        dict(_asm_enabled=appsec_enabled, _remote_config_enabled=rc_enabled)
+        dict(_asm_enabled=appsec_enabled, _remote_config_enabled=rc_enabled, _lib_was_injected=ssi_enabled)
     ):
         tracer.configure(appsec_enabled=appsec_enabled)
         if rc_enabled:
