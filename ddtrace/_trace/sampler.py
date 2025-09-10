@@ -163,7 +163,7 @@ class DatadogSampler:
         span._update_tags_from_context()
         log.debug("Sampling rules: %s", self.rules)
         matched_rule = _get_highest_precedence_rule_matching(span, self.rules)
-        log.debug("Matched rule from rule matching: %s", matched_rule)
+        log.debug("Matched sampling rule from rule matching: %s", matched_rule)
 
         # Default sampling
         sampled = True
@@ -210,7 +210,7 @@ class DatadogSampler:
         return sampled
 
     def _get_sampling_mechanism(self, matched_rule: Optional[SamplingRule], agent_service_based: bool) -> int:
-        log.debug("Matched on rule: %s", matched_rule)
+        log.debug("Matched on sampling rule: %s", matched_rule)
         if matched_rule and matched_rule.provenance == "customer":
             return SamplingMechanism.REMOTE_USER_TRACE_SAMPLING_RULE
         elif matched_rule and matched_rule.provenance == "dynamic":
