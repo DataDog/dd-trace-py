@@ -3000,7 +3000,6 @@ venv = Venv(
                 "vcrpy": "==7.0.0",
             },
         ),
-<<<<<<< HEAD
         Venv(
             name="ray",
             command="pytest {cmdargs} tests/contrib/ray",

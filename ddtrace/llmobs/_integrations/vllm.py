@@ -1,13 +1,4 @@
-from collections import defaultdict
-from typing import Any, Dict, List, Optional, TYPE_CHECKING, Tuple
-
-if TYPE_CHECKING:
-    try:
-        from vllm.sequence import SequenceGroup
-        from vllm.entrypoints.openai.serving_engine import TextTokensPrompt, AnyRequest
-    except ImportError:
-        # vllm may not be installed in development environments
-        from typing import Any as SequenceGroup
+from typing import Any, Dict, List, Optional
 
 from ddtrace.llmobs._constants import (
     INPUT_MESSAGES,
@@ -20,31 +11,20 @@ from ddtrace.llmobs._constants import (
     OUTPUT_TOKENS_METRIC_KEY,
     SPAN_KIND,
     TOTAL_TOKENS_METRIC_KEY,
+    INPUT_DOCUMENTS,
+    OUTPUT_VALUE,
 )
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
-from ddtrace.llmobs._utils import _get_attr
 from ddtrace.trace import Span
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs.utils import Document
 
 log = get_logger(__name__)
 
 
 class VLLMIntegration(BaseLLMIntegration):
     _integration_name = "vllm"
-    
-    _request_id_to_prompt: Dict[str, str] = {}
 
-    def store_request_id_to_prompt(self, request_id: str, prompt: "str") -> None:
-        log.debug("[VLLM OPENAI DEBUG] Storing request id to prompt mapping: %s -> %s", request_id, prompt)
-        self._request_id_to_prompt[request_id] = prompt
-    
-    def get_prompt_from_request_id(self, request_id: str) -> Optional["str"]:
-        return self._request_id_to_prompt.get(request_id, None)
-    
-    def clear_request_id_to_prompt(self, request_id: str) -> None:
-        self._request_id_to_prompt.pop(request_id, None)
-        log.debug("[VLLM OPENAI DEBUG] Cleared request id to prompt mapping")
-    
     def _set_base_span_tags(self, span: Span, **kwargs) -> None:
         """Set base level tags that should be present on all vLLM spans."""
         # Set the model name if available from the engine config
@@ -58,151 +38,149 @@ class VLLMIntegration(BaseLLMIntegration):
         args: List[Any],
         kwargs: Dict[str, Any],
         response: Optional[Any] = None,
-        operation: str = "",
-        request_id: Optional[str] = None,
+        operation: str = ""
     ) -> None:
-        """Extract comprehensive LLMObs tags from vLLM SequenceGroup and set them on the span.
-        
-        This method extracts detailed information from the completed vLLM request including:
-        - Model metadata (name, provider)
-        - Input/output messages formatted for LLM observability
-        - Sampling parameters (temperature, max_tokens, etc.)
-        - Token usage metrics (input, output, total tokens)
+        """Set LLMObs tags on the span (V1 path).
+
+        Caller passes data via kwargs: prompt, output_text, input_tokens, output_tokens,
+        sampling_params, model_name. This mirrors the OpenAI integration style and keeps
+        all logic centralized in the integration rather than the patch wrapper.
         """
-        log.debug("[VLLM INTEGRATION DEBUG] _llmobs_set_tags called with response type: %s", type(response).__name__ if response else "None")
-        
-        # The response should be a SequenceGroup from vLLM
-        seq_group = response
-        if not seq_group:
-            log.debug("[VLLM INTEGRATION DEBUG] No seq_group provided, returning early")
-            return
-            
-        # Get model name from kwargs or span tags
+        log.debug(
+            "[VLLM INTEGRATION DEBUG] _llmobs_set_tags called; operation=%s response=%s kwargs_keys=%s",
+            operation,
+            type(response).__name__ if response is not None else None,
+            list(kwargs.keys()),
+        )
         model_name = kwargs.get("model_name") or span.get_tag("vllm.request.model") or ""
-        log.debug("[VLLM INTEGRATION DEBUG] Using model_name: %s", model_name)
-        
-        # Extract sampling parameters for metadata
-        log.debug("[VLLM INTEGRATION DEBUG] Extracting sampling metadata")
-        metadata = self._extract_sampling_metadata(seq_group)
-        log.debug("[VLLM INTEGRATION DEBUG] Extracted metadata: %s", metadata)
-        
-        # Extract input information
-        log.debug("[VLLM INTEGRATION DEBUG] Extracting input data")
-        input_data = self._extract_input_data(seq_group, request_id)
-        log.debug("[VLLM INTEGRATION DEBUG] Extracted input_data: %s", input_data)
-        
-        # Extract output information
-        log.debug("[VLLM INTEGRATION DEBUG] Extracting output data")
-        output_data = self._extract_output_data(seq_group)
-        log.debug("[VLLM INTEGRATION DEBUG] Extracted output_data: %s", output_data)
-        
-        # Calculate token metrics
-        log.debug("[VLLM INTEGRATION DEBUG] Extracting token metrics")
-        metrics = self._extract_token_metrics(seq_group)
-        log.debug("[VLLM INTEGRATION DEBUG] Extracted metrics: %s", metrics)
-        
-        # Set LLMObs context items
-        model_provider = "vllm"
-        if "/" in model_name:
-            model_provider = model_name.split("/")[0]
-            model_name = model_name.split("/")[1]
-        ctx_items = {
-            SPAN_KIND: "llm",
-            MODEL_NAME: model_name,
-            MODEL_PROVIDER: model_provider,
-            METADATA: metadata,
-            METRICS: metrics,
-            **input_data,
-            **output_data,
+        # Sampling metadata
+        metadata_ctx: Dict[str, Any] = {}
+        sp = kwargs.get("sampling_params")
+        if sp is not None:
+            for key in (
+                "temperature",
+                "max_tokens",
+                "top_p",
+                "top_k",
+                "n",
+                "presence_penalty",
+                "frequency_penalty",
+                "repetition_penalty",
+                "seed",
+            ):
+                val = getattr(sp, key, None)
+                if val is not None:
+                    metadata_ctx[key] = val
+
+        # Additional metadata from kwargs
+        # finish/stop reasons, request identifiers, lora, operation, cached tokens
+        if kwargs.get("finish_reason") is not None:
+            metadata_ctx["finish_reason"] = kwargs.get("finish_reason")
+        if kwargs.get("stop_reason") is not None:
+            metadata_ctx["stop_reason"] = kwargs.get("stop_reason")
+        if kwargs.get("num_cached_tokens") is not None:
+            metadata_ctx["num_cached_tokens"] = kwargs.get("num_cached_tokens")
+        if kwargs.get("operation") is not None:
+            metadata_ctx["operation"] = kwargs.get("operation")
+        if kwargs.get("lora_name") is not None:
+            metadata_ctx["lora_name"] = kwargs.get("lora_name")
+        if kwargs.get("request_id") is not None:
+            metadata_ctx["request_id"] = kwargs.get("request_id")
+        if kwargs.get("embedding_dim") is not None:
+            metadata_ctx["embedding_dim"] = kwargs.get("embedding_dim")
+        # Embedding-specific metadata (if provided by caller)
+        if kwargs.get("encoding_format") is not None:
+            metadata_ctx["encoding_format"] = kwargs.get("encoding_format")
+
+        # Token metrics: always include keys to avoid 'None' in UI for embeddings
+        input_tokens = int(kwargs.get("input_tokens", 0) or 0)
+        output_tokens = int(kwargs.get("output_tokens", 0) or 0)
+        metrics_ctx: Dict[str, Any] = {
+            INPUT_TOKENS_METRIC_KEY: input_tokens,
+            OUTPUT_TOKENS_METRIC_KEY: output_tokens,
+            TOTAL_TOKENS_METRIC_KEY: input_tokens + output_tokens,
         }
-        log.debug("[VLLM INTEGRATION DEBUG] Setting ctx_items: %s", ctx_items)
+
+        # Model fields
+        provider = "vllm"
+        short_model = model_name or ""
+        if short_model and "/" in short_model:
+            provider, short_model = short_model.split("/", 1)
+
+        span_kind = "embedding" if (operation == "embedding" or kwargs.get("operation") == "embedding") else "llm"
+        ctx_items: Dict[str, Any] = {
+            SPAN_KIND: span_kind,
+            MODEL_NAME: short_model or (model_name or ""),
+            MODEL_PROVIDER: provider,
+            METADATA: metadata_ctx,
+            METRICS: metrics_ctx,
+        }
+        # Prefer prompt provided by caller; no per-request caching.
+        prompt = kwargs.get("prompt")
+        if span_kind == "embedding":
+            # Prefer OpenAI-like 'input' semantics
+            embedding_inputs = kwargs.get("input")
+            try:
+                docs: list[Document] = []
+                if embedding_inputs is not None:
+                    # Normalize to list like OpenAI integration
+                    if isinstance(embedding_inputs, str) or (
+                        isinstance(embedding_inputs, list)
+                        and len(embedding_inputs) > 0
+                        and isinstance(embedding_inputs[0], int)
+                    ):
+                        embedding_inputs = [embedding_inputs]
+                    if isinstance(embedding_inputs, list):
+                        for doc in embedding_inputs:
+                            docs.append(Document(text=str(doc)))
+                elif prompt is not None:
+                    # Fallback to single prompt representation
+                    docs.append(Document(text=str(prompt)))
+                if docs:
+                    ctx_items[INPUT_DOCUMENTS] = docs
+            except Exception:
+                ctx_items[INPUT_DOCUMENTS] = [Document(text="[unavailable]")]
+
+            emb_dim = kwargs.get("embedding_dim")
+            # Compute number of embeddings returned
+            num_embeddings = kwargs.get("num_embeddings")
+            if not isinstance(num_embeddings, int) or num_embeddings <= 0:
+                try:
+                    if isinstance(embedding_inputs, list):
+                        num_embeddings = len(embedding_inputs)
+                    else:
+                        num_embeddings = 1
+                except Exception:
+                    num_embeddings = 1
+
+            if emb_dim is not None:
+                ctx_items[OUTPUT_VALUE] = f"[{num_embeddings} embedding(s) returned with size {emb_dim}]"
+            else:
+                ctx_items[OUTPUT_VALUE] = f"[{num_embeddings} embedding(s) returned]"
+        else:
+            # Completion-style tagging
+            if prompt:
+                ctx_items[INPUT_MESSAGES] = [{"content": prompt}]
+            output_text = kwargs.get("output_text")
+            if output_text:
+                ctx_items[OUTPUT_MESSAGES] = [{"content": output_text}]
+
+        # Set supplemental span tags for convenient querying
+        try:
+            if kwargs.get("operation"):
+                span.set_tag_str("vllm.request.operation", str(kwargs.get("operation")))
+            if kwargs.get("finish_reason"):
+                span.set_tag_str("vllm.request.finish_reason", str(kwargs.get("finish_reason")))
+            if kwargs.get("stop_reason") is not None:
+                span.set_tag_str("vllm.request.stop_reason", str(kwargs.get("stop_reason")))
+            if kwargs.get("lora_name"):
+                span.set_tag_str("vllm.request.lora_name", str(kwargs.get("lora_name")))
+            if kwargs.get("request_id"):
+                span.set_tag_str("vllm.request.id", str(kwargs.get("request_id")))
+        except Exception:
+            pass
+
+        log.debug("[VLLM INTEGRATION DEBUG] Setting ctx_items (V1): %s", ctx_items)
         span._set_ctx_items(ctx_items)
-        log.debug("[VLLM INTEGRATION DEBUG] LLMObs tags set successfully")
-
-    def _extract_sampling_metadata(self, seq_group: "SequenceGroup") -> Dict[str, Any]:
-        """Extract sampling parameters from sequence group."""
-        metadata = {}
-        
-        if hasattr(seq_group, 'sampling_params') and seq_group.sampling_params:
-            params = seq_group.sampling_params
-            
-            # Extract key sampling parameters
-            metadata["temperature"] = params.temperature
-            metadata["max_tokens"] = params.max_tokens
-            metadata["top_p"] = params.top_p
-            metadata["top_k"] = params.top_k
-            metadata["n"] = params.n
-            metadata["presence_penalty"] = params.presence_penalty
-            metadata["frequency_penalty"] = params.frequency_penalty
-            metadata["repetition_penalty"] = params.repetition_penalty
-            if hasattr(params, 'seed') and params.seed is not None:
-                metadata["seed"] = params.seed
-                
-        return metadata
-
-    def _extract_input_data(self, seq_group: "SequenceGroup", request_id: Optional[str] = None) -> Dict[str, Any]:
-        input_data = defaultdict(list)
-        for seq in seq_group.seqs:
-            log.debug("[VLLM INTEGRATION DEBUG] Processing seq: %s", seq.inputs)
-            log.debug("[VLLM INTEGRATION DEBUG] Extracting input data for request_id: %s", request_id)
-            # check if seq.inputs["prompt"] is set
-            if seq.inputs.prompt:
-                input_data[INPUT_MESSAGES].append({"content": seq.inputs.prompt})
-            elif request_id:
-                prompt = self.get_prompt_from_request_id(request_id)
-                if prompt is None:
-                    log.debug("[VLLM INTEGRATION DEBUG] Prompt not found for request id: %s", request_id)
-                else:
-                    input_data[INPUT_MESSAGES].append({"content": prompt})
-        return input_data
-
-
-    def _extract_output_data(self, seq_group: "SequenceGroup") -> Dict[str, Any]:
-        output_data = defaultdict(list)
-        
-        outputs = []
-        for seq in seq_group.seqs:
-            outputs.append(seq.output_text)
-        
-        for output in outputs:
-            output_data[OUTPUT_MESSAGES].append({"content": output})
-        
-        return output_data
-
-    def _extract_token_metrics(self, seq_group: "SequenceGroup") -> Dict[str, Any]:
-        """Extract token usage metrics from sequence group.
-        
-        Calculates input tokens (prompt) and output tokens (generated) to provide
-        comprehensive token usage information.
-        """
-        metrics = {}
-        
-        # Calculate input tokens from prompt
-        input_tokens = 0
-        if hasattr(seq_group, 'prompt_token_ids') and seq_group.prompt_token_ids:
-            input_tokens = len(seq_group.prompt_token_ids)
-        
-        # Calculate output tokens from all sequences
-        output_tokens = 0
-        if hasattr(seq_group, 'seqs') and seq_group.seqs:
-            for seq in seq_group.seqs:
-                if hasattr(seq, 'output_token_ids') and seq.output_token_ids:
-                    output_tokens += len(seq.output_token_ids)
-                elif hasattr(seq, 'get_output_token_ids'):
-                    try:
-                        token_ids = seq.get_output_token_ids()
-                        if token_ids:
-                            output_tokens += len(token_ids)
-                    except Exception:
-                        pass
-        
-        # Set metrics if we have token counts
-        # TODO: Cached tokens
-        if input_tokens > 0:
-            metrics[INPUT_TOKENS_METRIC_KEY] = input_tokens
-        if output_tokens > 0:
-            metrics[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
-        if input_tokens > 0 or output_tokens > 0:
-            metrics[TOTAL_TOKENS_METRIC_KEY] = input_tokens + output_tokens
-        
-        return metrics
+        log.debug("[VLLM INTEGRATION DEBUG] LLMObs tags set successfully (V1)")
+ 
