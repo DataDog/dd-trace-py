@@ -174,5 +174,16 @@ class _NullConfig:
         return set()
 
 
+# Function to get the appropriate config instance based on instrumentation status
+def get_config():
+    """Get the appropriate config instance - real Config when instrumentation enabled, _NullConfig otherwise."""
+    if _INSTRUMENTATION_ENABLED:
+        # Import the real config when instrumentation is enabled (lazy import to avoid circular imports)
+        from ddtrace.settings._config import config
+        return config
+    else:
+        # Use the null config when instrumentation is disabled
+        return _NullConfig()
+
 # Export the core stubs
-__all__ = ["logging", "wrapt", "_NullConfig", "when_imported"]
+__all__ = ["logging", "wrapt", "_NullConfig", "when_imported", "get_config"]

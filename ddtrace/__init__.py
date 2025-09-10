@@ -14,12 +14,8 @@ configure_ddtrace_logger()  # noqa: E402
 
 from .internal._instrumentation_enabled import _INSTRUMENTATION_ENABLED
 
-if _INSTRUMENTATION_ENABLED:
-    from .settings._config import config
-else:
-    from .internal._stubs_core import _NullConfig
-
-    config = _NullConfig()
+from .internal._stubs_core import get_config
+config = get_config()
 
 if _INSTRUMENTATION_ENABLED:
     # Enable telemetry writer and excepthook as early as possible to ensure we capture any exceptions from initialization

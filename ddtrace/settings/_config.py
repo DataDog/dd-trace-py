@@ -11,8 +11,6 @@ from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
-from ddtrace.internal._instrumentation_enabled import _INSTRUMENTATION_ENABLED
-from ddtrace.internal._stubs_core import _NullConfig
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.telemetry import telemetry_writer
@@ -784,7 +782,5 @@ class Config(object):
         return value.lower()
 
 
-if _INSTRUMENTATION_ENABLED:
-    config: ConfigProtocol = Config()
-else:
-    config: ConfigProtocol = _NullConfig()  # type: ignore[no-redef]
+# Always create the real config instance - _stubs_core.py decides which one to use
+config: ConfigProtocol = Config()
