@@ -1,3 +1,6 @@
+from typing import Union
+from uuid import UUID
+
 import azure.servicebus as azure_servicebus
 import azure.servicebus.amqp as azure_servicebus_amqp
 
@@ -59,12 +62,18 @@ def inject_context(span, message):
 
 
 def handle_service_bus_message_attributes(message_arg_value):
-    if isinstance(message_arg_value, (azure_servicebus.ServiceBusMessage)):
+    if isinstance(message_arg_value, azure_servicebus.ServiceBusMessage):
         batch_count = None
         message_id = message_arg_value.message_id
-    elif isinstance(message_arg_value, (azure_servicebus_amqp.AmqpAnnotatedMessage)):
+    elif isinstance(message_arg_value, azure_servicebus_amqp.AmqpAnnotatedMessage):
         batch_count = None
-        message_id = getattr(message_arg_value.properties, "message_id", None)
+        message_id_raw: Union[str, bytes, UUID, None] = getattr(message_arg_value.properties, "message_id", None)
+
+        # stringify bytes/UUID, strip whitespace in strings, and map empty strings to None
+        if message_id_raw:
+            message_id = str(message_id_raw).strip() or None
+        else:
+            message_id = None
     elif isinstance(message_arg_value, azure_servicebus.ServiceBusMessageBatch):
         batch_count = str(len(message_arg_value._messages))
         message_id = None
