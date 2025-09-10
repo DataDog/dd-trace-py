@@ -14,7 +14,7 @@ configure_ddtrace_logger()  # noqa: E402
 
 from .internal._instrumentation_enabled import _INSTRUMENTATION_ENABLED
 
-from .internal._stubs_core import get_config
+from .internal._stubs_config import get_config
 
 config = get_config()
 

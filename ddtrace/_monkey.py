@@ -6,7 +6,7 @@ from typing import Set
 from typing import Union
 
 from ddtrace.internal._instrumentation_enabled import _INSTRUMENTATION_ENABLED
-from ddtrace.internal._stubs_core import get_config
+from ddtrace.internal._stubs_config import get_config
 from ddtrace.internal._stubs_core import when_imported
 from ddtrace.internal._stubs_vendor import TELEMETRY_NAMESPACE
 from ddtrace.internal._stubs_vendor import DDTraceDeprecationWarning

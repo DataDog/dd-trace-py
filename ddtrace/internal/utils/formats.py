@@ -1,10 +1,3 @@
-from ddtrace.internal._instrumentation_enabled import _INSTRUMENTATION_ENABLED
-
-
-if _INSTRUMENTATION_ENABLED:
-    import logging
-else:
-    from ddtrace.internal._stubs_core import logging
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
@@ -14,6 +7,7 @@ from typing import Tuple  # noqa:F401
 from typing import TypeVar  # noqa:F401
 from typing import Union  # noqa:F401
 
+from ddtrace.internal._stubs_logging import logging
 from ddtrace.internal.constants import MAX_UINT_64BITS  # noqa:F401
 
 from ..compat import ensure_text
