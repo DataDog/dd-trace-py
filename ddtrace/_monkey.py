@@ -3,23 +3,21 @@ import os
 from types import ModuleType
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
 from typing import Set
 from typing import Union
 
 from ddtrace.internal._instrumentation_enabled import _INSTRUMENTATION_ENABLED
-from ddtrace.internal._stubs_core import when_imported
-from ddtrace.internal._stubs_core import wrapt
 from ddtrace.internal._stubs_core import _NullConfig
+from ddtrace.internal._stubs_core import when_imported
+from ddtrace.internal._stubs_vendor import TELEMETRY_NAMESPACE
 from ddtrace.internal._stubs_vendor import DDTraceDeprecationWarning
+from ddtrace.internal._stubs_vendor import Path
+from ddtrace.internal._stubs_vendor import SpecifierSet
+from ddtrace.internal._stubs_vendor import Version
 from ddtrace.internal._stubs_vendor import deprecate
 from ddtrace.internal._stubs_vendor import get_logger
 from ddtrace.internal._stubs_vendor import load_common_appsec_modules
-from ddtrace.internal._stubs_vendor import Path
-from ddtrace.internal._stubs_vendor import SpecifierSet
 from ddtrace.internal._stubs_vendor import telemetry
-from ddtrace.internal._stubs_vendor import TELEMETRY_NAMESPACE
-from ddtrace.internal._stubs_vendor import Version
 
 from .internal.utils import formats
 
@@ -38,9 +36,11 @@ if TYPE_CHECKING:  # pragma: no cover
 
 log = get_logger(__name__)
 
+
 # Get config when needed to avoid circular imports
 def _get_config():
     from ddtrace.settings._config import config
+
     return config
 
 
@@ -191,6 +191,7 @@ CONTRIB_DEPENDENCIES = {
 
 class PatchException(Exception):
     """Wraps regular `Exception` class when patching modules"""
+
     pass
 
 
@@ -345,7 +346,7 @@ def patch_all(**patch_modules) -> None:
     """
     if not _INSTRUMENTATION_ENABLED:
         return  # No-op when instrumentation is disabled
-    
+
     deprecate(
         "patch_all is deprecated and will be removed in a future version of the tracer.",
         message="""patch_all is deprecated in favor of ``import ddtrace.auto`` and ``DD_PATCH_MODULES``
@@ -358,9 +359,9 @@ def patch_all(**patch_modules) -> None:
 def _patch_all(**patch_modules) -> None:
     if not _INSTRUMENTATION_ENABLED:
         return  # No-op when instrumentation is disabled
-    
+
     modules = PATCH_MODULES.copy()
-    
+
     # Set dynamic config-dependent values
     config = _get_config()
     modules["protobuf"] = config._data_streams_enabled
@@ -395,7 +396,7 @@ def patch(raise_errors=True, **patch_modules):
     """
     if not _INSTRUMENTATION_ENABLED:
         return  # No-op when instrumentation is disabled
-    
+
     contribs = {c: patch_indicator for c, patch_indicator in patch_modules.items() if patch_indicator}
     for contrib, patch_indicator in contribs.items():
         # Check if we have the requested contrib.

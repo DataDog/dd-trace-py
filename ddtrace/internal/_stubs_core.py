@@ -3,7 +3,6 @@ Core stubs that don't have circular import dependencies.
 These are the basic stubs needed early in the import process.
 """
 
-from typing import Any
 from typing import Dict
 from typing import List
 

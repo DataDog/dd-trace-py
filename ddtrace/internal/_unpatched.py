@@ -3,6 +3,7 @@
 from builtins import open as unpatched_open  # noqa
 import gc as _gc  # noqa
 from json import loads as unpatched_json_loads  # noqa
+from os import close as unpatched_close  # noqa: F401, E402
 
 from ._instrumentation_enabled import _INSTRUMENTATION_ENABLED
 
