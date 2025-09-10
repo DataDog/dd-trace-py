@@ -28,7 +28,7 @@ else:
     import warnings  # noqa:F401
 
     from ddtrace import config  # noqa:F401
-    from ddtrace.internal._stubs import logging
+    from ddtrace.internal._stubs_core import logging
     from ddtrace.internal.logger import get_logger  # noqa:F401
     from ddtrace.internal.module import ModuleWatchdog  # noqa:F401
     from ddtrace.internal.module import is_module_installed

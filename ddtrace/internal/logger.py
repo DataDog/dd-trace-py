@@ -42,7 +42,7 @@ from typing import Optional
 from typing import Tuple
 from typing import Union
 
-from ._stubs import logging
+from ._stubs_core import logging
 
 
 SECOND = 1

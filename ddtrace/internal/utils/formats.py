@@ -4,7 +4,7 @@ from ddtrace.internal._instrumentation_enabled import _INSTRUMENTATION_ENABLED
 if _INSTRUMENTATION_ENABLED:
     import logging
 else:
-    from ddtrace.internal._stubs import logging
+    from ddtrace.internal._stubs_core import logging
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401

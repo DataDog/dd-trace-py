@@ -11,7 +11,7 @@ from typing import Union  # noqa:F401
 from ddtrace.internal.utils.attrdict import AttrDict
 from ddtrace.internal.utils.cache import cached
 
-from ._stubs import wrapt
+from ._stubs_core import wrapt
 
 
 NoneType = type(None)

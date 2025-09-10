@@ -1,8 +1,10 @@
 """
-Centralized stubs for third-party modules when instrumentation is disabled.
-This prevents imports that would load threading or other heavy dependencies.
+Core stubs that don't have circular import dependencies.
+These are the basic stubs needed early in the import process.
 """
 
+from typing import Any
+from typing import Dict
 from typing import List
 
 from ._instrumentation_enabled import _INSTRUMENTATION_ENABLED
@@ -109,5 +111,26 @@ else:
                 return decorator
 
 
-# Export the stubs
-__all__ = ["logging", "wrapt"]
+# Configuration stubs
+class _NullConfig:
+    service = None
+    env = None
+    version = None
+    tags: Dict = {}
+    service_mapping: Dict = {}
+    _trace_safe_instrumentation_enabled = False
+    _data_streams_enabled = False
+
+    def __getattr__(self, name):
+        if name.endswith("_enabled"):
+            return False
+        return None
+
+
+# Helper function stubs
+def when_imported(x):
+    return lambda y: None
+
+
+# Export the core stubs
+__all__ = ["logging", "wrapt", "_NullConfig", "when_imported"]

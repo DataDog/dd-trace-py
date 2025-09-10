@@ -2,7 +2,7 @@ from os import path
 from typing import Optional
 
 from ddtrace.internal._instrumentation_enabled import _INSTRUMENTATION_ENABLED
-from ddtrace.internal._stubs import logging
+from ddtrace.internal._stubs_core import logging
 from ddtrace.internal.utils.formats import asbool
 
 

@@ -17,18 +17,7 @@ from .internal._instrumentation_enabled import _INSTRUMENTATION_ENABLED
 if _INSTRUMENTATION_ENABLED:
     from .settings._config import config
 else:
-    # Provide minimal config stub when instrumentation is disabled
-    class _NullConfig:
-        service = None
-        env = None
-        version = None
-        tags: Dict = {}
-        service_mapping: Dict = {}
-
-        def __getattr__(self, name):
-            if name.endswith("_enabled"):
-                return False
-            return None
+    from .internal._stubs_core import _NullConfig
 
     config = _NullConfig()
 
