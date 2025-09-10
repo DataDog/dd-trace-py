@@ -263,6 +263,5 @@ def _get_highest_precedence_rule_matching(span: Span, rules: List[SamplingRule])
 
     for rule in rules:
         if rule.matches(span):
-            log.debug("Matching on sampling rule: %s", rule)
             return rule
     return None
