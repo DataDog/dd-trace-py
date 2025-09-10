@@ -3,8 +3,8 @@ from functools import wraps
 import inspect
 import logging
 import os
-import threading
 import socket
+import threading
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -28,10 +28,10 @@ from ddtrace import tracer
 from ddtrace._trace.span import Span
 from ddtrace.constants import _DJM_ENABLED_KEY
 from ddtrace.constants import _FILTER_KEPT_KEY
+from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.schema import schematize_service_name
@@ -184,8 +184,8 @@ def traced_submit_task(wrapped, instance, args, kwargs):
 def traced_submit_job(wrapped, instance, args, kwargs):
     """Trace job submission. This function is also responsible
     of creating the root span.
-    It will also inject _RAY_SUBMISSION_ID
-    in the env variable as some spans will not have access to it
+    It will also inject _RAY_SUBMISSION_ID and _RAY_JOB_NAME
+    in the env variable as some spans will not have access to them
     trough ray_ctx
     """
 
@@ -194,9 +194,10 @@ def traced_submit_job(wrapped, instance, args, kwargs):
 
     submission_id = kwargs.get("submission_id") or generate_job_id()
     kwargs["submission_id"] = submission_id
+    job_name = kwargs.get("metadata", {}).get("job_name", "")
 
     # Root span creation
-    job_span = tracer.start_span("ray.job", service=get_dd_job_name(submission_id), span_type=SpanTypes.RAY)
+    job_span = tracer.start_span("ray.job", service=job_name or get_dd_job_name(submission_id), span_type=SpanTypes.RAY)
     job_span.set_tag_str("component", "ray")
     job_span.set_tag_str("ray.submission_id", submission_id)
     # This will allow to finish the span at the end of the job
@@ -206,15 +207,18 @@ def traced_submit_job(wrapped, instance, args, kwargs):
     tracer.context_provider.activate(job_span)
     try:
         with tracer.trace(
-            "ray.job.submit", service=get_dd_job_name(submission_id), span_type=SpanTypes.RAY
+            "ray.job.submit", service=job_name or get_dd_job_name(submission_id), span_type=SpanTypes.RAY
         ) as submit_span:
             submit_span.set_tag_str("component", "ray")
             submit_span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+            submit_span.set_tag_str("ray.submission_id", submission_id)
 
             # Inject the context of the job so that ray.job.run is its child
             env_vars = kwargs.setdefault("runtime_env", {}).setdefault("env_vars", {})
             _TraceContext._inject(job_span.context, env_vars)
             env_vars["_RAY_SUBMISSION_ID"] = submission_id
+            if job_name:
+                env_vars["_RAY_JOB_NAME"] = job_name
 
             try:
                 resp = wrapped(*args, **kwargs)

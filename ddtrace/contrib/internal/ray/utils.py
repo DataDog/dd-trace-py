@@ -15,7 +15,7 @@ from ddtrace.propagation.http import _TraceContext
 
 
 DEFAULT_JOB_NAME = "unspecified.ray.job"
-JOB_NAME_REGEX = re.compile(r"^[A-Za-z0-9\.]+")
+JOB_NAME_REGEX = re.compile(r"^job\:([A-Za-z0-9_\.\-]+),run:([A-Za-z0-9_\.\-]+)$")
 
 
 def _inject_dd_trace_ctx_kwarg(method: Callable) -> Signature:
@@ -167,9 +167,14 @@ def get_dd_job_name(submission_id: Optional[str] = None):
     If the submission id is not a valid job name, return the default job name.
     If the submission id is not set, return the default job name.
     """
+    job_name = os.environ.get("_RAY_JOB_NAME")
+    if job_name:
+        return job_name
     if submission_id is None:
         submission_id = os.environ.get("_RAY_SUBMISSION_ID") or ""
     match = JOB_NAME_REGEX.match(submission_id)
     if match:
-        return match.group(0)
+        return match.group(1)
+    elif submission_id:
+        return submission_id
     return DEFAULT_JOB_NAME
