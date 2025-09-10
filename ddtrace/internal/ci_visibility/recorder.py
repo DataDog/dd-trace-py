@@ -608,6 +608,10 @@ class CIVisibility(Service):
             cls.enabled = False
             return
 
+        if not asbool(os.getenv("DD_CIVISIBILITY_ENABLED", default="true")):
+            cls.enabled = False
+            return
+
         cls.enabled = True
 
         cls._instance.start()
