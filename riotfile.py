@@ -3102,7 +3102,7 @@ venv = Venv(
             pys=select_pys(min_version="3.8", max_version="3.13"),
             pkgs={
                 "azure.servicebus": ["~=7.14.0", latest],
-                "pytest-asyncio": "==0.24.0",
+                "pytest-asyncio": "==0.23.7",
             },
         ),
         Venv(
