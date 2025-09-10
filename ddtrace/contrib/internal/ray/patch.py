@@ -4,6 +4,7 @@ import inspect
 import logging
 import os
 import threading
+import socket
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -30,6 +31,7 @@ from ddtrace.constants import _FILTER_KEPT_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
+from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.schema import schematize_service_name
@@ -102,6 +104,7 @@ class RayTraceProcessor:
                 span.set_metric(_FILTER_KEPT_KEY, 1)
                 span.set_metric(_SPAN_MEASURED_KEY, 1)
                 span.set_metric(_SAMPLING_PRIORITY_KEY, 2)
+                span.set_tag_str(_HOSTNAME_KEY, socket.gethostname())
             filtered_spans.append(span)
         return filtered_spans
 
