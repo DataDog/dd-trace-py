@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+from contextvars import ContextVar
 from functools import wraps
 import inspect
 import logging
@@ -11,11 +12,11 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
+from pythonjsonlogger.json import JsonFormatter
 import ray
 from ray._private.inspect_util import is_class_method
 from ray._private.inspect_util import is_function_or_method
 from ray._private.inspect_util import is_static_method
-import ray._private.worker
 import ray.actor
 import ray.dashboard.modules.job.job_manager
 from ray.dashboard.modules.job.job_manager import generate_job_id
@@ -34,6 +35,11 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.constants import LOG_ATTR_ENV
+from ddtrace.internal.constants import LOG_ATTR_SERVICE
+from ddtrace.internal.constants import LOG_ATTR_SPAN_ID
+from ddtrace.internal.constants import LOG_ATTR_TRACE_ID
+from ddtrace.internal.constants import LOG_ATTR_VERSION
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
@@ -48,8 +54,15 @@ from .utils import _inject_ray_span_tags
 from .utils import extract_signature
 
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] - %(message)s"
+
+ray_job_submission_id = ContextVar("ray_job_submission_id")
+
+logger = logging.getLogger()
+try:
+    logger.setLevel(os.environ.get("DD_TRACE_RAY_LOG_LEVEL", "INFO").upper())
+except ValueError:
+    logger.setLevel(logging.INFO)
 
 config._add(
     "ray",
@@ -106,6 +119,46 @@ class RayTraceProcessor:
                 span.set_tag_str(_HOSTNAME_KEY, socket.gethostname())
             filtered_spans.append(span)
         return filtered_spans
+
+
+RAY_JOB_MANAGER_LOGGER_NAME = "ray.dashboard.modules.job.job_manager"
+RAY_JOB_MANAGER_JOB_START_MESSAGE_PREFIX = "Starting job with submission_id: "
+
+
+class ActiveSpanFilter(logging.Filter):
+    def filter(self, record):
+
+        context = tracer.get_log_correlation_context()
+
+        # Only capture log lines from inside an active Ray traces
+        if context.get(LOG_ATTR_TRACE_ID) and context.get(LOG_ATTR_TRACE_ID) != "0":
+            job_submission_id = os.environ.get("_RAY_SUBMISSION_ID")
+            # We can get the Ray job submission id out of Ray job_manager's initial message
+            # before it is avaiable in the runtime env:
+            if not job_submission_id:
+                if record.name == RAY_JOB_MANAGER_LOGGER_NAME and record.message.startswith(
+                    RAY_JOB_MANAGER_JOB_START_MESSAGE_PREFIX
+                ):
+                    _, _, job_submission_id = record.message.partition(RAY_JOB_MANAGER_JOB_START_MESSAGE_PREFIX)
+                    if job_submission_id:
+                        ray_job_submission_id.set(job_submission_id)
+                else:
+                    job_submission_id = ray_job_submission_id.get()
+
+            record.__setattr__("dd.trace_id", context.get(LOG_ATTR_TRACE_ID))
+            record.__setattr__("dd.span_id", context.get(LOG_ATTR_SPAN_ID))
+            record.__setattr__("dd.env", context.get(LOG_ATTR_ENV))
+            record.__setattr__("dd.service", context.get(LOG_ATTR_SERVICE))
+            record.__setattr__("dd.version", context.get(LOG_ATTR_VERSION))
+
+            record.__setattr__("ray.job_submission_id", job_submission_id)
+            record.source = "ray"
+            record.team = "aiobs"
+
+            return True
+
+        else:
+            return False
 
 
 def _inject_tracing_into_remote_function(function):
@@ -411,6 +464,26 @@ async def traced_end_job(wrapped, instance, args, kwargs):
     return result
 
 
+class RayLoggingFileHandler(logging.FileHandler):
+    pass
+
+
+def setup_logging():
+    dd_trace_ray_output_log_dir = os.environ.get("DD_TRACE_RAY_OUTPUT_LOG_DIR", "/tmp/ray/session_latest/logs/")
+    os.makedirs(dd_trace_ray_output_log_dir, exist_ok=True)
+    dd_trace_ray_output_log_path = os.path.join(dd_trace_ray_output_log_dir, "dd-trace-ray.log")
+    file_handler = RayLoggingFileHandler(dd_trace_ray_output_log_path)
+    json_formatter = JsonFormatter(fmt=LOG_FORMAT)  # type: ignore
+    file_handler.setFormatter(json_formatter)
+    file_handler.addFilter(ActiveSpanFilter())
+    logger.addHandler(file_handler)
+
+
+def remove_logging():
+    logger = logging.getLogger()
+    logger.handlers = [h for h in logger.handlers if not isinstance(h, RayLoggingFileHandler)]
+
+
 def patch():
     if getattr(ray, "_datadog_patch", False):
         return
@@ -418,6 +491,8 @@ def patch():
     ray._datadog_patch = True
 
     tracer._span_aggregator.user_processors.append(RayTraceProcessor())
+
+    setup_logging()
 
     _w(ray.remote_function.RemoteFunction, "_remote", traced_submit_task)
 
@@ -437,6 +512,8 @@ def unpatch():
     tracer._span_aggregator.user_processors = [
         p for p in tracer._span_aggregator.user_processors if not isinstance(p, RayTraceProcessor)
     ]
+
+    remove_logging()
 
     _u(ray.remote_function.RemoteFunction, "_remote")
 
