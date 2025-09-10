@@ -114,20 +114,64 @@ else:
         return lambda y: None
 
 
-# Configuration stubs
+# Configuration stubs - comprehensive version that implements ConfigProtocol
 class _NullConfig:
+    # Implement all the Protocol attributes with sensible defaults
+    _data_streams_enabled: bool = False
+    _from_endpoint: Dict = {}
+    _remote_config_enabled: bool = False
+    _sca_enabled: bool = False
+    _trace_safe_instrumentation_enabled: bool = False
+    _modules_to_report = None
+    _report_handled_errors = None
+    _configured_modules = None
+    _instrument_user_code: bool = False
+    _instrument_third_party_code: bool = False
+    _instrument_all: bool = False
+    _stacktrace_resolver = None
+    _enabled: bool = False
+    _http_tag_query_string: bool = False
+    _health_metrics_enabled: bool = False
+    _trace_writer_interval_seconds: float = 1.0
+    _trace_writer_connection_reuse: bool = False
+    _trace_writer_log_err_payload: bool = False
+    _trace_api: str = "v0.5"
+    _trace_writer_buffer_size: int = 1000
+    _trace_writer_payload_size: int = 1000
+    _http = None
+    _logs_injection: bool = False
+    _dd_site = None
+    _dd_api_key = None
+    _llmobs_ml_app = None
+    _llmobs_instrumented_proxy_urls = None
+    _llmobs_agentless_enabled = False
+    _trace_compute_stats: bool = False
+    _tracing_enabled: bool = False
+
+    # Common properties
     service = None
     env = None
     version = None
     tags: Dict = {}
     service_mapping: Dict = {}
-    _trace_safe_instrumentation_enabled = False
-    _data_streams_enabled = False
 
     def __getattr__(self, name):
+        # Handle dynamic attributes and integration configs
         if name.endswith("_enabled"):
             return False
-        return None
+        if name.endswith("_timeout"):
+            return 0
+        if name.startswith("_") and "interval" in name:
+            return 1.0
+        if name.startswith("_") and ("size" in name or "limit" in name):
+            return 1000
+        return False
+
+    def _add_extra_service(self, service_name: str) -> None:
+        pass  # No-op for null config
+
+    def _get_extra_services(self):
+        return set()
 
 
 # Export the core stubs
