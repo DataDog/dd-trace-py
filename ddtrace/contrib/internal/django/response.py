@@ -1,5 +1,4 @@
 import functools
-
 from types import FunctionType
 from types import ModuleType
 from typing import Any
