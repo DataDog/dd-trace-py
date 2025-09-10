@@ -25,7 +25,6 @@ class OverheadControl(object):
     """
 
     _lock = threading.Lock()
-    _request_quota = asm_config._iast_max_concurrent_requests
     _sampler = RateSampler(sample_rate=get_request_sampling_value() / 100.0)
 
     def reconfigure(self):

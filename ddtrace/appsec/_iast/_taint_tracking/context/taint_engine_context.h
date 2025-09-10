@@ -92,6 +92,20 @@ class TaintEngineContext
     int debug_num_tainted_objects(size_t ctx_id);
 
     string debug_taint_map(size_t ctx_id);
+
+    // Return the number of free slots (i.e., nullptr entries) in the
+    // request_context_slots array. Intended for tests and diagnostics to
+    // validate concurrency behavior under stress.
+    size_t debug_context_array_free_slots_number() const
+    {
+        size_t free_count = 0;
+        for (const auto& slot : request_context_slots) {
+            if (slot == nullptr) {
+                ++free_count;
+            }
+        }
+        return free_count;
+    }
 };
 
 extern std::unique_ptr<TaintEngineContext> taint_engine_context;

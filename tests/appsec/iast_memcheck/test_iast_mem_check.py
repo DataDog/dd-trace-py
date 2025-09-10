@@ -10,7 +10,7 @@ from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
 from ddtrace.appsec._iast._iast_request_context_base import _num_objects_tainted_in_request
 from ddtrace.appsec._iast._stacktrace import get_info_frame
 from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking import active_map_addreses_size
+from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_size
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 from tests.appsec.iast.iast_utils import _iast_patched_module
@@ -66,7 +66,8 @@ def test_propagation_memory_check(origin1, origin2, iast_context_defaults):
     - modulo_aspect: ddtrace/appsec/_iast/_taint_tracking/aspects.py:214 -> 1.6KiB
     """
     _num_objects_tainted = 0
-    _active_map_addreses_size = 0
+    _debug_context_array_size = 0
+    _iast_finish_request()
     for _ in range(LOOPS):
         _iast_start_request()
         tainted_string_1 = taint_pyobject(
@@ -85,14 +86,14 @@ def test_propagation_memory_check(origin1, origin2, iast_context_defaults):
         if _num_objects_tainted == 0:
             _num_objects_tainted = _num_objects_tainted_in_request()
             assert _num_objects_tainted > 0
-        if _active_map_addreses_size == 0:
-            _active_map_addreses_size = active_map_addreses_size()
-            assert _active_map_addreses_size > 0
+        if _debug_context_array_size == 0:
+            _debug_context_array_size = debug_context_array_size()
+            assert _debug_context_array_size > 0
 
         # Some tainted pyobject is freed, and Python may reuse the memory address
         # hence the number of tainted objects may be the same or less
         # assert num_objects_tainted() - 3 <= _num_objects_tainted <= num_objects_tainted() + 3
-        assert _active_map_addreses_size == active_map_addreses_size()
+        assert _debug_context_array_size == debug_context_array_size()
         _iast_finish_request()
 
 
@@ -122,7 +123,8 @@ async def test_propagation_memory_check_async(origin1, origin2, iast_context_def
     - modulo_aspect: ddtrace/appsec/_iast/_taint_tracking/aspects.py:214 -> 1.6KiB
     """
     _num_objects_tainted = 0
-    _active_map_addreses_size = 0
+    _debug_context_array_size = 0
+    _iast_finish_request()
     for _ in range(LOOPS):
         _iast_start_request()
         tainted_string_1 = taint_pyobject(
@@ -141,14 +143,14 @@ async def test_propagation_memory_check_async(origin1, origin2, iast_context_def
         if _num_objects_tainted == 0:
             _num_objects_tainted = _num_objects_tainted_in_request()
             assert _num_objects_tainted > 0
-        if _active_map_addreses_size == 0:
-            _active_map_addreses_size = active_map_addreses_size()
-            assert _active_map_addreses_size > 0
+        if _debug_context_array_size == 0:
+            _debug_context_array_size = debug_context_array_size()
+            assert _debug_context_array_size > 0
 
         # Some tainted pyobject is freed, and Python may reuse the memory address
         # hence the number of tainted objects may be the same or less
         # assert num_objects_tainted() - 3 <= _num_objects_tainted <= num_objects_tainted() + 3
-        assert _active_map_addreses_size == active_map_addreses_size()
+        assert _debug_context_array_size == debug_context_array_size()
         _iast_finish_request()
 
 

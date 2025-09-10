@@ -41,7 +41,6 @@ log = get_logger(__name__)
 
 __all__ = [
     "OriginType",
-    "active_map_addreses_size",
     "Source",
     "TagMappingMode",
     "TaintRange",

@@ -211,6 +211,8 @@ pyexport_taint_engine_context(py::module& m)
         return map_ptr != nullptr;
     });
     m.def("debug_context_array_size", [] { return taint_engine_context->debug_context_array_size(); });
+    m.def("debug_context_array_free_slots_number",
+          [] { return taint_engine_context->debug_context_array_free_slots_number(); });
 
     m.def("debug_taint_map", [](size_t ctx_id) { return taint_engine_context->debug_taint_map(ctx_id); });
 
