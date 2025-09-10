@@ -37,6 +37,7 @@ from ddtrace.llmobs._integrations.utils import OaiTraceAdapter
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.llmobs._utils import load_data_value
+from ddtrace.llmobs._utils import safe_json
 from ddtrace.trace import Span
 
 
@@ -232,13 +233,13 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         if oai_span.response and oai_span.response.output:
             messages, tool_call_outputs = oai_span.llmobs_output_messages()
 
-            for tool_id, tool_name, tool_args in tool_call_outputs:
+            for tool_call_output in tool_call_outputs:
                 core.dispatch(
                     DISPATCH_ON_LLM_TOOL_CHOICE,
                     (
-                        tool_id,
-                        tool_name,
-                        tool_args,
+                        tool_call_output["tool_id"],
+                        tool_call_output["name"],
+                        safe_json(tool_call_output["arguments"]),
                         {
                             "trace_id": format_trace_id(span.trace_id),
                             "span_id": str(span.span_id),
