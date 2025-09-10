@@ -33,7 +33,6 @@ Usage:
 import collections
 from dataclasses import dataclass
 from dataclasses import field
-import logging
 import os
 import time
 import traceback
@@ -42,6 +41,8 @@ from typing import Dict
 from typing import Optional
 from typing import Tuple
 from typing import Union
+
+from ._stubs import logging
 
 
 SECOND = 1

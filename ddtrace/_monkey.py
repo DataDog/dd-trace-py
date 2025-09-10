@@ -7,20 +7,95 @@ from typing import Dict  # noqa:F401
 from typing import Set
 from typing import Union
 
-from wrapt.importer import when_imported
+from ddtrace.internal._instrumentation_enabled import _INSTRUMENTATION_ENABLED
+from ddtrace.internal._stubs import wrapt
 
-from ddtrace.appsec._listeners import load_common_appsec_modules
-from ddtrace.internal.compat import Path
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
-from ddtrace.settings._config import config
-from ddtrace.vendor.debtcollector import deprecate
-from ddtrace.vendor.packaging.specifiers import SpecifierSet
-from ddtrace.vendor.packaging.version import Version
-
-from .internal import telemetry
-from .internal.logger import get_logger
 from .internal.utils import formats
-from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
+
+
+if _INSTRUMENTATION_ENABLED:
+    when_imported = wrapt.importer.when_imported
+    from ddtrace.appsec._listeners import load_common_appsec_modules
+    from ddtrace.internal.compat import Path
+    from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+    from ddtrace.settings._config import config
+    from ddtrace.vendor.debtcollector import deprecate
+    from ddtrace.vendor.packaging.specifiers import SpecifierSet
+    from ddtrace.vendor.packaging.version import Version
+
+    from .internal import telemetry
+    from .internal.logger import get_logger
+    from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
+else:
+
+    def when_imported(x):
+        return lambda y: None
+
+    def load_common_appsec_modules():
+        pass
+
+    # Minimal stubs for disabled instrumentation
+    class Path:  # type: ignore[no-redef]
+        def __init__(self, path):
+            self.path = path
+
+        def __truediv__(self, other):
+            return Path(f"{self.path}/{other}")
+
+        def exists(self):
+            return False
+
+        @property
+        def parent(self):
+            return Path("/")
+
+    class TELEMETRY_NAMESPACE:  # type: ignore[no-redef]
+        TRACERS = "tracers"
+
+    class _NullConfig:
+        _trace_safe_instrumentation_enabled = False
+        _data_streams_enabled = False
+
+    config = _NullConfig()  # type: ignore[assignment]
+
+    def deprecate(  # type: ignore[misc]
+        prefix=None, postfix=None, message=None, version=None, removal_version=None, stacklevel=None, category=None
+    ):
+        pass
+
+    class SpecifierSet:  # type: ignore[no-redef]
+        def __init__(self, spec):
+            pass
+
+        def __contains__(self, version):
+            return True
+
+    class Version:  # type: ignore[no-redef]
+        def __init__(self, version):
+            pass
+
+    class telemetry:  # type: ignore[no-redef]
+        class telemetry_writer:
+            @staticmethod
+            def add_integration(*args, **kwargs):
+                pass
+
+            @staticmethod
+            def add_count_metric(*args, **kwargs):
+                pass
+
+    def get_logger(name):  # type: ignore[misc]
+        class MockLogger:
+            def info(self, *args, **kwargs):
+                pass
+
+            def error(self, *args, **kwargs):
+                pass
+
+        return MockLogger()
+
+    class DDTraceDeprecationWarning:  # type: ignore[no-redef]
+        pass
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -321,86 +396,103 @@ def _on_import_factory(module, path_f, raise_errors=True, patch_indicator=True):
     return on_import
 
 
-def patch_all(**patch_modules: bool) -> None:
-    """Enables ddtrace library instrumentation.
+if _INSTRUMENTATION_ENABLED:
 
-    In addition to ``patch_modules``, an override can be specified via an
-    environment variable, ``DD_TRACE_<module>_ENABLED`` for each module.
+    def patch_all(**patch_modules: bool) -> None:
+        """Enables ddtrace library instrumentation.
 
-    ``patch_modules`` have the highest precedence for overriding.
+        In addition to ``patch_modules``, an override can be specified via an
+        environment variable, ``DD_TRACE_<module>_ENABLED`` for each module.
 
-    :param dict patch_modules: Override whether particular modules are patched or not.
+        ``patch_modules`` have the highest precedence for overriding.
 
-        >>> _patch_all(redis=False, cassandra=False)
-    """
-    deprecate(
-        "patch_all is deprecated and will be removed in a future version of the tracer.",
-        message="""patch_all is deprecated in favor of ``import ddtrace.auto`` and ``DD_PATCH_MODULES``
-        environment variable if needed.""",
-        category=DDTraceDeprecationWarning,
-    )
-    _patch_all(**patch_modules)
+        :param dict patch_modules: Override whether particular modules are patched or not.
 
+            >>> _patch_all(redis=False, cassandra=False)
+        """
+        deprecate(
+            "patch_all is deprecated and will be removed in a future version of the tracer.",
+            message="""patch_all is deprecated in favor of ``import ddtrace.auto`` and ``DD_PATCH_MODULES``
+            environment variable if needed.""",
+            category=DDTraceDeprecationWarning,
+        )
+        _patch_all(**patch_modules)
 
-def _patch_all(**patch_modules: bool) -> None:
-    modules = PATCH_MODULES.copy()
+    def _patch_all(**patch_modules: bool) -> None:
+        modules = PATCH_MODULES.copy()
 
-    # The enabled setting can be overridden by environment variables
-    for module, _enabled in modules.items():
-        env_var = "DD_TRACE_%s_ENABLED" % module.upper()
-        if module not in _NOT_PATCHABLE_VIA_ENVVAR and env_var in os.environ:
-            modules[module] = formats.asbool(os.environ[env_var])
+        # The enabled setting can be overridden by environment variables
+        for module, _enabled in modules.items():
+            env_var = "DD_TRACE_%s_ENABLED" % module.upper()
+            if module not in _NOT_PATCHABLE_VIA_ENVVAR and env_var in os.environ:
+                modules[module] = formats.asbool(os.environ[env_var])
 
-        # Enable all dependencies for the module
-        if modules[module]:
-            for dep in CONTRIB_DEPENDENCIES.get(module, ()):
-                modules[dep] = True
+            # Enable all dependencies for the module
+            if modules[module]:
+                for dep in CONTRIB_DEPENDENCIES.get(module, ()):
+                    modules[dep] = True
 
-    # Arguments take precedence over the environment and the defaults.
-    modules.update(patch_modules)
+        # Arguments take precedence over the environment and the defaults.
+        modules.update(patch_modules)
 
-    patch(raise_errors=False, **modules)
+        patch(raise_errors=False, **modules)
 
-    load_common_appsec_modules()
+        load_common_appsec_modules()
 
+    def patch(raise_errors=True, **patch_modules):
+        # type: (bool, Union[List[str], bool]) -> None
+        """Patch only a set of given modules.
 
-def patch(raise_errors=True, **patch_modules):
-    # type: (bool, Union[List[str], bool]) -> None
-    """Patch only a set of given modules.
+        :param bool raise_errors: Raise error if one patch fail.
+        :param dict patch_modules: List of modules to patch.
 
-    :param bool raise_errors: Raise error if one patch fail.
-    :param dict patch_modules: List of modules to patch.
-
-        >>> patch(psycopg=True, elasticsearch=True)
-    """
-    contribs = {c: patch_indicator for c, patch_indicator in patch_modules.items() if patch_indicator}
-    for contrib, patch_indicator in contribs.items():
-        # Check if we have the requested contrib.
-        if not (Path(__file__).parent / "contrib" / "internal" / contrib / "patch.py").exists():
-            if raise_errors:
-                raise ModuleNotFoundException(f"{contrib} does not have automatic instrumentation")
-        modules_to_patch = _MODULES_FOR_CONTRIB.get(contrib, (contrib,))
-        for module in modules_to_patch:
-            # Use factory to create handler to close over `module` and `raise_errors` values from this loop
-            when_imported(module)(
-                _on_import_factory(
-                    contrib,
-                    "ddtrace.contrib.internal.%s.patch",
-                    raise_errors=raise_errors,
-                    patch_indicator=patch_indicator,
+            >>> patch(psycopg=True, elasticsearch=True)
+        """
+        contribs = {c: patch_indicator for c, patch_indicator in patch_modules.items() if patch_indicator}
+        for contrib, patch_indicator in contribs.items():
+            # Check if we have the requested contrib.
+            if not (Path(__file__).parent / "contrib" / "internal" / contrib / "patch.py").exists():
+                if raise_errors:
+                    raise ModuleNotFoundException(f"{contrib} does not have automatic instrumentation")
+            modules_to_patch = _MODULES_FOR_CONTRIB.get(contrib, (contrib,))
+            for module in modules_to_patch:
+                # Use factory to create handler to close over `module` and `raise_errors` values from this loop
+                when_imported(module)(
+                    _on_import_factory(
+                        contrib,
+                        "ddtrace.contrib.internal.%s.patch",
+                        raise_errors=raise_errors,
+                        patch_indicator=patch_indicator,
+                    )
                 )
-            )
 
-        # manually add module to patched modules
-        _PATCHED_MODULES.add(contrib)
+            # manually add module to patched modules
+            _PATCHED_MODULES.add(contrib)
 
-    log.info(
-        "Configured ddtrace instrumentation for %s integration(s). The following modules have been patched: %s",
-        len(contribs),
-        ",".join(contribs),
-    )
+        log.info(
+            "Configured ddtrace instrumentation for %s integration(s). The following modules have been patched: %s",
+            len(contribs),
+            ",".join(contribs),
+        )
 
+    def _get_patched_modules() -> Set[str]:
+        """Get the list of patched modules"""
+        return _PATCHED_MODULES
 
-def _get_patched_modules() -> Set[str]:
-    """Get the list of patched modules"""
-    return _PATCHED_MODULES
+else:
+
+    def patch_all(**patch_modules: bool) -> None:
+        """Enables ddtrace library instrumentation (no-op when instrumentation disabled)."""
+        pass
+
+    def _patch_all(**patch_modules: bool) -> None:
+        """No-op when instrumentation disabled."""
+        pass
+
+    def patch(raise_errors=True, **patch_modules):  # type: ignore[misc]
+        """Patch only a set of given modules (no-op when instrumentation disabled)."""
+        pass
+
+    def _get_patched_modules() -> Set[str]:
+        """Get the list of patched modules"""
+        return set()

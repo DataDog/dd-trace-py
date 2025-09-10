@@ -1,17 +1,28 @@
-import logging
 from os import path
 from typing import Optional
 
-from ddtrace.internal.telemetry import get_config
+from ddtrace.internal._instrumentation_enabled import _INSTRUMENTATION_ENABLED
+from ddtrace.internal._stubs import logging
 from ddtrace.internal.utils.formats import asbool
 
 
-DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] {}- %(message)s".format(
-    "[dd.service=%(dd.service)s dd.env=%(dd.env)s dd.version=%(dd.version)s"
-    " dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s] "
-)
+if _INSTRUMENTATION_ENABLED:
+    from ddtrace.internal.telemetry import get_config
+else:
 
-DEFAULT_FILE_SIZE_BYTES = 15 << 20  # 15 MB
+    def get_config(envs, default=None, modifier=None, otel_env=None, report_telemetry=True):  # type: ignore[misc]
+        return default
+
+
+if _INSTRUMENTATION_ENABLED:
+    DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] {}- %(message)s".format(
+        "[dd.service=%(dd.service)s dd.env=%(dd.env)s dd.version=%(dd.version)s"
+        " dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s] "
+    )
+    DEFAULT_FILE_SIZE_BYTES = 15 << 20  # 15 MB
+else:
+    DD_LOG_FORMAT = ""
+    DEFAULT_FILE_SIZE_BYTES = 15 << 20
 
 
 class LogInjectionState(object):
@@ -75,12 +86,12 @@ def _configure_ddtrace_file_logger(logger):
 
 
 def _add_file_handler(
-    logger: logging.Logger,
+    logger,  # type: logging.Logger
     log_path: Optional[str],
     log_level: int,
     handler_name: Optional[str] = None,
     max_file_bytes: int = DEFAULT_FILE_SIZE_BYTES,
-    formatter: Optional[logging.Formatter] = None,
+    formatter=None,  # type: Optional[logging.Formatter]
 ):
     ddtrace_file_handler = None
     if log_path is not None:

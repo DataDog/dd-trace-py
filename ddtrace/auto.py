@@ -18,4 +18,9 @@ is unsupported and may lead to undefined behavior::
 If you'd like more granular control over instrumentation setup, you can call the `patch*` functions
 directly.
 """
-import ddtrace.bootstrap.sitecustomize  # noqa:F401
+
+from ddtrace.internal._instrumentation_enabled import _INSTRUMENTATION_ENABLED
+
+
+if _INSTRUMENTATION_ENABLED:
+    import ddtrace.bootstrap.sitecustomize  # noqa:F401

@@ -105,13 +105,18 @@ def get_config(
     return effective_val
 
 
-telemetry_enabled = get_config("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True, asbool, report_telemetry=False)
-if telemetry_enabled:
-    from .writer import TelemetryWriter
+if _INSTRUMENTATION_ENABLED:
+    telemetry_enabled = get_config("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True, asbool, report_telemetry=False)
+    if telemetry_enabled:
+        from .writer import TelemetryWriter
+    else:
+        from .noop_writer import NoOpTelemetryWriter as TelemetryWriter  # type: ignore[assignment]
+
+    telemetry_writer = TelemetryWriter()
 else:
     from .noop_writer import NoOpTelemetryWriter as TelemetryWriter  # type: ignore[assignment]
 
-telemetry_writer = TelemetryWriter()
+    telemetry_writer = TelemetryWriter()
 
 
 def report_configuration(config: DDConfig) -> None:

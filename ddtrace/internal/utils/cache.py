@@ -2,7 +2,31 @@ from functools import wraps
 from inspect import FullArgSpec
 from inspect import getfullargspec
 from inspect import isgeneratorfunction
-from threading import RLock
+
+from ddtrace.internal._instrumentation_enabled import _INSTRUMENTATION_ENABLED
+
+
+if _INSTRUMENTATION_ENABLED:
+    from threading import RLock
+else:
+    # Provide a minimal stub for RLock when instrumentation is disabled
+    class RLock:  # type: ignore[no-redef]
+        def __init__(self):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+        def acquire(self, blocking=True, timeout=-1):
+            return True
+
+        def release(self):
+            pass
+
+
 from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
 from typing import Optional  # noqa:F401
