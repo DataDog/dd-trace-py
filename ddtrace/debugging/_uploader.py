@@ -64,6 +64,12 @@ class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
             except Exception:
                 pass  # nosec B110
 
+        snapshot_track = "/debugger/v1/input"
+        if "/debugger/v2/input" in self._agent_endpoints:
+            snapshot_track = "/debugger/v2/input"
+        elif "/debugger/v1/diagnostics" in self._agent_endpoints:
+            snapshot_track = "/debugger/v1/diagnostics"
+
         self._tracks = {
             SignalTrack.LOGS: UploaderTrack(
                 endpoint=f"/debugger/v1/input{endpoint_suffix}",
@@ -72,11 +78,7 @@ class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
                 ),
             ),
             SignalTrack.SNAPSHOT: UploaderTrack(
-                endpoint=(
-                    f"/debugger/v2/input{endpoint_suffix}"
-                    if "/debugger/v2/input" in self._agent_endpoints
-                    else f"/debugger/v1/diagnostics{endpoint_suffix}"
-                ),
+                endpoint=f"{snapshot_track}{endpoint_suffix}",
                 queue=self.__queue__(encoder=SnapshotJsonEncoder(di_config.service_name), on_full=self._on_buffer_full),
             ),
         }
