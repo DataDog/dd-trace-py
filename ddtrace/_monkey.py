@@ -2,7 +2,6 @@ import importlib
 import os
 from types import ModuleType
 from typing import TYPE_CHECKING  # noqa:F401
-from typing import Any  # noqa:F401
 from typing import Set
 from typing import Union
 
@@ -19,13 +18,13 @@ from ddtrace.internal._stubs_vendor import get_logger
 from ddtrace.internal._stubs_vendor import load_common_appsec_modules
 from ddtrace.internal._stubs_vendor import telemetry
 
-from .internal.utils import formats
-
 
 if _INSTRUMENTATION_ENABLED:
     from ddtrace.settings._config import config
 else:
     config = _NullConfig()
+
+from .internal.utils import formats
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -35,59 +34,6 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 log = get_logger(__name__)
-
-
-# Get config when needed to avoid circular imports
-def _get_config():
-    from ddtrace.settings._config import config
-
-    return config
-
-
-_PATCHED_MODULES = set()
-
-# Module names that need to be patched for a given integration. If the module
-# name coincides with the integration name, then there is no need to add an
-# entry here.
-_MODULES_FOR_CONTRIB = {
-    "elasticsearch": (
-        "elasticsearch",
-        "elasticsearch1",
-        "elasticsearch2",
-        "elasticsearch5",
-        "elasticsearch6",
-        "elasticsearch7",
-        # Starting with version 8, the default transport which is what we
-        # actually patch is found in the separate elastic_transport package
-        "elastic_transport",
-        "opensearchpy",
-    ),
-    "psycopg": (
-        "psycopg",
-        "psycopg2",
-    ),
-    "snowflake": ("snowflake.connector",),
-    "cassandra": ("cassandra.cluster",),
-    "dogpile_cache": ("dogpile.cache",),
-    "mysqldb": ("MySQLdb",),
-    "futures": ("concurrent.futures.thread",),
-    "vertica": ("vertica_python",),
-    "aws_lambda": ("datadog_lambda",),
-    "azure_functions": ("azure.functions",),
-    "azure_servicebus": ("azure.servicebus",),
-    "httplib": ("http.client",),
-    "kafka": ("confluent_kafka",),
-    "google_generativeai": ("google.generativeai",),
-    "google_genai": ("google.genai",),
-    "langgraph": (
-        "langgraph",
-        "langgraph.graph",
-        "langgraph.prebuilt",
-    ),
-    "openai_agents": ("agents",),
-}
-
-_NOT_PATCHABLE_VIA_ENVVAR = {"ddtrace_api"}
 
 # Default set of modules to automatically patch or not
 PATCH_MODULES = {
@@ -178,8 +124,9 @@ PATCH_MODULES = {
     "selenium": True,
     "valkey": True,
     "openai_agents": True,
-    "protobuf": False,  # Will be set dynamically based on config
+    "protobuf": config._data_streams_enabled,
 }
+
 
 # this information would make sense to live in the contrib modules,
 # but that would mean getting it would require importing those modules,
@@ -187,6 +134,52 @@ PATCH_MODULES = {
 CONTRIB_DEPENDENCIES = {
     "tornado": ("futures",),
 }
+
+
+_PATCHED_MODULES = set()
+
+# Module names that need to be patched for a given integration. If the module
+# name coincides with the integration name, then there is no need to add an
+# entry here.
+_MODULES_FOR_CONTRIB = {
+    "elasticsearch": (
+        "elasticsearch",
+        "elasticsearch1",
+        "elasticsearch2",
+        "elasticsearch5",
+        "elasticsearch6",
+        "elasticsearch7",
+        # Starting with version 8, the default transport which is what we
+        # actually patch is found in the separate elastic_transport package
+        "elastic_transport",
+        "opensearchpy",
+    ),
+    "psycopg": (
+        "psycopg",
+        "psycopg2",
+    ),
+    "snowflake": ("snowflake.connector",),
+    "cassandra": ("cassandra.cluster",),
+    "dogpile_cache": ("dogpile.cache",),
+    "mysqldb": ("MySQLdb",),
+    "futures": ("concurrent.futures.thread",),
+    "vertica": ("vertica_python",),
+    "aws_lambda": ("datadog_lambda",),
+    "azure_functions": ("azure.functions",),
+    "azure_servicebus": ("azure.servicebus",),
+    "httplib": ("http.client",),
+    "kafka": ("confluent_kafka",),
+    "google_generativeai": ("google.generativeai",),
+    "google_genai": ("google.genai",),
+    "langgraph": (
+        "langgraph",
+        "langgraph.graph",
+        "langgraph.prebuilt",
+    ),
+    "openai_agents": ("agents",),
+}
+
+_NOT_PATCHABLE_VIA_ENVVAR = {"ddtrace_api"}
 
 
 class PatchException(Exception):
@@ -273,6 +266,7 @@ def check_module_compatibility(
 
 
 def _on_import_factory(module, path_f, raise_errors=True, patch_indicator=True):
+    # type: (str, str, bool, Union[bool, List[str]]) -> Callable[[Any], None]
     """Factory to create an import hook for the provided module name"""
 
     def on_import(hook):
@@ -282,7 +276,6 @@ def _on_import_factory(module, path_f, raise_errors=True, patch_indicator=True):
 
             # if safe instrumentation is enabled, we check if the module's version
             # is compatible with the integration's supported version range, and throw an error if it is not
-            config = _get_config()
             if config._trace_safe_instrumentation_enabled:
                 check_module_compatibility(imported_module, module, hook.__name__)
 
@@ -332,7 +325,7 @@ def _on_import_factory(module, path_f, raise_errors=True, patch_indicator=True):
     return on_import
 
 
-def patch_all(**patch_modules) -> None:
+def patch_all(**patch_modules: bool) -> None:
     """Enables ddtrace library instrumentation.
 
     In addition to ``patch_modules``, an override can be specified via an
@@ -345,6 +338,7 @@ def patch_all(**patch_modules) -> None:
         >>> _patch_all(redis=False, cassandra=False)
     """
     if not _INSTRUMENTATION_ENABLED:
+        log.error("patch_all called with instrumentation disabled")
         return  # No-op when instrumentation is disabled
 
     deprecate(
@@ -356,15 +350,8 @@ def patch_all(**patch_modules) -> None:
     _patch_all(**patch_modules)
 
 
-def _patch_all(**patch_modules) -> None:
-    if not _INSTRUMENTATION_ENABLED:
-        return  # No-op when instrumentation is disabled
-
+def _patch_all(**patch_modules: bool) -> None:
     modules = PATCH_MODULES.copy()
-
-    # Set dynamic config-dependent values
-    config = _get_config()
-    modules["protobuf"] = config._data_streams_enabled
 
     # The enabled setting can be overridden by environment variables
     for module, _enabled in modules.items():
@@ -382,11 +369,11 @@ def _patch_all(**patch_modules) -> None:
 
     patch(raise_errors=False, **modules)
 
-    # Import here to avoid circular imports
     load_common_appsec_modules()
 
 
 def patch(raise_errors=True, **patch_modules):
+    # type: (bool, Union[List[str], bool]) -> None
     """Patch only a set of given modules.
 
     :param bool raise_errors: Raise error if one patch fail.
@@ -395,6 +382,7 @@ def patch(raise_errors=True, **patch_modules):
         >>> patch(psycopg=True, elasticsearch=True)
     """
     if not _INSTRUMENTATION_ENABLED:
+        log.error("patch called with instrumentation disabled")
         return  # No-op when instrumentation is disabled
 
     contribs = {c: patch_indicator for c, patch_indicator in patch_modules.items() if patch_indicator}
