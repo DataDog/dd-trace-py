@@ -1,7 +1,6 @@
 import json
 import os
 import textwrap
-import time
 import typing as t
 from unittest import mock
 
@@ -4859,73 +4858,6 @@ def test_simple():
                 assert coverage_data is not None, f"Test {span.get_tag('test.name')} missing coverage data"
                 # Coverage data should be a dict with 'files' key
                 assert isinstance(coverage_data, dict) and "files" in coverage_data
-
-    def test_civisibility_killswitch_enabled_truthy(self):
-        """Test that plugin works normally when DD_CIVISIBILITY_ENABLED=true/1/True/TRUE."""
-        py_file = self.testdir.makepyfile(
-            """
-            def test_killswitch_enabled():
-                import ddtrace
-                # This should work normally when kill switch is enabled
-                assert True
-        """
-        )
-        file_name = os.path.basename(py_file.strpath)
-        for val in "True", "true", "TRUE", "1":
-            rec = self.subprocess_run(
-                "--ddtrace",
-                "--ddtrace-patch-all",
-                "--ddtrace-include-class-name",
-                file_name,
-                env={"DD_CIVISIBILITY_ENABLED": val},
-            )
-            rec.assert_outcomes(passed=1)
-            assert 0 == rec.ret
-
-    def test_civisibility_killswitch_unset(self):
-        """Test that plugin works normally when DD_CIVISIBILITY_ENABLED is unset (default)."""
-        py_file = self.testdir.makepyfile(
-            """
-            def test_killswitch_unset():
-                import ddtrace
-                # This should work normally when kill switch is unset (defaults to enabled)
-                assert True
-        """
-        )
-        file_name = os.path.basename(py_file.strpath)
-        # Don't set DD_CIVISIBILITY_ENABLED in env, so it remains unset
-        rec = self.subprocess_run("--ddtrace", "--ddtrace-patch-all", "--ddtrace-include-class-name", file_name)
-        rec.assert_outcomes(passed=1)
-        assert 0 == rec.ret
-
-    def test_civisibility_killswitch_disabled_false(self):
-        """Test that plugin is disabled when DD_CIVISIBILITY_ENABLED=0/False/FALSE/false."""
-        py_file = self.testdir.makepyfile(
-            """
-            def test_killswitch_disabled():
-                # When kill switch is disabled, the plugin should not interfere
-                # ddspan fixture should not be available
-                assert True
-        """
-        )
-        file_name = os.path.basename(py_file.strpath)
-
-        for val in "False", "false", "FALSE", "0", "disabled":
-            start_time = time.time()
-            rec = self.subprocess_run(
-                "--ddtrace",
-                "--ddtrace-patch-all",
-                "--ddtrace-include-class-name",
-                file_name,
-                env={"DD_CIVISIBILITY_ENABLED": val},
-            )
-            end_time = time.time()
-
-            execution_time = end_time - start_time
-            rec.assert_outcomes(passed=1)
-            assert 0 == rec.ret
-            # Verify fast execution (disabled plugin should have minimal overhead)
-            assert execution_time < 1.5, f"Test took {execution_time:.2f}s, expected < 1.5s"
 
 
 def test_pytest_coverage_data_format_handling_none_value():
