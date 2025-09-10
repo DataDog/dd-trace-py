@@ -49,6 +49,7 @@ RAY_SNAPSHOT_IGNORES = [
     "meta.ray.job.message",
     "meta.error.stack",
     "meta._dd.base_service",
+    "meta._dd.hostname",
     # Service names that include dynamic submission IDs
     "service",
     # Base service sometimes gets set to a different value in CI than in the local environment,
