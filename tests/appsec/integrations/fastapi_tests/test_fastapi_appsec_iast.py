@@ -283,7 +283,7 @@ def test_header_name_source(fastapi_application, client, tracer, test_spans):
 @pytest.mark.skipif(fastapi_version < (0, 95, 0), reason="Header annotation doesn't work on fastapi 94 or lower")
 def test_header_value_source_typing_param(fastapi_application, client, tracer, test_spans):
     @fastapi_application.get("/index.html")
-    async def test_route(iast_header: typing.Annotated[typing.Optional[str], Header()] = None):
+    async def test_route(iast_header: typing.Optional[typing.Annotated[str, Header()]] = None):
         from ddtrace.appsec._iast._taint_tracking import origin_to_str
         from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 
