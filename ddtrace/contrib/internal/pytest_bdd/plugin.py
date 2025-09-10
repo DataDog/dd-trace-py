@@ -1,13 +1,10 @@
-from ddtrace.internal._instrumentation_enabled import _INSTRUMENTATION_ENABLED
+from ddtrace import config
 
 
-if _INSTRUMENTATION_ENABLED:
-    from ddtrace import config
-
-    # pytest-bdd default settings
-    config._add(
-        "pytest_bdd",
-        dict(
-            _default_service="pytest_bdd",
-        ),
-    )
+# pytest-bdd default settings
+config._add(
+    "pytest_bdd",
+    dict(
+        _default_service="pytest_bdd",
+    ),
+)
