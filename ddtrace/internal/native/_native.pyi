@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import Dict, List, Literal, Optional
 
 class DDSketch:
     def __init__(self): ...
@@ -353,7 +353,7 @@ class logger:
 
     @staticmethod
     def configure(
-        output: str = "stdout",
+        output: Literal["stdout", "stderr", "file"] = "stdout",
         path: Optional[str] = None,
         max_files: Optional[int] = None,
         max_size_bytes: Optional[int] = None,

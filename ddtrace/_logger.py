@@ -53,6 +53,7 @@ def configure_ddtrace_logger():
 
     _configure_ddtrace_debug_logger(ddtrace_logger)
     _configure_ddtrace_file_logger(ddtrace_logger)
+    _configure_ddtrace_native_logger()
 
 
 def _configure_ddtrace_debug_logger(logger):
@@ -125,3 +126,23 @@ def get_log_injection_state(raw_config: Optional[str]) -> bool:
                 normalized,
             )
     return False
+
+
+def _configure_ddtrace_native_logger():
+    try:
+        from ddtrace.internal.native._native import logger
+
+        logger_enabled = get_config("_DD_NATIVE_LOGGING_ENABLED", False, asbool)
+        if logger_enabled:
+            backend = get_config("_DD_NATIVE_LOGGING_BACKEND", "file")
+            kwargs = {"output": backend}
+            if backend == "file":
+                kwargs["path"] = get_config("_DD_NATIVE_LOGGING_FILE_PATH", "native.log")
+                kwargs["max_size_bytes"] = get_config("_DD_NATIVE_LOGGING_FILE_SIZE_BYTES", 4096, int)
+                kwargs["max_files"] = get_config("_DD_NATIVE_LOGGING_FILE_ROTATION_LEN", 1, int)
+
+            logger.configure(**kwargs)
+            logger.set_log_level(get_config("_DD_NATIVE_LOGGING_LOG_LEVEL", "info"))
+    except Exception:  # nosec B110
+        # Swallowing exception here since logging could not be initialized properly.
+        pass
