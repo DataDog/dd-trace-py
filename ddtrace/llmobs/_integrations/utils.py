@@ -596,7 +596,7 @@ def _openai_parse_input_response_messages(
                 processed_item["role"] = item["role"]
         elif "call_id" in item and ("arguments" in item or "input" in item):
             # Process `ResponseFunctionToolCallParam` or ResponseCustomToolCallParam type from input messages
-            arguments_str = item.get("arguments", OAI_HANDOFF_TOOL_ARG) or item.get("input", OAI_HANDOFF_TOOL_ARG)
+            arguments_str = item.get("arguments", "") or item.get("input", OAI_HANDOFF_TOOL_ARG)
             arguments = safe_load_json(arguments_str)
 
             tool_call_info = ToolCall(
