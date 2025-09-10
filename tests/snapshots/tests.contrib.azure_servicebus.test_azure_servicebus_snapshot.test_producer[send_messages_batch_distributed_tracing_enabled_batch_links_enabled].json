@@ -1,0 +1,100 @@
+[[
+  {
+    "name": "azure.servicebus.create",
+    "service": "azure_servicebus",
+    "resource": "queue.1",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68c1d77400000000",
+      "component": "azure_servicebus",
+      "language": "python",
+      "messaging.destination.name": "queue.1",
+      "messaging.message_id": "1138fbaf-1926-46d9-96a3-4033b8037612",
+      "messaging.operation": "create",
+      "messaging.system": "servicebus",
+      "network.destination.name": "localhost",
+      "runtime-id": "5b0f4d3517484680b26eb226fb368e6e",
+      "span.kind": "producer"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 16519
+    },
+    "duration": 4014125,
+    "start": 1757534068713235303
+  }],
+[
+  {
+    "name": "azure.servicebus.create",
+    "service": "azure_servicebus",
+    "resource": "queue.1",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68c1d77400000000",
+      "component": "azure_servicebus",
+      "language": "python",
+      "messaging.destination.name": "queue.1",
+      "messaging.message_id": "4b40b884-c7ee-4624-9d4c-60b264d80c37",
+      "messaging.operation": "create",
+      "messaging.system": "servicebus",
+      "network.destination.name": "localhost",
+      "runtime-id": "5b0f4d3517484680b26eb226fb368e6e",
+      "span.kind": "producer"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 16519
+    },
+    "duration": 713084,
+    "start": 1757534068724328803
+  }],
+[
+  {
+    "name": "azure.servicebus.send",
+    "service": "azure_servicebus",
+    "resource": "queue.1",
+    "trace_id": 2,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68c1d77400000000",
+      "_dd.span_links": "[{\"trace_id\": \"68c1d77400000000da09204c2fb20f4a\", \"span_id\": \"8a13064e003397c5\", \"tracestate\": \"dd=s:1;t.dm:-0;t.tid:68c1d77400000000\", \"flags\": 1}, {\"trace_id\": \"68c1d77400000000ba765dcf9c2e6045\", \"span_id\": \"c9c82e126959014b\", \"tracestate\": \"dd=s:1;t.dm:-0;t.tid:68c1d77400000000\", \"flags\": 1}]",
+      "component": "azure_servicebus",
+      "language": "python",
+      "messaging.batch_count": "2",
+      "messaging.destination.name": "queue.1",
+      "messaging.operation": "send",
+      "messaging.system": "servicebus",
+      "network.destination.name": "localhost",
+      "runtime-id": "5b0f4d3517484680b26eb226fb368e6e",
+      "span.kind": "producer"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 16519
+    },
+    "duration": 12911583,
+    "start": 1757534068725240387
+  }]]
