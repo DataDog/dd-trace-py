@@ -588,6 +588,10 @@ class CIVisibility(Service):
             log.debug("%s already enabled", cls.__name__)
             return
 
+        if not asbool(os.getenv("DD_CIVISIBILITY_ENABLED", default="true")):
+            cls.enabled = False
+            return
+
         if ddconfig._ci_visibility_agentless_enabled:
             if not os.getenv("_CI_DD_API_KEY", os.getenv("DD_API_KEY")):
                 log.critical(
@@ -605,10 +609,6 @@ class CIVisibility(Service):
 
         except CIVisibilityAuthenticationException:
             log.warning("Authentication error, disabling CI Visibility, please check Datadog API key")
-            cls.enabled = False
-            return
-
-        if not asbool(os.getenv("DD_CIVISIBILITY_ENABLED", default="true")):
             cls.enabled = False
             return
 
