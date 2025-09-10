@@ -6,9 +6,8 @@ from typing import Set
 from typing import Union
 
 from ddtrace.internal._instrumentation_enabled import _INSTRUMENTATION_ENABLED
-from ddtrace.internal._stubs_core import _NullConfig
-from ddtrace.internal._stubs_core import when_imported
 from ddtrace.internal._stubs_core import get_config
+from ddtrace.internal._stubs_core import when_imported
 from ddtrace.internal._stubs_vendor import TELEMETRY_NAMESPACE
 from ddtrace.internal._stubs_vendor import DDTraceDeprecationWarning
 from ddtrace.internal._stubs_vendor import Path
@@ -18,11 +17,10 @@ from ddtrace.internal._stubs_vendor import deprecate
 from ddtrace.internal._stubs_vendor import get_logger
 from ddtrace.internal._stubs_vendor import load_common_appsec_modules
 from ddtrace.internal._stubs_vendor import telemetry
+from ddtrace.internal.utils import formats
 
 
 config = get_config()
-
-from .internal.utils import formats
 
 
 if TYPE_CHECKING:  # pragma: no cover

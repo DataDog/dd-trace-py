@@ -144,6 +144,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
     """Writer to an arbitrary HTTP intake endpoint."""
 
     intake_url: str
+    _sync_mode: bool
 
     RETRY_ATTEMPTS = 3
     HTTP_METHOD = "PUT"

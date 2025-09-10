@@ -180,10 +180,12 @@ def get_config():
     if _INSTRUMENTATION_ENABLED:
         # Import the real config when instrumentation is enabled (lazy import to avoid circular imports)
         from ddtrace.settings._config import config
+
         return config
     else:
         # Use the null config when instrumentation is disabled
         return _NullConfig()
+
 
 # Export the core stubs
 __all__ = ["logging", "wrapt", "_NullConfig", "when_imported", "get_config"]
