@@ -483,7 +483,7 @@ async def test_llmobs_single_agent_with_ootb_tools(agents, mock_tracer, request_
                         "content": "ResponseFunctionWebSearch(id='ws_68814fa4582081989a0bc4a33dc197cc026575ca32f194ce',"
                         " status='completed', type='web_search_call', action={'type': 'search', 'query': 'current "
                         "weather in New York'})",
-                        "role": "",
+                        "role": "assistant",
                     },
                     {"role": "assistant", "content": result.final_output},
                 ],

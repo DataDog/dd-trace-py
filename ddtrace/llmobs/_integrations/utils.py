@@ -715,7 +715,7 @@ def _openai_parse_output_response_messages(messages: List[Any]) -> Tuple[List[Di
                 }
             )
         else:
-            message.update({"content": str(item)})
+            message.update({"content": str(item), "role": "assistant"})
 
         processed.append(message)
 
