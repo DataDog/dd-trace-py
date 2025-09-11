@@ -48,7 +48,10 @@ class DynamicSpan(Signal):
             resource=probe.func_qname,
             span_type=None,  # Currently unused
         )
-        span = self._span_cm.__enter__()
+        if self._span_cm is not None:
+            span = self._span_cm.__enter__()
+        else:
+            return
 
         span.set_tags(probe.tags)  # type: ignore[arg-type]
         span.set_tag_str(PROBE_ID_TAG_NAME, probe.probe_id)

@@ -118,7 +118,8 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
             self._main_tracer_context = ddtrace.tracer._activate_context(
                 Context(trace_id=self._span.trace_id, span_id=self._span.span_id)
             )
-            self._main_tracer_context.__enter__()
+            if self._main_tracer_context is not None:
+                self._main_tracer_context.__enter__()
 
     def _finish_span(self, override_finish_time: Optional[float] = None) -> None:
         super()._finish_span(override_finish_time)
