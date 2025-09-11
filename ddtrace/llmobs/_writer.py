@@ -318,7 +318,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
     LIST_RECORDS_TIMEOUT = 20
     SUPPORTED_UPLOAD_EXTS = {"csv"}
 
-    def request(self, method: str, path: str, body: Optional[JSONType] = None, timeout=TIMEOUT) -> Response:
+    def request(self, method: str, path: str, body: JSONType = None, timeout=TIMEOUT) -> Response:
         headers = {
             "Content-Type": "application/json",
             "DD-API-KEY": self._api_key,
