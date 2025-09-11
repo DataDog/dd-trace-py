@@ -5,12 +5,68 @@ This module contains the lazy initialization logic to defer side effects
 until they are actually needed.
 """
 import functools
+import os
 
 
 # Lazy initialization state
 _logger_configured = False
 _telemetry_initialized = False
 _python_version_checked = False
+_logger_hook_installed = False
+
+
+def validate_logger_config():
+    """
+    Validate logger configuration without actually configuring the logger.
+
+    This performs minimal validation on import to maintain backward compatibility
+    where configuration errors are detected immediately.
+    """
+    log_file_level = os.environ.get("DD_TRACE_LOG_FILE_LEVEL")
+    if log_file_level:
+        # Import logging only when needed
+        import logging
+
+        log_file_level = log_file_level.upper()
+        try:
+            getattr(logging, log_file_level)
+        except AttributeError:
+            raise ValueError(
+                "DD_TRACE_LOG_FILE_LEVEL is invalid. Log level must be CRITICAL/ERROR/WARNING/INFO/DEBUG.",
+                log_file_level,
+            )
+
+
+def setup_lazy_logger_hook():
+    """
+    Set up a hook to lazily configure the ddtrace logger when it's first accessed.
+
+    This patches logging.getLogger to intercept access to the 'ddtrace' logger
+    and configure it automatically, but only on first access.
+    """
+    global _logger_hook_installed
+    if _logger_hook_installed:
+        return
+
+    # Import logging only when setting up the hook
+    import logging
+
+    original_getLogger = logging.getLogger
+
+    def patched_getLogger(name=None):
+        """Patched version of logging.getLogger that configures ddtrace logger on first access."""
+        if name == "ddtrace":
+            # Restore original immediately to avoid recursion
+            logging.getLogger = original_getLogger
+            # Configure the logger lazily
+            _ensure_logger_configured()
+            # Return the now-configured logger
+            return original_getLogger(name)
+
+        return original_getLogger(name)
+
+    logging.getLogger = patched_getLogger
+    _logger_hook_installed = True
 
 
 def _ensure_logger_configured():
@@ -75,6 +131,7 @@ def get_config():
     """Lazy config import."""
     global _config
     if _config is None:
+        _ensure_logger_configured()  # Config access should initialize logger
         _ensure_telemetry_initialized()  # Config requires telemetry
         from .settings._config import config as _imported_config
 
@@ -103,3 +160,40 @@ def get_deprecation_warning():
     from .internal.utils.deprecations import DDTraceDeprecationWarning
 
     return DDTraceDeprecationWarning
+
+
+def get_trace_module():
+    """Lazy trace module import."""
+    _ensure_logger_configured()
+    _ensure_telemetry_initialized()
+    _ensure_python_version_checked()
+    from . import trace
+
+    return trace
+
+
+def get_ddtrace_submodule(name):
+    """
+    Generic lazy submodule loader for any ddtrace submodule.
+    
+    This function can dynamically import any ddtrace submodule on-demand.
+    For simple modules (ext, constants, etc.), it skips heavy initialization.
+    For complex modules that need initialization, it ensures prerequisites.
+    """
+    # Light modules that don't need full initialization
+    light_modules = {'ext', 'constants', 'version'}
+    
+    # Only do heavy initialization for modules that actually need it
+    if name not in light_modules:
+        _ensure_logger_configured()
+        _ensure_telemetry_initialized()  
+        _ensure_python_version_checked()
+    
+    try:
+        # Use importlib for dynamic import
+        import importlib
+        module_name = f"ddtrace.{name}"
+        return importlib.import_module(module_name)
+    except ImportError:
+        # Re-raise with a more helpful message
+        raise ImportError(f"No module named 'ddtrace.{name}'")

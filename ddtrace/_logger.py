@@ -1,8 +1,8 @@
 import logging
+import os
 from os import path
 from typing import Optional
 
-from ddtrace.internal.telemetry import get_config
 from ddtrace.internal.utils.formats import asbool
 
 
@@ -13,6 +13,9 @@ DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] 
 
 DEFAULT_FILE_SIZE_BYTES = 15 << 20  # 15 MB
 
+# Track if we've configured the logger to avoid double configuration
+_logger_configured = False
+
 
 class LogInjectionState(object):
     # Log injection is disabled
@@ -22,6 +25,17 @@ class LogInjectionState(object):
     # Log injection is enabled and configured for structured logging
     # This value is deprecated, but kept for backwards compatibility
     STRUCTURED = "structured"
+
+
+def _get_config_from_env(env_var, default=None, modifier=None):
+    """Simple config getter that only reads from environment variables."""
+    value = os.environ.get(env_var, default)
+    if modifier and value is not None:
+        try:
+            value = modifier(value)
+        except (ValueError, TypeError):
+            value = default
+    return value
 
 
 def configure_ddtrace_logger():
@@ -47,21 +61,29 @@ def configure_ddtrace_logger():
             ie: ``logging.basicConfig()``.
 
     """
+    global _logger_configured
+    if _logger_configured:
+        return
+
     ddtrace_logger = logging.getLogger("ddtrace")
-    if get_config("DD_TRACE_LOG_STREAM_HANDLER", True, asbool):
+    if _get_config_from_env("DD_TRACE_LOG_STREAM_HANDLER", True, asbool):
         ddtrace_logger.addHandler(logging.StreamHandler())
 
     _configure_ddtrace_debug_logger(ddtrace_logger)
     _configure_ddtrace_file_logger(ddtrace_logger)
 
+    _logger_configured = True
+
 
 def _configure_ddtrace_debug_logger(logger):
-    if get_config("DD_TRACE_DEBUG", False, asbool):
+    if _get_config_from_env("DD_TRACE_DEBUG", False, asbool):
         logger.setLevel(logging.DEBUG)
 
 
 def _configure_ddtrace_file_logger(logger):
-    log_file_level = get_config("DD_TRACE_LOG_FILE_LEVEL", "DEBUG").upper()
+    log_file_level = _get_config_from_env("DD_TRACE_LOG_FILE_LEVEL", "DEBUG")
+    if log_file_level:
+        log_file_level = log_file_level.upper()
     try:
         file_log_level_value = getattr(logging, log_file_level)
     except AttributeError:
@@ -69,8 +91,8 @@ def _configure_ddtrace_file_logger(logger):
             "DD_TRACE_LOG_FILE_LEVEL is invalid. Log level must be CRITICAL/ERROR/WARNING/INFO/DEBUG.",
             log_file_level,
         )
-    max_file_bytes = get_config("DD_TRACE_LOG_FILE_SIZE_BYTES", DEFAULT_FILE_SIZE_BYTES, int)
-    log_path = get_config("DD_TRACE_LOG_FILE")
+    max_file_bytes = _get_config_from_env("DD_TRACE_LOG_FILE_SIZE_BYTES", DEFAULT_FILE_SIZE_BYTES, int)
+    log_path = _get_config_from_env("DD_TRACE_LOG_FILE")
     _add_file_handler(logger=logger, log_path=log_path, log_level=file_log_level_value, max_file_bytes=max_file_bytes)
 
 

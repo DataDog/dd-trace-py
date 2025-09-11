@@ -7,7 +7,21 @@ LOADED_MODULES = frozenset(sys.modules.keys())
 
 # Ensure we capture references to unpatched modules as early as possible
 import ddtrace.internal._unpatched  # noqa
-from ._lazy_init import ensure_initialized, get_config, get_tracer, get_deprecation_warning
+
+from ._lazy_init import (
+    ensure_initialized,
+    get_config,
+    get_tracer,
+    get_deprecation_warning,
+    get_trace_module,
+    get_ddtrace_submodule,
+    setup_lazy_logger_hook,
+    validate_logger_config,
+)
+
+# Set up lazy initialization
+setup_lazy_logger_hook()
+validate_logger_config()
 
 from .version import get_version  # noqa: E402
 
@@ -47,6 +61,7 @@ else:
 
 # Module-level __getattr__ for lazy attribute access (Python 3.7+ feature)
 def __getattr__(name: str):
+    # Handle well-known special cases first
     if name == "config":
         return get_config()
     elif name == "DDTraceDeprecationWarning":
@@ -54,4 +69,12 @@ def __getattr__(name: str):
     elif name == "tracer":
         # Lazy tracer access - initialize on first access regardless of environment variable
         return get_tracer()
-    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+    elif name == "trace":
+        return get_trace_module()
+    else:
+        # Generic fallback: try to import any ddtrace submodule dynamically
+        try:
+            return get_ddtrace_submodule(name)
+        except ImportError:
+            # If import fails, raise AttributeError as expected for missing attributes
+            raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
