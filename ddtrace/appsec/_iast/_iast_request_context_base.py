@@ -69,9 +69,6 @@ def _iast_start_request(span=None) -> Optional[int]:
     context_id = None
     if asm_config._iast_enabled:
         if oce.acquire_request(span):
-            _old_context_id = IAST_CONTEXT.get()
-            if _old_context_id is not None:
-                return _old_context_id
             context_id = start_request_context()
             if context_id is not None:
                 IAST_CONTEXT.set(context_id)
