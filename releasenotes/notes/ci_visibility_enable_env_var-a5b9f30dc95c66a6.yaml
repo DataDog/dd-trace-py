@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    CI Visibility: This introduces the env var DD_CIVISIBILITY_ENABLED (with default value: True) so it can be disabled to avoid sending traces to the Test Visibility product from the test runners.
