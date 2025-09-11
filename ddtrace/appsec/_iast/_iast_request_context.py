@@ -92,7 +92,7 @@ def _iast_end_request(ctx=None, span=None, *args, **kwargs):
             existing_data = req_span.get_tag(IAST.JSON) or req_span.get_struct_tag(IAST.STRUCT)
             if existing_data is None:
                 if req_span.get_metric(IAST.ENABLED) is None:
-                    if not asm_config.is_iast_request_enabled:
+                    if not base.is_iast_request_enabled():
                         req_span.set_metric(IAST.ENABLED, 0.0)
                         base.end_iast_context(req_span)
                         oce.release_request()

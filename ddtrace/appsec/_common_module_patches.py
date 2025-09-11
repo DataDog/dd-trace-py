@@ -219,7 +219,7 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
                 # API10, doing all request calls in HTTPConnection.request
                 try:
                     response = original_open_callable(*args, **kwargs)
-                    # api10 response handler for regular reponses
+                    # api10 response handler for regular responses
                     if response.__class__.__name__ == "HTTPResponse":
                         addresses = {
                             "DOWN_RES_STATUS": str(response.status),
@@ -230,7 +230,7 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
                         call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF)
                     return response
                 except Exception as e:
-                    # api10 response handler for error reponses
+                    # api10 response handler for error responses
                     if e.__class__.__name__ == "HTTPError":
                         try:
                             status_code = e.code
@@ -289,10 +289,13 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
     wrapper for third party requests.request function
     https://requests.readthedocs.io
     """
-    if asm_config._iast_enabled and asm_config.is_iast_request_enabled:
-        from ddtrace.appsec._iast.taint_sinks.ssrf import _iast_report_ssrf
+    if asm_config._iast_enabled:
+        from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 
-        _iast_report_ssrf(original_request_callable, *args, **kwargs)
+        if is_iast_request_enabled():
+            from ddtrace.appsec._iast.taint_sinks.ssrf import _iast_report_ssrf
+
+            _iast_report_ssrf(original_request_callable, *args, **kwargs)
 
     if _get_rasp_capability("ssrf"):
         try:

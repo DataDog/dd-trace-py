@@ -1,6 +1,7 @@
 from typing import Text
 
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
+from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
@@ -129,7 +130,7 @@ def _iast_response_cookies(wrapped, instance, args, kwargs):
             cookie_value = kwargs.get("value")
 
         if cookie_value and cookie_key:
-            if asm_config.is_iast_request_enabled and CookiesVulnerability.has_quota():
+            if is_iast_request_enabled() and CookiesVulnerability.has_quota():
                 report_samesite = False
                 samesite = kwargs.get("samesite", "")
                 if samesite:
