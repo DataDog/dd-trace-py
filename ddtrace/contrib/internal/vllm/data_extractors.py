@@ -69,8 +69,10 @@ def extract_v0_data(res: RequestOutput, seq_group) -> RequestData:
     if isinstance(res, PoolingRequestOutput):
         # Embedding output
         output_data = getattr(getattr(res, "outputs", None), "data", None)
-        if output_data and hasattr(output_data, "shape") and len(output_data.shape) >= 1:
-            data.embedding_dim = int(output_data.shape[-1])
+        if output_data is not None and hasattr(output_data, "shape"):
+            shape = output_data.shape
+            if hasattr(shape, "__len__") and len(shape) >= 1:
+                data.embedding_dim = int(shape[-1])
     else:
         # Completion output - extract from sequences for full text
         if seq_group and hasattr(seq_group, "get_seqs"):

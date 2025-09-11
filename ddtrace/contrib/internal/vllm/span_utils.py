@@ -44,7 +44,11 @@ def create_vllm_span(config: SpanConfig) -> Optional[object]:
     elif config.seq_group and hasattr(config.seq_group, 'trace_headers'):
         trace_headers = getattr(config.seq_group, 'trace_headers', {})
         if trace_headers:
+            log.debug("[VLLM DD] create_vllm_span: found trace_headers keys=%s", list(trace_headers.keys()))
+            # Accept either W3C headers (traceparent/tracestate) or Datadog headers (x-datadog-trace-id/parent-id)
             parent_ctx = HTTPPropagator.extract(trace_headers)
+    else:
+        log.debug("[VLLM DD] create_vllm_span: no parent or trace_headers; creating root span")
     
     # Create span
     span = config.tracer.start_span(
@@ -66,8 +70,31 @@ def create_vllm_span(config: SpanConfig) -> Optional[object]:
         span.start_ns = int(float(config.arrival_time) * 1e9)
     
     # Set base model tags
-    if config.integration and config.model_name:
-        config.integration._set_base_span_tags(span, model_name=config.model_name)
+    if config.integration:
+        model_name = config.model_name
+        # Fallback: adopt model name propagated via trace headers
+        if not model_name and config.seq_group and hasattr(config.seq_group, 'trace_headers'):
+            hdrs = getattr(config.seq_group, 'trace_headers') or {}
+            model_name = hdrs.get('x-datadog-vllm-model')
+        # Final fallback: global model name set at server init
+        if not model_name:
+            try:
+                import vllm as _v
+                model_name = getattr(_v, '_dd_model_name', None)
+            except Exception:
+                model_name = None
+        if model_name:
+            config.integration._set_base_span_tags(span, model_name=model_name)
+            log.debug("[VLLM DD] create_vllm_span: tagged model_name=%s", model_name)
+        else:
+            log.debug("[VLLM DD] create_vllm_span: no model_name to tag")
+    # Attach request_id to span for correlation
+    try:
+        req_id = getattr(config.seq_group, 'request_id', None)
+        if req_id:
+            span.set_tag_str('vllm.request.id', str(req_id))
+    except Exception:
+        pass
     
     return span
 
@@ -107,6 +134,10 @@ def inject_trace_headers(pin, kwargs: Dict[str, Any]):
     
     headers: Dict[str, str] = {}
     HTTPPropagator.inject(parent.context, headers)
+    # Also propagate captured prompt for later LLMObs input reconstruction
+    captured_prompt = parent._get_ctx_item("vllm.captured_prompt")
+    if isinstance(captured_prompt, str) and captured_prompt:
+        headers["x-datadog-captured-prompt"] = captured_prompt
     if headers:
         kwargs["trace_headers"] = headers
 
@@ -127,3 +158,4 @@ def apply_llmobs_context(span, integration, kwargs: dict, operation: str = "comp
     span._set_ctx_items(context)
     if hasattr(integration, "_set_supplemental_tags"):
         integration._set_supplemental_tags(span, kwargs)
+    log.debug("[VLLM DD] apply_llmobs_context: op=%s ctx_keys=%s", operation, list(context.keys()))

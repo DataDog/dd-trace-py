@@ -8,6 +8,9 @@ from ddtrace.llmobs._constants import (
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.trace import Span
 from ddtrace.llmobs.utils import Document
+from ddtrace.internal.logger import get_logger
+
+log = get_logger(__name__)
 
 
 class VLLMIntegration(BaseLLMIntegration):
@@ -20,6 +23,8 @@ class VLLMIntegration(BaseLLMIntegration):
         model_name = kwargs.get("model_name")
         if model_name:
             span.set_tag_str("vllm.request.model", model_name)
+            # Also set generic model tag used in LLMObs UI
+            span.set_tag_str("model.name", model_name)
 
     def _extract_model_info(self, model_name: str) -> tuple[str, str]:
         """Extract provider and short model name."""
@@ -124,6 +129,7 @@ class VLLMIntegration(BaseLLMIntegration):
         output_text = kwargs.get("output_text")
         if output_text:
             context[OUTPUT_MESSAGES] = [{"content": output_text}]
+        log.debug("[VLLM DD] build_completion_context: model=%s has_input=%s has_output=%s", short_model, bool(prompt), bool(output_text))
         
         return context
 
@@ -140,6 +146,10 @@ class VLLMIntegration(BaseLLMIntegration):
             value = kwargs.get(key)
             if value is not None:
                 span.set_tag_str(tag_name, str(value))
+        # Adopt model name from propagated trace headers if present
+        hdr_model = getattr(span, "_get_ctx_item", lambda *_: None)("x-datadog-vllm-model") if hasattr(span, "_get_ctx_item") else None
+        if hdr_model and not kwargs.get("model_name"):
+            span.set_tag_str("vllm.request.model", str(hdr_model))
 
     def _llmobs_set_tags(
         self,
@@ -150,12 +160,8 @@ class VLLMIntegration(BaseLLMIntegration):
         operation: str = ""
     ) -> None:
         """Set LLMObs tags on span."""
-        # Determine operation type
-        is_embedding = (
-            operation == "embedding" or 
-            kwargs.get("embedding_dim") is not None or
-            kwargs.get("input") is not None
-        )
+        # Determine operation type only based on explicit operation arg
+        is_embedding = (operation == "embedding")
         
         # Build appropriate context
         if is_embedding:
