@@ -703,7 +703,7 @@ Test Visibility
 
    DD_CIVISIBILITY_ENABLED:
      type: Boolean
-     default:True
+     default: True
 
      description: |
         Allows the ``CIVisibility`` service to run and send traces to the Test Visibility product.
