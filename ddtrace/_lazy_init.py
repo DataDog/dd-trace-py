@@ -175,23 +175,24 @@ def get_trace_module():
 def get_ddtrace_submodule(name):
     """
     Generic lazy submodule loader for any ddtrace submodule.
-    
+
     This function can dynamically import any ddtrace submodule on-demand.
     For simple modules (ext, constants, etc.), it skips heavy initialization.
     For complex modules that need initialization, it ensures prerequisites.
     """
     # Light modules that don't need full initialization
-    light_modules = {'ext', 'constants', 'version'}
-    
+    light_modules = {"ext", "constants", "version"}
+
     # Only do heavy initialization for modules that actually need it
     if name not in light_modules:
         _ensure_logger_configured()
-        _ensure_telemetry_initialized()  
+        _ensure_telemetry_initialized()
         _ensure_python_version_checked()
-    
+
     try:
         # Use importlib for dynamic import
         import importlib
+
         module_name = f"ddtrace.{name}"
         return importlib.import_module(module_name)
     except ImportError:
