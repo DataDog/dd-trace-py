@@ -7,6 +7,7 @@ import pytest
 from ddtrace._trace.pin import Pin
 from ddtrace.appsec._iast import enable_iast_propagation
 from ddtrace.appsec._iast import load_iast
+from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast.main import patch_iast
 from ddtrace.contrib.internal.django.patch import patch as django_patch
 from ddtrace.contrib.internal.requests.patch import patch as requests_patch
@@ -15,6 +16,7 @@ from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
 from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
+from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -60,7 +62,8 @@ def tracer():
 
     # Yield to our test
     core.tracer = tracer
-    yield tracer
+    with override_config("django", dict(_tracer=tracer)):
+        yield tracer
     tracer.pop()
     core.tracer = original_tracer
     # Reset the tracer pinned to Django and unpatch
@@ -86,6 +89,24 @@ def iast_span(tracer):
             _iast_request_sampling=100.0,
         )
     ):
+        oce.reconfigure()
+        container = TracerSpanContainer(tracer)
+        _start_iast_context_and_oce()
+        yield container
+        _end_iast_context_and_oce()
+        container.reset()
+
+
+@pytest.fixture
+def iast_span_disabled(tracer):
+    with override_global_config(
+        dict(
+            _iast_enabled=False,
+            _iast_deduplication_enabled=False,
+            _iast_request_sampling=100.0,
+        )
+    ):
+        oce.reconfigure()
         container = TracerSpanContainer(tracer)
         _start_iast_context_and_oce()
         yield container
@@ -103,6 +124,7 @@ def test_spans_2_vuln_per_request_deduplication(tracer):
             _iast_request_sampling=100.0,
         )
     ):
+        oce.reconfigure()
         container = TracerSpanContainer(tracer)
         _start_iast_context_and_oce()
         yield container
@@ -134,6 +156,7 @@ def iast_spans_with_zero_sampling(tracer):
             _iast_request_sampling=0.0,
         )
     ):
+        oce.reconfigure()
         container = TracerSpanContainer(tracer)
         _start_iast_context_and_oce()
         yield container
