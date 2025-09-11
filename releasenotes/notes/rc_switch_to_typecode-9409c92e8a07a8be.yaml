@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    RemoteConfig: Fixes an issue introduced in Python 3.13 where creating a shared
+    array with the c_char type raised a TypeError, this now uses the 'c' typecode
+    for better compatibility across versions.
