@@ -361,6 +361,20 @@ suites:
     snapshot: true
     services:
       - azurite
+  azure_functions:servicebus:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@azure_functions'
+      - '@azure_servicebus'
+      - tests/contrib/azure_functions_servicebus/*
+      - tests/snapshots/tests.contrib.azure_functions_servicebus.*
+    runner: riot
+    snapshot: true
+    services:
+      - azurite
       - azureservicebusemulator
       - azuresqledge
   azure_servicebus:

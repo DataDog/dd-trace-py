@@ -115,10 +115,11 @@ def _wrap_service_bus_trigger(pin, func, function_name, trigger_arg_name, trigge
             )
             message_id = None
 
-            for message in msg_arg_value:
-                parent_context = HTTPPropagator.extract(message.application_properties)
-                if parent_context.trace_id is not None and parent_context.span_id is not None:
-                    ctx.span.link_span(parent_context)
+            if config.azure_functions.distributed_tracing:
+                for message in msg_arg_value:
+                    parent_context = HTTPPropagator.extract(message.application_properties)
+                    if parent_context.trace_id is not None and parent_context.span_id is not None:
+                        ctx.span.link_span(parent_context)
         elif isinstance(msg_arg_value, azure_functions.ServiceBusMessage):
             batch_count = None
             fully_qualified_namespace = (
@@ -126,9 +127,10 @@ def _wrap_service_bus_trigger(pin, func, function_name, trigger_arg_name, trigge
             )
             message_id = msg_arg_value.message_id
 
-            parent_context = HTTPPropagator.extract(msg_arg_value.application_properties)
-            if parent_context.trace_id is not None and parent_context.span_id is not None:
-                ctx.span.link_span(parent_context)
+            if config.azure_functions.distributed_tracing:
+                parent_context = HTTPPropagator.extract(msg_arg_value.application_properties)
+                if parent_context.trace_id is not None and parent_context.span_id is not None:
+                    ctx.span.link_span(parent_context)
         else:
             batch_count = None
             fully_qualified_namespace = None
