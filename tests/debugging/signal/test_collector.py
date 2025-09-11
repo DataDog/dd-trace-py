@@ -9,6 +9,7 @@ from ddtrace.debugging._probe.model import ProbeEvalTiming
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.log import LogSignal
 from ddtrace.debugging._signal.model import SignalState
+from ddtrace.debugging._signal.model import SignalTrack
 from ddtrace.debugging._signal.snapshot import Snapshot
 from tests.debugging.utils import create_log_function_probe
 from tests.debugging.utils import create_snapshot_line_probe
@@ -76,7 +77,7 @@ def test_collector_collect_enqueue_only_commit_state():
 def test_collector_push_enqueue():
     encoder, _ = mock_encoder()
 
-    collector = SignalCollector(encoder=encoder)
+    collector = SignalCollector(tracks={SignalTrack.LOGS: encoder, SignalTrack.SNAPSHOT: encoder})
     frame = inspect.currentframe()
     assert frame is not None
 

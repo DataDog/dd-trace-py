@@ -189,6 +189,8 @@ class SpanExceptionProbe(LogLineProbe):
 
 @dataclass
 class SpanExceptionSnapshot(Snapshot):
+    __type__ = "er_snapshot"
+
     exc_id: t.Optional[uuid.UUID] = None
 
     @property
