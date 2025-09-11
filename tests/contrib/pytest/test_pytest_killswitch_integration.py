@@ -8,7 +8,6 @@ instead of citestcycle intake, even when DD_CIVISIBILITY_AGENTLESS_ENABLED=1.
 import json
 import os
 import subprocess
-import tempfile
 from unittest import mock
 
 import pytest
@@ -243,7 +242,9 @@ def test_simple():
 @pytest.mark.subprocess()
 def test_pytest_programmatic_killswitch_integration():
     """Test killswitch when using pytest programmatically with ddtrace enabled."""
+    import os
     import subprocess
+    import tempfile
     import textwrap
 
     # Create a temporary test directory
