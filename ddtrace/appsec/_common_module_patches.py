@@ -219,7 +219,7 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
                 # API10, doing all request calls in HTTPConnection.request
                 try:
                     response = original_open_callable(*args, **kwargs)
-                    # api10 response handler for regular reponses
+                    # api10 response handler for regular responses
                     if response.__class__.__name__ == "HTTPResponse":
                         addresses = {
                             "DOWN_RES_STATUS": str(response.status),
@@ -230,7 +230,7 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
                         call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF)
                     return response
                 except Exception as e:
-                    # api10 response handler for error reponses
+                    # api10 response handler for error responses
                     if e.__class__.__name__ == "HTTPError":
                         try:
                             status_code = e.code
