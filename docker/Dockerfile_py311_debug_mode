@@ -78,7 +78,6 @@ RUN python3.11d -m pip install --break-system-packages setuptools cython wheel c
     "envier~=0.5" \
     "opentelemetry-api>=1" \
     "protobuf>=3" \
-    typing_extensions \
     "xmltodict>=0.12" \
     setuptools-rust \
     wrapt

@@ -7,12 +7,7 @@ from types import FrameType
 from types import FunctionType
 from types import TracebackType
 import typing as t
-
-
-try:
-    from typing import Protocol  # noqa:F401
-except ImportError:
-    from typing_extensions import Protocol  # type: ignore[assignment]
+from typing import Protocol  # noqa:F401
 
 import bytecode
 from bytecode import Bytecode
