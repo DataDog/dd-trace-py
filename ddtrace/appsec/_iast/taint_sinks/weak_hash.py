@@ -8,6 +8,7 @@ from ddtrace.settings.asm import config as asm_config
 
 from ..._common_module_patches import try_unwrap
 from ..._constants import IAST_SPAN_TAGS
+from .._iast_request_context_base import is_iast_request_enabled
 from .._metrics import _set_metric_iast_executed_sink
 from .._metrics import _set_metric_iast_instrumented_sink
 from .._patch_modules import WrapFunctonsForIAST
@@ -112,7 +113,7 @@ def unpatch_iast():
 
 
 def wrapped_digest_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
-    if asm_config.is_iast_request_enabled:
+    if is_iast_request_enabled():
         if WeakHash.has_quota() and instance.name.lower() in get_weak_hash_algorithms():
             WeakHash.report(
                 evidence_value=instance.name,
@@ -137,7 +138,7 @@ def wrapped_sha1_function(wrapped: Callable, instance: Any, args: Any, kwargs: A
 
 
 def wrapped_new_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
-    if asm_config.is_iast_request_enabled:
+    if is_iast_request_enabled():
         if WeakHash.has_quota() and args[0].lower() in get_weak_hash_algorithms():
             WeakHash.report(
                 evidence_value=args[0].lower(),
@@ -153,7 +154,7 @@ def wrapped_new_function(wrapped: Callable, instance: Any, args: Any, kwargs: An
 
 
 def wrapped_function(wrapped: Callable, evidence: str, instance: Any, args: Any, kwargs: Any) -> Any:
-    if asm_config.is_iast_request_enabled:
+    if is_iast_request_enabled():
         if WeakHash.has_quota():
             WeakHash.report(
                 evidence_value=evidence,

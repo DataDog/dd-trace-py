@@ -69,6 +69,11 @@ def set_iast_request_enabled(request_enabled) -> None:
         log.debug("iast::propagation::context::Trying to set IAST reporter but no context is present")
 
 
+def is_iast_request_enabled() -> bool:
+    """Check whether IAST is currently operating within an active request context."""
+    return asm_config.is_iast_request_enabled
+
+
 def set_iast_request_endpoint(method, route) -> None:
     if asm_config._iast_enabled:
         env = _get_iast_env()
