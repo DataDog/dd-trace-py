@@ -27,6 +27,20 @@ from .version import get_version  # noqa: E402
 
 __version__ = get_version()
 
+# Check Python version synchronously to show deprecation warnings immediately
+from ddtrace.vendor import debtcollector
+from .internal.compat import PYTHON_VERSION_INFO
+from .internal.utils.deprecations import DDTraceDeprecationWarning
+
+if PYTHON_VERSION_INFO < (3, 8):
+    deprecation_message = "Support for ddtrace with Python version %d.%d is deprecated and will be removed in 3.0.0."
+    if PYTHON_VERSION_INFO < (3, 7):
+        deprecation_message = "Support for ddtrace with Python version %d.%d was removed in 2.0.0."
+    debtcollector.deprecate(
+        (deprecation_message % (PYTHON_VERSION_INFO[0], PYTHON_VERSION_INFO[1])),
+        category=DDTraceDeprecationWarning,
+    )
+
 
 @ensure_initialized
 def patch(*args, **kwargs):

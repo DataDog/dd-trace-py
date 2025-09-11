@@ -11,7 +11,6 @@ import os
 # Lazy initialization state
 _logger_configured = False
 _telemetry_initialized = False
-_python_version_checked = False
 _logger_hook_installed = False
 
 
@@ -88,28 +87,6 @@ def _ensure_telemetry_initialized():
         _telemetry_initialized = True
 
 
-def _ensure_python_version_checked():
-    """Lazy Python version checking."""
-    global _python_version_checked
-    if not _python_version_checked:
-        from ddtrace.vendor import debtcollector
-
-        from .internal.compat import PYTHON_VERSION_INFO
-        from .internal.utils.deprecations import DDTraceDeprecationWarning
-
-        if PYTHON_VERSION_INFO < (3, 8):
-            deprecation_message = (
-                "Support for ddtrace with Python version %d.%d is deprecated and will be removed in 3.0.0."
-            )
-            if PYTHON_VERSION_INFO < (3, 7):
-                deprecation_message = "Support for ddtrace with Python version %d.%d was removed in 2.0.0."
-            debtcollector.deprecate(
-                (deprecation_message % (PYTHON_VERSION_INFO[0], PYTHON_VERSION_INFO[1])),
-                category=DDTraceDeprecationWarning,
-            )
-        _python_version_checked = True
-
-
 def ensure_initialized(func):
     """Decorator that ensures all necessary components are initialized before calling the function."""
 
@@ -117,7 +94,6 @@ def ensure_initialized(func):
     def wrapper(*args, **kwargs):
         _ensure_logger_configured()
         _ensure_telemetry_initialized()
-        _ensure_python_version_checked()
         return func(*args, **kwargs)
 
     return wrapper
@@ -156,7 +132,6 @@ def get_tracer():
 
 def get_deprecation_warning():
     """Lazy DDTraceDeprecationWarning import."""
-    _ensure_python_version_checked()
     from .internal.utils.deprecations import DDTraceDeprecationWarning
 
     return DDTraceDeprecationWarning
@@ -166,7 +141,6 @@ def get_trace_module():
     """Lazy trace module import."""
     _ensure_logger_configured()
     _ensure_telemetry_initialized()
-    _ensure_python_version_checked()
     from . import trace
 
     return trace
@@ -187,7 +161,6 @@ def get_ddtrace_submodule(name):
     if name not in light_modules:
         _ensure_logger_configured()
         _ensure_telemetry_initialized()
-        _ensure_python_version_checked()
 
     try:
         # Use importlib for dynamic import
