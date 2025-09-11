@@ -151,7 +151,7 @@ def _iast_on_wrapped_view(kwargs):
 
 
 def _on_wsgi_environ(wrapped, _instance, args, kwargs):
-    if asm_config._iast_enabled and args and is_iast_request_enabled():
+    if is_iast_request_enabled():
         return wrapped(*((taint_structure(args[0], OriginType.HEADER_NAME, OriginType.HEADER),) + args[1:]), **kwargs)
 
     return wrapped(*args, **kwargs)
