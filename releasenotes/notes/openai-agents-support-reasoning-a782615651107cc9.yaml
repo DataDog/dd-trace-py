@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where reasoning message types were not being handled correctly in the OpenAI Agents integration, leading to 
+    output messages being dropped on LLM spans.

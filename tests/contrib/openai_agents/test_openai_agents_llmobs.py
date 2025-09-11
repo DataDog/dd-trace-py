@@ -415,7 +415,8 @@ async def test_llmobs_single_agent_with_tool_calls_llmobs(
                                 "name": "add",
                                 "type": "function_call",
                             }
-                        ]
+                        ],
+                        "role": "assistant",
                     }
                 ],
             ),
@@ -431,9 +432,15 @@ async def test_llmobs_single_agent_with_tool_calls_llmobs(
                                 "name": "add",
                                 "type": "function_call",
                             }
-                        ]
+                        ],
+                        "role": "assistant",
                     },
-                    {"role": "tool", "content": mock.ANY, "tool_id": mock.ANY},
+                    {
+                        "role": "user",
+                        "tool_results": [
+                            {"tool_id": mock.ANY, "name": "", "result": "3", "type": "function_call_output"}
+                        ],
+                    },
                 ],
                 [{"role": "assistant", "content": result.final_output}],
             ),
@@ -476,7 +483,7 @@ async def test_llmobs_single_agent_with_ootb_tools(agents, mock_tracer, request_
                         "content": "ResponseFunctionWebSearch(id='ws_68814fa4582081989a0bc4a33dc197cc026575ca32f194ce',"
                         " status='completed', type='web_search_call', action={'type': 'search', 'query': 'current "
                         "weather in New York'})",
-                        "role": "",
+                        "role": "assistant",
                     },
                     {"role": "assistant", "content": result.final_output},
                 ],
@@ -532,7 +539,8 @@ async def test_llmobs_multiple_agent_handoffs(agents, mock_tracer, request_vcr, 
                                 "name": "research",
                                 "type": "function_call",
                             }
-                        ]
+                        ],
+                        "role": "assistant",
                     }
                 ],
             ),
@@ -554,9 +562,21 @@ async def test_llmobs_multiple_agent_handoffs(agents, mock_tracer, request_vcr, 
                                 "name": "research",
                                 "type": "function_call",
                             }
-                        ]
+                        ],
+                        "role": "assistant",
                     },
-                    {"role": "tool", "content": mock.ANY, "tool_id": mock.ANY},
+                    {
+                        "role": "user",
+                        "tool_results": [
+                            {
+                                "tool_id": mock.ANY,
+                                "name": "",
+                                "result": "united beat liverpool 2-1 yesterday. also a lot of other stuff happened."
+                                " like super important stuff. blah blah blah.",
+                                "type": "function_call_output",
+                            }
+                        ],
+                    },
                 ],
                 [
                     {"role": "assistant", "content": mock.ANY},
@@ -568,7 +588,8 @@ async def test_llmobs_multiple_agent_handoffs(agents, mock_tracer, request_vcr, 
                                 "name": "transfer_to_summarizer",
                                 "type": "function_call",
                             }
-                        ]
+                        ],
+                        "role": "assistant",
                     },
                 ],
             ),
@@ -632,7 +653,8 @@ async def test_llmobs_single_agent_with_tool_errors(
                                 "name": "add",
                                 "type": "function_call",
                             }
-                        ]
+                        ],
+                        "role": "assistant",
                     }
                 ],
             ),
@@ -651,9 +673,21 @@ async def test_llmobs_single_agent_with_tool_errors(
                                 "name": "add",
                                 "type": "function_call",
                             }
-                        ]
+                        ],
+                        "role": "assistant",
                     },
-                    {"role": "tool", "content": mock.ANY, "tool_id": mock.ANY},
+                    {
+                        "role": "user",
+                        "tool_results": [
+                            {
+                                "tool_id": mock.ANY,
+                                "name": "",
+                                "result": "An error occurred while running the tool."
+                                " Please try again. Error: This is a test error",
+                                "type": "function_call_output",
+                            }
+                        ],
+                    },
                 ],
                 [{"role": "assistant", "content": result.final_output}],
             ),

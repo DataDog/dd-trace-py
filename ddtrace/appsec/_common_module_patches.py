@@ -1,11 +1,14 @@
 # This module must not import other modules unconditionally that require iast
 import ctypes
+import io
+import json
 import os
 from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import Iterable
 from typing import List
+from typing import Tuple
 from typing import Union
 
 from wrapt import FunctionWrapper
@@ -49,6 +52,7 @@ def patch_common_modules():
 
     try_wrap_function_wrapper("builtins", "open", wrapped_open_CFDDB7ABBA9081B6)
     try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF)
+    try_wrap_function_wrapper("http.client", "HTTPConnection.request", wrapped_request)
     core.on("asm.block.dbapi.execute", execute_4C9BAC8E228EB347)
     log.debug("Patching common modules: builtins and urllib.request")
     _is_patched = True
@@ -134,6 +138,59 @@ def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs
         )
 
 
+def _build_headers(lst: Iterable[Tuple[str, str]]) -> Dict[str, Union[str, List[str]]]:
+    res: Dict[str, Union[str, List[str]]] = {}
+    for a, b in lst:
+        if a in res:
+            v = res[a]
+            if isinstance(v, str):
+                res[a] = [v, b]
+            else:
+                v.append(b)
+        else:
+            res[a] = b
+    return res
+
+
+def wrapped_request(original_request_callable, instance, args, kwargs):
+    from ddtrace.appsec._asm_request_context import call_waf_callback
+
+    full_url = core.get_item("full_url")
+    if full_url is not None:
+        use_body = core.get_item("use_body", False)
+        method = args[0] if len(args) > 0 else kwargs.get("method", None)
+        body = args[2] if len(args) > 2 else kwargs.get("body", None)
+        headers = args[3] if len(args) > 3 else kwargs.get("headers", {})
+        addresses = {EXPLOIT_PREVENTION.ADDRESS.SSRF: full_url, "DOWN_REQ_METHOD": method, "DOWN_REQ_HEADERS": headers}
+        content_type = headers.get("Content-Type", None) or headers.get("content-type", None)
+        if use_body and content_type == "application/json":
+            try:
+                addresses["DOWN_REQ_BODY"] = json.loads(body)
+            except Exception:
+                pass  # nosec
+        res = call_waf_callback(
+            addresses,
+            crop_trace="wrapped_open_ED4CF71136E15EBF",
+            rule_type=EXPLOIT_PREVENTION.TYPE.SSRF,
+        )
+        if res and _must_block(res.actions):
+            raise BlockingException(get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, full_url)
+    return original_request_callable(*args, **kwargs)
+
+
+def _parse_http_response_body(response):
+    try:
+        if response.length and response.headers.get("content-type", None) == "application/json":
+            length = response.length
+            body = response.read()
+            response.fp = io.BytesIO(body)
+            response.length = length
+            return json.loads(body)
+    except Exception:
+        return None
+    return None
+
+
 def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs):
     """
     wrapper for open url function
@@ -141,11 +198,11 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
     if asm_config._iast_enabled:
         # TODO: IAST SSRF sink to be added
         pass
-
     if _get_rasp_capability("ssrf"):
         try:
+            from ddtrace.appsec._asm_request_context import _get_asm_context
             from ddtrace.appsec._asm_request_context import call_waf_callback
-            from ddtrace.appsec._asm_request_context import in_asm_context
+            from ddtrace.appsec._asm_request_context import should_analyze_body_response
         except ImportError:
             # open is used during module initialization
             # and shouldn't be changed at that time
@@ -155,19 +212,42 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
         url = args[0] if args else kwargs.get("fullurl", None)
         if url.__class__.__name__ == "Request":
             url = url.get_full_url()
-        if isinstance(url, str) and url:
-            if in_asm_context():
-                res = call_waf_callback(
-                    {EXPLOIT_PREVENTION.ADDRESS.SSRF: url},
-                    crop_trace="wrapped_open_ED4CF71136E15EBF",
-                    rule_type=EXPLOIT_PREVENTION.TYPE.SSRF,
-                )
-                if res and _must_block(res.actions):
-                    raise BlockingException(
-                        get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, url
-                    )
-            else:
-                _report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SSRF, False)
+        valid_url = isinstance(url, str) and bool(url)
+        if valid_url and url and (ctx := _get_asm_context()):
+            use_body = should_analyze_body_response(ctx)
+            with core.context_with_data("url_open_analysis", full_url=url, use_body=use_body):
+                # API10, doing all request calls in HTTPConnection.request
+                try:
+                    response = original_open_callable(*args, **kwargs)
+                    # api10 response handler for regular reponses
+                    if response.__class__.__name__ == "HTTPResponse":
+                        addresses = {
+                            "DOWN_RES_STATUS": str(response.status),
+                            "DOWN_RES_HEADERS": _build_headers(response.getheaders()),
+                        }
+                        if use_body:
+                            addresses["DOWN_RES_BODY"] = _parse_http_response_body(response)
+                        call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF)
+                    return response
+                except Exception as e:
+                    # api10 response handler for error reponses
+                    if e.__class__.__name__ == "HTTPError":
+                        try:
+                            status_code = e.code
+                        except Exception:
+                            status_code = None
+                        try:
+                            response_headers = _build_headers(e.headers.items())
+                        except Exception:
+                            response_headers = None
+                        if status_code is not None or response_headers is not None:
+                            call_waf_callback(
+                                {"DOWN_RES_STATUS": str(status_code), "DOWN_RES_HEADERS": response_headers},
+                                rule_type=EXPLOIT_PREVENTION.TYPE.SSRF,
+                            )
+                    raise
+        elif valid_url:
+            _report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SSRF, False)
     return original_open_callable(*args, **kwargs)
 
 

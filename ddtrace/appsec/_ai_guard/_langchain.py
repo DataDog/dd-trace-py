@@ -13,6 +13,7 @@ from ddtrace.appsec.ai_guard._api_client import Evaluation
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 import ddtrace.internal.logger as ddlogger
+from ddtrace.internal.utils import get_argument_value
 
 
 logger = ddlogger.get_logger(__name__)
@@ -164,28 +165,57 @@ def _handle_agent_action_result(client: AIGuardClient, result, kwargs):
 
 
 def _langchain_chatmodel_generate_before(client: AIGuardClient, message_lists):
-    from langchain_core.messages import HumanMessage
-
     for messages in message_lists:
-        # only call evaluator when the last message is an actual user prompt
-        if len(messages) > 0 and isinstance(messages[-1], HumanMessage):
-            history = _convert_messages(messages)
-            prompt = history.pop(-1)
-            try:
-                if not client.evaluate_prompt(prompt["role"], prompt["content"], history=history):  # type: ignore[typeddict-item]
-                    return AIGuardAbortError()
-            except AIGuardAbortError as e:
-                return e
-            except Exception:
-                logger.debug("Failed to evaluate chat model prompt", exc_info=True)
+        result = _evaluate_langchain_messages(client, messages)
+        if result:
+            return result
+    return None
 
 
 def _langchain_llm_generate_before(client: AIGuardClient, prompts):
     for prompt in prompts:
+        result = _evaluate_langchain_prompt(client, prompt)
+        if result:
+            return result
+    return None
+
+
+def _langchain_chatmodel_stream_before(client: AIGuardClient, instance, args, kwargs):
+    input_arg = get_argument_value(args, kwargs, 0, "input")
+    messages = instance._convert_input(input_arg).to_messages()
+    return _evaluate_langchain_messages(client, messages)
+
+
+def _langchain_llm_stream_before(client: AIGuardClient, instance, args, kwargs):
+    input_arg = get_argument_value(args, kwargs, 0, "input")
+    prompt = instance._convert_input(input_arg).to_string()
+    return _evaluate_langchain_prompt(client, prompt)
+
+
+def _evaluate_langchain_messages(client: AIGuardClient, messages):
+    from langchain_core.messages import HumanMessage
+
+    # only call evaluator when the last message is an actual user prompt
+    if len(messages) > 0 and isinstance(messages[-1], HumanMessage):
+        history = _convert_messages(messages)
+        prompt = history.pop(-1)
         try:
-            if not client.evaluate_prompt("user", prompt):
+            role, content = (prompt["role"], prompt["content"])  # type: ignore[typeddict-item]
+            if not client.evaluate_prompt(role, content, history=history):
                 return AIGuardAbortError()
         except AIGuardAbortError as e:
             return e
         except Exception:
-            logger.debug("Failed to evaluate llm prompt", exc_info=True)
+            logger.debug("Failed to evaluate chat model prompt", exc_info=True)
+    return None
+
+
+def _evaluate_langchain_prompt(client: AIGuardClient, prompt):
+    try:
+        if not client.evaluate_prompt("user", prompt):
+            return AIGuardAbortError()
+    except AIGuardAbortError as e:
+        return e
+    except Exception:
+        logger.debug("Failed to evaluate llm prompt", exc_info=True)
+    return None

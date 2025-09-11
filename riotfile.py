@@ -1606,7 +1606,7 @@ venv = Venv(
             name="asgi",
             pkgs={
                 "pytest-asyncio": "==0.21.1",
-                "httpx": latest,
+                "httpx": "<0.28.0",
                 "asgiref": ["~=3.0.0", "~=3.0", latest],
                 "pytest-randomly": latest,
             },
