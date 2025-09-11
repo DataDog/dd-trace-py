@@ -7,9 +7,9 @@ from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_env import IASTEnvironment
 from ddtrace.appsec._iast._iast_env import _get_iast_env
 from ddtrace.appsec._iast._overhead_control_engine import oce
+from ddtrace.appsec._iast._taint_tracking import num_objects_tainted
 from ddtrace.appsec._iast._taint_tracking._context import create_context as create_propagation_context
 from ddtrace.appsec._iast._taint_tracking._context import reset_context as reset_propagation_context
-from ddtrace.appsec._iast._utils import _num_objects_tainted_in_request
 from ddtrace.appsec._iast.sampling.vulnerability_detection import update_global_vulnerability_limit
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
@@ -96,3 +96,7 @@ def _iast_start_request(span=None, *args, **kwargs):
             set_iast_request_enabled(request_iast_enabled)
     except Exception:
         log.debug("iast::propagation::context::Error starting IAST context", exc_info=True)
+
+
+def _num_objects_tainted_in_request():
+    return num_objects_tainted()
