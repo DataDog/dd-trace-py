@@ -629,3 +629,91 @@ def test_trace_sampling_rules_conversion(rc_rules, expected_config_rules, expect
         sampler = DatadogSampler()
         sampler.set_sampling_rules(trace_sampling_rules)
         assert sampler.rules == expected_sampling_rules
+
+
+def test_apm_tracing_precedence_ordering(remote_config_worker):
+    """Test that APM tracing configurations are applied in correct precedence order"""
+    from ddtrace import config
+    from ddtrace.internal.remoteconfig.products.apm_tracing import APMTracingAdapter
+    from ddtrace.internal.remoteconfig.products.apm_tracing import config_key
+    from tests.utils import remote_config_build_payload as build_payload
+
+    # Create an APM tracing adapter instance
+    adapter = APMTracingAdapter()
+
+    # Mock current service and env
+    original_service = config.service
+    original_env = config.env
+    config.service = "test-service"
+    config.env = "test-env"
+
+    try:
+        # Create payloads with different levels of specificity
+        # 1. Service-specific (highest precedence)
+        service_payload = build_payload(
+            "APM_TRACING",
+            {
+                "service_target": {"service": "test-service", "env": "*"},
+                "lib_config": {"tracing_enabled": "service_config"},
+            },
+            "config1",
+        )
+
+        # 2. Environment-specific
+        env_payload = build_payload(
+            "APM_TRACING",
+            {"service_target": {"service": "*", "env": "test-env"}, "lib_config": {"tracing_enabled": "env_config"}},
+            "config2",
+        )
+
+        # 3. Cluster target
+        cluster_payload = build_payload(
+            "APM_TRACING",
+            {"k8s_target_v2": {"cluster": "test-cluster"}, "lib_config": {"tracing_enabled": "cluster_config"}},
+            "config3",
+        )
+
+        # 4. Wildcard (lowest precedence)
+        wildcard_payload = build_payload(
+            "APM_TRACING",
+            {"service_target": {"service": "*", "env": "*"}, "lib_config": {"tracing_enabled": "wildcard_config"}},
+            "config4",
+        )
+
+        # Test the config_key function for correct ordering
+        assert config_key(service_payload) > config_key(env_payload)
+        assert config_key(env_payload) > config_key(cluster_payload)
+        assert config_key(cluster_payload) > config_key(wildcard_payload)
+
+        # Send all payloads to the adapter
+        all_payloads = [service_payload, env_payload, cluster_payload, wildcard_payload]
+        adapter.rc_callback(all_payloads)
+
+        # Get the chained configuration
+        chained_config = adapter.get_chained_lib_config()
+
+        # The first (highest precedence) config should be from the service-specific payload
+        assert chained_config["tracing_enabled"] == "service_config"
+
+        # Test that removing the service-specific config promotes the env config
+        adapter.config_map.clear()
+        adapter.rc_callback([env_payload, cluster_payload, wildcard_payload])
+        chained_config = adapter.get_chained_lib_config()
+        assert chained_config["tracing_enabled"] == "env_config"
+
+        # Test that removing the env config promotes the cluster config
+        adapter.config_map.clear()
+        adapter.rc_callback([cluster_payload, wildcard_payload])
+        chained_config = adapter.get_chained_lib_config()
+        assert chained_config["tracing_enabled"] == "cluster_config"
+
+        # Test that only wildcard config remains at the end
+        adapter.config_map.clear()
+        adapter.rc_callback([wildcard_payload])
+        chained_config = adapter.get_chained_lib_config()
+        assert chained_config["tracing_enabled"] == "wildcard_config"
+
+    finally:
+        # Restore original config
+        config.service = original_service
+        config.env = original_env
