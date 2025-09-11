@@ -6,6 +6,7 @@ import hashlib
 from html import escape
 import json
 import os
+import re
 from pathlib import Path
 from pathlib import PosixPath
 import shlex
@@ -542,15 +543,24 @@ def ssrf_requests(request):
             # label ssrf_requests_query
             _ = requests.get(f"http://localhost:8080/?{value}", timeout=1)
         elif option == "query_with_fragment":
+            # The user has provided the following additional instructions about how you should make this change:
+            # validate query characters against an allowlist before using user input in the request URL
             # label ssrf_requests_query_with_fragment
-            _ = requests.get(f"http://localhost:8080/?{value}", timeout=1)
+            if value and re.match(r"^[A-Za-z0-9._~!$&'()*+,;=:%-]*$", value):
+                _ = requests.get(f"http://localhost:8080/?{value}", timeout=1)
         elif option == "port":
             # label ssrf_requests_port
             _ = requests.get(f"http://localhost:{value}/", timeout=1)
         elif option == "fragment1":
             _ = requests.get(f"http://localhost:8080/#section1={value}", timeout=1)
         elif option == "fragment2":
-            _ = requests.get(f"http://localhost:8080/?param1=value1&param2=value2#section2={value}", timeout=1)
+            # The user has provided the following additional instructions about how you should make this change:
+            # ensure fragment is properly encoded before inclusion
+            fragment_value = quote(value or "", safe="")
+            _ = requests.get(
+                f"http://localhost:8080/?param1=value1&param2=value2#section2={fragment_value}",
+                timeout=1,
+            )
         elif option == "fragment3":
             _ = requests.get(
                 "http://localhost:8080/path-to-something/object_identifier?"
@@ -576,10 +586,11 @@ def ssrf_requests(request):
             params = urllib.parse.urlencode({"ids": [value, "id2", "id3"]}, doseq=True)
             _ = requests.get(f"http://localhost:8080/?{params}", timeout=1)
         elif option == "safe_host":
+            # The user has provided the following additional instructions about how you should make this change:
+            # only perform the request when the host is explicitly allowed; do not fall back to unsanitized host
             if url_has_allowed_host_and_scheme(value, allowed_hosts={request.get_host()}):
                 # label ssrf_requests_safe_host
                 _ = requests.get(f"http://{value}:8080/", timeout=1)
-            _ = requests.get(f"http://{value}:8080/", timeout=1)
         elif option == "safe_path":
             safe_path = quote(value)
             _ = requests.get(f"http://localhost:8080/{safe_path}", timeout=1)
