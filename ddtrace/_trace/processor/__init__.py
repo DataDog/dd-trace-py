@@ -462,16 +462,22 @@ class SpanAggregator(SpanProcessor):
         # Re-create the writer to ensure it is consistent with updated configurations (ex: api_version)
         self.writer = self.writer.recreate(appsec_enabled=appsec_enabled)
 
-        datadog_sampler = self.sampling_processor.sampler
+        # Only recreate/update the DatadogSampler if AppSec is enabled at runtime
+        if appsec_enabled:
+            datadog_sampler = self.sampling_processor.sampler
 
-        if isinstance(datadog_sampler, DatadogSampler):
             # Recreate the sampling processor using new or existing config values.
             # If an argument is None, the current value is preserved.
-            sampler_kwargs: Dict[str, Any] = {
-                "agent_based_samplers": datadog_sampler._agent_based_samplers,
-                "rules": datadog_sampler.rules,
-            }
+            sampler_kwargs: Dict[str, Any] = {}
 
+            if isinstance(datadog_sampler, DatadogSampler):
+                sampler_kwargs = {
+                    "agent_based_samplers": datadog_sampler._agent_based_samplers,
+                    "rules": datadog_sampler.rules,
+                }
+
+            # When AppSec is enabled, always apply rate limiting for ASM standalone mode
+            # This ensures traces are properly rate limited and marked with _dd.apm.enabled == 0
             if apm_opt_out:
                 sampler_kwargs.update(
                     {
@@ -485,6 +491,12 @@ class SpanAggregator(SpanProcessor):
             if apm_opt_out is not None:
                 self.sampling_processor.apm_opt_out = apm_opt_out
             self.sampling_processor.sampler = DatadogSampler(**sampler_kwargs)
+        else:
+            # When AppSec is not enabled, only update the basic properties without recreating the sampler
+            if compute_stats is not None:
+                self.sampling_processor._compute_stats_enabled = compute_stats
+            if apm_opt_out is not None:
+                self.sampling_processor.apm_opt_out = apm_opt_out
 
         # Update user processors if provided.
         if user_processors is not None:
