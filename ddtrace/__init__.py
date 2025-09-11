@@ -7,50 +7,49 @@ LOADED_MODULES = frozenset(sys.modules.keys())
 
 # Ensure we capture references to unpatched modules as early as possible
 import ddtrace.internal._unpatched  # noqa
-from ._logger import configure_ddtrace_logger
+from ._lazy_init import ensure_initialized, get_config, get_tracer, get_deprecation_warning
 
-# configure ddtrace logger before other modules log
-configure_ddtrace_logger()  # noqa: E402
-
-from .settings._config import config
-
-
-# Enable telemetry writer and excepthook as early as possible to ensure we capture any exceptions from initialization
-import ddtrace.internal.telemetry  # noqa: E402
-
-from ._monkey import patch  # noqa: E402
-from ._monkey import patch_all  # noqa: E402
-from .internal.compat import PYTHON_VERSION_INFO  # noqa: E402
-from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
-
-from ddtrace.vendor import debtcollector
 from .version import get_version  # noqa: E402
 
 __version__ = get_version()
 
-# TODO: Deprecate accessing tracer from ddtrace.__init__ module in v4.0
-if os.environ.get("_DD_GLOBAL_TRACER_INIT", "true").lower() in ("1", "true"):
-    from ddtrace.trace import tracer  # noqa: F401
 
-__all__ = [
+@ensure_initialized
+def patch(*args, **kwargs):
+    """Lazy wrapper for patch function."""
+    from ._monkey import patch as _patch
+    return _patch(*args, **kwargs)
+
+
+@ensure_initialized
+def patch_all(**kwargs):
+    """Lazy wrapper for patch_all function."""
+    from ._monkey import patch_all as _patch_all
+    return _patch_all(**kwargs)
+
+
+# Build __all__ list, conditionally including tracer if environment variable says so
+_base_all = [
     "patch",
     "patch_all",
     "config",
     "DDTraceDeprecationWarning",
 ]
 
-
-def check_supported_python_version():
-    if PYTHON_VERSION_INFO < (3, 8):
-        deprecation_message = (
-            "Support for ddtrace with Python version %d.%d is deprecated and will be removed in 3.0.0."
-        )
-        if PYTHON_VERSION_INFO < (3, 7):
-            deprecation_message = "Support for ddtrace with Python version %d.%d was removed in 2.0.0."
-        debtcollector.deprecate(
-            (deprecation_message % (PYTHON_VERSION_INFO[0], PYTHON_VERSION_INFO[1])),
-            category=DDTraceDeprecationWarning,
-        )
+# Add tracer to __all__ if it should be globally accessible
+if os.environ.get("_DD_GLOBAL_TRACER_INIT", "true").lower() in ("1", "true"):
+    __all__ = _base_all + ["tracer"]
+else:
+    __all__ = _base_all
 
 
-check_supported_python_version()
+# Module-level __getattr__ for lazy attribute access (Python 3.7+ feature)
+def __getattr__(name: str):
+    if name == "config":
+        return get_config()
+    elif name == "DDTraceDeprecationWarning":
+        return get_deprecation_warning()
+    elif name == "tracer":
+        # Lazy tracer access - initialize on first access regardless of environment variable
+        return get_tracer()
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
