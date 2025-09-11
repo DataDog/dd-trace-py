@@ -29,6 +29,26 @@ AGENT_TO_EXPECTED_AGENT_MANIFEST = {
         "model": "gpt-4o",
         "model_settings": mock.ANY,  # different versions of the library have different model settings
     },
+    "Simple Agent with Guardrails": {
+        "framework": "OpenAI",
+        "name": "Simple Agent",
+        "instructions": "You are a helpful assistant specialized in addition calculations.",
+        "handoff_description": None,
+        "model": "gpt-4o",
+        "model_settings": mock.ANY,  # different versions of the library have different model settings
+        "tools": [
+            {
+                "name": "add",
+                "description": "Add two numbers together",
+                "strict_json_schema": True,
+                "parameters": {
+                    "a": {"type": "integer", "title": "A", "required": True},
+                    "b": {"type": "integer", "title": "B", "required": True},
+                },
+            }
+        ],
+        "guardrails": mock.ANY,
+    },
     "Addition Agent": {
         "framework": "OpenAI",
         "name": "Addition Agent",
@@ -395,7 +415,8 @@ async def test_llmobs_single_agent_with_tool_calls_llmobs(
                                 "name": "add",
                                 "type": "function_call",
                             }
-                        ]
+                        ],
+                        "role": "assistant",
                     }
                 ],
             ),
@@ -411,9 +432,15 @@ async def test_llmobs_single_agent_with_tool_calls_llmobs(
                                 "name": "add",
                                 "type": "function_call",
                             }
-                        ]
+                        ],
+                        "role": "assistant",
                     },
-                    {"role": "tool", "content": mock.ANY, "tool_id": mock.ANY},
+                    {
+                        "role": "user",
+                        "tool_results": [
+                            {"tool_id": mock.ANY, "name": "", "result": "3", "type": "function_call_output"}
+                        ],
+                    },
                 ],
                 [{"role": "assistant", "content": result.final_output}],
             ),
@@ -456,7 +483,7 @@ async def test_llmobs_single_agent_with_ootb_tools(agents, mock_tracer, request_
                         "content": "ResponseFunctionWebSearch(id='ws_68814fa4582081989a0bc4a33dc197cc026575ca32f194ce',"
                         " status='completed', type='web_search_call', action={'type': 'search', 'query': 'current "
                         "weather in New York'})",
-                        "role": "",
+                        "role": "assistant",
                     },
                     {"role": "assistant", "content": result.final_output},
                 ],
@@ -512,7 +539,8 @@ async def test_llmobs_multiple_agent_handoffs(agents, mock_tracer, request_vcr, 
                                 "name": "research",
                                 "type": "function_call",
                             }
-                        ]
+                        ],
+                        "role": "assistant",
                     }
                 ],
             ),
@@ -534,9 +562,21 @@ async def test_llmobs_multiple_agent_handoffs(agents, mock_tracer, request_vcr, 
                                 "name": "research",
                                 "type": "function_call",
                             }
-                        ]
+                        ],
+                        "role": "assistant",
                     },
-                    {"role": "tool", "content": mock.ANY, "tool_id": mock.ANY},
+                    {
+                        "role": "user",
+                        "tool_results": [
+                            {
+                                "tool_id": mock.ANY,
+                                "name": "",
+                                "result": "united beat liverpool 2-1 yesterday. also a lot of other stuff happened."
+                                " like super important stuff. blah blah blah.",
+                                "type": "function_call_output",
+                            }
+                        ],
+                    },
                 ],
                 [
                     {"role": "assistant", "content": mock.ANY},
@@ -548,7 +588,8 @@ async def test_llmobs_multiple_agent_handoffs(agents, mock_tracer, request_vcr, 
                                 "name": "transfer_to_summarizer",
                                 "type": "function_call",
                             }
-                        ]
+                        ],
+                        "role": "assistant",
                     },
                 ],
             ),
@@ -612,7 +653,8 @@ async def test_llmobs_single_agent_with_tool_errors(
                                 "name": "add",
                                 "type": "function_call",
                             }
-                        ]
+                        ],
+                        "role": "assistant",
                     }
                 ],
             ),
@@ -631,9 +673,21 @@ async def test_llmobs_single_agent_with_tool_errors(
                                 "name": "add",
                                 "type": "function_call",
                             }
-                        ]
+                        ],
+                        "role": "assistant",
                     },
-                    {"role": "tool", "content": mock.ANY, "tool_id": mock.ANY},
+                    {
+                        "role": "user",
+                        "tool_results": [
+                            {
+                                "tool_id": mock.ANY,
+                                "name": "",
+                                "result": "An error occurred while running the tool."
+                                " Please try again. Error: This is a test error",
+                                "type": "function_call_output",
+                            }
+                        ],
+                    },
                 ],
                 [{"role": "assistant", "content": result.final_output}],
             ),
@@ -690,3 +744,21 @@ async def test_llmobs_oai_agents_with_chat_completions_span_linking(
         previous_tool_events=previous_tool_events[-1:],
         is_chat=True,
     )
+
+
+async def test_llmobs_oai_agents_with_guardrail_spans(
+    agents, mock_tracer_chat_completions, request_vcr, llmobs_events, simple_agent_with_guardrail
+):
+    with request_vcr.use_cassette("test_oai_agents_with_guardrail_spans.yaml"):
+        await agents.Runner.run(simple_agent_with_guardrail, "What is the sum of 1 and 2?")
+
+    spans = mock_tracer_chat_completions.pop_traces()[0]
+    spans.sort(key=lambda span: span.start_ns)
+    llmobs_events.sort(key=lambda event: event["start_ns"])
+
+    assert len(spans) == len(llmobs_events) == 7
+
+    # assert input guardrail span links to LLM span
+    _assert_span_link(llmobs_events[2], llmobs_events[3], "output", "input")
+    # assert LLM span links to output guardrail span
+    _assert_span_link(llmobs_events[5], llmobs_events[6], "output", "input")

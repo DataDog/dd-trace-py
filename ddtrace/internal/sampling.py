@@ -43,6 +43,8 @@ SAMPLING_MECHANISM_CONSTANTS = {
     "-{}".format(value) for name, value in vars(SamplingMechanism).items() if name.isupper()
 }
 
+KNUTH_SAMPLE_RATE_KEY = "_dd.p.ksr"
+
 SpanSamplingRules = TypedDict(
     "SpanSamplingRules",
     {
@@ -244,8 +246,10 @@ def _set_sampling_tags(span: Span, sampled: bool, sample_rate: float, mechanism:
         SamplingMechanism.REMOTE_DYNAMIC_TRACE_SAMPLING_RULE,
     ):
         span.set_metric(_SAMPLING_RULE_DECISION, sample_rate)
+        span.set_tag_str(KNUTH_SAMPLE_RATE_KEY, f"{sample_rate:.6g}")
     elif mechanism == SamplingMechanism.AGENT_RATE_BY_SERVICE:
         span.set_metric(_SAMPLING_AGENT_DECISION, sample_rate)
+        span.set_tag_str(KNUTH_SAMPLE_RATE_KEY, f"{sample_rate:.6g}")
     # Set the sampling priority
     priorities = SAMPLING_MECHANISM_TO_PRIORITIES[mechanism]
     priority_index = _KEEP_PRIORITY_INDEX if sampled else _REJECT_PRIORITY_INDEX
