@@ -13,7 +13,6 @@ from ._lazy_init import (
     get_config,
     get_tracer,
     get_deprecation_warning,
-    get_trace_module,
     get_ddtrace_submodule,
     setup_lazy_logger_hook,
     validate_logger_config,
@@ -83,8 +82,6 @@ def __getattr__(name: str):
     elif name == "tracer":
         # Lazy tracer access - initialize on first access regardless of environment variable
         return get_tracer()
-    elif name == "trace":
-        return get_trace_module()
     else:
         # Generic fallback: try to import any ddtrace submodule dynamically
         try:

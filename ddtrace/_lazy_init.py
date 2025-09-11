@@ -72,6 +72,7 @@ def _ensure_logger_configured():
     """Lazy initialization of ddtrace logger."""
     global _logger_configured
     if not _logger_configured:
+        _ensure_telemetry_initialized()
         from ._logger import configure_ddtrace_logger
 
         configure_ddtrace_logger()
@@ -107,8 +108,6 @@ def get_config():
     """Lazy config import."""
     global _config
     if _config is None:
-        _ensure_logger_configured()  # Config access should initialize logger
-        _ensure_telemetry_initialized()  # Config requires telemetry
         from .settings._config import config as _imported_config
 
         _config = _imported_config
@@ -135,15 +134,6 @@ def get_deprecation_warning():
     from .internal.utils.deprecations import DDTraceDeprecationWarning
 
     return DDTraceDeprecationWarning
-
-
-def get_trace_module():
-    """Lazy trace module import."""
-    _ensure_logger_configured()
-    _ensure_telemetry_initialized()
-    from . import trace
-
-    return trace
 
 
 def get_ddtrace_submodule(name):
