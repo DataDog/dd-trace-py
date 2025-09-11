@@ -71,6 +71,7 @@ components:
     - ddtrace/internal/uwsgi.py
     - ddtrace/internal/wrapping/*
     - ddtrace/__init__.py
+    - ddtrace/_lazy_init.py
     - ddtrace/py.typed
     - ddtrace/version.py
     - ddtrace/settings/_config.py
