@@ -12,9 +12,9 @@ from opentelemetry.trace.span import INVALID_SPAN
 from opentelemetry.trace.span import Span as OtelSpan
 
 import ddtrace
-from ddtrace.internal.constants import SPAN_API_OTEL
-from ddtrace._trace.span import Span as DDSpan
 from ddtrace._trace.context import Context
+from ddtrace._trace.span import Span as DDSpan
+from ddtrace.internal.constants import SPAN_API_OTEL
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import _TraceContext
 
@@ -105,7 +105,7 @@ class Tracer(OtelTracer):
         curr_otel_span = get_current_span(context)
         if curr_otel_span is INVALID_SPAN:
             # There is no active datadog/otel span
-            dd_active = None  # type: Optional[Union[Context, DDSpan]]
+            dd_active: Optional[Union[Context, DDSpan]] = None
         elif isinstance(curr_otel_span, Span):
             # Get underlying ddtrace span from the active otel span
             dd_active = curr_otel_span._ddspan

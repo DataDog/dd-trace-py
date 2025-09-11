@@ -9,7 +9,6 @@ from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
-import ddtrace
 from ddtrace._trace.span import Span
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS

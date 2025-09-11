@@ -4,7 +4,6 @@ import os
 import re
 import typing
 
-import ddtrace
 from ddtrace import config as ddconfig
 from ddtrace._trace.span import Span
 from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
@@ -50,9 +49,7 @@ def get_source_lines_for_test_method(
     return start_line, end_line
 
 
-def _add_start_end_source_file_path_data_to_span(
-    span: Span, test_method_object, test_name: str, repo_directory: str
-):
+def _add_start_end_source_file_path_data_to_span(span: Span, test_method_object, test_name: str, repo_directory: str):
     if not test_method_object:
         log.debug(
             "Tried to collect source start/end lines for test method %s but test method object could not be found",
