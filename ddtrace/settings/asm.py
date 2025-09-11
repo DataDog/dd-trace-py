@@ -296,6 +296,8 @@ class ASMConfig(DDConfig):
     @property
     def asm_enabled_origin(self):
         if APPSEC_ENV in os.environ:
+            if tracer_config._lib_was_injected is True:
+                return APPSEC.ENABLED_ORIGIN_SSI
             return APPSEC.ENABLED_ORIGIN_ENV
         return self._asm_enabled_origin
 
