@@ -7,8 +7,6 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.internal import core
 
 
-# AIDEV-NOTE: Avoid circular import between `_iast_env` -> `reporter` -> `_iast_request_context_base` -> `_iast_env`.
-# Import `IastSpanReporter` only for type checking and use a forward reference in annotations.
 if TYPE_CHECKING:  # pragma: no cover - type checking only
     from ddtrace.appsec._iast.reporter import IastSpanReporter
 

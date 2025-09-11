@@ -98,7 +98,7 @@ def _iast_finish_request(span: Optional["Span"] = None, shoud_update_global_vuln
         core.discard_item(IAST.REQUEST_CONTEXT_KEY)
 
     context_id = _get_iast_context_id()
-    print(f"FINISH REQUEST!!! {context_id}")
+
     if context_id is not None:
         finish_request_context(context_id)
         IAST_CONTEXT.set(None)
