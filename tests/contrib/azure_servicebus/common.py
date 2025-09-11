@@ -58,58 +58,50 @@ def make_amqp_annotated_messages():
     ]
 
 
-def run_test(method, message_payload_type, distributed_tracing_enabled, batch_links_enabled):
-    servicebus_client = ServiceBusClient.from_connection_string(conn_str=CONNECTION_STRING)
-    servicebus_queue_sender = servicebus_client.get_queue_sender(queue_name=QUEUE_NAME)
-    servicebus_queue_receiver = servicebus_client.get_queue_receiver(
-        queue_name=QUEUE_NAME, receive_mode=ServiceBusReceiveMode.RECEIVE_AND_DELETE
-    )
-
+def run_test(sender, receiver, method, message_payload_type, distributed_tracing_enabled, batch_links_enabled):
     message_length = 0
     now = datetime.now(timezone.utc)
 
     if method == "send_messages" and message_payload_type == "single":
         for servicebus_message in make_servicebus_messages():
-            servicebus_queue_sender.send_messages(servicebus_message)
+            sender.send_messages(servicebus_message)
             message_length += 1
         for amqp_annotated_message in make_amqp_annotated_messages():
-            servicebus_queue_sender.send_messages(amqp_annotated_message)
+            sender.send_messages(amqp_annotated_message)
             message_length += 1
     if method == "send_messages" and message_payload_type == "list":
         servicebus_messages = make_servicebus_messages()
-        servicebus_queue_sender.send_messages(servicebus_messages)
+        sender.send_messages(servicebus_messages)
 
         amqp_annotated_messages = make_amqp_annotated_messages()
-        servicebus_queue_sender.send_messages(amqp_annotated_messages)
+        sender.send_messages(amqp_annotated_messages)
 
         message_length = len(servicebus_messages) + len(amqp_annotated_messages)
     elif method == "send_messages" and message_payload_type == "batch":
-        batch = servicebus_queue_sender.create_message_batch()
+        batch = sender.create_message_batch()
         for servicebus_message in make_servicebus_messages():
             batch.add_message(servicebus_message)
             message_length += 1
 
         # TODO: create second batch for amqp annotated messages
-        servicebus_queue_sender.send_messages(batch)
+        sender.send_messages(batch)
     elif method == "schedule_messages" and message_payload_type == "single":
         for servicebus_message in make_servicebus_messages():
-            servicebus_queue_sender.schedule_messages(servicebus_message, now)
+            sender.schedule_messages(servicebus_message, now)
             message_length += 1
         for amqp_annotated_message in make_amqp_annotated_messages():
-            servicebus_queue_sender.schedule_messages(amqp_annotated_message, now)
+            sender.schedule_messages(amqp_annotated_message, now)
             message_length += 1
     if method == "schedule_messages" and message_payload_type == "list":
         servicebus_messages = make_servicebus_messages()
-        servicebus_queue_sender.schedule_messages(servicebus_messages, now)
+        sender.schedule_messages(servicebus_messages, now)
 
         amqp_annotated_messages = make_amqp_annotated_messages()
-        servicebus_queue_sender.schedule_messages(amqp_annotated_messages, now)
+        sender.schedule_messages(amqp_annotated_messages, now)
 
         message_length = len(servicebus_messages) + len(amqp_annotated_messages)
 
-    received_queue_messages = servicebus_queue_receiver.receive_messages(
-        max_message_count=message_length, max_wait_time=5
-    )
+    received_queue_messages = receiver.receive_messages(max_message_count=message_length, max_wait_time=1)
     assert len(received_queue_messages) == message_length
 
     if not distributed_tracing_enabled or not batch_links_enabled:
@@ -117,71 +109,57 @@ def run_test(method, message_payload_type, distributed_tracing_enabled, batch_li
     else:
         assert all(key in normalize_properties(m) for m in received_queue_messages for key in TRACE_CONTEXT_KEYS)
 
-    servicebus_queue_receiver.close()
-    servicebus_queue_sender.close()
-    servicebus_client.close()
 
-
-async def run_test_async(method, message_payload_type, distributed_tracing_enabled, batch_links_enabled):
-    servicebus_client = ServiceBusClientAsync.from_connection_string(conn_str=CONNECTION_STRING)
-    servicebus_queue_sender = servicebus_client.get_queue_sender(queue_name=QUEUE_NAME)
-    servicebus_queue_receiver = servicebus_client.get_queue_receiver(
-        queue_name=QUEUE_NAME, receive_mode=ServiceBusReceiveMode.RECEIVE_AND_DELETE
-    )
-
+async def run_test_async(
+    sender, receiver, method, message_payload_type, distributed_tracing_enabled, batch_links_enabled
+):
     message_length = 0
     now = datetime.now(timezone.utc)
 
     if method == "send_messages" and message_payload_type == "single":
         for servicebus_message in make_servicebus_messages():
-            await servicebus_queue_sender.send_messages(servicebus_message)
+            await sender.send_messages(servicebus_message)
             message_length += 1
         for amqp_annotated_message in make_amqp_annotated_messages():
-            await servicebus_queue_sender.send_messages(amqp_annotated_message)
+            await sender.send_messages(amqp_annotated_message)
             message_length += 1
     if method == "send_messages" and message_payload_type == "list":
         servicebus_messages = make_servicebus_messages()
-        await servicebus_queue_sender.send_messages(servicebus_messages)
+        await sender.send_messages(servicebus_messages)
 
         amqp_annotated_messages = make_amqp_annotated_messages()
-        await servicebus_queue_sender.send_messages(amqp_annotated_messages)
+        await sender.send_messages(amqp_annotated_messages)
 
         message_length = len(servicebus_messages) + len(amqp_annotated_messages)
     elif method == "send_messages" and message_payload_type == "batch":
-        batch = await servicebus_queue_sender.create_message_batch()
+        batch = await sender.create_message_batch()
         for servicebus_message in make_servicebus_messages():
             batch.add_message(servicebus_message)
             message_length += 1
-        await servicebus_queue_sender.send_messages(batch)
+        await sender.send_messages(batch)
     elif method == "schedule_messages" and message_payload_type == "single":
         for servicebus_message in make_servicebus_messages():
-            await servicebus_queue_sender.schedule_messages(servicebus_message, now)
+            await sender.schedule_messages(servicebus_message, now)
             message_length += 1
         for amqp_annotated_message in make_amqp_annotated_messages():
-            await servicebus_queue_sender.schedule_messages(amqp_annotated_message, now)
+            await sender.schedule_messages(amqp_annotated_message, now)
             message_length += 1
     if method == "schedule_messages" and message_payload_type == "list":
         servicebus_messages = make_servicebus_messages()
-        await servicebus_queue_sender.schedule_messages(servicebus_messages, now)
+        await sender.schedule_messages(servicebus_messages, now)
 
         amqp_annotated_messages = make_amqp_annotated_messages()
-        await servicebus_queue_sender.schedule_messages(amqp_annotated_messages, now)
+        await sender.schedule_messages(amqp_annotated_messages, now)
 
         message_length = len(servicebus_messages) + len(amqp_annotated_messages)
 
-    received_queue_messages = await servicebus_queue_receiver.receive_messages(
-        max_message_count=message_length, max_wait_time=5
-    )
+    received_queue_messages = await receiver.receive_messages(max_message_count=message_length, max_wait_time=1)
     assert len(received_queue_messages) == message_length
 
     if not distributed_tracing_enabled or not batch_links_enabled:
         assert not any(key in normalize_properties(m) for m in received_queue_messages for key in TRACE_CONTEXT_KEYS)
     else:
         assert all(key in normalize_properties(m) for m in received_queue_messages for key in TRACE_CONTEXT_KEYS)
-
-    await servicebus_queue_receiver.close()
-    await servicebus_queue_sender.close()
-    await servicebus_client.close()
 
 
 @pytest.mark.asyncio
@@ -193,9 +171,31 @@ async def test_common():
     batch_links_enabled = os.environ.get("DD_TRACE_AZURE_SERVICEBUS_BATCH_LINKS_ENABLED") == "True"
 
     if is_async:
-        await run_test_async(method, message_payload_type, distributed_tracing_enabled, batch_links_enabled)
+        client = ServiceBusClientAsync.from_connection_string(CONNECTION_STRING)
+        sender = client.get_queue_sender(queue_name=QUEUE_NAME)
+        receiver = client.get_queue_receiver(
+            queue_name=QUEUE_NAME, receive_mode=ServiceBusReceiveMode.RECEIVE_AND_DELETE
+        )
+        try:
+            await run_test_async(
+                sender, receiver, method, message_payload_type, distributed_tracing_enabled, batch_links_enabled
+            )
+        finally:
+            await receiver.close()
+            await sender.close()
+            await client.close()
     else:
-        run_test(method, message_payload_type, distributed_tracing_enabled, batch_links_enabled)
+        client = ServiceBusClient.from_connection_string(CONNECTION_STRING)
+        sender = client.get_queue_sender(queue_name=QUEUE_NAME)
+        receiver = client.get_queue_receiver(
+            queue_name=QUEUE_NAME, receive_mode=ServiceBusReceiveMode.RECEIVE_AND_DELETE
+        )
+        try:
+            run_test(sender, receiver, method, message_payload_type, distributed_tracing_enabled, batch_links_enabled)
+        finally:
+            receiver.close()
+            sender.close()
+            client.close()
 
 
 if __name__ == "__main__":

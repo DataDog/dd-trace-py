@@ -364,7 +364,7 @@ suites:
       - azureservicebusemulator
       - azuresqledge
   azure_servicebus:
-    parallelism: 1
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'
