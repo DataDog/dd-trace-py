@@ -257,6 +257,7 @@ def _parse_headers_urllib3(headers):
     except Exception:
         return {}
 
+
 def wrapped_urllib3_make_request(original_request_callable, instance, args, kwargs):
     from ddtrace.appsec._asm_request_context import call_waf_callback
 
@@ -299,9 +300,9 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
 
     if _get_rasp_capability("ssrf"):
         try:
+            from ddtrace.appsec._asm_request_context import _get_asm_context
             from ddtrace.appsec._asm_request_context import call_waf_callback
             from ddtrace.appsec._asm_request_context import should_analyze_body_response
-            from ddtrace.appsec._asm_request_context import _get_asm_context
         except ImportError:
             # open is used during module initialization
             # and shouldn't be changed at that time
@@ -322,10 +323,13 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
                             "DOWN_RES_HEADERS": dict(response.headers),
                         }
                         if use_body:
-                            addresses["DOWN_RES_BODY"] = _parse_http_response_body(response)
+                            try:
+                                addresses["DOWN_RES_BODY"] = response.json()
+                            except Exception:
+                                pass  # nosec
                         call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF)
                     return response
-                except Exception as e:
+                except Exception:
                     raise
         elif valid_url:
             _report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SSRF, False)

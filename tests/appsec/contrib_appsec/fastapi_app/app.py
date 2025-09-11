@@ -266,7 +266,7 @@ def get_app():
         except Exception as e:
             payload = {"error": repr(e)}
         return payload
-    
+
     @app.get("/redirect_requests/{url:str}/", response_class=JSONResponse)
     async def redirect_requests_get(url: str, request: Request):
         import requests
@@ -274,7 +274,7 @@ def get_app():
         full_url = "http://" + url
         try:
             with requests.Session() as s:
-                response = s.get(full_url, timeout=0.5, headers={"TagHost":url})
+                response = s.get(full_url, timeout=0.5, headers={"TagHost": url})
                 payload = {"payload": response.text}
         except Exception as e:
             payload = {"error": repr(e)}
@@ -287,7 +287,12 @@ def get_app():
         full_url = "http://" + url
         try:
             with requests.Session() as s:
-                response = s.post(full_url, data=(await request.body()), headers={"Content-Type": "application/json", "TagHost":url}, timeout=0.5)
+                response = s.post(
+                    full_url,
+                    data=(await request.body()),
+                    headers={"Content-Type": "application/json", "TagHost": url},
+                    timeout=0.5,
+                )
                 payload = {"payload": response.text}
         except Exception as e:
             payload = {"error": repr(e)}
