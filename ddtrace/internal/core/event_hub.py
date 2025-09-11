@@ -51,7 +51,7 @@ def has_listeners(event_id: str) -> bool:
     return bool(_listeners.get(event_id))
 
 
-def on(event_id: str, callback: Callable[..., Any], name: Optional[Any] = None) -> None:
+def on(event_id: str, callback: Callable[..., Any], name: Any = None) -> None:
     """Register a listener for the provided event_id"""
     global _listeners
     if name is None:

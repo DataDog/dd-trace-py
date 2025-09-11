@@ -343,7 +343,7 @@ class Span(object):
         self.context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] = value
         return value
 
-    def set_tag(self, key: _TagNameType, value: Optional[Any] = None) -> None:
+    def set_tag(self, key: _TagNameType, value: Any = None) -> None:
         """Set a tag key/value pair on the span.
 
         Keys must be strings, values must be ``str``-able.
@@ -372,7 +372,7 @@ class Span(object):
         INT_TYPES = (net.TARGET_PORT,)
         if key in INT_TYPES and not val_is_an_int:
             try:
-                value = int(value) if value is not None else None
+                value = int(value)
                 val_is_an_int = True
             except (ValueError, TypeError):
                 pass

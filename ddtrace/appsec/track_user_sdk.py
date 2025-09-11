@@ -19,7 +19,7 @@ from ddtrace.internal._exceptions import BlockingException
 
 
 def track_login_success(
-    login: str, user_id: t.Optional[t.Any] = None, metadata: t.Optional[t.Dict[str, t.Any]] = None, _auto: bool = False
+    login: str, user_id: t.Any = None, metadata: t.Optional[t.Dict[str, t.Any]] = None, _auto: bool = False
 ) -> None:
     """
     Track a successful user login event.
@@ -35,7 +35,7 @@ def track_login_success(
 def track_login_failure(
     login: str,
     exists: bool,
-    user_id: t.Optional[t.Any] = None,
+    user_id: t.Any = None,
     metadata: t.Optional[t.Dict[str, t.Any]] = None,
     _auto: bool = False,
 ):
@@ -54,7 +54,7 @@ def track_login_failure(
 
 def track_signup(
     login: str,
-    user_id: t.Optional[t.Any] = None,
+    user_id: t.Any = None,
     success: bool = True,
     metadata: t.Optional[t.Dict[str, t.Any]] = None,
     _auto: bool = False,
@@ -74,7 +74,7 @@ def track_signup(
 
 def track_user(
     login: str,
-    user_id: t.Optional[t.Any] = None,
+    user_id: t.Any = None,
     session_id: t.Optional[str] = None,
     metadata: t.Optional[t.Dict[str, t.Any]] = None,
     _auto: bool = False,
@@ -98,7 +98,7 @@ def track_user(
     usr_role = meta.pop("role", None) or meta.pop("usr.role", None)
     _trace_utils.set_user(
         None,
-        str(user_id) if user_id is not None else "",
+        user_id,
         name=usr_name if isinstance(usr_name, str) else None,
         email=usr_email if isinstance(usr_email, str) else None,
         scope=usr_scope if isinstance(usr_scope, str) else None,
