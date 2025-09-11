@@ -14,6 +14,7 @@ from ddtrace.appsec._iast.sampling.vulnerability_detection import update_global_
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_free_slots_number
 
 
 log = get_logger(__name__)
@@ -55,7 +56,7 @@ def set_iast_request_endpoint(method, route) -> None:
             log.debug("iast::propagation::context::Trying to set IAST request endpoint but no context is present")
 
 
-def _iast_start_request(span: Optional[Span] = None) -> Optional[int]:
+def _iast_start_request(span=None) -> Optional[int]:
     """Initialize the IAST request context for the current execution.
 
     This function acquires the IAST request budget via the Overhead Control Engine,
@@ -76,7 +77,6 @@ def _iast_start_request(span: Optional[Span] = None) -> Optional[int]:
             if context_id is not None:
                 IAST_CONTEXT.set(context_id)
                 core.set_item(IAST.REQUEST_CONTEXT_KEY, IASTEnvironment(span))
-
     return context_id
 
 
@@ -99,6 +99,7 @@ def _iast_finish_request(span: Optional["Span"] = None, shoud_update_global_vuln
         core.discard_item(IAST.REQUEST_CONTEXT_KEY)
 
     context_id = _get_iast_context_id()
+    print(f"FINISH REQUEST!!! {context_id}")
     if context_id is not None:
         finish_request_context(context_id)
         IAST_CONTEXT.set(None)
