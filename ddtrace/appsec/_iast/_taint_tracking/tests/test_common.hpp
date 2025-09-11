@@ -14,8 +14,6 @@ class PyEnvCheck : public ::testing::Test
         if (!Py_IsInitialized()) {
             py::initialize_interpreter();
         }
-        // AIDEV-NOTE: For no-context tests we still need a valid engine instance
-        // so native helpers can access taint_engine_context (even if no slot is active).
         initializer = make_unique<Initializer>();
         taint_engine_context = make_unique<TaintEngineContext>();
         taint_engine_context->clear_all_request_context_slots();

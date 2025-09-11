@@ -301,7 +301,8 @@ get_tainted_object(PyObject* str, const TaintedObjectMapTypePtr& tx_map)
     if (not str) {
         return nullptr;
     }
-    if (is_notinterned_notfasttainted_unicode(str) or tx_map->empty()) {
+
+    if (tx_map->empty()) {
         return nullptr;
     }
 

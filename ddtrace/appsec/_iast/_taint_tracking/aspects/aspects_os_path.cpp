@@ -3,6 +3,7 @@
 
 #include "helpers.h"
 #include "initializer/initializer.h"
+#include "utils/string_utils.h"
 
 static bool
 starts_with_separator(const py::handle& arg, const std::string& separator)
@@ -18,7 +19,8 @@ api_ospathjoin_aspect(StrType& first_part, const py::args& args)
     auto join = safe_import("os.path", "join");
     auto result_o = join(first_part, *args);
 
-    const auto tx_map = taint_engine_context->get_tainted_object_map(first_part.ptr());
+    const auto tx_map =
+      taint_engine_context->get_tainted_object_map_from_list_of_pyobjects({ first_part.ptr(), args.ptr() });
     if (not tx_map or tx_map->empty()) {
         return result_o;
     }

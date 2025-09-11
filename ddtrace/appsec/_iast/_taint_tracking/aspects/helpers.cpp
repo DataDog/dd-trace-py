@@ -1,6 +1,7 @@
 #include "helpers.h"
 #include "utils/python_error_guard.h"
 #include <algorithm>
+#include <cstdio>
 
 using namespace pybind11::literals;
 namespace py = pybind11;
@@ -124,22 +125,17 @@ py::bytearray
 api_convert_escaped_text_to_taint_text(const py::bytearray& taint_escaped_text, const TaintRangeRefs& ranges_orig)
 {
 
-    // Safe guard: if no context, just rebuild value and return without taint
-    if (!taint_engine_context) {
-        const py::bytes bytes_text = py::bytes() + taint_escaped_text;
-        const std::tuple result = convert_escaped_text_to_taint_text<py::bytes>(bytes_text, ranges_orig);
-        PyObject* new_result = new_pyobject_id((py::bytearray() + get<0>(result)).ptr());
-        return py::reinterpret_steal<py::bytearray>(new_result);
-    }
     const auto tx_map = taint_engine_context->get_tainted_object_map(taint_escaped_text.ptr());
-
+    if (!tx_map) {
+        return taint_escaped_text;
+    }
     const py::bytes bytes_text = py::bytes() + taint_escaped_text;
 
     const std::tuple result = convert_escaped_text_to_taint_text<py::bytes>(bytes_text, ranges_orig);
     PyObject* new_result = new_pyobject_id((py::bytearray() + get<0>(result)).ptr());
-    if (tx_map) {
-        set_ranges(new_result, get<1>(result), tx_map);
-    }
+
+    set_ranges(new_result, get<1>(result), tx_map);
+
     return py::reinterpret_steal<py::bytearray>(new_result);
 }
 
@@ -147,20 +143,14 @@ template<class StrType>
 StrType
 api_convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, const TaintRangeRefs& ranges_orig)
 {
-    // Safe guard: if no context, rebuild value and return without taint
-    if (!taint_engine_context) {
-        auto [result_text, result_ranges] =
-          convert_escaped_text_to_taint_text<StrType>(taint_escaped_text, ranges_orig);
-        PyObject* new_result = new_pyobject_id(result_text.ptr());
-        return py::reinterpret_steal<StrType>(new_result);
+    const auto tx_map = taint_engine_context->get_tainted_object_map_from_ranges(ranges_orig);
+    if (!tx_map) {
+        return taint_escaped_text;
     }
-    const auto tx_map = taint_engine_context->get_tainted_object_map(taint_escaped_text.ptr());
-
     auto [result_text, result_ranges] = convert_escaped_text_to_taint_text<StrType>(taint_escaped_text, ranges_orig);
     PyObject* new_result = new_pyobject_id(result_text.ptr());
-    if (tx_map) {
-        set_ranges(new_result, result_ranges, tx_map);
-    }
+
+    set_ranges(new_result, result_ranges, tx_map);
     return py::reinterpret_steal<StrType>(new_result);
 }
 
@@ -410,14 +400,18 @@ are_all_text_all_ranges(PyObject* candidate_text,
                         const py::tuple& parameter_list,
                         const TaintedObjectMapTypePtr& tx_map)
 {
-    if (not is_tainteable(candidate_text))
+    auto obj_id = get_unique_id(candidate_text);
+
+    if (not is_tainteable(candidate_text)) {
         return {};
+    }
 
     TaintRangeRefs all_ranges;
 
     auto [candidate_text_ranges, ranges_error] = get_ranges(candidate_text, tx_map);
     if (not ranges_error) {
         for (const auto& param_handler : parameter_list) {
+            obj_id = get_unique_id(param_handler.ptr());
             if (const auto param = param_handler.cast<py::object>().ptr(); is_tainteable(param)) {
                 if (auto [ranges, ranges_error] = get_ranges(param, tx_map); not ranges_error) {
                     all_ranges.insert(all_ranges.end(), ranges.begin(), ranges.end());
@@ -430,9 +424,22 @@ are_all_text_all_ranges(PyObject* candidate_text,
 }
 
 tuple<TaintRangeRefs, TaintRangeRefs>
+api_are_all_text_all_ranges(py::handle& candidate_text, const py::list& parameter_list)
+{
+    const auto tx_map = taint_engine_context->get_tainted_object_map_from_list_of_pyobjects(
+      { candidate_text.ptr(), parameter_list.ptr() });
+    if (not tx_map or tx_map->empty()) {
+        return { {}, {} };
+    }
+    const py::tuple params_tuple = py::tuple(parameter_list);
+    return are_all_text_all_ranges(candidate_text.ptr(), params_tuple, tx_map);
+}
+
+tuple<TaintRangeRefs, TaintRangeRefs>
 api_are_all_text_all_ranges(py::handle& candidate_text, const py::tuple& parameter_list)
 {
-    const auto tx_map = taint_engine_context->get_tainted_object_map(candidate_text.ptr());
+    const auto tx_map = taint_engine_context->get_tainted_object_map_from_list_of_pyobjects(
+      { candidate_text.ptr(), parameter_list.ptr() });
     if (not tx_map or tx_map->empty()) {
         return { {}, {} };
     }
@@ -500,7 +507,14 @@ pyexport_aspect_helpers(py::module& m)
           "new_ranges"_a = nullopt,
           py::return_value_policy::move);
     m.def("are_all_text_all_ranges",
-          &api_are_all_text_all_ranges,
+          static_cast<tuple<TaintRangeRefs, TaintRangeRefs> (*)(py::handle&, const py::list&)>(
+            &api_are_all_text_all_ranges),
+          "candidate_text"_a,
+          "parameter_list"_a,
+          py::return_value_policy::move);
+    m.def("are_all_text_all_ranges",
+          static_cast<tuple<TaintRangeRefs, TaintRangeRefs> (*)(py::handle&, const py::tuple&)>(
+            &api_are_all_text_all_ranges),
           "candidate_text"_a,
           "parameter_list"_a,
           py::return_value_policy::move);

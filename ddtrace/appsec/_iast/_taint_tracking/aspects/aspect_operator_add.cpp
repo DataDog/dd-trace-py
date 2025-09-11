@@ -95,8 +95,6 @@ api_add_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
     }
 
     TRY_CATCH_ASPECT("add_aspect", return result_o, , {
-        // AIDEV-NOTE: Prefer a single helper to scan a small list of candidates in order
-        // and return the first non-empty taint map.
         auto tx_map =
           taint_engine_context->get_tainted_object_map_from_list_of_pyobjects({ candidate_text, text_to_add });
         if (not tx_map || tx_map->empty()) {

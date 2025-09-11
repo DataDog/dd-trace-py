@@ -101,10 +101,11 @@ def test_as_formatted_evidence():  # type: () -> None
             _build_sample_range(3, 1, "second"),
             _build_sample_range(4, 2, "third"),
         ),
+        context_id,
     )
     assert as_formatted_evidence(s) == ":+-<first>ab<first>-+:c:+-<second>d<second>-+::+-<third>ef<third>-+:gh"
 
-    set_ranges(s, (_build_sample_range(3, 2, "second"), _build_sample_range(0, 2, "first")))
+    set_ranges(s, (_build_sample_range(3, 2, "second"), _build_sample_range(0, 2, "first")), context_id)
     assert as_formatted_evidence(s) == ":+-<first>ab<first>-+:c:+-<second>de<second>-+:fgh"
 
 

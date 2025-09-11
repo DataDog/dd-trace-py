@@ -187,7 +187,6 @@ api_join_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
         return nullptr;
     }
     TRY_CATCH_ASPECT("join_aspect", return result, , {
-        // AIDEV-NOTE: Scan sep and arg0 (including elements if list/tuple) to get the active taint map.
         std::vector<PyObject*> candidates;
         candidates.reserve(1 +
                            (PyList_Check(arg0) ? PyList_Size(arg0) : (PyTuple_Check(arg0) ? PyTuple_Size(arg0) : 1)));

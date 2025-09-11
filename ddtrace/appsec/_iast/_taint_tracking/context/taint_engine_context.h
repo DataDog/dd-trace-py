@@ -54,9 +54,6 @@ class TaintEngineContext
 
     // Fast-path: get the taint map for a known context_id (slot index).
     // Returns nullptr if the slot is empty or out of lifecycle.
-    // AIDEV-NOTE: This is declared (not inline) to allow bounds checking and
-    // debug logging in the implementation. Avoids potential SIGSEGV when an
-    // invalid ctx_id is passed (e.g., after races while resetting contexts).
     TaintedObjectMapTypePtr get_tainted_object_map_by_ctx_id(size_t ctx_id);
 
     // Slow-path: find and return the taint map that contains the given
@@ -64,11 +61,24 @@ class TaintEngineContext
     // object has no taint ranges.
     TaintedObjectMapTypePtr get_tainted_object_map(PyObject* tainted_object);
 
-    // AIDEV-NOTE: Convenience helpers to scan multiple PyObjects and return the
-    // first non-empty taint map found among them. Returns nullptr if none found.
-    TaintedObjectMapTypePtr get_tainted_object_map_from_list_of_pyobjects(std::initializer_list<PyObject*> objects);
+    // Single PyObject lookup: scans active maps to locate the tainted object
+    // itself (no container traversal). This contains the original logic of
+    // get_tainted_object_map prior to adding container-aware behavior.
+    TaintedObjectMapTypePtr get_tainted_object_map_from_pyobject(PyObject* tainted_object);
+
+    //    TaintedObjectMapTypePtr get_tainted_object_map_from_list_of_pyobjects(std::initializer_list<PyObject*>
+    //    objects);
 
     TaintedObjectMapTypePtr get_tainted_object_map_from_list_of_pyobjects(const std::vector<PyObject*>& objects);
+
+    // Given a collection of TaintRange shared pointers, scan all active
+    // request context maps and return the first map that contains at least
+    // one of these ranges in any of its stored TaintedObjects. Returns nullptr
+    // if none of the ranges are found in any active map.
+    // AIDEV-QUESTION: Should this require all ranges to be found in the same
+    // map/object, or is finding any one sufficient? Implemented as "any"
+    // for now for performance and broader matching.
+    TaintedObjectMapTypePtr get_tainted_object_map_from_ranges(const TaintRangeRefs& ranges);
 
     // Clear a specific map if present; leaves the slot free for reuse.
     void finish_request_context(size_t ctx_id);
