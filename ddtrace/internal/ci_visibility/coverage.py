@@ -10,6 +10,7 @@ from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
 import ddtrace
+from ddtrace._trace.span import Span
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
 from ddtrace.internal.ci_visibility.telemetry.coverage import COVERAGE_LIBRARY
@@ -131,7 +132,7 @@ def _switch_coverage_context(
 
 
 def _report_coverage_to_span(
-    coverage_data: Coverage, span: ddtrace.trace.Span, root_dir: str, framework: Optional[TEST_FRAMEWORKS] = None
+    coverage_data: Coverage, span: Span, root_dir: str, framework: Optional[TEST_FRAMEWORKS] = None
 ):
     # Experimental feature to use internal coverage collection
     if USE_DD_COVERAGE:

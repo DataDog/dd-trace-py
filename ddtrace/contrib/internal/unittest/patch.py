@@ -8,6 +8,7 @@ import wrapt
 
 import ddtrace
 from ddtrace import config
+from ddtrace._trace.span import Span
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.coverage.data import _coverage_data
 from ddtrace.contrib.internal.coverage.patch import patch as patch_coverage
@@ -145,7 +146,7 @@ def _is_marked_as_unskippable(test_object) -> bool:
     )
 
 
-def _update_skipped_elements_and_set_tags(test_module_span: ddtrace.trace.Span, test_session_span: ddtrace.trace.Span):
+def _update_skipped_elements_and_set_tags(test_module_span: Span, test_session_span: Span):
     global _global_skipped_elements
     _global_skipped_elements += 1
 
@@ -157,7 +158,7 @@ def _update_skipped_elements_and_set_tags(test_module_span: ddtrace.trace.Span, 
     test_session_span.set_tag_str(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
 
 
-def _store_test_span(item, span: ddtrace.trace.Span):
+def _store_test_span(item, span: Span):
     """Store datadog span at `unittest` test instance."""
     item._datadog_span = span
 
@@ -188,7 +189,7 @@ def _is_test(item) -> bool:
     return True
 
 
-def _extract_span(item) -> Union[ddtrace.trace.Span, None]:
+def _extract_span(item) -> Union[Span, None]:
     return getattr(item, "_datadog_span", None)
 
 
@@ -203,23 +204,23 @@ def _extract_test_method_name(test_object) -> str:
     return getattr(test_object, "_testMethodName", "")
 
 
-def _extract_session_span() -> Union[ddtrace.trace.Span, None]:
+def _extract_session_span() -> Union[Span, None]:
     return getattr(_CIVisibility, "_datadog_session_span", None)
 
 
-def _extract_module_span(module_identifier: str) -> Union[ddtrace.trace.Span, None]:
+def _extract_module_span(module_identifier: str) -> Union[Span, None]:
     if hasattr(_CIVisibility, "_unittest_data") and module_identifier in _CIVisibility._unittest_data["modules"]:
         return _CIVisibility._unittest_data["modules"][module_identifier].get("module_span")
     return None
 
 
-def _extract_suite_span(suite_identifier: str) -> Union[ddtrace.trace.Span, None]:
+def _extract_suite_span(suite_identifier: str) -> Union[Span, None]:
     if hasattr(_CIVisibility, "_unittest_data") and suite_identifier in _CIVisibility._unittest_data["suites"]:
         return _CIVisibility._unittest_data["suites"][suite_identifier].get("suite_span")
     return None
 
 
-def _update_status_item(item: ddtrace.trace.Span, status: str):
+def _update_status_item(item: Span, status: str):
     """
     Sets the status for each Span implementing the test FAIL logic override.
     """
@@ -282,7 +283,7 @@ def _generate_session_resource(test_command: str) -> str:
     return "{}".format(test_command)
 
 
-def _set_test_skipping_tags_to_span(span: ddtrace.trace.Span):
+def _set_test_skipping_tags_to_span(span: Span):
     span.set_tag_str(test.ITR_TEST_SKIPPING_ENABLED, "true")
     span.set_tag_str(test.ITR_TEST_SKIPPING_TYPE, TEST)
     span.set_tag_str(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "false")
@@ -386,8 +387,8 @@ def _finish_remaining_suites_and_modules(seen_suites: dict, seen_modules: dict):
 def _update_remaining_suites_and_modules(
     test_module_suite_path: str,
     test_module_path: str,
-    test_module_span: ddtrace.trace.Span,
-    test_suite_span: ddtrace.trace.Span,
+    test_module_span: Span,
+    test_suite_span: Span,
 ):
     """
     Updates the remaining test suite and test counter and finishes spans when these have finished their execution.
@@ -403,7 +404,7 @@ def _update_remaining_suites_and_modules(
         _finish_span(test_module_span)
 
 
-def _update_test_skipping_count_span(span: ddtrace.trace.Span):
+def _update_test_skipping_count_span(span: Span):
     if _CIVisibility.test_skipping_enabled():
         span.set_metric(test.ITR_TEST_SKIPPING_COUNT, _global_skipped_elements)
 
@@ -641,7 +642,7 @@ def collect_text_test_runner_session(func, instance: unittest.TestSuite, args: t
     return result
 
 
-def _start_test_session_span(instance) -> ddtrace.trace.Span:
+def _start_test_session_span(instance) -> Span:
     """
     Starts a test session span and sets the required tags for a `unittest` session instance.
     """
@@ -682,7 +683,7 @@ def _start_test_session_span(instance) -> ddtrace.trace.Span:
     return test_session_span
 
 
-def _start_test_module_span(instance) -> ddtrace.trace.Span:
+def _start_test_module_span(instance) -> Span:
     """
     Starts a test module span and sets the required tags for a `unittest` module instance.
     """
@@ -725,7 +726,7 @@ def _start_test_module_span(instance) -> ddtrace.trace.Span:
     return test_module_span
 
 
-def _start_test_suite_span(instance) -> ddtrace.trace.Span:
+def _start_test_suite_span(instance) -> Span:
     """
     Starts a test suite span and sets the required tags for a `unittest` suite instance.
     """
@@ -761,7 +762,7 @@ def _start_test_suite_span(instance) -> ddtrace.trace.Span:
     return test_suite_span
 
 
-def _start_test_span(instance, test_suite_span: ddtrace.trace.Span) -> ddtrace.trace.Span:
+def _start_test_span(instance, test_suite_span: Span) -> Span:
     """
     Starts a test  span and sets the required tags for a `unittest` test instance.
     """
@@ -806,7 +807,7 @@ def _start_test_span(instance, test_suite_span: ddtrace.trace.Span) -> ddtrace.t
     return span
 
 
-def _finish_span(current_span: ddtrace.trace.Span):
+def _finish_span(current_span: Span):
     """
     Finishes active span and populates span status upwards
     """

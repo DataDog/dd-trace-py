@@ -6,6 +6,7 @@ import typing
 
 import ddtrace
 from ddtrace import config as ddconfig
+from ddtrace._trace.span import Span
 from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility.constants import CIVISIBILITY_LOG_FILTER_RE
@@ -50,7 +51,7 @@ def get_source_lines_for_test_method(
 
 
 def _add_start_end_source_file_path_data_to_span(
-    span: ddtrace.trace.Span, test_method_object, test_name: str, repo_directory: str
+    span: Span, test_method_object, test_name: str, repo_directory: str
 ):
     if not test_method_object:
         log.debug(
@@ -75,7 +76,7 @@ def _add_start_end_source_file_path_data_to_span(
         span.set_tag(test.SOURCE_END, end_line)
 
 
-def _add_pct_covered_to_span(coverage_data: dict, span: ddtrace.trace.Span):
+def _add_pct_covered_to_span(coverage_data: dict, span: Span):
     if not coverage_data or PCT_COVERED_KEY not in coverage_data:
         log.warning("Tried to add total covered percentage to session span but no data was found")
         return
