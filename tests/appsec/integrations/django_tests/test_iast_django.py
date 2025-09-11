@@ -154,22 +154,21 @@ def test_django_view_with_exception(client, iast_span, tracer, payload, content_
 
 
 @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
-def test_django_tainted_user_agent_iast_disabled(client, iast_span, tracer):
-    with override_global_config(dict(_iast_enabled=False, _iast_deduplication_enabled=False)):
-        root_span, response = _aux_appsec_get_root_span(
-            client,
-            iast_span,
-            tracer,
-            payload=urlencode({"mytestingbody_key": "mytestingbody_value"}),
-            content_type="application/x-www-form-urlencoded",
-            url="/appsec/taint-checking-disabled/?q=aaa",
-            headers={"HTTP_USER_AGENT": "test/1.2.3"},
-        )
+def test_django_tainted_user_agent_iast_disabled(client, iast_span_disabled, tracer):
+    root_span, response = _aux_appsec_get_root_span(
+        client,
+        iast_span_disabled,
+        tracer,
+        payload=urlencode({"mytestingbody_key": "mytestingbody_value"}),
+        content_type="application/x-www-form-urlencoded",
+        url="/appsec/taint-checking-disabled/?q=aaa",
+        headers={"HTTP_USER_AGENT": "test/1.2.3"},
+    )
 
-        assert load_iast_report(root_span) is None
+    assert load_iast_report(root_span) is None
 
-        assert response.status_code == 200
-        assert response.content == b"test/1.2.3"
+    assert response.status_code == 200
+    assert response.content == b"test/1.2.3"
 
 
 @pytest.mark.django_db()
