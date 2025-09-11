@@ -8,8 +8,8 @@ from typing import cast
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import ProbeLocationMixin
 from ddtrace.debugging._probe.status import ProbeStatusLogger
-from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.threads import RLock
 
 
 logger = get_logger(__name__)
@@ -68,7 +68,7 @@ class ProbeRegistry(dict):
         # Used to keep track of probes pending installation
         self._pending: Dict[str, List[Probe]] = defaultdict(list)
 
-        self._lock = forksafe.RLock()
+        self._lock = RLock()
 
     def register(self, *probes: Probe) -> None:
         """Register a probe."""
