@@ -55,17 +55,23 @@ def set_iast_request_endpoint(method, route) -> None:
             log.debug("iast::propagation::context::Trying to set IAST request endpoint but no context is present")
 
 
-class IASTContextException(Exception):
-    pass
+def _iast_start_request(span: Optional[Span] = None) -> Optional[int]:
+    """Initialize the IAST request context for the current execution.
 
+    This function acquires the IAST request budget via the Overhead Control Engine,
+    creates a new native taint context, and stores its identifier in a ContextVar so
+    subsequent IAST operations can locate the request-local taint map. If a context
+    is already active, the existing identifier is reused.
 
-def _iast_start_request(span=None):
+    The provided span, when present, is attached to the IAST environment for later
+    enrichment and end-of-request processing.
+    """
     context_id = None
     if asm_config._iast_enabled:
         if oce.acquire_request(span):
             _old_context_id = IAST_CONTEXT.get()
             if _old_context_id is not None:
-                raise IASTContextException("Trying to start a new context but an IAST context already present")
+                return _old_context_id
             context_id = start_request_context()
             if context_id is not None:
                 IAST_CONTEXT.set(context_id)
@@ -74,11 +80,18 @@ def _iast_start_request(span=None):
     return context_id
 
 
-def _get_iast_context_id():
+def _get_iast_context_id() -> Optional[int]:
+    """Retrieve the current IAST context identifier from the ContextVar."""
     return IAST_CONTEXT.get()
 
 
-def _iast_finish_request(span: Optional["Span"] = None, shoud_update_global_vulnerability_limit: bool = True):
+def _iast_finish_request(span: Optional["Span"] = None, shoud_update_global_vulnerability_limit: bool = True) -> bool:
+    """Finalize the IAST request context and optionally update global limits.
+
+    This function discards the per-request IAST environment, optionally updates the
+    global vulnerability optimization data, and releases the native taint context
+    associated with the active request.
+    """
     env = _get_iast_env()
     if env is not None and env.span is span:
         if shoud_update_global_vulnerability_limit:
@@ -94,11 +107,17 @@ def _iast_finish_request(span: Optional["Span"] = None, shoud_update_global_vuln
     return False
 
 
-def is_iast_request_enabled():
+def is_iast_request_enabled() -> bool:
+    """Check whether IAST is currently operating within an active request context."""
     return _get_iast_context_id() is not None
 
 
-def _num_objects_tainted_in_request():
+def _num_objects_tainted_in_request() -> int:
+    """Get the count of tainted objects tracked in the active IAST request context.
+
+    Useful for span metrics and internal telemetry.
+    """
     context_id = _get_iast_context_id()
     if context_id is not None:
         return debug_debug_num_tainted_objects(context_id)
+    return 0

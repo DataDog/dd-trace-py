@@ -23,7 +23,6 @@ from ddtrace.appsec._iast.taint_sinks.weak_hash import unpatch_iast as weak_hash
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
 from tests.appsec.iast.iast_utils import IAST_VALID_LOG
-from tests.appsec.iast.iast_utils import _reset_global_limit
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -75,7 +74,6 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
             weak_hash_unpatch()
             _testing_unpatch_iast()
             _iast_finish_request(span)
-            _reset_global_limit()
 
 
 @pytest.fixture

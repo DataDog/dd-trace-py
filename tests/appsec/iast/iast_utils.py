@@ -1,4 +1,3 @@
-import collections
 import importlib
 import json
 import re
@@ -143,8 +142,3 @@ def load_iast_report(span):
         else:
             iast_report = json.loads(iast_report_json)
     return iast_report
-
-
-def _reset_global_limit():
-    global GLOBAL_VULNERABILITIES_LIMIT
-    GLOBAL_VULNERABILITIES_LIMIT = collections.OrderedDict()
