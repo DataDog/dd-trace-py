@@ -357,6 +357,7 @@ suites:
       - '@azure_functions'
       - tests/contrib/azure_functions/*
       - tests/snapshots/tests.contrib.azure_functions.*
+    pattern: ^azure_functions$
     runner: riot
     snapshot: true
     services:
@@ -371,12 +372,13 @@ suites:
       - '@azure_servicebus'
       - tests/contrib/azure_functions_servicebus/*
       - tests/snapshots/tests.contrib.azure_functions_servicebus.*
+    pattern: azure_functions:servicebus
     runner: riot
     snapshot: true
     services:
       - azurite
-      - azureservicebusemulator
       - azuresqledge
+      - azureservicebusemulator
   azure_servicebus:
     parallelism: 2
     paths:
@@ -390,8 +392,8 @@ suites:
     runner: riot
     snapshot: true
     services:
-      - azureservicebusemulator
       - azuresqledge
+      - azureservicebusemulator
   botocore:
     parallelism: 11
     paths:

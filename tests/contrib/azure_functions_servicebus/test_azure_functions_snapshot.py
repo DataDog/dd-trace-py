@@ -1,3 +1,4 @@
+import itertools
 import os
 import signal
 import subprocess
@@ -8,20 +9,26 @@ import pytest
 from tests.webclient import Client
 
 
-CARDINALITY_MANY_PARAMS = {
-    "CARDINALITY": "many",
-}
-
-DEFAULT_HEADERS = {
-    "User-Agent": "python-httpx/x.xx.x",
-}
-
-DISTRIBUTED_TRACING_DISABLED_PARAMS = {
-    "DD_AZURE_FUNCTIONS_DISTRIBUTED_TRACING": "False",
-}
-
 # Ignoring span link attributes until values are normalized: https://github.com/DataDog/dd-apm-test-agent/issues/154
 SNAPSHOT_IGNORES = ["meta.messaging.message_id", "span_links.tracestate", "span_links.trace_id_high"]
+DEFAULT_HEADERS = {"User-Agent": "python-httpx/x.xx.x"}
+ENTITY_TYPES = ["queue", "topic"]
+CARDINALITY = ["one", "many"]
+DISTRIBUTED_TRACING_ENABLED_OPTIONS = [None, "False"]
+
+param_values = [
+    (
+        {**{"CARDINALITY": c}, **({} if d is None else {"DD_AZURE_FUNCTIONS_DISTRIBUTED_TRACING": d})},
+        e,
+        "single" if c == "one" else "batch",
+    )
+    for e, c, d in itertools.product(ENTITY_TYPES, CARDINALITY, DISTRIBUTED_TRACING_ENABLED_OPTIONS)
+]
+
+param_ids = [
+    f"{e}_consume_{c}" f"_distributed_tracing_{'enabled' if d is None else 'disabled'}"
+    for e, c, d in itertools.product(ENTITY_TYPES, CARDINALITY, DISTRIBUTED_TRACING_ENABLED_OPTIONS)
+]
 
 
 @pytest.fixture
@@ -67,21 +74,14 @@ def azure_functions_client(request):
 
 
 @pytest.mark.parametrize(
-    "azure_functions_client, payload_type",
-    [
-        ({}, "single"),
-        (DISTRIBUTED_TRACING_DISABLED_PARAMS, "single"),
-        (CARDINALITY_MANY_PARAMS, "batch"),
-        ({**CARDINALITY_MANY_PARAMS, **DISTRIBUTED_TRACING_DISABLED_PARAMS}, "batch"),
-    ],
-    ids=[
-        "consume_single_distributed_tracing_enabled",
-        "consume_single_distributed_tracing_disabled",
-        "consume_many_distributed_tracing_enabled",
-        "consume_many_distributed_tracing_disabled",
-    ],
+    "azure_functions_client, entity, payload_type",
+    param_values,
+    ids=param_ids,
     indirect=["azure_functions_client"],
 )
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
-def test_service_bus_trigger(azure_functions_client: Client, payload_type) -> None:
-    assert azure_functions_client.post(f"/api/sendmessage{payload_type}", headers=DEFAULT_HEADERS).status_code == 200
+def test_service_bus_trigger(azure_functions_client: Client, entity, payload_type) -> None:
+    assert (
+        azure_functions_client.post(f"/api/{entity}sendmessage{payload_type}", headers=DEFAULT_HEADERS).status_code
+        == 200
+    )
