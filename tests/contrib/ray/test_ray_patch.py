@@ -17,6 +17,7 @@ class TestRayPatch(PatchTestCase.Base):
         self.assert_wrapped(ray.dashboard.modules.job.job_manager.JobManager._monitor_job_internal)
         self.assert_wrapped(ray.actor._modify_class)
         self.assert_wrapped(ray.actor.ActorHandle._actor_method_call)
+        self.assert_wrapped(ray.put)
 
     def assert_not_module_patched(self, ray):
         self.assert_not_wrapped(ray.remote_function.RemoteFunction._remote)
@@ -24,6 +25,7 @@ class TestRayPatch(PatchTestCase.Base):
         self.assert_not_wrapped(ray.dashboard.modules.job.job_manager.JobManager._monitor_job_internal)
         self.assert_not_wrapped(ray.actor._modify_class)
         self.assert_not_wrapped(ray.actor.ActorHandle._actor_method_call)
+        self.assert_not_wrapped(ray.put)
 
     def assert_not_module_double_patched(self, ray):
         self.assert_not_double_wrapped(ray.remote_function.RemoteFunction._remote)
@@ -31,3 +33,4 @@ class TestRayPatch(PatchTestCase.Base):
         self.assert_not_double_wrapped(ray.dashboard.modules.job.job_manager.JobManager._monitor_job_internal)
         self.assert_not_double_wrapped(ray.actor._modify_class)
         self.assert_not_double_wrapped(ray.actor.ActorHandle._actor_method_call)
+        self.assert_not_double_wrapped(ray.put)
