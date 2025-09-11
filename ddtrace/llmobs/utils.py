@@ -1,14 +1,9 @@
-from typing import Any
+from typing import Any, Optional
 from typing import Dict
 from typing import List
 from typing import Union
 
-
-# TypedDict was added to typing in python 3.8
-try:
-    from typing import TypedDict  # noqa:F401
-except ImportError:
-    from typing_extensions import TypedDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from ddtrace.internal.logger import get_logger
 
@@ -37,11 +32,11 @@ def _extract_tool_call(tool_call: Dict[str, Any]) -> "ToolCall":
     # Add optional fields if present
     tool_id = tool_call.get("tool_id")
     if tool_id and isinstance(tool_id, str):
-        formatted_tool_call["tool_id"] = tool_id
+        formatted_tool_call.tool_id = tool_id
 
     tool_type = tool_call.get("type")
     if tool_type and isinstance(tool_type, str):
-        formatted_tool_call["type"] = tool_type
+        formatted_tool_call.type = tool_type
 
     return formatted_tool_call
 
@@ -61,69 +56,105 @@ def _extract_tool_result(tool_result: Dict[str, Any]) -> "ToolResult":
     # Add optional fields if present
     name = tool_result.get("name")
     if name and isinstance(name, str):
-        formatted_tool_result["name"] = name
+        formatted_tool_result.name = name
 
     tool_id = tool_result.get("tool_id")
     if tool_id and isinstance(tool_id, str):
-        formatted_tool_result["tool_id"] = tool_id
+        formatted_tool_result.tool_id = tool_id
 
     tool_type = tool_result.get("type")
     if tool_type and isinstance(tool_type, str):
-        formatted_tool_result["type"] = tool_type
+        formatted_tool_result.type = tool_type
 
     return formatted_tool_result
 
 
-ExportedLLMObsSpan = TypedDict("ExportedLLMObsSpan", {"span_id": str, "trace_id": str})
-Document = TypedDict("Document", {"name": str, "id": str, "text": str, "score": float}, total=False)
-Message = TypedDict(
-    "Message",
-    {"content": str, "role": str, "tool_calls": List["ToolCall"], "tool_results": List["ToolResult"]},
-    total=False,
-)
-Prompt = TypedDict(
-    "Prompt",
-    {
-        "variables": Dict[str, str],
-        "template": str,
-        "id": str,
-        "version": str,
-        "rag_context_variables": List[
-            str
-        ],  # a list of variable key names that contain ground truth context information
-        "rag_query_variables": List[str],  # a list of variable key names that contains query information
-    },
-    total=False,
-)
-ToolCall = TypedDict(
-    "ToolCall",
-    {
-        "name": str,
-        "arguments": Dict[str, Any],
-        "tool_id": str,
-        "type": str,
-    },
-    total=False,
-)
-ToolResult = TypedDict(
-    "ToolResult",
-    {
-        "name": str,
-        "result": str,
-        "tool_id": str,
-        "type": str,
-    },
-    total=False,
-)
-ToolDefinition = TypedDict(
-    "ToolDefinition",
-    {
-        "name": str,
-        "description": str,
-        "schema": Dict[str, Any],
-    },
-    total=False,
-)
+class ExportedLLMObsSpan(BaseModel):
+    span_id: str
+    trace_id: str
+
+class Document(BaseModel):
+    name: Optional[str] = None
+    id: Optional[str] = None
+    text: str
+    score: Optional[float] = None
+
+class Prompt(BaseModel):
+    variables: Dict[str, str]
+    template: str
+    id: str
+    version: str
+    rag_context_variables: List[str] # a list of variable key names that contain ground truth context information
+    rag_query_variables: List[str] # a list of variable key names that contains query information
+
+class ToolCall(BaseModel):
+    name: str
+    arguments: Dict[str, Any]
+    tool_id: Optional[str] = None
+    type: Optional[str] = None
+
+class ToolResult(BaseModel):
+    name: Optional[str] = None
+    result: str
+    tool_id: Optional[str] = None
+    type: Optional[str] = None
+
+class ToolDefinition(BaseModel):
+    model_config = ConfigDict(serialize_by_alias=True)
+    
+    name: str
+    description: Optional[str] = None
+    schema_definition: Optional[Dict[str, Any]] = Field(default=None, serialization_alias="schema")
+
+    def has_content(self) -> bool:
+        return any(getattr(self, field) is not None for field in self.__class__.model_fields)
+
+class MessagePromptTemplate(BaseModel):
+    template: str
+
+class Message(BaseModel):
+    id: Optional[str] = None
+    role: Optional[str] = None
+    content: Optional[str] = None
+    tool_calls: Optional[List[ToolCall]] = None
+    tool_results: Optional[List[ToolResult]] = None
+    prompt: Optional[MessagePromptTemplate] = None
+    tool_id: Optional[str] = None
+
+class SpanField(BaseModel):
+    kind: str
+
+class ErrorField(BaseModel):
+    message: Optional[str] = None
+    stack: Optional[str] = None
+    type: Optional[str] = None
+
+class MetaIO(BaseModel):
+    parameters: Optional[Dict[str, Any]] = None
+    value: Optional[str] = None
+    messages: Optional[List[Message]] = None
+    prompt: Optional[Prompt] = None # TODO: does this need to be here?
+    documents: Optional[List[Document]] = None
+    
+    def has_content(self) -> bool:
+        return any(getattr(self, field) is not None for field in self.__class__.model_fields)
+
+class Meta(BaseModel):
+    model_name: Optional[str] = None
+    model_provider: Optional[str] = None
+    span: SpanField
+    error: Optional[ErrorField] = None
+    metadata: Optional[Dict[str, Any]] = None
+    input: Optional[MetaIO] = None
+    output: Optional[MetaIO] = None
+    expected_output: Optional[MetaIO] = None
+    evaluations: Optional[Any] = None # TODO: does this need to be here?
+    tool_definitions: Optional[List[ToolDefinition]] = None
+
+class SpanLink(BaseModel):
+    span_id: str
+    trace_id: str
+    attributes: Dict[str, str]
 
 
 def extract_tool_definitions(tool_definitions: List[Dict[str, Any]]) -> List[ToolDefinition]:
@@ -154,7 +185,7 @@ def extract_tool_definitions(tool_definitions: List[Dict[str, Any]]) -> List[Too
                     "Tool definition 'description' at index %s must be a string. Skipping description field.", i
                 )
             else:
-                validated_tool_def["description"] = description
+                validated_tool_def.description = description
 
         # schema is optional
         schema = tool_def.get("schema")
@@ -162,7 +193,7 @@ def extract_tool_definitions(tool_definitions: List[Dict[str, Any]]) -> List[Too
             if not isinstance(schema, dict):
                 log.warning("Tool definition 'schema' at index %s must be a dictionary. Skipping schema field.", i)
             else:
-                validated_tool_def["schema"] = schema
+                validated_tool_def.schema_definition = schema
 
         validated_tool_definitions.append(validated_tool_def)
 
@@ -190,21 +221,21 @@ class Messages:
             if role:
                 if not isinstance(role, str):
                     raise TypeError("Message role must be a string.")
-                msg_dict["role"] = role
+                msg_dict.role = role
 
             tool_calls = message.get("tool_calls")
             if tool_calls is not None:
                 if not isinstance(tool_calls, list):
                     raise TypeError("tool_calls must be a list.")
                 formatted_tool_calls = [_extract_tool_call(tool_call) for tool_call in tool_calls]
-                msg_dict["tool_calls"] = formatted_tool_calls
+                msg_dict.tool_calls = formatted_tool_calls
 
             tool_results = message.get("tool_results")
             if tool_results is not None:
                 if not isinstance(tool_results, list):
                     raise TypeError("tool_results must be a list.")
                 formatted_tool_results = [_extract_tool_result(tool_result) for tool_result in tool_results]
-                msg_dict["tool_results"] = formatted_tool_results
+                msg_dict.tool_results = formatted_tool_results
 
             self.messages.append(msg_dict)
 
@@ -230,13 +261,13 @@ class Documents:
             if document_name:
                 if not isinstance(document_name, str):
                     raise TypeError("document name must be a string.")
-                formatted_document["name"] = document_name
+                formatted_document.name = document_name
             if document_id:
                 if not isinstance(document_id, str):
                     raise TypeError("document id must be a string.")
-                formatted_document["id"] = document_id
+                formatted_document.id = document_id
             if document_score:
                 if not isinstance(document_score, (int, float)):
                     raise TypeError("document score must be an integer or float.")
-                formatted_document["score"] = document_score
+                formatted_document.score = document_score
             self.documents.append(formatted_document)

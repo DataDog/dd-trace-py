@@ -29,7 +29,7 @@ from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import safe_load_json
-from ddtrace.llmobs.utils import ToolCall
+from ddtrace.llmobs.utils import Message, ToolCall
 from ddtrace.llmobs.utils import ToolDefinition
 from ddtrace.llmobs.utils import ToolResult
 
@@ -658,7 +658,7 @@ def openai_get_output_messages_from_response(response: Optional[Any]) -> List[Di
     return processed_messages
 
 
-def _openai_parse_output_response_messages(messages: List[Any]) -> Tuple[List[Dict[str, Any]], List[ToolCall]]:
+def _openai_parse_output_response_messages(messages: List[Any]) -> Tuple[List[Message], List[ToolCall]]:
     """
     Parses output messages from the openai responses api into a list of processed messages
     and a list of tool call outputs.
@@ -670,11 +670,11 @@ def _openai_parse_output_response_messages(messages: List[Any]) -> Tuple[List[Di
         - A list of processed messages
         - A list of tool call outputs
     """
-    processed: List[Dict[str, Any]] = []
+    processed: List[Message] = []
     tool_call_outputs: List[ToolCall] = []
 
     for item in messages:
-        message = {}
+        message = Message()
         message_type = _get_attr(item, "type", "")
 
         if message_type == "message":
@@ -682,18 +682,15 @@ def _openai_parse_output_response_messages(messages: List[Any]) -> Tuple[List[Di
             for content in _get_attr(item, "content", []) or []:
                 text += str(_get_attr(content, "text", "") or "")
                 text += str(_get_attr(content, "refusal", "") or "")
-            message.update({"role": _get_attr(item, "role", "assistant"), "content": text})
+            message.role = _get_attr(item, "role", "assistant")
+            message.content = text
         elif message_type == "reasoning":
-            message.update(
+            message.role = "reasoning"
+            message.content = safe_json(
                 {
-                    "role": "reasoning",
-                    "content": safe_json(
-                        {
-                            "summary": _get_attr(item, "summary", ""),
-                            "encrypted_content": _get_attr(item, "encrypted_content", ""),
-                            "id": _get_attr(item, "id", ""),
-                        }
-                    ),
+                    "summary": _get_attr(item, "summary", ""),
+                    "encrypted_content": _get_attr(item, "encrypted_content", ""),
+                    "id": _get_attr(item, "id", ""),
                 }
             )
         elif message_type == "function_call" or message_type == "custom_tool_call":
@@ -708,14 +705,11 @@ def _openai_parse_output_response_messages(messages: List[Any]) -> Tuple[List[Di
                 type=_get_attr(item, "type", "function"),
             )
             tool_call_outputs.append(tool_call_info)
-            message.update(
-                {
-                    "tool_calls": [tool_call_info],
-                    "role": "assistant",
-                }
-            )
+            message.role = "assistant"
+            message.tool_calls = [tool_call_info]
         else:
-            message.update({"content": str(item), "role": "assistant"})
+            message.role = "assistant"
+            message.content = str(item)
 
         processed.append(message)
 
@@ -786,7 +780,7 @@ def _openai_get_tool_definitions(tools: List[Any]) -> List[ToolDefinition]:
             tool_definition = ToolDefinition(
                 name=_get_attr(function, "name", ""),
                 description=_get_attr(function, "description", ""),
-                schema=_get_attr(function, "parameters", {}),
+                schema_definition=_get_attr(function, "parameters", {}),
             )
         # chat API custom tool access
         elif _get_attr(tool, "custom", None):
@@ -794,7 +788,7 @@ def _openai_get_tool_definitions(tools: List[Any]) -> List[ToolDefinition]:
             tool_definition = ToolDefinition(
                 name=_get_attr(custom_tool, "name", ""),
                 description=_get_attr(custom_tool, "description", ""),
-                schema=_get_attr(custom_tool, "format", {}),  # format is a dict
+                schema_definition=_get_attr(custom_tool, "format", {}),  # format is a dict
             )
         # chat API function access and response API tool access
         # only handles FunctionToolParam and CustomToolParam for response API for now
@@ -802,9 +796,9 @@ def _openai_get_tool_definitions(tools: List[Any]) -> List[ToolDefinition]:
             tool_definition = ToolDefinition(
                 name=_get_attr(tool, "name", ""),
                 description=_get_attr(tool, "description", ""),
-                schema=_get_attr(tool, "parameters", {}) or _get_attr(tool, "format", {}),
+                schema_definition=_get_attr(tool, "parameters", {}) or _get_attr(tool, "format", {}),
             )
-        if not any(tool_definition.values()):
+        if not tool_definition.has_content():
             continue
         tool_definitions.append(tool_definition)
     return tool_definitions

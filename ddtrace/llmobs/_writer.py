@@ -12,6 +12,11 @@ from typing import Union
 from typing import cast
 from urllib.parse import quote
 from urllib.parse import urlparse
+from pydantic import BaseModel
+from pydantic import ConfigDict
+from pydantic import Field
+
+from ddtrace.llmobs.utils import ToolCall
 
 
 # TypedDict was added to typing in python 3.8
@@ -52,29 +57,33 @@ from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._experiment import UpdatableDatasetRecord
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs.utils import Meta
+from ddtrace.llmobs.utils import SpanLink
 from ddtrace.settings._agent import config as agent_config
 
 
 logger = get_logger(__name__)
 
 
-class LLMObsSpanEvent(TypedDict):
+class LLMObsSpanEvent(BaseModel):
+    model_config = ConfigDict(serialize_by_alias=True)
+    
     span_id: str
     trace_id: str
     parent_id: str
-    session_id: NotRequired[str]
+    session_id: Optional[str] = None
     tags: List[str]
-    service: NotRequired[str]
+    service: Optional[str] = None
     name: str
     start_ns: int
     duration: int
     status: str
-    status_message: NotRequired[str]
-    meta: Dict[str, Any]
+    status_message: Optional[str] = None
+    meta: Meta
     metrics: Dict[str, Any]
-    collection_errors: NotRequired[List[str]]
-    span_links: NotRequired[List[Dict[str, str]]]
-    _dd: Dict[str, str]
+    collection_errors: Optional[List[str]] = None
+    span_links: Optional[List[SpanLink]] = None
+    dd_attrs: Dict[str, str] = Field(alias="_dd", serialization_alias="_dd")
 
 
 class LLMObsEvaluationMetricEvent(TypedDict, total=False):
