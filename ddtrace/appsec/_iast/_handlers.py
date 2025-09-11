@@ -6,6 +6,7 @@ from typing import Tuple
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._iast_request_context_base import get_iast_stacktrace_reported
+from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast._iast_request_context_base import set_iast_request_endpoint
 from ddtrace.appsec._iast._iast_request_context_base import set_iast_stacktrace_reported
 from ddtrace.appsec._iast._logs import iast_instrumentation_wrapt_debug_log
@@ -36,7 +37,7 @@ log = get_logger(__name__)
 
 def _on_request_init(wrapped, instance, args, kwargs):
     wrapped(*args, **kwargs)
-    if asm_config._iast_enabled and asm_config.is_iast_request_enabled:
+    if is_iast_request_enabled():
         try:
             instance.query_string = taint_pyobject(
                 pyobject=instance.query_string,
@@ -137,7 +138,7 @@ def _on_flask_patch(flask_version):
 def _iast_on_wrapped_view(kwargs):
     # If IAST is enabled, taint the Flask function kwargs (path parameters)
     if kwargs and asm_config._iast_enabled:
-        if not asm_config.is_iast_request_enabled:
+        if not is_iast_request_enabled():
             return kwargs
 
         _kwargs = {}
@@ -150,7 +151,7 @@ def _iast_on_wrapped_view(kwargs):
 
 
 def _on_wsgi_environ(wrapped, _instance, args, kwargs):
-    if asm_config._iast_enabled and args and asm_config.is_iast_request_enabled:
+    if is_iast_request_enabled():
         return wrapped(*((taint_structure(args[0], OriginType.HEADER_NAME, OriginType.HEADER),) + args[1:]), **kwargs)
 
     return wrapped(*args, **kwargs)
@@ -187,7 +188,7 @@ def _on_django_patch():
 
 
 def _on_django_middleware(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
-    if not asm_config._iast_enabled or not asm_config.is_iast_request_enabled:
+    if not asm_config._iast_enabled or not is_iast_request_enabled():
         return
 
     request = ctx.find_item("request")
@@ -200,7 +201,7 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
     # If IAST is enabled, and we're wrapping a Django view call, taint the kwargs (view's
     # path parameters)
     if asm_config._iast_enabled and fn_args and isinstance(fn_args[0], first_arg_expected_type):
-        if not asm_config.is_iast_request_enabled:
+        if not is_iast_request_enabled():
             return
 
         _taint_django_func_call(fn_args[0], fn_args, fn_kwargs)
@@ -321,7 +322,7 @@ def _on_grpc_response(message):
 
 
 def if_iast_taint_yield_tuple_for(origins, wrapped, instance, args, kwargs):
-    if asm_config._iast_enabled and asm_config.is_iast_request_enabled:
+    if is_iast_request_enabled():
         try:
             for key, value in wrapped(*args, **kwargs):
                 new_key = taint_pyobject(pyobject=key, source_name=key, source_value=key, source_origin=origins[0])
@@ -338,7 +339,7 @@ def if_iast_taint_yield_tuple_for(origins, wrapped, instance, args, kwargs):
 
 def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
     value = wrapped(*args, **kwargs)
-    if asm_config._iast_enabled and asm_config.is_iast_request_enabled:
+    if is_iast_request_enabled():
         try:
             if not is_pyobject_tainted(value):
                 name = str(args[0]) if len(args) else "http.request.body"
@@ -352,7 +353,7 @@ def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
 
 def if_iast_taint_starlette_datastructures(origin, wrapped, instance, args, kwargs):
     value = wrapped(*args, **kwargs)
-    if asm_config._iast_enabled and asm_config.is_iast_request_enabled:
+    if is_iast_request_enabled():
         try:
             res = []
             for element in value:
@@ -464,7 +465,7 @@ def _on_pre_tracedrequest_iast(ctx):
 
 
 def _on_set_request_tags_iast(request, span, flask_config):
-    if asm_config.is_iast_request_enabled:
+    if is_iast_request_enabled():
         try:
             if request.url_rule is not None:
                 set_iast_request_endpoint(request.method, request.url_rule.rule)
@@ -493,7 +494,7 @@ def _on_set_request_tags_iast(request, span, flask_config):
 
 
 def _on_django_finalize_response_pre(ctx, after_request_tags, request, response):
-    if not response or not asm_config.is_iast_request_enabled or get_iast_stacktrace_reported():
+    if not response or not is_iast_request_enabled() or get_iast_stacktrace_reported():
         return
 
     try:
@@ -506,7 +507,7 @@ def _on_django_finalize_response_pre(ctx, after_request_tags, request, response)
 
 
 def _on_django_technical_500_response(request, response, exc_type, exc_value, tb):
-    if not exc_value or not asm_config._iast_enabled or not asm_config.is_iast_request_enabled:
+    if not exc_value or not asm_config._iast_enabled or not is_iast_request_enabled():
         return
 
     try:
@@ -522,7 +523,7 @@ def _on_django_technical_500_response(request, response, exc_type, exc_value, tb
 
 
 def _on_flask_finalize_request_post(response, _):
-    if not response or not asm_config.is_iast_request_enabled or get_iast_stacktrace_reported():
+    if not response or not is_iast_request_enabled() or get_iast_stacktrace_reported():
         return
 
     try:
@@ -536,7 +537,7 @@ def _on_flask_finalize_request_post(response, _):
 
 
 def _on_asgi_finalize_response(body, _):
-    if not body or not asm_config.is_iast_request_enabled:
+    if not body or not is_iast_request_enabled():
         return
 
     try:
@@ -549,7 +550,7 @@ def _on_asgi_finalize_response(body, _):
 
 
 def _on_werkzeug_render_debugger_html(html):
-    # we don't check asm_config.is_iast_request_enabled due to werkzeug.render_debugger_html works outside the request
+    # we don't check is_iast_request_enabled() due to werkzeug.render_debugger_html works outside the request
     if not html or not asm_config._iast_enabled:
         return
 
@@ -587,7 +588,7 @@ async def _iast_instrument_starlette_request_body(wrapped, instance, args, kwarg
 
 def _iast_instrument_starlette_scope(scope, route):
     try:
-        if asm_config.is_iast_request_enabled:
+        if is_iast_request_enabled():
             set_iast_request_endpoint(scope.get("method"), route)
             if scope.get("path_params"):
                 for k, v in scope["path_params"].items():

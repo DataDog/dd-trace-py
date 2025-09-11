@@ -5,6 +5,7 @@ from typing import Sequence
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_request_context_base import IAST_CONTEXT
+from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast._logs import iast_propagation_debug_log
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_source
 from ddtrace.appsec._iast._span_metrics import increment_iast_span_metric
@@ -13,7 +14,6 @@ from ddtrace.appsec._iast._taint_tracking import TaintRange
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import _taint_pyobject_base
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import _taint_pyobject_base_new
 from ddtrace.internal.logger import get_logger
-from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
@@ -21,7 +21,7 @@ log = get_logger(__name__)
 
 def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_origin=None) -> Any:
     try:
-        if asm_config.is_iast_request_enabled:
+        if is_iast_request_enabled():
             if source_origin is None:
                 source_origin = OriginType.PARAMETER
 
@@ -51,7 +51,7 @@ def taint_pyobject_new(pyobject: Any, source_name: Any, source_value: Any, sourc
 
 def copy_ranges_to_string(pyobject: str, ranges: Sequence[TaintRange]) -> str:
     # NB this function uses comment-based type annotation because TaintRange is conditionally imported
-    if asm_config.is_iast_request_enabled:
+    if is_iast_request_enabled():
         if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):
             return pyobject
 
