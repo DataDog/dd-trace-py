@@ -67,6 +67,7 @@ def test_registry_location_error():
             "service": "test",
             "message": "Failed to instrument probe 42",
             "ddsource": "dd_debugger",
+            "type": "diagnostic",
             "debugger": {
                 "diagnostics": {
                     "probeId": 42,
