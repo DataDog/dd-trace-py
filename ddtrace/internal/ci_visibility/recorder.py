@@ -588,7 +588,7 @@ class CIVisibility(Service):
             log.debug("%s already enabled", cls.__name__)
             return
 
-        if not asbool(os.getenv("DD_CIVISIBILITY_ENABLED", default="true")):
+        if not telemetry.get_config("DD_CIVISIBILITY_ENABLED", True, asbool):
             cls.enabled = False
             return
 
