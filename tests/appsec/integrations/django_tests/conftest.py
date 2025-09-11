@@ -8,6 +8,7 @@ from ddtrace._trace.pin import Pin
 from ddtrace.appsec._iast import enable_iast_propagation
 from ddtrace.appsec._iast import load_iast
 from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_free_slots_number
 from ddtrace.appsec._iast.main import patch_iast
 from ddtrace.contrib.internal.django.patch import patch as django_patch
 from ddtrace.contrib.internal.requests.patch import patch as requests_patch
@@ -16,7 +17,6 @@ from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
 from tests.utils import override_env
 from tests.utils import override_global_config
-from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_free_slots_number
 
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "tests.appsec.integrations.django_tests.django_app.settings")

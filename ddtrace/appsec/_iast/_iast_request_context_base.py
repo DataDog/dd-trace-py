@@ -14,7 +14,6 @@ from ddtrace.appsec._iast.sampling.vulnerability_detection import update_global_
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_free_slots_number
 
 
 log = get_logger(__name__)
