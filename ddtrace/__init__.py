@@ -18,6 +18,7 @@ __version__ = get_version()
 def patch(*args, **kwargs):
     """Lazy wrapper for patch function."""
     from ._monkey import patch as _patch
+
     return _patch(*args, **kwargs)
 
 
@@ -25,6 +26,7 @@ def patch(*args, **kwargs):
 def patch_all(**kwargs):
     """Lazy wrapper for patch_all function."""
     from ._monkey import patch_all as _patch_all
+
     return _patch_all(**kwargs)
 
 

@@ -18,6 +18,7 @@ def _ensure_logger_configured():
     global _logger_configured
     if not _logger_configured:
         from ._logger import configure_ddtrace_logger
+
         configure_ddtrace_logger()
         _logger_configured = True
 
@@ -27,6 +28,7 @@ def _ensure_telemetry_initialized():
     global _telemetry_initialized
     if not _telemetry_initialized:
         import ddtrace.internal.telemetry  # noqa: F401
+
         _telemetry_initialized = True
 
 
@@ -34,10 +36,11 @@ def _ensure_python_version_checked():
     """Lazy Python version checking."""
     global _python_version_checked
     if not _python_version_checked:
+        from ddtrace.vendor import debtcollector
+
         from .internal.compat import PYTHON_VERSION_INFO
         from .internal.utils.deprecations import DDTraceDeprecationWarning
-        from ddtrace.vendor import debtcollector
-        
+
         if PYTHON_VERSION_INFO < (3, 8):
             deprecation_message = (
                 "Support for ddtrace with Python version %d.%d is deprecated and will be removed in 3.0.0."
@@ -53,17 +56,20 @@ def _ensure_python_version_checked():
 
 def ensure_initialized(func):
     """Decorator that ensures all necessary components are initialized before calling the function."""
+
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         _ensure_logger_configured()
         _ensure_telemetry_initialized()
         _ensure_python_version_checked()
         return func(*args, **kwargs)
+
     return wrapper
 
 
 # Lazy config initialization
 _config = None
+
 
 def get_config():
     """Lazy config import."""
@@ -71,6 +77,7 @@ def get_config():
     if _config is None:
         _ensure_telemetry_initialized()  # Config requires telemetry
         from .settings._config import config as _imported_config
+
         _config = _imported_config
     return _config
 
@@ -78,12 +85,14 @@ def get_config():
 # Lazy tracer initialization
 _tracer = None
 
+
 @ensure_initialized
 def get_tracer():
     """Lazy tracer import."""
     global _tracer
     if _tracer is None:
         from ddtrace.trace import tracer as _imported_tracer  # noqa: F401
+
         _tracer = _imported_tracer
     return _tracer
 
@@ -92,4 +101,5 @@ def get_deprecation_warning():
     """Lazy DDTraceDeprecationWarning import."""
     _ensure_python_version_checked()
     from .internal.utils.deprecations import DDTraceDeprecationWarning
+
     return DDTraceDeprecationWarning
