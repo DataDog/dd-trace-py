@@ -63,7 +63,7 @@ def test_taint_object_with_no_context_should_be_noop():
     arg = "all tainted"
     tainted_text = taint_pyobject(arg, source_name="request_body", source_value=arg, source_origin=OriginType.PARAMETER)
     assert tainted_text == arg
-    assert _num_objects_tainted_in_request() is None
+    assert _num_objects_tainted_in_request() == 0
 
 
 def test_propagate_ranges_with_no_context(caplog):

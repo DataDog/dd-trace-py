@@ -4,6 +4,8 @@ from unittest import mock
 import pytest
 
 from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
+from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
+from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast.constants import DEFAULT_PATH_TRAVERSAL_FUNCTIONS
@@ -158,26 +160,29 @@ def test_path_traversal(module, function, iast_context_defaults, ensure_test_fil
     assert vulnerability["evidence"].get("redacted") is None
 
 
-@pytest.mark.parametrize("num_vuln_expected", [1, 0, 0])
-def test_path_traversal_deduplication(num_vuln_expected, iast_context_deduplication_enabled, ensure_test_file):
-    mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.path_traversal")
-    file_path = ensure_test_file
+def test_path_traversal_deduplication(iast_context_deduplication_enabled, ensure_test_file):
+    _iast_finish_request()
+    for num_vuln_expected in [1, 0, 0]:
+        _iast_start_request()
+        mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.path_traversal")
+        file_path = ensure_test_file
 
-    tainted_string = taint_pyobject(
-        file_path, source_name="path", source_value=file_path, source_origin=OriginType.PATH
-    )
+        tainted_string = taint_pyobject(
+            file_path, source_name="path", source_value=file_path, source_origin=OriginType.PATH
+        )
 
-    for _ in range(0, 5):
-        mod.pt_open(tainted_string)
+        for _ in range(0, 5):
+            mod.pt_open(tainted_string)
 
-    span_report = get_iast_reporter()
+        span_report = get_iast_reporter()
 
-    if num_vuln_expected == 0:
-        assert span_report is None
-    else:
-        assert span_report
+        if num_vuln_expected == 0:
+            assert span_report is None
+        else:
+            assert span_report
+            assert len(span_report.vulnerabilities) == num_vuln_expected
 
-        assert len(span_report.vulnerabilities) == num_vuln_expected
+        _iast_finish_request()
 
 
 @pytest.mark.parametrize("non_text_obj,obj_type", NON_TEXT_TYPES_TEST_DATA)

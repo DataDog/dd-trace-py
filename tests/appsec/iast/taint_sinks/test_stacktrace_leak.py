@@ -46,6 +46,7 @@ def test_check_stacktrace_leak_text(iast_context_defaults):
 
 
 def test_stacktrace_leak_deduplication(iast_context_deduplication_enabled):
+    _iast_finish_request()
     for num_vuln_expected in [1, 0, 0]:
         _iast_start_request()
         for _ in range(0, 5):
