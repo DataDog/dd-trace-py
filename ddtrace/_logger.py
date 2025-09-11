@@ -67,7 +67,7 @@ def configure_ddtrace_logger():
 
     # Set the flag immediately to prevent recursion
     _logger_configured = True
-    
+
     ddtrace_logger = logging.getLogger("ddtrace")
     if _get_config_from_env("DD_TRACE_LOG_STREAM_HANDLER", True, asbool):
         ddtrace_logger.addHandler(logging.StreamHandler())
