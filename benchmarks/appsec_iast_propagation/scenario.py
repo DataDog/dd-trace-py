@@ -4,7 +4,7 @@ import bm
 try:
     # 3.15+
     from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request as end_iast_context
-    from ddtrace.appsec._iast._iast_request_context_base import _start_iast_context as iast_start_request
+    from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request as iast_start_request
     from ddtrace.appsec._iast._iast_request_context_base import set_iast_request_enabled
 except ImportError:
     try:
