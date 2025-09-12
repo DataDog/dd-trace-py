@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import torch
+
 from dataclasses import dataclass
 from typing import Any, List, Optional
 
 from vllm.outputs import PoolingRequestOutput, RequestOutput
+from vllm.sequence import SequenceGroup, Sequence
 
 
 @dataclass
@@ -24,55 +27,55 @@ class RequestData:
     sampling_params: Optional[Any] = None
 
 
-def extract_v0_data(res: RequestOutput, seq_group: Any) -> RequestData:
+def extract_v0_data(res: RequestOutput, seq_group: SequenceGroup) -> RequestData:
     data = RequestData(
-        request_id=getattr(res, "request_id", None),
-        num_cached_tokens=getattr(res, "num_cached_tokens", None),
+        request_id=res.request_id,
+        num_cached_tokens=res.num_cached_tokens,
     )
 
     # prompt
-    data.prompt = getattr(res, "prompt", None) or getattr(seq_group, "prompt", None) or getattr(seq_group, "encoder_prompt", None)
+    data.prompt = res.prompt or seq_group.prompt or seq_group.encoder_prompt
 
     # input tokens (prefer seq_group)
-    sg_prompt_ids = getattr(seq_group, "prompt_token_ids", []) or []
-    sg_enc_prompt_ids = getattr(seq_group, "encoder_prompt_token_ids", []) or []
+    sg_prompt_ids = seq_group.prompt_token_ids or []
+    sg_enc_prompt_ids = seq_group.encoder_prompt_token_ids or []
     data.input_tokens = len(sg_prompt_ids) + len(sg_enc_prompt_ids)
     if data.input_tokens == 0:
-        pt = getattr(res, "prompt_token_ids", []) or []
-        ept = getattr(res, "encoder_prompt_token_ids", []) or []
+        pt = res.prompt_token_ids or []
+        ept = res.encoder_prompt_token_ids or []
         data.input_tokens = len(pt) + len(ept)
 
-    data.sampling_params = getattr(seq_group, "sampling_params", None)
-    lora_req = getattr(seq_group, "lora_request", None)
-    data.lora_name = getattr(lora_req, "name", None) if lora_req else None
+    data.sampling_params = seq_group.sampling_params
+    lora_req = seq_group.lora_request
+    data.lora_name = lora_req.name if lora_req else None
 
     if isinstance(res, PoolingRequestOutput):
-        out = getattr(getattr(res, "outputs", None), "data", None)
-        shape = getattr(out, "shape", None)
+        out: torch.Tensor = res.outputs.data
+        shape = out.shape
         if shape:
             data.embedding_dim = int(shape[-1])
         return data
 
     # completion path
-    seqs = seq_group.get_seqs() or []
-    out_txt = []
+    seqs: list[Sequence] = seq_group.get_seqs() or []
+    out_txt: list[str] = []
     for s in seqs:
-        if hasattr(s, "get_output_len"):
+        if s.get_output_len():
             data.output_tokens += int(s.get_output_len())
-        text = getattr(s, "output_text", None)
+        text = s.output_text
         if text:
             out_txt.append(text)
     data.output_text = "".join(out_txt)
 
-    for comp in getattr(res, "outputs", None) or []:
+    for comp in res.outputs or []:
         if data.output_tokens == 0:
-            token_ids = getattr(comp, "token_ids", None)
+            token_ids = comp.token_ids
             if token_ids:
                 data.output_tokens += len(token_ids) if isinstance(token_ids, list) else 1
         if not data.finish_reason:
-            data.finish_reason = getattr(comp, "finish_reason", None)
+            data.finish_reason = comp.finish_reason
         if data.stop_reason is None:
-            data.stop_reason = getattr(comp, "stop_reason", None)
+            data.stop_reason = comp.stop_reason
 
     return data
 
@@ -81,57 +84,57 @@ def extract_v1_streaming_data(outputs: List[RequestOutput]) -> RequestData:
     data = RequestData()
 
     for out in outputs:
-        data.prompt = data.prompt or getattr(out, "prompt", None) or getattr(out, "encoder_prompt", None)
+        data.prompt = data.prompt or out.prompt or out.encoder_prompt
         if not data.input_tokens:
-            pt = getattr(out, "prompt_token_ids", None)
+            pt = out.prompt_token_ids
             if pt:
                 data.input_tokens = len(pt)
 
         if data.num_cached_tokens is None:
-            data.num_cached_tokens = getattr(out, "num_cached_tokens", None)
+            data.num_cached_tokens = out.num_cached_tokens
 
-        for comp in getattr(out, "outputs", None) or []:
-            text = getattr(comp, "text", None)
+        for comp in out.outputs or []:
+            text = comp.text
             if text:
                 data.output_text += text
-            token_ids = getattr(comp, "token_ids", None)
+            token_ids = comp.token_ids
             if token_ids:
                 data.output_tokens += len(token_ids) if isinstance(token_ids, list) else 1
-            fr = getattr(comp, "finish_reason", None)
+            fr = comp.finish_reason
             if fr:
                 data.finish_reason = fr
             if data.stop_reason is None:
-                data.stop_reason = getattr(comp, "stop_reason", None)
+                data.stop_reason = comp.stop_reason
 
     return data
 
 
 def extract_offline_data(request_output: RequestOutput, prompts=None, model_name=None) -> RequestData:
     data = RequestData(
-        request_id=getattr(request_output, "request_id", None),
-        prompt=getattr(request_output, "prompt", None) or (prompts if isinstance(prompts, str) else None),
+        request_id=request_output.request_id,
+        prompt=request_output.prompt or (prompts if isinstance(prompts, str) else None),
         model_name=model_name,
-        num_cached_tokens=getattr(request_output, "num_cached_tokens", None),
-        input_tokens=len(getattr(request_output, "prompt_token_ids", []) or []),
+        num_cached_tokens=request_output.num_cached_tokens,
+        input_tokens=len(request_output.prompt_token_ids or []),
     )
 
     parts = []
-    for comp in getattr(request_output, "outputs", None) or []:
-        text = getattr(comp, "text", None)
+    for comp in request_output.outputs or []:
+        text = comp.text
         if text:
             parts.append(text)
-        token_ids = getattr(comp, "token_ids", None)
+        token_ids = comp.token_ids
         if token_ids:
             data.output_tokens += len(token_ids) if isinstance(token_ids, list) else 1
         if not data.finish_reason:
-            data.finish_reason = getattr(comp, "finish_reason", None)
+            data.finish_reason = comp.finish_reason
         if data.stop_reason is None:
-            data.stop_reason = getattr(comp, "stop_reason", None)
+            data.stop_reason = comp.stop_reason
 
     data.output_text = "".join(parts)
 
-    lora_req = getattr(request_output, "lora_request", None)
-    data.lora_name = getattr(lora_req, "name", None) if lora_req else None
+    lora_req = request_output.lora_request
+    data.lora_name = lora_req.name if lora_req else None
     return data
 
 
@@ -140,11 +143,11 @@ def extract_captured_prompt(parent_span) -> Optional[str]:
 
 
 def extract_model_name(instance: Any) -> Optional[str]:
-    mc = getattr(instance, "model_config", None)
-    return getattr(mc, "model", None) if mc else None
+    mc = instance.model_config
+    return mc.model if mc else None
 
 
 def extract_lora_name(lora_request: Any) -> Optional[str]:
     if not lora_request:
         return None
-    return getattr(lora_request, "lora_name", None) or getattr(lora_request, "name", None)
+    return lora_request.lora_name or lora_request.name

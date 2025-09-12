@@ -10,6 +10,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.propagation.http import HTTPPropagator
+from vllm.sequence import RequestMetrics
 
 log = get_logger(__name__)
 
@@ -28,7 +29,7 @@ def _parent_ctx_from_config(cfg: SpanConfig) -> Optional[Any]:
     if cfg.parent:
         return cfg.parent.context
 
-    if cfg.seq_group and getattr(cfg.seq_group, "trace_headers", None):
+    if cfg.seq_group and cfg.seq_group.trace_headers:
         log.debug("[VLLM DD] create_vllm_span: found trace_headers")
         return HTTPPropagator.extract(cfg.seq_group.trace_headers)
 
@@ -40,17 +41,12 @@ def _resolve_model_name(cfg: SpanConfig) -> Optional[str]:
     if cfg.model_name:
         return cfg.model_name
 
-    if cfg.seq_group and getattr(cfg.seq_group, "trace_headers", None):
+    if cfg.seq_group and cfg.seq_group.trace_headers:
         hdrs = cfg.seq_group.trace_headers
         if hdrs and "x-datadog-vllm-model" in hdrs:
             return hdrs["x-datadog-vllm-model"]
 
-    # Global fallback set at server init (used by vLLM examples)
-    try:
-        import vllm as _v  # local import to avoid hard dependency at import time
-        return getattr(_v, "_dd_model_name", None)
-    except Exception:  # import guard (kept minimal; not defensive flow in hot path)
-        return None
+    return None
 
 
 def create_vllm_span(cfg: SpanConfig) -> Optional[Any]:
@@ -79,14 +75,14 @@ def create_vllm_span(cfg: SpanConfig) -> Optional[Any]:
         cfg.integration._set_base_span_tags(span, model_name=model_name)
         log.debug("[VLLM DD] create_vllm_span: tagged model_name=%s", model_name)
 
-    req_id = getattr(cfg.seq_group, "request_id", None) if cfg.seq_group else None
+    req_id = cfg.seq_group.request_id if cfg.seq_group else None
     if req_id:
         span.set_tag_str("vllm.request.id", str(req_id))
 
     return span
 
 
-def set_latency_metrics(span: Any, metrics: Any, start_time: Optional[float] = None) -> None:
+def set_latency_metrics(span: Any, metrics: RequestMetrics, start_time: Optional[float] = None) -> None:
     if not metrics:
         if start_time:
             # last-ditch e2e for callers that tracked their own clock
@@ -94,10 +90,10 @@ def set_latency_metrics(span: Any, metrics: Any, start_time: Optional[float] = N
             span.set_metric("vllm.latency.e2e", float(_t.time() - start_time))
         return
 
-    arrival = getattr(metrics, "arrival_time", None)
-    first_token = getattr(metrics, "first_token_time", None)
-    finished = getattr(metrics, "finished_time", None)
-    queue = getattr(metrics, "time_in_queue", None)
+    arrival = metrics.arrival_time
+    first_token = metrics.first_token_time
+    finished = metrics.finished_time
+    queue = metrics.time_in_queue
 
     if arrival and first_token:
         span.set_metric("vllm.latency.ttft", float(first_token - arrival))
@@ -133,14 +129,12 @@ def apply_llmobs_context(span: Any, integration: Any, kwargs: dict, operation: s
     if not span or not integration:
         return
 
-    if operation == "embedding" and hasattr(integration, "_build_embedding_context"):
+    if operation == "embedding":
         ctx = integration._build_embedding_context(kwargs)
-    elif hasattr(integration, "_build_completion_context"):
-        ctx = integration._build_completion_context(kwargs)
     else:
-        return
+        ctx = integration._build_completion_context(kwargs)
 
     span._set_ctx_items(ctx)
-    if hasattr(integration, "_set_supplemental_tags"):
+    if integration and integration.llmobs_enabled:
         integration._set_supplemental_tags(span, kwargs)
     log.debug("[VLLM DD] apply_llmobs_context: op=%s", operation)

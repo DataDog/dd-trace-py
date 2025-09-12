@@ -12,6 +12,8 @@ from ddtrace.contrib.trace_utils import unwrap, wrap, with_traced_module
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations.vllm import VLLMIntegration
 from ddtrace.trace import Pin
+from vllm.sequence import RequestMetrics, SequenceGroup
+from vllm.core.scheduler import SchedulerOutputs
 
 from .data_extractors import (
     RequestData,
@@ -92,27 +94,27 @@ def traced_llmengine_do_tracing(vllm_mod, pin, func, instance, args, kwargs):
     if not tracer:
         return res
 
-    scheduler_outputs = args[0] if args else kwargs.get("scheduler_outputs")
+    scheduler_outputs: SchedulerOutputs = args[0] if args else kwargs.get("scheduler_outputs")
     finished_before = set(args[1] if len(args) > 1 else (kwargs.get("finished_before") or []))
-    groups = getattr(scheduler_outputs, "scheduled_seq_groups", []) or []
+    groups = scheduler_outputs.scheduled_seq_groups or []
     log.debug("[VLLM DD] do_tracing: groups=%d finished_before=%d", len(groups), len(finished_before))
 
     for idx, scheduled in enumerate(groups):
         if finished_before and idx in finished_before:
             continue
 
-        seq_group = scheduled.seq_group
-        if getattr(seq_group, "trace_headers", None) is None and hasattr(instance, "_dd_pending_trace_headers"):
-            req_id = getattr(seq_group, "request_id", None)
+        seq_group: SequenceGroup = scheduled.seq_group
+        if seq_group.trace_headers is None and hasattr(instance, "_dd_pending_trace_headers"):
+            req_id = seq_group.request_id
             if req_id and str(req_id) in instance._dd_pending_trace_headers:
                 seq_group.trace_headers = instance._dd_pending_trace_headers.pop(str(req_id))
 
         if not seq_group.is_finished():
             continue
 
-        metrics_obj = getattr(seq_group, "metrics", None)
-        model_name = getattr(getattr(instance, "model_config", None), "model", None)
-        has_headers = bool(getattr(seq_group, "trace_headers", None))
+        metrics_obj: RequestMetrics = seq_group.metrics
+        model_name = extract_model_name(instance)
+        has_headers = bool(seq_group.trace_headers)
         parent_span = None if has_headers else tracer.current_span()
 
         span = create_vllm_span(
@@ -122,7 +124,7 @@ def traced_llmengine_do_tracing(vllm_mod, pin, func, instance, args, kwargs):
                 parent=parent_span,
                 seq_group=seq_group,
                 model_name=model_name,
-                arrival_time=getattr(metrics_obj, "arrival_time", None),
+                arrival_time=metrics_obj.arrival_time,
             )
         )
         if not span:
@@ -132,12 +134,12 @@ def traced_llmengine_do_tracing(vllm_mod, pin, func, instance, args, kwargs):
         data = RequestData(
             request_id=seq_group.request_id,
             model_name=model_name,
-            prompt=(getattr(seq_group, "trace_headers", {}) or {}).get("x-datadog-captured-prompt")
-            or getattr(seq_group, "prompt", None),
-            input_tokens=len(getattr(seq_group, "prompt_token_ids", []) or []),
+            prompt=(seq_group.trace_headers or {}).get("x-datadog-captured-prompt")
+            or seq_group.prompt,
+            input_tokens=len(seq_group.prompt_token_ids),
         )
 
-        is_embedding = getattr(seq_group, "pooling_params", None) is not None
+        is_embedding = seq_group.pooling_params is not None
         if not is_embedding:
             out_txt = []
             for s in seq_group.get_finished_seqs():
@@ -148,13 +150,13 @@ def traced_llmengine_do_tracing(vllm_mod, pin, func, instance, args, kwargs):
             op = "completion"
         else:
             op = "embedding"
-            prompt_ids = getattr(seq_group, "prompt_token_ids", None) or getattr(seq_group, "encoder_prompt_token_ids", None)
+            prompt_ids = seq_group.prompt_token_ids
             kwargs_emb = _llmobs_kwargs(data)
-            if prompt_ids is not None:
+            if prompt_ids:
                 kwargs_emb["input"] = list(prompt_ids)
                 kwargs_emb["input_tokens"] = len(prompt_ids)
-            pooled = getattr(seq_group, "pooled_data", None)
-            shape = getattr(pooled, "shape", None)
+            pooled = seq_group.pooled_data
+            shape = pooled.shape if pooled else None
             if shape:
                 kwargs_emb["embedding_dim"] = int(shape[-1])
             kwargs_emb["num_embeddings"] = 1
@@ -208,13 +210,13 @@ def traced_asyncllm_generate(vllm_mod, pin, func, instance, args, kwargs):
             outputs.append(out)
 
             if ttft is None:
-                for comp in getattr(out, "outputs", None) or []:
-                    token_ids = getattr(comp, "token_ids", None)
+                for comp in out.outputs or []:
+                    token_ids = comp.token_ids
                     if token_ids and (isinstance(token_ids, int) or len(token_ids) > 0):
                         ttft = time.time() - start
                         break
 
-            if getattr(out, "finished", False) and not finalized:
+            if out.finished and not finalized:
                 data = extract_v1_streaming_data(outputs)
                 data.model_name = extract_model_name(instance)
                 data.lora_name = extract_lora_name(lora_request)
@@ -291,17 +293,17 @@ def traced_asyncllm_encode(vllm_mod, pin, func, instance, args, kwargs):
         async for out in res:
             outputs.append(out)
             if full_prompt_token_ids is None:
-                ids = getattr(out, "prompt_token_ids", None)
+                ids = out.prompt_token_ids
                 if ids:
                     full_prompt_token_ids = list(ids)
             yield out
 
         data = RequestData(model_name=extract_model_name(instance))
         for o in outputs:
-            pt = getattr(o, "prompt_token_ids", None)
+            pt = o.prompt_token_ids
             if pt and not data.input_tokens:
                 data.input_tokens = len(pt)
-            out_obj = getattr(o, "outputs", None)
+            out_obj = o.outputs
             if out_obj and hasattr(out_obj, "data"):
                 shape = getattr(out_obj.data, "shape", None)
                 if shape:
@@ -337,7 +339,7 @@ def traced_llm_generate(vllm_mod, pin, func, instance, args, kwargs):
 
     parent = tracer.current_span()
     outputs = func(*args, **kwargs)
-    model_name = extract_model_name(getattr(instance, "llm_engine", None))
+    model_name = extract_model_name(instance.llm_engine)
 
     for output in outputs or []:
         data = extract_offline_data(output, prompts, model_name)
@@ -492,7 +494,7 @@ async def traced_mq_client_process_request(vllm_mod, pin, func, instance, args, 
             if req_id and str(req_id) in cache:
                 mapping.setdefault("x-datadog-captured-prompt", cache[str(req_id)])
 
-            model_name = getattr(getattr(instance, "model_config", None), "model", None)
+            model_name = extract_model_name(instance)
             if model_name:
                 mapping.setdefault("x-datadog-vllm-model", model_name)
 
