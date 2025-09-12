@@ -297,6 +297,7 @@ class LoggerTestCase(BaseTestCase):
     ddtrace_run=True,
     env={"DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE": "true"},
     out=lambda _: "MyThread - ERROR - Hello from thread" in _ and "Dummy" not in _,
+    err=lambda _: True,
 )
 def test_logger_no_dummy_thread_name_after_module_cleanup():
     import logging

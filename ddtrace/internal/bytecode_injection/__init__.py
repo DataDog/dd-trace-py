@@ -30,8 +30,18 @@ class InvalidLine(Exception):
 # the stack to the state prior to the call.
 
 INJECTION_ASSEMBLY = Assembly()
-if PY >= (3, 14):
-    raise NotImplementedError("Python >= 3.14 is not supported yet")
+if PY >= (3, 15):
+    raise NotImplementedError("Python >= 3.15 is not supported yet")
+elif PY >= (3, 14):
+    INJECTION_ASSEMBLY.parse(
+        r"""
+        load_const      {hook}
+        push_null
+        load_const      {arg}
+        call            1
+        pop_top
+        """
+    )
 elif PY >= (3, 13):
     INJECTION_ASSEMBLY.parse(
         r"""
