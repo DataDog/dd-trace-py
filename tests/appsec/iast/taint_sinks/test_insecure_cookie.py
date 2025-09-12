@@ -34,6 +34,7 @@ def test_insecure_cookie_deduplication(iast_context_deduplication_enabled):
 
 def test_no_httponly_cookie_deduplication(iast_context_deduplication_enabled):
     _end_iast_context_and_oce()
+
     for num_vuln_expected in [1, 0, 0]:
         _start_iast_context_and_oce()
         for _ in range(0, 5):
@@ -59,6 +60,7 @@ def test_no_httponly_cookie_deduplication(iast_context_deduplication_enabled):
 
 def test_no_samesite_cookie_deduplication(iast_context_deduplication_enabled):
     _end_iast_context_and_oce()
+
     for num_vuln_expected in [1, 0, 0]:
         _start_iast_context_and_oce()
         for _ in range(0, 5):
@@ -84,6 +86,7 @@ def test_no_samesite_cookie_deduplication(iast_context_deduplication_enabled):
 
 def test_all_cookies_deduplication(iast_context_deduplication_enabled):
     _end_iast_context_and_oce()
+
     for num_vuln_expected in [3, 0, 0]:
         _start_iast_context_and_oce()
         for _ in range(0, 5):
@@ -111,6 +114,7 @@ def test_all_cookies_deduplication(iast_context_deduplication_enabled):
 
 def test_all_cookies_two_different_sinks_deduplication(iast_context_deduplication_enabled):
     _end_iast_context_and_oce()
+
     for num_vuln_expected in [6, 0, 0]:
         _start_iast_context_and_oce()
         for _ in range(0, 5):
@@ -144,6 +148,7 @@ def test_all_cookies_two_different_sinks_deduplication(iast_context_deduplicatio
 
 def test_all_cookies_three_different_sinks_deduplication(iast_context_deduplication_enabled):
     _end_iast_context_and_oce()
+
     for num_vuln_expected in [6, 0, 0]:
         _start_iast_context_and_oce()
         for _ in range(0, 5):

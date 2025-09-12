@@ -95,8 +95,9 @@ api_add_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
     }
 
     TRY_CATCH_ASPECT("add_aspect", return result_o, , {
-        const auto tx_map = Initializer::get_tainting_map();
-        if (not tx_map or tx_map->empty()) {
+        auto tx_map =
+          taint_engine_context->get_tainted_object_map_from_list_of_pyobjects({ candidate_text, text_to_add });
+        if (not tx_map || tx_map->empty()) {
             return result_o;
         }
 
@@ -138,7 +139,8 @@ api_add_inplace_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
     }
 
     TRY_CATCH_ASPECT("add_inplace_aspect", return result_o, , {
-        const auto tx_map = Initializer::get_tainting_map();
+        auto tx_map =
+          taint_engine_context->get_tainted_object_map_from_list_of_pyobjects({ candidate_text, text_to_add });
         if (not tx_map or tx_map->empty()) {
             return result_o;
         }

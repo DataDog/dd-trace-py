@@ -14,6 +14,8 @@ def iast_create_context():
     ):
         patch_iast()
         _start_iast_context_and_oce()
-        yield
-        _end_iast_context_and_oce()
-        _testing_unpatch_iast()
+        try:
+            yield
+        finally:
+            _end_iast_context_and_oce()
+            _testing_unpatch_iast()

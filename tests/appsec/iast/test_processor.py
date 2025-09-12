@@ -59,8 +59,7 @@ def test_appsec_iast_processor_ensure_span_is_manual_keep(iast_context_defaults,
         assert span.get_metric(_SAMPLING_PRIORITY_KEY) is USER_KEEP
 
 
-@pytest.mark.skip_iast_check_logs
-@pytest.mark.parametrize("sampling_rate", [0.0, "100"])
+@pytest.mark.parametrize("sampling_rate", ["0.0", "100"])
 def test_appsec_iast_processor_ensure_span_is_sampled(iast_context_defaults, sampling_rate):
     """
     test_appsec_iast_processor_ensure_span_is_manual_keep.
