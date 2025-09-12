@@ -25,7 +25,8 @@ from ddtrace.internal.utils.http import get_connection
 from tests.appsec.iast.iast_utils import IAST_VALID_LOG
 from tests.utils import override_env
 from tests.utils import override_global_config
-
+from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_free_slots_number
+from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_size
 
 CONFIG_SERVER_PORT = "9596"
 
@@ -47,6 +48,7 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
         _trace_id_64bits = 17577308072598193742
 
     env.update({"DD_IAST_DEDUPLICATION_ENABLED": str(deduplication)})
+    # env.update({"DD_IAST_MAX_CONCURRENT_REQUESTS": "100"})
     with override_global_config(
         dict(
             _asm_enabled=asm_enabled,
@@ -57,6 +59,8 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
             _iast_request_sampling=request_sampling,
         )
     ), override_env(env):
+        assert debug_context_array_size() == 2
+        assert debug_context_array_free_slots_number() > 0
         span = MockSpan()
         _iast_start_request(span)
         weak_hash_patch()

@@ -162,7 +162,6 @@ class WrapFunctonsForIAST:
         """
         for module in self.functions:
             if module.patch():
-                log.debug("Wrapping %s", module)
                 if self.testing:
                     MODULES_TO_UNPATCH.add(module)
 
@@ -175,7 +174,6 @@ class WrapFunctonsForIAST:
         log.debug("Testing: %s. Unwrapping %s", self.testing, len(MODULES_TO_UNPATCH))
         if self.testing:
             for module in MODULES_TO_UNPATCH.copy():
-                log.debug("Unwrapping %s", module)
                 module.unpatch()
                 MODULES_TO_UNPATCH.remove(module)
 

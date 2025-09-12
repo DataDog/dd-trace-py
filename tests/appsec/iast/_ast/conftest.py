@@ -11,5 +11,7 @@ def iast_create_context():
         dict(_iast_enabled=True, _iast_is_testing=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
     ):
         _iast_start_request()
-        yield
-        _iast_finish_request()
+        try:
+            yield
+        finally:
+            _iast_finish_request()

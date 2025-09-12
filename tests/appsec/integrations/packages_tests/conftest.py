@@ -22,8 +22,10 @@ def iast_create_context():
         sqli_sqlite_patch()
         code_injection_patch()
         _iast_start_request()
-        yield
-        _iast_finish_request()
-        psycopg_unpatch()
-        sqlalchemy_unpatch()
-        sqli_sqlite_unpatch()
+        try:
+            yield
+        finally:
+            _iast_finish_request()
+            psycopg_unpatch()
+            sqlalchemy_unpatch()
+            sqli_sqlite_unpatch()

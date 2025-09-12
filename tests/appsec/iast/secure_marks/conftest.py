@@ -14,6 +14,8 @@ def iast_create_context():
     ):
         patch_iast()
         _iast_start_request()
-        yield
-        _iast_finish_request()
-        _testing_unpatch_iast()
+        try:
+            yield
+        finally:
+            _iast_finish_request()
+            _testing_unpatch_iast()

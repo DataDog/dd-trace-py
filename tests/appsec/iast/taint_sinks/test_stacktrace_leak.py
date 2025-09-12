@@ -47,6 +47,7 @@ def test_check_stacktrace_leak_text(iast_context_defaults):
 
 def test_stacktrace_leak_deduplication(iast_context_deduplication_enabled):
     _iast_finish_request()
+    VulnerabilityBase._prepare_report._reset_cache()
     for num_vuln_expected in [1, 0, 0]:
         _iast_start_request()
         for _ in range(0, 5):
@@ -63,7 +64,6 @@ def test_stacktrace_leak_deduplication(iast_context_deduplication_enabled):
             vulnerability = list(span_report.vulnerabilities)[0]
             assert vulnerability.type == VULN_STACKTRACE_LEAK
         _iast_finish_request()
-    VulnerabilityBase._prepare_report._reset_cache()
 
 
 def test_check_stacktrace_leak_text_outside_context(iast_context_deduplication_enabled):
