@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    uWSGI: It is now required to specify ``--skip-atexit`` when ``--lazy`` or
+    ``--lazy-apps`` is set on uWSGI<2.0.30. It is to prevent crashes from
+    native extension modules. See https://github.com/unbit/uwsgi/pull/2726
+    for details.
+

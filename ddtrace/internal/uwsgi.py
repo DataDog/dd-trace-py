@@ -33,6 +33,15 @@ def check_uwsgi(worker_callback: Optional[Callable] = None, atexit: Optional[Cal
         msg = "enable-threads option must be set to true, or a positive number of threads must be set"
         raise uWSGIConfigError(msg)
 
+    if (
+        hasattr(uwsgi, "version_info")
+        and uwsgi.version_info < (2, 0, 30)
+        and (uwsgi.opt.get("lazy-apps") or uwsgi.opt.get("lazy"))
+        and not uwsgi.opt.get("skip-atexit")
+    ):
+        msg = "skip-atexit option must be set when lazy-apps or lazy is set for uwsgi<2.0.30, see https://github.com/unbit/uwsgi/pull/2726"
+        raise uWSGIConfigError(msg)
+
     # If uwsgi has more than one process, it is running in prefork operational mode: uwsgi is going to fork multiple
     # sub-processes.
     # If lazy-app is enabled, then the app is loaded in each subprocess independently. This is fine.
