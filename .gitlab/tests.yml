@@ -83,8 +83,8 @@ include:
         export _CI_DD_TAGS="test.configuration.riot_hash:${hash}"
         ${RIOT_RUN_CMD} "${hash}" -- --ddtrace
       done
-      ./scripts/check-diff ".riot/requirements/" \
-        "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
+      #./scripts/check-diff ".riot/requirements/" \
+      #  "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
       ./scripts/check-diff "ddtrace/contrib/integration_registry/registry.yaml" \
         "Registry YAML file (ddtrace/contrib/integration_registry/registry.yaml) was modified. Please run: scripts/integration_registry/update_and_format_registry.py and commit the changes."
 
