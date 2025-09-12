@@ -4,12 +4,22 @@ import inspect
 import logging
 import os
 import socket
+import sys
+import threading
 from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
 
+import ray
+from ray._private.inspect_util import is_class_method
+from ray._private.inspect_util import is_function_or_method
+from ray._private.inspect_util import is_static_method
+import ray.actor
+import ray.dashboard.modules.job.job_manager
+from ray.dashboard.modules.job.job_manager import generate_job_id
+import ray.exceptions
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
@@ -28,14 +38,6 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation.http import _TraceContext
 from ddtrace.settings._config import _get_config
-import ray
-from ray._private.inspect_util import is_class_method
-from ray._private.inspect_util import is_function_or_method
-from ray._private.inspect_util import is_static_method
-import ray.actor
-import ray.dashboard.modules.job.job_manager
-from ray.dashboard.modules.job.job_manager import generate_job_id
-import ray.exceptions
 
 from .span_manager import long_running_ray_span
 from .span_manager import start_long_running_job
@@ -244,6 +246,39 @@ def traced_actor_method_call(wrapped, instance, args, kwargs):
             raise e
 
 
+def traced_put(wrapped, instance, args, kwargs):
+    """
+    Trace the calls of ray.put
+    """
+    if not tracer:
+        return wrapped(*args, **kwargs)
+
+    if tracer.current_span() is None:
+        tracer.context_provider.activate(_extract_tracing_context_from_env())
+
+    with long_running_ray_span(
+        "ray.put",
+        service=os.environ.get("_RAY_SUBMISSION_ID"),
+        span_type=SpanTypes.RAY,
+        child_of=tracer.context_provider.active(),
+        activate=True,
+    ) as span:
+        span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+        put_value = kwargs.get("value", args[0])
+        span.set_tag_str("ray.put.value_type", str(type(put_value).__name__))
+        span.set_tag_str("ray.put.value_size_bytes", str(sys.getsizeof(put_value)))
+        try:
+            callers_local_vars = inspect.currentframe().f_back.f_locals.items()
+            span.set_tag_str(
+                "ray.put.value_name",
+                next((name for name, value in callers_local_vars if value == put_value), "unknown"),
+            )
+        except Exception:
+            span.set_tag_str("ray.put.value_name", "unknown")
+        _inject_ray_span_tags(span)
+        return wrapped(*args, **kwargs)
+
+
 def job_supervisor_run_wrapper(method: Callable[..., Any]) -> Any:
     async def _traced_run_method(self: Any, *args: Any, _dd_trace_ctx=None, **kwargs: Any) -> Any:
         from ddtrace import tracer
@@ -393,6 +428,7 @@ def patch():
 
     _w(ray.actor, "_modify_class", inject_tracing_into_actor_class)
     _w(ray.actor.ActorHandle, "_actor_method_call", traced_actor_method_call)
+    _w(ray, "put", traced_put)
 
 
 def unpatch():
@@ -412,3 +448,4 @@ def unpatch():
 
     _u(ray.actor, "_modify_class")
     _u(ray.actor.ActorHandle, "_actor_method_call")
+    _u(ray, "put")
