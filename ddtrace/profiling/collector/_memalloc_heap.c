@@ -335,7 +335,7 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
         return;
     }
 
-#if defined(_PY312_AND_LATER) || !defined(_PY310_AND_LATER)
+#if defined(_PY310_AND_LATER) && !defined(_PY312_AND_LATER)
     /* Prior to Python 3.12, and particularly in Python 3.11, collecting
        tracebacks while intercepting allocations is prone to crashes. We
        currently use the C Python API to collect tracebacks, which can
@@ -365,7 +365,7 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
        of sample live allocations stays close to the actual heap size */
     traceback_t* tb = memalloc_get_traceback(max_nframe, ptr, size, domain, global_heap_tracker.allocated_memory);
 
-#if defined(_PY312_AND_LATER) || !defined(_PY310_AND_LATER)
+#if defined(_PY310_AND_LATER) && !defined(_PY312_AND_LATER)
     if (gc_enabled) {
         PyGC_Enable();
     }
