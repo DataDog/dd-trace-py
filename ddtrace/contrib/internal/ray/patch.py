@@ -46,6 +46,7 @@ from .utils import _inject_context_in_kwargs
 from .utils import _inject_dd_trace_ctx_kwarg
 from .utils import _inject_ray_span_tags
 from .utils import extract_signature
+from .utils import get_dd_job_name
 
 
 logger = logging.getLogger(__name__)
@@ -119,7 +120,7 @@ def _wrap_task_execution(wrapped, *args, **kwargs):
 
     with long_running_ray_span(
         f"{function_module}.{function_name}",
-        service=os.environ.get("_RAY_SUBMISSION_ID"),
+        service=get_dd_job_name(),
         span_type=SpanTypes.RAY,
         child_of=extracted_context,
         activate=True,
@@ -150,7 +151,7 @@ def traced_submit_task(wrapped, instance, args, kwargs):
             instance._function_signature = extract_signature(instance._function)
 
     with tracer.trace(
-        f"{instance._function_name}.remote()", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.RAY
+        f"{instance._function_name}.remote()", service=get_dd_job_name(), span_type=SpanTypes.RAY
     ) as span:
         span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
         _inject_ray_span_tags(span)
@@ -170,8 +171,8 @@ def traced_submit_task(wrapped, instance, args, kwargs):
 def traced_submit_job(wrapped, instance, args, kwargs):
     """Trace job submission. This function is also responsible
     of creating the root span.
-    It will also inject _RAY_SUBMISSION_ID
-    in the env variable as some spans will not have access to it
+    It will also inject _RAY_SUBMISSION_ID and _RAY_JOB_NAME
+    in the env variable as some spans will not have access to them
     trough ray_ctx
     """
 
@@ -180,23 +181,29 @@ def traced_submit_job(wrapped, instance, args, kwargs):
 
     submission_id = kwargs.get("submission_id") or generate_job_id()
     kwargs["submission_id"] = submission_id
+    job_name = kwargs.get("metadata", {}).get("job_name", "")
 
     # Root span creation
-    job_span = tracer.start_span("ray.job", service=submission_id, span_type=SpanTypes.RAY)
+    job_span = tracer.start_span("ray.job", service=job_name or get_dd_job_name(submission_id), span_type=SpanTypes.RAY)
     job_span.set_tag_str("component", "ray")
     job_span.set_tag_str("ray.submission_id", submission_id)
     tracer.context_provider.activate(job_span)
     start_long_running_job(job_span)
 
     try:
-        with tracer.trace("ray.job.submit", service=submission_id, span_type=SpanTypes.RAY) as submit_span:
+        with tracer.trace(
+            "ray.job.submit", service=job_name or get_dd_job_name(submission_id), span_type=SpanTypes.RAY
+        ) as submit_span:
             submit_span.set_tag_str("component", "ray")
             submit_span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+            submit_span.set_tag_str("ray.submission_id", submission_id)
 
             # Inject the context of the job so that ray.job.run is its child
             env_vars = kwargs.setdefault("runtime_env", {}).setdefault("env_vars", {})
             _TraceContext._inject(job_span.context, env_vars)
             env_vars["_RAY_SUBMISSION_ID"] = submission_id
+            if job_name:
+                env_vars["_RAY_JOB_NAME"] = job_name
 
             try:
                 resp = wrapped(*args, **kwargs)
@@ -232,7 +239,7 @@ def traced_actor_method_call(wrapped, instance, args, kwargs):
         tracer.context_provider.activate(_extract_tracing_context_from_env())
 
     with tracer.trace(
-        f"{actor_name}.{method_name}.remote()", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.RAY
+        f"{actor_name}.{method_name}.remote()", service=get_dd_job_name(), span_type=SpanTypes.RAY
     ) as span:
         span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
         _inject_ray_span_tags(span)
@@ -257,7 +264,7 @@ def job_supervisor_run_wrapper(method: Callable[..., Any]) -> Any:
 
         with long_running_ray_span(
             f"{self.__class__.__name__}.{method.__name__}",
-            service=submission_id,
+            service=get_dd_job_name(),
             span_type=SpanTypes.RAY,
             child_of=context,
             activate=True,
@@ -285,7 +292,7 @@ def _trace_actor_method(self: Any, method: Callable[..., Any], dd_trace_ctx):
 
     with long_running_ray_span(
         f"{self.__class__.__name__}.{method.__name__}",
-        service=os.environ.get("_RAY_SUBMISSION_ID"),
+        service=get_dd_job_name(),
         span_type=SpanTypes.RAY,
         child_of=context,
         activate=True,
