@@ -1,10 +1,15 @@
 # -*- encoding: utf-8 -*-
-from collections import namedtuple
 import logging
 import os
 import threading
-import typing  # noqa:F401
+from typing import Any
+from typing import List
+from typing import NamedTuple
 from typing import Optional
+from typing import Set
+from typing import cast
+
+from ddtrace.profiling.event import DDFrame
 
 
 try:
@@ -21,10 +26,14 @@ from ddtrace.settings.profiling import config
 
 LOG = logging.getLogger(__name__)
 
-MemorySample = namedtuple(
-    "MemorySample",
-    ("frames", "size", "count", "in_use_size", "alloc_size", "thread_id"),
-)
+
+class MemorySample(NamedTuple):
+    frames: List[DDFrame]
+    size: int
+    count: int  # pyright: ignore[reportIncompatibleMethodOverride] (count is a method of tuple)
+    in_use_size: int
+    alloc_size: int
+    thread_id: int
 
 
 class MemoryCollector:
@@ -35,13 +44,14 @@ class MemoryCollector:
         max_nframe: Optional[int] = None,
         heap_sample_size: Optional[int] = None,
         ignore_profiler: Optional[bool] = None,
-    ):
-        self.max_nframe: int = max_nframe if max_nframe is not None else config.max_frames
-        self.heap_sample_size: int = heap_sample_size if heap_sample_size is not None else config.heap.sample_size
+    ) -> None:
+        self.max_nframe: int = max_nframe if max_nframe is not None else cast(int, config.max_frames)
+        self.heap_sample_size: int = (
+            heap_sample_size if heap_sample_size is not None else cast(int, config.heap.sample_size)  # type: ignore[reportGeneralTypeIssues]
+        )
         self.ignore_profiler: bool = ignore_profiler if ignore_profiler is not None else config.ignore_profiler
 
-    def start(self):
-        # type: (...) -> None
+    def start(self) -> None:
         """Start collecting memory profiles."""
         if _memalloc is None:
             raise collector.CollectorUnavailable
@@ -55,7 +65,7 @@ class MemoryCollector:
             _memalloc.stop()
             _memalloc.start(self.max_nframe, self.heap_sample_size)
 
-    def __enter__(self):
+    def __enter__(self) -> None:
         self.start()
 
     def __exit__(self, exc_type, exc_value, traceback):
@@ -64,16 +74,14 @@ class MemoryCollector:
     def join(self):
         pass
 
-    def stop(self):
-        # type: () -> None
+    def stop(self) -> None:
         if _memalloc is not None:
             try:
                 _memalloc.stop()
             except RuntimeError:
                 LOG.debug("Failed to stop memalloc profiling on shutdown", exc_info=True)
 
-    def _get_thread_id_ignore_set(self):
-        # type: () -> typing.Set[int]
+    def _get_thread_id_ignore_set(self) -> Set[int]:
         # This method is not perfect and prone to race condition in theory, but very little in practice.
         # Anyhow it's not a big deal — it's a best effort feature.
         return {
@@ -82,10 +90,11 @@ class MemoryCollector:
             if getattr(thread, "_ddtrace_profiling_ignore", False) and thread.ident is not None
         }
 
-    def snapshot(self):
+    def snapshot(self) -> tuple[Any, ...]:
         thread_id_ignore_set = self._get_thread_id_ignore_set()
 
         try:
+            assert _memalloc is not None
             events = _memalloc.heap()
         except RuntimeError:
             # DEV: This can happen if either _memalloc has not been started or has been stopped.
@@ -118,17 +127,18 @@ class MemoryCollector:
                     LOG.debug("Invalid state detected in memalloc module, suppressing profile")
         return tuple()
 
-    def test_snapshot(self):
+    def test_snapshot(self) -> tuple[MemorySample, ...]:
         thread_id_ignore_set = self._get_thread_id_ignore_set()
 
         try:
+            assert _memalloc is not None
             events = _memalloc.heap()
         except RuntimeError:
             # DEV: This can happen if either _memalloc has not been started or has been stopped.
             LOG.debug("Unable to collect heap events from process %d", os.getpid(), exc_info=True)
             return tuple()
 
-        samples = []
+        samples: List[MemorySample] = []
         for event in events:
             (frames, thread_id), in_use_size, alloc_size, count = event
 
@@ -139,5 +149,5 @@ class MemoryCollector:
 
         return tuple(samples)
 
-    def collect(self):
+    def collect(self) -> tuple[Any, ...]:
         return tuple()
