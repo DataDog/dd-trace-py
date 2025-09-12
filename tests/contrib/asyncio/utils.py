@@ -6,11 +6,12 @@ import sys
 try:
     import pytest_asyncio
 
+    from ddtrace.internal.utils.version import parse_version
+
     PYTEST_ASYNCIO_VERSION = parse_version(pytest_asyncio.__version__)
 except (ModuleNotFoundError, ImportError):
     PYTEST_ASYNCIO_VERSION = None
 
-from ddtrace.internal.utils.version import parse_version
 from tests.utils import TracerTestCase
 
 
