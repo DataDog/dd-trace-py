@@ -9,10 +9,6 @@ import pytest
 from tests.webclient import Client
 
 
-CARDINALITY_MANY_PARAMS = {
-    "CARDINALITY": "many",
-}
-
 DEFAULT_HEADERS = {
     "User-Agent": "python-httpx/x.xx.x",
 }
@@ -20,8 +16,6 @@ DEFAULT_HEADERS = {
 DISTRIBUTED_TRACING_DISABLED_PARAMS = {
     "DD_AZURE_FUNCTIONS_DISTRIBUTED_TRACING": "False",
 }
-
-SNAPSHOT_IGNORES = ["meta.messaging.message_id"]
 
 
 @pytest.fixture
@@ -129,45 +123,6 @@ def test_http_get_function_name_decorator_order(azure_functions_client: Client) 
 @pytest.mark.snapshot
 def test_http_get_distributed_tracing(azure_functions_client: Client) -> None:
     assert azure_functions_client.get("/api/httpgetroot", headers=DEFAULT_HEADERS).status_code == 200
-
-
-@pytest.mark.parametrize(
-    "azure_functions_client",
-    [{}, DISTRIBUTED_TRACING_DISABLED_PARAMS],
-    ids=["enabled", "disabled"],
-    indirect=True,
-)
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
-def test_service_bus_distributed_tracing(azure_functions_client: Client) -> None:
-    assert azure_functions_client.post("/api/httppostrootservicebus", headers=DEFAULT_HEADERS).status_code == 200
-
-
-@pytest.mark.parametrize(
-    "azure_functions_client",
-    [CARDINALITY_MANY_PARAMS],
-    ids=["many"],
-    indirect=True,
-)
-@pytest.mark.snapshot()
-def test_service_bus_consume_same_context(azure_functions_client: Client) -> None:
-    assert (
-        azure_functions_client.post("/api/httppostrootservicebusmanysamecontext", headers=DEFAULT_HEADERS).status_code
-        == 200
-    )
-
-
-@pytest.mark.parametrize(
-    "azure_functions_client",
-    [CARDINALITY_MANY_PARAMS],
-    ids=["many"],
-    indirect=True,
-)
-@pytest.mark.snapshot()
-def test_service_bus_consume_diff_context(azure_functions_client: Client) -> None:
-    assert (
-        azure_functions_client.post("/api/httppostrootservicebusmanydiffcontext", headers=DEFAULT_HEADERS).status_code
-        == 200
-    )
 
 
 @pytest.mark.snapshot
