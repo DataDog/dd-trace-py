@@ -12,6 +12,14 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
+import ray
+from ray._private.inspect_util import is_class_method
+from ray._private.inspect_util import is_function_or_method
+from ray._private.inspect_util import is_static_method
+import ray.actor
+import ray.dashboard.modules.job.job_manager
+from ray.dashboard.modules.job.job_manager import generate_job_id
+import ray.exceptions
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
@@ -30,14 +38,6 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation.http import _TraceContext
 from ddtrace.settings._config import _get_config
-import ray
-from ray._private.inspect_util import is_class_method
-from ray._private.inspect_util import is_function_or_method
-from ray._private.inspect_util import is_static_method
-import ray.actor
-import ray.dashboard.modules.job.job_manager
-from ray.dashboard.modules.job.job_manager import generate_job_id
-import ray.exceptions
 
 from .span_manager import long_running_ray_span
 from .span_manager import start_long_running_job
@@ -256,7 +256,13 @@ def traced_put(wrapped, instance, args, kwargs):
     if tracer.current_span() is None:
         tracer.context_provider.activate(_extract_tracing_context_from_env())
 
-    with tracer.trace("ray.put", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.RAY) as span:
+    with long_running_ray_span(
+        "ray.put",
+        service=os.environ.get("_RAY_SUBMISSION_ID"),
+        span_type=SpanTypes.RAY,
+        child_of=tracer.context_provider.active(),
+        activate=True,
+    ) as span:
         span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
         put_value = kwargs.get("value", args[0])
         span.set_tag_str("ray.put.value_type", str(type(put_value).__name__))
