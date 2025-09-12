@@ -30,20 +30,6 @@ def _set_span_tag_iast_request_tainted(span):
         span.set_tag(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED, total_objects_tainted)
 
 
-def start_iast_context(span: Optional["Span"] = None):
-    if asm_config._iast_enabled:
-        create_propagation_context()
-        core.set_item(IAST.REQUEST_CONTEXT_KEY, IASTEnvironment(span))
-
-
-def end_iast_context(span: Optional["Span"] = None):
-    env = _get_iast_env()
-    if env is not None and env.span is span:
-        update_global_vulnerability_limit(env)
-        finalize_iast_env(env)
-    reset_propagation_context()
-
-
 def finalize_iast_env(env: IASTEnvironment) -> None:
     core.discard_item(IAST.REQUEST_CONTEXT_KEY)
 
@@ -69,11 +55,6 @@ def set_iast_request_enabled(request_enabled) -> None:
         log.debug("iast::propagation::context::Trying to set IAST reporter but no context is present")
 
 
-def is_iast_request_enabled() -> bool:
-    """Check whether IAST is currently operating within an active request context."""
-    return asm_config.is_iast_request_enabled
-
-
 def set_iast_request_endpoint(method, route) -> None:
     if asm_config._iast_enabled:
         env = _get_iast_env()
@@ -89,13 +70,32 @@ def set_iast_request_endpoint(method, route) -> None:
 def _iast_start_request(span=None, *args, **kwargs):
     try:
         if asm_config._iast_enabled:
-            start_iast_context(span)
+            create_propagation_context()
+            core.set_item(IAST.REQUEST_CONTEXT_KEY, IASTEnvironment(span))
             request_iast_enabled = False
             if oce.acquire_request(span):
                 request_iast_enabled = True
             set_iast_request_enabled(request_iast_enabled)
     except Exception:
         log.debug("iast::propagation::context::Error starting IAST context", exc_info=True)
+
+
+def _get_iast_context_id() -> Optional[int]:
+    """Retrieve the current IAST context identifier from the ContextVar."""
+    return IAST_CONTEXT.get()
+
+
+def _iast_finish_request(span: Optional["Span"] = None):
+    env = _get_iast_env()
+    if env is not None and env.span is span:
+        update_global_vulnerability_limit(env)
+        finalize_iast_env(env)
+    reset_propagation_context()
+
+
+def is_iast_request_enabled() -> bool:
+    """Check whether IAST is currently operating within an active request context."""
+    return asm_config.is_iast_request_enabled
 
 
 def _num_objects_tainted_in_request():

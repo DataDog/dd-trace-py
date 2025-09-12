@@ -42,10 +42,10 @@ def test_check_stacktrace_leak_text(iast_context_defaults):
         vulnerabilities[0].evidence.value
         == 'Module: ".usr.local.lib.python3.9.site-packages.constraints.py"\nException: ValueError'
     )
-    VulnerabilityBase._prepare_report._reset_cache()
 
 
 def test_stacktrace_leak_deduplication(iast_context_deduplication_enabled):
+    _end_iast_context_and_oce()
     for num_vuln_expected in [1, 0, 0]:
         _start_iast_context_and_oce()
         for _ in range(0, 5):
