@@ -2,24 +2,34 @@ import bm
 from bm.utils import override_env
 
 
-with override_env({"DD_IAST_ENABLED": "True"}):
+try:
+    # 3.15+
+    from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request as end_iast_context
+    from ddtrace.appsec._iast._iast_request_context_base import _start_iast_context as iast_start_request
+    from ddtrace.appsec._iast._iast_request_context_base import set_iast_request_enabled
+except ImportError:
     try:
-        # 3.15+
-        from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
-        from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
+        # 3.6+
+        from ddtrace.appsec._iast._iast_request_context_base import end_iast_context
+        from ddtrace.appsec._iast._iast_request_context_base import iast_start_request
+        from ddtrace.appsec._iast._iast_request_context_base import set_iast_request_enabled
     except ImportError:
-        try:
-            # 3.6+
-            from ddtrace.appsec._iast._iast_request_context_base import set_iast_request_enabled  # noqa: F401
-            from ddtrace.appsec._iast._iast_request_context_base import start_iast_context  # noqa: F401
-        except ImportError:
-            # Pre 3.6
-            try:
-                from ddtrace.appsec._iast._iast_request_context import end_iast_context  # noqa: F401
-                from ddtrace.appsec._iast._iast_request_context import set_iast_request_enabled  # noqa: F401
-                from ddtrace.appsec._iast._iast_request_context import start_iast_context  # noqa: F401
-            except ImportError:
-                pass
+        # Pre 3.6
+        from ddtrace.appsec._iast._iast_request_context import end_iast_context
+        from ddtrace.appsec._iast._iast_request_context import iast_start_request
+        from ddtrace.appsec._iast._iast_request_context import set_iast_request_enabled
+
+
+def _start_iast_context_and_oce():
+    # oce.reconfigure()
+    # oce.acquire_request(None)
+    iast_start_request()
+    set_iast_request_enabled(True)
+
+
+def _end_iast_context_and_oce():
+    end_iast_context()
+    # oce.release_request()
 
 
 with override_env({"DD_IAST_ENABLED": "True"}):
@@ -33,7 +43,7 @@ class IASTAspectsSplit(bm.Scenario):
     def run(self):
         if self.iast_enabled:
             with override_env({"DD_IAST_ENABLED": "True"}):
-                _iast_start_request()
+                _start_iast_context_and_oce()
 
         def _(loops):
             for _ in range(loops):
@@ -47,4 +57,4 @@ class IASTAspectsSplit(bm.Scenario):
         yield _
         if self.iast_enabled:
             with override_env({"DD_IAST_ENABLED": "True"}):
-                _iast_finish_request()
+                _end_iast_context_and_oce()
