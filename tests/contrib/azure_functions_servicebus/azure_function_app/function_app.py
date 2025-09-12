@@ -57,24 +57,48 @@ def topic_send_message_batch(req: func.HttpRequest) -> func.HttpResponse:
     return func.HttpResponse("Hello Datadog!")
 
 
-@app.function_name(name="servicebusqueue")
-@app.service_bus_queue_trigger(
-    arg_name="msg",
-    queue_name="queue.1",
-    connection="CONNECTION_STRING",
-    cardinality=os.getenv("CARDINALITY", "one"),
-)
-def service_bus_queue(msg: func.ServiceBusMessage):
-    pass
+if os.getenv("IS_ASYNC") == "True":
 
+    @app.function_name(name="servicebusqueue")
+    @app.service_bus_queue_trigger(
+        arg_name="msg",
+        queue_name="queue.1",
+        connection="CONNECTION_STRING",
+        cardinality=os.getenv("CARDINALITY", "one"),
+    )
+    async def service_bus_queue(msg: func.ServiceBusMessage):
+        pass
 
-@app.function_name(name="servicebustopic")
-@app.service_bus_topic_trigger(
-    arg_name="msg",
-    topic_name="topic.1",
-    subscription_name="subscription.3",
-    connection="CONNECTION_STRING",
-    cardinality=os.getenv("CARDINALITY", "one"),
-)
-def service_bus_topic(msg: func.ServiceBusMessage):
-    pass
+    @app.function_name(name="servicebustopic")
+    @app.service_bus_topic_trigger(
+        arg_name="msg",
+        topic_name="topic.1",
+        subscription_name="subscription.3",
+        connection="CONNECTION_STRING",
+        cardinality=os.getenv("CARDINALITY", "one"),
+    )
+    async def service_bus_topic(msg: func.ServiceBusMessage):
+        pass
+
+else:
+
+    @app.function_name(name="servicebusqueue")
+    @app.service_bus_queue_trigger(
+        arg_name="msg",
+        queue_name="queue.1",
+        connection="CONNECTION_STRING",
+        cardinality=os.getenv("CARDINALITY", "one"),
+    )
+    def service_bus_queue(msg: func.ServiceBusMessage):
+        pass
+
+    @app.function_name(name="servicebustopic")
+    @app.service_bus_topic_trigger(
+        arg_name="msg",
+        topic_name="topic.1",
+        subscription_name="subscription.3",
+        connection="CONNECTION_STRING",
+        cardinality=os.getenv("CARDINALITY", "one"),
+    )
+    def service_bus_topic(msg: func.ServiceBusMessage):
+        pass

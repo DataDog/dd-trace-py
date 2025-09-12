@@ -13,21 +13,26 @@ from tests.webclient import Client
 SNAPSHOT_IGNORES = ["meta.messaging.message_id", "span_links.tracestate", "span_links.trace_id_high"]
 DEFAULT_HEADERS = {"User-Agent": "python-httpx/x.xx.x"}
 ENTITY_TYPES = ["queue", "topic"]
+ASYNC_OPTIONS = [False, True]
 CARDINALITY = ["one", "many"]
-DISTRIBUTED_TRACING_ENABLED_OPTIONS = [None, "False"]
+DISTRIBUTED_TRACING_ENABLED_OPTIONS = [None, False]
 
 param_values = [
     (
-        {**{"CARDINALITY": c}, **({} if d is None else {"DD_AZURE_FUNCTIONS_DISTRIBUTED_TRACING": d})},
+        {
+            **{"IS_ASYNC": str(a)},
+            **{"CARDINALITY": c},
+            **({} if d is None else {"DD_AZURE_FUNCTIONS_DISTRIBUTED_TRACING": str(d)}),
+        },
         e,
         "single" if c == "one" else "batch",
     )
-    for e, c, d in itertools.product(ENTITY_TYPES, CARDINALITY, DISTRIBUTED_TRACING_ENABLED_OPTIONS)
+    for e, a, c, d in itertools.product(ENTITY_TYPES, ASYNC_OPTIONS, CARDINALITY, DISTRIBUTED_TRACING_ENABLED_OPTIONS)
 ]
 
 param_ids = [
-    f"{e}_consume_{c}" f"_distributed_tracing_{'enabled' if d is None else 'disabled'}"
-    for e, c, d in itertools.product(ENTITY_TYPES, CARDINALITY, DISTRIBUTED_TRACING_ENABLED_OPTIONS)
+    f"{e}{'_async' if a else ''}_consume_{c}" f"_distributed_tracing_{'enabled' if d is None else 'disabled'}"
+    for e, a, c, d in itertools.product(ENTITY_TYPES, ASYNC_OPTIONS, CARDINALITY, DISTRIBUTED_TRACING_ENABLED_OPTIONS)
 ]
 
 
