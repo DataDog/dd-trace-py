@@ -1,3 +1,6 @@
+from typing import Optional
+
+
 class Integration:
     """
     Represents an integration in the registry.
@@ -7,8 +10,8 @@ class Integration:
         self,
         integration_name: str,
         is_external_package: bool = True,
-        dependency_names: list = None,
-        tested_versions_by_dependency: dict = None,
+        dependency_names: Optional[list] = None,
+        tested_versions_by_dependency: Optional[dict] = None,
         is_tested: bool = True,
     ):
         self.integration_name = integration_name
@@ -84,7 +87,7 @@ class Integration:
                 return True
         return False
 
-    def update(self, updates: dict, update_versions: bool = False, riot_venv: str = None) -> bool:
+    def update(self, updates: dict, update_versions: bool = False, riot_venv: Optional[str] = None) -> bool:
         """Updates the integration with the new dependency versions."""
         # skip if the integration is not an external package
         if not self.is_external_package:

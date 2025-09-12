@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    AAP: This fix disables grpc threat monitoring, as it could generate false positives.
