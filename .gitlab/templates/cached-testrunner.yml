@@ -15,15 +15,13 @@
     else
         source $EXT_CACHE_VENV/bin/activate
     fi
-    python scripts/gen_ext_cache_scripts.py
+    python scripts/ext_cache.py restore
     deactivate
-    $SHELL scripts/restore-ext-cache.sh
   after_script: |
     set -e -o pipefail
     source $EXT_CACHE_VENV/bin/activate
-    python scripts/gen_ext_cache_scripts.py
+    python scripts/ext_cache.py save
     deactivate
-    $SHELL scripts/save-ext-cache.sh
   cache:
     # Share pip between jobs of the same Python version
     - key: v2-build_base_venvs-${{PYTHON_VERSION}}-cache-{current_month}
