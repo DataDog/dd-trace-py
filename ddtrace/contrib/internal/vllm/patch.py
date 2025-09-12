@@ -22,6 +22,7 @@ from .data_extractors import (
     extract_model_name,
     extract_offline_data,
     extract_v1_streaming_data,
+    _embedding_dim,
 )
 from .span_utils import (
     SpanConfig,
@@ -155,10 +156,7 @@ def traced_llmengine_do_tracing(vllm_mod, pin, func, instance, args, kwargs):
             if prompt_ids:
                 kwargs_emb["input"] = list(prompt_ids)
                 kwargs_emb["input_tokens"] = len(prompt_ids)
-            pooled = seq_group.pooled_data
-            shape = pooled.shape if pooled else None
-            if shape:
-                kwargs_emb["embedding_dim"] = int(shape[-1])
+            kwargs_emb["embedding_dim"] = _embedding_dim(seq_group.pooled_data)
             kwargs_emb["num_embeddings"] = 1
             if integration and integration.llmobs_enabled:
                 integration.llmobs_set_tags(span, args=[], kwargs=kwargs_emb, response=None, operation=op)
