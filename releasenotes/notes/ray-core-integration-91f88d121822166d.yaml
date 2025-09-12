@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    ray: This introduces a Ray core integration that traces Ray jobs, remote
+    tasks, and actor method calls. Supported for Ray >= 2.46.0.
+
+    To enable tracing, start the Ray head with
+    `--tracing-startup-hook=ddtrace.contrib.internal.ray.hook:setup_tracing`,
+    then submit jobs as usual.
