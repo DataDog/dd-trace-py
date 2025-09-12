@@ -2,7 +2,13 @@ import asyncio
 from functools import wraps
 import sys
 
+import pytest_asyncio
+
+from ddtrace.internal.utils.version import parse_version
 from tests.utils import TracerTestCase
+
+
+PYTEST_ASYNCIO_VERSION = parse_version(pytest_asyncio.__version__)
 
 
 class AsyncioTestCase(TracerTestCase):
@@ -14,16 +20,18 @@ class AsyncioTestCase(TracerTestCase):
 
     def setUp(self):
         super(AsyncioTestCase, self).setUp()
-        # each test must have its own event loop
-        self._main_loop = asyncio.get_event_loop()
+        if PYTEST_ASYNCIO_VERSION < (1, 0):
+            # each test must have its own event loop
+            self._main_loop = asyncio.get_event_loop()
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
 
     def tearDown(self):
         super(AsyncioTestCase, self).tearDown()
 
-        # restore the main loop
-        asyncio.set_event_loop(self._main_loop)
+        if PYTEST_ASYNCIO_VERSION < (1, 0):
+            # restore the main loop
+            asyncio.set_event_loop(self._main_loop)
         self.loop = None
         self._main_loop = None
 
