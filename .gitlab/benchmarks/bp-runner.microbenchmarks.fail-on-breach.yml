@@ -59,7 +59,7 @@ experiments:
               - max_rss_usage < 66.00 MB
           - name: djangosimple-tracer-minimal
             thresholds:
-              - execution_time < 19.50 ms
+              - execution_time < 17.50 ms
               - max_rss_usage < 66.00 MB
           - name: djangosimple-tracer-native
             thresholds:
