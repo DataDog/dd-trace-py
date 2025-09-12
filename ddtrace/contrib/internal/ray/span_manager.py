@@ -1,25 +1,20 @@
+from contextlib import contextmanager
 import threading
 import time
 
 from ddtrace import config
 from ddtrace import tracer
 from ddtrace._trace.span import Span
-from contextlib import contextmanager
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
+
 from .utils import _inject_ray_span_tags
 
 
 @contextmanager
 def long_running_ray_span(span_name, service, span_type, child_of=None, activate=True):
     """Context manager that handles Ray span creation and long-running span lifecycle"""
-    span = tracer.start_span(
-        name=span_name,
-        service=service,
-        span_type=span_type,
-        child_of=child_of,
-        activate=activate
-    )
+    span = tracer.start_span(name=span_name, service=service, span_type=span_type, child_of=child_of, activate=activate)
     span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
     _inject_ray_span_tags(span)
     start_long_running_span(span)
@@ -71,9 +66,7 @@ class LongRunningJobManager:
         tracer._span_aggregator.writer.write([partial_span] + finished_children)
 
     def _create_resubmit_timer(self, submission_id):
-        timer = threading.Timer(
-            config.ray.resubmit_interval, self._resubmit_long_running_spans, args=[submission_id]
-        )
+        timer = threading.Timer(config.ray.resubmit_interval, self._resubmit_long_running_spans, args=[submission_id])
         timer.daemon = True
         self._timers[submission_id] = timer
         timer.start()
@@ -123,7 +116,6 @@ class LongRunningJobManager:
             span.set_tag_str("ray.job.status", "FINISHED")
 
         if job_info:
-            span.set_metric("_dd.was_long_running", 1)
             span.set_tag_str("ray.job.status", job_info.status)
             span.set_tag_str("ray.job.message", job_info.message)
 

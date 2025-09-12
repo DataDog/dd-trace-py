@@ -21,7 +21,6 @@ from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.schema import schematize_service_name
@@ -33,16 +32,14 @@ import ray
 from ray._private.inspect_util import is_class_method
 from ray._private.inspect_util import is_function_or_method
 from ray._private.inspect_util import is_static_method
-import ray._private.worker
 import ray.actor
 import ray.dashboard.modules.job.job_manager
 from ray.dashboard.modules.job.job_manager import generate_job_id
-import ray.dashboard.modules.job.job_supervisor
 import ray.exceptions
 
+from .span_manager import long_running_ray_span
 from .span_manager import start_long_running_job
 from .span_manager import stop_long_running_job
-from .span_manager import long_running_ray_span
 from .utils import _extract_tracing_context_from_env
 from .utils import _inject_context_in_env
 from .utils import _inject_context_in_kwargs
@@ -90,6 +87,8 @@ class RayTraceProcessor:
 
                 # add host name for GPU Monitoring correlation
                 span.set_tag_str(_HOSTNAME_KEY, socket.gethostname())
+            with open("ray_spans.log", "a") as f:
+                f.write(f"Span: {span.name}, {span._metrics}\n")
             filtered_spans.append(span)
         return filtered_spans
 
@@ -123,13 +122,13 @@ def _wrap_task_execution(wrapped, *args, **kwargs):
         service=os.environ.get("_RAY_SUBMISSION_ID"),
         span_type=SpanTypes.RAY,
         child_of=extracted_context,
-        activate=True
+        activate=True,
     ) as task_execute_span:
         try:
             result = wrapped(*args, **kwargs)
             task_execute_span.set_tag_str("ray.task.status", "success")
             return result
-        except Exception as e:
+        except Exception:
             task_execute_span.set_tag_str("ray.task.status", "error")
             raise
 
@@ -261,7 +260,7 @@ def job_supervisor_run_wrapper(method: Callable[..., Any]) -> Any:
             service=submission_id,
             span_type=SpanTypes.RAY,
             child_of=context,
-            activate=True
+            activate=True,
         ) as supervisor_run_span:
             _inject_context_in_env(supervisor_run_span.context)
 
