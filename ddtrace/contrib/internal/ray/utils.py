@@ -8,10 +8,9 @@ from typing import Callable
 from typing import List
 from typing import Optional
 
+from ddtrace.propagation.http import _TraceContext
 import ray
 from ray.runtime_context import get_runtime_context
-
-from ddtrace.propagation.http import _TraceContext
 
 
 DEFAULT_JOB_NAME = "unspecified.ray.job"
