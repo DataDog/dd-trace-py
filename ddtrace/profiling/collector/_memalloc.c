@@ -17,8 +17,6 @@ typedef struct
     PyMemAllocatorEx pymem_allocator_obj;
     /* The domain we are tracking */
     PyMemAllocatorDomain domain;
-    /* The maximum number of events for allocation tracking */
-    uint16_t max_events;
     /* The maximum number of frames collected in stack traces */
     uint16_t max_nframe;
 
@@ -93,15 +91,16 @@ memalloc_realloc(void* ctx, void* ptr, size_t new_size)
 }
 
 PyDoc_STRVAR(memalloc_start__doc__,
-             "start($module, max_nframe, max_events, heap_sample_size)\n"
+             "start($module, max_nframe, heap_sample_interval)\n"
              "--\n"
              "\n"
              "Start tracing Python memory allocations.\n"
              "\n"
              "Sets the maximum number of frames stored in the traceback of a\n"
-             "trace to max_nframe and the maximum number of events to max_events.\n"
-             "Set heap_sample_size to the granularity of the heap profiler, in bytes.\n"
-             "If heap_sample_size is set to 0, it is disabled entirely.\n");
+             "trace to max_nframe.\n"
+             "Sets the average number of bytes allocated between samples to\n"
+             "heap_sample_interval.\n"
+             "If heap_sample_interval is set to 0, it is disabled entirely.\n");
 static PyObject*
 memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
 {
@@ -117,11 +116,11 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
         srand(atoi(val));
     }
 
-    long max_nframe, max_events;
+    long max_nframe;
     long long int heap_sample_size;
 
     /* Store short ints in ints so we're sure they fit */
-    if (!PyArg_ParseTuple(args, "llL", &max_nframe, &max_events, &heap_sample_size))
+    if (!PyArg_ParseTuple(args, "lL", &max_nframe, &heap_sample_size))
         return NULL;
 
     if (max_nframe < 1 || max_nframe > TRACEBACK_MAX_NFRAME) {
@@ -130,13 +129,6 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
     }
 
     global_memalloc_ctx.max_nframe = (uint16_t)max_nframe;
-
-    if (max_events < 1 || max_events > TRACEBACK_ARRAY_MAX_COUNT) {
-        PyErr_Format(PyExc_ValueError, "the number of events must be in range [1; %u]", TRACEBACK_ARRAY_MAX_COUNT);
-        return NULL;
-    }
-
-    global_memalloc_ctx.max_events = (uint16_t)max_events;
 
     if (heap_sample_size < 0 || heap_sample_size > MAX_HEAP_SAMPLE_SIZE) {
         PyErr_Format(PyExc_ValueError, "the heap sample size must be in range [0; %u]", MAX_HEAP_SAMPLE_SIZE);

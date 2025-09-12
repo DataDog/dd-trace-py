@@ -565,7 +565,7 @@ HTTPPropagator.inject(context_items, headers_items)
     assert status == 0, stderr
 
     # Get baggage truncation metrics
-    truncated_metrics = test_agent_session.get_metrics("context_header_style.truncated")
+    truncated_metrics = test_agent_session.get_metrics("context_header.truncated")
 
     # Check max items exceeded metric
     assert truncated_metrics is not None
@@ -601,7 +601,7 @@ HTTPPropagator.inject(context_bytes, headers_bytes)
     assert status == 0, stderr
 
     # Get baggage truncation metrics
-    truncated_metrics = test_agent_session.get_metrics("context_header_style.truncated")
+    truncated_metrics = test_agent_session.get_metrics("context_header.truncated")
 
     # Check max bytes exceeded metric
     assert truncated_metrics is not None

@@ -16,21 +16,21 @@ interactions:
       - Content-Type
       : - application/json
       User-Agent:
-      - python-requests/2.32.4
+      - python-requests/2.32.3
     method: POST
     uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/projects
   response:
     body:
-      string: '{"data":{"id":"29892594-46a2-4539-893d-5dc75f5968b7","type":"projects","attributes":{"author":{"id":"df7d11c9-da50-11ed-af19-2e9f609a4672"},"created_at":"2025-07-22T13:56:57.145757042Z","name":"test-project-dne-sdk","updated_at":"2025-07-22T13:56:57.145757042Z"}}}'
+      string: '{"data":{"id":"905824bc-ccec-4444-a48d-401931d5065b","type":"projects","attributes":{"author":{"id":"de473b30-eb9f-11e9-a77a-c7405862b8bd"},"created_at":"2025-07-22T23:28:17.093498Z","name":"test-project-dne-sdk","updated_at":"2025-07-22T23:28:17.093498Z"}}}'
     headers:
       content-length:
-      - '264'
+      - '258'
       content-security-policy:
       - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
       content-type:
       - application/vnd.api+json
       date:
-      - Tue, 22 Jul 2025 13:56:57 GMT
+      - Tue, 09 Sep 2025 04:34:32 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       vary:

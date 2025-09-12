@@ -1,12 +1,29 @@
 #!/bin/bash
 set -eo pipefail
 
+get_run_id() {
+    RUN_ID=$(
+        gh run ls \
+        --repo DataDog/dd-trace-py \
+        --commit="$CI_COMMIT_SHA" \
+        $([ -z "$TRIGGERING_EVENT" ] && echo "" || echo "--event=$TRIGGERING_EVENT") \
+        --workflow=build_deploy.yml \
+        --json databaseId \
+        --jq "first (.[]) | .databaseId"
+    )
+}
+
 if [ -z "$CI_COMMIT_SHA" ]; then
   echo "Error: CI_COMMIT_SHA was not provided"
   exit 1
 fi
 
-RUN_ID=$(gh run ls --repo DataDog/dd-trace-py --commit=$CI_COMMIT_SHA --workflow=build_deploy.yml --json databaseId --jq "first (.[]) | .databaseId")
+if [ -v "$CI_COMMIT_TAG" ]; then
+    TRIGGERING_EVENT="release"
+fi
+
+get_run_id
+
 if [ -z "$RUN_ID" ]; then
   echo "No RUN_ID found waiting for job to start"
   # The job has not started yet. Give it time to start
@@ -19,7 +36,7 @@ if [ -z "$RUN_ID" ]; then
   end_time=$((start_time + timeout))
   # Loop for 10 minutes waiting for run to appear in github
   while [ $(date +%s) -lt $end_time ]; do
-    RUN_ID=$(gh run ls --repo DataDog/dd-trace-py --commit=$CI_COMMIT_SHA --workflow=build_deploy.yml --json databaseId --jq "first (.[]) | .databaseId")
+    get_run_id
     if [ -n "$RUN_ID" ]; then
       break;
     fi
@@ -50,7 +67,7 @@ fi
 
 echo "Github workflow finished. Downloading wheels"
 # download all wheels
-gh run download $RUN_ID --repo DataDog/dd-trace-py
+gh run download $RUN_ID --repo DataDog/dd-trace-py --pattern "wheels-*" --pattern "source-dist*"
 
 cd ..
 

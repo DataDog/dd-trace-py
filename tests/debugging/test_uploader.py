@@ -18,7 +18,7 @@ class MockLogsIntakeUploaderV1(LogsIntakeUploaderV1):
         super(MockLogsIntakeUploaderV1, self).__init__(*args, **kwargs)
         self.queue = Queue()
 
-    def _write(self, payload):
+    def _write(self, payload, endpoint):
         self.queue.put(payload.decode())
 
     @property
@@ -31,7 +31,8 @@ class ActiveBatchJsonEncoder(MockLogsIntakeUploaderV1):
         super(ActiveBatchJsonEncoder, self).__init__(interval)
 
         # Override the signal queue
-        self._queue = SignalQueue(None, size, self.on_full)
+        for track in self._tracks.values():
+            track.queue = SignalQueue(None, size, self.on_full)
 
     def on_full(self, item, encoded):
         self.periodic()
@@ -39,9 +40,10 @@ class ActiveBatchJsonEncoder(MockLogsIntakeUploaderV1):
 
 def test_uploader_batching():
     with ActiveBatchJsonEncoder(interval=LONG_INTERVAL) as uploader:
+        queue = uploader._tracks.values().__iter__().__next__().queue
         for _ in range(5):
-            uploader._queue.put_encoded(None, "hello".encode("utf-8"))
-            uploader._queue.put_encoded(None, "world".encode("utf-8"))
+            queue.put_encoded(None, "hello".encode("utf-8"))
+            queue.put_encoded(None, "world".encode("utf-8"))
             uploader.periodic()
 
         for _ in range(5):
@@ -56,8 +58,9 @@ def test_uploader_full_buffer():
         assert n
 
         with pytest.raises(BufferFull):
+            queue = uploader._tracks.values().__iter__().__next__().queue
             for _ in range(2 * n):
-                uploader._queue.put_encoded(None, item.encode("utf-8"))
+                queue.put_encoded(None, item.encode("utf-8"))
 
         # The full buffer forces a flush
         uploader.queue.get(timeout=0.5)

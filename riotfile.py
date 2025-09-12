@@ -421,6 +421,16 @@ venv = Venv(
                         "AGENT_VERSION": "testagent",
                     },
                 ),
+                # This test variant ensures integration snapshots tests are compatible with both AgentWriter
+                # and NativeWriter.
+                Venv(
+                    name="integration-snapshot-native-writer",
+                    env={
+                        "DD_TRACE_AGENT_URL": "http://localhost:9126",
+                        "AGENT_VERSION": "testagent",
+                        "_DD_TRACE_WRITER_NATIVE": "1",
+                    },
+                ),
             ],
         ),
         Venv(
@@ -1596,7 +1606,7 @@ venv = Venv(
             name="asgi",
             pkgs={
                 "pytest-asyncio": "==0.21.1",
-                "httpx": latest,
+                "httpx": "<0.28.0",
                 "asgiref": ["~=3.0.0", "~=3.0", latest],
                 "pytest-randomly": latest,
             },
@@ -2572,6 +2582,7 @@ venv = Venv(
                 "pytest-asyncio": "==0.21.1",
                 "opentelemetry-instrumentation-flask": latest,
                 "markupsafe": "==2.0.1",
+                "mock": latest,
                 "flask": latest,
                 "gevent": latest,  # gevent>22.12 is not compatible with py3.8
                 "requests": "==2.28.1",  # specific version expected by tests
@@ -2597,6 +2608,8 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(min_version="3.9"),
+                    # v1.12.0 introduced support for metrics
+                    # v1.15.0 introduced support for logs
                     pkgs={"opentelemetry-exporter-otlp": ["~=1.15.0", latest]},
                     env={"SDK_EXPORTER_INSTALLED": "1"},
                 ),
@@ -2886,7 +2899,13 @@ venv = Venv(
             name="langgraph",
             command="pytest {cmdargs} tests/contrib/langgraph",
             pys=select_pys(min_version="3.9"),
-            pkgs={"pytest-asyncio": latest, "langgraph": ["==0.2.23", "==0.3.21", "==0.3.22", latest]},
+            pkgs={
+                "pytest-asyncio": latest,
+                "langgraph": ["==0.2.23", "==0.3.21", "==0.3.22", latest],
+                "langchain_openai": latest,
+                "langchain_core": latest,
+                "langchain": latest,
+            },
         ),
         Venv(
             name="mcp",
@@ -2967,7 +2986,7 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": latest,
                 "openai": latest,
-                "crewai": ["~=0.102.0", "~=0.121.0"],
+                "crewai": ["~=0.102.0", latest],
                 "vcrpy": "==7.0.0",
             },
         ),
@@ -2977,7 +2996,7 @@ venv = Venv(
             pys=select_pys(min_version="3.9"),
             pkgs={
                 "pytest-asyncio": latest,
-                "pydantic-ai": ["==0.3.0", latest],
+                "pydantic-ai": ["==0.3.0", "==0.4.4", latest],
                 "vcrpy": "==7.0.0",
             },
         ),
@@ -3397,13 +3416,12 @@ venv = Venv(
             name="appsec_integrations_flask",
             command="pytest -vvv {cmdargs} tests/appsec/integrations/flask_tests/",
             pkgs={
-                "pytest": latest,
-                "pytest-cov": latest,
                 "requests": latest,
-                "hypothesis": latest,
                 "gunicorn": latest,
                 "gevent": latest,
                 "psycopg2-binary": "~=2.9.9",
+                "flask-babel": latest,
+                "sqlalchemy": latest,
                 "pytest-randomly": latest,
             },
             env={
@@ -3455,10 +3473,7 @@ venv = Venv(
             name="appsec_integrations_langchain",
             command="pytest -vvv {cmdargs} tests/appsec/integrations/langchain_tests/",
             pkgs={
-                "pytest": latest,
                 "pytest-asyncio": latest,
-                "pytest-cov": latest,
-                "hypothesis": latest,
                 "pytest-randomly": latest,
             },
             env={
@@ -3504,6 +3519,8 @@ venv = Venv(
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
                 "AGENT_VERSION": "testagent",
                 "DD_REMOTE_CONFIGURATION_ENABLED": "true",
+                "DD_API_SECURITY_SAMPLE_DELAY": "0",
+                "DD_PATCH_MODULES": "unittest:false,urllib3:true",
             },
             venvs=[
                 Venv(
@@ -3556,6 +3573,8 @@ venv = Venv(
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
                 "AGENT_VERSION": "testagent",
                 "DD_REMOTE_CONFIGURATION_ENABLED": "true",
+                "DD_API_SECURITY_SAMPLE_DELAY": "0",
+                "DD_PATCH_MODULES": "unittest:false,urllib3:true",
             },
             venvs=[
                 Venv(
@@ -3605,6 +3624,8 @@ venv = Venv(
                 "AGENT_VERSION": "testagent",
                 "DD_REMOTE_CONFIGURATION_ENABLED": "true",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
+                "DD_API_SECURITY_SAMPLE_DELAY": "0",
+                "DD_PATCH_MODULES": "unittest:false,urllib3:true",
             },
             venvs=[
                 Venv(
@@ -3649,6 +3670,54 @@ venv = Venv(
                 "DD_IAST_VULNERABILITIES_PER_REQUEST": "100000",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
             },
+        ),
+        Venv(
+            name="ai_guard_api",
+            command="pytest {cmdargs} tests/appsec/ai_guard/api/",
+            pkgs={
+                "requests": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                ),
+            ],
+        ),
+        Venv(
+            name="ai_guard_langchain",
+            command="pytest {cmdargs} tests/appsec/ai_guard/langchain/",
+            pkgs={
+                "pytest-asyncio": "==0.23.7",
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.11"),
+                    pkgs={
+                        "langchain": "==0.1.20",
+                        "langchain-core": "==0.1.53",
+                        "langchain-openai": "==0.1.6",
+                        "openai": "==1.102.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.12"),
+                    pkgs={
+                        "langchain": "==0.2.17",
+                        "langchain-core": "==0.2.43",
+                        "langchain-openai": "==0.1.7",
+                        "openai": "==1.102.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.12"),
+                    pkgs={
+                        "langchain": latest,
+                        "langchain-core": latest,
+                        "langchain-openai": latest,
+                        "openai": latest,
+                    },
+                ),
+            ],
         ),
     ],
 )

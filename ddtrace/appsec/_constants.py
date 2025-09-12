@@ -55,6 +55,7 @@ class APPSEC(metaclass=Constant_Class):
     ENABLED_ORIGIN_UNKNOWN: Literal["unknown"] = "unknown"
     ENABLED_ORIGIN_RC: Literal["remote_config"] = "remote_config"
     ENABLED_ORIGIN_ENV: Literal["env_var"] = "env_var"
+    ENABLED_ORIGIN_SSI: Literal["ssi"] = "ssi"
     JSON: Literal["_dd.appsec.json"] = "_dd.appsec.json"
     STRUCT: Literal["appsec"] = "appsec"
     EVENT_RULE_VERSION: Literal["_dd.appsec.event_rules.version"] = "_dd.appsec.event_rules.version"
@@ -122,6 +123,7 @@ class APPSEC(metaclass=Constant_Class):
     ERROR_TYPE: Literal["_dd.appsec.error.type"] = "_dd.appsec.error.type"
     ERROR_MESSAGE: Literal["_dd.appsec.error.message"] = "_dd.appsec.error.message"
     UNSUPPORTED_EVENT_TYPE: Literal["_dd.appsec.unsupported_event_type"] = "_dd.appsec.unsupported_event_type"
+    SERVERLESS_TRACER_ENABLED: Literal["_dd.appsec.serverless.tracer"] = "_dd.appsec.serverless.tracer"
 
 
 TELEMETRY_OFF_NAME = "OFF"
@@ -234,6 +236,12 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
     SQLI_SYSTEM_ADDRESS: Literal["server.db.system"] = "server.db.system"
     LOGIN_FAILURE: Literal["server.business_logic.users.login.failure"] = "server.business_logic.users.login.failure"
     LOGIN_SUCCESS: Literal["server.business_logic.users.login.success"] = "server.business_logic.users.login.success"
+    DOWN_REQ_HEADERS: Literal["server.io.net.request.headers"] = "server.io.net.request.headers"
+    DOWN_REQ_METHOD: Literal["server.io.net.request.method"] = "server.io.net.request.method"
+    DOWN_REQ_BODY: Literal["server.io.net.request.body"] = "server.io.net.request.body"
+    DOWN_RES_STATUS: Literal["server.io.net.response.status"] = "server.io.net.response.status"
+    DOWN_RES_HEADERS: Literal["server.io.net.response.headers"] = "server.io.net.response.headers"
+    DOWN_RES_BODY: Literal["server.io.net.response.body"] = "server.io.net.response.body"
 
 
 class SPAN_DATA_NAMES(metaclass=Constant_Class):
@@ -398,3 +406,23 @@ class STACK_TRACE(metaclass=Constant_Class):
     RASP = "exploit"
     IAST = "vulnerability"
     TAG: Literal["_dd.stack"] = "_dd.stack"
+
+
+class AI_GUARD(metaclass=Constant_Class):
+    # span related information
+    RESOURCE_TYPE: Literal["ai_guard"] = "ai_guard"
+
+    TAG: Literal["ai_guard"] = "ai_guard"
+    ACTION_TAG: str = TAG + ".action"
+    REASON_TAG: str = TAG + ".reason"
+    TARGET_TAG: str = TAG + ".target"
+    BLOCKED_TAG: str = TAG + ".blocked"
+    TOOL_NAME_TAG: str = TAG + ".tool_name"
+
+    # meta struct
+    STRUCT: Literal["ai_guard"] = "ai_guard"
+
+    # metrics
+    METRIC_PREFIX: Literal["ai_guard"] = "ai_guard"
+    REQUESTS_METRIC: str = METRIC_PREFIX + ".requests"
+    TRUNCATED_METRIC: str = METRIC_PREFIX + ".truncated"

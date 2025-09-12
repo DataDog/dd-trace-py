@@ -5,6 +5,7 @@ from typing import Dict
 from openai import version
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.openai import _endpoint_hooks
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
@@ -13,7 +14,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations import OpenAIIntegration
-from ddtrace.trace import Pin
 
 
 log = get_logger(__name__)
@@ -262,7 +262,7 @@ def _patched_endpoint(openai, patch_hook):
         resp, err = None, None
         try:
             resp = func(*args, **kwargs)
-        except Exception as e:
+        except BaseException as e:
             err = e
             raise
         finally:
@@ -296,7 +296,7 @@ def _patched_endpoint_async(openai, patch_hook):
         try:
             resp = await func(*args, **kwargs)
             return resp
-        except Exception as e:
+        except BaseException as e:
             err = e
             raise
         finally:

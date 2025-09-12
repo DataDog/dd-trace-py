@@ -19,40 +19,37 @@ except ImportError:
 
 
 def test_start_twice():
-    _memalloc.start(64, 1000, 512)
+    _memalloc.start(64, 512)
     with pytest.raises(RuntimeError):
-        _memalloc.start(64, 1000, 512)
+        _memalloc.start(64, 512)
     _memalloc.stop()
 
 
 def test_start_wrong_arg():
-    with pytest.raises(TypeError, match="function takes exactly 3 arguments \\(1 given\\)"):
+    with pytest.raises(TypeError, match="function takes exactly 2 arguments \\(1 given\\)"):
         _memalloc.start(2)
 
     with pytest.raises(ValueError, match="the number of frames must be in range \\[1; 65535\\]"):
-        _memalloc.start(429496, 1000, 1)
+        _memalloc.start(429496, 1)
 
     with pytest.raises(ValueError, match="the number of frames must be in range \\[1; 65535\\]"):
-        _memalloc.start(-1, 1000, 1)
-
-    with pytest.raises(ValueError, match="the number of events must be in range \\[1; 65535\\]"):
-        _memalloc.start(64, -1, 1)
+        _memalloc.start(-1, 1)
 
     with pytest.raises(
         ValueError,
         match="the heap sample size must be in range \\[0; 4294967295\\]",
     ):
-        _memalloc.start(64, 1000, -1)
+        _memalloc.start(64, -1)
 
     with pytest.raises(
         ValueError,
         match="the heap sample size must be in range \\[0; 4294967295\\]",
     ):
-        _memalloc.start(64, 1000, 345678909876)
+        _memalloc.start(64, 345678909876)
 
 
 def test_start_stop():
-    _memalloc.start(1, 1, 1)
+    _memalloc.start(1, 1)
     _memalloc.stop()
 
 
@@ -69,7 +66,7 @@ def _pre_allocate_1k():
 
 def test_iter_events():
     max_nframe = 32
-    collector = memalloc.MemoryCollector(max_nframe=max_nframe, _max_events=10000, heap_sample_size=64)
+    collector = memalloc.MemoryCollector(max_nframe=max_nframe, heap_sample_size=64)
     with collector:
         _allocate_1k()
         samples = collector.test_snapshot()
@@ -105,7 +102,7 @@ def test_iter_events():
 
 def test_iter_events_dropped():
     max_nframe = 32
-    collector = memalloc.MemoryCollector(max_nframe=max_nframe, _max_events=100, heap_sample_size=64)
+    collector = memalloc.MemoryCollector(max_nframe=max_nframe, heap_sample_size=64)
     with collector:
         _allocate_1k()
         samples = collector.test_snapshot()
@@ -130,7 +127,7 @@ def test_iter_events_not_started():
 def test_iter_events_multi_thread():
     max_nframe = 32
     t = threading.Thread(target=_allocate_1k)
-    collector = memalloc.MemoryCollector(max_nframe=max_nframe, _max_events=10000, heap_sample_size=64)
+    collector = memalloc.MemoryCollector(max_nframe=max_nframe, heap_sample_size=64)
     with collector:
         _allocate_1k()
         t.start()
@@ -179,7 +176,7 @@ def test_iter_events_multi_thread():
 
 def test_heap():
     max_nframe = 32
-    collector = memalloc.MemoryCollector(max_nframe=max_nframe, _max_events=10000, heap_sample_size=1024)
+    collector = memalloc.MemoryCollector(max_nframe=max_nframe, heap_sample_size=1024)
     with collector:
         _test_heap_impl(collector, max_nframe)
 
@@ -298,7 +295,7 @@ def _test_heap_impl(collector, max_nframe):
 
 def test_heap_stress():
     # This should run for a few seconds, and is enough to spot potential segfaults.
-    _memalloc.start(64, 64, 1024)
+    _memalloc.start(64, 1024)
     try:
         x = []
 

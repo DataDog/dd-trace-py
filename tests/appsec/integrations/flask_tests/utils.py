@@ -1,8 +1,7 @@
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version
 from multiprocessing.pool import ThreadPool
 import time
-
-from importlib_metadata import PackageNotFoundError
-from importlib_metadata import version
 
 
 _PORT = 8040

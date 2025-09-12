@@ -16,12 +16,12 @@ interactions:
       - Content-Type
       : - application/json
       User-Agent:
-      - python-requests/2.32.4
+      - python-requests/2.32.3
     method: POST
     uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/projects
   response:
     body:
-      string: '{"data":{"id":"dc4158e7-c60f-446e-bcf1-540aa68ffa0f","type":"projects","attributes":{"author":{"id":"df7d11c9-da50-11ed-af19-2e9f609a4672"},"created_at":"2025-07-11T18:06:01.105202Z","name":"test-project","updated_at":"2025-07-11T18:06:01.105202Z"}}}'
+      string: '{"data":{"id":"f0a6723e-a7e8-4efd-a94a-b892b7b6fbf9","type":"projects","attributes":{"author":{"id":"de473b30-eb9f-11e9-a77a-c7405862b8bd"},"created_at":"2025-07-22T23:22:59.460899Z","name":"test-project","updated_at":"2025-07-22T23:22:59.460899Z"}}}'
     headers:
       content-length:
       - '250'
@@ -30,7 +30,7 @@ interactions:
       content-type:
       - application/vnd.api+json
       date:
-      - Tue, 22 Jul 2025 13:56:57 GMT
+      - Tue, 09 Sep 2025 04:30:37 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       vary:

@@ -1,4 +1,4 @@
-import os
+import contextvars
 from typing import Optional
 
 from ddtrace._trace.span import Span
@@ -7,19 +7,20 @@ from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_env import IASTEnvironment
 from ddtrace.appsec._iast._iast_env import _get_iast_env
 from ddtrace.appsec._iast._overhead_control_engine import oce
+from ddtrace.appsec._iast._taint_tracking import num_objects_tainted
 from ddtrace.appsec._iast._taint_tracking._context import create_context as create_propagation_context
 from ddtrace.appsec._iast._taint_tracking._context import reset_context as reset_propagation_context
-from ddtrace.appsec._iast._utils import _num_objects_tainted_in_request
 from ddtrace.appsec._iast.sampling.vulnerability_detection import update_global_vulnerability_limit
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
 
 # Stopgap module for providing ASM context for the blocking features wrapping some contextvars.
+
+IAST_CONTEXT = contextvars.ContextVar("iast_var", default=None)
 
 
 def _set_span_tag_iast_request_tainted(span):
@@ -68,6 +69,11 @@ def set_iast_request_enabled(request_enabled) -> None:
         log.debug("iast::propagation::context::Trying to set IAST reporter but no context is present")
 
 
+def is_iast_request_enabled() -> bool:
+    """Check whether IAST is currently operating within an active request context."""
+    return asm_config.is_iast_request_enabled
+
+
 def set_iast_request_endpoint(method, route) -> None:
     if asm_config._iast_enabled:
         env = _get_iast_env()
@@ -80,10 +86,6 @@ def set_iast_request_endpoint(method, route) -> None:
             log.debug("iast::propagation::context::Trying to set IAST request endpoint but no context is present")
 
 
-def _move_iast_data_to_root_span():
-    return asbool(os.getenv("_DD_IAST_USE_ROOT_SPAN"))
-
-
 def _iast_start_request(span=None, *args, **kwargs):
     try:
         if asm_config._iast_enabled:
@@ -94,3 +96,7 @@ def _iast_start_request(span=None, *args, **kwargs):
             set_iast_request_enabled(request_iast_enabled)
     except Exception:
         log.debug("iast::propagation::context::Error starting IAST context", exc_info=True)
+
+
+def _num_objects_tainted_in_request():
+    return num_objects_tainted()

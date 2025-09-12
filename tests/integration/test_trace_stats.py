@@ -9,6 +9,7 @@ from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal.processor.stats import SpanStatsProcessorV06
 from tests.integration.utils import AGENT_VERSION
+from tests.integration.utils import skip_if_native_writer
 from tests.utils import DummyTracer
 from tests.utils import override_global_config
 
@@ -48,19 +49,24 @@ def send_once_stats_tracer(stats_tracer):
     """
     This is a variation on the tracer that has the SpanStatsProcessor disabled until we leave the tracer context.
     """
+
     stats_tracer.trace = functools.partial(consistent_end_trace, stats_tracer.trace)
 
     # Stop the stats processor while running the function, to prevent flushing
+    stats_processor = None
     for processor in stats_tracer._span_processors:
         if isinstance(processor, SpanStatsProcessorV06):
-            processor.stop()
+            stats_processor = processor
+            stats_processor.stop()
             break
     yield stats_tracer
 
     # Restart the stats processor; it will be flushed during shutdown
-    processor.start()
+    if stats_processor:
+        stats_processor.start()
 
 
+@skip_if_native_writer
 @pytest.mark.parametrize("envvar", ["DD_TRACE_STATS_COMPUTATION_ENABLED", "DD_TRACE_COMPUTE_STATS"])
 def test_compute_stats_default_and_configure(run_python_code_in_subprocess, envvar):
     """Ensure stats computation can be enabled."""
@@ -86,6 +92,7 @@ assert stats_processor._hostname == "" # report_hostname is disabled by default
     assert status == 0, out + err
 
 
+@skip_if_native_writer
 def test_apm_opt_out_compute_stats_and_configure_env(run_python_code_in_subprocess):
     # Test via environment variable
     env = os.environ.copy()

@@ -13,6 +13,8 @@ variables:
   # VPA Template configuration
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
+  # Automatically managed, use scripts/update-system-tests-version to update
+  SYSTEM_TESTS_REF: "66e321c4a84b7d5ad0f81ad74140487252ad3da1"
 
 default:
   interruptible: true
@@ -72,6 +74,14 @@ run-tests-trigger:
        job: tests-gen
    strategy: depend
 
+# Validate the ast-grep rule's test suite in .sg/tests
+"test ast-grep rules":
+  extends: .testrunner
+  stage: tests
+  needs: []
+  script:
+    - hatch run lint:sg-test
+
 microbenchmarks:
   stage: benchmarks
   needs: [ "download_ddtrace_artifacts" ]
@@ -89,10 +99,11 @@ microbenchmarks:
 
 macrobenchmarks:
   stage: benchmarks
-  needs: [ ]
+  needs: [ "download_ddtrace_artifacts" ]
   trigger:
     include: .gitlab/benchmarks/macrobenchmarks.yml
   variables:
+    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     # Disable VPA for benchmarks
     DD_DISABLE_VPA: true
   allow_failure: true

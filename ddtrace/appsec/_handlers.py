@@ -11,6 +11,7 @@ from ddtrace.appsec._asm_request_context import _call_waf
 from ddtrace.appsec._asm_request_context import _call_waf_first
 from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._asm_request_context import set_body_response
+from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._http_utils import extract_cookies_from_headers
 from ddtrace.appsec._http_utils import normalize_headers
@@ -23,7 +24,6 @@ from ddtrace.internal import core
 from ddtrace.internal import telemetry
 from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils import http as http_utils
 from ddtrace.internal.utils.http import parse_form_multipart
 from ddtrace.settings.asm import config as asm_config
@@ -375,13 +375,13 @@ def _asgi_make_block_content(ctx, url):
 
 def _on_flask_blocked_request(span):
     span.set_tag_str(http.STATUS_CODE, "403")
-    request = core.get_item("flask_request")
+    request = core.find_item("flask_request")
     try:
         base_url = getattr(request, "base_url", None)
         query_string = getattr(request, "query_string", None)
         if base_url and query_string:
-            _set_url_tag(core.get_item("flask_config"), span, base_url, query_string)
-        if query_string and core.get_item("flask_config").trace_query_string:
+            _set_url_tag(core.find_item("flask_config"), span, base_url, query_string)
+        if query_string and core.find_item("flask_config").trace_query_string:
             span.set_tag_str(http.QUERY_STRING, query_string)
         if request.method is not None:
             span.set_tag_str(http.METHOD, request.method)
@@ -397,10 +397,18 @@ def _on_start_response_blocked(ctx, flask_config, response_headers, status):
 
 
 def _on_telemetry_periodic():
-    if asm_config._asm_enabled:
-        telemetry.telemetry_writer.add_gauge_metric(
-            TELEMETRY_NAMESPACE.APPSEC, "enabled", 2, (("origin", asm_config.asm_enabled_origin),)
+    try:
+        telemetry.telemetry_writer.add_configurations(
+            [
+                (
+                    APPSEC.ENV,
+                    int(asm_config._asm_enabled),
+                    asm_config.asm_enabled_origin,
+                )
+            ]
         )
+    except Exception:
+        log.debug("Could not set appsec_enabled telemetry config status", exc_info=True)
 
 
 def listen():
@@ -419,8 +427,9 @@ def listen():
     core.on("aws_lambda.start_response", _on_lambda_start_response)
     core.on("aws_lambda.parse_body", _on_lambda_parse_body)
 
-    core.on("grpc.server.response.message", _on_grpc_server_response)
-    core.on("grpc.server.data", _on_grpc_server_data)
+    # disabling threats grpc listeners.
+    # core.on("grpc.server.response.message", _on_grpc_server_response)
+    # core.on("grpc.server.data", _on_grpc_server_data)
 
     core.on("wsgi.block.started", _wsgi_make_block_content, "status_headers_content")
     core.on("asgi.block.started", _asgi_make_block_content, "status_headers_content")

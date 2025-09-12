@@ -614,6 +614,23 @@ class SpanTestCase(TracerTestCase):
         span_log.warning.assert_has_calls(expected_calls, any_order=True)
         assert span_log.warning.call_count == 4
 
+    def test_service_entry_span(self):
+        parent = self.start_span("parent", service="service1")
+        child1 = self.start_span("child1", service="service1", child_of=parent)
+        child2 = self.start_span("child2", service="service2", child_of=parent)
+
+        assert parent._service_entry_span is parent
+        assert child1._service_entry_span is parent
+        assert child2._service_entry_span is child2
+
+        # Renaming the service does not change the service entry span
+        child1.service = "service3"
+        assert child1._service_entry_span is parent
+
+        # Service entry span only works for the immediate parent
+        grandchild = self.start_span("grandchild", service="service1", child_of=child2)
+        assert grandchild._service_entry_span is grandchild
+
 
 @pytest.mark.parametrize(
     "value,assertion",
@@ -855,6 +872,7 @@ def test_span_pprint():
     root.set_metric("m", 1.0)
     root._add_event("message", {"importance": 10}, 16789898242)
     root.set_link(trace_id=99, span_id=10, attributes={"link.name": "s1_to_s2", "link.kind": "scheduled_by"})
+    root._add_span_pointer("test_kind", _SpanPointerDirection.DOWNSTREAM, "test_hash_123", {"extra": "attr"})
 
     root.finish()
     actual = root._pprint()
@@ -867,9 +885,11 @@ def test_span_pprint():
     assert "metrics={'m': 1.0}" in actual
     assert "events=[SpanEvent(name='message', time=16789898242, attributes={'importance': 10})]" in actual
     assert (
-        "[SpanLink(trace_id=99, span_id=10, attributes={'link.name': 's1_to_s2', 'link.kind': 'scheduled_by'}, "
-        "tracestate=None, flags=None, dropped_attributes=0)]"
+        "SpanLink(trace_id=99, span_id=10, attributes={'link.name': 's1_to_s2', 'link.kind': 'scheduled_by'}, "
+        "tracestate=None, flags=None, dropped_attributes=0)"
     ) in actual
+    assert "SpanPointer(trace_id=0, span_id=0, kind=span-pointer" in actual
+    assert "direction=d, hash=test_hash_123" in actual
     assert (
         f"context=Context(trace_id={root.trace_id}, span_id={root.span_id}, _meta={{}}, "
         "_metrics={}, _span_links=[], _baggage={}, _is_remote=False)"

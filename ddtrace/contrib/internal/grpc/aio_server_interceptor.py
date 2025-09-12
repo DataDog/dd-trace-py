@@ -14,6 +14,7 @@ from grpc.aio._typing import ResponseType
 import wrapt
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin  # noqa:F401
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
@@ -23,11 +24,9 @@ from ddtrace.contrib.internal.grpc import constants
 from ddtrace.contrib.internal.grpc.utils import set_grpc_method_meta
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
-from ddtrace.trace import Pin  # noqa:F401
 from ddtrace.trace import Span  # noqa:F401
 
 
@@ -97,9 +96,14 @@ def _handle_server_exception(
     if servicer_context is None:
         return
     if hasattr(servicer_context, "details"):
-        span.set_tag_str(ERROR_MSG, to_unicode(servicer_context.details()))
+        details = servicer_context.details()
+        if isinstance(details, bytes):
+            details = details.decode("utf-8", errors="ignore")
+        else:
+            details = str(details)
+        span.set_tag_str(ERROR_MSG, details)
     if hasattr(servicer_context, "code") and servicer_context.code() != 0 and servicer_context.code() in _INT2CODE:
-        span.set_tag_str(ERROR_TYPE, to_unicode(_INT2CODE[servicer_context.code()]))
+        span.set_tag_str(ERROR_TYPE, str(_INT2CODE[servicer_context.code()]))
 
 
 async def _wrap_aio_stream_response(

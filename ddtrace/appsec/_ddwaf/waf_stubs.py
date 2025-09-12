@@ -110,7 +110,7 @@ class WAF(ABC):
         self,
         ctx: ddwaf_context_capsule,
         data: DDWafRulesType,
-        ephemeral_data: DDWafRulesType = None,
+        ephemeral_data: Optional[DDWafRulesType] = None,
         timeout_ms: float = DEFAULT.WAF_TIMEOUT,
     ) -> DDWaf_result:
         pass
@@ -118,7 +118,7 @@ class WAF(ABC):
     @abstractmethod
     def __init__(
         self,
-        rules: Dict[str, Any],
+        rules: bytes,
         obfuscation_parameter_key_regexp: bytes,
         obfuscation_parameter_value_regexp: bytes,
         metrics,

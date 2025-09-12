@@ -15,6 +15,7 @@ from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 import urllib.parse as parse
 
+from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.http import get_connection
 from ddtrace.settings._agent import config as agent_config
@@ -426,13 +427,11 @@ class TelemetryWriter(PeriodicService):
         if not asm_config_module.config._api_security_endpoint_collection or not self._enabled:
             return
 
-        if not asm_config_module.endpoint_collection.endpoints:
+        if not endpoint_collection.endpoints:
             return
 
         with self._service_lock:
-            payload = asm_config_module.endpoint_collection.flush(
-                asm_config_module.config._api_security_endpoint_collection_limit
-            )
+            payload = endpoint_collection.flush(asm_config_module.config._api_security_endpoint_collection_limit)
 
         self.add_event(payload, "app-endpoints")
 
@@ -488,7 +487,7 @@ class TelemetryWriter(PeriodicService):
             config["seq_id"] = next(self._sequence_configurations)
             self._configuration_queue.append(config)
 
-    def add_configurations(self, configuration_list):
+    def add_configurations(self, configuration_list: List[Tuple[str, str, str]]):
         """Creates and queues a list of configurations"""
         with self._service_lock:
             for name, value, origin in configuration_list:
@@ -561,7 +560,9 @@ class TelemetryWriter(PeriodicService):
         except ValueError:
             return filename
 
-    def add_gauge_metric(self, namespace: TELEMETRY_NAMESPACE, name: str, value: float, tags: MetricTagType = None):
+    def add_gauge_metric(
+        self, namespace: TELEMETRY_NAMESPACE, name: str, value: float, tags: Optional[MetricTagType] = None
+    ):
         """
         Queues gauge metric
         """
@@ -574,7 +575,9 @@ class TelemetryWriter(PeriodicService):
                 tags,
             )
 
-    def add_rate_metric(self, namespace: TELEMETRY_NAMESPACE, name: str, value: float, tags: MetricTagType = None):
+    def add_rate_metric(
+        self, namespace: TELEMETRY_NAMESPACE, name: str, value: float, tags: Optional[MetricTagType] = None
+    ):
         """
         Queues rate metric
         """
@@ -587,7 +590,9 @@ class TelemetryWriter(PeriodicService):
                 tags,
             )
 
-    def add_count_metric(self, namespace: TELEMETRY_NAMESPACE, name: str, value: int = 1, tags: MetricTagType = None):
+    def add_count_metric(
+        self, namespace: TELEMETRY_NAMESPACE, name: str, value: int = 1, tags: Optional[MetricTagType] = None
+    ):
         """
         Queues count metric
         """
@@ -601,7 +606,7 @@ class TelemetryWriter(PeriodicService):
             )
 
     def add_distribution_metric(
-        self, namespace: TELEMETRY_NAMESPACE, name: str, value: float, tags: MetricTagType = None
+        self, namespace: TELEMETRY_NAMESPACE, name: str, value: float, tags: Optional[MetricTagType] = None
     ):
         """
         Queues distributions metric

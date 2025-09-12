@@ -689,6 +689,28 @@ Test Visibility
      version_added:
         v2.18.0:
 
+   DD_CIVISIBILITY_USE_BETA_WRITER:
+     type: Boolean
+     default: False
+
+     description: |
+        Configures the ``CIVisibility`` service to use an alternative method for collecting and sending test spans.
+        In this mode, the ``CIVisibility`` tracer is kept separate from the global ``ddtrace`` tracer, which helps avoid
+        interference between test and non-test tracer configurations. This mode is currently experimental.
+
+     version_added:
+        v3.12.0:
+
+   DD_CIVISIBILITY_ENABLED:
+     type: Boolean
+     default: True
+
+     description: |
+        Allows the ``CIVisibility`` service to run and send traces to the Test Visibility product.
+
+     version_added:
+        v3.15.0:
+
 Agent
 -----
 
@@ -794,7 +816,17 @@ Logs
        v3.10.0: |
          The default value was changed to ``true``. This means that the tracer will inject trace context into logs when ``ddtrace-run`` or ``import ddtrace.auto`` is used.
          To disable this behavior, set ``DD_LOGS_INJECTION=false``.
-       
+
+   DD_LOGS_OTEL_ENABLED:
+     type: Boolean
+     default: False
+
+     description: |
+         When used with ``ddtrace-run`` this configuration enables support for exporting OTLP logs generated
+         by the OpenTelemetry Logging API. The application must also include its own OTLP logs exporter.
+     
+     version_added:
+       v3.12.0: Adds support for submitting logs via an OTLP Exporter.
 
    DD_TRACE_DEBUG:
      type: Boolean
