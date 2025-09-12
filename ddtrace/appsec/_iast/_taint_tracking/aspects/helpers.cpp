@@ -400,8 +400,6 @@ are_all_text_all_ranges(PyObject* candidate_text,
                         const py::tuple& parameter_list,
                         const TaintedObjectMapTypePtr& tx_map)
 {
-    auto obj_id = get_unique_id(candidate_text);
-
     if (not is_tainteable(candidate_text)) {
         return {};
     }
@@ -411,7 +409,6 @@ are_all_text_all_ranges(PyObject* candidate_text,
     auto [candidate_text_ranges, ranges_error] = get_ranges(candidate_text, tx_map);
     if (not ranges_error) {
         for (const auto& param_handler : parameter_list) {
-            obj_id = get_unique_id(param_handler.ptr());
             if (const auto param = param_handler.cast<py::object>().ptr(); is_tainteable(param)) {
                 if (auto [ranges, ranges_error] = get_ranges(param, tx_map); not ranges_error) {
                     all_ranges.insert(all_ranges.end(), ranges.begin(), ranges.end());

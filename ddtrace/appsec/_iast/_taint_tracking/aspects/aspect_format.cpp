@@ -18,13 +18,8 @@ api_format_aspect(StrType& candidate_text,
                   const py::args& args,
                   const py::kwargs& kwargs)
 {
-    std::vector<PyObject*> candidates;
-    candidates.reserve(1 + parameter_list.size());
-    candidates.push_back(candidate_text.ptr());
-    for (const auto& item : parameter_list) {
-        candidates.push_back(item.ptr());
-    }
-    auto tx_map = taint_engine_context->get_tainted_object_map_from_list_of_pyobjects(candidates);
+    auto tx_map = taint_engine_context->get_tainted_object_map_from_list_of_pyobjects(
+      { candidate_text.ptr(), parameter_list.ptr() });
 
     if (not tx_map or tx_map->empty()) {
         return py::getattr(candidate_text, "format")(*args, **kwargs);

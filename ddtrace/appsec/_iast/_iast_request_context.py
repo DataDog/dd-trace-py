@@ -1,16 +1,13 @@
-from typing import TYPE_CHECKING  # noqa:F401
-from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import Literal  # noqa:F401
+from typing import Any
+from typing import Dict
 from typing import Optional
-from typing import Union  # noqa:F401
+from typing import Union
 
 from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._iast_env import _get_iast_env
 import ddtrace.appsec._iast._iast_request_context_base as base
-from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast._metrics import _set_metric_iast_request_tainted
 from ddtrace.appsec._iast._span_metrics import _set_span_tag_iast_executed_sink
 from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -24,8 +21,6 @@ from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
-
-# Stopgap module for providing ASM context for the blocking features wrapping some contextvars.
 
 
 def set_iast_reporter(iast_reporter: IastSpanReporter) -> None:
@@ -90,7 +85,7 @@ def _iast_end_request(ctx=None, span=None, *args, **kwargs):
             existing_data = req_span.get_tag(IAST.JSON) or req_span.get_struct_tag(IAST.STRUCT)
             if existing_data is None:
                 if req_span.get_metric(IAST.ENABLED) is None:
-                    if not is_iast_request_enabled():
+                    if not base.is_iast_request_enabled():
                         req_span.set_metric(IAST.ENABLED, 0.0)
                         base._iast_finish_request(req_span)
                         return
