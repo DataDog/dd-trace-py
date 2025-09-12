@@ -900,12 +900,12 @@ def _on_azure_functions_service_bus_trigger_span_modifier(
         span.set_tag_str(MESSAGING_MESSAGE_ID, message_id)
 
 
-def _on_azure_servicebus_send_message_modifier(ctx, azure_servicebus_config, entity_name, fully_qualified_namespace):
+def _on_azure_message_broker_send_modifier(ctx, azure_config, system, destination_name, fully_qualified_namespace):
     span = ctx.span
-    span.set_tag_str(COMPONENT, azure_servicebus_config.integration_name)
-    span.set_tag_str(MESSAGING_DESTINATION_NAME, entity_name)
+    span.set_tag_str(COMPONENT, azure_config.integration_name)
+    span.set_tag_str(MESSAGING_DESTINATION_NAME, destination_name)
     span.set_tag_str(MESSAGING_OPERATION, "send")
-    span.set_tag_str(MESSAGING_SYSTEM, azure_servicebusx.SERVICE)
+    span.set_tag_str(MESSAGING_SYSTEM, system)
     span.set_tag_str(NETWORK_DESTINATION_NAME, fully_qualified_namespace)
     span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
 
@@ -979,7 +979,8 @@ def listen():
     core.on("azure.functions.start_response", _on_azure_functions_start_response)
     core.on("azure.functions.trigger_call_modifier", _on_azure_functions_trigger_span_modifier)
     core.on("azure.functions.service_bus_trigger_modifier", _on_azure_functions_service_bus_trigger_span_modifier)
-    core.on("azure.servicebus.send_message_modifier", _on_azure_servicebus_send_message_modifier)
+    core.on("azure.servicebus.send_message_modifier", _on_azure_message_broker_send_modifier)
+    core.on("azure.eventhub.send_event_modifier", _on_azure_message_broker_send_modifier)
 
     # web frameworks general handlers
     core.on("web.request.start", _on_web_framework_start_request)
@@ -1045,6 +1046,7 @@ def listen():
         "rq.worker.perform_job",
         "rq.job.perform",
         "rq.job.fetch_many",
+        "azure.eventhub.patched_producer",
         "azure.functions.patched_route_request",
         "azure.functions.patched_service_bus",
         "azure.functions.patched_timer",
