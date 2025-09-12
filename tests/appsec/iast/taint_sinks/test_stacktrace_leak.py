@@ -68,7 +68,7 @@ def test_stacktrace_leak_deduplication(iast_context_deduplication_enabled):
 
 def test_check_stacktrace_leak_text_outside_context(iast_context_deduplication_enabled):
     _end_iast_context_and_oce()
-
+    VulnerabilityBase._prepare_report._reset_cache()
     # Report stacktrace outside the context
     iast_check_stacktrace_leak(_load_text_stacktrace())
     assert get_report_stacktrace_later() is not None
