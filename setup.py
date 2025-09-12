@@ -235,9 +235,6 @@ class ExtensionHashes(build_ext):
                 else:
                     sources = [Path(_) for _ in ext.sources]
 
-                for source in sources:
-                    print(source)
-
                 sources_hash = hashlib.sha256()
                 for source in sorted(sources):
                     sources_hash.update(source.read_bytes())
