@@ -17,7 +17,7 @@ class LogSignal(Signal):
     (e.g. conditions) might need to be reported.
     """
 
-    __type__ = "di_snapshot"
+    __type__ = "snapshot"
     __track__: t.ClassVar[SignalTrack] = SignalTrack.LOGS
 
     @property
