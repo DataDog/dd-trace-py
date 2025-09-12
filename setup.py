@@ -907,7 +907,7 @@ if not IS_PYSTON:
                 # sure we explicitly set this for normal builds, and explicitly
                 # _unset_ it for debug builds in case the CFLAGS from sysconfig
                 # include -DNDEBUG
-                + (["-DNDEBUG"] if not debug_compile_args else ["-UNDEBUG"])
+                + (["-DNDEBUG"] if COMPILE_MODE.lower() in ("release", "minsizerel") else ["-UNDEBUG"])
                 + ["-D_POSIX_C_SOURCE=200809L", "-std=c11"]
                 + fast_build_args
                 if CURRENT_OS != "Windows"
