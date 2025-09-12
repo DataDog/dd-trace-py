@@ -435,6 +435,7 @@ suites:
       - '@tracing'
       - '@celery'
       - tests/contrib/celery/*
+      - tests/snapshots/tests.{suite}.*
     runner: riot
     services:
       - rabbitmq
