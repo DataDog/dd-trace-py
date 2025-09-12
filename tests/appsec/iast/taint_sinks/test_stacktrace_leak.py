@@ -65,7 +65,6 @@ def test_stacktrace_leak_deduplication(iast_context_deduplication_enabled):
         _end_iast_context_and_oce()
 
 
-
 def test_check_stacktrace_leak_text_outside_context(iast_context_deduplication_enabled):
     _end_iast_context_and_oce()
     VulnerabilityBase._prepare_report._reset_cache()
