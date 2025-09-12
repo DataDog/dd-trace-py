@@ -11,8 +11,8 @@ except ImportError:
     try:
         # 3.6+
         from ddtrace.appsec._iast._iast_request_context_base import end_iast_context
-        from ddtrace.appsec._iast._iast_request_context_base import iast_start_request
         from ddtrace.appsec._iast._iast_request_context_base import set_iast_request_enabled
+        from ddtrace.appsec._iast._iast_request_context_base import start_iast_context as iast_start_request
     except ImportError:
         # Pre 3.6
         from ddtrace.appsec._iast._iast_request_context import end_iast_context
