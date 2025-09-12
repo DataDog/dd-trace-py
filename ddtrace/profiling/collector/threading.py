@@ -19,8 +19,9 @@ class ThreadingLockCollector(_lock.LockCollector):
 
     PROFILED_LOCK_CLASS = _ProfiledThreadingLock
 
-    def _get_patch_target(self):
-        # type: (...) -> typing.Any
+    def _get_patch_target(self) -> typing.Any:
+        import threading
+
         return threading.Lock
 
     def _set_patch_target(
@@ -32,7 +33,10 @@ class ThreadingLockCollector(_lock.LockCollector):
 
 
 # Also patch threading.Thread so echion can track thread lifetimes
-def init_stack_v2():
+def init_stack_v2() -> None:
+    import threading
+    from threading import Thread
+
     if config.stack.v2_enabled and stack_v2.is_available:
         _thread_set_native_id = ddtrace_threading.Thread._set_native_id
         _thread_bootstrap_inner = ddtrace_threading.Thread._bootstrap_inner
