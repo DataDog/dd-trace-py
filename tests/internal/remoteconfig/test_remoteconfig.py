@@ -717,3 +717,88 @@ def test_apm_tracing_precedence_ordering(remote_config_worker):
         # Restore original config
         config.service = original_service
         config.env = original_env
+
+
+def test_apm_tracing_sampling_rules_none_override(remote_config_worker):
+    """Test that setting tracing_sampling_rules to None correctly removes previously set sampling rules"""
+    from ddtrace import config
+    from ddtrace.internal.remoteconfig.products.apm_tracing import APMTracingAdapter
+    from tests.utils import remote_config_build_payload as build_payload
+
+    # Test constants
+    TEST_SERVICE = "test-service"
+    rc_sampling_rule_rate_customer = 0.8
+    rc_sampling_rule_rate_dynamic = 0.5
+
+    # Create an APM tracing adapter instance
+    adapter = APMTracingAdapter()
+
+    # Mock current service and env
+    original_service = config.service
+    original_env = config.env
+    config.service = "test-service"
+    config.env = "test-env"
+
+    try:
+        # Create payload with sampling rules
+        sampling_rules_payload = build_payload(
+            "APM_TRACING",
+            {
+                "service_target": {"service": TEST_SERVICE, "env": "*"},
+                "lib_config": {
+                    "tracing_sampling_rules": [
+                        {
+                            "sample_rate": rc_sampling_rule_rate_customer,
+                            "service": TEST_SERVICE,
+                            "resource": "*",
+                            "provenance": "customer",
+                        },
+                        {
+                            "sample_rate": rc_sampling_rule_rate_dynamic,
+                            "service": "*",
+                            "resource": "*",
+                            "provenance": "dynamic",
+                        },
+                    ]
+                },
+            },
+            "sampling_rules_config",
+        )
+
+        # Apply the sampling rules configuration
+        adapter.rc_callback([sampling_rules_payload])
+
+        # Get the chained configuration and verify sampling rules are set
+        chained_config = adapter.get_chained_lib_config()
+        assert "tracing_sampling_rules" in chained_config
+        sampling_rules = chained_config["tracing_sampling_rules"]
+        assert len(sampling_rules) == 2
+        assert sampling_rules[0]["sample_rate"] == rc_sampling_rule_rate_customer
+        assert sampling_rules[0]["service"] == TEST_SERVICE
+        assert sampling_rules[0]["provenance"] == "customer"
+        assert sampling_rules[1]["sample_rate"] == rc_sampling_rule_rate_dynamic
+        assert sampling_rules[1]["service"] == "*"
+        assert sampling_rules[1]["provenance"] == "dynamic"
+
+        # Create payload that sets sampling rules to None
+        none_sampling_rules_payload = build_payload(
+            "APM_TRACING",
+            {
+                "service_target": {"service": TEST_SERVICE, "env": "*"},
+                "lib_config": {"tracing_sampling_rules": None},
+            },
+            "none_sampling_rules_config",
+        )
+
+        # Apply the None sampling rules configuration
+        adapter.rc_callback([none_sampling_rules_payload, sampling_rules_payload])
+
+        # Get the chained configuration and verify sampling rules are now None
+        chained_config = adapter.get_chained_lib_config()
+        assert "tracing_sampling_rules" in chained_config
+        assert chained_config["tracing_sampling_rules"] is None
+
+    finally:
+        # Restore original config
+        config.service = original_service
+        config.env = original_env

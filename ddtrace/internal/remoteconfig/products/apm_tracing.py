@@ -53,12 +53,22 @@ class APMTracingAdapter(PubSub):
         self.config_map: t.Dict[str, Payload] = {}
 
     def get_chained_lib_config(self) -> t.ChainMap:
+        # Get items in insertion order, then sort by precedence while preserving order for ties
+        items_with_order = [(i, p) for i, p in enumerate(self.config_map.values())]
+
         return ChainMap(
             *(
                 t.cast(dict, content["lib_config"])
                 for content in (
                     p.content
-                    for p in sorted(self.config_map.values(), key=config_key, reverse=True)
+                    for _, p in sorted(
+                        items_with_order,
+                        key=lambda x: (
+                            config_key(x[1]),
+                            x[0],
+                        ),  # Higher precedence first, then newer (higher index) first
+                        reverse=True,
+                    )
                     if p.content is not None and "lib_config" in p.content
                 )
             )
@@ -104,7 +114,7 @@ class APMTracingAdapter(PubSub):
             log.debug("Removing APM tracing config %s", config_id)
             self.config_map.pop(config_id, None)
 
-        dispatch("apm-tracing.rc", (self.get_chained_lib_config(), config))
+        dispatch("apm-tracing.rc", (dict(self.get_chained_lib_config()), config))
 
 
 def post_preload():
