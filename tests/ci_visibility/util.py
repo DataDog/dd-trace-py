@@ -177,7 +177,6 @@ def _get_default_os_env_vars():
         "DD_TRACE_AGENT_PORT",
         "DD_AGENT_HOST",
         "DD_TRACE_AGENT_HOSTNAME",
-        "DD_CIVISIBILITY_ENABLED",
         "HOME",
     }
 
