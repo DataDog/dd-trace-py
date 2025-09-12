@@ -13,7 +13,6 @@ import ray
 from ray.runtime_context import get_runtime_context
 
 
-DEFAULT_JOB_NAME = "unspecified.ray.job"
 JOB_NAME_REGEX = re.compile(r"^job\:([A-Za-z0-9_\.\-]+),run:([A-Za-z0-9_\.\-]+)$")
 
 
@@ -176,4 +175,4 @@ def get_dd_job_name(submission_id: Optional[str] = None):
         return match.group(1)
     elif submission_id:
         return submission_id
-    return DEFAULT_JOB_NAME
+    return None
