@@ -1,0 +1,526 @@
+#!/usr/bin/env uv run --script
+# /// script
+# requires-python = ">=3.8"
+# dependencies = [
+#     "ruamel.yaml>=0.17.21",
+# ]
+# ///
+
+import argparse
+import fnmatch
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+from typing import Dict, List, Set, Optional, Tuple, NamedTuple
+import tempfile
+
+# Add the project root and tests to Python path for imports
+ROOT = Path(__file__).parents[1]
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "tests"))
+
+from tests.suitespec import get_patterns, get_suites
+
+
+class RiotVenv(NamedTuple):
+    """Represents a riot venv with its metadata."""
+    number: int
+    hash: str
+    name: str
+    python_version: str
+    packages: str
+
+    @property
+    def display_name(self) -> str:
+        """Generate a user-friendly display name."""
+        # Extract key package versions for display
+        django_match = re.search(r"'django[~=<>!]*([^']*)'", self.packages)
+        django_ver = django_match.group(1) if django_match else ""
+
+        if django_ver:
+            return f"Python {self.python_version}, Django {django_ver}"
+        else:
+            # Show first few packages if no Django
+            packages_list = re.findall(r"'([^']*)'", self.packages)
+            key_packages = packages_list[:2] if packages_list else []
+            return f"Python {self.python_version}" + (f", {', '.join(key_packages)}" if key_packages else "")
+
+
+class TestRunner:
+    def __init__(self):
+        self.root = ROOT
+        self.changed_files: Set[str] = set()
+        self.matching_suites: Dict[str, dict] = {}
+        self.required_services: Set[str] = set()
+
+    def get_git_changed_files(self, base_ref: str = "HEAD") -> Set[str]:
+        """Get files changed in git since base_ref."""
+        try:
+            if base_ref == "HEAD":
+                # Check for staged files first, then unstaged
+                result = subprocess.run(
+                    ["git", "diff", "--cached", "--name-only"],
+                    capture_output=True, text=True, cwd=self.root
+                )
+                staged = set(result.stdout.strip().split()) if result.stdout.strip() else set()
+
+                result = subprocess.run(
+                    ["git", "diff", "--name-only"],
+                    capture_output=True, text=True, cwd=self.root
+                )
+                unstaged = set(result.stdout.strip().split()) if result.stdout.strip() else set()
+
+                result = subprocess.run(
+                    ["git", "ls-files", "--others", "--exclude-standard"],
+                    capture_output=True, text=True, cwd=self.root
+                )
+                untracked = set(result.stdout.strip().split()) if result.stdout.strip() else set()
+
+                return staged | unstaged | untracked
+            else:
+                result = subprocess.run(
+                    ["git", "diff", "--name-only", base_ref],
+                    capture_output=True, text=True, cwd=self.root
+                )
+                return set(result.stdout.strip().split()) if result.stdout.strip() else set()
+        except subprocess.CalledProcessError:
+            print("Warning: Failed to get git changes, using all suites")
+            return set()
+
+    def find_matching_suites(self, files: Set[str]) -> Dict[str, dict]:
+        """Find test suites that match the given files."""
+        suites = get_suites()
+        matching = {}
+
+        for suite_name, suite_config in suites.items():
+            try:
+                patterns = get_patterns(suite_name)
+                if not patterns:
+                    continue
+
+                # Check if any changed files match the suite patterns
+                matches = []
+                for pattern in patterns:
+                    matches.extend(fnmatch.filter(files, pattern))
+
+                if matches:
+                    matching[suite_name] = suite_config.copy()
+                    matching[suite_name]['matched_files'] = matches
+
+            except Exception as e:
+                print(f"Warning: Error processing suite {suite_name}: {e}")
+
+        return matching
+
+    def extract_required_services(self, suites: Dict[str, dict]) -> Set[str]:
+        """Extract all required services from selected suites."""
+        services = set()
+        needs_testagent = False
+
+        for suite_config in suites.values():
+            suite_services = suite_config.get('services', [])
+            services.update(suite_services)
+
+            # Check if any suite needs testagent (has snapshot: true)
+            if suite_config.get('snapshot', False):
+                needs_testagent = True
+
+        # Add testagent if any suite needs snapshots
+        if needs_testagent:
+            services.add('testagent')
+
+        return services
+
+    def get_riot_patterns(self, suites: Dict[str, dict]) -> List[str]:
+        """Get riot patterns for the selected suites."""
+        patterns = []
+        seen = set()
+
+        for suite_name, suite_config in suites.items():
+            if suite_config.get('runner') == 'riot':
+                pattern = suite_config.get('pattern', suite_name)
+                # Convert regex patterns to actual riot pattern names
+                riot_names = self._parse_riot_pattern(pattern)
+                for name in riot_names:
+                    if name not in seen:
+                        patterns.append(name)
+                        seen.add(name)
+
+        # Sort patterns for consistent ordering
+        return sorted(patterns)
+
+    def _parse_riot_pattern(self, pattern: str) -> List[str]:
+        """Parse a suitespec pattern to extract riot venv names."""
+        # Handle regex patterns like "^(django|django:celery)$"
+        if pattern.startswith('^') and pattern.endswith('$'):
+            # Remove ^ and $ anchors
+            inner = pattern[1:-1]
+            # Handle (option1|option2) patterns
+            if inner.startswith('(') and inner.endswith(')'):
+                options = inner[1:-1].split('|')
+                return [opt.strip() for opt in options]
+            else:
+                return [inner]
+
+        # Handle exact patterns
+        return [pattern]
+
+    def get_riot_venvs(self, pattern: str) -> List[RiotVenv]:
+        """Get available riot venvs for a pattern using riot list command."""
+        try:
+            result = subprocess.run(
+                ["riot", "list", pattern],
+                capture_output=True,
+                text=True,
+                cwd=self.root
+            )
+            if result.returncode != 0:
+                return []
+
+            venvs = []
+            lines = result.stdout.strip().split('\n')
+
+            # Skip header lines and parse venv entries
+            for line in lines[1:]:  # Skip header
+                line = line.strip()
+                if not line or line.startswith('-') or 'No.' in line:
+                    continue
+
+                # Parse riot list output - extract key info
+                # Format: " #275  18abddb  django  Interpreter(      _DD_CIVISIBILITY…  'mock' 'pytest' ..."
+                parts = line.split()
+                if len(parts) >= 3 and parts[0].startswith('#'):
+                    try:
+                        number = int(parts[0][1:])  # Remove #
+                        hash_val = parts[1]
+                        name = parts[2]
+
+                        # Extract Python version from line
+                        python_ver = "3.10"  # default
+                        py_match = re.search(r"_hint='([^']+)'", line)
+                        if py_match:
+                            python_ver = py_match.group(1)
+
+                        # Extract key package info
+                        packages_info = "standard packages"
+                        for framework in ['django', 'flask', 'fastapi', 'starlette', 'celery']:
+                            fw_match = re.search(rf"'{framework}[^']*'", line)
+                            if fw_match:
+                                packages_info = fw_match.group(0).strip("'")
+                                break
+
+                        venvs.append(RiotVenv(
+                            number=number,
+                            hash=hash_val,
+                            name=name,
+                            python_version=python_ver,
+                            packages=packages_info
+                        ))
+                    except (ValueError, IndexError):
+                        continue
+
+            return venvs
+
+        except subprocess.CalledProcessError as e:
+            print(f"Warning: Failed to get riot venvs for pattern '{pattern}': {e}")
+            return []
+
+    def start_services(self, services: Set[str]) -> bool:
+        """Start required Docker services."""
+        if not services:
+            return True
+
+        print(f"\n🐳 Starting required services: {', '.join(sorted(services))}")
+        try:
+            cmd = ["docker", "compose", "up", "-d"] + list(services)
+            subprocess.run(cmd, cwd=self.root, check=True)
+            return True
+        except subprocess.CalledProcessError as e:
+            print(f"❌ Failed to start services: {e}")
+            return False
+
+    def interactive_venv_selection(self, matching_suites: Dict[str, dict]) -> List[RiotVenv]:
+        """Provide interactive venv selection with granular control."""
+        if not matching_suites:
+            print("❌ No matching test suites found for the changed files.")
+            return []
+
+        # Get riot patterns from matching suites
+        riot_patterns = self.get_riot_patterns(matching_suites)
+        if not riot_patterns:
+            print("❌ No riot patterns found in matching suites")
+            return []
+
+        print(f"\n📋 Found {len(riot_patterns)} matching riot pattern(s):")
+        print("   " + ", ".join(riot_patterns))
+
+        # Step 1: Let user select which patterns they want to run
+        selected_patterns = []
+        if len(riot_patterns) > 1:
+            print(f"\n🎯 Select which patterns to run:")
+            print("=" * 60)
+
+            for i, pattern in enumerate(riot_patterns, 1):
+                print(f"{i:2d}. {pattern}")
+
+            while True:
+                try:
+                    print(f"\nSelect patterns (e.g., '1,3' for specific, 'all' for everything, or 'none'):")
+                    selection = input("> ").strip()
+
+                    if selection.lower() == 'none':
+                        return []
+                    elif selection.lower() == 'all':
+                        selected_patterns = riot_patterns
+                        break
+
+                    selected_indices = set()
+                    for part in selection.split(','):
+                        part = part.strip()
+                        if '-' in part:
+                            start, end = map(int, part.split('-'))
+                            selected_indices.update(range(start, end + 1))
+                        else:
+                            selected_indices.add(int(part))
+
+                    for idx in selected_indices:
+                        if 1 <= idx <= len(riot_patterns):
+                            selected_patterns.append(riot_patterns[idx - 1])
+
+                    if selected_patterns:
+                        print(f"   Selected patterns: {', '.join(selected_patterns)}")
+                        break
+                    else:
+                        print("   No valid patterns selected")
+
+                except (ValueError, IndexError):
+                    print("❌ Invalid selection. Please use format like '1,3' or 'all' or 'none'")
+        else:
+            # Only one pattern, use it directly
+            selected_patterns = riot_patterns
+
+        if not selected_patterns:
+            return []
+
+        # Step 2: For each selected pattern, let user pick specific venvs
+        selected_venvs = []
+
+        for pattern in selected_patterns:
+            print(f"\n🔍 Getting available venvs for pattern '{pattern}'...")
+            venvs = self.get_riot_venvs(pattern)
+
+            if not venvs:
+                print(f"   ⚠️  No venvs found for pattern '{pattern}'")
+                continue
+
+            print(f"\n📋 Available venvs for '{pattern}' ({len(venvs)} total):")
+            print("=" * 80)
+
+            for i, venv in enumerate(venvs, 1):
+                print(f"{i:2d}. #{venv.number:3d}  {venv.hash}  {venv.name}  {venv.display_name}")
+
+            while True:
+                try:
+                    print(f"\nSelect venvs for '{pattern}' (e.g., '1' for first, '1,3,5' for multiple, 'all', 'none', or 'latest'):")
+                    selection = input("> ").strip()
+
+                    if selection.lower() == 'none':
+                        break
+                    elif selection.lower() == 'all':
+                        selected_venvs.extend(venvs)
+                        print(f"   Selected all {len(venvs)} venvs for '{pattern}'")
+                        break
+                    elif selection.lower() == 'latest':
+                        # Select the last venv (usually latest versions)
+                        selected_venvs.append(venvs[-1])
+                        print(f"   Selected: {venvs[-1].name} - {venvs[-1].display_name}")
+                        break
+
+                    selected_indices = set()
+                    for part in selection.split(','):
+                        part = part.strip()
+                        if '-' in part:
+                            start, end = map(int, part.split('-'))
+                            selected_indices.update(range(start, end + 1))
+                        else:
+                            selected_indices.add(int(part))
+
+                    pattern_venvs = []
+                    for idx in selected_indices:
+                        if 1 <= idx <= len(venvs):
+                            pattern_venvs.append(venvs[idx - 1])
+
+                    if pattern_venvs:
+                        selected_venvs.extend(pattern_venvs)
+                        print(f"   Selected {len(pattern_venvs)} venv(s) for '{pattern}':")
+                        for venv in pattern_venvs:
+                            print(f"     • {venv.name}: {venv.display_name}")
+                        break
+                    else:
+                        print("   No valid venvs selected")
+
+                except (ValueError, IndexError):
+                    print("❌ Invalid selection. Please use format like '1,3-5', 'all', 'latest', or 'none'")
+
+        return selected_venvs
+
+    def run_tests(self, selected_venvs: List[RiotVenv], matching_suites: Dict[str, dict], riot_args: List[str] = None, dry_run: bool = False) -> bool:
+        """Execute the selected venvs."""
+        if not selected_venvs:
+            print("ℹ️  No venvs selected for execution.")
+            return True
+
+        # Extract services and start them
+        services = self.extract_required_services(matching_suites)
+        if services and not self.start_services(services):
+            return False
+
+        print(f"\n🧪 Running {len(selected_venvs)} selected venv(s):")
+        for venv in selected_venvs:
+            print(f"   • #{venv.number} {venv.hash} - {venv.name}: {venv.display_name}")
+
+        # Check if any selected suite needs testagent (has snapshot: true)
+        needs_testagent = any(
+            suite_config.get('snapshot', False)
+            for suite_config in matching_suites.values()
+        )
+
+        # Set up base environment
+        env = os.environ.copy()
+        if needs_testagent:
+            env['DD_TRACE_AGENT_URL'] = 'http://localhost:9126'
+            print(f"🔧 Setting DD_TRACE_AGENT_URL=http://localhost:9126 for snapshot tests")
+
+        # Execute each venv
+        for venv in selected_venvs:
+
+            # Execute using ddtest with the specific venv hash
+            cmd = [str(self.root / "scripts" / "ddtest"), "riot", "-v", "run", "--pass-env", venv.hash]
+
+            # Add riot args if provided
+            if riot_args:
+                cmd.extend(["--"] + riot_args)
+
+            if dry_run:
+                print(f"[DRY RUN] Would execute: {' '.join(cmd)}")
+                if needs_testagent:
+                    print(f"[DRY RUN] With env: DD_TRACE_AGENT_URL={env.get('DD_TRACE_AGENT_URL')}")
+            else:
+                print(f"\n▶️  Executing venv #{venv.number} ({venv.name}: {venv.display_name}): {' '.join(cmd)}")
+                try:
+                    result = subprocess.run(cmd, env=env, cwd=self.root)
+                    if result.returncode != 0:
+                        print(f"❌ Venv #{venv.number} ({venv.hash}) failed with exit code {result.returncode}")
+                        return False
+                    else:
+                        print(f"✅ Venv #{venv.number} ({venv.hash}) completed successfully")
+                except subprocess.CalledProcessError as e:
+                    print(f"❌ Failed to run venv #{venv.number} ({venv.hash}): {e}")
+                    return False
+
+        print("\n🎉 All selected venvs completed successfully!")
+        return True
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Run test suites based on changed files",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Run tests for all locally changed files
+  scripts/run-tests
+
+  # Run tests for specific files
+  scripts/run-tests ddtrace/contrib/flask/patch.py tests/contrib/flask/test_flask.py
+
+  # Run tests for changes since main branch
+  scripts/run-tests --git-base=main
+
+  # Show what would be run without executing
+  scripts/run-tests --dry-run
+
+  # Pass additional arguments to pytest
+  scripts/run-tests ddtrace/contrib/django/patch.py -- -vvv -s --tb=short
+        """
+    )
+
+    parser.add_argument(
+        'files',
+        nargs='*',
+        help='Specific files to test (if not provided, uses git changes)'
+    )
+
+    parser.add_argument(
+        '--git-base',
+        default='HEAD',
+        help='Git ref to compare against for changes (default: HEAD for local changes)'
+    )
+
+    parser.add_argument(
+        '--dry-run',
+        action='store_true',
+        help='Show what would be run without executing'
+    )
+
+    parser.add_argument(
+        '--all-suites',
+        action='store_true',
+        help='Show all available suites regardless of file changes'
+    )
+
+    # Parse args, but handle -- separator for riot args
+    if '--' in sys.argv:
+        separator_idx = sys.argv.index('--')
+        script_args = sys.argv[1:separator_idx]
+        riot_args = sys.argv[separator_idx + 1:]
+    else:
+        script_args = sys.argv[1:]
+        riot_args = []
+
+    args = parser.parse_args(script_args)
+
+    runner = TestRunner()
+
+    # Determine which files to check
+    if args.files:
+        # Use explicitly provided files
+        files = set(args.files)
+        print(f"📁 Checking explicitly provided files: {', '.join(files)}")
+    elif args.all_suites:
+        # Use a dummy set that will match all suites
+        files = {"*"}
+        print("📁 Checking all available test suites")
+    else:
+        # Use git changes
+        files = runner.get_git_changed_files(args.git_base)
+        if not files:
+            print("ℹ️  No changed files found. Use --all-suites to see all available suites.")
+            return 0
+        print(f"📁 Found {len(files)} changed file(s): {', '.join(list(files)[:5])}")
+        if len(files) > 5:
+            print(f"    ... and {len(files) - 5} more")
+
+    # Find matching suites
+    if args.all_suites:
+        # Get all suites
+        matching_suites = get_suites()
+        # Add empty matched_files for consistency
+        for suite_config in matching_suites.values():
+            suite_config['matched_files'] = []
+    else:
+        matching_suites = runner.find_matching_suites(files)
+
+    # Interactive venv selection
+    selected_venvs = runner.interactive_venv_selection(matching_suites)
+
+    # Execute tests
+    success = runner.run_tests(selected_venvs, matching_suites, riot_args=riot_args, dry_run=args.dry_run)
+
+    return 0 if success else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
