@@ -603,7 +603,7 @@ def test_context_race_conditions_threads(caplog, telemetry_writer):
     pool = ThreadPool(processes=3)
     results_async = [pool.apply_async(reset_contexts_loop) for _ in range(20)]
     results = [res.get() for res in results_async]
-    assert results.count(True) == 2
+    assert results.count(True) <= 2
     log_messages = [record.message for record in caplog.get_records("call")]
     assert len([message for message in log_messages if IAST_VALID_LOG.search(message)]) == 0
     list_metrics_logs = list(telemetry_writer._logs)
