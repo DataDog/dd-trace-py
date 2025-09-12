@@ -1,161 +1,146 @@
-"""Span creation and management utilities for vLLM integration."""
+"""Span creation and LLMObs context utilities for vLLM integration."""
 
-from typing import Optional, Dict, Any
-import time
+from __future__ import annotations
 
-from ddtrace.ext import SpanTypes
-from ddtrace.llmobs._constants import INTEGRATION
+from dataclasses import dataclass
+from typing import Any, Dict, Optional
+
 from ddtrace.constants import _SPAN_MEASURED_KEY
-from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs._constants import INTEGRATION
+from ddtrace.propagation.http import HTTPPropagator
 
 log = get_logger(__name__)
 
 
+@dataclass(frozen=True)
 class SpanConfig:
-    """Configuration for creating vLLM spans."""
-    
-    def __init__(
-        self,
-        tracer,
-        integration,
-        parent=None,
-        seq_group=None,
-        model_name: Optional[str] = None,
-        arrival_time: Optional[float] = None
-    ):
-        self.tracer = tracer
-        self.integration = integration
-        self.parent = parent
-        self.seq_group = seq_group
-        self.model_name = model_name
-        self.arrival_time = arrival_time
+    tracer: Any
+    integration: Any
+    parent: Optional[Any] = None
+    seq_group: Optional[Any] = None
+    model_name: Optional[str] = None
+    arrival_time: Optional[float] = None
 
 
-def create_vllm_span(config: SpanConfig) -> Optional[object]:
-    """Create a standardized vLLM span with proper configuration."""
-    if not config.tracer:
+def _parent_ctx_from_config(cfg: SpanConfig) -> Optional[Any]:
+    if cfg.parent:
+        return cfg.parent.context
+
+    if cfg.seq_group and getattr(cfg.seq_group, "trace_headers", None):
+        log.debug("[VLLM DD] create_vllm_span: found trace_headers")
+        return HTTPPropagator.extract(cfg.seq_group.trace_headers)
+
+    log.debug("[VLLM DD] create_vllm_span: creating root span")
+    return None
+
+
+def _resolve_model_name(cfg: SpanConfig) -> Optional[str]:
+    if cfg.model_name:
+        return cfg.model_name
+
+    if cfg.seq_group and getattr(cfg.seq_group, "trace_headers", None):
+        hdrs = cfg.seq_group.trace_headers
+        if hdrs and "x-datadog-vllm-model" in hdrs:
+            return hdrs["x-datadog-vllm-model"]
+
+    # Global fallback set at server init (used by vLLM examples)
+    try:
+        import vllm as _v  # local import to avoid hard dependency at import time
+        return getattr(_v, "_dd_model_name", None)
+    except Exception:  # import guard (kept minimal; not defensive flow in hot path)
         return None
-    
-    # Determine parent context
-    parent_ctx = None
-    if config.parent:
-        parent_ctx = config.parent.context
-    elif config.seq_group and hasattr(config.seq_group, 'trace_headers'):
-        trace_headers = getattr(config.seq_group, 'trace_headers', {})
-        if trace_headers:
-            log.debug("[VLLM DD] create_vllm_span: found trace_headers keys=%s", list(trace_headers.keys()))
-            # Accept either W3C headers (traceparent/tracestate) or Datadog headers (x-datadog-trace-id/parent-id)
-            parent_ctx = HTTPPropagator.extract(trace_headers)
-    else:
-        log.debug("[VLLM DD] create_vllm_span: no parent or trace_headers; creating root span")
-    
-    # Create span
-    span = config.tracer.start_span(
+
+
+def create_vllm_span(cfg: SpanConfig) -> Optional[Any]:
+    if not cfg.tracer:
+        return None
+
+    span = cfg.tracer.start_span(
         "vllm.request",
-        child_of=parent_ctx,
+        child_of=_parent_ctx_from_config(cfg),
         resource="vllm.request",
         span_type=SpanTypes.LLM,
         activate=False,
     )
-    
-    # Set integration context
-    if config.integration:
-        span._set_ctx_item(INTEGRATION, config.integration._integration_name)
-    
+
+    if cfg.integration:
+        span._set_ctx_item(INTEGRATION, cfg.integration._integration_name)
+
     span.set_metric(_SPAN_MEASURED_KEY, 1)
-    
-    # Set arrival time if available
-    if config.arrival_time:
-        span.start_ns = int(float(config.arrival_time) * 1e9)
-    
-    # Set base model tags
-    if config.integration:
-        model_name = config.model_name
-        # Fallback: adopt model name propagated via trace headers
-        if not model_name and config.seq_group and hasattr(config.seq_group, 'trace_headers'):
-            hdrs = getattr(config.seq_group, 'trace_headers') or {}
-            model_name = hdrs.get('x-datadog-vllm-model')
-        # Final fallback: global model name set at server init
-        if not model_name:
-            try:
-                import vllm as _v
-                model_name = getattr(_v, '_dd_model_name', None)
-            except Exception:
-                model_name = None
-        if model_name:
-            config.integration._set_base_span_tags(span, model_name=model_name)
-            log.debug("[VLLM DD] create_vllm_span: tagged model_name=%s", model_name)
-        else:
-            log.debug("[VLLM DD] create_vllm_span: no model_name to tag")
-    # Attach request_id to span for correlation
-    try:
-        req_id = getattr(config.seq_group, 'request_id', None)
-        if req_id:
-            span.set_tag_str('vllm.request.id', str(req_id))
-    except Exception:
-        pass
-    
+
+    if cfg.arrival_time:
+        # ns precision expected by ddtrace core
+        span.start_ns = int(cfg.arrival_time * 1e9)
+
+    model_name = _resolve_model_name(cfg)
+    if model_name and cfg.integration:
+        cfg.integration._set_base_span_tags(span, model_name=model_name)
+        log.debug("[VLLM DD] create_vllm_span: tagged model_name=%s", model_name)
+
+    req_id = getattr(cfg.seq_group, "request_id", None) if cfg.seq_group else None
+    if req_id:
+        span.set_tag_str("vllm.request.id", str(req_id))
+
     return span
 
 
-
-
-def set_latency_metrics(span, metrics_obj, start_time: Optional[float] = None):
-    """Set latency metrics on span from vLLM metrics object."""
-    if not metrics_obj:
+def set_latency_metrics(span: Any, metrics: Any, start_time: Optional[float] = None) -> None:
+    if not metrics:
+        if start_time:
+            # last-ditch e2e for callers that tracked their own clock
+            import time as _t
+            span.set_metric("vllm.latency.e2e", float(_t.time() - start_time))
         return
-    
-    arrival = getattr(metrics_obj, "arrival_time", None)
-    first_token_time = getattr(metrics_obj, "first_token_time", None)
-    finished_time = getattr(metrics_obj, "finished_time", None)
-    time_in_queue = getattr(metrics_obj, "time_in_queue", None)
-    
-    if arrival and first_token_time:
-        span.set_metric("vllm.latency.ttft", float(first_token_time - arrival))
-    
-    if arrival and finished_time:
-        span.set_metric("vllm.latency.e2e", float(finished_time - arrival))
+
+    arrival = getattr(metrics, "arrival_time", None)
+    first_token = getattr(metrics, "first_token_time", None)
+    finished = getattr(metrics, "finished_time", None)
+    queue = getattr(metrics, "time_in_queue", None)
+
+    if arrival and first_token:
+        span.set_metric("vllm.latency.ttft", float(first_token - arrival))
+    if arrival and finished:
+        span.set_metric("vllm.latency.e2e", float(finished - arrival))
     elif start_time:
-        span.set_metric("vllm.latency.e2e", float(time.time() - start_time))
-    
-    if time_in_queue:
-        span.set_metric("vllm.latency.queue", float(time_in_queue))
+        import time as _t
+        span.set_metric("vllm.latency.e2e", float(_t.time() - start_time))
+    if queue:
+        span.set_metric("vllm.latency.queue", float(queue))
 
 
-def inject_trace_headers(pin, kwargs: Dict[str, Any]):
-    """Inject W3C trace headers into kwargs if not already present."""
-    if kwargs.get("trace_headers") is not None:
+def inject_trace_headers(pin: Any, kwargs: Dict[str, Any]) -> None:
+    if kwargs.get("trace_headers") is not None or not pin or not pin.tracer:
         return
-    
+
     parent = pin.tracer.current_span()
     if not parent:
         return
-    
+
     headers: Dict[str, str] = {}
     HTTPPropagator.inject(parent.context, headers)
-    # Also propagate captured prompt for later LLMObs input reconstruction
-    captured_prompt = parent._get_ctx_item("vllm.captured_prompt")
-    if isinstance(captured_prompt, str) and captured_prompt:
-        headers["x-datadog-captured-prompt"] = captured_prompt
+
+    captured = parent._get_ctx_item("vllm.captured_prompt")
+    if isinstance(captured, str) and captured:
+        headers["x-datadog-captured-prompt"] = captured
+
     if headers:
         kwargs["trace_headers"] = headers
 
 
-def apply_llmobs_context(span, integration, kwargs: dict, operation: str = "completion"):
-    """Apply LLMObs context to span using integration builders.
-    
-    Uses integration context builders to avoid duplication.
-    """
+def apply_llmobs_context(span: Any, integration: Any, kwargs: dict, operation: str = "completion") -> None:
     if not span or not integration:
         return
+
     if operation == "embedding" and hasattr(integration, "_build_embedding_context"):
-        context = integration._build_embedding_context(kwargs)
+        ctx = integration._build_embedding_context(kwargs)
     elif hasattr(integration, "_build_completion_context"):
-        context = integration._build_completion_context(kwargs)
+        ctx = integration._build_completion_context(kwargs)
     else:
         return
-    span._set_ctx_items(context)
+
+    span._set_ctx_items(ctx)
     if hasattr(integration, "_set_supplemental_tags"):
         integration._set_supplemental_tags(span, kwargs)
-    log.debug("[VLLM DD] apply_llmobs_context: op=%s ctx_keys=%s", operation, list(context.keys()))
+    log.debug("[VLLM DD] apply_llmobs_context: op=%s", operation)
