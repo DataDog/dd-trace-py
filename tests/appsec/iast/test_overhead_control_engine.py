@@ -70,7 +70,7 @@ def test_oce_reset_vulnerabilities_report(iast_context_deduplication_enabled):
 
     span_report = get_iast_reporter()
 
-    assert len(span_report.vulnerabilities) == 1
+    assert len(span_report.vulnerabilities) == asm_config._iast_max_vulnerabilities_per_requests + 1
 
 
 def test_oce_no_race_conditions_in_span(iast_span_defaults):
