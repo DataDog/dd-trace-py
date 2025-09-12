@@ -358,7 +358,7 @@ venv = Venv(
                 "httpretty": latest,
                 "wheel": latest,
                 "fastapi": latest,
-                "httpx": latest,
+                "httpx": "<0.28.0",
                 "pytest-randomly": latest,
                 "setuptools": latest,
                 "boto3": latest,
@@ -1487,7 +1487,7 @@ venv = Venv(
                 ),
                 Venv(
                     pys="3.10",
-                    pkgs={"starlette": [latest], "httpx": latest},
+                    pkgs={"starlette": [latest], "httpx": "<0.28.0"},
                 ),
                 Venv(
                     # starlette added support for Python 3.11 in 0.21
@@ -1667,7 +1667,7 @@ venv = Venv(
             name="asgi",
             pkgs={
                 "pytest-asyncio": "==0.21.1",
-                "httpx": latest,
+                "httpx": "<0.28.0",
                 "asgiref": ["~=3.0.0", "~=3.0", latest],
                 "pytest-randomly": latest,
             },
@@ -1834,7 +1834,7 @@ venv = Venv(
                         "msgpack": latest,
                         "more_itertools": "<8.11.0",
                         "pytest-mock": "==2.0.0",
-                        "httpx": latest,
+                        "httpx": "<0.28.0",
                     },
                     venvs=[
                         Venv(
@@ -1862,7 +1862,7 @@ venv = Venv(
                         "msgpack": latest,
                         "asynctest": "==0.13.0",
                         "more_itertools": "<8.11.0",
-                        "httpx": latest,
+                        "httpx": "<0.28.0",
                     },
                 ),
                 Venv(
@@ -1870,7 +1870,7 @@ venv = Venv(
                     command="pytest -c /dev/null --no-ddtrace --no-cov tests/contrib/pytest {cmdargs}",
                     pys=["3.9", "3.10", "3.12"],
                     pkgs={
-                        "httpx": latest,
+                        "httpx": "<0.28.0",
                         "msgpack": latest,
                         "requests": latest,
                         "hypothesis": latest,
@@ -3011,7 +3011,7 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(min_version="3.8", max_version="3.12"),
-                    pkgs={"anthropic": latest, "httpx": latest},
+                    pkgs={"anthropic": latest, "httpx": "<0.28.0"},
                 ),
             ],
         ),
