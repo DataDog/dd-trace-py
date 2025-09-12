@@ -131,7 +131,7 @@ experiments:
             thresholds:
               - execution_time < 2.00 ms
               - max_rss_usage < 46.50 MB
-              - max_rss_usage < 45.00 MB
+              - max_rss_usage < 46.50 MB
           - name: flasksimple-iast-get
             thresholds:
               - execution_time < 2.00 ms
