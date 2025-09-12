@@ -71,17 +71,23 @@ def save_to_cache():
 
 
 def parse_args():
-    args = argparse.ArgumentParser()
-    args.add_argument("--restore", action="store_true")
-    args.add_argument("--save", action="store_true")
-    return args.parse_args()
+    parser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers(dest="command", required=True, help="Available commands")
+
+    # Add restore command
+    subparsers.add_parser("restore", help="Restore extensions from cache")
+
+    # Add save command
+    subparsers.add_parser("save", help="Save extensions to cache")
+
+    return parser.parse_args()
 
 
 def main():
     args = parse_args()
-    if args.restore:
+    if args.command == "restore":
         try_restore_from_cache()
-    elif args.save:
+    elif args.command == "save":
         save_to_cache()
 
 

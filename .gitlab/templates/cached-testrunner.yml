@@ -15,12 +15,12 @@
     else
         source $EXT_CACHE_VENV/bin/activate
     fi
-    python scripts/ext_cache.py --restore
+    python scripts/ext_cache.py restore
     deactivate
   after_script: |
     set -e -o pipefail
     source $EXT_CACHE_VENV/bin/activate
-    python scripts/ext_cache.py --save
+    python scripts/ext_cache.py save
     deactivate
   cache:
     # Share pip between jobs of the same Python version
