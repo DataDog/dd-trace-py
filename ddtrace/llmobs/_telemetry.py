@@ -44,11 +44,11 @@ def _find_tag_value_from_tags(tags, tag_key):
 
 
 def _get_tags_from_span_event(event: LLMObsSpanEvent):
-    span_kind = event.get("meta", {}).get("span.kind", "")
-    integration = _find_tag_value_from_tags(event.get("tags", []), "integration")
-    ml_app = _find_tag_value_from_tags(event.get("tags", []), "ml_app")
+    span_kind = getattr(getattr(event, "meta", {}), "span.kind", "")
+    integration = _find_tag_value_from_tags(getattr(event, "tags", []), "integration")
+    ml_app = _find_tag_value_from_tags(getattr(event, "tags", []), "ml_app")
     autoinstrumented = integration is not None
-    error = event.get("status") == "error"
+    error = getattr(event, "status") == "error"
     return [
         ("span_kind", span_kind),
         ("autoinstrumented", str(int(autoinstrumented))),
@@ -151,7 +151,7 @@ def record_span_event_raw_size(event: LLMObsSpanEvent, raw_event_size: int):
 
 def record_span_event_size(event: LLMObsSpanEvent, event_size: int):
     tags = _get_tags_from_span_event(event)
-    truncated = DROPPED_IO_COLLECTION_ERROR in event.get("collection_errors", [])
+    truncated = DROPPED_IO_COLLECTION_ERROR in getattr(event, "collection_errors", [])
     tags.append(("truncated", str(int(truncated))))
     telemetry_writer.add_distribution_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS, name=LLMObsTelemetryMetrics.SPAN_SIZE, value=event_size, tags=tuple(tags)

@@ -8,6 +8,7 @@ from typing import Optional
 from typing import Set
 from typing import Tuple
 from typing import Union
+from typing import Any
 
 from ddtrace import config
 from ddtrace.ext import SpanTypes
@@ -195,7 +196,7 @@ def safe_json(obj, ensure_ascii=True):
     try:
         # If object is a Pydantic model, convert to JSON serializable dict first using model_dump()
         if hasattr(obj, "model_dump") and callable(obj.model_dump):
-            obj = obj.model_dump()
+            obj = obj.model_dump(exclude_none=True)
         return json.dumps(obj, ensure_ascii=ensure_ascii, skipkeys=True, default=_unserializable_default_repr)
     except Exception:
         log.error("Failed to serialize object to JSON.", exc_info=True)
@@ -254,10 +255,13 @@ def add_span_link(span: Span, span_id: str, trace_id: str, from_io: str, to_io: 
     span._set_ctx_item(SPAN_LINKS, current_span_links)
 
 
-def enforce_message_role(messages: List[Dict[str, str]]) -> List[Dict[str, str]]:
+def enforce_message_role(messages: List[Union[Dict[str, str], Any]]) -> List[Union[Dict[str, str], Any]]:
     """Enforce that each message includes a role (empty "" by default) field."""
     for message in messages:
-        message.setdefault("role", "")
+        if isinstance(message, dict):
+            message.setdefault("role", "")
+        elif hasattr(message, 'role') and message.role is None:
+            message.role = ""
     return messages
 
 

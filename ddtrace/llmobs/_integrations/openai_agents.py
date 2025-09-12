@@ -237,9 +237,9 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
                 core.dispatch(
                     DISPATCH_ON_LLM_TOOL_CHOICE,
                     (
-                        tool_call_output["tool_id"],
-                        tool_call_output["name"],
-                        safe_json(tool_call_output["arguments"]),
+                        tool_call_output.tool_id,
+                        tool_call_output.name,
+                        safe_json(tool_call_output.arguments),
                         {
                             "trace_id": format_trace_id(span.trace_id),
                             "span_id": str(span.span_id),

@@ -6,7 +6,7 @@ from typing import Tuple
 import mock
 import pytest
 
-from tests.llmobs._utils import _assert_span_link
+from tests.llmobs._utils import _assert_span_link, dump_llmobs_event
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 
@@ -181,7 +181,7 @@ def _assert_expected_agent_run(
             io_args = (
                 {"input_value": mock.ANY, "output_value": mock.ANY} if tool_call["type"] == "function_call" else {}
             )
-            assert event == _expected_llmobs_non_llm_span_event(
+            expected_event = _expected_llmobs_non_llm_span_event(
                 spans[i + 1],
                 span_kind="tool",
                 tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
@@ -189,6 +189,7 @@ def _assert_expected_agent_run(
                 **io_args,
                 **error_args,
             )
+            assert event == expected_event
             # assert tool is linked to the previous LLM call
             _assert_span_link(llmobs_events[i], event, "output", "input")
             previous_tool_events.append(event)
@@ -203,6 +204,7 @@ async def test_llmobs_single_agent(agents, mock_tracer, request_vcr, llmobs_even
 
     spans = mock_tracer.pop_traces()[0]
     spans.sort(key=lambda span: span.start_ns)
+    llmobs_events = dump_llmobs_event(llmobs_events)
     llmobs_events.sort(key=lambda event: event["start_ns"])
 
     assert len(spans) == len(llmobs_events) == 3
@@ -250,6 +252,7 @@ async def test_llmobs_streamed_single_agent(agents, mock_tracer, request_vcr, ll
 
     spans = mock_tracer.pop_traces()[0]
     spans.sort(key=lambda span: span.start_ns)
+    llmobs_events = dump_llmobs_event(llmobs_events)
     llmobs_events.sort(key=lambda event: event["start_ns"])
 
     assert len(spans) == len(llmobs_events) == 3
@@ -290,6 +293,7 @@ def test_llmobs_single_agent_sync(agents, mock_tracer, request_vcr, llmobs_event
 
     spans = mock_tracer.pop_traces()[0]
     spans.sort(key=lambda span: span.start_ns)
+    llmobs_events = dump_llmobs_event(llmobs_events)
     llmobs_events.sort(key=lambda event: event["start_ns"])
 
     assert len(spans) == len(llmobs_events) == 3
@@ -337,6 +341,7 @@ async def test_llmobs_manual_tracing_llmobs(agents, mock_tracer, request_vcr, ll
 
     spans = mock_tracer.pop_traces()[0]
     spans.sort(key=lambda span: span.start_ns)
+    llmobs_events = dump_llmobs_event(llmobs_events)
     llmobs_events.sort(key=lambda event: event["start_ns"])
 
     assert len(spans) == len(llmobs_events) == 4
@@ -385,6 +390,7 @@ async def test_llmobs_single_agent_with_tool_calls_llmobs(
 
     spans = mock_tracer.pop_traces()[0]
     spans.sort(key=lambda span: span.start_ns)
+    llmobs_events = dump_llmobs_event(llmobs_events)
     llmobs_events.sort(key=lambda event: event["start_ns"])
 
     assert len(spans) == len(llmobs_events) == 5
@@ -457,6 +463,7 @@ async def test_llmobs_single_agent_with_ootb_tools(agents, mock_tracer, request_
 
     spans = mock_tracer.pop_traces()[0]
     spans.sort(key=lambda span: span.start_ns)
+    llmobs_events = dump_llmobs_event(llmobs_events)
     llmobs_events.sort(key=lambda event: event["start_ns"])
 
     assert len(spans) == len(llmobs_events) == 3
@@ -502,6 +509,7 @@ async def test_llmobs_multiple_agent_handoffs(agents, mock_tracer, request_vcr, 
 
     spans = mock_tracer.pop_traces()[0]
     spans.sort(key=lambda span: span.start_ns)
+    llmobs_events = dump_llmobs_event(llmobs_events)
     llmobs_events.sort(key=lambda event: event["start_ns"])
 
     assert len(spans) == len(llmobs_events) == 8
@@ -620,6 +628,7 @@ async def test_llmobs_single_agent_with_tool_errors(
         result = await agents.Runner.run(addition_agent_with_tool_errors, "What is the sum of 1 and 2?")
     spans = mock_tracer.pop_traces()[0]
     spans.sort(key=lambda span: span.start_ns)
+    llmobs_events = dump_llmobs_event(llmobs_events)
     llmobs_events.sort(key=lambda event: event["start_ns"])
 
     assert len(spans) == len(llmobs_events) == 5
@@ -708,6 +717,7 @@ async def test_llmobs_oai_agents_with_chat_completions_span_linking(
 
     spans = mock_tracer_chat_completions.pop_traces()[0]
     spans.sort(key=lambda span: span.start_ns)
+    llmobs_events = dump_llmobs_event(llmobs_events)
     llmobs_events.sort(key=lambda event: event["start_ns"])
 
     assert len(spans) == len(llmobs_events) == 8
@@ -755,6 +765,7 @@ async def test_llmobs_oai_agents_with_guardrail_spans(
 
     spans = mock_tracer_chat_completions.pop_traces()[0]
     spans.sort(key=lambda span: span.start_ns)
+    llmobs_events = dump_llmobs_event(llmobs_events)
     llmobs_events.sort(key=lambda event: event["start_ns"])
 
     assert len(spans) == len(llmobs_events) == 7
