@@ -8,7 +8,6 @@ import ddtrace
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.ext.test_visibility import api as ext_api
 from ddtrace.internal.test_visibility import api
-import ddtrace.internal.test_visibility._internal_item_ids
 
 
 def main():
@@ -27,9 +26,9 @@ def main():
     suite_1_id = ext_api.TestSuiteId(module_1_id, "suite_1")
     api.InternalTestSuite.discover(suite_1_id)
 
-    suite_1_test_1_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(suite_1_id, "test_1")
-    suite_1_test_2_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(suite_1_id, "test_2")
-    suite_1_test_3_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(suite_1_id, "test_3")
+    suite_1_test_1_id = ext_api.TestId(suite_1_id, "test_1")
+    suite_1_test_2_id = ext_api.TestId(suite_1_id, "test_2")
+    suite_1_test_3_id = ext_api.TestId(suite_1_id, "test_3")
 
     api.InternalTest.discover(
         suite_1_test_1_id, source_file_info=ext_api.TestSourceFileInfo(Path("my_file_1.py"), 1, 2)
@@ -42,9 +41,9 @@ def main():
     )
     module_2_id = ext_api.TestModuleId("module_2")
     suite_2_id = ext_api.TestSuiteId(module_2_id, "suite_2")
-    suite_2_test_1_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(suite_2_id, "test_1")
-    suite_2_test_2_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(suite_2_id, "test_2")
-    suite_2_test_3_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(suite_2_id, "test_3")
+    suite_2_test_1_id = ext_api.TestId(suite_2_id, "test_1")
+    suite_2_test_2_id = ext_api.TestId(suite_2_id, "test_2")
+    suite_2_test_3_id = ext_api.TestId(suite_2_id, "test_3")
 
     api.InternalTestModule.discover(module_2_id)
     api.InternalTestSuite.discover(suite_2_id)

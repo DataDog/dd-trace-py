@@ -1,7 +1,12 @@
+from types import TracebackType
+from typing import Optional
+from typing import Tuple
+
 from ddtrace.appsec._iast._handlers import _iast_on_wrapped_view
 from ddtrace.appsec._iast._handlers import _on_asgi_finalize_response
 from ddtrace.appsec._iast._handlers import _on_django_finalize_response_pre
 from ddtrace.appsec._iast._handlers import _on_django_func_wrapped
+from ddtrace.appsec._iast._handlers import _on_django_middleware
 from ddtrace.appsec._iast._handlers import _on_django_patch
 from ddtrace.appsec._iast._handlers import _on_django_technical_500_response
 from ddtrace.appsec._iast._handlers import _on_flask_finalize_request_post
@@ -13,10 +18,18 @@ from ddtrace.appsec._iast._handlers import _on_set_request_tags_iast
 from ddtrace.appsec._iast._handlers import _on_werkzeug_render_debugger_html
 from ddtrace.appsec._iast._handlers import _on_wsgi_environ
 from ddtrace.appsec._iast._iast_request_context import _iast_end_request
+from ddtrace.appsec._iast._langchain import langchain_listen
+from ddtrace.appsec._iast.taint_sinks.sql_injection import _on_report_sqli
 from ddtrace.internal import core
 
 
 def iast_listen():
+    def _iast_context_end(
+        ctx: core.ExecutionContext,
+        _exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+    ):
+        _iast_end_request(ctx)
+
     core.on("grpc.client.response.message", _on_grpc_response)
     core.on("grpc.server.response.message", _on_grpc_server_response)
 
@@ -24,6 +37,16 @@ def iast_listen():
     core.on("django.wsgi_environ", _on_wsgi_environ, "wrapped_result")
     core.on("django.finalize_response.pre", _on_django_finalize_response_pre)
     core.on("django.func.wrapped", _on_django_func_wrapped)
+    for event in (
+        "django.middleware.__call__",
+        "django.middleware.func",
+        "django.middleware.process_exception",
+        "django.middleware.process_request",
+        "django.middleware.process_response",
+        "django.middleware.process_template_response",
+        "django.middleware.process_view",
+    ):
+        core.on(f"context.started.{event}", _on_django_middleware)
     core.on("django.technical_500_response", _on_django_technical_500_response)
 
     core.on("flask.patch", _on_flask_patch)
@@ -35,8 +58,13 @@ def iast_listen():
     core.on("flask.finalize_request.post", _on_flask_finalize_request_post)
     core.on("werkzeug.render_debugger_html", _on_werkzeug_render_debugger_html)
 
-    core.on("context.ended.wsgi.__call__", _iast_end_request)
-    core.on("context.ended.asgi.__call__", _iast_end_request)
+    core.on("context.ended.wsgi.__call__", _iast_context_end)
+    core.on("context.ended.asgi.__call__", _iast_context_end)
+
+    # Sink points
+    core.on("db_query_check", _on_report_sqli)
+
+    langchain_listen(core)
 
 
 def _on_grpc_server_response(message):

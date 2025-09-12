@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: fix issue where Trace Agent sampling rates were not being applied when using a `TraceFilter` and `tracer.configure`.

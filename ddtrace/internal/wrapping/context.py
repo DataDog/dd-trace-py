@@ -1,6 +1,7 @@
 from abc import ABC
 from contextvars import ContextVar
 from inspect import iscoroutinefunction
+from inspect import isgeneratorfunction
 import sys
 from types import FrameType
 from types import FunctionType
@@ -17,6 +18,7 @@ import bytecode
 from bytecode import Bytecode
 
 from ddtrace.internal.assembly import Assembly
+from ddtrace.internal.utils.inspection import link_function_to_code
 
 
 T = t.TypeVar("T")
@@ -229,11 +231,14 @@ elif sys.version_info >= (3, 10):
 
     CONTEXT_RETURN.parse(
         r"""
+            pop_block
             load_const                  {context}
             load_method                 $__return__
             rot_three
             rot_three
             call_method                 1
+            rot_two
+            pop_top
         """
     )
 
@@ -257,11 +262,14 @@ elif sys.version_info >= (3, 9):
 
     CONTEXT_RETURN.parse(
         r"""
+            pop_block
             load_const                  {context}
             load_method                 $__return__
             rot_three
             rot_three
             call_method                 1
+            rot_two
+            pop_top
         """
     )
 
@@ -477,7 +485,16 @@ class _UniversalWrappingContext(BaseWrappingContext):
 
     @classmethod
     def is_wrapped(cls, f: FunctionType) -> bool:
-        return hasattr(f, "__dd_context_wrapped__")
+        try:
+            # Check that we have actual bytecode wrapping. The presence of the
+            # __dd_context_wrapped__ attribute is not enough, as this could be
+            # copied over from an object state cloning.
+            if sys.version_info >= (3, 11):
+                return f.__dd_context_wrapped__.__enter__ in f.__code__.co_consts  # type: ignore
+            else:
+                return f.__dd_context_wrapped__ in f.__code__.co_consts  # type: ignore
+        except AttributeError:
+            return False
 
     @classmethod
     def extract(cls, f: FunctionType) -> "_UniversalWrappingContext":
@@ -560,7 +577,10 @@ class _UniversalWrappingContext(BaseWrappingContext):
             # Mark the function as wrapped by a wrapping context
             t.cast(ContextWrappedFunction, f).__dd_context_wrapped__ = self
 
-            # Replace the function code with the wrapped code
+            # Replace the function code with the wrapped code. We also link
+            # the function to its original code object so that we can retrieve
+            # it later if required.
+            link_function_to_code(f.__code__, f)
             f.__code__ = bc.to_code()
 
         def unwrap(self) -> None:
@@ -667,9 +687,9 @@ class _UniversalWrappingContext(BaseWrappingContext):
                     pass
                 i += 1
 
-            # Search for the GEN_START instruction
+            # Search for the GEN_START instruction, which needs to stay on top.
             i = 0
-            if sys.version_info >= (3, 10) and iscoroutinefunction(f):
+            if sys.version_info >= (3, 10) and (iscoroutinefunction(f) or isgeneratorfunction(f)):
                 for i, instr in enumerate(bc, 1):
                     try:
                         if instr.name == "GEN_START":
@@ -686,7 +706,10 @@ class _UniversalWrappingContext(BaseWrappingContext):
             # Mark the function as wrapped by a wrapping context
             t.cast(ContextWrappedFunction, f).__dd_context_wrapped__ = self
 
-            # Replace the function code with the wrapped code
+            # Replace the function code with the wrapped code. We also link
+            # the function to its original code object so that we can retrieve
+            # it later if required.
+            link_function_to_code(f.__code__, f)
             f.__code__ = bc.to_code()
 
         def unwrap(self) -> None:

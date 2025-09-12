@@ -1,15 +1,19 @@
 import importlib
 import os
-import threading
+from types import ModuleType
 from typing import TYPE_CHECKING  # noqa:F401
+from typing import Set
+from typing import Union
 
 from wrapt.importer import when_imported
 
-from ddtrace.appsec import load_common_appsec_modules
+from ddtrace.appsec._listeners import load_common_appsec_modules
+from ddtrace.internal.compat import Path
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.settings._config import config
-from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.debtcollector import deprecate
+from ddtrace.vendor.packaging.specifiers import SpecifierSet
+from ddtrace.vendor.packaging.version import Version
 
 from .internal import telemetry
 from .internal.logger import get_logger
@@ -21,7 +25,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Any  # noqa:F401
     from typing import Callable  # noqa:F401
     from typing import List  # noqa:F401
-    from typing import Union  # noqa:F401
 
 
 log = get_logger(__name__)
@@ -45,8 +48,9 @@ PATCH_MODULES = {
     "elasticsearch": True,
     "algoliasearch": True,
     "futures": True,
-    "freezegun": True,
+    "freezegun": False,  # deprecated, to be removed in ddtrace 4.x
     "google_generativeai": True,
+    "google_genai": True,
     "gevent": True,
     "graphql": True,
     "grpc": True,
@@ -59,6 +63,7 @@ PATCH_MODULES = {
     "mysqldb": True,
     "pymysql": True,
     "mariadb": True,
+    "mcp": True,
     "psycopg": True,
     "pylibmc": True,
     "pymemcache": True,
@@ -88,11 +93,10 @@ PATCH_MODULES = {
     # Ignore some web framework integrations that might be configured explicitly in code
     "falcon": True,
     "pyramid": True,
-    # Auto-enable logging if the environment variable DD_LOGS_INJECTION is true
-    "logbook": config._logs_injection,
-    "logging": config._logs_injection,
-    "loguru": config._logs_injection,
-    "structlog": config._logs_injection,
+    "logbook": True,
+    "logging": True,
+    "loguru": True,
+    "structlog": True,
     "pynamodb": True,
     "pyodbc": True,
     "fastapi": True,
@@ -101,11 +105,13 @@ PATCH_MODULES = {
     "asyncpg": True,
     "aws_lambda": True,  # patch only in AWS Lambda environments
     "azure_functions": True,
+    "azure_servicebus": True,
     "tornado": False,
     "openai": True,
     "langchain": True,
     "anthropic": True,
     "crewai": True,
+    "pydantic_ai": True,
     "subprocess": True,
     "unittest": True,
     "coverage": False,
@@ -124,7 +130,6 @@ CONTRIB_DEPENDENCIES = {
 }
 
 
-_LOCK = threading.Lock()
 _PATCHED_MODULES = set()
 
 # Module names that need to be patched for a given integration. If the module
@@ -155,12 +160,15 @@ _MODULES_FOR_CONTRIB = {
     "vertica": ("vertica_python",),
     "aws_lambda": ("datadog_lambda",),
     "azure_functions": ("azure.functions",),
+    "azure_servicebus": ("azure.servicebus",),
     "httplib": ("http.client",),
     "kafka": ("confluent_kafka",),
     "google_generativeai": ("google.generativeai",),
+    "google_genai": ("google.genai",),
     "langgraph": (
         "langgraph",
         "langgraph.graph",
+        "langgraph.prebuilt",
     ),
     "openai_agents": ("agents",),
 }
@@ -178,6 +186,79 @@ class ModuleNotFoundException(PatchException):
     pass
 
 
+class IncompatibleModuleException(PatchException):
+    def __init__(self, message: str, installed_version: Union[str, None] = None):
+        super().__init__(message)
+        self.installed_version = installed_version
+
+
+def is_version_compatible(version: str, supported_versions_spec: str) -> bool:
+    "Returns whether a given package version is compatible with the integration's supported version range."
+
+    if not supported_versions_spec:
+        return False
+
+    if supported_versions_spec == "*":
+        return True
+
+    try:
+        specifier_set = SpecifierSet(supported_versions_spec)
+        return Version(version) in specifier_set
+    except Exception:
+        return False
+
+
+def _get_installed_module_version(imported_module: ModuleType, hooked_module_name: str) -> Union[str, None]:
+    "Returns the installed version of a module."
+
+    if hasattr(imported_module, "get_versions"):
+        return imported_module.get_versions().get(hooked_module_name)
+    elif hasattr(imported_module, "get_version"):
+        return imported_module.get_version()
+    return None
+
+
+def _get_integration_supported_versions(
+    integration_patch_module: ModuleType, integration_name: str, hooked_module_name: str
+) -> Union[str, None]:
+    "Returns the supported version range for an integration."
+    if not hasattr(integration_patch_module, "_supported_versions"):
+        return None
+
+    supported_versions = integration_patch_module._supported_versions()
+    if hooked_module_name in supported_versions:
+        return supported_versions[hooked_module_name]
+    elif integration_name in supported_versions:
+        return supported_versions[integration_name]
+    return None
+
+
+def check_module_compatibility(
+    integration_patch_module: ModuleType, integration_name: str, hooked_module_name: str
+) -> None:
+    "Determines if a module should be patched based on installed version and the integration's supported version range."
+
+    # stdlib modules will not have an associated version and should always be patched
+    installed_version = _get_installed_module_version(integration_patch_module, hooked_module_name)
+    if not installed_version:
+        return
+
+    supported_version_spec = _get_integration_supported_versions(
+        integration_patch_module, integration_name, hooked_module_name
+    )
+    if not supported_version_spec:
+        # TODO: once all integrations have a supported version spec, we should raise an error here
+        return
+
+    if not is_version_compatible(installed_version, supported_version_spec):
+        message = (
+            f"Skipped patching '{integration_name}' integration, installed version: {installed_version} "
+            f"is not compatible with integration support spec: {supported_version_spec}."
+        )
+        raise IncompatibleModuleException(message, installed_version=installed_version)
+    return
+
+
 def _on_import_factory(module, path_f, raise_errors=True, patch_indicator=True):
     # type: (str, str, bool, Union[bool, List[str]]) -> Callable[[Any], None]
     """Factory to create an import hook for the provided module name"""
@@ -186,9 +267,25 @@ def _on_import_factory(module, path_f, raise_errors=True, patch_indicator=True):
         # Import and patch module
         try:
             imported_module = importlib.import_module(path_f % (module,))
+
+            # if safe instrumentation is enabled, we check if the module's version
+            # is compatible with the integration's supported version range, and throw an error if it is not
+            if config._trace_safe_instrumentation_enabled:
+                check_module_compatibility(imported_module, module, hook.__name__)
+
             imported_module.patch()
             if hasattr(imported_module, "patch_submodules"):
                 imported_module.patch_submodules(patch_indicator)
+
+        except IncompatibleModuleException as e:
+            log.error(
+                "failed to enable ddtrace support for %s: %s",
+                module,
+                str(e),
+            )
+            telemetry.telemetry_writer.add_integration(
+                module, False, PATCH_MODULES.get(module) is True, str(e), version=e.installed_version
+            )
         except Exception as e:
             if raise_errors:
                 raise
@@ -196,6 +293,7 @@ def _on_import_factory(module, path_f, raise_errors=True, patch_indicator=True):
                 "failed to enable ddtrace support for %s: %s",
                 module,
                 str(e),
+                exc_info=True,
             )
             telemetry.telemetry_writer.add_integration(module, False, PATCH_MODULES.get(module) is True, str(e))
             telemetry.telemetry_writer.add_count_metric(
@@ -260,12 +358,6 @@ def _patch_all(**patch_modules: bool) -> None:
     modules.update(patch_modules)
 
     patch(raise_errors=False, **modules)
-    if asm_config._iast_enabled:
-        from ddtrace.appsec._iast._patch_modules import patch_iast
-        from ddtrace.appsec.iast import enable_iast_propagation
-
-        patch_iast()
-        enable_iast_propagation()
 
     load_common_appsec_modules()
 
@@ -282,7 +374,7 @@ def patch(raise_errors=True, **patch_modules):
     contribs = {c: patch_indicator for c, patch_indicator in patch_modules.items() if patch_indicator}
     for contrib, patch_indicator in contribs.items():
         # Check if we have the requested contrib.
-        if not os.path.isfile(os.path.join(os.path.dirname(__file__), "contrib", "internal", contrib, "patch.py")):
+        if not (Path(__file__).parent / "contrib" / "internal" / contrib / "patch.py").exists():
             if raise_errors:
                 raise ModuleNotFoundException(f"{contrib} does not have automatic instrumentation")
         modules_to_patch = _MODULES_FOR_CONTRIB.get(contrib, (contrib,))
@@ -298,8 +390,7 @@ def patch(raise_errors=True, **patch_modules):
             )
 
         # manually add module to patched modules
-        with _LOCK:
-            _PATCHED_MODULES.add(contrib)
+        _PATCHED_MODULES.add(contrib)
 
     log.info(
         "Configured ddtrace instrumentation for %s integration(s). The following modules have been patched: %s",
@@ -308,8 +399,6 @@ def patch(raise_errors=True, **patch_modules):
     )
 
 
-def _get_patched_modules():
-    # type: () -> List[str]
+def _get_patched_modules() -> Set[str]:
     """Get the list of patched modules"""
-    with _LOCK:
-        return sorted(_PATCHED_MODULES)
+    return _PATCHED_MODULES

@@ -3,6 +3,7 @@ idna==3.6
 
 https://pypi.org/project/idna/
 """
+
 from flask import Blueprint
 from flask import request
 
@@ -27,7 +28,7 @@ def pkg_idna_view():
 def pkg_idna_propagation_view():
     import idna
 
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+    from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))
     if not is_pyobject_tainted(response.package_param):

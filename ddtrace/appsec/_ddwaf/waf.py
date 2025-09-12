@@ -1,4 +1,3 @@
-import ctypes
 import json
 import time
 from typing import Any
@@ -6,6 +5,7 @@ from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Sequence
+from typing import Set
 from typing import Tuple
 
 from ddtrace.appsec._constants import DEFAULT
@@ -13,7 +13,6 @@ from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_config
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_get_version
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_object
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_object_free
-from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_result
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_run
 from ddtrace.appsec._ddwaf.ddwaf_types import py_add_or_update_config
 from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_builder_build_instance
@@ -48,7 +47,7 @@ class DDWaf(WAF):
 
     def __init__(
         self,
-        ruleset_map: Dict[str, Any],
+        ruleset_json_str: bytes,
         obfuscation_parameter_key_regexp: bytes,
         obfuscation_parameter_value_regexp: bytes,
         metrics,
@@ -60,7 +59,9 @@ class DDWaf(WAF):
             key_regex=obfuscation_parameter_key_regexp, value_regex=obfuscation_parameter_value_regexp
         )
         diagnostics = ddwaf_object()
-        ruleset_map_object = ddwaf_object.create_without_limits(ruleset_map)
+        ruleset_map_object = ddwaf_object.from_json_bytes(ruleset_json_str)
+        if not ruleset_map_object:
+            raise ValueError("Invalid ruleset provided to DDWaf constructor")
         self._builder = py_ddwaf_builder_init(config)
         py_add_or_update_config(self._builder, ASM_DD_DEFAULT, ruleset_map_object, diagnostics)
         self._handle = py_ddwaf_builder_build_instance(self._builder)
@@ -79,6 +80,10 @@ class DDWaf(WAF):
             )
         self._default_ruleset = ruleset_map_object
         metrics.ddwaf_version = version()
+        self._rc_products: Dict[str, Set[str]] = {}
+        self._rc_products_str: str = ""
+        self._rc_updates: int = 0
+        self._lifespan: int = 0
 
     @property
     def required_data(self) -> List[str]:
@@ -117,9 +122,13 @@ class DDWaf(WAF):
         ok = True
         for product, path in removals:
             ok &= py_remove_config(self._builder, path)
+            self._rc_products.get(product, set()).discard(path)
             if product == "ASM_DD":
                 self._asm_dd_cache.discard(path)
         for product, path, rules in updates:
+            if product not in self._rc_products:
+                self._rc_products[product] = set()
+            self._rc_products[product].add(path)
             if product == "ASM_DD":
                 if ASM_DD_DEFAULT in self._asm_dd_cache:
                     # we need to remove the default ruleset before adding the new one
@@ -140,14 +149,18 @@ class DDWaf(WAF):
             ddwaf_object_free(diagnostics)
             self._asm_dd_cache.add(ASM_DD_DEFAULT)
         new_handle = py_ddwaf_builder_build_instance(self._builder)
+        self._rc_products_str = ",".join(f"{p}:{len(v)}" for p, v in sorted(self._rc_products.items()) if v)
         if new_handle:
             self._handle = new_handle
+            self._rc_updates += 1
         return ok
 
     def _at_request_start(self) -> Optional[ddwaf_context_capsule]:
         ctx = None
         if self._handle:
+            self._lifespan += 1
             ctx = py_ddwaf_context_init(self._handle)
+            ctx.rc_products = f"[{self._rc_products_str}] u:{self._rc_updates} r:{self._lifespan}"
         if not ctx:
             LOGGER.debug("DDWaf._at_request_start: failure to create the context.")
         return ctx
@@ -159,7 +172,7 @@ class DDWaf(WAF):
         self,
         ctx: ddwaf_context_capsule,
         data: DDWafRulesType,
-        ephemeral_data: DDWafRulesType = None,
+        ephemeral_data: Optional[DDWafRulesType] = None,
         timeout_ms: float = DEFAULT.WAF_TIMEOUT,
     ) -> DDWaf_result:
         start = time.monotonic()
@@ -167,26 +180,31 @@ class DDWaf(WAF):
             LOGGER.debug("DDWaf.run: dry run. no context created.")
             return DDWaf_result(0, [], {}, 0, (time.time() - start) * 1e6, False, self.empty_observator, {})
 
-        result = ddwaf_result()
+        result_obj = ddwaf_object()
         observator = _observator()
         wrapper = ddwaf_object(data, observator=observator)
         wrapper_ephemeral = ddwaf_object(ephemeral_data, observator=observator) if ephemeral_data else None
-        error = ddwaf_run(ctx.ctx, wrapper, wrapper_ephemeral, ctypes.byref(result), int(timeout_ms * 1000))
+        error = ddwaf_run(ctx.ctx, wrapper, wrapper_ephemeral, result_obj, int(timeout_ms * 1000))
         if error < 0:
             LOGGER.debug("run DDWAF error: %d\ninput %s\nerror %s", error, wrapper.struct, self.info.errors)
-        if error == DDWAF_ERR_INTERNAL:
+        result = result_obj.struct
+        if error == DDWAF_ERR_INTERNAL or not isinstance(result, dict):
             # result is not valid
+            ddwaf_object_free(result_obj)
             return DDWaf_result(error, [], {}, 0, 0, False, self.empty_observator, {})
-        return DDWaf_result(
+        main_res = DDWaf_result(
             error,
-            result.events.struct,
-            result.actions.struct,
-            result.total_runtime / 1e3,
+            result["events"],
+            result["actions"],
+            result["duration"] / 1e3,
             (time.monotonic() - start) * 1e6,
-            result.timeout,
+            result["timeout"],
             observator,
-            result.derivatives.struct,
+            result["attributes"],
+            result["keep"],
         )
+        ddwaf_object_free(result_obj)
+        return main_res
 
     @property
     def initialized(self) -> bool:
@@ -194,7 +212,7 @@ class DDWaf(WAF):
 
     def __del__(self):
         if hasattr(self, "_default_ruleset"):
-            ddwaf_object_free(ctypes.byref(self._default_ruleset))
+            ddwaf_object_free(self._default_ruleset)
 
 
 def version() -> str:

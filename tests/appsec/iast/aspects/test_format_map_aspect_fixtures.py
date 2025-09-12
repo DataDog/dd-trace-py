@@ -8,6 +8,7 @@ import pytest
 from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
 from ddtrace.appsec._iast._taint_tracking import get_ranges
 from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
+from tests.appsec.iast.aspects.aspect_utils import _to_tainted_string_with_origin
 from tests.appsec.iast.iast_utils import _iast_patched_module
 
 
@@ -22,8 +23,8 @@ class TestOperatorFormatMapReplacement(BaseReplacement):
         expected_result,  # type: str
         escaped_expected_result,  # type: str
     ):  # type: (...) -> None
-        template = self._to_tainted_string_with_origin(taint_escaped_template)
-        mapping = {key: self._to_tainted_string_with_origin(value) for key, value in taint_escaped_mapping.items()}
+        template = _to_tainted_string_with_origin(taint_escaped_template)
+        mapping = {key: _to_tainted_string_with_origin(value) for key, value in taint_escaped_mapping.items()}
 
         assert isinstance(template, str)
         result = mod.do_format_map(template, mapping)

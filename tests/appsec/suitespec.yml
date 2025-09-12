@@ -6,11 +6,11 @@ components:
   appsec_iast:
     - ddtrace/appsec/iast/*
   urllib:
-    - ddtrace/contrib/_urllib.py
     - ddtrace/contrib/internal/urllib/*
   webbrowser:
-    - ddtrace/contrib/_webbrowser.py
     - ddtrace/contrib/internal/webbrowser/*
+  ai_guard:
+    - ddtrace/appsec/ai_guard/*
 suites:
   appsec:
     parallelism: 4
@@ -27,9 +27,6 @@ suites:
     runner: riot
     snapshot: true
   appsec_iast_default:
-    env:
-      TEST_POSTGRES_HOST: postgres
-      TEST_MYSQL_HOST: mysql
     parallelism: 6
     paths:
       - '@bootstrap'
@@ -40,12 +37,8 @@ suites:
       - '@remoteconfig'
       - tests/appsec/iast/*
     retry: 2
-    runner: hatch
-    services:
-      - postgres
-      - mysql
-    snapshot: true
-    timeout: 40m
+    runner: riot
+    timeout: 30m
   appsec_iast_memcheck:
     env:
       CI_DEBUG_TRACE: 'true'
@@ -60,8 +53,8 @@ suites:
       - tests/appsec/iast/*
       - tests/appsec/iast_memcheck/*
     retry: 2
-    runner: hatch
-    snapshot: true
+    runner: riot
+    timeout: 30m
   appsec_iast_native:
     parallelism: 6
     paths:
@@ -72,7 +65,7 @@ suites:
       - '@appsec_iast'
       - '@remoteconfig'
     retry: 2
-    runner: hatch
+    runner: riot
   iast_aggregated_leak_testing:
     parallelism: 3
     paths:
@@ -80,23 +73,12 @@ suites:
       - tests/appsec/iast_aggregated_memcheck/*
     runner: hatch
     timeout: 50m
-#  appsec_iast_packages:
-#    env:
-#      PIP_CACHE_DIR: $CI_PROJECT_DIR/.cache/pip
-#    paths:
-#      - '@appsec_iast'
-#      - tests/appsec/iast_packages/*
-#    runner: hatch
-#    timeout: 50m
-#    cache:
-#      key: v1-iast_packages-$PYTHON_VERSION-$CI_COMMIT_REF_SLUG-cache
-#      paths:
-#        - .cache
-#    python_versions:
-#      - "3.9"
-#      - "3.10"
-#      - "3.11"
-#      - "3.12"
+  appsec_iast_packages:
+    paths:
+      - '@appsec_iast'
+      - tests/appsec/iast_packages/*
+    runner: riot
+    timeout: 50m
   iast_tdd_propagation:
     parallelism: 5
     paths:
@@ -108,12 +90,10 @@ suites:
       - '@remoteconfig'
       - tests/appsec/iast_tdd_propagation/*
     retry: 2
-    runner: hatch
+    runner: riot
     snapshot: true
-    timeout: 40m
   appsec_integrations_pygoat:
     parallelism: 3
-    allow_failure: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -124,8 +104,40 @@ suites:
       - tests/appsec/integrations/pygoat_tests/*
       - tests/snapshots/tests.appsec.*
     retry: 2
-    runner: hatch
+    runner: riot
     snapshot: true
+  appsec_integrations_packages:
+    env:
+      TEST_POSTGRES_HOST: postgres
+      TEST_MYSQL_HOST: mysql
+    parallelism: 6
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@appsec_iast'
+      - '@remoteconfig'
+      - tests/appsec/iast/*
+      - tests/appsec/integrations/packages_tests/*
+    retry: 2
+    runner: riot
+    services:
+      - postgres
+      - mysql
+  appsec_integrations_langchain:
+    parallelism: 15
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@appsec_iast'
+      - '@remoteconfig'
+      - tests/appsec/iast/*
+      - tests/appsec/integrations/langchain_tests/*
+    retry: 2
+    runner: riot
   appsec_integrations_flask:
     parallelism: 17
     paths:
@@ -137,12 +149,12 @@ suites:
       - '@remoteconfig'
       - tests/appsec/integrations/flask_tests/*
     retry: 2
-    runner: hatch
+    runner: riot
     services:
       - testagent
     timeout: 40m
   appsec_integrations_django:
-    parallelism: 12
+    parallelism: 22
     paths:
       - '@bootstrap'
       - '@core'
@@ -152,7 +164,7 @@ suites:
       - '@remoteconfig'
       - tests/appsec/integrations/django_tests/*
     retry: 2
-    runner: hatch
+    runner: riot
     services:
       - testagent
     timeout: 30m
@@ -167,10 +179,9 @@ suites:
       - '@remoteconfig'
       - tests/appsec/integrations/fastapi_tests/*
     retry: 2
-    runner: hatch
+    runner: riot
     services:
       - testagent
-    timeout: 40m
   appsec_threats_django:
     parallelism: 12
     paths:
@@ -186,7 +197,7 @@ suites:
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
-    runner: hatch
+    runner: riot
   appsec_threats_fastapi:
     parallelism: 9
     paths:
@@ -203,7 +214,7 @@ suites:
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
-    runner: hatch
+    runner: riot
   appsec_threats_flask:
     parallelism: 10
     paths:
@@ -219,7 +230,7 @@ suites:
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
-    runner: hatch
+    runner: riot
   urllib:
     paths:
       - '@bootstrap'
@@ -240,3 +251,23 @@ suites:
       - tests/appsec/iast/taint_sinks/test_ssrf.py
     runner: riot
     skip: true  # TODO: No environment available
+  ai_guard_api:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@ai_guard'
+      - tests/appsec/ai_guard/api/*
+    retry: 2
+    runner: riot
+  ai_guard_langchain:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@ai_guard'
+      - tests/appsec/ai_guard/langchain/*
+    retry: 2
+    runner: riot
+    services:
+      - testagent

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: This fix resolves an issue where the ``@tracer.wrap()`` decorator failed to preserve return values from generator functions, causing ``StopIteration.value`` to be ``None`` instead of the actual returned value.

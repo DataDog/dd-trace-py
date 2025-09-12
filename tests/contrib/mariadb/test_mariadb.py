@@ -4,9 +4,9 @@ from typing import Tuple  # noqa:F401
 import mariadb
 import pytest
 
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.mariadb.patch import patch
 from ddtrace.contrib.internal.mariadb.patch import unpatch
-from ddtrace.trace import Pin
 from tests.contrib.config import MARIADB_CONFIG
 from tests.utils import DummyTracer
 from tests.utils import assert_dict_issuperset
@@ -57,8 +57,8 @@ def test_connection_no_port_or_user_does_not_raise():
     try:
         mariadb.connect(**conf)
     except mariadb.OperationalError as exc:
-        # this error is expected because mariadb defaults user to root when not given
-        if "Access denied for user 'root'" not in str(exc):
+        # this error is expected because mariadb defaults user to root/bits when not given
+        if "Access denied for user '" not in str(exc):
             raise exc
 
 

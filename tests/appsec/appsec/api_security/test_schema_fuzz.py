@@ -1,5 +1,3 @@
-import json
-
 from hypothesis import given
 from hypothesis import strategies as st
 import pytest
@@ -10,16 +8,17 @@ import ddtrace.appsec._ddwaf as ddwaf
 
 
 def build_schema(obj):
-    rules = {}
-    with open(constants.DEFAULT.RULES, "r") as f_apisec:
-        rules.update(json.load(f_apisec))
+    with open(constants.DEFAULT.RULES, "br") as f_apisec:
+        rules = f_apisec.read()
     waf = ddwaf.DDWaf(rules, b"", b"", _metrics)
     ctx = waf._at_request_start()
+    if ctx is None:
+        raise RuntimeError("Failed to create WAF context")
     res = waf.run(
         ctx,
         {"server.request.body": obj, constants.WAF_DATA_NAMES.PROCESSOR_SETTINGS: {"extract-schema": True}},
         timeout_ms=50_000.0,
-    ).derivatives
+    ).api_security
     return res["_dd.appsec.s.req.body"]
 
 

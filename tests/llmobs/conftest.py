@@ -2,16 +2,16 @@ from http.server import BaseHTTPRequestHandler
 from http.server import HTTPServer
 import json
 import os
+import pprint
 import threading
 import time
 
 import mock
 import pytest
 
-from ddtrace.internal.utils.http import Response
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
-from ddtrace.llmobs._writer import LLMObsSpanWriter
+from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.llmobs._utils import logs_vcr
 from tests.utils import DummyTracer
 from tests.utils import override_env
@@ -67,27 +67,6 @@ def mock_llmobs_submit_evaluation():
 
 
 @pytest.fixture
-def mock_http_writer_send_payload_response():
-    with mock.patch(
-        "ddtrace.internal.writer.HTTPWriter._send_payload",
-        return_value=Response(status=200, body="{}"),
-    ):
-        yield
-
-
-@pytest.fixture
-def mock_http_writer_put_response_forbidden():
-    with mock.patch(
-        "ddtrace.internal.writer.HTTPWriter._put",
-        return_value=Response(
-            status=403,
-            reason=b'{"errors":[{"status":"403","title":"Forbidden","detail":"API key is invalid"}]}',
-        ),
-    ):
-        yield
-
-
-@pytest.fixture
 def mock_writer_logs():
     with mock.patch("ddtrace.llmobs._writer.logger") as m:
         yield m
@@ -120,7 +99,11 @@ def ddtrace_global_config():
 
 
 def default_global_config():
-    return {"_dd_api_key": "<not-a-real-api_key>", "_llmobs_ml_app": "unnamed-ml-app", "service": "tests.llmobs"}
+    return {
+        "_dd_api_key": os.environ.get("DD_API_KEY", "<not-a-real-api_key>"),
+        "_llmobs_ml_app": "unnamed-ml-app",
+        "service": "tests.llmobs",
+    }
 
 
 @pytest.fixture
@@ -193,30 +176,16 @@ def tracer():
 @pytest.fixture
 def llmobs_env():
     return {
-        "DD_API_KEY": "<default-not-a-real-key>",
+        "DD_API_KEY": os.environ.get("DD_API_KEY", "<default-not-a-real-key>"),
         "DD_LLMOBS_ML_APP": "unnamed-ml-app",
+        "DD_LLMOBS_PROJECT_NAME": "test-project",
     }
-
-
-class TestLLMObsSpanWriter(LLMObsSpanWriter):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._events = []
-
-    def enqueue(self, event):
-        self._events.append(event)
-        super().enqueue(event)
-
-    def events(self):
-        return self._events
 
 
 @pytest.fixture
 def llmobs_span_writer(_llmobs_backend):
     url, _ = _llmobs_backend
-    sw = TestLLMObsSpanWriter(interval=1.0, timeout=1.0, agentless_url=url)
-    sw._headers["DD-API-KEY"] = "<test-key>"
-    yield sw
+    yield TestLLMObsSpanWriter(1.0, 1.0, is_agentless=True, _api_key="<test-key>", _override_url=url)
 
 
 class LLMObsServer(BaseHTTPRequestHandler):
@@ -261,9 +230,12 @@ def _llmobs_backend():
 
 @pytest.fixture
 def llmobs_backend(_llmobs_backend):
-    _, reqs = _llmobs_backend
+    _url, reqs = _llmobs_backend
 
     class _LLMObsBackend:
+        def url(self):
+            return _url
+
         def wait_for_num_events(self, num, attempts=1000):
             for _ in range(attempts):
                 if len(reqs) == num:
@@ -271,9 +243,19 @@ def llmobs_backend(_llmobs_backend):
                 # time.sleep will yield the GIL so the server can process the request
                 time.sleep(0.001)
             else:
-                raise TimeoutError(f"Expected {num} events, got {len(reqs)}")
+                raise TimeoutError(f"Expected {num} events, got {len(reqs)}: {pprint.pprint(reqs)}")
 
     return _LLMObsBackend()
+
+
+@pytest.fixture
+def llmobs_enable_opts():
+    yield {"project_name": "test-project"}
+
+
+@pytest.fixture
+def llmobs_api_proxy_url():
+    return "http://localhost:9126/vcr/datadog"
 
 
 @pytest.fixture
@@ -281,8 +263,10 @@ def llmobs(
     ddtrace_global_config,
     monkeypatch,
     tracer,
+    llmobs_enable_opts,
     llmobs_env,
     llmobs_span_writer,
+    llmobs_api_proxy_url,
     mock_llmobs_eval_metric_writer,
     mock_llmobs_evaluator_runner,
 ):
@@ -293,15 +277,34 @@ def llmobs(
     global_config.update(ddtrace_global_config)
     # TODO: remove once rest of tests are moved off of global config tampering
     with override_global_config(global_config):
-        llmobs_service.enable(_tracer=tracer)
+        llmobs_service.enable(_tracer=tracer, **llmobs_enable_opts)
         llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
+        llmobs_service._instance._llmobs_span_writer.start()
+        llmobs_service._instance._dne_client._intake = llmobs_api_proxy_url
         yield llmobs_service
+    tracer.shutdown()
     llmobs_service.disable()
 
 
 @pytest.fixture
+def llmobs_no_ml_app(tracer):
+    with override_global_config(dict(_llmobs_ml_app=None)):
+        llmobs_service.enable(_tracer=tracer)
+        yield llmobs_service
+        llmobs_service.disable()
+
+
+@pytest.fixture
+def llmobs_empty_ml_app(tracer):
+    with override_global_config(dict(_llmobs_ml_app="")):
+        llmobs_service.enable(_tracer=tracer)
+        yield llmobs_service
+        llmobs_service.disable()
+
+
+@pytest.fixture
 def llmobs_events(llmobs, llmobs_span_writer):
-    return llmobs_span_writer.events()
+    return llmobs_span_writer.events
 
 
 @pytest.fixture

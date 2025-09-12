@@ -1,9 +1,11 @@
 import os
+from typing import Dict
 
 import pymysql
 import wrapt
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.internal.trace_utils import _convert_to_string
 from ddtrace.ext import db
@@ -12,7 +14,6 @@ from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
-from ddtrace.trace import Pin
 
 
 config._add(
@@ -39,6 +40,10 @@ CONN_ATTR_BY_TAG = {
     db.USER: "user",
     db.NAME: "db",
 }
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"pymysql": ">=0.10"}
 
 
 def patch():

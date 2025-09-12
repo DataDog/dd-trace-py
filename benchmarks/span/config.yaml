@@ -6,6 +6,13 @@ start: &base
   finishspan: false
   traceid128: false
   telemetry: false
+  add_event: false
+  add_link: false
+  get_context: false
+  is_recording: false
+  record_exception: false
+  set_status: false
+  update_name: false
 start-traceid128:
   <<: *base
   traceid128: true
@@ -16,6 +23,28 @@ add-tags:
 add-metrics:
   <<: *base
   nmetrics: 100
+add-event:
+  <<: *base
+  add_event: true
+# Run add-link scenario when the API is implemented in the Datadog Tracing API
+# add-link:
+#   <<: *base
+#   add_link: true
+get-context:
+  <<: *base
+  get_context: true
+is-recording:
+  <<: *base
+  is_recording: true
+record-exception:
+  <<: *base
+  record_exception: true
+set-status:
+  <<: *base
+  set_status: true
+update-name:
+  <<: *base
+  update_name: true
 start-finish:
   <<: *base
   finishspan: true

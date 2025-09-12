@@ -1,32 +1,27 @@
+from contextlib import contextmanager
 import functools
+import inspect
 from inspect import iscoroutinefunction
 from itertools import chain
 import logging
 import os
-from os import environ
 from os import getpid
-import sys
 from threading import RLock
-from typing import TYPE_CHECKING
 from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
-from typing import Tuple
 from typing import TypeVar
 from typing import Union
+from typing import cast
 
-from ddtrace._hooks import Hooks
 from ddtrace._trace.context import Context
 from ddtrace._trace.processor import SpanAggregator
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.processor import TopLevelSpanProcessor
 from ddtrace._trace.processor import TraceProcessor
-from ddtrace._trace.processor import TraceSamplingProcessor
-from ddtrace._trace.processor import TraceTagsProcessor
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.provider import DefaultContextProvider
-from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.constants import _HOSTNAME_KEY
@@ -34,15 +29,20 @@ from ddtrace.constants import ENV_KEY
 from ddtrace.constants import PID
 from ddtrace.constants import VERSION_KEY
 from ddtrace.internal import atexit
-from ddtrace.internal import compat
+from ddtrace.internal import core
 from ddtrace.internal import debug
 from ddtrace.internal import forksafe
 from ddtrace.internal import hostname
 from ddtrace.internal.atexit import register_on_exit_signal
+from ddtrace.internal.constants import LOG_ATTR_ENV
+from ddtrace.internal.constants import LOG_ATTR_SERVICE
+from ddtrace.internal.constants import LOG_ATTR_SPAN_ID
+from ddtrace.internal.constants import LOG_ATTR_TRACE_ID
+from ddtrace.internal.constants import LOG_ATTR_VALUE_EMPTY
+from ddtrace.internal.constants import LOG_ATTR_VALUE_ZERO
+from ddtrace.internal.constants import LOG_ATTR_VERSION
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SPAN_API_DATADOG
-from ddtrace.internal.core import dispatch
-from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import PyTracerMetadata
@@ -50,23 +50,11 @@ from ddtrace.internal.native import store_metadata
 from ddtrace.internal.peer_service.processor import PeerServiceProcessor
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.runtime import get_runtime_id
-from ddtrace.internal.sampling import SpanSamplingRule
-from ddtrace.internal.sampling import get_span_sampling_rules
 from ddtrace.internal.schema.processor import BaseServiceProcessor
-from ddtrace.internal.serverless import has_aws_lambda_agent_extension
-from ddtrace.internal.serverless import in_aws_lambda
-from ddtrace.internal.serverless import in_azure_function
-from ddtrace.internal.serverless import in_gcp_function
-from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.formats import format_trace_id
-from ddtrace.internal.utils.http import verify_url
-from ddtrace.internal.writer import AgentResponse
-from ddtrace.internal.writer import AgentWriter
-from ddtrace.internal.writer import LogWriter
-from ddtrace.internal.writer import TraceWriter
-from ddtrace.settings._agent import config as agent_config
-from ddtrace.settings._config import Config
+from ddtrace.internal.writer import AgentWriterInterface
+from ddtrace.internal.writer import HTTPWriter
 from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
@@ -78,109 +66,27 @@ log = get_logger(__name__)
 
 AnyCallable = TypeVar("AnyCallable", bound=Callable)
 
-if TYPE_CHECKING:
-    from ddtrace.appsec._processor import AppSecSpanProcessor
-
-
-def _start_appsec_processor() -> Optional["AppSecSpanProcessor"]:
-    # FIXME: type should be AppsecSpanProcessor but we have a cyclic import here
-    try:
-        from ddtrace.appsec._processor import AppSecSpanProcessor
-
-        return AppSecSpanProcessor()
-    except Exception as e:
-        # DDAS-001-01
-        log.error(
-            "[DDAS-001-01] "
-            "AppSec could not start because of an unexpected error. No security activities will "
-            "be collected. "
-            "Please contact support at https://docs.datadoghq.com/help/ for help. Error details: "
-            "\n%s",
-            repr(e),
-        )
-        if config._raise:
-            raise
-    return None
-
 
 def _default_span_processors_factory(
-    trace_filters: List[TraceProcessor],
-    trace_writer: TraceWriter,
-    partial_flush_enabled: bool,
-    partial_flush_min_spans: int,
-    compute_stats_enabled: bool,
-    single_span_sampling_rules: List[SpanSamplingRule],
-    agent_url: str,
-    trace_sampler: DatadogSampler,
     profiling_span_processor: EndpointCallCounterProcessor,
-) -> Tuple[List[SpanProcessor], Optional["AppSecSpanProcessor"], List[SpanProcessor]]:
-    # FIXME: type should be AppsecSpanProcessor but we have a cyclic import here
+) -> List[SpanProcessor]:
     """Construct the default list of span processors to use."""
-    trace_processors: List[TraceProcessor] = []
-    trace_processors += [
-        PeerServiceProcessor(_ps_config),
-        BaseServiceProcessor(),
-        TraceSamplingProcessor(
-            compute_stats_enabled, trace_sampler, single_span_sampling_rules, asm_config._apm_opt_out
-        ),
-        TraceTagsProcessor(),
-    ]
-    trace_processors += trace_filters
-
     span_processors: List[SpanProcessor] = []
     span_processors += [TopLevelSpanProcessor()]
 
-    if asm_config._asm_libddwaf_available:
-        if asm_config._asm_enabled:
-            if asm_config._api_security_enabled:
-                from ddtrace.appsec._api_security.api_manager import APIManager
-
-                APIManager.enable()
-
-            appsec_processor = _start_appsec_processor()
-            if appsec_processor:
-                span_processors.append(appsec_processor)
-        else:
-            # api_security_active will keep track of the service status of APIManager
-            # we don't want to import the module if it was not started before due to
-            # one click activation of ASM via Remote Config
-            if asm_config._api_security_active:
-                from ddtrace.appsec._api_security.api_manager import APIManager
-
-                APIManager.disable()
-
-            appsec_processor = None
-    else:
-        appsec_processor = None
-
-    if asm_config._iast_enabled:
-        from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
-
-        span_processors.append(AppSecIastSpanProcessor())
-
-    if compute_stats_enabled:
+    # When using the NativeWriter stats are computed by the native code.
+    if config._trace_compute_stats and not config._trace_writer_native:
         # Inline the import to avoid pulling in ddsketch or protobuf
         # when importing ddtrace.
         from ddtrace.internal.processor.stats import SpanStatsProcessorV06
 
         span_processors.append(
-            SpanStatsProcessorV06(
-                agent_url,
-            ),
+            SpanStatsProcessorV06(),
         )
 
     span_processors.append(profiling_span_processor)
 
-    # These need to run after all the other processors
-    deferred_processors: List[SpanProcessor] = [
-        SpanAggregator(
-            partial_flush_enabled=partial_flush_enabled,
-            partial_flush_min_spans=partial_flush_min_spans,
-            trace_processors=trace_processors,
-            writer=trace_writer,
-        )
-    ]
-    return span_processors, appsec_processor, deferred_processors
+    return span_processors
 
 
 class Tracer(object):
@@ -214,8 +120,6 @@ class Tracer(object):
                     "Initializing multiple Tracer instances is not supported. Use ``ddtrace.trace.tracer`` instead.",
                 )
 
-        self._user_trace_processors: List[TraceProcessor] = []
-
         # globally set tags
         self._tags = config.tags.copy()
 
@@ -225,77 +129,35 @@ class Tracer(object):
 
         self.enabled = config._tracing_enabled
         self.context_provider: BaseContextProvider = DefaultContextProvider()
-        self._dogstatsd_url = agent_config.dogstatsd_url
+
         if asm_config._apm_opt_out:
             self.enabled = False
             # Disable compute stats (neither agent or tracer should compute them)
             config._trace_compute_stats = False
-            # If ASM is enabled but tracing is disabled,
-            # we need to set the rate limiting to 1 trace per minute
-            # for the backend to consider the service as alive.
-            self._sampler = DatadogSampler(rate_limit=1, rate_limit_window=60e9, rate_limit_always_on=True)
-        else:
-            self._sampler = DatadogSampler()
-        self._compute_stats = config._trace_compute_stats
-        self._agent_url: str = agent_config.trace_agent_url
-        verify_url(self._agent_url)
-
-        if self._use_log_writer():
-            writer: TraceWriter = LogWriter()
-        else:
-            writer = AgentWriter(
-                agent_url=self._agent_url,
-                dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
-                sync_mode=self._use_sync_mode(),
-                headers={"Datadog-Client-Computed-Stats": "yes"}
-                if (self._compute_stats or asm_config._apm_opt_out)
-                else {},
-                report_metrics=not asm_config._apm_opt_out,
-                response_callback=self._agent_response_callback,
-            )
-        self._single_span_sampling_rules: List[SpanSamplingRule] = get_span_sampling_rules()
-        self._writer: TraceWriter = writer
-        self._partial_flush_enabled = config._partial_flush_enabled
-        self._partial_flush_min_spans = config._partial_flush_min_spans
         # Direct link to the appsec processor
         self._endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
-        self._span_processors, self._appsec_processor, self._deferred_processors = _default_span_processors_factory(
-            self._user_trace_processors,
-            self._writer,
-            self._partial_flush_enabled,
-            self._partial_flush_min_spans,
-            self._compute_stats,
-            self._single_span_sampling_rules,
-            self._agent_url,
-            self._sampler,
-            self._endpoint_call_counter_span_processor,
+        self._span_processors = _default_span_processors_factory(self._endpoint_call_counter_span_processor)
+        self._span_aggregator = SpanAggregator(
+            partial_flush_enabled=config._partial_flush_enabled,
+            partial_flush_min_spans=config._partial_flush_min_spans,
+            dd_processors=[PeerServiceProcessor(_ps_config), BaseServiceProcessor()],
         )
         if config._data_streams_enabled:
             # Inline the import to avoid pulling in ddsketch or protobuf
             # when importing ddtrace.
             from ddtrace.internal.datastreams.processor import DataStreamsProcessor
 
-            self.data_streams_processor = DataStreamsProcessor(self._agent_url)
+            self.data_streams_processor = DataStreamsProcessor()
             register_on_exit_signal(self._atexit)
 
-        self._hooks = Hooks()
+        # Ensure that tracer exit hooks are registered and unregistered once per instance
         forksafe.register_before_fork(self._sample_before_fork)
-
-        # Non-global tracers require that we still register these hooks, until
-        # their usage is fully deprecated. The global one will be managed by the
-        # product protocol. We also need to register these hooks if the library
-        # was not bootstrapped correctly.
-        if not isinstance(self, Tracer) or "ddtrace.bootstrap.sitecustomize" not in sys.modules:
-            atexit.register(self._atexit)
-            forksafe.register(self._child_after_fork)
+        atexit.register(self._atexit)
+        forksafe.register(self._child_after_fork)
 
         self._shutdown_lock = RLock()
 
         self._new_process = False
-        config._subscribe(["_trace_sampling_rules"], self._on_global_config_update)
-        config._subscribe(["_logs_injection"], self._on_global_config_update)
-        config._subscribe(["tags"], self._on_global_config_update)
-        config._subscribe(["_tracing_enabled"], self._on_global_config_update)
 
         metadata = PyTracerMetadata(
             runtime_id=get_runtime_id(),
@@ -310,6 +172,18 @@ class Tracer(object):
         except Exception as e:
             log.debug("Failed to store the configuration on disk", extra=dict(error=e))
 
+    @property
+    def _agent_url(self) -> Optional[str]:
+        if isinstance(self._span_aggregator.writer, (HTTPWriter, AgentWriterInterface)):
+            # For HTTPWriter, and AgentWriterInterface, we can return the intake_url directly
+            return self._span_aggregator.writer.intake_url
+        return None
+
+    @_agent_url.setter
+    def _agent_url(self, value: str):
+        if isinstance(self._span_aggregator.writer, (HTTPWriter, AgentWriterInterface)):
+            self._span_aggregator.writer.intake_url = value
+
     def _atexit(self) -> None:
         key = "ctrl-break" if os.name == "nt" else "ctrl-c"
         log.debug(
@@ -319,13 +193,7 @@ class Tracer(object):
         )
         self.shutdown(timeout=self.SHUTDOWN_TIMEOUT)
 
-    def sample(self, span):
-        if self._sampler is not None:
-            self._sampler.sample(span)
-        else:
-            log.error("No sampler available to sample span")
-
-    def on_start_span(self, func: Callable) -> Callable:
+    def on_start_span(self, func: Callable[[Span], None]) -> Callable[[Span], None]:
         """Register a function to execute when a span start.
 
         Can be used as a decorator.
@@ -333,42 +201,47 @@ class Tracer(object):
         :param func: The function to call when starting a span.
                      The started span will be passed as argument.
         """
-        self._hooks.register(self.__class__.start_span, func)
+        core.on("trace.span_start", callback=func)
         return func
 
-    def deregister_on_start_span(self, func: Callable) -> Callable:
+    def deregister_on_start_span(self, func: Callable[[Span], None]) -> Callable[[Span], None]:
         """Unregister a function registered to execute when a span starts.
 
         Can be used as a decorator.
 
         :param func: The function to stop calling when starting a span.
         """
-
-        self._hooks.deregister(self.__class__.start_span, func)
+        core.reset_listeners("trace.span_start", callback=func)
         return func
 
+    def sample(self, span):
+        self._sampler.sample(span)
+
     def _sample_before_fork(self) -> None:
+        if isinstance(self._span_aggregator.writer, AgentWriterInterface):
+            self._span_aggregator.writer.before_fork()
         span = self.current_root_span()
         if span is not None and span.context.sampling_priority is None:
             self.sample(span)
 
+    @contextmanager
+    def _activate_context(self, context: Context):
+        prev_active = self.context_provider.active()
+        context._reactivate = True
+        self.context_provider.activate(context)
+        try:
+            yield
+        finally:
+            context._reactivate = False
+            self.context_provider.activate(prev_active)
+
     @property
     def _sampler(self):
-        return self._sampler_current
+        return self._span_aggregator.sampling_processor.sampler
 
     @_sampler.setter
     def _sampler(self, value):
-        self._sampler_current = value
-        # we need to update the processor that uses the sampler
-        if getattr(self, "_deferred_processors", None):
-            for aggregator in self._deferred_processors:
-                if type(aggregator) == SpanAggregator:
-                    for processor in aggregator._trace_processors:
-                        if type(processor) == TraceSamplingProcessor:
-                            processor.sampler = value
-                            break
-            else:
-                log.debug("No TraceSamplingProcessor available to update sampling rate")
+        self._span_aggregator.sampling_processor.sampler = value
 
     @property
     def debug_logging(self):
@@ -395,23 +268,17 @@ class Tracer(object):
         if active is None and (self.enabled or asm_config._apm_opt_out):
             active = self.context_provider.active()
 
-        if isinstance(active, Span) and active.service:
-            service = active.service
-        else:
-            service = config.service
-
-        span_id = "0"
-        trace_id = "0"
+        span_id = trace_id = LOG_ATTR_VALUE_ZERO
         if active:
             span_id = str(active.span_id) if active.span_id else span_id
             trace_id = format_trace_id(active.trace_id) if active.trace_id else trace_id
 
         return {
-            "trace_id": trace_id,
-            "span_id": span_id,
-            "service": service or "",
-            "version": config.version or "",
-            "env": config.env or "",
+            LOG_ATTR_TRACE_ID: trace_id,
+            LOG_ATTR_SPAN_ID: span_id,
+            LOG_ATTR_SERVICE: config.service or LOG_ATTR_VALUE_EMPTY,
+            LOG_ATTR_VERSION: config.version or LOG_ATTR_VALUE_EMPTY,
+            LOG_ATTR_ENV: config.env or LOG_ATTR_VALUE_EMPTY,
         }
 
     def configure(
@@ -419,6 +286,7 @@ class Tracer(object):
         context_provider: Optional[BaseContextProvider] = None,
         compute_stats_enabled: Optional[bool] = None,
         appsec_enabled: Optional[bool] = None,
+        appsec_enabled_origin: Optional[str] = "",
         iast_enabled: Optional[bool] = None,
         apm_tracing_disabled: Optional[bool] = None,
         trace_processors: Optional[List[TraceProcessor]] = None,
@@ -437,6 +305,8 @@ class Tracer(object):
 
         if appsec_enabled is not None:
             asm_config._asm_enabled = appsec_enabled
+        if appsec_enabled_origin:
+            asm_config._asm_enabled_origin = appsec_enabled_origin  # type: ignore[assignment]
 
         if iast_enabled is not None:
             asm_config._iast_enabled = iast_enabled
@@ -445,23 +315,15 @@ class Tracer(object):
             asm_config._apm_tracing_enabled = not apm_tracing_disabled
 
         if asm_config._apm_opt_out:
-            self.enabled = False
+            config._tracing_enabled = self.enabled = False
             # Disable compute stats (neither agent or tracer should compute them)
             config._trace_compute_stats = False
-            # Update the rate limiter to 1 trace per minute when tracing is disabled
-            self._sampler = DatadogSampler(rate_limit=1, rate_limit_window=60e9, rate_limit_always_on=True)
             log.debug("ASM standalone mode is enabled, traces will be rate limited at 1 trace per minute")
+        elif asm_config._apm_tracing_enabled:
+            config._tracing_enabled = self.enabled = True
 
         if compute_stats_enabled is not None:
-            self._compute_stats = compute_stats_enabled
-
-        if isinstance(self._writer, AgentWriter):
-            if appsec_enabled:
-                self._writer._api_version = "v0.4"
-            self._writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
-
-        if trace_processors:
-            self._user_trace_processors = trace_processors
+            config._trace_compute_stats = compute_stats_enabled
 
         if any(
             x is not None
@@ -472,24 +334,12 @@ class Tracer(object):
                 iast_enabled,
             ]
         ):
-            self._recreate()
+            self._recreate(
+                trace_processors, compute_stats_enabled, asm_config._apm_opt_out, appsec_enabled, reset_buffer=False
+            )
 
         if context_provider is not None:
             self.context_provider = context_provider
-
-        self._generate_diagnostic_logs()
-
-    def _agent_response_callback(self, resp: AgentResponse) -> None:
-        """Handle the response from the agent.
-
-        The agent can return updated sample rates for the priority sampler.
-        """
-        try:
-            self._sampler.update_rate_by_service_sample_rates(
-                resp.rate_by_service,
-            )
-        except ValueError as e:
-            log.error("Failed to set agent service sample rates: %s", str(e))
 
     def _generate_diagnostic_logs(self):
         if config._debug_mode or config._startup_logs_enabled:
@@ -512,31 +362,28 @@ class Tracer(object):
 
     def _child_after_fork(self):
         self._pid = getpid()
-        self._recreate()
+        self._recreate(reset_buffer=True)
         self._new_process = True
 
-    def _recreate(self):
-        """Re-initialize the tracer's processors and trace writer. This method should only be used in tests."""
+    def _recreate(
+        self,
+        trace_processors: Optional[List[TraceProcessor]] = None,
+        compute_stats_enabled: Optional[bool] = None,
+        apm_opt_out: Optional[bool] = None,
+        appsec_enabled: Optional[bool] = None,
+        reset_buffer: bool = True,
+    ) -> None:
+        """Re-initialize the tracer's processors and trace writer"""
         # Stop the writer.
         # This will stop the periodic thread in HTTPWriters, preventing memory leaks and unnecessary I/O.
-        try:
-            self._writer.stop()
-        except ServiceStatusError:
-            # Some writers (ex: AgentWriter), start when the first trace chunk is encoded. Stopping
-            # the writer before that point will raise a ServiceStatusError.
-            pass
-        # Re-create the background writer thread
-        self._writer = self._writer.recreate()
-        # Recreate the trace and span processors
-        self._span_processors, self._appsec_processor, self._deferred_processors = _default_span_processors_factory(
-            self._user_trace_processors,
-            self._writer,
-            self._partial_flush_enabled,
-            self._partial_flush_min_spans,
-            self._compute_stats,
-            self._single_span_sampling_rules,
-            self._agent_url,
-            self._sampler,
+        self._span_aggregator.reset(
+            user_processors=trace_processors,
+            compute_stats=compute_stats_enabled,
+            apm_opt_out=apm_opt_out,
+            appsec_enabled=appsec_enabled,
+            reset_buffer=reset_buffer,
+        )
+        self._span_processors = _default_span_processors_factory(
             self._endpoint_call_counter_span_processor,
         )
 
@@ -662,6 +509,8 @@ class Tracer(object):
             if parent:
                 span._parent = parent
                 span._local_root = parent._local_root
+                if span._parent.service == service:
+                    span._service_entry_span = parent._service_entry_span
 
             for k, v in _get_metas_to_propagate(context):
                 # We do not want to propagate AppSec propagation headers
@@ -710,10 +559,10 @@ class Tracer(object):
 
         # Only call span processors if the tracer is enabled (even if APM opted out)
         if self.enabled or asm_config._apm_opt_out:
-            for p in chain(self._span_processors, SpanProcessor.__processors__, self._deferred_processors):
-                p.on_span_start(span)
-        self._hooks.emit(self.__class__.start_span, span)
-        dispatch("trace.span_start", (span,))
+            for p in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
+                if p:
+                    p.on_span_start(span)
+        core.dispatch("trace.span_start", (span,))
         return span
 
     start_span = _start_span
@@ -727,13 +576,12 @@ class Tracer(object):
 
         # Only call span processors if the tracer is enabled (even if APM opted out)
         if self.enabled or asm_config._apm_opt_out:
-            for p in chain(self._span_processors, SpanProcessor.__processors__, self._deferred_processors):
-                p.on_span_finish(span)
+            for p in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
+                if p:
+                    p.on_span_finish(span)
 
-        dispatch("trace.span_finish", (span,))
-
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("finishing span %s (enabled:%s)", span._pprint(), self.enabled)
+        core.dispatch("trace.span_finish", (span,))
+        log.debug("finishing span - %r (enabled:%s)", span, self.enabled)
 
     def _log_compat(self, level, msg):
         """Logs a message for the given level.
@@ -842,14 +690,62 @@ class Tracer(object):
     @property
     def agent_trace_url(self) -> Optional[str]:
         """Trace agent url"""
-        if isinstance(self._writer, AgentWriter):
-            return self._writer.agent_url
+        if isinstance(self._span_aggregator.writer, AgentWriterInterface):
+            return self._span_aggregator.writer.intake_url
 
         return None
 
     def flush(self):
         """Flush the buffer of the trace writer. This does nothing if an unbuffered trace writer is used."""
-        self._writer.flush_queue()
+        self._span_aggregator.writer.flush_queue()
+
+    def _wrap_generator(
+        self,
+        f: AnyCallable,
+        span_name: str,
+        service: Optional[str] = None,
+        resource: Optional[str] = None,
+        span_type: Optional[str] = None,
+    ) -> AnyCallable:
+        """Wrap a generator function with tracing."""
+
+        @functools.wraps(f)
+        def func_wrapper(*args, **kwargs):
+            if getattr(self, "_wrap_executor", None):
+                return self._wrap_executor(
+                    self,
+                    f,
+                    args,
+                    kwargs,
+                    span_name,
+                    service=service,
+                    resource=resource,
+                    span_type=span_type,
+                )
+
+            with self.trace(span_name, service=service, resource=resource, span_type=span_type):
+                return_value = yield from f(*args, **kwargs)
+                return return_value
+
+        return cast(AnyCallable, func_wrapper)
+
+    def _wrap_generator_async(
+        self,
+        f: AnyCallable,
+        span_name: str,
+        service: Optional[str] = None,
+        resource: Optional[str] = None,
+        span_type: Optional[str] = None,
+    ) -> AnyCallable:
+        """Wrap a generator function with tracing."""
+
+        @functools.wraps(f)
+        async def func_wrapper(*args, **kwargs):
+            with self.trace(span_name, service=service, resource=resource, span_type=span_type):
+                async for value in f(*args, **kwargs):
+                    yield value
+
+        return cast(AnyCallable, func_wrapper)
 
     def wrap(
         self,
@@ -888,6 +784,15 @@ class Tracer(object):
             def coroutine():
                 return 'executed'
 
+        >>> # or use it on generators
+            @tracer.wrap()
+            def gen():
+                yield 'executed'
+
+        >>> @tracer.wrap()
+            async def gen():
+                yield 'executed'
+
         You can access the current span using `tracer.current_span()` to set
         tags:
 
@@ -901,22 +806,32 @@ class Tracer(object):
             # FIXME[matt] include the class name for methods.
             span_name = name if name else "%s.%s" % (f.__module__, f.__name__)
 
-            # detect if the the given function is a coroutine to use the
-            # right decorator; this initial check ensures that the
+            # detect if the the given function is a coroutine and/or a generator
+            # to use the right decorator; this initial check ensures that the
             # evaluation is done only once for each @tracer.wrap
-            if iscoroutinefunction(f):
-                # call the async factory that creates a tracing decorator capable
-                # to await the coroutine execution before finishing the span. This
-                # code is used for compatibility reasons to prevent Syntax errors
-                # in Python 2
-                func_wrapper = compat.make_async_decorator(
-                    self,
+            if inspect.isgeneratorfunction(f):
+                func_wrapper = self._wrap_generator(
                     f,
                     span_name,
                     service=service,
                     resource=resource,
                     span_type=span_type,
                 )
+            elif inspect.isasyncgenfunction(f):
+                func_wrapper = self._wrap_generator_async(
+                    f,
+                    span_name,
+                    service=service,
+                    resource=resource,
+                    span_type=span_type,
+                )
+            elif iscoroutinefunction(f):
+                # create an async wrapper that awaits the coroutine and traces it
+                @functools.wraps(f)
+                async def func_wrapper(*args, **kwargs):
+                    with self.trace(span_name, service=service, resource=resource, span_type=span_type):
+                        return await f(*args, **kwargs)
+
             else:
 
                 @functools.wraps(f)
@@ -960,86 +875,13 @@ class Tracer(object):
         """
         with self._shutdown_lock:
             # Thread safety: Ensures tracer is shutdown synchronously
-            span_processors = self._span_processors
-            deferred_processors = self._deferred_processors
-            self._span_processors = []
-            self._deferred_processors = []
-
-            for processor in chain(span_processors, SpanProcessor.__processors__, deferred_processors):
-                if hasattr(processor, "shutdown"):
+            for processor in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
+                if processor:
                     processor.shutdown(timeout)
-            forksafe.unregister_before_fork(self._sample_before_fork)
-            # Non-global tracers require that we still register these hooks,
-            # until their usage is fully deprecated. The global one will be
-            # managed by the product protocol. We also need to register these
-            # hooks if the library was not bootstrapped correctly.
-            if not isinstance(self, Tracer) or "ddtrace.bootstrap.sitecustomize" not in sys.modules:
+            self.enabled = False
+            if self.start_span != self._start_span_after_shutdown:
+                # Ensure that tracer exit hooks are registered and unregistered once per instance
+                forksafe.unregister_before_fork(self._sample_before_fork)
                 atexit.unregister(self._atexit)
                 forksafe.unregister(self._child_after_fork)
-
-        self.start_span = self._start_span_after_shutdown  # type: ignore[assignment]
-
-    @staticmethod
-    def _use_log_writer() -> bool:
-        """Returns whether the LogWriter should be used in the environment by
-        default.
-
-        The LogWriter required by default in AWS Lambdas when the Datadog Agent extension
-        is not available in the Lambda.
-        """
-        if (
-            environ.get("DD_AGENT_HOST")
-            or environ.get("DATADOG_TRACE_AGENT_HOSTNAME")
-            or environ.get("DD_TRACE_AGENT_URL")
-        ):
-            # If one of these variables are set, we definitely have an agent
-            return False
-        elif in_aws_lambda() and has_aws_lambda_agent_extension():
-            # If the Agent Lambda extension is available then an AgentWriter is used.
-            return False
-        elif in_gcp_function() or in_azure_function():
-            return False
-        else:
-            return in_aws_lambda()
-
-    @staticmethod
-    def _use_sync_mode() -> bool:
-        """Returns, if an `AgentWriter` is to be used, whether it should be run
-         in synchronous mode by default.
-
-        There are only two cases in which this is desirable:
-
-        - AWS Lambdas can have the Datadog agent installed via an extension.
-          When it's available traces must be sent synchronously to ensure all
-          are received before the Lambda terminates.
-        - Google Cloud Functions and Azure Functions have a mini-agent spun up by the tracer.
-          Similarly to AWS Lambdas, sync mode should be used to avoid data loss.
-        """
-        return (in_aws_lambda() and has_aws_lambda_agent_extension()) or in_gcp_function() or in_azure_function()
-
-    def _on_global_config_update(self, cfg: Config, items: List[str]) -> None:
-        # sampling configs always come as a pair
-        if "_trace_sampling_rules" in items:
-            self._sampler.set_sampling_rules(cfg._trace_sampling_rules)
-
-        if "tags" in items:
-            self._tags = cfg.tags.copy()
-
-        if "_tracing_enabled" in items:
-            if self.enabled:
-                if cfg._tracing_enabled is False:
-                    self.enabled = False
-            else:
-                # the product specification says not to allow tracing to be re-enabled remotely at runtime
-                if cfg._tracing_enabled is True and cfg._get_source("_tracing_enabled") != "remote_config":
-                    self.enabled = True
-
-        if "_logs_injection" in items:
-            if config._logs_injection:
-                from ddtrace.contrib.internal.logging.patch import patch
-
-                patch()
-            else:
-                from ddtrace.contrib.internal.logging.patch import unpatch
-
-                unpatch()
+                self.start_span = self._start_span_after_shutdown  # type: ignore[method-assign]

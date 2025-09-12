@@ -14,6 +14,7 @@ import mock
 import pytest
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.trace_utils import _get_request_header_client_ip
 from ddtrace.ext import SpanTypes
@@ -22,10 +23,10 @@ from ddtrace.ext import net
 from ddtrace.internal.compat import ensure_text
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
-from ddtrace.settings import IntegrationConfig
+from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.settings._config import Config
+from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.trace import Context
-from ddtrace.trace import Pin
 from ddtrace.trace import Span
 from tests.appsec.utils import asm_context
 from tests.utils import override_global_config
@@ -631,7 +632,7 @@ ALL_IP_HEADERS = (
     ("x-real-ip", "2.2.2.2"),
     ("true-client-ip", "3.3.3.3"),
     ("x-client-ip", "4.4.4.4"),
-    ("x-forwarded", "5.5.5.5"),
+    ("forwarded", 'by=1.2.3.4;for="5.5.5.5:2000";host=test.zouzou.ncom'),
     ("forwarded-for", "6.6.6.6"),
     ("x-cluster-client-ip", "7.7.7.7"),
     ("fastly-client-ip", "8.8.8.8"),
@@ -643,8 +644,9 @@ ALL_IP_HEADERS = (
 ALL_TESTS = [
     ["", dict(ALL_IP_HEADERS[-1 : -i - 2 : -1]), ALL_IP_HEADERS[-1 - i][1]] for i in range(len(ALL_IP_HEADERS))
 ]
-# x-forwarded is now ignored so we fall back to forwarded-for
-ALL_TESTS[5][2] = "6.6.6.6"
+
+# expected value for forwarded is extracted from for
+ALL_TESTS[5][2] = "5.5.5.5"
 
 
 @pytest.mark.parametrize(
@@ -687,6 +689,49 @@ ALL_TESTS[5][2] = "6.6.6.6"
             "x-real-ip",
             {"x-forwarded-for": "4.4.4.4", "x-real-ip": "8.8.4.4"},
             "8.8.4.4",
+        ),
+        (
+            "",
+            {"forwarded": 'by=1.2.3.4;for="[9f7b:5e67:5472:4464:90b0:6b0a:9aa6:f9dc]:2000";host=test.zouzou.ncom'},
+            "9f7b:5e67:5472:4464:90b0:6b0a:9aa6:f9dc",
+        ),
+        (
+            "",
+            {"forwarded": 'by=1.2.3.4;for="[9f7b:5e67:5472:4464:90b0:6b0a:9aa6:f9dc]";host=test.zouzou.ncom'},
+            "9f7b:5e67:5472:4464:90b0:6b0a:9aa6:f9dc",
+        ),
+        (
+            "",
+            {"forwarded": 'by=1.2.3.4;for="3.3.3.3:1321";host=test.zouzou.ncom'},
+            "3.3.3.3",
+        ),
+        (
+            "",
+            {"forwarded": 'by=1.2.3.4;For="3.3.3.3";host=test.zouzou.ncom'},
+            "3.3.3.3",
+        ),
+        (
+            "",
+            {"forwarded": "by=1.2.3.4;FOR=3.3.3.3;host=test.zouzou.ncom"},
+            "3.3.3.3",
+        ),
+        (
+            "",
+            {"forwarded": "by=1.2.3.4;FOR=127.0.0.1;host=test.zouzou.ncom, For=4.5.6.7, For=5.6.7.8"},
+            "4.5.6.7",
+        ),
+        (
+            "",
+            {"x-forwarded-for": "127.0.0.1, 3.4.5.6"},
+            "3.4.5.6",
+        ),
+        (
+            "",
+            {
+                "forwarded": "by=1.2.3.4;FOR=127.0.0.3;host=test.zouzou.ncom,"
+                " by=1.2.3.4;FOR=127.0.0.4, by=1.2.3.4;FOR=127.0.0.5"
+            },
+            "127.0.0.3",
         ),
     ]
     + ALL_TESTS,
@@ -971,6 +1016,15 @@ def test_activate_distributed_headers_no_headers(int_config, tracer):
     int_config.myint["distributed_tracing_enabled"] = True
 
     trace_utils.activate_distributed_headers(tracer, int_config=int_config.myint, request_headers=None)
+    assert tracer.context_provider.active() is None
+
+
+@mock.patch.object(HTTPPropagator, "extract", return_value=None)
+def test_activate_distributed_headers_missing_headers(int_config, tracer):
+    # Verify that when HTTPPropagator.extract returns None (no incoming headers),
+    # activate_distributed_headers returns early without error and leaves the tracer’s context empty.
+    int_config.myint["distributed_tracing_enabled"] = True
+    trace_utils.activate_distributed_headers(tracer, int_config=int_config.myint, request_headers=None, override=True)
     assert tracer.context_provider.active() is None
 
 

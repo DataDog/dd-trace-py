@@ -3,6 +3,7 @@ iniconfig==2.0.0
 
 https://pypi.org/project/iniconfig/
 """
+
 import os
 
 from flask import Blueprint
@@ -50,7 +51,7 @@ def pkg_iniconfig_view():
 def pkg_iniconfig_propagation_view():
     import iniconfig
 
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+    from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))
     try:

@@ -5,6 +5,7 @@ import grpc
 from grpc.framework.foundation import logging_pool
 import pytest
 
+from ddtrace._trace.pin import Pin
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -14,9 +15,7 @@ from ddtrace.contrib.internal.grpc.patch import _unpatch_server
 from ddtrace.contrib.internal.grpc.patch import patch
 from ddtrace.contrib.internal.grpc.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from ddtrace.trace import Pin
 from tests.utils import TracerTestCase
-from tests.utils import flaky
 from tests.utils import snapshot
 
 from .common import _GRPC_PORT
@@ -669,7 +668,7 @@ class _UnaryUnaryRpcHandler(grpc.GenericRpcHandler):
 
 
 @snapshot(ignores=["meta.network.destination.port"], wait_for_num_traces=2)
-@flaky(until=1767220930, reason="GitLab CI does not support ipv6 at this time")
+@pytest.mark.skip(reason="GitLab CI does not support ipv6 at this time")
 def test_method_service(patch_grpc):
     def handler(request, context):
         return b""

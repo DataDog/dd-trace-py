@@ -12,12 +12,16 @@ import pytest
 from ddtrace import config
 import ddtrace.internal.telemetry
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
+from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
+from ddtrace.internal.telemetry.writer import TelemetryWriter
 from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
 from ddtrace.settings._config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
+from ddtrace.settings._telemetry import config as telemetry_config
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
+from tests.utils import call_program
 from tests.utils import override_global_config
 
 
@@ -75,7 +79,7 @@ def test_app_started_event_configuration_override_asm(
     _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace.auto", env=env)
     assert status == 0, stderr
 
-    configuration = test_agent_session.get_configurations(name=env_var)
+    configuration = test_agent_session.get_configurations(name=env_var, remove_seq_id=True, effective=True)
     assert len(configuration) == 1, configuration
     assert configuration[0] == {"name": env_var, "origin": "env_var", "value": expected_value}
 
@@ -101,12 +105,12 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "DD_DOGSTATSD_URL", "origin": "unknown", "value": None},
                     {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": False},
                     {"name": "DD_EXCEPTION_REPLAY_ENABLED", "origin": "unknown", "value": False},
+                    {"name": "DD_FASTAPI_ASYNC_BODY_TIMEOUT_SECONDS", "origin": "default", "value": 0.1},
                     {"name": "DD_INSTRUMENTATION_TELEMETRY_ENABLED", "origin": "unknown", "value": True},
                     {"name": "DD_PROFILING_STACK_ENABLED", "origin": "unknown", "value": True},
                     {"name": "DD_PROFILING_MEMORY_ENABLED", "origin": "unknown", "value": True},
                     {"name": "DD_PROFILING_HEAP_ENABLED", "origin": "unknown", "value": True},
                     {"name": "DD_PROFILING_LOCK_ENABLED", "origin": "unknown", "value": True},
-                    {"name": "DD_PROFILING_EXPORT_LIBDD_ENABLED", "origin": "unknown", "value": False},
                     {"name": "DD_PROFILING_CAPTURE_PCT", "origin": "unknown", "value": 1.0},
                     {"name": "DD_PROFILING_UPLOAD_INTERVAL", "origin": "unknown", "value": 60.0},
                     {"name": "DD_PROFILING_MAX_FRAMES", "origin": "unknown", "value": 64},
@@ -159,8 +163,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "DD_TRACE_WRITER_INTERVAL_SECONDS", "origin": "unknown", "value": 1.0},
                     {"name": "DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", "origin": "unknown", "value": 20 << 20},
                     {"name": "DD_TRACE_WRITER_REUSE_CONNECTIONS", "origin": "unknown", "value": False},
-                    {"name": "ddtrace_auto_used", "origin": "unknown", "value": False},
-                    {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": False},
+                    {"name": "instrumentation_source", "origin": "code", "value": "manual"},
                     {"name": "profiling_enabled", "origin": "default", "value": "false"},
                     {"name": "data_streams_enabled", "origin": "default", "value": "false"},
                     {"name": "appsec_enabled", "origin": "default", "value": "false"},
@@ -187,7 +190,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "trace_sample_rate", "origin": "default", "value": "1.0"},
                     {"name": "trace_sampling_rules", "origin": "default", "value": ""},
                     {"name": "trace_header_tags", "origin": "default", "value": ""},
-                    {"name": "logs_injection_enabled", "origin": "default", "value": "false"},
+                    {"name": "logs_injection_enabled", "origin": "default", "value": True},
                     {"name": "trace_tags", "origin": "default", "value": ""},
                     {"name": "trace_enabled", "origin": "default", "value": "true"},
                     {"name": "instrumentation_config_id", "origin": "default", "value": ""},
@@ -254,9 +257,6 @@ import ddtrace.settings.exception_replay
     env["DD_PROFILING_MEMORY_ENABLED"] = "False"
     env["DD_PROFILING_HEAP_ENABLED"] = "False"
     env["DD_PROFILING_LOCK_ENABLED"] = "False"
-    # FIXME: Profiling native exporter can be enabled even if DD_PROFILING_EXPORT_LIBDD_ENABLED=False. The native
-    # exporter will be always be enabled stack v2 is enabled and the ddup module is available (platform dependent).
-    # env["DD_PROFILING_EXPORT_LIBDD_ENABLED"] = "False"
     env["DD_PROFILING_CAPTURE_PCT"] = "5.0"
     env["DD_PROFILING_UPLOAD_INTERVAL"] = "10.0"
     env["DD_PROFILING_MAX_FRAMES"] = "512"
@@ -270,6 +270,8 @@ import ddtrace.settings.exception_replay
     env["DD_TRACE_WRITER_REUSE_CONNECTIONS"] = "True"
     env["DD_TAGS"] = "team:apm,component:web"
     env["DD_INSTRUMENTATION_CONFIG_ID"] = "abcedf123"
+    env["DD_LOGS_OTEL_ENABLED"] = "True"
+    env["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://localhost:4317"
 
     file = tmpdir.join("moon_ears.json")
     file.write('[{"service":"xy?","name":"a*c"}]')
@@ -283,6 +285,8 @@ import ddtrace.settings.exception_replay
     env["DD_API_SECURITY_ENABLED"] = "False"
     env["DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED"] = "False"
     env["DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE"] = "disabled"
+    env["DD_INJECT_FORCE"] = "true"
+    env["DD_INJECTION_ENABLED"] = "tracer"
 
     # By default telemetry collection is enabled after 10 seconds, so we either need to
     # to sleep for 10 seconds or manually call _app_started() to generate the app started event.
@@ -294,14 +298,20 @@ import ddtrace.settings.exception_replay
 
     # DD_TRACE_AGENT_URL in gitlab is different from CI, to keep things simple we will
     # skip validating this config
-    configurations = test_agent_session.get_configurations(ignores=["DD_TRACE_AGENT_URL"])
+    configurations = test_agent_session.get_configurations(
+        ignores=["DD_TRACE_AGENT_URL", "DD_AGENT_PORT", "DD_TRACE_AGENT_PORT"], remove_seq_id=True, effective=True
+    )
     assert configurations
+    configurations.sort(key=lambda x: x["name"])
 
     expected = [
         {"name": "DD_AGENT_HOST", "origin": "default", "value": None},
-        {"name": "DD_AGENT_PORT", "origin": "default", "value": None},
         {"name": "DD_API_KEY", "origin": "default", "value": None},
+        {"name": "DD_API_SECURITY_DOWNSTREAM_REQUEST_BODY_ANALYSIS_SAMPLE_RATE", "origin": "default", "value": 0.5},
         {"name": "DD_API_SECURITY_ENABLED", "origin": "env_var", "value": False},
+        {"name": "DD_API_SECURITY_ENDPOINT_COLLECTION_ENABLED", "origin": "default", "value": True},
+        {"name": "DD_API_SECURITY_ENDPOINT_COLLECTION_MESSAGE_LIMIT", "origin": "default", "value": 300},
+        {"name": "DD_API_SECURITY_MAX_DOWNSTREAM_REQUEST_BODY_ANALYSIS", "origin": "default", "value": 1},
         {"name": "DD_API_SECURITY_PARSE_RESPONSE_BODY", "origin": "default", "value": True},
         {"name": "DD_API_SECURITY_SAMPLE_DELAY", "origin": "default", "value": 30.0},
         {"name": "DD_APM_TRACING_ENABLED", "origin": "default", "value": True},
@@ -321,12 +331,13 @@ import ddtrace.settings.exception_replay
         {
             "name": "DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP",
             "origin": "default",
-            "value": "(?i)(?:p(?:ass)?w(?:or)?d|pass(?:[_-]?phrase)?|secret(?:[_-]?key)?|(?:(?:api|private"
-            "|public|access)[_-]?)key(?:[_-]?id)?|(?:(?:auth|access|id|refresh)[_-]?)?token|consumer[_-]?"
-            "(?:id|key|secret)|sign(?:ed|ature)?|auth(?:entication|orization)?|jsessionid|phpsessid|asp\\"
-            '.net(?:[_-]|-)sessionid|sid|jwt)(?:\\s*=[^;]|"\\s*:\\s*"[^"]+")|bearer\\s+[a-z0-9\\._\\-]+|token:'
-            "[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|ey[I-L][\\w=-]+\\.ey[I-L][\\w=-]+(?:\\.[\\w.+\\/=-]+)?|[\\-]"
-            "{5}BEGIN[a-z\\s]+PRIVATE\\sKEY[\\-]{5}[^\\-]+[\\-]{5}END[a-z\\s]+PRIVATE\\sKEY|ssh-rsa\\s*[a-z0-9\\/\\.+]{100,}",
+            "value": r"(?i)(?:p(?:ass)?w(?:or)?d|pass(?:[_-]?phrase)?|"
+            r"secret(?:[_-]?key)?|(?:(?:api|private|public|access)[_-]?)"
+            r"key(?:[_-]?id)?|(?:(?:auth|access|id|refresh)[_-]?)?token|consumer[_-]?(?:id|key|secret)|sign(?:ed|ature)?"
+            r"|auth(?:entication|orization)?|jsessionid|phpsessid|asp\.net(?:[_-]|-)sessionid|sid|jwt)"
+            r'(?:\s*=([^;&]+)|"\s*:\s*("[^"]+"|\d+))|bearer\s+([a-z0-9\._\-]+)|token\s*:\s*([a-z0-9]{13})|gh[opsu]_([0-9a-zA-Z]{36})'
+            r"|ey[I-L][\w=-]+\.(ey[I-L][\w=-]+(?:\.[\w.+\/=-]+)?)|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}([^\-]+)[\-]"
+            r"{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*([a-z0-9\/\.+]{100,})",
         },
         {"name": "DD_APPSEC_RASP_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_APPSEC_RULES", "origin": "default", "value": None},
@@ -364,17 +375,18 @@ import ddtrace.settings.exception_replay
         {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "default", "value": False},
         {"name": "DD_DYNAMIC_INSTRUMENTATION_MAX_PAYLOAD_SIZE", "origin": "default", "value": 1048576},
         {"name": "DD_DYNAMIC_INSTRUMENTATION_METRICS_ENABLED", "origin": "default", "value": True},
+        {"name": "DD_DYNAMIC_INSTRUMENTATION_PROBE_FILE", "origin": "default", "value": None},
         {"name": "DD_DYNAMIC_INSTRUMENTATION_REDACTED_IDENTIFIERS", "origin": "default", "value": "set()"},
         {"name": "DD_DYNAMIC_INSTRUMENTATION_REDACTED_TYPES", "origin": "default", "value": "set()"},
-        {"name": "DD_DYNAMIC_INSTRUMENTATION_UPLOAD_FLUSH_INTERVAL", "origin": "default", "value": 1.0},
+        {"name": "DD_DYNAMIC_INSTRUMENTATION_REDACTION_EXCLUDED_IDENTIFIERS", "origin": "default", "value": "set()"},
+        {"name": "DD_DYNAMIC_INSTRUMENTATION_UPLOAD_INTERVAL_SECONDS", "origin": "default", "value": 1.0},
         {"name": "DD_DYNAMIC_INSTRUMENTATION_UPLOAD_TIMEOUT", "origin": "default", "value": 30},
         {"name": "DD_ENV", "origin": "default", "value": None},
-        {"name": "DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_AFTER_UNHANDLED", "origin": "default", "value": False},
-        {"name": "DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_ENABLED", "origin": "default", "value": ""},
-        {"name": "DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_ENABLED_MODULES", "origin": "default", "value": ""},
-        {"name": "DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_LOGGER", "origin": "default", "value": ""},
+        {"name": "DD_ERROR_TRACKING_HANDLED_ERRORS", "origin": "default", "value": ""},
+        {"name": "DD_ERROR_TRACKING_HANDLED_ERRORS_INCLUDE", "origin": "default", "value": ""},
         {"name": "DD_EXCEPTION_REPLAY_CAPTURE_MAX_FRAMES", "origin": "default", "value": 8},
         {"name": "DD_EXCEPTION_REPLAY_ENABLED", "origin": "env_var", "value": True},
+        {"name": "DD_FASTAPI_ASYNC_BODY_TIMEOUT_SECONDS", "origin": "default", "value": 0.1},
         {"name": "DD_IAST_DEDUPLICATION_ENABLED", "origin": "default", "value": True},
         {"name": "DD_IAST_ENABLED", "origin": "default", "value": False},
         {"name": "DD_IAST_MAX_CONCURRENT_REQUESTS", "origin": "default", "value": 2},
@@ -400,9 +412,11 @@ import ddtrace.settings.exception_replay
             "[^\\-]+[\\-]{5}END[a-z\\s]+PRIVATE\\sKEY|ssh-rsa\\s*[a-z0-9\\/\\.+]{100,}",
         },
         {"name": "DD_IAST_REQUEST_SAMPLING", "origin": "default", "value": 30.0},
+        {"name": "DD_IAST_SECURITY_CONTROLS_CONFIGURATION", "origin": "default", "value": ""},
         {"name": "DD_IAST_STACK_TRACE_ENABLED", "origin": "default", "value": True},
         {"name": "DD_IAST_TELEMETRY_VERBOSITY", "origin": "default", "value": "INFORMATION"},
         {"name": "DD_IAST_VULNERABILITIES_PER_REQUEST", "origin": "default", "value": 2},
+        {"name": "DD_INJECTION_ENABLED", "origin": "env_var", "value": "tracer"},
         {"name": "DD_INJECT_FORCE", "origin": "env_var", "value": True},
         {"name": "DD_INSTRUMENTATION_INSTALL_ID", "origin": "default", "value": None},
         {"name": "DD_INSTRUMENTATION_INSTALL_TYPE", "origin": "default", "value": None},
@@ -410,9 +424,12 @@ import ddtrace.settings.exception_replay
         {"name": "DD_LIVE_DEBUGGING_ENABLED", "origin": "default", "value": False},
         {"name": "DD_LLMOBS_AGENTLESS_ENABLED", "origin": "default", "value": None},
         {"name": "DD_LLMOBS_ENABLED", "origin": "default", "value": False},
+        {"name": "DD_LLMOBS_INSTRUMENTED_PROXY_URLS", "origin": "default", "value": None},
         {"name": "DD_LLMOBS_ML_APP", "origin": "default", "value": None},
         {"name": "DD_LLMOBS_SAMPLE_RATE", "origin": "default", "value": 1.0},
         {"name": "DD_LOGS_INJECTION", "origin": "env_var", "value": True},
+        {"name": "DD_LOGS_OTEL_ENABLED", "origin": "env_var", "value": True},
+        {"name": "DD_METRICS_OTEL_ENABLED", "origin": "default", "value": False},
         {"name": "DD_PROFILING_AGENTLESS", "origin": "default", "value": False},
         {"name": "DD_PROFILING_API_TIMEOUT", "origin": "default", "value": 10.0},
         {"name": "DD_PROFILING_CAPTURE_PCT", "origin": "env_var", "value": 5.0},
@@ -420,13 +437,11 @@ import ddtrace.settings.exception_replay
         {"name": "DD_PROFILING_ENABLE_ASSERTS", "origin": "default", "value": False},
         {"name": "DD_PROFILING_ENABLE_CODE_PROVENANCE", "origin": "default", "value": True},
         {"name": "DD_PROFILING_ENDPOINT_COLLECTION_ENABLED", "origin": "default", "value": True},
-        {"name": "DD_PROFILING_EXPORT_LIBDD_ENABLED", "origin": "default", "value": False},
         {"name": "DD_PROFILING_HEAP_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_PROFILING_HEAP_SAMPLE_SIZE", "origin": "default", "value": None},
         {"name": "DD_PROFILING_IGNORE_PROFILER", "origin": "default", "value": False},
         {"name": "DD_PROFILING_LOCK_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_PROFILING_LOCK_NAME_INSPECT_DIR", "origin": "default", "value": True},
-        {"name": "DD_PROFILING_MAX_EVENTS", "origin": "default", "value": 16384},
         {"name": "DD_PROFILING_MAX_FRAMES", "origin": "env_var", "value": 512},
         {"name": "DD_PROFILING_MAX_TIME_USAGE_PCT", "origin": "default", "value": 1.0},
         {"name": "DD_PROFILING_MEMORY_ENABLED", "origin": "env_var", "value": False},
@@ -438,9 +453,8 @@ import ddtrace.settings.exception_replay
         {"name": "DD_PROFILING_STACK_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_PROFILING_STACK_V2_ENABLED", "origin": "default", "value": True},
         {"name": "DD_PROFILING_TAGS", "origin": "default", "value": ""},
-        {"name": "DD_PROFILING_TIMELINE_ENABLED", "origin": "default", "value": False},
+        {"name": "DD_PROFILING_TIMELINE_ENABLED", "origin": "default", "value": True},
         {"name": "DD_PROFILING_UPLOAD_INTERVAL", "origin": "env_var", "value": 10.0},
-        {"name": "DD_PROFILING__FORCE_LEGACY_EXPORTER", "origin": "default", "value": False},
         {"name": "DD_REMOTE_CONFIGURATION_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "origin": "env_var", "value": 1.0},
         {"name": "DD_RUNTIME_METRICS_ENABLED", "origin": "env_var", "value": True},
@@ -463,9 +477,9 @@ import ddtrace.settings.exception_replay
         {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", "origin": "default", "value": False},
         {"name": "DD_TRACE_AGENT_HOSTNAME", "origin": "default", "value": None},
-        {"name": "DD_TRACE_AGENT_PORT", "origin": "default", "value": None},
         {"name": "DD_TRACE_AGENT_TIMEOUT_SECONDS", "origin": "default", "value": 2.0},
         {"name": "DD_TRACE_API_VERSION", "origin": "env_var", "value": "v0.5"},
+        {"name": "DD_TRACE_BAGGAGE_TAG_KEYS", "origin": "default", "value": "user.id,account.id,session.id"},
         {"name": "DD_TRACE_CLIENT_IP_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_CLIENT_IP_HEADER", "origin": "default", "value": None},
         {"name": "DD_TRACE_COMPUTE_STATS", "origin": "env_var", "value": True},
@@ -505,6 +519,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_TRACE_PROPAGATION_STYLE_INJECT", "origin": "env_var", "value": "tracecontext"},
         {"name": "DD_TRACE_RATE_LIMIT", "origin": "env_var", "value": 50},
         {"name": "DD_TRACE_REPORT_HOSTNAME", "origin": "default", "value": False},
+        {"name": "DD_TRACE_SAFE_INSTRUMENTATION_ENABLED", "origin": "default", "value": False},
         {
             "name": "DD_TRACE_SAMPLING_RULES",
             "origin": "env_var",
@@ -521,12 +536,52 @@ import ddtrace.settings.exception_replay
         {"name": "DD_USER_MODEL_LOGIN_FIELD", "origin": "default", "value": ""},
         {"name": "DD_USER_MODEL_NAME_FIELD", "origin": "default", "value": ""},
         {"name": "DD_VERSION", "origin": "default", "value": None},
+        {
+            "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
+            "origin": "env_var",
+            "value": "http://localhost:4317",
+        },
+        {
+            "name": "OTEL_EXPORTER_OTLP_HEADERS",
+            "origin": "default",
+            "value": "",
+        },
+        {
+            "name": "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT",
+            "origin": "env_var",
+            "value": "http://localhost:4317",
+        },
+        {
+            "name": "OTEL_EXPORTER_OTLP_LOGS_HEADERS",
+            "origin": "default",
+            "value": "",
+        },
+        {
+            "name": "OTEL_EXPORTER_OTLP_LOGS_PROTOCOL",
+            "origin": "default",
+            "value": "grpc",
+        },
+        {
+            "name": "OTEL_EXPORTER_OTLP_LOGS_TIMEOUT",
+            "origin": "default",
+            "value": 10000,
+        },
+        {
+            "name": "OTEL_EXPORTER_OTLP_PROTOCOL",
+            "origin": "default",
+            "value": "grpc",
+        },
+        {
+            "name": "OTEL_EXPORTER_OTLP_TIMEOUT",
+            "origin": "default",
+            "value": 10000,
+        },
         {"name": "_DD_APPSEC_DEDUPLICATION_ENABLED", "origin": "default", "value": True},
         {"name": "_DD_IAST_LAZY_TAINT", "origin": "default", "value": False},
-        {"name": "_DD_INJECT_WAS_ATTEMPTED", "origin": "default", "value": False},
+        {"name": "_DD_IAST_USE_ROOT_SPAN", "origin": "default", "value": False},
         {"name": "_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", "origin": "default", "value": False},
-        {"name": "ddtrace_auto_used", "origin": "unknown", "value": True},
-        {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": True},
+        {"name": "_DD_TRACE_WRITER_NATIVE", "origin": "default", "value": False},
+        {"name": "instrumentation_source", "origin": "code", "value": "manual"},
         {"name": "python_build_gnu_type", "origin": "unknown", "value": sysconfig.get_config_var("BUILD_GNU_TYPE")},
         {"name": "python_host_gnu_type", "origin": "unknown", "value": sysconfig.get_config_var("HOST_GNU_TYPE")},
         {"name": "python_soabi", "origin": "unknown", "value": sysconfig.get_config_var("SOABI")},
@@ -546,6 +601,99 @@ def test_update_dependencies_event(test_agent_session, ddtrace_run_python_code_i
     assert status == 0, stderr
     deps = test_agent_session.get_dependencies("xmltodict")
     assert len(deps) == 1, deps
+
+
+def test_endpoint_discovery_event(test_agent_session, ddtrace_run_python_code_in_subprocess):
+    env = os.environ.copy()
+    # app-started events are sent 10 seconds after ddtrace imported, this configuration overrides this
+    # behavior to force the app-started event to be queued immediately
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+
+    # Import httppretty after ddtrace is imported, this ensures that the module is sent in a dependencies event
+    # Imports httpretty twice and ensures only one dependency entry is sent
+
+    mini_django_app = """
+from os import path as osp
+def rel_path(*p): return osp.normpath(osp.join(rel_path.path, *p))
+rel_path.path = osp.abspath(osp.dirname(__file__))
+this = osp.splitext(osp.basename(__file__))[0]
+from django.conf import settings
+SETTINGS = dict(
+    DATABASES = {},
+    DEBUG=True,
+    TEMPLATE_DEBUG=True,
+    ROOT_URLCONF = this
+)
+SETTINGS['DATABASES']={
+    'default':{
+        'ENGINE':'django.db.backends.sqlite3',
+        'NAME':rel_path('db')
+    }
+}
+
+if __name__=='__main__':
+    settings.configure(**SETTINGS)
+
+if __name__ == '__main__':
+    from django.core import management
+    management.execute_from_command_line()
+
+from django.urls import path
+from django.http import HttpResponse
+from django.views.decorators.http import require_http_methods
+@require_http_methods(["GET"])
+def view_name(request):
+    return HttpResponse('response text')
+def mini_app(request):
+    return HttpResponse('response text')
+urlpatterns = [ path('mini_app/',mini_app), path('view_name/', view_name) ]
+"""
+
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(mini_django_app, env=env)
+    assert status == 0, stderr
+    deps = test_agent_session.get_dependencies("django")
+    assert len(deps) == 1, deps
+
+    events = test_agent_session.get_events("app-endpoints")
+    assert len(events) == 1, events
+    payload = events[0]["payload"]
+    assert payload["is_first"] is True
+    endpoints = payload["endpoints"]
+    assert len(endpoints) == 2, endpoints
+    assert any(
+        e["path"] == "mini_app/" and e["method"] == "*" and e["operation_name"] == "django.request" for e in endpoints
+    ), endpoints
+    assert any(
+        e["path"] == "view_name/"
+        and e["method"] == "GET"
+        and e["resource_name"] == "GET view_name/"
+        and e["operation_name"] == "django.request"
+        for e in endpoints
+    ), endpoints
+
+
+def test_instrumentation_source_config(
+    test_agent_session, ddtrace_run_python_code_in_subprocess, run_python_code_in_subprocess
+):
+    env = os.environ.copy()
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+
+    _, stderr, status, _ = call_program("ddtrace-run", sys.executable, "-c", "", env=env)
+    assert status == 0, stderr
+    configs = test_agent_session.get_configurations("instrumentation_source")
+    assert configs and configs[-1]["value"] == "cmd_line"
+    test_agent_session.clear()
+
+    _, stderr, status, _ = call_program(sys.executable, "-c", "import ddtrace.auto", env=env)
+    assert status == 0, stderr
+    configs = test_agent_session.get_configurations("instrumentation_source")
+    assert configs and configs[-1]["value"] == "manual"
+    test_agent_session.clear()
+
+    _, stderr, status, _ = call_program(sys.executable, "-c", "import ddtrace", env=env)
+    assert status == 0, stderr
+    configs = test_agent_session.get_configurations("instrumentation_source")
+    assert not configs, "instrumentation_source should not be set when ddtrace instrumentation is not used"
 
 
 def test_update_dependencies_event_when_disabled(test_agent_session, ddtrace_run_python_code_in_subprocess):
@@ -642,28 +790,30 @@ def test_app_client_configuration_changed_event(telemetry_writer, test_agent_ses
     telemetry_writer.periodic(force_flush=True)
     """asserts that queuing a configuration sends a valid telemetry request"""
     with override_global_config(dict()):
-        telemetry_writer.add_configuration("appsec_enabled", True)
-        telemetry_writer.add_configuration("DD_TRACE_PROPAGATION_STYLE_EXTRACT", "datadog")
-        telemetry_writer.add_configuration("appsec_enabled", False, "env_var")
+        telemetry_writer.add_configuration("appsec_enabled", True, "env_var")
+        telemetry_writer.add_configuration("DD_TRACE_PROPAGATION_STYLE_EXTRACT", "datadog", "default")
+        telemetry_writer.add_configuration("appsec_enabled", False, "code")
 
         telemetry_writer.periodic(force_flush=True)
 
         events = test_agent_session.get_events("app-client-configuration-change")
         received_configurations = [c for event in events for c in event["payload"]["configuration"]]
-        received_configurations.sort(key=lambda c: c["name"])
-        # assert the latest configuration value is send to the agent
-        assert received_configurations == [
-            {
-                "name": "DD_TRACE_PROPAGATION_STYLE_EXTRACT",
-                "origin": "unknown",
-                "value": "datadog",
-            },
-            {
-                "name": "appsec_enabled",
-                "origin": "env_var",
-                "value": False,
-            },
-        ]
+        received_configurations.sort(key=lambda c: c["seq_id"])
+        assert (
+            received_configurations[0]["seq_id"]
+            < received_configurations[1]["seq_id"]
+            < received_configurations[2]["seq_id"]
+        )
+        # assert that all configuration values are sent to the agent in the order they were added (by seq_id)
+        assert received_configurations[0]["name"] == "appsec_enabled"
+        assert received_configurations[0]["origin"] == "env_var"
+        assert received_configurations[0]["value"] is True
+        assert received_configurations[1]["name"] == "DD_TRACE_PROPAGATION_STYLE_EXTRACT"
+        assert received_configurations[1]["origin"] == "default"
+        assert received_configurations[1]["value"] == "datadog"
+        assert received_configurations[2]["name"] == "appsec_enabled"
+        assert received_configurations[2]["origin"] == "code"
+        assert received_configurations[2]["value"] is False
 
 
 def test_add_integration_disabled_writer(telemetry_writer, test_agent_session):
@@ -891,32 +1041,40 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
     _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
     assert status == 0, stderr
 
-    configurations = {c["name"]: c for c in test_agent_session.get_configurations()}
+    configurations = {c["name"]: c for c in test_agent_session.get_configurations(remove_seq_id=True, effective=True)}
 
     assert configurations["DD_SERVICE"] == {"name": "DD_SERVICE", "origin": "env_var", "value": "dd_service"}
-    assert configurations["OTEL_LOG_LEVEL"] == {"name": "OTEL_LOG_LEVEL", "origin": "env_var", "value": "debug"}
-    assert configurations["OTEL_PROPAGATORS"] == {
-        "name": "OTEL_PROPAGATORS",
-        "origin": "env_var",
+    assert configurations["DD_TRACE_DEBUG"] == {"name": "DD_TRACE_DEBUG", "origin": "otel_env_var", "value": "debug"}
+    assert configurations["DD_TRACE_PROPAGATION_STYLE_INJECT"] == {
+        "name": "DD_TRACE_PROPAGATION_STYLE_INJECT",
+        "origin": "otel_env_var",
         "value": "tracecontext",
     }
-    assert configurations["OTEL_TRACES_SAMPLER"] == {
-        "name": "OTEL_TRACES_SAMPLER",
-        "origin": "env_var",
+    assert configurations["DD_TRACE_PROPAGATION_STYLE_EXTRACT"] == {
+        "name": "DD_TRACE_PROPAGATION_STYLE_EXTRACT",
+        "origin": "otel_env_var",
+        "value": "tracecontext",
+    }
+    assert configurations["DD_TRACE_SAMPLING_RULES"] == {
+        "name": "DD_TRACE_SAMPLING_RULES",
+        "origin": "otel_env_var",
         "value": "always_on",
     }
-    assert configurations["OTEL_TRACES_EXPORTER"] == {
-        "name": "OTEL_TRACES_EXPORTER",
-        "origin": "env_var",
+    assert configurations["DD_TRACE_ENABLED"] == {
+        "name": "DD_TRACE_ENABLED",
+        "origin": "otel_env_var",
         "value": "none",
     }
-    assert configurations["OTEL_LOGS_EXPORTER"] == {"name": "OTEL_LOGS_EXPORTER", "origin": "env_var", "value": "otlp"}
-    assert configurations["OTEL_RESOURCE_ATTRIBUTES"] == {
-        "name": "OTEL_RESOURCE_ATTRIBUTES",
-        "origin": "env_var",
+    assert configurations["DD_TAGS"] == {
+        "name": "DD_TAGS",
+        "origin": "otel_env_var",
         "value": "team=apm,component=web",
     }
-    assert configurations["OTEL_SDK_DISABLED"] == {"name": "OTEL_SDK_DISABLED", "origin": "env_var", "value": "true"}
+    assert configurations["DD_TRACE_OTEL_ENABLED"] == {
+        "name": "DD_TRACE_OTEL_ENABLED",
+        "origin": "otel_env_var",
+        "value": "true",
+    }
 
     env_hiding_metrics = test_agent_session.get_metrics("otel.env.hiding")
     tags = [m["tags"] for m in env_hiding_metrics]
@@ -929,3 +1087,105 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
     env_invalid_metrics = test_agent_session.get_metrics("otel.env.invalid")
     tags = [m["tags"] for m in env_invalid_metrics]
     assert tags == [["config_opentelemetry:otel_logs_exporter"]]
+
+
+def test_add_integration_error_log(mock_time, telemetry_writer, test_agent_session):
+    """Test add_integration_error_log functionality with real stack trace"""
+    try:
+        raise ValueError("Test exception")
+    except ValueError as e:
+        telemetry_writer.add_integration_error_log("Test error message", e)
+        telemetry_writer.periodic(force_flush=True)
+
+        log_events = test_agent_session.get_events("logs")
+        assert len(log_events) == 1
+
+        logs = log_events[0]["payload"]["logs"]
+        assert len(logs) == 1
+
+        log_entry = logs[0]
+        assert log_entry["level"] == TELEMETRY_LOG_LEVEL.ERROR.value
+        assert log_entry["message"] == "Test error message"
+
+        stack_trace = log_entry["stack_trace"]
+        expected_lines = [
+            "Traceback (most recent call last):",
+            "  <REDACTED>",
+            "    <REDACTED>",
+            "builtins.ValueError: Test exception",
+        ]
+        for expected_line in expected_lines:
+            assert expected_line in stack_trace
+
+
+def test_add_integration_error_log_with_log_collection_disabled(mock_time, telemetry_writer, test_agent_session):
+    """Test that add_integration_error_log respects LOG_COLLECTION_ENABLED setting"""
+    original_value = telemetry_config.LOG_COLLECTION_ENABLED
+    try:
+        telemetry_config.LOG_COLLECTION_ENABLED = False
+
+        try:
+            raise ValueError("Test exception")
+        except ValueError as e:
+            telemetry_writer.add_integration_error_log("Test error message", e)
+            telemetry_writer.periodic(force_flush=True)
+
+            log_events = test_agent_session.get_events("logs", subprocess=True)
+            assert len(log_events) == 0
+    finally:
+        telemetry_config.LOG_COLLECTION_ENABLED = original_value
+
+
+@pytest.mark.parametrize(
+    "filename, is_redacted",
+    [
+        ("/path/to/file.py", True),
+        ("/path/to/ddtrace/contrib/flask/file.py", False),
+        ("/path/to/dd-trace-something/file.py", True),
+    ],
+)
+def test_redact_filename(filename, is_redacted):
+    """Test file redaction logic"""
+    writer = TelemetryWriter(is_periodic=False)
+    assert writer._should_redact(filename) == is_redacted
+
+
+def test_telemetry_writer_multiple_sources_config(telemetry_writer, test_agent_session):
+    """Test that telemetry data is submitted for multiple sources with increasing seq_id"""
+
+    telemetry_writer.add_configuration("DD_SERVICE", "unamed_python_service", "default")
+    telemetry_writer.add_configuration("DD_SERVICE", "otel_service", "otel_env_var")
+    telemetry_writer.add_configuration("DD_SERVICE", "dd_service", "env_var")
+    telemetry_writer.add_configuration("DD_SERVICE", "monkey", "code")
+    telemetry_writer.add_configuration("DD_SERVICE", "baboon", "remote_config")
+    telemetry_writer.add_configuration("DD_SERVICE", "baboon", "fleet_stable_config")
+
+    telemetry_writer.periodic(force_flush=True)
+
+    configs = test_agent_session.get_configurations(name="DD_SERVICE", remove_seq_id=False, effective=False)
+    assert len(configs) == 6, configs
+
+    sorted_configs = sorted(configs, key=lambda x: x["seq_id"])
+    assert sorted_configs[0]["value"] == "unamed_python_service"
+    assert sorted_configs[0]["origin"] == "default"
+    assert sorted_configs[0]["seq_id"] == 1
+
+    assert sorted_configs[1]["value"] == "otel_service"
+    assert sorted_configs[1]["origin"] == "otel_env_var"
+    assert sorted_configs[1]["seq_id"] == 2
+
+    assert sorted_configs[2]["value"] == "dd_service"
+    assert sorted_configs[2]["origin"] == "env_var"
+    assert sorted_configs[2]["seq_id"] == 3
+
+    assert sorted_configs[3]["value"] == "monkey"
+    assert sorted_configs[3]["origin"] == "code"
+    assert sorted_configs[3]["seq_id"] == 4
+
+    assert sorted_configs[4]["value"] == "baboon"
+    assert sorted_configs[4]["origin"] == "remote_config"
+    assert sorted_configs[4]["seq_id"] == 5
+
+    assert sorted_configs[5]["value"] == "baboon"
+    assert sorted_configs[5]["origin"] == "fleet_stable_config"
+    assert sorted_configs[5]["seq_id"] == 6

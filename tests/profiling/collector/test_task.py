@@ -11,8 +11,7 @@ TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
 
 def test_get_task_main():
     # type: (...) -> None
-    if _task._gevent_tracer is None:
-        assert _task.get_task(threading.main_thread().ident) == (None, None, None)
+    assert _task.get_task(threading.main_thread().ident) == (None, None, None)
 
 
 @pytest.mark.subprocess

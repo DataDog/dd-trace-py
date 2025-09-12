@@ -1,5 +1,7 @@
 import inspect
 import os
+from typing import Dict
+from typing import Optional
 from typing import Union
 import unittest
 
@@ -41,6 +43,7 @@ from ddtrace.internal.ci_visibility.coverage import _report_coverage_to_span
 from ddtrace.internal.ci_visibility.coverage import _start_coverage
 from ddtrace.internal.ci_visibility.coverage import _stop_coverage
 from ddtrace.internal.ci_visibility.coverage import _switch_coverage_context
+from ddtrace.internal.ci_visibility.coverage import is_coverage_available
 from ddtrace.internal.ci_visibility.utils import _add_pct_covered_to_span
 from ddtrace.internal.ci_visibility.utils import _add_start_end_source_file_path_data_to_span
 from ddtrace.internal.ci_visibility.utils import _generate_fully_qualified_test_name
@@ -70,11 +73,16 @@ def get_version():
     return ""
 
 
+def _supported_versions() -> Dict[str, str]:
+    return {"unittest": "*"}
+
+
 def _enable_unittest_if_not_started():
     _initialize_unittest_data()
     if _CIVisibility.enabled:
         return
     _CIVisibility.enable(config=ddtrace.config.unittest)
+    _check_if_code_coverage_available()
 
 
 def _initialize_unittest_data():
@@ -91,6 +99,15 @@ def _initialize_unittest_data():
 def _set_tracer(tracer: ddtrace.tracer):
     """Manually sets the tracer instance to `unittest.`"""
     unittest._datadog_tracer = tracer
+
+
+def _check_if_code_coverage_available():
+    if _CIVisibility._instance._collect_coverage_enabled and not is_coverage_available():
+        log.warning(
+            "CI Visibility code coverage tracking is enabled, but the `coverage` package is not installed. "
+            "To use code coverage tracking, please install `coverage` from https://pypi.org/project/coverage/"
+        )
+        _CIVisibility._instance._collect_coverage_enabled = False
 
 
 def _is_test_coverage_enabled(test_object) -> bool:
@@ -448,7 +465,7 @@ def unpatch():
     _CIVisibility.disable()
 
 
-def _set_test_span_status(test_item, status: str, exc_info: str = None, skip_reason: str = None):
+def _set_test_span_status(test_item, status: str, exc_info: Optional[str] = None, skip_reason: Optional[str] = None):
     span = _extract_span(test_item)
     if not span:
         log.debug("Tried setting test result for test but could not find span for %s", test_item)
@@ -654,7 +671,7 @@ def _start_test_session_span(instance) -> ddtrace.trace.Span:
         "true" if _CIVisibility._instance._collect_coverage_enabled else "false",
     )
 
-    _CIVisibility.set_test_session_name(test_command=test_command)
+    _CIVisibility._instance.set_test_session_name(test_command=test_command)
 
     if _CIVisibility.test_skipping_enabled():
         _set_test_skipping_tags_to_span(test_session_span)

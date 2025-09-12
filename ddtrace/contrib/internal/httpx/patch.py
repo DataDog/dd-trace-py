@@ -1,11 +1,12 @@
 import os
+from typing import Dict
 
 import httpx
 from wrapt import BoundFunctionWrapper
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.trace_utils import distributed_tracing_enabled
@@ -23,7 +24,6 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.trace import Pin
 
 
 HTTPX_VERSION = parse_version(httpx.__version__)
@@ -42,6 +42,10 @@ config._add(
         "default_http_tag_query_string": config._http_client_tag_query_string,
     },
 )
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"httpx": ">=0.17"}
 
 
 def _url_to_str(url):
@@ -86,14 +90,11 @@ def _get_service_name(pin, request):
 
 def _init_span(span, request):
     # type: (Span, httpx.Request) -> None
-    span.set_tag(_SPAN_MEASURED_KEY)
+    # PERF: avoid setting via Span.set_tag
+    span.set_metric(_SPAN_MEASURED_KEY, 1)
 
     if distributed_tracing_enabled(config.httpx):
         HTTPPropagator.inject(span.context, request.headers)
-
-    sample_rate = config.httpx.get_analytics_sample_rate(use_global_config=True)
-    if sample_rate is not None:
-        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
 
 def _set_span_meta(span, request, response):

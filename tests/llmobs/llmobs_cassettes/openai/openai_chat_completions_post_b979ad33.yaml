@@ -1,0 +1,113 @@
+interactions:
+- request:
+    body: '{"messages":[{"content":"what country is the city Bikini Bottom in? respond
+      in Spanish","role":"user"}],"model":"gpt-3.5-turbo","stream":false}'
+    headers:
+      ? !!python/object/new:multidict._multidict.istr
+      - Accept
+      : - application/json
+      ? !!python/object/new:multidict._multidict.istr
+      - Accept-Encoding
+      : - gzip, deflate, zstd
+      ? !!python/object/new:multidict._multidict.istr
+      - Connection
+      : - keep-alive
+      Content-Length:
+      - '143'
+      ? !!python/object/new:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      ? !!python/object/new:multidict._multidict.istr
+      - User-Agent
+      : - OpenAI/Python 1.91.0
+      X-Stainless-Arch:
+      - arm64
+      X-Stainless-Async:
+      - 'false'
+      X-Stainless-Lang:
+      - python
+      X-Stainless-OS:
+      - MacOS
+      X-Stainless-Package-Version:
+      - 1.91.0
+      X-Stainless-Runtime:
+      - CPython
+      X-Stainless-Runtime-Version:
+      - 3.12.11
+      x-stainless-retry-count:
+      - '0'
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-ByrR3zqvrkTQjLpcFmARKsFoFoBfY\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1753844785,\n  \"model\": \"gpt-3.5-turbo-0125\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"Bikini Bottom es una ciudad ficticia
+        que se encuentra en el fondo del mar, espec\xEDficamente en el oc\xE9ano Pac\xEDfico.\",\n
+        \       \"refusal\": null,\n        \"annotations\": []\n      },\n      \"logprobs\":
+        null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+        20,\n    \"completion_tokens\": 29,\n    \"total_tokens\": 49,\n    \"prompt_tokens_details\":
+        {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": null\n}\n"
+    headers:
+      CF-RAY:
+      - 9671a3d2ca8039e9-YYZ
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 30 Jul 2025 03:06:25 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=_ILe4002VchOsiLcIsI8Ql2R7P7W1S5Nvj7AXrgx3d4-1753844785-1.0.1.1-JH7vLo7LojwvlryshX6CIPW8VB4rSlyowFI8HRLySqHgxUKQuWgFwQgb7Xwyy6KmJA5lJx4A7wPVifrNBK75IUFeG5pbNKPC5_xRxKbexEw;
+        path=/; expires=Wed, 30-Jul-25 03:36:25 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=RE5AR_..uq90weUJ_VrwsY49HpciDYYdCWOnzqb55HA-1753844785938-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '547'
+      openai-project:
+      - proj_6cMiry5CHgK3zKotG0LtMb9H
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-envoy-upstream-service-time:
+      - '551'
+      x-ratelimit-limit-requests:
+      - '15000'
+      x-ratelimit-limit-tokens:
+      - '2000000'
+      x-ratelimit-remaining-requests:
+      - '14999'
+      x-ratelimit-remaining-tokens:
+      - '1999981'
+      x-ratelimit-reset-requests:
+      - 4ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_8c1be9ab516cdcce7c8679e9d925d8fa
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -1,4 +1,5 @@
 #include "taint_range.h"
+#include "context/taint_engine_context.h"
 #include "initializer/initializer.h"
 #include "utils/string_utils.h"
 
@@ -48,6 +49,12 @@ bool
 TaintRange::has_secure_mark(VulnerabilityType mark) const
 {
     return (secure_marks & (1ULL << static_cast<uint64_t>(mark))) != 0;
+}
+
+bool
+TaintRange::has_origin(OriginType origin) const
+{
+    return source.origin == origin;
 }
 
 TaintRangePtr
@@ -149,7 +156,79 @@ api_set_ranges_from_values(PyObject* self, PyObject* const* args, const Py_ssize
                 result_error_msg = "iast::propagation::native::Invalid or empty source_value";
             }
         } else {
-            result_error_msg = "[iast::propagation::native::Invalid or empty source_name";
+            result_error_msg = "iast::propagation::native::Invalid or empty source_name";
+        }
+    }
+    if (not result) {
+        py::set_error(PyExc_ValueError, result_error_msg);
+        return nullptr;
+    }
+
+    return pyobject_n;
+}
+
+/**
+ * api_taint_pyobject.
+ *
+ * The equivalent Python script of this function is:
+ *  ```
+ *  api_taint_pyobject
+ *  pyobject_newid = new_pyobject_id(pyobject)
+ *  source = Source(source_name, source_value, source_origin)
+ *  pyobject_range = TaintRange(0, len(pyobject), source)
+ *  set_ranges(pyobject_newid, [pyobject_range])
+ *  ```
+ *
+ * @param self The Python extension module.
+ * @param args An array of Python objects containing the candidate text and text aspect.
+ *   @param args[0] PyObject, string to set the ranges
+ *   @param args[1] long. Length of the string
+ *   @param args[2] string. source name
+ *   @param args[3] string. source value
+ *   @param args[4] int. origin type
+ * @param nargs The number of arguments in the 'args' array.
+ */
+PyObject*
+api_taint_pyobject(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
+{
+    bool result = false;
+    const char* result_error_msg = MSG_ERROR_N_PARAMS;
+    PyObject* pyobject_n = nullptr;
+
+    if (nargs == 6) {
+        PyObject* tainted_object = args[0];
+        PyObject* ctx_obj = args[5];
+        size_t context_id = PyLong_AsSize_t(ctx_obj);
+        if (context_id == (size_t)-1 && PyErr_Occurred()) {
+            PyErr_Clear();
+            py::set_error(PyExc_ValueError, "invalid context_id");
+            return nullptr;
+        }
+        const auto tx_map = taint_engine_context->get_tainted_object_map_by_ctx_id(context_id);
+        if (not tx_map) {
+            py::set_error(PyExc_ValueError, MSG_ERROR_TAINT_MAP);
+            return nullptr;
+        }
+
+        pyobject_n = new_pyobject_id(tainted_object);
+        PyObject* len_pyobject_py = args[1];
+
+        const long len_pyobject = PyLong_AsLong(len_pyobject_py);
+        if (const string source_name = PyObjectToString(args[2]); not source_name.empty()) {
+            if (const string source_value = PyObjectToString(args[3]); not source_value.empty()) {
+                const auto source_origin = static_cast<OriginType>(PyLong_AsLong(args[4]));
+                const auto source = Source(source_name, source_value, source_origin);
+                const auto range = initializer->allocate_taint_range(0, len_pyobject, source, {});
+                const auto ranges = vector{ range };
+                result = set_ranges(pyobject_n, ranges, tx_map);
+                if (not result) {
+                    result_error_msg = MSG_ERROR_SET_RANGES;
+                }
+            } else {
+                result_error_msg = "iast::propagation::native::Invalid or empty source_value";
+            }
+        } else {
+            result_error_msg = "iast::propagation::native::Invalid or empty source_name";
         }
     }
     if (not result) {
@@ -161,7 +240,7 @@ api_set_ranges_from_values(PyObject* self, PyObject* const* args, const Py_ssize
 }
 
 std::pair<TaintRangeRefs, bool>
-get_ranges(PyObject* string_input, const TaintRangeMapTypePtr& tx_map)
+get_ranges(PyObject* string_input, const TaintedObjectMapTypePtr& tx_map)
 {
     TaintRangeRefs result;
     if (not is_tainteable(string_input)) {
@@ -185,7 +264,7 @@ get_ranges(PyObject* string_input, const TaintRangeMapTypePtr& tx_map)
 }
 
 bool
-set_ranges(PyObject* str, const TaintRangeRefs& ranges, const TaintRangeMapTypePtr& tx_map)
+set_ranges(PyObject* str, const TaintRangeRefs& ranges, const TaintedObjectMapTypePtr& tx_map)
 {
     if (ranges.empty()) {
         return false;
@@ -310,7 +389,7 @@ api_copy_and_shift_ranges_from_strings(py::handle& str_1,
 }
 
 TaintedObjectPtr
-get_tainted_object(PyObject* str, const TaintRangeMapTypePtr& tx_map)
+get_tainted_object(PyObject* str, const TaintedObjectMapTypePtr& tx_map)
 {
     if (not str)
         return nullptr;
@@ -366,7 +445,7 @@ get_internal_hash(PyObject* obj)
 }
 
 void
-set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, const TaintRangeMapTypePtr& tx_map)
+set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, const TaintedObjectMapTypePtr& tx_map)
 {
     if (not str or not is_tainteable(str)) {
         return;
@@ -469,6 +548,7 @@ pyexport_taintrange(py::module& m)
       .value("CODE_INJECTION", VulnerabilityType::CODE_INJECTION)
       .value("COMMAND_INJECTION", VulnerabilityType::COMMAND_INJECTION)
       .value("HEADER_INJECTION", VulnerabilityType::HEADER_INJECTION)
+      .value("UNVALIDATED_REDIRECT", VulnerabilityType::UNVALIDATED_REDIRECT)
       .value("INSECURE_COOKIE", VulnerabilityType::INSECURE_COOKIE)
       .value("NO_HTTPONLY_COOKIE", VulnerabilityType::NO_HTTPONLY_COOKIE)
       .value("NO_SAMESITE_COOKIE", VulnerabilityType::NO_SAMESITE_COOKIE)
@@ -494,6 +574,7 @@ pyexport_taintrange(py::module& m)
       .def("get_hash", &TaintRange::get_hash)
       .def("add_secure_mark", &TaintRange::add_secure_mark)
       .def("has_secure_mark", &TaintRange::has_secure_mark)
+      .def("has_origin", &TaintRange::has_origin)
       .def("__eq__",
            [](const TaintRangePtr& self, const TaintRangePtr& other) {
                if (other == nullptr)

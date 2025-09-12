@@ -9,12 +9,13 @@ on:
     paths:
     - ddtrace/internal/datadog/profiling/**
     - ddtrace/profiling/**
+    - .github/workflows/profiling-native.yml
   workflow_dispatch: {}
 
 jobs:
   test:
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 7
+    timeout-minutes: 9
     strategy:
       fail-fast: false
       matrix:
@@ -28,19 +29,17 @@ jobs:
           persist-credentials: false
           fetch-depth: 1
 
-      - uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install llvm 19
-        run: |
-          # Ubuntu-24.04 GH actions image has llvm-18, but we use 19 as it's
-          # the latest one available.
-          wget https://apt.llvm.org/llvm.sh
-          chmod +x llvm.sh
-          sudo ./llvm.sh 19
+      - uses: KyleMayes/install-llvm-action@a7a1a882e2d06ebe05d5bb97c3e1f8c984ae96fc # v2.0.7
+        with:
+          version: "19"
+          cached: true
 
       - name: Install Valgrind
+        if: ${{ matrix.sanitizer == 'valgrind' }}
         run: |
           sudo apt-get install -y valgrind
 

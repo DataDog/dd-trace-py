@@ -9,20 +9,20 @@ def test_basic_try_except_f(value):
     return value
 
 
-def test_basic_multiple_except_f(a, value):
+def test_basic_multiple_except_f(value):
     try:
-        if a == 0:
-            raise ValueError("auto value caught error")
-        else:
-            raise RuntimeError("auto caught error")
+        raise ValueError("auto value caught error")
     except ValueError:
         value += 10
-    except RuntimeError as _:
+
+    try:
+        raise RuntimeError("auto caught error")
+    except RuntimeError:
         value += 5
     return value
 
 
-def test_handled_same_error_multiple_times_f(value):
+def test_handle_same_error_multiple_times_f(value):
     try:
         try:
             raise ValueError("auto caught error")
@@ -32,6 +32,60 @@ def test_handled_same_error_multiple_times_f(value):
         value = 10
 
     return value
+
+
+def test_handled_same_error_different_type_f(value):
+    try:
+        try:
+            raise ValueError("auto caught error")
+        except ValueError as e:
+            raise RuntimeError(e)
+    except RuntimeError:
+        value = 10
+
+    return value
+
+
+def test_handled_then_raise_error_f(value):
+    try:
+        try:
+            raise ValueError("auto caught error")
+        except ValueError as e:
+            raise e
+    except Exception as e:
+        raise e
+
+
+def test_more_handled_than_collector_capacity_f(value):
+    for i in range(101):
+        try:
+            raise ValueError("auto caught error")
+        except ValueError:
+            value += 1
+    return value
+
+
+def handled_in_parent_span_f(value, tracer):
+    @tracer.wrap("parent_span")
+    def parent_span(value):
+        try:
+            child_span()
+        except ValueError:
+            value += 1
+        return value
+
+    @tracer.wrap("child_span")
+    def child_span():
+        try:
+            raise ValueError("auto caught error")
+        except ValueError as e:
+            raise e
+
+    return parent_span(value)
+
+
+def test_asyncio_error_f(value):
+    return asyncio.run(test_sync_error_f(value))
 
 
 async def test_sync_error_f(value):
@@ -50,29 +104,6 @@ async def test_async_error_f(value):
         raise ValueError("this is an async error")
     except ValueError:
         value += "<async_error>"
-    return value
-
-
-def test_reraise_handled_error_f(value):
-    try:
-        try:
-            raise ValueError("auto caught error")
-        except ValueError as e:
-            raise RuntimeError(e)
-    except RuntimeError:
-        value = 10
-
-    return value
-
-
-def test_report_after_unhandled_without_raise_f(value):
-    try:
-        try:
-            raise ValueError("auto caught error")
-        except ValueError as e:
-            raise RuntimeError(e)
-    except RuntimeError:
-        value = 10
     return value
 
 

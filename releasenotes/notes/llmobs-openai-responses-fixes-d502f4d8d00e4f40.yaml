@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    LLM Observability, openai: fixes an issue where parsing token metrics for streamed reasoning responses from the responses api threw an ``AttributeError``.
+  - |
+    LLM Observability: fixes an issue where input messages for tool messages were not being captured properly.

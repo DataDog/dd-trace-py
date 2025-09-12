@@ -1,4 +1,5 @@
 import json
+import os
 
 import pytest
 
@@ -8,6 +9,7 @@ from tests.integration.utils import AGENT_VERSION
 pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
 RESOURCE = "mycoolre$ource"  # codespell:ignore
 TAGS = {"tag1": "mycooltag"}
+USING_NATIVE_WRITER = os.environ.get("_DD_TRACE_WRITER_NATIVE", "false").lower() in ("true", "1")
 
 
 @pytest.mark.snapshot()
@@ -31,6 +33,53 @@ def test_sampling_with_rate_limit_3():
 
     with tracer.trace("trace5"):
         tracer.trace("child").finish()
+
+
+def test_supported_sampling_mechanism():
+    """
+    validate_sampling_decision should not give errors for supported sampling mechanisms
+    """
+    from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+    from ddtrace.internal.constants import SamplingMechanism
+    from ddtrace.internal.sampling import validate_sampling_decision
+
+    # This list can grow over time so we should test all of them
+    supported_mechanisms = {
+        name: getattr(SamplingMechanism, name) for name in dir(SamplingMechanism) if not name.startswith("_")
+    }
+
+    # The mechanisms we support should NOT return a decoding error
+    for mechanism, value in supported_mechanisms.items():
+        sampling_decision_validation = None
+        meta = {}
+        sampling_dm_value = "-" + str(value)
+        meta = {SAMPLING_DECISION_TRACE_TAG_KEY: sampling_dm_value}
+        sampling_decision_validation = validate_sampling_decision(meta)
+        decoding_error_result = {"_dd.propagation_error": "decoding_error"}
+        assert sampling_decision_validation != decoding_error_result, f"{mechanism} returned {decoding_error_result}"
+
+
+def test_unsupported_sampling_mechanism():
+    """
+    Unsupported sampling mechanisms actually return a decoding error in validate_sampling_decision
+    """
+    from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+    from ddtrace.internal.sampling import validate_sampling_decision
+
+    meta = {SAMPLING_DECISION_TRACE_TAG_KEY: "-999999999999"}
+    sampling_decision_validation = validate_sampling_decision(meta)
+    decoding_error_result = {"_dd.propagation_error": "decoding_error"}
+    assert (
+        sampling_decision_validation == decoding_error_result
+    ), f"Instead of getting {decoding_error_result}, received {sampling_decision_validation}"
+
+
+@pytest.mark.snapshot()
+@pytest.mark.subprocess(env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": "0"}])})
+def test_extended_sampling_string_sample_rate():
+    from ddtrace.trace import tracer
+
+    tracer.trace("should_not_send").finish()
 
 
 @pytest.mark.snapshot()
@@ -204,10 +253,33 @@ def test_extended_sampling_tags_and_name_glob():
 
 
 @pytest.mark.snapshot()
-@pytest.mark.subprocess(env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": 0, "tags": {"tag": "2*"}}])})
+@pytest.mark.subprocess(
+    env={
+        "DD_TRACE_SAMPLING_RULES": json.dumps(
+            [{"sample_rate": 0, "service": "mycoolservice", "tags": {"tag1": "monkey", "tag2": "banana"}}]
+        )
+    }
+)
+def test_extended_sampling_tags_partial_match():
+    """
+    For a span to match a sampling rule it must contain all the tags listed in the rule.
+    Partial matches are not allowed.
+    """
+    from ddtrace.trace import tracer
+
+    with tracer.trace(name="should_send", service="mycoolservice") as span:
+        span.set_tag("tag1", "monkey")
+
+    with tracer.trace(name="should_not_send", service="mycoolservice") as span:
+        span.set_tag("tag1", "monkey")
+        span.set_tag("tag2", "banana")
+
+
+@pytest.mark.snapshot()
+@pytest.mark.subprocess(env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": 0, "tags": {"tag1": "2*"}}])})
 def test_extended_sampling_float_special_case_do_not_match():
-    """A float with a non-zero decimal and a tag with a non-* pattern
-    # should not match the rule, and should therefore be kept
+    """A float with a non-zero decimal and a tag with a pattern
+    that contains a digit should not match the rule, and should therefore be kept.
     """
     from ddtrace.trace import tracer
 
@@ -216,15 +288,31 @@ def test_extended_sampling_float_special_case_do_not_match():
 
 
 @pytest.mark.snapshot()
-@pytest.mark.subprocess(env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": 0, "tags": {"tag": "*"}}])})
+@pytest.mark.subprocess(
+    env={
+        "DD_TRACE_SAMPLING_RULES": json.dumps(
+            [
+                {"sample_rate": 0, "tags": {"tag": "*"}},
+                {"sample_rate": 0, "tags": {"tag2": "?*"}},
+                {"sample_rate": 0, "tags": {"tag3": "**"}},
+            ]
+        )
+    }
+)
 def test_extended_sampling_float_special_case_match_star():
-    """A float with a non-zero decimal and a tag with a * pattern
-    # should match the rule, and should therefore should be dropped
+    """A float with a non-zero decimal and a tag with a glob pattern that does
+    not contain a digit should match the rule and should therefore should be dropped
     """
     from ddtrace.trace import tracer
 
-    with tracer.trace(name="should_send") as span:
+    with tracer.trace(name="should_not_send") as span:
         span.set_tag("tag", 20.1)
+
+    with tracer.trace(name="should_not_send2") as span:
+        span.set_tag("tag2", 22.2)
+
+    with tracer.trace(name="should_not_send3") as span:
+        span.set_tag("tag3", 3333333.33333)
 
 
 @pytest.mark.subprocess()
@@ -250,8 +338,6 @@ def test_rate_limiter_on_spans(tracer):
     dropped_span = tracer.trace(name=f"span {start_time}")
     dropped_span.start = 0.8
     dropped_span.finish(0.9)
-    # Spans are sampled on flush
-    tracer.flush()
     # Since the rate limiter is set to 10, first ten spans should be kept
     for span in spans:
         assert span.context.sampling_priority > 0
@@ -282,3 +368,81 @@ def test_rate_limiter_on_long_running_spans(tracer):
 
     assert span_m29.context.sampling_priority > 0
     assert span_m30.context.sampling_priority > 0
+
+
+@pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
+@pytest.mark.xfail(
+    USING_NATIVE_WRITER, reason="Native writer does not drop traces when client stats computation is enabled"
+)
+@pytest.mark.snapshot()
+@pytest.mark.subprocess(
+    env={
+        "DD_SERVICE": "animals",
+        "DD_TRACE_SAMPLING_RULES": '[{"sample_rate": 0, "service": "animals"}]',
+        "DD_SPAN_SAMPLING_RULES": '[{"service":"animals", "name":"monkey", "sample_rate":1}]',
+    },
+    parametrize={"DD_TRACE_COMPUTE_STATS": ["false", "true"]},
+)
+def test_single_span_and_trace_sampling_match_non_root_span():
+    """Validates that a single span sampling rule applied to a non-root span does not
+    override the trace sampling decision.
+    """
+    # FIXME: When stats computation is enabled the native writer does not drop unsampled spans and does not
+    # send stats to the testagent (and maybe even the real datadog agent).
+    from ddtrace.trace import tracer
+
+    with tracer.trace("non_monkey") as root:
+        with tracer.trace("monkey", resource="non_root_span") as span2:
+            with tracer.trace("human_monkey") as span3:
+                pass
+        with tracer.trace("donkey_monkey") as span4:
+            pass
+
+    # Trace level sampling decision tags should be the same.
+    for span in [root, span2, span3, span4]:
+        assert span.context.sampling_priority == -1, repr(span)
+        assert span.context._meta.get("_dd.p.dm") == "-3", repr(span)
+
+    # Span 1 was sampled via trace sampling rule
+    assert root.get_metric("_dd.rule_psr") == 0, repr(root)
+    # Span 2 was sampled via single span sampling rule
+    assert span2.get_metric("_dd.span_sampling.mechanism") == 8, repr(span2)
+    assert span2.get_metric("_dd.span_sampling.rule_rate") == 1, repr(span2)
+    assert "_dd.rule_psr" not in span2.get_metrics(), repr(span2)
+
+
+@pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
+@pytest.mark.xfail(USING_NATIVE_WRITER, reason="Native writer does not drop traces when partial flushing is enabled")
+@pytest.mark.snapshot()
+@pytest.mark.subprocess(
+    env={
+        "DD_SERVICE": "animals",
+        "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "1",
+        "DD_TRACE_SAMPLING_RULES": '[{"sample_rate": 0, "service": "animals"}]',
+        "DD_SPAN_SAMPLING_RULES": '[{"service":"animals", "name":"monkey", "sample_rate":1}]',
+    },
+    parametrize={"DD_TRACE_COMPUTE_STATS": ["false", "true"]},
+)
+def test_single_span_and_trace_sampling_match_root_span_paritial_flushing():
+    """Validates that a single span sampling rule applied to a root span does not
+    override the trace sampling decision, even when traces are partially flushed.
+    """
+    # FIXME: When stats computation is enabled the native writer does not drop unsampled spans and does not
+    # send stats to the testagent (and maybe even the real datadog agent).
+    from ddtrace.trace import tracer
+
+    with tracer.trace("monkey") as root:
+        with tracer.trace("non_monkey") as span2:
+            pass
+
+    for span in [root, span2]:
+        # Trace sampling rule is matched, trace level sampling decision is MANUAL DROP
+        assert span.context.sampling_priority == -1, repr(span)
+        assert span.context._meta.get("_dd.p.dm") == "-3", repr(span)
+
+    # Span 1 was sampled via single span sampling rule
+    assert root.get_metric("_dd.span_sampling.mechanism") == 8
+    assert root.get_metric("_dd.span_sampling.rule_rate") == 1
+    # Regardless of whether stats computation is enabled or disabled,
+    # if the trace matched a trace sampling rule `_dd.rule_psr` should be set.
+    assert root.get_metric("_dd.rule_psr") == 0, repr(root)

@@ -6,6 +6,8 @@ from types import CoroutineType
 
 import pytest
 
+from ddtrace.internal.wrapping import is_wrapped
+from ddtrace.internal.wrapping import is_wrapped_with
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
 from ddtrace.internal.wrapping.context import WrappingContext
@@ -93,6 +95,71 @@ def test_mutiple_wrap():
     f(1, 2, 3)
 
     assert not channel1 and not channel2
+
+
+def test_is_wrapped():
+    """Test that `is_wrapped` and `is_wrapped_with` work as expected."""
+
+    def first_wrapper(f, args, kwargs):
+        return f(*args, **kwargs)
+
+    def second_wrapper(f, args, kwargs):
+        return f(*args, **kwargs)
+
+    def f(a, b, c=None):
+        return (a, b, c)
+
+    # Function works
+    assert f(1, 2) == (1, 2, None)
+
+    # Not wrapped yet
+    assert not is_wrapped(f)
+    assert not is_wrapped_with(f, first_wrapper)
+    assert not is_wrapped_with(f, second_wrapper)
+
+    # Wrap with first wrapper
+    wrap(f, first_wrapper)
+
+    # Function still works
+    assert f(1, 2) == (1, 2, None)
+
+    # Only wrapped with first_wrapper
+    assert is_wrapped(f)
+    assert is_wrapped_with(f, first_wrapper)
+    assert not is_wrapped_with(f, second_wrapper)
+
+    # Wrap with second wrapper
+    wrap(f, second_wrapper)
+
+    # Function still works
+    assert f(1, 2) == (1, 2, None)
+
+    # Wrapped with everything
+    assert is_wrapped(f)
+    assert is_wrapped_with(f, first_wrapper)
+    assert is_wrapped_with(f, second_wrapper)
+
+    # Unwrap first wrapper
+    unwrap(f, first_wrapper)
+
+    # Function still works
+    assert f(1, 2) == (1, 2, None)
+
+    # Still wrapped with second_wrapper
+    assert is_wrapped(f)
+    assert not is_wrapped_with(f, first_wrapper)
+    assert is_wrapped_with(f, second_wrapper)
+
+    # Unwrap second wrapper
+    unwrap(f, second_wrapper)
+
+    # Function still works
+    assert f(1, 2) == (1, 2, None)
+
+    # Not wrapped anymore
+    assert not is_wrapped(f)
+    assert not is_wrapped_with(f, first_wrapper)
+    assert not is_wrapped_with(f, second_wrapper)
 
 
 @pytest.mark.skipif(sys.version_info > (3, 12), reason="segfault on 3.13")
@@ -805,3 +872,57 @@ async def test_wrapping_context_async_concurrent() -> None:
     await asyncio.gather(*[fibonacci(n) for n in range(1, N)])
 
     assert set(values) == {(n, n) for n in range(0, N)}
+
+
+# DEV: Since this test relies on `gc`, run this test as a subprocess and avoid over-importing
+# too many modules to avoid outside impact on `gc` causing flakiness
+@pytest.mark.subprocess()
+def test_wrapping_context_method_leaks():
+    import gc
+
+    from ddtrace.internal.wrapping.context import WrappingContext
+
+    NOTSET = object()
+
+    # DEV: Redefine this module level class to avoid importing `tests.internal.test_wrapping`
+    # to help reduce flakiness caused by outside impact on `gc`
+    class DummyWrappingContext(WrappingContext):
+        def __init__(self, f):
+            super().__init__(f)
+
+            self.entered = False
+            self.exited = False
+            self.return_value = NOTSET
+            self.exc_info = None
+            self.frame = None
+
+        def __enter__(self):
+            self.entered = True
+            self.frame = self.__frame__
+            return super().__enter__()
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            self.exited = True
+            if exc_value is not None:
+                self.exc_info = (exc_type, exc_value, traceback)
+            super().__exit__(exc_type, exc_value, traceback)
+
+        def __return__(self, value):
+            self.return_value = value
+            return super().__return__(value)
+
+    def foo():
+        return 42
+
+    wc = DummyWrappingContext(foo)
+    wc.wrap()
+
+    method_count = len([_ for _ in gc.get_objects() if type(_).__name__ == "method"])
+
+    for _ in range(10000):
+        foo()
+
+    gc.collect()
+
+    new_method_count = len([_ for _ in gc.get_objects() if type(_).__name__ == "method"])
+    assert new_method_count <= method_count + 1

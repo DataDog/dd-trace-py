@@ -4,6 +4,258 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 3.8.0
+
+### New Features
+
+- LLM Observability: add processor capability to process span inputs and outputs. See usage documentation \[here\](<https://docs.datadoghq.com/llm_observability/setup/sdk/python/#span-processing>).
+- CI Visibility: This introduces the ability to gzip the payload when using the evp proxy setup, incurring in less network bandwith consumption.
+- Error Tracking: Introduces automatic reporting of handled exceptions. Enabling the feature will report handled exceptions to Error Tracking from the user code, the third party packages code, some specified modules or everything based on configuration. This feature can be controlled using two environment variables: - <span class="title-ref">DD_ERROR_TRACKING_HANDLED_ERRORS</span>=\`allthird_party\` - <span class="title-ref">DD_ERROR_TRACKING_HANDLED_ERRORS_INCLUDE</span>=\`module1, module2, module3.submodule\`
+- Code Security: IAST support for langchain v0.1.0 and above.
+- openai: This introduces tracing support for the OpenAI Responses endpoint.
+### Bug Fixes
+
+- tracing: Fixes an issue where truncation of span attributes longer than 25000 characters would not consistently count the size of UTF-8 multibyte characters, leading to a `unicode string is too large` error.
+
+- CI Visibility: This fix resolves an issue where the DD_CIVISIBILITY_ITR_ENABLED was not honored properly.
+- tracing: Fixes a bug in distributed tracing where pickling <span class="title-ref">ddtrace.trace.Context</span> fails in coroutines. This regression was introduced in v3.7.0.
+
+- CI Visibility: This fix resolves an issue where pytest-xdist would not exit with the proper status code if ATR was enabled.
+- CI Visibility: This fix resolves an issue where ddtrace pytest plugin used with xdist would report test suites as failing even when all tests pass.
+- profiling: fixed an issue in the `SynchronizedSamplePool` where pool could be null when calling into `ddog_ArrayQueue_` functions, leading to segfaults in the uWSGI shutdown
+- Code Security: IAST: Avoid excessive filtering of stacktrace locations when finding vulnerabilities. After this change, vulnerabilities that were previously discarded will now be reported. In particular, if they were found within code in site-packages or outside of the working directory.
+- LLM Observability: Resolves an issue where spans and evaluation metrics were not being sent via Unix sockets.
+- dynamic instrumentation: prevent an exception when trying to remove a probe that did not resolve to a valid source code location.
+- kafka: This fix resolves an issue where message headers were sent to Kafka brokers that do not support them. Message headers are turned off when the Kafka server responds with `UNKNOWN_SERVER_ERROR (-1)`.
+- code origin for spans: fixes a performance issue with exit spans.
+- profiling: improve performance of the memory profiler for large heaps. The memory profiler previously did a linear search of tracked allocations for every free, which scaled very poorly with large heaps. Switch to a fast hash map.
+
+
+---
+
+## 3.7.2
+
+
+### Bug Fixes
+
+- CI Visibility: This fix resolves an issue where the DD_CIVISIBILITY_ITR_ENABLED was not honored properly.
+- tracing: Fixes an issue where truncation of span attributes longer than 25000 characters would not consistently count the size of UTF-8 multibyte characters, leading to a `unicode string is too large` error.
+
+
+---
+
+## 3.7.1
+
+
+### Bug Fixes
+
+- CI Visibility
+  - Resolves an issue where pytest-xdist would not exit with the proper status code if ATR was enabled.
+  - Resolves an issue where ddtrace pytest plugin used with xdist would report test suites as failing even when all tests pass.
+
+
+---
+
+## 2.21.8
+
+
+### Bug Fixes
+
+  - Code Security:
+    - Avoid excessive filtering of stacktrace locations when finding vulnerabilities. After this change, vulnerabilities that were previously discarded will now be reported. In particular, if they were found within code in site-packages or outside of the working directory.
+    - Fixes a bug where invalid f-strings didn’t raise the expected "Unknown format code" error when IAST was enabled.  
+  - Profiling:
+    - Improve performance of the memory profiler for large heaps. The memory profiler previously did a linear search of tracked allocations for every free, which scaled very poorly with large heaps. Switch to a fast hash map.
+  - Other:
+    - Fix a potential circular import with the psycopg2 contrib.
+    - Code origin for spans: fixes a performance issue with exit spans.
+
+
+---
+
+## 2.21.6
+
+### Bug Fixes
+
+- Code Security
+  - Fixes an issue with PosixPath handling in path operations that could cause errors during taint tracking. This fix improves stability and slightly reduces import times.
+
+
+---
+
+## 3.2.3
+
+### Bug Fixes
+- Code Security
+  - Fixes an issue with PosixPath handling in path operations that could cause errors during taint tracking. This fix improves stability and slightly reduces import times.
+
+- Lib-injection
+  - Avoids zombie process from telemetry sender on startup.
+
+- LLM Observability
+  - Fixes an issue where LLMObs could not be enabled in a forked process when setting `agentless_enabled=True` or `DD_LLMOBS_AGENTLESS_ENABLED=true`.
+
+- Tracing  
+  - internal: Fixes an issue where trimming a traceback to attach it to the span could result in the loss of the most recent frames.
+
+
+---
+
+## 3.3.3
+
+
+### Bug Fixes
+
+- Code Security
+  -Fixes an issue with PosixPath handling in path operations that could cause errors during taint tracking. This fix improves stability and slightly reduces import times.
+
+
+---
+
+## 3.2.1
+
+### Bug Fixes
+
+- Library Injection
+    - Fix for release script causing lib injection OCI images to not get published.
+
+
+---
+
+## 3.3.1
+
+### Bug Fixes
+
+- ASM
+  - Fixes a `NotImplementedError` that occurred when trying to deepcopy wrapped builtin functions (like `open`) while ASM or IAST were enabled. The error was caused by the wrapper not implementing the `__deepcopy__` method.
+
+- CI Visibility
+  - Resolves an issue where JUnit XML output would not count tests retried by Early Flake Detection, Auto Test Retries, and Attempt-to-Fix.
+
+- Lib-Injection
+  - Avoids zombie process from telemetry sender on startup.
+
+- LLM Observability
+  - Resolves an issue where large spans traced within a short time interval were dropped despite being under the 1 MB limit.
+
+
+---
+
+## 2.21.5
+
+### Bug Fixes
+
+- ASM
+  - Fixes a `NotImplementedError` that occurred when trying to deepcopy wrapped builtin functions (like`open`) while ASM or IAST were enabled. The error was caused by the wrapper not implementing the `__deepcopy__` method.
+
+- LLM Observability
+  - Fixes an issue where LLMObs could not be enabled in a forked process when setting `agentless_enabled=True` or `DD_LLMOBS_AGENTLESS_ENABLED=true`.
+
+- Profiling
+  - Resolves an issue where the Lock profiler would throw an `AttributeError: '_ProfiledThreadingLock' object has no attribute '_self_acquired_at'`.
+
+- Tracing
+  - `pylibmc`: Fixes an issue where using `Client(server=[url])` would throw the error `__init__() got multiple values for argument 'servers'`
+
+### Other Changes
+- library: Ensures that the SSI is not used for uWSGI applications. For enablement instructions, refer to the following our [advanced_usage docs](https://ddtrace.readthedocs.io/en/stable/advanced_usage.html#uwsgi).
+
+
+---
+
+## 3.3.2
+
+### Bug Fixes
+- Lib-Injection
+  - Avoids zombie process from telemetry sender on startup.
+
+- LLM Observability
+  - Resolves an issue where large spans traced within a short time interval were dropped despite being under the 1 MB limit.
+  - Resolves an issue with anthropic LLM spans where multiple system prompts caused missing input messages.
+  - Fixes an issue where LLMObs could not be enabled in a forked process when setting `agentless_enabled=True` or `DD_LLMOBS_AGENTLESS_ENABLED=true`.
+
+
+### Other Changes
+- library: Ensures that the SSI is not used for uWSGI applications. For enablement instructions, refer to the following our advanced_usage [docs](https://ddtrace.readthedocs.io/en/stable/advanced_usage.html#uwsgi) .
+
+
+---
+
+## 3.4.1
+
+### Bug Fixes
+- Code Security
+  - Fixes an issue with PosixPath handling in path operations that could cause errors during taint tracking. This fix improves stability and slightly reduces import times.
+
+
+---
+
+## 3.4.0
+
+### Upgrade Notes
+
+- Profiling
+  - Upgrades `echion` which includes performance improvements.
+
+### Deprecation Notes
+- Tracing
+  - `patch_all` is deprecated. As an alternative to `patch_all`, you can use `import ddtrace.auto` along with `DD_PATCH_MODULES` if specific module patching is necessary.
+
+### New Features
+- Dynamic Instrumentation
+  - Adds support for the Decimal type from the Python standard library.
+
+- LLM Observability
+  - Introduces a `integration` tag to LLM Observability spans that are generated by an integration.
+  - `agentless_enabled` and `DD_LLMOBS_AGENTLESS_ENABLED` now defaults to `None`, and will be determined automatically based on the presence of a compatible Datadog agent. `agentless_enabled` and `DD_LLMOBS_AGENTLESS_ENABLED` can still be set explicitly to `True` or `False</span>`, but is now optional for agentless users.
+
+- Profiling
+  - Stack v2 supports CPython 3.13.
+  - Adds support for native exporter on Windows.
+  - Enables profiling native modules for macOS x86_64.
+
+- Tracing
+  - Adds configuration for encoding span events as a top-level field in v0.4 payloads and introduces environment variable `DD_TRACE_NATIVE_SPAN_EVENTS` (disabled by default). This requires agent version 7.63.0 or later.
+  - Extracts the referrer hostname from HTTP requests and stored it as `http.referrer_hostname` tag.
+
+
+### Bug Fixes
+- Fixes an issue with gevent support and the typing module on CPython >= 3.12.
+
+- ASM
+  - Fixes a `NotImplementedError` that occurred when trying to deepcopy wrapped builtin functions (like `open`) while ASM or IAST were enabled. The error was caused by the wrapper not implementing the `__deepcopy__` method.
+  - SCA: Resolves an issue where some dependencies where reported with an inaccurate name.
+
+- CI Visibility
+  - Resolves an issue where JUnit XML output would not count tests retried by Early Flake Detection, Auto Test Retries, and Attempt-to-Fix.
+
+- Lib-Injection
+  - Avoids zombie process from telemetry sender on startup.
+
+- LLM Observability
+  - Resolves an issue where large spans traced within a short time interval were dropped despite being under the 1 MB limit.
+  - Resolves an issue with anthropic LLM spans where multiple system prompts caused missing input messages.
+  - Resolves an issue where traces containing intermixed APM and LLM Observability spans caused incorrect parent IDs for LLM Observability spans.
+  - Fixes an issue where LLMObs could not be enabled in a forked process when setting `agentless_enabled=True` or `DD_LLMOBS_AGENTLESS_ENABLED=true`.
+  - `openai`: Avoids creating spans for streamed Open AI chat and completion requests that use `with_raw_response` since the stream cannot be traced in these cases, leading to unfinished spans.
+
+- Profiling
+  - Resolves an issue where the Lock profiler would throw an `AttributeError: '_ProfiledThreadingLock' object has no attribute '_self_acquired_at'`.
+
+- Single-Step Instrumentation
+  - Resolves an issue where using Poetry to run an application under a version of Python different from the version used to install Poetry caused automatic library injection to fail.
+
+- Tracing
+  - `graphql`: Fixes an issue in GraphQL patching that threw an error when locations (an `Optional` field) is `None`. This checks for locations before setting attributes.
+
+
+### Other Changes
+- Single-Step Instrumentation
+  - Ensures that the SSI is not used for uWSGI applications. For enablement instructions, refer to the following our [advanced_usage docs](https://ddtrace.readthedocs.io/en/stable/advanced_usage.html#uwsgi).
+
+
+---
+
 ## 3.2.2
 ### Bug Fixes
 

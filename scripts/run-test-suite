@@ -76,3 +76,8 @@ echo "All tests passed. Saved $CIRCLE_SHA1 as the latest successful commit for j
     ".riot/requirements/" \
     "Changes detected after running riot. Consider deleting changed files, \
     running scripts/compile-and-prune-test-requirements and committing the result."
+
+./scripts/check-diff \
+    "ddtrace/contrib/integration_registry/registry.yaml" \
+    "Registry YAML file (ddtrace/contrib/integration_registry/registry.yaml) was modified. Please run: \
+    \`python scripts/integration_registry/update_and_format_registry.py\` and commit the changes."

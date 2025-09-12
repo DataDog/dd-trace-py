@@ -5,10 +5,11 @@ import asyncpg
 import mock
 import pytest
 
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.asyncpg.patch import patch
 from ddtrace.contrib.internal.asyncpg.patch import unpatch
 from ddtrace.contrib.internal.trace_utils import iswrapped
-from ddtrace.trace import Pin
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.trace import tracer
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.asyncio.utils import mark_asyncio
@@ -172,7 +173,7 @@ async def test_parenting(patched_conn):
     await c
 
 
-@pytest.mark.snapshot(async_mode=False)
+@pytest.mark.snapshot()
 def test_configure_service_name_env_v0(ddtrace_run_python_code_in_subprocess):
     code = """
 import asyncio
@@ -201,7 +202,7 @@ asyncio.run(test())
     assert err == b""
 
 
-@pytest.mark.snapshot(async_mode=False)
+@pytest.mark.snapshot()
 def test_configure_service_name_env_v1(ddtrace_run_python_code_in_subprocess):
     code = """
 import asyncio
@@ -230,7 +231,7 @@ asyncio.run(test())
     assert err == b""
 
 
-@pytest.mark.snapshot(async_mode=False)
+@pytest.mark.snapshot()
 def test_unspecified_service_name_env_v0(ddtrace_run_python_code_in_subprocess):
     code = """
 import asyncio
@@ -258,7 +259,7 @@ asyncio.run(test())
     assert err == b""
 
 
-@pytest.mark.snapshot(async_mode=False)
+@pytest.mark.snapshot()
 def test_unspecified_service_name_env_v1(ddtrace_run_python_code_in_subprocess):
     code = """
 import asyncio
@@ -286,7 +287,7 @@ asyncio.run(test())
     assert err == b""
 
 
-@pytest.mark.snapshot(async_mode=False)
+@pytest.mark.snapshot()
 @pytest.mark.parametrize("version", ("v0", "v1"))
 def test_span_name_by_schema(ddtrace_run_python_code_in_subprocess, version):
     code = """
@@ -313,6 +314,58 @@ asyncio.run(test())
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, err
     assert err == b""
+
+
+@pytest.mark.skipif(
+    parse_version(getattr(asyncpg, "__version__", "0.0.0")) < (0, 30, 0),
+    reason="the custom connect parameter for create_pool requires asyncpg >= 0.30.0",
+)
+@pytest.mark.snapshot()
+@pytest.mark.asyncio
+async def test_pool_custom_connect():
+    """
+    Test that if someone uses a custom connect parameter when creating a pool,
+    the tracer doesn't cause a _TracedConnection error or throw any other errors
+    The connect option was introduced in 0.30.0
+    """
+    database_url = f"postgresql://{POSTGRES_CONFIG['user']}:{POSTGRES_CONFIG['password']}@{POSTGRES_CONFIG['host']}:{POSTGRES_CONFIG['port']}/{POSTGRES_CONFIG['dbname']}"
+
+    try:
+        # The default is 10 connection pools so the integration will create 10 spans in the snapshot
+        pool = await asyncpg.create_pool(database_url, connect=asyncpg.connect)
+
+        async with pool.acquire() as conn:
+            result = await conn.fetchval("SELECT 1")
+            assert result == 1
+
+        await pool.close()
+    except Exception as err:
+        raise err
+
+    assert True
+
+
+@pytest.mark.snapshot()
+@pytest.mark.asyncio
+async def test_pool_without_custom_connect():
+    """
+    Test that create_pool without the connect option still works
+    """
+    database_url = f"postgresql://{POSTGRES_CONFIG['user']}:{POSTGRES_CONFIG['password']}@{POSTGRES_CONFIG['host']}:{POSTGRES_CONFIG['port']}/{POSTGRES_CONFIG['dbname']}"
+
+    try:
+        # The default is 10 connection pools so the integration will create 10 spans in the snapshot
+        pool = await asyncpg.create_pool(database_url)
+
+        async with pool.acquire() as conn:
+            result = await conn.fetchval("SELECT 1")
+            assert result == 1
+
+        await pool.close()
+    except Exception as err:
+        raise err
+
+    assert True
 
 
 def test_patch_unpatch_asyncpg():

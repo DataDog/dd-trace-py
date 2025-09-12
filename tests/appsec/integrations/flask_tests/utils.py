@@ -1,8 +1,19 @@
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version
 from multiprocessing.pool import ThreadPool
 import time
 
 
 _PORT = 8040
+try:
+    werkzeug_version = tuple(map(int, version("werkzeug").split(".")))
+except PackageNotFoundError:
+    werkzeug_version = (0, 0, 0)
+
+try:
+    flask_version = tuple([int(v) for v in version("flask").split(".")])
+except PackageNotFoundError:
+    flask_version = (0, 0, 0)
 
 
 def _multi_requests(client, url="/", debug_mode=False):

@@ -6,6 +6,7 @@ import http.client as httplib
 import importlib
 from itertools import product
 import json
+import logging
 import os
 from os.path import split
 from os.path import splitext
@@ -24,8 +25,6 @@ from unittest import mock
 from urllib import parse
 import warnings
 
-from _pytest.runner import call_and_report
-from _pytest.runner import pytest_runtest_protocol as default_pytest_runtest_protocol
 import pytest
 
 import ddtrace
@@ -306,7 +305,8 @@ def is_stream_ok(stream, expected):
 
 
 def run_function_from_file(item, params=None):
-    file, _, func = item.location
+    file = item.location[0]
+    func = item.originalname
     marker = item.get_closest_marker("subprocess")
     run_module = marker.kwargs.get("run_module", False)
 
@@ -412,47 +412,27 @@ def pytest_collection_modifyitems(session, config, items):
             item.add_marker(unskippable)
 
 
-@pytest.hookimpl(tryfirst=True)
-def pytest_runtest_protocol(item):
-    if item.get_closest_marker("skip"):
-        return default_pytest_runtest_protocol(item, None)
-
-    skipif = item.get_closest_marker("skipif")
-    if skipif and skipif.args[0]:
-        return default_pytest_runtest_protocol(item, None)
-
-    marker = item.get_closest_marker("subprocess")
+def pytest_generate_tests(metafunc):
+    marker = metafunc.definition.get_closest_marker("subprocess")
     if marker:
-        params = marker.kwargs.get("parametrize", None)
-        ihook = item.ihook
-        base_name = item.nodeid
+        param_dict = marker.kwargs.get("parametrize", {})
+        # Pretend the env parameters are fixtures, so pytest won't complain that they are not used by the function.
+        metafunc.fixturenames.extend(param_dict.keys())
 
-        for ps in unwind_params(params):
-            nodeid = (base_name + str(ps)) if ps is not None else base_name
+        for param_name, values in param_dict.items():
+            metafunc.parametrize(param_name, values)
 
-            # Start
-            ihook.pytest_runtest_logstart(nodeid=nodeid, location=item.location)
 
-            # Setup
-            report = call_and_report(item, "setup", log=False)
-            report.nodeid = nodeid
-            ihook.pytest_runtest_logreport(report=report)
-
-            # Call
-            item.runtest = lambda: run_function_from_file(item, ps)  # noqa: B023
-            report = call_and_report(item, "call", log=False)
-            report.nodeid = nodeid
-            ihook.pytest_runtest_logreport(report=report)
-
-            # Teardown
-            report = call_and_report(item, "teardown", log=False, nextitem=None)
-            report.nodeid = nodeid
-            ihook.pytest_runtest_logreport(report=report)
-
-            # Finish
-            ihook.pytest_runtest_logfinish(nodeid=nodeid, location=item.location)
-
-        return True
+def pytest_pyfunc_call(pyfuncitem):
+    marker = pyfuncitem.get_closest_marker("subprocess")
+    if marker:
+        param_dict = {
+            name: pyfuncitem.callspec.params[name]
+            for name in marker.kwargs.get("parametrize", {})
+            if name in pyfuncitem.callspec.params
+        }
+        run_function_from_file(pyfuncitem, params=param_dict)
+        return True  # Prevent regular test call
 
 
 def _run(cmd):
@@ -641,7 +621,7 @@ class TelemetryTestSession(object):
             for series in event["payload"]["series"]:
                 if name is None or series["metric"] == name:
                     metrics.append(series)
-        metrics.sort(key=lambda x: (x["metric"], x["tags"]), reverse=False)
+        metrics.sort(key=lambda x: (x["metric"], x["tags"]))
         return metrics
 
     def get_dependencies(self, name=None):
@@ -650,18 +630,29 @@ class TelemetryTestSession(object):
             for dep in event["payload"]["dependencies"]:
                 if name is None or dep["name"] == name:
                     deps.append(dep)
-        deps.sort(key=lambda x: x["name"], reverse=False)
+        deps.sort(key=lambda x: x["name"])
         return deps
 
-    def get_configurations(self, name=None, ignores=None):
+    def get_configurations(self, name=None, ignores=None, remove_seq_id=False, effective=False):
         ignores = ignores or []
         configurations = []
         events_with_configs = self.get_events("app-started") + self.get_events("app-client-configuration-change")
         for event in events_with_configs:
-            for c in event["payload"]["configuration"]:
-                if c["name"] == name or (name is None and c["name"] not in ignores):
-                    configurations.append(c)
-        configurations.sort(key=lambda x: x["name"], reverse=False)
+            for config in event["payload"]["configuration"]:
+                if config["name"] == name or (name is None and config["name"] not in ignores):
+                    configurations.append(config)
+
+        configurations.sort(key=lambda x: x["seq_id"])
+        if effective:
+            config_map = {}
+            for c in configurations:
+                config_map[c["name"]] = c
+            configurations = list(config_map.values())
+
+        if remove_seq_id:
+            for c in configurations:
+                c.pop("seq_id")
+
         return configurations
 
 
@@ -699,3 +690,21 @@ def test_agent_session(telemetry_writer, request):
     finally:
         os.environ["DD_CIVISIBILITY_AGENTLESS_ENABLED"] = p_agentless
         telemetry_writer.reset_queues()
+
+
+@pytest.fixture()
+def caplog(caplog):
+    """
+    During tests, ddtrace logs are not propagated to the root logger by default (see PR #14121).
+    This breaks caplog tests that capture logs from the ddtrace logger, so we need to re-enable propagation for those.
+    """
+    ddtrace_logger = logging.getLogger("ddtrace")
+
+    try:
+        original_propagate = ddtrace_logger.propagate
+        ddtrace_logger.propagate = True
+        ddtrace_logger.setLevel(logging.NOTSET)
+        yield caplog
+
+    finally:
+        ddtrace_logger.propagate = original_propagate

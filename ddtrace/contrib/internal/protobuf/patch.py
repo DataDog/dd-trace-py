@@ -1,10 +1,12 @@
+from typing import Dict
+
 from google import protobuf
 from google.protobuf.internal import builder
 import wrapt
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.internal.utils.wrappers import unwrap
-from ddtrace.trace import Pin
 
 from .schema_iterator import SchemaExtractor
 
@@ -21,6 +23,10 @@ _WRAPPED_MESSAGE_CLASSES = []
 def get_version():
     # type: () -> str
     return getattr(protobuf, "__version__", "")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"protobuf": "*"}
 
 
 def patch():

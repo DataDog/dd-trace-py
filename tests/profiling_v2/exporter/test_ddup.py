@@ -38,7 +38,7 @@ def test_ddup_start():
         DD_PROFILING_TAGS="foo:bar,hello:python",
     )
 )
-def test_tags_propagated_when_libdd_enabled():
+def test_tags_propagated():
     import sys
     from unittest.mock import Mock
 

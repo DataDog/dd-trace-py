@@ -13,6 +13,8 @@ class FlaskSimple(bm.Scenario, FlaskScenarioMixin):
     iast_enabled: bool
     post_request: bool
     telemetry_metrics_enabled: bool
+    errortracking_enabled: str
+    native_writer: bool
 
     def run(self):
         app = self.create_app()

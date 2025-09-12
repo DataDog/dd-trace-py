@@ -4,14 +4,19 @@ import django
 from django.conf import settings
 import pytest
 
+from ddtrace._trace.pin import Pin
 from ddtrace.appsec._iast import enable_iast_propagation
-from ddtrace.appsec._iast._patch_modules import patch_iast
+from ddtrace.appsec._iast import load_iast
+from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast.main import patch_iast
 from ddtrace.contrib.internal.django.patch import patch as django_patch
-from ddtrace.trace import Pin
-from tests.appsec.iast.conftest import _end_iast_context_and_oce
-from tests.appsec.iast.conftest import _start_iast_context_and_oce
+from ddtrace.contrib.internal.requests.patch import patch as requests_patch
+from ddtrace.internal import core
+from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
+from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
+from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -30,6 +35,8 @@ def pytest_configure():
     ), override_env(dict(_DD_IAST_PATCH_MODULES="tests.appsec.integrations")):
         settings.DEBUG = False
         patch_iast()
+        load_iast()
+        requests_patch()
         django_patch()
         enable_iast_propagation()
         django.setup()
@@ -54,9 +61,11 @@ def tracer():
     Pin._override(django, tracer=tracer)
 
     # Yield to our test
-    yield tracer
+    core.tracer = tracer
+    with override_config("django", dict(_tracer=tracer)):
+        yield tracer
     tracer.pop()
-
+    core.tracer = original_tracer
     # Reset the tracer pinned to Django and unpatch
     # DEV: unable to properly unpatch and reload django app with each test
     # unpatch()
@@ -65,13 +74,57 @@ def tracer():
 
 @pytest.fixture
 def test_spans(tracer):
+    container = TracerSpanContainer(tracer)
+    yield container
+    container.reset()
+
+
+@pytest.fixture
+def iast_span(tracer):
     with override_global_config(
         dict(
             _iast_enabled=True,
+            _appsec_enabled=False,
             _iast_deduplication_enabled=False,
             _iast_request_sampling=100.0,
         )
     ):
+        oce.reconfigure()
+        container = TracerSpanContainer(tracer)
+        _start_iast_context_and_oce()
+        yield container
+        _end_iast_context_and_oce()
+        container.reset()
+
+
+@pytest.fixture
+def iast_span_disabled(tracer):
+    with override_global_config(
+        dict(
+            _iast_enabled=False,
+            _iast_deduplication_enabled=False,
+            _iast_request_sampling=100.0,
+        )
+    ):
+        oce.reconfigure()
+        container = TracerSpanContainer(tracer)
+        _start_iast_context_and_oce()
+        yield container
+        _end_iast_context_and_oce()
+        container.reset()
+
+
+@pytest.fixture
+def test_spans_2_vuln_per_request_deduplication(tracer):
+    with override_global_config(
+        dict(
+            _iast_enabled=True,
+            _iast_deduplication_enabled=True,
+            _iast_max_vulnerabilities_per_requests=2,
+            _iast_request_sampling=100.0,
+        )
+    ):
+        oce.reconfigure()
         container = TracerSpanContainer(tracer)
         _start_iast_context_and_oce()
         yield container
@@ -103,6 +156,7 @@ def iast_spans_with_zero_sampling(tracer):
             _iast_request_sampling=0.0,
         )
     ):
+        oce.reconfigure()
         container = TracerSpanContainer(tracer)
         _start_iast_context_and_oce()
         yield container

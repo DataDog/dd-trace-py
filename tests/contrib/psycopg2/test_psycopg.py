@@ -7,11 +7,11 @@ import psycopg2
 from psycopg2 import extensions
 from psycopg2 import extras
 
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.psycopg.patch import patch
 from ddtrace.contrib.internal.psycopg.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.trace import Pin
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
@@ -106,7 +106,6 @@ class PsycopgCore(TracerTestCase):
         self.assertIsNone(root.get_tag("sql.query"))
         assert start <= root.start <= end
         assert root.duration <= end - start
-        # confirm analytics disabled by default
         self.reset()
 
         # run a query with an error and ensure all is well

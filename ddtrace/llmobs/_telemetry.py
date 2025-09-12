@@ -1,8 +1,8 @@
 import time
 from typing import Any
 from typing import Dict
-from typing import List
 from typing import Optional
+from typing import Set
 
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
@@ -13,6 +13,7 @@ from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.trace import Span
 
@@ -29,21 +30,23 @@ class LLMObsTelemetryMetrics:
     ANNOTATIONS = "annotations"
     EVALS_SUBMITTED = "evals_submitted"
     SPANS_EXPORTED = "spans_exported"
-    USER_FLUSHES = "user_flushes"
+    USER_FLUSHES = "user_flush"
     INJECT_HEADERS = "inject_distributed_headers"
     ACTIVATE_HEADERS = "activate_distributed_headers"
+    USER_PROCESSOR_CALLED = "user_processor_called"
 
 
-def _find_integration_from_tags(tags):
-    integration_tag = next((tag for tag in tags if tag.startswith("integration:")), None)
-    if not integration_tag:
+def _find_tag_value_from_tags(tags, tag_key):
+    tag_string = next((tag for tag in tags if tag.startswith(f"{tag_key}:")), None)
+    if not tag_string:
         return None
-    return integration_tag.split("integration:")[-1]
+    return tag_string.split(f"{tag_key}:")[-1]
 
 
 def _get_tags_from_span_event(event: LLMObsSpanEvent):
     span_kind = event.get("meta", {}).get("span.kind", "")
-    integration = _find_integration_from_tags(event.get("tags", []))
+    integration = _find_tag_value_from_tags(event.get("tags", []), "integration")
+    ml_app = _find_tag_value_from_tags(event.get("tags", []), "ml_app")
     autoinstrumented = integration is not None
     error = event.get("status") == "error"
     return [
@@ -51,6 +54,7 @@ def _get_tags_from_span_event(event: LLMObsSpanEvent):
         ("autoinstrumented", str(int(autoinstrumented))),
         ("error", str(int(error))),
         ("integration", integration if integration else "N/A"),
+        ("ml_app", ml_app if ml_app else "N/A"),
     ]
 
 
@@ -61,13 +65,23 @@ def _base_tags(error: Optional[str]):
     return tags
 
 
-def record_llmobs_enabled(error: Optional[str], agentless_enabled: bool, site: str, start_ns: int, auto: bool):
+def record_llmobs_enabled(
+    error: Optional[str],
+    agentless_enabled: bool,
+    site: str,
+    start_ns: int,
+    auto: bool,
+    instrumented_proxy_urls: Optional[Set[str]],
+    ml_app: Optional[str],
+):
     tags = _base_tags(error)
     tags.extend(
         [
             ("agentless", str(int(agentless_enabled) if agentless_enabled is not None else "N/A")),
             ("site", site),
             ("auto", str(int(auto))),
+            ("instrumented_proxy_urls", "true" if instrumented_proxy_urls else "false"),
+            ("ml_app", ml_app or "N/A"),
         ]
     )
     init_time_ms = (time.time_ns() - start_ns) / 1e6
@@ -93,6 +107,7 @@ def record_span_created(span: Span):
     decorator = span._get_ctx_item(DECORATOR) is True
     span_kind = span._get_ctx_item(SPAN_KIND)
     model_provider = span._get_ctx_item("model_provider")
+    ml_app = _get_ml_app(span)
 
     tags = [
         ("autoinstrumented", str(int(autoinstrumented))),
@@ -100,11 +115,25 @@ def record_span_created(span: Span):
         ("is_root_span", str(int(is_root_span))),
         ("span_kind", span_kind or "N/A"),
         ("integration", integration or "N/A"),
+        ("ml_app", ml_app or "N/A"),
         ("error", str(span.error)),
     ]
     if not autoinstrumented:
         tags.append(("decorator", str(int(decorator))))
     if model_provider:
+        tags.append(("model_provider", model_provider))
+    telemetry_writer.add_count_metric(
+        namespace=TELEMETRY_NAMESPACE.MLOBS, name=LLMObsTelemetryMetrics.SPAN_FINISHED, value=1, tags=tuple(tags)
+    )
+
+
+def record_bedrock_agent_span_event_created(span_event: LLMObsSpanEvent):
+    is_root_span = span_event["parent_id"] == ROOT_PARENT_ID
+    has_session_id = any("session_id" in tag for tag in span_event["tags"])
+    tags = _get_tags_from_span_event(span_event)
+    tags.extend([("has_session_id", str(int(has_session_id))), ("is_root_span", str(int(is_root_span)))])
+    model_provider = span_event["meta"]["metadata"].get("model_provider")
+    if model_provider is not None:
         tags.append(("model_provider", model_provider))
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS, name=LLMObsTelemetryMetrics.SPAN_FINISHED, value=1, tags=tuple(tags)
@@ -129,22 +158,17 @@ def record_span_event_size(event: LLMObsSpanEvent, event_size: int):
     )
 
 
-def record_dropped_span_payload(events: List[LLMObsSpanEvent], error: str):
-    tags = [("error", error)]
-    telemetry_writer.add_count_metric(
-        namespace=TELEMETRY_NAMESPACE.MLOBS,
-        name=LLMObsTelemetryMetrics.DROPPED_SPAN_EVENTS,
-        value=len(events),
-        tags=tuple(tags),
+def record_dropped_payload(num_events: int, event_type: str, error: str):
+    name = (
+        LLMObsTelemetryMetrics.DROPPED_EVAL_EVENTS
+        if event_type == "evaluation_metric"
+        else LLMObsTelemetryMetrics.DROPPED_SPAN_EVENTS
     )
-
-
-def record_dropped_eval_payload(events: List[Any], error: str):
     tags = [("error", error)]
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS,
-        name=LLMObsTelemetryMetrics.DROPPED_EVAL_EVENTS,
-        value=len(events),
+        name=name,
+        value=num_events,
         tags=tuple(tags),
     )
 
@@ -162,8 +186,18 @@ def record_llmobs_annotate(span: Optional[Span], error: Optional[str]):
     )
 
 
+def record_llmobs_user_processor_called(error: bool) -> None:
+    tags = [("error", "1" if error else "0")]
+    telemetry_writer.add_count_metric(
+        namespace=TELEMETRY_NAMESPACE.MLOBS,
+        name=LLMObsTelemetryMetrics.USER_PROCESSOR_CALLED,
+        value=1,
+        tags=tuple(tags),
+    )
+
+
 def record_llmobs_submit_evaluation(join_on: Dict[str, Any], metric_type: str, error: Optional[str]):
-    _metric_type = metric_type if metric_type in ("categorical", "score") else "other"
+    _metric_type = metric_type if metric_type in ("categorical", "score", "boolean") else "other"
     custom_joining_key = str(int(join_on.get("tag") is not None))
     tags = _base_tags(error)
     tags.extend([("metric_type", _metric_type), ("custom_joining_key", custom_joining_key)])

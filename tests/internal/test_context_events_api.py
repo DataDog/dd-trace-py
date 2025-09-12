@@ -209,8 +209,7 @@ class TestContextEventsApi(unittest.TestCase):
             ("event.1", (1, 2)),
             ("event.2", ()),
             ("context.started.my.cool.context", (ctx,)),
-            ("context.started.start_span.my.cool.context", (ctx,)),
-            ("context.ended.my.cool.context", (ctx,)),
+            ("context.ended.my.cool.context", (ctx, (None, None, None))),
         ]
 
     @with_config_raise_value(raise_value=False)
@@ -315,8 +314,7 @@ class TestContextEventsApi(unittest.TestCase):
             ("event.1", (1, 2)),
             ("event.2", ()),
             ("context.started.my.cool.context", (ctx,)),
-            ("context.started.start_span.my.cool.context", (ctx,)),
-            ("context.ended.my.cool.context", (ctx,)),
+            ("context.ended.my.cool.context", (ctx, (None, None, None))),
         ]
 
     def test_core_dispatch_context_ended(self):
@@ -345,17 +343,17 @@ class TestContextEventsApi(unittest.TestCase):
         data_key = "my.cool.data"
         data_value = "ban.ana"
         with core.context_with_data("foobar", **{data_key: data_value}):
-            assert core.get_item(data_key) == data_value
-        assert core.get_item(data_key) is None
+            assert core.find_item(data_key) == data_value
+        assert core.find_item(data_key) is None
 
     def test_core_set_item(self):
         data_key = "my.cool.data"
         data_value = "ban.ana2"
         with core.context_with_data("foobar"):
-            assert core.get_item(data_key) is None
+            assert core.find_item(data_key) is None
             core.set_item(data_key, data_value)
-            assert core.get_item(data_key) == data_value
-        assert core.get_item(data_key) is None
+            assert core.find_item(data_key) == data_value
+        assert core.find_item(data_key) is None
 
     def test_core_set_item_overwrite_attempt(self):
         data_key = "my.cool.data"
@@ -363,9 +361,9 @@ class TestContextEventsApi(unittest.TestCase):
         with core.context_with_data("foobar", **{data_key: data_value}):
             with pytest.raises(ValueError):
                 core.set_safe(data_key, "something else")
-            assert core.get_item(data_key) == data_value
+            assert core.find_item(data_key) == data_value
             core.set_item(data_key, "something else")
-            assert core.get_item(data_key) == "something else"
+            assert core.find_item(data_key) == "something else"
 
     def test_core_context_relationship_across_threads(self):
         data_key = "banana"
@@ -376,7 +374,7 @@ class TestContextEventsApi(unittest.TestCase):
         def make_context(_results):
             with core.context_with_data(thread_context_id, **{data_key: data_value}):
                 _results[thread_context_id] = dict()
-                _results[thread_context_id][data_key] = core.get_item(data_key)
+                _results[thread_context_id][data_key] = core.find_item(data_key)
                 _results[thread_context_id]["_id"] = core._CURRENT_CONTEXT.get().identifier
                 _results[thread_context_id]["parent"] = core._CURRENT_CONTEXT.get().parent.identifier
                 with core.context_with_data(thread_nested_context_id):
@@ -402,12 +400,12 @@ class TestContextEventsApi(unittest.TestCase):
         original_data_value = "ban.ana"
         with core.context_with_data("foobar", **{data_key: original_data_value}):
             with core.context_with_data("baz"):
-                assert core.get_item(data_key) == original_data_value
+                assert core.find_item(data_key) == original_data_value
 
             new_data_value = "baz.inga"
             with core.context_with_data("foobaz", **{data_key: new_data_value}):
-                assert core.get_item(data_key) == new_data_value
-            assert core.get_item(data_key) == original_data_value
+                assert core.find_item(data_key) == new_data_value
+            assert core.find_item(data_key) == original_data_value
 
 
 def test_core_context_data_concurrent_safety():
@@ -418,7 +416,7 @@ def test_core_context_data_concurrent_safety():
     def make_context(_results):
         with core.context_with_data("foo", **{data_key: "right"}):
             other_context_started.wait()
-            _results[data_key] = core.get_item(data_key)
+            _results[data_key] = core.find_item(data_key)
             set_result.set()
 
     def make_another_context():
@@ -454,14 +452,14 @@ def test_core_in_threads(nb_threads):
                 v = f"in {value}"
                 core.set_item("key", v)
                 await asyncio.sleep(random.random())
-                assert core.get_item("key") == v
+                assert core.find_item("key") == v
                 core.discard_item("key")
-                assert core.get_local_item("key") is None
-                assert core.get_item("key") == value
-                core.get_item("global_counter")["value"] += 1
-            assert core.get_item("key") == value
+                assert core.get_item("key") is None
+                assert core.find_item("key") == value
+                core.find_item("global_counter")["value"] += 1
+            assert core.find_item("key") == value
             core.discard_item("key")
-            assert core.get_item("key") is None
+            assert core.find_item("key") is None
             return witness
 
     async def create_tasks_func():
@@ -477,4 +475,4 @@ def test_core_in_threads(nb_threads):
         assert isinstance(res, list)
         assert all(s is witness for s in res)
         loop.close()
-        assert core.get_item("global_counter")["value"] == nb_threads
+        assert core.find_item("global_counter")["value"] == nb_threads

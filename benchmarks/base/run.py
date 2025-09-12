@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import json
 import os
 import subprocess
 import sys
@@ -45,7 +46,11 @@ def run(scenario_py, cname, cvars, output_dir):
     ]
     for cvarname, cvarval in cvars.items():
         cmd.append("--{}".format(cvarname))
-        cmd.append(str(cvarval))
+        if isinstance(cvarval, (dict, list)):
+            # convert dicts and lists to JSON strings
+            cmd.append(json.dumps(cvarval))
+        else:
+            cmd.append(str(cvarval))
 
     proc = subprocess.Popen(cmd)
     proc.wait()
@@ -59,5 +64,13 @@ if __name__ == "__main__":
     output_dir = sys.argv[1]
     print("Saving results to {}".format(output_dir))
     config = read_config("config.yaml")
+
+    # Filter configs if BENCHMARK_CONFIGS is set
+    benchmark_configs = os.environ.get("BENCHMARK_CONFIGS")
+    if benchmark_configs:
+        allowed_configs = set(c.strip() for c in benchmark_configs.split(","))
+        config = {k: v for k, v in config.items() if k in allowed_configs}
+        print("Filtering to configs: {}".format(", ".join(sorted(config.keys()))))
+
     for cname, cvars in config.items():
         run("scenario.py", cname, cvars, output_dir)

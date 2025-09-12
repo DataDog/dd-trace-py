@@ -1,8 +1,10 @@
 import os
+from typing import Dict
 
 import pyodbc
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.dbapi import TracedCursor
 from ddtrace.contrib.internal.trace_utils import unwrap
@@ -10,7 +12,6 @@ from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.ext import db
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.trace import Pin
 
 
 config._add(
@@ -26,6 +27,10 @@ config._add(
 def get_version():
     # type: () -> str
     return pyodbc.version
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"pyodbc": ">=4.0.31"}
 
 
 def patch():

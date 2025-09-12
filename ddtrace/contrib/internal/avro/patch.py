@@ -1,9 +1,11 @@
+from typing import Dict
+
 import avro
 import wrapt
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.internal.utils.wrappers import unwrap
-from ddtrace.trace import Pin
 
 from .schema_iterator import SchemaExtractor
 
@@ -17,6 +19,10 @@ config._add(
 def get_version():
     # type: () -> str
     return getattr(avro, "__version__", "")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"avro": "*"}
 
 
 def patch():

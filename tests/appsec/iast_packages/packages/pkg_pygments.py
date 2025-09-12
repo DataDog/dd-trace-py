@@ -3,6 +3,7 @@ Pygments==2.18.0
 
 https://pypi.org/project/Pygments/
 """
+
 from flask import Blueprint
 from flask import jsonify
 from flask import request
@@ -45,7 +46,7 @@ def pkg_pygments_propagation_view():
     from pygments.formatters import HtmlFormatter
     from pygments.lexers import PythonLexer
 
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+    from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))
 

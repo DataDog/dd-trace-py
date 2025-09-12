@@ -1,16 +1,17 @@
 import os
+from typing import Dict
 
 import mariadb
 import wrapt
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.ext import db
 from ddtrace.ext import net
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap
-from ddtrace.trace import Pin
 
 
 config._add(
@@ -26,6 +27,10 @@ config._add(
 def get_version():
     # type: () -> str
     return getattr(mariadb, "__version__", "")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"mariadb": ">=1.0.0"}
 
 
 def patch():

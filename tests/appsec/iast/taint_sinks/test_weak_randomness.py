@@ -2,11 +2,11 @@ import sys
 
 import pytest
 
+from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
 from ddtrace.appsec._iast.constants import DEFAULT_WEAK_RANDOMNESS_FUNCTIONS
 from ddtrace.appsec._iast.constants import VULN_WEAK_RANDOMNESS
 from tests.appsec.iast.iast_utils import _iast_patched_module
 from tests.appsec.iast.iast_utils import get_line_and_hash
-from tests.appsec.iast.taint_sinks.conftest import _get_span_report
 
 
 FIXTURES_RANDOM_PATH = "tests/appsec/iast/fixtures/taint_sinks/weak_randomness_random.py"
@@ -26,7 +26,7 @@ def test_weak_randomness(random_func, iast_context_defaults):
     mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.weak_randomness_random")
 
     getattr(mod, "random_{}".format(random_func))()
-    span_report = _get_span_report()
+    span_report = get_iast_reporter()
     line, hash_value = get_line_and_hash(
         "weak_randomness_{}".format(random_func), VULN_WEAK_RANDOMNESS, filename=FIXTURES_RANDOM_PATH
     )
@@ -45,7 +45,7 @@ def test_weak_randomness_no_dynamic_import(iast_context_defaults):
     mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.weak_randomness_random")
 
     mod.random_dynamic_import()
-    span_report = _get_span_report()
+    span_report = get_iast_reporter()
     assert span_report is None
 
 
@@ -58,7 +58,7 @@ def test_weak_randomness_module(random_func, iast_context_defaults):
     mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.weak_randomness_random_module")
 
     getattr(mod, "random_{}".format(random_func))()
-    span_report = _get_span_report()
+    span_report = get_iast_reporter()
     line, hash_value = get_line_and_hash(
         "weak_randomness_{}".format(random_func), VULN_WEAK_RANDOMNESS, filename=FIXTURES_RANDOM_MODULE_PATH
     )
@@ -81,7 +81,7 @@ def test_weak_randomness_secure_module(random_func, iast_context_defaults):
     mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.weak_randomness_random_secure_module")
 
     getattr(mod, "random_{}".format(random_func))()
-    span_report = _get_span_report()
+    span_report = get_iast_reporter()
     assert span_report is None
 
 
@@ -90,5 +90,5 @@ def test_weak_randomness_secrets_secure_package(iast_context_defaults):
     mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.weak_randomness_secrets")
 
     mod.random_choice()
-    span_report = _get_span_report()
+    span_report = get_iast_reporter()
     assert span_report is None

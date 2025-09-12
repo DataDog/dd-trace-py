@@ -1,7 +1,9 @@
+import json
 import os
 import sqlite3
 import subprocess
 import tempfile
+from typing import Optional
 
 import django
 from django.contrib.auth import login
@@ -10,7 +12,9 @@ from django.http import FileResponse
 from django.http import HttpResponse
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
 
+from ddtrace._trace.pin import Pin
 import ddtrace.constants
 from ddtrace.trace import tracer
 
@@ -34,6 +38,7 @@ else:
 
 
 @csrf_exempt
+@require_http_methods(["GET", "TRACE", "POST", "OPTIONS"])
 def healthcheck(request):
     return HttpResponse("ok ASM", status=200)
 
@@ -87,7 +92,7 @@ def rasp(request, endpoint: str):
                     res.append(f"File: {f.read()}")
             except Exception as e:
                 res.append(f"Error: {e}")
-        tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
+        tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
         return HttpResponse("<\br>\n".join(res))
     elif endpoint == "ssrf":
         res = ["ssrf endpoint"]
@@ -115,7 +120,7 @@ def rasp(request, endpoint: str):
                         res.append(f"Url: {r.text}")
                 except Exception as e:
                     res.append(f"Error: {e}")
-        tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
+        tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
         return HttpResponse("<\\br>\n".join(res))
     elif endpoint == "sql_injection":
         res = ["sql_injection endpoint"]
@@ -128,7 +133,7 @@ def rasp(request, endpoint: str):
                     res.append(f"Url: {list(cursor)}")
             except Exception as e:
                 res.append(f"Error: {e}")
-        tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
+        tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
         return HttpResponse("<\\br>\n".join(res))
     elif endpoint == "shell_injection":
         res = ["shell_injection endpoint"]
@@ -137,12 +142,12 @@ def rasp(request, endpoint: str):
                 cmd = query_params[param]
                 try:
                     if param.startswith("cmdsys"):
-                        res.append(f'cmd stdout: {os.system(f"ls {cmd}")}')
+                        res.append(f"cmd stdout: {os.system(f'ls {cmd}')}")
                     else:
-                        res.append(f'cmd stdout: {subprocess.run(f"ls {cmd}", shell=True)}')
+                        res.append(f"cmd stdout: {subprocess.run(f'ls {cmd}', shell=True)}")
                 except Exception as e:
                     res.append(f"Error: {e}")
-        tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
+        tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
         return HttpResponse("<\\br>\n".join(res))
     elif endpoint == "command_injection":
         res = ["command_injection endpoint"]
@@ -150,19 +155,70 @@ def rasp(request, endpoint: str):
             if param.startswith("cmda"):
                 cmd = query_params[param]
                 try:
-                    res.append(f'cmd stdout: {subprocess.run([cmd, "-c", "3", "localhost"])}')
+                    res.append(f"cmd stdout: {subprocess.run([cmd, '-c', '3', 'localhost'], timeout=0.5)}")
                 except Exception as e:
                     res.append(f"Error: {e}")
             elif param.startswith("cmds"):
                 cmd = query_params[param]
                 try:
-                    res.append(f"cmd stdout: {subprocess.run(cmd)}")
+                    res.append(f"cmd stdout: {subprocess.run(cmd, timeout=0.5)}")
                 except Exception as e:
                     res.append(f"Error: {e}")
-        tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
+        tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
         return HttpResponse("<\\br>\n".join(res))
-    tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
+    tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
     return HttpResponse(f"Unknown endpoint: {endpoint}")
+
+
+@csrf_exempt
+def redirect(request, url: str):
+    import urllib.request
+
+    url = "http://" + url
+    body_str = request.body.decode()
+    if body_str:
+        body = json.loads(body_str)
+    else:
+        body = None
+    try:
+        if body:
+            request_urllib = urllib.request.Request(
+                url, method="POST", data=json.dumps(body).encode(), headers={"Content-Type": "application/json"}
+            )
+        else:
+            request_urllib = urllib.request.Request(url, method="GET")
+        with urllib.request.urlopen(request_urllib, timeout=0.5) as f:
+            payload = {"payload": f.read().decode(errors="ignore")}
+    except Exception as e:
+        import traceback
+
+        payload = {"error": repr(e), "trace": traceback.format_exc()}
+    return JsonResponse(payload)
+
+
+@csrf_exempt
+def redirect_requests(request, url: str):
+    import requests
+
+    full_url = "http://" + url
+    body_str = request.body.decode()
+    if body_str:
+        body = body_str
+    else:
+        body = None
+    method = "POST" if body is not None else "GET"
+    headers = {"TagHost": url}
+    if body is not None:
+        headers["Content-Type"] = "application/json"
+    try:
+        with requests.Session() as s:
+            response = s.request(method, full_url, data=body, headers=headers)
+            payload = {"payload": response.text}
+    except Exception as e:
+        import traceback
+
+        payload = {"error": repr(e), "trace": traceback.format_exc()}
+    return JsonResponse(payload)
 
 
 @csrf_exempt
@@ -183,8 +239,8 @@ def login_user(request):
         except Exception:
             pass
 
-    username = request.GET.get("username")
-    password = request.GET.get("password")
+    username = request.GET.get("username", "")
+    password = request.GET.get("password", "")
     user = authenticate(username=username, password=password)
     if user is not None:
         login(request, user)
@@ -193,10 +249,54 @@ def login_user(request):
 
 
 @csrf_exempt
+def login_user_sdk(request):
+    """manual instrumentation login endpoint using SDK V2"""
+    try:
+        from ddtrace.appsec import track_user_sdk
+    except ImportError:
+        return HttpResponse("SDK V2 not available", status=422)
+
+    USERS = {
+        "test": {"email": "testuser@ddog.com", "password": "1234", "name": "test", "id": "social-security-id"},
+        "testuuid": {
+            "email": "testuseruuid@ddog.com",
+            "password": "1234",
+            "name": "testuuid",
+            "id": "591dc126-8431-4d0f-9509-b23318d3dce4",
+        },
+    }
+    metadata = json.loads(request.GET.get("metadata", "{}"))
+
+    def authenticate(username: str, password: str) -> Optional[str]:
+        """authenticate user"""
+        if username in USERS:
+            if USERS[username]["password"] == password:
+                return USERS[username]["id"]
+            track_user_sdk.track_login_failure(
+                login=username, user_id=USERS[username]["id"], exists=True, metadata=metadata
+            )
+            return None
+        track_user_sdk.track_login_failure(login=username, exists=False, metadata=metadata)
+        return None
+
+    def login(user_id: str, login: str) -> None:
+        """login user"""
+        track_user_sdk.track_login_success(login=login, user_id=user_id, metadata=metadata)
+
+    username = request.GET.get("username", "")
+    password = request.GET.get("password", "")
+    user_id = authenticate(username=username, password=password)
+    if user_id is not None:
+        login(user_id, username)
+        return HttpResponse("OK")
+    return HttpResponse("login failure", status=401)
+
+
+@csrf_exempt
 def new_service(request, service_name: str):
     import ddtrace
 
-    ddtrace.trace.Pin._override(django, service=service_name, tracer=ddtrace.tracer)
+    Pin._override(django, service=service_name, tracer=ddtrace.tracer)
     return HttpResponse(service_name, status=200)
 
 
@@ -238,8 +338,12 @@ if django.VERSION >= (2, 0, 0):
         path("new_service/<str:service_name>", new_service, name="new_service"),
         path("rasp/<str:endpoint>/", rasp, name="rasp"),
         path("rasp/<str:endpoint>", rasp, name="rasp"),
-        path("login/", login_user, name="login"),
+        path("redirect/<str:url>/", redirect, name="redirect"),
+        path("redirect_requests/<str:url>/", redirect_requests, name="redirect_requests"),
+        path(route="login/", view=login_user, name="login"),
         path("login", login_user, name="login"),
+        path("login_sdk/", login_user_sdk, name="login_sdk"),
+        path("login_sdk", login_user_sdk, name="login_sdk"),
     ]
 else:
     urlpatterns += [
@@ -249,6 +353,8 @@ else:
         path(r"new_service/(?P<service_name>\w+)$", new_service, name="new_service"),
         path(r"rasp/(?P<endpoint>\w+)/$", new_service, name="rasp"),
         path(r"rasp/(?P<endpoint>\w+)$", new_service, name="rasp"),
+        path(r"redirect/(?P<url>\w+)$", redirect, name="redirect"),
+        path(r"redirect_requests/(?P<url>\w+)$", redirect_requests, name="redirect_requests"),
         path("login/", login_user, name="login"),
         path("login", login_user, name="login"),
     ]

@@ -113,6 +113,7 @@ class CIVisibilityWriter(HTTPWriter):
         use_evp=False,  # type: bool
         coverage_enabled=False,  # type: bool
         itr_suite_skipping_mode=False,  # type: bool
+        use_gzip=False,  # type: bool
     ):
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
@@ -160,14 +161,14 @@ class CIVisibilityWriter(HTTPWriter):
             # self._report_metrics = report_metrics,
             reuse_connections=reuse_connections,
             headers=headers,
+            use_gzip=use_gzip,
         )
 
     def stop(self, timeout=None):
         if self.status != service.ServiceStatus.STOPPED:
             super(CIVisibilityWriter, self).stop(timeout=timeout)
 
-    def recreate(self):
-        # type: () -> HTTPWriter
+    def recreate(self, appsec_enabled: Optional[bool] = None) -> "CIVisibilityWriter":
         return self.__class__(
             intake_url=self.intake_url,
             processing_interval=self._interval,

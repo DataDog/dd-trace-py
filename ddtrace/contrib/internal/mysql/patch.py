@@ -1,9 +1,11 @@
 import os
+from typing import Dict
 
 import mysql.connector
 import wrapt
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.internal.trace_utils import _convert_to_string
 from ddtrace.ext import db
@@ -13,7 +15,6 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.trace import Pin
 
 
 config._add(
@@ -31,6 +32,10 @@ config._add(
 def get_version():
     # type: () -> str
     return mysql.connector.version.VERSION_TEXT
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"mysql": ">=8.0.5"}
 
 
 CONN_ATTR_BY_TAG = {

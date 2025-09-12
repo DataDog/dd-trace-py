@@ -15,8 +15,8 @@ import ddtrace
 from ddtrace import config as ddconfig
 from ddtrace.internal.constants import SPAN_API_OPENTRACING
 from ddtrace.internal.utils.config import get_application_name
-from ddtrace.internal.writer import AgentWriter
-from ddtrace.settings import ConfigException
+from ddtrace.internal.writer import AgentWriterInterface
+from ddtrace.settings.exceptions import ConfigException
 from ddtrace.trace import Context as DatadogContext  # noqa:F401
 from ddtrace.trace import Span as DatadogSpan
 from ddtrace.trace import Tracer as DatadogTracer
@@ -104,7 +104,7 @@ class Tracer(opentracing.Tracer):
         trace_processors = None
         if isinstance(self._config.get(keys.SETTINGS), dict) and self._config[keys.SETTINGS].get("FILTERS"):  # type: ignore[union-attr]
             trace_processors = self._config[keys.SETTINGS]["FILTERS"]  # type: ignore[index]
-            self._dd_tracer._user_trace_processors = trace_processors
+            self._dd_tracer._span_aggregator.user_processors = trace_processors
 
         if self._config[keys.ENABLED]:
             self._dd_tracer.enabled = self._config[keys.ENABLED]
@@ -115,19 +115,22 @@ class Tracer(opentracing.Tracer):
             or self._config[keys.AGENT_PORT]
             or self._config[keys.UDS_PATH]
         ):
-            curr_agent_url = urlparse(self._dd_tracer._agent_url)
-            scheme = "https" if self._config[keys.AGENT_HTTPS] else curr_agent_url.scheme
-            hostname = self._config[keys.AGENT_HOSTNAME] or curr_agent_url.hostname
-            port = self._config[keys.AGENT_PORT] or curr_agent_url.port
+            scheme = "https" if self._config[keys.AGENT_HTTPS] else "http"
+            hostname = self._config[keys.AGENT_HOSTNAME]
+            port = self._config[keys.AGENT_PORT]
+            if self._dd_tracer._agent_url:
+                curr_agent_url = urlparse(self._dd_tracer._agent_url)
+                scheme = "https" if self._config[keys.AGENT_HTTPS] else curr_agent_url.scheme
+                hostname = hostname or curr_agent_url.hostname
+                port = port or curr_agent_url.port
             uds_path = self._config[keys.UDS_PATH]
 
             if uds_path:
                 new_url = f"unix://{uds_path}"
             else:
                 new_url = f"{scheme}://{hostname}:{port}"
-            self._dd_tracer._agent_url = new_url
-            if isinstance(self._dd_tracer._writer, AgentWriter):
-                self._dd_tracer._writer.intake_url = self._dd_tracer._agent_url
+            if isinstance(self._dd_tracer._span_aggregator.writer, AgentWriterInterface):
+                self._dd_tracer._span_aggregator.writer.intake_url = new_url
             self._dd_tracer._recreate()
 
         if self._config[keys.SAMPLER]:

@@ -5,10 +5,10 @@ import pytest
 import redis
 
 import ddtrace
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.redis.patch import patch
 from ddtrace.contrib.internal.redis.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from ddtrace.trace import Pin
 from tests.opentracer.utils import init_tracer
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
@@ -543,11 +543,11 @@ class TestRedisPatchSnapshot(TracerTestCase):
     @snapshot()
     def test_opentracing(self):
         """Ensure OpenTracing works with redis."""
-        writer = ddtrace.tracer._writer
+        writer = ddtrace.tracer._span_aggregator.writer
         ot_tracer = init_tracer("redis_svc", ddtrace.tracer)
         # FIXME: OpenTracing always overrides the hostname/port and creates a new
         #        writer so we have to reconfigure with the previous one
-        ddtrace.tracer._writer = writer
+        ddtrace.tracer._span_aggregator.writer = writer
         ddtrace.tracer._recreate()
 
         with ot_tracer.start_active_span("redis_get"):

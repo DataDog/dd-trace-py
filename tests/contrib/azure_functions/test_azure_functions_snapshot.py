@@ -9,28 +9,46 @@ import pytest
 from tests.webclient import Client
 
 
+CARDINALITY_MANY_PARAMS = {
+    "CARDINALITY": "many",
+}
+
 DEFAULT_HEADERS = {
     "User-Agent": "python-httpx/x.xx.x",
 }
 
+DISTRIBUTED_TRACING_DISABLED_PARAMS = {
+    "DD_AZURE_FUNCTIONS_DISTRIBUTED_TRACING": "False",
+}
+
+SNAPSHOT_IGNORES = ["meta.messaging.message_id"]
+
 
 @pytest.fixture
-def azure_functions_client():
+def azure_functions_client(request):
+    env_vars = getattr(request, "param", {})
+
     # Copy the env to get the correct PYTHONPATH and such
     # from the virtualenv.
+    env = os.environ.copy()
+    env.update(env_vars)
+
+    port = 7071
+    env["AZURE_FUNCTIONS_TEST_PORT"] = str(port)
+
     # webservers might exec or fork into another process, so we need to os.setsid() to create a process group
     # (all of which will listen to signals sent to the parent) so that we can kill the whole application.
     proc = subprocess.Popen(
-        ["func", "start"],
+        ["func", "start", "--port", str(port)],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         close_fds=True,
-        env=os.environ.copy(),
+        env=env,
         preexec_fn=os.setsid,
         cwd=os.path.join(os.path.dirname(__file__), "azure_function_app"),
     )
     try:
-        client = Client("http://0.0.0.0:7071")
+        client = Client(f"http://0.0.0.0:{port}")
         # Wait for the server to start up
         try:
             client.wait(delay=0.5)
@@ -51,6 +69,21 @@ def azure_functions_client():
 @pytest.mark.snapshot
 def test_http_get_ok(azure_functions_client: Client) -> None:
     assert azure_functions_client.get("/api/httpgetok?key=val", headers=DEFAULT_HEADERS).status_code == 200
+
+
+@pytest.mark.snapshot
+def test_http_get_ok_async(azure_functions_client: Client) -> None:
+    assert azure_functions_client.get("/api/httpgetokasync?key=val", headers=DEFAULT_HEADERS).status_code == 200
+
+
+@pytest.mark.snapshot
+def test_http_get_ok_obfuscated(azure_functions_client: Client) -> None:
+    assert azure_functions_client.get("/api/httpgetok?secret=val", headers=DEFAULT_HEADERS).status_code == 200
+
+
+@pytest.mark.snapshot
+def test_http_get_ok_async_obfuscated(azure_functions_client: Client) -> None:
+    assert azure_functions_client.get("/api/httpgetokasync?secret=val", headers=DEFAULT_HEADERS).status_code == 200
 
 
 @pytest.mark.snapshot(ignores=["meta.error.stack"])
@@ -81,10 +114,79 @@ def test_http_get_function_name_no_decorator(azure_functions_client: Client) -> 
 
 
 @pytest.mark.snapshot
+def test_http_get_function_name_decorator_order(azure_functions_client: Client) -> None:
+    assert (
+        azure_functions_client.get("/api/httpgetfunctionnamedecoratororder", headers=DEFAULT_HEADERS).status_code == 200
+    )
+
+
+@pytest.mark.parametrize(
+    "azure_functions_client",
+    [{}, DISTRIBUTED_TRACING_DISABLED_PARAMS],
+    ids=["enabled", "disabled"],
+    indirect=True,
+)
+@pytest.mark.snapshot
+def test_http_get_distributed_tracing(azure_functions_client: Client) -> None:
+    assert azure_functions_client.get("/api/httpgetroot", headers=DEFAULT_HEADERS).status_code == 200
+
+
+@pytest.mark.parametrize(
+    "azure_functions_client",
+    [{}, DISTRIBUTED_TRACING_DISABLED_PARAMS],
+    ids=["enabled", "disabled"],
+    indirect=True,
+)
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+def test_service_bus_distributed_tracing(azure_functions_client: Client) -> None:
+    assert azure_functions_client.post("/api/httppostrootservicebus", headers=DEFAULT_HEADERS).status_code == 200
+
+
+@pytest.mark.parametrize(
+    "azure_functions_client",
+    [CARDINALITY_MANY_PARAMS],
+    ids=["many"],
+    indirect=True,
+)
+@pytest.mark.snapshot()
+def test_service_bus_consume_same_context(azure_functions_client: Client) -> None:
+    assert (
+        azure_functions_client.post("/api/httppostrootservicebusmanysamecontext", headers=DEFAULT_HEADERS).status_code
+        == 200
+    )
+
+
+@pytest.mark.parametrize(
+    "azure_functions_client",
+    [CARDINALITY_MANY_PARAMS],
+    ids=["many"],
+    indirect=True,
+)
+@pytest.mark.snapshot()
+def test_service_bus_consume_diff_context(azure_functions_client: Client) -> None:
+    assert (
+        azure_functions_client.post("/api/httppostrootservicebusmanydiffcontext", headers=DEFAULT_HEADERS).status_code
+        == 200
+    )
+
+
+@pytest.mark.snapshot
 def test_timer(azure_functions_client: Client) -> None:
     assert (
         azure_functions_client.post(
             "/admin/functions/timer",
+            headers={"User-Agent": "python-httpx/x.xx.x", "Content-Type": "application/json"},
+            data=json.dumps({"input": None}),
+        ).status_code
+        == 202
+    )
+
+
+@pytest.mark.snapshot
+def test_timer_async(azure_functions_client: Client) -> None:
+    assert (
+        azure_functions_client.post(
+            "/admin/functions/timer_async",
             headers={"User-Agent": "python-httpx/x.xx.x", "Content-Type": "application/json"},
             data=json.dumps({"input": None}),
         ).status_code

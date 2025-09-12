@@ -1,32 +1,32 @@
-from typing import TYPE_CHECKING  # noqa:I001
 from types import ModuleType
-import asyncpg
+from typing import TYPE_CHECKING  # noqa:I001
+from typing import Dict
 
-from ddtrace.trace import Pin
-from ddtrace import config
-from ddtrace.internal import core
-from ddtrace.internal.constants import COMPONENT
+import asyncpg
 import wrapt
 
-from ddtrace.constants import SPAN_KIND
+from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
+from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib.internal.trace_utils import ext_service
+from ddtrace.contrib.internal.trace_utils import unwrap
+from ddtrace.contrib.internal.trace_utils import wrap
+from ddtrace.contrib.internal.trace_utils_async import with_traced_module
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import net
+from ddtrace.internal import core
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
-from ddtrace.contrib.internal.trace_utils import ext_service
-from ddtrace.contrib.internal.trace_utils import unwrap
-from ddtrace.contrib.internal.trace_utils import wrap
-from ddtrace.contrib.internal.trace_utils_async import with_traced_module
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Dict  # noqa:F401
     from typing import Union  # noqa:F401
 
     from asyncpg.prepared_stmt import PreparedStatement  # noqa:F401
@@ -50,6 +50,10 @@ log = get_logger(__name__)
 def get_version():
     # type: () -> str
     return getattr(asyncpg, "__version__", "")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"asyncpg": ">=0.22.0"}
 
 
 def _get_connection_tags(conn):
@@ -90,6 +94,9 @@ async def _traced_connect(asyncpg, pin, func, instance, args, kwargs):
 
     connect() is instrumented and patched to return a connection proxy.
     """
+    # When using a pool, there's a connection_class args
+    is_pool_context = "connection_class" in kwargs
+
     with pin.tracer.trace(
         "postgres.connect", span_type=SpanTypes.SQL, service=ext_service(pin, config.asyncpg)
     ) as span:
@@ -99,10 +106,23 @@ async def _traced_connect(asyncpg, pin, func, instance, args, kwargs):
         # set span.kind to the type of request being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-        # Need an ObjectProxy since Connection uses slots
-        conn = _TracedConnection(await func(*args, **kwargs), pin)
-        span.set_tags(_get_connection_tags(conn))
-        return conn
+        raw_conn = await func(*args, **kwargs)
+        if is_pool_context:
+            # Return the unwrapped connection to avoid _TracedConnection errors
+            # when using a pool with a custom connect param
+            connection_tags = _get_connection_tags(raw_conn)
+            connection_tags[db.SYSTEM] = DBMS_NAME
+            conn_pin = pin.clone(tags=connection_tags)
+            conn_pin.onto(raw_conn._protocol)
+            span.set_tags(connection_tags)
+            # Returns a asyncpg.connection.Connection object
+            return raw_conn
+        else:
+            # # Need an ObjectProxy when not using pools since Connection uses slots
+            conn = _TracedConnection(raw_conn, pin)
+            span.set_tags(_get_connection_tags(conn))
+            # Returns a _TracedConnection object
+            return conn
 
 
 async def _traced_query(pin, method, query, args, kwargs):
@@ -117,7 +137,8 @@ async def _traced_query(pin, method, query, args, kwargs):
 
         # set span.kind to the type of request being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
-        span.set_tag(_SPAN_MEASURED_KEY)
+        # PERF: avoid setting via Span.set_tag
+        span.set_metric(_SPAN_MEASURED_KEY, 1)
         span.set_tags(pin.tags)
 
         # dispatch DBM

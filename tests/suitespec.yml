@@ -84,6 +84,9 @@ components:
     - ddtrace/ext/schema.py
   git:
     - ddtrace/ext/git.py
+  lib_injection:
+    - lib-injection/*
+    - tests/lib_injection/*
   opentelemetry:
     - ddtrace/opentelemetry/*
     - ddtrace/internal/opentelemetry/*
@@ -149,7 +152,7 @@ suites:
       - 'conftest.py'
       - '**/conftest.py'
     pattern: meta-testing
-    runner: hatch
+    runner: riot
     snapshot: false
   ddtracerun:
     parallelism: 3
@@ -174,7 +177,7 @@ suites:
     pattern: integration-latest*
     runner: riot
   integration_testagent:
-    parallelism: 1
+    parallelism: 2
     paths:
       - '@tracing'
       - '@bootstrap'
@@ -185,6 +188,12 @@ suites:
     pattern: integration-snapshot*
     runner: riot
     snapshot: true
+  integration_registry:
+    parallelism: 1
+    paths:
+      - '@contrib'
+      - ddtrace/contrib/integration_registry/*
+    runner: riot
   internal:
     parallelism: 2
     paths:
@@ -198,25 +207,22 @@ suites:
       - tests/cache/*
     runner: riot
     snapshot: true
+  lib_injection:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@lib_injection'
+    parallelism: 2
+    runner: riot
+    pattern: ^lib_injection$
   slotscheck:
     parallelism: 1
     paths:
       - 'ddtrace/**/*.py'
-    runner: hatch
-    snapshot: false
-  profile:
-    env:
-      DD_TRACE_AGENT_URL: ''
-    parallelism: 20
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@profiling'
-      - tests/profiling/*
-      - tests/profiling_v2/*
-    pattern: profile$|profile-v2
-    retry: 2
     runner: riot
+    snapshot: false
   runtime:
     paths:
       - '@bootstrap'

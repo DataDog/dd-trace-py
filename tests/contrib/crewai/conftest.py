@@ -1,20 +1,29 @@
 import os
+import time
 
 from crewai import Agent
 from crewai import Crew
+from crewai import Flow
 from crewai import Process
 from crewai import Task
+from crewai.flow.flow import and_
+from crewai.flow.flow import listen
+from crewai.flow.flow import router
+from crewai.flow.flow import start
 from crewai.tasks.conditional_task import ConditionalTask
 from crewai.tools import tool
 import pytest
 import vcr
 
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.crewai.patch import patch
 from ddtrace.contrib.internal.crewai.patch import unpatch
 from ddtrace.llmobs import LLMObs as llmobs_service
-from ddtrace.llmobs._constants import AGENTLESS_BASE_URL
-from ddtrace.llmobs._writer import LLMObsSpanWriter
-from ddtrace.trace import Pin
+from tests.contrib.crewai.utils import budget_text
+from tests.contrib.crewai.utils import fun_fact_text
+from tests.contrib.crewai.utils import itinerary_text
+from tests.contrib.crewai.utils import welcome_email_text
+from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import override_global_config
@@ -27,8 +36,9 @@ def request_vcr():
         record_mode="once",
         match_on=["path"],
         filter_headers=["authorization", "x-api-key", "api-key"],
-        # Ignore requests to the agent
+        # Ignore requests to the agent and crewai telemetry endpoint
         ignore_localhost=True,
+        ignore_hosts=["testagent", "telemetry.crewai.com"],
     )
 
 
@@ -160,6 +170,172 @@ def hierarchical_crew(crewai):
 
 
 @pytest.fixture
+def simple_flow(crewai):
+    class ExFlow(Flow[dict]):
+        model = "gpt-4o-mini"
+
+        @start()
+        def generate_city(self):
+            time.sleep(0.05)
+            return "New York City"
+
+        @listen(generate_city)
+        def generate_fun_fact(self, random_city):
+            time.sleep(0.06)
+            return fun_fact_text
+
+    yield ExFlow()
+
+
+@pytest.fixture
+def simple_flow_async(crewai):
+    class ExFlow(Flow[dict]):
+        model = "gpt-4o-mini"
+
+        @start()
+        async def generate_city(self):
+            time.sleep(0.05)
+            return "New York City"
+
+        @listen(generate_city)
+        async def generate_fun_fact(self, random_city):
+            time.sleep(0.06)
+            return fun_fact_text
+
+    yield ExFlow()
+
+
+@pytest.fixture
+def complex_flow(crewai):
+    class ExFlow(Flow[dict]):
+        model = "gpt-4o-mini"
+
+        @start()
+        def generate_city(self):
+            time.sleep(0.05)
+            return "New York City"
+
+        @start()
+        def generate_welcome_email(self):
+            time.sleep(0.05)
+            return welcome_email_text
+
+        @listen(generate_city)
+        def generate_fun_fact(self, random_city):
+            time.sleep(0.06)
+            return fun_fact_text
+
+        @listen(generate_city)
+        def generate_budget(self, random_city):
+            time.sleep(0.04)
+            return budget_text
+
+        @listen(and_(generate_budget, generate_city, generate_fun_fact, generate_welcome_email))
+        def generate_itinerary(self):
+            time.sleep(0.05)
+            return itinerary_text
+
+    yield ExFlow()
+
+
+@pytest.fixture
+def complex_flow_async(crewai):
+    class ExFlow(Flow[dict]):
+        model = "gpt-4o-mini"
+
+        @start()
+        async def generate_city(self):
+            time.sleep(0.05)
+            return "New York City"
+
+        @start()
+        async def generate_welcome_email(self):
+            time.sleep(0.05)
+            return welcome_email_text
+
+        @listen(generate_city)
+        async def generate_fun_fact(self, random_city):
+            time.sleep(0.06)
+            return fun_fact_text
+
+        @listen(generate_city)
+        async def generate_budget(self, random_city):
+            time.sleep(0.04)
+            return budget_text
+
+        @listen(and_(generate_budget, generate_city, generate_fun_fact, generate_welcome_email))
+        async def generate_itinerary(self):
+            time.sleep(0.05)
+            return itinerary_text
+
+    yield ExFlow()
+
+
+@pytest.fixture
+def router_flow(crewai):
+    class ExFlow(Flow[dict]):
+        model = "gpt-4o-mini"
+
+        @start()
+        def generate_city(self):
+            time.sleep(0.05)
+            random_city = "New York City"
+            self.state["city"] = random_city
+            return random_city
+
+        @router(generate_city)
+        def discriminate_city(self):
+            time.sleep(0.05)
+            if self.state["city"] != "New York City":
+                return "YIKES"
+            return "LFG"
+
+        @listen("YIKES")
+        def say_oop(self):
+            time.sleep(0.03)
+            return "Oop, have a fun trip!"
+
+        @listen("LFG")
+        def generate_fun_fact(self):
+            time.sleep(0.06)
+            return fun_fact_text
+
+    yield ExFlow()
+
+
+@pytest.fixture
+def router_flow_async(crewai):
+    class ExFlow(Flow[dict]):
+        model = "gpt-4o-mini"
+
+        @start()
+        async def generate_city(self):
+            time.sleep(0.05)
+            random_city = "New York City"
+            self.state["city"] = random_city
+            return random_city
+
+        @router(generate_city)
+        async def discriminate_city(self):
+            time.sleep(0.05)
+            if self.state["city"] != "New York City":
+                return "YIKES"
+            return "LFG"
+
+        @listen("YIKES")
+        async def say_oop(self):
+            time.sleep(0.03)
+            return "Oop, have a fun trip!"
+
+        @listen("LFG")
+        async def generate_fun_fact(self):
+            time.sleep(0.06)
+            return fun_fact_text
+
+    yield ExFlow()
+
+
+@pytest.fixture
 def crewai(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "<not-a-real-key>")
     patch()
@@ -177,15 +353,6 @@ def mock_tracer(crewai):
     yield mock_tracer
 
 
-class TestLLMObsSpanWriter(LLMObsSpanWriter):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.events = []
-
-    def enqueue(self, event):
-        self.events.append(event)
-
-
 @pytest.fixture
 def crewai_llmobs(mock_tracer, llmobs_span_writer):
     llmobs_service.disable()
@@ -200,8 +367,7 @@ def crewai_llmobs(mock_tracer, llmobs_span_writer):
 
 @pytest.fixture
 def llmobs_span_writer():
-    agentless_url = "{}.{}".format(AGENTLESS_BASE_URL, "datad0g.com")
-    yield TestLLMObsSpanWriter(is_agentless=True, agentless_url=agentless_url, interval=1.0, timeout=1.0)
+    yield TestLLMObsSpanWriter(1.0, 5.0, is_agentless=True, _site="datad0g.com", _api_key="<not-a-real-key>")
 
 
 @pytest.fixture

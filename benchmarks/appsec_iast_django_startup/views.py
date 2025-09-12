@@ -24,5 +24,9 @@ def index(request):
 
 
 def shutdown_view(request):
-    tracer._writer.flush_queue()
+    if hasattr(tracer, "_span_aggregator"):
+        writer = tracer._span_aggregator.writer
+    else:
+        writer = tracer._writer
+    writer.flush_queue()
     return HttpResponse("SHUTDOWN")

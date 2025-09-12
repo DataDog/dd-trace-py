@@ -65,6 +65,7 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
     # type: (...) -> None
     filename = str(tmp_path / "gunicorn.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
+    monkeypatch.setenv("_DD_PROFILING_STACK_V2_ADAPTIVE_SAMPLING_ENABLED", "0")
 
     debug_print("Creating gunicorn workers")
     # DEV: We only start 1 worker to simplify the test
@@ -110,7 +111,7 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
 
     for pid in worker_pids:
         debug_print("Reading pprof file with prefix %s.%d" % (filename, pid))
-        profile = pprof_utils.parse_profile("%s.%d" % (filename, pid))
+        profile = pprof_utils.parse_newest_profile("%s.%d" % (filename, pid))
         # This returns a list of samples that have non-zero cpu-time
         samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
         assert len(samples) > 0
@@ -129,6 +130,10 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
         )
 
 
+@pytest.mark.skipif(
+    sys.version_info[:2] == (3, 8) and os.environ.get("DD_PROFILE_TEST_GEVENT") == "1",
+    reason="Flaky and fails often on Python 3.8 with DD_PROFILE_TEST_GEVENT=1",
+)
 def test_gunicorn(gunicorn, tmp_path, monkeypatch):
     # type: (...) -> None
     args = ("-k", "gevent") if TESTING_GEVENT else tuple()

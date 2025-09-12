@@ -25,7 +25,7 @@ def test_otel_start_span_record_exception(oteltracer):
     raised_span = oteltracer.start_span("test-raised-exception")
     with pytest.raises(Exception, match="Sorry Otel Span, I failed you"):
         # Ensures that the exception is recorded with the consistent timestamp for snapshot testing
-        with mock.patch("ddtrace._trace.span.time_ns", return_value=1716560261227739000):
+        with mock.patch("ddtrace._trace.span.Time.time_ns", return_value=1716560261227739000):
             with raised_span:
                 raised_span.record_exception(ValueError("Invalid Operation 1"))
                 raise Exception("Sorry Otel Span, I failed you")

@@ -8,13 +8,18 @@ from typing import Tuple
 from typing import Union
 from weakref import WeakKeyDictionary
 
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
+from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
+from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
+from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
@@ -25,13 +30,18 @@ from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_VALUE
+from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._integrations.utils import extract_instance_metadata_from_stack
 from ddtrace.llmobs._integrations.utils import format_langchain_io
-from ddtrace.llmobs._integrations.utils import is_openai_default_base_url
+from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
+from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
+from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs._utils import validate_prompt
 from ddtrace.llmobs.utils import Document
 from ddtrace.trace import Span
 
@@ -58,6 +68,20 @@ ROLE_MAPPING = {
 }
 
 SUPPORTED_OPERATIONS = ["llm", "chat", "chain", "embedding", "retrieval", "tool"]
+LANGCHAIN_BASE_URL_FIELDS = [
+    "api_base",
+    "api_host",
+    "anthropic_api_url",
+    "base_url",
+    "endpoint",
+    "endpoint_url",
+    "cerebras_api_base",
+    "groq_api_base",
+    "inference_server_url",
+    "openai_api_base",
+    "upstage_api_base",
+    "xai_api_base",
+]
 
 
 def _extract_instance(instance):
@@ -125,7 +149,11 @@ class LangChainIntegration(BaseLLMIntegration):
 
         spans: Dict[int, Span] = getattr(parent_instance, "_datadog_spans", {})
         spans[id(instance)] = span
-        setattr(parent_instance, "_datadog_spans", spans)
+
+        try:
+            setattr(parent_instance, "_datadog_spans", spans)
+        except Exception:
+            parent_instance.__dict__["_datadog_spans"] = spans
 
     def _llmobs_set_tags(
         self,
@@ -144,7 +172,6 @@ class LangChainIntegration(BaseLLMIntegration):
 
         self._set_links(span)
         model_provider = span.get_tag(PROVIDER)
-        self._llmobs_set_metadata(span, model_provider)
 
         is_workflow = False
 
@@ -163,14 +190,18 @@ class LangChainIntegration(BaseLLMIntegration):
             elif operation == "chat" and model_provider.startswith(ANTHROPIC_PROVIDER_NAME):
                 llmobs_integration = "anthropic"
 
-            is_workflow = LLMObs._integration_is_enabled(llmobs_integration)
+            is_workflow = (
+                LLMObs._integration_is_enabled(llmobs_integration) or span._get_ctx_item(PROXY_REQUEST) is True
+            )
 
         if operation == "llm":
             self._llmobs_set_tags_from_llm(span, args, kwargs, response, is_workflow=is_workflow)
+            update_proxy_workflow_input_output_value(span, "workflow" if is_workflow else "llm")
         elif operation == "chat":
             # langchain-openai will call a beta client "response_format" is passed in the kwargs, which we do not trace
             is_workflow = is_workflow and not (llmobs_integration == "openai" and ("response_format" in kwargs))
             self._llmobs_set_tags_from_chat_model(span, args, kwargs, response, is_workflow=is_workflow)
+            update_proxy_workflow_input_output_value(span, "workflow" if is_workflow else "llm")
         elif operation == "chain":
             self._llmobs_set_meta_tags_from_chain(span, args, kwargs, outputs=response)
         elif operation == "embedding":
@@ -331,7 +362,7 @@ class LangChainIntegration(BaseLLMIntegration):
         """
         Deletes the references of steps in a chain from the instance id to span mapping.
 
-        The relevant instances will be recorded again if they are re-used in another chain when
+        The relevant instances will be recorded again if they are reused in another chain when
         the other chain is invoked.
 
         We attempt to remove the current instance as well if it has no parent or its parent instance is not a chain.
@@ -342,26 +373,58 @@ class LangChainIntegration(BaseLLMIntegration):
         if hasattr(instance, "_datadog_spans"):
             delattr(instance, "_datadog_spans")
 
-    def _llmobs_set_metadata(self, span: Span, model_provider: Optional[str] = None) -> None:
-        if not model_provider:
+    def _get_prompt_variable_name(self, instance: Any) -> str:
+        """
+        Attempts to find the variable name used for the prompt template instance by inspecting
+        the caller's frame locals and globals, and returns it in the format:
+        {integration_name}.{reflected_module/file_name}.{reflected_variable_name}
+        """
+        try:
+            variable_name, module_name = extract_instance_metadata_from_stack(
+                instance=instance,
+                internal_variable_names=["instance", "self", "step"],
+                default_variable_name="unknown_prompt_template",
+                default_module_name="unknown_module",
+                frame_start_offset=2,
+                frame_search_depth=10,
+            )
+        except Exception:
+            log.warning("Failed to extract prompt variable name")
+            return "unknown_prompt_template"
+
+        return f"{module_name}.{variable_name}"
+
+    def _llmobs_set_metadata(self, span: Span, kwargs: Dict[str, Any]) -> None:
+        identifying_params = kwargs.pop("_dd.identifying_params", None)
+        if not identifying_params:
             return
+        metadata = self._llmobs_extract_parameters(identifying_params)
+        for val in identifying_params.values():
+            if metadata:
+                break
+            if not isinstance(val, dict):
+                continue
+            metadata = self._llmobs_extract_parameters(val)
 
-        metadata = {}
-        temperature = span.get_tag(f"langchain.request.{model_provider}.parameters.temperature") or span.get_tag(
-            f"langchain.request.{model_provider}.parameters.model_kwargs.temperature"
-        )  # huggingface
-        max_tokens = (
-            span.get_tag(f"langchain.request.{model_provider}.parameters.max_tokens")
-            or span.get_tag(f"langchain.request.{model_provider}.parameters.maxTokens")  # ai21
-            or span.get_tag(f"langchain.request.{model_provider}.parameters.model_kwargs.max_tokens")  # huggingface
-        )
+        if metadata:
+            span._set_ctx_item(METADATA, metadata)
 
+    def _llmobs_extract_parameters(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
+        metadata: Dict[str, Any] = {}
+        max_tokens = None
+        temperature = None
+        if "temperature" in parameters:
+            temperature = parameters["temperature"]
+        for max_token_key in ["max_tokens", "maxTokens", "max_completion_tokens"]:
+            if max_token_key in parameters:
+                max_tokens = parameters[max_token_key]
+                break
         if temperature is not None and temperature != "None":
             metadata["temperature"] = float(temperature)
         if max_tokens is not None and max_tokens != "None":
             metadata["max_tokens"] = int(max_tokens)
-        if metadata:
-            span._set_ctx_item(METADATA, metadata)
+
+        return metadata
 
     def _llmobs_set_tags_from_llm(
         self, span: Span, args: List[Any], kwargs: Dict[str, Any], completions: Any, is_workflow: bool = False
@@ -387,6 +450,8 @@ class LangChainIntegration(BaseLLMIntegration):
                 input_tag_key: input_messages,
             }
         )
+
+        self._llmobs_set_metadata(span, kwargs)
 
         if span.error:
             span._set_ctx_item(output_tag_key, [{"content": ""}])
@@ -421,6 +486,9 @@ class LangChainIntegration(BaseLLMIntegration):
                 MODEL_PROVIDER: span.get_tag(PROVIDER) or "",
             }
         )
+
+        self._llmobs_set_metadata(span, kwargs)
+
         input_tag_key = INPUT_VALUE if is_workflow else INPUT_MESSAGES
         output_tag_key = OUTPUT_VALUE if is_workflow else OUTPUT_MESSAGES
         stream = span.get_tag("langchain.request.stream")
@@ -440,6 +508,15 @@ class LangChainIntegration(BaseLLMIntegration):
                     )
                     role = getattr(message, "role", ROLE_MAPPING.get(getattr(message, "type", ""), ""))
                     input_messages.append({"content": str(content), "role": str(role)})
+                    tool_call_id = _get_attr(message, "tool_call_id", "")
+                    if not is_workflow and tool_call_id:
+                        core.dispatch(
+                            DISPATCH_ON_TOOL_CALL_OUTPUT_USED,
+                            (
+                                tool_call_id,
+                                span,
+                            ),
+                        )
         span._set_ctx_item(input_tag_key, input_messages)
 
         if span.error:
@@ -461,14 +538,28 @@ class LangChainIntegration(BaseLLMIntegration):
             tokens_set_top_level = total_tokens > 0
 
         tokens_per_choice_run_id: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
-        for message_set in chat_completions.generations:
+        for message_set in getattr(chat_completions, "generations", []):
             for chat_completion in message_set:
                 chat_completion_msg = chat_completion.message
                 role = getattr(chat_completion_msg, "role", ROLE_MAPPING.get(chat_completion_msg.type, ""))
                 output_message = {"content": str(chat_completion.text), "role": role}
                 tool_calls_info = self._extract_tool_calls(chat_completion_msg)
-                if tool_calls_info:
-                    output_message["tool_calls"] = tool_calls_info
+                if not is_workflow:
+                    for tool_call in tool_calls_info:
+                        core.dispatch(
+                            DISPATCH_ON_LLM_TOOL_CHOICE,
+                            (
+                                tool_call.get("tool_id", ""),
+                                tool_call.get("name", ""),
+                                safe_json(tool_call.get("arguments", {})),
+                                {
+                                    "trace_id": format_trace_id(span.trace_id),
+                                    "span_id": str(span.span_id),
+                                },
+                            ),
+                        )
+                    if tool_calls_info:
+                        output_message["tool_calls"] = tool_calls_info
                 output_messages.append(output_message)
 
                 # if it wasn't set above, check for token usage on the AI message object level
@@ -476,6 +567,8 @@ class LangChainIntegration(BaseLLMIntegration):
                 # do not append to the count, just set it once
                 if not is_workflow and not tokens_set_top_level:
                     tokens, run_id = self.check_token_usage_ai_message(chat_completion_msg)
+                    if run_id is None:
+                        continue
                     input_tokens, output_tokens, total_tokens = tokens
                     tokens_per_choice_run_id[run_id]["input_tokens"] = input_tokens
                     tokens_per_choice_run_id[run_id]["output_tokens"] = output_tokens
@@ -647,12 +740,16 @@ class LangChainIntegration(BaseLLMIntegration):
         metadata = json.loads(str(span.get_tag(METADATA))) if span.get_tag(METADATA) else {}
         formatted_input = ""
         if tool_inputs is not None:
-            tool_input = tool_inputs.get("input")
+            tool_name, tool_id, tool_args = self._extract_tool_call_args_from_inputs(tool_inputs)
+            core.dispatch(
+                DISPATCH_ON_TOOL_CALL,
+                (tool_name, tool_args, "function", span, tool_id),
+            )
             if tool_inputs.get("config"):
                 metadata["tool_config"] = tool_inputs.get("config")
             if tool_inputs.get("info"):
                 metadata["tool_info"] = tool_inputs.get("info")
-            formatted_input = format_langchain_io(tool_input)
+            formatted_input = format_langchain_io(tool_inputs.get("input", {}))
         formatted_outputs = ""
         if not span.error and tool_output is not None:
             formatted_outputs = format_langchain_io(tool_output)
@@ -665,25 +762,39 @@ class LangChainIntegration(BaseLLMIntegration):
             }
         )
 
-    def _set_base_span_tags(  # type: ignore[override]
+    def _set_base_span_tags(
         self,
         span: Span,
         interface_type: str = "",
         provider: Optional[str] = None,
         model: Optional[str] = None,
         api_key: Optional[str] = None,
+        **kwargs,
     ) -> None:
         """Set base level tags that should be present on all LangChain spans (if they are not None)."""
-        span.set_tag_str(TYPE, interface_type)
         if provider is not None:
             span.set_tag_str(PROVIDER, provider)
         if model is not None:
             span.set_tag_str(MODEL, model)
-        if api_key is not None:
-            if len(api_key) >= 4:
-                span.set_tag_str(API_KEY, "...%s" % str(api_key[-4:]))
-            else:
-                span.set_tag_str(API_KEY, api_key)
+
+    def _extract_tool_call_args_from_inputs(self, tool_inputs: Dict[str, Any]) -> Tuple[str, str, str]:
+        """
+        Extract tool name, tool id, and tool args from a tool call input.
+
+        If the tool input is a string, then the entire string is assumed to be the tool call args.
+        """
+        tool_input = tool_inputs.get("input", {})
+        tool_name, tool_id, tool_args = "", "", ""
+        if isinstance(tool_input, str):
+            tool_args = tool_input
+            tool_info = tool_inputs.get("info", {})
+            if isinstance(tool_info, dict):
+                tool_name = tool_info.get("name", "") or ""
+        else:
+            tool_name = _get_attr(tool_input, "name", "") or ""
+            tool_id = _get_attr(tool_input, "id", "") or ""
+            tool_args = safe_json(_get_attr(tool_input, "args", {}) or {})
+        return tool_name, tool_id, tool_args
 
     def check_token_usage_chat_or_llm_result(self, result):
         """Checks for token usage on the top-level ChatResult or LLMResult object"""
@@ -702,7 +813,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
         return input_tokens, output_tokens, total_tokens
 
-    def check_token_usage_ai_message(self, ai_message):
+    def check_token_usage_ai_message(self, ai_message) -> Tuple[Tuple[int, int, int], Optional[str]]:
         """Checks for token usage on an AI message object"""
         # depending on the provider + langchain-core version, the usage metadata can be in different places
         # either chat_completion_msg.usage_metadata or chat_completion_msg.response_metadata.{token}_usage
@@ -711,8 +822,10 @@ class LangChainIntegration(BaseLLMIntegration):
         run_id = getattr(ai_message, "id", None) or getattr(ai_message, "run_id", "")
         run_id_base = "-".join(run_id.split("-")[:-1]) if run_id else ""
 
-        response_metadata = getattr(ai_message, "response_metadata", {}) or {}
-        usage = usage or response_metadata.get("usage", {}) or response_metadata.get("token_usage", {})
+        response_metadata = getattr(ai_message, "response_metadata", {})
+        usage = usage or response_metadata.get("usage") or response_metadata.get("token_usage")
+        if usage is None or not isinstance(usage, dict):  # in case it is explicitly set to None
+            return (0, 0, 0), run_id_base
 
         # could either be "{prompt,completion}_tokens" or "{input,output}_tokens"
         input_tokens = usage.get("input_tokens", 0) or usage.get("prompt_tokens", 0)
@@ -721,6 +834,58 @@ class LangChainIntegration(BaseLLMIntegration):
 
         return (input_tokens, output_tokens, total_tokens), run_id_base
 
-    def has_default_base_url(self, instance) -> bool:
-        openai_api_base = getattr(instance, "openai_api_base", None)
-        return not openai_api_base or is_openai_default_base_url(openai_api_base)
+    def _get_base_url(self, **kwargs: Dict[str, Any]) -> Optional[str]:
+        instance = kwargs.get("instance")
+        base_url = None
+        for field in LANGCHAIN_BASE_URL_FIELDS:
+            base_url = getattr(instance, field, None) or base_url
+        return str(base_url) if base_url else None
+
+    def handle_prompt_template_invoke(self, instance, result, args: List[Any], kwargs: Dict[str, Any]):
+        """On prompt template invoke, store the template on the result so its available to consuming .invoke()."""
+        template, variables = None, None
+        if hasattr(instance, "template") and isinstance(instance.template, str):
+            template = instance.template
+        variables = get_argument_value(args, kwargs, 0, "input", optional=True)
+
+        if not template or not variables or not isinstance(variables, dict):
+            return
+
+        prompt_id = self._get_prompt_variable_name(instance)
+
+        prompt = {
+            "variables": variables,
+            "template": template,
+            "id": prompt_id if prompt_id is not None else "unknown",
+            "version": "0.0.0",
+            "rag_context_variables": [],
+            "rag_query_variables": [],
+        }
+
+        try:
+            object.__setattr__(result, "_dd.prompt_template", prompt)
+        except (AttributeError, TypeError):
+            log.warning("Could not attach prompt metadata to resulting prompt")
+
+    def handle_llm_invoke(self, instance, args: List[Any], kwargs: Dict[str, Any]):
+        """On llm invoke, take any template from the input prompt value and make it available to llm.generate()."""
+        template = None
+        prompt_input = get_argument_value(args, kwargs, 0, "input", optional=True)
+        if prompt_input:
+            template = getattr(prompt_input, "_dd.prompt_template", None)
+        if template:
+            object.__setattr__(instance, "_dd.prompt_template", template)
+
+    def llmobs_set_prompt_tag(self, instance, span: Span):
+        """
+        On llm.generate(), BEFORE you call .generate(), take any template we have and write it to the span.
+        Since child spans may need to read the tagged data, we must tag before calling the wrapped function.
+        """
+        prompt_value_meta = getattr(instance, "_dd.prompt_template", None)
+        if prompt_value_meta is not None:
+            prompt = prompt_value_meta
+            try:
+                prompt = validate_prompt(prompt)
+                span._set_ctx_item(INPUT_PROMPT, prompt)
+            except Exception as e:
+                log.debug("Failed to validate langchain prompt", e)

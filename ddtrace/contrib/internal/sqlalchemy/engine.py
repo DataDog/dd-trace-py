@@ -18,7 +18,7 @@ from sqlalchemy.event import listen
 # project
 import ddtrace
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
@@ -29,7 +29,6 @@ from ddtrace.ext import sql as sqlx
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.trace import Pin
 
 
 def trace_engine(engine, tracer=None, service=None):
@@ -99,15 +98,11 @@ class EngineTracer(object):
         # set span.kind to the type of operation being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-        span.set_tag(_SPAN_MEASURED_KEY)
+        # PERF: avoid setting via Span.set_tag
+        span.set_metric(_SPAN_MEASURED_KEY, 1)
 
         if not _set_tags_from_url(span, conn.engine.url):
             _set_tags_from_cursor(span, self.vendor, cursor)
-
-        # set analytics sample rate
-        sample_rate = config.sqlalchemy.get_analytics_sample_rate()
-        if sample_rate is not None:
-            span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
     def _after_cur_exec(self, conn, cursor, statement, *args):
         pin = Pin.get_from(self.engine)

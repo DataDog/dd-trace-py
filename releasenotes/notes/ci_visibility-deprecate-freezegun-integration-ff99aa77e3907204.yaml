@@ -1,0 +1,10 @@
+---
+deprecations:
+  - |
+    CI Visibility: The ``freezegun`` integration is deprecated and will be removed in 4.0.0.
+    The ``freezegun`` integration is not necessary anymore for the correct reporting of test
+    durations and timestamps.
+fixes:
+  - |
+    CI Visibility: This fix resolves an issue where ``freezegun`` would not work with tests defined in ``unittest``
+    classes.

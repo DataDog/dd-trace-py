@@ -1,6 +1,4 @@
-version: "3"
 # remember to use this compose file __ONLY__ for development/testing purposes
-
 services:
     elasticsearch:
         image: elasticsearch:7.17.13
@@ -123,14 +121,16 @@ services:
         volumes:
           - ddagent:/tmp/ddagent:rw
     testagent:
-        image: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.21.0
+        image: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.29.1
         ports:
             - "127.0.0.1:9126:8126"
         volumes:
             - ./tests/snapshots:/snapshots
+            - ./tests/llmobs/llmobs_cassettes:/cassettes
         environment:
             - LOG_LEVEL=WARNING
             - SNAPSHOT_DIR=/snapshots
+            - VCR_CASSETTES_DIRECTORY=/cassettes
             - SNAPSHOT_CI=0
             - DD_POOL_TRACE_CHECK_FAILURES=true
             - DD_DISABLE_ERROR_RESPONSES=true
@@ -146,29 +146,47 @@ services:
         ports:
           - "127.0.0.1:5433:5433"
     azurite:
-        image: mcr.microsoft.com/azure-storage/azurite
+        image: mcr.microsoft.com/azure-storage/azurite:3.34.0
         ports:
             - "127.0.0.1:10000:10000"
             - "127.0.0.1:10001:10001"
             - "127.0.0.1:10002:10002"
+    azureservicebusemulator:
+        image: mcr.microsoft.com/azure-messaging/servicebus-emulator:1.1.2
+        ports:
+            - "127.0.0.1:5672:5672"
+            - "127.0.0.1:5300:5300"
+        environment:
+            ACCEPT_EULA: "Y"
+            MSSQL_SA_PASSWORD: "Localtestpass1!"
+            SQL_SERVER: dd-trace-py-azuresqledge-1
+    azuresqledge:
+        image: mcr.microsoft.com/azure-sql-edge:1.0.7
+        ports:
+            - "127.0.0.1:1433:1433"
+        environment:
+            ACCEPT_EULA: "Y"
+            MSSQL_SA_PASSWORD: "Localtestpass1!"
+
 
     testrunner:
         # DEV uncomment to test local changes to the Dockerfile
         # build:
         #  context: ./docker
         #  dockerfile: Dockerfile
-        image: ghcr.io/datadog/dd-trace-py/testrunner:bca6869fffd715ea9a731f7b606807fa1b75cb71@sha256:9e3f53fa98ffc4b838b959d74d969aa2c384c4cbee7a3047a03d501be5f58760
+        image: ghcr.io/datadog/dd-trace-py/testrunner:280be7679757b720503a284a69da36995b6ef48d@sha256:68865857c710d5703ddf9190ff33eb1ea47974e8332d04e2e115ef3b52513def
         command: bash
         environment:
-            - TOX_SKIP_DIST=True
+          DD_FAST_BUILD: "1"
+          CMAKE_BUILD_PARALLEL_LEVEL: "12"
+          CARGO_BUILD_JOBS: "12"
         network_mode: host
         userns_mode: host
-        working_dir: /root/project/
+        working_dir: /home/bits/project/
         volumes:
           - ddagent:/tmp/ddagent
-          - ./:/root/project
-          - ./.ddtox:/root/project/.tox
-          - ./.riot:/root/project/.riot
+          - ./:/home/bits/project
+          - ./.riot:/home/bits/project/.riot
 
     localstack:
         image: localstack/localstack:1.4.0

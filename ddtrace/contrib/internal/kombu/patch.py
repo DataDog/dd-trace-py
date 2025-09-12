@@ -1,11 +1,12 @@
 import os
+from typing import Dict
 
 # 3p
 import kombu
 import wrapt
 
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 
@@ -23,7 +24,6 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.trace import Pin
 
 from .constants import DEFAULT_SERVICE
 from .utils import HEADER_POS
@@ -49,6 +49,10 @@ config._add(
 )
 
 propagator = HTTPPropagator
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"kombu": ">=4.6.6"}
 
 
 def patch():
@@ -117,7 +121,8 @@ def traced_receive(func, instance, args, kwargs):
         # set span.kind to the type of operation being performed
         s.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
 
-        s.set_tag(_SPAN_MEASURED_KEY)
+        # PERF: avoid setting via Span.set_tag
+        s.set_metric(_SPAN_MEASURED_KEY, 1)
         # run the command
         exchange = message.delivery_info["exchange"]
         s.resource = exchange
@@ -125,8 +130,6 @@ def traced_receive(func, instance, args, kwargs):
 
         s.set_tags(extract_conn_tags(message.channel.connection))
         s.set_tag_str(kombux.ROUTING_KEY, message.delivery_info["routing_key"])
-        # set analytics sample rate
-        s.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.kombu.get_analytics_sample_rate())
         result = func(*args, **kwargs)
         core.dispatch("kombu.amqp.receive.post", [instance, message, s])
         return result
@@ -147,7 +150,8 @@ def traced_publish(func, instance, args, kwargs):
         # set span.kind to the type of operation being performed
         s.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
 
-        s.set_tag(_SPAN_MEASURED_KEY)
+        # PERF: avoid setting via Span.set_tag
+        s.set_metric(_SPAN_MEASURED_KEY, 1)
         exchange_name = get_exchange_from_args(args)
         s.resource = exchange_name
         s.set_tag_str(kombux.EXCHANGE, exchange_name)
@@ -156,8 +160,6 @@ def traced_publish(func, instance, args, kwargs):
         s.set_tag_str(kombux.ROUTING_KEY, get_routing_key_from_args(args))
         s.set_tags(extract_conn_tags(instance.channel.connection))
         s.set_metric(kombux.BODY_LEN, get_body_length_from_args(args))
-        # set analytics sample rate
-        s.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.kombu.get_analytics_sample_rate())
         # run the command
         if config.kombu.distributed_tracing_enabled:
             propagator.inject(s.context, args[HEADER_POS])

@@ -11,32 +11,14 @@ on:
     - cron: '00 04 * * 2-6'
 
 jobs:
-  system-tests-build-agent:
-    runs-on: ubuntu-latest
-    steps:
-
-      - name: Checkout system tests
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-          repository: 'DataDog/system-tests'
-
-      - name: Build agent
-        run: ./build.sh -i agent
-
-      - name: Save
-        id: save
-        run: |
-          docker image save system_tests/agent:latest | gzip > agent_${{ github.sha }}.tar.gz
-
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: agent_${{ github.sha }}
-          path: |
-            agent_${{ github.sha }}.tar.gz
-          retention-days: 2
+  build-wheels:
+    uses: ./.github/workflows/build_python_3.yml
+    with:
+      cibw_build: 'cp311-manylinux_x86_64 cp312-manylinux_x86_64 cp313-manylinux_x86_64'
 
   system-tests-build-weblog:
+    needs:
+      - build-wheels
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -52,30 +34,27 @@ jobs:
     env:
       TEST_LIBRARY: python
       WEBLOG_VARIANT: ${{ matrix.weblog-variant }}
-      # system-tests requires an API_KEY, but it does not have to be a valid key, as long as we don't run a scenario
-      # that make assertion on backend data. Using a fake key allow to run system tests on PR originating from forks.
-      # If ever it's needed, a valid key exists in the repo, using ${{ secrets.DD_API_KEY }}
-      DD_API_KEY: ${{ secrets.FAKE_DD_API_KEY }}
       CMAKE_BUILD_PARALLEL_LEVEL: 12
       SYSTEM_TESTS_AWS_ACCESS_KEY_ID: ${{ secrets.IDM_AWS_ACCESS_KEY_ID }}
       SYSTEM_TESTS_AWS_SECRET_ACCESS_KEY: ${{ secrets.IDM_AWS_SECRET_ACCESS_KEY }}
     steps:
+      - name: Install Dependencies
+        run: sudo apt-get install -y patchelf
 
       - name: Checkout system tests
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
           repository: 'DataDog/system-tests'
+          # Automatically managed, use scripts/update-system-tests-version to update
+          ref: '66e321c4a84b7d5ad0f81ad74140487252ad3da1'
 
-      - name: Checkout dd-trace-py
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Download wheels to binaries directory
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          persist-credentials: false
-          path: 'binaries/dd-trace-py'
-          fetch-depth: 0
-          # NB this ref is necessary to keep the checkout out of detached HEAD state, which setuptools_scm requires for
-          # proper version guessing
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          pattern: wheels-*
+          path: binaries/
+          merge-multiple: true
 
       - name: Build
         run: ./build.sh -i weblog
@@ -94,7 +73,7 @@ jobs:
 
   system-tests:
     runs-on: ubuntu-latest
-    needs: [system-tests-build-agent, system-tests-build-weblog]
+    needs: [system-tests-build-weblog]
     strategy:
       matrix:
         weblog-variant: [flask-poc, uwsgi-poc , django-poc, fastapi, python3.12, django-py3.13]
@@ -104,10 +83,6 @@ jobs:
     env:
       TEST_LIBRARY: python
       WEBLOG_VARIANT: ${{ matrix.weblog-variant }}
-      # system-tests requires an API_KEY, but it does not have to be a valid key, as long as we don't run a scenario
-      # that make assertion on backend data. Using a fake key allow to run system tests on PR originating from forks.
-      # If ever it's needed, a valid key exists in the repo, using ${{ secrets.DD_API_KEY }}
-      DD_API_KEY: ${{ secrets.FAKE_DD_API_KEY }}
       CMAKE_BUILD_PARALLEL_LEVEL: 12
       SYSTEM_TESTS_AWS_ACCESS_KEY_ID: ${{ secrets.IDM_AWS_ACCESS_KEY_ID }}
       SYSTEM_TESTS_AWS_SECRET_ACCESS_KEY: ${{ secrets.IDM_AWS_SECRET_ACCESS_KEY }}
@@ -118,25 +93,21 @@ jobs:
         with:
           persist-credentials: false
           repository: 'DataDog/system-tests'
+          # Automatically managed, use scripts/update-system-tests-version to update
+          ref: '66e321c4a84b7d5ad0f81ad74140487252ad3da1'
 
       - name: Build runner
         uses: ./.github/actions/install_runner
 
-      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: ${{ matrix.weblog-variant }}_${{ github.sha }}
-          path: images_artifacts/
-
-      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
-        with:
-          name: agent_${{ github.sha }}
           path: images_artifacts/
 
       - name: docker load
         id: docker_load
         run: |
           docker load < images_artifacts/${{ matrix.weblog-variant}}_weblog_${{ github.sha }}.tar.gz
-          docker load < images_artifacts/agent_${{ github.sha }}.tar.gz
 
       - name: Run DEFAULT
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
@@ -214,6 +185,10 @@ jobs:
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
         run: ./run.sh APPSEC_STANDALONE
 
+      - name: Run APPSEC_STANDALONE_API_SECURITY
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
+        run: ./run.sh APPSEC_STANDALONE_API_SECURITY
+
       - name: Run IAST_STANDALONE
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
         run: ./run.sh IAST_STANDALONE
@@ -289,23 +264,28 @@ jobs:
 
 
   parametric:
-    runs-on:
-      group: "APM Larger Runners"
+    needs:
+      - build-wheels
+    runs-on: ubuntu-latest
     env:
       TEST_LIBRARY: python
     steps:
+      - name: Install Dependencies
+        run: sudo apt-get install -y patchelf
+
       - name: Checkout system tests
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
           repository: 'DataDog/system-tests'
-      - name: Checkout dd-trace-py
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+          # Automatically managed, use scripts/update-system-tests-version to update
+          ref: '66e321c4a84b7d5ad0f81ad74140487252ad3da1'
+      - name: Download wheels to binaries directory
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          persist-credentials: false
-          path: 'binaries/dd-trace-py'
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          pattern: wheels-*
+          path: binaries/
+          merge-multiple: true
 
       - name: Build runner
         id: build_runner

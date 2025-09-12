@@ -11,6 +11,43 @@ from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLim
 from ddtrace.settings.exception_replay import ExceptionReplayConfig
 from tests.debugging.mocking import exception_replay
 from tests.utils import TracerTestCase
+from tests.utils import override_third_party_packages
+
+
+def test_tb_frames_from_exception_chain():
+    def a(v, d=None):
+        if not v:
+            raise ValueError("hello", v)
+
+    def b(bar):
+        m = 4
+        try:
+            a(bar % m)
+        except ValueError:
+            raise KeyError("chain it")
+
+    def c(foo=42):
+        sh = 3
+        b(foo << sh)
+
+    try:
+        c()
+    except Exception as e:
+        chain, _ = replay.unwind_exception_chain(e, e.__traceback__)
+        frames = replay.get_tb_frames_from_exception_chain(chain)
+        # There are two tracebacks in the chain: one for KeyError and one for
+        # ValueError. The innermost goes from the call to a in b up to the point
+        # where the exception is raised in a. The outermost goes from the call
+        # in this test function up to the point in b where the exception from a
+        # is caught and the the KeyError is raised.
+        assert len(frames) == 2 + 3
+        assert [f.tb_frame.f_code.co_name for f in frames] == [
+            "b",
+            "a",
+            "test_tb_frames_from_exception_chain",
+            "c",
+            "b",
+        ]
 
 
 def test_exception_replay_config_enabled(monkeypatch):
@@ -131,7 +168,7 @@ class ExceptionReplayTestCase(TracerTestCase):
                     fn = info[i]
 
                     # Check that we have all the tags for each snapshot
-                    assert span.get_tag("_dd.debug.error.%d.snapshot_id" % i) in snapshots
+                    assert span.get_tag("_dd.debug.error.%d.snapshot_id" % i) in snapshots, span._meta
                     assert span.get_tag("_dd.debug.error.%d.file" % i) == __file__.replace(".pyc", ".py"), span.get_tag(
                         "_dd.debug.error.%d.file" % i
                     )
@@ -354,4 +391,50 @@ class ExceptionReplayTestCase(TracerTestCase):
             n = uploader.collector.queue
             assert len(n) == config.max_frames
 
+            assert root is not None
             assert root.get_metric(replay.SNAPSHOT_COUNT_TAG) == config.max_frames
+
+            # Get all the function names attached to the root span
+            fs = {v for k, v in root.get_tags().items() if k.startswith("_dd.debug.error.") and k.endswith(".function")}
+
+            # The recursion has saturated the max frames so we should have
+            # only the function 'r' in the snapshots
+            assert fs == {"r"}, fs
+
+    def test_debugger_exception_replay_single_non_user_snapshot(self):
+        def a(v, d=None):
+            with self.trace("a"):
+                if not v:
+                    raise ValueError("hello", v)
+
+        def b(bar):
+            with self.trace("b"):
+                m = 4
+                a(bar % m)
+
+        def c(foo=42):
+            with self.trace("c"):
+                sh = 3
+                b(foo << sh)
+
+        with exception_replay() as uploader, override_third_party_packages(["tests"]):
+            # We pretend that tests is a third-party package so that we can
+            # skip all but one frames
+            with with_rate_limiter(RateLimiter(limit_rate=1, raise_on_exceed=False)):
+                with pytest.raises(ValueError):
+                    c()
+
+            self.assert_span_count(3)
+            n_snapshots = len(uploader.collector.queue)
+            assert n_snapshots == 1
+
+            snapshots = {str(s.uuid): s for s in uploader.collector.queue}
+
+            span = self.spans[-1]
+            assert span.get_tag(replay.DEBUG_INFO_TAG) == "true"
+
+            # Check that we have all the tags for each snapshot
+            assert span.get_tag("_dd.debug.error.1.snapshot_id") in snapshots
+            assert span.get_tag("_dd.debug.error.1.file") == __file__.replace(".pyc", ".py")
+            assert span.get_tag("_dd.debug.error.1.function") == "a"
+            assert span.get_tag("_dd.debug.error.1.line")

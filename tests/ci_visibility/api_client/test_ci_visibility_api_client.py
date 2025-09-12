@@ -11,6 +11,8 @@ from ddtrace.internal.ci_visibility._api_client import AgentlessTestVisibilityAP
 from ddtrace.internal.ci_visibility._api_client import EVPProxyTestVisibilityAPIClient
 from ddtrace.internal.ci_visibility._api_client import ITRData
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
+from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_BASE_PATH
+from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_BASE_PATH_V4
 from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
 from ddtrace.internal.ci_visibility.git_data import GitData
 from ddtrace.settings._config import Config
@@ -110,9 +112,9 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
             "mode": _EVP_PROXY,
             "agent_url": "http://myagent:1234",
             "expected_urls": {
-                "setting": "http://myagent:1234/evp_proxy/v2/api/v2/libraries/tests/services/setting",
-                "skippable": "http://myagent:1234/evp_proxy/v2/api/v2/ci/tests/skippable",
-                "tests": "http://myagent:1234/evp_proxy/v2/api/v2/ci/libraries/tests",
+                "setting": "http://myagent:1234/evp_proxy/v4/api/v2/libraries/tests/services/setting",
+                "skippable": "http://myagent:1234/evp_proxy/v4/api/v2/ci/tests/skippable",
+                "tests": "http://myagent:1234/evp_proxy/v4/api/v2/ci/libraries/tests",
             },
         },
     ]
@@ -139,9 +141,9 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
         },
         _EVP_PROXY: {
             "endpoints": {
-                "setting": "/evp_proxy/v2/api/v2/libraries/tests/services/setting",
-                "skippable": "/evp_proxy/v2/api/v2/ci/tests/skippable",
-                "tests": "/evp_proxy/v2/api/v2/ci/libraries/tests",
+                "setting": "/evp_proxy/v4/api/v2/libraries/tests/services/setting",
+                "skippable": "/evp_proxy/v4/api/v2/ci/tests/skippable",
+                "tests": "/evp_proxy/v4/api/v2/ci/libraries/tests",
             },
             "headers": {
                 "X-Datadog-EVP-Subdomain": "api",
@@ -343,6 +345,8 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
         _env_vars.update({"DD_CIVISIBILITY_AGENTLESS_ENABLED": "true", "DD_API_KEY": "api_key_for_testing"})
         if itr_skipping_level == ITR_SKIPPING_LEVEL.SUITE:
             _env_vars["_DD_CIVISIBILITY_ITR_SUITE_MODE"] = "true"
+        else:
+            _env_vars["_DD_CIVISIBILITY_ITR_SUITE_MODE"] = "false"
         configurations = {
             "os.architecture": "testarch64",
             "os.platform": "Not Actually Linux",
@@ -404,6 +408,8 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
 
         if itr_skipping_level == ITR_SKIPPING_LEVEL.SUITE:
             _env_vars["_DD_CIVISIBILITY_ITR_SUITE_MODE"] = "true"
+        else:
+            _env_vars["_DD_CIVISIBILITY_ITR_SUITE_MODE"] = "false"
         configurations = {
             "os.architecture": "testarch64",
             "os.platform": "Not Actually Linux",
@@ -418,13 +424,13 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
 
         git_data = GitData("git@github.com:TestDog/dd-test-py.git", "notmainbranch", "mytestcommitsha1234", "message")
         with _ci_override_env(_env_vars, full_clear=True), _patch_env_for_testing(), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=True
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_base_url",
+            return_value=EVP_PROXY_AGENT_BASE_PATH,
         ), mock.patch(
-            "ddtrace.settings._agent.config.trace_agent_url",
-            new_callable=mock.PropertyMock,
-            return_value="http://shouldntbeused:6218",
+            "ddtrace.settings._agent.config.trace_agent_url", return_value="http://shouldntbeused:6218"
         ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddtrace.tracer._agent_url", "http://patchedagenturl:6218"
+            "ddtrace.internal.ci_visibility.recorder.ddtrace.tracer._span_aggregator.writer.intake_url",
+            "http://patchedagenturl:6218",
         ):
             try:
                 expected_client = EVPProxyTestVisibilityAPIClient(
@@ -522,14 +528,20 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
         }
 
         git_data = GitData("git@github.com:TestDog/dd-test-py.git", "notmainbranch", "mytestcommitsha1234", "message")
-        with _ci_override_env(full_clear=True), _patch_env_for_testing(), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=True
-        ), mock.patch("ddtrace.internal.agent.info", return_value=agent_info_response), mock.patch(
+        with _ci_override_env(
+            {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "false"}, full_clear=True
+        ), _patch_env_for_testing(), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_base_url",
+            return_value=EVP_PROXY_AGENT_BASE_PATH,
+        ), mock.patch(
+            "ddtrace.internal.agent.info", return_value=agent_info_response
+        ), mock.patch(
             "ddtrace.settings._agent.config.trace_agent_url",
             new_callable=mock.PropertyMock,
             return_value="http://shouldntbeused:6218",
         ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddtrace.tracer._agent_url", "http://patchedagenturl:6218"
+            "ddtrace.internal.ci_visibility.recorder.ddtrace.tracer._span_aggregator.writer.intake_url",
+            "http://patchedagenturl:6218",
         ):
             try:
                 expected_client = EVPProxyTestVisibilityAPIClient(
@@ -539,6 +551,7 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
                     agent_url="http://patchedagenturl:6218",
                     dd_env="not_the_default_default_env",
                     dd_service="dd-test-py",
+                    evp_proxy_base_url=EVP_PROXY_AGENT_BASE_PATH,
                 )
                 CIVisibility.enable()
                 assert CIVisibility.enabled is True
@@ -548,3 +561,31 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
                 assert CIVisibility._instance._api_client.__dict__ == expected_client.__dict__
             finally:
                 CIVisibility.disable()
+
+    @pytest.mark.parametrize(
+        "explicit_base_path, expected_suffix",
+        [
+            (EVP_PROXY_AGENT_BASE_PATH_V4, EVP_PROXY_AGENT_BASE_PATH_V4),  # Explicit v4
+            (EVP_PROXY_AGENT_BASE_PATH, EVP_PROXY_AGENT_BASE_PATH),  # Explicit v2
+            (None, EVP_PROXY_AGENT_BASE_PATH),  # Default (v2)
+        ],
+    )
+    def test_evp_proxy_client_constructor_base_url(self, explicit_base_path, expected_suffix):
+        """Tests that EVPProxyTestVisibilityAPIClient uses the correct base path."""
+        agent_url = "http://agent:8126"
+
+        kwargs = {
+            "agent_url": agent_url,
+            "itr_skipping_level": ITR_SKIPPING_LEVEL.TEST,
+            "git_data": None,
+            "configurations": None,
+            "dd_service": None,
+            "dd_env": None,
+            "timeout": 10.0,
+        }
+        if explicit_base_path:
+            kwargs["evp_proxy_base_url"] = explicit_base_path
+
+        client = EVPProxyTestVisibilityAPIClient(**kwargs)
+
+        assert client._base_url == f"{agent_url}{expected_suffix}"

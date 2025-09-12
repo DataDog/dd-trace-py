@@ -7,15 +7,16 @@ import pytest
 import ddtrace
 from ddtrace.ext import ci
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
-from ddtrace.ext.test_visibility._item_ids import TestModuleId
-from ddtrace.ext.test_visibility._item_ids import TestSuiteId
+from ddtrace.ext.test_visibility._test_visibility_base import TestId
+from ddtrace.ext.test_visibility._test_visibility_base import TestModuleId
+from ddtrace.ext.test_visibility._test_visibility_base import TestSuiteId
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility._api_client import AgentlessTestVisibilityAPIClient
 from ddtrace.internal.ci_visibility._api_client import EVPProxyTestVisibilityAPIClient
+from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_BASE_PATH_V4
 from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.git_data import GitData
-from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.utils.http import Response
 
 
@@ -112,7 +113,7 @@ def _make_fqdn_internal_test_id(module_name: str, suite_name: str, test_name: st
 
     This is useful for mass-making test ids.
     """
-    return InternalTestId(TestSuiteId(TestModuleId(module_name), suite_name), test_name, parameters)
+    return TestId(TestSuiteId(TestModuleId(module_name), suite_name), test_name, parameters)
 
 
 def _make_fqdn_test_ids(test_descs: t.List[t.Union[t.Tuple[str, str, str], t.Tuple[str, str, str, str]]]):
@@ -175,7 +176,7 @@ class TestTestVisibilityAPIClientBase:
         self,
         itr_skipping_level: ITR_SKIPPING_LEVEL = ITR_SKIPPING_LEVEL.TEST,
         requests_mode: REQUESTS_MODE = _AGENTLESS,
-        git_data: GitData = None,
+        git_data: t.Optional[GitData] = None,
         api_key: t.Optional[str] = "my_api_key",
         dd_site: t.Optional[str] = None,
         agentless_url: t.Optional[str] = None,
@@ -208,12 +209,13 @@ class TestTestVisibilityAPIClientBase:
                 dd_service,
                 dd_env,
                 client_timeout,
+                evp_proxy_base_url=EVP_PROXY_AGENT_BASE_PATH_V4,
             )
 
     def _get_expected_do_request_setting_payload(
         self,
         itr_skipping_level: ITR_SKIPPING_LEVEL = ITR_SKIPPING_LEVEL.TEST,
-        git_data: GitData = None,
+        git_data: t.Optional[GitData] = None,
         dd_service: t.Optional[str] = None,
         dd_env: t.Optional[str] = None,
     ):
@@ -244,7 +246,7 @@ class TestTestVisibilityAPIClientBase:
     def _get_expected_do_request_skippable_payload(
         self,
         itr_skipping_level: ITR_SKIPPING_LEVEL = ITR_SKIPPING_LEVEL.TEST,
-        git_data: GitData = None,
+        git_data: t.Optional[GitData] = None,
         dd_service: t.Optional[str] = None,
         dd_env: t.Optional[str] = None,
     ):
@@ -273,7 +275,7 @@ class TestTestVisibilityAPIClientBase:
 
     def _get_expected_do_request_tests_payload(
         self,
-        repository_url: str = None,
+        repository_url: t.Optional[str] = None,
         dd_service: t.Optional[str] = None,
         dd_env: t.Optional[str] = None,
     ):

@@ -1,11 +1,12 @@
 import os
+from typing import Dict
 from urllib import parse
 
 import urllib3
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
@@ -21,7 +22,6 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.trace import Pin
 
 
 # Ports which, if set, will not be used in hostnames/service names
@@ -44,6 +44,10 @@ def get_version():
     return getattr(urllib3, "__version__", "")
 
 
+def _supported_versions() -> Dict[str, str]:
+    return {"urllib3": ">=1.25.0"}
+
+
 def patch():
     """Enable tracing for all urllib3 requests"""
     if getattr(urllib3, "__datadog_patch", False):
@@ -53,7 +57,9 @@ def patch():
     _w("urllib3", "connectionpool.HTTPConnectionPool.urlopen", _wrap_urlopen)
     if asm_config._load_modules:
         from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_request
+        from ddtrace.appsec._common_module_patches import wrapped_urllib3_make_request as _make_request
 
+        _w("urllib3.connectionpool", "HTTPConnectionPool._make_request", _make_request)
         if hasattr(urllib3, "_request_methods"):
             _w("urllib3._request_methods", "RequestMethods.request", _wrap_request)
         else:
@@ -138,9 +144,6 @@ def _wrap_urlopen(func, instance, args, kwargs):
                 request_headers = {}
                 kwargs["headers"] = request_headers
             HTTPPropagator.inject(span.context, request_headers)
-
-        if config.urllib3.analytics_enabled:
-            span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.urllib3.get_analytics_sample_rate())
 
         retries = request_retries.total if isinstance(request_retries, urllib3.util.retry.Retry) else None
 

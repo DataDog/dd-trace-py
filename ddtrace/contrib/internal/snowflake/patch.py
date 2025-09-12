@@ -1,8 +1,10 @@
 import os
+from typing import Dict
 
 import wrapt
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.dbapi import TracedCursor
 from ddtrace.contrib.internal.trace_utils import unwrap
@@ -10,7 +12,6 @@ from ddtrace.ext import db
 from ddtrace.ext import net
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.trace import Pin
 
 
 config._add(
@@ -37,6 +38,10 @@ def get_version():
 
         c = sys.modules.get("snowflake.connector")
     return str(c.__version__)
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"snowflake": ">=2.3.0"}
 
 
 class _SFTracedCursor(TracedCursor):

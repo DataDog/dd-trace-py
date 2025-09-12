@@ -2,12 +2,11 @@
 CAVEAT: the line number is important to some IAST tests, be careful to modify this file and update the tests if you
 make some changes
 """
+import _io
 import asyncio
 import os
 import re
 import sys
-
-import _io
 
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -153,7 +152,10 @@ def propagation_memory_check(origin_string1, tainted_string_2):
     string13_pre = string12 + "\n"
     string13 = string13_pre + "notainted"
     # TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE_notainted\nnotainted
-    string14 = string13.splitlines()[0]  # string14 = string12
+    string13_1 = string13.strip()
+    string13_2 = string13_1.rstrip()
+    string13_3 = string13_2.lstrip()
+    string14 = string13_3.splitlines()[0]  # string14 = string12
     # TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE_notainted
     string15 = os.path.join("foo", "bar", string14)
     # /foo/bar/TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE_notainted

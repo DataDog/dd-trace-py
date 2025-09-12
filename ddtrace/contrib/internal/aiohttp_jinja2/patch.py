@@ -1,13 +1,15 @@
+from typing import Dict
+
 import aiohttp_jinja2
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.trace import Pin
 
 
 config._add(
@@ -19,6 +21,10 @@ config._add(
 def get_version():
     # type: () -> str
     return getattr(aiohttp_jinja2, "__version__", "")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"aiohttp_jinja2": ">=1.5.0"}
 
 
 @with_traced_module

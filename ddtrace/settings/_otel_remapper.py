@@ -71,7 +71,7 @@ def _remap_traces_exporter(otel_value: str) -> Optional[str]:
 
 def _remap_metrics_exporter(otel_value: str) -> Optional[str]:
     """Remaps the otel metrics exporter to ddtrace metrics exporter"""
-    if otel_value == "none":
+    if otel_value == "none" or otel_value == "otlp":
         return "False"
     return None
 
@@ -132,7 +132,38 @@ ENV_VAR_MAPPINGS: Dict[str, Tuple[str, Callable[[str], Optional[str]]]] = {
 }
 
 
-def parse_otel_env(otel_env: str) -> Optional[str]:
+# https://github.com/open-telemetry/opentelemetry-python/blob/v1.34.1/opentelemetry-sdk/src/opentelemetry/sdk/environment_variables/__init__.py
+SUPPORTED_OTEL_ENV_VARS = {
+    "OTEL_PYTHON_CONTEXT",
+    "OTEL_TRACES_SAMPLER_ARG",
+    "OTEL_EXPORTER_OTLP_TIMEOUT",
+    "OTEL_EXPORTER_OTLP_PROTOCOL",
+    "OTEL_EXPORTER_OTLP_HEADERS",
+    "OTEL_EXPORTER_OTLP_ENDPOINT",
+    "OTEL_EXPORTER_OTLP_COMPRESSION",
+    "OTEL_EXPORTER_OTLP_CERTIFICATE",
+    "OTEL_LOGS_EXPORTER",
+    "OTEL_EXPORTER_OTLP_LOGS_PROTOCOL",
+    "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT",
+    "OTEL_EXPORTER_OTLP_LOGS_CLIENT_KEY",
+    "OTEL_EXPORTER_OTLP_LOGS_CLIENT_CERTIFICATE",
+    "OTEL_EXPORTER_OTLP_LOGS_HEADERS",
+    "OTEL_EXPORTER_OTLP_LOGS_INSECURE",
+    "OTEL_EXPORTER_OTLP_LOGS_COMPRESSION",
+    "OTEL_EXPORTER_OTLP_LOGS_TIMEOUT",
+    "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL",
+    "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT",
+    "OTEL_EXPORTER_OTLP_METRICS_CERTIFICATE",
+    "OTEL_EXPORTER_OTLP_METRICS_CLIENT_KEY",
+    "OTEL_EXPORTER_OTLP_METRICS_CLIENT_CERTIFICATE",
+    "OTEL_EXPORTER_OTLP_METRICS_HEADERS",
+    "OTEL_EXPORTER_OTLP_METRICS_INSECURE",
+    "OTEL_EXPORTER_OTLP_METRICS_COMPRESSION",
+    "OTEL_EXPORTER_OTLP_METRICS_TIMEOUT",
+}
+
+
+def parse_otel_env(otel_env: str) -> Tuple[str, Optional[str]]:
     _, otel_config_validator = ENV_VAR_MAPPINGS[otel_env]
     raw_value = os.environ.get(otel_env, "")
     if otel_env not in ("OTEL_RESOURCE_ATTRIBUTES", "OTEL_SERVICE_NAME"):
@@ -140,5 +171,5 @@ def parse_otel_env(otel_env: str) -> Optional[str]:
         raw_value = raw_value.lower()
     mapped_value = otel_config_validator(raw_value)
     if mapped_value is None:
-        return None
-    return mapped_value
+        return "", None
+    return raw_value, mapped_value

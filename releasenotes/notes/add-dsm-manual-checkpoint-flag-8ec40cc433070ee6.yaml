@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    DSM: Add flag in set_consume_checkpoint() to indicate if DSM checkpoint was manually set.

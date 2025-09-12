@@ -1,12 +1,14 @@
 import inspect
 import os
+from typing import Dict
 
 from boto import __version__
 import boto.connection
 import wrapt
 
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace._trace.pin import Pin
+from ddtrace._trace.utils_botocore.span_tags import _derive_peer_hostname
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
@@ -16,10 +18,10 @@ from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_cloud_api_operation
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap
-from ddtrace.trace import Pin
 
 
 # Original boto client class
@@ -50,6 +52,10 @@ config._add(
 def get_version():
     # type: () -> str
     return __version__
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"boto": "*"}
 
 
 def patch():
@@ -93,7 +99,8 @@ def patched_query_request(original_func, instance, args, kwargs):
         # set span.kind to the type of request being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-        span.set_tag(_SPAN_MEASURED_KEY)
+        # PERF: avoid setting via Span.set_tag
+        span.set_metric(_SPAN_MEASURED_KEY, 1)
 
         operation_name = None
         if args:
@@ -118,15 +125,18 @@ def patched_query_request(original_func, instance, args, kwargs):
             meta[aws.REGION] = region_name
             meta[aws.AWSREGION] = region_name
 
+            if in_aws_lambda():
+                # Derive the peer hostname now that we have both service and region.
+                hostname = _derive_peer_hostname(endpoint_name, region_name, params)
+                if hostname:
+                    meta["peer.service"] = hostname
+
         span.set_tags(meta)
 
         # Original func returns a boto.connection.HTTPResponse object
         result = original_func(*args, **kwargs)
         span.set_tag(http.STATUS_CODE, result.status)
         span.set_tag_str(http.METHOD, result._method)
-
-        # set analytics sample rate
-        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.boto.get_analytics_sample_rate())
 
         return result
 
@@ -164,7 +174,8 @@ def patched_auth_request(original_func, instance, args, kwargs):
         service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
         span_type=SpanTypes.HTTP,
     ) as span:
-        span.set_tag(_SPAN_MEASURED_KEY)
+        # PERF: avoid setting via Span.set_tag
+        span.set_metric(_SPAN_MEASURED_KEY, 1)
         if args:
             http_method = get_argument_value(args, kwargs, 0, "method")
             span.resource = "%s.%s" % (endpoint_name, http_method.lower())
@@ -182,15 +193,18 @@ def patched_auth_request(original_func, instance, args, kwargs):
             meta[aws.REGION] = region_name
             meta[aws.AWSREGION] = region_name
 
+            if in_aws_lambda():
+                # Derive the peer hostname
+                hostname = _derive_peer_hostname(endpoint_name, region_name, None)
+                if hostname:
+                    meta["peer.service"] = hostname
+
         span.set_tags(meta)
 
         # Original func returns a boto.connection.HTTPResponse object
         result = original_func(*args, **kwargs)
         span.set_tag(http.STATUS_CODE, result.status)
         span.set_tag_str(http.METHOD, result._method)
-
-        # set analytics sample rate
-        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.boto.get_analytics_sample_rate())
 
         span.set_tag_str(COMPONENT, config.boto.integration_name)
 

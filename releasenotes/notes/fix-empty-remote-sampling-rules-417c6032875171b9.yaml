@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where empty sampling rules list in remote configuration events caused an AttributeError when reinitializating the DatadogSampler.
+    This prevented sampling rules from being reset.
+    Note: This only affected cases where sampling rules were an empty list. It did not impact cases with at least one rule or when rules were set to null.

@@ -6,9 +6,8 @@ import pylibmc
 from wrapt import ObjectProxy
 
 # project
-import ddtrace
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.pylibmc.addrs import parse_addresses
@@ -51,7 +50,7 @@ class TracedClient(ObjectProxy):
         super(TracedClient, self).__init__(client)
 
         schematized_service = schematize_service_name(service)
-        pin = ddtrace.trace.Pin(service=schematized_service)
+        pin = Pin(service=schematized_service)
         pin._tracer = tracer
         pin.onto(self)
 
@@ -65,7 +64,7 @@ class TracedClient(ObjectProxy):
         # rewrap new connections.
         cloned = self.__wrapped__.clone(*args, **kwargs)
         traced_client = TracedClient(cloned)
-        pin = ddtrace.trace.Pin.get_from(self)
+        pin = Pin.get_from(self)
         if pin:
             pin.clone().onto(traced_client)
         return traced_client
@@ -156,7 +155,7 @@ class TracedClient(ObjectProxy):
 
     def _span(self, cmd_name):
         """Return a span timing the given command."""
-        pin = ddtrace.trace.Pin.get_from(self)
+        pin = Pin.get_from(self)
         if not pin or not pin.enabled():
             return self._no_span()
 
@@ -173,7 +172,8 @@ class TracedClient(ObjectProxy):
         # set span.kind to the type of operation being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-        span.set_tag(_SPAN_MEASURED_KEY)
+        # PERF: avoid setting via Span.set_tag
+        span.set_metric(_SPAN_MEASURED_KEY, 1)
 
         try:
             self._tag_span(span)
@@ -189,6 +189,3 @@ class TracedClient(ObjectProxy):
             span.set_tag_str(net.TARGET_HOST, host)
             span.set_tag(net.TARGET_PORT, port)
             span.set_tag_str(net.SERVER_ADDRESS, host)
-
-        # set analytics sample rate
-        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.pylibmc.get_analytics_sample_rate())

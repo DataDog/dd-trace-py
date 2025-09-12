@@ -1,0 +1,23 @@
+include:
+  - local: ".gitlab/testrunner.yml"
+
+"rust ci":
+  stage: tests
+  image: !reference [.testrunner, image]
+  tags: !reference [.testrunner, tags]
+  timeout: 10m
+  needs: []
+  before_script: cd src/native
+  script:
+    - |
+      echo -e "\e[0Ksection_start:`date +%s`:cargo_fmt[collapsed=true]\r\e[0Kcargo fmt"
+      cargo fmt --all -- --check
+      echo -e "\e[0Ksection_end:`date +%s`:cargo_fmt\r\e[0K"
+    - |
+      echo -e "\e[0Ksection_start:`date +%s`:cargo_clippy[collapsed=true]\r\e[0Kcargo clippy"
+      cargo clippy -- -D warnings
+      echo -e "\e[0Ksection_end:`date +%s`:cargo_clippy\r\e[0K"
+    - |
+      echo -e "\e[0Ksection_start:`date +%s`:cargo_test[collapsed=true]\r\e[0Kcargo test"
+      cargo test --no-fail-fast --locked
+      echo -e "\e[0Ksection_end:`date +%s`:cargo_test\r\e[0K"

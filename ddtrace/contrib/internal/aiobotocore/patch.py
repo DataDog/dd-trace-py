@@ -1,10 +1,12 @@
 import os
+from typing import Dict
 
 import aiobotocore.client
 import wrapt
 
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace._trace.pin import Pin
+from ddtrace._trace.utils_botocore.span_tags import _derive_peer_hostname
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.trace_utils import ext_service
@@ -16,12 +18,12 @@ from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_cloud_api_operation
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.trace import Pin
 
 
 aiobotocore_version_str = getattr(aiobotocore, "__version__", "")
@@ -49,6 +51,10 @@ config._add(
 def get_version():
     # type: () -> str
     return aiobotocore_version_str
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"aiobotocore": ">=1.0.0"}
 
 
 def patch():
@@ -125,7 +131,8 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
         # set span.kind tag equal to type of request
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-        span.set_tag(_SPAN_MEASURED_KEY)
+        # PERF: avoid setting via Span.set_tag
+        span.set_metric(_SPAN_MEASURED_KEY, 1)
 
         try:
             operation = get_argument_value(args, kwargs, 0, "operation_name")
@@ -140,6 +147,12 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
             span.resource = endpoint_name
 
         region_name = deep_getattr(instance, "meta.region_name")
+
+        if in_aws_lambda():
+            # Derive the peer hostname now that we have both service and region.
+            hostname = _derive_peer_hostname(endpoint_name, region_name, params)
+            if hostname:
+                span.set_tag_str("peer.service", hostname)
 
         meta = {
             "aws.agent": "aiobotocore",
@@ -173,8 +186,5 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
         request_id2 = response_headers.get("x-amz-id-2")
         if request_id2:
             span.set_tag_str("aws.requestid2", request_id2)
-
-        # set analytics sample rate
-        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.aiobotocore.get_analytics_sample_rate())
 
         return result

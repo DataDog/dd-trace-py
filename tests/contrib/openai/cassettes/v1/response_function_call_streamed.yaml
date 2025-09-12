@@ -1,0 +1,182 @@
+interactions:
+- request:
+    body: '{"input":"What is the weather like in Boston today?","model":"gpt-4.1","stream":true,"tools":[{"type":"function","name":"get_current_weather","description":"Get
+      the current weather in a given location","parameters":{"type":"object","properties":{"location":{"type":"string","description":"The
+      city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"]}},"required":["location","unit"]}}],"user":"ddtrace-test"}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '448'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.76.2
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.76.2
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.10
+    method: POST
+    uri: https://api.openai.com/v1/responses
+  response:
+    body:
+      string: 'event: response.created
+
+        data: {"type":"response.created","response":{"id":"resp_682c9421a0b881918d920a1c0ad7a6250b603284be451166","object":"response","created_at":1747751969,"status":"in_progress","error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"model":"gpt-4.1-2025-04-14","output":[],"parallel_tool_calls":true,"previous_response_id":null,"reasoning":{"effort":null,"summary":null},"service_tier":"auto","store":false,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":"auto","tools":[{"type":"function","description":"Get
+        the current weather in a given location","name":"get_current_weather","parameters":{"type":"object","properties":{"location":{"type":"string","description":"The
+        city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"]}},"required":["location","unit"]},"strict":true}],"top_p":1.0,"truncation":"disabled","usage":null,"user":"ddtrace-test","metadata":{}}}
+
+
+        event: response.in_progress
+
+        data: {"type":"response.in_progress","response":{"id":"resp_682c9421a0b881918d920a1c0ad7a6250b603284be451166","object":"response","created_at":1747751969,"status":"in_progress","error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"model":"gpt-4.1-2025-04-14","output":[],"parallel_tool_calls":true,"previous_response_id":null,"reasoning":{"effort":null,"summary":null},"service_tier":"auto","store":false,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":"auto","tools":[{"type":"function","description":"Get
+        the current weather in a given location","name":"get_current_weather","parameters":{"type":"object","properties":{"location":{"type":"string","description":"The
+        city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"]}},"required":["location","unit"]},"strict":true}],"top_p":1.0,"truncation":"disabled","usage":null,"user":"ddtrace-test","metadata":{}}}
+
+
+        event: response.output_item.added
+
+        data: {"type":"response.output_item.added","output_index":0,"item":{"id":"fc_682c94223680819192287a2f84ee1bb20b603284be451166","type":"function_call","status":"in_progress","arguments":"","call_id":"call_lGe2JKQEBSP15opZ3KfxtEUC","name":"get_current_weather"}}
+
+
+        event: response.function_call_arguments.delta
+
+        data: {"type":"response.function_call_arguments.delta","item_id":"fc_682c94223680819192287a2f84ee1bb20b603284be451166","output_index":0,"delta":"{\""}
+
+
+        event: response.function_call_arguments.delta
+
+        data: {"type":"response.function_call_arguments.delta","item_id":"fc_682c94223680819192287a2f84ee1bb20b603284be451166","output_index":0,"delta":"location"}
+
+
+        event: response.function_call_arguments.delta
+
+        data: {"type":"response.function_call_arguments.delta","item_id":"fc_682c94223680819192287a2f84ee1bb20b603284be451166","output_index":0,"delta":"\":\""}
+
+
+        event: response.function_call_arguments.delta
+
+        data: {"type":"response.function_call_arguments.delta","item_id":"fc_682c94223680819192287a2f84ee1bb20b603284be451166","output_index":0,"delta":"Boston"}
+
+
+        event: response.function_call_arguments.delta
+
+        data: {"type":"response.function_call_arguments.delta","item_id":"fc_682c94223680819192287a2f84ee1bb20b603284be451166","output_index":0,"delta":","}
+
+
+        event: response.function_call_arguments.delta
+
+        data: {"type":"response.function_call_arguments.delta","item_id":"fc_682c94223680819192287a2f84ee1bb20b603284be451166","output_index":0,"delta":"
+        MA"}
+
+
+        event: response.function_call_arguments.delta
+
+        data: {"type":"response.function_call_arguments.delta","item_id":"fc_682c94223680819192287a2f84ee1bb20b603284be451166","output_index":0,"delta":"\",\""}
+
+
+        event: response.function_call_arguments.delta
+
+        data: {"type":"response.function_call_arguments.delta","item_id":"fc_682c94223680819192287a2f84ee1bb20b603284be451166","output_index":0,"delta":"unit"}
+
+
+        event: response.function_call_arguments.delta
+
+        data: {"type":"response.function_call_arguments.delta","item_id":"fc_682c94223680819192287a2f84ee1bb20b603284be451166","output_index":0,"delta":"\":\""}
+
+
+        event: response.function_call_arguments.delta
+
+        data: {"type":"response.function_call_arguments.delta","item_id":"fc_682c94223680819192287a2f84ee1bb20b603284be451166","output_index":0,"delta":"c"}
+
+
+        event: response.function_call_arguments.delta
+
+        data: {"type":"response.function_call_arguments.delta","item_id":"fc_682c94223680819192287a2f84ee1bb20b603284be451166","output_index":0,"delta":"elsius"}
+
+
+        event: response.function_call_arguments.delta
+
+        data: {"type":"response.function_call_arguments.delta","item_id":"fc_682c94223680819192287a2f84ee1bb20b603284be451166","output_index":0,"delta":"\"}"}
+
+
+        event: response.function_call_arguments.done
+
+        data: {"type":"response.function_call_arguments.done","item_id":"fc_682c94223680819192287a2f84ee1bb20b603284be451166","output_index":0,"arguments":"{\"location\":\"Boston,
+        MA\",\"unit\":\"celsius\"}"}
+
+
+        event: response.output_item.done
+
+        data: {"type":"response.output_item.done","output_index":0,"item":{"id":"fc_682c94223680819192287a2f84ee1bb20b603284be451166","type":"function_call","status":"completed","arguments":"{\"location\":\"Boston,
+        MA\",\"unit\":\"celsius\"}","call_id":"call_lGe2JKQEBSP15opZ3KfxtEUC","name":"get_current_weather"}}
+
+
+        event: response.completed
+
+        data: {"type":"response.completed","response":{"id":"resp_682c9421a0b881918d920a1c0ad7a6250b603284be451166","object":"response","created_at":1747751969,"status":"completed","error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"model":"gpt-4.1-2025-04-14","output":[{"id":"fc_682c94223680819192287a2f84ee1bb20b603284be451166","type":"function_call","status":"completed","arguments":"{\"location\":\"Boston,
+        MA\",\"unit\":\"celsius\"}","call_id":"call_lGe2JKQEBSP15opZ3KfxtEUC","name":"get_current_weather"}],"parallel_tool_calls":true,"previous_response_id":null,"reasoning":{"effort":null,"summary":null},"service_tier":"default","store":false,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":"auto","tools":[{"type":"function","description":"Get
+        the current weather in a given location","name":"get_current_weather","parameters":{"type":"object","properties":{"location":{"type":"string","description":"The
+        city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"]}},"required":["location","unit"]},"strict":true}],"top_p":1.0,"truncation":"disabled","usage":{"input_tokens":75,"input_tokens_details":{"cached_tokens":0},"output_tokens":23,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":98},"user":"ddtrace-test","metadata":{}}}
+
+
+        '
+    headers:
+      CF-RAY:
+      - 942c9570a8be906b-BOS
+      Connection:
+      - keep-alive
+      Content-Type:
+      - text/event-stream; charset=utf-8
+      Date:
+      - Tue, 20 May 2025 14:39:29 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=isE0pLOsV9IMAtNOBnvrwG9w5N1i3bOD31RitLNP0H8-1747751969-1.0.1.1-.wMI6uKcS93TcwNItltdB.3svJgfRIVDeefoX.pOEz96_YsGXYNVuJ3dFE8ct30OErE8v1rm_iWNfG23p_O2YwBo7Qs9yl5YQ4S2c9OPutY;
+        path=/; expires=Tue, 20-May-25 15:09:29 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=q4f8WID1oFQIjkPMAo8tEkS3GnqXOPiffB5HWMkd0jE-1747751969691-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-staging
+      openai-processing-ms:
+      - '70'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-request-id:
+      - req_a4ba0f8d71d8e0d57bca81130a694553
+    status:
+      code: 200
+      message: OK
+version: 1

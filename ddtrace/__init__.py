@@ -26,12 +26,6 @@ from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
 from ddtrace.vendor import debtcollector
 from .version import get_version  # noqa: E402
 
-
-# TODO(mabdinur): Remove this once we have a better way to start the mini agent
-from ddtrace.internal.serverless.mini_agent import maybe_start_serverless_mini_agent as _start_mini_agent
-
-_start_mini_agent()
-
 __version__ = get_version()
 
 # TODO: Deprecate accessing tracer from ddtrace.__init__ module in v4.0

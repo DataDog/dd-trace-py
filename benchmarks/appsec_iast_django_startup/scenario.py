@@ -62,6 +62,9 @@ class IASTDjangoStartup(bm.Scenario):
     appsec_enabled: bool
     iast_enabled: bool
 
+    # Not helpful for subprocess benchmarks
+    cprofile_loops: int = 0
+
     def run(self):
         def _(loops):
             for _ in range(loops):

@@ -2,6 +2,7 @@ from collections import Counter
 import glob
 import json
 import os
+import tempfile
 
 import mock
 import pytest
@@ -463,3 +464,73 @@ def test_build_git_packfiles_temp_dir_value_error(_temp_dir_mock, git_repo):
             pytest.fail()
     # CWD is not a temporary dir, so no deleted after using it.
     assert os.path.isdir(directory)
+
+
+def test_github_pull_request_head_sha():
+    fake_event_data = {"pull_request": {"head": {"sha": "headCommitSha"}}}
+    with tempfile.NamedTemporaryFile(mode="w+", delete=False) as event_file:
+        json.dump(fake_event_data, event_file)
+        event_file_path = event_file.name
+
+    env = {
+        "GITHUB_JOB": "test_job",
+        "GITHUB_EVENT_PATH": event_file_path,
+        "GITHUB_SERVER_URL": "https://github.com",
+        "GITHUB_REPOSITORY": "DataDog/dd-trace-py",
+        "GITHUB_REF": "refs/heads/main",
+        "GITHUB_HEAD_REF": "main",
+        "GITHUB_SHA": "mainCommitSha",
+        "GITHUB_RUN_ID": "12345",
+        "GITHUB_RUN_NUMBER": "1",
+        "GITHUB_WORKFLOW": "CI",
+        "GITHUB_WORKSPACE": "/workspace",
+    }
+
+    tags = ci.extract_github_actions(env=env)
+
+    os.remove(event_file_path)
+
+    assert tags[git.BRANCH] == "main"
+    assert tags[git.COMMIT_SHA] == "mainCommitSha"
+    assert tags[git.REPOSITORY_URL] == "https://github.com/DataDog/dd-trace-py.git"
+    assert tags[git.COMMIT_HEAD_SHA] == "headCommitSha"
+    assert tags[ci.JOB_URL] == "https://github.com/DataDog/dd-trace-py/commit/mainCommitSha/checks"
+    assert tags[ci.PIPELINE_ID] == "12345"
+    assert tags[ci.PIPELINE_NAME] == "CI"
+    assert tags[ci.PIPELINE_NUMBER] == "1"
+    assert tags[ci.PIPELINE_URL] == "https://github.com/DataDog/dd-trace-py/actions/runs/12345"
+    assert tags[ci.JOB_NAME] == "test_job"
+    assert tags[ci.PROVIDER_NAME] == "github"
+    assert tags[ci.WORKSPACE_PATH] == "/workspace"
+    assert (
+        tags[ci._CI_ENV_VARS]
+        == '{"GITHUB_SERVER_URL":"https://github.com","GITHUB_REPOSITORY":"DataDog/dd-trace-py","GITHUB_RUN_ID":"12345"}'
+    )
+
+
+def test_extract_git_head_metadata():
+    fake_user_info = {
+        "author": ("Author", "a@author.com", "date1"),
+        "committer": ("Committer", "c@committer.com", "date2"),
+    }
+
+    with mock.patch(
+        "ddtrace.ext.git._is_shallow_repository_with_details", return_value=(True, 0.1, 0)
+    ) as mock_is_shallow, mock.patch("ddtrace.ext.git._unshallow_repository") as mock_unshallow_repository, mock.patch(
+        "ddtrace.ext.git.extract_user_info", return_value=fake_user_info
+    ), mock.patch(
+        "ddtrace.ext.git._git_subprocess_cmd", return_value="commit message"
+    ) as mock_git_subprocess_cmd:
+        tags = git.extract_git_head_metadata("sha123", cwd="/repo")
+
+    mock_is_shallow.assert_called_once()
+    mock_unshallow_repository.assert_called_once()
+    mock_git_subprocess_cmd.assert_called_once_with("log -n 1 --format=%B sha123", "/repo")
+
+    assert tags[git.COMMIT_HEAD_AUTHOR_NAME] == "Author"
+    assert tags[git.COMMIT_HEAD_AUTHOR_EMAIL] == "a@author.com"
+    assert tags[git.COMMIT_HEAD_AUTHOR_DATE] == "date1"
+    assert tags[git.COMMIT_HEAD_COMMITTER_NAME] == "Committer"
+    assert tags[git.COMMIT_HEAD_COMMITTER_EMAIL] == "c@committer.com"
+    assert tags[git.COMMIT_HEAD_COMMITTER_DATE] == "date2"
+    assert tags[git.COMMIT_HEAD_MESSAGE] == "commit message"

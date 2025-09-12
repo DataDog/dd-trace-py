@@ -11,7 +11,7 @@ There's a skeleton module in ``templates/integration`` that can serve as a helpf
 for new integrations. You can copy it to ``contrib`` and replace ``foo`` with the name of the library you're
 integrating with::
 
-      cp -r templates/integration ddtrace/contrib/<integration>
+      cp -r templates/integration ddtrace/contrib/internal/<integration>
 
 Integrations must avoid changing the contract between the application and the integrated library. That is, they
 should be completely invisible to the application code. This means integration code should, for example,
@@ -19,6 +19,13 @@ re-raise exceptions after catching them.
 
 Integrations shouldn't include any code that references concepts that are specific to Datadog Products. Examples
 include Tracing Spans and the AppSec WAF.
+
+Integrations should avoid exposing a public API unless it is absolutely necessary. Users should be able to configure
+the integration by setting environment variables or using the Pin API. For cases where a public API is necessary, integrations
+should expose the API in ``ddtrace.contrib.<integration_name>.py``. 
+
+Integrations should define a ``ddtrace.contrib.internal.<integration>.__init__.py`` module that contains a doc string describing the integration
+and it's supported configurations. This module should be referenced in the ``docs/integrations.rst`` file.
 
 What tools does an integration rely on?
 ---------------------------------------
@@ -177,7 +184,6 @@ are not yet any expected spans stored for it, so we need to create some.
    $ scripts/ddtest
    > DD_AGENT_PORT=9126 riot -v run --pass-env <test_suite_name>
 
-
 10. Check ``git status`` and observe that some new files have been created under ``tests/snapshots/``.
     These files contain JSON representations of the spans created by the instrumentation that ran
     during your test function. Look over these spans to make sure that they're what you'd expect
@@ -189,18 +195,41 @@ are not yet any expected spans stored for it, so we need to create some.
     not match.
 13. Repeat steps 7 through 9 until you've achieved test coverage for the entire "happy path" of normal usage
     for the library you're integrating with, as well as coverage of any known likely edge cases.
-14. Enable the `snapshot` option in `.circleci/config.templ.yml` and run the test as a `machine_executor` at ``.circleci/config.templ.yml``
-    just like:
+14. Add a component to `tests/contrib/suitespec.yml` for your integration. The component name should match
+    your integration name and list all related files. This helps CI run only relevant tests when files change.
+
+    Example:
 
 .. code-block:: yaml
 
-  <test_suite_name>:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: '<test_suite_name>'
-          snapshot: true
+    mongo:
+    - ddtrace/contrib/internal/pymongo/*
+    - ddtrace/contrib/internal/mongoengine/*
+    - ddtrace/ext/mongo.py
 
+15. Add a `suite` for your integration in `tests/contrib/suitespec.yml`. This defines test configuration
+    including which docker services to run and file paths to monitor. Set `snapshot: true` for snapshot tests
+    to enable the test agent.
+
+    Example:
+
+.. code-block:: yaml
+
+    asyncpg:
+    parallelism: 2
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@pg'
+      - tests/contrib/asyncpg/*
+      - tests/snapshots/tests.{suite}.*
+      - tests/contrib/shared_tests_async.py
+    runner: riot
+    snapshot: true
+    services:
+      - postgres
 
 If in the process of writing tests for your integration you create a sample application,
 consider adding it to the `trace examples repository <https://github.com/Datadog/trace-examples>`_ along
@@ -212,10 +241,10 @@ What does a complete PR look like when adding a new integration?
 The following is the check list for ensuring you have all of the components to have a complete PR that is ready for review.
 
 - Define `patch` and `unpatch` functions for your new integration under ``ddtrace/contrib/internal/your_integration_name``.
-- Document your integration in a ``ddtrace/contrib/_integration_name.py`` module and reference the doc string in ``docs/integrations.rst``.
+- Document your integration in a ``ddtrace/contrib/internal/<integration_name>/__init__.py`` module and reference the doc string in ``docs/integrations.rst``.
 - Test code for the above in ``tests/contrib/your_integration_name``.
 - The virtual environment configurations for your tests in ``riotfile.py``.
-- The Circle CI configurations for your tests in ``.circleci/config.templ.yml``.
+- The Gitlab CI configurations for your tests in ``tests/contrib/suitespec.yml``.
 - Your integration added to ``PATCH_MODULES`` in ``ddtrace/_monkey.py`` to enable auto instrumentation for it.
 - The relevant file paths for your integration added to a suitespec file (see ``tests/README.md`` for details).
 - A release note for your addition generated with ``riot run reno new YOUR_TITLE_SLUG``, which will add ``releasenotes/notes/YOUR_TITLE_SLUG.yml``.

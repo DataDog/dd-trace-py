@@ -1,4 +1,5 @@
 from inspect import unwrap
+from typing import Dict
 
 import flask
 import werkzeug
@@ -10,6 +11,7 @@ from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.internal.packages import get_version_for_package
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
@@ -30,13 +32,13 @@ except ImportError:
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.contrib.internal.wsgi.wsgi import _DDWSGIMiddlewareBase
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.trace import Pin
 
 from .wrappers import _wrap_call_with_pin_check
 from .wrappers import get_current_app
@@ -75,6 +77,10 @@ config._add(
 def get_version():
     # type: () -> str
     return get_version_for_package("flask")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"flask": ">=1.1.4"}
 
 
 def get_werkzeug_version():
@@ -449,7 +455,8 @@ def patched_add_url_rule(wrapped, instance, args, kwargs):
             #   should we do something special with these views? Change the name/resource? Add tags?
             core.dispatch("service_entrypoint.patch", (unwrap(view_func),))
             wrapped_view = wrap_view(instance, view_func, name=endpoint, resource=rule)
-
+        for method in kwargs.get("methods", []):
+            endpoint_collection.add_endpoint(method, rule, operation_name="flask.request")
         return wrapped(
             rule,
             endpoint=endpoint,

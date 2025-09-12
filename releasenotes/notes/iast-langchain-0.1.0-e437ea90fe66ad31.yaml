@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Code Security: IAST support for langchain v0.1.0 and above.

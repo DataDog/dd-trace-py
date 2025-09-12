@@ -7,7 +7,6 @@ import socket
 import textwrap
 import time
 from typing import Set
-from unittest.mock import Mock
 
 import mock
 import msgpack
@@ -22,6 +21,8 @@ import ddtrace.ext.test_visibility.api as ext_api
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility._api_client import ITRData
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
+from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_BASE_PATH
+from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_BASE_PATH_V4
 from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
 from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
@@ -30,7 +31,7 @@ from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClientSerializerV1
 from ddtrace.internal.ci_visibility.recorder import CIVisibilityTracer
 from ddtrace.internal.ci_visibility.recorder import _extract_repository_name_from_url
-import ddtrace.internal.test_visibility._internal_item_ids
+from ddtrace.internal.ci_visibility.recorder import _is_item_itr_skippable
 from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabilities
 from ddtrace.internal.utils.http import Response
 from ddtrace.settings._config import Config
@@ -128,7 +129,7 @@ def test_ci_visibility_service_enable():
             assert ci_visibility_instance._api_settings.skipping_enabled is False
             assert any(
                 isinstance(tracer_filter, TraceCiVisibilityFilter)
-                for tracer_filter in dummy_tracer._user_trace_processors
+                for tracer_filter in dummy_tracer._span_aggregator.user_processors
             )
             CIVisibility.disable()
 
@@ -158,7 +159,7 @@ def test_ci_visibility_service_enable_without_service():
             assert ci_visibility_instance._api_settings.skipping_enabled is False
             assert any(
                 isinstance(tracer_filter, TraceCiVisibilityFilter)
-                for tracer_filter in dummy_tracer._user_trace_processors
+                for tracer_filter in dummy_tracer._span_aggregator.user_processors
             )
             CIVisibility.disable()
 
@@ -268,6 +269,82 @@ def test_ci_visibility_service_skippable_other_error(_do_request, _check_enabled
         CIVisibility.enable(service="test-service")
         assert CIVisibility._instance._itr_data is None
         CIVisibility.disable()
+
+
+@pytest.mark.parametrize(
+    "agent_info_response,expected_path",
+    [
+        (None, None),  # Agent info is None
+        ({}, None),  # Agent info is empty dict
+        ({"endpoints": []}, None),  # Endpoints list is empty
+        ({"endpoints": ["/dogstatsd"]}, None),  # No EVP proxy endpoints
+        ({"endpoints": ["/dogstatsd", EVP_PROXY_AGENT_BASE_PATH]}, EVP_PROXY_AGENT_BASE_PATH),  # Only v2
+        ({"endpoints": ["/dogstatsd", EVP_PROXY_AGENT_BASE_PATH_V4]}, EVP_PROXY_AGENT_BASE_PATH_V4),  # Only v4
+        (
+            {"endpoints": ["/dogstatsd", EVP_PROXY_AGENT_BASE_PATH, EVP_PROXY_AGENT_BASE_PATH_V4]},
+            EVP_PROXY_AGENT_BASE_PATH_V4,  # Both v2 and v4, v4 takes precedence
+        ),
+        (
+            {"endpoints": ["/dogstatsd", EVP_PROXY_AGENT_BASE_PATH_V4, EVP_PROXY_AGENT_BASE_PATH]},
+            EVP_PROXY_AGENT_BASE_PATH_V4,  # Both v4 and v2, v4 takes precedence
+        ),
+    ],
+)
+@mock.patch("ddtrace.internal.agent.info")
+def test_agent_evp_proxy_base_url_logic(mock_agent_info, agent_info_response, expected_path):
+    """Tests the logic of CIVisibility._agent_evp_proxy_base_url"""
+    mock_agent_info.return_value = agent_info_response
+    # Create a minimal CIVisibility instance for testing the method
+    tracer = DummyTracer()
+    visibility = CIVisibility(tracer=tracer, service="test")
+    assert visibility._agent_evp_proxy_base_url() == expected_path
+
+
+@mock.patch("ddtrace.internal.agent.info", side_effect=Exception("Agent unreachable"))
+def test_agent_evp_proxy_base_url_agent_error(mock_agent_info):
+    """Tests _agent_evp_proxy_base_url when agent.info() raises an exception"""
+    tracer = DummyTracer()
+    visibility = CIVisibility(tracer=tracer, service="test")
+    assert visibility._agent_evp_proxy_base_url() is None
+
+
+@pytest.mark.parametrize(
+    "mock_evp_proxy_path, expected_api_client_base_url_suffix",
+    [
+        (EVP_PROXY_AGENT_BASE_PATH_V4, EVP_PROXY_AGENT_BASE_PATH_V4),  # v4 detected
+        (EVP_PROXY_AGENT_BASE_PATH, EVP_PROXY_AGENT_BASE_PATH),  # v2 detected
+    ],
+)
+@mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_base_url")
+@mock.patch("ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_settings")
+@mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_get_default_env", return_value="ci-env")
+@mock.patch("ddtrace.internal.agent.info")  # Mock agent info used by _agent_get_default_env
+def test_civisibility_init_evp_proxy_versions(
+    mock_agent_info,
+    mock_agent_get_env,
+    mock_fetch_settings,
+    mock_agent_evp_base_url,
+    mock_evp_proxy_path,
+    expected_api_client_base_url_suffix,
+):
+    """Tests that CIVisibility initializes the correct EVPProxy client based on detected endpoint"""
+    mock_agent_evp_base_url.return_value = mock_evp_proxy_path
+    mock_fetch_settings.return_value = TestVisibilityAPISettings(False, False, False, False)
+    mock_agent_info.return_value = {"endpoints": [mock_evp_proxy_path], "default_env": "ci-env"}
+
+    with _ci_override_env({}), _dummy_noop_git_client():
+        with _patch_dummy_writer():
+            tracer = DummyTracer()
+            CIVisibility.enable(tracer=tracer, service="test-service")
+            ci_visibility_instance = CIVisibility._instance
+            assert ci_visibility_instance is not None
+            assert isinstance(
+                ci_visibility_instance._api_client,
+                ddtrace.internal.ci_visibility._api_client.EVPProxyTestVisibilityAPIClient,
+            )
+            assert ci_visibility_instance._api_client._base_url.endswith(expected_api_client_base_url_suffix)
+            assert ci_visibility_instance._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS
+            CIVisibility.disable()
 
 
 @mock.patch("ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase._do_request")
@@ -683,7 +760,7 @@ def test_civisibilitywriter_agentless_url_envvar():
     ):
         CIVisibility.enable()
         assert CIVisibility._instance._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS
-        assert CIVisibility._instance.tracer._writer.intake_url == "https://foo.bar"
+        assert CIVisibility._instance.tracer._span_aggregator.writer.intake_url == "https://foo.bar"
         CIVisibility.disable()
 
     def test_civisibilitywriter_evp_proxy_url(self):
@@ -698,7 +775,8 @@ def test_civisibilitywriter_agentless_url_envvar():
         ), mock.patch("ddtrace.settings._config.Config", _get_default_civisibility_ddconfig()), mock.patch(
             "ddtrace.tracer", CIVisibilityTracer()
         ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=True
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_base_url",
+            return_value=EVP_PROXY_AGENT_BASE_PATH,
         ), _dummy_noop_git_client(), mock.patch(
             "ddtrace.internal.ci_visibility.writer.config", Config()
         ), mock.patch(
@@ -706,7 +784,7 @@ def test_civisibilitywriter_agentless_url_envvar():
         ):
             CIVisibility.enable()
             assert CIVisibility._instance._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS
-            assert CIVisibility._instance.tracer._writer.intake_url == "http://evpproxy.bar:1234"
+            assert CIVisibility._instance.tracer._span_aggregator.writer.intake_url == "http://evpproxy.bar:1234"
             CIVisibility.disable()
 
     def test_civisibilitywriter_only_traces(self):
@@ -719,7 +797,7 @@ def test_civisibilitywriter_agentless_url_envvar():
             new_callable=mock.PropertyMock,
             return_value="http://onlytraces:1234",
         ), mock.patch("ddtrace.tracer", CIVisibilityTracer()), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=False
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_base_url", return_value=None
         ), mock.patch(
             "ddtrace.internal.ci_visibility.writer.config", Config()
         ), mock.patch(
@@ -727,7 +805,7 @@ def test_civisibilitywriter_agentless_url_envvar():
         ):
             CIVisibility.enable()
             assert CIVisibility._instance._requests_mode == REQUESTS_MODE.TRACES
-            assert CIVisibility._instance.tracer._writer.intake_url == "http://onlytraces:1234"
+            assert CIVisibility._instance.tracer._span_aggregator.writer.intake_url == "http://onlytraces:1234"
             CIVisibility.disable()
 
 
@@ -1119,8 +1197,8 @@ def test_civisibility_enable_tracer_uses_partial_traces():
         "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
     ), mock.patch("ddtrace.internal.ci_visibility.writer.config", Config()):
         CIVisibility.enable()
-        assert CIVisibility._instance.tracer._partial_flush_enabled is True
-        assert CIVisibility._instance.tracer._partial_flush_min_spans == 1
+        assert CIVisibility._instance.tracer._span_aggregator.partial_flush_enabled is True
+        assert CIVisibility._instance.tracer._span_aggregator.partial_flush_min_spans == 1
         CIVisibility.disable()
 
 
@@ -1133,13 +1211,116 @@ def test_civisibility_enable_respects_passed_in_tracer():
         "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
     ), mock.patch("ddtrace.internal.ci_visibility.writer.config", Config()):
         tracer = CIVisibilityTracer()
-        tracer._partial_flush_enabled = False
-        tracer._partial_flush_min_spans = 100
+        tracer._span_aggregator.partial_flush_enabled = False
+        tracer._span_aggregator.partial_flush_min_spans = 100
         tracer._recreate()
         CIVisibility.enable(tracer=tracer)
-        assert CIVisibility._instance.tracer._partial_flush_enabled is False
-        assert CIVisibility._instance.tracer._partial_flush_min_spans == 100
+        assert CIVisibility._instance.tracer._span_aggregator.partial_flush_enabled is False
+        assert CIVisibility._instance.tracer._span_aggregator.partial_flush_min_spans == 100
         CIVisibility.disable()
+
+
+def test_ci_visibility_service_disabled_by_dd_civisibility_enabled_false():
+    """Test that CI Visibility is disabled when DD_CIVISIBILITY_ENABLED is set to false."""
+    with _ci_override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            DD_CIVISIBILITY_ENABLED="false",
+        )
+    ), _dummy_noop_git_client(), mock.patch(
+        "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_settings",
+        return_value=TestVisibilityAPISettings(False, False, False, False),
+    ):
+        with _patch_dummy_writer():
+            dummy_tracer = DummyTracer()
+            CIVisibility.enable(tracer=dummy_tracer, service="test-service")
+            assert not CIVisibility.enabled
+            assert CIVisibility._instance is None
+
+
+def test_ci_visibility_service_disabled_by_dd_civisibility_enabled_0():
+    """Test that CI Visibility is disabled when DD_CIVISIBILITY_ENABLED is set to 0."""
+    with _ci_override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            DD_CIVISIBILITY_ENABLED="0",
+        )
+    ), _dummy_noop_git_client(), mock.patch(
+        "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_settings",
+        return_value=TestVisibilityAPISettings(False, False, False, False),
+    ):
+        with _patch_dummy_writer():
+            dummy_tracer = DummyTracer()
+            CIVisibility.enable(tracer=dummy_tracer, service="test-service")
+            assert not CIVisibility.enabled
+            assert CIVisibility._instance is None
+
+
+def test_ci_visibility_service_enabled_by_dd_civisibility_enabled_true():
+    """Test that CI Visibility is enabled when DD_CIVISIBILITY_ENABLED is set to true."""
+    with _ci_override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            DD_CIVISIBILITY_ENABLED="true",
+        )
+    ), _dummy_noop_git_client(), mock.patch(
+        "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_settings",
+        return_value=TestVisibilityAPISettings(False, False, False, False),
+    ):
+        with _patch_dummy_writer():
+            dummy_tracer = DummyTracer()
+            CIVisibility.enable(tracer=dummy_tracer, service="test-service")
+            assert CIVisibility.enabled
+            assert CIVisibility._instance is not None
+            assert CIVisibility._instance.tracer == dummy_tracer
+            assert CIVisibility._instance._service == "test-service"
+            CIVisibility.disable()
+
+
+def test_ci_visibility_service_enabled_by_dd_civisibility_enabled_1():
+    """Test that CI Visibility is enabled when DD_CIVISIBILITY_ENABLED is set to 1."""
+    with _ci_override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            DD_CIVISIBILITY_ENABLED="1",
+        )
+    ), _dummy_noop_git_client(), mock.patch(
+        "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_settings",
+        return_value=TestVisibilityAPISettings(False, False, False, False),
+    ):
+        with _patch_dummy_writer():
+            dummy_tracer = DummyTracer()
+            CIVisibility.enable(tracer=dummy_tracer, service="test-service")
+            assert CIVisibility.enabled
+            assert CIVisibility._instance is not None
+            assert CIVisibility._instance.tracer == dummy_tracer
+            assert CIVisibility._instance._service == "test-service"
+            CIVisibility.disable()
+
+
+def test_ci_visibility_service_enabled_by_default_when_dd_civisibility_enabled_not_set():
+    """Test that CI Visibility is enabled by default when DD_CIVISIBILITY_ENABLED is not set."""
+    with _ci_override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+        )
+    ), _dummy_noop_git_client(), mock.patch(
+        "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_settings",
+        return_value=TestVisibilityAPISettings(False, False, False, False),
+    ):
+        with _patch_dummy_writer():
+            dummy_tracer = DummyTracer()
+            CIVisibility.enable(tracer=dummy_tracer, service="test-service")
+            assert CIVisibility.enabled
+            assert CIVisibility._instance is not None
+            assert CIVisibility._instance.tracer == dummy_tracer
+            assert CIVisibility._instance._service == "test-service"
+            CIVisibility.disable()
 
 
 class TestIsITRSkippable:
@@ -1179,9 +1360,7 @@ class TestIsITRSkippable:
     No tests should be skippable in suite-level skipping mode, and vice versa.
     """
 
-    test_level_tests_to_skip: Set[
-        ddtrace.internal.test_visibility._internal_item_ids.InternalTestId
-    ] = _make_fqdn_test_ids(
+    test_level_tests_to_skip: Set[ext_api.TestId] = _make_fqdn_test_ids(
         [
             ("module_1", "module_1_suite_1.py", "test_1"),
             ("module_1", "module_1_suite_1.py", "test_2"),
@@ -1211,90 +1390,66 @@ class TestIsITRSkippable:
     m1 = ext_api.TestModuleId("module_1")
     # Module 1 Suite 1
     m1_s1 = ext_api.TestSuiteId(m1, "module_1_suite_1.py")
-    m1_s1_t1 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s1, "test_1")
-    m1_s1_t2 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s1, "test_2")
-    m1_s1_t3 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s1, "test_3")
-    m1_s1_t4 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s1, "test_4[param1]")
-    m1_s1_t5 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
-        m1_s1, "test_5[param2]", parameters='{"arg1": "param_arg_1"}'
-    )
-    m1_s1_t6 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
-        m1_s1, "test_6[param3]", parameters='{"arg2": "param_arg_2"}'
-    )
-    m1_s1_t7 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s1, "test_6[param3]")
+    m1_s1_t1 = ext_api.TestId(m1_s1, "test_1")
+    m1_s1_t2 = ext_api.TestId(m1_s1, "test_2")
+    m1_s1_t3 = ext_api.TestId(m1_s1, "test_3")
+    m1_s1_t4 = ext_api.TestId(m1_s1, "test_4[param1]")
+    m1_s1_t5 = ext_api.TestId(m1_s1, "test_5[param2]", parameters='{"arg1": "param_arg_1"}')
+    m1_s1_t6 = ext_api.TestId(m1_s1, "test_6[param3]", parameters='{"arg2": "param_arg_2"}')
+    m1_s1_t7 = ext_api.TestId(m1_s1, "test_6[param3]")
 
     # Module 1 Suite 2
     m1_s2 = ext_api.TestSuiteId(m1, "module_1_suite_2.py")
-    m1_s2_t1 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s2, "test_1")
-    m1_s2_t2 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s2, "test_2")
-    m1_s2_t3 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s2, "test_3")
-    m1_s2_t4 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s2, "test_4[param1]")
-    m1_s2_t5 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
-        m1_s2, "test_5[param2]", parameters='{"arg3": "param_arg_3"}'
-    )
-    m1_s2_t6 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
-        m1_s2, "test_6[param3]", parameters='{"arg4": "param_arg_4"}'
-    )
-    m1_s2_t7 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s2, "test_6[param3]")
+    m1_s2_t1 = ext_api.TestId(m1_s2, "test_1")
+    m1_s2_t2 = ext_api.TestId(m1_s2, "test_2")
+    m1_s2_t3 = ext_api.TestId(m1_s2, "test_3")
+    m1_s2_t4 = ext_api.TestId(m1_s2, "test_4[param1]")
+    m1_s2_t5 = ext_api.TestId(m1_s2, "test_5[param2]", parameters='{"arg3": "param_arg_3"}')
+    m1_s2_t6 = ext_api.TestId(m1_s2, "test_6[param3]", parameters='{"arg4": "param_arg_4"}')
+    m1_s2_t7 = ext_api.TestId(m1_s2, "test_6[param3]")
 
     # Module 2
     m2 = ext_api.TestModuleId("module_2")
 
     # Module 2 Suite 1
     m2_s1 = ext_api.TestSuiteId(m2, "module_2_suite_1.py")
-    m2_s1_t1 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s1, "test_1")
-    m2_s1_t2 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s1, "test_2")
-    m2_s1_t3 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s1, "test_3")
-    m2_s1_t4 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s1, "test_4[param1]")
-    m2_s1_t5 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
-        m2_s1, "test_5[param2]", parameters='{"arg5": "param_arg_5"}'
-    )
-    m2_s1_t6 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
-        m2_s1, "test_6[param3]", parameters='{"arg6": "param_arg_6"}'
-    )
-    m2_s1_t7 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s1, "test_6[param3]")
+    m2_s1_t1 = ext_api.TestId(m2_s1, "test_1")
+    m2_s1_t2 = ext_api.TestId(m2_s1, "test_2")
+    m2_s1_t3 = ext_api.TestId(m2_s1, "test_3")
+    m2_s1_t4 = ext_api.TestId(m2_s1, "test_4[param1]")
+    m2_s1_t5 = ext_api.TestId(m2_s1, "test_5[param2]", parameters='{"arg5": "param_arg_5"}')
+    m2_s1_t6 = ext_api.TestId(m2_s1, "test_6[param3]", parameters='{"arg6": "param_arg_6"}')
+    m2_s1_t7 = ext_api.TestId(m2_s1, "test_6[param3]")
 
     # Module 2 Suite 2
     m2_s2 = ext_api.TestSuiteId(m2, "module_2_suite_2.py")
-    m2_s2_t1 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s2, "test_1")
-    m2_s2_t2 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s2, "test_2")
-    m2_s2_t3 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s2, "test_3")
-    m2_s2_t4 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s2, "test_4[param1]")
-    m2_s2_t5 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
-        m2_s2, "test_5[param2]", parameters='{"arg7": "param_arg_7"}'
-    )
-    m2_s2_t6 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
-        m2_s2, "test_6[param3]", parameters='{"arg8": "param_arg_8"}'
-    )
-    m2_s2_t7 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s2, "test_6[param3]")
+    m2_s2_t1 = ext_api.TestId(m2_s2, "test_1")
+    m2_s2_t2 = ext_api.TestId(m2_s2, "test_2")
+    m2_s2_t3 = ext_api.TestId(m2_s2, "test_3")
+    m2_s2_t4 = ext_api.TestId(m2_s2, "test_4[param1]")
+    m2_s2_t5 = ext_api.TestId(m2_s2, "test_5[param2]", parameters='{"arg7": "param_arg_7"}')
+    m2_s2_t6 = ext_api.TestId(m2_s2, "test_6[param3]", parameters='{"arg8": "param_arg_8"}')
+    m2_s2_t7 = ext_api.TestId(m2_s2, "test_6[param3]")
 
     # Module 3
     m3 = ext_api.TestModuleId("")
     m3_s1 = ext_api.TestSuiteId(m3, "no_module_suite_1.py")
-    m3_s1_t1 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s1, "test_1")
-    m3_s1_t2 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s1, "test_2")
-    m3_s1_t3 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s1, "test_3")
-    m3_s1_t4 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s1, "test_4[param1]")
-    m3_s1_t5 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
-        m3_s1, "test_5[param2]", parameters='{"arg9": "param_arg_9"}'
-    )
-    m3_s1_t6 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
-        m3_s1, "test_6[param3]", parameters='{"arg10": "param_arg_10"}'
-    )
-    m3_s1_t7 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s1, "test_6[param3]")
+    m3_s1_t1 = ext_api.TestId(m3_s1, "test_1")
+    m3_s1_t2 = ext_api.TestId(m3_s1, "test_2")
+    m3_s1_t3 = ext_api.TestId(m3_s1, "test_3")
+    m3_s1_t4 = ext_api.TestId(m3_s1, "test_4[param1]")
+    m3_s1_t5 = ext_api.TestId(m3_s1, "test_5[param2]", parameters='{"arg9": "param_arg_9"}')
+    m3_s1_t6 = ext_api.TestId(m3_s1, "test_6[param3]", parameters='{"arg10": "param_arg_10"}')
+    m3_s1_t7 = ext_api.TestId(m3_s1, "test_6[param3]")
 
     m3_s2 = ext_api.TestSuiteId(m3, "no_module_suite_2.py")
-    m3_s2_t1 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s2, "test_1")
-    m3_s2_t2 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s2, "test_2")
-    m3_s2_t3 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s2, "test_3")
-    m3_s2_t4 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s2, "test_4[param1]")
-    m3_s2_t5 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
-        m3_s2, "test_5[param2]", parameters='{"arg11": "param_arg_11"}'
-    )
-    m3_s2_t6 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
-        m3_s2, "test_6[param3]", parameters='{"arg12": "param_arg_12"}'
-    )
-    m3_s2_t7 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s2, "test_6[param3]")
+    m3_s2_t1 = ext_api.TestId(m3_s2, "test_1")
+    m3_s2_t2 = ext_api.TestId(m3_s2, "test_2")
+    m3_s2_t3 = ext_api.TestId(m3_s2, "test_3")
+    m3_s2_t4 = ext_api.TestId(m3_s2, "test_4[param1]")
+    m3_s2_t5 = ext_api.TestId(m3_s2, "test_5[param2]", parameters='{"arg11": "param_arg_11"}')
+    m3_s2_t6 = ext_api.TestId(m3_s2, "test_6[param3]", parameters='{"arg12": "param_arg_12"}')
+    m3_s2_t7 = ext_api.TestId(m3_s2, "test_6[param3]")
 
     def _get_all_suite_ids(self):
         return {getattr(self, suite_id) for suite_id in vars(self.__class__) if re.match(r"^m\d_s\d$", suite_id)}
@@ -1303,65 +1458,54 @@ class TestIsITRSkippable:
         return {getattr(self, test_id) for test_id in vars(self.__class__) if re.match(r"^m\d_s\d_t\d$", test_id)}
 
     def test_is_item_itr_skippable_test_level(self):
-        with mock.patch.object(CIVisibility, "enabled", True), mock.patch.object(
-            CIVisibility, "_instance", Mock()
-        ) as mock_instance:
-            mock_instance._itr_data = ITRData(skippable_items=self.test_level_tests_to_skip)
-            mock_instance._suite_skipping_mode = False
+        expected_skippable_test_ids = {
+            self.m1_s1_t1,
+            self.m1_s1_t2,
+            self.m1_s1_t5,
+            self.m2_s1_t3,
+            self.m2_s2_t2,
+            self.m2_s2_t4,
+            self.m2_s2_t6,
+            self.m2_s2_t7,
+            self.m3_s1_t5,
+            self.m3_s2_t1,
+            self.m3_s2_t6,
+            self.m3_s2_t7,
+        }
+        expected_non_skippable_test_ids = self._get_all_test_ids() - expected_skippable_test_ids
+        itr_data = ITRData(skippable_items=self.test_level_tests_to_skip)
+        suite_skipping_mode = False
 
-            expected_skippable_test_ids = {
-                self.m1_s1_t1,
-                self.m1_s1_t2,
-                self.m1_s1_t5,
-                self.m2_s1_t3,
-                self.m2_s2_t2,
-                self.m2_s2_t4,
-                self.m2_s2_t6,
-                self.m2_s2_t7,
-                self.m3_s1_t5,
-                self.m3_s2_t1,
-                self.m3_s2_t6,
-                self.m3_s2_t7,
-            }
-            expected_non_skippable_test_ids = self._get_all_test_ids() - expected_skippable_test_ids
+        # Check skippable tests are correct
+        for test_id in expected_skippable_test_ids:
+            assert _is_item_itr_skippable(test_id, suite_skipping_mode, itr_data) is True
 
-            assert CIVisibility._instance is not None
+        # Check non-skippable tests are correct
+        for test_id in expected_non_skippable_test_ids:
+            assert _is_item_itr_skippable(test_id, suite_skipping_mode, itr_data) is False
 
-            # Check skippable tests are correct
-            for test_id in expected_skippable_test_ids:
-                assert CIVisibility.is_item_itr_skippable(test_id) is True
-
-            # Check non-skippable tests are correct
-            for test_id in expected_non_skippable_test_ids:
-                assert CIVisibility.is_item_itr_skippable(test_id) is False
-
-            # Check all suites are not skippable
-            for suite_id in self._get_all_suite_ids():
-                assert CIVisibility.is_item_itr_skippable(suite_id) is False
+        # Check all suites are not skippable
+        for suite_id in self._get_all_suite_ids():
+            assert _is_item_itr_skippable(suite_id, suite_skipping_mode, itr_data) is False
 
     def test_is_item_itr_skippable_suite_level(self):
-        with mock.patch.object(CIVisibility, "enabled", True), mock.patch.object(
-            CIVisibility, "_instance", Mock()
-        ) as mock_instance:
-            mock_instance._itr_data = ITRData(skippable_items=self.suite_level_test_suites_to_skip)
-            mock_instance._suite_skipping_mode = True
+        itr_data = ITRData(skippable_items=self.suite_level_test_suites_to_skip)
+        suite_skipping_mode = True
 
-            expected_skippable_suite_ids = {self.m1_s1, self.m2_s1, self.m2_s2, self.m3_s1}
-            expected_non_skippable_suite_ids = self._get_all_suite_ids() - set(expected_skippable_suite_ids)
+        expected_skippable_suite_ids = {self.m1_s1, self.m2_s1, self.m2_s2, self.m3_s1}
+        expected_non_skippable_suite_ids = self._get_all_suite_ids() - set(expected_skippable_suite_ids)
 
-            assert CIVisibility._instance is not None
+        # Check skippable suites are correct
+        for suite_id in expected_skippable_suite_ids:
+            assert _is_item_itr_skippable(suite_id, suite_skipping_mode, itr_data) is True
 
-            # Check skippable suites are correct
-            for suite_id in expected_skippable_suite_ids:
-                assert CIVisibility.is_item_itr_skippable(suite_id) is True
+        # Check non-skippable suites are correct
+        for suite_id in expected_non_skippable_suite_ids:
+            assert _is_item_itr_skippable(suite_id, suite_skipping_mode, itr_data) is False
 
-            # Check non-skippable suites are correct
-            for suite_id in expected_non_skippable_suite_ids:
-                assert CIVisibility.is_item_itr_skippable(suite_id) is False
-
-            # Check all tests are not skippable
-            for test_id in self._get_all_test_ids():
-                assert CIVisibility.is_item_itr_skippable(test_id) is False
+        # Check all tests are not skippable
+        for test_id in self._get_all_test_ids():
+            assert _is_item_itr_skippable(test_id, suite_skipping_mode, itr_data) is False
 
 
 class TestCIVisibilitySetTestSessionName(TracerTestCase):
@@ -1376,7 +1520,9 @@ class TestCIVisibilitySetTestSessionName(TracerTestCase):
     def assert_test_session_name(self, name):
         """Check that the payload metadata contains the test session name attributes."""
         payload = msgpack.loads(
-            CIVisibility._instance.tracer._writer._clients[0].encoder._build_payload([[Span("foo")]])
+            CIVisibility._instance.tracer._span_aggregator.writer._clients[0].encoder._build_payload([[Span("foo")]])[
+                0
+            ][0]
         )
         assert payload["metadata"]["test_session_end"] == {"test_session.name": name}
         assert payload["metadata"]["test_suite_end"] == {"test_session.name": name}
@@ -1389,7 +1535,7 @@ class TestCIVisibilitySetTestSessionName(TracerTestCase):
         """
         with _ci_override_env(dict()), set_up_mock_civisibility(), _patch_dummy_writer():
             CIVisibility.enable()
-            CIVisibility.set_test_session_name(test_command="some_command")
+            CIVisibility._instance.set_test_session_name(test_command="some_command")
         self.assert_test_session_name("some_command")
 
     def test_set_test_session_name_from_dd_test_session_name_env_var(self):
@@ -1400,7 +1546,7 @@ class TestCIVisibilitySetTestSessionName(TracerTestCase):
             )
         ), set_up_mock_civisibility(), _patch_dummy_writer():
             CIVisibility.enable()
-            CIVisibility.set_test_session_name(test_command="some_command")
+            CIVisibility._instance.set_test_session_name(test_command="some_command")
         self.assert_test_session_name("the_name")
 
     def test_set_test_session_name_from_job_name_and_command(self):
@@ -1414,7 +1560,7 @@ class TestCIVisibilitySetTestSessionName(TracerTestCase):
             )
         ), set_up_mock_civisibility(), _patch_dummy_writer():
             CIVisibility.enable()
-            CIVisibility.set_test_session_name(test_command="some_command")
+            CIVisibility._instance.set_test_session_name(test_command="some_command")
         self.assert_test_session_name("the_job-some_command")
 
     def test_set_test_session_name_from_dd_test_session_name_env_var_priority(self):
@@ -1427,7 +1573,7 @@ class TestCIVisibilitySetTestSessionName(TracerTestCase):
             )
         ), set_up_mock_civisibility(), _patch_dummy_writer():
             CIVisibility.enable()
-            CIVisibility.set_test_session_name(test_command="some_command")
+            CIVisibility._instance.set_test_session_name(test_command="some_command")
         self.assert_test_session_name("the_name")
 
 
@@ -1443,7 +1589,7 @@ class TestCIVisibilityLibraryCapabilities(TracerTestCase):
     def test_set_library_capabilities(self):
         with _ci_override_env(), set_up_mock_civisibility(), _patch_dummy_writer():
             CIVisibility.enable()
-            CIVisibility.set_library_capabilities(
+            CIVisibility._instance.set_library_capabilities(
                 LibraryCapabilities(
                     early_flake_detection="1",
                     auto_test_retries=None,
@@ -1452,9 +1598,173 @@ class TestCIVisibilityLibraryCapabilities(TracerTestCase):
             )
 
         payload = msgpack.loads(
-            CIVisibility._instance.tracer._writer._clients[0].encoder._build_payload([[Span("foo")]])
+            CIVisibility._instance.tracer._span_aggregator.writer._clients[0].encoder._build_payload([[Span("foo")]])[
+                0
+            ][0]
         )
         assert payload["metadata"]["test"] == {
             "_dd.library_capabilities.early_flake_detection": "1",
             "_dd.library_capabilities.test_impact_analysis": "2",
         }
+
+
+@pytest.mark.usefixtures("_disable_ci_visibility")
+class TestCIVisibilityGzipSupport:
+    @pytest.fixture(autouse=True)
+    def _setup_mocks(self):
+        self.dummy_tracer = DummyTracer()
+        self.dummy_tracer._agent_url = "http://agent:8126"
+        self.civisibility = CIVisibility()
+        self.civisibility.tracer = self.dummy_tracer
+        self.civisibility._requests_mode = REQUESTS_MODE.EVP_PROXY_EVENTS
+        self.civisibility._git_client = mock.Mock()
+        self.civisibility._codeowner_patterns = []
+        self.civisibility._suite_skipping_mode = False
+        self.civisibility._api_settings = TestVisibilityAPISettings(False, False, False, False)
+        self.civisibility._config = Config()
+
+    @mock.patch("ddtrace.internal.ci_visibility.recorder.agent.info")
+    def test_is_gzip_supported_by_agent_no_info(self, mock_agent_info):
+        mock_agent_info.return_value = None
+        assert not self.civisibility._is_gzip_supported_by_agent()
+
+    @mock.patch("ddtrace.internal.ci_visibility.recorder.agent.info")
+    def test_is_gzip_supported_by_agent_info_no_endpoints(self, mock_agent_info):
+        mock_agent_info.return_value = {"some_other_key": "value"}
+        assert not self.civisibility._is_gzip_supported_by_agent()
+
+    @mock.patch("ddtrace.internal.ci_visibility.recorder.agent.info")
+    def test_is_gzip_supported_by_agent_info_empty_endpoints(self, mock_agent_info):
+        mock_agent_info.return_value = {"endpoints": []}
+        assert not self.civisibility._is_gzip_supported_by_agent()
+
+    @mock.patch("ddtrace.internal.ci_visibility.recorder.agent.info")
+    def test_is_gzip_supported_by_agent_v2_endpoint(self, mock_agent_info):
+        mock_agent_info.return_value = {"endpoints": ["/evp_proxy/v2/api/v2/citestcycle"]}
+        assert not self.civisibility._is_gzip_supported_by_agent()
+
+    @mock.patch("ddtrace.internal.ci_visibility.recorder.agent.info")
+    def test_is_gzip_supported_by_agent_v4_endpoint(self, mock_agent_info):
+        mock_agent_info.return_value = {"endpoints": ["/evp_proxy/v4/api/v2/citestcycle"]}
+        assert self.civisibility._is_gzip_supported_by_agent()
+
+    @mock.patch("ddtrace.internal.ci_visibility.recorder.agent.info")
+    def test_is_gzip_supported_by_agent_multiple_endpoints(self, mock_agent_info):
+        mock_agent_info.return_value = {"endpoints": ["/evp_proxy/v2", "/telemetry", EVP_PROXY_AGENT_BASE_PATH_V4]}
+        assert self.civisibility._is_gzip_supported_by_agent()
+
+    @mock.patch("ddtrace.internal.ci_visibility.recorder.agent.info", side_effect=Exception("Agent down"))
+    def test_is_gzip_supported_by_agent_exception(self, mock_agent_info):
+        assert not self.civisibility._is_gzip_supported_by_agent()
+
+    @mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter")
+    def test_configure_writer_agentless_gzip_true(self, mock_writer):
+        # In agentless mode, DD_API_KEY is required.
+        with _ci_override_env(dict(DD_API_KEY="key", DD_CIVISIBILITY_AGENTLESS_ENABLED="1")), _dummy_noop_git_client():
+            civis = CIVisibility(tracer=self.dummy_tracer)
+            # Ensure tracer is set for _configure_writer and has _span_aggregator
+            civis.tracer = self.dummy_tracer
+            if not hasattr(civis.tracer, "_span_aggregator"):
+                civis.tracer._span_aggregator = mock.Mock()
+
+            civis._configure_writer(requests_mode=REQUESTS_MODE.AGENTLESS_EVENTS)
+            mock_writer.assert_called_once()
+            _args, kwargs = mock_writer.call_args
+            assert kwargs.get("use_gzip") is True
+            CIVisibility.disable()
+
+    @mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter")
+    def test_configure_writer_evp_proxy_gzip_supported(self, mock_writer):
+        with _ci_override_env(dict(DD_CIVISIBILITY_AGENTLESS_ENABLED="0")), _dummy_noop_git_client():
+            civis = CIVisibility(tracer=self.dummy_tracer)
+            civis.tracer = self.dummy_tracer
+            if not hasattr(civis.tracer, "_span_aggregator"):
+                civis.tracer._span_aggregator = mock.Mock()
+
+            # Mock _is_gzip_supported_by_agent on the instance
+            civis._is_gzip_supported_by_agent = mock.Mock(return_value=True)
+
+            civis._configure_writer(requests_mode=REQUESTS_MODE.EVP_PROXY_EVENTS)
+            mock_writer.assert_called_once()
+            _args, kwargs = mock_writer.call_args
+            assert kwargs.get("use_gzip") is True
+            civis._is_gzip_supported_by_agent.assert_called_once()
+            CIVisibility.disable()
+
+    @mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter")
+    def test_configure_writer_evp_proxy_gzip_not_supported(self, mock_writer):
+        with _ci_override_env(dict(DD_CIVISIBILITY_AGENTLESS_ENABLED="0")), _dummy_noop_git_client():
+            civis = CIVisibility(tracer=self.dummy_tracer)
+            civis.tracer = self.dummy_tracer
+            if not hasattr(civis.tracer, "_span_aggregator"):
+                civis.tracer._span_aggregator = mock.Mock()
+
+            # Mock _is_gzip_supported_by_agent on the instance
+            civis._is_gzip_supported_by_agent = mock.Mock(return_value=False)
+
+            civis._configure_writer(requests_mode=REQUESTS_MODE.EVP_PROXY_EVENTS)
+            mock_writer.assert_called_once()
+            _args, kwargs = mock_writer.call_args
+            assert kwargs.get("use_gzip") is False
+            civis._is_gzip_supported_by_agent.assert_called_once()
+            CIVisibility.disable()
+
+    @mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter")
+    def test_configure_writer_default_mode_agentless_gzip_true(self, mock_writer):
+        # Agentless enabled implies _requests_mode = AGENTLESS_EVENTS
+        with _ci_override_env(dict(DD_API_KEY="key")), _dummy_noop_git_client():
+            civis = CIVisibility(tracer=self.dummy_tracer)
+            civis.tracer = self.dummy_tracer
+            if not hasattr(civis.tracer, "_span_aggregator"):
+                civis.tracer._span_aggregator = mock.Mock()
+
+            # DEV: Forcing agentless mode
+            civis._requests_mode = REQUESTS_MODE.AGENTLESS_EVENTS
+
+            civis._configure_writer()  # Call without explicit requests_mode
+            mock_writer.assert_called_once()
+            _args, kwargs = mock_writer.call_args
+            assert kwargs.get("use_gzip") is True
+            CIVisibility.disable()
+
+    @mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter")
+    @mock.patch("ddtrace.internal.ci_visibility.recorder.agent.info")
+    def test_configure_writer_default_mode_evp_proxy_gzip_supported(self, mock_agent_info, mock_writer):
+        # Simulate EVP proxy with gzip support (v4 endpoint)
+        mock_agent_info.return_value = {"endpoints": [EVP_PROXY_AGENT_BASE_PATH, EVP_PROXY_AGENT_BASE_PATH_V4]}
+        with _ci_override_env(dict(DD_CIVISIBILITY_AGENTLESS_ENABLED="0")), _dummy_noop_git_client():
+            civis = CIVisibility(tracer=self.dummy_tracer)
+            civis.tracer = self.dummy_tracer
+            if not hasattr(civis.tracer, "_span_aggregator"):
+                civis.tracer._span_aggregator = mock.Mock()
+
+            assert civis._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS
+
+            civis._configure_writer()  # Call without explicit requests_mode
+            mock_writer.assert_called()
+            _args, kwargs = mock_writer.call_args
+            assert kwargs.get("use_gzip") is True
+            # CIVisibility.__init__ calls _agent_evp_proxy_is_available and _is_gzip_supported_by_agent
+            # _configure_writer also calls _is_gzip_supported_by_agent if mode is EVP_PROXY_EVENTS
+            assert mock_agent_info.call_count >= 2
+            CIVisibility.disable()
+
+    @mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter")
+    @mock.patch("ddtrace.internal.ci_visibility.recorder.agent.info")
+    def test_configure_writer_default_mode_evp_proxy_gzip_not_supported(self, mock_agent_info, mock_writer):
+        # Simulate EVP proxy without gzip support (e.g. only v2 endpoint)
+        mock_agent_info.return_value = {"endpoints": [EVP_PROXY_AGENT_BASE_PATH]}  # No v4 endpoint
+        with _ci_override_env(dict(DD_CIVISIBILITY_AGENTLESS_ENABLED="0")), _dummy_noop_git_client():
+            civis = CIVisibility(tracer=self.dummy_tracer)
+            civis.tracer = self.dummy_tracer
+            if not hasattr(civis.tracer, "_span_aggregator"):
+                civis.tracer._span_aggregator = mock.Mock()
+
+            assert civis._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS
+
+            civis._configure_writer()  # Call without explicit requests_mode
+            mock_writer.assert_called()
+            _args, kwargs = mock_writer.call_args
+            assert kwargs.get("use_gzip") is False
+            assert mock_agent_info.call_count >= 2
+            CIVisibility.disable()

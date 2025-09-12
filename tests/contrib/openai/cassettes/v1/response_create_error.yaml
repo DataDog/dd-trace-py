@@ -1,0 +1,80 @@
+interactions:
+- request:
+    body: '{"input":"Hello world","model":"invalid-model","user":"ddtrace-test"}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '69'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.76.2
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.76.2
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.10
+    method: POST
+    uri: https://api.openai.com/v1/responses
+  response:
+    content: "{\n  \"error\": {\n    \"message\": \"The requested model 'invalid-model'
+      does not exist.\",\n    \"type\": \"invalid_request_error\",\n    \"param\":
+      \"model\",\n    \"code\": \"model_not_found\"\n  }\n}"
+    headers:
+      CF-RAY:
+      - 93d2d1eadadf1fe3-IAD
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '179'
+      Content-Type:
+      - application/json
+      Date:
+      - Fri, 09 May 2025 17:12:08 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=eWSmynaWqSwB9kYIEuxA0SkiL4jV9KeQt1Ltji5jjY8-1746810728-1.0.1.1-T_XpZWOKhpQrCFCEze9LAD3f0R2deD1vrcSM6do460vu8J4ardrqcJBj0v3uuPWK15Xd1ENyX5021211gYpZyP_h2Sow_5B0pJAWVFdMMx0;
+        path=/; expires=Fri, 09-May-25 17:42:08 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=3wcZ5CtrxRYDumqKYbpbJ5_iRqvuqEGSgcFsUZamju4-1746810728295-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      X-Content-Type-Options:
+      - nosniff
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-staging
+      openai-processing-ms:
+      - '116'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-request-id:
+      - req_5b160c26ff8ce5544c5fd8b680254b4b
+    http_version: HTTP/1.1
+    status_code: 400
+version: 1

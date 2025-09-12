@@ -1,8 +1,10 @@
+from typing import Dict
+
 import aiomysql
 import wrapt
 
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import dbapi
@@ -18,7 +20,6 @@ from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
-from ddtrace.trace import Pin
 
 
 config._add(
@@ -33,6 +34,10 @@ config._add(
 def get_version():
     # type: () -> str
     return getattr(aiomysql, "__version__", "")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"aiomysql": ">=0.1.0"}
 
 
 CONN_ATTR_BY_TAG = {
@@ -82,12 +87,10 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             # set span.kind to the type of request being performed
             s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-            s.set_tag(_SPAN_MEASURED_KEY)
+            # PERF: avoid setting via Span.set_tag
+            s.set_metric(_SPAN_MEASURED_KEY, 1)
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
-
-            # set analytics sample rate
-            s.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.aiomysql.get_analytics_sample_rate())
 
             # dispatch DBM
             result = core.dispatch_with_results("aiomysql.execute", (config.aiomysql, s, args, kwargs)).result

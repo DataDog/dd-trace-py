@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    kafka: This fix resolves an issue where the `list_topics` call in the Kafka integration could hang indefinitely. The integration now sets a 1-second timeout on `list_topics` calls and caches both successful cluster ID results and failures (with a 5-minute retry interval) to prevent repeated slow metadata queries.
+

@@ -3,7 +3,6 @@ from functools import lru_cache as cached
 from functools import singledispatch
 import inspect
 import logging
-from os import fspath  # noqa:F401
 import sys
 import sysconfig
 from types import ModuleType
@@ -17,32 +16,26 @@ from ddtrace.settings.third_party import config as tp_config
 
 LOG = logging.getLogger(__name__)
 
+Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str)])
 
-Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str), ("path", t.Optional[str])])
 
 _PACKAGE_DISTRIBUTIONS: t.Optional[t.Mapping[str, t.List[str]]] = None
 
 
 @callonce
-def get_distributions():
-    # type: () -> t.Set[Distribution]
-    """returns the name and version of all distributions in a python path"""
-    try:
-        import importlib.metadata as importlib_metadata
-    except ImportError:
-        import importlib_metadata  # type: ignore[no-redef]
+def get_distributions() -> t.Mapping[str, str]:
+    """returns the mapping from distribution name to version for all distributions in a python path"""
+    import importlib.metadata as importlib_metadata
 
-    pkgs = set()
+    pkgs = {}
     for dist in importlib_metadata.distributions():
-        # Get the root path of all files in a distribution
-        path = str(dist.locate_file(""))
         # PKG-INFO and/or METADATA files are parsed when dist.metadata is accessed
         # Optimization: we should avoid accessing dist.metadata more than once
         metadata = dist.metadata
         name = metadata["name"]
         version = metadata["version"]
         if name and version:
-            pkgs.add(Distribution(path=path, name=name.lower(), version=version))
+            pkgs[name.lower()] = version
 
     return pkgs
 
@@ -51,10 +44,7 @@ def get_package_distributions() -> t.Mapping[str, t.List[str]]:
     """a mapping of importable package names to their distribution name(s)"""
     global _PACKAGE_DISTRIBUTIONS
     if _PACKAGE_DISTRIBUTIONS is None:
-        try:
-            import importlib.metadata as importlib_metadata
-        except ImportError:
-            import importlib_metadata  # type: ignore[no-redef]
+        import importlib.metadata as importlib_metadata
 
         # Prefer the official API if available, otherwise fallback to the vendored version
         if hasattr(importlib_metadata, "packages_distributions"):
@@ -68,26 +58,18 @@ def get_package_distributions() -> t.Mapping[str, t.List[str]]:
 def get_module_distribution_versions(module_name: str) -> t.Optional[t.Tuple[str, str]]:
     if not module_name:
         return None
-    try:
-        import importlib.metadata as importlib_metadata
-    except ImportError:
-        import importlib_metadata  # type: ignore[no-redef]
 
     names: t.List[str] = []
     pkgs = get_package_distributions()
+    dist_map = get_distributions()
     while names == []:
-        try:
-            package = importlib_metadata.distribution(module_name)
-            metadata = package.metadata
-            name = metadata["name"]
-            version = metadata["version"]
-            if name and version:
-                return (name, version)
-        except Exception:  # nosec
-            pass
+        # First try to resolve the module name from package distributions
+        version = dist_map.get(module_name)
+        if version:
+            return (module_name, version)
+        # Since we've failed to resolve, try to resolve the parent package
         names = pkgs.get(module_name, [])
         if not names:
-            # try to resolve the parent package
             p = module_name.rfind(".")
             if p > 0:
                 module_name = module_name[:p]
@@ -100,14 +82,10 @@ def get_module_distribution_versions(module_name: str) -> t.Optional[t.Tuple[str
     return (names[0], get_version_for_package(names[0]))
 
 
-@cached(maxsize=256)
-def get_version_for_package(name):
-    # type: (str) -> str
+@cached(maxsize=1024)
+def get_version_for_package(name: str) -> str:
     """returns the version of a package"""
-    try:
-        import importlib.metadata as importlib_metadata
-    except ImportError:
-        import importlib_metadata  # type: ignore[no-redef]
+    import importlib.metadata as importlib_metadata
 
     try:
         return importlib_metadata.version(name)
@@ -125,7 +103,8 @@ def _root_module(path: Path) -> str:
     # Try the most likely prefixes first
     for parent_path in (purelib_path, platlib_path):
         try:
-            return _effective_root(path.relative_to(parent_path), parent_path)
+            # Resolve the path to use the shortest relative path.
+            return _effective_root(path.resolve().relative_to(parent_path), parent_path)
         except ValueError:
             # Not relative to this path
             pass
@@ -160,14 +139,11 @@ def _root_module(path: Path) -> str:
 
 @callonce
 def _package_for_root_module_mapping() -> t.Optional[t.Dict[str, Distribution]]:
-    try:
-        import importlib.metadata as metadata
-    except ImportError:
-        import importlib_metadata as metadata  # type: ignore[no-redef]
+    import importlib.metadata as importlib_metadata
 
     namespaces: t.Dict[str, bool] = {}
 
-    def is_namespace(f: metadata.PackagePath):
+    def is_namespace(f: importlib_metadata.PackagePath):
         root = f.parts[0]
         try:
             return namespaces[root]
@@ -190,24 +166,25 @@ def _package_for_root_module_mapping() -> t.Optional[t.Dict[str, Distribution]]:
     try:
         mapping = {}
 
-        for dist in metadata.distributions():
-            if dist is not None and dist.files is not None:
-                d = Distribution(name=dist.metadata["name"], version=dist.version, path=None)
-                for f in dist.files:
-                    root = f.parts[0]
-                    if root.endswith(".dist-info") or root.endswith(".egg-info") or root == "..":
-                        continue
-                    if is_namespace(f):
-                        root = "/".join(f.parts[:2])
-                    if root not in mapping:
-                        mapping[root] = d
+        for dist in importlib_metadata.distributions():
+            if not (files := dist.files):
+                continue
+            metadata = dist.metadata
+            d = Distribution(name=metadata["name"], version=metadata["version"])
+            for f in files:
+                root = f.parts[0]
+                if root.endswith(".dist-info") or root.endswith(".egg-info") or root == "..":
+                    continue
+                if is_namespace(f):
+                    root = "/".join(f.parts[:2])
+                if root not in mapping:
+                    mapping[root] = d
 
         return mapping
 
     except Exception:
         LOG.warning(
-            "Unable to build package file mapping, "
-            "please report this to https://github.com/DataDog/dd-trace-py/issues",
+            "Unable to build package file mapping, please report this to https://github.com/DataDog/dd-trace-py/issues",
             exc_info=True,
         )
         return None
@@ -232,7 +209,18 @@ def filename_to_package(filename: t.Union[str, Path]) -> t.Optional[Distribution
 
     try:
         path = Path(filename) if isinstance(filename, str) else filename
-        return mapping.get(_root_module(path.resolve()))
+        # Avoid calling .resolve() on the path here to prevent breaking symlink matching in `_root_module`.
+        root_module_path = _root_module(path)
+        if root_module_path in mapping:
+            return mapping[root_module_path]
+
+        # Loop through mapping and check the distribution name, since the key isn't always the same, for example:
+        #   '__editable__.ddtrace-3.9.0.dev...pth': Distribution(name='ddtrace', version='...')
+        for distribution in mapping.values():
+            if distribution.name == root_module_path:
+                return distribution
+
+        return None
     except (ValueError, OSError):
         return None
 
@@ -261,7 +249,7 @@ def is_stdlib(path: Path) -> bool:
 
 @cached(maxsize=256)
 def is_third_party(path: Path) -> bool:
-    package = filename_to_package(str(path))
+    package = filename_to_package(path)
     if package is None:
         return False
 
@@ -289,10 +277,7 @@ def _(path: str) -> bool:
 @cached(maxsize=256)
 def is_distribution_available(name: str) -> bool:
     """Determine if a distribution is available in the current environment."""
-    try:
-        import importlib.metadata as importlib_metadata
-    except ImportError:
-        import importlib_metadata  # type: ignore[no-redef]
+    import importlib.metadata as importlib_metadata
 
     try:
         importlib_metadata.distribution(name)
@@ -316,10 +301,7 @@ def _packages_distributions() -> t.Mapping[str, t.List[str]]:
     >>> all(isinstance(dist, collections.abc.Sequence) for dist in pkgs.values())
     True
     """
-    try:
-        import importlib.metadata as importlib_metadata
-    except ImportError:
-        import importlib_metadata  # type: ignore[no-redef]
+    import importlib.metadata as importlib_metadata
 
     pkg_to_dist = collections.defaultdict(list)
     for dist in importlib_metadata.distributions():

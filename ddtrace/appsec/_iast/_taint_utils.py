@@ -6,8 +6,8 @@ from typing import Optional
 from typing import Union
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
@@ -524,3 +524,9 @@ if asm_config._iast_lazy_taint:
             return LazyTaintDict(main_obj, (origin_key, origin_value), override_pyobject_tainted)
         elif isinstance(main_obj, abc.Sequence):
             return LazyTaintList(main_obj, (origin_key, origin_value), override_pyobject_tainted)
+
+
+def taint_dictionary(origin_key, origin_value, original_func, instance, args, kwargs):
+    result = original_func(*args, **kwargs)
+
+    return taint_structure(result, origin_key, origin_value, override_pyobject_tainted=True)

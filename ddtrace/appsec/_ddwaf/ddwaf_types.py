@@ -6,12 +6,14 @@ from platform import system
 from typing import Any
 from typing import Dict
 from typing import List
+from typing import Optional
 from typing import Union
 
 from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_builder_capsule
 from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_context_capsule
 from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_handle_capsule
 from ddtrace.appsec._utils import _observator
+from ddtrace.appsec._utils import unpatching_popen
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
@@ -26,18 +28,17 @@ log = get_logger(__name__)
 
 if system() == "Linux":
     try:
-        asm_config._bypass_instrumentation_for_waf = True
-        ctypes.CDLL(ctypes.util.find_library("rt"), mode=ctypes.RTLD_GLOBAL)
+        with unpatching_popen():
+            ctypes.CDLL(ctypes.util.find_library("rt"), mode=ctypes.RTLD_GLOBAL)
     except Exception:  # nosec
         pass
-    finally:
-        asm_config._bypass_instrumentation_for_waf = False
 
 ARCHI = machine().lower()
 
 # 32-bit-Python on 64-bit-Windows
 
-ddwaf = ctypes.CDLL(asm_config._asm_libddwaf)
+with unpatching_popen():
+    ddwaf = ctypes.CDLL(asm_config._asm_libddwaf)
 #
 # Constants
 #
@@ -104,7 +105,7 @@ class ddwaf_object(ctypes.Structure):
 
     def __init__(
         self,
-        struct: DDWafRulesType = None,
+        struct: Optional[DDWafRulesType] = None,
         observator: _observator = _observator(),  # noqa : B008
         max_objects: int = DDWAF_MAX_CONTAINER_SIZE,
         max_depth: int = DDWAF_MAX_CONTAINER_DEPTH,
@@ -173,6 +174,15 @@ class ddwaf_object(ctypes.Structure):
     @classmethod
     def create_without_limits(cls, struct: DDWafRulesType) -> "ddwaf_object":
         return cls(struct, max_objects=DDWAF_NO_LIMIT, max_depth=DDWAF_DEPTH_NO_LIMIT, max_string_length=DDWAF_NO_LIMIT)
+
+    @classmethod
+    def from_json_bytes(cls, data: bytes) -> Optional["ddwaf_object"]:
+        """Create a ddwaf_object from a JSON string as bytes."""
+        obj = cls.__new__(cls)
+        if not ddwaf_object_from_json(obj, data, len(data)):
+            log.debug("Failed to create ddwaf_object from JSON: %s", data)
+            return None
+        return obj
 
     @property
     def struct(self) -> DDWafRulesType:
@@ -275,33 +285,6 @@ class ddwaf_config(ctypes.Structure):
 
 ddwaf_config_p = ctypes.POINTER(ddwaf_config)
 
-
-class ddwaf_result(ctypes.Structure):
-    _fields_ = [
-        ("timeout", ctypes.c_bool),
-        ("events", ddwaf_object),
-        ("actions", ddwaf_object),
-        ("derivatives", ddwaf_object),
-        ("total_runtime", ctypes.c_uint64),
-    ]
-
-    def __repr__(self):
-        return "total_runtime=%r, events=%r, timeout=%r, action=[%r]" % (
-            self.total_runtime,
-            self.events.struct,
-            self.timeout.struct,
-            self.actions,
-        )
-
-    def __del__(self):
-        try:
-            ddwaf_result_free(self)
-        except TypeError:
-            log.debug("Failed to free result", exc_info=True)
-
-
-ddwaf_result_p = ctypes.POINTER(ddwaf_result)
-
 ddwaf_handle = ctypes.c_void_p  # may stay as this because it's mainly an abstract type in the interface
 ddwaf_context = ctypes.c_void_p  # may stay as this because it's mainly an abstract type in the interface
 ddwaf_builder = ctypes.c_void_p  # may stay as this because it's mainly an abstract type in the interface
@@ -350,7 +333,7 @@ ddwaf_known_addresses = ctypes.CFUNCTYPE(
 
 def py_ddwaf_known_addresses(handle: ddwaf_handle_capsule) -> List[str]:
     size = ctypes.c_uint32()
-    obj = ddwaf_known_addresses(handle.handle, ctypes.byref(size))
+    obj = ddwaf_known_addresses(handle.handle, size)
     return [obj[i].decode("UTF-8") for i in range(size.value)]
 
 
@@ -365,7 +348,7 @@ def py_ddwaf_context_init(handle: ddwaf_handle_capsule) -> ddwaf_context_capsule
 
 
 ddwaf_run = ctypes.CFUNCTYPE(
-    ctypes.c_int, ddwaf_context, ddwaf_object_p, ddwaf_object_p, ddwaf_result_p, ctypes.c_uint64
+    ctypes.c_int, ddwaf_context, ddwaf_object_p, ddwaf_object_p, ddwaf_object_p, ctypes.c_uint64
 )(("ddwaf_run", ddwaf), ((1, "context"), (1, "persistent_data"), (1, "ephemeral_data"), (1, "result"), (1, "timeout")))
 
 ddwaf_context_destroy = ctypes.CFUNCTYPE(None, ddwaf_context)(
@@ -373,10 +356,6 @@ ddwaf_context_destroy = ctypes.CFUNCTYPE(None, ddwaf_context)(
     ((1, "context"),),
 )
 
-ddwaf_result_free = ctypes.CFUNCTYPE(None, ddwaf_result_p)(
-    ("ddwaf_result_free", ddwaf),
-    ((1, "result"),),
-)
 
 ## ddwf_builder
 
@@ -435,6 +414,23 @@ ddwaf_builder_build_instance = ctypes.CFUNCTYPE(ddwaf_handle, ddwaf_builder)(
 
 def py_ddwaf_builder_build_instance(builder: ddwaf_builder_capsule) -> ddwaf_handle_capsule:
     return ddwaf_handle_capsule(ddwaf_builder_build_instance(builder.builder), ddwaf_destroy)
+
+
+ddwaf_builder_get_config_paths = ctypes.CFUNCTYPE(
+    ctypes.c_uint32, ddwaf_builder, ddwaf_object_p, ctypes.c_char_p, ctypes.c_uint32
+)(
+    ("ddwaf_builder_get_config_paths", ddwaf),
+    (
+        (1, "builder"),
+        (1, "paths"),
+        (1, "filter"),
+        (1, "filter_len"),
+    ),
+)
+
+
+def py_ddwaf_builder_get_config_paths(builder: ddwaf_builder_capsule, filter_str: str) -> int:
+    return ddwaf_builder_get_config_paths(builder.builder, None, filter_str.encode(), len(filter_str))
 
 
 ddwaf_builder_destroy = ctypes.CFUNCTYPE(None, ddwaf_builder)(
@@ -555,6 +551,15 @@ ddwaf_object_map_add = ctypes.CFUNCTYPE(ctypes.c_bool, ddwaf_object_p, ctypes.c_
 # ddwaf_object_get_index
 # ddwaf_object_get_bool https://github.com/DataDog/libddwaf/commit/7dc68dacd972ae2e2a3c03a69116909c98dbd9cb
 # ddwaf_object_get_float
+
+ddwaf_object_from_json = ctypes.CFUNCTYPE(ctypes.c_bool, ddwaf_object_p, ctypes.c_char_p, ctypes.c_uint32)(
+    ("ddwaf_object_from_json", ddwaf),
+    (
+        (3, "output"),
+        (1, "json_str"),
+        (1, "length"),
+    ),
+)
 
 
 ddwaf_get_version = ctypes.CFUNCTYPE(ctypes.c_char_p)(

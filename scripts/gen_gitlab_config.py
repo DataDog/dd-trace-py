@@ -6,7 +6,9 @@
 # file. The function will be called automatically when this script is run.
 
 from dataclasses import dataclass
+import datetime
 import os
+import re
 import subprocess
 import typing as t
 
@@ -15,6 +17,7 @@ import typing as t
 class JobSpec:
     name: str
     runner: str
+    stage: str
     pattern: t.Optional[str] = None
     snapshot: bool = False
     services: t.Optional[t.List[str]] = None
@@ -33,8 +36,19 @@ class JobSpec:
         if self.snapshot:
             base += "_snapshot"
 
-        lines.append(f"{self.name}:")
+        lines.append(f"{self.stage}/{self.name.replace('::', '/')}:")
         lines.append(f"  extends: {base}")
+
+        # Set stage
+        lines.append(f"  stage: {self.stage}")
+
+        # Set needs based on runner type
+        lines.append("  needs:")
+        lines.append("    - prechecks")
+        if self.runner == "riot":
+            # Riot jobs need build_base_venvs artifacts
+            lines.append("    - job: build_base_venvs")
+            lines.append("      artifacts: true")
 
         services = set(self.services or [])
         if services:
@@ -70,12 +84,12 @@ class JobSpec:
                 subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()
             )
             lines.append("  cache:")
-            lines.append("    key: v0-pip-${PIP_CACHE_KEY}-cache")
+            lines.append("    key: v1-pip-${PIP_CACHE_KEY}-cache")
             lines.append("    paths:")
             lines.append("      - .cache")
         else:
             lines.append("  cache:")
-            lines.append("    key: v0-${CI_JOB_NAME}-pip-cache")
+            lines.append("    key: v1-${CI_JOB_NAME}-pip-cache")
             lines.append("    paths:")
             lines.append("      - .cache")
 
@@ -119,12 +133,50 @@ def gen_required_suites() -> None:
         git_selections=extract_git_commit_selections(os.getenv("CI_COMMIT_MESSAGE", "")),
     )
 
+    # If the ci_visibility suite is in the list of required suites, we need to run all suites
+    ci_visibility_suites = {"ci_visibility", "pytest", "pytest_v2"}
+    # If any of them in required_suites:
+    if any(suite in required_suites for suite in ci_visibility_suites):
+        required_suites = sorted(suites.keys())
+
     # Copy the template file
     TESTS_GEN.write_text((GITLAB / "tests.yml").read_text())
+
+    # Collect stages from suite configurations
+    stages = {"setup"}  # setup is always needed
+    for suite_name, suite_config in suites.items():
+        # Extract stage from suite name prefix if present
+        if "::" in suite_name:
+            stage, _, clean_name = suite_name.partition("::")
+        else:
+            stage = "core"
+            clean_name = suite_name
+
+        stages.add(stage)
+        # Store the stage in the suite config for later use
+        suite_config["_stage"] = stage
+        suite_config["_clean_name"] = clean_name
+
+    # Sort stages: setup first, then alphabetically
+    sorted_stages = ["setup"] + sorted(stages - {"setup"})
+
+    # Update the stages in the generated file
+    content = TESTS_GEN.read_text()
+
+    stages_yaml = "stages:\n" + "\n".join(f"  - {stage}" for stage in sorted_stages)
+    content = re.sub(r"stages:.*?(?=\n\w|\n\n|\Z)", stages_yaml, content, flags=re.DOTALL)
+    TESTS_GEN.write_text(content)
+
     # Generate the list of suites to run
     with TESTS_GEN.open("a") as f:
         for suite in required_suites:
-            jobspec = JobSpec(suite, **suites[suite])
+            suite_config = suites[suite].copy()
+            # Extract stage and clean name from config
+            stage = suite_config.pop("_stage", "core")
+            clean_name = suite_config.pop("_clean_name", suite)
+
+            # Create JobSpec with clean name and explicit stage
+            jobspec = JobSpec(clean_name, stage=stage, **suite_config)
             if jobspec.skip:
                 LOGGER.debug("Skipping suite %s", suite)
                 continue
@@ -137,49 +189,46 @@ def gen_build_docs() -> None:
     from needs_testrun import pr_matches_patterns
 
     if pr_matches_patterns(
-        {"docker*", "docs/*", "ddtrace/*", "scripts/docs/*", "releasenotes/*", "benchmarks/README.rst"}
+        {
+            "docker*",
+            "docs/*",
+            "ddtrace/*",
+            "scripts/docs/*",
+            "releasenotes/*",
+            "benchmarks/README.rst",
+            ".readthedocs.yml",
+        }
     ):
         with TESTS_GEN.open("a") as f:
             print("build_docs:", file=f)
             print("  extends: .testrunner", file=f)
-            print("  stage: hatch", file=f)
-            print("  needs: []", file=f)
+            print("  stage: core", file=f)
+            print("  needs:", file=f)
+            print("    - prechecks", file=f)
             print("  variables:", file=f)
             print("    PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'", file=f)
             print("  script:", file=f)
             print("    - |", file=f)
             print("      hatch run docs:build", file=f)
             print("      mkdir -p /tmp/docs", file=f)
-            print("      cp -r docs/_build/html/* /tmp/docs", file=f)
             print("  cache:", file=f)
-            print("    key: v1-build_docs-pip-cache", file=f)
+            print("    key: v2-build_docs-pip-cache", file=f)
             print("    paths:", file=f)
             print("      - .cache", file=f)
             print("  artifacts:", file=f)
             print("    paths:", file=f)
-            print("      - '/tmp/docs'", file=f)
+            print("      - 'docs/'", file=f)
 
 
 def gen_pre_checks() -> None:
     """Generate the list of pre-checks that need to be run."""
     from needs_testrun import pr_matches_patterns
 
+    checks: list[tuple[str, str]] = []
+
     def check(name: str, command: str, paths: t.Set[str]) -> None:
         if pr_matches_patterns(paths):
-            with TESTS_GEN.open("a") as f:
-                print(f'"{name}":', file=f)
-                print("  extends: .testrunner", file=f)
-                print("  stage: precheck", file=f)
-                print("  needs: []", file=f)
-                print("  variables:", file=f)
-                print("    PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'", file=f)
-                print("  script:", file=f)
-                print("    - pip cache info", file=f)
-                print(f"    - {command}", file=f)
-                print("  cache:", file=f)
-                print("    key: v1-precheck-pip-cache", file=f)
-                print("    paths:", file=f)
-                print("      - .cache", file=f)
+            checks.append((name, command))
 
     check(
         name="Style",
@@ -209,119 +258,94 @@ def gen_pre_checks() -> None:
     check(
         name="Run scripts/*.py tests",
         command="hatch run scripts:test",
-        paths={"docker*", "scripts/*.py", "scripts/mkwheelhouse", "scripts/run-test-suite", "**suitespec.yml"},
+        paths={"docker*", "scripts/*.py", "scripts/run-test-suite", "**suitespec.yml"},
     )
     check(
         name="Check suitespec coverage",
         command="hatch run lint:suitespec-check",
         paths={"*"},
     )
+    if not checks:
+        return
 
-
-def gen_appsec_iast_packages() -> None:
-    """Generate the list of jobs for the appsec_iast_packages tests."""
     with TESTS_GEN.open("a") as f:
         f.write(
             """
-appsec_iast_packages:
-  extends: .test_base_hatch
-  timeout: 50m
-  parallel:
-    matrix:
-      - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12"]
+prechecks:
+  extends: .testrunner
+  stage: setup
+  needs: []
   variables:
-    CMAKE_BUILD_PARALLEL_LEVEL: '12'
-    PIP_VERBOSE: '0'
     PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'
-    PYTEST_ADDOPTS: '-s'
-  cache:
-    # Share pip between jobs of the same Python version
-      key: v1.2-appsec_iast_packages-${PYTHON_VERSION}-cache
-      paths:
-        - .cache
-  before_script:
-    - !reference [.test_base_hatch, before_script]
-    - pyenv global "${PYTHON_VERSION}"
   script:
-    - export PYTEST_ADDOPTS="${PYTEST_ADDOPTS} --ddtrace"
-    - export DD_FAST_BUILD="1"
-    - export _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER=true
-    - hatch run appsec_iast_packages.py${PYTHON_VERSION}:test
+    - |
+      echo -e "\\e[0Ksection_start:`date +%s`:pip_cache_info[collapsed=true]\\r\\e[0KPip cache info"
+      pip cache info
+      echo -e "\\e[0Ksection_end:`date +%s`:pip_cache_info\\r\\e[0K"
         """
         )
+        for i, (name, command) in enumerate(checks):
+            f.write(
+                rf"""
+    - |
+      echo -e "\e[0Ksection_start:`date +%s`:section_{i}[collapsed=true]\\r\\e[0K{name}"
+      {command}
+      echo -e "\e[0Ksection_end:`date +%s`:section_{i}\\r\\e[0K"
+            """
+            )
+        f.write(
+            """
+  cache:
+    key: v2-precheck-pip-cache
+    paths:
+      - .cache
+"""
+        )
+
+
+def gen_cached_testrunner() -> None:
+    """Generate the cached testrunner job."""
+    with TESTS_GEN.open("a") as f:
+        f.write(template("cached-testrunner", current_month=datetime.datetime.now().month))
 
 
 def gen_build_base_venvs() -> None:
-    """Generate the list of base jobs for building virtual environments."""
+    """Generate the list of base jobs for building virtual environments.
 
-    ci_commit_sha = os.getenv("CI_COMMIT_SHA", "default")
-    native_hash = os.getenv("DD_NATIVE_SOURCES_HASH", ci_commit_sha)
+    We need to generate this dynamically from a template because it depends
+    on the cached testrunner job, which is also generated dynamically.
+    """
+    with TESTS_GEN.open("a") as f:
+        f.write(template("build-base-venvs"))
+
+
+def gen_debugger_exploration() -> None:
+    """Generate the cached testrunner job.
+
+    We need to generate this dynamically from a template because it depends
+    on the cached testrunner job, which is also generated dynamically.
+    """
+    from needs_testrun import pr_matches_patterns
+
+    if not pr_matches_patterns(
+        {
+            ".gitlab/templates/debugging/exploration.yml",
+            "ddtrace/debugging/*",
+            "ddtrace/internal/bytecode_injection/__init__.py",
+            "ddtrace/internal/wrapping/context.py",
+            "tests/debugging/exploration/*",
+        }
+    ):
+        return
 
     with TESTS_GEN.open("a") as f:
-        f.write(
-            f"""
-build_base_venvs:
-  extends: .testrunner
-  stage: riot
-  parallel:
-    matrix:
-      - PYTHON_VERSION: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
-  variables:
-    CMAKE_BUILD_PARALLEL_LEVEL: '12'
-    PIP_VERBOSE: '1'
-    DD_PROFILING_NATIVE_TESTS: '1'
-    DD_USE_SCCACHE: '1'
-    PIP_CACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/pip'
-    SCCACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/sccache'
-    DD_FAST_BUILD: '1'
-  rules:
-    - if: '$CI_COMMIT_REF_NAME == "main"'
-      variables:
-        DD_FAST_BUILD: '0'
-    - when: always
-  script: |
-    set -e -o pipefail
-    if [ ! -f cache_used.txt ];
-    then
-      echo "No cache found, building native extensions and base venv"
-      apt update && apt install -y sccache
-      pip install riot==0.20.1
-      riot -P -v generate --python=$PYTHON_VERSION
-      echo "Running smoke tests"
-      riot -v run -s --python=$PYTHON_VERSION smoke_test
-      touch cache_used.txt
-    else
-      echo "Skipping build, using compiled files/venv from cache"
-      echo "Fixing ddtrace versions"
-      pip install "setuptools_scm[toml]>=4"
-      ddtrace_version=$(python -m setuptools_scm --force-write-version-files)
-      find .riot/ -path '*/ddtrace*.dist-info/METADATA' | \
-        xargs sed -E -i "s/^Version:.*$/Version: ${{ddtrace_version}}/"
-      echo "Using version: ${{ddtrace_version}}"
-    fi
-  cache:
-    # Share pip/sccache between jobs of the same Python version
-    - key: v1-build_base_venvs-${{PYTHON_VERSION}}-cache
-      paths:
-        - .cache
-    # Reuse job artifacts between runs if no native source files have been changed
-    - key: v1-build_base_venvs-${{PYTHON_VERSION}}-native-{native_hash}
-      paths:
-        - .riot/venv_*
-        - ddtrace/**/*.so*
-        - ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*
-        - ddtrace/internal/datadog/profiling/test/test_*
-        - cache_used.txt
-  artifacts:
-    name: venv_$PYTHON_VERSION
-    paths:
-      - .riot/venv_*
-      - ddtrace/_version.py
-      - ddtrace/**/*.so*
-      - ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*
-      - ddtrace/internal/datadog/profiling/test/test_*
-        """
-        )
+        f.write(template("debugging/exploration"))
+
+
+def gen_detect_global_locks() -> None:
+    """Generate the global lock detection job."""
+    with TESTS_GEN.open("a") as f:
+        f.write(template("detect-global-locks"))
 
 
 # -----------------------------------------------------------------------------
@@ -355,6 +379,14 @@ TESTS_GEN = GITLAB / "tests-gen.yml"
 # Make the scripts and tests folders available for importing.
 sys.path.append(str(ROOT / "scripts"))
 sys.path.append(str(ROOT / "tests"))
+
+
+def template(name: str, **params):
+    """Render a template file with the given parameters."""
+    if not (template_path := (GITLAB / "templates" / name).with_suffix(".yml")).exists():
+        raise FileNotFoundError(f"Template file {template_path} does not exist")
+    return "\n" + template_path.read_text().format(**params).strip() + "\n"
+
 
 has_error = False
 

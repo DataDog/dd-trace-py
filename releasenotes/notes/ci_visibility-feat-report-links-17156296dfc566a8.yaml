@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    CI Visibility: This introduces report links to the pytest plugin. At the end of a test session, ddtrace shows links
+    to the Datadog Test Optimization pages with the test results for the current commit and for the current CI job
+    (provided that the CI environment variables with the current job and pipeline ID are available).

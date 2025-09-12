@@ -1,5 +1,3 @@
-import os
-
 import pytest
 
 from ddtrace.internal.packages import _third_party_packages
@@ -28,7 +26,7 @@ def packages():
     for f in _p.__dict__.values():
         try:
             if f.__code__ is _cached_sentinel.__code__:
-                f.invalidate()
+                f.cache_clear()
         except AttributeError:
             pass
 
@@ -40,28 +38,26 @@ def test_get_distributions():
     pkg_resources_ws = {pkg.project_name.lower() for pkg in pkg_resources.working_set}
 
     importlib_pkgs = set()
-    for pkg in get_distributions():
-        assert pkg.name
-        assert pkg.version
-        assert os.path.exists(pkg.path)
+    for name, version in get_distributions().items():
+        assert version
         # The package name in typing_extensions-4.x.x.dist-info/METADATA is set to `typing_extensions`
         # this is inconsistent with the package name found in pkg_resources. The block below corrects this.
         # The correct package name is typing-extensions.
         # The issue exists in pkgutil-resolve-name package.
-        if pkg.name == "typing_extensions" and "typing-extensions" in pkg_resources_ws:
+        if name == "typing_extensions" and "typing-extensions" in pkg_resources_ws:
             importlib_pkgs.add("typing-extensions")
-        elif pkg.name == "pkgutil_resolve_name" and "pkgutil-resolve-name" in pkg_resources_ws:
+        elif name == "pkgutil_resolve_name" and "pkgutil-resolve-name" in pkg_resources_ws:
             importlib_pkgs.add("pkgutil-resolve-name")
-        elif pkg.name == "importlib_metadata" and "importlib-metadata" in pkg_resources_ws:
+        elif name == "importlib_metadata" and "importlib-metadata" in pkg_resources_ws:
             importlib_pkgs.add("importlib-metadata")
-        elif pkg.name == "importlib-metadata" and "importlib_metadata" in pkg_resources_ws:
+        elif name == "importlib-metadata" and "importlib_metadata" in pkg_resources_ws:
             importlib_pkgs.add("importlib_metadata")
-        elif pkg.name == "importlib-resources" and "importlib_resources" in pkg_resources_ws:
+        elif name == "importlib-resources" and "importlib_resources" in pkg_resources_ws:
             importlib_pkgs.add("importlib_resources")
-        elif pkg.name == "importlib_resources" and "importlib-resources" in pkg_resources_ws:
+        elif name == "importlib_resources" and "importlib-resources" in pkg_resources_ws:
             importlib_pkgs.add("importlib-resources")
         else:
-            importlib_pkgs.add(pkg.name)
+            importlib_pkgs.add(name)
 
     # assert that pkg_resources and importlib.metadata return the same packages
     assert pkg_resources_ws == importlib_pkgs
@@ -108,3 +104,42 @@ def test_third_party_packages_excludes_includes():
 
     assert {"myfancypackage", "myotherfancypackage"} < _third_party_packages()
     assert "requests" not in _third_party_packages()
+
+
+def test_third_party_packages_symlinks(tmp_path):
+    """
+    Test that a symlink doesn't break our logic of detecting user code.
+    """
+    import os
+
+    from ddtrace.internal.packages import is_user_code
+
+    # Use pathlib for more pythonic directory creation
+    actual_path = tmp_path / "site-packages" / "ddtrace"
+    runfiles_path = tmp_path / "test.runfiles" / "site-packages" / "ddtrace"
+
+    # Create directories using pathlib (more pythonic)
+    actual_path.mkdir(parents=True)
+    runfiles_path.mkdir(parents=True)
+
+    # Assert that the runfiles path is considered user code when symlinked.
+    code_file = actual_path / "test.py"
+    code_file.write_bytes(b"#")
+
+    symlink_file = runfiles_path / "test.py"
+    os.symlink(code_file, symlink_file)
+
+    assert is_user_code(code_file)
+    # Symlinks with `.runfiles` in the path should not be considered user code.
+    from ddtrace.internal.compat import Path
+
+    p = Path(symlink_file)
+    p2 = Path(symlink_file).resolve()
+    print(symlink_file, p, p2)
+
+    assert not is_user_code(symlink_file)
+
+    code_file_2 = runfiles_path / "test2.py"
+    code_file_2.write_bytes(b"#")
+
+    assert not is_user_code(code_file_2)

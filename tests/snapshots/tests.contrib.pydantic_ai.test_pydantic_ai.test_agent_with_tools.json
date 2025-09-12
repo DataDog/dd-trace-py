@@ -1,0 +1,43 @@
+[[
+  {
+    "name": "test_agent",
+    "service": "tests.contrib.pydantic_ai",
+    "resource": "Pydantic Agent",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "685c2acd00000000",
+      "language": "python",
+      "pydantic_ai.request.model": "gpt-4o",
+      "pydantic_ai.request.provider": "openai",
+      "runtime-id": "8f113d01af3e4e73aee4d266a9225a5b"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 68870
+    },
+    "duration": 2060766000,
+    "start": 1750870733933322000
+  },
+     {
+       "name": "calculate_square_tool",
+       "service": "tests.contrib.pydantic_ai",
+       "resource": "Pydantic Tool",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "metrics": {
+         "_dd.measured": 1
+       },
+       "duration": 2438000,
+       "start": 1750870735435157000
+     }]]

@@ -12,7 +12,6 @@ from hypothesis.strategies import dictionaries
 from hypothesis.strategies import floats
 from hypothesis.strategies import integers
 from hypothesis.strategies import text
-import mock
 import msgpack
 import pytest
 
@@ -31,7 +30,6 @@ from ddtrace.internal.encoding import JSONEncoderV2
 from ddtrace.internal.encoding import MsgpackEncoderV04
 from ddtrace.internal.encoding import MsgpackEncoderV05
 from ddtrace.internal.encoding import _EncoderBase
-from ddtrace.settings._agent import config as agent_config
 from ddtrace.trace import Context
 from ddtrace.trace import Span
 from tests.utils import DummyTracer
@@ -72,6 +70,8 @@ def gen_trace(nspans=1000, ntags=50, key_size=15, value_size=20, nmetrics=10):
             resource="/fsdlajfdlaj/afdasd%s" % i,
             service="myservice",
             parent_id=parent_id,
+            # All spans in a trace must share a trace_id
+            trace_id=root.trace_id if root else None,
         ) as span:
             span._parent = root
             span.set_tags({rands(key_size): rands(value_size) for _ in range(0, ntags)})
@@ -99,10 +99,10 @@ class RefMsgpackEncoder(_EncoderBase):
 
     def encode_traces(self, traces):
         normalized_traces = [[self.normalize(span) for span in trace] for trace in traces]
-        return self.encode(normalized_traces)[0]
+        return self.encode(normalized_traces)[0][0]
 
     def encode(self, obj):
-        return msgpack.packb(obj), len(obj)
+        return [(msgpack.packb(obj), len(obj))]
 
     @staticmethod
     def decode(data):
@@ -242,7 +242,9 @@ def test_encode_meta_struct():
         ]
     )
 
-    spans, _ = encoder.encode()
+    encoded_traces = encoder.encode()
+    assert encoded_traces, "Expected encoded traces but got empty list"
+    [(spans, _)] = encoded_traces
     items = decode(spans)
     assert isinstance(spans, bytes)
     assert len(items) == 1
@@ -330,24 +332,32 @@ def test_custom_msgpack_encode(encoding):
     # Note that we assert on the decoded versions because the encoded
     # can vary due to non-deterministic map key/value positioning
     encoder.put(trace)
-    assert decode(refencoder.encode_traces([trace])) == decode(encoder.encode()[0])
+    encoded_traces = encoder.encode()
+    assert encoded_traces, "Expected non-empty traces"
+    assert decode(refencoder.encode_traces([trace])) == decode(encoded_traces[0][0])
 
     ref_encoded = refencoder.encode_traces([trace, trace])
     encoder.put(trace)
     encoder.put(trace)
-    encoded, _ = encoder.encode()
+    encoded_traces = encoder.encode()
+    assert encoded_traces, "Expected encoded traces but got empty list"
+    [(encoded, _)] = encoded_traces
     assert decode(encoded) == decode(ref_encoded)
 
     # Empty trace (not that this should be done in practice)
     encoder.put([])
-    assert decode(refencoder.encode_traces([[]])) == decode(encoder.encode()[0])
+    encoded_traces = encoder.encode()
+    assert encoded_traces, "Expected non-empty traces"
+    assert decode(refencoder.encode_traces([[]])) == decode(encoded_traces[0][0])
 
     s = Span(None)
     # Need to .finish() to have a duration since the old implementation will not encode
     # duration_ns, the new one will encode as None
     s.finish()
     encoder.put([s])
-    assert decode(refencoder.encode_traces([[s]])) == decode(encoder.encode()[0])
+    encoded_traces = encoder.encode()
+    assert encoded_traces, "Expected non-empty traces"
+    assert decode(refencoder.encode_traces([[s]])) == decode(encoded_traces[0][0])
 
 
 def span_type_span():
@@ -375,7 +385,23 @@ def test_msgpack_span_property_variations(encoding, span):
 
     trace = [span]
     encoder.put(trace)
-    assert decode(refencoder.encode_traces([trace])) == decode(encoder.encode()[0])
+    encoded_traces = encoder.encode()
+    assert encoded_traces, "Expected non-empty traces"
+    assert decode(refencoder.encode_traces([trace])) == decode(encoded_traces[0][0])
+
+
+@allencodings
+def test_long_span_start(encoding):
+    encoder = MSGPACK_ENCODERS[encoding](1 << 10, 1 << 10)
+
+    # Start a span a very long time ago
+    span = Span(None)
+    span.start = -62135596700
+    span.finish()
+
+    trace = [span]
+    encoder.put(trace)
+    assert decode(encoder.encode()[0][0]) is not None
 
 
 class SubString(str):
@@ -416,7 +442,9 @@ def test_span_types(encoding, span, tags):
 
     trace = [span]
     encoder.put(trace)
-    assert decode(refencoder.encode_traces([trace])) == decode(encoder.encode()[0])
+    encoded_traces = encoder.encode()
+    assert encoded_traces, "Expected non-empty traces"
+    assert decode(refencoder.encode_traces([trace])) == decode(encoded_traces[0][0])
 
 
 def test_span_link_v04_encoding():
@@ -458,7 +486,9 @@ def test_span_link_v04_encoding():
     span.finish()
 
     encoder.put([span])
-    decoded_trace = decode(encoder.encode()[0])
+    encoded_traces = encoder.encode()
+    assert encoded_traces, "Expected non-empty traces"
+    decoded_trace = decode(encoded_traces[0][0])
     # ensure one trace was decoded
     assert len(decoded_trace) == 1
     # ensure trace has one span
@@ -509,15 +539,18 @@ def test_span_link_v04_encoding():
     ]
 
 
-@pytest.mark.parametrize(
-    "version,trace_native_span_events",
-    [
-        ("v0.4", False),
-        ("v0.4", True),
-        ("v0.5", False),
-    ],
+@pytest.mark.subprocess(
+    parametrize={"DD_TRACE_API_VERSION": ["v0.4", "v0.5"], "DD_TRACE_NATIVE_SPAN_EVENTS": ["True", "False"]}, err=None
 )
-def test_span_event_encoding_msgpack(version, trace_native_span_events):
+def test_span_event_encoding_msgpack():
+    import os
+
+    import mock
+
+    from ddtrace.internal.encoding import MSGPACK_ENCODERS
+    from ddtrace.trace import Span
+    from tests.tracer.test_encoders import decode
+
     expected_top_level_span_encoding = [
         {
             b"name": b"Something went so wrong",
@@ -552,14 +585,18 @@ def test_span_event_encoding_msgpack(version, trace_native_span_events):
         {"emotion": "happy", "rating": 9.8, "other": [1, 9.5, 1], "idol": False},
         17353464354546,
     )
-    with mock.patch("ddtrace._trace.span.time_ns", return_value=2234567890123456):
+    with mock.patch("ddtrace._trace.span.Time.time_ns", return_value=2234567890123456):
         span._add_event("We are going to the moon")
 
-    agent_config.trace_native_span_events = trace_native_span_events
+    # Get test parameters from environment variables
+    version = os.getenv("DD_TRACE_API_VERSION")
+    trace_native_span_events = os.getenv("DD_TRACE_NATIVE_SPAN_EVENTS") == "True"
 
     encoder = MSGPACK_ENCODERS[version](1 << 20, 1 << 20)
     encoder.put([span])
-    data = encoder.encode()
+    encoded_traces = encoder.encode()
+    assert encoded_traces, "Expected encoded traces but got empty list"
+    [data] = encoded_traces
     decoded_trace = decode(data[0])
     # ensure one trace was decoded
     assert len(decoded_trace) == 1
@@ -631,7 +668,9 @@ def test_span_link_v05_encoding():
     span.finish()
 
     encoder.put([span])
-    decoded_trace = decode(encoder.encode()[0])
+    encoded_traces = encoder.encode()
+    assert encoded_traces, "Expected non-empty traces"
+    decoded_trace = decode(encoded_traces[0][0])
     assert len(decoded_trace) == 1
     assert len(decoded_trace[0]) == 1
 
@@ -666,11 +705,14 @@ def test_encoder_propagates_dd_origin(Encoder, item):
         for _ in range(999):
             with tracer.trace("child"):
                 pass
-    trace = tracer._writer.pop()
+
+    trace = tracer._span_aggregator.writer.pop()
     assert trace, "DummyWriter failed to encode the trace"
 
     encoder.put(trace)
-    decoded_trace = decode(encoder.encode()[0])
+    encoded_traces = encoder.encode()
+    assert encoded_traces, "Expected non-empty traces"
+    decoded_trace = decode(encoded_traces[0][0])
     assert len(decoded_trace) == 1
     assert decoded_trace[0]
 
@@ -701,7 +743,7 @@ def test_custom_msgpack_encode_trace_size(encoding, trace_id, name, service, res
 
     encoder.put(trace)
 
-    assert encoder.size == len(encoder.encode()[0])
+    assert encoder.size == len(encoder.encode()[0][0])
 
 
 def test_encoder_buffer_size_limit_v05():
@@ -755,7 +797,9 @@ def test_custom_msgpack_encode_v05():
     assert len(encoder) == 1
 
     num_bytes = encoder.size
-    encoded, num_traces = encoder.flush()
+    flush_traces = encoder.flush()
+    assert flush_traces, "Expected flush traces but got empty list"
+    [(encoded, num_traces)] = flush_traces
     assert num_traces == 1
     assert num_bytes == len(encoded)
     st, ts = decode(encoded, reconstruct=False)
@@ -827,8 +871,8 @@ def _value():
         {"service": True},
         {"resource": 50},
         {"name": [1, 2, 3]},
-        {"start_ns": "start_time"},
-        {"duration_ns": "duration_time"},
+        {"start_ns": []},
+        {"duration_ns": {}},
         {"span_type": 100},
         {"_meta": {"num": 100}},
         # Validating behavior with a context manager is a customer regression
@@ -847,8 +891,9 @@ def test_encoding_invalid_data(data):
     with pytest.raises(RuntimeError) as e:
         encoder.put(trace)
 
-    assert e.match(r"failed to pack span: <Span\(id="), e
-    assert encoder.encode()[0] is None
+    assert e.match(r"failed to pack span: Span\(name="), e
+    encoded_traces = encoder.encode()
+    assert (not encoded_traces) or (encoded_traces[0][0] is None)
 
 
 @allencodings
@@ -879,7 +924,9 @@ def test_custom_msgpack_encode_thread_safe(encoding):
     for t in ts:
         t.join()
 
-    unpacked = decode(encoder.encode()[0], reconstruct=True)
+    encoded_traces = encoder.encode()
+    assert encoded_traces, "Expected non-empty traces"
+    unpacked = decode(encoded_traces[0][0], reconstruct=True)
     assert unpacked is not None
 
 

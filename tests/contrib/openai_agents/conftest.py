@@ -2,17 +2,19 @@ import os
 
 from agents import Agent
 from agents import GuardrailFunctionOutput
+from agents import WebSearchTool
 from agents import function_tool
 from agents import input_guardrail
+from agents import output_guardrail
+from openai.types.responses.web_search_tool_param import UserLocation
 import pytest
 import vcr
 
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.openai_agents.patch import patch
 from ddtrace.contrib.internal.openai_agents.patch import unpatch
 from ddtrace.llmobs import LLMObs as llmobs_service
-from ddtrace.llmobs._constants import AGENTLESS_BASE_URL
-from ddtrace.llmobs._writer import LLMObsSpanWriter
-from ddtrace.trace import Pin
+from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.utils import DummyTracer
 from tests.utils import override_global_config
 
@@ -58,6 +60,7 @@ def research_workflow():
     summarizer = Agent(
         name="Summarizer",
         instructions="""You are a helpful assistant that can summarize a research results.""",
+        model="gpt-4o",
     )
     yield Agent(
         name="Researcher",
@@ -67,6 +70,7 @@ def research_workflow():
         ),
         tools=[research],
         handoffs=[summarizer],
+        model="gpt-4o",
     )
 
 
@@ -77,6 +81,7 @@ def addition_agent():
         name="Addition Agent",
         instructions="You are a helpful assistant specialized in addition calculations.",
         tools=[add],
+        model="gpt-4o",
     )
 
 
@@ -96,18 +101,46 @@ def addition_agent_with_tool_errors():
             "Do not retry the tool call if it errors and instead return immediately"
         ),
         tools=[add_with_error],
+        model="gpt-4o",
+    )
+
+
+@pytest.fixture
+def web_search():
+    yield WebSearchTool(user_location=UserLocation(type="approximate", city="New York"))
+
+
+@pytest.fixture
+def weather_agent(web_search):
+    yield Agent(
+        name="Weather Agent",
+        instructions=("You are a helpful assistant specialized in searching the web for weather information."),
+        tools=[web_search],
+        model="gpt-4o",
     )
 
 
 @input_guardrail
-async def simple_guardrail(
+async def simple_input_guardrail(
     context,
     agent,
     inp,
 ):
     return GuardrailFunctionOutput(
         output_info="dummy",
-        tripwire_triggered="safe" not in inp,
+        tripwire_triggered=False,
+    )
+
+
+@output_guardrail
+async def simple_output_guardrail(
+    context,
+    agent,
+    inp,
+):
+    return GuardrailFunctionOutput(
+        output_info="dummy",
+        tripwire_triggered=False,
     )
 
 
@@ -115,9 +148,12 @@ async def simple_guardrail(
 def simple_agent_with_guardrail():
     """An agent with addition tools and a guardrail"""
     yield Agent(
-        name="Simple Agent",
+        name="Simple Agent with Guardrails",
         instructions="You are a helpful assistant specialized in addition calculations.",
-        input_guardrails=[simple_guardrail],
+        input_guardrails=[simple_input_guardrail],
+        output_guardrails=[simple_output_guardrail],
+        tools=[add],
+        model="gpt-4o",
     )
 
 
@@ -127,6 +163,7 @@ def simple_agent():
     yield Agent(
         name="Simple Agent",
         instructions="You are a helpful assistant who answers questions concisely and accurately.",
+        model="gpt-4o",
     )
 
 
@@ -166,15 +203,6 @@ def openai(agents):
     unpatch_openai()
 
 
-class TestLLMObsSpanWriter(LLMObsSpanWriter):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.events = []
-
-    def enqueue(self, event):
-        self.events.append(event)
-
-
 @pytest.fixture
 def mock_tracer(agents):
     mock_tracer = DummyTracer()
@@ -192,8 +220,7 @@ def mock_tracer_chat_completions(agents, openai, mock_tracer):
 
 @pytest.fixture
 def llmobs_span_writer():
-    agentless_url = "{}.{}".format(AGENTLESS_BASE_URL, "datad0g.com")
-    yield TestLLMObsSpanWriter(is_agentless=True, agentless_url=agentless_url, interval=1.0, timeout=1.0)
+    yield TestLLMObsSpanWriter(1.0, 5.0, is_agentless=True, _site="datad0g.com", _api_key="<not-a-real-key>")
 
 
 @pytest.fixture

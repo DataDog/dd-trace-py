@@ -1,43 +1,35 @@
 from typing import Text
 
-from wrapt.importer import when_imported
-
-from ddtrace.appsec._common_module_patches import try_unwrap
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
+from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
-from ddtrace.appsec._iast._overhead_control_engine import oce
-from ddtrace.appsec._iast._patch import set_and_check_module_is_patched
-from ddtrace.appsec._iast._patch import set_module_unpatched
-from ddtrace.appsec._iast._patch import try_wrap_function_wrapper
+from ddtrace.appsec._iast._patch_modules import WrapFunctonsForIAST
 from ddtrace.appsec._iast._span_metrics import increment_iast_span_metric
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
+from ddtrace.appsec._iast.sampling.vulnerability_detection import should_process_vulnerability
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.settings.asm import config as asm_config
 
 
-@oce.register
 class InsecureCookie(VulnerabilityBase):
     vulnerability_type = VULN_INSECURE_COOKIE
 
 
-@oce.register
 class NoHttpOnlyCookie(VulnerabilityBase):
     vulnerability_type = VULN_NO_HTTPONLY_COOKIE
     secure_mark = VulnerabilityType.NO_HTTPONLY_COOKIE
 
 
-@oce.register
 class NoSameSite(VulnerabilityBase):
     vulnerability_type = VULN_NO_SAMESITE_COOKIE
     secure_mark = VulnerabilityType.NO_SAMESITE_COOKIE
 
 
-@oce.register
 class CookiesVulnerability(VulnerabilityBase):
     vulnerability_type = "COOKIES_VULNERABILITY"
 
@@ -45,7 +37,7 @@ class CookiesVulnerability(VulnerabilityBase):
     def report_cookies(cls, evidence_value, insecure_cookie, no_http_only, no_samesite) -> None:
         """Build a IastSpanReporter instance to report it in the `AppSecIastSpanProcessor` as a string JSON"""
         if insecure_cookie or no_http_only or no_samesite:
-            if cls.acquire_quota():
+            if should_process_vulnerability(InsecureCookie.vulnerability_type):
                 file_name, line_number, function_name, class_name = cls._compute_file_line()
                 if file_name is None:
                     return
@@ -100,42 +92,30 @@ def get_version() -> Text:
     return ""
 
 
+_IS_PATCHED = False
+
+
 def patch():
+    global _IS_PATCHED
+    if _IS_PATCHED and not asm_config._iast_is_testing:
+        return
+
     if not asm_config._iast_enabled:
         return
 
-    if not set_and_check_module_is_patched("flask", default_attr="_datadog_insecure_cookies_patch"):
-        return
-    if not set_and_check_module_is_patched("django", default_attr="_datadog_insecure_cookies_patch"):
-        return
-    if not set_and_check_module_is_patched("fastapi", default_attr="_datadog_insecure_cookies_patch"):
-        return
+    _IS_PATCHED = True
 
-    @when_imported("django.http.response")
-    def _(m):
-        try_wrap_function_wrapper(m, "HttpResponseBase.set_cookie", _iast_response_cookies)
+    iast_funcs = WrapFunctonsForIAST()
 
-    @when_imported("flask")
-    def _(m):
-        try_wrap_function_wrapper(m, "Response.set_cookie", _iast_response_cookies)
+    iast_funcs.wrap_function("django.http.response", "HttpResponseBase.set_cookie", _iast_response_cookies)
+    iast_funcs.wrap_function("flask", "Response.set_cookie", _iast_response_cookies)
+    iast_funcs.wrap_function("starlette.responses", "Response.set_cookie", _iast_response_cookies)
 
-    @when_imported("starlette.responses")
-    def _(m):
-        try_wrap_function_wrapper(m, "Response.set_cookie", _iast_response_cookies)
+    iast_funcs.patch()
 
     _set_metric_iast_instrumented_sink(VULN_INSECURE_COOKIE)
     _set_metric_iast_instrumented_sink(VULN_NO_HTTPONLY_COOKIE)
     _set_metric_iast_instrumented_sink(VULN_NO_SAMESITE_COOKIE)
-
-
-def unpatch():
-    try_unwrap("flask", "Response.set_cookie")
-    try_unwrap("starlette.responses", "Response.set_cookie")
-    try_unwrap("django.http.response", "HttpResponseBase.set_cookie")
-
-    set_module_unpatched("flask", default_attr="_datadog_insecure_cookies_patch")
-    set_module_unpatched("django", default_attr="_datadog_insecure_cookies_patch")
-    set_module_unpatched("fastapi", default_attr="_datadog_insecure_cookies_patch")
 
 
 def _iast_response_cookies(wrapped, instance, args, kwargs):
@@ -150,7 +130,7 @@ def _iast_response_cookies(wrapped, instance, args, kwargs):
             cookie_value = kwargs.get("value")
 
         if cookie_value and cookie_key:
-            if asm_config._iast_enabled and asm_config.is_iast_request_enabled:
+            if is_iast_request_enabled() and CookiesVulnerability.has_quota():
                 report_samesite = False
                 samesite = kwargs.get("samesite", "")
                 if samesite:

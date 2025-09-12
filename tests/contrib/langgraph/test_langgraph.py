@@ -158,3 +158,10 @@ async def test_fanning_graph_stream_async(fanning_graph, mock_tracer):
         pass
     spans = mock_tracer.pop_traces()[0]
     assert_fanning_graph_spans(spans)
+
+
+async def test_astream_events(simple_graph, mock_tracer):
+    async for _ in simple_graph.astream_events({"a_list": [], "which": "a"}, version="v2"):
+        pass
+    spans = mock_tracer.pop_traces()[0]
+    assert_simple_graph_spans(spans)

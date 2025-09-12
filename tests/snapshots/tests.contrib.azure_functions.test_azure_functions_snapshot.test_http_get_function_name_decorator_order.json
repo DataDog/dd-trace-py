@@ -1,0 +1,33 @@
+[[
+  {
+    "name": "azure.functions.invoke",
+    "service": "test-func",
+    "resource": "GET /api/httpgetfunctionnamedecoratororder",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "serverless",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "684055f800000000",
+      "aas.function.name": "functionnamedecoratororder",
+      "aas.function.trigger": "Http",
+      "component": "azure_functions",
+      "http.method": "GET",
+      "http.route": "/api/httpgetfunctionnamedecoratororder",
+      "http.status_code": "200",
+      "http.url": "http://0.0.0.0:7071/api/httpgetfunctionnamedecoratororder",
+      "http.useragent": "python-httpx/x.xx.x",
+      "language": "python",
+      "runtime-id": "e0b373739eb742d29f13fdb6cb71a98e",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 53880
+    },
+    "duration": 278416,
+    "start": 1749046776355682801
+  }]]

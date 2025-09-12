@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: Resolves a bug where ``os.system`` or ``subprocess.Popen`` could return the wrong exception type.

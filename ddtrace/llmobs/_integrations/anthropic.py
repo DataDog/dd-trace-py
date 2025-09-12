@@ -5,28 +5,35 @@ from typing import Iterable
 from typing import List
 from typing import Optional
 from typing import Union
-from urllib.parse import urlparse
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_MESSAGES
+from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
+from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import TOOL_DEFINITIONS
+from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
-from ddtrace.llmobs._integrations.utils import get_llmobs_metrics_tags
+from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs.utils import ToolCall
+from ddtrace.llmobs.utils import ToolDefinition
+from ddtrace.llmobs.utils import ToolResult
 from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
 
 
-API_KEY = "anthropic.request.api_key"
 MODEL = "anthropic.request.model"
-DEFAULT_ANTHROPIC_HOSTNAME = "api.anthropic.com"
 
 
 class AnthropicIntegration(BaseLLMIntegration):
@@ -42,11 +49,6 @@ class AnthropicIntegration(BaseLLMIntegration):
         """Set base level tags that should be present on all Anthropic spans (if they are not None)."""
         if model is not None:
             span.set_tag_str(MODEL, model)
-        if api_key is not None:
-            if len(api_key) >= 4:
-                span.set_tag_str(API_KEY, f"sk-...{str(api_key[-4:])}")
-            else:
-                span.set_tag_str(API_KEY, api_key)
 
     def _llmobs_set_tags(
         self,
@@ -62,6 +64,9 @@ class AnthropicIntegration(BaseLLMIntegration):
             parameters["temperature"] = kwargs.get("temperature")
         if kwargs.get("max_tokens"):
             parameters["max_tokens"] = kwargs.get("max_tokens")
+        if kwargs.get("tools"):
+            tools = self._extract_tools(kwargs.get("tools"))
+            span._set_ctx_item(TOOL_DEFINITIONS, tools)
         messages = kwargs.get("messages")
         system_prompt = kwargs.get("system")
         input_messages = self._extract_input_message(messages, system_prompt)
@@ -69,18 +74,23 @@ class AnthropicIntegration(BaseLLMIntegration):
         output_messages = [{"content": ""}]
         if not span.error and response is not None:
             output_messages = self._extract_output_message(response)
+        span_kind = "workflow" if span._get_ctx_item(PROXY_REQUEST) else "llm"
+
+        usage = _get_attr(response, "usage", {})
+        metrics = self._extract_usage(span, usage) if span_kind != "workflow" else {}
 
         span._set_ctx_items(
             {
-                SPAN_KIND: "llm",
+                SPAN_KIND: span_kind,
                 MODEL_NAME: span.get_tag("anthropic.request.model") or "",
                 MODEL_PROVIDER: "anthropic",
                 INPUT_MESSAGES: input_messages,
                 METADATA: parameters,
                 OUTPUT_MESSAGES: output_messages,
-                METRICS: get_llmobs_metrics_tags("anthropic", span),
+                METRICS: metrics,
             }
         )
+        update_proxy_workflow_input_output_value(span, span_kind)
 
     def _extract_input_message(self, messages, system_prompt: Optional[Union[str, List[Dict[str, Any]]]] = None):
         """Extract input messages from the stored prompt.
@@ -121,32 +131,43 @@ class AnthropicIntegration(BaseLLMIntegration):
                         input_data = _get_attr(block, "input", "")
                         if isinstance(input_data, str):
                             input_data = json.loads(input_data)
-                        tool_call_info = {
-                            "name": _get_attr(block, "name", ""),
-                            "arguments": input_data,
-                            "tool_id": _get_attr(block, "id", ""),
-                            "type": _get_attr(block, "type", ""),
-                        }
+                        tool_call_info = ToolCall(
+                            name=_get_attr(block, "name", ""),
+                            arguments=input_data,
+                            tool_id=_get_attr(block, "id", ""),
+                            type=_get_attr(block, "type", ""),
+                        )
                         if text is None:
                             text = ""
                         input_messages.append({"content": text, "role": role, "tool_calls": [tool_call_info]})
 
                     elif _get_attr(block, "type", None) == "tool_result":
                         content = _get_attr(block, "content", None)
-                        if isinstance(content, str):
-                            input_messages.append({"content": "[tool result: {}]".format(content), "role": role})
-                        elif isinstance(content, list):
-                            input_messages.append({"content": [], "role": role})
-                            for tool_result_block in content:
-                                if _get_attr(tool_result_block, "text", "") != "":
-                                    input_messages[-1]["content"].append(_get_attr(tool_result_block, "text", ""))
-                                elif _get_attr(tool_result_block, "type", None) == "image":
-                                    # Store a placeholder for potentially enormous binary image data.
-                                    input_messages[-1]["content"].append("([IMAGE DETECTED])")
+                        formatted_content = self._format_tool_result_content(content)
+                        tool_result_info = ToolResult(
+                            result=formatted_content,
+                            tool_id=_get_attr(block, "tool_use_id", ""),
+                            type="tool_result",
+                        )
+                        input_messages.append({"content": "", "role": role, "tool_results": [tool_result_info]})
                     else:
                         input_messages.append({"content": str(block), "role": role})
 
         return input_messages
+
+    def _format_tool_result_content(self, content) -> str:
+        if isinstance(content, str):
+            return content
+        elif isinstance(content, Iterable):
+            formatted_content = []
+            for tool_result_block in content:
+                if _get_attr(tool_result_block, "text", "") != "":
+                    formatted_content.append(_get_attr(tool_result_block, "text", ""))
+                elif _get_attr(tool_result_block, "type", None) == "image":
+                    # Store a placeholder for potentially enormous binary image data.
+                    formatted_content.append("([IMAGE DETECTED])")
+            return ",".join(formatted_content)
+        return str(content)
 
     def _extract_output_message(self, response):
         """Extract output messages from the stored response."""
@@ -167,33 +188,56 @@ class AnthropicIntegration(BaseLLMIntegration):
                         input_data = _get_attr(completion, "input", "")
                         if isinstance(input_data, str):
                             input_data = json.loads(input_data)
-                        tool_call_info = {
-                            "name": _get_attr(completion, "name", ""),
-                            "arguments": input_data,
-                            "tool_id": _get_attr(completion, "id", ""),
-                            "type": _get_attr(completion, "type", ""),
-                        }
+                        tool_call_info = ToolCall(
+                            name=_get_attr(completion, "name", ""),
+                            arguments=input_data,
+                            tool_id=_get_attr(completion, "id", ""),
+                            type=_get_attr(completion, "type", ""),
+                        )
                         if text is None:
                             text = ""
                         output_messages.append({"content": text, "role": role, "tool_calls": [tool_call_info]})
         return output_messages
 
-    def record_usage(self, span: Span, usage: Dict[str, Any]) -> None:
+    def _extract_usage(self, span: Span, usage: Dict[str, Any]):
         if not usage:
             return
         input_tokens = _get_attr(usage, "input_tokens", None)
         output_tokens = _get_attr(usage, "output_tokens", None)
+        cache_write_tokens = _get_attr(usage, "cache_creation_input_tokens", None)
+        cache_read_tokens = _get_attr(usage, "cache_read_input_tokens", None)
 
-        if input_tokens is not None:
-            span.set_metric("anthropic.response.usage.input_tokens", input_tokens)
+        metrics = {}
+
+        # `input_tokens` in the returned usage is the number of non-cached tokens. We normalize it to mean
+        # the total tokens sent to the model to be consistent with other model providers.
+        metrics[INPUT_TOKENS_METRIC_KEY] = (input_tokens or 0) + (cache_write_tokens or 0) + (cache_read_tokens or 0)
+
         if output_tokens is not None:
-            span.set_metric("anthropic.response.usage.output_tokens", output_tokens)
-        if input_tokens is not None and output_tokens is not None:
-            span.set_metric("anthropic.response.usage.total_tokens", input_tokens + output_tokens)
+            metrics[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
+        if INPUT_TOKENS_METRIC_KEY in metrics and output_tokens is not None:
+            metrics[TOTAL_TOKENS_METRIC_KEY] = metrics[INPUT_TOKENS_METRIC_KEY] + output_tokens
 
-    def is_default_base_url(self, base_url: Optional[str] = None) -> bool:
-        if base_url is None:
-            return True
+        if cache_write_tokens is not None:
+            metrics[CACHE_WRITE_INPUT_TOKENS_METRIC_KEY] = cache_write_tokens
+        if cache_read_tokens is not None:
+            metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cache_read_tokens
+        return metrics
 
-        parsed_url = urlparse(base_url)
-        return parsed_url.hostname == DEFAULT_ANTHROPIC_HOSTNAME
+    def _get_base_url(self, **kwargs: Dict[str, Any]) -> Optional[str]:
+        instance = kwargs.get("instance")
+        client = getattr(instance, "_client", None)
+        base_url = getattr(client, "_base_url", None) if client else None
+        return str(base_url) if base_url else None
+
+    def _extract_tools(self, tools: Optional[Any]) -> List[ToolDefinition]:
+        if not tools:
+            return []
+
+        tool_definitions = []
+        for tool in tools:
+            tool_def = ToolDefinition(
+                name=tool.get("name", ""), description=tool.get("description", ""), schema=tool.get("input_schema", {})
+            )
+            tool_definitions.append(tool_def)
+        return tool_definitions

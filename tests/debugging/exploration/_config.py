@@ -29,7 +29,7 @@ class ExplorationConfig(DDConfig):
     encode = DDConfig.v(
         bool,
         "dd.debugger.expl.encode",
-        default=True,
+        default=False,
         help="Whether to encode the snapshots",
     )
 
@@ -40,7 +40,7 @@ class ExplorationConfig(DDConfig):
         help="Whether to print exploration debugger status messages",
     )
 
-    include = DDConfig.v(
+    includes = DDConfig.v(
         list,
         "dd.debugger.expl.include",
         parser=lambda v: [path.split(".") for path in v.split(",")],
@@ -58,7 +58,7 @@ class ExplorationConfig(DDConfig):
     conservative = DDConfig.v(
         bool,
         "dd.debugger.expl.conservative",
-        default=False,
+        default=True,
         help="Use extremely low capture limits to reduce overhead",
     )
 
@@ -101,6 +101,13 @@ class ExplorationConfig(DDConfig):
             help="Whether to delete function probes after they are triggered",
         )
 
+        instrumentation_rate = DDConfig.v(
+            float,
+            "instrumentation_rate",
+            default=1.0,
+            help="Rate at which to instrument functions for profiling",
+        )
+
     class CoverageConfig(DDConfig):
         __item__ = "coverage"
         __prefix__ = "dd.debugger.expl.coverage"
@@ -117,6 +124,13 @@ class ExplorationConfig(DDConfig):
             "delete_line_probes",
             default=False,
             help="Whether to delete line probes after they are triggered",
+        )
+
+        instrumentation_rate = DDConfig.v(
+            float,
+            "instrumentation_rate",
+            default=1.0,
+            help="Rate at which to instrument lines for coverage",
         )
 
 

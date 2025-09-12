@@ -14,7 +14,6 @@ ddtrace/profiling/collector/stack.c
 ddtrace/profiling/exporter/pprof.c
 ddtrace/profiling/_build.c
 ddtrace/internal/datadog/profiling/ddup/_ddup.cpp
-ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*
 ddtrace/internal/_encoding.c
 ddtrace/internal/_rand.c
 ddtrace/internal/_tagset.c
@@ -114,6 +113,7 @@ celerybeat-schedule*
 !.env
 
 # virtualenv
+.venv*
 venv/
 ENV/
 
@@ -136,6 +136,13 @@ ENV/
 
 # Cursor
 .cursor/
+
+# Cascade
+# .windsurf/  # If you want to use Windsurf/Cascade, do NOT ignore here.
+# Add '.windsurf/' to .git/info/exclude instead so Cascade can read workflow/config files (gitignore would hide them)
+
+# Claude
+CLAUDE.local.md
 
 # Riot
 .riot/venv*
@@ -177,3 +184,17 @@ tests/appsec/iast/fixtures/aspects/obj_callers.py
 tests/appsec/iast/fixtures/aspects/unpatched_obj_callers.py
 tests/appsec/iast/fixtures/aspects/callers.py
 tests/appsec/iast/fixtures/aspects/unpatched_callers.py
+tests/appsec/iast/fixtures/taint_sinks/not_exists.txt
+
+#MacOS files
+.DS_Store
+
+# Setup download cache
+.download_cache/
+
+# .env file
+.env
+.envrc
+
+*.debug
+*.dSYM/

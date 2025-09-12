@@ -7,6 +7,7 @@ from time import sleep
 from typing import Any
 from typing import Generator
 from typing import List
+from typing import cast
 
 from ddtrace.debugging._config import di_config
 from ddtrace.debugging._debugger import Debugger
@@ -14,6 +15,8 @@ from ddtrace.debugging._exception.replay import SpanExceptionHandler
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import _filter_by_env_and_version
+from ddtrace.debugging._redaction import config as redaction_config
+from ddtrace.debugging._redaction import redact
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
@@ -93,7 +96,7 @@ class MockLogsIntakeUploaderV1(LogsIntakeUploaderV1):
         super(MockLogsIntakeUploaderV1, self).__init__(interval)
         self.queue = []
 
-    def _write(self, payload):
+    def _write(self, payload, endpoint):
         self.queue.append(payload.decode())
 
     def wait_for_payloads(self, cond=lambda _: bool(_), timeout=1.0):
@@ -118,7 +121,7 @@ class MockLogsIntakeUploaderV1(LogsIntakeUploaderV1):
 
     @property
     def snapshots(self) -> List[Snapshot]:
-        return self.collector.queue
+        return cast(TestSignalCollector, self.collector).queue
 
 
 class TestDebugger(Debugger):
@@ -181,7 +184,7 @@ def _debugger(config_to_override: DDConfig, config_overrides: Any) -> Generator[
         old_config = config_to_override.__dict__
         config_to_override.__dict__ = dict(old_config)
         config_to_override.__dict__.update(config_overrides)
-
+        redaction_config.__dict__.update(config_overrides)
         atexit.register = lambda _: None
 
         TestDebugger.enable()
@@ -194,6 +197,9 @@ def _debugger(config_to_override: DDConfig, config_overrides: Any) -> Generator[
             TestDebugger.disable()
             assert TestDebugger._instance is None
             config_to_override.__dict__ = old_config
+            # Reset any test changes to the redaction config or cached calls.
+            redaction_config.__dict__ = old_config
+            redact.cache_clear()
         finally:
             atexit.register = atexit_register
 
@@ -202,7 +208,11 @@ def _debugger(config_to_override: DDConfig, config_overrides: Any) -> Generator[
 def debugger(**config_overrides: Any) -> Generator[TestDebugger, None, None]:
     """Test with the debugger enabled."""
     with _debugger(di_config, config_overrides) as debugger:
-        yield debugger
+        debugger.__watchdog__.install()
+        try:
+            yield debugger
+        finally:
+            debugger.__watchdog__.uninstall()
 
 
 class MockSpanExceptionHandler(SpanExceptionHandler):

@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 
-""" This Flask application is imported on tests.appsec.appsec_utils.gunicorn_server
-"""
-
+"""This Flask application is imported on tests.appsec.appsec_utils.gunicorn_server"""
 
 import importlib
 import os
@@ -11,14 +9,14 @@ import sys
 from flask import Flask
 from flask import request
 
+from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
 from ddtrace.appsec.iast import ddtrace_iast_flask_patch
 from ddtrace.trace import tracer
-from tests.appsec.iast.taint_sinks.conftest import _get_span_report
 from tests.utils import override_env
 
 
 with override_env({"DD_IAST_ENABLED": "True"}):
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+    from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 
 import ddtrace.auto  # noqa: F401  # isort: skip
 
@@ -59,14 +57,14 @@ def shutdown():
 def tainted_view():
     param = request.args.get("param", "param")
 
-    report = _get_span_report()
+    report = get_iast_reporter()
 
     assert not (report and report)
 
     orm_impl.execute_query("select * from User where name = '" + param + "'")
 
     response = ResultResponse(param)
-    report = _get_span_report()
+    report = get_iast_reporter()
     if report:
         response.sources = report.sources[0].value
         response.vulnerabilities = list(report.vulnerabilities)[0].type
@@ -78,14 +76,14 @@ def tainted_view():
 def untainted_view():
     param = request.args.get("param", "param")
 
-    report = _get_span_report()
+    report = get_iast_reporter()
 
     assert not (report and report)
 
     orm_impl.execute_untainted_query("select * from User where name = '" + param + "'")
 
     response = ResultResponse(param)
-    report = _get_span_report()
+    report = get_iast_reporter()
     if report:
         response.sources = report.sources[0].value
         response.vulnerabilities = list(report.vulnerabilities)[0].type

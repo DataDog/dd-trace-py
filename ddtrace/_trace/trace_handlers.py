@@ -1,20 +1,22 @@
 import functools
 import sys
-from typing import TYPE_CHECKING
+from types import TracebackType
 from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
 from urllib import parse
 
 import wrapt
 
+import ddtrace
 from ddtrace import config
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
 from ddtrace._trace._span_pointer import _SpanPointerDescription
+from ddtrace._trace.span import Span
 from ddtrace._trace.utils import extract_DD_context_from_messages
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -24,21 +26,24 @@ from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
 from ddtrace.contrib.internal.trace_utils import _set_url_tag
 from ddtrace.ext import SpanKind
+from ddtrace.ext import azure_servicebus as azure_servicebusx
 from ddtrace.ext import db
 from ddtrace.ext import http
+from ddtrace.ext import redis as redisx
 from ddtrace.internal import core
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import FLASK_ENDPOINT
 from ddtrace.internal.constants import FLASK_URL_RULE
 from ddtrace.internal.constants import FLASK_VIEW_ARGS
+from ddtrace.internal.constants import MESSAGING_DESTINATION_NAME
+from ddtrace.internal.constants import MESSAGING_MESSAGE_ID
+from ddtrace.internal.constants import MESSAGING_OPERATION
+from ddtrace.internal.constants import MESSAGING_SYSTEM
+from ddtrace.internal.constants import NETWORK_DESTINATION_NAME
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.propagation.http import HTTPPropagator
-
-
-if TYPE_CHECKING:
-    from ddtrace._trace.span import Span
 
 
 log = get_logger(__name__)
@@ -96,26 +101,27 @@ class _TracedIterable(wrapt.ObjectProxy):
         return super(_TracedIterable, self).__getattribute__(name)
 
 
-def _get_parameters_for_new_span_directly_from_context(ctx: core.ExecutionContext) -> Dict[str, str]:
+def _get_parameters_for_new_span_directly_from_context(ctx: core.ExecutionContext) -> Dict[str, Any]:
     span_kwargs = {}
     for parameter_name in {"span_type", "resource", "service", "child_of", "activate"}:
-        parameter_value = ctx.get_local_item(parameter_name)
+        parameter_value = ctx.get_item(parameter_name)
         if parameter_value:
             span_kwargs[parameter_name] = parameter_value
     return span_kwargs
 
 
 def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> "Span":
-    activate_distributed_headers = ctx.get_local_item("activate_distributed_headers")
+    activate_distributed_headers = ctx.get_item("activate_distributed_headers")
     span_kwargs = _get_parameters_for_new_span_directly_from_context(ctx)
     call_trace = ctx.get_item("call_trace", call_trace)
-    tracer = ctx.get_item("tracer") or (ctx.get_item("middleware") or ctx["pin"]).tracer
+    # Look for the tracer in the context, or fallback to the global tracer
+    tracer = ctx.get_item("tracer") or (ctx.get_item("middleware") or ctx.get_item("pin") or ddtrace).tracer
     integration_config = ctx.get_item("integration_config")
     if integration_config and activate_distributed_headers:
         trace_utils.activate_distributed_headers(
             tracer,
             int_config=integration_config,
-            request_headers=ctx["distributed_headers"],
+            request_headers=ctx.get_item("distributed_headers"),
             override=ctx.get_item("distributed_headers_config_override"),
         )
     distributed_context = ctx.get_item("distributed_context")
@@ -129,10 +135,18 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
         span_kwargs = ctx.get_item("span_kwargs", span_kwargs)
 
     span_kwargs.update(kwargs)
-    span = (tracer.trace if call_trace else tracer.start_span)(ctx["span_name"], **span_kwargs)
+    span_name = ctx.get_item("span_name")
+    if not span_name:
+        raise ValueError("span_name must be set in the context before starting a span")
+    span = (tracer.trace if call_trace else tracer.start_span)(span_name, **span_kwargs)
 
-    for tk, tv in ctx.get_item("tags", dict()).items():
-        span.set_tag_str(tk, tv)
+    tags: Optional[Dict[str, str]] = ctx.get_item("tags")
+    if tags:
+        for tk, tv in tags.items():
+            span.set_tag(tk, tv)
+    if ctx.get_item("measured"):
+        # PERF: avoid setting via Span.set_tag
+        span.set_metric(_SPAN_MEASURED_KEY, 1)
 
     ctx.span = span
 
@@ -143,27 +157,49 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
     return span
 
 
+def _finish_span(
+    ctx: core.ExecutionContext,
+    exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+):
+    """
+    Finish the span in the context.
+    If no span is present, do nothing.
+    """
+    span = ctx.span
+    if not span:
+        return
+
+    exc_type, exc_value, exc_traceback = exc_info
+    if exc_type and exc_value and exc_traceback:
+        span.set_exc_info(exc_type, exc_value, exc_traceback)
+    elif ctx.get_item("should_set_traceback", False):
+        span.set_traceback()
+    span.finish()
+
+
 def _set_web_frameworks_tags(ctx, span, int_config):
     span.set_tag_str(COMPONENT, int_config.integration_name)
     span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
-    span.set_tag(_SPAN_MEASURED_KEY)
-
-    analytics_enabled = ctx.get_item("analytics_enabled")
-    analytics_sample_rate = ctx.get_item("analytics_sample_rate", True)
-
-    # Configure trace search sample rate
-    if (config._analytics_enabled and analytics_enabled is not False) or analytics_enabled is True:
-        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, analytics_sample_rate)
+    # PERF: avoid setting via Span.set_tag
+    span.set_metric(_SPAN_MEASURED_KEY, 1)
 
 
 def _on_web_framework_start_request(ctx, int_config):
     request_span = ctx.get_item("req_span")
+    if ctx.get_item("allow_default_resource") is True:
+        ctx.set_item("set_resource", True)
     _set_web_frameworks_tags(ctx, request_span, int_config)
 
 
 def _on_web_framework_finish_request(
     span, int_config, method, url, status_code, query, req_headers, res_headers, route, finish, **kwargs
 ):
+    if core.get_item("set_resource", default=False) is True and status_code is not None:
+        try:
+            status_code = int(status_code)
+        except ValueError:
+            pass
+        span.resource = "{} {}".format(method, status_code)
     trace_utils.set_http_meta(
         span=span,
         integration_config=int_config,
@@ -177,6 +213,8 @@ def _on_web_framework_finish_request(
         **kwargs,
     )
     _set_inferred_proxy_tags(span, status_code)
+    for tk, tv in core.get_item("additional_tags", default=dict()).items():
+        span.set_tag_str(tk, tv)
 
     if finish:
         span.finish()
@@ -241,30 +279,30 @@ def _on_inferred_proxy_finish(ctx):
 
 
 def _on_traced_request_context_started_flask(ctx):
-    current_span = ctx["pin"].tracer.current_span()
-    if not ctx["pin"].enabled or not current_span:
+    current_span = ctx.get_item("pin").tracer.current_span()
+    if not ctx.get_item("pin").enabled or not current_span:
         return
 
     ctx.span = current_span
-    flask_config = ctx["flask_config"]
-    _set_flask_request_tags(ctx["flask_request"], current_span, flask_config)
+    flask_config = ctx.get_item("flask_config")
+    _set_flask_request_tags(ctx.get_item("flask_request"), current_span, flask_config)
     request_span = _start_span(ctx)
     request_span._ignore_exception(ctx.get_item("ignored_exception_type"))
 
 
 def _maybe_start_http_response_span(ctx: core.ExecutionContext) -> None:
-    request_span = ctx["request_span"]
-    middleware = ctx["middleware"]
-    status_code, status_msg = ctx["status"].split(" ", 1)
+    request_span = ctx.get_item("request_span")
+    middleware = ctx.get_item("middleware")
+    status_code, status_msg = ctx.get_item("status").split(" ", 1)
     trace_utils.set_http_meta(
-        request_span, middleware._config, status_code=status_code, response_headers=ctx["environ"]
+        request_span, middleware._config, status_code=status_code, response_headers=ctx.get_item("environ")
     )
     if ctx.get_item("start_span", False):
         request_span.set_tag_str(http.STATUS_MSG, status_msg)
         _start_span(
             ctx,
             call_trace=False,
-            child_of=ctx["parent_call"],
+            child_of=ctx.get_item("parent_call"),
             activate=True,
         )
 
@@ -453,11 +491,8 @@ def _on_request_span_modifier(
     # RequestContext` and possibly a url rule
     span.resource = " ".join((request.method, request.path))
 
-    span.set_tag(_SPAN_MEASURED_KEY)
-    # set analytics sample rate with global config enabled
-    sample_rate = flask_config.get_analytics_sample_rate(use_global_config=True)
-    if sample_rate is not None:
-        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
+    # PERF: avoid setting via Span.set_tag
+    span.set_metric(_SPAN_MEASURED_KEY, 1)
 
     span.set_tag_str(flask_version, flask_version_str)
 
@@ -484,7 +519,7 @@ def _on_request_span_modifier_post(ctx, flask_config, request, req_body):
 
 
 def _on_traced_get_response_pre(_, ctx: core.ExecutionContext, request, before_request_tags):
-    before_request_tags(ctx["pin"], ctx.span, request)
+    before_request_tags(ctx.get_item("pin"), ctx.span, request)
     ctx.span._metrics[_SPAN_MEASURED_KEY] = 1
 
 
@@ -498,9 +533,9 @@ def _on_web_request_final_tags(span):
 def _on_django_finalize_response_pre(ctx, after_request_tags, request, response):
     # DEV: Always set these tags, this is where `span.resource` is set
     span = ctx.span
-    after_request_tags(ctx["pin"], span, request, response)
+    after_request_tags(ctx.get_item("pin"), span, request, response)
 
-    trace_utils.set_http_meta(span, ctx["integration_config"], route=span.get_tag("http.route"))
+    trace_utils.set_http_meta(span, ctx.get_item("integration_config"), route=span.get_tag("http.route"))
     _set_inferred_proxy_tags(span, None)
 
 
@@ -513,7 +548,7 @@ def _on_django_start_response(
 
     trace_utils.set_http_meta(
         ctx.span,
-        ctx["integration_config"],
+        ctx.get_item("integration_config"),
         method=request.method,
         query=query,
         raw_uri=uri,
@@ -524,19 +559,22 @@ def _on_django_start_response(
     )
 
 
-def _on_django_cache(ctx: core.ExecutionContext, rowcount: int):
-    ctx.span.set_metric(db.ROWCOUNT, rowcount)
+def _on_django_cache(
+    ctx: core.ExecutionContext,
+    exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+) -> None:
+    try:
+        rowcount = ctx.get_item("rowcount")
+        if rowcount is not None:
+            ctx.span.set_metric(db.ROWCOUNT, rowcount)
+    finally:
+        return _finish_span(ctx, exc_info)
 
 
 def _on_django_func_wrapped(_unused1, _unused2, _unused3, ctx, ignored_excs):
     if ignored_excs:
         for exc in ignored_excs:
             ctx.span._ignore_exception(exc)
-
-
-def _on_django_process_exception(ctx: core.ExecutionContext, should_set_traceback: bool):
-    if should_set_traceback:
-        ctx.span.set_traceback()
 
 
 def _on_django_block_request(ctx: core.ExecutionContext, metadata: Dict[str, str], django_config, url: str, query: str):
@@ -666,40 +704,28 @@ def _on_botocore_patched_stepfunctions_update_input(ctx, span, _, trace_data, __
 
 def _on_botocore_patched_bedrock_api_call_started(ctx, request_params):
     span = ctx.span
-    integration = ctx["bedrock_integration"]
-    span.set_tag_str("bedrock.request.model_provider", ctx["model_provider"])
-    span.set_tag_str("bedrock.request.model", ctx["model_name"])
-    for k, v in request_params.items():
-        if k == "prompt":
-            if integration.is_pc_sampled_span(span):
-                v = integration.trunc(str(v))
-        span.set_tag_str("bedrock.request.{}".format(k), str(v))
-        if k == "n":
-            ctx.set_item("num_generations", str(v))
+    integration = ctx.get_item("bedrock_integration")
+    integration._tag_proxy_request(ctx)
+
+    span.set_tag_str("bedrock.request.model_provider", ctx.get_item("model_provider"))
+    span.set_tag_str("bedrock.request.model", ctx.get_item("model_name"))
+
+    if "n" in request_params:
+        ctx.set_item("num_generations", str(request_params["n"]))
 
 
 def _on_botocore_patched_bedrock_api_call_exception(ctx, exc_info):
     span = ctx.span
     span.set_exc_info(*exc_info)
-    model_name = ctx["model_name"]
-    integration = ctx["bedrock_integration"]
+    model_name = ctx.get_item("model_name")
+    integration = ctx.get_item("bedrock_integration")
     if "embed" not in model_name:
         integration.llmobs_set_tags(span, args=[ctx], kwargs={})
     span.finish()
 
 
-def _on_botocore_patched_bedrock_api_call_success(ctx, reqid, latency, input_token_count, output_token_count):
-    span = ctx.span
-    span.set_tag_str("bedrock.response.id", reqid)
-    span.set_tag_str("bedrock.response.duration", latency)
-    if input_token_count:
-        span.set_metric("bedrock.response.usage.prompt_tokens", int(input_token_count))
-    if output_token_count:
-        span.set_metric("bedrock.response.usage.completion_tokens", int(output_token_count))
-
-
 def _propagate_context(ctx, headers):
-    distributed_tracing_enabled = ctx["integration_config"].distributed_tracing_enabled
+    distributed_tracing_enabled = ctx.get_item("integration_config").distributed_tracing_enabled
     span = ctx.span
     if distributed_tracing_enabled and span:
         HTTPPropagator.inject(span.context, headers)
@@ -720,14 +746,14 @@ def _on_end_of_traced_method_in_fork(ctx):
     """Force flush to agent since the process `os.exit()`s
     immediately after this method returns
     """
-    ctx["pin"].tracer.flush()
+    ctx.get_item("pin").tracer.flush()
 
 
 def _on_botocore_bedrock_process_response_converse(
     ctx: core.ExecutionContext,
     result: List[Dict[str, Any]],
 ):
-    ctx["bedrock_integration"].llmobs_set_tags(
+    ctx.get_item("bedrock_integration").llmobs_set_tags(
         ctx.span,
         args=[ctx],
         kwargs={},
@@ -739,38 +765,13 @@ def _on_botocore_bedrock_process_response_converse(
 def _on_botocore_bedrock_process_response(
     ctx: core.ExecutionContext,
     formatted_response: Dict[str, Any],
-    metadata: Dict[str, Any],
-    body: Dict[str, List[Dict]],
-    should_set_choice_ids: bool,
 ) -> None:
-    text = formatted_response["text"]
-    span = ctx.span
-    model_name = ctx["model_name"]
-    if should_set_choice_ids:
-        for i in range(len(text)):
-            span.set_tag_str("bedrock.response.choices.{}.id".format(i), str(body["generations"][i]["id"]))
-    integration = ctx["bedrock_integration"]
-    if metadata is not None:
-        for k, v in metadata.items():
-            if k in ["usage.completion_tokens", "usage.prompt_tokens"] and v:
-                span.set_metric("bedrock.response.{}".format(k), int(v))
-            else:
-                span.set_tag_str("bedrock.{}".format(k), str(v))
-    if "embed" in model_name:
-        span.set_metric("bedrock.response.embedding_length", len(formatted_response["text"][0]))
-        span.finish()
-        return
-    for i in range(len(formatted_response["text"])):
-        if integration.is_pc_sampled_span(span):
-            span.set_tag_str(
-                "bedrock.response.choices.{}.text".format(i),
-                integration.trunc(str(formatted_response["text"][i])),
-            )
-        span.set_tag_str(
-            "bedrock.response.choices.{}.finish_reason".format(i), str(formatted_response["finish_reason"][i])
-        )
-    integration.llmobs_set_tags(span, args=[ctx], kwargs={}, response=formatted_response)
-    span.finish()
+    with ctx.span as span:
+        model_name = ctx.get_item("model_name")
+        integration = ctx.get_item("bedrock_integration")
+        if "embed" in model_name:
+            return
+        integration.llmobs_set_tags(span, args=[ctx], kwargs={}, response=formatted_response)
 
 
 def _on_botocore_sqs_recvmessage_post(
@@ -801,6 +802,18 @@ def _on_botocore_kinesis_getrecords_post(
 def _on_redis_command_post(ctx: core.ExecutionContext, rowcount):
     if rowcount is not None:
         ctx.span.set_metric(db.ROWCOUNT, rowcount)
+
+
+def _on_redis_execute_pipeline(ctx: core.ExecutionContext, pin, config_integration, args, instance, query):
+    span = ctx.span
+    if args is not None:
+        # PERF: avoid extra overhead from checks in Span.set_metric
+        span._metrics[redisx.ARGS_LEN] = len(args)
+    else:
+        for attr in ("command_stack", "_command_stack"):
+            if hasattr(instance, attr):
+                # PERF: avoid extra overhead from checks in Span.set_metric
+                span._metrics[redisx.PIPELINE_LEN] = len(getattr(instance, attr))
 
 
 def _on_valkey_command_post(ctx: core.ExecutionContext, rowcount):
@@ -835,7 +848,7 @@ def _set_span_pointer(span: "Span", span_pointer_description: _SpanPointerDescri
     )
 
 
-def _set_azure_function_tags(span, azure_functions_config, function_name, trigger, span_kind=SpanKind.INTERNAL):
+def _set_azure_function_tags(span, azure_functions_config, function_name, trigger, span_kind):
     span.set_tag_str(COMPONENT, azure_functions_config.integration_name)
     span.set_tag_str(SPAN_KIND, span_kind)
     span.set_tag_str("aas.function.name", function_name)  # codespell:ignore
@@ -843,7 +856,7 @@ def _set_azure_function_tags(span, azure_functions_config, function_name, trigge
 
 
 def _on_azure_functions_request_span_modifier(ctx, azure_functions_config, req):
-    span = ctx.get_item("req_span")
+    span = ctx.span
     parsed_url = parse.urlparse(req.url)
     path = parsed_url.path
     span.resource = f"{req.method} {path}"
@@ -859,7 +872,7 @@ def _on_azure_functions_request_span_modifier(ctx, azure_functions_config, req):
 
 
 def _on_azure_functions_start_response(ctx, azure_functions_config, res, function_name, trigger):
-    span = ctx.get_item("req_span")
+    span = ctx.span
     _set_azure_function_tags(span, azure_functions_config, function_name, trigger, SpanKind.SERVER)
     trace_utils.set_http_meta(
         span,
@@ -869,9 +882,48 @@ def _on_azure_functions_start_response(ctx, azure_functions_config, res, functio
     )
 
 
-def _on_azure_functions_trigger_span_modifier(ctx, azure_functions_config, function_name, trigger):
-    span = ctx.get_item("trigger_span")
-    _set_azure_function_tags(span, azure_functions_config, function_name, trigger)
+def _on_azure_functions_trigger_span_modifier(ctx, azure_functions_config, function_name, trigger, span_kind):
+    span = ctx.span
+    _set_azure_function_tags(span, azure_functions_config, function_name, trigger, span_kind)
+
+
+def _on_azure_functions_service_bus_trigger_span_modifier(
+    ctx, azure_functions_config, function_name, trigger, span_kind, entity_name, message_id
+):
+    span = ctx.span
+    _set_azure_function_tags(span, azure_functions_config, function_name, trigger, span_kind)
+    span.set_tag_str(MESSAGING_DESTINATION_NAME, entity_name)
+    span.set_tag_str(MESSAGING_OPERATION, "receive")
+    span.set_tag_str(MESSAGING_SYSTEM, azure_servicebusx.SERVICE)
+
+    if message_id is not None:
+        span.set_tag_str(MESSAGING_MESSAGE_ID, message_id)
+
+
+def _on_azure_servicebus_send_message_modifier(ctx, azure_servicebus_config, entity_name, fully_qualified_namespace):
+    span = ctx.span
+    span.set_tag_str(COMPONENT, azure_servicebus_config.integration_name)
+    span.set_tag_str(MESSAGING_DESTINATION_NAME, entity_name)
+    span.set_tag_str(MESSAGING_OPERATION, "send")
+    span.set_tag_str(MESSAGING_SYSTEM, azure_servicebusx.SERVICE)
+    span.set_tag_str(NETWORK_DESTINATION_NAME, fully_qualified_namespace)
+    span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+
+
+def _on_router_match(route):
+    req_span = core.get_item("req_span")
+    core.set_item("set_resource", False)
+    req_span.resource = "{} {}".format(
+        route.method,
+        route.template,
+    )
+
+    MOLTEN_ROUTE = "molten.route"
+
+    if not req_span.get_tag(MOLTEN_ROUTE):
+        req_span.set_tag_str(MOLTEN_ROUTE, route.name)
+    if not req_span.get_tag(http.ROUTE):
+        req_span.set_tag_str(http.ROUTE, route.template)
 
 
 def listen():
@@ -890,9 +942,7 @@ def listen():
     core.on("django.traced_get_response.pre", _on_traced_get_response_pre)
     core.on("django.finalize_response.pre", _on_django_finalize_response_pre)
     core.on("django.start_response", _on_django_start_response)
-    core.on("django.cache", _on_django_cache)
     core.on("django.func.wrapped", _on_django_func_wrapped)
-    core.on("django.process_exception", _on_django_process_exception)
     core.on("django.block_request_callback", _on_django_block_request)
     core.on("django.after_request_headers.post", _on_django_after_request_headers_post)
     core.on("botocore.patched_api_call.exception", _on_botocore_patched_api_call_exception)
@@ -916,18 +966,20 @@ def listen():
     core.on("botocore.client_context.update_messages", _on_botocore_update_messages)
     core.on("botocore.patched_bedrock_api_call.started", _on_botocore_patched_bedrock_api_call_started)
     core.on("botocore.patched_bedrock_api_call.exception", _on_botocore_patched_bedrock_api_call_exception)
-    core.on("botocore.patched_bedrock_api_call.success", _on_botocore_patched_bedrock_api_call_success)
     core.on("botocore.bedrock.process_response", _on_botocore_bedrock_process_response)
     core.on("botocore.bedrock.process_response_converse", _on_botocore_bedrock_process_response_converse)
     core.on("botocore.sqs.ReceiveMessage.post", _on_botocore_sqs_recvmessage_post)
     core.on("botocore.kinesis.GetRecords.post", _on_botocore_kinesis_getrecords_post)
     core.on("redis.async_command.post", _on_redis_command_post)
     core.on("redis.command.post", _on_redis_command_post)
+    core.on("redis.execute_pipeline", _on_redis_execute_pipeline)
     core.on("valkey.async_command.post", _on_valkey_command_post)
     core.on("valkey.command.post", _on_valkey_command_post)
     core.on("azure.functions.request_call_modifier", _on_azure_functions_request_span_modifier)
     core.on("azure.functions.start_response", _on_azure_functions_start_response)
     core.on("azure.functions.trigger_call_modifier", _on_azure_functions_trigger_span_modifier)
+    core.on("azure.functions.service_bus_trigger_modifier", _on_azure_functions_service_bus_trigger_span_modifier)
+    core.on("azure.servicebus.send_message_modifier", _on_azure_servicebus_send_message_modifier)
 
     # web frameworks general handlers
     core.on("web.request.start", _on_web_framework_start_request)
@@ -944,6 +996,7 @@ def listen():
     core.on("rq.worker.perform_job", _after_job_execution)
     core.on("rq.worker.after.perform.job", _on_end_of_traced_method_in_fork)
     core.on("rq.queue.enqueue_job", _propagate_context)
+    core.on("molten.router.match", _on_router_match)
 
     for context_name in (
         # web frameworks
@@ -952,6 +1005,7 @@ def listen():
         "cherrypy.request",
         "falcon.request",
         "molten.request",
+        "molten.trace_func",
         "pyramid.request",
         "sanic.request",
         "tornado.request",
@@ -959,10 +1013,21 @@ def listen():
         "flask.jsonify",
         "flask.render_template",
         "asgi.__call__",
+        "asgi.websocket.close_message",
+        "asgi.websocket.disconnect_message",
+        "asgi.websocket.receive_message",
+        "asgi.websocket.send_message",
         "wsgi.__call__",
-        "django.traced_get_response",
         "django.cache",
+        "django.middleware.__call__",
+        "django.middleware.func",
+        "django.middleware.process_exception",
+        "django.middleware.process_request",
+        "django.middleware.process_response",
+        "django.middleware.process_template_response",
+        "django.middleware.process_view",
         "django.template.render",
+        "django.traced_get_response",
         "django.process_exception",
         "django.func.wrapped",
         # non web frameworks
@@ -973,6 +1038,7 @@ def listen():
         "botocore.patched_stepfunctions_api_call",
         "botocore.patched_bedrock_api_call",
         "redis.command",
+        "redis.execute_pipeline",
         "valkey.command",
         "rq.queue.enqueue_job",
         "rq.traced_queue_fetch_job",
@@ -980,9 +1046,32 @@ def listen():
         "rq.job.perform",
         "rq.job.fetch_many",
         "azure.functions.patched_route_request",
+        "azure.functions.patched_service_bus",
         "azure.functions.patched_timer",
+        "azure.servicebus.patched_producer",
+        "psycopg.patched_connect",
     ):
-        core.on(f"context.started.start_span.{context_name}", _start_span)
+        core.on(f"context.started.{context_name}", _start_span)
+
+    for name in (
+        "django.middleware.__call__",
+        "django.middleware.func",
+        "django.middleware.process_exception",
+        "django.middleware.process_request",
+        "django.middleware.process_response",
+        "django.middleware.process_template_response",
+        "django.middleware.process_view",
+        "django.template.render",
+        "django.traced_get_response",
+        "molten.trace_func",
+        "redis.execute_pipeline",
+        "redis.command",
+        "psycopg.patched_connect",
+    ):
+        core.on(f"context.ended.{name}", _finish_span)
+
+    # Special/extra handling before calling _finish_span
+    core.on("context.ended.django.cache", _on_django_cache)
 
 
 listen()

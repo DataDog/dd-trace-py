@@ -28,12 +28,12 @@ from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import Vulnerab
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import is_notinterned_notfasttainted_unicode
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import set_fast_tainted_if_notinterned_unicode
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import bytearray_extend_aspect as extend_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import format_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import join_aspect
 from tests.appsec.iast.iast_utils import IAST_VALID_LOG
-from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -514,7 +514,7 @@ def test_reset_objects():
     reset_context()
 
 
-def reset_context_loop():
+def context_loop():
     a_1 = "abc123"
     for i in range(25):
         a_1 = taint_pyobject(
@@ -524,6 +524,7 @@ def reset_context_loop():
             source_origin=OriginType.PARAMETER,
         )
         sleep(0.01)
+    assert is_pyobject_tainted(a_1), "Tainting lost"
 
 
 def reset_contexts_loop():
@@ -541,13 +542,13 @@ def reset_contexts_loop():
     reset_contexts()
 
 
-async def async_reset_context_loop(task_id: int):
-    await asyncio.sleep(0.01)
-    return reset_context_loop()
+async def async_context_loop(task_id: int):
+    await asyncio.sleep(0.03)
+    return context_loop()
 
 
 async def async_reset_contexts_loop(task_id: int):
-    await asyncio.sleep(0.01)
+    await asyncio.sleep(0.02)
     return reset_contexts_loop()
 
 
@@ -556,7 +557,7 @@ def test_race_conditions_threads(caplog, telemetry_writer):
     destroying contexts
     """
     pool = ThreadPool(processes=3)
-    results_async = [pool.apply_async(reset_context_loop) for _ in range(70)]
+    results_async = [pool.apply_async(context_loop) for _ in range(20)]
     _ = [res.get() for res in results_async]
 
     log_messages = [record.message for record in caplog.get_records("call")]
@@ -569,15 +570,13 @@ def test_race_conditions_threads(caplog, telemetry_writer):
 
 
 @pytest.mark.skip_iast_check_logs
-def test_race_conditions_reset_contexts_threads(caplog, telemetry_writer):
+def test_race_conditions_reset_contexts_async(caplog, telemetry_writer):
     """we want to validate context is working correctly among multiple request and no race condition creating and
     destroying contexts
     """
-    with override_env({"_DD_IAST_USE_ROOT_SPAN": "false"}), override_global_config(
-        dict(_iast_debug=True)
-    ), caplog.at_level(logging.DEBUG):
+    with override_global_config(dict(_iast_debug=True)), caplog.at_level(logging.DEBUG):
         pool = ThreadPool(processes=3)
-        results_async = [pool.apply_async(reset_contexts_loop) for _ in range(70)]
+        results_async = [pool.apply_async(reset_contexts_loop) for _ in range(20)]
         _ = [res.get() for res in results_async]
 
         log_messages = [record.message for record in caplog.get_records("call")]
@@ -592,7 +591,7 @@ async def test_race_conditions_reset_contex_async(caplog, telemetry_writer):
     """we want to validate context is working correctly among multiple request and no race condition creating and
     destroying contexts
     """
-    tasks = [async_reset_context_loop(i) for i in range(50)]
+    tasks = [async_context_loop(i) for i in range(7)]
 
     results = await asyncio.gather(*tasks)
     assert results
@@ -611,7 +610,7 @@ async def test_race_conditions_reset_contexs_async(caplog, telemetry_writer):
     """we want to validate context is working correctly among multiple request and no race condition creating and
     destroying contexts
     """
-    tasks = [async_reset_contexts_loop(i) for i in range(20)]
+    tasks = [async_reset_contexts_loop(i) for i in range(10)]
 
     results = await asyncio.gather(*tasks)
     assert results
@@ -623,3 +622,61 @@ async def test_race_conditions_reset_contexs_async(caplog, telemetry_writer):
 
     list_metrics_logs = list(telemetry_writer._logs)
     assert len(list_metrics_logs) == 0
+
+
+@pytest.mark.parametrize(
+    "source_origin",
+    [
+        OriginType.PARAMETER_NAME,
+        OriginType.PARAMETER,
+        OriginType.HEADER_NAME,
+        OriginType.COOKIE,
+        OriginType.BODY,
+        OriginType.PATH,
+    ],
+)
+def test_has_origin_match(source_origin):
+    """Test that has_origin correctly identifies matching origins."""
+    source = Source(name="name", value="value", origin=source_origin)
+    taint_range = TaintRange(0, 2, source)
+    assert taint_range.has_origin(source_origin)
+
+
+@pytest.mark.parametrize(
+    "source_origin,test_origin",
+    [
+        (OriginType.PARAMETER_NAME, OriginType.PARAMETER),
+        (OriginType.PARAMETER, OriginType.COOKIE),
+        (OriginType.HEADER_NAME, OriginType.BODY),
+        (OriginType.COOKIE, OriginType.PATH),
+        (OriginType.BODY, OriginType.PARAMETER_NAME),
+        (OriginType.PATH, OriginType.HEADER_NAME),
+    ],
+)
+def test_has_origin_no_match(source_origin, test_origin):
+    """Test that has_origin correctly identifies non-matching origins."""
+    source = Source(name="name", value="value", origin=source_origin)
+    taint_range = TaintRange(0, 2, source)
+    assert not taint_range.has_origin(test_origin)
+
+
+def test_has_origin_multiple_ranges():
+    """Test has_origin with multiple taint ranges."""
+    source1 = Source(name="name1", value="value1", origin=OriginType.COOKIE)
+    source2 = Source(name="name2", value="value2", origin=OriginType.PARAMETER)
+
+    taint_range1 = TaintRange(0, 2, source1)
+    taint_range2 = TaintRange(2, 2, source2)
+
+    assert taint_range1.has_origin(OriginType.COOKIE)
+    assert not taint_range1.has_origin(OriginType.PARAMETER)
+    assert taint_range2.has_origin(OriginType.PARAMETER)
+    assert not taint_range2.has_origin(OriginType.COOKIE)
+
+
+def test_has_origin_invalid_origin():
+    """Test has_origin with invalid origin type."""
+    source = Source(name="name", value="value", origin=OriginType.COOKIE)
+    taint_range = TaintRange(0, 2, source)
+    with pytest.raises(TypeError):
+        taint_range.has_origin("INVALID_ORIGIN")

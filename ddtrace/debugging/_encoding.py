@@ -10,6 +10,7 @@ from types import FrameType
 from typing import Any
 from typing import Callable
 from typing import Dict
+from typing import Iterator
 from typing import List
 from typing import Optional
 from typing import Union
@@ -156,13 +157,13 @@ class JSONTree:
                 for child in self.children[::-1]:
                     yield from child.leaves
 
-    def __init__(self, data):
+    def __init__(self, data: str) -> None:
         self._iter = enumerate(data)
-        self._stack: List["JSONTree.Node"] = []  # TODO: deque
-        self.root = None
+        self._stack: List[JSONTree.Node] = []  # TODO: deque
+        self.root: Optional[JSONTree.Node] = None
         self.level = 0
 
-        self._string_iter = None
+        self._string_iter: Optional[Iterator[str]] = None
 
         self._state = self._object
         self._on_string_match = self._not_captured
@@ -248,8 +249,18 @@ class LogSignalJsonEncoder(Encoder):
         self._service = service
         self._host = host
 
+    def _encode(self, item: LogSignal) -> str:
+        return json.dumps(_build_log_track_payload(self._service, item, self._host))
+
     def encode(self, item: LogSignal) -> bytes:
-        return self.pruned(json.dumps(_build_log_track_payload(self._service, item, self._host))).encode("utf-8")
+        return self._encode(item).encode("utf-8")
+
+
+class SnapshotJsonEncoder(LogSignalJsonEncoder):
+    """Encoder for snapshot signals, with automatic pruning of large snapshots."""
+
+    def encode(self, item: LogSignal) -> bytes:
+        return self.pruned(self._encode(item)).encode("utf-8")
 
     def pruned(self, log_signal_json: str) -> str:
         if len(log_signal_json) <= self.MAX_SIGNAL_SIZE:
@@ -309,24 +320,26 @@ class SignalQueue(BufferedEncoder):
     ) -> None:
         self._encoder = encoder
         self._buffer = JsonBuffer(buffer_size)
-        self._lock = forksafe.Lock()
+        self._lock = forksafe.RLock()
         self._on_full = on_full
         self.count = 0
         self.max_size = buffer_size - self._buffer.size
+        self._full = False
 
     def put(self, item: Snapshot) -> int:
         return self.put_encoded(item, self._encoder.encode(item))
 
     def put_encoded(self, item: Snapshot, encoded: bytes) -> int:
-        try:
-            with self._lock:
+        with self._lock:
+            try:
                 size = self._buffer.put(encoded)
                 self.count += 1
                 return size
-        except BufferFull:
-            if self._on_full is not None:
-                self._on_full(item, encoded)
-            raise
+            except BufferFull:
+                self._full = True
+                if self._on_full is not None:
+                    self._on_full(item, encoded)
+                raise
 
     def flush(self) -> Optional[Union[bytes, bytearray]]:
         with self._lock:
@@ -337,4 +350,9 @@ class SignalQueue(BufferedEncoder):
 
             encoded = self._buffer.flush()
             self.count = 0
+            self._full = False
             return encoded
+
+    def is_full(self) -> bool:
+        with self._lock:
+            return self._full

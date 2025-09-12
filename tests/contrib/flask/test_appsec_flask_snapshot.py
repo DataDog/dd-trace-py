@@ -132,6 +132,7 @@ def flask_client(flask_command, flask_port, flask_wsgi_application, flask_env_ar
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
         "meta.span.kind",
+        "meta._dd.appsec.rc_products",
     ],
     variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
 )
@@ -166,6 +167,7 @@ def test_flask_ipblock_match_403(flask_client):
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
         "meta.span.kind",
+        "meta._dd.appsec.rc_products",
     ],
     variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
 )
@@ -199,6 +201,7 @@ def test_flask_ipblock_match_403_json(flask_client):
         "metrics._dd.appsec.event_rules.loaded",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.rc_products",
     ],
     variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
 )
@@ -232,6 +235,7 @@ def test_flask_userblock_match_403_json(flask_client):
         "metrics._dd.appsec.event_rules.loaded",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.rc_products",
     ],
     variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
 )
@@ -261,6 +265,7 @@ def test_flask_userblock_match_200_json(flask_client):
         "metrics._dd.appsec.event_rules.loaded",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.rc_products",
     ],
     variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
 )
@@ -291,6 +296,7 @@ def test_flask_processexec_ossystem(flask_client):
         "metrics._dd.appsec.event_rules.loaded",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.rc_products",
     ],
     variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
 )
@@ -322,6 +328,7 @@ def test_flask_processexec_osspawn(flask_client):
         "metrics._dd.appsec.event_rules.loaded",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.rc_products",
     ],
     variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
 )
@@ -352,6 +359,7 @@ def test_flask_processexec_subprocesscommunicateshell(flask_client):
         "metrics._dd.appsec.event_rules.loaded",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.rc_products",
     ],
     variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
 )

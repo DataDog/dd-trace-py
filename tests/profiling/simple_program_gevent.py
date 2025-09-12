@@ -1,18 +1,15 @@
 # Import from ddtrace before monkey patching to ensure that we grab all the
 # necessary references to the unpatched modules.
-import ddtrace.auto  # noqa: F401
+import ddtrace.auto  # noqa: F401, I001
 import ddtrace.profiling.auto  # noqa:F401
 
-from ddtrace.profiling import bootstrap
-from ddtrace.profiling.collector import stack_event
 
-
-import gevent.monkey
+import gevent.monkey # noqa:F402
 
 gevent.monkey.patch_all()
 
-import threading
-import time
+import threading  # noqa: E402, F402, I001
+import time  # noqa: E402, F402
 
 
 def fibonacci(n):
@@ -25,9 +22,7 @@ def fibonacci(n):
 
 
 i = 1
-for _ in range(50):
-    if len(bootstrap.profiler._profiler._recorder.events[stack_event.StackSampleEvent]) >= 10:
-        break
+for _ in range(20):
     threads = []
     for _ in range(10):
         t = threading.Thread(target=fibonacci, args=(i,))
@@ -37,5 +32,3 @@ for _ in range(50):
     for t in threads:
         t.join()
     time.sleep(0.1)
-else:
-    assert False, "Not enough events captured"

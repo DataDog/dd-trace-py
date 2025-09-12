@@ -6,7 +6,8 @@ baseline: &baseline
   iast_enabled: false
   post_request: false
   telemetry_metrics_enabled: false
-tracer:
+  native_writer: false
+tracer: &tracer
   <<: *baseline
   tracer_enabled: true
 profiler:
@@ -28,6 +29,9 @@ appsec-post:
 appsec-telemetry:
   <<: *appsec
   telemetry_metrics_enabled: true
+tracer-native:
+  <<: *tracer
+  native_writer: true
 # The scenarios below produce inconsistent results. We plan to 
 # disbable these scenarios until the root cause is identified:
 # tracer-and-profiler:

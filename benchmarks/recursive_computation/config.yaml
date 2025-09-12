@@ -1,0 +1,18 @@
+shallow: &base
+  max_depth: 10
+  enable_sleep: false
+  sleep_duration: 0.1
+  profiler_enabled: false
+
+medium: 
+  <<: *base
+  max_depth: 50
+
+deep:
+  <<: *base
+  max_depth: 400
+
+deep-profiled:
+  <<: *base
+  max_depth: 400
+  profiler_enabled: true

@@ -1,10 +1,12 @@
 import os
 import sqlite3
 import sqlite3.dbapi2
+from typing import Dict
 
 import wrapt
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.dbapi import FetchTracedCursor
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.dbapi import TracedCursor
@@ -13,7 +15,6 @@ from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.trace import Pin
 
 
 # Original connect method
@@ -33,6 +34,10 @@ config._add(
 def get_version():
     # type: () -> str
     return sqlite3.sqlite_version
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"sqlite3": "*"}
 
 
 def patch():

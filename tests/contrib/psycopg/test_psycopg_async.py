@@ -5,9 +5,9 @@ import psycopg
 from psycopg.sql import SQL
 from psycopg.sql import Literal
 
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.psycopg.patch import patch
 from ddtrace.contrib.internal.psycopg.patch import unpatch
-from ddtrace.trace import Pin
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.opentracer.utils import init_tracer
@@ -84,7 +84,7 @@ class PsycopgCore(AsyncioTestCase):
         rows = await res.fetchall()
         end = time.time()
 
-        self.assertEquals(rows, [("foobarblah",)])
+        self.assertEqual(rows, [("foobarblah",)])
 
         self.assert_structure(
             dict(name="postgres.query", resource=q, service=service, error=0, span_type="sql"),
@@ -93,7 +93,6 @@ class PsycopgCore(AsyncioTestCase):
         self.assertIsNone(root.get_tag("sql.query"))
         assert start <= root.start <= end
         assert root.duration <= end - start
-        # confirm analytics disabled by default
         self.reset()
 
         # run a query with an error and ensure all is well
@@ -140,7 +139,7 @@ class PsycopgCore(AsyncioTestCase):
             await cursor.execute(query)
             rows = await cursor.fetchall()
 
-        self.assertEquals(rows, [("tracing",)])
+        self.assertEqual(rows, [("tracing",)])
 
         self.assert_structure(
             dict(name="db.access", service="psycopg-svc"),
@@ -158,7 +157,7 @@ class PsycopgCore(AsyncioTestCase):
                 await cursor.execute(query)
                 rows = await cursor.fetchall()
 
-            self.assertEquals(rows, [("tracing",)])
+            self.assertEqual(rows, [("tracing",)])
 
             self.assert_structure(
                 dict(name="db.access", service="psycopg-svc"),

@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: Adds support to automatically submit LiteLLM SDK requests to LLM Observability.

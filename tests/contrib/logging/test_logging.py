@@ -1,15 +1,17 @@
 from io import StringIO
 import logging
+import os
 
+import pytest
 import wrapt
 
 import ddtrace
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import VERSION_KEY
-from ddtrace.contrib.internal.logging.constants import RECORD_ATTR_SPAN_ID
-from ddtrace.contrib.internal.logging.constants import RECORD_ATTR_TRACE_ID
 from ddtrace.contrib.internal.logging.patch import patch
 from ddtrace.contrib.internal.logging.patch import unpatch
+from ddtrace.internal.constants import LOG_ATTR_SPAN_ID
+from ddtrace.internal.constants import LOG_ATTR_TRACE_ID
 from ddtrace.internal.constants import MAX_UINT_64BITS
 from tests.utils import TracerTestCase
 
@@ -22,6 +24,16 @@ DEFAULT_FORMAT = (
     " dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s"
 )
 
+DOLLAR_FORMAT = (
+    "${message} - dd.service=${dd.service} dd.version=${dd.version} dd.env=${dd.env} "
+    "dd.trace_id=${dd.trace_id} dd.span_id=${dd.span_id}"
+)
+
+BRACE_FORMAT = (
+    "{message} - dd.service={dd.service} dd.version={dd.version} dd.env={dd.env} "
+    "dd.trace_id={dd.trace_id} dd.span_id={dd.span_id}"
+)
+
 
 def current_span(tracer=None):
     if not tracer:
@@ -31,10 +43,10 @@ def current_span(tracer=None):
 
 class AssertFilter(logging.Filter):
     def filter(self, record):
-        trace_id = getattr(record, RECORD_ATTR_TRACE_ID)
+        trace_id = getattr(record, LOG_ATTR_TRACE_ID)
         assert isinstance(trace_id, str)
 
-        span_id = getattr(record, RECORD_ATTR_SPAN_ID)
+        span_id = getattr(record, LOG_ATTR_SPAN_ID)
         assert isinstance(span_id, str)
 
         return True
@@ -49,7 +61,7 @@ def capture_function_log(func, fmt=DEFAULT_FORMAT, logger_override=None, fmt_sty
     # add stream handler to capture output
     out = StringIO()
     sh = logging.StreamHandler(out)
-
+    assert_filter = AssertFilter()
     try:
         if fmt_style:
             formatter = logging.Formatter(fmt, style=fmt_style)
@@ -57,7 +69,6 @@ def capture_function_log(func, fmt=DEFAULT_FORMAT, logger_override=None, fmt_sty
             formatter = logging.Formatter(fmt)
         sh.setFormatter(formatter)
         logger_to_capture.addHandler(sh)
-        assert_filter = AssertFilter()
         logger_to_capture.addFilter(assert_filter)
         result = func()
     finally:
@@ -99,7 +110,7 @@ class LoggingTestCase(TracerTestCase):
             else:
                 assert not isinstance(logging.StrFormatStyle.format, wrapt.BoundFunctionWrapper)
 
-    def _test_logging(self, create_span, service="tests.contrib.logging", version="", env=""):
+    def _test_logging(self, create_span, service="tests.contrib.logging", version="", env="", enabled="true"):
         def func():
             span = create_span()
             logger.info("Hello!")
@@ -107,7 +118,9 @@ class LoggingTestCase(TracerTestCase):
                 span.finish()
             return span
 
-        with self.override_config("logging", dict(tracer=self.tracer)):
+        with self.override_config("logging", dict(tracer=self.tracer)), self.override_global_config(
+            dict(_logs_injection=enabled)
+        ):
             # with format string for trace info
             output, span = capture_function_log(func)
             trace_id = 0
@@ -227,30 +240,42 @@ class LoggingTestCase(TracerTestCase):
                 logger.info("Hello!")
                 return span
 
-        fmt = (
-            "{message} [dd.service={dd.service} dd.env={dd.env} "
-            "dd.version={dd.version} dd.trace_id={dd.trace_id} dd.span_id={dd.span_id}]"
-        )
-
-        with self.override_config("logging", dict(tracer=self.tracer)):
-            output, span = capture_function_log(func, fmt=fmt, fmt_style="{")
-
-            lines = output.splitlines()
-            assert (
-                "Hello! [dd.service=tests.contrib.logging dd.env= dd.version= "
-                + "dd.trace_id={:032x} dd.span_id={}]".format(span.trace_id, span.span_id)
-                == lines[0]
-            )
-
-            with self.override_global_config(dict(service="my.service", version="my.version", env="my.env")):
-                output, span = capture_function_log(func, fmt=fmt, fmt_style="{")
+        for fmt, style in ((DEFAULT_FORMAT, None), (DEFAULT_FORMAT, "%"), (BRACE_FORMAT, "{")):
+            with self.override_config("logging", dict(tracer=self.tracer)), self.override_global_config(
+                dict(_logs_injection="true")
+            ):
+                output, span = capture_function_log(func, fmt=fmt, fmt_style=style)
 
                 lines = output.splitlines()
-                expected = (
-                    "Hello! [dd.service=my.service dd.env=my.env dd.version=my.version dd.trace_id={:032x} "
-                    + "dd.span_id={}]"
-                ).format(span.trace_id, span.span_id)
-                assert expected == lines[0]
+                assert (
+                    "Hello! - dd.service=tests.contrib.logging dd.version= dd.env= "
+                    + "dd.trace_id={:032x} dd.span_id={}".format(span.trace_id, span.span_id)
+                    == lines[0]
+                )
+
+                with self.override_global_config(dict(service="my.service", version="my.version", env="my.env")):
+                    output, span = capture_function_log(func, fmt=fmt, fmt_style=style)
+
+                    lines = output.splitlines()
+                    assert (
+                        "Hello! - dd.service=my.service dd.version=my.version dd.env=my.env "
+                        f"dd.trace_id={span.trace_id:032x} dd.span_id={span.span_id}"
+                    ) == lines[0]
+
+    def test_log_strformat_style_dollar_sign(self):
+        # FIXME: This test that verifies that the logging integration
+        # doesn't work with dollar sign style format strings.
+        def func():
+            with self.tracer.trace("test.logging") as span:
+                logger.info("Hello!")
+                return span
+
+        with self.override_config("logging", dict(tracer=self.tracer)), self.override_global_config(
+            dict(_logs_injection="true")
+        ):
+            with pytest.raises(ValueError) as exc:
+                _, _ = capture_function_log(func, fmt=DOLLAR_FORMAT, fmt_style="$")
+            assert str(exc.value) == "invalid format: bare '$' not allowed"
 
     def test_log_strformat_style_format(self):
         # DEV: We have to use `{msg}` instead of `{message}` because we are manually creating
@@ -261,7 +286,9 @@ class LoggingTestCase(TracerTestCase):
         )
         formatter = logging.StrFormatStyle(fmt)
 
-        with self.override_config("logging", dict(tracer=self.tracer)):
+        with self.override_config("logging", dict(tracer=self.tracer)), self.override_global_config(
+            dict(_logs_injection="true")
+        ):
             with self.tracer.trace("test.logging") as span:
                 record = logger.makeRecord("name", "INFO", "func", 534, "Manual log record", (), None)
                 log = formatter.format(record)
@@ -272,5 +299,31 @@ class LoggingTestCase(TracerTestCase):
                 assert log == expected
 
                 assert not hasattr(record, "dd")
-                assert getattr(record, RECORD_ATTR_TRACE_ID) == "{:032x}".format(span.trace_id)
-                assert getattr(record, RECORD_ATTR_SPAN_ID) == str(span.span_id)
+                assert getattr(record, LOG_ATTR_TRACE_ID) == "{:032x}".format(span.trace_id)
+                assert getattr(record, LOG_ATTR_SPAN_ID) == str(span.span_id)
+
+
+@pytest.mark.parametrize("dd_logs_enabled", ["true", "structured"])
+def test_manual_log_formatter_injection(dd_logs_enabled: str, run_python_code_in_subprocess):
+    code = """
+import ddtrace.auto
+
+import logging
+
+format_string = (
+    "%(message)s - dd.service=%(dd.service)s dd.version=%(dd.version)s dd.env=%(dd.env)s"
+    " dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s"
+)
+
+log = logging.getLogger()
+logging.basicConfig(level=logging.INFO, format=format_string)
+log.info("Hello!")
+    """
+
+    env = os.environ.copy()
+    env["DD_LOGS_INJECTION"] = dd_logs_enabled
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+    assert status == 0, stderr
+
+    assert stdout == b"", stderr
+    assert stderr == b"Hello! - dd.service=ddtrace_subprocess_dir dd.version= dd.env= dd.trace_id=0 dd.span_id=0\n"

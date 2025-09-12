@@ -1,34 +1,31 @@
 ---
 components:
   anthropic:
-    - ddtrace/contrib/_anthropic.py
     - ddtrace/contrib/internal/anthropic/*
   google_generativeai:
-    - ddtrace/contrib/_google_generativeai.py
     - ddtrace/contrib/internal/google_generativeai/*
+  google_genai:
+    - ddtrace/contrib/internal/google_genai/*
   vertexai:
-    - ddtrace/contrib/_vertexai.py
     - ddtrace/contrib/internal/vertexai/*
   langchain:
-    - ddtrace/contrib/_langchain.py
     - ddtrace/contrib/internal/langchain/*
   litellm:
-    - ddtrace/contrib/_litellm.py
     - ddtrace/contrib/internal/litellm/*
   llmobs:
     - ddtrace/llmobs/*
+  mcp:
+    - ddtrace/contrib/internal/mcp/*
   openai:
-    - ddtrace/contrib/_openai.py
     - ddtrace/contrib/internal/openai/*
   langgraph:
-    - ddtrace/contrib/_langgraph.py
     - ddtrace/contrib/internal/langgraph/*
   crewai:
-    - ddtrace/contrib/_crewai.py
     - ddtrace/contrib/internal/crewai/*
   openai_agents:
-    - ddtrace/contrib/_openai_agents.py
     - ddtrace/contrib/internal/openai_agents/*
+  pydantic_ai:
+    - ddtrace/contrib/internal/pydantic_ai/*
 suites:
   anthropic:
     parallelism: 2
@@ -55,6 +52,19 @@ suites:
     - '@llmobs'
     - tests/contrib/google_generativeai/*
     - tests/snapshots/tests.contrib.google_generativeai.*
+    runner: riot
+    snapshot: true
+  google_genai:
+    parallelism: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@google_genai'
+      - '@llmobs'
+      - tests/contrib/google_genai/*
+      - tests/snapshots/tests.contrib.google_genai.*
     runner: riot
     snapshot: true
   vertexai:
@@ -104,6 +114,20 @@ suites:
       - '@llmobs'
       - tests/llmobs/*
     runner: riot
+    snapshot: true
+  mcp:
+    parallelism: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@mcp'
+      - '@llmobs'
+      - tests/contrib/mcp/*
+      - tests/snapshots/tests.contrib.mcp.*
+    runner: riot
+    snapshot: true
   openai:
     parallelism: 10
     paths:
@@ -156,5 +180,17 @@ suites:
       - '@llmobs'
       - tests/contrib/openai_agents/*
       - tests/snapshots/tests.contrib.openai_agents.*
+    runner: riot
+    snapshot: true
+  pydantic_ai:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@pydantic_ai'
+      - '@llmobs'
+      - tests/contrib/pydantic_ai/*
+      - tests/snapshots/tests.contrib.pydantic_ai.*
     runner: riot
     snapshot: true

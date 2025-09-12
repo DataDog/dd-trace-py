@@ -25,7 +25,7 @@ from graphql.execution import ExecutionResult
 from graphql.language.source import Source
 
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -42,7 +42,6 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
-from ddtrace.trace import Pin
 
 
 _graphql_version_str = graphql.__version__
@@ -57,6 +56,10 @@ else:
 def get_version():
     # type: () -> str
     return _graphql_version_str
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"graphql": ">=3.1"}
 
 
 def _parse_error_extensions(error_extensions: Optional[str]):
@@ -190,7 +193,8 @@ def _traced_execute(func, args, kwargs):
     ) as span:
         span.set_tag_str(COMPONENT, config.graphql.integration_name)
 
-        span.set_tag(_SPAN_MEASURED_KEY)
+        # PERF: avoid setting via Span.set_tag
+        span.set_metric(_SPAN_MEASURED_KEY, 1)
 
         _set_span_operation_tags(span, document)
         span.set_tag_str(_GRAPHQL_SOURCE, source_str)
@@ -220,10 +224,8 @@ def _traced_query(func, args, kwargs):
         span.set_tag_str(COMPONENT, config.graphql.integration_name)
 
         # mark span as measured and set sample rate
-        span.set_tag(_SPAN_MEASURED_KEY)
-        sample_rate = config.graphql.get_analytics_sample_rate()
-        if sample_rate is not None:
-            span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
+        # PERF: avoid setting via Span.set_tag
+        span.set_metric(_SPAN_MEASURED_KEY, 1)
 
         result = func(*args, **kwargs)
         if isinstance(result, ExecutionResult):

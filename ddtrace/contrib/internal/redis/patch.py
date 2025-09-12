@@ -1,12 +1,14 @@
 import os
+from typing import Dict
 
 import redis
 import wrapt
 
 from ddtrace import config
-from ddtrace._trace.utils_redis import _instrument_redis_cmd
-from ddtrace._trace.utils_redis import _instrument_redis_execute_pipeline
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.redis_utils import ROW_RETURNING_COMMANDS
+from ddtrace.contrib.internal.redis_utils import _instrument_redis_cmd
+from ddtrace.contrib.internal.redis_utils import _instrument_redis_execute_pipeline
 from ddtrace.contrib.internal.redis_utils import determine_row_count
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.internal import core
@@ -14,7 +16,6 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import CMD_MAX_LEN
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import stringify_cache_args
-from ddtrace.trace import Pin
 
 
 config._add(
@@ -27,9 +28,12 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(redis, "__version__", "")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"redis": "*"}
 
 
 def patch():
@@ -178,7 +182,7 @@ def instrumented_execute_pipeline(integration_config, is_cluster=False):
                 stringify_cache_args(c, cmd_max_len=integration_config.cmd_max_length)
                 for c, _ in instance.command_stack
             ]
-        with _instrument_redis_execute_pipeline(pin, integration_config, cmds, instance, is_cluster):
+        with _instrument_redis_execute_pipeline(pin, integration_config, cmds, instance):
             return func(*args, **kwargs)
 
     return _instrumented_execute_pipeline

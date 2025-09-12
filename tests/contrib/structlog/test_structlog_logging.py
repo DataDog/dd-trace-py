@@ -51,6 +51,57 @@ def global_config():
     cf.logger.calls.clear()
 
 
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    parametrize=dict(DD_LOGS_INJECTION=["True", None]),
+    env=dict(DD_SERVICE="moon", DD_ENV="global-env", DD_VERSION="global-version"),
+)
+def test_log_injection_enabled():
+    import structlog
+
+    from ddtrace import config
+    from ddtrace.trace import tracer
+    from tests.contrib.structlog.test_structlog_logging import _test_logging
+
+    cf = structlog.testing.CapturingLoggerFactory()
+    structlog.configure(
+        processors=[structlog.processors.JSONRenderer()],
+        logger_factory=cf,
+    )
+
+    with tracer.trace("test.logging") as span:
+        structlog.get_logger().info("Hello!")
+
+    output = cf.logger.calls
+
+    _test_logging(output, span, config.env, config.service, config.version)
+
+
+@pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_LOGS_INJECTION="False"))
+def test_log_injection_disabled():
+    import json
+
+    import structlog
+
+    from ddtrace.trace import tracer
+
+    gcf = structlog.testing.CapturingLoggerFactory()
+
+    structlog.configure(
+        processors=[structlog.processors.JSONRenderer()],
+        logger_factory=gcf,
+    )
+
+    with tracer.trace("test.logging"):
+        structlog.get_logger().info("Hello!")
+
+    output = gcf.logger.calls
+    for key in json.loads(output[0].args[0]).keys():
+        assert not key.startswith(
+            "dd."
+        ), f"Expected no dd.* keys in log output when DD_LOGS_INJECTION is False, key={key}"
+
+
 def test_log_trace_global_values():
     """
     Check trace info includes global values over local span values

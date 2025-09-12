@@ -2,6 +2,7 @@
 
 #include "thread_span_links.hpp"
 
+#include "echion/greenlets.h"
 #include "echion/interp.h"
 #include "echion/tasks.h"
 #include "echion/threads.h"
@@ -13,6 +14,7 @@ using namespace Datadog;
 // Helper class for spawning a std::thread with control over its default stack size
 #ifdef __linux__
 #include <sys/resource.h>
+#include <time.h>
 #include <unistd.h>
 
 struct ThreadArgs
@@ -54,13 +56,94 @@ create_thread_with_stack(size_t stack_size, Sampler* sampler, uint64_t seq_num)
     }
     return thread_id;
 }
+#elif defined(__MACH__)
+#include <mach/mach.h>
 #endif
+
+void
+Sampler::adapt_sampling_interval()
+{
+#if defined(__linux__)
+    struct timespec ts;
+
+    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts);
+    auto new_process_count = static_cast<uint64_t>(ts.tv_sec * 1000000ULL + ts.tv_nsec / 1000);
+
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts);
+    auto new_sampler_thread_count = static_cast<uint64_t>(ts.tv_sec * 1000000ULL + ts.tv_nsec / 1000);
+#elif defined(__MACH__)
+    // Get the process CPU time
+    task_thread_times_info_data_t task_info_data;
+    mach_msg_type_number_t task_info_count = TASK_THREAD_TIMES_INFO_COUNT;
+
+    if (task_info(
+          mach_task_self(), TASK_THREAD_TIMES_INFO, reinterpret_cast<task_info_t>(&task_info_data), &task_info_count) !=
+        KERN_SUCCESS) {
+        return;
+    }
+
+    auto new_process_count =
+      static_cast<uint64_t>(task_info_data.user_time.seconds * 1e6 + task_info_data.user_time.microseconds +
+                            task_info_data.system_time.seconds * 1e6 + task_info_data.system_time.microseconds);
+
+    // Get the sampling thread CPU time
+    mach_msg_type_number_t count = THREAD_BASIC_INFO_COUNT;
+    thread_basic_info_data_t info;
+
+    thread_port_t thread = mach_thread_self(); // perf: call once
+    int kr = thread_info(thread, THREAD_BASIC_INFO, reinterpret_cast<thread_info_t>(&info), &count);
+    mach_port_deallocate(mach_task_self(), thread);
+    if (kr != KERN_SUCCESS) {
+        return;
+    }
+
+    auto new_sampler_thread_count =
+      static_cast<uint64_t>(info.user_time.seconds * 1e6 + info.user_time.microseconds +
+                            info.system_time.seconds * 1e6 + info.system_time.microseconds);
+#endif
+    auto sampler_thread_delta = static_cast<double>(new_sampler_thread_count - sampler_thread_count);
+    auto process_delta = static_cast<double>(new_process_count - process_count - sampler_thread_delta);
+    if (process_delta <= 0) {
+        process_delta = 1; // Avoid division by zero or negative values
+    }
+
+    auto current_interval = static_cast<double>(sample_interval_us.load());
+
+    // We assume that every sampling operation contributes a fixed amount of
+    // overhead, while the application consumes an average amount of CPU over
+    // time. With:
+    //    s - sampler time
+    //    p - process time
+    //    o - overhead threshold
+    //    I - interval
+    //    I'- interval after adjustment
+    // we use the following formula to adapt the sampling interval
+    //    I' = I * [(s / p) / o]
+    // As the value could be small when the process is idle, we use a lower
+    // bound of the sampling interval to avoid CPU spikes from the sampler.
+    auto new_interval =
+      static_cast<microsecond_t>(current_interval * ((sampler_thread_delta / process_delta) / g_target_overhead));
+
+    // Cap the new interval to the min/max sampling period
+    if (new_interval < g_min_sampling_period_us) {
+        new_interval = g_min_sampling_period_us;
+    } else if (new_interval > g_max_sampling_period_us) {
+        new_interval = g_max_sampling_period_us;
+    }
+
+    sample_interval_us.store(new_interval);
+
+    // Update the counters for the next iteration
+    process_count = new_process_count;
+    sampler_thread_count = new_sampler_thread_count;
+}
 
 void
 Sampler::sampling_thread(const uint64_t seq_num)
 {
     using namespace std::chrono;
     auto sample_time_prev = steady_clock::now();
+    auto interval_adjust_time_prev = sample_time_prev;
 
     while (seq_num == thread_seq_num.load()) {
         auto sample_time_now = steady_clock::now();
@@ -68,11 +151,19 @@ Sampler::sampling_thread(const uint64_t seq_num)
         sample_time_prev = sample_time_now;
 
         // Perform the sample
-        for_each_interp([&](PyInterpreterState* interp) -> void {
+        for_each_interp([&](InterpreterInfo& interp) -> void {
             for_each_thread(interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
-                thread.sample(interp->id, tstate, wall_time_us);
+                thread.sample(interp.id, tstate, wall_time_us);
             });
         });
+
+        if (do_adaptive_sampling) {
+            // Adjust the sampling interval at most every second
+            if (sample_time_now - interval_adjust_time_prev > microseconds(g_adaptive_sampling_interval_us)) {
+                adapt_sampling_interval();
+                interval_adjust_time_prev = sample_time_now;
+            }
+        }
 
         // Before sleeping, check whether the user has called for this thread to die.
         if (seq_num != thread_seq_num.load()) {
@@ -118,6 +209,7 @@ _stack_v2_atfork_child()
     // NB placement-new to re-init and leak the mutex because doing anything else is UB
     new (&thread_info_map_lock) std::mutex;
     new (&task_link_map_lock) std::mutex;
+    new (&greenlet_info_map_lock) std::mutex;
 }
 
 __attribute__((constructor)) void
@@ -247,4 +339,51 @@ Sampler::link_tasks(PyObject* parent, PyObject* child)
 {
     std::lock_guard<std::mutex> guard(task_link_map_lock);
     task_link_map[child] = parent;
+}
+
+void
+Sampler::track_greenlet(uintptr_t greenlet_id, StringTable::Key name, PyObject* frame)
+{
+    const std::lock_guard<std::mutex> guard(greenlet_info_map_lock);
+
+    auto entry = greenlet_info_map.find(greenlet_id);
+    if (entry != greenlet_info_map.end())
+        // Greenlet is already tracked so we update its info
+        entry->second = std::make_unique<GreenletInfo>(greenlet_id, frame, name);
+    else
+        greenlet_info_map.emplace(greenlet_id, std::make_unique<GreenletInfo>(greenlet_id, frame, name));
+
+    // Update the thread map
+    auto native_id = PyThread_get_thread_native_id();
+    greenlet_thread_map[native_id] = greenlet_id;
+}
+
+void
+Sampler::untrack_greenlet(uintptr_t greenlet_id)
+{
+    const std::lock_guard<std::mutex> guard(greenlet_info_map_lock);
+
+    greenlet_info_map.erase(greenlet_id);
+    greenlet_parent_map.erase(greenlet_id);
+    greenlet_thread_map.erase(greenlet_id);
+}
+
+void
+Sampler::link_greenlets(uintptr_t parent, uintptr_t child)
+{
+    std::lock_guard<std::mutex> guard(greenlet_info_map_lock);
+
+    greenlet_parent_map[child] = parent;
+}
+
+void
+Sampler::update_greenlet_frame(uintptr_t greenlet_id, PyObject* frame)
+{
+    std::lock_guard<std::mutex> guard(greenlet_info_map_lock);
+
+    auto entry = greenlet_info_map.find(greenlet_id);
+    if (entry != greenlet_info_map.end()) {
+        // Update the frame of the greenlet
+        entry->second->frame = frame;
+    }
 }

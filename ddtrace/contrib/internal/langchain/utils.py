@@ -1,66 +1,34 @@
 import inspect
 import sys
 
-
-class BaseTracedLangChainStreamResponse:
-    def __init__(self, generator, integration, span, on_span_finish):
-        self._generator = generator
-        self._dd_integration = integration
-        self._dd_span = span
-        self._on_span_finish = on_span_finish
-        self._chunks = []
+from ddtrace.internal import core
+from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
+from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
+from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 
 
-class TracedLangchainStreamResponse(BaseTracedLangChainStreamResponse):
-    def __enter__(self):
-        self._generator.__enter__()
-        return self
+class BaseLangchainStreamHandler:
+    def _process_chunk(self, chunk):
+        self.chunks.append(chunk)
+        chunk_callback = self.options.get("chunk_callback", None)
+        if chunk_callback:
+            chunk_callback(chunk)
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self._generator.__exit__(exc_type, exc_val, exc_tb)
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        try:
-            chunk = self._generator.__next__()
-            self._chunks.append(chunk)
-            return chunk
-        except StopIteration:
-            self._on_span_finish(self._dd_span, self._chunks)
-            self._dd_span.finish()
-            raise
-        except Exception:
-            self._dd_span.set_exc_info(*sys.exc_info())
-            self._dd_span.finish()
-            raise
+    def finalize_stream(self, exception=None):
+        on_span_finish = self.options.get("on_span_finish", None)
+        if on_span_finish:
+            on_span_finish(self.primary_span, self.chunks)
+        self.primary_span.finish()
 
 
-class TracedLangchainAsyncStreamResponse(BaseTracedLangChainStreamResponse):
-    async def __aenter__(self):
-        await self._generator.__enter__()
-        return self
+class LangchainStreamHandler(BaseLangchainStreamHandler, StreamHandler):
+    def process_chunk(self, chunk, iterator=None):
+        self._process_chunk(chunk)
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self._generator.__exit__(exc_type, exc_val, exc_tb)
 
-    def __aiter__(self):
-        return self
-
-    async def __anext__(self):
-        try:
-            chunk = await self._generator.__anext__()
-            self._chunks.append(chunk)
-            return chunk
-        except StopAsyncIteration:
-            self._on_span_finish(self._dd_span, self._chunks)
-            self._dd_span.finish()
-            raise
-        except Exception:
-            self._dd_span.set_exc_info(*sys.exc_info())
-            self._dd_span.finish()
-            raise
+class LangchainAsyncStreamHandler(BaseLangchainStreamHandler, AsyncStreamHandler):
+    async def process_chunk(self, chunk, iterator=None):
+        self._process_chunk(chunk)
 
 
 def shared_stream(
@@ -79,10 +47,8 @@ def shared_stream(
         "pin": pin,
         "operation_id": f"{instance.__module__}.{instance.__class__.__name__}",
         "interface_type": interface_type,
-        # submit to llmobs only if we detect an LLM request that is not being sent to a proxy
-        "submit_to_llmobs": (
-            integration.has_default_base_url(instance) if interface_type in ("chat_model", "llm") else True
-        ),
+        "submit_to_llmobs": True,
+        "instance": instance,
     }
 
     options.update(extra_options)
@@ -93,9 +59,20 @@ def shared_stream(
 
     try:
         resp = func(*args, **kwargs)
-        cls = TracedLangchainAsyncStreamResponse if inspect.isasyncgen(resp) else TracedLangchainStreamResponse
-
-        return cls(resp, integration, span, on_span_finished)
+        chunk_callback = _get_chunk_callback(interface_type, args, kwargs)
+        if inspect.isasyncgen(resp):
+            return make_traced_stream(
+                resp,
+                LangchainAsyncStreamHandler(
+                    integration, span, args, kwargs, on_span_finish=on_span_finished, chunk_callback=chunk_callback
+                ),
+            )
+        return make_traced_stream(
+            resp,
+            LangchainStreamHandler(
+                integration, span, args, kwargs, on_span_finish=on_span_finished, chunk_callback=chunk_callback
+            ),
+        )
     except Exception:
         # error with the method call itself
         span.set_exc_info(*sys.exc_info())
@@ -103,27 +80,26 @@ def shared_stream(
         raise
 
 
-def tag_general_message_input(span, inputs, integration, langchain_core):
-    if langchain_core and isinstance(inputs, langchain_core.prompt_values.PromptValue):
-        inputs = inputs.to_messages()
-    elif not isinstance(inputs, list):
-        inputs = [inputs]
-    for input_idx, inp in enumerate(inputs):
-        if isinstance(inp, dict):
-            span.set_tag_str(
-                "langchain.request.messages.%d.content" % (input_idx),
-                integration.trunc(str(inp.get("content", ""))),
-            )
-            role = inp.get("role")
-            if role is not None:
-                span.set_tag_str(
-                    "langchain.request.messages.%d.message_type" % (input_idx),
-                    str(inp.get("role", "")),
-                )
-        elif langchain_core and isinstance(inp, langchain_core.messages.BaseMessage):
-            content = inp.content
-            role = inp.__class__.__name__
-            span.set_tag_str("langchain.request.messages.%d.content" % (input_idx), integration.trunc(str(content)))
-            span.set_tag_str("langchain.request.messages.%d.message_type" % (input_idx), str(role))
-        else:
-            span.set_tag_str("langchain.request.messages.%d.content" % (input_idx), integration.trunc(str(inp)))
+def _get_chunk_callback(interface_type, args, kwargs):
+    results = core.dispatch_with_results("langchain.stream.chunk.callback", (interface_type, args, kwargs))
+    callbacks = []
+    for result in results.values():
+        if result and result.value:
+            callbacks.append(result.value)
+    return _build_chunk_callback(callbacks)
+
+
+def _build_chunk_callback(callbacks):
+    if not callbacks:
+        return _no_op_callback
+
+    def _chunk_callback(chunk):
+        for callback in callbacks:
+            callback(chunk)
+        return chunk
+
+    return _chunk_callback
+
+
+def _no_op_callback(chunk):
+    pass

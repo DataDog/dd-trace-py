@@ -5,7 +5,7 @@ import signal
 import subprocess
 import sys
 
-from requests.exceptions import ConnectionError
+from requests.exceptions import ConnectionError  # noqa: A004
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
@@ -20,6 +20,7 @@ FILE_PATH = Path(__file__).resolve().parent
 
 @contextmanager
 def gunicorn_server(
+    use_ddtrace_cmd=True,
     appsec_enabled="true",
     iast_enabled="false",
     remote_configuration_enabled="true",
@@ -27,8 +28,20 @@ def gunicorn_server(
     apm_tracing_enabled="true",
     token=None,
     port=8000,
+    workers="1",
+    use_threads=False,
+    use_gevent=False,
+    assert_debug=False,
+    env=None,
 ):
-    cmd = ["gunicorn", "-w", "3", "-b", "0.0.0.0:%s" % port, "tests.appsec.app:app"]
+    cmd = ["gunicorn", "-w", workers, "--log-level", "debug"]
+    if use_ddtrace_cmd:
+        cmd = ["python", "-m", "ddtrace.commands.ddtrace_run"] + cmd
+    if use_threads:
+        cmd += ["--threads", "1"]
+    if use_gevent:
+        cmd += ["-k", "gevent"]
+    cmd += ["-b", "0.0.0.0:%s" % port, "tests.appsec.app:app"]
     yield from appsec_application_server(
         cmd,
         appsec_enabled=appsec_enabled,
@@ -37,14 +50,16 @@ def gunicorn_server(
         remote_configuration_enabled=remote_configuration_enabled,
         tracer_enabled=tracer_enabled,
         token=token,
+        env=env,
         port=port,
+        assert_debug=assert_debug,
     )
 
 
 @contextmanager
 def flask_server(
     python_cmd="python",
-    appsec_enabled="true",
+    appsec_enabled="false",
     remote_configuration_enabled="true",
     iast_enabled="false",
     tracer_enabled="true",
@@ -55,8 +70,11 @@ def flask_server(
     port=8000,
     assert_debug=False,
     manual_propagation_debug=False,
+    use_ddtrace_cmd=True,
 ):
     cmd = [python_cmd, app, "--no-reload"]
+    if use_ddtrace_cmd:
+        cmd = [python_cmd, "-m", "ddtrace.commands.ddtrace_run"] + cmd
     yield from appsec_application_server(
         cmd,
         appsec_enabled=appsec_enabled,
@@ -67,6 +85,100 @@ def flask_server(
         token=token,
         env=env,
         port=port,
+        assert_debug=assert_debug,
+        manual_propagation_debug=manual_propagation_debug,
+    )
+
+
+@contextmanager
+def django_server(
+    python_cmd="python",
+    appsec_enabled="false",
+    remote_configuration_enabled="true",
+    iast_enabled="false",
+    tracer_enabled="true",
+    apm_tracing_enabled=None,
+    token=None,
+    port=8000,
+    env=None,
+    assert_debug=False,
+    manual_propagation_debug=False,
+):
+    """
+    Context manager that runs a Django test server in a subprocess.
+
+    This server uses the Django test application located in tests/appsec/integrations/django_tests/django_app.
+    The server is started when entering the context and stopped when exiting.
+    """
+    manage_py = "tests/appsec/integrations/django_tests/django_app/manage.py"
+    cmd = [
+        python_cmd,
+        "-m",
+        "ddtrace.commands.ddtrace_run",
+        python_cmd,
+        manage_py,
+        "runserver",
+        f"0.0.0.0:{port}",
+        "--noreload",
+    ]
+    yield from appsec_application_server(
+        cmd,
+        appsec_enabled=appsec_enabled,
+        apm_tracing_enabled=apm_tracing_enabled,
+        remote_configuration_enabled=remote_configuration_enabled,
+        iast_enabled=iast_enabled,
+        tracer_enabled=tracer_enabled,
+        token=token,
+        port=port,
+        env=env,
+        assert_debug=assert_debug,
+        manual_propagation_debug=manual_propagation_debug,
+    )
+
+
+@contextmanager
+def uvicorn_server(
+    python_cmd="python",
+    appsec_enabled="false",
+    remote_configuration_enabled="true",
+    iast_enabled="false",
+    tracer_enabled="true",
+    apm_tracing_enabled=None,
+    token=None,
+    app="tests.appsec.integrations.fastapi_tests.app:app",
+    env=None,
+    port=8000,
+    assert_debug=False,
+    manual_propagation_debug=False,
+):
+    """
+    Context manager that runs a FastAPI test server in a subprocess using Uvicorn.
+
+    This server uses the FastAPI test application located in tests/appsec/integrations/fastapi_tests.
+    The server is started when entering the context and stopped when exiting.
+    """
+    cmd = [
+        python_cmd,
+        "-m",
+        "ddtrace.commands.ddtrace_run",
+        "uvicorn",
+        app,
+        "--host",
+        "0.0.0.0",
+        "--port",
+        str(port),
+        "--no-access-log",
+    ]
+    yield from appsec_application_server(
+        cmd,
+        appsec_enabled=appsec_enabled,
+        apm_tracing_enabled=apm_tracing_enabled,
+        remote_configuration_enabled=remote_configuration_enabled,
+        iast_enabled=iast_enabled,
+        tracer_enabled=tracer_enabled,
+        token=token,
+        port=port,
+        env=env,
         assert_debug=assert_debug,
         manual_propagation_debug=manual_propagation_debug,
     )
@@ -99,6 +211,7 @@ def appsec_application_server(
         env[IAST.ENV] = iast_enabled
         env[IAST.ENV_REQUEST_SAMPLING] = "100"
         env["DD_IAST_DEDUPLICATION_ENABLED"] = "false"
+        env["_DD_IAST_PATCH_MODULES"] = "tests.appsec."
         env[IAST.ENV_NO_DIR_PATCH] = "false"
         if assert_debug:
             env["_" + IAST.ENV_DEBUG] = iast_enabled

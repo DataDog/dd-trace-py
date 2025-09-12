@@ -10,27 +10,22 @@
     "error": 1,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6732207c00000000",
+      "_dd.p.tid": "685ae96d00000000",
       "error.message": "_GenerativeModel.generate_content() got an unexpected keyword argument 'candidate_count'",
-      "error.stack": "Traceback (most recent call last):\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/vertexai/patch.py\", line 64, in _traced_generate\n    generations = func(*args, **kwargs)\n                  ^^^^^^^^^^^^^^^^^^^^^\nTypeError: _GenerativeModel.generate_content() got an unexpected keyword argument 'candidate_count'\n",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/jacob.simpher/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/vertexai/patch.py\", line 73, in _traced_generate\n    generations = func(*args, **kwargs)\nTypeError: _GenerativeModel.generate_content() got an unexpected keyword argument 'candidate_count'\n",
       "error.type": "builtins.TypeError",
       "language": "python",
-      "runtime-id": "55e7bbd277174a8fa40181f2853449ce",
-      "vertexai.request.contents.0.text": "How big is the solar system?",
-      "vertexai.request.generation_config.max_output_tokens": "30",
-      "vertexai.request.generation_config.stop_sequences": "['x']",
-      "vertexai.request.generation_config.temperature": "1.0",
+      "runtime-id": "51dd90093585456fa5287bb1606924df",
       "vertexai.request.model": "gemini-1.5-flash",
-      "vertexai.request.provider": "google",
-      "vertexai.request.stream": "True"
+      "vertexai.request.provider": "google"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 9240
+      "process_id": 93922
     },
-    "duration": 287000,
-    "start": 1731338364486529000
+    "duration": 122000,
+    "start": 1750788461619518000
   }]]

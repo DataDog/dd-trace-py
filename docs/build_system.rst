@@ -47,7 +47,7 @@ To install all dependencies in one step, use:
 
 .. code-block:: bash
 
-    pip install . --no-build-isolation --no-install
+    pip install 'setuptools_scm[toml]>=4' 'cython' 'cmake>=3.24.2,<3.28' 'setuptools-rust<2'
 
 Note that `pip install -e` (described below) also installs these build dependencies automatically.
 
@@ -205,28 +205,22 @@ These environment variables modify aspects of the build process.
     version_added:
         v2.16.0:
 
-  DD_BUILD_EXT_INCLUDES:
-    type: String
-    default: ""
+  DD_CMAKE_INCREMENTAL_BUILD:
+    type: Boolean
+    default: True
 
     description: |
-        Comma separated list of ``fnmatch`` patterns for native extensions to build when installing the package from source.
-        Example: ``DD_BUILD_EXT_INCLUDES="ddtrace.internal.*" pip install -e .`` to only build native extensions found in ``ddtrace/internal/`` folder.
-
-        ``DD_BUILD_EXT_EXCLUDES`` takes precedence over ``DD_BUILD_EXT_INCLUDES``.
+        Enables support for incremental builds of CMake extensions when doing an in-place install (e.g. editable mode).
 
     version_added:
-        v3.3.0:
+        v3.10.0:
 
-  DD_BUILD_EXT_EXCLUDES:
-    type: String
-    default: ""
+  DD_SETUP_CACHE_DOWNLOADS:
+    type: Boolean
+    default: True
 
     description: |
-        Comma separated list of ``fnmatch`` patterns for native extensions to skip when installing the package from source.
-        Example: ``DD_BUILD_EXT_EXCLUDES="*._encoding" pip install -e .`` to build all native extensions except ``ddtrace.internal._encoding``.
-
-        ``DD_BUILD_EXT_EXCLUDES`` takes precedence over ``DD_BUILD_EXT_INCLUDES``.
+        Caches the download of artifacts needed by the build process.
 
     version_added:
-        v3.3.0:
+        v3.10.0:

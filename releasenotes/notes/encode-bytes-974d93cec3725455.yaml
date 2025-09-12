@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: This resolves a ``TypeError`` in encoding when truncating a large bytes object.

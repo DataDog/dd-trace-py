@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    openai: Resolves an issue where streamed completions and chat completions immediately returning ``None`` would result in unfinished spans.

@@ -10,6 +10,7 @@ from ..constants import VULN_CODE_INJECTION
 from ..constants import VULN_HEADER_INJECTION
 from ..constants import VULN_SQL_INJECTION
 from ..constants import VULN_SSRF
+from ..constants import VULN_UNVALIDATED_REDIRECT
 from ..constants import VULN_XSS
 from .command_injection_sensitive_analyzer import command_injection_sensitive_analyzer
 from .default_sensitive_analyzer import default_sensitive_analyzer
@@ -45,6 +46,7 @@ class SensitiveHandler:
             VULN_CMDI: command_injection_sensitive_analyzer,
             VULN_SQL_INJECTION: sql_sensitive_analyzer,
             VULN_SSRF: url_sensitive_analyzer,
+            VULN_UNVALIDATED_REDIRECT: url_sensitive_analyzer,
             VULN_HEADER_INJECTION: header_injection_sensitive_analyzer,
             VULN_XSS: default_sensitive_analyzer,
             VULN_CODE_INJECTION: default_sensitive_analyzer,

@@ -1,0 +1,51 @@
+[[
+  {
+    "name": "internal",
+    "service": "ddtrace_subprocess_dir",
+    "resource": "root",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-4",
+      "_dd.p.tid": "67d83dce00000000",
+      "language": "python",
+      "runtime-id": "ebddb7fccd114097b0011932a0a46477"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": -1,
+      "process_id": 501
+    },
+    "duration": 33225459,
+    "start": 1742224846740381633
+  },
+     {
+       "name": "internal",
+       "service": "ddtrace_subprocess_dir",
+       "resource": "task",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.p.dm": "-4",
+         "_dd.p.tid": "67d83dce00000000",
+         "_dd.parent_id": "b373219900721aaf",
+         "language": "python",
+         "runtime-id": "5bfea6428d5e467aa17a09963ceb1ef9",
+         "tracestate": "dd=p:b373219900721aaf;s:2;t.dm:-4"
+       },
+       "metrics": {
+         "_dd.top_level": 1,
+         "_dd.tracer_kr": 1.0,
+         "_sampling_priority_v1": -1,
+         "process_id": 505
+       },
+       "duration": 20982541,
+       "start": 1742224846746263092
+     }]]

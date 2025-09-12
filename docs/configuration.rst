@@ -344,6 +344,22 @@ Traces
      version_added:
         v1.9.0:
 
+   DD_TRACE_SAFE_INSTRUMENTATION_ENABLED:
+     type: Boolean
+     default: False
+     
+     description: |
+        Whether to enable safe instrumentation.
+
+        When enabled, ``ddtrace`` will check if the version of an installed package is compatible with the respective ``ddtrace`` integration
+        patching the package. If the version is not compatible, ``ddtrace`` will not patch the respective package.
+
+        This is useful to avoid application crashes from patching packages that are incompatible with the ``ddtrace`` supported integration 
+        version ranges.
+     
+     version_added:
+        v3.11.0:
+
 Trace Context propagation
 -------------------------
 
@@ -408,6 +424,42 @@ Trace Context propagation
 
      version_added:
        v1.7.0: The ``b3multi`` propagation style was added and ``b3`` was deprecated in favor it.
+
+Metrics
+-------
+
+.. ddtrace-configuration-options::
+
+   DD_RUNTIME_METRICS_ENABLED:
+     type: Boolean
+     default: False
+     
+     description: |
+         When used with ``ddtrace-run`` this configuration enables sending runtime metrics to Datadog.
+         These metrics track the memory management and concurrency of the python runtime. 
+         Refer to the following `docs <https://docs.datadoghq.com/tracing/metrics/runtime_metrics/python/>` _ for more information.
+
+   DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED:
+     type: Boolean
+     default: False
+     version_added:
+       v3.10.0: Renamed from ``DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED``
+       v3.2.0: Adds initial support
+
+     description: |
+         Adds support for tagging runtime metrics with the current runtime ID. This is useful for tracking runtime metrics across multiple processes.
+         Refer to the following `docs <https://docs.datadoghq.com/tracing/metrics/runtime_metrics/python/>` _ for more information.
+
+   DD_METRICS_OTEL_ENABLED:
+     type: Boolean
+     default: False
+     
+     description: |
+        When used with ``ddtrace-run`` this configuration enables support for exporting OTLP metrics generated
+        by the OpenTelemetry Metrics API. The application must also include its own OTLP metrics exporter.
+     
+     version_added:
+       v3.11.0:
 
 AppSec
 ------
@@ -548,6 +600,14 @@ AppSec
      default: "DES,Blowfish,RC2,RC4,IDEA"
      description: Weak cipher algorithms that should be reported, comma separated.
 
+   DD_IAST_SECURITY_CONTROLS_CONFIGURATION:
+     type: String
+     default: ""
+     description: |
+        Allows you to specify custom sanitizers and validators that IAST should recognize when
+        analyzing your application for security vulnerabilities.
+        See the `Security Controls <https://docs.datadoghq.com/security/code_security/iast/security_controls>`_
+        documentation for more information about this feature.
 
 Test Visibility
 ---------------
@@ -628,6 +688,28 @@ Test Visibility
 
      version_added:
         v2.18.0:
+
+   DD_CIVISIBILITY_USE_BETA_WRITER:
+     type: Boolean
+     default: False
+
+     description: |
+        Configures the ``CIVisibility`` service to use an alternative method for collecting and sending test spans.
+        In this mode, the ``CIVisibility`` tracer is kept separate from the global ``ddtrace`` tracer, which helps avoid
+        interference between test and non-test tracer configurations. This mode is currently experimental.
+
+     version_added:
+        v3.12.0:
+
+   DD_CIVISIBILITY_ENABLED:
+     type: Boolean
+     default: True
+
+     description: |
+        Allows the ``CIVisibility`` service to run and send traces to the Test Visibility product.
+
+     version_added:
+        v3.15.0:
 
 Agent
 -----
@@ -726,8 +808,25 @@ Logs
 
    DD_LOGS_INJECTION:
      type: Boolean
+     default: True
+     description: Enables :ref:`Logs Injection`. Supported values are ``false``, and ``true``.
+     version_added:
+       v0.51.0: |
+         Added support for correlating traces to log using the builtin logger. This feature was disabled by default.
+       v3.10.0: |
+         The default value was changed to ``true``. This means that the tracer will inject trace context into logs when ``ddtrace-run`` or ``import ddtrace.auto`` is used.
+         To disable this behavior, set ``DD_LOGS_INJECTION=false``.
+
+   DD_LOGS_OTEL_ENABLED:
+     type: Boolean
      default: False
-     description: Enables :ref:`Logs Injection`.
+
+     description: |
+         When used with ``ddtrace-run`` this configuration enables support for exporting OTLP logs generated
+         by the OpenTelemetry Logging API. The application must also include its own OTLP logs exporter.
+     
+     version_added:
+       v3.12.0: Adds support for submitting logs via an OTLP Exporter.
 
    DD_TRACE_DEBUG:
      type: Boolean
@@ -847,25 +946,6 @@ Other
      description: |
          Enables sending :ref:`telemetry <Instrumentation Telemetry>` events to the agent.
 
-   DD_RUNTIME_METRICS_ENABLED:
-     type: Boolean
-     default: False
-     
-     description: |
-         When used with ``ddtrace-run`` this configuration enables sending runtime metrics to Datadog.
-         These metrics track the memory management and concurrency of the python runtime. 
-         Refer to the following `docs <https://docs.datadoghq.com/tracing/metrics/runtime_metrics/python/>` _ for more information.
-
-   DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED:
-     type: Boolean
-     default: False
-     version_added:
-       v3.2.0: Adds initial support
-
-     description: |
-         Adds support for tagging runtime metrics with the current runtime ID. This is useful for tracking runtime metrics across multiple processes.
-         Refer to the following `docs <https://docs.datadoghq.com/tracing/metrics/runtime_metrics/python/>` _ for more information.
-
    DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED:
      type: string
      version_added:
@@ -914,6 +994,18 @@ Other
       version_added:
          v1.15.0:
 
+   DD_TRACE_BAGGAGE_TAG_KEYS:
+      type: String
+      default: "user.id,account.id,session.id"
+
+      description: |
+          A comma-separated list of baggage keys, sent via HTTP headers, to automatically tag as baggage.<key> on the local root span.
+          Only baggage extracted from incoming headers is supported. Baggage set via ``Context.set_baggage_item(..., ...)`` is not included. Keys must have non-empty values. 
+          Set to * to tag all baggage keys (use with caution to avoid exposing sensitive data). Set to an empty string to disable the feature.
+
+      version_added: 
+         v3.6.0:
+
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
 
 .. _Configure the Datadog Tracing Library: https://docs.datadoghq.com/tracing/trace_collection/library_config/
@@ -942,9 +1034,31 @@ Code Origin
 -----------
 
 .. ddtrace-envier-configuration:: ddtrace.settings.code_origin:CodeOriginConfig
+  :recursive: true
 
 
 Live Debugging
 --------------
 
 .. ddtrace-envier-configuration:: ddtrace.settings.live_debugging:LiveDebuggerConfig
+
+Error Tracking
+--------------
+.. ddtrace-configuration-options::
+  DD_ERROR_TRACKING_HANDLED_ERRORS:
+      type: String
+      default: ""
+
+      description: |
+          Report automatically handled errors to Error Tracking.
+          Handled errors are also attached to spans through span events.
+
+          Possible values are: ``user|third_party|all``. Report handled exceptions
+          of user code, third party packages or both.
+
+  DD_ERROR_TRACKING_HANDLED_ERRORS_INCLUDE:
+      type: String
+      default: ""
+
+      description: |
+          Comma-separated list of Python modules for which we report handled errors.

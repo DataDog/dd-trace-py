@@ -1,11 +1,12 @@
 import os
 import sys
+from typing import Dict
 
 from openai import version
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.openai import _endpoint_hooks
-from ddtrace.contrib.internal.openai.utils import _format_openai_api_key
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
@@ -13,7 +14,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations import OpenAIIntegration
-from ddtrace.trace import Pin
 
 
 log = get_logger(__name__)
@@ -31,6 +31,10 @@ config._add(
 def get_version():
     # type: () -> str
     return version.VERSION
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"openai": ">=1.0"}
 
 
 OPENAI_VERSION = parse_version(get_version())
@@ -71,6 +75,9 @@ _RESOURCES = {
         "list": _endpoint_hooks._FileListHook,
         "delete": _endpoint_hooks._FileDeleteHook,
         "retrieve_content": _endpoint_hooks._FileDownloadHook,
+    },
+    "responses.Responses": {
+        "create": _endpoint_hooks._ResponseHook,
     },
 }
 
@@ -114,8 +121,16 @@ def patch():
         openai, "resources.AsyncCompletionsWithRawResponse.__init__", patched_completions_with_raw_response_init(openai)
     )
 
+    # HACK: openai.resources.responses is not imported by default in openai 1.78.0 and later, so we need to import it
+    #       to detect and patch it below.
+    try:
+        import openai.resources.responses
+    except ImportError:
+        pass
+
     for resource, method_hook_dict in _RESOURCES.items():
         if deep_getattr(openai.resources, resource) is None:
+            log.debug("WARNING: resource %s is not found", resource)
             continue
         for method_name, endpoint_hook in method_hook_dict.items():
             sync_method = "resources.{}.{}".format(resource, method_name)
@@ -203,19 +218,8 @@ def patched_completions_with_raw_response_init(openai, pin, func, instance, args
 
 
 def _traced_endpoint(endpoint_hook, integration, instance, pin, args, kwargs):
-    client = getattr(instance, "_client", None)
-    base_url = getattr(client, "_base_url", None) if client else None
-
-    span = integration.trace(
-        pin,
-        endpoint_hook.OPERATION_ID,
-        base_url=base_url,
-    )
-    openai_api_key = _format_openai_api_key(kwargs.get("api_key"))
-    err = None
-    if openai_api_key:
-        # API key can either be set on the import or per request
-        span.set_tag_str("openai.user.api_key", openai_api_key)
+    span = integration.trace(pin, endpoint_hook.OPERATION_ID, instance=instance)
+    resp, err = None, None
     try:
         # Start the hook
         hook = endpoint_hook().handle_request(pin, integration, instance, span, args, kwargs)
@@ -236,7 +240,7 @@ def _traced_endpoint(endpoint_hook, integration, instance, pin, args, kwargs):
     finally:
         # Streamed responses will be finished when the generator exits, so finish non-streamed spans here.
         # Streamed responses with error will need to be finished manually as well.
-        if not kwargs.get("stream") or err is not None:
+        if not kwargs.get("stream") or err is not None or resp is None:
             span.finish()
 
 
@@ -258,8 +262,7 @@ def _patched_endpoint(openai, patch_hook):
         resp, err = None, None
         try:
             resp = func(*args, **kwargs)
-            return resp
-        except Exception as e:
+        except BaseException as e:
             err = e
             raise
         finally:
@@ -293,17 +296,12 @@ def _patched_endpoint_async(openai, patch_hook):
         try:
             resp = await func(*args, **kwargs)
             return resp
-        except Exception as e:
+        except BaseException as e:
             err = e
             raise
         finally:
             try:
-                if resp is not None:
-                    # openai responses cannot be None
-                    # if resp is None, it is likely because the context
-                    # of the request was cancelled, so we want that to propagate up properly
-                    # see: https://github.com/DataDog/dd-trace-py/issues/10191
-                    g.send((resp, err))
+                g.send((resp, err))
             except StopIteration as e:
                 if err is None:
                     # This return takes priority over `return resp`

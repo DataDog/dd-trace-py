@@ -52,6 +52,40 @@ Configuration
 
    Default: ``'asgi'``
 
+.. _asgi-config-obfuscation:
+
+.. py:data:: ddtrace.config.asgi['obfuscate_404_resource']
+
+   Indicates whether to obfuscate resource name for spans that result in a 404 response code.
+
+   This setting also applies to other integrations built on ASGI, including FastAPI and Starlette.
+
+   Can also be configured via the ``DD_ASGI_OBFUSCATE_404_RESOURCE`` environment variable.
+
+   Default: ``'False'``
+
+.. envvar:: DD_TRACE_WEBSOCKET_MESSAGES_ENABLED
+
+   Indicates whether to trace websocket messages.
+
+   Default: ``'False'``
+
+.. envvar:: DD_TRACE_WEBSOCKET_MESSAGES_INHERIT_SAMPLING
+
+   Indicates whether websocket message spans should inherit sampling from the handshake span.
+
+   Default: ``'True'``
+
+.. envvar:: DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES
+
+   Indicates whether websocket message spans should be on their own trace.
+
+   If disabled, websocket messages will have the handshake as parent span.
+
+   If disabled, ``DD_TRACE_WEBSOCKET_MESSAGES_INHERIT_SAMPLING`` will be ignored.
+
+   Default: ``'True'``
+
 .. __: https://asgi.readthedocs.io/
 """
 

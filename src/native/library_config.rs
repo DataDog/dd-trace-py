@@ -1,5 +1,7 @@
-use datadog_library_config::{Configurator, ProcessInfo};
-use ddcommon::tracer_metadata::{store_tracer_metadata, AnonymousFileHandle, TracerMetadata};
+use datadog_library_config::{
+    tracer_metadata::{store_tracer_metadata, AnonymousFileHandle, TracerMetadata},
+    Configurator, ProcessInfo,
+};
 use pyo3::exceptions::PyException;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -37,14 +39,14 @@ impl PyConfigurator {
         let res_config = self.configurator.get_config_from_file(
             self.local_file.as_ref(),
             self.fleet_file.as_ref(),
-            ProcessInfo::detect_global("python".to_string()),
+            &ProcessInfo::detect_global("python".to_string()),
         );
         match res_config {
             Ok(config) => {
                 let list = PyList::empty(py);
                 for c in config.iter() {
                     let dict = PyDict::new(py);
-                    dict.set_item("name", c.name.to_str().to_owned())?;
+                    dict.set_item("name", c.name.to_string().to_owned())?;
                     dict.set_item("value", c.value.clone())?;
                     dict.set_item("source", c.source.to_str().to_owned())?;
                     dict.set_item("config_id", c.config_id.as_deref().unwrap_or("").to_owned())?;
@@ -53,7 +55,7 @@ impl PyConfigurator {
                 Ok(list.into())
             }
             Err(e) => {
-                let err_msg = format!("Failed to get configuration: {:?}", e);
+                let err_msg = format!("Failed to get configuration: {e:?}");
                 Err(PyException::new_err(err_msg))
             }
         }
@@ -116,7 +118,7 @@ pub fn store_metadata(data: &PyTracerMetadata) -> PyResult<PyAnonymousFileHandle
     match res {
         Ok(handle) => Ok(PyAnonymousFileHandle { internal: handle }),
         Err(e) => {
-            let err_msg = format!("Failed to store the tracer configuration: {:?}", e);
+            let err_msg = format!("Failed to store the tracer configuration: {e:?}");
             Err(PyException::new_err(err_msg))
         }
     }

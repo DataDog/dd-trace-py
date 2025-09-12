@@ -6,24 +6,21 @@ If a sanitizer returns a value, we mark that value as secure for specific vulner
 
 from typing import Any
 from typing import Callable
+from typing import List
 from typing import Sequence
 
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
-from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+from ddtrace.appsec._iast.secure_marks.base import add_secure_mark
 
 
 def create_sanitizer(
-    vulnerability_type: VulnerabilityType, wrapped: Callable, instance: Any, args: Sequence, kwargs: dict
+    vulnerability_types: List[VulnerabilityType], wrapped: Callable, instance: Any, args: Sequence, kwargs: dict
 ) -> Callable:
     """Create a sanitizer function wrapper that marks return values as secure for a specific vulnerability type."""
     # Apply the sanitizer function
     result = wrapped(*args, **kwargs)
 
-    # If result is a string, mark it as secure
-    ranges = get_tainted_ranges(result)
-    if ranges:
-        for _range in ranges:
-            _range.add_secure_mark(vulnerability_type)
+    add_secure_mark(result, vulnerability_types)
 
     return result
 
@@ -40,7 +37,22 @@ def path_traversal_sanitizer(wrapped: Callable, instance: Any, args: Sequence, k
     Returns:
         The sanitized filename
     """
-    return create_sanitizer(VulnerabilityType.PATH_TRAVERSAL, wrapped, instance, args, kwargs)
+    return create_sanitizer([VulnerabilityType.PATH_TRAVERSAL], wrapped, instance, args, kwargs)
+
+
+def xss_sanitizer(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict) -> Any:
+    """Sanitizer for HTML escaping functions that mark output as safe from XSS.
+
+    Args:
+        wrapped: The original quote function
+        instance: The instance (None for module functions)
+        args: Positional arguments
+        kwargs: Keyword arguments
+
+    Returns:
+        The sanitized string
+    """
+    return create_sanitizer([VulnerabilityType.XSS], wrapped, instance, args, kwargs)
 
 
 def sqli_sanitizer(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict) -> Any:
@@ -55,7 +67,7 @@ def sqli_sanitizer(wrapped: Callable, instance: Any, args: Sequence, kwargs: dic
     Returns:
         The quoted SQL value
     """
-    return create_sanitizer(VulnerabilityType.SQL_INJECTION, wrapped, instance, args, kwargs)
+    return create_sanitizer([VulnerabilityType.SQL_INJECTION], wrapped, instance, args, kwargs)
 
 
 def cmdi_sanitizer(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict) -> Any:
@@ -70,4 +82,8 @@ def cmdi_sanitizer(wrapped: Callable, instance: Any, args: Sequence, kwargs: dic
     Returns:
         The quoted shell command
     """
-    return create_sanitizer(VulnerabilityType.COMMAND_INJECTION, wrapped, instance, args, kwargs)
+    return create_sanitizer([VulnerabilityType.COMMAND_INJECTION], wrapped, instance, args, kwargs)
+
+
+def header_injection_sanitizer(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict) -> Any:
+    return create_sanitizer([VulnerabilityType.HEADER_INJECTION], wrapped, instance, args, kwargs)

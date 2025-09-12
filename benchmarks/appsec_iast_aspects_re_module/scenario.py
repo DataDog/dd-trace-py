@@ -5,16 +5,22 @@ from bm.utils import override_env
 with override_env({"DD_IAST_ENABLED": "True"}):
     # from ddtrace.appsec._iast import oce
     try:
-        # 2.15+
-        from ddtrace.appsec._iast._iast_request_context import end_iast_context
-        from ddtrace.appsec._iast._iast_request_context import set_iast_request_enabled
-        from ddtrace.appsec._iast._iast_request_context import start_iast_context
+        # 3.6+
+        from ddtrace.appsec._iast._iast_request_context_base import end_iast_context
+        from ddtrace.appsec._iast._iast_request_context_base import set_iast_request_enabled
+        from ddtrace.appsec._iast._iast_request_context_base import start_iast_context
     except ImportError:
-        # Pre 2.15
-        from ddtrace.appsec._iast._taint_tracking._context import create_context as start_iast_context
-        from ddtrace.appsec._iast._taint_tracking._context import reset_context as end_iast_context
+        # Pre 3.6
+        try:
+            from ddtrace.appsec._iast._iast_request_context import end_iast_context
+            from ddtrace.appsec._iast._iast_request_context import set_iast_request_enabled
+            from ddtrace.appsec._iast._iast_request_context import start_iast_context
+        except ImportError:
+            # Pre 2.15
+            from ddtrace.appsec._iast._taint_tracking._context import create_context as start_iast_context
+            from ddtrace.appsec._iast._taint_tracking._context import reset_context as end_iast_context
 
-        set_iast_request_enabled = lambda x: None  # noqa: E731
+            set_iast_request_enabled = lambda x: None  # noqa: E731
 
 
 def _start_iast_context_and_oce():

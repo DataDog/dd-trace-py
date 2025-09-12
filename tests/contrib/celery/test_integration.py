@@ -8,13 +8,13 @@ from celery.exceptions import Retry
 import mock
 import pytest
 
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.internal.celery.patch import patch
 from ddtrace.contrib.internal.celery.patch import unpatch
 import ddtrace.internal.forksafe as forksafe
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import Context
-from ddtrace.trace import Pin
 from tests.opentracer.utils import init_tracer
 
 from ...utils import override_global_config
@@ -648,6 +648,9 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert len(traces) == 2
         assert len(traces[0]) + len(traces[1]) == 3
 
+    @pytest.mark.no_getattr_patch
+    # this mark is added to prevent patching of getattr necessary for integration registry update
+    # see: https://github.com/DataDog/dd-trace-py/pull/13215
     def test_beat_scheduler_tracing(self):
         @self.app.task
         def fn_task():

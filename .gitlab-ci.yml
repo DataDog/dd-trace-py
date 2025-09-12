@@ -8,7 +8,13 @@ stages:
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
   REPO_NOTIFICATION_CHANNEL: "#apm-python-release"
+  RELEASE_ALLOW_TEST_FAILURES: false
+  RELEASE_ALLOW_BENCHMARK_FAILURES: false
+  # VPA Template configuration
+  DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
+  # Automatically managed, use scripts/update-system-tests-version to update
+  SYSTEM_TESTS_REF: "66e321c4a84b7d5ad0f81ad74140487252ad3da1"
 
 default:
   interruptible: true
@@ -27,19 +33,27 @@ workflow:
     - when: always
 
 include:
-  - remote: https://gitlab-templates.ddbuild.io/libdatadog/include/one-pipeline.yml
+  - local: ".gitlab/one-pipeline.locked.yml"
   - local: ".gitlab/services.yml" # Include early so others can use the definitions
   - local: ".gitlab/package.yml"
   - local: ".gitlab/release.yml"
   - local: ".gitlab/testrunner.yml"
   - local: ".gitlab/benchmarks/serverless.yml"
+  - local: ".gitlab/native.yml"
 
 tests-gen:
   stage: tests
   extends: .testrunner
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
   script:
-    - pip install riot==0.20.1
-    - export DD_NATIVE_SOURCES_HASH=$(scripts/get-native-sources-hash.sh)
+    - |
+      if [ -z ${GH_TOKEN} ]
+      then
+        # Use dd-octo-sts to get GitHub token
+        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
+      fi
     - riot -v run --pass-env -s gitlab-gen-config -v
   needs: []
   artifacts:
@@ -49,34 +63,54 @@ tests-gen:
 run-tests-trigger:
  stage: tests
  needs: [ tests-gen ]
+ # Allow the child job to fail if explicitly asked
+ rules:
+   - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
+     allow_failure: true
+   - allow_failure: false
  trigger:
    include:
      - artifact: .gitlab/tests-gen.yml
        job: tests-gen
    strategy: depend
 
+# Validate the ast-grep rule's test suite in .sg/tests
+"test ast-grep rules":
+  extends: .testrunner
+  stage: tests
+  needs: []
+  script:
+    - hatch run lint:sg-test
+
 microbenchmarks:
   stage: benchmarks
   needs: [ "download_ddtrace_artifacts" ]
+  rules:
+    - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
+      allow_failure: true
+    - allow_failure: false
   trigger:
     include: .gitlab/benchmarks/microbenchmarks.yml
     strategy: depend
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     # Disable VPA for benchmarks
-    KUBERNETES_POD_ANNOTATIONS_1: vpa.datadoghq.com/updateMode=Off
+    DD_DISABLE_VPA: true
 
 macrobenchmarks:
   stage: benchmarks
-  needs: [ ]
+  needs: [ "download_ddtrace_artifacts" ]
   trigger:
     include: .gitlab/benchmarks/macrobenchmarks.yml
   variables:
+    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     # Disable VPA for benchmarks
-    KUBERNETES_POD_ANNOTATIONS_1: vpa.datadoghq.com/updateMode=Off
+    DD_DISABLE_VPA: true
   allow_failure: true
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: always
+    - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+/
       when: always
     - when: manual
 
@@ -133,16 +167,6 @@ promote-oci-to-staging:
     - job: oci-internal-publish
       artifacts: true
 
-publish-lib-init-ghcr-tags:
-  stage: release
-  rules: null
-  only:
-    # TODO: Support publishing rc releases
-    - /^v[0-9]+\.[0-9]+\.[0-9]+$/
-  needs:
-    - job: release_pypi_prod
-    - job: create-multiarch-lib-injection-image
-
 publish-lib-init-pinned-tags:
   stage: release
   rules: null
@@ -157,8 +181,8 @@ publish-lib-init-pinned-tags:
 
 configure_system_tests:
   variables:
-    SYSTEM_TESTS_SCENARIOS_GROUPS: "simple_onboarding,simple_onboarding_profiling,docker-ssi,lib-injection"
-    
+    SYSTEM_TESTS_SCENARIOS_GROUPS: "simple_onboarding,simple_onboarding_profiling,simple_onboarding_appsec,docker-ssi,lib-injection"
+
 deploy_to_reliability_env:
   needs: []
 

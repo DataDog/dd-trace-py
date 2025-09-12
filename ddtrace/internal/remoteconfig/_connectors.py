@@ -1,13 +1,12 @@
-from ctypes import c_char
 from dataclasses import asdict
 import json
 import os
+import time
 from typing import List
 from typing import Sequence
 from uuid import UUID
 
 from ddtrace.internal.compat import get_mp_context
-from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import Payload
 
@@ -29,6 +28,15 @@ class UUIDEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, o)
 
 
+class _DummySharedArray:
+    """Dummy shared array to be used when shared memory is not available.
+    This class is used to avoid breaking the code when shared memory is not available.
+    """
+
+    def __init__(self):
+        self.value = b""
+
+
 class PublisherSubscriberConnector:
     """ "PublisherSubscriberConnector is the bridge between Publisher and Subscriber class that uses an array of chars
     to share information between processes. `multiprocessing.Array``, as far as we know, was the most efficient way to
@@ -36,11 +44,18 @@ class PublisherSubscriberConnector:
     """
 
     def __init__(self):
-        self.data = get_mp_context().Array(c_char, SHARED_MEMORY_SIZE, lock=False)
+        try:
+            self.data = get_mp_context().Array("c", SHARED_MEMORY_SIZE, lock=False)
+        except FileNotFoundError:
+            log.warning(
+                "Unable to create shared memory. Features relying on remote configuration will not work as expected."
+            )
+            self.data = _DummySharedArray()
         # Checksum attr validates if the Publisher send new data
         self.checksum = -1
         # shared_data_counter attr validates if the Subscriber send new data
         self.shared_data_counter = 0
+        self.read_pid = os.getpid()
 
     @staticmethod
     def _hash_config(payload_sequence: Sequence[Payload]):
@@ -52,19 +67,22 @@ class PublisherSubscriberConnector:
         return result
 
     def read(self) -> SharedDataType:
-        config_raw = to_unicode(self.data.value)
+        config_raw = self.data.value.decode("utf-8", errors="ignore")
         config = json.loads(config_raw) if config_raw else None
         if config is not None:
             shared_data_counter = config["shared_data_counter"]
-            if shared_data_counter > self.shared_data_counter:
-                self.shared_data_counter += 1
+            if (current_pid := os.getpid()) != self.read_pid:
+                self.read_pid = current_pid
+                self.shared_data_counter = 0
+            if shared_data_counter != self.shared_data_counter:
+                self.shared_data_counter = shared_data_counter
                 return [Payload(**value) for value in config["payload_list"]]
         return []
 
     def write(self, payload_list: Sequence[Payload]) -> None:
         last_checksum = self._hash_config(payload_list)
         if last_checksum != self.checksum:
-            data = self.serialize(payload_list, self.shared_data_counter + 1)
+            data = self.serialize(payload_list)
             data_len = len(data)
             if data_len >= (SHARED_MEMORY_SIZE - 1000):
                 log.warning("Datadog Remote Config shared data is %s/%s", data_len, SHARED_MEMORY_SIZE)
@@ -73,9 +91,9 @@ class PublisherSubscriberConnector:
             self.checksum = last_checksum
 
     @staticmethod
-    def serialize(payload_list: Sequence[Payload], shared_data_counter: int) -> bytes:
+    def serialize(payload_list: Sequence[Payload]) -> bytes:
         return json.dumps(
-            {"payload_list": [asdict(p) for p in payload_list], "shared_data_counter": shared_data_counter},
+            {"payload_list": [asdict(p) for p in payload_list], "shared_data_counter": time.monotonic_ns()},
             cls=UUIDEncoder,
             ensure_ascii=False,
         ).encode()

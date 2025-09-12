@@ -10,10 +10,8 @@ from typing import Union  # noqa:F401
 import django
 from django.utils.functional import SimpleLazyObject
 from wrapt import FunctionWrapper
-import xmltodict
 
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.django.compat import get_resolver
@@ -29,6 +27,7 @@ from ddtrace.internal.utils.http import parse_form_params
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.propagation._utils import from_wsgi_header
 from ddtrace.trace import Span
+import ddtrace.vendor.xmltodict as xmltodict
 
 
 try:
@@ -55,7 +54,7 @@ _quantize_text = Union[Text, bytes]
 _quantize_param = Union[_quantize_text, List[_quantize_text], Dict[_quantize_text, Any], Any]
 
 
-def resource_from_cache_prefix(resource, cache):
+def resource_from_cache_prefix(resource: str, cache: Any) -> str:
     """
     Combine the resource name with the cache prefix (if any)
     """
@@ -256,10 +255,6 @@ def _before_request_tags(pin, span, request):
     span.service = trace_utils.int_service(pin, config.django)
     span.span_type = SpanTypes.WEB
     span._metrics[_SPAN_MEASURED_KEY] = 1
-
-    analytics_sr = config.django.get_analytics_sample_rate(use_global_config=True)
-    if analytics_sr is not None:
-        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, analytics_sr)
 
     span.set_tag_str("django.request.class", func_name(request))
 

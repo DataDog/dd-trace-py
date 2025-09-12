@@ -4,6 +4,7 @@ from tornado import template
 
 import ddtrace
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.tornado import decorators
 from ddtrace.contrib.internal.tornado.constants import CONFIG_KEY
 from ddtrace.contrib.internal.tornado.stack_context import context_provider
@@ -23,7 +24,6 @@ def tracer_config(__init__, app, args, kwargs):
         "tracer": ddtrace.tracer,
         "default_service": schematize_service_name(config._get_service("tornado-web")),
         "distributed_tracing": None,
-        "analytics_enabled": None,
     }
 
     # update defaults with users settings
@@ -52,7 +52,7 @@ def tracer_config(__init__, app, args, kwargs):
         curr_agent_url = urlparse(tracer._agent_url)
         hostname = settings.get("hostname", curr_agent_url.hostname)
         port = settings.get("port", curr_agent_url.port)
-        tracer._agent_url = tracer._writer.intake_url = f"{curr_agent_url.scheme}://{hostname}:{port}"
+        tracer._agent_url = tracer._span_aggregator.writer.intake_url = f"{curr_agent_url.scheme}://{hostname}:{port}"
         tracer._recreate()
     # TODO: Remove tags from settings, tags should be set via `DD_TAGS` environment variable
     # set global tags if any
@@ -60,6 +60,6 @@ def tracer_config(__init__, app, args, kwargs):
     if tags:
         tracer.set_tags(tags)
 
-    pin = ddtrace.trace.Pin(service=service)
+    pin = Pin(service=service)
     pin._tracer = tracer
     pin.onto(template)

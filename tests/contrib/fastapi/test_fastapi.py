@@ -1,5 +1,6 @@
 import asyncio
 import os
+import time
 
 import fastapi
 from fastapi.testclient import TestClient
@@ -62,6 +63,7 @@ def test_read_item_success(client, tracer, test_spans):
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "GET /items/{item_id}"
+
     assert request_span.get_tag("http.route") == "/items/{item_id}"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
@@ -250,6 +252,37 @@ def test_create_item_duplicate_item(client, tracer, test_spans):
     assert request_span.get_tag("http.query.string") is None
     assert request_span.get_tag("component") == "fastapi"
     assert request_span.get_tag("span.kind") == "server"
+
+
+@pytest.mark.subprocess(env=dict(DD_ASGI_OBFUSCATE_404_RESOURCE="true"))
+def test_invalid_path_with_obfuscation_enabled():
+    """
+    Test that 404 responses are obfuscated when DD_ASGI_OBFUSCATE_404_RESOURCE is enabled
+    """
+    import asyncio
+
+    from fastapi import FastAPI
+    import httpx
+
+    from ddtrace.contrib.internal.fastapi.patch import patch
+    from tests.utils import snapshot_context
+
+    patch()
+    app = FastAPI()
+
+    @app.get("/")
+    def read_root():
+        return {"Homepage Read": "Success"}
+
+    async def test():
+        token = "tests.contrib.fastapi.test_fastapi.test_invalid_path_with_obfuscation_enabled"
+        with snapshot_context(wait_for_num_traces=1, token=token):
+            async with httpx.AsyncClient(app=app, base_url="http://testserver") as client:
+                response = await client.get("/invalid_path")
+                assert response.status_code == 404
+                assert response.json() == {"detail": "Not Found"}
+
+    asyncio.run(test())
 
 
 def test_invalid_path(client, tracer, test_spans):
@@ -540,13 +573,125 @@ def test_table_query_snapshot(snapshot_client):
     }
 
 
-@snapshot()
+def _run_websocket_test():
+    import fastapi  # noqa: F401
+    from fastapi.testclient import TestClient
+
+    from ddtrace.contrib.internal.fastapi.patch import patch as fastapi_patch
+    from ddtrace.contrib.internal.fastapi.patch import unpatch as fastapi_unpatch
+    from tests.contrib.fastapi import app
+
+    fastapi_patch()
+    try:
+        application = app.get_app()
+        with TestClient(application) as client:
+            with client.websocket_connect("/ws") as websocket:
+                initial_data = websocket.receive_json()
+                assert initial_data == {"test": "Hello WebSocket"}, initial_data
+
+                websocket.send_text("message")
+                try:
+                    response = websocket.receive_text()
+                    assert response == "pong message"
+                except Exception:
+                    raise
+
+                websocket.send_text("goodbye")
+                farewell = websocket.receive_text()
+                assert farewell == "bye"
+    finally:
+        fastapi_unpatch()
+
+
+def _run_websocket_send_only_test():
+    import fastapi  # noqa: F401
+    from fastapi.testclient import TestClient
+
+    from ddtrace.contrib.internal.fastapi.patch import patch as fastapi_patch
+    from ddtrace.contrib.internal.fastapi.patch import unpatch as fastapi_unpatch
+    from tests.contrib.fastapi import app
+
+    fastapi_patch()
+    try:
+        application = app.get_app()
+        with TestClient(application) as client:
+            with client.websocket_connect("/ws") as websocket:
+                websocket.send_text("message1")
+                websocket.send_text("message2")
+                websocket.send_text("message3")
+                websocket.send_text("goodbye")
+    finally:
+        fastapi_unpatch()
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true",
+    )
+)
+@snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
 def test_traced_websocket(test_spans, snapshot_app):
+    from tests.contrib.fastapi.test_fastapi import _run_websocket_test
+
+    _run_websocket_test()
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true",
+    )
+)
+@snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
+def test_websocket_only_sends(test_spans, snapshot_app):
+    from tests.contrib.fastapi.test_fastapi import _run_websocket_send_only_test
+
+    _run_websocket_send_only_test()
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true",
+        DD_TRACE_WEBSOCKET_MESSAGES_INHERIT_SAMPLING="false",
+    )
+)
+@snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length", "meta._dd.p.dm"])
+def test_websocket_tracing_sampling_not_inherited(test_spans, snapshot_app):
+    from tests.contrib.fastapi.test_fastapi import _run_websocket_test
+
+    _run_websocket_test()
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true",
+        DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES="false",
+    )
+)
+@snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
+def test_websocket_tracing_not_separate_traces(test_spans, snapshot_app):
+    from tests.contrib.fastapi.test_fastapi import _run_websocket_test
+
+    _run_websocket_test()
+
+
+@pytest.mark.snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
+def test_long_running_websocket_session(test_spans, snapshot_app):
     client = TestClient(snapshot_app)
-    with override_config("fastapi", dict(_trace_asgi_websocket=True)):
+
+    with override_config("fastapi", dict(trace_asgi_websocket_messages=True)):
         with client.websocket_connect("/ws") as websocket:
             data = websocket.receive_json()
             assert data == {"test": "Hello WebSocket"}
+
+            for i in range(5):
+                websocket.send_text(f"ping {i}")
+                response = websocket.receive_text()
+                assert "pong" in response
+                time.sleep(1)
+
+            websocket.send_text("goodbye")
+            farewell = websocket.receive_text()
+            assert "bye" in farewell
 
 
 def test_dont_trace_websocket_by_default(client, test_spans):
@@ -554,8 +699,54 @@ def test_dont_trace_websocket_by_default(client, test_spans):
     with client.websocket_connect("/ws") as websocket:
         data = websocket.receive_json()
         assert data == {"test": "Hello WebSocket"}
+        websocket.send_text("ping")
         spans = test_spans.pop_traces()
         assert len(spans) <= initial_event_count
+
+
+def _run_websocket_context_propagation_test():
+    """Test that context propagation follows the specified behavior."""
+    import fastapi  # noqa: F401
+    from fastapi.testclient import TestClient
+
+    from ddtrace.contrib.internal.fastapi.patch import patch as fastapi_patch
+    from ddtrace.contrib.internal.fastapi.patch import unpatch as fastapi_unpatch
+    from tests.contrib.fastapi import app
+
+    fastapi_patch()
+    try:
+        application = app.get_app()
+        with TestClient(application) as client:
+            headers = {
+                "baggage": "user.id=123,account.id=456,session.id=789",
+                "x-datadog-origin": "rum",
+                "x-datadog-trace-id": "123456789",
+                "x-datadog-parent-id": "987654321",
+            }
+
+            with client.websocket_connect("/ws", headers=headers) as websocket:
+                initial_data = websocket.receive_json()
+                assert initial_data == {"test": "Hello WebSocket"}
+
+                for i in range(3):
+                    websocket.send_text(f"message {i}")
+                    response = websocket.receive_text()
+                    assert f"pong {i}" in response
+
+                websocket.send_text("goodbye")
+                farewell = websocket.receive_text()
+                assert farewell == "bye"
+    finally:
+        fastapi_unpatch()
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true"))
+@snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
+def test_websocket_context_propagation(snapshot_app):
+    """Test trace context propagation."""
+    from tests.contrib.fastapi.test_fastapi import _run_websocket_context_propagation_test
+
+    _run_websocket_context_propagation_test()
 
 
 # Ignoring span link attributes until values are
@@ -736,3 +927,57 @@ def test_inferred_spans_api_gateway(client, tracer, test_spans, test, inferred_p
 
             if test_headers["type"] == "distributed":
                 assert web_span.trace_id == 1
+
+
+def test_baggage_span_tagging_default(client, tracer, test_spans):
+    response = client.get("/", headers={"baggage": "user.id=123,account.id=456,region=us-west"})
+
+    assert response.status_code == 200
+
+    spans = test_spans.pop_traces()
+    # Assume the request span is the first span in the first trace.
+    request_span = spans[0][0]
+
+    assert request_span.get_tag("baggage.user.id") == "123"
+    assert request_span.get_tag("baggage.account.id") == "456"
+    # Since "region" is not in the default list, its baggage tag should not be present.
+    assert request_span.get_tag("baggage.region") is None
+
+
+def test_baggage_span_tagging_no_headers(client, tracer, test_spans):
+    response = client.get("/", headers={})
+    assert response.status_code == 200
+
+    spans = test_spans.pop_traces()
+    request_span = spans[0][0]
+
+    # None of the baggage tags should be present.
+    assert request_span.get_tag("baggage.user.id") is None
+    assert request_span.get_tag("baggage.account.id") is None
+    assert request_span.get_tag("baggage.session.id") is None
+
+
+def test_baggage_span_tagging_empty_baggage(client, tracer, test_spans):
+    response = client.get("/", headers={"baggage": ""})
+    assert response.status_code == 200
+
+    spans = test_spans.pop_traces()
+    request_span = spans[0][0]
+
+    # None of the baggage tags should be present.
+    assert request_span.get_tag("baggage.user.id") is None
+    assert request_span.get_tag("baggage.account.id") is None
+    assert request_span.get_tag("baggage.session.id") is None
+
+
+def test_baggage_span_tagging_baggage_api(client, tracer, test_spans):
+    response = client.get("/", headers={"baggage": ""})
+    assert response.status_code == 200
+
+    spans = test_spans.pop_traces()
+    request_span = spans[0][0]
+    request_span.context.set_baggage_item("user.id", "123")
+    # None of the baggage tags should be present since we only tag baggage during extraction from headers
+    assert request_span.get_tag("baggage.account.id") is None
+    assert request_span.get_tag("baggage.user.id") is None
+    assert request_span.get_tag("baggage.session.id") is None

@@ -1,6 +1,7 @@
 import atexit
 from collections import defaultdict
 from collections import deque
+from importlib.metadata import entry_points
 from itertools import chain
 import sys
 import typing as t
@@ -17,10 +18,17 @@ from ddtrace.settings._core import DDConfig
 
 log = get_logger(__name__)
 
-if sys.version_info < (3, 10):
-    from importlib_metadata import entry_points
+
+if sys.version_info >= (3, 10):
+
+    def get_product_entry_points() -> t.List[t.Any]:
+        return list(entry_points(group="ddtrace.products"))
+
 else:
-    from importlib.metadata import entry_points
+
+    def get_product_entry_points() -> t.List[t.Any]:
+        return [ep for _, eps in entry_points().items() for ep in eps if ep.group == "ddtrace.products"]
+
 
 try:
     from typing import Protocol  # noqa:F401
@@ -52,9 +60,10 @@ class ProductManager:
 
     def __init__(self) -> None:
         self._products: t.Optional[t.List[t.Tuple[str, Product]]] = None  # Topologically sorted products
-
         self._failed: t.Set[str] = set()
-        for product_plugin in entry_points(group="ddtrace.products"):
+
+    def _load_products(self) -> None:
+        for product_plugin in get_product_entry_points():
             name = product_plugin.name
             log.debug("Discovered product plugin '%s'", name)
 
@@ -107,7 +116,7 @@ class ProductManager:
                 "Circular dependencies among products detected. These products won't be enabled: %s.", list(f.keys())
             )
 
-        return [(name, self.__products__[name]) for name in ordering if name not in f]
+        return [(name, self.__products__[name]) for name in ordering if name not in f and name in self.__products__]
 
     @property
     def products(self) -> t.List[t.Tuple[str, Product]]:
@@ -135,6 +144,16 @@ class ProductManager:
             except Exception:
                 log.exception("Failed to start product '%s'", name)
                 failed.add(name)
+
+    def before_fork(self) -> None:
+        for name, product in self.products:
+            try:
+                if (hook := getattr(product, "before_fork", None)) is None:
+                    continue
+                hook()
+                log.debug("Before-fork hook for product '%s' executed", name)
+            except Exception:
+                log.exception("Failed to execute before-fork hook for product '%s'", name)
 
     def restart_products(self, join: bool = False) -> None:
         failed: t.Set[str] = set()
@@ -185,6 +204,9 @@ class ProductManager:
         # Start all products
         self.start_products()
 
+        # Execute before fork hooks
+        forksafe.register_before_fork(self.before_fork)
+
         # Restart products on fork
         forksafe.register(self.restart_products)
 
@@ -192,6 +214,8 @@ class ProductManager:
         atexit.register(self.exit_products)
 
     def run_protocol(self) -> None:
+        self._load_products()
+
         # uWSGI support
         try:
             check_uwsgi(worker_callback=forksafe.ddtrace_after_in_child)
@@ -211,6 +235,15 @@ class ProductManager:
         # Ordinary process
         else:
             self._do_products()
+
+    def is_enabled(self, product_name: str, enabled_attribute: str = "enabled") -> bool:
+        if (product := self.__products__.get(product_name)) is None:
+            return False
+
+        if (config := getattr(product, "config", None)) is None:
+            return False
+
+        return getattr(config, enabled_attribute, False)
 
 
 manager = ProductManager()

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    subprocess: Removes unnecessary debug log variables.
