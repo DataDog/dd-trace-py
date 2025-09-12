@@ -23,9 +23,8 @@ from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
 from ddtrace.appsec._iast._ast.ast_patching import iastpatch
 from ddtrace.appsec._iast._ast.ast_patching import initialize_iast_lists
 from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
-from ddtrace.appsec._iast._iast_request_context_base import end_iast_context
-from ddtrace.appsec._iast._iast_request_context_base import set_iast_request_enabled
-from ddtrace.appsec._iast._iast_request_context_base import start_iast_context
+from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
+from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
 from ddtrace.appsec._iast.main import patch_iast
 from ddtrace.appsec._iast.sampling.vulnerability_detection import _reset_global_limit
 
@@ -130,18 +129,14 @@ def _get_iast_data():
 
 def _start_iast_context_and_oce(span=None):
     oce.reconfigure()
-    request_iast_enabled = False
-    if oce.acquire_request(span):
-        start_iast_context()
-        request_iast_enabled = True
-
-    set_iast_request_enabled(request_iast_enabled)
+    return _iast_start_request(span)
 
 
 def _end_iast_context_and_oce(span=None):
-    end_iast_context(span)
+    result = _iast_finish_request(span)
     oce.release_request()
     _reset_global_limit()
+    return result
 
 
 def load_iast_report(span):

@@ -9,21 +9,21 @@ import pytest
 
 from ddtrace.appsec._iast import disable_iast_propagation
 from ddtrace.appsec._iast import enable_iast_propagation
-from ddtrace.appsec._iast._iast_request_context_base import end_iast_context
+from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
+from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
 from ddtrace.appsec._iast._iast_request_context_base import set_iast_request_enabled
-from ddtrace.appsec._iast._iast_request_context_base import start_iast_context
 from ddtrace.appsec._iast._taint_tracking import active_map_addreses_size
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from tests.utils import override_env
 
 
-def _start_iast_context_and_oce():
-    start_iast_context()
+def __iast_start_request_and_oce():
+    _iast_start_request()
     set_iast_request_enabled(True)
 
 
 def _end_iast_context_and_oce():
-    end_iast_context()
+    _iast_finish_request()
 
 
 def parse_arguments():
@@ -68,7 +68,7 @@ async def iast_leaks(iterations: int, fail_percent: float, print_every: int):
         _pre_checks(test_doit)
 
         for i in range(iterations):
-            _start_iast_context_and_oce()
+            __iast_start_request_and_oce()
             result = await test_doit()
             assert result == "DDD_III_extend", f"result is {result}"
             assert is_pyobject_tainted(result)

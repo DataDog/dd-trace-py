@@ -5,10 +5,9 @@ import sys
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking._context import create_context
-from ddtrace.appsec._iast._taint_tracking._context import reset_context
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
+from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
 from tests.appsec.iast.iast_utils import _iast_patched_module
 from tests.utils import override_global_config
 
@@ -309,7 +308,6 @@ def test_string_slice_negative():
 
 @pytest.mark.skip_iast_check_logs
 def test_propagate_ranges_with_no_context(caplog):
-    create_context()
     tainted_input = taint_pyobject(
         pyobject="abcde",
         source_name="input_str",
@@ -317,7 +315,7 @@ def test_propagate_ranges_with_no_context(caplog):
         source_origin=OriginType.PARAMETER,
     )
 
-    reset_context()
+    _end_iast_context_and_oce()
     with override_global_config(dict(_iast_debug=True)), caplog.at_level(logging.DEBUG):
         result = mod.do_slice(tainted_input, 0, 3, None)
         assert result == "abc"

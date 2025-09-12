@@ -27,7 +27,7 @@
 //   ContextVar. At end: finish_request_context(context_id).
 // - Propagation and aspects can use the fast path by reading context_id from
 //   the ContextVar and calling into get_tainted_object_map_by_ctx_id().
-
+//
 #pragma once
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
@@ -54,18 +54,31 @@ class TaintEngineContext
 
     // Fast-path: get the taint map for a known context_id (slot index).
     // Returns nullptr if the slot is empty or out of lifecycle.
-    TaintedObjectMapTypePtr get_tainted_object_map_by_ctx_id(size_t ctx_id) { return request_context_slots[ctx_id]; }
+    TaintedObjectMapTypePtr get_tainted_object_map_by_ctx_id(size_t ctx_id);
 
     // Slow-path: find and return the taint map that contains the given
     // tainted object across all active slots. Returns nullptr if not found or
     // object has no taint ranges.
     TaintedObjectMapTypePtr get_tainted_object_map(PyObject* tainted_object);
 
-    // AIDEV-NOTE: Convenience helpers to scan multiple PyObjects and return the
-    // first non-empty taint map found among them. Returns nullptr if none found.
-    TaintedObjectMapTypePtr get_tainted_object_map_from_list_of_pyobjects(std::initializer_list<PyObject*> objects);
+    // Single PyObject lookup: scans active maps to locate the tainted object
+    // itself (no container traversal). This contains the original logic of
+    // get_tainted_object_map prior to adding container-aware behavior.
+    TaintedObjectMapTypePtr get_tainted_object_map_from_pyobject(PyObject* tainted_object);
+
+    //    TaintedObjectMapTypePtr get_tainted_object_map_from_list_of_pyobjects(std::initializer_list<PyObject*>
+    //    objects);
 
     TaintedObjectMapTypePtr get_tainted_object_map_from_list_of_pyobjects(const std::vector<PyObject*>& objects);
+
+    // Given a collection of TaintRange shared pointers, scan all active
+    // request context maps and return the first map that contains at least
+    // one of these ranges in any of its stored TaintedObjects. Returns nullptr
+    // if none of the ranges are found in any active map.
+    // AIDEV-QUESTION: Should this require all ranges to be found in the same
+    // map/object, or is finding any one sufficient? Implemented as "any"
+    // for now for performance and broader matching.
+    TaintedObjectMapTypePtr get_tainted_object_map_from_ranges(const TaintRangeRefs& ranges);
 
     // Clear a specific map if present; leaves the slot free for reuse.
     void finish_request_context(size_t ctx_id);
@@ -89,6 +102,20 @@ class TaintEngineContext
     int debug_num_tainted_objects(size_t ctx_id);
 
     string debug_taint_map(size_t ctx_id);
+
+    // Return the number of free slots (i.e., nullptr entries) in the
+    // request_context_slots array. Intended for tests and diagnostics to
+    // validate concurrency behavior under stress.
+    size_t debug_context_array_free_slots_number() const
+    {
+        size_t free_count = 0;
+        for (const auto& slot : request_context_slots) {
+            if (slot == nullptr) {
+                ++free_count;
+            }
+        }
+        return free_count;
+    }
 };
 
 extern std::unique_ptr<TaintEngineContext> taint_engine_context;

@@ -5,6 +5,7 @@ from typing import Set
 from typing import Text
 
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
+from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast.constants import BLOWFISH_DEF
 from ddtrace.appsec._iast.constants import DEFAULT_WEAK_CIPHER_ALGORITHMS
 from ddtrace.appsec._iast.constants import DES_DEF
@@ -14,7 +15,6 @@ from ddtrace.appsec._iast.constants import VULN_WEAK_CIPHER_TYPE
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
-from .._iast_request_context_base import is_iast_request_enabled
 from .._metrics import _set_metric_iast_executed_sink
 from .._metrics import _set_metric_iast_instrumented_sink
 from .._patch_modules import WrapFunctonsForIAST

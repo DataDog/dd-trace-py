@@ -1,9 +1,7 @@
-from typing import TYPE_CHECKING  # noqa:F401
-from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import Literal  # noqa:F401
+from typing import Any
+from typing import Dict
 from typing import Optional
-from typing import Union  # noqa:F401
+from typing import Union
 
 from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
@@ -24,8 +22,6 @@ from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
-
-# Stopgap module for providing ASM context for the blocking features wrapping some contextvars.
 
 
 def set_iast_reporter(iast_reporter: IastSpanReporter) -> None:
@@ -67,7 +63,7 @@ def _create_and_attach_iast_report_to_span(
     _set_span_tag_iast_executed_sink(req_span)
 
     base.set_iast_request_enabled(False)
-    base.end_iast_context(req_span)
+    base._iast_finish_request(req_span)
 
     if req_span.get_tag(_ORIGIN_KEY) is None:
         req_span.set_tag_str(_ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
@@ -94,7 +90,7 @@ def _iast_end_request(ctx=None, span=None, *args, **kwargs):
                 if req_span.get_metric(IAST.ENABLED) is None:
                     if not base.is_iast_request_enabled():
                         req_span.set_metric(IAST.ENABLED, 0.0)
-                        base.end_iast_context(req_span)
+                        base._iast_finish_request(req_span)
                         oce.release_request()
                         return
 
