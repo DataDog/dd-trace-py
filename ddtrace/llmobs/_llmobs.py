@@ -92,6 +92,7 @@ from ddtrace.llmobs._experiment import DatasetRecordInputType
 from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import ExperimentConfigType
 from ddtrace.llmobs._experiment import JSONType
+from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import _get_ml_app
@@ -212,6 +213,7 @@ class LLMObs(Service):
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
             _app_key=self._app_key,
+            _default_project=Project(name=self._project_name, _id=""),
             is_agentless=True,  # agent proxy doesn't seem to work for experiments
         )
 
@@ -564,15 +566,6 @@ class LLMObs(Service):
         config._llmobs_ml_app = ml_app or config._llmobs_ml_app
         config._llmobs_instrumented_proxy_urls = instrumented_proxy_urls or config._llmobs_instrumented_proxy_urls
 
-        # FIXME: workaround to prevent noisy logs when using the experiments feature
-        if config._dd_api_key and cls._app_key and os.environ.get("DD_TRACE_ENABLED", "").lower() not in ["true", "1"]:
-            log.debug(
-                "Tracing has been disabled: app key detected and DD_TRACE_ENABLED is not set to 'true' "
-                "(current value: DD_TRACE_ENABLED='%s')",
-                os.environ.get("DD_TRACE_ENABLED", ""),
-            )
-            ddtrace.tracer.enabled = False
-
         error = None
         start_ns = time.time_ns()
         try:
@@ -654,15 +647,21 @@ class LLMObs(Service):
             )
 
     @classmethod
-    def pull_dataset(cls, name: str) -> Dataset:
-        ds = cls._instance._dne_client.dataset_get_with_records(name)
+    def pull_dataset(cls, dataset_name: str, project_name: Optional[str] = None) -> Dataset:
+        ds = cls._instance._dne_client.dataset_get_with_records(dataset_name, (project_name or cls._project_name))
         return ds
 
     @classmethod
-    def create_dataset(cls, name: str, description: str = "", records: Optional[List[DatasetRecord]] = None) -> Dataset:
+    def create_dataset(
+        cls,
+        dataset_name: str,
+        project_name: Optional[str] = None,
+        description: str = "",
+        records: Optional[List[DatasetRecord]] = None,
+    ) -> Dataset:
         if records is None:
             records = []
-        ds = cls._instance._dne_client.dataset_create(name, description)
+        ds = cls._instance._dne_client.dataset_create(dataset_name, project_name, description)
         for r in records:
             ds.append(r)
         if len(records) > 0:
@@ -678,19 +677,20 @@ class LLMObs(Service):
         expected_output_columns: Optional[List[str]] = None,
         metadata_columns: Optional[List[str]] = None,
         csv_delimiter: str = ",",
-        description="",
+        description: str = "",
+        project_name: Optional[str] = None,
     ) -> Dataset:
         if expected_output_columns is None:
             expected_output_columns = []
         if metadata_columns is None:
             metadata_columns = []
-        ds = cls._instance._dne_client.dataset_create(dataset_name, description)
 
         # Store the original field size limit to restore it later
         original_field_size_limit = csv.field_size_limit()
 
         csv.field_size_limit(EXPERIMENT_CSV_FIELD_MAX_SIZE)  # 10mb
 
+        records = []
         try:
             with open(csv_path, mode="r") as csvfile:
                 content = csvfile.readline().strip()
@@ -717,7 +717,7 @@ class LLMObs(Service):
                     raise ValueError(f"Metadata columns not found in CSV header: {missing_metadata_columns}")
 
                 for row in rows:
-                    ds.append(
+                    records.append(
                         DatasetRecord(
                             input_data={col: row[col] for col in input_data_columns},
                             expected_output={col: row[col] for col in expected_output_columns},
@@ -730,6 +730,9 @@ class LLMObs(Service):
             # Always restore the original field size limit
             csv.field_size_limit(original_field_size_limit)
 
+        ds = cls._instance._dne_client.dataset_create(dataset_name, project_name, description)
+        for r in records:
+            ds.append(r)
         if len(ds) > 0:
             cls._instance._dne_client.dataset_bulk_upload(ds._id, ds._records)
         return ds

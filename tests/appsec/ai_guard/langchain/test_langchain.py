@@ -251,3 +251,111 @@ def test_message_conversion():
 
     assert result[5]["role"] == "assistant"
     assert result[5]["content"] == "One plus one is two"
+
+
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_streamed_chat_sync_allow(mock_execute_request, langchain_openai, openai_url):
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    model = langchain_openai.ChatOpenAI(base_url=openai_url)
+
+    for _ in model.stream(input="how can langsmith help with testing?"):
+        pass
+
+    mock_execute_request.assert_called_once()
+
+
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_streamed_chat_sync_block(mock_execute_request, langchain_openai, openai_url, decision):
+    mock_execute_request.return_value = mock_evaluate_response(decision)
+
+    model = langchain_openai.ChatOpenAI(base_url=openai_url)
+
+    with pytest.raises(AIGuardAbortError):
+        for _ in model.stream(input="how can langsmith help with testing?"):
+            pass
+
+    mock_execute_request.assert_called_once()
+
+
+@pytest.mark.asyncio
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+async def test_streamed_chat_async_allow(mock_execute_request, langchain_openai, openai_url):
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    model = langchain_openai.ChatOpenAI(base_url=openai_url)
+
+    async for _ in model.astream(input="how can langsmith help with testing?"):
+        pass
+
+    mock_execute_request.assert_called_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+async def test_streamed_chat_async_block(mock_execute_request, langchain_openai, openai_url, decision):
+    mock_execute_request.return_value = mock_evaluate_response(decision)
+
+    model = langchain_openai.ChatOpenAI(base_url=openai_url)
+
+    with pytest.raises(AIGuardAbortError):
+        async for _ in model.astream(input="how can langsmith help with testing?"):
+            pass
+
+    mock_execute_request.assert_called_once()
+
+
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_streamed_llm_sync_allow(mock_execute_request, langchain_openai, openai_url):
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    llm = langchain_openai.OpenAI(base_url=openai_url)
+
+    for _ in llm.stream(input="How do I write technical documentation?"):
+        pass
+
+    mock_execute_request.assert_called_once()
+
+
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+async def test_streamed_llm_sync_block(mock_execute_request, langchain_openai, openai_url, decision):
+    mock_execute_request.return_value = mock_evaluate_response(decision)
+
+    llm = langchain_openai.OpenAI(base_url=openai_url)
+
+    with pytest.raises(AIGuardAbortError):
+        for _ in llm.stream(input="How do I write technical documentation?"):
+            pass
+
+    mock_execute_request.assert_called_once()
+
+
+@pytest.mark.asyncio
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+async def test_streamed_llm_async_allow(mock_execute_request, langchain_openai, openai_url):
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    llm = langchain_openai.OpenAI(base_url=openai_url)
+
+    async for _ in llm.astream(input="How do I write technical documentation?"):
+        pass
+
+    mock_execute_request.assert_called_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+async def test_streamed_llm_async_block(mock_execute_request, langchain_openai, openai_url, decision):
+    mock_execute_request.return_value = mock_evaluate_response(decision)
+
+    llm = langchain_openai.OpenAI(base_url=openai_url)
+
+    with pytest.raises(AIGuardAbortError):
+        async for _ in llm.astream(input="How do I write technical documentation?"):
+            pass
+
+    mock_execute_request.assert_called_once()

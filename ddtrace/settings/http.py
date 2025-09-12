@@ -24,7 +24,7 @@ class HttpConfig(object):
 
     def _reset(self):
         self._header_tags = {}
-        self._header_tag_name.invalidate()
+        self._header_tag_name.cache_clear()
 
     @cachedmethod()
     def _header_tag_name(self, header_name):
@@ -63,7 +63,7 @@ class HttpConfig(object):
             self._header_tags.setdefault(normalized_header_name, "")
 
         # Mypy can't catch cached method's invalidate()
-        self._header_tag_name.invalidate()  # type: ignore[attr-defined]
+        self._header_tag_name.cache_clear()  # type: ignore[attr-defined]
 
         return self
 

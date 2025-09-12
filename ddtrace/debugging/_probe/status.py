@@ -49,6 +49,7 @@ class ProbeStatusLogger:
             "timestamp": int(timestamp * 1e3),  # milliseconds
             "message": message,
             "ddsource": "dd_debugger",
+            "type": "diagnostic",
             "debugger": {
                 "diagnostics": {
                     "probeId": probe.probe_id,

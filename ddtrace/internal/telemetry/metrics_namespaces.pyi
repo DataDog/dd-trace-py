@@ -20,5 +20,5 @@ class MetricNamespace:
         namespace: TELEMETRY_NAMESPACE,
         name: str,
         value: float = 1.0,
-        tags: MetricTagType = None,
+        tags: Optional[MetricTagType] = None,
     ) -> None: ...

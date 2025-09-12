@@ -2,6 +2,7 @@ from typing import Any
 from typing import Tuple
 
 from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast._logs import iast_propagation_debug_log
 from ddtrace.appsec._iast._logs import iast_propagation_error_log
 from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -12,7 +13,6 @@ from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking import set_ranges
 from ddtrace.appsec._iast._taint_tracking import set_ranges_from_values
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-from ddtrace.settings.asm import config as asm_config
 
 
 def _taint_pyobject_base(pyobject: Any, source_name: Any, source_value: Any, source_origin=None) -> Any:
@@ -122,7 +122,7 @@ def _taint_pyobject_base_new(
 
 
 def get_tainted_ranges(pyobject: Any) -> Tuple:
-    if not asm_config.is_iast_request_enabled:
+    if not is_iast_request_enabled():
         return tuple()
     if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):
         return tuple()
@@ -156,7 +156,7 @@ def is_pyobject_tainted_new(pyobject: Any) -> bool:
 
 
 def taint_pyobject_with_ranges(pyobject: Any, ranges: Tuple) -> bool:
-    if not asm_config.is_iast_request_enabled:
+    if not is_iast_request_enabled():
         return False
     if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):
         return False

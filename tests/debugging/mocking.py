@@ -7,6 +7,7 @@ from time import sleep
 from typing import Any
 from typing import Generator
 from typing import List
+from typing import cast
 
 from ddtrace.debugging._config import di_config
 from ddtrace.debugging._debugger import Debugger
@@ -95,7 +96,7 @@ class MockLogsIntakeUploaderV1(LogsIntakeUploaderV1):
         super(MockLogsIntakeUploaderV1, self).__init__(interval)
         self.queue = []
 
-    def _write(self, payload):
+    def _write(self, payload, endpoint):
         self.queue.append(payload.decode())
 
     def wait_for_payloads(self, cond=lambda _: bool(_), timeout=1.0):
@@ -120,7 +121,7 @@ class MockLogsIntakeUploaderV1(LogsIntakeUploaderV1):
 
     @property
     def snapshots(self) -> List[Snapshot]:
-        return self.collector.queue
+        return cast(TestSignalCollector, self.collector).queue
 
 
 class TestDebugger(Debugger):
@@ -198,7 +199,7 @@ def _debugger(config_to_override: DDConfig, config_overrides: Any) -> Generator[
             config_to_override.__dict__ = old_config
             # Reset any test changes to the redaction config or cached calls.
             redaction_config.__dict__ = old_config
-            redact.invalidate()
+            redact.cache_clear()
         finally:
             atexit.register = atexit_register
 
