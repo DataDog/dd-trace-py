@@ -1,7 +1,6 @@
 import contextvars
 from typing import Optional
 
-from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_env import IASTEnvironment
@@ -81,7 +80,7 @@ def _get_iast_context_id() -> Optional[int]:
     return IAST_CONTEXT.get()
 
 
-def _iast_finish_request(span: Optional["Span"] = None, shoud_update_global_vulnerability_limit: bool = True) -> bool:
+def _iast_finish_request(span=None, shoud_update_global_vulnerability_limit: bool = True) -> bool:
     """Finalize the IAST request context and optionally update global limits.
 
     This function discards the per-request IAST environment, optionally updates the

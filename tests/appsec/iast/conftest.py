@@ -13,6 +13,8 @@ from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
 from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._patch_modules import _testing_unpatch_iast
 from ddtrace.appsec._iast._patches.json_tainting import patch as json_patch
+from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_free_slots_number
+from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_size
 from ddtrace.appsec._iast.taint_sinks.code_injection import patch as code_injection_patch
 from ddtrace.appsec._iast.taint_sinks.command_injection import patch as cmdi_patch
 from ddtrace.appsec._iast.taint_sinks.command_injection import unpatch as cmdi_unpatch
@@ -25,8 +27,7 @@ from ddtrace.internal.utils.http import get_connection
 from tests.appsec.iast.iast_utils import IAST_VALID_LOG
 from tests.utils import override_env
 from tests.utils import override_global_config
-from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_free_slots_number
-from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_size
+
 
 CONFIG_SERVER_PORT = "9596"
 

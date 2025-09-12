@@ -26,4 +26,3 @@ def iast_request():
             yield
         finally:
             _iast_finish_request()
-
