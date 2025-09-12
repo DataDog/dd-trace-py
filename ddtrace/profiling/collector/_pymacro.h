@@ -5,6 +5,10 @@
 #define _PY312_AND_LATER
 #endif
 
+#if PY_VERSION_HEX >= 0x030a0000
+#define _PY310_AND_LATER
+#endif
+
 #if PY_VERSION_HEX >= 0x03090000
 #define _PY39_AND_LATER
 #endif

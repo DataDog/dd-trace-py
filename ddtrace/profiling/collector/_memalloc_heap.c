@@ -2,6 +2,8 @@
 #include <stdlib.h>
 
 #define PY_SSIZE_T_CLEAN
+#include <Python.h>
+
 #include "_memalloc_debug.h"
 #include "_memalloc_heap.h"
 #include "_memalloc_heap_map.h"
@@ -333,7 +335,7 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
         return;
     }
 
-#ifndef _PY312_AND_LATER
+#if defined(_PY312_AND_LATER) || !defined(_PY310_AND_LATER)
     /* Prior to Python 3.12, and particularly in Python 3.11, collecting
        tracebacks while intercepting allocations is prone to crashes. We
        currently use the C Python API to collect tracebacks, which can
@@ -353,7 +355,7 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
        increase in memory usage during sampling. But it is overall cheap (mostly
        just toggling a boolean) and the alternative is hard-to-diagnose crashes.
      */
-    PyGC_Disable();
+    int gc_enabled = PyGC_Disable();
 #endif
 
     /* The weight of the allocation is described above, but briefly: it's the
@@ -363,8 +365,10 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
        of sample live allocations stays close to the actual heap size */
     traceback_t* tb = memalloc_get_traceback(max_nframe, ptr, size, domain, global_heap_tracker.allocated_memory);
 
-#ifndef _PY312_AND_LATER
-    PyGC_Enable();
+#if defined(_PY312_AND_LATER) || !defined(_PY310_AND_LATER)
+    if (gc_enabled) {
+        PyGC_Enable();
+    }
 #endif
 
     if (!tb) {
