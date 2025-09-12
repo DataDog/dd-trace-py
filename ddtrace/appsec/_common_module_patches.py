@@ -219,7 +219,7 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
                 # API10, doing all request calls in HTTPConnection.request
                 try:
                     response = original_open_callable(*args, **kwargs)
-                    # api10 response handler for regular reponses
+                    # api10 response handler for regular responses
                     if response.__class__.__name__ == "HTTPResponse":
                         addresses = {
                             "DOWN_RES_STATUS": str(response.status),
@@ -230,7 +230,7 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
                         call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF)
                     return response
                 except Exception as e:
-                    # api10 response handler for error reponses
+                    # api10 response handler for error responses
                     if e.__class__.__name__ == "HTTPError":
                         try:
                             status_code = e.code
@@ -251,20 +251,58 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
     return original_open_callable(*args, **kwargs)
 
 
+def _parse_headers_urllib3(headers):
+    try:
+        return dict(headers)
+    except Exception:
+        return {}
+
+
+def wrapped_urllib3_make_request(original_request_callable, instance, args, kwargs):
+    from ddtrace.appsec._asm_request_context import call_waf_callback
+
+    full_url = core.get_item("full_url")
+    if full_url is not None:
+        use_body = core.get_item("use_body", False)
+        method = args[1] if len(args) > 1 else kwargs.get("method", None)
+        body = args[3] if len(args) > 3 else kwargs.get("body", None)
+        headers = _parse_headers_urllib3(args[4] if len(args) > 4 else kwargs.get("headers", {}))
+        addresses = {EXPLOIT_PREVENTION.ADDRESS.SSRF: full_url, "DOWN_REQ_METHOD": method, "DOWN_REQ_HEADERS": headers}
+        content_type = headers.get("Content-Type", None) or headers.get("content-type", None)
+        if use_body and content_type == "application/json":
+            try:
+                addresses["DOWN_REQ_BODY"] = json.loads(body)
+            except Exception:
+                pass  # nosec
+        res = call_waf_callback(
+            addresses,
+            crop_trace="wrapped_request_D8CB81E472AF98A2",
+            rule_type=EXPLOIT_PREVENTION.TYPE.SSRF,
+        )
+        core.discard_item("full_url")
+        if res and _must_block(res.actions):
+            raise BlockingException(get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, full_url)
+    return original_request_callable(*args, **kwargs)
+
+
 def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, kwargs):
     """
     wrapper for third party requests.request function
     https://requests.readthedocs.io
     """
-    if asm_config._iast_enabled and asm_config.is_iast_request_enabled:
-        from ddtrace.appsec._iast.taint_sinks.ssrf import _iast_report_ssrf
+    if asm_config._iast_enabled:
+        from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 
-        _iast_report_ssrf(original_request_callable, *args, **kwargs)
+        if is_iast_request_enabled():
+            from ddtrace.appsec._iast.taint_sinks.ssrf import _iast_report_ssrf
+
+            _iast_report_ssrf(original_request_callable, *args, **kwargs)
 
     if _get_rasp_capability("ssrf"):
         try:
+            from ddtrace.appsec._asm_request_context import _get_asm_context
             from ddtrace.appsec._asm_request_context import call_waf_callback
-            from ddtrace.appsec._asm_request_context import in_asm_context
+            from ddtrace.appsec._asm_request_context import should_analyze_body_response
         except ImportError:
             # open is used during module initialization
             # and shouldn't be changed at that time
@@ -272,19 +310,29 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
             return original_request_callable(*args, **kwargs)
 
         url = args[1] if len(args) > 1 else kwargs.get("url", None)
-        if isinstance(url, str) and url:
-            if in_asm_context():
-                res = call_waf_callback(
-                    {EXPLOIT_PREVENTION.ADDRESS.SSRF: url},
-                    crop_trace="wrapped_request_D8CB81E472AF98A2",
-                    rule_type=EXPLOIT_PREVENTION.TYPE.SSRF,
-                )
-                if res and _must_block(res.actions):
-                    raise BlockingException(
-                        get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, url
-                    )
-            else:
-                _report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SSRF, False)
+        valid_url = isinstance(url, str) and bool(url)
+        if valid_url and url and (ctx := _get_asm_context()):
+            use_body = should_analyze_body_response(ctx)
+            with core.context_with_data("url_open_analysis", full_url=url, use_body=use_body):
+                # API10, doing all request calls in HTTPConnection.request
+                try:
+                    response = original_request_callable(*args, **kwargs)
+                    if response.__class__.__name__ == "Response":
+                        addresses = {
+                            "DOWN_RES_STATUS": str(response.status_code),
+                            "DOWN_RES_HEADERS": dict(response.headers),
+                        }
+                        if use_body:
+                            try:
+                                addresses["DOWN_RES_BODY"] = response.json()
+                            except Exception:
+                                pass  # nosec
+                        call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF)
+                    return response
+                except Exception:
+                    raise
+        elif valid_url:
+            _report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SSRF, False)
     return original_request_callable(*args, **kwargs)
 
 

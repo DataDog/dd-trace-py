@@ -262,6 +262,12 @@
                 "key_path": [
                   "Host"
                 ]
+              },
+              {
+                "address": "server.io.net.request.headers",
+                "key_path": [
+                  "TagHost"
+                ]
               }
             ],
             "list": ["www.datadoghq.com"]
