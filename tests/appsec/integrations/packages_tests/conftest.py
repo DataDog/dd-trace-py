@@ -1,7 +1,5 @@
 import pytest
 
-from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
-from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
 from ddtrace.appsec._iast.taint_sinks.code_injection import patch as code_injection_patch
 from ddtrace.contrib.internal.psycopg.patch import patch as psycopg_patch
 from ddtrace.contrib.internal.psycopg.patch import unpatch as psycopg_unpatch
@@ -10,7 +8,8 @@ from ddtrace.contrib.internal.sqlalchemy.patch import unpatch as sqlalchemy_unpa
 from ddtrace.contrib.internal.sqlite3.patch import patch as sqli_sqlite_patch
 from ddtrace.contrib.internal.sqlite3.patch import unpatch as sqli_sqlite_unpatch
 from tests.utils import override_global_config
-
+from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
+from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 
 @pytest.fixture(autouse=True)
 def iast_create_context():
@@ -21,11 +20,11 @@ def iast_create_context():
         psycopg_patch()
         sqli_sqlite_patch()
         code_injection_patch()
-        _iast_start_request()
+        _start_iast_context_and_oce()
         try:
             yield
         finally:
-            _iast_finish_request()
+            _end_iast_context_and_oce()
             psycopg_unpatch()
             sqlalchemy_unpatch()
             sqli_sqlite_unpatch()
