@@ -3,8 +3,6 @@ from unittest import mock
 import pytest
 
 from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
-from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
-from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
@@ -20,7 +18,9 @@ from ddtrace.contrib.internal.urllib3.patch import patch as urllib3_patch
 from ddtrace.contrib.internal.urllib3.patch import unpatch as urllib3_unpatch
 from ddtrace.contrib.internal.webbrowser.patch import patch as webbrowser_patch
 from ddtrace.contrib.internal.webbrowser.patch import unpatch as webbrowser_unpatch
+from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
 from tests.appsec.iast.iast_utils import _get_iast_data
+from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.appsec.iast.taint_sinks._taint_sinks_utils import NON_TEXT_TYPES_TEST_DATA
 from tests.utils import override_global_config
@@ -175,7 +175,7 @@ def test_ssrf_requests_deduplication(iast_context_deduplication_enabled):
         from requests.exceptions import ConnectionError  # noqa: A004
 
         for num_vuln_expected in [1, 0, 0]:
-            _iast_start_request()
+            _start_iast_context_and_oce()
             tainted_url, tainted_path = _get_tainted_url()
             for _ in range(0, 5):
                 try:
@@ -185,7 +185,7 @@ def test_ssrf_requests_deduplication(iast_context_deduplication_enabled):
                     pass
 
             _check_no_report_if_deduplicated(num_vuln_expected)
-            _iast_finish_request()
+            _end_iast_context_and_oce()
     finally:
         requests_unpatch()
 
@@ -194,7 +194,7 @@ def test_ssrf_urllib3_deduplication(iast_context_deduplication_enabled):
     urllib3_patch()
     try:
         for num_vuln_expected in [1, 0, 0]:
-            _iast_start_request()
+            _start_iast_context_and_oce()
             import urllib3
 
             tainted_url, tainted_path = _get_tainted_url()
@@ -206,7 +206,7 @@ def test_ssrf_urllib3_deduplication(iast_context_deduplication_enabled):
                     pass
 
             _check_no_report_if_deduplicated(num_vuln_expected)
-            _iast_finish_request()
+            _end_iast_context_and_oce()
     finally:
         requests_unpatch()
 
@@ -217,7 +217,7 @@ def test_ssrf_httplib_deduplication(iast_context_deduplication_enabled):
         import http.client
 
         for num_vuln_expected in [1, 0, 0]:
-            _iast_start_request()
+            _start_iast_context_and_oce()
             tainted_url, tainted_path = _get_tainted_url()
             for _ in range(0, 5):
                 try:
@@ -229,7 +229,7 @@ def test_ssrf_httplib_deduplication(iast_context_deduplication_enabled):
                     pass
 
             _check_no_report_if_deduplicated(num_vuln_expected)
-            _iast_finish_request()
+            _end_iast_context_and_oce()
     finally:
         httplib_unpatch()
 
@@ -240,7 +240,7 @@ def test_ssrf_webbrowser_deduplication(iast_context_deduplication_enabled):
         import webbrowser
 
         for num_vuln_expected in [1, 0, 0]:
-            _iast_start_request()
+            _start_iast_context_and_oce()
             tainted_url, tainted_path = _get_tainted_url()
             for _ in range(0, 5):
                 try:
@@ -250,7 +250,7 @@ def test_ssrf_webbrowser_deduplication(iast_context_deduplication_enabled):
                     pass
 
             _check_no_report_if_deduplicated(num_vuln_expected)
-            _iast_finish_request()
+            _end_iast_context_and_oce()
     finally:
         webbrowser_unpatch()
 
@@ -261,7 +261,7 @@ def test_ssrf_urllib_deduplication(iast_context_deduplication_enabled):
         import urllib.request
 
         for num_vuln_expected in [1, 0, 0]:
-            _iast_start_request()
+            _start_iast_context_and_oce()
             tainted_url, tainted_path = _get_tainted_url()
             for _ in range(0, 5):
                 try:
@@ -271,7 +271,7 @@ def test_ssrf_urllib_deduplication(iast_context_deduplication_enabled):
                     pass
 
             _check_no_report_if_deduplicated(num_vuln_expected)
-            _iast_finish_request()
+            _end_iast_context_and_oce()
     finally:
         urllib_unpatch()
 

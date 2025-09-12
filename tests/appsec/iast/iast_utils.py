@@ -18,11 +18,15 @@ from hypothesis.strategies import one_of
 from hypothesis.strategies import text
 
 from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
 from ddtrace.appsec._iast._ast.ast_patching import iastpatch
 from ddtrace.appsec._iast._ast.ast_patching import initialize_iast_lists
 from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
+from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
+from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
 from ddtrace.appsec._iast.main import patch_iast
+from ddtrace.appsec._iast.sampling.vulnerability_detection import _reset_global_limit
 
 
 # Check if the log contains "iast::" to raise an error if that’s the case BUT, if the logs contains
@@ -121,6 +125,19 @@ def _get_iast_data():
     span_report = get_iast_reporter()
     data = span_report.build_and_scrub_value_parts()
     return data
+
+
+def _start_iast_context_and_oce(span=None):
+    oce.reconfigure()
+    if oce.acquire_request(span):
+        return _iast_start_request(span)
+    return None
+
+
+def _end_iast_context_and_oce(span=None):
+    result = _iast_finish_request(span)
+    _reset_global_limit()
+    return result
 
 
 def load_iast_report(span):

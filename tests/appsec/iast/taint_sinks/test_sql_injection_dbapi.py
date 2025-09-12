@@ -4,13 +4,13 @@ import pytest
 
 from ddtrace._trace.pin import Pin
 from ddtrace.appsec._iast import load_iast
-from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
-from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
 from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.contrib.dbapi import TracedCursor
 from ddtrace.settings._config import Config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.integration import IntegrationConfig
+from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
+from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 from tests.utils import TracerTestCase
 from tests.utils import override_global_config
 
@@ -26,7 +26,7 @@ class TestTracedCursor(TracerTestCase):
                 _iast_request_sampling=100.0,
             )
         ):
-            _iast_start_request()
+            _start_iast_context_and_oce()
             self.cursor = mock.Mock()
             self.cursor.execute.__name__ = "execute"
 
@@ -34,7 +34,7 @@ class TestTracedCursor(TracerTestCase):
         with override_global_config(
             dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
         ):
-            _iast_finish_request()
+            _end_iast_context_and_oce()
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="IAST compatible versions")
     def test_tainted_query(self):

@@ -8,8 +8,6 @@ import pytest
 from ddtrace.appsec._common_module_patches import patch_common_modules
 from ddtrace.appsec._common_module_patches import unpatch_common_modules
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
-from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
 from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._patch_modules import _testing_unpatch_iast
 from ddtrace.appsec._iast._patches.json_tainting import patch as json_patch
@@ -25,6 +23,8 @@ from ddtrace.appsec._iast.taint_sinks.weak_hash import unpatch_iast as weak_hash
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
 from tests.appsec.iast.iast_utils import IAST_VALID_LOG
+from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
+from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -63,7 +63,7 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
         assert debug_context_array_size() == 2
         assert debug_context_array_free_slots_number() > 0
         span = MockSpan()
-        _iast_start_request(span)
+        _start_iast_context_and_oce(span)
         weak_hash_patch()
         weak_cipher_patch()
         json_patch()
@@ -78,7 +78,7 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
             cmdi_unpatch()
             weak_hash_unpatch()
             _testing_unpatch_iast()
-            _iast_finish_request(span)
+            _end_iast_context_and_oce(span)
 
 
 @pytest.fixture

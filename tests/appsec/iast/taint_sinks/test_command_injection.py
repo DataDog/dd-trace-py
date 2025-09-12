@@ -7,8 +7,6 @@ from unittest import mock
 import pytest
 
 from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
-from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
-from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
@@ -17,7 +15,9 @@ from ddtrace.appsec._iast.constants import VULN_CMDI
 from ddtrace.appsec._iast.secure_marks import cmdi_sanitizer
 from ddtrace.appsec._iast.taint_sinks.command_injection import _iast_report_cmdi
 from ddtrace.appsec._iast.taint_sinks.command_injection import patch
+from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
 from tests.appsec.iast.iast_utils import _get_iast_data
+from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.appsec.iast.taint_sinks._taint_sinks_utils import NON_TEXT_TYPES_TEST_DATA
 
@@ -242,9 +242,9 @@ def test_string_cmdi_secure_mark(iast_context_defaults):
 
 def test_cmdi_deduplication(iast_context_deduplication_enabled):
     patch()
-    _iast_finish_request()
+    _end_iast_context_and_oce()
     for num_vuln_expected in [1, 0, 0]:
-        _iast_start_request()
+        _start_iast_context_and_oce()
         _BAD_DIR = "forbidden_dir/"
         _BAD_DIR = taint_pyobject(
             pyobject=_BAD_DIR,
@@ -265,7 +265,7 @@ def test_cmdi_deduplication(iast_context_deduplication_enabled):
             assert span_report
             data = span_report.build_and_scrub_value_parts()
             assert len(data["vulnerabilities"]) == num_vuln_expected
-        _iast_finish_request()
+        _end_iast_context_and_oce()
 
 
 @pytest.mark.parametrize("non_text_obj,obj_type", NON_TEXT_TYPES_TEST_DATA)

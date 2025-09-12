@@ -5,7 +5,6 @@ from hypothesis import given
 from hypothesis.strategies import one_of
 import pytest
 
-from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking import TaintRange
@@ -16,6 +15,7 @@ from ddtrace.appsec._iast._taint_tracking import get_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject_with_ranges
 from tests.appsec.iast.aspects.test_aspect_helpers import _build_sample_range
+from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
 from tests.appsec.iast.iast_utils import non_empty_text
 from tests.utils import override_global_config
 
@@ -183,7 +183,7 @@ def test_propagate_ranges_with_no_context(caplog):
     )
     assert get_ranges(string_input)
 
-    _iast_finish_request()
+    _end_iast_context_and_oce()
     with override_global_config(dict(_iast_debug=True)), caplog.at_level(logging.DEBUG):
         result = wrap_somesplit(_aspect_split, string_input, "|")
         assert result == ["abc", "def"]

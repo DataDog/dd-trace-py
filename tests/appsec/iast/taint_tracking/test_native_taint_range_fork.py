@@ -9,14 +9,14 @@ import uuid
 import pytest
 
 from ddtrace.appsec._iast._iast_request_context_base import _get_iast_context_id
-from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
-from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
 from ddtrace.appsec._iast._iast_request_context_base import _num_objects_tainted_in_request
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import get_ranges
 from ddtrace.appsec._iast._taint_tracking._context import debug_taint_map
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
+from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
+from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="fork only available on Unix")
@@ -27,7 +27,7 @@ def test_fork_taint_isolation():
         """Work function for child process to validate taint isolation."""
         try:
             # Create context in child process
-            _iast_start_request()
+            _start_iast_context_and_oce()
 
             # Verify child starts with clean state
             initial_count = _num_objects_tainted_in_request()
@@ -66,7 +66,7 @@ def test_fork_taint_isolation():
             queue.put(("child_error", str(e)))
 
     # Parent process setup
-    _iast_start_request()
+    _start_iast_context_and_oce()
 
     # Create tainted objects in parent before fork
     parent_tainted = taint_pyobject(
@@ -123,7 +123,7 @@ def test_fork_multiple_children():
     def child_worker(child_id, queue):
         """Worker function for each child process."""
         try:
-            _iast_start_request()
+            _start_iast_context_and_oce()
 
             # Each child creates unique tainted data
             child_data = f"child_{child_id}_data"
@@ -144,7 +144,7 @@ def test_fork_multiple_children():
             queue.put((child_id, "error", str(e)))
 
     # Parent setup
-    _iast_start_request()
+    _start_iast_context_and_oce()
     parent_tainted = taint_pyobject(  # noqa: F841
         "parent_shared_data", source_name="parent_source", source_value="parent_value", source_origin=OriginType.BODY
     )
@@ -194,7 +194,7 @@ def test_fork_with_os_fork():
     """Test fork safety using os.fork() directly."""
 
     # Parent setup
-    _iast_start_request()
+    _start_iast_context_and_oce()
     parent_data = taint_pyobject(
         "parent_before_fork", source_name="parent_source", source_value="parent_value", source_origin=OriginType.PATH
     )
@@ -213,7 +213,7 @@ def test_fork_with_os_fork():
             # Verify child isolation 1
             assert child_count_initial == 1, f"Child should start with 0 tainted objects, got {child_count_initial}"
             # Create new context in child (should be isolated)
-            _iast_start_request()
+            _start_iast_context_and_oce()
 
             # Create child-specific tainted data
             num_objects = 4
@@ -271,15 +271,15 @@ def test_fork_context_reset_isolation():
     def child_with_context_operations(queue):
         """Child process that performs various context operations."""
         try:
-            _iast_start_request()
+            _start_iast_context_and_oce()
 
             # Create initial tainted data
             data1 = taint_pyobject("child_data1", "source1", "value1", OriginType.PARAMETER)  # noqa: F841
             count1 = _num_objects_tainted_in_request()
 
             # Reset and recreate context
-            _iast_finish_request()
-            _iast_start_request()
+            _end_iast_context_and_oce()
+            _start_iast_context_and_oce()
 
             # Should start fresh
             count_after_reset = _num_objects_tainted_in_request()
@@ -294,7 +294,7 @@ def test_fork_context_reset_isolation():
             queue.put({"error": str(e)})
 
     # Parent setup with context
-    _iast_start_request()
+    _start_iast_context_and_oce()
     _ = taint_pyobject("parent_data", "parent_source", "parent_value", OriginType.BODY)
 
     # Start child process
@@ -306,8 +306,8 @@ def test_fork_context_reset_isolation():
     time.sleep(0.1)  # Give child time to start
 
     # Reset parent context
-    _iast_finish_request()
-    _iast_start_request()
+    _end_iast_context_and_oce()
+    _start_iast_context_and_oce()
 
     # Create new parent data
     _ = taint_pyobject("parent_data2", "parent_source2", "parent_value2", OriginType.COOKIE)

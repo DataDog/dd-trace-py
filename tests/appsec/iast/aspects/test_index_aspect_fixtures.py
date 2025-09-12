@@ -3,10 +3,10 @@ import sys
 
 import pytest
 
-from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
+from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
 from tests.appsec.iast.iast_utils import _iast_patched_module
 from tests.utils import override_global_config
 
@@ -110,7 +110,7 @@ def test_propagate_ranges_with_no_context(caplog):
     )
     assert get_tainted_ranges(string_input)
 
-    _iast_finish_request()
+    _end_iast_context_and_oce()
     with override_global_config(dict(_iast_debug=True)), caplog.at_level(logging.DEBUG):
         result = mod.do_index(string_input, 3)
         assert result == "d"

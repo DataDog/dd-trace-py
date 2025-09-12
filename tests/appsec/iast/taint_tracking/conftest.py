@@ -1,9 +1,9 @@
 import pytest
 
-from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
-from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
 from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_free_slots_number
 from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_size
+from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
+from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 from tests.utils import override_global_config
 
 
@@ -20,9 +20,9 @@ def iast_request():
     ):
         assert debug_context_array_size() == 2
         assert debug_context_array_free_slots_number() > 0
-        context_id = _iast_start_request()
+        context_id = _start_iast_context_and_oce()
         assert context_id is not None
         try:
             yield
         finally:
-            _iast_finish_request()
+            _end_iast_context_and_oce()

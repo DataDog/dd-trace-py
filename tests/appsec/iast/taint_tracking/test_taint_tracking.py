@@ -6,7 +6,6 @@ from hypothesis import seed
 from hypothesis import settings
 import pytest
 
-from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
 from ddtrace.appsec._iast._iast_request_context_base import _num_objects_tainted_in_request
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import TaintRange
@@ -16,6 +15,7 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._iast.reporter import Source
+from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
 from tests.appsec.iast.iast_utils import iast_hypothesis_test
 from tests.appsec.iast.iast_utils import non_empty_text
 from tests.utils import override_global_config
@@ -59,7 +59,7 @@ def test_taint_ranges_as_evidence_info_all_tainted():
 
 @pytest.mark.skip_iast_check_logs
 def test_taint_object_with_no_context_should_be_noop():
-    _iast_finish_request()
+    _end_iast_context_and_oce()
     arg = "all tainted"
     tainted_text = taint_pyobject(arg, source_name="request_body", source_value=arg, source_origin=OriginType.PARAMETER)
     assert tainted_text == arg
@@ -67,7 +67,7 @@ def test_taint_object_with_no_context_should_be_noop():
 
 
 def test_propagate_ranges_with_no_context(caplog):
-    _iast_finish_request()
+    _end_iast_context_and_oce()
     with override_global_config(dict(_iast_debug=True)), caplog.at_level(logging.DEBUG):
         string_input = taint_pyobject(
             pyobject="abcde", source_name="abcde", source_value="abcde", source_origin=OriginType.PARAMETER
@@ -78,7 +78,7 @@ def test_propagate_ranges_with_no_context(caplog):
 def test_call_to_taint_pyobject_with_ranges_directly_NOT_raises_a_exception():
     from ddtrace.appsec._iast._taint_tracking import Source as TaintRangeSource
 
-    _iast_finish_request()
+    _end_iast_context_and_oce()
     input_str = "abcde"
     res = taint_pyobject_with_ranges(
         input_str,

@@ -9,7 +9,6 @@ from hypothesis import given
 from hypothesis.strategies import text
 import pytest
 
-from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
@@ -17,6 +16,7 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted
 import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
 from tests.appsec.iast.aspects.aspect_utils import create_taint_range_with_format
+from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
 from tests.appsec.iast.iast_utils import _iast_patched_module
 from tests.utils import override_global_config
 
@@ -250,7 +250,7 @@ def test_propagate_ranges_with_no_context(caplog):
         source_value=string_to_taint,
         source_origin=OriginType.PARAMETER,
     )
-    _iast_finish_request()
+    _end_iast_context_and_oce()
     with override_global_config(dict(_iast_debug=True)), caplog.at_level(logging.DEBUG):
         result_2 = mod.do_args_kwargs_4(string_input, 6, test_var=1)
 

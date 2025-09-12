@@ -4,15 +4,15 @@ from unittest import mock
 import pytest
 
 from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
-from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
-from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast.constants import DEFAULT_PATH_TRAVERSAL_FUNCTIONS
 from ddtrace.appsec._iast.constants import VULN_PATH_TRAVERSAL
 from ddtrace.appsec._iast.taint_sinks.path_traversal import check_and_report_path_traversal
+from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
 from tests.appsec.iast.iast_utils import _get_iast_data
 from tests.appsec.iast.iast_utils import _iast_patched_module
+from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.appsec.iast.taint_sinks._taint_sinks_utils import NON_TEXT_TYPES_TEST_DATA
 from tests.appsec.iast.taint_sinks._taint_sinks_utils import ROOT_DIR
@@ -161,9 +161,9 @@ def test_path_traversal(module, function, iast_context_defaults, ensure_test_fil
 
 
 def test_path_traversal_deduplication(iast_context_deduplication_enabled, ensure_test_file):
-    _iast_finish_request()
+    _end_iast_context_and_oce()
     for num_vuln_expected in [1, 0, 0]:
-        _iast_start_request()
+        _start_iast_context_and_oce()
         mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.path_traversal")
         file_path = ensure_test_file
 
@@ -182,7 +182,7 @@ def test_path_traversal_deduplication(iast_context_deduplication_enabled, ensure
             assert span_report
             assert len(span_report.vulnerabilities) == num_vuln_expected
 
-        _iast_finish_request()
+        _end_iast_context_and_oce()
 
 
 @pytest.mark.parametrize("non_text_obj,obj_type", NON_TEXT_TYPES_TEST_DATA)
