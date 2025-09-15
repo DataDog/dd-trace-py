@@ -9,6 +9,11 @@ import os
 # NOTE: defaults may be duplicated in the .env file; update both or
 # simply write down a function that parses the .env file
 
+AZURE_SERVICE_BUS_EMULATOR_CONFIG = {
+    "host": "127.0.0.1",
+    "port": 5300,
+}
+
 ELASTICSEARCH_CONFIG = {
     "host": os.getenv("TEST_ELASTICSEARCH_HOST", "127.0.0.1"),
     "port": int(os.getenv("TEST_ELASTICSEARCH_PORT", 9200)),
