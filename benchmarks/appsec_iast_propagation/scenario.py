@@ -19,11 +19,12 @@ try:
     # >= 3.6; < 3.15
     from ddtrace.appsec._iast._iast_request_context_base import set_iast_request_enabled
 except ImportError:
-    # < 3.6
-    from ddtrace.appsec._iast._iast_request_context import set_iast_request_enabled
-else:
-    # >= 3.15
-    set_iast_request_enabled = lambda x: None  # noqa: E731
+    try:
+        # < 3.6
+        from ddtrace.appsec._iast._iast_request_context import set_iast_request_enabled
+    except ImportError:
+        # >= 3.15
+        set_iast_request_enabled = lambda x: None  # noqa: E731
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
