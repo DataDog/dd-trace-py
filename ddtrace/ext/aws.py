@@ -84,8 +84,7 @@ def _add_api_param_span_tags(span, endpoint_name, params):
 
 def get_aws_partition(region_name):
     # type: (str) -> str
-    """Determine AWS partition from region name.
-    """
+    """Determine AWS partition from region name."""
     if region_name.startswith("cn-"):
         return "aws-cn"
     elif region_name.startswith("us-gov-"):
@@ -95,7 +94,7 @@ def get_aws_partition(region_name):
 
 
 AWSREGION = "aws.region"
-REGION = "region" 
+REGION = "region"
 PARTITION = "partition"
 AGENT = "aws.agent"
 OPERATION = "aws.operation"
