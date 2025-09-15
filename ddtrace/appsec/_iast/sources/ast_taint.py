@@ -1,12 +1,12 @@
 from typing import Any
 from typing import Callable
 
+from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 
-from .._iast_request_context_base import is_iast_request_enabled
 from ..constants import DEFAULT_SOURCE_IO_FUNCTIONS
 
 
