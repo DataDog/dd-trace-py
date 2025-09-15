@@ -22,6 +22,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
 from tests.suitespec import get_patterns, get_suites
+import riotfile
 
 
 class RiotVenv(NamedTuple):
@@ -36,16 +37,17 @@ class RiotVenv(NamedTuple):
     def display_name(self) -> str:
         """Generate a user-friendly display name."""
         # Extract key package versions for display
-        django_match = re.search(r"'django[~=<>!]*([^']*)'", self.packages)
+        django_match = re.search(r"django.*?([0-9]+\.[0-9]+)", self.packages, re.IGNORECASE)
         django_ver = django_match.group(1) if django_match else ""
 
         if django_ver:
             return f"Python {self.python_version}, Django {django_ver}"
         else:
-            # Show first few packages if no Django
-            packages_list = re.findall(r"'([^']*)'", self.packages)
-            key_packages = packages_list[:2] if packages_list else []
-            return f"Python {self.python_version}" + (f", {', '.join(key_packages)}" if key_packages else "")
+            # Show key framework if available
+            for framework in ['flask', 'fastapi', 'starlette', 'celery']:
+                if framework in self.packages.lower():
+                    return f"Python {self.python_version}, {framework}"
+            return f"Python {self.python_version}"
 
 
 class TestRunner:
@@ -168,63 +170,40 @@ class TestRunner:
         return [pattern]
 
     def get_riot_venvs(self, pattern: str) -> List[RiotVenv]:
-        """Get available riot venvs for a pattern using riot list command."""
+        """Get available riot venvs for a pattern by using riotfile.venv.instances()."""
         try:
-            result = subprocess.run(
-                ["riot", "list", pattern],
-                capture_output=True,
-                text=True,
-                cwd=self.root
-            )
-            if result.returncode != 0:
-                return []
-
             venvs = []
-            lines = result.stdout.strip().split('\n')
+            pattern_regex = re.compile(pattern)
 
-            # Skip header lines and parse venv entries
-            for line in lines[1:]:  # Skip header
-                line = line.strip()
-                if not line or line.startswith('-') or 'No.' in line:
+            # Use riot's own instances() method to get all venv instances
+            for n, inst in enumerate(riotfile.venv.instances()):
+                # Check if this instance matches our pattern (same logic as riot)
+                if not inst.name or not inst.matches_pattern(pattern_regex):
                     continue
 
-                # Parse riot list output - extract key info
-                # Format: " #275  18abddb  django  Interpreter(      _DD_CIVISIBILITY…  'mock' 'pytest' ..."
-                parts = line.split()
-                if len(parts) >= 3 and parts[0].startswith('#'):
-                    try:
-                        number = int(parts[0][1:])  # Remove #
-                        hash_val = parts[1]
-                        name = parts[2]
+                # Extract package information from the instance
+                packages_info = ""
+                if hasattr(inst, 'pkgs') and inst.pkgs:
+                    key_packages = []
+                    for pkg, version in inst.pkgs.items():
+                        if any(key in pkg.lower() for key in ['django', 'flask', 'fastapi', 'starlette', 'celery']):
+                            key_packages.append(f"{pkg}: {version}")
+                    packages_info = ", ".join(key_packages) if key_packages else "standard packages"
 
-                        # Extract Python version from line
-                        python_ver = "3.10"  # default
-                        py_match = re.search(r"_hint='([^']+)'", line)
-                        if py_match:
-                            python_ver = py_match.group(1)
-
-                        # Extract key package info
-                        packages_info = "standard packages"
-                        for framework in ['django', 'flask', 'fastapi', 'starlette', 'celery']:
-                            fw_match = re.search(rf"'{framework}[^']*'", line)
-                            if fw_match:
-                                packages_info = fw_match.group(0).strip("'")
-                                break
-
-                        venvs.append(RiotVenv(
-                            number=number,
-                            hash=hash_val,
-                            name=name,
-                            python_version=python_ver,
-                            packages=packages_info
-                        ))
-                    except (ValueError, IndexError):
-                        continue
+                venvs.append(RiotVenv(
+                    number=n,
+                    hash=inst.short_hash if hasattr(inst, 'short_hash') else f"hash{n}",
+                    name=inst.name,
+                    python_version=str(inst.py._hint) if hasattr(inst, 'py') and hasattr(inst.py, '_hint') else "3.10",
+                    packages=packages_info
+                ))
 
             return venvs
 
-        except subprocess.CalledProcessError as e:
+        except Exception as e:
             print(f"Warning: Failed to get riot venvs for pattern '{pattern}': {e}")
+            import traceback
+            traceback.print_exc()
             return []
 
     def start_services(self, services: Set[str]) -> bool:
@@ -241,13 +220,8 @@ class TestRunner:
             print(f"❌ Failed to start services: {e}")
             return False
 
-    def interactive_venv_selection(self, matching_suites: Dict[str, dict]) -> List[RiotVenv]:
-        """Provide interactive venv selection with granular control."""
-        if not matching_suites:
-            print("❌ No matching test suites found for the changed files.")
-            return []
-
-        # Get riot patterns from matching suites
+    def select_riot_patterns(self, matching_suites: Dict[str, dict]) -> List[str]:
+        """Let user select which riot patterns to run."""
         riot_patterns = self.get_riot_patterns(matching_suites)
         if not riot_patterns:
             print("❌ No riot patterns found in matching suites")
@@ -256,8 +230,7 @@ class TestRunner:
         print(f"\n📋 Found {len(riot_patterns)} matching riot pattern(s):")
         print("   " + ", ".join(riot_patterns))
 
-        # Step 1: Let user select which patterns they want to run
-        selected_patterns = []
+        # Let user select which patterns they want to run
         if len(riot_patterns) > 1:
             print(f"\n🎯 Select which patterns to run:")
             print("=" * 60)
@@ -273,8 +246,7 @@ class TestRunner:
                     if selection.lower() == 'none':
                         return []
                     elif selection.lower() == 'all':
-                        selected_patterns = riot_patterns
-                        break
+                        return riot_patterns
 
                     selected_indices = set()
                     for part in selection.split(','):
@@ -285,13 +257,14 @@ class TestRunner:
                         else:
                             selected_indices.add(int(part))
 
+                    selected_patterns = []
                     for idx in selected_indices:
                         if 1 <= idx <= len(riot_patterns):
                             selected_patterns.append(riot_patterns[idx - 1])
 
                     if selected_patterns:
                         print(f"   Selected patterns: {', '.join(selected_patterns)}")
-                        break
+                        return selected_patterns
                     else:
                         print("   No valid patterns selected")
 
@@ -299,12 +272,10 @@ class TestRunner:
                     print("❌ Invalid selection. Please use format like '1,3' or 'all' or 'none'")
         else:
             # Only one pattern, use it directly
-            selected_patterns = riot_patterns
+            return riot_patterns
 
-        if not selected_patterns:
-            return []
-
-        # Step 2: For each selected pattern, let user pick specific venvs
+    def select_venvs_for_patterns(self, selected_patterns: List[str]) -> List[RiotVenv]:
+        """Let user select specific venvs for each pattern."""
         selected_venvs = []
 
         for pattern in selected_patterns:
@@ -366,6 +337,20 @@ class TestRunner:
 
         return selected_venvs
 
+    def interactive_venv_selection(self, matching_suites: Dict[str, dict]) -> List[RiotVenv]:
+        """Provide interactive venv selection with granular control."""
+        if not matching_suites:
+            print("❌ No matching test suites found for the changed files.")
+            return []
+
+        # Step 1: Select riot patterns
+        selected_patterns = self.select_riot_patterns(matching_suites)
+        if not selected_patterns:
+            return []
+
+        # Step 2: Select specific venvs for each pattern
+        return self.select_venvs_for_patterns(selected_patterns)
+
     def run_tests(self, selected_venvs: List[RiotVenv], matching_suites: Dict[str, dict], riot_args: List[str] = None, dry_run: bool = False) -> bool:
         """Execute the selected venvs."""
         if not selected_venvs:
@@ -379,7 +364,7 @@ class TestRunner:
 
         print(f"\n🧪 Running {len(selected_venvs)} selected venv(s):")
         for venv in selected_venvs:
-            print(f"   • #{venv.number} {venv.hash} - {venv.name}: {venv.display_name}")
+            print(f"   • {venv.name} - {venv.display_name}")
 
         # Check if any selected suite needs testagent (has snapshot: true)
         needs_testagent = any(
@@ -408,16 +393,16 @@ class TestRunner:
                 if needs_testagent:
                     print(f"[DRY RUN] With env: DD_TRACE_AGENT_URL={env.get('DD_TRACE_AGENT_URL')}")
             else:
-                print(f"\n▶️  Executing venv #{venv.number} ({venv.name}: {venv.display_name}): {' '.join(cmd)}")
+                print(f"\n▶️  Executing ({venv.display_name}): {' '.join(cmd)}")
                 try:
                     result = subprocess.run(cmd, env=env, cwd=self.root)
                     if result.returncode != 0:
-                        print(f"❌ Venv #{venv.number} ({venv.hash}) failed with exit code {result.returncode}")
+                        print(f"❌ {venv.display_name} failed with exit code {result.returncode}")
                         return False
                     else:
-                        print(f"✅ Venv #{venv.number} ({venv.hash}) completed successfully")
+                        print(f"✅ {venv.display_name} completed successfully")
                 except subprocess.CalledProcessError as e:
-                    print(f"❌ Failed to run venv #{venv.number} ({venv.hash}): {e}")
+                    print(f"❌ Failed to run {venv.display_name}: {e}")
                     return False
 
         print("\n🎉 All selected venvs completed successfully!")
