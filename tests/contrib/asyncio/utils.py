@@ -1,5 +1,6 @@
 import asyncio
 from functools import wraps
+import logging
 import sys
 
 
@@ -15,6 +16,9 @@ except (ModuleNotFoundError, ImportError):
 from tests.utils import TracerTestCase
 
 
+log = logging.getLogger(__name__)
+
+
 class AsyncioTestCase(TracerTestCase):
     """
     Base TestCase for asyncio framework that setup a new loop
@@ -28,7 +32,7 @@ class AsyncioTestCase(TracerTestCase):
             # each test must have its own event loop
             self._main_loop = asyncio.get_event_loop()
         except RuntimeError:
-            pass
+            log.info("Couldn't find existing event loop")
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
 
@@ -39,7 +43,7 @@ class AsyncioTestCase(TracerTestCase):
             # restore the main loop
             asyncio.set_event_loop(self._main_loop)
         except RuntimeError:
-            pass
+            log.info("Skipping event loop restoration because we couldn't find one during setup")
         self.loop = None
         self._main_loop = None
 
