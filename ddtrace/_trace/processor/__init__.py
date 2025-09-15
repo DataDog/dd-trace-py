@@ -134,6 +134,31 @@ class TraceSamplingProcessor(TraceProcessor):
         }
         self.sampler: Union[DatadogSampler, RateSampler] = DatadogSampler(**sampler_kwargs)
 
+    def reset(self, compute_stats_enabled: Optional[bool], apm_opt_out: Optional[bool]):
+        if compute_stats_enabled is not None:
+            self._compute_stats_enabled = compute_stats_enabled
+        if apm_opt_out is not None:
+            self.apm_opt_out = apm_opt_out
+
+        if isinstance(self.sampler, DatadogSampler):
+            sampler_kwargs: Dict[str, Any] = {
+                "agent_based_samplers": self.sampler._agent_based_samplers,
+                "rules": self.sampler.rules,
+            }
+            if apm_opt_out:
+                sampler_kwargs.update(
+                    {
+                        "rate_limit": 1,
+                        "rate_limit_window": 60e9,
+                        "rate_limit_always_on": True,
+                    }
+                )
+            self.sampler = DatadogSampler(**sampler_kwargs)
+        elif isinstance(self.sampler, RateSampler):
+            self.sampler = RateSampler(sample_rate=self.sampler.sample_rate)
+        else:
+            log.warning("Datadog sampler has unknown type: must be DatadogSampler or RateSampler. Object: %s", self)
+
     def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         if trace:
             chunk_root = trace[0]
@@ -462,29 +487,29 @@ class SpanAggregator(SpanProcessor):
         # Re-create the writer to ensure it is consistent with updated configurations (ex: api_version)
         self.writer = self.writer.recreate(appsec_enabled=appsec_enabled)
 
-        datadog_sampler = self.sampling_processor.sampler
+        self.sampling_processor.reset(compute_stats_enabled=compute_stats, apm_opt_out=apm_opt_out)
 
-        if isinstance(datadog_sampler, DatadogSampler):
-            # Recreate the sampling processor using new or existing config values.
-            # If an argument is None, the current value is preserved.
-            sampler_kwargs: Dict[str, Any] = {
-                "agent_based_samplers": datadog_sampler._agent_based_samplers,
-                "rules": datadog_sampler.rules,
-            }
+        # if isinstance(datadog_sampler, DatadogSampler):
+        #     # Recreate the sampling processor using new or existing config values.
+        #     # If an argument is None, the current value is preserved.
+        #     sampler_kwargs: Dict[str, Any] = {
+        #         "agent_based_samplers": datadog_sampler._agent_based_samplers,
+        #         "rules": datadog_sampler.rules,
+        #     }
 
-            if apm_opt_out:
-                sampler_kwargs.update(
-                    {
-                        "rate_limit": 1,
-                        "rate_limit_window": 60e9,
-                        "rate_limit_always_on": True,
-                    }
-                )
-            if compute_stats is not None:
-                self.sampling_processor._compute_stats_enabled = compute_stats
-            if apm_opt_out is not None:
-                self.sampling_processor.apm_opt_out = apm_opt_out
-            self.sampling_processor.sampler = DatadogSampler(**sampler_kwargs)
+        #     if apm_opt_out:
+        #         sampler_kwargs.update(
+        #             {
+        #                 "rate_limit": 1,
+        #                 "rate_limit_window": 60e9,
+        #                 "rate_limit_always_on": True,
+        #             }
+        #         )
+        #     if compute_stats is not None:
+        #         self.sampling_processor._compute_stats_enabled = compute_stats
+        #     if apm_opt_out is not None:
+        #         self.sampling_processor.apm_opt_out = apm_opt_out
+        #     self.sampling_processor.sampler = DatadogSampler(**sampler_kwargs)
 
         # Update user processors if provided.
         if user_processors is not None:
