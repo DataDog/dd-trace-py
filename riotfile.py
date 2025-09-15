@@ -319,7 +319,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_iast_default",
-            command="pytest -vvv  --no-ddtrace --no-cov {cmdargs} tests/appsec/iast/",
+            command="pytest -vvv {cmdargs} tests/appsec/iast/",
             pys=select_pys(),
             pkgs={
                 "requests": latest,
