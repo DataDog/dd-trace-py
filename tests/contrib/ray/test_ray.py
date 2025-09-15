@@ -49,11 +49,14 @@ RAY_SNAPSHOT_IGNORES = [
     "meta.ray.job.message",
     "meta.error.stack",
     "meta._dd.base_service",
+    # Actor method empty arguments are encoded differently between ray versions
+    "meta.ray.actor_method.args",
     # Service names that include dynamic submission IDs
     "service",
     # Base service sometimes gets set to a different value in CI than in the local environment,
     # ignore it to make the tests pass in both environments
     "meta._dd.base_service",
+    "meta._dd.hostname",
 ]
 
 
