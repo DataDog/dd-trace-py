@@ -11,12 +11,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.propagation.http import HTTPPropagator
 from vllm.sequence import RequestMetrics, SequenceGroup
-from ddtrace.trace import (
-    Context, 
-    Pin,
-    Span, 
-    Tracer, 
-)
+from ddtrace.trace import Context, Pin, Span, Tracer
 from ddtrace.llmobs._integrations.vllm import VLLMIntegration
 
 log = get_logger(__name__)

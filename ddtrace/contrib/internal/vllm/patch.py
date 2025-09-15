@@ -10,6 +10,7 @@ from ddtrace import config
 from ddtrace.contrib.trace_utils import unwrap, wrap, with_traced_module
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations.vllm import VLLMIntegration
+from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import Pin
 from vllm.sequence import RequestMetrics, SequenceGroup
 from vllm.core.scheduler import SchedulerOutputs
@@ -54,33 +55,15 @@ def _safe_unwrap(mod: str, name: str) -> bool:
         return False
 
 
-def _llmobs_kwargs(data: RequestData) -> dict:
-    return {
-        "model_name": data.model_name,
-        "prompt": data.prompt,
-        "output_text": data.output_text,
-        "input_tokens": data.input_tokens,
-        "output_tokens": data.output_tokens,
-        "sampling_params": data.sampling_params,
-        "request_id": data.request_id,
-        "finish_reason": data.finish_reason,
-        "stop_reason": data.stop_reason,
-        "num_cached_tokens": data.num_cached_tokens,
-        "lora_name": data.lora_name,
-        "embedding_dim": data.embedding_dim,
-    }
-
-
 def is_v1() -> bool:
     return envs.VLLM_USE_V1
 
 
-def _tag_if_enabled(integration, span, kwargs, *, operation: Optional[str] = None) -> None:
+def _tag_if_enabled(integration, span, data: RequestData, *, operation: Optional[str] = None) -> None:
     if integration and integration.llmobs_enabled:
-        if operation:
-            integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=None, operation=operation)
-        else:
-            integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=None)
+        op = operation or "completion"
+        kwargs_to_pass = {"request_data": data}
+        integration.llmobs_set_tags(span, args=[], kwargs=kwargs_to_pass, response=None, operation=op)
 
 
 # ---------- v0: ENGINE-SIDE tracing -----------------------------------------
@@ -129,12 +112,11 @@ def traced_llmengine_do_tracing(vllm, pin, func, instance, args, kwargs):
         data.model_name = model_name
 
         operation = "embedding" if data.embedding_dim is not None else "completion"
-        llmobs_kwargs = _llmobs_kwargs(data)
         if operation == "embedding":
-            llmobs_kwargs["input"] = list(seq_group.prompt_token_ids)
-            llmobs_kwargs["num_embeddings"] = 1
-        _tag_if_enabled(integration, span, llmobs_kwargs, operation=operation)
-
+            data.input_ = list(seq_group.prompt_token_ids)
+            data.num_embeddings = 1
+        
+        _tag_if_enabled(integration, span, data, operation=operation)
         set_latency_metrics(span, seq_group.metrics)
         span.finish()
 
@@ -177,15 +159,14 @@ def traced_asyncllm_generate(vllm, pin, func, instance, args, kwargs):
         data.sampling_params = sampling_params
         data.request_id = request_id
         data.prompt = data.prompt or extract_captured_prompt(parent) or prompt_arg
-
-        _tag_if_enabled(integration, span, _llmobs_kwargs(data))
+        _tag_if_enabled(integration, span, data)
         if ttft:
             span.set_metric("vllm.latency.ttft", float(ttft))
         span.finish()
         finalized = True
 
     async def stream_wrapper():
-        nonlocal ttft, finalized
+        nonlocal ttft
         res = func(*args, **kwargs)
         if hasattr(res, "__await__"):
             res = await res
@@ -257,13 +238,13 @@ def traced_asyncllm_encode(vllm, pin, func, instance, args, kwargs):
             if dim is not None:
                 data.embedding_dim = dim
 
-        kwargs_llmobs = _llmobs_kwargs(data)
         if full_prompt_token_ids:
-            kwargs_llmobs["input"] = full_prompt_token_ids
-            kwargs_llmobs["num_embeddings"] = 1
-            kwargs_llmobs.setdefault("input_tokens", len(full_prompt_token_ids))
+            data.input_ = full_prompt_token_ids
+            data.num_embeddings = 1
+            if not data.input_tokens:
+                data.input_tokens = len(full_prompt_token_ids)
 
-        _tag_if_enabled(integration, span, kwargs_llmobs, operation="embedding")
+        _tag_if_enabled(integration, span, data, operation="embedding")
         span.finish()
 
     return execute()
@@ -292,7 +273,7 @@ def traced_llm_generate(vllm, pin, func, instance, args, kwargs):
         span = create_vllm_span(
             SpanConfig(tracer=tracer, integration=integration, parent=parent, model_name=model_name)
         )
-        _tag_if_enabled(integration, span, _llmobs_kwargs(data))
+        _tag_if_enabled(integration, span, data)
         span.finish()
 
     return outputs
@@ -413,8 +394,6 @@ async def traced_mq_client_process_request(vllm, pin, func, instance, args, kwar
     if pin and pin.tracer:
         parent = pin.tracer.current_span()
         if parent:
-            from ddtrace.propagation.http import HTTPPropagator
-
             arg_has = len(args) > 4 and args[4] is not None
             kw_has = ("trace_headers" in kwargs and kwargs["trace_headers"] is not None)
 

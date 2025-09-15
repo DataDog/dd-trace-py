@@ -1,7 +1,6 @@
 """Data extraction helpers isolated from wrapping logic."""
 
 from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import Any, Iterable, List, Optional
 
@@ -14,10 +13,8 @@ from ddtrace.trace import Span
 
 
 # ---------- data container ---------------------------------------------------
-
 @dataclass
 class RequestData:
-    request_id: Optional[str] = None
     prompt: Optional[str] = None
     input_tokens: int = 0
     output_tokens: int = 0
@@ -29,10 +26,11 @@ class RequestData:
     model_name: Optional[str] = None
     lora_name: Optional[str] = None
     sampling_params: Optional[SamplingParams] = None
+    input_: Optional[Any] = None
+    num_embeddings: Optional[int] = None
 
 
 # ---------- small utilities --------------------------------------------------
-
 def _first_non_empty(*vals: Optional[Any]) -> Optional[Any]:
     """Return the first value that is not falsy (''/0/None/[])."""
     for v in vals:
@@ -52,7 +50,6 @@ def _embedding_dim(tensor: torch.Tensor) -> Optional[int]:
     return int(shape[-1]) if len(shape) >= 1 else None
 
 
-
 def _lora_name(lora_req: Optional[LoRARequest]) -> Optional[str]:
     if not lora_req:
         return None
@@ -60,7 +57,6 @@ def _lora_name(lora_req: Optional[LoRARequest]) -> Optional[str]:
 
 
 # ---------- shared accumulation ---------------------------------------------
-
 def _accumulate_completion_outputs(
     outputs: list[CompletionOutput] | None,
     data: RequestData,
@@ -97,12 +93,8 @@ def _accumulate_completion_outputs(
 
 
 # ---------- extractors -------------------------------------------------------
-
-
 def extract_v0_data(seq_group: SequenceGroup) -> RequestData:
     data = RequestData(
-        request_id=seq_group.request_id,
-        # The prompt can be extracted from the trace headers if available
         prompt=(seq_group.trace_headers or {}).get("x-datadog-captured-prompt") or seq_group.prompt,
         input_tokens=len(seq_group.prompt_token_ids),
         sampling_params=seq_group.sampling_params,
@@ -149,7 +141,6 @@ def extract_v1_streaming_data(outputs: List[RequestOutput]) -> RequestData:
 
 def extract_offline_data(request_output: RequestOutput, prompts=None, model_name=None) -> RequestData:
     data = RequestData(
-        request_id=request_output.request_id,
         prompt=_first_non_empty(request_output.prompt, prompts if isinstance(prompts, str) else None),
         model_name=model_name,
         num_cached_tokens=request_output.num_cached_tokens,
@@ -162,7 +153,6 @@ def extract_offline_data(request_output: RequestOutput, prompts=None, model_name
 
 
 # ---------- tiny lookups used by wrappers -----------------------------------
-
 def extract_captured_prompt(parent_span: Optional[Span]) -> Optional[str]:
     return parent_span._get_ctx_item("vllm.captured_prompt") if parent_span else None
 
