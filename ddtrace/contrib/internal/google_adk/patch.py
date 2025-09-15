@@ -1,4 +1,6 @@
 """Instrument google-adk."""
+from typing import Dict
+
 import google.adk as adk
 
 from ddtrace import config
@@ -15,6 +17,10 @@ logger = get_logger(__name__)
 config._add("google_adk", {"service": "google-adk"})
 
 
+def _supported_versions()-> Dict[str, str]:
+    return {"google.adk": ">=1.0.0"}
+
+
 def get_version() -> str:
     return getattr(adk, "__version__", "")
 
@@ -28,9 +34,28 @@ def _truncate_value(value):
         return s[:TRUNCATED_SPAN_ATTRIBUTE_LEN]
     return s
 
+CODE_EXECUTOR_CLASSES = [
+    # "BuiltInCodeExecutor", # make an external llm tool call to use the llms built in code executor
+    "VertexAiCodeExecutor",
+    "UnsafeLocalCodeExecutor",
+    # "ContainerCodeExecutor", # additional package dependendy
+]
+
+MEMORY_SERVICE_CLASSES = [
+    "InMemoryMemoryService",
+    "VertexAiMemoryBankService",
+    "VertexAiRagMemoryService",
+]
+
 
 def patch():
     """Patch the `google.adk` library for tracing."""
+
+    if getattr(adk, "_datadog_patch", False):
+        return
+
+    setattr(adk, "_datadog_patch", True)
+    Pin().onto(adk)
 
     # Agent entrypoints (async generators)
     wrap("google.adk", "runners.Runner.run_async", _traced_agent_run_async)
@@ -40,15 +65,7 @@ def patch():
     wrap("google.adk", "flows.llm_flows.functions.__call_tool_async", _traced_functions_call_tool_async)
     wrap("google.adk", "flows.llm_flows.functions.__call_tool_live", _traced_functions_call_tool_live)
 
-    # Code execution (sync)
-    code_executor_classes = [
-        # "BuiltInCodeExecutor", # make an external llm tool call to use the llms built in code executor
-        "VertexAiCodeExecutor",
-        "UnsafeLocalCodeExecutor",
-        # "ContainerCodeExecutor", # additional package dependendy
-    ]
-
-    for code_executor in code_executor_classes:
+    for code_executor in CODE_EXECUTOR_CLASSES:
         wrap(
             "google.adk",
             f"code_executors.{code_executor}.execute_code",
@@ -62,14 +79,7 @@ def patch():
         _traced_plugin_manager_run_callbacks,
     )
 
-    # Memory services (optional modules)
-    memory_service_classes = [
-        "InMemoryMemoryService",
-        "VertexAiMemoryBankService",
-        "VertexAiRagMemoryService",
-    ]
-
-    for memory_service in memory_service_classes:
+    for memory_service in MEMORY_SERVICE_CLASSES:
         try:
             wrap(
                 "google.adk",
@@ -88,54 +98,28 @@ def patch():
 
 def unpatch():
     """Unpatch the `google.adk` library."""
-    try:
-        import google.adk
-        import google.adk.agents.base_agent
-        import google.adk.code_executors.base_code_executor
-        import google.adk.memory.in_memory_memory_service
-        import google.adk.memory.vertex_ai_memory_bank_service
-        import google.adk.plugins.plugin_manager
-        import google.adk.tools.base_tool
-    except ImportError:
+    if not hasattr(adk, "_datadog_patch") or not getattr(adk, "_datadog_patch"):
         return
+    setattr(adk, "_datadog_patch", False)
 
-    if not hasattr(google.adk, "_datadog_patch") or not getattr(google.adk, "_datadog_patch"):
-        return
-    setattr(google.adk, "_datadog_patch", False)
+    unwrap(adk.runners.Runner, "run_async")
+    unwrap(adk.runners.Runner, "run_live")
 
-    unwrap(google.adk, "agents.base_agent.BaseAgent.run_async")
-    unwrap(google.adk, "agents.base_agent.BaseAgent.run_live")
+    unwrap(adk.flows.llm_flows.functions, "__call_tool_async")
+    unwrap(adk.flows.llm_flows.functions, "__call_tool_live")
 
-    unwrap(google.adk, "flows.llm_flows.functions.__call_tool_async")
-    unwrap(google.adk, "flows.llm_flows.functions.__call_tool_live")
+    for code_executor in CODE_EXECUTOR_CLASSES:
+        unwrap(getattr(adk.code_executors, code_executor), "execute_code")
 
-    unwrap(google.adk, "code_executors.base_code_executor.BaseCodeExecutor.execute_code")
+    unwrap(adk.plugins.plugin_manager.PluginManager, "_run_callbacks")
 
-    unwrap(google.adk, "plugins.plugin_manager.PluginManager._run_callbacks")
-
-    # Memory services
-    try:
-        unwrap(
-            google.adk,
-            "memory.in_memory_memory_service.InMemoryMemoryService.add_session_to_memory",
-        )
-        unwrap(
-            google.adk,
-            "memory.in_memory_memory_service.InMemoryMemoryService.search_memory",
-        )
-    except Exception:
-        pass
-    try:
-        unwrap(
-            google.adk,
-            "memory.vertex_ai_memory_bank_service.VertexAiMemoryBankService.add_session_to_memory",
-        )
-        unwrap(
-            google.adk,
-            "memory.vertex_ai_memory_bank_service.VertexAiMemoryBankService.search_memory",
-        )
-    except Exception:
-        pass
+    for memory_service in MEMORY_SERVICE_CLASSES:
+        try:
+            unwrap(getattr(adk.memory, memory_service), "add_session_to_memory")
+            unwrap(getattr(adk.memory, memory_service), "search_memory")
+        except Exception:
+            logger.exception("Failed to unwrap:", memory_service)
+            pass
 
 
 def _get_tracer_and_service(instance):

@@ -1,0 +1,92 @@
+import os
+from typing import Iterator
+
+import pytest
+
+from ddtrace._trace.pin import Pin
+from ddtrace.contrib.internal.google_adk.patch import patch as adk_patch
+from ddtrace.contrib.internal.google_adk.patch import unpatch as adk_unpatch
+from tests.utils import DummyTracer, DummyWriter, override_global_config
+
+
+@pytest.fixture
+def adk_ddtrace_global_config():
+    return {}
+
+
+@pytest.fixture
+def adk(adk_ddtrace_global_config):
+    os.environ.setdefault("GOOGLE_CLOUD_LOCATION", "<not-a-real-location>")
+    os.environ.setdefault("GOOGLE_CLOUD_PROJECT", "<not-a-real-project>")
+    os.environ.setdefault("GOOGLE_API_KEY", "<not-a-real-key>")
+
+    with override_global_config(adk_ddtrace_global_config):
+        adk_patch()
+        import google.adk as adk
+
+        yield adk
+        adk_unpatch()
+
+
+@pytest.fixture
+def mock_tracer(adk):
+    pin = Pin.get_from(adk)
+    mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
+    if pin is not None:
+        pin._override(adk, tracer=mock_tracer)
+    yield mock_tracer
+
+
+class DummyTool:
+    def __init__(self, name: str = "dummy_tool", description: str = "desc", mandatory_args=None):
+        self.name = name
+        self.description = description
+        self._mandatory_args = list(mandatory_args or [])
+
+    def _get_mandatory_args(self):
+        return self._mandatory_args
+
+
+class DummyAgent:
+    def __init__(self):
+        self.name = "test-agent"
+        self.instruction = "do things"
+        self.model_config = {"model": "gemini-2.0"}
+        self.tools = [DummyTool(name="get_current_weather", description="weather", mandatory_args=["location"]) ]
+
+
+class DummyRunner:
+    def __init__(self):
+        self.agent = DummyAgent()
+
+
+class DummyCodeInput:
+    def __init__(self, code: str):
+        self.code = code
+
+
+class DummyCodeResult:
+    def __init__(self, stdout: str = "", stderr: str = ""):
+        self.stdout = stdout
+        self.stderr = stderr
+
+
+@pytest.fixture
+def dummy_runner():
+    return DummyRunner()
+
+
+@pytest.fixture
+def dummy_tool():
+    return DummyTool()
+
+
+@pytest.fixture
+def dummy_code_input():
+    return DummyCodeInput("print('hello')")
+
+
+@pytest.fixture
+def dummy_code_result():
+    return DummyCodeResult(stdout="ok", stderr="")
+
