@@ -45,9 +45,11 @@ candidate:
   when: on_success
   image: $MACROBENCHMARKS_CI_IMAGE
   script: |
-    git clone --branch python/macrobenchmarks https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform platform && cd platform
+    git clone --branch python/macrobenchmarks-django https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform platform && cd platform
     if [ "$BP_PYTHON_SCENARIO_DIR" == "flask-realworld" ]; then
       bp-runner bp-runner.flask-realworld.yml --debug
+    elif [ "$BP_PYTHON_SCENARIO_DIR" == "django-realworld" ]; then
+      bp-runner bp-runner.django-realworld.yml --debug
     else
       bp-runner bp-runner.simple.yml --debug
     fi
@@ -100,6 +102,14 @@ baseline:
     BP_ENDPOINT: http://0.0.0.0:8000/api/articles
     DD_SERVICE: "ddtrace-mb-baseline"
 
+
+django-baseline:
+  extends: .macrobenchmarks
+  variables:
+    DD_BENCHMARKS_CONFIGURATION: baseline
+    BP_PYTHON_SCENARIO_DIR: django-realworld
+    BP_ENDPOINT: http://0.0.0.0:8000/api/articles
+    DD_SERVICE: "ddtrace-mb-django-baseline"
 
 tracing-runtime-metrics-enabled:
   extends: .macrobenchmarks
@@ -158,6 +168,18 @@ tracing-rc-enabled-telemetry-enabled:
     DD_REMOTE_CONFIGURATION_ENABLED: "true"
     DD_INSTRUMENTATION_TELEMETRY_ENABLED: "true"
     DD_SERVICE: "ddtrace-mb-tracing-rc-enabled-telemetry-enabled"
+
+django-tracing-rc-enabled-telemetry-enabled:
+  extends: .macrobenchmarks
+  variables:
+    DD_BENCHMARKS_CONFIGURATION: only-tracing
+    BP_PYTHON_SCENARIO_DIR: django-realworld
+    BP_ENDPOINT: http://0.0.0.0:8000/api/articles
+    DD_TRACE_ENABLED: "true"
+    DD_PROFILING_ENABLED: "false"
+    DD_REMOTE_CONFIGURATION_ENABLED: "true"
+    DD_INSTRUMENTATION_TELEMETRY_ENABLED: "true"
+    DD_SERVICE: "ddtrace-mb-django-tracing-rc-enabled-telemetry-enabled"
 
 tracing-native-writer-enabled:
   extends: .macrobenchmarks
