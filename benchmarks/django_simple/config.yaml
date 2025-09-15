@@ -10,6 +10,7 @@ baseline: &baseline
   always_create_database_spans: true
   django_instrument_templates: true
   native_writer: false
+  django_minimal: false
 tracer: &tracer
   <<: *baseline
   tracer_enabled: true
@@ -54,7 +55,4 @@ tracer-native:
   native_writer: true
 tracer-minimal:
   <<: *tracer
-  django_instrument_middleware: true
-  django_instrument_caches: false
-  django_instrument_databases: false
-  django_instrument_templates: false
+  django_minimal: true
