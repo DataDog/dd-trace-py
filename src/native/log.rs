@@ -2,10 +2,11 @@ use pyo3::pymodule;
 
 #[pymodule]
 pub mod logger {
-    use pyo3::exceptions::PyValueError;
+    use pyo3::{exceptions::PyValueError, PyResult};
     use pyo3::prelude::*;
     use pyo3::types::PyDict;
 
+    use tracing::{debug, error, info, trace, warn};
     use datadog_log::logger::{
         logger_configure_file, logger_configure_std, logger_disable_file, logger_disable_std,
         logger_set_log_level, FileConfig, LogEventLevel, StdConfig, StdTarget,
@@ -92,5 +93,19 @@ pub mod logger {
             other => return Err(PyValueError::new_err(format!("Invalid log level: {other}"))),
         };
         logger_set_log_level(rust_level).map_err(|e| PyValueError::new_err(e.to_string()))
+    }
+
+    /// Logs a message
+    #[pyfunction]
+    fn log(level: &str, message: &str) -> PyResult<()> {
+        match level.to_lowercase().as_str() {
+            "trace" => trace!("{}", message),
+            "debug" => debug!("{}", message),
+            "info" => info!("{}", message),
+            "warn" => warn!("{}", message),
+            "error" => error!("{}", message),
+            other => return Err(PyValueError::new_err(format!("Invalid log level: {other}"))),
+        }
+        Ok(())
     }
 }

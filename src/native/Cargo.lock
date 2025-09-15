@@ -770,6 +770,7 @@ dependencies = [
  "ddcommon",
  "pyo3",
  "pyo3-build-config",
+ "tracing",
 ]
 
 [[package]]
