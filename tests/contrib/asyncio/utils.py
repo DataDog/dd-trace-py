@@ -24,18 +24,22 @@ class AsyncioTestCase(TracerTestCase):
 
     def setUp(self):
         super(AsyncioTestCase, self).setUp()
-        if PYTEST_ASYNCIO_VERSION is not None and PYTEST_ASYNCIO_VERSION < (1, 0):
+        try:
             # each test must have its own event loop
             self._main_loop = asyncio.get_event_loop()
+        except RuntimeError:
+            pass
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
 
     def tearDown(self):
         super(AsyncioTestCase, self).tearDown()
 
-        if PYTEST_ASYNCIO_VERSION is not None and PYTEST_ASYNCIO_VERSION < (1, 0):
+        try:
             # restore the main loop
             asyncio.set_event_loop(self._main_loop)
+        except RuntimeError:
+            pass
         self.loop = None
         self._main_loop = None
 
