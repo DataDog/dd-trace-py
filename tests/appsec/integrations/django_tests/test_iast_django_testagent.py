@@ -93,10 +93,8 @@ def test_iast_concurrent_requests_limit_django():
 
     true_count = results.count(True)
     false_count = results.count(False)
-    assert true_count == max_concurrent * 2, f"{len(results)} requests. Expected {max_concurrent}, got {true_count}"
-    assert (
-        false_count == rejected_requests // 2 + 1
-    ), f"{len(results)} requests. Expected {rejected_requests}, got {false_count}"
+    assert true_count == max_concurrent, f"{len(results)} requests. Expected {max_concurrent}, got {true_count}"
+    assert false_count == rejected_requests, f"{len(results)} requests. Expected {rejected_requests}, got {false_count}"
 
 
 def test_iast_header_injection():
