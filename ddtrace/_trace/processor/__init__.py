@@ -8,10 +8,8 @@ from typing import DefaultDict
 from typing import Dict
 from typing import List
 from typing import Optional
-from typing import Union
 
 from ddtrace._trace.sampler import DatadogSampler
-from ddtrace._trace.sampler import RateSampler
 from ddtrace._trace.span import Span
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.constants import _APM_ENABLED_METRIC_KEY as MK_APM_ENABLED
@@ -22,6 +20,7 @@ from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
 from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
 from ddtrace.internal.service import ServiceStatusError
@@ -132,7 +131,7 @@ class TraceSamplingProcessor(TraceProcessor):
         sampler_kwargs: Dict[str, Any] = {
             "agent_based_samplers": agent_based_samplers,
         }
-        self.sampler: Union[DatadogSampler, RateSampler] = DatadogSampler(**sampler_kwargs)
+        self.sampler: DatadogSampler = DatadogSampler(**sampler_kwargs)
 
     def reset(self, compute_stats_enabled: Optional[bool], apm_opt_out: Optional[bool]):
         if compute_stats_enabled is not None:
@@ -140,24 +139,10 @@ class TraceSamplingProcessor(TraceProcessor):
         if apm_opt_out is not None:
             self.apm_opt_out = apm_opt_out
 
-        if isinstance(self.sampler, DatadogSampler):
-            sampler_kwargs: Dict[str, Any] = {
-                "agent_based_samplers": self.sampler._agent_based_samplers,
-                "rules": self.sampler.rules,
-            }
-            if apm_opt_out:
-                sampler_kwargs.update(
-                    {
-                        "rate_limit": 1,
-                        "rate_limit_window": 60e9,
-                        "rate_limit_always_on": True,
-                    }
-                )
-            self.sampler = DatadogSampler(**sampler_kwargs)
-        elif isinstance(self.sampler, RateSampler):
-            self.sampler = RateSampler(sample_rate=self.sampler.sample_rate)
-        else:
-            log.warning("Datadog sampler has unknown type: must be DatadogSampler or RateSampler. Object: %s", self)
+        if isinstance(self.sampler, DatadogSampler) and apm_opt_out:
+            self.sampler.limiter = RateLimiter(rate_limit=1, time_window=60e9)
+            self.sampler._rate_limit_always_on = True
+            log.debug("Enabling apm opt out on DatadogSampler: %s", self.sampler)
 
     def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         if trace:
@@ -488,30 +473,6 @@ class SpanAggregator(SpanProcessor):
         self.writer = self.writer.recreate(appsec_enabled=appsec_enabled)
 
         self.sampling_processor.reset(compute_stats_enabled=compute_stats, apm_opt_out=apm_opt_out)
-
-        # if isinstance(datadog_sampler, DatadogSampler):
-        #     # Recreate the sampling processor using new or existing config values.
-        #     # If an argument is None, the current value is preserved.
-        #     sampler_kwargs: Dict[str, Any] = {
-        #         "agent_based_samplers": datadog_sampler._agent_based_samplers,
-        #         "rules": datadog_sampler.rules,
-        #     }
-
-        #     if apm_opt_out:
-        #         sampler_kwargs.update(
-        #             {
-        #                 "rate_limit": 1,
-        #                 "rate_limit_window": 60e9,
-        #                 "rate_limit_always_on": True,
-        #             }
-        #         )
-        #     if compute_stats is not None:
-        #         self.sampling_processor._compute_stats_enabled = compute_stats
-        #     if apm_opt_out is not None:
-        #         self.sampling_processor.apm_opt_out = apm_opt_out
-        #     self.sampling_processor.sampler = DatadogSampler(**sampler_kwargs)
-
-        # Update user processors if provided.
         if user_processors is not None:
             self.user_processors = user_processors
 
