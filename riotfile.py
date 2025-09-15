@@ -2971,6 +2971,16 @@ venv = Venv(
             },
         ),
         Venv(
+            name="google_adk",
+            command="pytest {cmdargs} tests/contrib/google_adk",
+            pys=select_pys(min_version="3.9", max_version="3.13"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "google-adk": ["~=1.0.0", latest],
+                "deprecated": latest,
+            },
+        ),
+        Venv(
             name="google_genai",
             command="pytest {cmdargs} tests/contrib/google_genai",
             pys=select_pys(min_version="3.9", max_version="3.13"),
