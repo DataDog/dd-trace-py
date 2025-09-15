@@ -5,7 +5,6 @@ import logging
 import os
 import socket
 import sys
-import threading
 from typing import Any
 from typing import Callable
 from typing import Dict
