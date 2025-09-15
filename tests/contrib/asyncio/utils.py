@@ -33,17 +33,16 @@ class AsyncioTestCase(TracerTestCase):
             self._main_loop = asyncio.get_event_loop()
         except RuntimeError:
             log.info("Couldn't find existing event loop")
+            self._main_loop = None
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
 
     def tearDown(self):
         super(AsyncioTestCase, self).tearDown()
 
-        try:
+        if self._main_loop is not None:
             # restore the main loop
             asyncio.set_event_loop(self._main_loop)
-        except RuntimeError:
-            log.info("Skipping event loop restoration because we couldn't find one during setup")
         self.loop = None
         self._main_loop = None
 
