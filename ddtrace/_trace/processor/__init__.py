@@ -3,7 +3,6 @@ from collections import defaultdict
 from itertools import chain
 import logging
 from threading import RLock
-from typing import Any
 from typing import DefaultDict
 from typing import Dict
 from typing import List
@@ -118,31 +117,44 @@ class TraceSamplingProcessor(TraceProcessor):
         compute_stats_enabled: bool,
         single_span_rules: List[SpanSamplingRule],
         apm_opt_out: bool,
-        agent_based_samplers: Optional[dict] = None,
     ):
         super(TraceSamplingProcessor, self).__init__()
         self._compute_stats_enabled = compute_stats_enabled
         self.single_span_rules = single_span_rules
+        self.sampler = DatadogSampler()
         self.apm_opt_out = apm_opt_out
+        # self._apm_opt_out = apm_opt_out
 
+    @property
+    def apm_opt_out(self):
+        return self._apm_opt_out
+
+    @apm_opt_out.setter
+    def apm_opt_out(self, value):
         # If ASM is enabled but tracing is disabled,
         # we need to set the rate limiting to 1 trace per minute
         # for the backend to consider the service as alive.
-        sampler_kwargs: Dict[str, Any] = {
-            "agent_based_samplers": agent_based_samplers,
-        }
-        self.sampler: DatadogSampler = DatadogSampler(**sampler_kwargs)
-
-    def reset(self, compute_stats_enabled: Optional[bool], apm_opt_out: Optional[bool]):
-        if compute_stats_enabled is not None:
-            self._compute_stats_enabled = compute_stats_enabled
-        if apm_opt_out is not None:
-            self.apm_opt_out = apm_opt_out
-
-        if isinstance(self.sampler, DatadogSampler) and apm_opt_out:
+        if value:
             self.sampler.limiter = RateLimiter(rate_limit=1, time_window=60e9)
             self.sampler._rate_limit_always_on = True
             log.debug("Enabling apm opt out on DatadogSampler: %s", self.sampler)
+        else:
+            self.sampler.limiter = RateLimiter(rate_limit=int(config._trace_rate_limit), time_window=1e9)
+            self.sampler._rate_limit_always_on = False
+            log.debug("apm opt out is disabled: %s", self.sampler)
+        self._apm_opt_out = value
+
+    # def reset(self, apm_opt_out: bool):
+    #     # if apm_opt_out is not None:
+    #     self.apm_opt_out = apm_opt_out
+
+    #     if apm_opt_out:
+    #         self.sampler.limiter = RateLimiter(rate_limit=1, time_window=60e9)
+    #         self.sampler._rate_limit_always_on = True
+    #         log.debug("Enabling apm opt out on DatadogSampler: %s", self.sampler)
+    #     else:
+    #         self.sampler.limiter = RateLimiter(rate_limit=int(config._trace_rate_limit), time_window=1e9)
+    #         self.sampler._rate_limit_always_on = False
 
     def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         if trace:
@@ -472,7 +484,13 @@ class SpanAggregator(SpanProcessor):
         # Re-create the writer to ensure it is consistent with updated configurations (ex: api_version)
         self.writer = self.writer.recreate(appsec_enabled=appsec_enabled)
 
-        self.sampling_processor.reset(compute_stats_enabled=compute_stats, apm_opt_out=apm_opt_out)
+        if compute_stats is not None:
+            self.sampling_processor._compute_stats_enabled = compute_stats
+
+        if apm_opt_out is not None:
+            self.sampling_processor.apm_opt_out = apm_opt_out
+
+        # self.sampling_processor.reset(apm_opt_out=apm_opt_out)
         if user_processors is not None:
             self.user_processors = user_processors
 
