@@ -50,6 +50,12 @@ class SignalState(str, Enum):
     DONE = "DONE"
 
 
+class SignalTrack(str, Enum):
+    DEFAULT = "default"
+    LOGS = "logs"
+    SNAPSHOT = "snapshot"
+
+
 @dataclass
 class Signal(abc.ABC):
     """Debugger signal base class.
@@ -72,6 +78,7 @@ class Signal(abc.ABC):
     """
 
     __default_timing__: ClassVar[ProbeEvalTiming] = ProbeEvalTiming.EXIT
+    __track__: ClassVar[SignalTrack] = SignalTrack.DEFAULT
 
     probe: Probe
     frame: FrameType

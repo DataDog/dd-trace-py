@@ -189,6 +189,31 @@ def redirect(url: str):
     return payload
 
 
+@app.route("/redirect_requests/<string:url>/", methods=["GET", "POST"])
+def redirect_requests(url: str):
+    import requests
+
+    full_url = "http://" + url
+    body_str = request.data.decode()
+    if body_str:
+        body = body_str
+    else:
+        body = None
+    method = "POST" if body is not None else "GET"
+    headers = {"TagHost": url}
+    if body is not None:
+        headers["Content-Type"] = "application/json"
+    try:
+        with requests.Session() as s:
+            response = s.request(method, full_url, data=body, headers=headers)
+            payload = {"payload": response.text}
+    except Exception as e:
+        import traceback
+
+        payload = {"error": repr(e), "trace": traceback.format_exc()}
+    return payload
+
+
 # Auto user event manual instrumentation
 
 

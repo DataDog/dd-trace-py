@@ -1,5 +1,6 @@
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
+from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._span_metrics import increment_iast_span_metric
@@ -39,7 +40,7 @@ def _on_report_sqli(*args, **kwargs) -> bool:
                     len(query_args)
                     and query_args[0]
                     and isinstance(query_args[0], IAST.TEXT_TYPES)
-                    and asm_config.is_iast_request_enabled
+                    and is_iast_request_enabled()
                 ):
                     if SqlInjection.has_quota() and SqlInjection.is_tainted_pyobject(query_args[0]):
                         SqlInjection.report(evidence_value=query_args[0], dialect=integration_name)
