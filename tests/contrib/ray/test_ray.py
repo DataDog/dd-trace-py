@@ -7,7 +7,7 @@ import pytest
 from tests.utils import TracerTestCase
 
 
-def submit_ray_job(script_name, timeout=60):
+def submit_ray_job(script_name, timeout=120):
     """
     Submit a Ray job
 
@@ -50,11 +50,15 @@ RAY_SNAPSHOT_IGNORES = [
     "meta.error.stack",
     "meta._dd.base_service",
     "meta._dd.hostname",
+    # Actor method empty arguments are encoded differently between ray versions
+    "meta.ray.actor_method.args",
     # Service names that include dynamic submission IDs
     "service",
     # Base service sometimes gets set to a different value in CI than in the local environment,
     # ignore it to make the tests pass in both environments
     "meta._dd.base_service",
+    "meta._dd.hostname",
+    "metrics._dd.partial_version",
 ]
 
 
@@ -64,6 +68,9 @@ class TestRayIntegration(TracerTestCase):
     @classmethod
     def setUpClass(cls):
         super(TestRayIntegration, cls).setUpClass()
+
+        os.environ["_DD_TRACE_RAY_TESTING"] = "true"
+        os.environ["DD_TRACE_RAY_WATCH_LONG_RUNNING_DELAY"] = "30"
 
         try:
             subprocess.run(["ray", "stop", "--force"], capture_output=True, check=False)

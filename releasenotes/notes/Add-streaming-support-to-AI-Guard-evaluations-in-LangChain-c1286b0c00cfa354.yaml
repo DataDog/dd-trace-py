@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    ai_guard: add evaluation support to streaming LangChain APIs

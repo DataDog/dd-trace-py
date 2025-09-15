@@ -120,9 +120,6 @@ def check_native_code_exception_in_each_python_aspect_test(request, caplog):
 
                 formatted_trace = "".join(traceback.format_exception(*record.exc_info))
                 pytest.fail(f"{record.message}:\n{formatted_trace}")
-        # TODO(avara1986): iast tests throw a timeout in gitlab
-        #   list_metrics_logs = list(telemetry_writer._logs)
-        #   assert len(list_metrics_logs) == 0
 
 
 @pytest.fixture(scope="session")

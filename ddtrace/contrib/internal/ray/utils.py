@@ -8,9 +8,10 @@ from typing import Callable
 from typing import List
 from typing import Optional
 
-from ddtrace.propagation.http import _TraceContext
 import ray
 from ray.runtime_context import get_runtime_context
+
+from ddtrace.propagation.http import _TraceContext
 
 
 JOB_NAME_REGEX = re.compile(r"^job\:([A-Za-z0-9_\.\-]+),run:([A-Za-z0-9_\.\-]+)$")

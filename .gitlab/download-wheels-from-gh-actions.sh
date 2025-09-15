@@ -67,7 +67,7 @@ fi
 
 echo "Github workflow finished. Downloading wheels"
 # download all wheels
-gh run download $RUN_ID --repo DataDog/dd-trace-py
+gh run download $RUN_ID --repo DataDog/dd-trace-py --pattern "wheels-*" --pattern "source-dist*"
 
 cd ..
 

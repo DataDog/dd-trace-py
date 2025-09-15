@@ -10,6 +10,14 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
+import ray
+from ray._private.inspect_util import is_class_method
+from ray._private.inspect_util import is_function_or_method
+from ray._private.inspect_util import is_static_method
+import ray.actor
+import ray.dashboard.modules.job.job_manager
+from ray.dashboard.modules.job.job_manager import generate_job_id
+import ray.exceptions
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
@@ -24,18 +32,9 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation.http import _TraceContext
 from ddtrace.settings._config import _get_config
-import ray
-from ray._private.inspect_util import is_class_method
-from ray._private.inspect_util import is_function_or_method
-from ray._private.inspect_util import is_static_method
-import ray.actor
-import ray.dashboard.modules.job.job_manager
-from ray.dashboard.modules.job.job_manager import generate_job_id
-import ray.exceptions
 
 from .span_manager import long_running_ray_span
 from .span_manager import start_long_running_job
@@ -56,8 +55,7 @@ config._add(
     "ray",
     dict(
         _default_service=schematize_service_name("ray"),
-        ray_spans_only=asbool(_get_config("DD_TRACE_RAY_SPANS_ONLY", default=True)),
-        resubmit_interval=float(_get_config("DD_TRACE_RAY_RESUBMIT_LONG_RUNNING_INTERVAL", default=10.0)),
+        resubmit_interval=float(_get_config("DD_TRACE_RAY_RESUBMIT_LONG_RUNNING_INTERVAL", default=120.0)),
         watch_delay=float(_get_config("DD_TRACE_RAY_WATCH_LONG_RUNNING_DELAY", default=10.0)),
     ),
 )
@@ -80,6 +78,10 @@ class RayTraceProcessor:
         for span in trace:
             if span.service == "ray.dashboard" and span.get_tag("component") != "ray":
                 continue
+
+            with open("ray_spans.log", "a") as f:
+                f.write(f"{span}\n")
+
             if span.get_tag("component") == "ray":
                 span.set_metric(_DJM_ENABLED_KEY, 1)
                 span.set_metric(_FILTER_KEPT_KEY, 1)
@@ -88,8 +90,7 @@ class RayTraceProcessor:
 
                 # add host name for GPU Monitoring correlation
                 span.set_tag_str(_HOSTNAME_KEY, socket.gethostname())
-            with open("ray_spans.log", "a") as f:
-                f.write(f"Span: {span.name}, {span._metrics}\n")
+
             filtered_spans.append(span)
         return filtered_spans
 
@@ -126,7 +127,11 @@ def _wrap_task_execution(wrapped, *args, **kwargs):
         activate=True,
     ) as task_execute_span:
         try:
+            task_execute_span.set_tag("ray.task.args", args)
+            task_execute_span.set_tag("ray.task.kwargs", kwargs)
+
             result = wrapped(*args, **kwargs)
+
             task_execute_span.set_tag_str("ray.task.status", "success")
             return result
         except Exception:
@@ -157,6 +162,9 @@ def traced_submit_task(wrapped, instance, args, kwargs):
         _inject_ray_span_tags(span)
 
         try:
+            span.set_tag("ray.task.args", kwargs["args"])
+            span.set_tag("ray.task.kwargs", kwargs["kwargs"])
+
             _inject_context_in_kwargs(span.context, kwargs)
 
             resp = wrapped(*args, **kwargs)
@@ -242,6 +250,8 @@ def traced_actor_method_call(wrapped, instance, args, kwargs):
         f"{actor_name}.{method_name}.remote()", service=get_dd_job_name(), span_type=SpanTypes.RAY
     ) as span:
         span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+        span.set_tag("ray.actor_method.args", kwargs["args"])
+        span.set_tag("ray.actor_method.kwargs", kwargs["kwargs"])
         _inject_ray_span_tags(span)
 
         try:
@@ -251,7 +261,7 @@ def traced_actor_method_call(wrapped, instance, args, kwargs):
             raise e
 
 
-def job_supervisor_run_wrapper(method: Callable[..., Any]) -> Any:
+def _job_supervisor_run_wrapper(method: Callable[..., Any]) -> Any:
     async def _traced_run_method(self: Any, *args: Any, _dd_trace_ctx=None, **kwargs: Any) -> Any:
         from ddtrace import tracer
         from ddtrace.ext import SpanTypes
@@ -284,8 +294,39 @@ def job_supervisor_run_wrapper(method: Callable[..., Any]) -> Any:
     return _traced_run_method
 
 
+def _exec_entrypoint_wrapper(method: Callable[..., Any]) -> Any:
+    def _traced_run_method(self: Any, *args: Any, _dd_trace_ctx=None, **kwargs: Any) -> Any:
+        from ddtrace import tracer
+        from ddtrace.ext import SpanTypes
+
+        if not tracer:
+            return method(self, *args)
+
+        if tracer.current_span() is None:
+            tracer.context_provider.activate(_extract_tracing_context_from_env())
+
+        # Without this the name of the span will contain a path which will break tests
+        if os.environ.get("_DD_TRACE_RAY_TESTING"):
+            entrypoint_name = os.path.basename(self._entrypoint)
+        else:
+            entrypoint_name = self._entrypoint
+
+        with tracer.trace(
+            f"exec {entrypoint_name}", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.RAY
+        ) as span:
+            span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
+            _inject_ray_span_tags(span)
+
+            try:
+                return method(self, *args)
+            except Exception as e:
+                raise e
+
+    return _traced_run_method
+
+
 @contextmanager
-def _trace_actor_method(self: Any, method: Callable[..., Any], dd_trace_ctx):
+def _trace_actor_method(self: Any, method: Callable[..., Any], dd_trace_ctx, *args, **kwargs):
     context = tracer.context_provider.active()
     if context is None:
         context = _TraceContext._extract(dd_trace_ctx)
@@ -297,6 +338,8 @@ def _trace_actor_method(self: Any, method: Callable[..., Any], dd_trace_ctx):
         child_of=context,
         activate=True,
     ) as actor_execute_span:
+        actor_execute_span.set_tag("ray.actor_method.args", args)
+        actor_execute_span.set_tag("ray.actor_method.kwargs", kwargs)
         yield actor_execute_span
 
 
@@ -307,7 +350,7 @@ def _inject_tracing_actor_method(method: Callable[..., Any]) -> Any:
         if not tracer or (_dd_trace_ctx is None and tracer.current_span() is None):
             return method(self, *args, **kwargs)
 
-        with _trace_actor_method(self, method, _dd_trace_ctx):
+        with _trace_actor_method(self, method, _dd_trace_ctx, *args, **kwargs):
             return method(self, *args, **kwargs)
 
     return _traced_method
@@ -320,7 +363,7 @@ def _inject_tracing_async_actor_method(method: Callable[..., Any]) -> Any:
         if not tracer or (_dd_trace_ctx is None and tracer.current_span() is None):
             return await method(self, *args, **kwargs)
 
-        with _trace_actor_method(self, method, _dd_trace_ctx):
+        with _trace_actor_method(self, method, _dd_trace_ctx, *args, **kwargs):
             return await method(self, *args, **kwargs)
 
     return _traced_async_method
@@ -360,8 +403,10 @@ def inject_tracing_into_actor_class(wrapped, instance, args, kwargs):
         method.__signature__ = _inject_dd_trace_ctx_kwarg(method)
 
         # Special handling for the run method in JobSupervisor
-        if is_job_supervisor and name == "run" and inspect.iscoroutinefunction(method):
-            wrapped_method = wraps(method)(job_supervisor_run_wrapper(method))
+        if is_job_supervisor and name == "run":
+            wrapped_method = wraps(method)(_job_supervisor_run_wrapper(method))
+        elif is_job_supervisor and name == "_exec_entrypoint":
+            wrapped_method = wraps(method)(_exec_entrypoint_wrapper(method))
         else:
             if inspect.iscoroutinefunction(method):
                 wrapped_method = wraps(method)(_inject_tracing_async_actor_method(method))
