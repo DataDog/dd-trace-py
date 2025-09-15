@@ -71,7 +71,7 @@ class ASMConfig(DDConfig):
     # prevent empty string
     if _asm_static_rule_file == "":
         _asm_static_rule_file = None
-    _asm_processed_span_types = {SpanTypes.WEB, SpanTypes.GRPC}
+    _asm_processed_span_types = {SpanTypes.WEB}
     _asm_http_span_types = {SpanTypes.WEB}
     _iast_enabled = tracer_config._from_endpoint.get("iast_enabled", DDConfig.var(bool, IAST.ENV, default=False))
     _iast_propagation_enabled = DDConfig.var(bool, IAST.ENV_PROPAGATION_ENABLED, default=True, private=True)
@@ -296,6 +296,8 @@ class ASMConfig(DDConfig):
     @property
     def asm_enabled_origin(self):
         if APPSEC_ENV in os.environ:
+            if tracer_config._lib_was_injected is True:
+                return APPSEC.ENABLED_ORIGIN_SSI
             return APPSEC.ENABLED_ORIGIN_ENV
         return self._asm_enabled_origin
 

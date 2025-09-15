@@ -1,3 +1,4 @@
+from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
@@ -323,7 +324,7 @@ async def _wrapper_prompt_template_aformat(func, instance, args, kwargs):
 
 def _propagate_prompt_template_format(kwargs, result):
     try:
-        if not asm_config.is_iast_request_enabled:
+        if not is_iast_request_enabled():
             return result
 
         for value in kwargs.values():

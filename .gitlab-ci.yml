@@ -14,7 +14,7 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "04070bed4dd644284690650abe291e632eb27cd9"
+  SYSTEM_TESTS_REF: "e13ccb562e9e060317b173e25b1e638d89f9df3b"
 
 default:
   interruptible: true
@@ -99,10 +99,11 @@ microbenchmarks:
 
 macrobenchmarks:
   stage: benchmarks
-  needs: [ ]
+  needs: [ "download_ddtrace_artifacts" ]
   trigger:
     include: .gitlab/benchmarks/macrobenchmarks.yml
   variables:
+    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     # Disable VPA for benchmarks
     DD_DISABLE_VPA: true
   allow_failure: true

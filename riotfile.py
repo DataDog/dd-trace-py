@@ -3092,7 +3092,6 @@ venv = Venv(
             pys=select_pys(min_version="3.8", max_version="3.11"),
             pkgs={
                 "azure.functions": ["~=1.10.1", latest],
-                "azure.servicebus": latest,
                 "requests": latest,
             },
         ),
@@ -3520,6 +3519,7 @@ venv = Venv(
                 "AGENT_VERSION": "testagent",
                 "DD_REMOTE_CONFIGURATION_ENABLED": "true",
                 "DD_API_SECURITY_SAMPLE_DELAY": "0",
+                "DD_PATCH_MODULES": "unittest:false,urllib3:true",
             },
             venvs=[
                 Venv(
@@ -3573,6 +3573,7 @@ venv = Venv(
                 "AGENT_VERSION": "testagent",
                 "DD_REMOTE_CONFIGURATION_ENABLED": "true",
                 "DD_API_SECURITY_SAMPLE_DELAY": "0",
+                "DD_PATCH_MODULES": "unittest:false,urllib3:true",
             },
             venvs=[
                 Venv(
@@ -3623,6 +3624,7 @@ venv = Venv(
                 "DD_REMOTE_CONFIGURATION_ENABLED": "true",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
                 "DD_API_SECURITY_SAMPLE_DELAY": "0",
+                "DD_PATCH_MODULES": "unittest:false,urllib3:true",
             },
             venvs=[
                 Venv(

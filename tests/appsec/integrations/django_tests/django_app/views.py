@@ -110,14 +110,12 @@ def xss_http_request_parameter_mark_safe(request):
 def xss_secure(request):
     user_input = request.GET.get("input", "")
 
-    # label xss_http_request_parameter_mark_safe
     return render(request, "index.html", {"user_input": user_input})
 
 
 def ospathjoin_propagation(request):
     user_input = request.GET.get("input", "")
 
-    # label xss_http_request_parameter_mark_safe
     return HttpResponse(
         f"OK:{is_pyobject_tainted(os.path.join(user_input, user_input))}:"
         f"{is_pyobject_tainted(os.path.join(Path(user_input), Path(user_input)))}:"
