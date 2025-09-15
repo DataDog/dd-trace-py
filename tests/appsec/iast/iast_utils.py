@@ -129,9 +129,7 @@ def _get_iast_data():
 
 def _start_iast_context_and_oce(span=None):
     oce.reconfigure()
-    if oce.acquire_request(span):
-        return _iast_start_request(span)
-    return None
+    return _iast_start_request(span)
 
 
 def _end_iast_context_and_oce(span=None):

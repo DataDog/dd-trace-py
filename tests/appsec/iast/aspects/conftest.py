@@ -18,5 +18,7 @@ def iast_request():
     ):
         context_id = _start_iast_context_and_oce()
         assert context_id is not None
-        yield
-        _end_iast_context_and_oce()
+        try:
+            yield
+        finally:
+            _end_iast_context_and_oce()

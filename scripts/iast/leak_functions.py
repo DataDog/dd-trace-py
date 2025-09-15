@@ -16,6 +16,14 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject
 from tests.utils import override_env
 
 
+def __iast_start_request_and_oce():
+    _iast_start_request()
+
+
+def _end_iast_context_and_oce():
+    _iast_finish_request()
+
+
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Memory leak test script.")
     parser.add_argument("--iterations", type=int, default=100000, help="Number of iterations.")
@@ -58,7 +66,7 @@ async def iast_leaks(iterations: int, fail_percent: float, print_every: int):
         _pre_checks(test_doit)
 
         for i in range(iterations):
-            _iast_start_request()
+            __iast_start_request_and_oce()
             result = await test_doit()
             assert result == "DDD_III_extend", f"result is {result}"
             assert is_pyobject_tainted(result)

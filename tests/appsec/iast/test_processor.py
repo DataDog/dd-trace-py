@@ -79,7 +79,7 @@ def test_appsec_iast_processor_ensure_span_is_sampled(iast_context_defaults, sam
         tracer._on_span_finish(span)
 
         result = load_iast_report(span)
-        if sampling_rate == 0.0:
+        if sampling_rate == "0.0":
             assert result is None
             assert span.get_metric(_SAMPLING_PRIORITY_KEY) is AUTO_KEEP
             assert span.get_metric(IAST.ENABLED) == 0.0
