@@ -118,7 +118,7 @@ def test_aggregator_reset_default_args():
         dd_processors=[dd_proc],
         user_processors=[user_proc],
     )
-    # sampling_proc = aggr.sampling_processor
+    sampling_proc = aggr.sampling_processor
     dm_writer = DummyWriter()
     aggr.writer = dm_writer
     # Generate a span to init _traces and _span_metrics
@@ -134,7 +134,7 @@ def test_aggregator_reset_default_args():
     assert dd_proc in aggr.dd_processors
     assert user_proc in aggr.user_processors
     assert aggr.writer is not dm_writer
-    # assert sampling_proc is not aggr.sampling_processor
+    assert sampling_proc is aggr.sampling_processor
     assert not aggr._traces
     assert len(aggr._span_metrics["spans_created"]) == 0
 

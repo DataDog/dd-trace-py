@@ -141,20 +141,7 @@ class TraceSamplingProcessor(TraceProcessor):
         else:
             self.sampler.limiter = RateLimiter(rate_limit=int(config._trace_rate_limit), time_window=1e9)
             self.sampler._rate_limit_always_on = False
-            log.debug("apm opt out is disabled: %s", self.sampler)
         self._apm_opt_out = value
-
-    # def reset(self, apm_opt_out: bool):
-    #     # if apm_opt_out is not None:
-    #     self.apm_opt_out = apm_opt_out
-
-    #     if apm_opt_out:
-    #         self.sampler.limiter = RateLimiter(rate_limit=1, time_window=60e9)
-    #         self.sampler._rate_limit_always_on = True
-    #         log.debug("Enabling apm opt out on DatadogSampler: %s", self.sampler)
-    #     else:
-    #         self.sampler.limiter = RateLimiter(rate_limit=int(config._trace_rate_limit), time_window=1e9)
-    #         self.sampler._rate_limit_always_on = False
 
     def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         if trace:
@@ -490,7 +477,6 @@ class SpanAggregator(SpanProcessor):
         if apm_opt_out is not None:
             self.sampling_processor.apm_opt_out = apm_opt_out
 
-        # self.sampling_processor.reset(apm_opt_out=apm_opt_out)
         if user_processors is not None:
             self.user_processors = user_processors
 
