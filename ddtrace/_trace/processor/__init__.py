@@ -15,12 +15,14 @@ from ddtrace._trace.sampler import RateSampler
 from ddtrace._trace.span import Span
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.constants import _APM_ENABLED_METRIC_KEY as MK_APM_ENABLED
+from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.internal import gitmetadata
 from ddtrace.internal import telemetry
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
 from ddtrace.internal.constants import MAX_UINT_64BITS
+from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
@@ -231,18 +233,31 @@ class TraceTagsProcessor(TraceProcessor):
         if not trace:
             return trace
 
-        chunk_root = trace[0]
-        chunk_root._update_tags_from_context()
-        self._set_git_metadata(chunk_root)
-        chunk_root.set_tag_str("language", "python")
-        # for 128 bit trace ids
-        if chunk_root.trace_id > MAX_UINT_64BITS:
-            trace_id_hob = _get_64_highest_order_bits_as_hex(chunk_root.trace_id)
-            chunk_root.set_tag_str(HIGHER_ORDER_TRACE_ID_BITS, trace_id_hob)
+        spans_to_tag = [trace[0]]
 
-        if LAST_DD_PARENT_ID_KEY in chunk_root._meta and chunk_root._parent is not None:
-            # we should only set the last parent id on local root spans
-            del chunk_root._meta[LAST_DD_PARENT_ID_KEY]
+        # When using the native writer and CSS, TraceTagsProcessor runs before dropping spans.
+        # Thus trace tags are applied to a root span which may be dropped by sampling, even though
+        # some spans of the chunk are sampled. We prevent it by adding trace tags to the first
+        # single-sampled span of the chunk.
+        if config._trace_compute_stats and config._trace_writer_native:
+            for span in trace:
+                if span.get_metric(_SINGLE_SPAN_SAMPLING_MECHANISM) == SamplingMechanism.SPAN_SAMPLING_RULE:
+                    spans_to_tag.append(span)
+                    break
+
+        for span in spans_to_tag:
+            span._update_tags_from_context()
+            self._set_git_metadata(span)
+            span.set_tag_str("language", "python")
+            # for 128 bit trace ids
+            if span.trace_id > MAX_UINT_64BITS:
+                trace_id_hob = _get_64_highest_order_bits_as_hex(span.trace_id)
+                span.set_tag_str(HIGHER_ORDER_TRACE_ID_BITS, trace_id_hob)
+
+            if LAST_DD_PARENT_ID_KEY in span._meta and span._parent is not None:
+                # we should only set the last parent id on local root spans
+                del span._meta[LAST_DD_PARENT_ID_KEY]
+
         return trace
 
 

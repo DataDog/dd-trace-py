@@ -5,13 +5,19 @@
     "resource": "non_root_span",
     "trace_id": 0,
     "span_id": 1,
-    "parent_id": 3190708003993779247,
+    "parent_id": 17780263954865855808,
     "type": "",
     "error": 0,
+    "meta": {
+      "_dd.p.dm": "-3",
+      "_dd.p.tid": "68c81beb00000000",
+      "language": "python"
+    },
     "metrics": {
       "_dd.span_sampling.mechanism": 8.0,
-      "_dd.span_sampling.rule_rate": 1.0
+      "_dd.span_sampling.rule_rate": 1.0,
+      "_sampling_priority_v1": -1.0
     },
-    "duration": 229709,
-    "start": 1756285689870946458
+    "duration": 229500,
+    "start": 1757944811250252843
   }]]
