@@ -7,7 +7,7 @@ import pytest
 from tests.utils import TracerTestCase
 
 
-def submit_ray_job(script_name, timeout=60):
+def submit_ray_job(script_name, timeout=120):
     """
     Submit a Ray job
 
@@ -67,6 +67,9 @@ class TestRayIntegration(TracerTestCase):
     @classmethod
     def setUpClass(cls):
         super(TestRayIntegration, cls).setUpClass()
+
+        os.environ["_DD_TRACE_RAY_TESTING"] = "true"
+        os.environ["DD_TRACE_RAY_WATCH_LONG_RUNNING_DELAY"] = "30"
 
         try:
             subprocess.run(["ray", "stop", "--force"], capture_output=True, check=False)

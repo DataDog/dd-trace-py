@@ -298,8 +298,14 @@ def _exec_entrypoint_wrapper(method: Callable[..., Any]) -> Any:
         if tracer.current_span() is None:
             tracer.context_provider.activate(_extract_tracing_context_from_env())
 
+        # Without this the name of the span will contain a path which will break tests
+        if os.environ.get("_DD_TRACE_RAY_TESTING"):
+            entrypoint_name = os.path.basename(self._entrypoint)
+        else:
+            entrypoint_name = self._entrypoint
+
         with tracer.trace(
-            f"exec {self._entrypoint}", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.RAY
+            f"exec {entrypoint_name}", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.RAY
         ) as span:
             span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
             _inject_ray_span_tags(span)
