@@ -6,8 +6,11 @@ from dataclasses import dataclass
 from typing import Any, Iterable, List, Optional
 
 import torch
+from vllm import SamplingParams
 from vllm.outputs import CompletionOutput, PoolingRequestOutput, RequestOutput
-from vllm.sequence import Sequence, SequenceGroup
+from vllm.sequence import Sequence, SequenceGroup, SequenceStatus
+from vllm.lora.request import LoRARequest
+from ddtrace.trace import Span
 
 
 # ---------- data container ---------------------------------------------------
@@ -25,7 +28,7 @@ class RequestData:
     num_cached_tokens: Optional[int] = None
     model_name: Optional[str] = None
     lora_name: Optional[str] = None
-    sampling_params: Optional[Any] = None
+    sampling_params: Optional[SamplingParams] = None
 
 
 # ---------- small utilities --------------------------------------------------
@@ -50,7 +53,7 @@ def _embedding_dim(tensor: torch.Tensor) -> Optional[int]:
 
 
 
-def _lora_name(lora_req: Any) -> Optional[str]:
+def _lora_name(lora_req: Optional[LoRARequest]) -> Optional[str]:
     if not lora_req:
         return None
     return lora_req.lora_name or lora_req.name
@@ -95,47 +98,35 @@ def _accumulate_completion_outputs(
 
 # ---------- extractors -------------------------------------------------------
 
-def extract_v0_data(res: RequestOutput, seq_group: SequenceGroup) -> RequestData:
+
+def extract_v0_data(seq_group: SequenceGroup) -> RequestData:
     data = RequestData(
-        request_id=res.request_id,
-        num_cached_tokens=res.num_cached_tokens,
+        request_id=seq_group.request_id,
+        # The prompt can be extracted from the trace headers if available
+        prompt=(seq_group.trace_headers or {}).get("x-datadog-captured-prompt") or seq_group.prompt,
+        input_tokens=len(seq_group.prompt_token_ids),
+        sampling_params=seq_group.sampling_params,
+        lora_name=_lora_name(seq_group.lora_request),
     )
-
-    # Prompt (prefer response, then seq_group)
-    data.prompt = _first_non_empty(res.prompt, seq_group.prompt, seq_group.encoder_prompt)
-
-    # Input tokens (prefer seq_group; fall back to response)
-    data.input_tokens = _len_or_zero(seq_group.prompt_token_ids) + _len_or_zero(seq_group.encoder_prompt_token_ids)
-    if data.input_tokens == 0:
-        data.input_tokens = _len_or_zero(res.prompt_token_ids) + _len_or_zero(res.encoder_prompt_token_ids)
-
-    data.sampling_params = seq_group.sampling_params
-    data.lora_name = _lora_name(seq_group.lora_request)
 
     # Embedding path
-    if isinstance(res, PoolingRequestOutput):
-        data.embedding_dim = _embedding_dim(res.outputs.data)
+    if seq_group.pooling_params is not None:
+        data.embedding_dim = _embedding_dim(seq_group.pooled_data)
         return data
 
-    # Completion path: prefer seqs (accurate for DELTA mode), then supplement from outputs
-    seqs: list[Sequence] = seq_group.get_seqs() or []
-    if seqs:
-        text_parts: list[str] = []
-        for s in seqs:
-            out_len = s.get_output_len()
-            if out_len:
-                data.output_tokens += int(out_len)
-            if s.output_text:
-                text_parts.append(s.output_text)
-        if text_parts:
-            data.output_text = "".join(text_parts)
+    # Completion path
+    out_txt = []
+    for s in seq_group.get_finished_seqs():
+        data.output_tokens += int(s.get_output_len())
+        if s.output_text:
+            out_txt.append(s.output_text)
+    data.output_text = "".join(out_txt)
+    
+    if seq_group.is_finished():
+        finished_seqs = seq_group.get_finished_seqs()
+        if finished_seqs:
+            data.finish_reason = SequenceStatus.get_finished_reason(finished_seqs[0].status)
 
-    _accumulate_completion_outputs(
-        res.outputs,
-        data,
-        accumulate_text=False,          # text already built from seqs
-        add_tokens_if_empty=True,       # only if seq-based count was 0
-    )
     return data
 
 
@@ -172,14 +163,14 @@ def extract_offline_data(request_output: RequestOutput, prompts=None, model_name
 
 # ---------- tiny lookups used by wrappers -----------------------------------
 
-def extract_captured_prompt(parent_span) -> Optional[str]:
+def extract_captured_prompt(parent_span: Optional[Span]) -> Optional[str]:
     return parent_span._get_ctx_item("vllm.captured_prompt") if parent_span else None
 
 
 def extract_model_name(instance: Any) -> Optional[str]:
-    mc = instance.model_config
+    mc = getattr(instance, "model_config", None)
     return mc.model if mc else None
 
 
-def extract_lora_name(lora_request: Any) -> Optional[str]:
+def extract_lora_name(lora_request: Optional[LoRARequest]) -> Optional[str]:
     return _lora_name(lora_request)

@@ -7,7 +7,6 @@ import vllm
 import vllm.envs as envs
 from vllm.outputs import RequestOutput
 from ddtrace import config
-from ddtrace import tracer as dd_tracer
 from ddtrace.contrib.trace_utils import unwrap, wrap, with_traced_module
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations.vllm import VLLMIntegration
@@ -21,12 +20,12 @@ from .data_extractors import (
     extract_lora_name,
     extract_model_name,
     extract_offline_data,
+    extract_v0_data,
     extract_v1_streaming_data,
     _embedding_dim,
 )
 from .span_utils import (
     SpanConfig,
-    apply_llmobs_context,
     create_vllm_span,
     inject_trace_headers,
     set_latency_metrics,
@@ -37,15 +36,6 @@ config._add("vllm", {})
 
 
 # ---------- integration / tracer plumbing -----------------------------------
-def get_integration() -> Optional[VLLMIntegration]:
-    return getattr(vllm, "_datadog_integration", None)
-
-
-def get_tracer():
-    pin = Pin.get_from(vllm)
-    return pin.tracer if pin and pin.tracer else dd_tracer
-
-
 def _safe_wrap(mod: str, name: str, wrapper) -> bool:
     try:
         wrap(mod, name, wrapper)
@@ -81,19 +71,25 @@ def _llmobs_kwargs(data: RequestData) -> dict:
     }
 
 
-def is_v1(obj: object) -> bool:
+def is_v1() -> bool:
     return envs.VLLM_USE_V1
+
+
+def _tag_if_enabled(integration, span, kwargs, *, operation: Optional[str] = None) -> None:
+    if integration and integration.llmobs_enabled:
+        if operation:
+            integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=None, operation=operation)
+        else:
+            integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=None)
 
 
 # ---------- v0: ENGINE-SIDE tracing -----------------------------------------
 @with_traced_module
-def traced_llmengine_do_tracing(vllm_mod, pin, func, instance, args, kwargs):
+def traced_llmengine_do_tracing(vllm, pin, func, instance, args, kwargs):
     res = func(*args, **kwargs)
 
-    tracer = get_tracer()
-    integration = get_integration()
-    if not tracer:
-        return res
+    tracer = pin.tracer
+    integration = vllm._datadog_integration
 
     scheduler_outputs: SchedulerOutputs = args[0] if args else kwargs.get("scheduler_outputs")
     finished_before = set(args[1] if len(args) > 1 else (kwargs.get("finished_before") or []))
@@ -128,43 +124,18 @@ def traced_llmengine_do_tracing(vllm_mod, pin, func, instance, args, kwargs):
                 arrival_time=metrics_obj.arrival_time,
             )
         )
-        if not span:
-            continue
 
-        # Build RequestData
-        data = RequestData(
-            request_id=seq_group.request_id,
-            model_name=model_name,
-            prompt=(seq_group.trace_headers or {}).get("x-datadog-captured-prompt")
-            or seq_group.prompt,
-            input_tokens=len(seq_group.prompt_token_ids),
-        )
+        data = extract_v0_data(seq_group)
+        data.model_name = model_name
 
-        is_embedding = seq_group.pooling_params is not None
-        if not is_embedding:
-            out_txt = []
-            for s in seq_group.get_finished_seqs():
-                data.output_tokens += int(s.get_output_len())
-                if s.output_text:
-                    out_txt.append(s.output_text)
-            data.output_text = "".join(out_txt)
-            op = "completion"
-        else:
-            op = "embedding"
-            prompt_ids = seq_group.prompt_token_ids
-            kwargs_emb = _llmobs_kwargs(data)
-            if prompt_ids:
-                kwargs_emb["input"] = list(prompt_ids)
-                kwargs_emb["input_tokens"] = len(prompt_ids)
-            kwargs_emb["embedding_dim"] = _embedding_dim(seq_group.pooled_data)
-            kwargs_emb["num_embeddings"] = 1
-            if integration and integration.llmobs_enabled:
-                integration.llmobs_set_tags(span, args=[], kwargs=kwargs_emb, response=None, operation=op)
+        operation = "embedding" if data.embedding_dim is not None else "completion"
+        llmobs_kwargs = _llmobs_kwargs(data)
+        if operation == "embedding":
+            llmobs_kwargs["input"] = list(seq_group.prompt_token_ids)
+            llmobs_kwargs["num_embeddings"] = 1
+        _tag_if_enabled(integration, span, llmobs_kwargs, operation=operation)
 
-        if not is_embedding and integration and integration.llmobs_enabled:
-            integration.llmobs_set_tags(span, args=[], kwargs=_llmobs_kwargs(data), response=None, operation="completion")
-
-        set_latency_metrics(span, metrics_obj)
+        set_latency_metrics(span, seq_group.metrics)
         span.finish()
 
     return res
@@ -172,16 +143,14 @@ def traced_llmengine_do_tracing(vllm_mod, pin, func, instance, args, kwargs):
 
 # ---------- v1: API-SERVER-SIDE tracing -------------------------------------
 @with_traced_module
-def traced_asyncllm_generate(vllm_mod, pin, func, instance, args, kwargs):
+def traced_asyncllm_generate(vllm, pin, func, instance, args, kwargs):
     prompt_arg = args[0] if args else kwargs.get("prompt")
     sampling_params = args[1] if len(args) > 1 else kwargs.get("sampling_params")
     request_id = args[2] if len(args) > 2 else kwargs.get("request_id")
     lora_request = args[3] if len(args) > 3 else kwargs.get("lora_request")
 
-    tracer = get_tracer()
-    integration = get_integration()
-    if not tracer:
-        return func(*args, **kwargs)
+    tracer = pin.tracer
+    integration = vllm._datadog_integration
 
     parent = tracer.current_span()
     span = create_vllm_span(
@@ -197,6 +166,23 @@ def traced_asyncllm_generate(vllm_mod, pin, func, instance, args, kwargs):
     start = time.time()
     ttft: Optional[float] = None
     finalized = False
+
+    def _finalize_span():
+        nonlocal finalized
+        if finalized:
+            return
+        data = extract_v1_streaming_data(outputs)
+        data.model_name = extract_model_name(instance)
+        data.lora_name = extract_lora_name(lora_request)
+        data.sampling_params = sampling_params
+        data.request_id = request_id
+        data.prompt = data.prompt or extract_captured_prompt(parent) or prompt_arg
+
+        _tag_if_enabled(integration, span, _llmobs_kwargs(data))
+        if ttft:
+            span.set_metric("vllm.latency.ttft", float(ttft))
+        span.finish()
+        finalized = True
 
     async def stream_wrapper():
         nonlocal ttft, finalized
@@ -214,39 +200,9 @@ def traced_asyncllm_generate(vllm_mod, pin, func, instance, args, kwargs):
                         ttft = time.time() - start
                         break
 
-            if out.finished and not finalized:
-                data = extract_v1_streaming_data(outputs)
-                data.model_name = extract_model_name(instance)
-                data.lora_name = extract_lora_name(lora_request)
-                data.sampling_params = sampling_params
-                data.request_id = request_id
-                data.prompt = data.prompt or extract_captured_prompt(parent) or prompt_arg
-
-                if integration and integration.llmobs_enabled:
-                    integration.llmobs_set_tags(span, args=[], kwargs=_llmobs_kwargs(data), response=None)
-
-                if ttft:
-                    span.set_metric("vllm.latency.ttft", float(ttft))
-                span.finish()
-                finalized = True
-
+            if out.finished:
+                _finalize_span()
             yield out
-
-    async def finalize_if_needed():
-        if finalized:
-            return
-        data = extract_v1_streaming_data(outputs)
-        data.model_name = extract_model_name(instance)
-        data.lora_name = extract_lora_name(lora_request)
-        data.sampling_params = sampling_params
-        data.request_id = request_id
-        data.prompt = data.prompt or extract_captured_prompt(parent) or prompt_arg
-
-        if integration and integration.llmobs_enabled:
-            integration.llmobs_set_tags(span, args=[], kwargs=_llmobs_kwargs(data), response=None)
-        if ttft:
-            span.set_metric("vllm.latency.ttft", float(ttft))
-        span.finish()
 
     async def execute():
         try:
@@ -256,17 +212,15 @@ def traced_asyncllm_generate(vllm_mod, pin, func, instance, args, kwargs):
             span.set_exc_info(type(e), e, e.__traceback__)
             raise
         finally:
-            await finalize_if_needed()
+            _finalize_span()
 
     return execute()
 
 
 @with_traced_module
-def traced_asyncllm_encode(vllm_mod, pin, func, instance, args, kwargs):
-    tracer = get_tracer()
-    integration = get_integration()
-    if not tracer:
-        return func(*args, **kwargs)
+def traced_asyncllm_encode(vllm, pin, func, instance, args, kwargs):
+    tracer = pin.tracer
+    integration = vllm._datadog_integration
 
     span = create_vllm_span(
         SpanConfig(
@@ -276,8 +230,6 @@ def traced_asyncllm_encode(vllm_mod, pin, func, instance, args, kwargs):
             model_name=extract_model_name(instance),
         )
     )
-    if not span:
-        return func(*args, **kwargs)
 
     outputs: list[RequestOutput] = []
     full_prompt_token_ids = None
@@ -301,11 +253,9 @@ def traced_asyncllm_encode(vllm_mod, pin, func, instance, args, kwargs):
             pt = o.prompt_token_ids
             if pt and not data.input_tokens:
                 data.input_tokens = len(pt)
-            out_obj = o.outputs
-            if out_obj and hasattr(out_obj, "data"):
-                shape = getattr(out_obj.data, "shape", None)
-                if shape:
-                    data.embedding_dim = int(shape[-1])
+            dim = _embedding_dim(o.outputs.data) if o.outputs else None
+            if dim is not None:
+                data.embedding_dim = dim
 
         kwargs_llmobs = _llmobs_kwargs(data)
         if full_prompt_token_ids:
@@ -313,9 +263,7 @@ def traced_asyncllm_encode(vllm_mod, pin, func, instance, args, kwargs):
             kwargs_llmobs["num_embeddings"] = 1
             kwargs_llmobs.setdefault("input_tokens", len(full_prompt_token_ids))
 
-        apply_llmobs_context(span, integration, kwargs_llmobs, operation="embedding")
-        if integration and integration.llmobs_enabled:
-            integration.llmobs_set_tags(span, args=[], kwargs=kwargs_llmobs, response=None, operation="embedding")
+        _tag_if_enabled(integration, span, kwargs_llmobs, operation="embedding")
         span.finish()
 
     return execute()
@@ -323,14 +271,12 @@ def traced_asyncllm_encode(vllm_mod, pin, func, instance, args, kwargs):
 
 # ---------- offline LLM.generate --------------------------------------------
 @with_traced_module
-def traced_llm_generate(vllm_mod, pin, func, instance, args, kwargs):
-    if not is_v1(instance):
+def traced_llm_generate(vllm, pin, func, instance, args, kwargs):
+    if not is_v1():
         return func(*args, **kwargs)
 
-    tracer = get_tracer()
-    integration = get_integration()
-    if not tracer:
-        return func(*args, **kwargs)
+    tracer = pin.tracer
+    integration = vllm._datadog_integration
 
     prompts = args[0] if args else kwargs.get("prompts")
     sampling_params = args[1] if len(args) > 1 else kwargs.get("sampling_params")
@@ -346,17 +292,15 @@ def traced_llm_generate(vllm_mod, pin, func, instance, args, kwargs):
         span = create_vllm_span(
             SpanConfig(tracer=tracer, integration=integration, parent=parent, model_name=model_name)
         )
-        if span:
-            if integration and integration.llmobs_enabled:
-                integration.llmobs_set_tags(span=span, args=[], kwargs=_llmobs_kwargs(data), response=None)
-            span.finish()
+        _tag_if_enabled(integration, span, _llmobs_kwargs(data))
+        span.finish()
 
     return outputs
 
 
 # ---------- OpenAI entrypoints: prompt capture & STT ------------------------
 @with_traced_module
-def traced_openaiserving_log_inputs(vllm_mod, pin, func, instance, args, kwargs):
+def traced_openaiserving_log_inputs(vllm, pin, func, instance, args, kwargs):
     request_id = args[0] if len(args) > 0 else kwargs.get("request_id")
     inputs = args[1] if len(args) > 1 else kwargs.get("inputs")
 
@@ -382,7 +326,7 @@ def traced_openaiserving_log_inputs(vllm_mod, pin, func, instance, args, kwargs)
 
 
 @with_traced_module
-async def traced_openai_stt_preprocess(vllm_mod, pin, func, instance, args, kwargs):
+async def traced_openai_stt_preprocess(vllm, pin, func, instance, args, kwargs):
     prompts, other = await func(*args, **kwargs)
 
     decoder_prompt = None
@@ -405,9 +349,9 @@ async def traced_openai_stt_preprocess(vllm_mod, pin, func, instance, args, kwar
 
 # ---------- v0 request injection (single/multiprocess) ----------------------
 @with_traced_module
-async def traced_v0_engine_add_request_async(vllm_mod, pin, func, instance, args, kwargs):
+async def traced_v0_engine_add_request_async(vllm, pin, func, instance, args, kwargs):
     # trace headers injection is not supported for V1 engines
-    if is_v1(instance):
+    if is_v1():
         return await func(*args, **kwargs)
 
     inject_trace_headers(pin, kwargs)
@@ -431,9 +375,9 @@ async def traced_v0_engine_add_request_async(vllm_mod, pin, func, instance, args
     return await func(*args, **kwargs)
 
 @with_traced_module
-def traced_v0_engine_add_request(vllm_mod, pin, func, instance, args, kwargs):
+def traced_v0_engine_add_request(vllm, pin, func, instance, args, kwargs):
     # trace headers injection is not supported for V1 engines
-    if is_v1(instance):
+    if is_v1():
         return func(*args, **kwargs)
 
     existing = kwargs.get("trace_headers") or {}
@@ -465,7 +409,7 @@ def traced_v0_engine_add_request(vllm_mod, pin, func, instance, args, kwargs):
 
 
 @with_traced_module
-async def traced_mq_client_process_request(vllm_mod, pin, func, instance, args, kwargs):
+async def traced_mq_client_process_request(vllm, pin, func, instance, args, kwargs):
     if pin and pin.tracer:
         parent = pin.tracer.current_span()
         if parent:
@@ -543,4 +487,3 @@ def unpatch():
     _safe_unwrap("vllm.engine.multiprocessing.client", "MQLLMEngineClient._process_request")
 
     delattr(vllm, "_datadog_integration")
-        

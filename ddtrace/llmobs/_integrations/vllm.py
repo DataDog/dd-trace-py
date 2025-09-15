@@ -20,31 +20,32 @@ from ddtrace.llmobs._constants import (
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs.utils import Document
 from ddtrace.trace import Span
+from vllm import SamplingParams
 
 log = get_logger(__name__)
 
+MODEL = "vllm.request.model"
 
 class VLLMIntegration(BaseLLMIntegration):
     _integration_name = "vllm"
+
+    _SUPPLEMENTAL_TAG_MAP = {
+        "finish_reason": "vllm.request.finish_reason",
+        "stop_reason": "vllm.request.stop_reason",
+        "lora_name": "vllm.request.lora_name",
+        "request_id": "vllm.request.id",
+    }
 
     # ----- base tags ---------------------------------------------------------
     def _set_base_span_tags(self, span: Span, **kwargs: Any) -> None:
         model_name = kwargs.get("model_name")
         if model_name:
-            span.set_tag_str("vllm.request.model", model_name)
-            span.set_tag_str("model.name", model_name)
+            span.set_tag_str(MODEL, model_name)
 
     # ----- helpers -----------------------------------------------------------
-    @staticmethod
-    def _extract_model_info(model_name: str) -> Tuple[str, str]:
-        if not model_name or "/" not in model_name:
-            return "vllm", model_name or ""
-        provider, short = model_name.split("/", 1)
-        return provider, short
-
     def _build_metadata(self, kwargs: Dict[str, Any]) -> Dict[str, Any]:
         md: Dict[str, Any] = {}
-        sp = kwargs.get("sampling_params")
+        sp: Optional[SamplingParams] = kwargs.get("sampling_params")
         if sp:
             for key in [
                 "temperature",
@@ -62,19 +63,13 @@ class VLLMIntegration(BaseLLMIntegration):
                     md[key] = val
 
         for key in [
-            "finish_reason",
-            "stop_reason",
-            "num_cached_tokens",
-            "lora_name",
-            "request_id",
-            "embedding_dim",
-            "encoding_format",
-        ]:
+            "num_cached_tokens", "embedding_dim", "encoding_format",
+        ] + list(self._SUPPLEMENTAL_TAG_MAP.keys()):
             val = kwargs.get(key)
             if val is not None:
                 md[key] = val
-
         return md
+
 
     @staticmethod
     def _build_metrics(kwargs: Dict[str, Any]) -> Dict[str, Any]:
@@ -88,11 +83,10 @@ class VLLMIntegration(BaseLLMIntegration):
 
     # ----- embedding/completion contexts ------------------------------------
     def _build_embedding_context(self, kwargs: Dict[str, Any]) -> Dict[str, Any]:
-        provider, short_model = self._extract_model_info(kwargs.get("model_name", ""))
         ctx: Dict[str, Any] = {
             SPAN_KIND: "embedding",
-            MODEL_NAME: short_model,
-            MODEL_PROVIDER: provider,
+            MODEL_NAME: kwargs.get("model_name"),
+            MODEL_PROVIDER: "vllm",
             METADATA: self._build_metadata(kwargs),
             METRICS: self._build_metrics(kwargs),
         }
@@ -120,11 +114,10 @@ class VLLMIntegration(BaseLLMIntegration):
         return ctx
 
     def _build_completion_context(self, kwargs: Dict[str, Any]) -> Dict[str, Any]:
-        provider, short_model = self._extract_model_info(kwargs.get("model_name", ""))
         ctx: Dict[str, Any] = {
             SPAN_KIND: "llm",
-            MODEL_NAME: short_model,
-            MODEL_PROVIDER: provider,
+            MODEL_NAME: kwargs.get("model_name"),
+            MODEL_PROVIDER: "vllm",
             METADATA: self._build_metadata(kwargs),
             METRICS: self._build_metrics(kwargs),
         }
@@ -139,30 +132,23 @@ class VLLMIntegration(BaseLLMIntegration):
 
         log.debug(
             "[VLLM DD] build_completion_context: model=%s has_input=%s has_output=%s",
-            short_model,
+            kwargs.get("model_name"),
             bool(prompt),
             bool(output_text),
         )
         return ctx
 
-    # ----- supplemental span tags -------------------------------------------
-    def _set_supplemental_tags(self, span: Span, kwargs: Dict[str, Any]) -> None:
-        for key, tag in {
-            "finish_reason": "vllm.request.finish_reason",
-            "stop_reason": "vllm.request.stop_reason",
-            "lora_name": "vllm.request.lora_name",
-            "request_id": "vllm.request.id",
-        }.items():
+
+    # ddtrace integration entry (name required by BaseLLMIntegration)
+    def _llmobs_set_tags(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any] = None, operation: str = "") -> None:
+        ctx = self._build_embedding_context(kwargs) if operation == "embedding" else self._build_completion_context(kwargs)
+        span._set_ctx_items(ctx)
+        
+        for key, tag in self._SUPPLEMENTAL_TAG_MAP.items():
             val = kwargs.get(key)
             if val is not None:
                 span.set_tag_str(tag, str(val))
 
         hdr_model = getattr(span, "_get_ctx_item", lambda *_: None)("x-datadog-vllm-model")
         if hdr_model and not kwargs.get("model_name"):
-            span.set_tag_str("vllm.request.model", str(hdr_model))
-
-    # ddtrace integration entry (name required by BaseLLMIntegration)
-    def _llmobs_set_tags(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any] = None, operation: str = "") -> None:
-        ctx = self._build_embedding_context(kwargs) if operation == "embedding" else self._build_completion_context(kwargs)
-        span._set_ctx_items(ctx)
-        self._set_supplemental_tags(span, kwargs)
+            self._set_base_span_tags(span, model_name=hdr_model)
