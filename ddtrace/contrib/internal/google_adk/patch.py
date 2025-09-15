@@ -1,14 +1,14 @@
-
 """Instrument google-adk."""
 import google.adk as adk
 
-from ddtrace._trace.pin import Pin
-from ddtrace.internal.logger import get_logger
 from ddtrace import config
 from ddtrace import tracer as _tracer
+from ddtrace._trace._limits import TRUNCATED_SPAN_ATTRIBUTE_LEN
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
-from ddtrace._trace._limits import TRUNCATED_SPAN_ATTRIBUTE_LEN
+from ddtrace.internal.logger import get_logger
+
 
 logger = get_logger(__name__)
 
@@ -50,13 +50,15 @@ def patch():
 
     for code_executor in code_executor_classes:
         wrap(
-            "google.adk", f"code_executors.{code_executor}.execute_code",
+            "google.adk",
+            f"code_executors.{code_executor}.execute_code",
             _traced_code_executor_execute_code,
         )
 
     # Plugin callbacks orchestration, TODO: do we want to trace callbacks?
     wrap(
-        "google.adk", "plugins.plugin_manager.PluginManager._run_callbacks",
+        "google.adk",
+        "plugins.plugin_manager.PluginManager._run_callbacks",
         _traced_plugin_manager_run_callbacks,
     )
 
@@ -70,15 +72,17 @@ def patch():
     for memory_service in memory_service_classes:
         try:
             wrap(
-                "google.adk", f"memory.{memory_service}.add_session_to_memory",
+                "google.adk",
+                f"memory.{memory_service}.add_session_to_memory",
                 _traced_memory_add_session_async,
             )
             wrap(
-                "google.adk", f"memory.{memory_service}.search_memory",
+                "google.adk",
+                f"memory.{memory_service}.search_memory",
                 _traced_memory_search_async,
             )
         except Exception:
-            logger.exception(f"Failed to wrap {memory_service}")
+            logger.exception("Failed to wrap:", memory_service)
             pass
 
 
@@ -88,10 +92,10 @@ def unpatch():
         import google.adk
         import google.adk.agents.base_agent
         import google.adk.code_executors.base_code_executor
-        import google.adk.tools.base_tool
-        import google.adk.plugins.plugin_manager
         import google.adk.memory.in_memory_memory_service
         import google.adk.memory.vertex_ai_memory_bank_service
+        import google.adk.plugins.plugin_manager
+        import google.adk.tools.base_tool
     except ImportError:
         return
 
@@ -112,19 +116,23 @@ def unpatch():
     # Memory services
     try:
         unwrap(
-            google.adk, "memory.in_memory_memory_service.InMemoryMemoryService.add_session_to_memory",
+            google.adk,
+            "memory.in_memory_memory_service.InMemoryMemoryService.add_session_to_memory",
         )
         unwrap(
-            google.adk, "memory.in_memory_memory_service.InMemoryMemoryService.search_memory",
+            google.adk,
+            "memory.in_memory_memory_service.InMemoryMemoryService.search_memory",
         )
     except Exception:
         pass
     try:
         unwrap(
-            google.adk, "memory.vertex_ai_memory_bank_service.VertexAiMemoryBankService.add_session_to_memory",
+            google.adk,
+            "memory.vertex_ai_memory_bank_service.VertexAiMemoryBankService.add_session_to_memory",
         )
         unwrap(
-            google.adk, "memory.vertex_ai_memory_bank_service.VertexAiMemoryBankService.search_memory",
+            google.adk,
+            "memory.vertex_ai_memory_bank_service.VertexAiMemoryBankService.search_memory",
         )
     except Exception:
         pass
@@ -152,7 +160,7 @@ def _traced_agent_run_async(wrapped, instance, args, kwargs):
             span.set_tag_str("agent_instructions", instance.agent.instruction)
             span.set_tag_str("model_configuration", str(instance.agent.model_config))
             # span.set_tag_str("max_iterations", instance.agent.run_config.max_llm_calls)
-            
+
             if fn_kwargs.get("session_id"):
                 span.set_tag_str("session_management.session_id", fn_kwargs.get("session_id"))
             if fn_kwargs.get("user_id"):
@@ -170,6 +178,7 @@ def _traced_agent_run_async(wrapped, instance, args, kwargs):
             except Exception as e:
                 span.set_exc_info(type(e), e, e.__traceback__)
                 raise
+
     return _generator()
 
 
@@ -189,6 +198,7 @@ def _traced_agent_run_live(wrapped, instance, args, kwargs):
             except Exception as e:
                 span.set_exc_info(type(e), e, e.__traceback__)
                 raise
+
     return _generator()
 
 
