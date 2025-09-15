@@ -2,15 +2,15 @@ use pyo3::pymodule;
 
 #[pymodule]
 pub mod logger {
-    use pyo3::{exceptions::PyValueError, PyResult};
     use pyo3::prelude::*;
     use pyo3::types::PyDict;
+    use pyo3::{exceptions::PyValueError, PyResult};
 
-    use tracing::{debug, error, info, trace, warn};
     use datadog_log::logger::{
         logger_configure_file, logger_configure_std, logger_disable_file, logger_disable_std,
         logger_set_log_level, FileConfig, LogEventLevel, StdConfig, StdTarget,
     };
+    use tracing::{debug, error, info, trace, warn};
 
     #[pyfunction]
     #[pyo3(signature = (**kwds))]

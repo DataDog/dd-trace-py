@@ -1,6 +1,6 @@
 from contextlib import nullcontext
-
 import time
+
 import pytest
 
 from ddtrace.internal.native._native import logger
