@@ -17,6 +17,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import ForksafeAwakeablePeriodicService
 from ddtrace.internal.utils.http import connector
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
+from ddtrace.internal.utils.time import HourGlass
 
 
 log = get_logger(__name__)
@@ -56,33 +57,9 @@ class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
     def __init__(self, interval: Optional[float] = None) -> None:
         super().__init__(interval if interval is not None else di_config.upload_interval_seconds)
 
-        endpoint_suffix = f"?ddtags={quote(di_config.tags)}" if di_config._tags_in_qs and di_config.tags else ""
-        if not self._agent_endpoints:
-            try:
-                agent_info = agent.info()
-                self._agent_endpoints = set(agent_info.get("endpoints", [])) if agent_info is not None else set()
-            except Exception:
-                pass  # nosec B110
+        self._agent_endpoints_cache: HourGlass = HourGlass(duration=60.0)
 
-        snapshot_track = "/debugger/v1/input"
-        if "/debugger/v2/input" in self._agent_endpoints:
-            snapshot_track = "/debugger/v2/input"
-        elif "/debugger/v1/diagnostics" in self._agent_endpoints:
-            snapshot_track = "/debugger/v1/diagnostics"
-
-        self._tracks = {
-            SignalTrack.LOGS: UploaderTrack(
-                endpoint=f"/debugger/v1/input{endpoint_suffix}",
-                queue=self.__queue__(
-                    encoder=LogSignalJsonEncoder(di_config.service_name), on_full=self._on_buffer_full
-                ),
-            ),
-            SignalTrack.SNAPSHOT: UploaderTrack(
-                endpoint=f"{snapshot_track}{endpoint_suffix}",
-                queue=self.__queue__(encoder=SnapshotJsonEncoder(di_config.service_name), on_full=self._on_buffer_full),
-            ),
-        }
-        self._collector = self.__collector__({t: ut.queue for t, ut in self._tracks.items()})
+        self.set_track_endpoints()
         self._headers = {
             "Content-type": "application/json; charset=utf-8",
             "Accept": "text/plain",
@@ -105,7 +82,42 @@ class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
 
         self._flush_full = False
 
+    def set_track_endpoints(self) -> None:
+        if self._agent_endpoints_cache.trickling():
+            return
+
+        try:
+            agent_info = agent.info()
+            self._agent_endpoints = set(agent_info.get("endpoints", [])) if agent_info is not None else set()
+        except Exception:
+            pass  # nosec B110
+        finally:
+            self._agent_endpoints_cache.turn()
+
+        snapshot_track = "/debugger/v1/input"
+        if "/debugger/v2/input" in self._agent_endpoints:
+            snapshot_track = "/debugger/v2/input"
+        elif "/debugger/v1/diagnostics" in self._agent_endpoints:
+            snapshot_track = "/debugger/v1/diagnostics"
+
+        endpoint_suffix = f"?ddtags={quote(di_config.tags)}" if di_config._tags_in_qs and di_config.tags else ""
+
+        self._tracks = {
+            SignalTrack.LOGS: UploaderTrack(
+                endpoint=f"/debugger/v1/input{endpoint_suffix}",
+                queue=self.__queue__(
+                    encoder=LogSignalJsonEncoder(di_config.service_name), on_full=self._on_buffer_full
+                ),
+            ),
+            SignalTrack.SNAPSHOT: UploaderTrack(
+                endpoint=f"{snapshot_track}{endpoint_suffix}",
+                queue=self.__queue__(encoder=SnapshotJsonEncoder(di_config.service_name), on_full=self._on_buffer_full),
+            ),
+        }
+        self._collector = self.__collector__({t: ut.queue for t, ut in self._tracks.items()})
+
     def _write(self, payload: bytes, endpoint: str) -> None:
+        self.set_track_endpoints()
         try:
             with self._connect() as conn:
                 conn.request("POST", endpoint, payload, headers=self._headers)

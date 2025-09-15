@@ -8,9 +8,9 @@ from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking import TaintRange
 from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
-from ddtrace.appsec._iast._taint_tracking import set_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking._taint_objects_base import taint_pyobject_with_ranges
 import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 
@@ -669,7 +669,7 @@ def test_replace_tainted_orig_and_repl(origstr, substr, replstr, maxcount, forma
     ],
 )
 def test_replace_tainted_results_in_no_tainted(origstr, substr, replstr, maxcount, formatted):
-    set_ranges(
+    taint_pyobject_with_ranges(
         origstr,
         (_build_sample_range(0, 1, "name"), _build_sample_range(2, 2, "name"), _build_sample_range(6, 3, "name")),
     )
@@ -736,7 +736,7 @@ def test_replace_tainted_results_in_no_tainted_django(origstr, formatted):
     ],
 )
 def test_replace_tainted_shrinking_ranges(origstr, substr, replstr, maxcount, formatted):
-    set_ranges(
+    taint_pyobject_with_ranges(
         origstr,
         (_build_sample_range(0, 3, "name"), _build_sample_range(4, 3, "name"), _build_sample_range(10, 3, "name")),
     )
@@ -793,7 +793,7 @@ def test_replace_tainted_shrinking_ranges(origstr, substr, replstr, maxcount, fo
 )
 def test_replace_aspect_more(origstr, taint_len, substr, replstr, maxcount, formatted):
     if taint_len > 0:
-        set_ranges(
+        taint_pyobject_with_ranges(
             origstr,
             (_build_sample_range(0, taint_len, "name"),),
         )
