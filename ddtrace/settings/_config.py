@@ -661,6 +661,14 @@ class Config(object):
         self._inferred_proxy_services_enabled = _get_config("DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", False, asbool)
         self._trace_safe_instrumentation_enabled = _get_config("DD_TRACE_SAFE_INSTRUMENTATION_ENABLED", False, asbool)
 
+        # Resource renaming
+        self._trace_resource_renaming_enabled = _get_config(
+            "DD_TRACE_RESOURCE_RENAMING", default=False, modifier=asbool
+        )
+        self._trace_resource_renaming_always_simplified_endpoint = _get_config(
+            "DD_TRACE_RESOURCE_RENAMING_ALWAYS_SIMPLIFIED_ENDPOINT", default=False, modifier=asbool
+        )
+
     def __getattr__(self, name) -> Any:
         if name in self._config:
             return self._config[name].value()
