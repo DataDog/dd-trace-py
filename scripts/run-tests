@@ -5,6 +5,14 @@
 #     "ruamel.yaml>=0.17.21",
 # ]
 # ///
+"""Test runner script for dd-trace-py.
+
+This script helps developers run the appropriate test suites based on changed files.
+It maps source files to their corresponding test suites and provides granular control
+over which specific riot venvs to run.
+
+Note: This runs entire test suites, not individual test files.
+"""
 
 import argparse
 import fnmatch
@@ -16,13 +24,16 @@ from pathlib import Path
 from typing import Dict, List, Set, Optional, Tuple, NamedTuple
 import tempfile
 
-# Add the project root and tests to Python path for imports
+# Add project root and tests to Python path to import suitespec and riotfile
 ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
 from tests.suitespec import get_patterns, get_suites
 import riotfile
+
+# Constants
+TESTAGENT_URL = 'http://localhost:9126'
 
 
 class RiotVenv(NamedTuple):
@@ -33,21 +44,74 @@ class RiotVenv(NamedTuple):
     python_version: str
     packages: str
 
+    def _normalize_package_name(self, name: str) -> List[str]:
+        """Generate possible package name variations from venv name component.
+
+        Examples:
+            'django' -> ['django']
+            'django_hosts' -> ['django-hosts', 'django_hosts']
+            'psycopg2' -> ['psycopg2', 'psycopg2-binary']
+        """
+        variants = [name]
+
+        # Try underscore to dash conversion (common in PyPI)
+        if '_' in name:
+            variants.append(name.replace('_', '-'))
+
+        # Common package variations
+        variations = {
+            'psycopg2': ['psycopg2-binary'],
+            'mysql': ['mysqlclient', 'mysql-connector-python'],
+            'redis': ['redis-py'],
+        }
+
+        if name in variations:
+            variants.extend(variations[name])
+
+        return variants
+
+    def _extract_package_versions_for_venv_name(self, venv_name: str, packages: str) -> List[str]:
+        """Extract package versions that match the venv name components.
+
+        Args:
+            venv_name: e.g. 'django', 'django:celery', 'flask:redis'
+            packages: Package info string with 'pkg: version' entries
+        """
+        if not packages or packages == "standard packages":
+            return []
+
+        # Split venv name by ':' to get components (django:celery -> django, celery)
+        name_components = [comp.strip() for comp in venv_name.split(':')]
+
+        found_versions = []
+        packages_lower = packages.lower()
+
+        for component in name_components:
+            # Get all possible package name variants
+            variants = self._normalize_package_name(component)
+
+            for variant in variants:
+                # Look for 'variant: version' pattern in packages string
+                pattern = rf"\b{re.escape(variant)}:\s*([^,]+)"
+                match = re.search(pattern, packages_lower, re.IGNORECASE)
+                if match:
+                    version = match.group(1).strip()
+                    found_versions.append(f"{variant} {version}")
+                    break  # Found a match for this component, move to next
+
+        return found_versions
+
     @property
     def display_name(self) -> str:
-        """Generate a user-friendly display name."""
-        # Extract key package versions for display
-        django_match = re.search(r"django.*?([0-9]+\.[0-9]+)", self.packages, re.IGNORECASE)
-        django_ver = django_match.group(1) if django_match else ""
+        """Generate a user-friendly display name showing Python version and relevant packages."""
+        # Extract package versions based on venv name
+        package_versions = self._extract_package_versions_for_venv_name(self.name, self.packages)
 
-        if django_ver:
-            return f"Python {self.python_version}, Django {django_ver}"
-        else:
-            # Show key framework if available
-            for framework in ['flask', 'fastapi', 'starlette', 'celery']:
-                if framework in self.packages.lower():
-                    return f"Python {self.python_version}, {framework}"
-            return f"Python {self.python_version}"
+        if package_versions:
+            packages_str = ", ".join(package_versions)
+            return f"Python {self.python_version}, {packages_str}"
+
+        return f"Python {self.python_version}"
 
 
 class TestRunner:
@@ -57,36 +121,27 @@ class TestRunner:
         self.matching_suites: Dict[str, dict] = {}
         self.required_services: Set[str] = set()
 
+    def _run_git_command(self, cmd: List[str]) -> Set[str]:
+        """Helper to run a git command and return set of file paths."""
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd=self.root)
+        return set(result.stdout.strip().split()) if result.stdout.strip() else set()
+
     def get_git_changed_files(self, base_ref: str = "HEAD") -> Set[str]:
-        """Get files changed in git since base_ref."""
+        """Get files changed in git since base_ref.
+
+        For HEAD (default): returns staged + unstaged + untracked files
+        For other refs: returns diff against that ref
+        """
         try:
             if base_ref == "HEAD":
-                # Check for staged files first, then unstaged
-                result = subprocess.run(
-                    ["git", "diff", "--cached", "--name-only"],
-                    capture_output=True, text=True, cwd=self.root
-                )
-                staged = set(result.stdout.strip().split()) if result.stdout.strip() else set()
-
-                result = subprocess.run(
-                    ["git", "diff", "--name-only"],
-                    capture_output=True, text=True, cwd=self.root
-                )
-                unstaged = set(result.stdout.strip().split()) if result.stdout.strip() else set()
-
-                result = subprocess.run(
-                    ["git", "ls-files", "--others", "--exclude-standard"],
-                    capture_output=True, text=True, cwd=self.root
-                )
-                untracked = set(result.stdout.strip().split()) if result.stdout.strip() else set()
-
+                # Get all local changes: staged, unstaged, and untracked
+                staged = self._run_git_command(["git", "diff", "--cached", "--name-only"])
+                unstaged = self._run_git_command(["git", "diff", "--name-only"])
+                untracked = self._run_git_command(["git", "ls-files", "--others", "--exclude-standard"])
                 return staged | unstaged | untracked
             else:
-                result = subprocess.run(
-                    ["git", "diff", "--name-only", base_ref],
-                    capture_output=True, text=True, cwd=self.root
-                )
-                return set(result.stdout.strip().split()) if result.stdout.strip() else set()
+                # Get diff against specific ref
+                return self._run_git_command(["git", "diff", "--name-only", base_ref])
         except subprocess.CalledProcessError:
             print("Warning: Failed to get git changes, using all suites")
             return set()
@@ -154,19 +209,21 @@ class TestRunner:
         return sorted(patterns)
 
     def _parse_riot_pattern(self, pattern: str) -> List[str]:
-        """Parse a suitespec pattern to extract riot venv names."""
-        # Handle regex patterns like "^(django|django:celery)$"
-        if pattern.startswith('^') and pattern.endswith('$'):
-            # Remove ^ and $ anchors
-            inner = pattern[1:-1]
-            # Handle (option1|option2) patterns
-            if inner.startswith('(') and inner.endswith(')'):
-                options = inner[1:-1].split('|')
-                return [opt.strip() for opt in options]
-            else:
-                return [inner]
+        """Parse a suitespec pattern to extract riot venv names.
 
-        # Handle exact patterns
+        Examples:
+            "^django$" -> ["django"]
+            "^(django|django:celery)$" -> ["django", "django:celery"]
+            "flask" -> ["flask"]
+        """
+        # Remove regex anchors if present
+        if pattern.startswith('^') and pattern.endswith('$'):
+            pattern = pattern[1:-1]
+
+        # Extract options from (option1|option2) patterns
+        if pattern.startswith('(') and pattern.endswith(')'):
+            return [opt.strip() for opt in pattern[1:-1].split('|')]
+
         return [pattern]
 
     def get_riot_venvs(self, pattern: str) -> List[RiotVenv]:
@@ -184,11 +241,9 @@ class TestRunner:
                 # Extract package information from the instance
                 packages_info = ""
                 if hasattr(inst, 'pkgs') and inst.pkgs:
-                    key_packages = []
-                    for pkg, version in inst.pkgs.items():
-                        if any(key in pkg.lower() for key in ['django', 'flask', 'fastapi', 'starlette', 'celery']):
-                            key_packages.append(f"{pkg}: {version}")
-                    packages_info = ", ".join(key_packages) if key_packages else "standard packages"
+                    # Include all packages - we'll filter in display_name based on venv name
+                    all_packages = [f"{pkg}: {version}" for pkg, version in inst.pkgs.items()]
+                    packages_info = ", ".join(all_packages) if all_packages else "standard packages"
 
                 venvs.append(RiotVenv(
                     number=n,
@@ -202,8 +257,6 @@ class TestRunner:
 
         except Exception as e:
             print(f"Warning: Failed to get riot venvs for pattern '{pattern}': {e}")
-            import traceback
-            traceback.print_exc()
             return []
 
     def start_services(self, services: Set[str]) -> bool:
@@ -220,6 +273,68 @@ class TestRunner:
             print(f"❌ Failed to start services: {e}")
             return False
 
+    def _parse_selection(self, selection: str, max_items: int) -> Set[int]:
+        """Parse user selection string into set of indices.
+
+        Handles formats like: '1', '1,3,5', '1-5', '2-4,7,9-11'
+        Returns 1-based indices.
+        """
+        indices = set()
+        for part in selection.split(','):
+            part = part.strip()
+            if '-' in part:
+                start, end = map(int, part.split('-'))
+                indices.update(range(start, min(end + 1, max_items + 1)))
+            else:
+                idx = int(part)
+                if 1 <= idx <= max_items:
+                    indices.add(idx)
+        return indices
+
+    def _interactive_select(self, items: List, item_type: str, format_fn=None) -> List:
+        """Generic interactive selection for any list of items.
+
+        Args:
+            items: List of items to select from
+            item_type: Description of what's being selected (e.g., "patterns", "venvs")
+            format_fn: Optional function to format each item for display
+        """
+        if not items:
+            return []
+
+        # Single item - no need to select
+        if len(items) == 1:
+            return items
+
+        print(f"\n🎯 Select which {item_type} to run:")
+        print("=" * 60)
+
+        for i, item in enumerate(items, 1):
+            display = format_fn(item) if format_fn else str(item)
+            print(f"{i:2d}. {display}")
+
+        while True:
+            try:
+                print(f"\nSelect {item_type} (e.g., '1,3' for specific, 'all' for everything, or 'none'):")
+                selection = input("> ").strip().lower()
+
+                if selection == 'none':
+                    return []
+                elif selection == 'all':
+                    return items
+                elif selection == 'latest' and item_type == "venvs":
+                    return [items[-1]]  # Last item is usually latest version
+
+                indices = self._parse_selection(selection, len(items))
+                if indices:
+                    selected = [items[i-1] for i in sorted(indices)]
+                    return selected
+                else:
+                    print("   No valid items selected")
+
+            except (ValueError, IndexError):
+                print(f"❌ Invalid selection. Please use format like '1,3', 'all', or 'none'")
+
     def select_riot_patterns(self, matching_suites: Dict[str, dict]) -> List[str]:
         """Let user select which riot patterns to run."""
         riot_patterns = self.get_riot_patterns(matching_suites)
@@ -230,49 +345,10 @@ class TestRunner:
         print(f"\n📋 Found {len(riot_patterns)} matching riot pattern(s):")
         print("   " + ", ".join(riot_patterns))
 
-        # Let user select which patterns they want to run
-        if len(riot_patterns) > 1:
-            print(f"\n🎯 Select which patterns to run:")
-            print("=" * 60)
-
-            for i, pattern in enumerate(riot_patterns, 1):
-                print(f"{i:2d}. {pattern}")
-
-            while True:
-                try:
-                    print(f"\nSelect patterns (e.g., '1,3' for specific, 'all' for everything, or 'none'):")
-                    selection = input("> ").strip()
-
-                    if selection.lower() == 'none':
-                        return []
-                    elif selection.lower() == 'all':
-                        return riot_patterns
-
-                    selected_indices = set()
-                    for part in selection.split(','):
-                        part = part.strip()
-                        if '-' in part:
-                            start, end = map(int, part.split('-'))
-                            selected_indices.update(range(start, end + 1))
-                        else:
-                            selected_indices.add(int(part))
-
-                    selected_patterns = []
-                    for idx in selected_indices:
-                        if 1 <= idx <= len(riot_patterns):
-                            selected_patterns.append(riot_patterns[idx - 1])
-
-                    if selected_patterns:
-                        print(f"   Selected patterns: {', '.join(selected_patterns)}")
-                        return selected_patterns
-                    else:
-                        print("   No valid patterns selected")
-
-                except (ValueError, IndexError):
-                    print("❌ Invalid selection. Please use format like '1,3' or 'all' or 'none'")
-        else:
-            # Only one pattern, use it directly
-            return riot_patterns
+        selected = self._interactive_select(riot_patterns, "patterns")
+        if selected:
+            print(f"   Selected patterns: {', '.join(selected)}")
+        return selected
 
     def select_venvs_for_patterns(self, selected_patterns: List[str]) -> List[RiotVenv]:
         """Let user select specific venvs for each pattern."""
@@ -289,51 +365,17 @@ class TestRunner:
             print(f"\n📋 Available venvs for '{pattern}' ({len(venvs)} total):")
             print("=" * 80)
 
-            for i, venv in enumerate(venvs, 1):
-                print(f"{i:2d}. #{venv.number:3d}  {venv.hash}  {venv.name}  {venv.display_name}")
+            # Custom format function for venvs
+            def format_venv(v):
+                return f"#{v.number:3d}  {v.hash}  {v.name}  {v.display_name}"
 
-            while True:
-                try:
-                    print(f"\nSelect venvs for '{pattern}' (e.g., '1' for first, '1,3,5' for multiple, 'all', 'none', or 'latest'):")
-                    selection = input("> ").strip()
+            selected = self._interactive_select(venvs, "venvs", format_venv)
 
-                    if selection.lower() == 'none':
-                        break
-                    elif selection.lower() == 'all':
-                        selected_venvs.extend(venvs)
-                        print(f"   Selected all {len(venvs)} venvs for '{pattern}'")
-                        break
-                    elif selection.lower() == 'latest':
-                        # Select the last venv (usually latest versions)
-                        selected_venvs.append(venvs[-1])
-                        print(f"   Selected: {venvs[-1].name} - {venvs[-1].display_name}")
-                        break
-
-                    selected_indices = set()
-                    for part in selection.split(','):
-                        part = part.strip()
-                        if '-' in part:
-                            start, end = map(int, part.split('-'))
-                            selected_indices.update(range(start, end + 1))
-                        else:
-                            selected_indices.add(int(part))
-
-                    pattern_venvs = []
-                    for idx in selected_indices:
-                        if 1 <= idx <= len(venvs):
-                            pattern_venvs.append(venvs[idx - 1])
-
-                    if pattern_venvs:
-                        selected_venvs.extend(pattern_venvs)
-                        print(f"   Selected {len(pattern_venvs)} venv(s) for '{pattern}':")
-                        for venv in pattern_venvs:
-                            print(f"     • {venv.name}: {venv.display_name}")
-                        break
-                    else:
-                        print("   No valid venvs selected")
-
-                except (ValueError, IndexError):
-                    print("❌ Invalid selection. Please use format like '1,3-5', 'all', 'latest', or 'none'")
+            if selected:
+                selected_venvs.extend(selected)
+                print(f"   Selected {len(selected)} venv(s) for '{pattern}':")
+                for venv in selected:
+                    print(f"     • {venv.name}: {venv.display_name}")
 
         return selected_venvs
 
@@ -375,8 +417,8 @@ class TestRunner:
         # Set up base environment
         env = os.environ.copy()
         if needs_testagent:
-            env['DD_TRACE_AGENT_URL'] = 'http://localhost:9126'
-            print(f"🔧 Setting DD_TRACE_AGENT_URL=http://localhost:9126 for snapshot tests")
+            env['DD_TRACE_AGENT_URL'] = TESTAGENT_URL
+            print(f"🔧 Setting DD_TRACE_AGENT_URL={TESTAGENT_URL} for snapshot tests")
 
         # Execute each venv
         for venv in selected_venvs:
