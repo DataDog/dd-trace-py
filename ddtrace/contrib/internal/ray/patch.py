@@ -10,6 +10,14 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
+import ray
+from ray._private.inspect_util import is_class_method
+from ray._private.inspect_util import is_function_or_method
+from ray._private.inspect_util import is_static_method
+import ray.actor
+import ray.dashboard.modules.job.job_manager
+from ray.dashboard.modules.job.job_manager import generate_job_id
+import ray.exceptions
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
@@ -24,18 +32,9 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation.http import _TraceContext
 from ddtrace.settings._config import _get_config
-import ray
-from ray._private.inspect_util import is_class_method
-from ray._private.inspect_util import is_function_or_method
-from ray._private.inspect_util import is_static_method
-import ray.actor
-import ray.dashboard.modules.job.job_manager
-from ray.dashboard.modules.job.job_manager import generate_job_id
-import ray.exceptions
 
 from .span_manager import long_running_ray_span
 from .span_manager import start_long_running_job
@@ -55,8 +54,7 @@ config._add(
     "ray",
     dict(
         _default_service=schematize_service_name("ray"),
-        ray_spans_only=asbool(_get_config("DD_TRACE_RAY_SPANS_ONLY", default=True)),
-        resubmit_interval=float(_get_config("DD_TRACE_RAY_RESUBMIT_LONG_RUNNING_INTERVAL", default=10.0)),
+        resubmit_interval=float(_get_config("DD_TRACE_RAY_RESUBMIT_LONG_RUNNING_INTERVAL", default=120.0)),
         watch_delay=float(_get_config("DD_TRACE_RAY_WATCH_LONG_RUNNING_DELAY", default=10.0)),
     ),
 )
@@ -79,6 +77,10 @@ class RayTraceProcessor:
         for span in trace:
             if span.service == "ray.dashboard" and span.get_tag("component") != "ray":
                 continue
+
+            with open("ray_spans.log", "a") as f:
+                f.write(f"{span}\n")
+
             if span.get_tag("component") == "ray":
                 span.set_metric(_DJM_ENABLED_KEY, 1)
                 span.set_metric(_FILTER_KEPT_KEY, 1)

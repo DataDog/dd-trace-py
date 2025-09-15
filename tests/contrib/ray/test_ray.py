@@ -57,6 +57,7 @@ RAY_SNAPSHOT_IGNORES = [
     # ignore it to make the tests pass in both environments
     "meta._dd.base_service",
     "meta._dd.hostname",
+    "metrics._dd.partial_version",
 ]
 
 
