@@ -12,8 +12,6 @@ from ddtrace.appsec._iast.main import patch_iast
 from ddtrace.contrib.internal.django.patch import patch as django_patch
 from ddtrace.contrib.internal.requests.patch import patch as requests_patch
 from ddtrace.internal import core
-from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
-from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
 from tests.utils import override_config
@@ -91,9 +89,7 @@ def iast_span(tracer):
     ):
         oce.reconfigure()
         container = TracerSpanContainer(tracer)
-        _start_iast_context_and_oce()
         yield container
-        _end_iast_context_and_oce()
         container.reset()
 
 
@@ -108,9 +104,7 @@ def iast_span_disabled(tracer):
     ):
         oce.reconfigure()
         container = TracerSpanContainer(tracer)
-        _start_iast_context_and_oce()
         yield container
-        _end_iast_context_and_oce()
         container.reset()
 
 
@@ -126,9 +120,7 @@ def test_spans_2_vuln_per_request_deduplication(tracer):
     ):
         oce.reconfigure()
         container = TracerSpanContainer(tracer)
-        _start_iast_context_and_oce()
         yield container
-        _end_iast_context_and_oce()
         container.reset()
 
 
@@ -158,7 +150,5 @@ def iast_spans_with_zero_sampling(tracer):
     ):
         oce.reconfigure()
         container = TracerSpanContainer(tracer)
-        _start_iast_context_and_oce()
         yield container
-        _end_iast_context_and_oce()
         container.reset()
