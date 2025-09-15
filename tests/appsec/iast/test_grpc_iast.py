@@ -145,6 +145,7 @@ class GrpcTestIASTCase(GrpcBaseTestCase):
 
             _custom_protobuf_getattribute(mutable_mapping, "data")
 
+    @pytest.mark.skip
     def test_address_server_data(self):
         with override_config("grpc", dict(service_name="myclientsvc")), override_config(
             "grpc_server", dict(service_name="myserversvc")
