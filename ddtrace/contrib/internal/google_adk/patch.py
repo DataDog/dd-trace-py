@@ -1,31 +1,22 @@
 
 """Instrument google-adk."""
-import google.adk
+import google.adk as adk
 
 from ddtrace._trace.pin import Pin
+from ddtrace.internal.logger import get_logger
 from ddtrace import config
 from ddtrace import tracer as _tracer
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace._trace._limits import TRUNCATED_SPAN_ATTRIBUTE_LEN
 
+logger = get_logger(__name__)
 
-# The service name can be configured by the user.
-# config.google_adk["service_name"]
-# DEV: a-la google cloud integration, we could have a project and other settings.
-# config.google_adk["project"]
-
-config._add(
-    "google_adk",
-    dict(
-        service_name="google-adk",
-    ),
-)
+config._add("google_adk", {"service": "google-adk"})
 
 
-def get_version():
-    """Get the version of the google.adk library."""
-    return ""
+def get_version() -> str:
+    return getattr(adk, "__version__", "")
 
 
 def _truncate_value(value):
@@ -42,24 +33,16 @@ def patch():
     """Patch the `google.adk` library for tracing."""
 
     # Agent entrypoints (async generators)
-    # wrap("google.adk", "agents.base_agent.BaseAgent.run_async", _traced_agent_run_async)
-    # wrap("google.adk", "agents.base_agent.BaseAgent.run_live", _traced_agent_run_live)
     wrap("google.adk", "runners.Runner.run_async", _traced_agent_run_async)
     wrap("google.adk", "runners.Runner.run_live", _traced_agent_run_live)
 
-    # Tool execution (async)
-    wrap("google.adk", "tools.base_tool.BaseTool.run_async", _traced_tool_run_async)
+    # Tool execution (central dispatch)
+    wrap("google.adk", "flows.llm_flows.functions.__call_tool_async", _traced_functions_call_tool_async)
+    wrap("google.adk", "flows.llm_flows.functions.__call_tool_live", _traced_functions_call_tool_live)
 
     # Code execution (sync)
-
-    code_executors = {
-        "built_in_code_executor": "BuiltInCodeExecutor",
-        "vertex_ai_code_executor": "VertexAiCodeExecutor",
-        "unsafe_local_code_executor": "UnsafeLocalCodeExecutor",
-        "container_code_executor": "ContainerCodeExecutor",
-    }
     code_executor_classes = [
-        # "BuiltInCodeExecutor", # make an llm tool call to use the llms built in code executor
+        # "BuiltInCodeExecutor", # make an external llm tool call to use the llms built in code executor
         "VertexAiCodeExecutor",
         "UnsafeLocalCodeExecutor",
         # "ContainerCodeExecutor", # additional package dependendy
@@ -71,29 +54,32 @@ def patch():
             _traced_code_executor_execute_code,
         )
 
-    # Plugin callbacks orchestration
+    # Plugin callbacks orchestration, TODO: do we want to trace callbacks?
     wrap(
         "google.adk", "plugins.plugin_manager.PluginManager._run_callbacks",
         _traced_plugin_manager_run_callbacks,
     )
 
     # Memory services (optional modules)
-    wrap(
-        "google.adk", "memory.in_memory_memory_service.InMemoryMemoryService.add_session_to_memory",
-        _traced_memory_add_session_async,
-    )
-    wrap(
-        "google.adk", "memory.in_memory_memory_service.InMemoryMemoryService.search_memory",   
-        _traced_memory_search_async,
-    )
-    wrap(
-        "google.adk", "memory.vertex_ai_memory_bank_service.VertexAiMemoryBankService.add_session_to_memory",
-        _traced_memory_add_session_async,
-    )
-    wrap(
-        "google.adk", "memory.vertex_ai_memory_bank_service.VertexAiMemoryBankService.search_memory",
-        _traced_memory_search_async,
-    )
+    memory_service_classes = [
+        "InMemoryMemoryService",
+        "VertexAiMemoryBankService",
+        "VertexAiRagMemoryService",
+    ]
+
+    for memory_service in memory_service_classes:
+        try:
+            wrap(
+                "google.adk", f"memory.{memory_service}.add_session_to_memory",
+                _traced_memory_add_session_async,
+            )
+            wrap(
+                "google.adk", f"memory.{memory_service}.search_memory",
+                _traced_memory_search_async,
+            )
+        except Exception:
+            logger.exception(f"Failed to wrap {memory_service}")
+            pass
 
 
 def unpatch():
@@ -116,7 +102,8 @@ def unpatch():
     unwrap(google.adk, "agents.base_agent.BaseAgent.run_async")
     unwrap(google.adk, "agents.base_agent.BaseAgent.run_live")
 
-    unwrap(google.adk, "tools.base_tool.BaseTool.run_async")
+    unwrap(google.adk, "flows.llm_flows.functions.__call_tool_async")
+    unwrap(google.adk, "flows.llm_flows.functions.__call_tool_live")
 
     unwrap(google.adk, "code_executors.base_code_executor.BaseCodeExecutor.execute_code")
 
@@ -154,13 +141,29 @@ def _traced_agent_run_async(wrapped, instance, args, kwargs):
     """Trace the main execution of an agent (async generator)."""
     tracer, service = _get_tracer_and_service(instance)
     agen = wrapped(*args, **kwargs)
+    fn_kwargs = kwargs
 
     async def _generator():
-        breakpoint()
         with tracer.trace("google_adk.agent.run", service=service) as span:
             span.set_tag_str("component", "google-adk")
             span.set_tag_str("span.kind", "internal")
-            span.set_tag_str("agent.name", getattr(instance, "name", ""))
+
+            span.set_tag_str("agent_name", instance.agent.name)
+            span.set_tag_str("agent_instructions", instance.agent.instruction)
+            span.set_tag_str("model_configuration", str(instance.agent.model_config))
+            # span.set_tag_str("max_iterations", instance.agent.run_config.max_llm_calls)
+            
+            if fn_kwargs.get("session_id"):
+                span.set_tag_str("session_management.session_id", fn_kwargs.get("session_id"))
+            if fn_kwargs.get("user_id"):
+                span.set_tag_str("session_management.user_id", fn_kwargs.get("user_id"))
+
+            for i, tool in enumerate(instance.agent.tools):
+                span.set_tag_str(f"tool.[{i}].name", tool.name)
+                span.set_tag_str(f"tool.[{i}].description", tool.description)
+                for j, arg in enumerate(tool._get_mandatory_args()):
+                    span.set_tag_str(f"tool.[{i}].parameters.[{j}]", arg)
+
             try:
                 async for event in agen:
                     yield event
@@ -189,22 +192,17 @@ def _traced_agent_run_live(wrapped, instance, args, kwargs):
     return _generator()
 
 
-async def _traced_tool_run_async(wrapped, instance, args, kwargs):
-    """Trace the execution of an agent tool (async)."""
-    tracer, service = _get_tracer_and_service(instance)
+async def _traced_functions_call_tool_async(wrapped, instance, args, kwargs):
+    tracer, service = _get_tracer_and_service(adk)
+    tool = args[0] if args else kwargs.get("tool")
+    tool_args = args[1] if len(args) > 1 else kwargs.get("args")
     with tracer.trace("google_adk.tool.run", service=service) as span:
         span.set_tag_str("component", "google-adk")
         span.set_tag_str("span.kind", "internal")
-        span.set_tag_str("tool.name", getattr(instance, "name", instance.__class__.__name__))
-
-        tool_args = kwargs.get("args")
-        if tool_args is None and args:
-            # run_async(self, *, args: dict, tool_context: ToolContext)
-            # enforce kw-only in user code, but be defensive here
-            tool_args = args[0] if isinstance(args[0], dict) else None
+        if tool is not None:
+            span.set_tag_str("tool.name", getattr(tool, "name", tool.__class__.__name__))
         if tool_args is not None:
             span.set_tag_str("tool.parameters", _truncate_value(tool_args))
-
         try:
             result = await wrapped(*args, **kwargs)
             if result is not None:
@@ -215,10 +213,25 @@ async def _traced_tool_run_async(wrapped, instance, args, kwargs):
             raise
 
 
+async def _traced_functions_call_tool_live(wrapped, instance, args, kwargs):
+    tracer, service = _get_tracer_and_service(adk)
+    tool = args[0] if args else kwargs.get("tool")
+    function_args = args[1] if len(args) > 1 else kwargs.get("args")
+    with tracer.trace("google_adk.tool.run_live", service=service) as span:
+        span.set_tag_str("component", "google-adk")
+        span.set_tag_str("span.kind", "internal")
+        if tool is not None:
+            span.set_tag_str("tool.name", getattr(tool, "name", tool.__class__.__name__))
+        if function_args is not None:
+            span.set_tag_str("tool.parameters", _truncate_value(function_args))
+        agen = await wrapped(*args, **kwargs)
+        async for item in agen:
+            yield item
+
+
 def _traced_code_executor_execute_code(wrapped, instance, args, kwargs):
     """Trace the execution of code by the agent (sync)."""
     tracer, service = _get_tracer_and_service(instance)
-    breakpoint()
     with tracer.trace("google_adk.code.execute", service=service) as span:
         span.set_tag_str("component", "google-adk")
         span.set_tag_str("span.kind", "internal")
@@ -251,7 +264,6 @@ def _traced_code_executor_execute_code(wrapped, instance, args, kwargs):
 
 async def _traced_plugin_manager_run_callbacks(wrapped, instance, args, kwargs):
     tracer, service = _get_tracer_and_service(instance)
-    breakpoint()
     callback_name = args[0] if args else kwargs.get("callback_name", "")
     with tracer.trace("google_adk.plugin.callback", service=service) as span:
         span.set_tag_str("component", "google-adk")
