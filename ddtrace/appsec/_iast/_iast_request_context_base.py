@@ -66,12 +66,17 @@ def _iast_start_request(span=None) -> Optional[int]:
     enrichment and end-of-request processing.
     """
     context_id = None
+
     if asm_config._iast_enabled:
         if oce.acquire_request(span):
-            context_id = start_request_context()
-            if context_id is not None:
+            if not is_iast_request_enabled():
+                context_id = start_request_context()
                 IAST_CONTEXT.set(context_id)
-                core.set_item(IAST.REQUEST_CONTEXT_KEY, IASTEnvironment(span))
+                if context_id is not None:
+                    core.set_item(IAST.REQUEST_CONTEXT_KEY, IASTEnvironment(span))
+        elif (context_id := _get_iast_context_id()) is not None:
+            finish_request_context(context_id)
+            IAST_CONTEXT.set(None)
     return context_id
 
 
@@ -94,7 +99,6 @@ def _iast_finish_request(span=None, shoud_update_global_vulnerability_limit: boo
         core.discard_item(IAST.REQUEST_CONTEXT_KEY)
 
     context_id = _get_iast_context_id()
-
     if context_id is not None:
         finish_request_context(context_id)
         IAST_CONTEXT.set(None)
