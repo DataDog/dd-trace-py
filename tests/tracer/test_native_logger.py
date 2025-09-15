@@ -1,5 +1,6 @@
 from contextlib import nullcontext
 
+import time
 import pytest
 
 from ddtrace.internal.native._native import logger
@@ -60,3 +61,31 @@ def test_logger_configure(output, path, files, max_bytes):
                 logger.configure(**kwargs)
     else:
         logger.configure(**kwargs)
+
+
+LEVELS = ["trace", "debug", "info", "warn", "error"]
+
+
+def wait_for_log(path, expected, timeout=1):
+    start = time.time()
+    while time.time() - start < timeout:
+        if expected in path.read_text():
+            return True
+        time.sleep(0.1)
+    return False
+
+
+cases = [(config, msg, LEVELS.index(msg) >= LEVELS.index(config)) for config in LEVELS for msg in LEVELS]
+
+
+@pytest.mark.parametrize("configured_level, message_level, should_log", cases)
+def test_logger_levels(configured_level, message_level, should_log, tmp_path):
+    log_path = tmp_path / "log.txt"
+    logger.configure(output="file", path=str(log_path))
+    logger.set_log_level(configured_level)
+
+    message = f"{message_level}_msg"
+    logger.log(message_level, message)
+
+    found = wait_for_log(log_path, message)
+    assert found == should_log
