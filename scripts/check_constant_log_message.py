@@ -1,5 +1,5 @@
 """
-Check that add_integration_error_log calls use constant string literals as first argument.
+Check that log.error() and add_integration_error_log calls use constant string literals as first argument.
 This script scans all Python files in ddtrace/contrib/ and reports violations.
 """
 
@@ -11,16 +11,21 @@ from typing import Tuple
 
 
 class LogMessageChecker(ast.NodeVisitor):
-    """AST visitor that checks for proper usage of add_integration_error_log."""
+    """AST visitor that checks for proper usage of log.error() and add_integration_error_log."""
 
     def __init__(self, filepath: str):
         self.filepath = filepath
         self.errors: List[Tuple[int, int]] = []
 
     def visit_Call(self, node: ast.Call) -> None:
-        """Check if this is an add_integration_error_log call with non-constant first arg."""
+        """Check if this is a log.error() or add_integration_error_log call with non-constant first arg."""
         fn = node.func
-        is_target = isinstance(fn, ast.Attribute) and fn.attr == "add_integration_error_log"
+
+        # Check for add_integration_error_log calls
+        is_add_integration_error = isinstance(fn, ast.Attribute) and fn.attr == "add_integration_error_log"
+        # Check for log.error() calls (simple check for .error() on any variable)
+        is_log_error = isinstance(fn, ast.Attribute) and fn.attr == "error"
+        is_target = is_add_integration_error or is_log_error
 
         if is_target and node.args:
             msg = node.args[0]
@@ -58,7 +63,7 @@ def main() -> int:
         for line_no, col_no in errors:
             print(
                 f"{filepath}:{line_no}:{col_no}: "
-                "LOG001 first argument to add_integration_error_log must be a constant string"
+                "LOG001 first argument to logging call must be a constant string"
             )
             total_errors += 1
 
@@ -66,7 +71,7 @@ def main() -> int:
         print(f"\nFound {total_errors} violation(s)", file=sys.stderr)
         return 1
 
-    print("All add_integration_error_log calls use constant strings ✓")
+    print("All logging calls use constant strings ✓")
     return 0
 
 

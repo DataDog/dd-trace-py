@@ -308,7 +308,11 @@ class TelemetryWriter(PeriodicService):
         Note that this overwrites any previously set errors.
         """
         if filename and line_number is not None:
-            msg = "%s:%s: %s" % (filename, line_number, msg)
+            if is_user_code(filename):
+                redacted_filename = "redacted.py"
+            else:
+                redacted_filename = self._format_file_path(filename)
+            msg = "%s:%s: %s" % (redacted_filename, line_number, msg)
         self._error = (code, msg)
 
     def _app_started(self, register_app_shutdown=True):
