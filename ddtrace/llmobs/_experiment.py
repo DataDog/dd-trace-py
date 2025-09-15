@@ -44,6 +44,11 @@ ExperimentConfigType = Dict[str, JSONType]
 DatasetRecordInputType = Dict[str, NonNoneJSONType]
 
 
+class Project(TypedDict):
+    name: str
+    _id: str
+
+
 class DatasetRecordRaw(TypedDict):
     input_data: DatasetRecordInputType
     expected_output: JSONType
@@ -106,6 +111,7 @@ class Dataset:
     def __init__(
         self,
         name: str,
+        project: Project,
         dataset_id: str,
         records: List[DatasetRecord],
         description: str,
@@ -113,6 +119,7 @@ class Dataset:
         _dne_client: "LLMObsExperimentsClient",
     ) -> None:
         self.name = name
+        self.project = project
         self.description = description
         self._id = dataset_id
         self._version = version
@@ -266,9 +273,13 @@ class Dataset:
                 flat_record[("expected_output", "")] = expected_output
                 column_tuples.add(("expected_output", ""))
 
-            for metadata_col, metadata_val in record.get("metadata", {}).items():
-                flat_record[("metadata", metadata_col)] = metadata_val
-                column_tuples.add(("metadata", metadata_col))
+            metadata = record.get("metadata", {})
+            if isinstance(metadata, dict):
+                for metadata_col, metadata_val in metadata.items():
+                    flat_record[("metadata", metadata_col)] = metadata_val
+                    column_tuples.add(("metadata", metadata_col))
+            else:
+                logger.warning("unexpected metadata format %s", type(metadata))
 
             data_rows.append(flat_record)
 
@@ -331,8 +342,8 @@ class Experiment:
             )
             return []
 
-        project_id = self._llmobs_instance._dne_client.project_create_or_get(self._project_name)
-        self._project_id = project_id
+        project = self._llmobs_instance._dne_client.project_create_or_get(self._project_name)
+        self._project_id = project.get("_id", "")
 
         experiment_id, experiment_run_name = self._llmobs_instance._dne_client.experiment_create(
             self.name,
@@ -412,6 +423,7 @@ class Experiment:
             subset_name = "[Test subset of {} records] {}".format(sample_size, self._dataset.name)
             subset_dataset = Dataset(
                 name=subset_name,
+                project=self._dataset.project,
                 dataset_id=self._dataset._id,
                 records=subset_records,
                 description=self._dataset.description,

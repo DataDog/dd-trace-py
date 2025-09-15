@@ -1,42 +1,44 @@
 """
-The Ray integration traces Ray jobs, tasks (remote functions), and actor method executions.
-
-All traces submitted from the Ray integration are tagged by:
-
-- ``env``, ``version``: see the `Unified Service Tagging docs <https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging>`_.
-
-The service for Ray spans is set to the Ray job submission id to group telemetry per job.
+The ray integration traces:
+ - Job lifetime (job submit, job run)
+ - Task submission and execution
+ - Actor method submission and execution
 
 Enabling
 ~~~~~~~~
 
 The Ray integration is enabled automatically when you use
 :ref:`ddtrace-run<ddtracerun>` or :ref:`import ddtrace.auto<ddtraceauto>`.
-Alternatively, use :func:`patch() <ddtrace.patch>` to manually enable the Ray integration::
+
+Or use :func:`patch() <ddtrace.patch>` to manually enable the Ray integration::
 
     from ddtrace import patch
     patch(ray=True)
 
+The recommended way to instrument ray, is to instrument the ray cluster.
+You can do it by starting the Ray head with a tracing startup hook::
 
-Supported Versions
-~~~~~~~~~~~~~~~~~~
-
-Ray ``>=2.46.0``
+    ray start --head --tracing-startup-hook=ddtrace.contrib.internal.ray.hook:setup_tracing
 
 
-What is traced
-~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
-- Job submission and completion (``ray.job.submit``, ``ray.job``)
-- Task submission and execution (``func.remote()``, the function body)
-- Actor method submission and execution (``Actor.method.remote()``, the method body)
+The Ray integration can be configured using environment variables:
 
+- ``DD_TRACE_RAY_RESUBMIT_LONG_RUNNING_INTERVAL``: Interval for resubmitting long-running
+    spans (default: ``10.0`` seconds)
+- ``DD_TRACE_RAY_WATCH_LONG_RUNNING_DELAY``: Maxime delay before a long-running span
+    is sent (default: ``10.0`` seconds)
 
 Notes
 ~~~~~
 
 - The integration disables Ray's built-in OpenTelemetry tracing to avoid duplicate telemetry.
+- The integration filters out non-Ray dashboard spans to reduce noise.
+- Actor methods like ``ping`` and ``_polling`` are excluded from tracing to reduce noise.
 """
+
 import os
 
 

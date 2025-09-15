@@ -11,7 +11,7 @@ api_new_pyobject_id(PyObject* self, PyObject* const* args, const Py_ssize_t narg
 }
 
 bool
-is_tainted(PyObject* tainted_object, const TaintRangeMapTypePtr& tx_taint_map)
+is_tainted(PyObject* tainted_object, const TaintedObjectMapTypePtr& tx_taint_map)
 {
     const auto& to_initial = get_tainted_object(tainted_object, tx_taint_map);
     if (to_initial and !to_initial->get_ranges().empty()) {
@@ -41,7 +41,8 @@ bool
 api_is_tainted_new(py::object tainted_object)
 {
     if (tainted_object) {
-        const auto& to_initial = application_context->get_tainted_object_from_contexts_array(tainted_object.ptr());
+        const auto& to_initial =
+          taint_engine_context->get_tainted_object_from_request_context_slot(tainted_object.ptr());
         if (to_initial and !to_initial->get_ranges().empty()) {
             return true;
         }

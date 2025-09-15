@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+from itertools import chain
 import threading
 import time
 
@@ -52,18 +53,32 @@ class LongRunningJobManager:
         with aggregator._lock:
             if span.trace_id in aggregator._traces:
                 trace = aggregator._traces[span.trace_id]
-                # Find and remove finished children in one pass
                 finished_children = []
                 remaining_spans = []
+
                 for s in trace.spans:
                     if s.finished and s.span_id != span.span_id:
                         finished_children.append(s)
                     else:
                         remaining_spans.append(s)
                 trace.spans[:] = remaining_spans
-                # Update the finished count
                 trace.num_finished -= len(finished_children)
-        tracer._span_aggregator.writer.write([partial_span] + finished_children)
+
+        spans_to_write = [partial_span] + finished_children
+
+        try:
+            spans = spans_to_write
+            for tp in chain(
+                aggregator.dd_processors,
+                aggregator.user_processors,
+                [aggregator.sampling_processor, aggregator.tags_processor, aggregator.service_name_processor],
+            ):
+                spans = tp.process_trace(spans) or []
+                if not spans:
+                    return
+        except Exception:
+            spans = spans_to_write
+        aggregator.writer.write(spans)
 
     def _create_resubmit_timer(self, submission_id):
         timer = threading.Timer(config.ray.resubmit_interval, self._resubmit_long_running_spans, args=[submission_id])
