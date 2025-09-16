@@ -149,3 +149,75 @@ TEST_F(ApplicationContextTest, ClearContextsArrayFreesTaintRangeMap)
     // Assert: the map is destroyed (no remaining strong refs)
     ASSERT_TRUE(w_map.expired());
 }
+
+TEST_F(ApplicationContextTest, FinishRequestContextWithInvalidIndexIsNoop)
+{
+    const auto cap = taint_engine_context->debug_context_array_size();
+    // Act: finish an out-of-range index; should not crash
+    taint_engine_context->finish_request_context(cap + 10);
+    // Assert: out-of-range map lookup returns nullptr
+    auto m = taint_engine_context->get_tainted_object_map_by_ctx_id(cap + 10);
+    ASSERT_EQ(m, nullptr);
+}
+
+TEST_F(ApplicationContextTest, FinishRequestContextTwiceIsNoop)
+{
+    auto idx_opt = taint_engine_context->start_request_context();
+    ASSERT_TRUE(idx_opt.has_value());
+    const auto id = *idx_opt;
+    ASSERT_NE(taint_engine_context->get_tainted_object_map_by_ctx_id(id), nullptr);
+
+    // First finish clears the slot
+    taint_engine_context->finish_request_context(id);
+    ASSERT_EQ(taint_engine_context->get_tainted_object_map_by_ctx_id(id), nullptr);
+
+    // Second finish is a no-op
+    taint_engine_context->finish_request_context(id);
+    ASSERT_EQ(taint_engine_context->get_tainted_object_map_by_ctx_id(id), nullptr);
+}
+
+TEST_F(ApplicationContextTest, GetTaintedObjectMapByInvalidIndexReturnsNull)
+{
+    const auto cap = taint_engine_context->debug_context_array_size();
+    auto m1 = taint_engine_context->get_tainted_object_map_by_ctx_id(cap);
+    auto m2 = taint_engine_context->get_tainted_object_map_by_ctx_id(cap + 123);
+    ASSERT_EQ(m1, nullptr);
+    ASSERT_EQ(m2, nullptr);
+}
+
+TEST_F(ApplicationContextTest, StartUntilCapacityThenNextReturnsNullopt)
+{
+    const auto cap = taint_engine_context->debug_context_array_size();
+    std::vector<size_t> ids;
+    ids.reserve(cap);
+    for (size_t i = 0; i < cap; ++i) {
+        auto idx = taint_engine_context->start_request_context();
+        ASSERT_TRUE(idx.has_value());
+        ids.push_back(*idx);
+    }
+    // Next start should fail when at capacity
+    auto extra = taint_engine_context->start_request_context();
+    ASSERT_FALSE(extra.has_value());
+
+    // After clearing, a new start should succeed
+    taint_engine_context->clear_all_request_context_slots();
+    auto idx_after_clear = taint_engine_context->start_request_context();
+    ASSERT_TRUE(idx_after_clear.has_value());
+}
+
+TEST_F(ApplicationContextTest, ClearAllIsIdempotent)
+{
+    // Call clear on an already empty array
+    taint_engine_context->clear_all_request_context_slots();
+    // Create one context and clear twice
+    auto idx_opt = taint_engine_context->start_request_context();
+    ASSERT_TRUE(idx_opt.has_value());
+    const auto id = *idx_opt;
+    ASSERT_NE(taint_engine_context->get_tainted_object_map_by_ctx_id(id), nullptr);
+
+    taint_engine_context->clear_all_request_context_slots();
+    ASSERT_EQ(taint_engine_context->get_tainted_object_map_by_ctx_id(id), nullptr);
+    // Second call should be harmless
+    taint_engine_context->clear_all_request_context_slots();
+    ASSERT_EQ(taint_engine_context->get_tainted_object_map_by_ctx_id(id), nullptr);
+}

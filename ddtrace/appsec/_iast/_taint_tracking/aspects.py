@@ -376,22 +376,23 @@ def format_map_aspect(orig_function: Optional[Callable], flag_added_args: int, *
         if not ranges_orig:
             return result
 
-        formated_evidence = as_formatted_evidence(
-            candidate_text, candidate_text_ranges, tag_mapping_function=TagMappingMode.Mapper
+        aspect_result = _convert_escaped_text_to_tainted_text(
+            as_formatted_evidence(
+                candidate_text, candidate_text_ranges, tag_mapping_function=TagMappingMode.Mapper
+            ).format_map(
+                {
+                    key: (
+                        as_formatted_evidence(value, tag_mapping_function=TagMappingMode.Mapper)
+                        if isinstance(value, IAST.TEXT_TYPES)
+                        else value
+                    )
+                    for key, value in mapping.items()
+                }
+                if isinstance(mapping, dict)
+                else tuple(mapping)
+            ),
+            ranges_orig=ranges_orig,
         )
-        formated_evidence_map = formated_evidence.format_map(
-            {
-                key: (
-                    as_formatted_evidence(value, tag_mapping_function=TagMappingMode.Mapper)
-                    if isinstance(value, IAST.TEXT_TYPES)
-                    else value
-                )
-                for key, value in mapping.items()
-            }
-            if isinstance(mapping, dict)
-            else tuple(mapping)
-        )
-        aspect_result = _convert_escaped_text_to_tainted_text(formated_evidence_map, ranges_orig=ranges_orig)
         if aspect_result != result:
             return result
         return aspect_result

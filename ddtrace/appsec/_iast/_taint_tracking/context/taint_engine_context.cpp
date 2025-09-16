@@ -308,7 +308,7 @@ pyexport_taint_engine_context(py::module& m)
 
     m.def("debug_taint_map", [](size_t ctx_id) { return taint_engine_context->debug_taint_map(ctx_id); });
 
-    m.def("debug_debug_num_tainted_objects",
+    m.def("debug_num_tainted_objects",
           [](size_t ctx_id) { return taint_engine_context->debug_num_tainted_objects(ctx_id); });
 }
 
