@@ -194,3 +194,46 @@ download_dependency_wheels:
     name: ddtrace-sdist
     paths:
       - pywheels/
+
+"build ddtrace linux x86_64":
+  extends: .build_ddtrace_linux_base
+  image: "${PYPA_IMAGE_BASE}/${PLATFORM}_${ARCH}:${PYPA_IMAGE_TAG}"
+  tags: [ "arch:amd64" ]
+  parallel:
+    matrix:
+      - PLATFORM: *linux_platforms
+        PYTHON_TAG: *python_tags
+  variables:
+    ARCH: "x86_64"
+  script:
+    - |
+      # Build the wheel
+      echo -e "\e[0Ksection_start:`date +%s`:build_wheel[collapsed=true]\r\e[0KBuild ddtrace wheel"
+      echo "pip debug log: ${PIP_LOG}"
+      echo "------ DDTRACE STARTING PIP WHEEL BUILD ------" >> "${PIP_LOG}"
+      ./.gitlab/package/build_wheel_linux.sh /opt/python/${PYTHON_TAG}/bin/python pywheels/
+      echo -e "\e[0Ksection_end:`date +%s`:build_wheel\r\e[0K"
+    - |
+      #Repair the wheel
+      echo -e "\e[0Ksection_start:`date +%s`:repair_wheel[collapsed=true]\r\e[0KRepair ddtrace wheel"
+      ./.gitlab/package/repair_wheel_linux.sh pywheels/
+      echo -e "\e[0Ksection_end:`date +%s`:repair_wheel\r\e[0K"
+    - |
+      # Download wheel dependencies (x86_64 and aarch64)
+      echo -e "\e[0Ksection_start:`date +%s`:download_wheel_dependencies[collapsed=true]\r\e[0KDownload wheel dependencies"
+      if [ "$ARCH" == "x86_64" ] || [ "$ARCH" == "aarch64" ];
+      then
+        # TODO: Add this
+        # .gitlab/download-dependency-wheels.sh "/opt/python/${PYTHON_TAG}/bin/python" "${ARCH}" "${PLATFORM}"
+      fi
+
+      # Remove ddtrace from the pip cache so it doesn't get uploaded to the gitlab cache
+      /opt/python/${PYTHON_TAG}/bin/python -m pip cache remove ddtrace
+      echo -e "\e[0Ksection_end:`date +%s`:download_wheel_dependencies\r\e[0K"
+  artifacts:
+    name: wheelhouse-${PYTHON_TAG}-${PLATFORM}_${ARCH}
+    when: always
+    paths:
+      - pywheels/
+      # TODO: Add this
+      # - pywheels-dep/
