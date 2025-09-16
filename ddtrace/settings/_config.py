@@ -663,7 +663,7 @@ class Config(object):
 
         # Resource renaming
         self._trace_resource_renaming_enabled = _get_config(
-            "DD_TRACE_RESOURCE_RENAMING", default=False, modifier=asbool
+            "DD_TRACE_RESOURCE_RENAMING_ENABLED", default=False, modifier=asbool
         )
         self._trace_resource_renaming_always_simplified_endpoint = _get_config(
             "DD_TRACE_RESOURCE_RENAMING_ALWAYS_SIMPLIFIED_ENDPOINT", default=False, modifier=asbool
