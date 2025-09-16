@@ -10,7 +10,7 @@
         "dependency": "aiohttp",
         "integration": "aiohttp",
         "minimum_tracer_supported": "3.7.4.post0",
-        "max_tracer_supported": "3.12.15",
+        "max_tracer_supported": "3.12.11",
         "auto-instrumented": true
     },
     {
@@ -54,7 +54,7 @@
         "dependency": "anthropic",
         "integration": "anthropic",
         "minimum_tracer_supported": "0.28.1",
-        "max_tracer_supported": "0.52.2",
+        "max_tracer_supported": "0.67.0",
         "auto-instrumented": true
     },
     {
@@ -206,7 +206,7 @@
         "dependency": "dramatiq",
         "integration": "dramatiq",
         "minimum_tracer_supported": "1.10.0",
-        "max_tracer_supported": "1.18.0",
+        "max_tracer_supported": "1.17.0",
         "auto-instrumented": true
     },
     {
@@ -297,7 +297,7 @@
         "dependency": "flask-caching",
         "integration": "flask_cache",
         "minimum_tracer_supported": "1.10.1",
-        "max_tracer_supported": "2.3.1",
+        "max_tracer_supported": "2.3.0",
         "auto-instrumented": false
     },
     {
@@ -531,7 +531,7 @@
         "dependency": "pymongo",
         "integration": "pymongo",
         "minimum_tracer_supported": "3.8.0",
-        "max_tracer_supported": "4.14.1",
+        "max_tracer_supported": "4.15.0",
         "auto-instrumented": true
     },
     {
@@ -567,7 +567,7 @@
         "dependency": "pytest",
         "integration": "pytest",
         "minimum_tracer_supported": "6.2.5",
-        "max_tracer_supported": "8.4.1",
+        "max_tracer_supported": "8.4.2",
         "auto-instrumented": false
     },
     {
@@ -582,7 +582,7 @@
         "dependency": "redis",
         "integration": "redis",
         "minimum_tracer_supported": "4.6.0",
-        "max_tracer_supported": "6.4.0",
+        "max_tracer_supported": "5.2.0",
         "auto-instrumented": true
     },
     {
@@ -603,7 +603,7 @@
         "dependency": "rq",
         "integration": "rq",
         "minimum_tracer_supported": "1.8.1",
-        "max_tracer_supported": "2.5.0",
+        "max_tracer_supported": "1.16.2",
         "auto-instrumented": true
     },
     {
@@ -638,7 +638,7 @@
         "dependency": "starlette",
         "integration": "starlette",
         "minimum_tracer_supported": "0.14.2",
-        "max_tracer_supported": "0.47.1",
+        "max_tracer_supported": "0.47.3",
         "auto-instrumented": true
     },
     {
