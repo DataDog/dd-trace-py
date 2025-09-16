@@ -1,6 +1,0 @@
-build==1.2.2  # Needed for Python 3.8 support
-packaging==25.0
-pip==25.2; python_version >= "3.9"
-pip==24.3.1; python_version <= "3.8"
-twine==6.2.0; python_version >= "3.9"
-twine==6.1.0; python_version <= "3.8"
