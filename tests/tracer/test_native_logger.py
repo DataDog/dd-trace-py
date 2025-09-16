@@ -1,4 +1,5 @@
 from contextlib import nullcontext
+import os
 import time
 
 import pytest
@@ -89,3 +90,33 @@ def test_logger_levels(configured_level, message_level, should_log, tmp_path):
 
     found = wait_for_log(log_path, message)
     assert found == should_log
+
+
+@pytest.mark.parametrize("backend", ["stdout", "stderr", "file"])
+def test_logger_subprocess(backend, tmp_path, ddtrace_run_python_code_in_subprocess):
+    log_path = tmp_path / "log.txt"
+
+    env = os.environ.copy()
+    env["_DD_TRACE_WRITER_NATIVE"] = "1"
+    env["_DD_NATIVE_LOGGING_BACKEND"] = backend
+    env["_DD_NATIVE_LOGGING_FILE_PATH"] = log_path
+
+    code = """
+from ddtrace.internal.native._native import logger
+
+logger.log("warn", "message")
+    """
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+
+    assert status == 0
+    if backend == "stdout":
+        assert "message" in out.decode("utf-8")
+        assert err == b""
+    elif backend == "stderr":
+        assert "message" in err.decode("utf-8")
+        assert out == b""
+    else:
+        found = wait_for_log(log_path, "message")
+        assert out == b""
+        assert err == b""
+        assert found
