@@ -45,7 +45,7 @@ gtest_discover_tests(
 
 add_custom_target(
     test_valgrind
-    COMMAND valgrind --leak-check=full --suppressions=../../../../../scripts/iast/valgrind-python.supp
+    COMMAND PYTHONMALLOC=malloc valgrind --track-origins=yes --leak-check=full --suppressions=../../../../../scripts/iast/valgrind-python.supp
             --show-reachable=yes ${CMAKE_BINARY_DIR}/tests/native_tests --gtest_filter=-TestTimer.*
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tests)
 add_dependencies(test_valgrind native_tests)
