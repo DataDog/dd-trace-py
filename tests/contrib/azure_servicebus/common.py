@@ -177,8 +177,8 @@ async def test_common():
     method = os.environ.get("METHOD")
     is_async = os.environ.get("IS_ASYNC") == "True"
     message_payload_type = os.environ.get("MESSAGE_PAYLOAD_TYPE")
-    distributed_tracing_enabled = os.environ.get("DD_AZURE_SERVICEBUS_DISTRIBUTED_TRACING") == "True"
-    batch_links_enabled = os.environ.get("DD_TRACE_AZURE_SERVICEBUS_BATCH_LINKS_ENABLED") == "True"
+    distributed_tracing_enabled = os.environ.get("DD_AZURE_SERVICEBUS_DISTRIBUTED_TRACING", "True") == "True"
+    batch_links_enabled = os.environ.get("DD_TRACE_AZURE_SERVICEBUS_BATCH_LINKS_ENABLED", "True") == "True"
 
     if is_async:
         client = ServiceBusClientAsync.from_connection_string(CONNECTION_STRING)

@@ -14,30 +14,36 @@ SNAPSHOT_IGNORES = ["meta.messaging.message_id", "meta._dd.span_links"]
 METHODS = ["send_messages", "schedule_messages"]
 ASYNC_OPTIONS = [False, True]
 PAYLOAD_TYPES = ["single", "list", "batch"]
-DISTRIBUTED_TRACING_ENABLED_OPTIONS = [True, False]
-BATCH_LINKS_ENABLED_OPTIONS = [True, False]
+DISTRIBUTED_TRACING_ENABLED_OPTIONS = [None, False]
+BATCH_LINKS_ENABLED_OPTIONS = [None, False]
 
 
 def is_invalid_test_combination(method, payload_type, batch_links_enabled):
     return (method == "schedule_messages" and payload_type == "batch") or (
-        payload_type != "batch" and not batch_links_enabled
+        payload_type != "batch" and batch_links_enabled is False
     )
 
 
-param_values = [
-    (m, a, p, d, b)
+params = [
+    (
+        f"{m}{'_async' if a else ''}_{p}"
+        f"_distributed_tracing_{'enabled' if d is None else 'disabled'}"
+        f"{'_batch_links_enabled' if p == 'batch' and b is None else '_batch_links_disabled' if p == 'batch' else ''}",
+        {
+            "METHOD": m,
+            "IS_ASYNC": str(a),
+            "MESSAGE_PAYLOAD_TYPE": p,
+            **({"DD_AZURE_SERVICEBUS_DISTRIBUTED_TRACING": str(d)} if d is not None else {}),
+            **({"DD_TRACE_AZURE_SERVICEBUS_BATCH_LINKS_ENABLED": str(b)} if b is not None else {}),
+        },
+    )
     for m, a, p, d, b in itertools.product(
         METHODS, ASYNC_OPTIONS, PAYLOAD_TYPES, DISTRIBUTED_TRACING_ENABLED_OPTIONS, BATCH_LINKS_ENABLED_OPTIONS
     )
     if not is_invalid_test_combination(m, p, b)
 ]
 
-param_ids = [
-    f"{m}{'_async' if a else ''}_{p}"
-    f"_distributed_tracing_{'enabled' if d else 'disabled'}"
-    f"{'_batch_links_enabled' if p == 'batch' and b else '_batch_links_disabled' if p == 'batch' else ''}"
-    for m, a, p, d, b in param_values
-]
+param_ids, param_values = zip(*params)
 
 
 @pytest.fixture(autouse=True)
@@ -49,27 +55,13 @@ def patch_azure_servicebus():
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "method, is_async, payload_type, distributed_tracing_enabled, batch_links_enabled",
+    "env_vars",
     param_values,
     ids=param_ids,
 )
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
-async def test_producer(
-    ddtrace_run_python_code_in_subprocess,
-    method,
-    is_async,
-    payload_type,
-    distributed_tracing_enabled,
-    batch_links_enabled,
-):
+async def test_producer(ddtrace_run_python_code_in_subprocess, env_vars):
     env = os.environ.copy()
-    env_vars = {
-        "METHOD": method,
-        "IS_ASYNC": str(is_async),
-        "MESSAGE_PAYLOAD_TYPE": payload_type,
-        "DD_AZURE_SERVICEBUS_DISTRIBUTED_TRACING": str(distributed_tracing_enabled),
-        "DD_TRACE_AZURE_SERVICEBUS_BATCH_LINKS_ENABLED": str(batch_links_enabled),
-    }
     env.update(env_vars)
 
     helper_path = Path(__file__).resolve().parent.joinpath("common.py")

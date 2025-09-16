@@ -17,23 +17,23 @@ ASYNC_OPTIONS = [False, True]
 CARDINALITY = ["one", "many"]
 DISTRIBUTED_TRACING_ENABLED_OPTIONS = [None, False]
 
-param_values = [
+params = [
     (
-        {
-            **{"IS_ASYNC": str(a)},
-            **{"CARDINALITY": c},
-            **({} if d is None else {"DD_AZURE_FUNCTIONS_DISTRIBUTED_TRACING": str(d)}),
-        },
-        e,
-        "single" if c == "one" else "batch",
+        f"{e}{'_async' if a else ''}_consume_{c}_distributed_tracing_{'enabled' if d is None else 'disabled'}",
+        (
+            {
+                "IS_ASYNC": str(a),
+                "CARDINALITY": c,
+                **({"DD_AZURE_FUNCTIONS_DISTRIBUTED_TRACING": str(d)} if d is not None else {}),
+            },
+            e,
+            "single" if c == "one" else "batch",
+        ),
     )
     for e, a, c, d in itertools.product(ENTITY_TYPES, ASYNC_OPTIONS, CARDINALITY, DISTRIBUTED_TRACING_ENABLED_OPTIONS)
 ]
 
-param_ids = [
-    f"{e}{'_async' if a else ''}_consume_{c}" f"_distributed_tracing_{'enabled' if d is None else 'disabled'}"
-    for e, a, c, d in itertools.product(ENTITY_TYPES, ASYNC_OPTIONS, CARDINALITY, DISTRIBUTED_TRACING_ENABLED_OPTIONS)
-]
+param_ids, param_values = zip(*params)
 
 
 @pytest.fixture
