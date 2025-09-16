@@ -197,6 +197,7 @@ exclude-modules = '''
   | ddtrace.internal.coverage.instrumentation_py3_11
   | ddtrace.internal.coverage.instrumentation_py3_12
   | ddtrace.internal.coverage.instrumentation_py3_13
+  | ddtrace.internal.coverage.instrumentation_py3_14
 )
 '''
 
