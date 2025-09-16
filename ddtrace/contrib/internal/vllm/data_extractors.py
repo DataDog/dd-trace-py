@@ -23,7 +23,6 @@ class RequestData:
     stop_reason: Optional[Any] = None
     embedding_dim: Optional[int] = None
     num_cached_tokens: Optional[int] = None
-    model_name: Optional[str] = None
     lora_name: Optional[str] = None
     sampling_params: Optional[SamplingParams] = None
     input_: Optional[Any] = None
@@ -139,10 +138,9 @@ def extract_v1_streaming_data(outputs: List[RequestOutput]) -> RequestData:
     return data
 
 
-def extract_offline_data(request_output: RequestOutput, prompts=None, model_name=None) -> RequestData:
+def extract_offline_data(request_output: RequestOutput, prompts=None) -> RequestData:
     data = RequestData(
         prompt=_first_non_empty(request_output.prompt, prompts if isinstance(prompts, str) else None),
-        model_name=model_name,
         num_cached_tokens=request_output.num_cached_tokens,
         input_tokens=_len_or_zero(request_output.prompt_token_ids),
     )
@@ -158,8 +156,11 @@ def extract_captured_prompt(parent_span: Optional[Span]) -> Optional[str]:
 
 
 def extract_model_name(instance: Any) -> Optional[str]:
-    mc = getattr(instance, "model_config", None)
-    return mc.model if mc else None
+    """Extract model name from any vLLM engine instance (LLMEngine, AsyncLLMEngine, MQLLMEngineClient)."""
+    model_config = getattr(instance, "model_config", None)
+    if model_config and hasattr(model_config, "model"):
+        return model_config.model
+    return None
 
 
 def extract_lora_name(lora_request: Optional[LoRARequest]) -> Optional[str]:
