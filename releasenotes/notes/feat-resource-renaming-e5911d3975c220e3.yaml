@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    tracing: Added support for resource renaming
