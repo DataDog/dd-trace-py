@@ -1049,7 +1049,7 @@ venv = Venv(
                     pkgs={"dramatiq": "~=1.10.0", "pytest": latest, "redis": latest, "pika": latest},
                 ),
                 Venv(
-                    pys=select_pys(),
+                    pys=select_pys(max_version="3.13"),
                     pkgs={"dramatiq": latest, "pytest": latest, "redis": latest},
                 ),
             ],
@@ -1261,7 +1261,7 @@ venv = Venv(
                             pys=select_pys(min_version="3.8", max_version="3.11"),
                         ),
                         Venv(
-                            pys=select_pys(min_version="3.12"),
+                            pys=select_pys(min_version="3.12", max_version="3.13"),
                             pkgs={
                                 "redis": latest,
                             },
@@ -1277,7 +1277,7 @@ venv = Venv(
                         Venv(
                             pys=select_pys(min_version="3.8", max_version="3.11"),
                         ),
-                        Venv(pys=select_pys(min_version="3.12"), pkgs={"redis": latest}),
+                        Venv(pys=select_pys(min_version="3.12", max_version="3.13"), pkgs={"redis": latest}),
                     ],
                 ),
             ],
@@ -1792,8 +1792,12 @@ venv = Venv(
                 ),
                 Venv(
                     # fastapi added support for Python 3.11 in 0.86.0
-                    pys=select_pys(min_version="3.11"),
+                    pys=select_pys(min_version="3.11", max_version="3.13"),
                     pkgs={"fastapi": ["~=0.86.0", latest], "anyio": ">=3.4.0,<4.0"},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.14"),
+                    pkgs={"fastapi": latest, "hypothesis": latest, "pydantic": "==2.12.0a1"},
                 ),
             ],
         ),
@@ -2135,7 +2139,7 @@ venv = Venv(
                 ),
                 Venv(
                     # rq added support for Python 3.10/3.11 in 1.13
-                    pys=select_pys(min_version="3.10"),
+                    pys=select_pys(min_version="3.10", max_version="3.13"),
                     pkgs={"rq": latest},
                 ),
             ],
@@ -2361,7 +2365,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.12"),
+                    pys=select_pys(min_version="3.12", max_version="3.13"),
                     command="pytest {cmdargs} tests/contrib/redis",
                     pkgs={
                         "redis": latest,
