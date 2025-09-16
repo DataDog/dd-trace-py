@@ -104,6 +104,10 @@ download_dependency_wheels:
   - "3.12"
   - "3.13"
 
+.linux_platforms: &linux_platforms
+  - "manylinux2014"
+  - "musllinux_1_2"
+
 .setup_manylinux_python:
     - |
       # Setup python
