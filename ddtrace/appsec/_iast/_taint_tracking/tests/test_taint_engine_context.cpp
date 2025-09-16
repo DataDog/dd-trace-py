@@ -9,9 +9,14 @@
 namespace py = pybind11;
 
 namespace {
-static inline long refcnt(PyObject* o) { return o ? Py_REFCNT(o) : 0; }
+static inline long
+refcnt(PyObject* o)
+{
+    return o ? Py_REFCNT(o) : 0;
+}
 
-static TaintedObjectPtr make_tainted_with_one_range(size_t len)
+static TaintedObjectPtr
+make_tainted_with_one_range(size_t len)
 {
     auto to = std::make_shared<TaintedObject>();
     TaintRangeRefs ranges;
@@ -199,7 +204,6 @@ TEST_F(ApplicationContextTest, GetCurrentContextMap_DictScan_NoRefcountLeak_NoMa
     ASSERT_EQ(refcnt(val1.ptr()), v1_before);
     ASSERT_EQ(refcnt(val2.ptr()), v2_before);
 }
-
 
 TEST_F(ApplicationContextTest, CreateTwoContextsAndRetrieveByIndex)
 {

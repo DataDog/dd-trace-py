@@ -8,20 +8,23 @@
 
 namespace py = pybind11;
 
-class PyEnvEnv : public ::testing::Environment {
- public:
-  // Using SetUp/TearDown ensures order with other global test environments.
-  void SetUp() override {
-    if (!Py_IsInitialized()) {
-      py::initialize_interpreter();
+class PyEnvEnv : public ::testing::Environment
+{
+  public:
+    // Using SetUp/TearDown ensures order with other global test environments.
+    void SetUp() override
+    {
+        if (!Py_IsInitialized()) {
+            py::initialize_interpreter();
+        }
     }
-  }
 
-  void TearDown() override {
-    if (Py_IsInitialized()) {
-      py::finalize_interpreter();
+    void TearDown() override
+    {
+        if (Py_IsInitialized()) {
+            py::finalize_interpreter();
+        }
     }
-  }
 };
 
 // Register the global environment before tests run.
