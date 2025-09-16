@@ -59,6 +59,7 @@ def test_setting_origin_code(test_agent_session, run_python_code_in_subprocess):
             "DD_TAGS": "team:apm,component:web",
             "DD_TRACE_ENABLED": "true",
             "DD_CIVISIBILITY_AGENTLESS_ENABLED": "false",
+            "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": "true",
         }
     )
     out, err, status, _ = run_python_code_in_subprocess(
@@ -69,10 +70,6 @@ config._logs_injection = False
 config._trace_http_header_tags = {"header": "value"}
 config.tags = {"header": "value"}
 config._tracing_enabled = False
-
-from ddtrace.internal.telemetry import telemetry_writer
-# simulate app start event, this occurs when the first span is sent to the datadog agent
-telemetry_writer._app_started()
         """,
         env=env,
     )

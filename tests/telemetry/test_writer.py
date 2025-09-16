@@ -184,9 +184,8 @@ import ddtrace.settings.exception_replay
     env["DD_INJECT_FORCE"] = "true"
     env["DD_INJECTION_ENABLED"] = "tracer"
 
-    # By default telemetry collection is enabled after 10 seconds, so we either need to
-    # to sleep for 10 seconds or manually call _app_started() to generate the app started event.
-    # This delay allows us to collect start up errors and dynamic configurations
+    # Ensures app-started event is queued immediately after ddtrace is imported
+    # instead of waiting for 10 seconds.
     env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
     _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
@@ -630,9 +629,8 @@ import httpretty
 
 def test_app_closing_event(telemetry_writer, test_agent_session, mock_time):
     """asserts that app_shutdown() queues and sends an app-closing telemetry request"""
-    # app started event must be queued before any other telemetry event
-    telemetry_writer._app_started(register_app_shutdown=False)
-    assert telemetry_writer.started
+    # Telemetry writer must start before app-closing event is queued
+    telemetry_writer.started = True
     # send app closed event
     telemetry_writer.app_shutdown()
 
@@ -784,7 +782,7 @@ def test_app_product_change_event(mock_time, telemetry_writer, test_agent_sessio
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, True)
     assert all(telemetry_writer._product_enablement.values())
 
-    telemetry_writer._app_started()
+    telemetry_writer.periodic(force_flush=True)
 
     # Assert that there's only an app_started event (since product activation happened before the app started)
     events = test_agent_session.get_events("app-product-change")
