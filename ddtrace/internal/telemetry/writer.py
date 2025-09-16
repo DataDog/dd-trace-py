@@ -84,7 +84,7 @@ class _TelemetryClient:
     def url(self):
         return parse.urljoin(self._telemetry_url, self._endpoint)
 
-    def send_event(self, request: Dict) -> Optional[httplib.HTTPResponse]:
+    def send_event(self, request: Dict, payload_type: str) -> Optional[httplib.HTTPResponse]:
         """Sends a telemetry request to the trace agent"""
         resp = None
         conn = None
@@ -95,27 +95,29 @@ class _TelemetryClient:
                 conn = get_connection(self._telemetry_url)
                 conn.request("POST", self._endpoint, rb_json, headers)
                 resp = conn.getresponse()
-            request_types = request["request_type"]
-            if request_types == "message-batch":
-                request_types = ", ".join([event["request_type"] for event in request["payload"]])
             if resp.status < 300:
                 log.debug(
                     "Instrumentation Telemetry sent %d bytes in %.5fs to %s. Event(s): %s. Response: %s",
                     len(rb_json),
                     sw.elapsed(),
                     self.url,
-                    request_types,
+                    payload_type,
                     resp.status,
                 )
             else:
                 log.debug(
                     "Failed to send Instrumentation Telemetry to %s. Event(s): %s. Response: %s",
                     self.url,
-                    request_types,
+                    payload_type,
                     resp.status,
                 )
-        except Exception as e:
-            log.debug("Failed to send Instrumentation Telemetry to %s. Error: %s", self.url, str(e))
+        except Exception:
+            log.debug(
+                "Failed to send Instrumentation Telemetry to %s. Event(s): %s",
+                self.url,
+                payload_type,
+                exc_info=True,
+            )
         finally:
             if conn is not None:
                 conn.close()
@@ -744,6 +746,7 @@ class TelemetryWriter(PeriodicService):
         if queued_events := self._flush_events_queue():
             events.extend(queued_events)
 
+        payload_types = ", ".join([event["request_type"] for event in events])
         # Prepare and send the final batch
         batch_event = {
             "tracer_time": int(time.time()),
@@ -756,7 +759,7 @@ class TelemetryWriter(PeriodicService):
             "payload": events,
             "request_type": "message-batch",
         }
-        self._client.send_event(batch_event)
+        self._client.send_event(batch_event, payload_types)
 
     def app_shutdown(self):
         if self.started:

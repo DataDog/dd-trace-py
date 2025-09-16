@@ -757,7 +757,7 @@ def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_se
         assert test_agent_session.get_events(mock.ANY, filter_heartbeats=False) == []
 
     telemetry_writer.periodic()
-    heartbeat_events = test_agent_session.get_events(mock.ANY, filter_heartbeats=False)
+    heartbeat_events = test_agent_session.get_events("app-heartbeat", filter_heartbeats=False)
     assert len(heartbeat_events) == 1
 
 
