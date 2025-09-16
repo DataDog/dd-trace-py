@@ -34,11 +34,12 @@ It serves as a useful guide when making changes.
 
 from collections import namedtuple
 import functools
+import ipaddress
 import math
 import re
 import types
 import warnings
-import ipaddress
+
 
 __all__ = [
     "urlparse",
@@ -566,11 +567,11 @@ def _check_bracketed_netloc(netloc):
 def _check_bracketed_host(hostname):
     if hostname.startswith("v"):
         if not re.match(r"\Av[a-fA-F0-9]+\..+\Z", hostname):
-            raise ValueError(f"IPvFuture address is invalid")
+            raise ValueError("IPvFuture address is invalid")
     else:
         ip = ipaddress.ip_address(hostname)  # Throws Value Error if not IPv6 or IPv4
         if isinstance(ip, ipaddress.IPv4Address):
-            raise ValueError(f"An IPv4 address cannot be in brackets")
+            raise ValueError("An IPv4 address cannot be in brackets")
 
 
 # typed=True avoids BytesWarnings being emitted during cache key
@@ -635,7 +636,8 @@ def urlunparse(components):
     """Put a parsed URL back together again.  This may result in a
     slightly different, but equivalent URL, if the URL that was parsed
     originally had redundant delimiters, e.g. a ? with an empty query
-    (the draft states that these are equivalent)."""
+    (the draft states that these are equivalent).
+    """
     scheme, netloc, url, params, query, fragment, _coerce_result = _coerce_args(*components)
     if params:
         url = "%s;%s" % (url, params)
@@ -647,7 +649,8 @@ def urlunsplit(components):
     complete URL as a string. The data argument can be any five-item iterable.
     This may result in a slightly different, but equivalent URL, if the URL that
     was parsed originally had unnecessary delimiters (for example, a ? with an
-    empty query; the RFC states that these are equivalent)."""
+    empty query; the RFC states that these are equivalent).
+    """
     scheme, netloc, url, query, fragment, _coerce_result = _coerce_args(*components)
     if netloc:
         if url and url[:1] != "/":
@@ -668,7 +671,8 @@ def urlunsplit(components):
 
 def urljoin(base, url, allow_fragments=True):
     """Join a base URL and a possibly relative URL to form an absolute
-    interpretation of the latter."""
+    interpretation of the latter.
+    """
     if not base:
         return url
     if not url:
@@ -834,7 +838,6 @@ def parse_qs(
     """Parse a query given as a string argument.
 
     Arguments:
-
     qs: percent-encoded query string to be parsed
 
     keep_blank_values: flag indicating whether blank values in
@@ -889,7 +892,6 @@ def parse_qsl(
     """Parse a query given as a string argument.
 
     Arguments:
-
     qs: percent-encoded query string to be parsed
 
     keep_blank_values: flag indicating whether blank values in
@@ -1090,7 +1092,7 @@ def _byte_quoter_factory(safe):
 
 
 def quote_from_bytes(bs, safe="/"):
-    """Like quote(), but accepts a bytes object rather than a str, and does
+    r"""Like quote(), but accepts a bytes object rather than a str, and does
     not perform string-to-bytes encoding.  It always returns an ASCII string.
     quote_from_bytes(b'abc def\x3f') -> 'abc%20def%3f'
     """
@@ -1178,7 +1180,7 @@ def urlencode(query, doseq=False, safe="", encoding=None, errors=None, quote_via
             else:
                 try:
                     # Is this a sufficient test for sequence-ness?
-                    x = len(v)
+                    len(v)
                 except TypeError:
                     # not a sequence
                     v = quote_via(str(v), safe, encoding, errors)
@@ -1347,7 +1349,8 @@ def _splitnport(host, defport=-1):
     """Split host and port, returning numeric port.
     Return given default port if no ':' found; defaults to -1.
     Return numerical port if a valid number is found after ':'.
-    Return None if ':' but not a valid number."""
+    Return None if ':' but not a valid number.
+    """
     host, delim, port = host.rpartition(":")
     if not delim:
         host = port
@@ -1405,7 +1408,8 @@ def splitattr(url):
 
 def _splitattr(url):
     """splitattr('/path;attr1=value1;attr2=value2;...') ->
-    '/path', ['attr1=value1', 'attr2=value2', ...]."""
+    '/path', ['attr1=value1', 'attr2=value2', ...].
+    """
     words = url.split(";")
     return words[0], words[1:]
 
