@@ -111,10 +111,9 @@ from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs._writer import should_use_agentless
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
-from ddtrace.llmobs.utils import Message
 from ddtrace.llmobs.utils import Messages
-from ddtrace.llmobs.utils import extract_tool_definitions
 from ddtrace.llmobs.utils import Prompt
+from ddtrace.llmobs.utils import extract_tool_definitions
 from ddtrace.propagation.http import HTTPPropagator
 
 
