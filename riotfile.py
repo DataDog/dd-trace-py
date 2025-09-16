@@ -1628,9 +1628,11 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.8"),
                     pkgs={"botocore": "==1.34.49", "boto3": "==1.34.49"},
                     venvs=[
+                        Venv(
+                            pys=select_pys(min_version="3.8", max_version="3.13"),
+                        ),
                         Venv(
                             pys=select_pys(min_version="3.14"),
                             # pydantic 2.2.12.0a1 is the first version to support Python 3.14
@@ -1639,9 +1641,11 @@ venv = Venv(
                     ],
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.9"),
                     pkgs={"vcrpy": "==7.0.0", "botocore": "==1.38.26", "boto3": "==1.38.26"},
                     venvs=[
+                        Venv(
+                            pys=select_pys(min_version="3.9", max_version="3.13"),
+                        ),
                         Venv(
                             pys=select_pys(min_version="3.14"),
                             # pydantic 2.2.12.0a1 is the first version to support Python 3.14
@@ -2088,7 +2092,7 @@ venv = Venv(
         Venv(
             name="graphql:graphene",
             command="pytest {cmdargs} tests/contrib/graphene",
-            pys=select_pys(min_version="3.8"),
+            pys=select_pys(min_version="3.8", max_version="3.13"),
             pkgs={
                 "graphene": ["~=3.0.0", latest],
                 "pytest-asyncio": "==0.21.1",
