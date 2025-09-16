@@ -1,6 +1,7 @@
 import ast
 import base64
 import contextlib
+import copy
 import functools
 import http.client as httplib
 import importlib
@@ -32,7 +33,6 @@ from ddtrace._trace.provider import _DD_CONTEXTVAR
 from ddtrace.internal.core import crashtracking
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
-from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import TelemetryWriter
@@ -580,7 +580,7 @@ class TelemetryTestSession(object):
             pytest.fail("Failed to clear session: %s" % self.token)
         return True
 
-    def get_requests(self, request_type=None, filter_heartbeats=True):
+    def get_requests(self, filter_heartbeats=True):
         """Get a list of the requests sent to the test agent
 
         Results are in reverse order by ``seq_id``
@@ -595,11 +595,10 @@ class TelemetryTestSession(object):
                 # /test/session/requests captures non telemetry payloads, ignore these requests
                 continue
             req["body"] = json.loads(base64.b64decode(req["body"]))
-            # filter heartbeat requests to reduce noise
+
             if req["body"]["request_type"] == "app-heartbeat" and filter_heartbeats:
                 continue
-            if request_type is None or req["body"]["request_type"] == request_type:
-                requests.append(req)
+            requests.append(req)
 
         return sorted(requests, key=lambda r: r["body"]["seq_id"], reverse=True)
 
@@ -608,12 +607,30 @@ class TelemetryTestSession(object):
 
         Results are in reverse order by ``seq_id``
         """
-        requests = self.get_requests(event_type, filter_heartbeats)
-        if subprocess:
-            # Use get_runtime_id to filter telemetry events generated in the current process
-            runtime_id = get_runtime_id()
-            requests = [req for req in requests if req["body"]["runtime_id"] != runtime_id]
-        return [req["body"] for req in requests]
+        requests = self.get_requests()
+        events = []
+        for req in requests:
+            for req_body in self._get_request_bodies(req):
+                if filter_heartbeats and req_body["request_type"] == "app-heartbeat":
+                    # filter heartbeat events to reduce noise
+                    continue
+                if event_type is None or req_body["request_type"] == event_type:
+                    events.append(req_body)
+        return events
+
+    def _get_request_bodies(self, req):
+        if req["body"]["request_type"] == "message-batch":
+            payloads = req["body"]["payload"]
+        else:
+            payloads = [{"payload": req["body"]["payload"], "request_type": req["body"]["request_type"]}]
+
+        requests = []
+        for payload in payloads:
+            req_body = copy.deepcopy(req["body"])
+            req_body["request_type"] = payload["request_type"]
+            req_body["payload"] = payload["payload"]
+            requests.append(req_body)
+        return requests
 
     def get_metrics(self, name=None):
         metrics = []
