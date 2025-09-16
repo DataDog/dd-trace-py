@@ -326,7 +326,7 @@ class TelemetryWriter(PeriodicService):
                 "message": self._error[1],
             },
             "products": products,
-        }  # type: Dict[str, Union[Dict[str, Any], List[Any]]]
+        }
         # Add time to value telemetry metrics for single step instrumentation
         if config.INSTALL_ID or config.INSTALL_TYPE or config.INSTALL_TIME:
             payload["install_signature"] = {
