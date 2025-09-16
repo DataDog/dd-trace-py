@@ -28,7 +28,7 @@ wait_for_run_id() {
   if [ -z "$RUN_ID" ]; then
     echo "No RUN_ID found waiting for job to start" >&2
     # The job has not started yet. Give it time to start
-    sleep 180 # 3 minutes
+    sleep 30
 
     echo "Querying for RUN_ID" >&2
 
@@ -42,7 +42,7 @@ wait_for_run_id() {
         break;
       fi
       echo "Waiting for RUN_ID" >&2
-      sleep 60
+      sleep 30
     done
   fi
 
