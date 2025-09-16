@@ -144,8 +144,6 @@ def test_aggregator_reset_apm_opt_out_preserves_sampling():
     Test that calling aggr.reset(apm_opt_out=True) updates the apm_opt_out setting
     but preserves the sampling rules on the TraceSamplingProcessor.
     """
-    from ddtrace.internal.sampling import SpanSamplingRule
-
     sampling_rule = SpanSamplingRule(service="test_service", name="test_name", sample_rate=0.5, max_per_second=10)
 
     dd_proc = DummyProcessor()
@@ -160,6 +158,8 @@ def test_aggregator_reset_apm_opt_out_preserves_sampling():
     sampling_proc = aggr.sampling_processor
     original_apm_opt_out = sampling_proc.apm_opt_out
 
+    sampling_proc.sampler.rules = [TraceSamplingRule(sample_rate=0.1)]
+    rule = sampling_proc.sampler.rules[0]
     sampling_proc.single_span_rules = [sampling_rule]
 
     assert sampling_proc.single_span_rules == [sampling_rule]
@@ -170,6 +170,7 @@ def test_aggregator_reset_apm_opt_out_preserves_sampling():
     # Assert that sampling rules are preserved after reset
     assert sampling_proc.apm_opt_out is True
     assert sampling_proc.single_span_rules == [sampling_rule]
+    assert sampling_proc.sampler.rules[0] == rule
     assert sampling_proc is aggr.sampling_processor
 
 
