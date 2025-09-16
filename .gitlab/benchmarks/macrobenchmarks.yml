@@ -45,6 +45,11 @@ candidate:
   when: on_success
   image: $MACROBENCHMARKS_CI_IMAGE
   script: |
+    if [[ -n "$CI_JOB_TOKEN" ]];
+    then
+      git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
+    fi
+
     git clone --branch python/macrobenchmarks-django https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform platform && cd platform
     if [ "$BP_PYTHON_SCENARIO_DIR" == "flask-realworld" ]; then
       bp-runner bp-runner.flask-realworld.yml --debug
