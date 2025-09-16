@@ -861,6 +861,7 @@ class LLMObs(Service):
                             "chat_template": [{"content": "...", "role": "..."}, ...],
                             "variables": {"variable_1": "...", ...}}`.
                             "tags": {"key1": "value1", "key2": "value2"},
+                        }`
                         Can also be set using the `ddtrace.llmobs.utils.Prompt` constructor class.
                         - This argument is only applicable to LLM spans.
                         - The dictionary may contain optional keys relevant to Templates and RAG applications:
