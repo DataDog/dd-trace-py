@@ -1,7 +1,6 @@
 from contextlib import contextmanager
 from functools import wraps
 import inspect
-import logging
 import os
 import socket
 from typing import Any
@@ -45,10 +44,10 @@ from .utils import _inject_context_in_kwargs
 from .utils import _inject_dd_trace_ctx_kwarg
 from .utils import _inject_ray_span_tags
 from .utils import extract_signature
+from .utils import set_maybe_big_tag
 
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+RAY_SUBMISSION_ID = "_RAY_SUBMISSION_ID"
 
 config._add(
     "ray",
@@ -78,9 +77,6 @@ class RayTraceProcessor:
             if span.service == "ray.dashboard" and span.get_tag("component") != "ray":
                 continue
 
-            with open("ray_spans.log", "a") as f:
-                f.write(f"{span}\n")
-
             if span.get_tag("component") == "ray":
                 span.set_metric(_DJM_ENABLED_KEY, 1)
                 span.set_metric(_FILTER_KEPT_KEY, 1)
@@ -94,7 +90,7 @@ class RayTraceProcessor:
         return filtered_spans
 
 
-def _inject_tracing_into_remote_function(function):
+def _wrap_remote_function_execution(function):
     """Inject trace context parameter into function signature"""
 
     @wraps(function)
@@ -120,14 +116,14 @@ def _wrap_task_execution(wrapped, *args, **kwargs):
 
     with long_running_ray_span(
         f"{function_module}.{function_name}",
-        service=os.environ.get("_RAY_SUBMISSION_ID"),
+        service=os.environ.get(RAY_SUBMISSION_ID),
         span_type=SpanTypes.RAY,
         child_of=extracted_context,
         activate=True,
     ) as task_execute_span:
         try:
-            task_execute_span.set_tag("ray.task.args", args)
-            task_execute_span.set_tag("ray.task.kwargs", kwargs)
+            set_maybe_big_tag(task_execute_span, "ray.task.args", args)
+            set_maybe_big_tag(task_execute_span, "ray.task.kwargs", kwargs)
 
             result = wrapped(*args, **kwargs)
 
@@ -150,20 +146,19 @@ def traced_submit_task(wrapped, instance, args, kwargs):
     # Inject dd_trace_ctx args in the function being executed by ray
     with instance._inject_lock:
         if instance._function_signature is None:
-            instance._function = _inject_tracing_into_remote_function(instance._function)
+            instance._function = _wrap_remote_function_execution(instance._function)
             instance._function.__signature__ = _inject_dd_trace_ctx_kwarg(instance._function)
             instance._function_signature = extract_signature(instance._function)
 
     with tracer.trace(
-        f"{instance._function_name}.remote()", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.RAY
+        f"{instance._function_name}.remote()", service=os.environ.get(RAY_SUBMISSION_ID), span_type=SpanTypes.RAY
     ) as span:
         span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
         _inject_ray_span_tags(span)
 
         try:
-            span.set_tag("ray.task.args", kwargs["args"])
-            span.set_tag("ray.task.kwargs", kwargs["kwargs"])
-
+            set_maybe_big_tag(span, "ray.task.args", kwargs.get("args", {}))
+            set_maybe_big_tag(span, "ray.task.kwargs", kwargs.get("kwargs", {}))
             _inject_context_in_kwargs(span.context, kwargs)
 
             resp = wrapped(*args, **kwargs)
@@ -204,7 +199,7 @@ def traced_submit_job(wrapped, instance, args, kwargs):
             # Inject the context of the job so that ray.job.run is its child
             env_vars = kwargs.setdefault("runtime_env", {}).setdefault("env_vars", {})
             _TraceContext._inject(job_span.context, env_vars)
-            env_vars["_RAY_SUBMISSION_ID"] = submission_id
+            env_vars[RAY_SUBMISSION_ID] = submission_id
 
             try:
                 resp = wrapped(*args, **kwargs)
@@ -240,11 +235,11 @@ def traced_actor_method_call(wrapped, instance, args, kwargs):
         tracer.context_provider.activate(_extract_tracing_context_from_env())
 
     with tracer.trace(
-        f"{actor_name}.{method_name}.remote()", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.RAY
+        f"{actor_name}.{method_name}.remote()", service=os.environ.get(RAY_SUBMISSION_ID), span_type=SpanTypes.RAY
     ) as span:
         span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
-        span.set_tag("ray.actor_method.args", kwargs["args"])
-        span.set_tag("ray.actor_method.kwargs", kwargs["kwargs"])
+        set_maybe_big_tag(span, "ray.actor_method.args", kwargs.get("args", {}))
+        set_maybe_big_tag(span, "ray.actor_method.kwargs", kwargs.get("kwargs", {}))
         _inject_ray_span_tags(span)
 
         try:
@@ -294,7 +289,7 @@ def _job_supervisor_run_wrapper(method: Callable[..., Any]) -> Any:
             return await method(self, *args, **kwargs)
 
         context = _TraceContext._extract(_dd_trace_ctx)
-        submission_id = os.environ.get("_RAY_SUBMISSION_ID")
+        submission_id = os.environ.get(RAY_SUBMISSION_ID)
 
         with long_running_ray_span(
             f"{self.__class__.__name__}.{method.__name__}",
@@ -336,7 +331,7 @@ def _exec_entrypoint_wrapper(method: Callable[..., Any]) -> Any:
             entrypoint_name = self._entrypoint
 
         with tracer.trace(
-            f"exec {entrypoint_name}", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.RAY
+            f"exec {entrypoint_name}", service=os.environ.get(RAY_SUBMISSION_ID), span_type=SpanTypes.RAY
         ) as span:
             span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
             _inject_ray_span_tags(span)
@@ -357,13 +352,14 @@ def _trace_actor_method(self: Any, method: Callable[..., Any], dd_trace_ctx, *ar
 
     with long_running_ray_span(
         f"{self.__class__.__name__}.{method.__name__}",
-        service=os.environ.get("_RAY_SUBMISSION_ID"),
+        service=os.environ.get(RAY_SUBMISSION_ID),
         span_type=SpanTypes.RAY,
         child_of=context,
         activate=True,
     ) as actor_execute_span:
-        actor_execute_span.set_tag("ray.actor_method.args", args)
-        actor_execute_span.set_tag("ray.actor_method.kwargs", kwargs)
+        set_maybe_big_tag(actor_execute_span, "ray.actor_method.args", args)
+        set_maybe_big_tag(actor_execute_span, "ray.actor_method.kwargs", kwargs)
+
         yield actor_execute_span
 
 

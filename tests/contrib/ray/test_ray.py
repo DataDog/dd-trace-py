@@ -43,6 +43,7 @@ RAY_SNAPSHOT_IGNORES = [
     "meta.ray.actor_id",
     "meta.ray.task_id",
     "meta.ray.submission_id",
+    "meta.ray.pid",
     "meta.tracestate",
     "meta.traceparent",
     "meta.error.message",

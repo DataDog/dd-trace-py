@@ -2,6 +2,7 @@ import inspect
 from inspect import Parameter
 from inspect import Signature
 import os
+import sys
 from typing import Any
 from typing import Callable
 from typing import List
@@ -10,6 +11,9 @@ import ray
 from ray.runtime_context import get_runtime_context
 
 from ddtrace.propagation.http import _TraceContext
+
+
+MAX_TAG_VALUES_SIZE_BYTES = 25000
 
 
 def _inject_dd_trace_ctx_kwarg(method: Callable) -> Signature:
@@ -55,6 +59,7 @@ def _inject_ray_span_tags(span):
     span.set_tag_str("component", "ray")
     span.set_tag_str("ray.job_id", runtime_context.get_job_id())
     span.set_tag_str("ray.node_id", runtime_context.get_node_id())
+    span.set_tag_str("ray.pid", str(os.getpid()))
 
     worker_id = runtime_context.get_worker_id()
     if worker_id is not None:
@@ -72,6 +77,17 @@ def _inject_ray_span_tags(span):
     submission_id = os.environ.get("_RAY_SUBMISSION_ID")
     if submission_id is not None:
         span.set_tag_str("ray.submission_id", submission_id)
+
+
+def set_maybe_big_tag(span, tag_name, tag_value):
+    """We want to add args/kwargs values as tag when we execute a task/actor method.
+    However they might be big. To avoid CPU cost for serializing a big object, we do it only
+    if the values are small enough to not be truncated
+    """
+    if sys.getsizeof(tag_value) > MAX_TAG_VALUES_SIZE_BYTES:
+        span.set_tag(tag_name, "<truncated>")
+    else:
+        span.set_tag(tag_name, tag_value)
 
 
 # -------------------------------------------------------------------------------------------
