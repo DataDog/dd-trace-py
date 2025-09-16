@@ -36,10 +36,7 @@ endif()
 
 # Discover tests
 include(GoogleTest)
-gtest_discover_tests(
-    native_tests DISCOVERY_MODE PRE_TEST
-    PROPERTIES ENVIRONMENT
-               "ASAN_OPTIONS=detect_leaks=0:halt_on_error=1:abort_on_error=1;LSAN_OPTIONS=verbosity=1:log_threads=1")
+gtest_discover_tests(native_tests)
 
 add_custom_target(
     test_valgrind
