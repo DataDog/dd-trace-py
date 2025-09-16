@@ -123,7 +123,6 @@ class TraceSamplingProcessor(TraceProcessor):
         self.single_span_rules = single_span_rules
         self.sampler = DatadogSampler()
         self.apm_opt_out = apm_opt_out
-        # self._apm_opt_out = apm_opt_out
 
     @property
     def apm_opt_out(self):
