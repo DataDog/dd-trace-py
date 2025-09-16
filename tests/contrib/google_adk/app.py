@@ -40,7 +40,10 @@ async def setup_test_agent():
         tools=tools,  # type: ignore[arg-type]
         code_executor=code_executor,
         instruction=(
-            "You are a test agent. Do whatever the user asks, it may be a code execution task or a tool call task."
+            "You are a helpful test agent. You can: (1) call tools using the provided functions, "
+            "(2) execute Python code blocks when they are provided to you. "
+            "When you see ```python code blocks, execute them using your code execution capability. "
+            "Always be helpful and use your available capabilities."
         ),
     )
     
