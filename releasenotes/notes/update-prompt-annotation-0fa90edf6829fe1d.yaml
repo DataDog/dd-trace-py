@@ -2,3 +2,4 @@
 features:
   - |
     LLM Observability: Extends the prompt structure to add ``tags`` and ``chat_template``.
+    A new ``Prompt`` TypedDict class that would be used in annotation and annotation_context.
