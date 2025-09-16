@@ -66,8 +66,6 @@ def _validate_prompt(prompt: Union[Dict[str, Any], Prompt], strict_validation: b
             raise ValueError("'id' must be provided")
         if template is None and chat_template is None:
             raise ValueError("One of 'template' or 'chat_template' must be provided to annotate a prompt.")
-        if template and chat_template:
-            raise ValueError("Only one of 'template' or 'chat_template' can be provided, not both.")
 
     if template and chat_template:
         raise ValueError("Only one of 'template' or 'chat_template' can be provided, not both.")
