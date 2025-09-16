@@ -273,18 +273,16 @@ def traced_put(wrapped, instance, args, kwargs):
         activate=True,
     ) as span:
         span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
-        put_value = kwargs.get("value", args[0])
-        span.set_tag_str("ray.put.value_type", str(type(put_value).__name__))
-        span.set_tag_str("ray.put.value_size_bytes", str(sys.getsizeof(put_value)))
-        try:
-            callers_local_vars = inspect.currentframe().f_back.f_locals.items()
-            span.set_tag_str(
-                "ray.put.value_name",
-                next((name for name, value in callers_local_vars if value == put_value), "unknown"),
-            )
-        except Exception:
-            span.set_tag_str("ray.put.value_name", "unknown")
         _inject_ray_span_tags(span)
+        if "value" in kwargs:
+            put_value = kwargs.get("value")
+        elif args:
+            put_value = args[0]
+        else:
+            put_value = None
+        if put_value is not None:
+            span.set_tag_str("ray.put.value_type", str(type(put_value).__name__))
+            span.set_tag_str("ray.put.value_size_bytes", str(sys.getsizeof(put_value)))
         return wrapped(*args, **kwargs)
 
 
