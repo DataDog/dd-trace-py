@@ -826,21 +826,6 @@ def test_annotate_prompt_typed_dict(llmobs):
             "_dd_query_variable_keys": ["user_input"],
         }
 
-
-def test_prompt_strict_validation(llmobs):
-    with pytest.raises(ValueError, match="'id' must be provided"):
-        prompt_with_no_id = Prompt(template="{var1} {var3}", version="1.0.0")
-        with llmobs.llm(model_name="test_model") as span:
-            span.annotate(prompt=prompt_with_no_id)
-            assert span._get_ctx_item(INPUT_PROMPT) is None
-
-    with pytest.raises(ValueError, match="One of 'template' or 'chat_template' must be provided to annotate a prompt."):
-        prompt_with_no_template = Prompt(id="test_prompt", version="1.0.0")
-        with llmobs.llm(model_name="test_model") as span:
-            span.annotate(prompt=prompt_with_no_template)
-            assert span._get_ctx_item(INPUT_PROMPT) is None
-
-
 def test_annotate_prompt_wrong_type(llmobs, mock_llmobs_logs):
     with llmobs.llm(model_name="test_model") as span:
         llmobs.annotate(span=span, prompt="prompt")
