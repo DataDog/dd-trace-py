@@ -20,7 +20,6 @@ from urllib import parse
 
 from ddtrace.constants import _USER_ID_KEY
 from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A004
-from ddtrace.internal._unpatched import unpatched_urlparse
 from ddtrace.internal.constants import BLOCKED_RESPONSE_HTML
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
 from ddtrace.internal.constants import DEFAULT_TIMEOUT
@@ -30,6 +29,7 @@ from ddtrace.internal.constants import W3C_TRACESTATE_PARENT_ID_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_SAMPLING_PRIORITY_KEY
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.cache import cached
+from ddtrace.internal.utils.parse import urlparse
 
 
 _W3C_TRACESTATE_INVALID_CHARS_REGEX_VALUE = re.compile(r",|;|~|[^\x20-\x7E]+")
@@ -85,7 +85,7 @@ def redact_query_string(query_string, query_string_obfuscation_pattern):
 
 def redact_url(url, query_string_obfuscation_pattern, query_string=None):
     # type: (str, re.Pattern, Optional[str]) -> Union[str,bytes]
-    parts = unpatched_urlparse(url)
+    parts = urlparse(url)
     redacted_query = None
 
     if query_string:
@@ -304,7 +304,7 @@ def verify_url(url: str) -> parse.ParseResult:
     Returns a parse.ParseResult.
     Raises a ``ValueError`` if the URL cannot be used as an intake
     """
-    parsed = unpatched_urlparse(url)
+    parsed = urlparse(url)
     schemes = ("http", "https", "unix")
     if parsed.scheme not in schemes:
         raise ValueError(
