@@ -328,7 +328,8 @@ venv = Venv(
         ),
         Venv(
             name="appsec_iast_default",
-            command="pytest {cmdargs} tests/appsec/iast/",
+            # TODO(avara1986): remove "-vvv --no-ddtrace --no-cov" when CI visibility errors were fixed in #14581
+            command="pytest -vvv --no-ddtrace --no-cov {cmdargs} tests/appsec/iast/",
             pys=select_pys(),
             pkgs={
                 "requests": latest,
@@ -345,6 +346,7 @@ venv = Venv(
                 "DD_IAST_REQUEST_SAMPLING": "100",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
+                "PYTHONFAULTHANDLER": "1",
             },
         ),
         Venv(
