@@ -588,6 +588,10 @@ class CIVisibility(Service):
             log.debug("%s already enabled", cls.__name__)
             return
 
+        if not telemetry.get_config("DD_CIVISIBILITY_ENABLED", True, asbool):
+            cls.enabled = False
+            return
+
         if ddconfig._ci_visibility_agentless_enabled:
             if not os.getenv("_CI_DD_API_KEY", os.getenv("DD_API_KEY")):
                 log.critical(

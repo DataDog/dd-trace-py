@@ -114,6 +114,11 @@ class Contrib_TestClass_For_Threats:
     def update_tracer(self, interface):
         interface.tracer._span_aggregator.writer._api_version = "v0.4"
         interface.tracer._recreate()
+        # update sampling rate for api10
+        from ddtrace.appsec._asm_request_context import UINT64_MAX
+        from ddtrace.appsec._asm_request_context import DownstreamRequests
+
+        DownstreamRequests.sampling_rate = int(asm_config._dr_sample_rate * UINT64_MAX)
         assert asm_config._asm_libddwaf_available
         # Only for tests diagnostics
 
@@ -1971,6 +1976,57 @@ class Contrib_TestClass_For_Threats:
             else:
                 assert get_security(root_span()) is None
                 assert stack_traces == []
+
+    @pytest.mark.parametrize("endpoint", ["urlopen_request", "urlopen_string"])
+    def test_api10(self, endpoint, interface, get_tag):
+        """test api10 on downstream request headers on rasp endpoint"""
+        TAG_AGENT: str = "TAG_API10_HEADER"
+        with override_global_config(
+            dict(
+                _asm_enabled=True,
+                _api_security_enabled=True,
+                _ep_enabled=True,
+                _asm_static_rule_file=rules.RULES_EXPLOIT_PREVENTION,
+            )
+        ):
+            self.update_tracer(interface)
+            response = interface.client.get(
+                f"/rasp/ssrf/?url_{endpoint}=https%3A%2F%2Fwww.datadoghq.com%2Ftest%3Fx%3D1",
+            )
+            assert self.status(response) == 200, f"{self.status(response)} is not 200"
+            tag = get_tag("_dd.appsec.trace.mark")
+            assert tag == TAG_AGENT, f"[{tag}] is not [{TAG_AGENT}]"
+
+    @pytest.mark.parametrize(
+        ("endpoint", "data", "tag"),
+        [
+            ("www.datadoghq.com", None, "TAG_API10_HEADER"),
+            ("www.google.com", {"payload": "qw2jedrkjerbgol23ewpfirj2qw3or"}, "TAG_API10_BODY"),
+        ],
+    )
+    @pytest.mark.parametrize("integration", ["", "_requests"])
+    def test_api10_addresses(self, integration, endpoint, data, tag, interface, get_tag):
+        """test api10 on downstream request headers and body"""
+        from urllib.parse import quote
+
+        with override_global_config(
+            dict(
+                _asm_enabled=True,
+                _api_security_enabled=True,
+                _ep_enabled=True,
+                _asm_static_rule_file=rules.RULES_EXPLOIT_PREVENTION,
+                _dr_sample_rate=1.0,
+            )
+        ):
+            self.update_tracer(interface)
+            url = f"/redirect{integration}/{quote(endpoint, safe='')}/"
+            if data:
+                response = interface.client.post(url, data=json.dumps(data), content_type="application/json")
+            else:
+                response = interface.client.get(url)
+            assert self.status(response) == 200, f"{self.status(response)} is not 200"
+            c_tag = get_tag("_dd.appsec.trace.mark")
+            assert c_tag == tag, f"[{c_tag}] is not [{tag}] {response.text[:50]}"
 
 
 @contextmanager

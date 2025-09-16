@@ -1606,7 +1606,7 @@ venv = Venv(
             name="asgi",
             pkgs={
                 "pytest-asyncio": "==0.21.1",
-                "httpx": latest,
+                "httpx": "<0.28.0",
                 "asgiref": ["~=3.0.0", "~=3.0", latest],
                 "pytest-randomly": latest,
             },
@@ -3092,7 +3092,6 @@ venv = Venv(
             pys=select_pys(min_version="3.8", max_version="3.11"),
             pkgs={
                 "azure.functions": ["~=1.10.1", latest],
-                "azure.servicebus": latest,
                 "requests": latest,
             },
         ),
@@ -3520,6 +3519,7 @@ venv = Venv(
                 "AGENT_VERSION": "testagent",
                 "DD_REMOTE_CONFIGURATION_ENABLED": "true",
                 "DD_API_SECURITY_SAMPLE_DELAY": "0",
+                "DD_PATCH_MODULES": "unittest:false,urllib3:true",
             },
             venvs=[
                 Venv(
@@ -3573,6 +3573,7 @@ venv = Venv(
                 "AGENT_VERSION": "testagent",
                 "DD_REMOTE_CONFIGURATION_ENABLED": "true",
                 "DD_API_SECURITY_SAMPLE_DELAY": "0",
+                "DD_PATCH_MODULES": "unittest:false,urllib3:true",
             },
             venvs=[
                 Venv(
@@ -3623,6 +3624,7 @@ venv = Venv(
                 "DD_REMOTE_CONFIGURATION_ENABLED": "true",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
                 "DD_API_SECURITY_SAMPLE_DELAY": "0",
+                "DD_PATCH_MODULES": "unittest:false,urllib3:true",
             },
             venvs=[
                 Venv(
@@ -3669,14 +3671,50 @@ venv = Venv(
             },
         ),
         Venv(
-            name="ai_guard",
-            command="pytest {cmdargs} tests/appsec/ai_guard/",
+            name="ai_guard_api",
+            command="pytest {cmdargs} tests/appsec/ai_guard/api/",
             pkgs={
                 "requests": latest,
             },
             venvs=[
                 Venv(
                     pys=select_pys(),
+                ),
+            ],
+        ),
+        Venv(
+            name="ai_guard_langchain",
+            command="pytest {cmdargs} tests/appsec/ai_guard/langchain/",
+            pkgs={
+                "pytest-asyncio": "==0.23.7",
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.11"),
+                    pkgs={
+                        "langchain": "==0.1.20",
+                        "langchain-core": "==0.1.53",
+                        "langchain-openai": "==0.1.6",
+                        "openai": "==1.102.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.12"),
+                    pkgs={
+                        "langchain": "==0.2.17",
+                        "langchain-core": "==0.2.43",
+                        "langchain-openai": "==0.1.7",
+                        "openai": "==1.102.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.12"),
+                    pkgs={
+                        "langchain": latest,
+                        "langchain-core": latest,
+                        "langchain-openai": latest,
+                        "openai": latest,
+                    },
                 ),
             ],
         ),

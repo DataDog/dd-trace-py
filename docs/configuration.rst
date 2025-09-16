@@ -701,6 +701,16 @@ Test Visibility
      version_added:
         v3.12.0:
 
+   DD_CIVISIBILITY_ENABLED:
+     type: Boolean
+     default: True
+
+     description: |
+        Allows the ``CIVisibility`` service to run and send traces to the Test Visibility product.
+
+     version_added:
+        v3.15.0:
+
 Agent
 -----
 
