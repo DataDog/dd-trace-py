@@ -1737,6 +1737,7 @@ def test_annotation_context_modifies_prompt(llmobs):
                 "_dd_query_variable_keys": ["question"],
             }
 
+
 def test_annotation_context_modifies_name(llmobs):
     with llmobs.annotation_context(name="test_agent_override"):
         with llmobs.llm(name="test_agent", model_name="test") as span:

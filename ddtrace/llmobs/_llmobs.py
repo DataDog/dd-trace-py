@@ -1923,5 +1923,6 @@ class LLMObs(Service):
         error = cls._instance._activate_llmobs_distributed_context(request_headers, context)
         telemetry.record_activate_distributed_headers(error)
 
+
 # initialize the default llmobs instance
 LLMObs._instance = LLMObs()
