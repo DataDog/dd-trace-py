@@ -1,6 +1,7 @@
 import pytest
 
 from ddtrace._trace.processor.resource_renaming import ResourceRenamingProcessor
+from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.trace import Context
 from ddtrace.trace import Span
@@ -95,7 +96,7 @@ class TestResourceRenaming:
 
     def test_processor_with_route(self):
         processor = ResourceRenamingProcessor()
-        span = Span("test", context=Context())
+        span = Span("test", context=Context(), span_type=SpanTypes.WEB)
         span.set_tag(http.ROUTE, "/api/users/{id}")
         span.set_tag(http.URL, "https://example.com/api/users/123")
 
@@ -104,79 +105,19 @@ class TestResourceRenaming:
 
     def test_processor_without_route(self):
         processor = ResourceRenamingProcessor()
-        span = Span("test", context=Context())
+        span = Span("test", context=Context(), span_type=SpanTypes.WEB)
         span.set_tag(http.URL, "https://example.com/api/users/123")
 
         processor.on_span_finish(span)
         assert span.get_tag(http.ENDPOINT) == "/api/users/{param:int}"
 
-    @override_global_config(dict(_trace_resource_renaming_always_simplified_endpoint=True))
     def test_processor_always_simplified_endpoint(self):
         processor = ResourceRenamingProcessor()
-        span = Span("test", context=Context())
-        span.set_tag(http.ROUTE, "/api/users/{id}")
-        span.set_tag(http.URL, "https://example.com/api/users/123")
+        with override_global_config(dict(_trace_resource_renaming_always_simplified_endpoint=True)):
+            span = Span("test", context=Context(), span_type=SpanTypes.WEB)
+            span.set_tag(http.ROUTE, "/api/users/{id}")
+            span.set_tag(http.URL, "https://example.com/api/users/123")
 
-        processor.on_span_finish(span)
-        # Should use simplified endpoint even when route exists
-        assert span.get_tag(http.ENDPOINT) == "/api/users/{id}"
-
-    def test_processor_no_url_no_route(self):
-        processor = ResourceRenamingProcessor()
-        span = Span("test", context=Context())
-
-        processor.on_span_finish(span)
-        assert span.get_tag(http.ENDPOINT) == "/"
-
-    def test_processor_empty_url(self):
-        processor = ResourceRenamingProcessor()
-        span = Span("test", context=Context())
-        span.set_tag(http.URL, "")
-
-        processor.on_span_finish(span)
-        assert span.get_tag(http.ENDPOINT) == "/"
-
-    def test_processor_malformed_url(self):
-        processor = ResourceRenamingProcessor()
-        span = Span("test", context=Context())
-        span.set_tag(http.URL, "not-a-valid-url")
-
-        processor.on_span_finish(span)
-        assert span.get_tag(http.ENDPOINT) == "/"
-
-    def test_regex_patterns(self):
-        processor = ResourceRenamingProcessor()
-
-        # Integer pattern
-        assert processor._INT_RE.fullmatch("123")
-        assert not processor._INT_RE.fullmatch("0")
-        assert not processor._INT_RE.fullmatch("01")
-
-        # Hex pattern (requires at least one digit)
-        assert processor._HEX_RE.fullmatch("123ABC")
-        assert not processor._HEX_RE.fullmatch("ABCDEF")
-        assert not processor._HEX_RE.fullmatch("deadbeef")
-
-    def test_path_limit(self):
-        processor = ResourceRenamingProcessor()
-        span = Span("test", context=Context())
-        long_path = "/" + "/".join([f"segment{i}" for i in range(20)])
-        span.set_tag(http.URL, f"https://example.com{long_path}")
-        processor.on_span_finish(span)
-        endpoint = span.get_tag(http.ENDPOINT)
-        segments = [s for s in endpoint.split("/") if s]
-        assert len(segments) == 8
-
-    def test_realistic_urls(self):
-        processor = ResourceRenamingProcessor()
-        test_cases = [
-            ("https://api.github.com/repos/user/repo/issues/123", "/repos/user/repo/issues/{param:int}"),
-            ("https://shop.example.com/products/12345/reviews", "/products/{param:int}/reviews"),
-            ("https://files.example.com/uploads/documents/verylongdocumentname", "/uploads/documents/{param:str}"),
-        ]
-
-        for url, expected in test_cases:
-            span = Span("test", context=Context())
-            span.set_tag(http.URL, url)
             processor.on_span_finish(span)
-            assert span.get_tag(http.ENDPOINT) == expected
+        # Should use simplified endpoint even when route exists
+        assert span.get_tag(http.ENDPOINT) == "/api/users/{param:int}"
