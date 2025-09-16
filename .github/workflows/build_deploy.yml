@@ -44,7 +44,16 @@ jobs:
         run: |
           pip install "setuptools_scm[toml]>=4"
 
-          LIBRARY_VERSION=$(setuptools-scm)
+          # If we are on the main or release branch, strip away the dev version
+          if [[ "$GITHUB_REF_NAME" == "main" || \
+                "$GITHUB_REF_NAME" =~ ^[0-9]+\.[0-9]+$ || \
+                "$GITHUB_REF_NAME" =~ ^[0-9]+\.x$ ]]; then
+            LIBRARY_VERSION=$(setuptools-scm --strip-dev)
+          else
+            # All else, maintain the dev version
+            LIBRARY_VERSION=$(setuptools-scm)
+          fi
+
           echo "${LIBRARY_VERSION}" | tee version.txt
           echo "library_version=${LIBRARY_VERSION}" >> $GITHUB_OUTPUT
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
