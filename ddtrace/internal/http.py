@@ -1,4 +1,5 @@
-from ddtrace.internal._unpatched import unpatched_http_client
+import http.client as httplib
+
 from ddtrace.internal._unpatched import unpatched_urllib_parse
 from ddtrace.internal.runtime import container
 
@@ -36,13 +37,13 @@ class HTTPConnectionMixin:
         return super().request(method, url, body=body, headers=_headers, encode_chunked=encode_chunked)
 
 
-class HTTPConnection(HTTPConnectionMixin, unpatched_http_client.HTTPConnection):
+class HTTPConnection(HTTPConnectionMixin, httplib.HTTPConnection):
     """
     httplib.HTTPConnection wrapper to add a base path to requested URLs
     """
 
 
-class HTTPSConnection(HTTPConnectionMixin, unpatched_http_client.HTTPSConnection):
+class HTTPSConnection(HTTPConnectionMixin, httplib.HTTPSConnection):
     """
     httplib.HTTPSConnection wrapper to add a base path to requested URLs
     """
