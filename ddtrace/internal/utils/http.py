@@ -16,10 +16,11 @@ from typing import Optional  # noqa:F401
 from typing import Pattern  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
+from urllib import parse
 
 from ddtrace.constants import _USER_ID_KEY
 from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A004
-from ddtrace.internal._unpatched import unpatched_urllib_parse
+from ddtrace.internal._unpatched import unpatched_urlparse
 from ddtrace.internal.constants import BLOCKED_RESPONSE_HTML
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
 from ddtrace.internal.constants import DEFAULT_TIMEOUT
@@ -84,7 +85,7 @@ def redact_query_string(query_string, query_string_obfuscation_pattern):
 
 def redact_url(url, query_string_obfuscation_pattern, query_string=None):
     # type: (str, re.Pattern, Optional[str]) -> Union[str,bytes]
-    parts = unpatched_urllib_parse.urlparse(url)
+    parts = unpatched_urlparse(url)
     redacted_query = None
 
     if query_string:
@@ -298,12 +299,12 @@ def get_connection(url: str, timeout: float = DEFAULT_TIMEOUT) -> ConnectionType
     raise ValueError("Unsupported protocol '%s'" % parsed.scheme)
 
 
-def verify_url(url: str) -> unpatched_urllib_parse.ParseResult:
+def verify_url(url: str) -> parse.ParseResult:
     """Validates that the given URL can be used as an intake
     Returns a parse.ParseResult.
     Raises a ``ValueError`` if the URL cannot be used as an intake
     """
-    parsed = unpatched_urllib_parse.urlparse(url)
+    parsed = unpatched_urlparse(url)
     schemes = ("http", "https", "unix")
     if parsed.scheme not in schemes:
         raise ValueError(
@@ -373,8 +374,8 @@ def parse_form_params(body: str) -> Dict[str, Union[str, List[str]]]:
     for item in body_params.split("&"):
         key, equal, val = item.partition("=")
         if equal:
-            key = unpatched_urllib_parse.unquote(key)
-            val = unpatched_urllib_parse.unquote(val)
+            key = parse.unquote(key)
+            val = parse.unquote(val)
             prev_value = req_body.get(key, None)
             if prev_value is None:
                 req_body[key] = val
@@ -405,7 +406,7 @@ def parse_form_multipart(body: str, headers: Optional[Dict] = None) -> Dict[str,
 
                 res = xmltodict.parse(msg.get_payload())
             elif content_type in ("application/x-url-encoded", "application/x-www-form-urlencoded"):
-                res = unpatched_urllib_parse.parse_qs(msg.get_payload())
+                res = parse.parse_qs(msg.get_payload())
             elif content_type in ("text/plain", None):
                 res = msg.get_payload()
             else:

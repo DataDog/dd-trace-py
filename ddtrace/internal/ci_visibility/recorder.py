@@ -10,7 +10,6 @@ from typing import List
 from typing import Optional
 from typing import Set
 from typing import Union
-from urllib import parse
 
 import ddtrace
 from ddtrace import config as ddconfig
@@ -26,6 +25,7 @@ from ddtrace.ext.test_visibility._test_visibility_base import TestVisibilityItem
 from ddtrace.internal import agent
 from ddtrace.internal import atexit
 from ddtrace.internal import telemetry
+from ddtrace.internal._unpatched import unpatched_urllib_parse
 from ddtrace.internal.ci_visibility._api_client import AgentlessTestVisibilityAPIClient
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
 from ddtrace.internal.ci_visibility._api_client import EVPProxyTestVisibilityAPIClient
@@ -106,7 +106,7 @@ def _extract_repository_name_from_url(repository_url: str) -> str:
     _REPO_NAME_REGEX = r".*/(?P<repo_name>.*?)(\.git)?$"
 
     try:
-        url_path = parse.urlparse(repository_url).path
+        url_path = unpatched_urllib_parse.urlparse(repository_url).path
         matches = re.match(_REPO_NAME_REGEX, url_path, flags=re.IGNORECASE)
         if matches:
             return matches.group("repo_name")

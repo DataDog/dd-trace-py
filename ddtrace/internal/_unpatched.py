@@ -2,7 +2,7 @@
 # necessary to ensure that the open function can be used unpatched when required.
 from builtins import open as unpatched_open  # noqa
 from json import loads as unpatched_json_loads  # noqa
-from urllib import parse as unpatched_urllib_parse  # noqa
+from urllib.parse import urlparse as unpatched_urlparse  # noqa
 
 # Acquire a reference to the threading module. Some parts of the library (e.g.
 # the profiler) might be enabled programmatically and therefore might end up
