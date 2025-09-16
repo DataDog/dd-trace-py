@@ -295,3 +295,7 @@ relative-imports-order = "furthest-to-closest"
 # Exclude typing stubs as vertical line spacing incompatibility with black
 # See: https://github.com/astral-sh/ruff/pull/6501
 "*.pyi" = ["I001"]
+
+[tool.pytest.ini_options]
+# pytest-socket configuration - allow connections to test agents and external services
+addopts = "--allow-hosts=localhost,127.0.0.1,0.0.0.0,testagent,::1"
