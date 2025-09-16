@@ -1,6 +1,7 @@
 import itertools
 import math
 import os
+import sys
 import typing as t
 
 from ddtrace.ext.git import COMMIT_SHA
@@ -257,7 +258,8 @@ class ProfilingConfigStack(DDConfig):
     _v2_enabled = DDConfig.v(
         bool,
         "v2_enabled",
-        default=True,
+        # Not yet supported on 3.14
+        default=sys.version_info < (3, 14),
         help_type="Boolean",
         help="Whether to enable the v2 stack profiler. Also enables the libdatadog collector.",
     )
