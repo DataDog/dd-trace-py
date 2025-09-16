@@ -19,25 +19,27 @@ app = Flask(__name__)
 _TELEMETRY_DEPENDENCIES = []
 
 # intercept telemetry events
-from ddtrace.internal.telemetry.writer import TelemetryWriter  # noqa: E402
+from ddtrace.internal.telemetry.writer import _TelemetryClient  # noqa: E402
 
 
-_flush_events = TelemetryWriter._flush_events_queue
+_send_event = _TelemetryClient.send_event
 
 
-def _flush_events_wrapper(self):
+def _send_event_wrapper(self, event):
     global _TELEMETRY_DEPENDENCIES
-    res = _flush_events(self)
-    if res:
-        dependencies = [v.get("payload", {}).get("dependencies", {}) for v in res]
-        dependencies = [d for d in dependencies if d]
+    print(f"Captured telemetry event: {event}", flush=True)
+    if event:
+        if event.get("request_type") == "message-batch":
+            dependencies = [v.get("payload", {}).get("dependencies", []) for v in event.get("payload", [])]
+        else:
+            dependencies = event.get("payload", {}).get("dependencies", [])
         for lst in dependencies:
             _TELEMETRY_DEPENDENCIES.extend(lst)
-        print(f"flushed events {dependencies}", flush=True)
-    return res
+        print(f"Captured dependencies: {dependencies}", flush=True)
+    return _send_event(self, event)
 
 
-TelemetryWriter._flush_events_queue = _flush_events_wrapper
+_TelemetryClient.send_event = _send_event_wrapper
 
 
 @app.route("/")
