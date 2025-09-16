@@ -49,6 +49,7 @@ RAY_SNAPSHOT_IGNORES = [
     "meta.ray.job.message",
     "meta.error.stack",
     "meta._dd.base_service",
+    "meta._dd.hostname",
     # Actor method empty arguments are encoded differently between ray versions
     "meta.ray.actor_method.args",
     # Service names that include dynamic submission IDs
