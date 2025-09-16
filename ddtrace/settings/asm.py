@@ -297,12 +297,14 @@ class ASMConfig(DDConfig):
     def asm_enabled_origin(self):
         print(f"os.environ {os.environ.get(APPSEC_ENV)}")
         print(f'os.getenv("_DD_PY_SSI_INJECT"): {os.getenv("_DD_PY_SSI_INJECT")}')
+        print(f"self._asm_enabled {self._asm_enabled}")
         print(f"self._asm_enabled_origin {self._asm_enabled_origin}")
         print(f"tracer_config._lib_was_injected {tracer_config._lib_was_injected}")
-        if APPSEC_ENV in os.environ:
+        if self._asm_enabled:
             if tracer_config._lib_was_injected is True:
                 return APPSEC.ENABLED_ORIGIN_SSI
-            return APPSEC.ENABLED_ORIGIN_ENV
+            if APPSEC_ENV in os.environ:
+                return APPSEC.ENABLED_ORIGIN_ENV
         return self._asm_enabled_origin
 
     def reset(self):
