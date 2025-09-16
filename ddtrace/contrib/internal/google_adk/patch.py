@@ -1,20 +1,24 @@
 """Instrument google-adk."""
+from typing import Any
 from typing import Dict
+from typing import Optional
+from typing import Tuple
 
 import google.adk as adk
 
 from ddtrace import config
-from ddtrace import tracer as _tracer
 from ddtrace._trace._limits import TRUNCATED_SPAN_ATTRIBUTE_LEN
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib.trace_utils import unwrap
+from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs._integrations import GoogleAdkIntegration
 
 
 logger = get_logger(__name__)
 
-config._add("google_adk", {"service": "google-adk"})
+config._add("google_adk", {})
 
 
 def _supported_versions()-> Dict[str, str]:
@@ -34,18 +38,168 @@ def _truncate_value(value):
         return s[:TRUNCATED_SPAN_ATTRIBUTE_LEN]
     return s
 
+
+@with_traced_module
+def _traced_agent_run_async(adk, pin, wrapped, instance, args, kwargs):
+    """Trace the main execution of an agent (async generator)."""
+    integration = adk._datadog_integration
+    agen = wrapped(*args, **kwargs)
+
+    async def _generator():        
+        provider_name, model_name = extract_provider_and_model_name(agent=instance.agent)
+        with integration.trace(
+            pin,
+            "%s.%s" % (instance.__class__.__name__, wrapped.__name__),
+            provider=provider_name,
+            model=model_name,
+            kind="agent",
+            submit_to_llmobs=True,
+            run_kwargs=kwargs,
+        ) as span:
+            response_events = []
+            try:
+                async for event in agen:
+                    response_events.append(event)
+                    yield event
+            except Exception as e:
+                span.set_exc_info(type(e), e, e.__traceback__)
+                raise
+            finally:
+                span.set_tag_str("component", "google-adk")
+                kwargs["instance"] = instance.agent
+                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=response_events)
+
+    return _generator()
+
+
+@with_traced_module
+async def _traced_functions_call_tool_async(adk, pin, wrapped, instance, args, kwargs):
+    integration = adk._datadog_integration
+    tool_context = kwargs.get("tool_context", {})
+    # Handle cases where invocation context might not exist (e.g., direct tool calls)
+    agent = None
+    if hasattr(tool_context, '_invocation_context') and hasattr(tool_context._invocation_context, 'agent'):
+        agent = tool_context._invocation_context.agent
+    provider_name, model_name = extract_provider_and_model_name(agent=agent)
+    instance = instance or args[0]
+
+    with integration.trace(
+        pin,
+        "%s.%s" % (instance.__class__.__name__, wrapped.__name__),
+        provider=provider_name,
+        model=model_name,
+        kind="tool",
+        submit_to_llmobs=True,
+    ) as span:
+        result = None   
+        try:
+            result = await wrapped(*args, **kwargs)
+            return result
+        except Exception as e:
+            span.set_exc_info(type(e), e, e.__traceback__)
+            raise
+        finally:
+            span.set_tag_str("component", "google-adk")
+            kwargs["tool"] = args[0] if args else kwargs.get("tool")
+            kwargs["tool_args"] = args[1] if len(args) > 1 else kwargs.get("args")
+            kwargs["tool_call_id"] = tool_context.function_call_id
+            integration.llmobs_set_tags(
+                span,
+                args=args,
+                kwargs=kwargs,
+                response=result,
+            )
+
+
+@with_traced_module
+async def _traced_functions_call_tool_live(adk, pin, wrapped, instance, args, kwargs):
+    integration = adk._datadog_integration
+    tool_context = kwargs.get("tool_context", {})
+    agent = tool_context._invocation_context.agent
+    provider_name, model_name = extract_provider_and_model_name(agent=agent)
+
+    with integration.trace(
+        pin,
+        "%s.%s" % (instance.__class__.__name__, wrapped.__name__),
+        provider=provider_name,
+        model=model_name,
+        kind="tool",
+        submit_to_llmobs=True,
+    ) as span:
+        result = None   
+        try:
+            agen = wrapped(*args, **kwargs)
+            async for item in agen:
+                yield item
+        except Exception as e:
+            span.set_exc_info(type(e), e, e.__traceback__)
+            raise
+        finally:
+            span.set_tag_str("component", "google-adk")
+            kwargs["tool"] = args[0] if args else kwargs.get("tool")
+            kwargs["tool_args"] = args[1] if len(args) > 1 else kwargs.get("args")
+            kwargs["tool_call_id"] = tool_context.function_call_id
+            integration.llmobs_set_tags(
+                span,
+                args=args,
+                kwargs=kwargs,
+                response=result,
+            )
+
+
+@with_traced_module
+def _traced_code_executor_execute_code(adk, pin, wrapped, instance, args, kwargs):
+    """Trace the execution of code by the agent (sync)."""
+    integration = adk._datadog_integration
+    invocation_context = kwargs.get("invocation_context", args[0] if args else None)
+    provider_name, model_name = extract_provider_and_model_name(agent=getattr(invocation_context, "agent", None))
+
+    # Signature: execute_code(self, invocation_context, code_execution_input)
+    code_input = kwargs.get("code_execution_input", args[1] if len(args) >= 2 and args[1] else None)
+    with integration.trace(
+        pin,
+        "%s.%s" % (instance.__class__.__name__, wrapped.__name__),
+        provider=provider_name,
+        model=model_name,
+        kind="code_execute",
+        submit_to_llmobs=True,
+    ) as span:
+        result = None
+        try:
+            result = wrapped(*args, **kwargs)
+            return result
+        except Exception as e:
+            span.set_exc_info(type(e), e, e.__traceback__)
+            raise
+        finally:
+            span.set_tag_str("component", "google-adk")
+            kwargs["code_input"] = getattr(code_input, "code", None)
+            integration.llmobs_set_tags(
+                span,
+                args=args,
+                kwargs=kwargs,
+                response=result,
+            )
+
+
+def extract_provider_and_model_name(kwargs: Optional[Dict[str, Any]] = None, agent: Any = None) -> Tuple[str, str]:
+    if agent is None:
+        return "google", "google"
+    return agent.model.__class__.__name__, agent.model.model
+
+
 CODE_EXECUTOR_CLASSES = [
-    # "BuiltInCodeExecutor", # make an external llm tool call to use the llms built in code executor
+    "BuiltInCodeExecutor", # make an external llm tool call to use the llms built in code executor
     "VertexAiCodeExecutor",
     "UnsafeLocalCodeExecutor",
-    # "ContainerCodeExecutor", # additional package dependendy
+    "ContainerCodeExecutor", # additional package dependendy
 ]
 
-MEMORY_SERVICE_CLASSES = [
-    "InMemoryMemoryService",
-    "VertexAiMemoryBankService",
-    "VertexAiRagMemoryService",
-]
+# MEMORY_SERVICE_CLASSES = [ # TODO: Add memory tracing
+#     "InMemoryMemoryService",
+#     "VertexAiMemoryBankService",
+#     "VertexAiRagMemoryService",
+# ]
 
 
 def patch():
@@ -56,53 +210,33 @@ def patch():
 
     setattr(adk, "_datadog_patch", True)
     Pin().onto(adk)
+    integration = GoogleAdkIntegration(integration_config=config.google_adk)
+    setattr(adk, "_datadog_integration", integration)
 
     # Agent entrypoints (async generators)
-    wrap("google.adk", "runners.Runner.run_async", _traced_agent_run_async)
-    wrap("google.adk", "runners.Runner.run_live", _traced_agent_run_live)
+    wrap("google.adk", "runners.Runner.run_async", _traced_agent_run_async(adk))
+    wrap("google.adk", "runners.Runner.run_live", _traced_agent_run_async(adk))
 
     # Tool execution (central dispatch)
     if hasattr(adk, "flows") and hasattr(adk.flows, "llm_flows") and hasattr(adk.flows.llm_flows, "functions"):
         funcs = adk.flows.llm_flows.functions
         if hasattr(funcs, "__call_tool_async"):
-            wrap("google.adk", "flows.llm_flows.functions.__call_tool_async", _traced_functions_call_tool_async)
+            wrap("google.adk", "flows.llm_flows.functions.__call_tool_async", _traced_functions_call_tool_async(adk))
         if hasattr(funcs, "__call_tool_live"):
-            wrap("google.adk", "flows.llm_flows.functions.__call_tool_live", _traced_functions_call_tool_live)
+            wrap("google.adk", "flows.llm_flows.functions.__call_tool_live", _traced_functions_call_tool_live(adk))
 
     if hasattr(adk, "code_executors"):
         for code_executor in CODE_EXECUTOR_CLASSES:
-            executor_cls = getattr(adk.code_executors, code_executor, None)
-            if executor_cls is not None and hasattr(executor_cls, "execute_code"):
-                wrap(
-                    "google.adk",
-                    f"code_executors.{code_executor}.execute_code",
-                    _traced_code_executor_execute_code,
-                )
-
-    # Plugin callbacks orchestration (only if available)
-    if hasattr(adk, "plugins") and hasattr(adk.plugins, "plugin_manager") and hasattr(adk.plugins.plugin_manager, "PluginManager"):
-        if hasattr(adk.plugins.plugin_manager.PluginManager, "_run_callbacks"):
-            wrap(
-                "google.adk",
-                "plugins.plugin_manager.PluginManager._run_callbacks",
-                _traced_plugin_manager_run_callbacks,
-            )
-
-    for memory_service in MEMORY_SERVICE_CLASSES:
-        try:
-            wrap(
-                "google.adk",
-                f"memory.{memory_service}.add_session_to_memory",
-                _traced_memory_add_session_async,
-            )
-            wrap(
-                "google.adk",
-                f"memory.{memory_service}.search_memory",
-                _traced_memory_search_async,
-            )
-        except Exception:
-            logger.exception("Failed to wrap:", memory_service)
-            pass
+            try:
+                executor_cls = getattr(adk.code_executors, code_executor, None)
+                if executor_cls is not None and hasattr(executor_cls, "execute_code"):
+                    wrap(
+                        "google.adk",
+                        f"code_executors.{code_executor}.execute_code",
+                        _traced_code_executor_execute_code(adk),
+                    )
+            except ImportError:
+                pass
 
 
 def unpatch():
@@ -123,201 +257,12 @@ def unpatch():
 
     if hasattr(adk, "code_executors"):
         for code_executor in CODE_EXECUTOR_CLASSES:
-            executor_cls = getattr(adk.code_executors, code_executor, None)
-            if executor_cls is not None and hasattr(executor_cls, "execute_code"):
-                unwrap(executor_cls, "execute_code")
-
-    if hasattr(adk, "plugins") and hasattr(adk.plugins, "plugin_manager") and hasattr(adk.plugins.plugin_manager, "PluginManager"):
-        if hasattr(adk.plugins.plugin_manager.PluginManager, "_run_callbacks"):
-            unwrap(adk.plugins.plugin_manager.PluginManager, "_run_callbacks")
-
-    for memory_service in MEMORY_SERVICE_CLASSES:
-        try:
-            unwrap(getattr(adk.memory, memory_service), "add_session_to_memory")
-            unwrap(getattr(adk.memory, memory_service), "search_memory")
-        except Exception:
-            logger.exception("Failed to unwrap:", memory_service)
-            pass
-
-
-def _get_tracer_and_service(instance):
-    pin = Pin.get_from(instance)
-    if pin and getattr(pin, "enabled", True):
-        return pin.tracer, pin.service
-    return _tracer, "google-adk"
-
-
-def _traced_agent_run_async(wrapped, instance, args, kwargs):
-    """Trace the main execution of an agent (async generator)."""
-    target_instance = instance or (args[0] if args else None)
-    tracer, service = _get_tracer_and_service(target_instance)
-    agen = wrapped(*args, **kwargs)
-    fn_kwargs = kwargs
-
-    async def _generator():
-        with tracer.trace("google_adk.agent.run", service=service) as span:
-            span.set_tag_str("component", "google-adk")
-            span.set_tag_str("span.kind", "internal")
-
-            if target_instance is not None and hasattr(target_instance, "agent"):
-                span.set_tag_str("agent_name", target_instance.agent.name)
-                span.set_tag_str("agent_instructions", target_instance.agent.instruction)
-                span.set_tag_str("model_configuration", str(target_instance.agent.model_config))
-            # span.set_tag_str("max_iterations", instance.agent.run_config.max_llm_calls)
-
-            if fn_kwargs.get("session_id"):
-                span.set_tag_str("session_management.session_id", fn_kwargs.get("session_id"))
-            if fn_kwargs.get("user_id"):
-                span.set_tag_str("session_management.user_id", fn_kwargs.get("user_id"))
-
-            if target_instance is not None and hasattr(target_instance, "agent"):
-                for i, tool in enumerate(target_instance.agent.tools):
-                    span.set_tag_str(f"tool.[{i}].name", tool.name)
-                    span.set_tag_str(f"tool.[{i}].description", tool.description)
-                    for j, arg in enumerate(tool._get_mandatory_args()):
-                        span.set_tag_str(f"tool.[{i}].parameters.[{j}]", arg)
-
             try:
-                async for event in agen:
-                    yield event
-            except Exception as e:
-                span.set_exc_info(type(e), e, e.__traceback__)
-                raise
+                executor_cls = getattr(adk.code_executors, code_executor, None)
+                if executor_cls is not None and hasattr(executor_cls, "execute_code"):
+                    unwrap(executor_cls, "execute_code")
+            except ImportError:
+                # Some code executors require additional dependencies, skip them
+                continue
 
-    return _generator()
-
-
-def _traced_agent_run_live(wrapped, instance, args, kwargs):
-    """Trace the main execution of a live agent (async generator)."""
-    target_instance = instance or (args[0] if args else None)
-    tracer, service = _get_tracer_and_service(target_instance)
-    agen = wrapped(*args, **kwargs)
-
-    async def _generator():
-        with tracer.trace("google_adk.agent.run_live", service=service) as span:
-            span.set_tag_str("component", "google-adk")
-            span.set_tag_str("span.kind", "internal")
-            span.set_tag_str("agent.name", getattr(target_instance, "name", ""))
-            try:
-                async for event in agen:
-                    yield event
-            except Exception as e:
-                span.set_exc_info(type(e), e, e.__traceback__)
-                raise
-
-    return _generator()
-
-
-async def _traced_functions_call_tool_async(wrapped, instance, args, kwargs):
-    tracer, service = _get_tracer_and_service(adk)
-    tool = args[0] if args else kwargs.get("tool")
-    tool_args = args[1] if len(args) > 1 else kwargs.get("args")
-    with tracer.trace("google_adk.tool.run", service=service) as span:
-        span.set_tag_str("component", "google-adk")
-        span.set_tag_str("span.kind", "internal")
-        if tool is not None:
-            span.set_tag_str("tool.name", getattr(tool, "name", tool.__class__.__name__))
-        if tool_args is not None:
-            span.set_tag_str("tool.parameters", _truncate_value(tool_args))
-        try:
-            result = await wrapped(*args, **kwargs)
-            if result is not None:
-                span.set_tag_str("tool.output", _truncate_value(result))
-            return result
-        except Exception as e:
-            span.set_exc_info(type(e), e, e.__traceback__)
-            raise
-
-
-async def _traced_functions_call_tool_live(wrapped, instance, args, kwargs):
-    tracer, service = _get_tracer_and_service(adk)
-    tool = args[0] if args else kwargs.get("tool")
-    function_args = args[1] if len(args) > 1 else kwargs.get("args")
-    with tracer.trace("google_adk.tool.run_live", service=service) as span:
-        span.set_tag_str("component", "google-adk")
-        span.set_tag_str("span.kind", "internal")
-        if tool is not None:
-            span.set_tag_str("tool.name", getattr(tool, "name", tool.__class__.__name__))
-        if function_args is not None:
-            span.set_tag_str("tool.parameters", _truncate_value(function_args))
-        agen = wrapped(*args, **kwargs)
-        async for item in agen:
-            yield item
-
-
-def _traced_code_executor_execute_code(wrapped, instance, args, kwargs):
-    """Trace the execution of code by the agent (sync)."""
-    tracer, service = _get_tracer_and_service(instance)
-    with tracer.trace("google_adk.code.execute", service=service) as span:
-        span.set_tag_str("component", "google-adk")
-        span.set_tag_str("span.kind", "internal")
-
-        # Signature: execute_code(self, invocation_context, code_execution_input)
-        code_input = None
-        if "code_execution_input" in kwargs:
-            code_input = kwargs["code_execution_input"]
-        elif len(args) >= 2:
-            code_input = args[1]
-
-        code_snippet = getattr(code_input, "code", None)
-        if code_snippet:
-            span.set_tag_str("code.snippet", _truncate_value(code_snippet))
-
-        try:
-            result = wrapped(*args, **kwargs)
-            # Result is CodeExecutionResult
-            stdout = getattr(result, "stdout", None)
-            stderr = getattr(result, "stderr", None)
-            if stdout:
-                span.set_tag_str("code.stdout", _truncate_value(stdout))
-            if stderr:
-                span.set_tag_str("code.stderr", _truncate_value(stderr))
-            return result
-        except Exception as e:
-            span.set_exc_info(type(e), e, e.__traceback__)
-            raise
-
-
-async def _traced_plugin_manager_run_callbacks(wrapped, instance, args, kwargs):
-    tracer, service = _get_tracer_and_service(instance)
-    callback_name = args[0] if args else kwargs.get("callback_name", "")
-    with tracer.trace("google_adk.plugin.callback", service=service) as span:
-        span.set_tag_str("component", "google-adk")
-        span.set_tag_str("span.kind", "internal")
-        span.set_tag_str("plugin.callback_name", str(callback_name))
-        try:
-            return await wrapped(*args, **kwargs)
-        except Exception as e:
-            span.set_exc_info(type(e), e, e.__traceback__)
-            raise
-
-
-async def _traced_memory_add_session_async(wrapped, instance, args, kwargs):
-    tracer, service = _get_tracer_and_service(instance)
-    with tracer.trace("google_adk.memory.add_session", service=service) as span:
-        span.set_tag_str("component", "google-adk")
-        span.set_tag_str("span.kind", "internal")
-        span.set_tag_str("memory.impl", instance.__class__.__name__)
-        try:
-            return await wrapped(*args, **kwargs)
-        except Exception as e:
-            span.set_exc_info(type(e), e, e.__traceback__)
-            raise
-
-
-async def _traced_memory_search_async(wrapped, instance, args, kwargs):
-    tracer, service = _get_tracer_and_service(instance)
-    with tracer.trace("google_adk.memory.search", service=service) as span:
-        span.set_tag_str("component", "google-adk")
-        span.set_tag_str("span.kind", "internal")
-        span.set_tag_str("memory.impl", instance.__class__.__name__)
-        query = kwargs.get("query")
-        if query is None and len(args) >= 3:
-            query = args[2]
-        if query is not None:
-            span.set_tag_str("memory.query", _truncate_value(query))
-        try:
-            return await wrapped(*args, **kwargs)
-        except Exception as e:
-            span.set_exc_info(type(e), e, e.__traceback__)
-            raise
+    delattr(adk, "_datadog_integration")

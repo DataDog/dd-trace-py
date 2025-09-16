@@ -113,10 +113,21 @@ def normalize_contents_google_genai(contents) -> List[Dict[str, Any]]:
 
 
 def extract_generation_metrics_google_genai(response) -> Dict[str, Any]:
+    """
+    Extract usage metrics from Google GenAI response or Google ADK Event object.
+    
+    Args:
+        response: Google GenAI response object or ADK Event object
+        
+    Returns:
+        Dictionary with token usage metrics
+    """
     if not response:
         return {}
 
     usage_metadata = _get_attr(response, "usage_metadata", {})
+    if not usage_metadata:
+        return {}
 
     usage = {}
     input_tokens = _get_attr(usage_metadata, "prompt_token_count", None)
@@ -188,9 +199,9 @@ def extract_message_from_part_google_genai(part, role: str) -> Dict[str, Any]:
     function_call = _get_attr(part, "function_call", None)
     if function_call:
         tool_call_info = ToolCall(
-            name=_get_attr(function_call, "name", "") or "",
-            arguments=_get_attr(function_call, "args", {}) or {},
-            tool_id=_get_attr(function_call, "id", "") or "",
+            name=str(_get_attr(function_call, "name", "") or ""),
+            arguments=dict(_get_attr(function_call, "args", {}) or {}),
+            tool_id=str(_get_attr(function_call, "id", "") or ""),
             type="function_call",
         )
         message["tool_calls"] = [tool_call_info]
@@ -200,9 +211,9 @@ def extract_message_from_part_google_genai(part, role: str) -> Dict[str, Any]:
     if function_response:
         result = _get_attr(function_response, "response", "") or ""
         tool_result_info = ToolResult(
-            name=_get_attr(function_response, "name", "") or "",
+            name=str(_get_attr(function_response, "name", "") or ""),
             result=result if isinstance(result, str) else json.dumps(result),
-            tool_id=_get_attr(function_response, "id", "") or "",
+            tool_id=str(_get_attr(function_response, "id", "") or ""),
             type="function_response",
         )
         message["tool_results"] = [tool_result_info]
@@ -310,3 +321,39 @@ def get_system_instructions_gemini_vertexai(model_instance):
         elif Part is not None and isinstance(elem, Part):
             system_instructions.append(_get_attr(elem, "text", ""))
     return system_instructions
+
+
+def extract_messages_from_adk_events(events) -> List[Dict[str, Any]]:
+    """
+    Extract messages from Google ADK Event objects.
+    
+    Args:
+        events: List of ADK Event objects or single Event object
+        
+    Returns:
+        List of message dictionaries with format {"role": role, "content": content, ...}
+    """
+    messages = []
+    
+    # Handle both single event and list of events
+    if not isinstance(events, list):
+        events = [events]
+    
+    for event in events:
+        content = _get_attr(event, "content", None)
+        if not content:
+            continue
+            
+        role = _get_attr(content, "role", GOOGLE_GENAI_DEFAULT_MODEL_ROLE)
+        parts = _get_attr(content, "parts", [])
+        
+        if not isinstance(parts, list):
+            parts = [parts]
+        
+        for part in parts:
+            # Reuse the existing Google GenAI part extraction logic
+            message = extract_message_from_part_google_genai(part, role)
+            if message:
+                messages.append(message)
+    
+    return messages

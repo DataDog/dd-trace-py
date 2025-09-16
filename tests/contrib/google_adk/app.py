@@ -21,7 +21,7 @@ def multiply(a: int, b: int) -> dict[str, Any]:
 
 
 async def setup_test_agent():
-    """Set up a test agent with tools and code executor matching sample_agent.py structure."""
+    """Set up a test agent with tools and code executor."""
     model = Gemini(model="gemini-2.5-pro")
     
     # Wrap Python callables as tools the agent can invoke
@@ -39,10 +39,8 @@ async def setup_test_agent():
         model=model,
         tools=tools,  # type: ignore[arg-type]
         code_executor=code_executor,
-        # A light instruction matching the sample agent pattern
         instruction=(
-            "You are a test agent. When needed: (1) plan, (2) search, (3) write"
-            " short Python to compute or transform results. Be concise."
+            "You are a test agent. Do whatever the user asks, it may be a code execution task or a tool call task."
         ),
     )
     

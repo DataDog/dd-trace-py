@@ -1,11 +1,11 @@
 import os
-from typing import Iterator
 
 import pytest
 
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.google_adk.patch import patch as adk_patch
 from ddtrace.contrib.internal.google_adk.patch import unpatch as adk_unpatch
+from tests.contrib.google_adk.app import setup_test_agent
 from tests.contrib.google_adk.utils import get_request_vcr
 from tests.utils import DummyTracer, DummyWriter, override_global_config
 
@@ -140,3 +140,11 @@ def dummy_code_input():
 def dummy_code_result():
     return DummyCodeResult(stdout="ok", stderr="")
 
+
+@pytest.fixture
+async def test_runner(adk, mock_tracer):
+    """Set up a test runner with agent."""
+    runner = await setup_test_agent()
+    # Ensure the mock tracer is attached to the runner
+    Pin()._override(runner, tracer=mock_tracer)
+    return runner
