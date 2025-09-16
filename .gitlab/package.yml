@@ -24,7 +24,7 @@ compute_library_version:
     .gitlab/download-library-version-from-gh-actions.sh
 
     echo "SETUPTOOLS_SCM_PRETEND_VERSION_FOR_DDTRACE=$(cat library-version/version.txt)" | tee library_version.env
-    echo "DDTRACE_VERSION=$(cat library-version/version.txt)" | tee library_version.env
+    echo "DDTRACE_VERSION=$(cat library-version/version.txt)" | tee -a library_version.env
   artifacts:
     reports:
       dotenv: library_version.env
@@ -149,7 +149,6 @@ download_dependency_wheels:
     SYSTEM_VERSION_COMPAT: 0
     PIP_CACHE_DIR: ${CI_PROJECT_DIR}/.cache/pip
     CARGO_HOME: ${CI_PROJECT_DIR}/.cache/cargo
-    PIP_LOG: "${CI_PROJECT_DIR}/wheelhouse-debug/${CI_JOB_NAME_SLUG}.pip_debug.log"
     PIP_DISABLE_PIP_VERSION_CHECK: 1
   before_script:
     - !reference [ .setup_pip_cache ]
@@ -189,11 +188,9 @@ download_dependency_wheels:
   before_script:
     - !reference [ .build_ddtrace_linux_base, before_script ]
   script:
-    - echo "${SETUPTOOLS_SCM_PRETEND_VERSION_FOR_DDTRACE}"
-    - echo "${DDTRACE_VERSION}"
-    - /opt/python/${PYTHON_TAG}/bin/python -m build . --sdist --outdir wheelhouse/
-    - /opt/python/${PYTHON_TAG}/bin/python -m twine check --strict wheelhouse/*
+    - /opt/python/${PYTHON_TAG}/bin/python -m build . --sdist --outdir pywheels/
+    - /opt/python/${PYTHON_TAG}/bin/python -m twine check --strict pywheels/*
   artifacts:
     name: ddtrace-sdist
     paths:
-      - wheelhouse/
+      - pywheels/
