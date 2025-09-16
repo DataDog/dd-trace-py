@@ -6,6 +6,7 @@ import pytest
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.google_adk.patch import patch as adk_patch
 from ddtrace.contrib.internal.google_adk.patch import unpatch as adk_unpatch
+from tests.contrib.google_adk.utils import get_request_vcr
 from tests.utils import DummyTracer, DummyWriter, override_global_config
 
 
@@ -16,9 +17,13 @@ def adk_ddtrace_global_config():
 
 @pytest.fixture
 def adk(adk_ddtrace_global_config):
-    os.environ.setdefault("GOOGLE_CLOUD_LOCATION", "<not-a-real-location>")
-    os.environ.setdefault("GOOGLE_CLOUD_PROJECT", "<not-a-real-project>")
-    os.environ.setdefault("GOOGLE_API_KEY", "<not-a-real-key>")
+    # Set dummy API key for VCR mode if no real API key is present
+    if not os.environ.get("GOOGLE_API_KEY"):
+        os.environ["GOOGLE_API_KEY"] = "dummy-api-key-for-vcr"
+    
+    # Location/project may be required for client init.
+    os.environ.setdefault("GOOGLE_CLOUD_LOCATION", os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"))
+    os.environ.setdefault("GOOGLE_CLOUD_PROJECT", os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"))
 
     with override_global_config(adk_ddtrace_global_config):
         adk_patch()
@@ -58,6 +63,31 @@ class DummyAgent:
 class DummyRunner:
     def __init__(self):
         self.agent = DummyAgent()
+        self.app_name = "TestApp"
+        self.session_service = type(
+            "SessSvc",
+            (),
+            {
+                "get_session": staticmethod(
+                    lambda app_name, user_id, session_id: _async_return(
+                        type(
+                            "Sess",
+                            (),
+                            {
+                                "app_name": app_name,
+                                "user_id": user_id,
+                                "id": session_id,
+                                "events": [],
+                            },
+                        )()
+                    )
+                )
+            },
+        )()
+
+
+async def _async_return(value):
+    return value
 
 
 class DummyCodeInput:
@@ -74,6 +104,26 @@ class DummyCodeResult:
 @pytest.fixture
 def dummy_runner():
     return DummyRunner()
+
+
+@pytest.fixture
+def adk_runner(adk):
+    class FakeAgent:
+        name = "fake-agent"
+        instruction = "instr"
+        model_config = {"model": "test"}
+        tools = []
+
+    return adk.runners.InMemoryRunner(agent=FakeAgent(), app_name="TestApp")
+
+
+def mk_session(app_name: str = "app", user_id: str = "user", session_id: str = "sid"):
+    return type("Sess", (), {"app_name": app_name, "user_id": user_id, "id": session_id, "events": []})()
+
+
+@pytest.fixture(scope="session")
+def request_vcr():
+    yield get_request_vcr()
 
 
 @pytest.fixture
