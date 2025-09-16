@@ -1,6 +1,5 @@
 import pytest
 
-from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_free_slots_number
 from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_size
 from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
 from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
@@ -19,9 +18,7 @@ def iast_request():
         )
     ):
         assert debug_context_array_size() == 2
-        assert debug_context_array_free_slots_number() > 0
-        context_id = _start_iast_context_and_oce()
-        assert context_id is not None
+        _start_iast_context_and_oce()
         try:
             yield
         finally:

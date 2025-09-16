@@ -19,7 +19,7 @@ log = get_logger(__name__)
 
 # Stopgap module for providing ASM context for the blocking features wrapping some contextvars.
 
-IAST_CONTEXT: "contextvars.ContextVar[Optional[int]]" = contextvars.ContextVar("iast_var", default=None)
+IAST_CONTEXT: contextvars.ContextVar[Optional[int]] = contextvars.ContextVar("iast_var", default=None)
 
 
 def _set_span_tag_iast_request_tainted(span):
@@ -99,8 +99,10 @@ def _iast_finish_request(span=None, shoud_update_global_vulnerability_limit: boo
         core.discard_item(IAST.REQUEST_CONTEXT_KEY)
 
     context_id = _get_iast_context_id()
+    print(f"context_id: {context_id}")
     if context_id is not None:
         finish_request_context(context_id)
+        print(f"finish_request_context: {context_id}")
         IAST_CONTEXT.set(None)
         return True
 
