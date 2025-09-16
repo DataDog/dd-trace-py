@@ -133,3 +133,7 @@ class TestRayIntegration(TracerTestCase):
     @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_simple_put", ignores=RAY_SNAPSHOT_IGNORES)
     def test_simple_put(self):
         submit_ray_job("jobs/simple_put.py")
+
+    @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_simple_wait", ignores=RAY_SNAPSHOT_IGNORES)
+    def test_simple_wait(self):
+        submit_ray_job("jobs/simple_wait.py")

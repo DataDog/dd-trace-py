@@ -288,6 +288,37 @@ def traced_put(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
 
+def traced_wait(wrapped, instance, args, kwargs):
+    """
+    Trace the calls of ray.wait
+    """
+    if not tracer:
+        return wrapped(*args, **kwargs)
+
+    if tracer.current_span() is None:
+        tracer.context_provider.activate(_extract_tracing_context_from_env())
+
+    with long_running_ray_span(
+        "ray.wait",
+        service=os.environ.get("_RAY_SUBMISSION_ID"),
+        span_type=SpanTypes.RAY,
+        child_of=tracer.context_provider.active(),
+        activate=True,
+    ) as span:
+        span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+        timeout = kwargs.get("timeout")
+        num_returns = kwargs.get("num_returns")
+        fetch_local = kwargs.get("fetch_local")
+        if timeout is not None:
+            span.set_tag_str("ray.wait.timeout_s", str(timeout))
+        if num_returns is not None:
+            span.set_tag_str("ray.wait.num_returns", str(num_returns))
+        if fetch_local is not None:
+            span.set_tag_str("ray.wait.fetch_local", str(fetch_local))
+        _inject_ray_span_tags(span)
+        return wrapped(*args, **kwargs)
+
+
 def _job_supervisor_run_wrapper(method: Callable[..., Any]) -> Any:
     async def _traced_run_method(self: Any, *args: Any, _dd_trace_ctx=None, **kwargs: Any) -> Any:
         from ddtrace import tracer
@@ -473,6 +504,7 @@ def patch():
     _w(ray.actor, "_modify_class", inject_tracing_into_actor_class)
     _w(ray.actor.ActorHandle, "_actor_method_call", traced_actor_method_call)
     _w(ray, "put", traced_put)
+    _w(ray, "wait", traced_wait)
 
 
 def unpatch():
@@ -493,3 +525,4 @@ def unpatch():
     _u(ray.actor, "_modify_class")
     _u(ray.actor.ActorHandle, "_actor_method_call")
     _u(ray, "put")
+    _u(ray, "wait")
