@@ -148,6 +148,7 @@ cdef inline int pack_text(msgpack_packer *pk, object text) except? -1:
     if PyBytesLike_Check(text):
         L = len(text)
         if L > MAX_SPAN_META_VALUE_LEN:
+            text = truncate_string(text)
             PyErr_Format(ValueError, b"%.200s object is too large", Py_TYPE(text).tp_name)
             text = truncate_string(text)
             L = len(text)
