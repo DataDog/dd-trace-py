@@ -834,6 +834,7 @@ def test_annotate_prompt_typed_dict(llmobs):
             "_dd_query_variable_keys": ["user_input"],
         }
 
+
 def test_annotate_prompt_wrong_type(llmobs, mock_llmobs_logs):
     with llmobs.llm(model_name="test_model") as span:
         llmobs.annotate(span=span, prompt="prompt")
