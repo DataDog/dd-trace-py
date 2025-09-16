@@ -372,12 +372,14 @@ ddup_failure_msg, ddup_is_available = _check_for_ddup_available()
 
 # We need to check if ddup is available, and turn off profiling if it is not.
 if not ddup_is_available:
-    msg = ddup_failure_msg or "libdd not available"
-    logger.warning("Failed to load ddup module (%s), disabling profiling", msg)
-    telemetry_writer.add_log(
-        TELEMETRY_LOG_LEVEL.ERROR,
-        "Failed to load ddup module (%s), disabling profiling" % ddup_failure_msg,
-    )
+    # We known it is supported on 3.14, so don't report the error, but still disable
+    if sys.version_info < (3, 14):
+        msg = ddup_failure_msg or "libdd not available"
+        logger.warning("Failed to load ddup module (%s), disabling profiling", msg)
+        telemetry_writer.add_log(
+            TELEMETRY_LOG_LEVEL.ERROR,
+            "Failed to load ddup module (%s), disabling profiling" % ddup_failure_msg,
+        )
     config.enabled = False
 
 # We also need to check if stack_v2 module is available, and turn if off
