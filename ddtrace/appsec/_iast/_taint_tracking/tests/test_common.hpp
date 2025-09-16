@@ -1,4 +1,5 @@
 #pragma once
+#include <context/taint_engine_context.h>
 #include <gtest/gtest.h>
 #include <initializer/initializer.h>
 #include <pybind11/embed.h>
@@ -8,9 +9,20 @@ namespace py = pybind11;
 class PyEnvCheck : public ::testing::Test
 {
   protected:
-    void SetUp() override { py::initialize_interpreter(); }
+    void SetUp() override
+    {
+        initializer = make_unique<Initializer>();
+        taint_engine_context = make_unique<TaintEngineContext>();
+        taint_engine_context->clear_all_request_context_slots();
+    }
 
-    void TearDown() override { py::finalize_interpreter(); }
+    void TearDown() override
+    {
+        if (taint_engine_context) {
+            taint_engine_context->clear_all_request_context_slots();
+            taint_engine_context.reset();
+        }
+    }
 };
 
 class PyEnvWithContext : public ::testing::Test
@@ -19,18 +31,24 @@ class PyEnvWithContext : public ::testing::Test
     void SetUp() override
     {
         initializer = make_unique<Initializer>();
-        py::initialize_interpreter();
-        initializer->create_context();
+        taint_engine_context = make_unique<TaintEngineContext>();
+        taint_engine_context->clear_all_request_context_slots();
+        // Start a fresh request context slot for tests that depend on a valid map
+        context_id = taint_engine_context->start_request_context();
     }
 
     void TearDown() override
     {
-        initializer->reset_contexts();
-        initializer.reset();
-        py::finalize_interpreter();
+        if (context_id.has_value()) {
+            taint_engine_context->finish_request_context(context_id.value());
+        }
+        taint_engine_context->clear_all_request_context_slots();
+        taint_engine_context.reset();
     }
 
   public:
+    std::optional<size_t> context_id;
+
     PyObject* StringToPyObjectStr(const string& ob) { return PyUnicode_FromString(ob.c_str()); }
     string PyObjectStrToString(PyObject* ob)
     {

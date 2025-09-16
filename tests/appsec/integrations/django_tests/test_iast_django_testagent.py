@@ -1,3 +1,5 @@
+import concurrent.futures
+
 from ddtrace.appsec._iast.constants import VULN_CMDI
 from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.internal.logger import get_logger
@@ -56,6 +58,43 @@ def test_iast_cmdi():
     assert not vulnerability["location"]["path"].startswith("werkzeug")
     assert vulnerability["location"]["stackId"]
     assert vulnerability["hash"]
+
+
+def test_iast_concurrent_requests_limit_django():
+    """Ensure only DD_IAST_MAX_CONCURRENT_REQUESTS requests have IAST enabled concurrently in Django app.
+
+    Hits /iast-enabled concurrently; the response contains whether IAST was enabled.
+    The number of True responses must equal the configured max concurrent requests.
+    """
+    token = "test_iast_concurrent_requests_limit_django"
+    _ = start_trace(token)
+
+    max_concurrent = 7
+    rejected_requests = 15
+    total_requests = max_concurrent + rejected_requests
+    delay_ms = 400
+
+    env = {
+        "DD_IAST_MAX_CONCURRENT_REQUESTS": str(max_concurrent),
+    }
+
+    with django_server(iast_enabled="true", token=token, env=env) as context:
+        _, django_client, pid = context
+
+        def worker():
+            r = django_client.get(f"/iast-enabled/?delay_ms={delay_ms}", timeout=5)
+            assert r.status_code == 200
+            data = r.json()
+            return bool(data.get("enabled"))
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=total_requests) as executor:
+            futures = [executor.submit(worker) for _ in range(total_requests)]
+            results = [f.result() for f in futures]
+
+    true_count = results.count(True)
+    false_count = results.count(False)
+    assert true_count >= max_concurrent, f"{len(results)} requests. Expected {max_concurrent}, got {true_count}"
+    assert false_count <= rejected_requests, f"{len(results)} requests. Expected {rejected_requests}, got {false_count}"
 
 
 def test_iast_header_injection():
