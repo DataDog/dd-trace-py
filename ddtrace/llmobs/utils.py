@@ -9,6 +9,7 @@ try:
     from typing import TypedDict  # noqa:F401
 except ImportError:
     from typing_extensions import TypedDict
+from typing_extensions import NotRequired
 
 from ddtrace.internal.logger import get_logger
 
@@ -74,56 +75,84 @@ def _extract_tool_result(tool_result: Dict[str, Any]) -> "ToolResult":
     return formatted_tool_result
 
 
-ExportedLLMObsSpan = TypedDict("ExportedLLMObsSpan", {"span_id": str, "trace_id": str})
-Document = TypedDict("Document", {"name": str, "id": str, "text": str, "score": float}, total=False)
-Message = TypedDict(
-    "Message",
-    {"content": str, "role": str, "tool_calls": List["ToolCall"], "tool_results": List["ToolResult"]},
-    total=False,
-)
-Prompt = TypedDict(
-    "Prompt",
-    {
-        "variables": Dict[str, str],
-        "template": str,
-        "id": str,
-        "version": str,
-        "rag_context_variables": List[
-            str
-        ],  # a list of variable key names that contain ground truth context information
-        "rag_query_variables": List[str],  # a list of variable key names that contains query information
-    },
-    total=False,
-)
-ToolCall = TypedDict(
-    "ToolCall",
-    {
-        "name": str,
-        "arguments": Dict[str, Any],
-        "tool_id": str,
-        "type": str,
-    },
-    total=False,
-)
-ToolResult = TypedDict(
-    "ToolResult",
-    {
-        "name": str,
-        "result": str,
-        "tool_id": str,
-        "type": str,
-    },
-    total=False,
-)
-ToolDefinition = TypedDict(
-    "ToolDefinition",
-    {
-        "name": str,
-        "description": str,
-        "schema": Dict[str, Any],
-    },
-    total=False,
-)
+class ExportedLLMObsSpan(TypedDict):
+    span_id: str
+    trace_id: str
+
+class Document(TypedDict):
+    name: NotRequired[str]
+    id: NotRequired[str]
+    text: str
+    score: NotRequired[float]
+
+class Prompt(TypedDict, total=False):
+    variables: Dict[str, str]
+    template: str
+    id: str
+    version: str
+    rag_context_variables: List[str] # a list of variable key names that contain ground truth context information
+    rag_query_variables: List[str] # a list of variable key names that contains query information
+
+class ToolCall(TypedDict):
+    name: str
+    arguments: Dict[str, Any]
+    tool_id: NotRequired[str]
+    type: NotRequired[str]
+
+class ToolResult(TypedDict):
+    name: NotRequired[str]
+    result: str
+    tool_id: NotRequired[str]
+    type: NotRequired[str]
+
+class ToolDefinition(TypedDict):
+    name: str
+    description: NotRequired[str]
+    schema: NotRequired[Dict[str, Any]]
+
+class MessagePromptTemplate(TypedDict):
+    template: str
+
+class Message(TypedDict):
+    id: NotRequired[str]
+    role: NotRequired[str]
+    content: NotRequired[str]
+    tool_calls: NotRequired[List[ToolCall]]
+    tool_results: NotRequired[List[ToolResult]]
+    prompt: NotRequired[MessagePromptTemplate]
+    tool_id: NotRequired[str]
+
+class SpanField(TypedDict):
+    kind: str
+
+class ErrorField(TypedDict):
+    message: NotRequired[str]
+    stack: NotRequired[str]
+    type: NotRequired[str]
+
+class MetaIO(TypedDict):
+    parameters: NotRequired[Dict[str, Any]]
+    value: NotRequired[str]
+    messages: NotRequired[List[Message]]
+    prompt: NotRequired[Prompt]
+    documents: NotRequired[List[Document]]
+
+class Meta(TypedDict):
+    model_name: NotRequired[str]
+    model_provider: NotRequired[str]
+    span: SpanField
+    error: NotRequired[ErrorField]
+    metadata: NotRequired[Dict[str, Any]]
+    input: NotRequired[MetaIO]
+    output: NotRequired[MetaIO]
+    expected_output: NotRequired[MetaIO]
+    evaluations: NotRequired[Any]
+    tool_definitions: NotRequired[List[ToolDefinition]]
+
+class SpanLink(TypedDict):
+    span_id: str
+    trace_id: str
+    attributes: Dict[str, str]
 
 
 def extract_tool_definitions(tool_definitions: List[Dict[str, Any]]) -> List[ToolDefinition]:
