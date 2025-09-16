@@ -1,6 +1,5 @@
-from urllib import parse
-
 from ddtrace.internal._unpatched import unpatched_http_client
+from ddtrace.internal._unpatched import unpatched_urllib_parse
 from ddtrace.internal.runtime import container
 
 
@@ -17,7 +16,7 @@ class HTTPConnectionMixin:
 
     def putrequest(self, method, url, skip_host=False, skip_accept_encoding=False):
         # type: (str, str, bool, bool) -> None
-        url = parse.urljoin(self._base_path, url)
+        url = unpatched_urllib_parse.urljoin(self._base_path, url)
         return super().putrequest(  # type: ignore[misc]
             method, url, skip_host=skip_host, skip_accept_encoding=skip_accept_encoding
         )
