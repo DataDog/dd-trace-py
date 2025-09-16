@@ -265,13 +265,7 @@ def traced_put(wrapped, instance, args, kwargs):
     if tracer.current_span() is None:
         tracer.context_provider.activate(_extract_tracing_context_from_env())
 
-    with long_running_ray_span(
-        "ray.put",
-        service=os.environ.get("_RAY_SUBMISSION_ID"),
-        span_type=SpanTypes.RAY,
-        child_of=tracer.context_provider.active(),
-        activate=True,
-    ) as span:
+    with tracer.trace("ray.put", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.RAY) as span:
         span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
         _inject_ray_span_tags(span)
         if "value" in kwargs:
