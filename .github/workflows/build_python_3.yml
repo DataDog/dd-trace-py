@@ -12,7 +12,7 @@ on:
       cibw_prerelease_pythons:
         required: false
         type: string
-      setuptools_scm_version:
+      library_version:
         required: false
         type: string
 
@@ -21,7 +21,7 @@ jobs:
     name: Compute Library Version
     runs-on: ubuntu-latest
     outputs:
-      library-version: ${{ steps.compute-version.outputs.library_version }}
+      library_version: ${{ steps.compute-version.outputs.library_version }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         # Include all history and tags
@@ -35,13 +35,14 @@ jobs:
       - name: Compute Version
         id: compute-version
         run: |
-          if [ -n "${{ inputs.setuptools_scm_version}}" ]; then
-            LIBRARY_VERSION="${{ inputs.setuptools_scm_version}}"
+          if [ -n "${{ inputs.library_version}}" ]; then
+            LIBRARY_VERSION="${{ inputs.library_version}}"
           else
             pip install "setuptools_scm[toml]>=4"
             LIBRARY_VERSION=$(setuptools-scm)
           fi
 
+          echo "${LIBRARY_VERSION}"
           echo "library_version=${LIBRARY_VERSION}" >> $GITHUB_OUTPUT
 
   build-wheels-matrix:
