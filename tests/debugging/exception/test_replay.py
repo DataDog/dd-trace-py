@@ -14,6 +14,42 @@ from tests.utils import TracerTestCase
 from tests.utils import override_third_party_packages
 
 
+def test_tb_frames_from_exception_chain():
+    def a(v, d=None):
+        if not v:
+            raise ValueError("hello", v)
+
+    def b(bar):
+        m = 4
+        try:
+            a(bar % m)
+        except ValueError:
+            raise KeyError("chain it")
+
+    def c(foo=42):
+        sh = 3
+        b(foo << sh)
+
+    try:
+        c()
+    except Exception as e:
+        chain, _ = replay.unwind_exception_chain(e, e.__traceback__)
+        frames = replay.get_tb_frames_from_exception_chain(chain)
+        # There are two tracebacks in the chain: one for KeyError and one for
+        # ValueError. The innermost goes from the call to a in b up to the point
+        # where the exception is raised in a. The outermost goes from the call
+        # in this test function up to the point in b where the exception from a
+        # is caught and the the KeyError is raised.
+        assert len(frames) == 2 + 3
+        assert [f.tb_frame.f_code.co_name for f in frames] == [
+            "b",
+            "a",
+            "test_tb_frames_from_exception_chain",
+            "c",
+            "b",
+        ]
+
+
 def test_exception_replay_config_enabled(monkeypatch):
     monkeypatch.setenv("DD_EXCEPTION_REPLAY_ENABLED", "1")
 
@@ -132,7 +168,7 @@ class ExceptionReplayTestCase(TracerTestCase):
                     fn = info[i]
 
                     # Check that we have all the tags for each snapshot
-                    assert span.get_tag("_dd.debug.error.%d.snapshot_id" % i) in snapshots
+                    assert span.get_tag("_dd.debug.error.%d.snapshot_id" % i) in snapshots, span._meta
                     assert span.get_tag("_dd.debug.error.%d.file" % i) == __file__.replace(".pyc", ".py"), span.get_tag(
                         "_dd.debug.error.%d.file" % i
                     )
@@ -355,7 +391,15 @@ class ExceptionReplayTestCase(TracerTestCase):
             n = uploader.collector.queue
             assert len(n) == config.max_frames
 
+            assert root is not None
             assert root.get_metric(replay.SNAPSHOT_COUNT_TAG) == config.max_frames
+
+            # Get all the function names attached to the root span
+            fs = {v for k, v in root.get_tags().items() if k.startswith("_dd.debug.error.") and k.endswith(".function")}
+
+            # The recursion has saturated the max frames so we should have
+            # only the function 'r' in the snapshots
+            assert fs == {"r"}, fs
 
     def test_debugger_exception_replay_single_non_user_snapshot(self):
         def a(v, d=None):

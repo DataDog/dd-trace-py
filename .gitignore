@@ -138,7 +138,8 @@ ENV/
 .cursor/
 
 # Cascade
-.windsurf/
+# .windsurf/  # If you want to use Windsurf/Cascade, do NOT ignore here.
+# Add '.windsurf/' to .git/info/exclude instead so Cascade can read workflow/config files (gitignore would hide them)
 
 # Claude
 CLAUDE.local.md
@@ -194,3 +195,6 @@ tests/appsec/iast/fixtures/taint_sinks/not_exists.txt
 # .env file
 .env
 .envrc
+
+*.debug
+*.dSYM/
