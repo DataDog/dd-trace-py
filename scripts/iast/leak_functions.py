@@ -11,15 +11,13 @@ from ddtrace.appsec._iast import disable_iast_propagation
 from ddtrace.appsec._iast import enable_iast_propagation
 from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
 from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
-from ddtrace.appsec._iast._iast_request_context_base import set_iast_request_enabled
-from ddtrace.appsec._iast._taint_tracking import active_map_addreses_size
+from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_size
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from tests.utils import override_env
 
 
 def __iast_start_request_and_oce():
     _iast_start_request()
-    set_iast_request_enabled(True)
 
 
 def _end_iast_context_and_oce():
@@ -72,7 +70,7 @@ async def iast_leaks(iterations: int, fail_percent: float, print_every: int):
             result = await test_doit()
             assert result == "DDD_III_extend", f"result is {result}"
             assert is_pyobject_tainted(result)
-            _end_iast_context_and_oce()
+            _iast_finish_request()
 
             if i == mem_reference_iterations:
                 half_rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
@@ -82,12 +80,12 @@ async def iast_leaks(iterations: int, fail_percent: float, print_every: int):
 
             if i % print_every == 0:
                 print(
-                    f"Round {i} Max RSS: {current_rss}, Number of active maps addresses: {active_map_addreses_size()}"
+                    f"Round {i} Max RSS: {current_rss}, Number of active maps addresses: {debug_context_array_size()}"
                 )
 
         final_rss = current_rss
 
-        print(f"Round {iterations} Max RSS: {final_rss}, Number of active maps addresses: {active_map_addreses_size()}")
+        print(f"Round {iterations} Max RSS: {final_rss}, Number of active maps addresses: {debug_context_array_size()}")
 
         percent_increase = ((final_rss - half_rss) / half_rss) * 100
         if percent_increase > fail_percent:

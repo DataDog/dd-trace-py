@@ -1,4 +1,5 @@
 #include "tainted_ops.h"
+#include "taint_tracking/taint_range.h"
 
 PyObject*
 api_new_pyobject_id(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
@@ -24,23 +25,6 @@ bool
 api_is_tainted(py::object tainted_object)
 {
     if (tainted_object) {
-        const auto tx_map = Initializer::get_tainting_map();
-        if (not tx_map or tx_map->empty()) {
-            return false;
-        }
-
-        if (is_tainted(tainted_object.ptr(), tx_map)) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-bool
-api_is_tainted_new(py::object tainted_object)
-{
-    if (tainted_object) {
         const auto& to_initial =
           taint_engine_context->get_tainted_object_from_request_context_slot(tainted_object.ptr());
         if (to_initial and !to_initial->get_ranges().empty()) {
@@ -55,10 +39,4 @@ void
 pyexport_tainted_ops(py::module& m)
 {
     m.def("is_tainted", &api_is_tainted, "tainted_object"_a, py::return_value_policy::move);
-    m.def("is_tainted_new", &api_is_tainted_new, "is_tainted_new"_a, py::return_value_policy::move);
-    m.def("are_all_text_all_ranges",
-          &are_all_text_all_ranges,
-          "candidate_text"_a,
-          "candidate_text"_a,
-          py::return_value_policy::move);
 }

@@ -1,3 +1,4 @@
+import asyncio
 import subprocess
 
 from fastapi import FastAPI
@@ -6,6 +7,7 @@ from fastapi.responses import Response
 import uvicorn
 
 from ddtrace import tracer
+from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 
 
 def get_app():
@@ -26,6 +28,16 @@ def get_app():
     async def health():
         """Health check endpoint."""
         return {"status": "ok"}
+
+    @app.get("/iast-enabled")
+    async def iast_enabled(delay_ms: int = 200):
+        """Endpoint to test concurrent IAST request enablement.
+
+        Awaits for the given delay and returns whether the IAST request context
+        is currently enabled for this request.
+        """
+        await asyncio.sleep(max(0, delay_ms) / 1000.0)
+        return {"enabled": is_iast_request_enabled()}
 
     @app.get("/iast-header-injection-vulnerability")
     async def header_injection(header: str):

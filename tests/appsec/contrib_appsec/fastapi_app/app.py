@@ -47,7 +47,7 @@ def get_app():
         With middlewares, the BlockingException can become nested multiple levels deep inside
         an ExceptionGroup (or BaseExceptionGroup). The nesting depends the version of FastAPI
         and AnyIO used, as well as the version of python.
-        By adding this empty middleware, we ensure that the BlockingException is catched
+        By adding this empty middleware, we ensure that the BlockingException is caught
         no matter how deep the ExceptionGroup is nested or else the contrib tests fail.
         """
         return await call_next(request)

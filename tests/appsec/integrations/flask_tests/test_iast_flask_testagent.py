@@ -1,3 +1,4 @@
+import concurrent.futures
 import json
 
 import pytest
@@ -51,6 +52,48 @@ def test_iast_stacktrace_error():
     assert "path" not in vulnerability["location"]
     assert "line" not in vulnerability["location"]
     assert vulnerability["hash"]
+
+
+@pytest.mark.parametrize("server", (gunicorn_server, flask_server))
+def test_iast_concurrent_requests_limit_flask(server):
+    """Ensure only DD_IAST_MAX_CONCURRENT_REQUESTS requests have IAST enabled concurrently.
+
+    This mirrors the FastAPI test by hitting /iast-enabled concurrently on the Flask app.
+    """
+    token = "test_iast_concurrent_requests_limit_flask"
+    _ = start_trace(token)
+
+    max_concurrent = 7
+    rejected_requests = 15
+    total_requests = max_concurrent + rejected_requests
+    delay_ms = 500
+
+    env = {
+        "DD_IAST_MAX_CONCURRENT_REQUESTS": str(max_concurrent),
+    }
+
+    with server(iast_enabled="true", token=token, port=8050, env=env) as context:
+        _, client, pid = context
+
+        def worker():
+            r = client.get(f"/iast-enabled?delay_ms={delay_ms}")
+            assert r.status_code == 200
+            # Flask endpoint returns a plain text 'true'/'false'
+            return r.text.strip().lower() == "true"
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=total_requests) as executor:
+            futures = [executor.submit(worker) for _ in range(total_requests)]
+            results = [f.result() for f in futures]
+
+    true_count = results.count(True)
+    false_count = results.count(False)
+    if server.__name__ == "flask_server":
+        assert true_count == max_concurrent
+        assert false_count == rejected_requests
+    else:
+        # That is the correct result, Gunicorn has 1 worker (by default) and it processes all requests one by one
+        assert true_count == total_requests
+        assert false_count == 0
 
 
 @pytest.mark.parametrize("server", (gunicorn_server, flask_server))

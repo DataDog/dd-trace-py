@@ -20,6 +20,7 @@ from urllib import parse
 
 from ddtrace.constants import _USER_ID_KEY
 from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A004
+from ddtrace.internal._unpatched import unpatched_urlparse
 from ddtrace.internal.constants import BLOCKED_RESPONSE_HTML
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
 from ddtrace.internal.constants import DEFAULT_TIMEOUT
@@ -84,7 +85,7 @@ def redact_query_string(query_string, query_string_obfuscation_pattern):
 
 def redact_url(url, query_string_obfuscation_pattern, query_string=None):
     # type: (str, re.Pattern, Optional[str]) -> Union[str,bytes]
-    parts = parse.urlparse(url)
+    parts = unpatched_urlparse(url)
     redacted_query = None
 
     if query_string:
@@ -303,7 +304,7 @@ def verify_url(url: str) -> parse.ParseResult:
     Returns a parse.ParseResult.
     Raises a ``ValueError`` if the URL cannot be used as an intake
     """
-    parsed = parse.urlparse(url)
+    parsed = unpatched_urlparse(url)
     schemes = ("http", "https", "unix")
     if parsed.scheme not in schemes:
         raise ValueError(
