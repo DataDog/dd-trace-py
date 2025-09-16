@@ -390,6 +390,7 @@ def parse_form_multipart(body: str, headers: Optional[Dict] = None) -> Dict[str,
     """Return a dict of form data after HTTP form parsing"""
     import email
     import json
+    from urllib.parse import parse_qs
 
     def parse_message(msg):
         if msg.is_multipart():
@@ -406,7 +407,7 @@ def parse_form_multipart(body: str, headers: Optional[Dict] = None) -> Dict[str,
 
                 res = xmltodict.parse(msg.get_payload())
             elif content_type in ("application/x-url-encoded", "application/x-www-form-urlencoded"):
-                res = parse.parse_qs(msg.get_payload())
+                res = parse_qs(msg.get_payload())
             elif content_type in ("text/plain", None):
                 res = msg.get_payload()
             else:
