@@ -389,6 +389,7 @@ venv = Venv(
                     env={
                         "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": "false",
                     },
+                    pkgs={"pydantic": "==2.12.0a1"},
                 ),
                 Venv(
                     name="tracer-python-optimize",
