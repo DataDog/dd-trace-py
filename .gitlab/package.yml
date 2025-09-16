@@ -189,6 +189,8 @@ download_dependency_wheels:
   before_script:
     - !reference [ .build_ddtrace_linux_base, before_script ]
   script:
+    - echo "${SETUPTOOLS_SCM_PRETEND_VERSION_FOR_DDTRACE}"
+    - echo "${DDTRACE_VERSION}"
     - /opt/python/${PYTHON_TAG}/bin/python -m build . --sdist --outdir wheelhouse/
     - /opt/python/${PYTHON_TAG}/bin/python -m twine check --strict wheelhouse/*
   artifacts:
