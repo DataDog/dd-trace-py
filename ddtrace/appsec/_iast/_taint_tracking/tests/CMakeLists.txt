@@ -37,15 +37,15 @@ endif()
 # Discover tests
 include(GoogleTest)
 gtest_discover_tests(
-    native_tests
-    DISCOVERY_MODE PRE_TEST
-    PROPERTIES
-        ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0:halt_on_error=1:abort_on_error=1;LSAN_OPTIONS=verbosity=1:log_threads=1"
-)
+    native_tests DISCOVERY_MODE PRE_TEST
+    PROPERTIES ENVIRONMENT
+               "ASAN_OPTIONS=detect_leaks=0:halt_on_error=1:abort_on_error=1;LSAN_OPTIONS=verbosity=1:log_threads=1")
 
 add_custom_target(
     test_valgrind
-    COMMAND PYTHONMALLOC=malloc valgrind --track-origins=yes --leak-check=full --suppressions=../../../../../scripts/iast/valgrind-python.supp
-            --show-reachable=yes ${CMAKE_BINARY_DIR}/tests/native_tests --gtest_filter=-TestTimer.*
+    COMMAND
+        PYTHONMALLOC=malloc valgrind --track-origins=yes --leak-check=full
+        --suppressions=../../../../../scripts/iast/valgrind-python.supp --show-reachable=yes
+        ${CMAKE_BINARY_DIR}/tests/native_tests --gtest_filter=-TestTimer.*
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tests)
 add_dependencies(test_valgrind native_tests)
