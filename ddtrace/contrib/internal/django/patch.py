@@ -40,7 +40,7 @@ from ddtrace.vendor.packaging.version import parse as parse_version
 log = get_logger(__name__)
 
 # TODO[4.0]: Change this to True by default
-DJANGO_TRACING_MINIMAL = asbool(os.getenv("DD_DJANGO_TRACING_MINIMAL", default=False))
+DJANGO_TRACING_MINIMAL = asbool(_get_config("DD_DJANGO_TRACING_MINIMAL", default=False))
 
 config._add(
     "django",
