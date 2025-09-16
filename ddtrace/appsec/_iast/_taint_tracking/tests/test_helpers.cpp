@@ -273,9 +273,9 @@ using AsFormattedEvidenceCheckNoContext = PyEnvCheck;
 TEST_F(AsFormattedEvidenceCheckNoContext, NoTaintMapSameString)
 {
     const py::str text("This is a test string.");
-    Source source("source1", "sample_value", OriginType::BODY);
-    TaintRangeRefs taint_ranges = { std::make_shared<TaintRange>(5, 4, source) };
-    const py::str result = as_formatted_evidence(text, taint_ranges);
+    // With no request context and no ranges, the output should equal the input
+    const auto tx_map = taint_engine_context->get_tainted_object_map(text.ptr());
+    const py::str result = all_as_formatted_evidence(text, TagMappingMode::Mapper, tx_map);
     EXPECT_STREQ(AnyTextObjectToString(result).c_str(), AnyTextObjectToString(text).c_str());
 }
 
@@ -373,14 +373,16 @@ using AllAsFormattedEvidenceCheckNoContext = PyEnvCheck;
 TEST_F(AllAsFormattedEvidenceCheckNoContext, NoTaintMapSameString)
 {
     const py::str text("This is a test string.");
-    const py::str result = all_as_formatted_evidence(text, TagMappingMode::Mapper);
+    const auto tx_map = taint_engine_context->get_tainted_object_map(text.ptr());
+    const py::str result = all_as_formatted_evidence(text, TagMappingMode::Mapper, tx_map);
     EXPECT_STREQ(AnyTextObjectToString(result).c_str(), AnyTextObjectToString(text).c_str());
 }
 
 TEST_F(AllAsFormattedEvidenceCheck, NoRangesSameString)
 {
     const py::str text("This is a test string.");
-    const py::str result = all_as_formatted_evidence(text, TagMappingMode::Mapper);
+    const auto tx_map = taint_engine_context->get_tainted_object_map(text.ptr());
+    const py::str result = all_as_formatted_evidence(text, TagMappingMode::Mapper, tx_map);
     EXPECT_STREQ(AnyTextObjectToString(result).c_str(), AnyTextObjectToString(text).c_str());
 }
 
@@ -389,10 +391,16 @@ TEST_F(AllAsFormattedEvidenceCheck, SingleTaintRangeWithNormalMapper)
     py::str text("This is a test string.");
     Source source("source1", "sample_value", OriginType::BODY);
     TaintRangeRefs taint_ranges = { std::make_shared<TaintRange>(5, 2, source) };
-    api_set_ranges(text, taint_ranges);
+
+    // Start a request context and attach ranges to it
+    auto ctx = taint_engine_context->start_request_context();
+    ASSERT_TRUE(ctx.has_value());
+    this->context_id = ctx;
+    api_set_ranges(text, taint_ranges, context_id.value());
 
     const py::str expected_result("This :+-<source1>is<source1>-+: a test string.");
-    const py::str result = all_as_formatted_evidence(text, TagMappingMode::Normal);
+    const auto tx_map_after = taint_engine_context->get_tainted_object_map(text.ptr());
+    const py::str result = all_as_formatted_evidence(text, TagMappingMode::Normal, tx_map_after);
 
     EXPECT_STREQ(AnyTextObjectToString(result).c_str(), AnyTextObjectToString(expected_result).c_str());
 }
@@ -402,12 +410,18 @@ TEST_F(AllAsFormattedEvidenceCheck, SingleTaintRangeWithMapper)
     py::str text("This is a test string.");
     Source source("source1", "sample_value", OriginType::BODY);
     TaintRangeRefs taint_ranges = { std::make_shared<TaintRange>(5, 2, source) };
-    api_set_ranges(text, taint_ranges);
+
+    // Start a request context and attach ranges to it
+    auto ctx = taint_engine_context->start_request_context();
+    ASSERT_TRUE(ctx.has_value());
+    this->context_id = ctx;
+    api_set_ranges(text, taint_ranges, context_id.value());
 
     auto taint_range_1_hash = taint_ranges[0]->get_hash();
     const py::str expected_result("This :+-<" + std::to_string(taint_range_1_hash) + ">is<" +
                                   std::to_string(taint_range_1_hash) + ">-+: a test string.");
-    const py::str result = all_as_formatted_evidence(text, TagMappingMode::Mapper);
+    const auto tx_map_after = taint_engine_context->get_tainted_object_map(text.ptr());
+    const py::str result = all_as_formatted_evidence(text, TagMappingMode::Mapper, tx_map_after);
 
     EXPECT_STREQ(AnyTextObjectToString(result).c_str(), AnyTextObjectToString(expected_result).c_str());
 }
@@ -418,14 +432,20 @@ TEST_F(AllAsFormattedEvidenceCheck, DISABLED_SingleTaintRangeWithMapperReplace)
     py::str text("This is a test string.");
     Source source("source1", "sample_value", OriginType::BODY);
     TaintRangeRefs taint_ranges = { std::make_shared<TaintRange>(5, 2, source) };
-    api_set_ranges(text, taint_ranges);
+
+    // Start a request context and attach ranges to it
+    auto ctx = taint_engine_context->start_request_context();
+    ASSERT_TRUE(ctx.has_value());
+    this->context_id = ctx;
+    api_set_ranges(text, taint_ranges, context_id.value());
 
     py::dict new_ranges;
     TaintRange new_range(5, 2, Source("new_source", "sample_value", OriginType::BODY));
     new_ranges[py::cast(taint_ranges[0])] = new_range;
 
     const py::str expected_result("This :+-<new_source>is<new_source>-+: a test string.");
-    const py::str result = all_as_formatted_evidence(text, TagMappingMode::Mapper_Replace);
+    const auto tx_map_after3 = taint_engine_context->get_tainted_object_map(text.ptr());
+    const py::str result = all_as_formatted_evidence(text, TagMappingMode::Mapper_Replace, tx_map_after3);
 
     EXPECT_STREQ(AnyTextObjectToString(result).c_str(), AnyTextObjectToString(expected_result).c_str());
 }
@@ -433,7 +453,8 @@ TEST_F(AllAsFormattedEvidenceCheck, DISABLED_SingleTaintRangeWithMapperReplace)
 TEST_F(AllAsFormattedEvidenceCheck, EmptyText)
 {
     const py::str text("");
-    const py::str result = all_as_formatted_evidence(text, TagMappingMode::Mapper);
+    const auto tx_map = taint_engine_context->get_tainted_object_map(text.ptr());
+    const py::str result = all_as_formatted_evidence(text, TagMappingMode::Mapper, tx_map);
     EXPECT_STREQ(AnyTextObjectToString(result).c_str(), AnyTextObjectToString(text).c_str());
 }
 
@@ -549,7 +570,11 @@ TEST_F(SetRangesOnSplittedCheck, EmptySourceAndSplit)
     py::str source_str = "";
     py::list split_result;
     TaintRangeRefs source_ranges;
-    auto tx_map = Initializer::get_tainting_map();
+    // Start a request context and use its taint map
+    auto ctx = taint_engine_context->start_request_context();
+    ASSERT_TRUE(ctx.has_value());
+    this->context_id = ctx;
+    auto tx_map = taint_engine_context->get_tainted_object_map_by_ctx_id(context_id.value());
     bool result = set_ranges_on_splitted(source_str, source_ranges, split_result, tx_map, false);
     EXPECT_FALSE(result);
 
@@ -569,8 +594,14 @@ TEST_F(SetRangesOnSplittedCheck, SingleSplitWithoutSeparator)
 
     Source source("source1", "sample_value", OriginType::BODY);
     TaintRangeRefs source_ranges = { std::make_shared<TaintRange>(0, 4, source) };
-    api_set_ranges(source_str, source_ranges);
-    auto tx_map = Initializer::get_tainting_map();
+
+    // Start a request context and use its taint map
+    auto ctx = taint_engine_context->start_request_context();
+    ASSERT_TRUE(ctx.has_value());
+    this->context_id = ctx;
+    api_set_ranges(source_str, source_ranges, context_id.value());
+
+    auto tx_map = taint_engine_context->get_tainted_object_map_by_ctx_id(context_id.value());
     bool result = set_ranges_on_splitted(source_str, source_ranges, split_result, tx_map, false);
     EXPECT_TRUE(result);
 
@@ -583,6 +614,8 @@ TEST_F(SetRangesOnSplittedCheck, SingleSplitWithoutSeparator)
     auto last = split_result[1];
     auto last_ranges = get_ranges(last.ptr(), tx_map);
     EXPECT_TRUE(last_ranges.first.empty());
+
+    // Context will be cleaned up by fixture TearDown
 }
 
 TEST_F(SetRangesOnSplittedCheck, MultipleSplitsNoSeparator)
@@ -601,8 +634,14 @@ TEST_F(SetRangesOnSplittedCheck, MultipleSplitsNoSeparator)
         std::make_shared<TaintRange>(0, 4, source1), // Taint "This"
         std::make_shared<TaintRange>(10, 4, source2) // Taint "test"
     };
-    api_set_ranges(source_str, source_ranges);
-    auto tx_map = Initializer::get_tainting_map();
+
+    // Start a request context and use its taint map
+    auto ctx = taint_engine_context->start_request_context();
+    ASSERT_TRUE(ctx.has_value());
+    this->context_id = ctx;
+    api_set_ranges(source_str, source_ranges, context_id.value());
+
+    auto tx_map = taint_engine_context->get_tainted_object_map_by_ctx_id(context_id.value());
 
     bool result = set_ranges_on_splitted(source_str, source_ranges, split_result, tx_map, false);
     EXPECT_TRUE(result);
@@ -627,6 +666,8 @@ TEST_F(SetRangesOnSplittedCheck, MultipleSplitsNoSeparator)
         auto part_ranges = get_ranges(part.ptr(), tx_map);
         EXPECT_TRUE(part_ranges.first.empty());
     }
+
+    // Context will be cleaned up by fixture TearDown
 }
 
 TEST_F(SetRangesOnSplittedCheck, SplitWithSeparatorIncluded)
@@ -645,8 +686,14 @@ TEST_F(SetRangesOnSplittedCheck, SplitWithSeparatorIncluded)
         std::make_shared<TaintRange>(0, 4, source1), // Taint "This"
         std::make_shared<TaintRange>(10, 4, source2) // Taint "test"
     };
-    api_set_ranges(source_str, source_ranges);
-    auto tx_map = Initializer::get_tainting_map();
+
+    // Start a request context and use its taint map
+    auto ctx = taint_engine_context->start_request_context();
+    ASSERT_TRUE(ctx.has_value());
+    this->context_id = ctx;
+    api_set_ranges(source_str, source_ranges, context_id.value());
+
+    auto tx_map = taint_engine_context->get_tainted_object_map_by_ctx_id(context_id.value());
 
     bool result = set_ranges_on_splitted(source_str, source_ranges, split_result, tx_map, true);
     EXPECT_TRUE(result);
@@ -671,6 +718,8 @@ TEST_F(SetRangesOnSplittedCheck, SplitWithSeparatorIncluded)
         auto part_ranges = get_ranges(part.ptr(), tx_map);
         EXPECT_TRUE(part_ranges.first.empty());
     }
+
+    // Context will be cleaned up by fixture TearDown
 }
 
 TEST_F(SetRangesOnSplittedCheck, EmptyRanges)
@@ -681,7 +730,11 @@ TEST_F(SetRangesOnSplittedCheck, EmptyRanges)
     split_result.append(py::str("is a test string."));
 
     TaintRangeRefs source_ranges; // Empty ranges
-    auto tx_map = Initializer::get_tainting_map();
+    // Start a request context and use its taint map
+    auto ctx = taint_engine_context->start_request_context();
+    ASSERT_TRUE(ctx.has_value());
+    this->context_id = ctx;
+    auto tx_map = taint_engine_context->get_tainted_object_map_by_ctx_id(context_id.value());
 
     bool result = set_ranges_on_splitted(source_str, source_ranges, split_result, tx_map, false);
     EXPECT_FALSE(result);

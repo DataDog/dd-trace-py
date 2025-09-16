@@ -16,7 +16,8 @@ def iast_request():
             _iast_max_concurrent_requests=100,
         )
     ):
-        _start_iast_context_and_oce()
+        context_id = _start_iast_context_and_oce()
+        assert context_id is not None
         try:
             yield
         finally:
