@@ -273,7 +273,7 @@ def traced_wait(wrapped, instance, args, kwargs):
 
     with long_running_ray_span(
         "ray.wait",
-        service=os.environ.get("_RAY_SUBMISSION_ID"),
+        service=get_dd_job_name(),
         span_type=SpanTypes.RAY,
         child_of=tracer.context_provider.active(),
         activate=True,
@@ -342,9 +342,7 @@ def _exec_entrypoint_wrapper(method: Callable[..., Any]) -> Any:
         else:
             entrypoint_name = self._entrypoint
 
-        with tracer.trace(
-            f"exec {entrypoint_name}", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.RAY
-        ) as span:
+        with tracer.trace(f"exec {entrypoint_name}", service=get_dd_job_name(), span_type=SpanTypes.RAY) as span:
             span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
             _inject_ray_span_tags(span)
 
