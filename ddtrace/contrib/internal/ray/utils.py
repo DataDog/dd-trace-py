@@ -160,6 +160,10 @@ def is_cython(obj):
     return check_cython(obj) or (hasattr(obj, "__func__") and check_cython(obj.__func__))
 
 
+# Memoize the job name for each submission id to avoid running the expensive regex logic multiple times
+dd_job_names = {}
+
+
 def get_dd_job_name(submission_id: Optional[str] = None):
     """
     Get the job name from the submission id.
@@ -171,9 +175,13 @@ def get_dd_job_name(submission_id: Optional[str] = None):
         return job_name
     if submission_id is None:
         submission_id = os.environ.get("_RAY_SUBMISSION_ID") or ""
+    if submission_id in dd_job_names:
+        return dd_job_names[submission_id]
     match = JOB_NAME_REGEX.match(submission_id)
     if match:
+        dd_job_names[submission_id] = match.group(1)
         return match.group(1)
     elif submission_id:
+        dd_job_names[submission_id] = submission_id
         return submission_id
     return None

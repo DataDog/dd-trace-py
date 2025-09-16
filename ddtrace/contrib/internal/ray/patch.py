@@ -189,19 +189,17 @@ def traced_submit_job(wrapped, instance, args, kwargs):
 
     submission_id = kwargs.get("submission_id") or generate_job_id()
     kwargs["submission_id"] = submission_id
-    job_name = kwargs.get("metadata", {}).get("job_name", "")
+    job_name = kwargs.get("metadata", {}).get("job_name", "") or get_dd_job_name(submission_id)
 
     # Root span creation
-    job_span = tracer.start_span("ray.job", service=job_name or get_dd_job_name(submission_id), span_type=SpanTypes.RAY)
+    job_span = tracer.start_span("ray.job", service=job_name, span_type=SpanTypes.RAY)
     job_span.set_tag_str("component", "ray")
     job_span.set_tag_str("ray.submission_id", submission_id)
     tracer.context_provider.activate(job_span)
     start_long_running_job(job_span)
 
     try:
-        with tracer.trace(
-            "ray.job.submit", service=job_name or get_dd_job_name(submission_id), span_type=SpanTypes.RAY
-        ) as submit_span:
+        with tracer.trace("ray.job.submit", service=job_name, span_type=SpanTypes.RAY) as submit_span:
             submit_span.set_tag_str("component", "ray")
             submit_span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
             submit_span.set_tag_str("ray.submission_id", submission_id)
