@@ -57,7 +57,9 @@ def patch():
     _w("urllib3", "connectionpool.HTTPConnectionPool.urlopen", _wrap_urlopen)
     if asm_config._load_modules:
         from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_request
+        from ddtrace.appsec._common_module_patches import wrapped_urllib3_make_request as _make_request
 
+        _w("urllib3.connectionpool", "HTTPConnectionPool._make_request", _make_request)
         if hasattr(urllib3, "_request_methods"):
             _w("urllib3._request_methods", "RequestMethods.request", _wrap_request)
         else:
