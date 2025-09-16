@@ -109,7 +109,7 @@ from ddtrace.llmobs._writer import LLMObsExperimentsClient
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs._writer import should_use_agentless
-from ddtrace.llmobs.utils import Documents, Message, Meta, Prompt
+from ddtrace.llmobs.utils import Documents, Message, Meta, MetaIO, Prompt, SpanField
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
 from ddtrace.llmobs.utils import Messages
 from ddtrace.llmobs.utils import extract_tool_definitions
@@ -264,7 +264,7 @@ class LLMObs(Service):
             "apm_trace_id": format_trace_id(span.trace_id),
         }
 
-        meta: Meta = {"span": {"kind": span_kind}, "input": {}, "output": {}}
+        meta: Meta = {"span": SpanField(kind=span_kind), "input": MetaIO(), "output": MetaIO()}
         if span_kind in ("llm", "embedding") and span._get_ctx_item(MODEL_NAME) is not None:
             meta["model_name"] = span._get_ctx_item(MODEL_NAME) or ""
             meta["model_provider"] = (span._get_ctx_item(MODEL_PROVIDER) or "custom").lower()
