@@ -301,10 +301,12 @@ class ASMConfig(DDConfig):
         print(f"self._asm_enabled_origin {self._asm_enabled_origin}")
         print(f"tracer_config._lib_was_injected {tracer_config._lib_was_injected}")
         if self._asm_enabled:
+            if self._asm_enabled_origin == APPSEC.ENABLED_ORIGIN_RC:
+                return APPSEC.ENABLED_ORIGIN_RC
             if tracer_config._lib_was_injected is True:
                 return APPSEC.ENABLED_ORIGIN_SSI
-            if APPSEC_ENV in os.environ:
-                return APPSEC.ENABLED_ORIGIN_ENV
+        if APPSEC_ENV in os.environ:
+            return APPSEC.ENABLED_ORIGIN_ENV
         return self._asm_enabled_origin
 
     def reset(self):
