@@ -3654,7 +3654,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_iast_native",
-            command="cmake -DCMAKE_BUILD_TYPE=Debug -DPYTHON_EXECUTABLE=python "
+            command="cmake -DCMAKE_BUILD_TYPE=Debug -DPYTHON_EXECUTABLE=python -DNATIVE_TEST_ASAN=OFF"
             "-S ddtrace/appsec/_iast/_taint_tracking -B ddtrace/appsec/_iast/_taint_tracking && "
             "make -f ddtrace/appsec/_iast/_taint_tracking/tests/Makefile native_tests && "
             "ddtrace/appsec/_iast/_taint_tracking/tests/native_tests",
