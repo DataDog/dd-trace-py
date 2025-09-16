@@ -1045,7 +1045,6 @@ class LLMObs(Service):
         self,
         operation_kind: str,
         name: Optional[str] = None,
-        prompt: Optional[Prompt] = None,
         session_id: Optional[str] = None,
         model_name: Optional[str] = None,
         model_provider: Optional[str] = None,
@@ -1075,13 +1074,6 @@ class LLMObs(Service):
                 "Ensure the name of your LLM application is set via `DD_LLMOBS_ML_APP` or `LLMObs.enable(ml_app='...')`"
                 "before running your application."
             )
-        if prompt is not None:
-            try:
-                validated_prompt = _validate_prompt(prompt)
-                self._set_dict_attribute(span, INPUT_PROMPT, validated_prompt)
-            except (ValueError, TypeError) as e:
-                raise e
-
         span._set_ctx_items({DECORATOR: _decorator, SPAN_KIND: operation_kind, ML_APP: ml_app})
         log.debug("Starting LLMObs span: %s, span_kind: %s, ml_app: %s", name, operation_kind, ml_app)
         return span
@@ -1091,7 +1083,6 @@ class LLMObs(Service):
         cls,
         model_name: Optional[str] = None,
         name: Optional[str] = None,
-        prompt: Optional[Prompt] = None,
         model_provider: Optional[str] = None,
         session_id: Optional[str] = None,
         ml_app: Optional[str] = None,
@@ -1107,7 +1098,6 @@ class LLMObs(Service):
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
         :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
                            value will be set to the value of `DD_LLMOBS_ML_APP`.
-        :param prompt: A dictionary that represents the prompt used for an LLM call.
 
         :returns: The Span object representing the traced operation.
         """
@@ -1120,7 +1110,6 @@ class LLMObs(Service):
         return cls._instance._start_span(
             "llm",
             name,
-            prompt=prompt,
             model_name=model_name,
             model_provider=model_provider,
             session_id=session_id,
@@ -1933,39 +1922,6 @@ class LLMObs(Service):
         cls._instance.tracer.context_provider.activate(context)
         error = cls._instance._activate_llmobs_distributed_context(request_headers, context)
         telemetry.record_activate_distributed_headers(error)
-
-    @classmethod
-    def prompt_context(
-        cls,
-        prompt_id: Optional[str] = None,
-        template: Optional[str] = None,
-        chat_template: Optional[Union[List[Dict[str, str]], List[Message]]] = None,
-        variables: Optional[Dict[str, Any]] = None,
-        version: Optional[str] = None,
-        tags: Optional[Dict[str, str]] = None,
-        rag_context_variable_keys: Optional[List[str]] = None,
-        rag_query_variable_keys: Optional[List[str]] = None,
-    ) -> AnnotationContext:
-        """
-        Creates an annotation context with a `Prompt` constructed on the following
-        """
-        prompt = Prompt(
-            version=version,
-            id=prompt_id,
-            template=template,
-            chat_template=chat_template,
-            variables=variables,
-            tags=tags,
-            rag_context_variables=rag_context_variable_keys,
-            rag_query_variables=rag_query_variable_keys,
-        )
-        try:
-            _validate_prompt(prompt)
-        except (ValueError, TypeError) as e:
-            log.warning("Failed to validate prompt with error: %s", e)
-            raise ValueError("Invalid prompt provided.") from e
-        return cls.annotation_context(prompt=prompt)
-
 
 # initialize the default llmobs instance
 LLMObs._instance = LLMObs()
