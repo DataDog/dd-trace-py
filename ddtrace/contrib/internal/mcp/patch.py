@@ -4,6 +4,9 @@ from typing import Any
 from typing import Dict
 from typing import Optional
 
+import wrapt
+
+from ddtrace._trace.span import Span
 import mcp
 
 from ddtrace import config
@@ -41,7 +44,7 @@ def _supported_versions() -> Dict[str, str]:
     return {"mcp": ">=1.10.0"}
 
 
-def _set_distributed_headers_into_mcp_request(pin, request):
+def _set_distributed_headers_into_mcp_request(pin: Pin, request):
     """Inject distributed tracing headers into MCP request metadata."""
     span = pin.tracer.current_span()
     if span is None:
@@ -97,7 +100,7 @@ def _extract_distributed_headers_from_mcp_request(kwargs: Dict[str, Any]) -> Opt
 
 
 @with_traced_module
-def traced_send_request(mcp, pin, func, instance, args, kwargs):
+def traced_send_request(mcp, pin: Pin, func, instance, args: tuple, kwargs: dict):
     """Injects distributed tracing headers into MCP request metadata"""
     if not args or not config.mcp.distributed_tracing:
         return func(*args, **kwargs)
@@ -107,7 +110,7 @@ def traced_send_request(mcp, pin, func, instance, args, kwargs):
 
 
 @with_traced_module
-async def traced_call_tool(mcp, pin, func, instance, args, kwargs):
+async def traced_call_tool(mcp, pin: Pin, func, instance, args: tuple, kwargs: dict):
     integration = mcp._datadog_integration
 
     span = integration.trace(pin, CLIENT_TOOL_CALL_OPERATION_NAME, submit_to_llmobs=True)
@@ -129,7 +132,7 @@ async def traced_call_tool(mcp, pin, func, instance, args, kwargs):
 
 
 @with_traced_module
-async def traced_tool_manager_call_tool(mcp, pin, func, instance, args, kwargs):
+async def traced_tool_manager_call_tool(mcp, pin: Pin, func, instance, args: tuple, kwargs: dict):
     integration = mcp._datadog_integration
     if config.mcp.distributed_tracing:
         activate_distributed_headers(pin.tracer, config.mcp, _extract_distributed_headers_from_mcp_request(kwargs))
@@ -152,6 +155,71 @@ async def traced_tool_manager_call_tool(mcp, pin, func, instance, args, kwargs):
         span.finish()
 
 
+@with_traced_module
+async def traced_client_session_initialize(mcp, pin: Pin, func, instance, args: tuple, kwargs: dict):
+    integration: MCPIntegration = mcp._datadog_integration
+
+    span = integration.trace(pin, "mcp.client.session.initialize", submit_to_llmobs=True)
+
+    try:
+        result = await func(*args, **kwargs)
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="initialize")
+        return result
+    except Exception:
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None, operation="initialize")
+        span.set_exc_info(*sys.exc_info())
+        raise
+    finally:
+        span.finish()
+
+
+@with_traced_module
+async def traced_client_session_list_tools(mcp, pin: Pin, func, instance, args: tuple, kwargs: dict):
+    integration: MCPIntegration = mcp._datadog_integration
+    span = integration.trace(pin, "mcp.client.session.list_tools", submit_to_llmobs=True)
+    try:
+        result = await func(*args, **kwargs)
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="list_tools")
+        return result
+    except Exception:
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None, operation="list_tools")
+        span.set_exc_info(*sys.exc_info())
+        raise
+    finally:
+        span.finish()
+
+
+@with_traced_module
+async def traced_base_session_aenter(mcp, pin: Pin, func, instance, args: tuple, kwargs: dict):
+    integration: MCPIntegration = mcp._datadog_integration
+    span = integration.trace(pin, "mcp.session", submit_to_llmobs=True)
+
+    setattr(instance, "_dd_span", span)
+    try:
+        return await func(*args, **kwargs)
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        span.finish()
+        raise
+
+@with_traced_module
+async def traced_base_session_aexit(mcp, pin: Pin, func, instance, args: tuple, kwargs: dict):
+    integration: MCPIntegration = mcp._datadog_integration
+    span: Optional[Span] = getattr(instance, "_dd_span", None)
+    
+
+    try:
+        return await func(*args, **kwargs)
+    except Exception:
+        if span:
+            span.set_exc_info(*sys.exc_info())
+        raise
+    finally:
+        if span:
+            integration.llmobs_set_tags(span, args=[], kwargs=dict(read_stream=_get_attr(instance, "_read_stream", None), write_stream=_get_attr(instance, "_write_stream", None)), response=None, operation="session")
+            span.finish()
+
+
 def patch():
     if getattr(mcp, "__datadog_patch", False):
         return
@@ -164,8 +232,13 @@ def patch():
     from mcp.server.fastmcp.tools.tool_manager import ToolManager
     from mcp.shared.session import BaseSession
 
+    # wrap(BaseSession, "__init__", traced_base_session_init(mcp))
+    wrap(BaseSession, "__aenter__", traced_base_session_aenter(mcp))
+    wrap(BaseSession, "__aexit__", traced_base_session_aexit(mcp))
     wrap(BaseSession, "send_request", traced_send_request(mcp))
     wrap(ClientSession, "call_tool", traced_call_tool(mcp))
+    wrap(ClientSession, "list_tools", traced_client_session_list_tools(mcp))
+    wrap(ClientSession, "initialize", traced_client_session_initialize(mcp))
     wrap(ToolManager, "call_tool", traced_tool_manager_call_tool(mcp))
 
 
@@ -179,8 +252,11 @@ def unpatch():
     from mcp.server.fastmcp.tools.tool_manager import ToolManager
     from mcp.shared.session import BaseSession
 
+    unwrap(BaseSession, "__init__")
     unwrap(BaseSession, "send_request")
     unwrap(ClientSession, "call_tool")
+    unwrap(ClientSession, "list_tools")
+    unwrap(ClientSession, "initialize")
     unwrap(ToolManager, "call_tool")
 
     delattr(mcp, "_datadog_integration")
