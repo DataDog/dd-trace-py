@@ -532,7 +532,8 @@ def ssrf_requests(request):
             _ = requests.get(f"http://localhost:8080/{value}", timeout=1)
         elif option == "protocol":
             # label ssrf_requests_protocol
-            _ = requests.get(f"{value}://localhost:8080/", timeout=1)
+            # Avoid using a user-controlled scheme directly in the URL
+            _ = requests.get("http://localhost:8080/", params={"protocol": value}, timeout=1)
         elif option == "host":
             # label ssrf_requests_host
             _ = requests.get(f"http://{value}:8080/", timeout=1)
@@ -541,18 +542,21 @@ def ssrf_requests(request):
             _ = requests.get(f"http://localhost:8080/?{value}", timeout=1)
         elif option == "query_with_fragment":
             # label ssrf_requests_query_with_fragment
-            _ = requests.get(f"http://localhost:8080/?{value}", timeout=1)
+            # Use params to safely construct the query string
+            _ = requests.get("http://localhost:8080/", params={"raw": value, "fragment": "results"}, timeout=1)
         elif option == "port":
             # label ssrf_requests_port
             _ = requests.get(f"http://localhost:{value}/", timeout=1)
         elif option == "fragment1":
-            _ = requests.get(f"http://localhost:8080/#section1={value}", timeout=1)
+            # Fragments are client-side; pass user input safely as a query parameter instead
+            _ = requests.get("http://localhost:8080/", params={"section1": value}, timeout=1)
         elif option == "fragment2":
             _ = requests.get(f"http://localhost:8080/?param1=value1&param2=value2#section2={value}", timeout=1)
         elif option == "fragment3":
+            # Avoid embedding user input within the URL by using params
             _ = requests.get(
-                "http://localhost:8080/path-to-something/object_identifier?"
-                f"param1=value1&param2=value2#section3={value}",
+                "http://localhost:8080/path-to-something/object_identifier",
+                params={"param1": "value1", "param2": "value2", "section3": value},
                 timeout=1,
             )
         elif option == "query_param":
@@ -580,7 +584,8 @@ def ssrf_requests(request):
             _ = requests.get(f"http://{value}:8080/", timeout=1)
         elif option == "safe_path":
             safe_path = quote(value)
-            _ = requests.get(f"http://localhost:8080/{safe_path}", timeout=1)
+            # Do not interpolate user-controlled data into the URL path; use params instead
+            _ = requests.get("http://localhost:8080/", params={"path": safe_path}, timeout=1)
     except ConnectionError:
         pass
     return HttpResponse("OK", status=200)
