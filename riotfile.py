@@ -1531,9 +1531,15 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.12"),
+                    pys=select_pys(min_version="3.12", max_version="3.13"),
                     pkgs={
                         "greenlet": "==3.1.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.14"),
+                    pkgs={
+                        "greenlet": "==3.2.4",
                     },
                 ),
             ],
