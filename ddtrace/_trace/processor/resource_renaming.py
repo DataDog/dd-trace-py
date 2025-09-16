@@ -40,7 +40,7 @@ class ResourceRenamingProcessor(SpanProcessor):
 
         match = self._URL_PATH_EXTRACTION_RE.match(url)
         if not match:
-            return ""
+            return "/"
         path = match.group("path")
         if not path or path == "/":
             return "/"
