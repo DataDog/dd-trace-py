@@ -3,6 +3,7 @@ from typing import List
 from typing import Optional
 
 from ddtrace._trace.processor import SpanProcessor
+from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.settings._config import config
 
@@ -62,11 +63,14 @@ class ResourceRenamingProcessor(SpanProcessor):
         pass
 
     def on_span_finish(self, span):
+        if not span._is_top_level or span.span_type not in (SpanTypes.WEB, SpanTypes.HTTP, SpanTypes.SERVERLESS):
+            return
+
         route = span.get_tag(http.ROUTE)
 
-        if not route or config._trace_resource_renaming_always_simplified_endpoint:
+        if route and not config._trace_resource_renaming_always_simplified_endpoint:
+            span.set_tag_str(http.ENDPOINT, route)
+        else:
             url = span.get_tag(http.URL)
             endpoint = self._compute_simplified_endpoint(url)
             span.set_tag_str(http.ENDPOINT, endpoint)
-        else:
-            span.set_tag_str(http.ENDPOINT, route)
