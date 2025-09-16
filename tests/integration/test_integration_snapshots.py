@@ -405,7 +405,7 @@ def test_encode_span_with_large_postgres_query_resource(encoding):
         '(\'j\' * 25001, \'{"top_left": {"x": 0.30303030, "y": 0.31313131}, '
         '"top_right": {"x": 0.32323232, "y": 0.31313131}, '
         '"bottom_right": {"x": 0.32323232, "y": 0.33333333}, '
-        '"bottom_left": {"x": 0.30303030, "y": 0.33333333}}\')'
+        '"bottom_left": {"x": 0.30303030, "y": 0.33333333}}\')' * 10
     )
 
     with override_global_config(dict(_trace_api=encoding)):
