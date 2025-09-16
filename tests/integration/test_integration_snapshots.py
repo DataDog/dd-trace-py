@@ -420,10 +420,8 @@ def test_encode_span_with_large_unicode_string_attributes(encoding):
 def test_large_bytes_resource_truncation(encoding):
     """Test that large bytes resource names get truncated instead of causing runtime errors."""
 
-    # Create a bytes object that exceeds the limit
     large_bytes = b"x" * (MAX_SPAN_META_VALUE_LEN + 1000)
 
-    # Test that the span can be created and finished without error
     with override_global_config(dict(_trace_api=encoding)):
         with tracer.trace(name="test", resource=large_bytes) as span:
             # This should not raise an error - the span should be truncated during encoding
