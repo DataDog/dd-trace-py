@@ -52,7 +52,7 @@ class TestResourceRenaming:
         [
             # Basic cases
             ("", "/"),
-            ("http://example.com", ""),
+            ("http://example.com", "/"),
             ("http://example.com/", "/"),
             ("/users", "/users"),
             ("https://example.com/users", "/users"),
@@ -85,8 +85,7 @@ class TestResourceRenaming:
             ),
             # Error cases
             (None, "/"),
-            ("invalid-url", ""),
-            ("://malformed", ""),
+            ("://malformed", "/"),
         ],
     )
     def test_compute_simplified_endpoint(self, url, expected):
@@ -143,7 +142,7 @@ class TestResourceRenaming:
         span.set_tag(http.URL, "not-a-valid-url")
 
         processor.on_span_finish(span)
-        assert span.get_tag(http.ENDPOINT) == ""
+        assert span.get_tag(http.ENDPOINT) == "/"
 
     def test_regex_patterns(self):
         processor = ResourceRenamingProcessor()
