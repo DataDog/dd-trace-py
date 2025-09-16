@@ -97,6 +97,10 @@ DISPATCH_ON_TOOL_CALL_OUTPUT_USED = "on_tool_call_output_used"
 DISPATCH_ON_LLM_TOOL_CHOICE = "on_llm_tool_choice"
 DISPATCH_ON_TOOL_CALL = "on_tool_call"
 
+DISPATCH_ON_GUARDRAIL_SPAN_START = "on_guardrail_span_start"
+DISPATCH_ON_LLM_SPAN_FINISH = "on_llm_span_finish"
+DISPATCH_ON_OPENAI_AGENT_SPAN_FINISH = "on_openai_agent_span_finish"
+
 # Tool call arguments are used to lookup the associated tool call info.
 # When there are no tool call args, we use this as a place-holder lookup key
 OAI_HANDOFF_TOOL_ARG = "{}"

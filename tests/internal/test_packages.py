@@ -26,7 +26,7 @@ def packages():
     for f in _p.__dict__.values():
         try:
             if f.__code__ is _cached_sentinel.__code__:
-                f.invalidate()
+                f.cache_clear()
         except AttributeError:
             pass
 

@@ -1,6 +1,8 @@
 import atexit
+import csv
 import json
 import os
+import tempfile
 from typing import Any
 from typing import Dict
 from typing import List
@@ -9,6 +11,7 @@ from typing import Tuple
 from typing import Union
 from typing import cast
 from urllib.parse import quote
+from urllib.parse import urlparse
 
 
 # TypedDict was added to typing in python 3.8
@@ -46,6 +49,7 @@ from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import DatasetRecordRaw
 from ddtrace.llmobs._experiment import JSONType
+from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._experiment import UpdatableDatasetRecord
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.settings._agent import config as agent_config
@@ -138,6 +142,7 @@ class BaseLLMObsWriter(PeriodicService):
         _api_key: str = "",
         _app_key: str = "",
         _override_url: str = "",
+        _default_project: Project = Project(name="", _id=""),
     ) -> None:
         super(BaseLLMObsWriter, self).__init__(interval=interval)
         self._lock = forksafe.RLock()
@@ -148,12 +153,21 @@ class BaseLLMObsWriter(PeriodicService):
         self._site: str = _site or config._dd_site
         self._app_key: str = _app_key
         self._override_url: str = _override_url or os.environ.get("DD_LLMOBS_OVERRIDE_ORIGIN", "")
+        self._default_project: Project = _default_project
 
         self._agentless: bool = is_agentless
         self._intake: str = self._override_url or (
             f"{self.AGENTLESS_BASE_URL}.{self._site}" if is_agentless else agent_config.trace_agent_url
         )
         self._endpoint: str = self.ENDPOINT if is_agentless else f"{EVP_PROXY_AGENT_BASE_PATH}{self.ENDPOINT}"
+        override_url_parsed = urlparse(self._override_url)
+        if self._override_url and override_url_parsed.scheme != "unix" and override_url_parsed.path not in ("/", ""):
+            # handles cases where the override url includes a base path, ie
+            # http://localhost:8080/foo/bar and endpoint /buz/baz
+            # we need to strip the base path from the endpoint so the eventual urljoin works properly
+            # to form http://localhost:8080/foo/bar/buz/baz
+            self._endpoint = self.ENDPOINT.lstrip("/")
+
         self._headers: Dict[str, str] = {"Content-Type": "application/json"}
         if is_agentless:
             self._headers["DD-API-KEY"] = self._api_key
@@ -300,8 +314,11 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
     AGENTLESS_BASE_URL = AGENTLESS_EXP_BASE_URL
     ENDPOINT = ""
     TIMEOUT = 5.0
+    BULK_UPLOAD_TIMEOUT = 60.0
+    LIST_RECORDS_TIMEOUT = 20
+    SUPPORTED_UPLOAD_EXTS = {"csv"}
 
-    def request(self, method: str, path: str, body: JSONType = None) -> Response:
+    def request(self, method: str, path: str, body: JSONType = None, timeout=TIMEOUT) -> Response:
         headers = {
             "Content-Type": "application/json",
             "DD-API-KEY": self._api_key,
@@ -311,11 +328,28 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             headers[EVP_SUBDOMAIN_HEADER_NAME] = self.EVP_SUBDOMAIN_HEADER_VALUE
 
         encoded_body = json.dumps(body).encode("utf-8") if body else b""
-        conn = get_connection(url=self._intake, timeout=self.TIMEOUT)
+        conn = get_connection(url=self._intake, timeout=timeout)
         try:
             url = self._intake + self._endpoint + path
             logger.debug("requesting %s", url)
             conn.request(method, url, encoded_body, headers)
+            resp = conn.getresponse()
+            return Response.from_http_response(resp)
+        finally:
+            conn.close()
+
+    def multipart_request(self, method: str, path: str, content_type: str, body: bytes = b"") -> Response:
+        headers = {
+            "Content-Type": content_type,
+            "DD-API-KEY": self._api_key,
+            "DD-APPLICATION-KEY": self._app_key,
+        }
+
+        conn = get_connection(url=self._intake, timeout=self.BULK_UPLOAD_TIMEOUT)
+        try:
+            url = self._intake + self._endpoint + path
+            logger.debug("requesting %s, %s", url, content_type)
+            conn.request(method, url, body, headers)
             resp = conn.getresponse()
             return Response.from_http_response(resp)
         finally:
@@ -340,21 +374,32 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             raise ValueError(f"Failed to delete dataset {id}: {resp.get_json()}")
         return None
 
-    def dataset_create(self, name: str, description: str) -> Dataset:
-        path = "/api/unstable/llm-obs/v1/datasets"
+    def dataset_create(
+        self,
+        dataset_name: str,
+        project_name: Optional[str],
+        description: str,
+    ) -> Dataset:
+        project = self.project_create_or_get(project_name)
+        project_id = project.get("_id")
+        logger.debug("getting records with project ID %s for %s", project_id, project_name)
+
+        path = f"/api/unstable/llm-obs/v1/{project_id}/datasets"
         body: JSONType = {
             "data": {
                 "type": "datasets",
-                "attributes": {"name": name, "description": description},
+                "attributes": {"name": dataset_name, "description": description},
             }
         }
         resp = self.request("POST", path, body)
         if resp.status != 200:
-            raise ValueError(f"Failed to create dataset {name}: {resp.status} {resp.get_json()}")
+            raise ValueError(f"Failed to create dataset {dataset_name}: {resp.status} {resp.get_json()}")
         response_data = resp.get_json()
         dataset_id = response_data["data"]["id"]
+        if dataset_id is None or dataset_id == "":
+            raise ValueError(f"unexpected dataset state, invalid ID (is None: {dataset_id is None})")
         curr_version = response_data["data"]["attributes"]["current_version"]
-        return Dataset(name, dataset_id, [], description, curr_version, _dne_client=self)
+        return Dataset(dataset_name, project, dataset_id, [], description, curr_version, _dne_client=self)
 
     @staticmethod
     def _get_record_json(record: Union[UpdatableDatasetRecord, DatasetRecordRaw], is_update: bool) -> JSONType:
@@ -412,51 +457,149 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         new_record_ids: List[str] = [r["id"] for r in data] if data else []
         return new_version, new_record_ids
 
-    def dataset_get_with_records(self, name: str) -> Dataset:
-        path = f"/api/unstable/llm-obs/v1/datasets?filter[name]={quote(name)}"
+    def dataset_get_with_records(self, dataset_name: str, project_name: Optional[str] = None) -> Dataset:
+        project = self.project_create_or_get(project_name)
+        project_id = project.get("_id")
+        logger.debug("getting records with project ID %s for %s", project_id, project_name)
+
+        path = f"/api/unstable/llm-obs/v1/{project_id}/datasets?filter[name]={quote(dataset_name)}"
         resp = self.request("GET", path)
         if resp.status != 200:
-            raise ValueError(f"Failed to pull dataset {name}: {resp.status}")
+            raise ValueError(
+                f"Failed to pull dataset {dataset_name} from project {project_name} (id={project_id}): {resp.status}"
+            )
 
         response_data = resp.get_json()
         data = response_data["data"]
         if not data:
-            raise ValueError(f"Dataset '{name}' not found")
+            raise ValueError(f"Dataset '{dataset_name}' not found in project {project_name}")
 
         curr_version = data[0]["attributes"]["current_version"]
         dataset_description = data[0]["attributes"].get("description", "")
         dataset_id = data[0]["id"]
 
-        path = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
-        resp = self.request("GET", path)
-        if resp.status != 200:
-            raise ValueError(f"Failed to pull dataset {name}: {resp.status} {resp.get_json()}")
-        records_data = resp.get_json()
-
+        list_base_path = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
+        has_next_page = True
         class_records: List[DatasetRecord] = []
-        for record in records_data.get("data", []):
-            attrs = record.get("attributes", {})
-            class_records.append(
-                {
-                    "record_id": record["id"],
-                    "input_data": attrs["input"],
-                    "expected_output": attrs.get("expected_output"),
-                    "metadata": attrs.get("metadata", {}),
-                }
-            )
-        return Dataset(name, dataset_id, class_records, dataset_description, curr_version, _dne_client=self)
+        list_path = list_base_path
+        page_num = 0
+        while has_next_page:
+            resp = self.request("GET", list_path, timeout=self.LIST_RECORDS_TIMEOUT)
+            if resp.status != 200:
+                raise ValueError(
+                    f"Failed to pull dataset records for {dataset_name}, page={page_num}: "
+                    f"{resp.status} {resp.get_json()}"
+                )
+            records_data = resp.get_json()
 
-    def project_create_or_get(self, name: str) -> str:
+            for record in records_data.get("data", []):
+                attrs = record.get("attributes", {})
+                class_records.append(
+                    {
+                        "record_id": record["id"],
+                        "input_data": attrs["input"],
+                        "expected_output": attrs.get("expected_output"),
+                        "metadata": attrs.get("metadata", {}),
+                    }
+                )
+            next_cursor = records_data.get("meta", {}).get("after")
+            has_next_page = False
+            if next_cursor:
+                has_next_page = True
+                list_path = f"{list_base_path}?page[cursor]={next_cursor}"
+                logger.debug("next list records request path %s", list_path)
+                page_num += 1
+        return Dataset(
+            dataset_name, project, dataset_id, class_records, dataset_description, curr_version, _dne_client=self
+        )
+
+    def dataset_bulk_upload(self, dataset_id: str, records: List[DatasetRecord]):
+        with tempfile.NamedTemporaryFile(suffix=".csv") as tmp:
+            file_name = os.path.basename(tmp.name)
+            file_name_parts = file_name.rsplit(".", 1)
+            if len(file_name_parts) != 2:
+                raise ValueError(f"invalid file {file_name} from {tmp.name}")
+
+            file_ext = file_name_parts[1]
+
+            if file_ext not in self.SUPPORTED_UPLOAD_EXTS:
+                raise ValueError(f"{file_ext} files not supported")
+
+            with open(tmp.name, "w", newline="") as csv_file:
+                field_names = ["input", "expected_output", "metadata"]
+                writer = csv.writer(csv_file)
+                writer.writerow(field_names)
+                for r in records:
+                    writer.writerow(
+                        [
+                            json.dumps(r.get("input_data", "")),
+                            json.dumps(r.get("expected_output", "")),
+                            json.dumps(r.get("metadata", "")),
+                        ]
+                    )
+
+            with open(tmp.name, mode="rb") as f:
+                file_content = f.read()
+
+        path = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records/upload"
+        BOUNDARY = b"----------boundary------"
+        CRLF = b"\r\n"
+
+        body = CRLF.join(
+            [
+                b"--" + BOUNDARY,
+                b'Content-Disposition: form-data; name="file"; filename="%s"' % file_name.encode("utf-8"),
+                b"Content-Type: text/%s" % file_ext.encode("utf-8"),
+                b"",
+                file_content,
+                b"--" + BOUNDARY + b"--",
+                b"",
+            ]
+        )
+
+        resp = self.multipart_request(
+            "POST", path, content_type="multipart/form-data; boundary=%s" % BOUNDARY.decode("utf-8"), body=body
+        )
+        if resp.status != 200:
+            raise ValueError(f"Failed to upload dataset from file: {resp.status} {resp.get_json()}")
+        logger.debug("successfully uploaded with code %d", resp.status)
+
+    def project_create_or_get(self, name: Optional[str] = None) -> Project:
+        default_project_name = self._default_project["name"]
+        project_name = default_project_name
+
+        if not name:
+            if self._default_project.get("_id"):
+                # default project already initialized, use it
+                return self._default_project
+        else:
+            project_name = name
+
         path = "/api/unstable/llm-obs/v1/projects"
         resp = self.request(
             "POST",
             path,
-            body={"data": {"type": "projects", "attributes": {"name": name, "description": ""}}},
+            body={"data": {"type": "projects", "attributes": {"name": project_name, "description": ""}}},
         )
         if resp.status != 200:
-            raise ValueError(f"Failed to create project {name}: {resp.status} {resp.get_json()}")
+            raise ValueError(f"Failed to create project {project_name}: {resp.status} {resp.get_json()}")
         response_data = resp.get_json()
-        return response_data["data"]["id"]
+        project_id = response_data["data"]["id"]
+
+        if not project_id:
+            logger.error(
+                "got empty project ID for project %s in response, code=%d, resp=%s",
+                project_name,
+                resp.status,
+                resp.get_json(),
+            )
+
+        project = Project(name=project_name, _id=project_id)
+        # after the initial GET of the project ID, store it
+        if project_name == default_project_name:
+            self._default_project = project
+
+        return project
 
     def experiment_create(
         self,

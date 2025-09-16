@@ -6,6 +6,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Set
 from typing import Tuple
 from typing import Union
 
@@ -144,23 +145,6 @@ def _validate_prompt(prompt: Union[Dict[str, Any], Prompt], strict_validation: b
     return validated_prompt
 
 
-class LinkTracker:
-    def __init__(self, object_span_links=None):
-        self._object_span_links = object_span_links or {}
-
-    def get_object_id(self, obj):
-        return f"{type(obj).__name__}_{id(obj)}"
-
-    def add_span_links_to_object(self, obj, span_links):
-        obj_id = self.get_object_id(obj)
-        if obj_id not in self._object_span_links:
-            self._object_span_links[obj_id] = []
-        self._object_span_links[obj_id] += span_links
-
-    def get_span_links_from_object(self, obj):
-        return self._object_span_links.get(self.get_object_id(obj), [])
-
-
 class AnnotationContext:
     def __init__(self, _register_annotator, _deregister_annotator):
         self._register_annotator = _register_annotator
@@ -236,7 +220,7 @@ def _get_ml_app(span: Span) -> Optional[str]:
         if ml_app is not None:
             return ml_app
         llmobs_parent = _get_nearest_llmobs_ancestor(llmobs_parent)
-    return ml_app or span.context._meta.get(PROPAGATED_ML_APP_KEY) or config._llmobs_ml_app
+    return ml_app or span.context._meta.get(PROPAGATED_ML_APP_KEY) or config._llmobs_ml_app or config.service
 
 
 def _get_session_id(span: Span) -> Optional[str]:
@@ -351,16 +335,23 @@ class TrackedToolCall:
     arguments: str
     llm_span_context: Dict[str, str]  # span/trace id of the LLM span that initiated this tool call
     tool_span_context: Optional[Dict[str, str]] = None  # span/trace id of the tool span that executed this call
-    is_handoff_completed: bool = False  # Track if handoff is completed to noisy links
     tool_kind: str = "function"  # one of "function", "handoff"
 
 
-class ToolCallTracker:
-    """Used to track tool data and their associated llm/tool spans for span linking."""
+class LinkTracker:
+    """
+    This class is used to create span links across integrations.
+
+    The primary use cases are:
+    - Linking LLM spans to their associated tool spans and vice versa
+    - Linking LLM spans to their associated guardrail spans and vice versa
+    """
 
     def __init__(self):
         self._tool_calls: Dict[str, TrackedToolCall] = {}  # maps tool id's to tool call data
         self._lookup_tool_id: Dict[Tuple[str, str], str] = {}  # maps (tool_name, arguments) to tool id's
+        self._active_guardrail_spans: Set[Span] = set()
+        self._last_llm_span: Optional[Span] = None
 
     def on_llm_tool_choice(
         self, tool_id: str, tool_name: str, arguments: str, llm_span_context: Dict[str, str]
@@ -422,18 +413,12 @@ class ToolCallTracker:
         Called when an LLM span finishes. This is used to link the output of a tool call to the input of an
         LLM span.
 
-        For handoff tool calls, we need to mark the handoff as completed since we only want to link
-        the output of a handoff tool span to the FIRST LLM call that has that handoff as input.
-
-        For function tool calls, the tool output is used as context for every LLM call that has that tool call
-        as an input.
+        The tool call is removed from the tracker since we only want to link the output of a tool call to the FIRST
+        LLM call that has that tool call as an input to reduce noisy links.
         """
-        tool_call = self._tool_calls.get(tool_id)
-        if not tool_call or not tool_call.tool_span_context or tool_call.is_handoff_completed:
+        tool_call = self._tool_calls.pop(tool_id, None)
+        if not tool_call or not tool_call.tool_span_context:
             return
-
-        if tool_call.tool_kind == "handoff":
-            self._tool_calls[tool_id].is_handoff_completed = True
 
         add_span_link(
             llm_span,
@@ -442,3 +427,47 @@ class ToolCallTracker:
             "output",
             "input",
         )
+
+    def on_llm_span_finish(self, span: Span) -> None:
+        """
+        Called when an LLM span event is created. If the LLM span is the first LLM span,
+        it will consume all active guardrail links.
+        """
+        self._last_llm_span = span
+        spans_to_remove = set()
+        for guardrail_span in self._active_guardrail_spans:
+            # some guardrail spans may have LLM spans as children which we don't want to link to
+            if _get_nearest_llmobs_ancestor(guardrail_span) == _get_nearest_llmobs_ancestor(span):
+                add_span_link(
+                    span,
+                    str(guardrail_span.span_id),
+                    format_trace_id(guardrail_span.trace_id),
+                    "output",
+                    "input",
+                )
+                spans_to_remove.add(guardrail_span)
+        self._active_guardrail_spans -= spans_to_remove
+
+    def on_guardrail_span_start(self, span: Span) -> None:
+        """
+        Called when a guardrail span starts. This is used to track the active guardrail
+        spans and link the output of the last LLM span to the input of the guardrail span.
+        """
+        self._active_guardrail_spans.add(span)
+        if self._last_llm_span is not None and _get_nearest_llmobs_ancestor(span) == _get_nearest_llmobs_ancestor(
+            self._last_llm_span
+        ):
+            add_span_link(
+                span,
+                str(self._last_llm_span.span_id),
+                format_trace_id(self._last_llm_span.trace_id),
+                "output",
+                "input",
+            )
+
+    def on_openai_agent_span_finish(self) -> None:
+        """
+        Called when an OpenAI agent span finishes. This is used to reset the last LLM span
+        since output guardrails are only linked to the last LLM span for a particular agent.
+        """
+        self._last_llm_span = None

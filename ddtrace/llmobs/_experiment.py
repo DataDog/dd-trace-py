@@ -44,6 +44,11 @@ ExperimentConfigType = Dict[str, JSONType]
 DatasetRecordInputType = Dict[str, NonNoneJSONType]
 
 
+class Project(TypedDict):
+    name: str
+    _id: str
+
+
 class DatasetRecordRaw(TypedDict):
     input_data: DatasetRecordInputType
     expected_output: JSONType
@@ -101,9 +106,12 @@ class Dataset:
     _updated_record_ids_to_new_fields: Dict[str, UpdatableDatasetRecord]
     _deleted_record_ids: List[str]
 
+    BATCH_UPDATE_THRESHOLD = 5 * 1024 * 1024  # 5MB
+
     def __init__(
         self,
         name: str,
+        project: Project,
         dataset_id: str,
         records: List[DatasetRecord],
         description: str,
@@ -111,6 +119,7 @@ class Dataset:
         _dne_client: "LLMObsExperimentsClient",
     ) -> None:
         self.name = name
+        self.project = project
         self.description = description
         self._id = dataset_id
         self._version = version
@@ -136,17 +145,24 @@ class Dataset:
                 )
             )
 
-        updated_records = list(self._updated_record_ids_to_new_fields.values())
-        new_version, new_record_ids = self._dne_client.dataset_batch_update(
-            self._id, list(self._new_records_by_record_id.values()), updated_records, self._deleted_record_ids
-        )
+        delta_size = self._estimate_delta_size()
+        if delta_size > self.BATCH_UPDATE_THRESHOLD:
+            logger.debug("dataset delta is %d, using bulk upload", delta_size)
+            # TODO must return version too
+            self._dne_client.dataset_bulk_upload(self._id, self._records)
+        else:
+            logger.debug("dataset delta is %d, using batch update", delta_size)
+            updated_records = list(self._updated_record_ids_to_new_fields.values())
+            new_version, new_record_ids = self._dne_client.dataset_batch_update(
+                self._id, list(self._new_records_by_record_id.values()), updated_records, self._deleted_record_ids
+            )
 
-        # attach record ids to newly created records
-        for record, record_id in zip(self._new_records_by_record_id.values(), new_record_ids):
-            record["record_id"] = record_id  # type: ignore
+            # attach record ids to newly created records
+            for record, record_id in zip(self._new_records_by_record_id.values(), new_record_ids):
+                record["record_id"] = record_id  # type: ignore
 
-        # FIXME: we don't get version numbers in responses to deletion requests
-        self._version = new_version if new_version != -1 else self._version + 1
+            # FIXME: we don't get version numbers in responses to deletion requests
+            self._version = new_version if new_version != -1 else self._version + 1
         self._new_records_by_record_id = {}
         self._deleted_record_ids = []
         self._updated_record_ids_to_new_fields = {}
@@ -174,6 +190,10 @@ class Dataset:
         self._new_records_by_record_id[record_id] = r
         self._records.append(r)
 
+    def extend(self, records: List[DatasetRecordRaw]) -> None:
+        for record in records:
+            self.append(record)
+
     def delete(self, index: int) -> None:
         record_id = self._records[index]["record_id"]
         should_append_to_be_deleted = True
@@ -198,6 +218,12 @@ class Dataset:
     def url(self) -> str:
         # FIXME: will not work for subdomain orgs
         return f"{_get_base_url()}/llm/datasets/{self._id}"
+
+    def _estimate_delta_size(self) -> int:
+        """rough estimate (in bytes) of the size of the next batch update call if it happens"""
+        size = len(safe_json(self._new_records_by_record_id)) + len(safe_json(self._updated_record_ids_to_new_fields))
+        logger.debug("estimated delta size %d", size)
+        return size
 
     @overload
     def __getitem__(self, index: int) -> DatasetRecord:
@@ -247,9 +273,13 @@ class Dataset:
                 flat_record[("expected_output", "")] = expected_output
                 column_tuples.add(("expected_output", ""))
 
-            for metadata_col, metadata_val in record.get("metadata", {}).items():
-                flat_record[("metadata", metadata_col)] = metadata_val
-                column_tuples.add(("metadata", metadata_col))
+            metadata = record.get("metadata", {})
+            if isinstance(metadata, dict):
+                for metadata_col, metadata_val in metadata.items():
+                    flat_record[("metadata", metadata_col)] = metadata_val
+                    column_tuples.add(("metadata", metadata_col))
+            else:
+                logger.warning("unexpected metadata format %s", type(metadata))
 
             data_rows.append(flat_record)
 
@@ -312,8 +342,8 @@ class Experiment:
             )
             return []
 
-        project_id = self._llmobs_instance._dne_client.project_create_or_get(self._project_name)
-        self._project_id = project_id
+        project = self._llmobs_instance._dne_client.project_create_or_get(self._project_name)
+        self._project_id = project.get("_id", "")
 
         experiment_id, experiment_run_name = self._llmobs_instance._dne_client.experiment_create(
             self.name,
@@ -393,6 +423,7 @@ class Experiment:
             subset_name = "[Test subset of {} records] {}".format(sample_size, self._dataset.name)
             subset_dataset = Dataset(
                 name=subset_name,
+                project=self._dataset.project,
                 dataset_id=self._dataset._id,
                 records=subset_records,
                 description=self._dataset.description,
