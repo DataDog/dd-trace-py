@@ -42,7 +42,7 @@ impl PyConfigurator {
             &ProcessInfo::detect_global("python".to_string()),
         );
         match res_config {
-            Ok(config) => {
+            datadog_library_config::LoggedResult::Ok(config, _logs) => {
                 let list = PyList::empty(py);
                 for c in config.iter() {
                     let dict = PyDict::new(py);
@@ -54,7 +54,7 @@ impl PyConfigurator {
                 }
                 Ok(list.into())
             }
-            Err(e) => {
+            datadog_library_config::LoggedResult::Err(e) => {
                 let err_msg = format!("Failed to get configuration: {e:?}");
                 Err(PyException::new_err(err_msg))
             }
