@@ -8,26 +8,198 @@
 
 namespace py = pybind11;
 
+namespace {
+static inline long refcnt(PyObject* o) { return o ? Py_REFCNT(o) : 0; }
+
+static TaintedObjectPtr make_tainted_with_one_range(size_t len)
+{
+    auto to = std::make_shared<TaintedObject>();
+    TaintRangeRefs ranges;
+    ranges.reserve(1);
+    auto src = Source(std::string("param"), std::string("value"), OriginType::PARAMETER);
+    auto tr = std::make_shared<TaintRange>(0, static_cast<RANGE_LENGTH>(len), std::move(src), 0);
+    ranges.push_back(tr);
+    to->set_values(std::move(ranges));
+    return to;
+}
+}
+
 class ApplicationContextTest : public ::testing::Test
 {
   protected:
     void SetUp() override
     {
-        if (!Py_IsInitialized()) {
-            py::initialize_interpreter();
-        }
+        // AIDEV-NOTE: Global interpreter is managed by tests/pyenv_env.cpp
         taint_engine_context = std::make_unique<TaintEngineContext>();
         taint_engine_context->clear_all_request_context_slots();
     }
+
     void TearDown() override
     {
         // Ensure we don't leak a running Python interpreter into subsequent tests
         taint_engine_context.reset();
-        if (Py_IsInitialized()) {
-            py::finalize_interpreter();
-        }
     }
 };
+
+TEST_F(ApplicationContextTest, GetCurrentContextMap_ListScan_NoRefcountLeak_WithMatch)
+{
+    auto idx_opt = taint_engine_context->start_request_context();
+    ASSERT_TRUE(idx_opt.has_value());
+    const auto ctx_id = *idx_opt;
+    auto tx_map = taint_engine_context->get_tainted_object_map_by_ctx_id(ctx_id);
+    ASSERT_NE(tx_map, nullptr);
+
+    py::str a("a");
+    py::str b("b");
+    py::str tainted_str("TAINT");
+    // Register tainted_str into current map
+    auto to = make_tainted_with_one_range(tainted_str.attr("__len__")().cast<size_t>());
+    set_tainted_object(tainted_str.ptr(), to, tx_map);
+
+    py::list lst;
+    lst.append(a);
+    lst.append(tainted_str);
+    lst.append(b);
+
+    const long lst_before = refcnt(lst.ptr());
+    const long a_before = refcnt(a.ptr());
+    const long b_before = refcnt(b.ptr());
+    const long t_before = refcnt(tainted_str.ptr());
+
+    auto m = taint_engine_context->get_tainted_object_map(lst.ptr());
+    ASSERT_NE(m, nullptr);
+
+    ASSERT_EQ(refcnt(lst.ptr()), lst_before);
+    ASSERT_EQ(refcnt(a.ptr()), a_before);
+    ASSERT_EQ(refcnt(b.ptr()), b_before);
+    ASSERT_EQ(refcnt(tainted_str.ptr()), t_before);
+}
+
+TEST_F(ApplicationContextTest, GetCurrentContextMap_ListScan_NoRefcountLeak_NoMatch)
+{
+    auto idx_opt = taint_engine_context->start_request_context();
+    ASSERT_TRUE(idx_opt.has_value());
+
+    py::str a("a");
+    py::str b("b");
+    py::str c("c");
+    py::list lst;
+    lst.append(a);
+    lst.append(b);
+    lst.append(c);
+
+    const long lst_before = refcnt(lst.ptr());
+    const long a_before = refcnt(a.ptr());
+    const long b_before = refcnt(b.ptr());
+    const long c_before = refcnt(c.ptr());
+
+    auto m = taint_engine_context->get_tainted_object_map(lst.ptr());
+    ASSERT_EQ(m, nullptr);
+
+    ASSERT_EQ(refcnt(lst.ptr()), lst_before);
+    ASSERT_EQ(refcnt(a.ptr()), a_before);
+    ASSERT_EQ(refcnt(b.ptr()), b_before);
+    ASSERT_EQ(refcnt(c.ptr()), c_before);
+}
+
+TEST_F(ApplicationContextTest, GetCurrentContextMap_TupleScan_NoRefcountLeak_WithMatch)
+{
+    auto idx_opt = taint_engine_context->start_request_context();
+    ASSERT_TRUE(idx_opt.has_value());
+    const auto ctx_id = *idx_opt;
+    auto tx_map = taint_engine_context->get_tainted_object_map_by_ctx_id(ctx_id);
+    ASSERT_NE(tx_map, nullptr);
+
+    py::str x("x");
+    py::str y("y");
+    py::str tainted_str("TAINT");
+    auto to = make_tainted_with_one_range(tainted_str.attr("__len__")().cast<size_t>());
+    set_tainted_object(tainted_str.ptr(), to, tx_map);
+
+    py::tuple tup(3);
+    PyTuple_SET_ITEM(tup.ptr(), 0, x.inc_ref().ptr());
+    PyTuple_SET_ITEM(tup.ptr(), 1, tainted_str.inc_ref().ptr());
+    PyTuple_SET_ITEM(tup.ptr(), 2, y.inc_ref().ptr());
+
+    const long tup_before = refcnt(tup.ptr());
+    const long x_before = refcnt(x.ptr());
+    const long y_before = refcnt(y.ptr());
+    const long t_before = refcnt(tainted_str.ptr());
+
+    auto m = taint_engine_context->get_tainted_object_map(tup.ptr());
+    ASSERT_NE(m, nullptr);
+
+    ASSERT_EQ(refcnt(tup.ptr()), tup_before);
+    ASSERT_EQ(refcnt(x.ptr()), x_before);
+    ASSERT_EQ(refcnt(y.ptr()), y_before);
+    ASSERT_EQ(refcnt(tainted_str.ptr()), t_before);
+}
+
+TEST_F(ApplicationContextTest, GetCurrentContextMap_DictScan_NoRefcountLeak_WithMatch)
+{
+    auto idx_opt = taint_engine_context->start_request_context();
+    ASSERT_TRUE(idx_opt.has_value());
+    const auto ctx_id = *idx_opt;
+    auto tx_map = taint_engine_context->get_tainted_object_map_by_ctx_id(ctx_id);
+    ASSERT_NE(tx_map, nullptr);
+
+    py::str key1("k1");
+    py::str key2("k2");
+    py::str val1("v1");
+    py::str tainted_val("TAINT");
+    auto to = make_tainted_with_one_range(tainted_val.attr("__len__")().cast<size_t>());
+    set_tainted_object(tainted_val.ptr(), to, tx_map);
+
+    py::dict d;
+    d[key1] = tainted_val;
+    d[key2] = val1;
+
+    const long d_before = refcnt(d.ptr());
+    const long k1_before = refcnt(key1.ptr());
+    const long k2_before = refcnt(key2.ptr());
+    const long v1_before = refcnt(val1.ptr());
+    const long tv_before = refcnt(tainted_val.ptr());
+
+    auto m = taint_engine_context->get_tainted_object_map(d.ptr());
+    ASSERT_NE(m, nullptr);
+
+    ASSERT_EQ(refcnt(d.ptr()), d_before);
+    ASSERT_EQ(refcnt(key1.ptr()), k1_before);
+    ASSERT_EQ(refcnt(key2.ptr()), k2_before);
+    ASSERT_EQ(refcnt(val1.ptr()), v1_before);
+    ASSERT_EQ(refcnt(tainted_val.ptr()), tv_before);
+}
+
+TEST_F(ApplicationContextTest, GetCurrentContextMap_DictScan_NoRefcountLeak_NoMatch)
+{
+    auto idx_opt = taint_engine_context->start_request_context();
+    ASSERT_TRUE(idx_opt.has_value());
+
+    py::str key1("k1");
+    py::str key2("k2");
+    py::str val1("v1");
+    py::str val2("v2");
+
+    py::dict d;
+    d[key1] = val1;
+    d[key2] = val2;
+
+    const long d_before = refcnt(d.ptr());
+    const long k1_before = refcnt(key1.ptr());
+    const long k2_before = refcnt(key2.ptr());
+    const long v1_before = refcnt(val1.ptr());
+    const long v2_before = refcnt(val2.ptr());
+
+    auto m = taint_engine_context->get_tainted_object_map(d.ptr());
+    ASSERT_EQ(m, nullptr);
+
+    ASSERT_EQ(refcnt(d.ptr()), d_before);
+    ASSERT_EQ(refcnt(key1.ptr()), k1_before);
+    ASSERT_EQ(refcnt(key2.ptr()), k2_before);
+    ASSERT_EQ(refcnt(val1.ptr()), v1_before);
+    ASSERT_EQ(refcnt(val2.ptr()), v2_before);
+}
+
 
 TEST_F(ApplicationContextTest, CreateTwoContextsAndRetrieveByIndex)
 {

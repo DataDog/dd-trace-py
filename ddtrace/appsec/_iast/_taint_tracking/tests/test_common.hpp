@@ -11,9 +11,6 @@ class PyEnvCheck : public ::testing::Test
   protected:
     void SetUp() override
     {
-        if (!Py_IsInitialized()) {
-            py::initialize_interpreter();
-        }
         initializer = make_unique<Initializer>();
         taint_engine_context = make_unique<TaintEngineContext>();
         taint_engine_context->clear_all_request_context_slots();
@@ -25,7 +22,6 @@ class PyEnvCheck : public ::testing::Test
             taint_engine_context->clear_all_request_context_slots();
             taint_engine_context.reset();
         }
-        py::finalize_interpreter();
     }
 };
 
@@ -34,9 +30,6 @@ class PyEnvWithContext : public ::testing::Test
   protected:
     void SetUp() override
     {
-        if (!Py_IsInitialized()) {
-            py::initialize_interpreter();
-        }
         initializer = make_unique<Initializer>();
         taint_engine_context = make_unique<TaintEngineContext>();
         taint_engine_context->clear_all_request_context_slots();
@@ -51,7 +44,6 @@ class PyEnvWithContext : public ::testing::Test
         }
         taint_engine_context->clear_all_request_context_slots();
         taint_engine_context.reset();
-        py::finalize_interpreter();
     }
 
   public:
