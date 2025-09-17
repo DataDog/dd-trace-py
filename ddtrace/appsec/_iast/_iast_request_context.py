@@ -98,5 +98,6 @@ def _iast_end_request(ctx=None, span=None, *args, **kwargs):
                 _create_and_attach_iast_report_to_span(req_span, existing_data, merge=True)
 
             reset_request_vulnerabilities()
+            base.clear_hash_object_tracking()
     except Exception:
         log.debug("iast::propagation::context::Error finishing IAST context", exc_info=True)
