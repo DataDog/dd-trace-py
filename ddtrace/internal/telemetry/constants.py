@@ -11,9 +11,20 @@ class TELEMETRY_NAMESPACE(Enum):
     PROFILER = "profiler"
 
 
-TELEMETRY_TYPE_GENERATE_METRICS = "generate-metrics"
-TELEMETRY_TYPE_DISTRIBUTION = "distributions"
-TELEMETRY_TYPE_LOGS = "logs"
+class TELEMETRY_EVENT_TYPE(Enum):
+    STARTED = "app-started"
+    SHUTDOWN = "app-shutdown"
+    HEARTBEAT = "app-heartbeat"
+    EXTENDED_HEARTBEAT = "app-extended-heartbeat"
+    DEPENDENCIES_LOADED = "app-dependencies-loaded"
+    PRODUCT_CHANGE = "app-product-change"
+    INTEGRATIONS_CHANGE = "app-integrations-change"
+    ENDPOINTS = "app-endpoints"
+    CLIENT_CONFIGURATION_CHANGE = "app-client-configuration-change"
+    LOGS = "logs"
+    METRICS = "generate-metrics"
+    DISTRIBUTIONS = "distributions"
+    MESSAGE_BATCH = "message-batch"
 
 
 class TELEMETRY_LOG_LEVEL(Enum):

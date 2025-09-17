@@ -31,9 +31,9 @@ from ..utils.time import StopWatch
 from ..utils.version import version as tracer_version
 from . import modules
 from .constants import TELEMETRY_APM_PRODUCT
+from .constants import TELEMETRY_EVENT_TYPE
 from .constants import TELEMETRY_LOG_LEVEL
 from .constants import TELEMETRY_NAMESPACE
-from .constants import TELEMETRY_TYPE_LOGS
 from .data import get_application
 from .data import get_host_info
 from .data import get_python_config_vars
@@ -216,7 +216,7 @@ class TelemetryWriter(PeriodicService):
             self.enable()
             # Force app started for unit tests
             if config.FORCE_START and (app_started := self._app_started_payload()):
-                self._events_queue.append({"payload": app_started, "request_type": "app-started"})
+                self._events_queue.append({"payload": app_started, "request_type": TELEMETRY_EVENT_TYPE.STARTED})
             get_logger("ddtrace").addHandler(DDTelemetryErrorHandler(self))
 
     def enable(self):
@@ -635,7 +635,7 @@ class TelemetryWriter(PeriodicService):
                         )
 
         if logs := self._report_logs():
-            events.append({"payload": {"logs": list(logs)}, "request_type": TELEMETRY_TYPE_LOGS})
+            events.append({"payload": {"logs": list(logs)}, "request_type": TELEMETRY_EVENT_TYPE.LOGS})
 
         # Queue metrics if not at heartbeat interval
         if self._is_periodic and force_flush is False:
@@ -649,34 +649,39 @@ class TelemetryWriter(PeriodicService):
         # At heartbeat interval, collect and send all telemetry data
         if app_started_payload := self._app_started_payload():
             # app-started should be the first event in the batch
-            events = [{"payload": app_started_payload, "request_type": "app-started"}] + events
+            events = [{"payload": app_started_payload, "request_type": TELEMETRY_EVENT_TYPE.STARTED}] + events
 
         if products := self._report_app_products():
-            events.append({"payload": {"products": products}, "request_type": "app-product-change"})
+            events.append({"payload": {"products": products}, "request_type": TELEMETRY_EVENT_TYPE.PRODUCT_CHANGE})
 
         if ints := self._report_integrations():
-            events.append({"payload": {"integrations": ints}, "request_type": "app-integrations-change"})
+            events.append({"payload": {"integrations": ints}, "request_type": TELEMETRY_EVENT_TYPE.INTEGRATIONS_CHANGE})
 
         if endpoints := self._report_app_endpoints():
-            events.append({"payload": endpoints, "request_type": "app-endpoints"})
+            events.append({"payload": endpoints, "request_type": TELEMETRY_EVENT_TYPE.ENDPOINTS})
 
         if configs := self._report_configuration_queue():
-            events.append({"payload": {"configuration": configs}, "request_type": "app-client-configuration-change"})
+            events.append(
+                {
+                    "payload": {"configuration": configs},
+                    "request_type": TELEMETRY_EVENT_TYPE.CLIENT_CONFIGURATION_CHANGE,
+                }
+            )
 
         if deps := self._report_app_dependencies():
-            events.append({"payload": {"dependencies": deps}, "request_type": "app-dependencies-loaded"})
+            events.append({"payload": {"dependencies": deps}, "request_type": TELEMETRY_EVENT_TYPE.DEPENDENCIES_LOADED})
 
         if shutting_down and not self._forked:
-            events.append({"payload": {}, "request_type": "app-closing"})
+            events.append({"payload": {}, "request_type": TELEMETRY_EVENT_TYPE.SHUTDOWN})
 
         # Always include a heartbeat to keep RC connections alive
         # Extended heartbeat should be queued after app-dependencies-loaded event. This
         # ensures that that imported dependencies are accurately reported.
         if heartbeat_payload := self._app_heartbeat_payload():
             # Extended heartbeat report dependencies while regular heartbeats report empty payloads
-            events.append({"payload": heartbeat_payload, "request_type": "app-extended-heartbeat"})
+            events.append({"payload": heartbeat_payload, "request_type": TELEMETRY_EVENT_TYPE.EXTENDED_HEARTBEAT})
         else:
-            events.append({"payload": {}, "request_type": "app-heartbeat"})
+            events.append({"payload": {}, "request_type": TELEMETRY_EVENT_TYPE.HEARTBEAT})
 
         # Get any queued events and combine with current batch
         if queued_events := self._flush_events_queue():
@@ -781,7 +786,7 @@ class TelemetryWriter(PeriodicService):
                     self.add_integration(integration_name, True, error_msg=error_msg)
 
             if app_started := self._app_started_payload(False):
-                self._events_queue.append({"payload": app_started, "request_type": "app-started"})
+                self._events_queue.append({"payload": app_started, "request_type": TELEMETRY_EVENT_TYPE.STARTED})
 
             self.app_shutdown()
 
