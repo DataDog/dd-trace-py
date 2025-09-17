@@ -1,11 +1,13 @@
 use anyhow;
 use std::collections::HashMap;
+use std::ffi::{c_char, c_void};
 use std::sync::atomic::{AtomicU8, Ordering};
-use std::sync::Once;
+use std::sync::{Mutex, Once};
 use std::time::Duration;
 
 use datadog_crashtracker::{
-    CrashtrackerConfiguration, CrashtrackerReceiverConfig, Metadata, StacktraceCollection,
+    register_runtime_stack_callback, CallbackError, CrashtrackerConfiguration,
+    CrashtrackerReceiverConfig, Metadata, RuntimeStackCallback, RuntimeStackFrame, StacktraceCollection,
 };
 use ddcommon::Endpoint;
 use pyo3::prelude::*;
@@ -287,4 +289,183 @@ pub fn crashtracker_status() -> anyhow::Result<CrashtrackerStatus> {
 #[pyfunction(name = "crashtracker_receiver")]
 pub fn crashtracker_receiver() -> anyhow::Result<()> {
     datadog_crashtracker::receiver_entry_point_stdin()
+}
+
+/// Result type for runtime callback operations
+#[pyclass(
+    eq,
+    eq_int,
+    name = "CallbackResult",
+    module = "datadog.internal._native"
+)]
+#[derive(Debug, PartialEq, Eq)]
+pub enum CallbackResult {
+    /// Operation succeeded
+    Ok,
+    /// A callback is already registered
+    AlreadyRegistered,
+    /// Null callback function provided
+    NullCallback,
+    /// An unknown error occurred
+    UnknownError,
+}
+
+impl From<CallbackError> for CallbackResult {
+    fn from(error: CallbackError) -> Self {
+        match error {
+            CallbackError::AlreadyRegistered => CallbackResult::AlreadyRegistered,
+            CallbackError::NullCallback => CallbackResult::NullCallback,
+        }
+    }
+}
+
+// Global storage for the Python callback
+static PYTHON_CALLBACK: Mutex<Option<PyObject>> = Mutex::new(None);
+
+/// Runtime-specific stack frame representation for FFI
+///
+/// This struct is used to pass runtime stack frame information from language
+/// runtimes to the crashtracker during crash handling.
+#[pyclass(name = "RuntimeStackFrame", module = "datadog.internal._native")]
+#[derive(Debug, Clone)]
+pub struct RuntimeStackFramePy {
+    /// Function/method name
+    pub function_name: Option<String>,
+    /// Source file name
+    pub file_name: Option<String>,
+    /// Line number in source file
+    pub line_number: u32,
+    /// Column number in source file (0 if unknown)
+    pub column_number: u32,
+    /// Class name for OOP languages (nullable)
+    pub class_name: Option<String>,
+    /// Module/namespace name (nullable)
+    pub module_name: Option<String>,
+}
+
+#[pymethods]
+impl RuntimeStackFramePy {
+    #[new]
+    fn new(
+        function_name: Option<String>,
+        file_name: Option<String>,
+        line_number: u32,
+        column_number: u32,
+        class_name: Option<String>,
+        module_name: Option<String>,
+    ) -> Self {
+        Self {
+            function_name,
+            file_name,
+            line_number,
+            column_number,
+            class_name,
+            module_name,
+        }
+    }
+
+    #[getter]
+    fn get_function_name(&self) -> Option<String> {
+        self.function_name.clone()
+    }
+
+    #[getter]
+    fn get_file_name(&self) -> Option<String> {
+        self.file_name.clone()
+    }
+
+    #[getter]
+    fn get_line_number(&self) -> u32 {
+        self.line_number
+    }
+
+    #[getter]
+    fn get_column_number(&self) -> u32 {
+        self.column_number
+    }
+
+    #[getter]
+    fn get_class_name(&self) -> Option<String> {
+        self.class_name.clone()
+    }
+
+    #[getter]
+    fn get_module_name(&self) -> Option<String> {
+        self.module_name.clone()
+    }
+}
+
+// C callback function that bridges to Python
+unsafe extern "C" fn python_callback_bridge(
+    emit_frame: unsafe extern "C" fn(*const RuntimeStackFrame),
+    _context: *mut c_void,
+) {
+    // Get the Python callback from global storage
+    let callback_guard = PYTHON_CALLBACK.lock().unwrap();
+    if let Some(ref py_callback) = *callback_guard {
+        Python::with_gil(|py| {
+            // Create an emit_frame function that Python can call
+            let emit_frame_fn = |frame: &RuntimeStackFramePy| {
+                // Convert Python frame to C frame
+                let function_name = frame.function_name.as_ref().map(|s| s.as_ptr() as *const c_char);
+                let file_name = frame.file_name.as_ref().map(|s| s.as_ptr() as *const c_char);
+                let class_name = frame.class_name.as_ref().map(|s| s.as_ptr() as *const c_char);
+                let module_name = frame.module_name.as_ref().map(|s| s.as_ptr() as *const c_char);
+
+                let c_frame = RuntimeStackFrame {
+                    function_name: function_name.unwrap_or(std::ptr::null()),
+                    file_name: file_name.unwrap_or(std::ptr::null()),
+                    line_number: frame.line_number,
+                    column_number: frame.column_number,
+                    class_name: class_name.unwrap_or(std::ptr::null()),
+                    module_name: module_name.unwrap_or(std::ptr::null()),
+                };
+
+                emit_frame(&c_frame);
+            };
+
+            // Create a Python wrapper for emit_frame_fn
+            let emit_frame_py = PyCell::new(py, emit_frame_fn);
+
+            // Call the Python callback with the emit_frame function
+            if let Err(e) = py_callback.call1(py, (emit_frame_py,)) {
+                // In signal context, we can't do much with errors
+                eprintln!("Error in Python runtime callback: {:?}", e);
+            }
+        });
+    }
+}
+
+/// Register a runtime stack collection callback
+///
+/// This function allows language runtimes to register a callback that will be invoked
+/// during crash handling to collect runtime-specific stack traces.
+///
+/// # Arguments
+/// - `callback`: The Python callback function to invoke during crashes
+///
+/// # Returns
+/// - `CallbackResult::Ok` if registration succeeds
+/// - `CallbackResult::AlreadyRegistered` if a callback is already registered
+/// - `CallbackResult::NullCallback` if the callback function is null
+///
+/// # Safety
+/// - The callback must be signal-safe
+/// - Only one callback can be registered at a time
+#[pyfunction(name = "crashtracker_register_runtime_callback")]
+pub fn crashtracker_register_runtime_callback(
+    py: Python,
+    callback: PyObject,
+) -> CallbackResult {
+    // Store the Python callback
+    {
+        let mut callback_guard = PYTHON_CALLBACK.lock().unwrap();
+        *callback_guard = Some(callback);
+    }
+
+    // Register the C bridge function
+    match register_runtime_stack_callback(python_callback_bridge, std::ptr::null_mut()) {
+        Ok(()) => CallbackResult::Ok,
+        Err(e) => e.into(),
+    }
 }

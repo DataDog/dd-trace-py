@@ -621,6 +621,120 @@ def test_crashtracker_echild_hang():
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 @pytest.mark.subprocess()
+def test_crashtracker_runtime_callback():
+    # Test the new runtime stack callback API
+    import ctypes
+    import os
+    from ctypes import c_char_p, c_uint32, c_void_p, CFUNCTYPE, Structure, POINTER
+
+    import tests.internal.crashtracker.utils as utils
+
+    # Define the RuntimeStackFrame structure to match the FFI
+    class RuntimeStackFrame(Structure):
+        _fields_ = [
+            ("function_name", c_char_p),
+            ("file_name", c_char_p),
+            ("line_number", c_uint32),
+            ("column_number", c_uint32),
+            ("class_name", c_char_p),
+            ("module_name", c_char_p),
+        ]
+
+    # Define the callback function signature
+    # void (*emit_frame)(const ddog_RuntimeStackFrame*)
+    EmitFrameFunc = CFUNCTYPE(None, POINTER(RuntimeStackFrame))
+
+    # void callback(void (*emit_frame)(const ddog_RuntimeStackFrame*), void* context)
+    RuntimeCallbackFunc = CFUNCTYPE(None, EmitFrameFunc, c_void_p)
+
+    # Create dummy frames data
+    dummy_frames = [
+        {
+            "function_name": b"python_function_1",
+            "file_name": b"test_script.py",
+            "line_number": 42,
+            "column_number": 10,
+            "class_name": b"TestClass",
+            "module_name": b"test_module",
+        },
+        {
+            "function_name": b"python_function_2",
+            "file_name": b"test_script.py",
+            "line_number": 84,
+            "column_number": 5,
+            "class_name": None,
+            "module_name": b"test_module",
+        },
+    ]
+
+    def dummy_runtime_callback(emit_frame_func, context):
+        """Dummy callback that emits predefined stack frames"""
+        try:
+            for frame_data in dummy_frames:
+                frame = RuntimeStackFrame(
+                    function_name=frame_data["function_name"],
+                    file_name=frame_data["file_name"],
+                    line_number=frame_data["line_number"],
+                    column_number=frame_data["column_number"],
+                    class_name=frame_data["class_name"],
+                    module_name=frame_data["module_name"],
+                )
+                emit_frame_func(ctypes.byref(frame))
+        except Exception as e:
+            # In a real callback, we'd want to avoid exceptions, but for testing this helps debug
+            print(f"Error in callback: {e}")
+
+    # Convert Python function to C callback
+    callback = RuntimeCallbackFunc(dummy_runtime_callback)
+
+    with utils.with_test_agent() as client:
+        pid = os.fork()
+        if pid == 0:
+            ct = utils.CrashtrackerWrapper(base_name="runtime_callback")
+            assert ct.start()
+            stdout_msg, stderr_msg = ct.logs()
+            assert not stdout_msg, stdout_msg
+            assert not stderr_msg, stderr_msg
+
+            # Import and register the callback
+            try:
+                from ddtrace.internal.native._native import crashtracker_register_runtime_callback, CallbackResult
+
+                result = crashtracker_register_runtime_callback(callback)
+                assert result == CallbackResult.Ok, f"Failed to register callback: {result}"
+
+                # Try to register again to test AlreadyRegistered
+                result2 = crashtracker_register_runtime_callback(callback)
+                assert result2 == CallbackResult.AlreadyRegistered, f"Expected AlreadyRegistered, got: {result2}"
+
+            except ImportError as e:
+                # If the new API isn't available yet, skip
+                print(f"Callback registration not available: {e}")
+                sys.exit(0)
+            except Exception as e:
+                print(f"Error registering callback: {e}")
+                sys.exit(-1)
+
+            # Crash the process
+            ctypes.string_at(0)
+            sys.exit(-1)
+
+        # Check the crash report
+        report = utils.get_crash_report(client)
+        assert b"string_at" in report["body"]
+
+        # Verify our runtime callback frames are present
+        for frame_data in dummy_frames:
+            assert frame_data["function_name"] in report["body"], f"Missing function: {frame_data['function_name']}"
+            assert frame_data["file_name"] in report["body"], f"Missing file: {frame_data['file_name']}"
+            if frame_data["class_name"]:
+                assert frame_data["class_name"] in report["body"], f"Missing class: {frame_data['class_name']}"
+            if frame_data["module_name"]:
+                assert frame_data["module_name"] in report["body"], f"Missing module: {frame_data['module_name']}"
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess()
 def test_crashtracker_no_zombies():
     """
     If a process has been designated as the reaper for another process (either because it is the parent, it is marked
