@@ -49,6 +49,26 @@ def _embedding_dim(tensor: torch.Tensor) -> Optional[int]:
     return int(shape[-1]) if len(shape) >= 1 else None
 
 
+def _embedding_shape_info(tensor: torch.Tensor) -> tuple[Optional[int], Optional[int]]:
+    """Return (num_embeddings, embedding_dim) for a tensor.
+    - For 1-D tensors: (1, length)
+    - For >=2-D tensors: if last_dim == 1, treat as a single vector of size first_dim
+      (useful for reward heads returning shape (N, 1)); otherwise (first_dim, last_dim)
+    """
+    if tensor is None:
+        return None, None
+    shape = tensor.shape
+    if len(shape) == 1:
+        return 1, int(shape[0])
+    if len(shape) >= 2:
+        first_dim = int(shape[0])
+        last_dim = int(shape[-1])
+        if last_dim == 1:
+            return 1, first_dim
+        return first_dim, last_dim
+    return None, None
+
+
 def _lora_name(lora_req: Optional[LoRARequest]) -> Optional[str]:
     if not lora_req:
         return None
@@ -102,7 +122,9 @@ def extract_v0_data(seq_group: SequenceGroup) -> RequestData:
 
     # Embedding path
     if seq_group.pooling_params is not None:
-        data.embedding_dim = _embedding_dim(seq_group.pooled_data)
+        num_emb, emb_dim = _embedding_shape_info(seq_group.pooled_data)
+        data.embedding_dim = emb_dim
+        data.num_embeddings = num_emb
         return data
 
     # Completion path
@@ -149,6 +171,33 @@ def extract_offline_data(request_output: RequestOutput, prompts=None) -> Request
     data.lora_name = _lora_name(request_output.lora_request)
     return data
 
+
+# New: offline pooling extractor (V1 LLM.encode and friends)
+def extract_offline_pooling_data(request_output: PoolingRequestOutput, prompts=None) -> RequestData:
+    data = RequestData(
+        prompt=_first_non_empty(getattr(request_output, "prompt", None), prompts if isinstance(prompts, str) else None),
+        input_tokens=_len_or_zero(getattr(request_output, "prompt_token_ids", None)),
+    )
+
+    # Determine embedding dimension if present
+    outputs = getattr(request_output, "outputs", None)
+    num_emb = None
+    emb_dim = None
+    if outputs is not None:
+        # PoolingRequestOutput.outputs could be a structure with .data tensor
+        maybe_tensor = getattr(outputs, "data", None)
+        num_emb, emb_dim = _embedding_shape_info(maybe_tensor)
+    if emb_dim is not None:
+        data.embedding_dim = emb_dim
+    if num_emb is not None:
+        data.num_embeddings = num_emb
+
+    # Set inputs when only token IDs are available
+    prompt_token_ids = getattr(request_output, "prompt_token_ids", None)
+    if prompt_token_ids and not data.prompt:
+        data.input_ = list(prompt_token_ids)
+
+    return data
 
 # ---------- tiny lookups used by wrappers -----------------------------------
 def extract_captured_prompt(parent_span: Optional[Span]) -> Optional[str]:

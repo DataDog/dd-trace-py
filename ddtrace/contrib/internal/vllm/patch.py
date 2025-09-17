@@ -14,6 +14,8 @@ from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import Pin
 from vllm.sequence import RequestMetrics, SequenceGroup
 from vllm.core.scheduler import SchedulerOutputs
+from vllm.pooling_params import PoolingParams
+from vllm.sampling_params import SamplingParams
 
 from .data_extractors import (
     RequestData,
@@ -21,6 +23,7 @@ from .data_extractors import (
     extract_lora_name,
     extract_model_name,
     extract_offline_data,
+    extract_offline_pooling_data,
     extract_v0_data,
     extract_v1_streaming_data,
     _embedding_dim,
@@ -105,6 +108,11 @@ def traced_llmengine_do_tracing(vllm, pin, func, instance, args, kwargs):
         data = extract_v0_data(seq_group)
 
         operation = "embedding" if data.embedding_dim is not None else "completion"
+        # For decoder-only/completion requests with token-only prompts, decode to text
+        if operation == "completion" and not data.prompt:
+            tokenizer = instance.get_tokenizer(seq_group.lora_request)
+            if seq_group.prompt_token_ids:
+                data.prompt = tokenizer.decode(seq_group.prompt_token_ids)
         if operation == "embedding":
             data.input_ = list(seq_group.prompt_token_ids)
             data.num_embeddings = 1
@@ -145,7 +153,13 @@ def traced_asyncllm_generate(vllm, pin, func, instance, args, kwargs):
         data.lora_name = extract_lora_name(lora_request)
         data.sampling_params = sampling_params
         data.request_id = request_id
-        data.prompt = data.prompt or extract_captured_prompt(parent) or prompt_arg
+        # Prefer decoded chat prompt for LLM.chat
+        if not data.prompt:
+            decoded = extract_captured_prompt(parent)
+            if decoded:
+                data.prompt = decoded
+            elif isinstance(prompt_arg, str):
+                data.prompt = prompt_arg
         _tag_if_enabled(integration, span, data)
         span.finish()
         finalized = True
@@ -165,6 +179,75 @@ def traced_asyncllm_generate(vllm, pin, func, instance, args, kwargs):
         _finalize_span()
 
     return execute()
+
+# ---------- v1: ENGINE-SIDE add_request interception ------------------------
+@with_traced_module
+def traced_v1_engine_add_request(vllm, pin, func, instance, args, kwargs):
+    if not is_v1():
+        return func(*args, **kwargs)
+
+    request_id = args[0] if len(args) > 0 else kwargs.get("request_id")
+    prompt = args[1] if len(args) > 1 else kwargs.get("prompt")
+    params = args[2] if len(args) > 2 else kwargs.get("params")
+    lora_request = kwargs.get("lora_request")
+
+    tracer = pin.tracer
+    integration = vllm._datadog_integration
+    start_time = time.time()
+
+    # Run underlying add_request first (enqueue)
+    res = func(*args, **kwargs)
+
+    # Build RequestData in a consistent post-call format
+    data = RequestData()
+    data.lora_name = extract_lora_name(lora_request)
+    is_embedding = isinstance(params, PoolingParams)
+
+    if is_embedding:
+        # Use pooling extractor shape logic later; here we only set input tokens / prompt
+        tokenizer = instance.get_tokenizer(lora_request)
+        if isinstance(prompt, str) and prompt:
+            data.prompt = prompt
+            ids = tokenizer.encode(prompt, add_special_tokens=False)
+            if isinstance(ids, list):
+                data.input_tokens = len(ids)
+        elif isinstance(prompt, dict):
+            token_ids = prompt.get("prompt_token_ids")
+            if token_ids:
+                data.input_tokens = len(token_ids)
+        operation = "embedding"
+    else:
+        tokenizer = instance.get_tokenizer(lora_request)
+        if isinstance(prompt, str) and prompt:
+            data.prompt = prompt
+            ids = tokenizer.encode(prompt, add_special_tokens=False)
+            if isinstance(ids, list):
+                data.input_tokens = len(ids)
+        elif isinstance(prompt, dict):
+            ptxt = prompt.get("prompt")
+            if isinstance(ptxt, str) and ptxt:
+                data.prompt = ptxt
+                ids = tokenizer.encode(ptxt, add_special_tokens=False)
+                if isinstance(ids, list):
+                    data.input_tokens = len(ids)
+            else:
+                token_ids = prompt.get("prompt_token_ids")
+                if token_ids:
+                    data.prompt = tokenizer.decode(token_ids)
+                    data.input_tokens = len(token_ids)
+        operation = "completion"
+
+    # Create span after function (consistent format)
+    span = create_vllm_span(
+        tracer=tracer,
+        integration=integration,
+        model_name=extract_model_name(instance),
+        arrival_time=start_time,
+    )
+    _tag_if_enabled(integration, span, data, operation=operation)
+    span.finish()
+    return res
+
 
 
 @with_traced_module
@@ -214,37 +297,6 @@ def traced_asyncllm_encode(vllm, pin, func, instance, args, kwargs):
         span.finish()
 
     return execute()
-
-
-# ---------- offline LLM.generate --------------------------------------------
-@with_traced_module
-def traced_llm_generate(vllm, pin, func, instance, args, kwargs):
-    if not is_v1():
-        return func(*args, **kwargs)
-
-    tracer = pin.tracer
-    integration = vllm._datadog_integration
-
-    prompts = args[0] if args else kwargs.get("prompts")
-    sampling_params = args[1] if len(args) > 1 else kwargs.get("sampling_params")
-
-    start_time = time.time()
-    outputs = func(*args, **kwargs)
-
-    for output in outputs or []:
-        data = extract_offline_data(output, prompts)
-        data.sampling_params = sampling_params
-
-        span = create_vllm_span(
-            tracer=tracer,
-            integration=integration,
-            model_name=extract_model_name(instance.llm_engine),
-            arrival_time=start_time,
-        )
-        _tag_if_enabled(integration, span, data)
-        span.finish()
-
-    return outputs
 
 
 # ---------- OpenAI entrypoints: prompt capture & STT ------------------------
@@ -387,7 +439,7 @@ def patch():
     _safe_wrap("vllm.v1.engine.async_llm", "AsyncLLM.encode", traced_asyncllm_encode(vllm))
     _safe_wrap("vllm.entrypoints.openai.speech_to_text", "OpenAISpeechToText._preprocess_speech_to_text", traced_openai_stt_preprocess(vllm))
     _safe_wrap("vllm.entrypoints.openai.serving_engine", "OpenAIServing._log_inputs", traced_openaiserving_log_inputs(vllm))
-    _safe_wrap("vllm.entrypoints.llm", "LLM.generate", traced_llm_generate(vllm))
+    _safe_wrap("vllm.v1.engine.llm_engine", "LLMEngine.add_request", traced_v1_engine_add_request(vllm))
     _safe_wrap("vllm.engine.async_llm_engine", "_AsyncLLMEngine.add_request_async", traced_v0_engine_add_request_async(vllm))
     _safe_wrap("vllm.engine.llm_engine", "LLMEngine.add_request", traced_v0_engine_add_request(vllm))
     _safe_wrap("vllm.engine.multiprocessing.client", "MQLLMEngineClient._process_request", traced_mq_client_process_request(vllm))
@@ -405,7 +457,7 @@ def unpatch():
     _safe_unwrap("vllm.v1.engine.async_llm", "AsyncLLM.encode")
     _safe_unwrap("vllm.entrypoints.openai.speech_to_text", "OpenAISpeechToText._preprocess_speech_to_text")
     _safe_unwrap("vllm.entrypoints.openai.serving_engine", "OpenAIServing._log_inputs")
-    _safe_unwrap("vllm.entrypoints.llm", "LLM.generate")
+    _safe_unwrap("vllm.v1.engine.llm_engine", "LLMEngine.add_request")
     _safe_unwrap("vllm.engine.async_llm_engine", "_AsyncLLMEngine.add_request_async")
     _safe_unwrap("vllm.engine.llm_engine", "LLMEngine.add_request")
     _safe_unwrap("vllm.engine.multiprocessing.client", "MQLLMEngineClient._process_request")
