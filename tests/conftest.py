@@ -20,7 +20,9 @@ from tempfile import NamedTemporaryFile
 from tempfile import gettempdir
 import time
 from typing import Any  # noqa:F401
+from typing import Dict
 from typing import Generator  # noqa:F401
+from typing import List
 from typing import Tuple  # noqa:F401
 from unittest import mock
 from urllib import parse
@@ -602,7 +604,7 @@ class TelemetryTestSession(object):
 
         return sorted(requests, key=lambda r: r["body"]["seq_id"], reverse=True)
 
-    def get_events(self, event_type=None, filter_heartbeats=True, subprocess=False):
+    def get_events(self, event_type=None, filter_heartbeats=True):
         """Get a list of the event payloads sent to the test agent
 
         Results are in reverse order by ``seq_id``
@@ -618,7 +620,7 @@ class TelemetryTestSession(object):
                     events.append(req_body)
         return events
 
-    def _get_request_bodies(self, req):
+    def _get_request_bodies(self, req: Dict[str, Any]) -> List[Dict[str, Any]]:
         if req["body"]["request_type"] == "message-batch":
             payloads = req["body"]["payload"]
         else:

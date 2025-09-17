@@ -25,7 +25,7 @@ from ddtrace.internal.telemetry.writer import _TelemetryClient  # noqa: E402
 _send_event = _TelemetryClient.send_event
 
 
-def _send_event_wrapper(self, event):
+def _send_event_wrapper(self, event, payload_type):
     global _TELEMETRY_DEPENDENCIES
     print(f"Captured telemetry event: {event}", flush=True)
     if event:
@@ -36,7 +36,7 @@ def _send_event_wrapper(self, event):
         for lst in dependencies:
             _TELEMETRY_DEPENDENCIES.extend(lst)
         print(f"Captured dependencies: {dependencies}", flush=True)
-    return _send_event(self, event)
+    return _send_event(self, event, payload_type)
 
 
 _TelemetryClient.send_event = _send_event_wrapper

@@ -601,7 +601,7 @@ def test_update_dependencies_event_when_disabled(test_agent_session, ddtrace_run
     # Import httppretty after ddtrace is imported, this ensures that the module is sent in a dependencies event
     # Imports httpretty twice and ensures only one dependency entry is sent
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess("import xmltodict", env=env)
-    events = test_agent_session.get_events("app-dependencies-loaded", subprocess=True)
+    events = test_agent_session.get_events("app-dependencies-loaded")
     assert len(events) == 0, events
 
 
@@ -733,8 +733,9 @@ def test_send_failing_request(mock_status, telemetry_writer):
                 telemetry_writer.periodic(force_flush=True)
                 # asserts unsuccessful status code was logged
                 log.debug.assert_called_with(
-                    "Failed to send Instrumentation Telemetry to %s. response: %s",
+                    "Failed to send Instrumentation Telemetry to %s. Event(s): %s. Response: %s",
                     telemetry_writer._client.url,
+                    mock.ANY,
                     mock_status,
                 )
 
@@ -753,7 +754,7 @@ def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_se
     # Assert next flush contains app-heartbeat event
     for _ in range(telemetry_writer._periodic_threshold):
         telemetry_writer.periodic()
-        assert test_agent_session.get_events("app-heartbeat", filter_heartbeats=False) == []
+        assert test_agent_session.get_events(mock.ANY, filter_heartbeats=False) == []
 
     telemetry_writer.periodic()
     heartbeat_events = test_agent_session.get_events("app-heartbeat", filter_heartbeats=False)
@@ -765,7 +766,7 @@ def test_app_heartbeat_event(mock_time, telemetry_writer, test_agent_session):
     """asserts that we queue/send app-heartbeat event every 60 seconds when app_heartbeat_event() is called"""
     # Assert a maximum of one heartbeat is queued per flush
     telemetry_writer.periodic(force_flush=True)
-    events = test_agent_session.get_events("app-heartbeat", filter_heartbeats=False)
+    events = test_agent_session.get_events(mock.ANY, filter_heartbeats=False)
     assert len(events) > 0
 
 
@@ -1025,7 +1026,7 @@ def test_add_integration_error_log_with_log_collection_disabled(mock_time, telem
             telemetry_writer.add_integration_error_log("Test error message", e)
             telemetry_writer.periodic(force_flush=True)
 
-            log_events = test_agent_session.get_events("logs", subprocess=True)
+            log_events = test_agent_session.get_events("logs")
             assert len(log_events) == 0
     finally:
         telemetry_config.LOG_COLLECTION_ENABLED = original_value

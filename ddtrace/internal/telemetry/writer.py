@@ -82,7 +82,7 @@ class _TelemetryClient:
     def url(self):
         return parse.urljoin(self._telemetry_url, self._endpoint)
 
-    def send_event(self, request: Dict) -> Optional[httplib.HTTPResponse]:
+    def send_event(self, request: Dict, payload_type: str) -> Optional[httplib.HTTPResponse]:
         """Sends a telemetry request to the trace agent"""
         resp = None
         conn = None
@@ -95,17 +95,27 @@ class _TelemetryClient:
                 resp = conn.getresponse()
             if resp.status < 300:
                 log.debug(
-                    "Instrumentation Telemetry sent %d bytes in %.5fs to %s. Event: %s. Response: %s",
+                    "Instrumentation Telemetry sent %d bytes in %.5fs to %s. Event(s): %s. Response: %s",
                     len(rb_json),
                     sw.elapsed(),
                     self.url,
-                    request["request_type"],
+                    payload_type,
                     resp.status,
                 )
             else:
-                log.debug("Failed to send Instrumentation Telemetry to %s. response: %s", self.url, resp.status)
-        except Exception as e:
-            log.debug("Failed to send Instrumentation Telemetry to %s. Error: %s", self.url, str(e))
+                log.debug(
+                    "Failed to send Instrumentation Telemetry to %s. Event(s): %s. Response: %s",
+                    self.url,
+                    payload_type,
+                    resp.status,
+                )
+        except Exception:
+            log.debug(
+                "Failed to send Instrumentation Telemetry to %s. Event(s): %s",
+                self.url,
+                payload_type,
+                exc_info=True,
+            )
         finally:
             if conn is not None:
                 conn.close()
@@ -620,19 +630,20 @@ class TelemetryWriter(PeriodicService):
 
     def _generate_metrics_event(
         self, namespace_metrics: Dict[str, Dict[str, List[Dict[str, Any]]]]
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Dict[str, Any]:
         for payload_type, namespaces in namespace_metrics.items():
             for namespace, metrics in namespaces.items():
                 if metrics:
-                    log.debug("%s request payload, namespace %s", payload_type, namespace)
-                    return {
-                        "payload": {
-                            "namespace": namespace,
-                            "series": metrics,
-                        },
-                        "request_type": payload_type,
-                    }
-        return None
+                    metric_payloads.append(
+                        {
+                            "payload": {
+                                "namespace": namespace,
+                                "series": metrics,
+                            },
+                            "request_type": payload_type,
+                        }
+                    )
+        return metric_payloads
 
     def _generate_logs_event(self, logs: Set[Dict[str, str]]) -> Dict[str, Any]:
         log.debug("%s request payload", TELEMETRY_TYPE_LOGS)
@@ -677,8 +688,8 @@ class TelemetryWriter(PeriodicService):
         # Collect metrics and logs that have accumulated since last batch
         events = []
         if namespace_metrics := self._namespace.flush(float(self.interval)):
-            if metrics_event := self._generate_metrics_event(namespace_metrics):
-                events.append(metrics_event)
+            if metrics_events := self._generate_metrics_events(namespace_metrics):
+                events.extend(metrics_events)
 
         if logs_metrics := self._flush_log_metrics():
             events.append(self._generate_logs_event(logs_metrics))
@@ -722,6 +733,7 @@ class TelemetryWriter(PeriodicService):
         if queued_events := self._flush_events_queue():
             events.extend(queued_events)
 
+        payload_types = ", ".join([event["request_type"] for event in events])
         # Prepare and send the final batch
         batch_event = {
             "tracer_time": int(time.time()),
@@ -734,7 +746,7 @@ class TelemetryWriter(PeriodicService):
             "payload": events,
             "request_type": "message-batch",
         }
-        self._client.send_event(batch_event)
+        self._client.send_event(batch_event, payload_types)
 
     def app_shutdown(self):
         if self.started:
