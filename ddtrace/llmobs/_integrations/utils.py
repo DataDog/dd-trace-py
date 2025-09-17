@@ -227,7 +227,7 @@ def get_content_from_langchain_message(message) -> Union[str, Tuple[str, str]]:
         return str(message)
 
 
-def get_messages_from_converse_content(role: str, content: List[Dict[str, Any]]):
+def get_messages_from_converse_content(role: str, content: List[Dict[str, Any]]) -> List[Message]:
     """
     Extracts out a list of messages from a converse `content` field.
 

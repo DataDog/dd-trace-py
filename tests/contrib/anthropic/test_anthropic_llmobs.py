@@ -121,7 +121,7 @@ class TestLLMObsAnthropic:
         )
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
-        assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span.kind"] == "llm"
+        assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span"]["kind"] == "llm"
 
     def test_completion(self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr):
         """Ensure llmobs records are emitted for completion endpoints when configured.
