@@ -885,7 +885,7 @@ class LangChainIntegration(BaseLLMIntegration):
         if prompt_value_meta is not None:
             prompt = prompt_value_meta
             try:
-                prompt = _validate_prompt(prompt)
+                prompt = _validate_prompt(prompt, strict_validation=True)
                 span._set_ctx_item(INPUT_PROMPT, prompt)
             except Exception as e:
                 log.debug("Failed to validate langchain prompt", e)
