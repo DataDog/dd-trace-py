@@ -15,10 +15,10 @@ Or use :func:`patch() <ddtrace.patch>` to manually enable the Ray integration::
     from ddtrace import patch
     patch(ray=True)
 
-The recommended way to instrument ray, is to instrument the ray cluster.
+The recommended way to instrument Ray, is to instrument the Ray cluster.
 You can do it by starting the Ray head with a tracing startup hook::
 
-    ray start --head --tracing-startup-hook=ddtrace.contrib.internal.ray.hook:setup_tracing
+    ray start --head --tracing-startup-hook=ddtrace.contrib.ray:setup_tracing
 
 
 Configuration
@@ -27,9 +27,9 @@ Configuration
 The Ray integration can be configured using environment variables:
 
 - ``DD_TRACE_RAY_RESUBMIT_LONG_RUNNING_INTERVAL``: Interval for resubmitting long-running
-    spans (default: ``10.0`` seconds)
-- ``DD_TRACE_RAY_WATCH_LONG_RUNNING_DELAY``: Maxime delay before a long-running span
-    is sent (default: ``10.0`` seconds)
+    spans (default: ``120.0`` seconds)
+- ``DD_TRACE_RAY_REGISTER_LONG_RUNNING_THRESHOLD``: Maximum span duration before it is considered
+    long-runnning (default: ``10.0``seconds)
 
 Notes
 ~~~~~

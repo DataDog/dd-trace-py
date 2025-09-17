@@ -10,18 +10,26 @@ from typing import List
 import ray
 from ray.runtime_context import get_runtime_context
 
+from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace.propagation.http import _TraceContext
 
-
-MAX_TAG_VALUES_SIZE_BYTES = 25000
+from .constants import DD_TRACE_CTX
+from .constants import RAY_ACTOR_ID
+from .constants import RAY_JOB_ID
+from .constants import RAY_NODE_ID
+from .constants import RAY_PID
+from .constants import RAY_SUBMISSION_ID
+from .constants import RAY_SUBMISSION_ID_TAG
+from .constants import RAY_TASK_ID
+from .constants import RAY_WORKER_ID
 
 
 def _inject_dd_trace_ctx_kwarg(method: Callable) -> Signature:
     old_sig = inspect.signature(method)
-    if "_dd_trace_ctx" in old_sig.parameters:
+    if DD_TRACE_CTX in old_sig.parameters:
         return old_sig
 
-    new_param = Parameter("_dd_trace_ctx", Parameter.KEYWORD_ONLY, default=None)
+    new_param = Parameter(DD_TRACE_CTX, Parameter.KEYWORD_ONLY, default=None)
     params_list = list(old_sig.parameters.values()) + [new_param]
     sorted_params = sorted(params_list, key=lambda p: p.kind == Parameter.VAR_KEYWORD)
     return old_sig.replace(parameters=sorted_params)
@@ -32,7 +40,7 @@ def _inject_context_in_kwargs(context, kwargs):
     _TraceContext._inject(context, headers)
     if "kwargs" not in kwargs or kwargs["kwargs"] is None:
         kwargs["kwargs"] = {}
-    kwargs["kwargs"]["_dd_trace_ctx"] = headers
+    kwargs["kwargs"][DD_TRACE_CTX] = headers
 
 
 def _inject_context_in_env(context):
@@ -57,34 +65,34 @@ def _inject_ray_span_tags(span):
     runtime_context = get_runtime_context()
 
     span.set_tag_str("component", "ray")
-    span.set_tag_str("ray.job_id", runtime_context.get_job_id())
-    span.set_tag_str("ray.node_id", runtime_context.get_node_id())
-    span.set_tag_str("ray.pid", str(os.getpid()))
+    span.set_tag_str(RAY_JOB_ID, runtime_context.get_job_id())
+    span.set_tag_str(RAY_NODE_ID, runtime_context.get_node_id())
+    span.set_tag_str(RAY_PID, str(os.getpid()))
 
     worker_id = runtime_context.get_worker_id()
     if worker_id is not None:
-        span.set_tag_str("ray.worker_id", worker_id)
+        span.set_tag_str(RAY_WORKER_ID, worker_id)
 
     if runtime_context.worker.mode == ray._private.worker.WORKER_MODE:
         task_id = runtime_context.get_task_id()
         if task_id is not None:
-            span.set_tag_str("ray.task_id", task_id)
+            span.set_tag_str(RAY_TASK_ID, task_id)
 
     actor_id = runtime_context.get_actor_id()
     if actor_id is not None:
-        span.set_tag_str("ray.actor_id", actor_id)
+        span.set_tag_str(RAY_ACTOR_ID, actor_id)
 
-    submission_id = os.environ.get("_RAY_SUBMISSION_ID")
+    submission_id = os.environ.get(RAY_SUBMISSION_ID)
     if submission_id is not None:
-        span.set_tag_str("ray.submission_id", submission_id)
+        span.set_tag_str(RAY_SUBMISSION_ID_TAG, submission_id)
 
 
 def set_maybe_big_tag(span, tag_name, tag_value):
     """We want to add args/kwargs values as tag when we execute a task/actor method.
-    However they might be big. To avoid CPU cost for serializing a big object, we do it only
-    if the values are small enough to not be truncated
+    However they might be really big. In that case we dont way to serialize them AT ALL
+    and we do not want to rely on _encoding.pyx.
     """
-    if sys.getsizeof(tag_value) > MAX_TAG_VALUES_SIZE_BYTES:
+    if sys.getsizeof(tag_value) > MAX_SPAN_META_VALUE_LEN:
         span.set_tag(tag_name, "<truncated>")
     else:
         span.set_tag(tag_name, tag_value)

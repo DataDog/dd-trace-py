@@ -2,7 +2,6 @@ from contextlib import contextmanager
 from functools import wraps
 import inspect
 import os
-import socket
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -24,7 +23,6 @@ from ddtrace import tracer
 from ddtrace._trace.span import Span
 from ddtrace.constants import _DJM_ENABLED_KEY
 from ddtrace.constants import _FILTER_KEPT_KEY
-from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
@@ -35,6 +33,9 @@ from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation.http import _TraceContext
 from ddtrace.settings._config import _get_config
 
+from .constants import DD_TRACE_CTX
+from .constants import RAY_SUBMISSION_ID
+from .constants import RAY_SUBMISSION_ID_TAG
 from .span_manager import long_running_ray_span
 from .span_manager import start_long_running_job
 from .span_manager import stop_long_running_job
@@ -47,14 +48,12 @@ from .utils import extract_signature
 from .utils import set_maybe_big_tag
 
 
-RAY_SUBMISSION_ID = "_RAY_SUBMISSION_ID"
-
 config._add(
     "ray",
     dict(
         _default_service=schematize_service_name("ray"),
-        resubmit_interval=float(_get_config("DD_TRACE_RAY_RESUBMIT_LONG_RUNNING_INTERVAL", default=120.0)),
-        watch_delay=float(_get_config("DD_TRACE_RAY_WATCH_LONG_RUNNING_DELAY", default=10.0)),
+        resubmit_interval=_get_config("DD_TRACE_RAY_RESUBMIT_LONG_RUNNING_INTERVAL", default=10.0, modifier=float),
+        register_treshold=_get_config("DD_TRACE_RAY_REGISTER_LONG_RUNNING_THRESHOLD", default=10.0, modifier=float),
     ),
 )
 
@@ -83,9 +82,6 @@ class RayTraceProcessor:
                 span.set_metric(_SPAN_MEASURED_KEY, 1)
                 span.set_metric(_SAMPLING_PRIORITY_KEY, 2)
 
-                # add host name for GPU Monitoring correlation
-                span.set_tag_str(_HOSTNAME_KEY, socket.gethostname())
-
             filtered_spans.append(span)
         return filtered_spans
 
@@ -104,12 +100,12 @@ def _wrap_task_execution(wrapped, *args, **kwargs):
     """
     Wraps the actual execution of a Ray task to trace its performance.
     """
-    if not tracer or "_dd_trace_ctx" not in kwargs:
+    if DD_TRACE_CTX not in kwargs:
         return wrapped(*args, **kwargs)
 
     # Extract context from parent span
-    extracted_context = _TraceContext._extract(kwargs["_dd_trace_ctx"])
-    kwargs.pop("_dd_trace_ctx")
+    extracted_context = _TraceContext._extract(kwargs[DD_TRACE_CTX])
+    kwargs.pop(DD_TRACE_CTX)
 
     function_name = getattr(wrapped, "__name__", "unknown_function")
     function_module = getattr(wrapped, "__module__", "unknown_module")
@@ -129,17 +125,13 @@ def _wrap_task_execution(wrapped, *args, **kwargs):
 
             task_execute_span.set_tag_str("ray.task.status", "success")
             return result
-        except Exception:
+        except BaseException:
             task_execute_span.set_tag_str("ray.task.status", "error")
             raise
 
 
 def traced_submit_task(wrapped, instance, args, kwargs):
     """Trace task submission, i.e the func.remote() call"""
-
-    if not tracer:
-        return wrapped(*args, **kwargs)
-
     if tracer.current_span() is None:
         tracer.context_provider.activate(_extract_tracing_context_from_env())
 
@@ -165,7 +157,7 @@ def traced_submit_task(wrapped, instance, args, kwargs):
 
             span.set_tag_str("ray.task.submit_status", "success")
             return resp
-        except Exception as e:
+        except BaseException as e:
             span.set_tag_str("ray.task.submit_status", "error")
             raise e
 
@@ -178,16 +170,13 @@ def traced_submit_job(wrapped, instance, args, kwargs):
     trough ray_ctx
     """
 
-    if not tracer:
-        return wrapped(*args, **kwargs)
-
     submission_id = kwargs.get("submission_id") or generate_job_id()
     kwargs["submission_id"] = submission_id
 
     # Root span creation
     job_span = tracer.start_span("ray.job", service=submission_id, span_type=SpanTypes.RAY)
     job_span.set_tag_str("component", "ray")
-    job_span.set_tag_str("ray.submission_id", submission_id)
+    job_span.set_tag_str(RAY_SUBMISSION_ID_TAG, submission_id)
     tracer.context_provider.activate(job_span)
     start_long_running_job(job_span)
 
@@ -205,10 +194,10 @@ def traced_submit_job(wrapped, instance, args, kwargs):
                 resp = wrapped(*args, **kwargs)
                 submit_span.set_tag_str("ray.job.submit_status", "success")
                 return resp
-            except Exception:
+            except BaseException:
                 submit_span.set_tag_str("ray.job.submit_status", "error")
                 raise
-    except Exception as e:
+    except BaseException as e:
         job_span.set_tag_str("ray.job.status", "error")
         job_span.error = 1
         job_span.set_exc_info(type(e), e, e.__traceback__)
@@ -220,15 +209,12 @@ def traced_actor_method_call(wrapped, instance, args, kwargs):
     """Trace actor method submission, i.e the Actor.func.remote()
     call
     """
-    if not tracer:
-        return wrapped(*args, **kwargs)
-
     actor_name = instance._ray_actor_creation_function_descriptor.class_name
     method_name = args[0]
 
     # if _dd_trace_ctx was not injected in the param of the function, it means
     # we do not want to trace this function, for example: JobSupervisor.ping
-    if not any(p.name == "_dd_trace_ctx" for p in instance._ray_method_signatures[method_name]):
+    if not any(p.name == DD_TRACE_CTX for p in instance._ray_method_signatures[method_name]):
         return wrapped(*args, **kwargs)
 
     if tracer.current_span() is None:
@@ -242,26 +228,20 @@ def traced_actor_method_call(wrapped, instance, args, kwargs):
         set_maybe_big_tag(span, "ray.actor_method.kwargs", kwargs.get("kwargs", {}))
         _inject_ray_span_tags(span)
 
-        try:
-            _inject_context_in_kwargs(span.context, kwargs)
-            return wrapped(*args, **kwargs)
-        except Exception as e:
-            raise e
+        _inject_context_in_kwargs(span.context, kwargs)
+        return wrapped(*args, **kwargs)
 
 
 def traced_wait(wrapped, instance, args, kwargs):
     """
     Trace the calls of ray.wait
     """
-    if not tracer:
-        return wrapped(*args, **kwargs)
-
     if tracer.current_span() is None:
         tracer.context_provider.activate(_extract_tracing_context_from_env())
 
     with long_running_ray_span(
         "ray.wait",
-        service=os.environ.get("_RAY_SUBMISSION_ID"),
+        service=os.environ.get(RAY_SUBMISSION_ID),
         span_type=SpanTypes.RAY,
         child_of=tracer.context_provider.active(),
         activate=True,
@@ -281,12 +261,8 @@ def traced_wait(wrapped, instance, args, kwargs):
 
 
 def _job_supervisor_run_wrapper(method: Callable[..., Any]) -> Any:
-    async def _traced_run_method(self: Any, *args: Any, _dd_trace_ctx=None, **kwargs: Any) -> Any:
-        from ddtrace import tracer
+    async def _traced_run_method(self: Any, *args: Any, _dd_trace_ctx, **kwargs: Any) -> Any:
         from ddtrace.ext import SpanTypes
-
-        if not tracer or _dd_trace_ctx is None:
-            return await method(self, *args, **kwargs)
 
         context = _TraceContext._extract(_dd_trace_ctx)
         submission_id = os.environ.get(RAY_SUBMISSION_ID)
@@ -318,9 +294,6 @@ def _exec_entrypoint_wrapper(method: Callable[..., Any]) -> Any:
         from ddtrace import tracer
         from ddtrace.ext import SpanTypes
 
-        if not tracer:
-            return method(self, *args)
-
         if tracer.current_span() is None:
             tracer.context_provider.activate(_extract_tracing_context_from_env())
 
@@ -336,10 +309,7 @@ def _exec_entrypoint_wrapper(method: Callable[..., Any]) -> Any:
             span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
             _inject_ray_span_tags(span)
 
-            try:
-                return method(self, *args)
-            except Exception as e:
-                raise e
+            return method(self, *args)
 
     return _traced_run_method
 
@@ -367,7 +337,7 @@ def _inject_tracing_actor_method(method: Callable[..., Any]) -> Any:
     def _traced_method(self: Any, *args: Any, _dd_trace_ctx=None, **kwargs: Any) -> Any:
         from ddtrace import tracer
 
-        if not tracer or (_dd_trace_ctx is None and tracer.current_span() is None):
+        if _dd_trace_ctx is None and tracer.current_span() is None:
             return method(self, *args, **kwargs)
 
         with _trace_actor_method(self, method, _dd_trace_ctx, *args, **kwargs):
@@ -380,7 +350,7 @@ def _inject_tracing_async_actor_method(method: Callable[..., Any]) -> Any:
     async def _traced_async_method(self: Any, *args: Any, _dd_trace_ctx=None, **kwargs: Any) -> Any:
         from ddtrace import tracer
 
-        if not tracer or (_dd_trace_ctx is None and tracer.current_span() is None):
+        if _dd_trace_ctx is None and tracer.current_span() is None:
             return await method(self, *args, **kwargs)
 
         with _trace_actor_method(self, method, _dd_trace_ctx, *args, **kwargs):
@@ -390,9 +360,6 @@ def _inject_tracing_async_actor_method(method: Callable[..., Any]) -> Any:
 
 
 def inject_tracing_into_actor_class(wrapped, instance, args, kwargs):
-    if not tracer:
-        return wrapped(*args, **kwargs)
-
     cls = wrapped(*args, **kwargs)
     module_name = str(cls.__module__)
     class_name = str(cls.__name__)
@@ -438,9 +405,6 @@ def inject_tracing_into_actor_class(wrapped, instance, args, kwargs):
 
 
 async def traced_end_job(wrapped, instance, args, kwargs):
-    if not tracer:
-        return await wrapped(*args, **kwargs)
-
     result = await wrapped(*args, **kwargs)
 
     job_id = args[0]

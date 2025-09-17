@@ -22,7 +22,7 @@ def long_running_ray_span(span_name, service, span_type, child_of=None, activate
 
     try:
         yield span
-    except Exception as e:
+    except BaseException as e:
         span.set_exc_info(type(e), e, e.__traceback__)
         raise
     finally:
@@ -49,22 +49,22 @@ class LongRunningJobManager:
 
         # Sending spans which are waiting for long running spans to finish
         aggregator = tracer._span_aggregator
-        finished_children = []
+        finished_spans = []
         with aggregator._lock:
             if span.trace_id in aggregator._traces:
                 trace = aggregator._traces[span.trace_id]
-                finished_children = []
+                finished_spans = []
                 remaining_spans = []
 
                 for s in trace.spans:
                     if s.finished and s.span_id != span.span_id:
-                        finished_children.append(s)
+                        finished_spans.append(s)
                     else:
                         remaining_spans.append(s)
                 trace.spans[:] = remaining_spans
-                trace.num_finished -= len(finished_children)
+                trace.num_finished -= len(finished_spans)
 
-        spans_to_write = [partial_span] + finished_children
+        spans_to_write = [partial_span] + finished_spans
 
         try:
             spans = spans_to_write
@@ -149,7 +149,7 @@ class LongRunningJobManager:
                 self._job_spans[submission_id] = {}
             self._job_spans[submission_id][(span.trace_id, span.span_id)] = span
 
-    def watch_potential_long_running(self, span):
+    def register_long_running(self, span):
         submission_id = self._get_submission_id(span)
         if not submission_id:
             return
@@ -211,7 +211,7 @@ def stop_long_running_job(submission_id, job_info):
 def start_long_running_span(span):
     _job_manager.add_span(span)
 
-    watch_timer = threading.Timer(config.ray.watch_delay, _job_manager.watch_potential_long_running, args=[span])
+    watch_timer = threading.Timer(config.ray.register_treshold, _job_manager.register_long_running, args=[span])
     watch_timer.daemon = True
     watch_timer.start()
 
