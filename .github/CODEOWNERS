@@ -180,6 +180,7 @@ tests/snapshots/tests.contrib.openai.*                        @DataDog/ml-observ
 tests/snapshots/tests.contrib.vertexai.*                      @DataDog/ml-observability
 tests/snapshots/tests.contrib.botocore.test_bedrock_agents.*  @DataDog/ml-observability
 tests/snapshots/tests.contrib.botocore.test_bedrock.*         @DataDog/ml-observability
+tests/snapshots/tests.contrib.google_adk.*                   @DataDog/ml-observability
 tests/snapshots/tests.contrib.google_generativeai.*           @DataDog/ml-observability
 tests/snapshots/tests.contrib.langgraph.*                     @DataDog/ml-observability
 tests/snapshots/tests.contrib.crewai.*                        @DataDog/ml-observability
