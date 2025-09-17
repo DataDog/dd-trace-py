@@ -452,7 +452,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_PROFILING_SAMPLE_POOL_CAPACITY", "origin": "default", "value": 4},
         {"name": "DD_PROFILING_STACK_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_PROFILING_STACK_V2_ENABLED", "origin": "default", "value": True},
-        {"name": "DD_PROFILING_TAGS", "origin": "default", "value": ""},
+        {"name": "DD_PROFILING_TAGS", "origin": "default", "value": "team:apm,component:web"},
         {"name": "DD_PROFILING_TIMELINE_ENABLED", "origin": "default", "value": True},
         {"name": "DD_PROFILING_UPLOAD_INTERVAL", "origin": "env_var", "value": 10.0},
         {"name": "DD_REMOTE_CONFIGURATION_ENABLED", "origin": "env_var", "value": True},
