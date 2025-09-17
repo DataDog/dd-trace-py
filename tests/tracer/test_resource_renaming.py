@@ -101,7 +101,7 @@ class TestResourceRenaming:
         span.set_tag(http.URL, "https://example.com/api/users/123")
 
         processor.on_span_finish(span)
-        assert span.get_tag(http.ENDPOINT) == "/api/users/{id}"
+        assert span.get_tag(http.ENDPOINT) is None
 
     def test_processor_without_route(self):
         processor = ResourceRenamingProcessor()

@@ -35,7 +35,7 @@ class ResourceRenamingProcessor(SpanProcessor):
         return elem
 
     def _compute_simplified_endpoint(self, url: Optional[str]) -> str:
-        """Extracts and simplifies the path from an HTTP URL according to the RFC."""
+        """Extracts and simplifies the path from an HTTP URL."""
         if not url:
             return "/"
 
@@ -68,9 +68,7 @@ class ResourceRenamingProcessor(SpanProcessor):
 
         route = span.get_tag(http.ROUTE)
 
-        if route and not config._trace_resource_renaming_always_simplified_endpoint:
-            span.set_tag_str(http.ENDPOINT, route)
-        else:
+        if not route or config._trace_resource_renaming_always_simplified_endpoint:
             url = span.get_tag(http.URL)
             endpoint = self._compute_simplified_endpoint(url)
             span.set_tag_str(http.ENDPOINT, endpoint)
