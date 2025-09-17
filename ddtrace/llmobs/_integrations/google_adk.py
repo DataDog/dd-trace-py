@@ -155,10 +155,10 @@ class GoogleAdkIntegration(BaseLLMIntegration):
         manifest["instructions"] = agent.instruction
         # manifest["model_settings"] = agent.model_settings
         manifest["model_configuration"] = str(agent.model_config)
-        kwargs = span._get_ctx_item("run_kwargs")  # pyright: ignore[reportAssignmentType]
+        run_kwargs: dict[str, Any] = span._get_ctx_item("run_kwargs") or {}
         manifest["session_management"] = {
-            "session_id": kwargs.get("session_id", None),
-            "user_id": kwargs.get("user_id", None),
+            "session_id": run_kwargs.get("session_id", None),
+            "user_id": run_kwargs.get("user_id", None),
         }
         manifest["tools"] = self._get_agent_tools(agent.tools)
 
