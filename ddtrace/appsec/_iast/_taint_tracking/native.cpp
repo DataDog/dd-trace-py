@@ -73,7 +73,7 @@ PYBIND11_MODULE(_native, m)
     auto atexit_register = safe_import("atexit", "register");
     atexit_register(py::cpp_function([]() {
         // Ensure native context stops serving requests before teardown to avoid races.
-        TaintEngineContext::set_shutting_down(true);
+        // TaintEngineContext::set_shutting_down(true);
         initializer.reset();
         if (taint_engine_context) {
             taint_engine_context->clear_all_request_context_slots();
