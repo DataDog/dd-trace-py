@@ -1,3 +1,5 @@
+import concurrent.futures
+
 import pytest
 from requests.exceptions import ConnectionError  # noqa: A004
 
@@ -162,3 +164,42 @@ def test_iast_cmdi_form_uvicorn():
         {"pattern": "abcdefghijklmnopqrstuvwxyzABCDE", "redacted": True, "source": 0},
     ]
     assert vulnerability["hash"]
+
+
+def test_iast_concurrent_requests_limit():
+    """Ensure only DD_IAST_MAX_CONCURRENT_REQUESTS requests have IAST enabled concurrently.
+
+    This test hits the /iast-enabled endpoint concurrently. The endpoint awaits a short sleep
+    to maximize overlap. The number of responses with enabled=True must equal the configured
+    DD_IAST_MAX_CONCURRENT_REQUESTS.
+    """
+    token = "test_iast_concurrent_requests_limit"
+    _ = start_trace(token)
+
+    max_concurrent = 7
+    rejected_requests = 15
+    total_requests = max_concurrent + rejected_requests
+    delay_ms = 500
+
+    env = {
+        "DD_IAST_MAX_CONCURRENT_REQUESTS": str(max_concurrent),
+    }
+
+    with uvicorn_server(iast_enabled="true", token=token, port=8050, env=env) as context:
+        _, fastapi_client, pid = context
+
+        def worker():
+            r = fastapi_client.get("/iast-enabled", params={"delay_ms": delay_ms}, timeout=5)
+            assert r.status_code == 200
+            data = r.json()
+            return bool(data.get("enabled"))
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=total_requests) as executor:
+            futures = [executor.submit(worker) for _ in range(total_requests)]
+            results = [f.result() for f in futures]
+
+    # We don't need to fetch spans for this behavior validation; just assert the limit enforcement.
+    true_count = results.count(True)
+    false_count = results.count(False)
+    assert true_count == max_concurrent
+    assert false_count == rejected_requests

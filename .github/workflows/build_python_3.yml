@@ -66,6 +66,7 @@ jobs:
               cibuildwheel --print-build-identifiers --platform linux --archs x86_64,i686 | jq -cR '{only: ., os: "ubuntu-latest"}' \
               && cibuildwheel --print-build-identifiers --platform linux --archs aarch64  | jq -cR '{only: ., os: "ubuntu-24.04-arm"}' \
               && cibuildwheel --print-build-identifiers --platform windows --archs AMD64,x86 | jq -cR '{only: ., os: "windows-latest"}' \
+              && cibuildwheel --print-build-identifiers --platform windows --archs ARM64    | jq -cR '{only: ., os: "windows-11-arm"}' \
               && cibuildwheel --print-build-identifiers --platform macos --archs x86_64 | jq -cR '{only: ., os: "macos-13"}' \
               && cibuildwheel --print-build-identifiers --platform macos --archs arm64 | jq -cR '{only: ., os: "macos-latest"}'
             } | jq -sc
@@ -88,7 +89,7 @@ jobs:
       CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
       CIBW_MANYLINUX_AARCH64_IMAGE: manylinux2014
       CIBW_MUSLLINUX_I686_IMAGE: ghcr.io/datadog/dd-trace-py/pypa_musllinux_1_2_i686:latest
-      CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
+      CIBW_BEFORE_ALL_WINDOWS: ${{ matrix.os == 'windows-latest' && 'rustup target add i686-pc-windows-msvc' || (matrix.os == 'windows-11-arm' && 'rustup target add aarch64-pc-windows-msvc') }}
       CIBW_BEFORE_ALL_MACOS: rustup target add aarch64-apple-darwin
       CIBW_BEFORE_ALL_LINUX: |
         if [[ "$(uname -m)-$(uname -i)-$(uname -o | tr '[:upper:]' '[:lower:]')-$(ldd --version 2>&1 | head -n 1 | awk '{print $1}')" != "i686-unknown-linux-musl" ]]; then

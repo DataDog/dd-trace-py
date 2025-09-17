@@ -13,7 +13,7 @@
       "_dd.p.ksr": "0",
       "_dd.p.tid": "68a5d77c00000000",
       "language": "python",
-      "runtime-id": "a94ba981c47e47afada25a6e6e152765"
+      "runtime-id": "643fa3aa63d140ceb4d1b28983fc68cb"
     },
     "metrics": {
       "_dd.py.partial_flush": 1,
@@ -23,8 +23,8 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": -1,
-      "process_id": 68293
+      "process_id": 6548
     },
-    "duration": 24000,
-    "start": 1755699068743994000
+    "duration": 120625,
+    "start": 1758013735498309959
   }]]
