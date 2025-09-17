@@ -29,7 +29,31 @@ of code organization.
 How do I run the test suite?
 ----------------------------
 
-Install and run `docker <https://www.docker.com/products/docker>`_ .
+**Prerequisites**
+
+Install and run:
+
+* `docker <https://www.docker.com/products/docker>`_
+* `uv <https://docs.astral.sh/uv/getting-started/installation/>`_
+
+**Easy way: Use scripts/run-tests**
+
+The ``scripts/run-tests`` script handles this automatically:
+
+.. code-block:: bash
+
+    # Run test suites for your current changes
+    $ scripts/run-tests
+
+    # Run test suites affected by source changes
+    $ scripts/run-tests ddtrace/contrib/django/patch.py
+    $ scripts/run-tests ddtrace/internal/core/event_hub.py
+
+    # Run test suites containing these tests
+    $ scripts/run-tests tests/contrib/django/
+    $ scripts/run-tests tests/contrib/flask/test_flask.py
+
+**Manual approach with ddtest**
 
 This repo includes a Docker container definition that provides a pre-built test environment.
 You can access it by running
@@ -50,6 +74,23 @@ You can run riot and hatch commands in the test runner container with commands l
 
 How do I run only the tests I care about?
 -----------------------------------------
+
+**Easy way: Use scripts/run-tests**
+
+The ``scripts/run-tests`` script handles this automatically:
+
+.. code-block:: bash
+
+    # Add pytest arguments for test selection
+    $ scripts/run-tests tests/contrib/django/ -- -k test_specific_function
+    $ scripts/run-tests ddtrace/contrib/django/patch.py -- -vvv -s --tb=short
+
+    # Run specific test functions
+    $ scripts/run-tests tests/contrib/flask/ -- -k "test_request or test_response"
+
+**Manual way: Direct riot commands**
+
+If you prefer manual control:
 
 1. Note the names of the tests you care about - these are the "test names".
 2. Find the ``Venv`` in the `riotfile <https://github.com/DataDog/dd-trace-py/blob/32b88eadc00e05cd0bc2aec587f565cc89f71229/riotfile.py#L426>`_
@@ -119,14 +160,14 @@ The library includes automated SLO checks that monitor performance thresholds fo
 2. **Update the failing thresholds** in ``.gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml`` following these guidelines:
 
    **For execution time thresholds:**
-   
+
    * Take the new benchmark result from CI
    * Add 2% overhead for variance
-   * Round up to a reasonable precision  
+   * Round up to a reasonable precision
    * Example: 23.1 ms → 23.1 * 1.02 = 23.562 ms → round to 23.60 ms
 
    **For memory usage thresholds:**
-   
+
    * Take the new benchmark result from CI
    * Add 5% overhead for variance
    * Round up to a reasonable precision
