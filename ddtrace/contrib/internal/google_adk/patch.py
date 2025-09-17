@@ -9,6 +9,7 @@ import google.adk as adk
 from ddtrace import config
 from ddtrace._trace._limits import TRUNCATED_SPAN_ATTRIBUTE_LEN
 from ddtrace._trace.pin import Pin
+from ddtrace.contrib.internal.trace_utils import check_module_path
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
@@ -218,25 +219,19 @@ def patch():
     wrap("google.adk", "runners.Runner.run_live", _traced_agent_run_async(adk))
 
     # Tool execution (central dispatch)
-    if hasattr(adk, "flows") and hasattr(adk.flows, "llm_flows") and hasattr(adk.flows.llm_flows, "functions"):
-        funcs = adk.flows.llm_flows.functions
-        if hasattr(funcs, "__call_tool_async"):
-            wrap("google.adk", "flows.llm_flows.functions.__call_tool_async", _traced_functions_call_tool_async(adk))
-        if hasattr(funcs, "__call_tool_live"):
-            wrap("google.adk", "flows.llm_flows.functions.__call_tool_live", _traced_functions_call_tool_live(adk))
+    if check_module_path(adk, "flows.llm_flows.functions.__call_tool_async"):
+        wrap("google.adk", "flows.llm_flows.functions.__call_tool_async", _traced_functions_call_tool_async(adk))
+    if check_module_path(adk, "flows.llm_flows.functions.__call_tool_live"):
+        wrap("google.adk", "flows.llm_flows.functions.__call_tool_live", _traced_functions_call_tool_live(adk))
 
-    if hasattr(adk, "code_executors"):
-        for code_executor in CODE_EXECUTOR_CLASSES:
-            try:
-                executor_cls = getattr(adk.code_executors, code_executor, None)
-                if executor_cls is not None and hasattr(executor_cls, "execute_code"):
-                    wrap(
-                        "google.adk",
-                        f"code_executors.{code_executor}.execute_code",
-                        _traced_code_executor_execute_code(adk),
-                    )
-            except ImportError:
-                pass
+    # Code executors
+    for code_executor in CODE_EXECUTOR_CLASSES:
+        if check_module_path(adk, f"code_executors.{code_executor}.execute_code"):
+            wrap(
+                "google.adk",
+                f"code_executors.{code_executor}.execute_code",
+                _traced_code_executor_execute_code(adk),
+            )
 
 
 def unpatch():
@@ -248,21 +243,14 @@ def unpatch():
     unwrap(adk.runners.Runner, "run_async")
     unwrap(adk.runners.Runner, "run_live")
 
-    if hasattr(adk, "flows") and hasattr(adk.flows, "llm_flows") and hasattr(adk.flows.llm_flows, "functions"):
-        funcs = adk.flows.llm_flows.functions
-        if hasattr(funcs, "__call_tool_async"):
-            unwrap(funcs, "__call_tool_async")
-        if hasattr(funcs, "__call_tool_live"):
-            unwrap(funcs, "__call_tool_live")
+    if check_module_path(adk, "flows.llm_flows.functions.__call_tool_async"):
+        unwrap(adk.flows.llm_flows.functions, "__call_tool_async")
+    if check_module_path(adk, "flows.llm_flows.functions.__call_tool_live"):
+        unwrap(adk.flows.llm_flows.functions, "__call_tool_live")
 
-    if hasattr(adk, "code_executors"):
-        for code_executor in CODE_EXECUTOR_CLASSES:
-            try:
-                executor_cls = getattr(adk.code_executors, code_executor, None)
-                if executor_cls is not None and hasattr(executor_cls, "execute_code"):
-                    unwrap(executor_cls, "execute_code")
-            except ImportError:
-                # Some code executors require additional dependencies, skip them
-                continue
+    # Code executors
+    for code_executor in CODE_EXECUTOR_CLASSES:
+        if check_module_path(adk, f"code_executors.{code_executor}.execute_code"):
+            unwrap(getattr(adk.code_executors, code_executor), "execute_code")
 
     delattr(adk, "_datadog_integration")
