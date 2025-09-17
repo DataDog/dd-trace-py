@@ -1,5 +1,4 @@
 """Test application setup for Google ADK integration tests."""
-import asyncio
 from typing import Any
 
 from google.adk.agents.llm_agent import LlmAgent
@@ -23,16 +22,16 @@ def multiply(a: int, b: int) -> dict[str, Any]:
 async def setup_test_agent():
     """Set up a test agent with tools and code executor."""
     model = Gemini(model="gemini-2.5-pro")
-    
+
     # Wrap Python callables as tools the agent can invoke
     tools = [
         FunctionTool(func=search_docs),
         FunctionTool(func=multiply),
     ]
-    
+
     # Enable code execution so the model can emit code blocks that get executed
     code_executor = UnsafeLocalCodeExecutor()
-    
+
     agent = LlmAgent(
         name="test_agent",
         description="Test agent for ADK integration testing",
@@ -46,14 +45,14 @@ async def setup_test_agent():
             "Always be helpful and use your available capabilities."
         ),
     )
-    
+
     runner = InMemoryRunner(agent=agent, app_name="TestADKApp")
     await runner.session_service.create_session(
         app_name=runner.app_name,
         user_id="test-user",
         session_id="test-session",
     )
-    
+
     return runner
 
 

@@ -115,10 +115,10 @@ def normalize_contents_google_genai(contents) -> List[Dict[str, Any]]:
 def extract_generation_metrics_google_genai(response) -> Dict[str, Any]:
     """
     Extract usage metrics from Google GenAI response or Google ADK Event object.
-    
+
     Args:
         response: Google GenAI response object or ADK Event object
-        
+
     Returns:
         Dictionary with token usage metrics
     """
@@ -326,34 +326,34 @@ def get_system_instructions_gemini_vertexai(model_instance):
 def extract_messages_from_adk_events(events) -> List[Dict[str, Any]]:
     """
     Extract messages from Google ADK Event objects.
-    
+
     Args:
         events: List of ADK Event objects or single Event object
-        
+
     Returns:
         List of message dictionaries with format {"role": role, "content": content, ...}
     """
     messages = []
-    
+
     # Handle both single event and list of events
     if not isinstance(events, list):
         events = [events]
-    
+
     for event in events:
         content = _get_attr(event, "content", None)
         if not content:
             continue
-            
+
         role = _get_attr(content, "role", GOOGLE_GENAI_DEFAULT_MODEL_ROLE)
         parts = _get_attr(content, "parts", [])
-        
+
         if not isinstance(parts, list):
             parts = [parts]
-        
+
         for part in parts:
             # Reuse the existing Google GenAI part extraction logic
             message = extract_message_from_part_google_genai(part, role)
             if message:
                 messages.append(message)
-    
+
     return messages

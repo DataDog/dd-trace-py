@@ -11,5 +11,3 @@ def get_request_vcr():
         filter_headers=["authorization", "x-goog-api-key"],
         ignore_localhost=True,
     )
-
-

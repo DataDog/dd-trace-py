@@ -13,14 +13,14 @@ async def test_agent_run_async(test_runner, mock_tracer, request_vcr):
         try:
             async for event in test_runner.run_async(
                 user_id="test-user",
-                session_id="test-session", 
+                session_id="test-session",
                 new_message=message,
             ):
                 for part in event.content.parts:
                     if hasattr(part, "function_response") and part.function_response is not None:
                         response = part.function_response.response
-                        if 'results' in response:
-                            output += response['results'][0]
+                        if "results" in response:
+                            output += response["results"][0]
                         else:
                             output += str(response)
                         output += "\n"
@@ -33,13 +33,13 @@ async def test_agent_run_async(test_runner, mock_tracer, request_vcr):
             pass
 
     assert output == "Found reference for: test\n{'product': 15}\n"
-    
+
     traces = mock_tracer.pop_traces()
     spans = [s for t in traces for s in t]
-    
+
     runner_spans = [s for s in spans if "InMemoryRunner.run_async" in s.resource]
     assert len(runner_spans) >= 1, f"Expected InMemoryRunner.run_async span, got spans: {[s.resource for s in spans]}"
-    
+
     span = runner_spans[0]
     assert span.name == "google_adk.request"
     assert span.get_tag("component") == "google-adk"
@@ -47,24 +47,24 @@ async def test_agent_run_async(test_runner, mock_tracer, request_vcr):
     assert span.get_tag("google_adk.request.model") == "gemini-2.5-pro"
 
 
-@pytest.mark.asyncio  
+@pytest.mark.asyncio
 async def test_agent_with_tool_usage(test_runner, mock_tracer, request_vcr):
     """Test E2E agent run that triggers tool usage."""
     message = create_test_message("Can you search for information about recurring revenue?")
-    
+
     with request_vcr.use_cassette("agent_tool_usage.yaml"):
         try:
             output = ""
             async for event in test_runner.run_async(
                 user_id="test-user",
-                session_id="test-session", 
+                session_id="test-session",
                 new_message=message,
             ):
                 for part in event.content.parts:
                     if hasattr(part, "function_response") and part.function_response is not None:
                         response = part.function_response.response
-                        if 'results' in response:
-                            output += response['results'][0]
+                        if "results" in response:
+                            output += response["results"][0]
                         else:
                             output += str(response)
                         output += "\n"
@@ -74,22 +74,24 @@ async def test_agent_with_tool_usage(test_runner, mock_tracer, request_vcr):
             pass
 
     assert output == "Found reference for: recurring revenue\n"
-    
+
     traces = mock_tracer.pop_traces()
     spans = [s for t in traces for s in t]
 
     runner_spans = [s for s in spans if "Runner.run_async" in s.resource]
     assert len(runner_spans) >= 1, f"Expected Runner.run_async spans, got spans: {[s.resource for s in spans]}"
-    
+
     tool_spans = [s for s in spans if "FunctionTool.__call_tool_async" in s.resource]
-    assert len(tool_spans) >= 1, f"Expected FunctionTool.__call_tool_async spans, got spans: {[s.resource for s in spans]}"
-    
+    assert (
+        len(tool_spans) >= 1
+    ), f"Expected FunctionTool.__call_tool_async spans, got spans: {[s.resource for s in spans]}"
+
     runner_span = runner_spans[0]
     assert runner_span.name == "google_adk.request"
     assert runner_span.get_tag("component") == "google-adk"
     assert runner_span.get_tag("google_adk.request.provider") == "Gemini"
     assert runner_span.get_tag("google_adk.request.model") == "gemini-2.5-pro"
-    
+
     tool_span = tool_spans[0]
     assert tool_span.name == "google_adk.request"
     assert tool_span.get_tag("component") == "google-adk"
@@ -99,60 +101,62 @@ async def test_agent_with_tool_usage(test_runner, mock_tracer, request_vcr):
 async def test_agent_with_tool_calculation(test_runner, mock_tracer, request_vcr):
     """Test E2E agent run that triggers tool usage for calculations."""
     message = create_test_message("Please use the multiply tool to calculate 37 times 29.")
-    
+
     with request_vcr.use_cassette("agent_math_and_code.yaml"):
         try:
             output = ""
             async for event in test_runner.run_async(
                 user_id="test-user",
-                session_id="test-session", 
+                session_id="test-session",
                 new_message=message,
             ):
                 if event.content is None:
                     # Skip events with no content (e.g., malformed function calls)
                     continue
-                    
+
                 for part in event.content.parts:
                     # Capture all text output
                     if hasattr(part, "text") and part.text:
                         output += part.text + "\n"
-                    
-                    # Capture function responses  
+
+                    # Capture function responses
                     if hasattr(part, "function_response") and part.function_response is not None:
                         response = part.function_response.response
-                        if 'results' in response:
-                            output += response['results'][0] + "\n"
-                        elif 'product' in response:
-                            output += str(response['product']) + "\n"
+                        if "results" in response:
+                            output += response["results"][0] + "\n"
+                        elif "product" in response:
+                            output += str(response["product"]) + "\n"
                         else:
                             output += str(response) + "\n"
-                            
-        except Exception as e:
+
+        except Exception:
             # we're getting a TypeError for telemetry issues from the google adk library that
             # is most likely due to the vcr cassette. we can ignore it.
             pass
-    
+
     print(f"DEBUG: Captured output: '{output}'")
-    
+
     # Check for tool calculation result
     assert output.strip() != "", f"Expected some output but got: '{output}'"
-    assert ("1073" in output or "product" in output.lower()), f"Expected multiply tool result (1073) but got: '{output}'"
-    
+    assert "1073" in output or "product" in output.lower(), f"Expected multiply tool result (1073) but got: '{output}'"
+
     traces = mock_tracer.pop_traces()
     spans = [s for t in traces for s in t]
-    
+
     runner_spans = [s for s in spans if "Runner.run_async" in s.resource]
     assert len(runner_spans) >= 1, f"Expected Runner.run_async spans, got spans: {[s.resource for s in spans]}"
-    
+
     tool_spans = [s for s in spans if "FunctionTool.__call_tool_async" in s.resource]
-    assert len(tool_spans) >= 1, f"Expected FunctionTool.__call_tool_async spans, got spans: {[s.resource for s in spans]}"
-    
+    assert (
+        len(tool_spans) >= 1
+    ), f"Expected FunctionTool.__call_tool_async spans, got spans: {[s.resource for s in spans]}"
+
     runner_span = runner_spans[0]
     assert runner_span.name == "google_adk.request"
     assert runner_span.get_tag("component") == "google-adk"
     assert runner_span.get_tag("google_adk.request.provider") == "Gemini"
     assert runner_span.get_tag("google_adk.request.model") == "gemini-2.5-pro"
-    
+
     tool_span = tool_spans[0]
     assert tool_span.name == "google_adk.request"
     assert tool_span.get_tag("component") == "google-adk"
@@ -168,36 +172,35 @@ async def test_code_execution_only(test_runner, mock_tracer, request_vcr):
         "print(f'Answer: {result}')\n"
         "```"
     )
-    
+
     with request_vcr.use_cassette("agent_code_execution.yaml"):
         try:
             output = ""
             async for event in test_runner.run_async(
                 user_id="test-user",
-                session_id="test-session", 
+                session_id="test-session",
                 new_message=message,
             ):
                 print(f"Event: {type(event)}, Content: {event.content is not None}")
                 if event.content is not None:
                     print(f"Parts: {len(event.content.parts) if event.content.parts else 0}")
                     for i, part in enumerate(event.content.parts):
-                        print(f"Part {i}: {type(part)}, has text: {hasattr(part, 'text')}, has function_response: {hasattr(part, 'function_response')}")
-                        if hasattr(part, 'text') and part.text:
+                        if hasattr(part, "text") and part.text:
                             print(f"Text: {part.text[:100]}...")
                             output += part.text + "\n"
-                        if hasattr(part, 'function_response'):
+                        if hasattr(part, "function_response"):
                             print(f"Function response: {part.function_response}")
                 break  # Just look at first event for debugging
         except Exception as e:
             print(f"Exception: {e}")
             pass
-    
+
     print(f"Final output: '{output}'")
-    
+
     traces = mock_tracer.pop_traces()
     spans = [s for t in traces for s in t]
     print(f"Spans found: {[s.name + ' - ' + s.resource for s in spans]}")
-    
+
     # Look for code execution spans
     code_spans = [s for s in spans if "execute_code" in s.resource or "code" in s.resource.lower()]
     print(f"Code execution spans: {[s.resource for s in code_spans]}")
@@ -207,21 +210,21 @@ async def test_code_execution_only(test_runner, mock_tracer, request_vcr):
 async def test_error_handling_e2e(test_runner, mock_tracer, request_vcr):
     """Test error handling in E2E agent execution."""
     from google.adk.tools.function_tool import FunctionTool
-    
+
     def failing_tool(query: str) -> dict:
         raise ValueError("Test error message")
-    
+
     failing_tool_obj = FunctionTool(func=failing_tool)
     test_runner.agent.tools.append(failing_tool_obj)
-    
+
     message = create_test_message("Can you use the failing_tool to test error handling?")
-    
+
     with request_vcr.use_cassette("agent_error_handling.yaml"):
         try:
             count = 0
             async for _ in test_runner.run_async(
                 user_id="test-user",
-                session_id="test-session", 
+                session_id="test-session",
                 new_message=message,
             ):
                 count += 1
@@ -229,19 +232,19 @@ async def test_error_handling_e2e(test_runner, mock_tracer, request_vcr):
                     break
         except Exception:
             pass
-    
+
     traces = mock_tracer.pop_traces()
     spans = [s for t in traces for s in t]
-    
+
     runner_spans = [s for s in spans if "Runner.run_async" in s.resource]
     assert len(runner_spans) >= 1, f"Expected Runner.run_async spans, got spans: {[s.resource for s in spans]}"
-    
+
     tool_spans = [s for s in spans if "FunctionTool.__call_tool_async" in s.resource]
     if tool_spans:
         tool_span = tool_spans[0]
         assert tool_span.name == "google_adk.request"
         assert tool_span.get_tag("component") == "google-adk"
-    
+
     runner_span = runner_spans[0]
     assert runner_span.name == "google_adk.request"
     assert runner_span.get_tag("component") == "google-adk"

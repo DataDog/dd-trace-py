@@ -21,7 +21,7 @@ logger = get_logger(__name__)
 config._add("google_adk", {})
 
 
-def _supported_versions()-> Dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"google.adk": ">=1.0.0"}
 
 
@@ -45,7 +45,7 @@ def _traced_agent_run_async(adk, pin, wrapped, instance, args, kwargs):
     integration = adk._datadog_integration
     agen = wrapped(*args, **kwargs)
 
-    async def _generator():        
+    async def _generator():
         provider_name, model_name = extract_provider_and_model_name(agent=instance.agent)
         with integration.trace(
             pin,
@@ -78,7 +78,7 @@ async def _traced_functions_call_tool_async(adk, pin, wrapped, instance, args, k
     tool_context = kwargs.get("tool_context", {})
     # Handle cases where invocation context might not exist (e.g., direct tool calls)
     agent = None
-    if hasattr(tool_context, '_invocation_context') and hasattr(tool_context._invocation_context, 'agent'):
+    if hasattr(tool_context, "_invocation_context") and hasattr(tool_context._invocation_context, "agent"):
         agent = tool_context._invocation_context.agent
     provider_name, model_name = extract_provider_and_model_name(agent=agent)
     instance = instance or args[0]
@@ -91,7 +91,7 @@ async def _traced_functions_call_tool_async(adk, pin, wrapped, instance, args, k
         kind="tool",
         submit_to_llmobs=True,
     ) as span:
-        result = None   
+        result = None
         try:
             result = await wrapped(*args, **kwargs)
             return result
@@ -126,7 +126,7 @@ async def _traced_functions_call_tool_live(adk, pin, wrapped, instance, args, kw
         kind="tool",
         submit_to_llmobs=True,
     ) as span:
-        result = None   
+        result = None
         try:
             agen = wrapped(*args, **kwargs)
             async for item in agen:
@@ -189,10 +189,10 @@ def extract_provider_and_model_name(kwargs: Optional[Dict[str, Any]] = None, age
 
 
 CODE_EXECUTOR_CLASSES = [
-    "BuiltInCodeExecutor", # make an external llm tool call to use the llms built in code executor
+    "BuiltInCodeExecutor",  # make an external llm tool call to use the llms built in code executor
     "VertexAiCodeExecutor",
     "UnsafeLocalCodeExecutor",
-    "ContainerCodeExecutor", # additional package dependendy
+    "ContainerCodeExecutor",  # additional package dependendy
 ]
 
 # MEMORY_SERVICE_CLASSES = [ # TODO: Add memory tracing

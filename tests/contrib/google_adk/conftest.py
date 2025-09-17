@@ -7,7 +7,9 @@ from ddtrace.contrib.internal.google_adk.patch import patch as adk_patch
 from ddtrace.contrib.internal.google_adk.patch import unpatch as adk_unpatch
 from tests.contrib.google_adk.app import setup_test_agent
 from tests.contrib.google_adk.utils import get_request_vcr
-from tests.utils import DummyTracer, DummyWriter, override_global_config
+from tests.utils import DummyTracer
+from tests.utils import DummyWriter
+from tests.utils import override_global_config
 
 
 @pytest.fixture
@@ -20,7 +22,7 @@ def adk(adk_ddtrace_global_config):
     # Set dummy API key for VCR mode if no real API key is present
     if not os.environ.get("GOOGLE_API_KEY"):
         os.environ["GOOGLE_API_KEY"] = "dummy-api-key-for-vcr"
-    
+
     # Location/project may be required for client init.
     os.environ.setdefault("GOOGLE_CLOUD_LOCATION", os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"))
     os.environ.setdefault("GOOGLE_CLOUD_PROJECT", os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"))
@@ -57,7 +59,7 @@ class DummyAgent:
         self.name = "test-agent"
         self.instruction = "do things"
         self.model_config = {"model": "gemini-2.0"}
-        self.tools = [DummyTool(name="get_current_weather", description="weather", mandatory_args=["location"]) ]
+        self.tools = [DummyTool(name="get_current_weather", description="weather", mandatory_args=["location"])]
 
 
 class DummyRunner:

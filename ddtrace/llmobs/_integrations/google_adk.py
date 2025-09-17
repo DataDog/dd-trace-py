@@ -2,9 +2,9 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
-from typing import Sequence
 from typing import Tuple
 
+from ddtrace._trace._limits import TRUNCATED_SPAN_ATTRIBUTE_LEN
 from ddtrace._trace.pin import Pin
 from ddtrace.internal import core
 from ddtrace.internal.utils import get_argument_value
@@ -26,7 +26,6 @@ from ddtrace.llmobs._integrations.google_utils import extract_generation_metrics
 from ddtrace.llmobs._integrations.google_utils import extract_messages_from_adk_events
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
-from ddtrace._trace._limits import TRUNCATED_SPAN_ATTRIBUTE_LEN
 from ddtrace.trace import Span
 
 
@@ -46,7 +45,9 @@ class GoogleAdkIntegration(BaseLLMIntegration):
             span._set_ctx_item("run_kwargs", kwargs.get("run_kwargs"))
         return span
 
-    def _set_base_span_tags(self, span: Span, model: Optional[Any] = None, provider: Optional[Any] = None, **kwargs) -> None:
+    def _set_base_span_tags(
+        self, span: Span, model: Optional[Any] = None, provider: Optional[Any] = None, **kwargs
+    ) -> None:
         if model:
             span.set_tag("google_adk.request.model", model)
         if provider:
@@ -85,7 +86,6 @@ class GoogleAdkIntegration(BaseLLMIntegration):
     def _llmobs_set_tags_agent(
         self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any]
     ) -> None:
-
         agent_instance = kwargs.get("instance", None)
         agent_name = getattr(agent_instance, "name", None)
 
@@ -111,7 +111,6 @@ class GoogleAdkIntegration(BaseLLMIntegration):
     def _llmobs_set_tags_tool(
         self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any] = None
     ) -> None:
-
         tool = kwargs.get("tool", None)
         tool_args = kwargs.get("tool_args", None)
 
@@ -165,7 +164,9 @@ class GoogleAdkIntegration(BaseLLMIntegration):
 
         span._set_ctx_item(AGENT_MANIFEST, manifest)
 
-    def _llmobs_set_tags_code_execute(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any] = None) -> None:
+    def _llmobs_set_tags_code_execute(
+        self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any] = None
+    ) -> None:
         stdout = getattr(response, "stdout", None)
         stderr = getattr(response, "stderr", None)
         output = ""
@@ -187,7 +188,7 @@ class GoogleAdkIntegration(BaseLLMIntegration):
     def _get_agent_tools(self, tools):
         if not tools or not isinstance(tools, list):
             return []
-        return [ {"name": tool.name, "description": tool.description} for tool in tools]
+        return [{"name": tool.name, "description": tool.description} for tool in tools]
 
     def extract_usage_metrics(self, response: Any, kwargs: Dict[str, Any]) -> Dict[str, Any]:
         prompt_tokens = 0
