@@ -9,20 +9,22 @@ import pytest
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.google_adk.patch import patch as adk_patch
 from ddtrace.contrib.internal.google_adk.patch import unpatch as adk_unpatch
+from ddtrace.llmobs import LLMObs
 from tests.contrib.google_adk.app import setup_test_agent
 from tests.contrib.google_adk.utils import get_request_vcr
+from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import override_global_config
 
 
 @pytest.fixture
-def adk_ddtrace_global_config():
+def ddtrace_global_config():
     return {}
 
 
 @pytest.fixture
-def adk(adk_ddtrace_global_config):
+def adk(ddtrace_global_config):
     # Set dummy API key for VCR mode if no real API key is present
     if not os.environ.get("GOOGLE_API_KEY"):
         os.environ["GOOGLE_API_KEY"] = "dummy-api-key-for-vcr"
@@ -31,7 +33,7 @@ def adk(adk_ddtrace_global_config):
     os.environ.setdefault("GOOGLE_CLOUD_LOCATION", os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"))
     os.environ.setdefault("GOOGLE_CLOUD_PROJECT", os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"))
 
-    with override_global_config(adk_ddtrace_global_config):
+    with override_global_config(ddtrace_global_config):
         adk_patch()
         import google.adk as adk
 
@@ -167,3 +169,29 @@ def mock_invocation_context(test_runner) -> InvocationContext:
         session=mock_session,
         session_service=mock_session_service,
     )
+
+
+@pytest.fixture
+def llmobs_span_writer():
+    yield TestLLMObsSpanWriter(1.0, 5.0, is_agentless=True, _site="datad0g.com", _api_key="<not-a-real-key>")
+
+
+@pytest.fixture
+def adk_llmobs(mock_tracer, llmobs_span_writer):
+    LLMObs.disable()
+    with override_global_config(
+        {
+            "_dd_api_key": "<not-a-real-api_key>",
+            "_llmobs_ml_app": "<ml-app-name>",
+            "service": "tests.contrib.google_adk",
+        }
+    ):
+        LLMObs.enable(_tracer=mock_tracer, integrations_enabled=False)
+        LLMObs._instance._llmobs_span_writer = llmobs_span_writer
+        yield LLMObs
+    LLMObs.disable()
+
+
+@pytest.fixture
+def llmobs_events(adk_llmobs, llmobs_span_writer):
+    return llmobs_span_writer.events
