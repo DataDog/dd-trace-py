@@ -459,7 +459,7 @@ def test_structured_io_data(llmobs, llmobs_backend):
         assert events[0][0]["spans"][0]["meta"]["output"]["value"] == '{"data": "test2"}'
 
 
-def test_structured_prompt_data_v1(llmobs, llmobs_backend):
+def test_structured_prompt_data(llmobs, llmobs_backend):
     with llmobs.llm() as span:
         llmobs.annotate(span, input_data={"data": "test1"}, prompt={"template": "test {{value}}"})
     events = llmobs_backend.wait_for_num_events(num=1)
