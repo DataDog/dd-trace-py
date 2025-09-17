@@ -1,5 +1,6 @@
 import pytest
 
+from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_size
 from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
 from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 from tests.utils import override_global_config
@@ -16,6 +17,7 @@ def iast_request():
             _iast_max_concurrent_requests=100,
         )
     ):
+        assert debug_context_array_size() == 2
         _start_iast_context_and_oce()
         try:
             yield

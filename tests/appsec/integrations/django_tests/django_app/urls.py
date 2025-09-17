@@ -22,6 +22,7 @@ def shutdown(request):
 urlpatterns = [
     handler(r"^$", views.index),
     handler(r"^shutdown$", shutdown),
+    handler(r"^iast-enabled/$", views.iast_enabled),
     # This must precede composed-view.
     handler("appsec/response-header/$", views.magic_header_key, name="response-header"),
     handler("appsec/body/$", views.body_view, name="body_view"),
