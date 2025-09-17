@@ -319,7 +319,8 @@ venv = Venv(
         ),
         Venv(
             name="appsec_iast_default",
-            command="pytest {cmdargs} tests/appsec/iast/",
+            # TODO(avara1986): remove "-vvv --no-ddtrace --no-cov" when CI visibility errors were fixed in #14581
+            command="pytest -vvv --no-ddtrace --no-cov {cmdargs} tests/appsec/iast/",
             pys=select_pys(),
             pkgs={
                 "requests": latest,
@@ -336,6 +337,7 @@ venv = Venv(
                 "DD_IAST_REQUEST_SAMPLING": "100",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
+                "PYTHONFAULTHANDLER": "1",
             },
         ),
         Venv(
@@ -675,11 +677,15 @@ venv = Venv(
             create=True,
             skip_dev_install=True,
             pkgs={
+                "azure-data-tables": latest,
+                "azure-storage-blob": latest,
+                "azure-storage-queue": latest,
                 "cassandra-driver": latest,
                 "psycopg2-binary": latest,
                 "mysql-connector-python": "!=8.0.18",
                 "vertica-python": ">=0.6.0,<0.7.0",
                 "kombu": ">=4.2.0,<4.3.0",
+                "pymssql": latest,
                 "pytest-randomly": latest,
                 "requests": latest,
             },
@@ -3009,6 +3015,7 @@ venv = Venv(
                 "pytest-asyncio": latest,
                 "pydantic-ai": ["==0.3.0", "==0.4.4", latest],
                 "vcrpy": "==7.0.0",
+                "typing_extensions": latest,
             },
         ),
         Venv(
@@ -3103,7 +3110,6 @@ venv = Venv(
             pys=select_pys(min_version="3.8", max_version="3.11"),
             pkgs={
                 "azure.functions": ["~=1.10.1", latest],
-                "azure.servicebus": latest,
                 "requests": latest,
             },
         ),
@@ -3531,6 +3537,7 @@ venv = Venv(
                 "AGENT_VERSION": "testagent",
                 "DD_REMOTE_CONFIGURATION_ENABLED": "true",
                 "DD_API_SECURITY_SAMPLE_DELAY": "0",
+                "DD_PATCH_MODULES": "unittest:false,urllib3:true",
             },
             venvs=[
                 Venv(
@@ -3584,6 +3591,7 @@ venv = Venv(
                 "AGENT_VERSION": "testagent",
                 "DD_REMOTE_CONFIGURATION_ENABLED": "true",
                 "DD_API_SECURITY_SAMPLE_DELAY": "0",
+                "DD_PATCH_MODULES": "unittest:false,urllib3:true",
             },
             venvs=[
                 Venv(
@@ -3634,6 +3642,7 @@ venv = Venv(
                 "DD_REMOTE_CONFIGURATION_ENABLED": "true",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
                 "DD_API_SECURITY_SAMPLE_DELAY": "0",
+                "DD_PATCH_MODULES": "unittest:false,urllib3:true",
             },
             venvs=[
                 Venv(
