@@ -677,11 +677,15 @@ venv = Venv(
             create=True,
             skip_dev_install=True,
             pkgs={
+                "azure-data-tables": latest,
+                "azure-storage-blob": latest,
+                "azure-storage-queue": latest,
                 "cassandra-driver": latest,
                 "psycopg2-binary": latest,
                 "mysql-connector-python": "!=8.0.18",
                 "vertica-python": ">=0.6.0,<0.7.0",
                 "kombu": ">=4.2.0,<4.3.0",
+                "pymssql": latest,
                 "pytest-randomly": latest,
                 "requests": latest,
             },
@@ -3000,6 +3004,7 @@ venv = Venv(
                 "pytest-asyncio": latest,
                 "pydantic-ai": ["==0.3.0", "==0.4.4", latest],
                 "vcrpy": "==7.0.0",
+                "typing_extensions": latest,
             },
         ),
         Venv(

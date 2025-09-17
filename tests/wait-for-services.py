@@ -4,9 +4,14 @@ import sys
 import time
 import typing as t
 
+from azure.data.tables import TableServiceClient
+from azure.storage.blob import BlobServiceClient
+from azure.storage.queue import QueueServiceClient
 from cassandra.cluster import Cluster
 from cassandra.cluster import NoHostAvailable
 from contrib.config import AZURE_SERVICE_BUS_EMULATOR_CONFIG
+from contrib.config import AZURE_SQL_EDGE_CONFIG
+from contrib.config import AZURITE_CONFIG
 from contrib.config import CASSANDRA_CONFIG
 from contrib.config import ELASTICSEARCH_CONFIG
 from contrib.config import HTTPBIN_CONFIG
@@ -20,6 +25,7 @@ import kombu
 import mysql.connector
 from psycopg2 import OperationalError
 from psycopg2 import connect
+import pymssql
 import requests
 import vertica_python
 
@@ -146,6 +152,33 @@ def check_azureservicebusemulator(url):
     requests.get(url).raise_for_status()
 
 
+@try_until_timeout(Exception, args={"azuresqledge_config": AZURE_SQL_EDGE_CONFIG})
+def check_azuresqledge(azuresqledge_config):
+    conn = pymssql.connect(**azuresqledge_config)
+    try:
+        conn.cursor().execute("SELECT 1;")
+    finally:
+        conn.close()
+
+
+@try_until_timeout(Exception, args={"azurite_config": AZURITE_CONFIG})
+def check_azurite(azurite_config):
+    blob_service_client = BlobServiceClient.from_connection_string(
+        conn_str=azurite_config["conn_str"], api_version=azurite_config["api_version_blob"]
+    )
+    _ = list(blob_service_client.list_containers())
+
+    queue_service_client = QueueServiceClient.from_connection_string(
+        conn_str=azurite_config["conn_str"], api_version=azurite_config["api_version_queue"]
+    )
+    _ = list(queue_service_client.list_queues())
+
+    table_service_client = TableServiceClient.from_connection_string(
+        conn_str=azurite_config["conn_str"], api_version=azurite_config["api_version_table"]
+    )
+    _ = list(table_service_client.list_tables())
+
+
 if __name__ == "__main__":
     check_functions = {
         "cassandra": check_cassandra,
@@ -160,6 +193,8 @@ if __name__ == "__main__":
         "testagent": check_agent,
         "vertica": check_vertica,
         "azureservicebusemulator": check_azureservicebusemulator,
+        "azuresqledge": check_azuresqledge,
+        "azurite": check_azurite,
     }
     if len(sys.argv) >= 2:
         for service in sys.argv[1:]:

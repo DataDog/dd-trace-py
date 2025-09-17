@@ -1,15 +1,8 @@
 from typing import Any
 from typing import Dict
 from typing import List
+from typing import TypedDict  # noqa:F401
 from typing import Union
-
-
-# TypedDict was added to typing in python 3.8
-try:
-    from typing import TypedDict  # noqa:F401
-except ImportError:
-    from typing_extensions import TypedDict
-from typing_extensions import NotRequired
 
 from ddtrace.internal.logger import get_logger
 
@@ -79,11 +72,11 @@ class ExportedLLMObsSpan(TypedDict):
     span_id: str
     trace_id: str
 
-class Document(TypedDict):
-    name: NotRequired[str]
-    id: NotRequired[str]
+class Document(TypedDict, total=False):
+    name: str
+    id: str
     text: str
-    score: NotRequired[float]
+    score: float
 
 class Prompt(TypedDict, total=False):
     variables: Dict[str, str]
@@ -93,61 +86,61 @@ class Prompt(TypedDict, total=False):
     rag_context_variables: List[str] # a list of variable key names that contain ground truth context information
     rag_query_variables: List[str] # a list of variable key names that contains query information
 
-class ToolCall(TypedDict):
+class ToolCall(TypedDict, total=False):
     name: str
     arguments: Dict[str, Any]
-    tool_id: NotRequired[str]
-    type: NotRequired[str]
+    tool_id: str
+    type: str
 
-class ToolResult(TypedDict):
-    name: NotRequired[str]
-    result: str
-    tool_id: NotRequired[str]
-    type: NotRequired[str]
-
-class ToolDefinition(TypedDict):
+class ToolResult(TypedDict, total=False):
     name: str
-    description: NotRequired[str]
-    schema: NotRequired[Dict[str, Any]]
+    result: str
+    tool_id: str
+    type: str
+
+class ToolDefinition(TypedDict, total=False):
+    name: str
+    description: str
+    schema: Dict[str, Any]
 
 class MessagePromptTemplate(TypedDict):
     template: str
 
-class Message(TypedDict):
-    id: NotRequired[str]
-    role: NotRequired[str]
-    content: NotRequired[str]
-    tool_calls: NotRequired[List[ToolCall]]
-    tool_results: NotRequired[List[ToolResult]]
-    prompt: NotRequired[MessagePromptTemplate]
-    tool_id: NotRequired[str]
+class Message(TypedDict, total=False):
+    id: str
+    role: str
+    content: str
+    tool_calls: List[ToolCall]
+    tool_results: List[ToolResult]
+    prompt: MessagePromptTemplate
+    tool_id: str
 
 class SpanField(TypedDict):
     kind: str
 
-class ErrorField(TypedDict):
-    message: NotRequired[str]
-    stack: NotRequired[str]
-    type: NotRequired[str]
+class ErrorField(TypedDict, total=False):
+    message: str
+    stack: str
+    type: str
 
-class MetaIO(TypedDict):
-    parameters: NotRequired[Dict[str, Any]]
-    value: NotRequired[str]
-    messages: NotRequired[List[Message]]
-    prompt: NotRequired[Prompt]
-    documents: NotRequired[List[Document]]
+class MetaIO(TypedDict, total=False):
+    parameters: Dict[str, Any]
+    value: str
+    messages: List[Message]
+    prompt: Prompt
+    documents: List[Document]
 
-class Meta(TypedDict):
-    model_name: NotRequired[str]
-    model_provider: NotRequired[str]
+class Meta(TypedDict, total=False):
+    model_name: str
+    model_provider: str
     span: SpanField
-    error: NotRequired[ErrorField]
-    metadata: NotRequired[Dict[str, Any]]
-    input: NotRequired[MetaIO]
-    output: NotRequired[MetaIO]
-    expected_output: NotRequired[MetaIO]
-    evaluations: NotRequired[Any]
-    tool_definitions: NotRequired[List[ToolDefinition]]
+    error: ErrorField
+    metadata: Dict[str, Any]
+    input: MetaIO
+    output: MetaIO
+    expected_output: MetaIO
+    evaluations: Any
+    tool_definitions: List[ToolDefinition]
 
 class SpanLink(TypedDict):
     span_id: str

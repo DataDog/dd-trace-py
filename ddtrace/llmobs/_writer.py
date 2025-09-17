@@ -8,18 +8,11 @@ from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
+from typing import TypedDict
 from typing import Union
 from typing import cast
 from urllib.parse import quote
 from urllib.parse import urlparse
-
-
-# TypedDict was added to typing in python 3.8
-try:
-    from typing import TypedDict
-except ImportError:
-    from typing_extensions import TypedDict
-from typing_extensions import NotRequired
 
 import ddtrace
 from ddtrace import config
@@ -60,22 +53,25 @@ from ddtrace.llmobs.utils import SpanLink
 logger = get_logger(__name__)
 
 
-class LLMObsSpanEvent(TypedDict):
+class _LLMObsSpanEventOptional(TypedDict, total=False):
+    session_id: str
+    service: str
+    status_message: str
+    collection_errors: List[str]
+    span_links: List[SpanLink]
+
+
+class LLMObsSpanEvent(_LLMObsSpanEventOptional):
     span_id: str
     trace_id: str
     parent_id: str
-    session_id: NotRequired[str]
     tags: List[str]
-    service: NotRequired[str]
     name: str
     start_ns: int
     duration: int
     status: str
-    status_message: NotRequired[str]
     meta: Meta
     metrics: Dict[str, Any]
-    collection_errors: NotRequired[List[str]]
-    span_links: NotRequired[List[SpanLink]]
     _dd: Dict[str, str]
 
 
