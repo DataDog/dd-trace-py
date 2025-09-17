@@ -14,6 +14,28 @@ AZURE_SERVICE_BUS_EMULATOR_CONFIG = {
     "port": 5300,
 }
 
+AZURE_SQL_EDGE_CONFIG = {
+    "server": "127.0.0.1",
+    "user": "sa",
+    "password": "Localtestpass1!",
+    "database": "master",
+    "port": 1433,
+}
+
+AZURITE_CONFIG = {
+    "api_version_blob": "2025-05-05",
+    "api_version_queue": "2025-05-05",
+    "api_version_table": "2020-12-06",
+    "conn_str": (
+        "DefaultEndpointsProtocol=http;"
+        "AccountName=devstoreaccount1;"
+        "AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;"
+        "BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
+        "QueueEndpoint=http://127.0.0.1:10001/devstoreaccount1;"
+        "TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;"
+    ),
+}
+
 ELASTICSEARCH_CONFIG = {
     "host": os.getenv("TEST_ELASTICSEARCH_HOST", "127.0.0.1"),
     "port": int(os.getenv("TEST_ELASTICSEARCH_PORT", 9200)),
