@@ -536,6 +536,8 @@ venv = Venv(
                     pkgs={
                         "pytest-asyncio": "~=0.23.7",
                         "setuptools": latest,
+                        "zope-event": "==5.0",
+                        "zope-interface": "==7.2",
                     },
                 ),
             ],
