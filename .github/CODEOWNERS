@@ -144,6 +144,7 @@ ddtrace/contrib/internal/botocore/services/bedrock.py         @DataDog/ml-observ
 ddtrace/contrib/internal/botocore/services/bedrock_agents.py  @DataDog/ml-observability
 ddtrace/contrib/botocore/services/bedrock.py                  @DataDog/ml-observability
 ddtrace/contrib/internal/anthropic                            @DataDog/ml-observability
+ddtrace/contrib/internal/google_adk                           @DataDog/ml-observability
 ddtrace/contrib/internal/google_generativeai                  @DataDog/ml-observability
 ddtrace/contrib/internal/google_genai                         @DataDog/ml-observability
 ddtrace/contrib/internal/vertexai                             @DataDog/ml-observability
@@ -164,6 +165,7 @@ tests/contrib/botocore/test_bedrock_agents_llmobs.py          @DataDog/ml-observ
 tests/contrib/botocore/bedrock_utils.py                       @DataDog/ml-observability
 tests/contrib/botocore/bedrock_cassettes                      @DataDog/ml-observability
 tests/contrib/anthropic                                       @DataDog/ml-observability
+tests/contrib/google_adk                                      @DataDog/ml-observability
 tests/contrib/google_generativeai                             @DataDog/ml-observability
 tests/contrib/google_genai                                    @DataDog/ml-observability
 tests/contrib/vertexai                                        @DataDog/ml-observability
