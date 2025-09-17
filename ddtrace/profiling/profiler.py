@@ -13,13 +13,14 @@ from ddtrace import config
 from ddtrace.internal import service
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.module import ModuleWatchdog
-from ddtrace.profiling import collector
-from ddtrace.profiling import scheduler
+from ddtrace.profiling.collector import CollectorUnavailable
 from ddtrace.profiling.collector import asyncio
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import pytorch
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
+from ddtrace.profiling.scheduler import Scheduler
+from ddtrace.profiling.scheduler import ServerlessScheduler
 from ddtrace.settings.profiling import config as profiling_config
 from ddtrace.settings.profiling import config_str
 
@@ -115,7 +116,7 @@ class _ProfilerInstance(service.Service):
         # Non-user-supplied values
         self._collectors: List[Union[stack.StackCollector, memalloc.MemoryCollector]] = []
         self._collectors_on_import: Any = None
-        self._scheduler: Optional[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]] = None
+        self._scheduler: Optional[Union[Scheduler, ServerlessScheduler]] = None
         self._lambda_function_name: Optional[str] = os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
 
         self.__post_init__()
@@ -180,7 +181,7 @@ class _ProfilerInstance(service.Service):
                         try:
                             col.start()
                             LOG.debug("Started collector %r", col)
-                        except collector.CollectorUnavailable:
+                        except CollectorUnavailable:
                             LOG.debug("Collector %r is unavailable, disabling", col)
                             return
                         except Exception:
@@ -208,7 +209,7 @@ class _ProfilerInstance(service.Service):
                         try:
                             col.start()
                             LOG.debug("Started pytorch collector %r", col)
-                        except collector.CollectorUnavailable:
+                        except CollectorUnavailable:
                             LOG.debug("Collector %r pytorch is unavailable, disabling", col)
                             return
                         except Exception:
@@ -230,8 +231,8 @@ class _ProfilerInstance(service.Service):
         self._build_default_exporters()
 
         scheduler_class = (
-            scheduler.ServerlessScheduler if self._lambda_function_name else scheduler.Scheduler
-        )  # type: (Type[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]])
+            ServerlessScheduler if self._lambda_function_name else Scheduler
+        )  # type: (Type[Union[Scheduler, ServerlessScheduler]])
 
         self._scheduler = scheduler_class(
             before_flush=self._collectors_snapshot,
@@ -263,7 +264,7 @@ class _ProfilerInstance(service.Service):
         for col in self._collectors:
             try:
                 col.start()
-            except collector.CollectorUnavailable:
+            except CollectorUnavailable:
                 LOG.debug("Collector %r is unavailable, disabling", col)
             except Exception:
                 LOG.error("Failed to start collector %r, disabling.", col, exc_info=True)

@@ -8,8 +8,10 @@ import typing
 import wrapt
 
 from ddtrace.internal.datadog.profiling import ddup
-from ddtrace.profiling import _threading
-from ddtrace.profiling import collector
+from ddtrace.profiling._threading import get_thread_name
+from ddtrace.profiling._threading import get_thread_native_id
+from ddtrace.profiling.collector import CaptureSamplerCollector
+from ddtrace.profiling.collector import CollectorUnavailable
 from ddtrace.settings.profiling import config
 from ddtrace.trace import Tracer
 
@@ -28,7 +30,7 @@ class _WrappedTorchProfiler(wrapt.ObjectProxy):
         self._self_tracer = tracer
 
 
-class MLProfilerCollector(collector.CaptureSamplerCollector):
+class MLProfilerCollector(CaptureSamplerCollector):
     """Record ML framework (i.e. pytorch) profiler usage."""
 
     def __init__(self):
@@ -56,7 +58,7 @@ class MLProfilerCollector(collector.CaptureSamplerCollector):
         try:
             import torch
         except ImportError as e:
-            raise collector.CollectorUnavailable(e)
+            raise CollectorUnavailable(e)
         self._torch_module = torch
         self.patch()
         super()._start_service()  # type: ignore[safe-super]
@@ -190,13 +192,11 @@ def handle_torch_trace(prof):
                 # If we can't get one, just use a default name.
                 handle.push_threadinfo(
                     e.thread,
-                    _threading.get_thread_native_id(e.thread),
-                    _threading.get_thread_name(e.thread) or "PYTORCH-CPU-THREAD-" + str(e.thread),
+                    get_thread_native_id(e.thread),
+                    get_thread_name(e.thread) or "PYTORCH-CPU-THREAD-" + str(e.thread),
                 )
             elif str(e.device_type).startswith("DeviceType.CUDA"):
-                handle.push_threadinfo(
-                    e.thread, _threading.get_thread_native_id(e.thread), "PYTORCH-CUDA-" + str(e.device_index)
-                )
+                handle.push_threadinfo(e.thread, get_thread_native_id(e.thread), "PYTORCH-CUDA-" + str(e.device_index))
             else:
                 raise AttributeError(f"Unexpected device_type {e.device_type}")
 

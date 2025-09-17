@@ -11,8 +11,10 @@ import typing
 import wrapt
 
 from ddtrace.internal.datadog.profiling import ddup
-from ddtrace.profiling import _threading
-from ddtrace.profiling import collector
+from ddtrace.profiling._threading import get_thread_name
+from ddtrace.profiling._threading import get_thread_native_id
+from ddtrace.profiling.collector import CaptureSampler
+from ddtrace.profiling.collector import CaptureSamplerCollector
 from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _traceback
 from ddtrace.settings.profiling import config
@@ -22,7 +24,7 @@ from ddtrace.trace import Tracer
 def _current_thread():
     # type: (...) -> typing.Tuple[int, str]
     thread_id = _thread.get_ident()
-    return thread_id, _threading.get_thread_name(thread_id)
+    return thread_id, get_thread_name(thread_id)
 
 
 # We need to know if wrapt is compiled in C or not. If it's not using the C module, then the wrappers function will
@@ -45,7 +47,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
         wrapped: typing.Any,
         tracer: typing.Optional[Tracer],
         max_nframes: int,
-        capture_sampler: collector.CaptureSampler,
+        capture_sampler: CaptureSampler,
         endpoint_collection_enabled: bool,
     ) -> None:
         wrapt.ObjectProxy.__init__(self, wrapped)
@@ -88,7 +90,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
                 frames, _ = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
 
-                thread_native_id = _threading.get_thread_native_id(thread_id)
+                thread_native_id = get_thread_native_id(thread_id)
 
                 handle = ddup.SampleHandle()
                 handle.push_monotonic_ns(end)
@@ -146,7 +148,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
                 frames, _ = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
 
-                thread_native_id = _threading.get_thread_native_id(thread_id)
+                thread_native_id = get_thread_native_id(thread_id)
 
                 handle = ddup.SampleHandle()
                 handle.push_monotonic_ns(end)
@@ -227,7 +229,7 @@ class FunctionWrapper(wrapt.FunctionWrapper):
         return self
 
 
-class LockCollector(collector.CaptureSamplerCollector):
+class LockCollector(CaptureSamplerCollector):
     """Record lock usage."""
 
     def __init__(
