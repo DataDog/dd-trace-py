@@ -7,6 +7,7 @@ from json import JSONDecodeError
 import os
 import socket
 import typing as t
+from typing import TypedDict  # noqa:F401
 from uuid import uuid4
 
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
@@ -49,12 +50,6 @@ from ddtrace.internal.utils.http import get_connection
 from ddtrace.internal.utils.http import verify_url
 from ddtrace.internal.utils.time import StopWatch
 
-
-# TypedDict was added to typing in python 3.8
-try:
-    from typing import TypedDict  # noqa:F401
-except ImportError:
-    from typing_extensions import TypedDict
 
 log = get_logger(__name__)
 

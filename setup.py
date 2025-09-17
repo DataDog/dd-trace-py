@@ -356,9 +356,15 @@ class LibraryDownload:
                 # Darwin Universal2 should bundle both architectures
                 if target_platform and not target_platform.endswith(("universal2", arch)):
                     continue
-            elif CURRENT_OS == "Windows" and (not is_64_bit_python() != arch.endswith("32")):
-                # Win32 can be built on a 64-bit machine so build_platform may not be relevant
-                continue
+            elif CURRENT_OS == "Windows":
+                if arch == "win32" and is_64_bit_python():
+                    continue  # Skip 32-bit builds on 64-bit Python
+                elif arch in ["x64", "arm64"] and not is_64_bit_python():
+                    continue  # Skip 64-bit builds on 32-bit Python
+                elif arch == "arm64" and platform.machine().lower() not in ["arm64", "aarch64"]:
+                    continue  # Skip ARM64 builds on non-ARM64 machines
+                elif arch == "x64" and platform.machine().lower() not in ["amd64", "x86_64"]:
+                    continue  # Skip x64 builds on non-x64 machines
 
             arch_dir = download_dir / arch
 
@@ -444,7 +450,7 @@ class LibDDWafDownload(LibraryDownload):
     version = LIBDDWAF_VERSION
     url_root = "https://github.com/DataDog/libddwaf/releases/download"
     available_releases = {
-        "Windows": ["win32", "x64"],
+        "Windows": ["arm64", "win32", "x64"],
         "Darwin": ["arm64", "x86_64"],
         "Linux": ["aarch64", "x86_64"],
     }
@@ -677,9 +683,16 @@ class CustomBuildExt(build_ext):
 
         # platform/version-specific arguments--may go into cmake, build, or install as needed
         if CURRENT_OS == "Windows":
-            cmake_args += [
-                "-A{}".format("x64" if platform.architecture()[0] == "64bit" else "Win32"),
-            ]
+            arch = platform.machine().lower()
+            if arch in ("amd64", "x86_64"):
+                cmake_arch = "x64"
+            elif arch in ("x86", "i386", "i686"):
+                cmake_arch = "Win32"
+            elif arch == "arm64":
+                cmake_arch = "ARM64"
+            else:
+                raise RuntimeError(f"Unsupported architecture: {arch}")
+            cmake_args += [f"-A{cmake_arch}"]
         if CURRENT_OS == "Darwin":
             # Cross-compile support for macOS - respect ARCHFLAGS if set
             # Darwin Universal2 should bundle both architectures
