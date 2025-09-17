@@ -304,6 +304,7 @@ def verify_url(url: str) -> parse.ParseResult:
     Returns a parse.ParseResult.
     Raises a ``ValueError`` if the URL cannot be used as an intake
     """
+    log.warning("verify_url called with: %s", url)
     parsed = unpatched_urlparse(url)
     schemes = ("http", "https", "unix")
     if parsed.scheme not in schemes:
