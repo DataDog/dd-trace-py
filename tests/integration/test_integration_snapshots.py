@@ -4,7 +4,6 @@ import os
 import mock
 import pytest
 
-from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace.trace import tracer
 from tests.integration.utils import AGENT_VERSION
 from tests.utils import override_global_config
@@ -348,83 +347,65 @@ def test_encode_span_with_large_unicode_string_attributes(encoding):
             span.set_tag(key="å" * 25001, value="ä" * 2000)
 
 
-# @pytest.mark.parametrize("encoding", ["v0.4", "v0.5"])
-# @pytest.mark.snapshot()
-# def test_encode_span_with_large_postgres_query_resource(encoding):
-#     from ddtrace import tracer
-
-#     postgres_query = (
-#         "INSERT INTO table VALUES "
-#         '(\'x\' * 25001, \'{"top_left": {"x": 0.29411766, "y": 0.123786405}, '
-#         '"top_right": {"x": 0.38886696, "y": 0.123786405}, '
-#         '"bottom_right": {"x": 0.38886696, "y": 0.13288835}, '
-#         '"bottom_left": {"x": 0.29411766, "y": 0.13288835}}\'), '
-#         '(\'y\' * 25001, \'{"top_left": {"x": 0.12345678, "y": 0.23456789}, '
-#         '"top_right": {"x": 0.34567890, "y": 0.23456789}, '
-#         '"bottom_right": {"x": 0.34567890, "y": 0.45678901}, '
-#         '"bottom_left": {"x": 0.12345678, "y": 0.45678901}}\'), '
-#         '(\'z\' * 25001, \'{"top_left": {"x": 0.56789012, "y": 0.67890123}, '
-#         '"top_right": {"x": 0.78901234, "y": 0.67890123}, '
-#         '"bottom_right": {"x": 0.78901234, "y": 0.89012345}, '
-#         '"bottom_left": {"x": 0.56789012, "y": 0.89012345}}\'), '
-#         '(\'a\' * 25001, \'{"top_left": {"x": 0.11111111, "y": 0.22222222}, '
-#         '"top_right": {"x": 0.33333333, "y": 0.22222222}, '
-#         '"bottom_right": {"x": 0.33333333, "y": 0.44444444}, '
-#         '"bottom_left": {"x": 0.11111111, "y": 0.44444444}}\'), '
-#         '(\'b\' * 25001, \'{"top_left": {"x": 0.55555555, "y": 0.66666666}, '
-#         '"top_right": {"x": 0.77777777, "y": 0.66666666}, '
-#         '"bottom_right": {"x": 0.77777777, "y": 0.88888888}, '
-#         '"bottom_left": {"x": 0.55555555, "y": 0.88888888}}\'), '
-#         '(\'c\' * 25001, \'{"top_left": {"x": 0.99999999, "y": 0.10101010}, '
-#         '"top_right": {"x": 0.20202020, "y": 0.10101010}, '
-#         '"bottom_right": {"x": 0.20202020, "y": 0.30303030}, '
-#         '"bottom_left": {"x": 0.99999999, "y": 0.30303030}}\'), '
-#         '(\'d\' * 25001, \'{"top_left": {"x": 0.40404040, "y": 0.50505050}, '
-#         '"top_right": {"x": 0.60606060, "y": 0.50505050}, '
-#         '"bottom_right": {"x": 0.60606060, "y": 0.70707070}, '
-#         '"bottom_left": {"x": 0.40404040, "y": 0.70707070}}\'), '
-#         '(\'e\' * 25001, \'{"top_left": {"x": 0.80808080, "y": 0.90909090}, '
-#         '"top_right": {"x": 0.12121212, "y": 0.90909090}, '
-#         '"bottom_right": {"x": 0.12121212, "y": 0.13131313}, '
-#         '"bottom_left": {"x": 0.80808080, "y": 0.13131313}}\'), '
-#         '(\'f\' * 25001, \'{"top_left": {"x": 0.14141414, "y": 0.15151515}, '
-#         '"top_right": {"x": 0.16161616, "y": 0.15151515}, '
-#         '"bottom_right": {"x": 0.16161616, "y": 0.17171717}, '
-#         '"bottom_left": {"x": 0.14141414, "y": 0.17171717}}\'), '
-#         '(\'g\' * 25001, \'{"top_left": {"x": 0.18181818, "y": 0.19191919}, '
-#         '"top_right": {"x": 0.20202020, "y": 0.19191919}, '
-#         '"bottom_right": {"x": 0.20202020, "y": 0.21212121}, '
-#         '"bottom_left": {"x": 0.18181818, "y": 0.21212121}}\'), '
-#         '(\'h\' * 25001, \'{"top_left": {"x": 0.22222222, "y": 0.23232323}, '
-#         '"top_right": {"x": 0.24242424, "y": 0.23232323}, '
-#         '"bottom_right": {"x": 0.24242424, "y": 0.25252525}, '
-#         '"bottom_left": {"x": 0.22222222, "y": 0.25252525}}\'), '
-#         '(\'i\' * 25001, \'{"top_left": {"x": 0.26262626, "y": 0.27272727}, '
-#         '"top_right": {"x": 0.28282828, "y": 0.27272727}, '
-#         '"bottom_right": {"x": 0.28282828, "y": 0.29292929}, '
-#         '"bottom_left": {"x": 0.26262626, "y": 0.29292929}}\'), '
-#         '(\'j\' * 25001, \'{"top_left": {"x": 0.30303030, "y": 0.31313131}, '
-#         '"top_right": {"x": 0.32323232, "y": 0.31313131}, '
-#         '"bottom_right": {"x": 0.32323232, "y": 0.33333333}, '
-#         '"bottom_left": {"x": 0.30303030, "y": 0.33333333}}\')' * 10
-#     )
-
-
-#     with override_global_config(dict(_trace_api=encoding)):
-#         with tracer.trace(name="x" * 25000, resource=postgres_query) as span:
-#             span.set_tag(key="z" * 25001, value="w" * 2000)
-
-
 @pytest.mark.parametrize("encoding", ["v0.4", "v0.5"])
 @pytest.mark.snapshot()
-def test_large_bytes_resource_truncation(encoding):
-    """Test that large bytes resource names get truncated instead of causing runtime errors."""
-
-    large_bytes = b"x" * (MAX_SPAN_META_VALUE_LEN + 1000)
+def test_encode_span_with_large_postgres_query_resource(encoding):
+    postgres_query = (
+        "INSERT INTO table VALUES "
+        '(\'x\' * 25001, \'{"top_left": {"x": 0.29411766, "y": 0.123786405}, '
+        '"top_right": {"x": 0.38886696, "y": 0.123786405}, '
+        '"bottom_right": {"x": 0.38886696, "y": 0.13288835}, '
+        '"bottom_left": {"x": 0.29411766, "y": 0.13288835}}\'), '
+        '(\'y\' * 25001, \'{"top_left": {"x": 0.12345678, "y": 0.23456789}, '
+        '"top_right": {"x": 0.34567890, "y": 0.23456789}, '
+        '"bottom_right": {"x": 0.34567890, "y": 0.45678901}, '
+        '"bottom_left": {"x": 0.12345678, "y": 0.45678901}}\'), '
+        '(\'z\' * 25001, \'{"top_left": {"x": 0.56789012, "y": 0.67890123}, '
+        '"top_right": {"x": 0.78901234, "y": 0.67890123}, '
+        '"bottom_right": {"x": 0.78901234, "y": 0.89012345}, '
+        '"bottom_left": {"x": 0.56789012, "y": 0.89012345}}\'), '
+        '(\'a\' * 25001, \'{"top_left": {"x": 0.11111111, "y": 0.22222222}, '
+        '"top_right": {"x": 0.33333333, "y": 0.22222222}, '
+        '"bottom_right": {"x": 0.33333333, "y": 0.44444444}, '
+        '"bottom_left": {"x": 0.11111111, "y": 0.44444444}}\'), '
+        '(\'b\' * 25001, \'{"top_left": {"x": 0.55555555, "y": 0.66666666}, '
+        '"top_right": {"x": 0.77777777, "y": 0.66666666}, '
+        '"bottom_right": {"x": 0.77777777, "y": 0.88888888}, '
+        '"bottom_left": {"x": 0.55555555, "y": 0.88888888}}\'), '
+        '(\'c\' * 25001, \'{"top_left": {"x": 0.99999999, "y": 0.10101010}, '
+        '"top_right": {"x": 0.20202020, "y": 0.10101010}, '
+        '"bottom_right": {"x": 0.20202020, "y": 0.30303030}, '
+        '"bottom_left": {"x": 0.99999999, "y": 0.30303030}}\'), '
+        '(\'d\' * 25001, \'{"top_left": {"x": 0.40404040, "y": 0.50505050}, '
+        '"top_right": {"x": 0.60606060, "y": 0.50505050}, '
+        '"bottom_right": {"x": 0.60606060, "y": 0.70707070}, '
+        '"bottom_left": {"x": 0.40404040, "y": 0.70707070}}\'), '
+        '(\'e\' * 25001, \'{"top_left": {"x": 0.80808080, "y": 0.90909090}, '
+        '"top_right": {"x": 0.12121212, "y": 0.90909090}, '
+        '"bottom_right": {"x": 0.12121212, "y": 0.13131313}, '
+        '"bottom_left": {"x": 0.80808080, "y": 0.13131313}}\'), '
+        '(\'f\' * 25001, \'{"top_left": {"x": 0.14141414, "y": 0.15151515}, '
+        '"top_right": {"x": 0.16161616, "y": 0.15151515}, '
+        '"bottom_right": {"x": 0.16161616, "y": 0.17171717}, '
+        '"bottom_left": {"x": 0.14141414, "y": 0.17171717}}\'), '
+        '(\'g\' * 25001, \'{"top_left": {"x": 0.18181818, "y": 0.19191919}, '
+        '"top_right": {"x": 0.20202020, "y": 0.19191919}, '
+        '"bottom_right": {"x": 0.20202020, "y": 0.21212121}, '
+        '"bottom_left": {"x": 0.18181818, "y": 0.21212121}}\'), '
+        '(\'h\' * 25001, \'{"top_left": {"x": 0.22222222, "y": 0.23232323}, '
+        '"top_right": {"x": 0.24242424, "y": 0.23232323}, '
+        '"bottom_right": {"x": 0.24242424, "y": 0.25252525}, '
+        '"bottom_left": {"x": 0.22222222, "y": 0.25252525}}\'), '
+        '(\'i\' * 25001, \'{"top_left": {"x": 0.26262626, "y": 0.27272727}, '
+        '"top_right": {"x": 0.28282828, "y": 0.27272727}, '
+        '"bottom_right": {"x": 0.28282828, "y": 0.29292929}, '
+        '"bottom_left": {"x": 0.26262626, "y": 0.29292929}}\'), '
+        '(\'j\' * 25001, \'{"top_left": {"x": 0.30303030, "y": 0.31313131}, '
+        '"top_right": {"x": 0.32323232, "y": 0.31313131}, '
+        '"bottom_right": {"x": 0.32323232, "y": 0.33333333}, '
+        '"bottom_left": {"x": 0.30303030, "y": 0.33333333}}\')' * 10
+    )
 
     with override_global_config(dict(_trace_api=encoding)):
-        with tracer.trace(name="test", resource=large_bytes) as span:
-            # This should not raise an error - the span should be truncated during encoding
-            pass
-
-    assert span.resource is not None
+        with tracer.trace(name="x" * 100, resource=postgres_query.encode("utf-8")) as span:
+            span.set_tag(key="z" * 100, value="w" * 2000)
