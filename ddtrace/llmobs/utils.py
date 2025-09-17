@@ -1,7 +1,6 @@
 from typing import Any
 from typing import Dict
 from typing import List
-from typing import Optional
 from typing import TypedDict  # noqa:F401
 from typing import Union
 
@@ -167,14 +166,14 @@ class Prompt(TypedDict, total=False):
         rag_query_variables: List[str] - a list of variable key names that contains query information
     """
 
-    version: Optional[str]
-    id: Optional[str]
-    template: Optional[str]
-    chat_template: Optional[Union[List[Dict[str, str]], List[Message]]]
-    variables: Optional[Dict[str, str]]
-    tags: Optional[Dict[str, str]]
-    rag_context_variables: Optional[List[str]]
-    rag_query_variables: Optional[List[str]]
+    version: str
+    id: str
+    template: str
+    chat_template: Union[List[Dict[str, str]], List[Message]]
+    variables: Dict[str, str]
+    tags: Dict[str, str]
+    rag_context_variables: List[str]
+    rag_query_variables: List[str]
 
 
 class Messages:
