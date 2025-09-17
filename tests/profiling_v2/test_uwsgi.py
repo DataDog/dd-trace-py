@@ -173,21 +173,30 @@ def test_uwsgi_threads_processes_no_primary_lazy_apps(uwsgi, tmp_path, monkeypat
         assert len(samples) > 0
 
 
+@pytest.mark.parametrize("lazy_flag", ["--lazy-apps", "--lazy"])
 @pytest.mark.skipif(
     tuple(int(x) for x in version("uwsgi").split(".")) >= (2, 0, 30),
     reason="uwsgi>=2.0.30 does not require --skip-atexit",
 )
-def test_uwsgi_require_skip_atexit_when_lazy(uwsgi):
+def test_uwsgi_require_skip_atexit_when_lazy_with_master(uwsgi, lazy_flag):
     expected_warning = b"ddtrace.internal.uwsgi.uWSGIConfigDeprecationWarning: skip-atexit option must be set"
 
-    proc = uwsgi("--enable-threads", "--master", "--processes", "2", "--lazy-apps")
+    proc = uwsgi("--enable-threads", "--master", "--processes", "2", lazy_flag)
     time.sleep(1)
     proc.terminate()
     stdout, _ = proc.communicate()
     assert expected_warning in stdout
 
+
+@pytest.mark.parametrize("lazy_flag", ["--lazy-apps", "--lazy"])
+@pytest.mark.skipif(
+    tuple(int(x) for x in version("uwsgi").split(".")) >= (2, 0, 30),
+    reason="uwsgi>=2.0.30 does not require --skip-atexit",
+)
+def test_uwsgi_require_skip_atexit_when_lazy_without_master(uwsgi, lazy_flag):
+    expected_warning = b"ddtrace.internal.uwsgi.uWSGIConfigDeprecationWarning: skip-atexit option must be set"
     num_workers = 2
-    proc = uwsgi("--enable-threads", "--processes", str(num_workers), "--lazy-apps")
+    proc = uwsgi("--enable-threads", "--processes", str(num_workers), lazy_flag)
 
     worker_pids = []
     logged_warning = 0
