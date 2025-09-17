@@ -91,7 +91,6 @@ class DatadogSampler:
         rate_limit: Optional[int] = None,
         rate_limit_window: float = 1e9,
         rate_limit_always_on: bool = False,
-        agent_based_samplers: Optional[Dict[str, RateSampler]] = None,
     ):
         """
         Constructor for DatadogSampler sampler
@@ -102,8 +101,6 @@ class DatadogSampler:
         :param rate_limit_window: The time window in nanoseconds for the rate limit, default is 1 second
         :param rate_limit_always_on: If set to `True`, the rate limit is always applied, even if no sampling rules
             are provided.
-        :param agent_based_samplers: A dictionary of service-based samplers, mapping a key in the format
-            `service:<service>,env:<env>` to a :class:`RateSampler` instance.
         """
         # Set sampling rules
         global_sampling_rules = config._trace_sampling_rules
@@ -112,7 +109,7 @@ class DatadogSampler:
         else:
             self.rules: List[SamplingRule] = rules or []
         # Set Agent based samplers
-        self._agent_based_samplers = agent_based_samplers or {}
+        self._agent_based_samplers: Dict = {}
         # Set rate limiter
         self._rate_limit_always_on: bool = rate_limit_always_on
         if rate_limit is None:

@@ -2,14 +2,8 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import TypedDict  # noqa:F401
 from typing import Union
-
-
-# TypedDict was added to typing in python 3.8
-try:
-    from typing import TypedDict  # noqa:F401
-except ImportError:
-    from typing_extensions import TypedDict
 
 from ddtrace.internal.logger import get_logger
 
