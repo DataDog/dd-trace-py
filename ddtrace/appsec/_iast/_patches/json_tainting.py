@@ -1,10 +1,10 @@
 from typing import Text
 
+from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
 from ..._constants import IAST
-from .._iast_request_context_base import is_iast_request_enabled
 from .._patch_modules import WrapFunctonsForIAST
 
 

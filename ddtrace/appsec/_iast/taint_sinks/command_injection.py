@@ -3,6 +3,7 @@ from typing import Union
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
+from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec._iast._span_metrics import increment_iast_span_metric
@@ -13,7 +14,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.settings.asm import config as asm_config
 
-from .._iast_request_context_base import is_iast_request_enabled
 from .._logs import iast_error
 from .._logs import iast_propagation_sink_point_debug_log
 from ._base import VulnerabilityBase
