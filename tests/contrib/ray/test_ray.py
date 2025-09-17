@@ -50,6 +50,7 @@ RAY_SNAPSHOT_IGNORES = [
     "meta.ray.job.message",
     "meta.error.stack",
     "meta._dd.base_service",
+    "meta._dd.hostname",
     # Actor method empty arguments are encoded differently between ray versions
     "meta.ray.actor_method.args",
     # Service names that include dynamic submission IDs
@@ -129,6 +130,10 @@ class TestRayIntegration(TracerTestCase):
     def test_error_in_task(self):
         with pytest.raises(subprocess.CalledProcessError):
             submit_ray_job("jobs/error_in_task.py")
+
+    @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_simple_put", ignores=RAY_SNAPSHOT_IGNORES)
+    def test_simple_put(self):
+        submit_ray_job("jobs/simple_put.py")
 
     @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_simple_wait", ignores=RAY_SNAPSHOT_IGNORES)
     def test_simple_wait(self):

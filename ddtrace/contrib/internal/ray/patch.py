@@ -3,6 +3,7 @@ from functools import wraps
 import inspect
 import os
 import socket
+import sys
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -249,6 +250,31 @@ def traced_actor_method_call(wrapped, instance, args, kwargs):
             raise e
 
 
+def traced_put(wrapped, instance, args, kwargs):
+    """
+    Trace the calls of ray.put
+    """
+    if not tracer:
+        return wrapped(*args, **kwargs)
+
+    if tracer.current_span() is None:
+        tracer.context_provider.activate(_extract_tracing_context_from_env())
+
+    with tracer.trace("ray.put", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.RAY) as span:
+        span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+        _inject_ray_span_tags(span)
+        if "value" in kwargs:
+            put_value = kwargs.get("value")
+        elif args:
+            put_value = args[0]
+        else:
+            put_value = None
+        if put_value is not None:
+            span.set_tag_str("ray.put.value_type", str(type(put_value).__name__))
+            span.set_tag_str("ray.put.value_size_bytes", str(sys.getsizeof(put_value)))
+        return wrapped(*args, **kwargs)
+
+
 def traced_wait(wrapped, instance, args, kwargs):
     """
     Trace the calls of ray.wait
@@ -465,6 +491,7 @@ def patch():
 
     _w(ray.actor, "_modify_class", inject_tracing_into_actor_class)
     _w(ray.actor.ActorHandle, "_actor_method_call", traced_actor_method_call)
+    _w(ray, "put", traced_put)
     _w(ray, "wait", traced_wait)
 
 
@@ -485,4 +512,5 @@ def unpatch():
 
     _u(ray.actor, "_modify_class")
     _u(ray.actor.ActorHandle, "_actor_method_call")
+    _u(ray, "put")
     _u(ray, "wait")
