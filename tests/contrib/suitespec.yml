@@ -348,7 +348,7 @@ suites:
     runner: riot
     snapshot: true
   azure_functions:
-    parallelism: 2
+    parallelism: 4
     paths:
       - '@bootstrap'
       - '@core'
@@ -362,7 +362,7 @@ suites:
     services:
       - azurite
   azure_servicebus:
-    parallelism: 1
+    parallelism: 4
     paths:
       - '@bootstrap'
       - '@core'
