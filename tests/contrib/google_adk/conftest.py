@@ -1,5 +1,9 @@
 import os
+from unittest.mock import MagicMock
 
+from google.adk.agents.invocation_context import InvocationContext
+from google.adk.sessions.base_session_service import BaseSessionService
+from google.adk.sessions.session import Session
 import pytest
 
 from ddtrace._trace.pin import Pin
@@ -150,3 +154,16 @@ async def test_runner(adk, mock_tracer):
     # Ensure the mock tracer is attached to the runner
     Pin()._override(runner, tracer=mock_tracer)
     return runner
+
+
+@pytest.fixture
+def mock_invocation_context(test_runner) -> InvocationContext:
+    """Provides a mock InvocationContext."""
+    mock_session = MagicMock(spec=Session)
+    mock_session_service = MagicMock(spec=BaseSessionService)
+    return InvocationContext(
+        invocation_id="test_invocation",
+        agent=test_runner.agent,
+        session=mock_session,
+        session_service=mock_session_service,
+    )

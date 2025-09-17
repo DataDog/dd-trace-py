@@ -1,3 +1,5 @@
+from google.adk.code_executors.code_execution_utils import CodeExecutionInput
+from google.adk.code_executors.unsafe_local_code_executor import UnsafeLocalCodeExecutor
 import pytest
 
 from tests.contrib.google_adk.app import create_test_message
@@ -162,48 +164,41 @@ async def test_agent_with_tool_calculation(test_runner, mock_tracer, request_vcr
     assert tool_span.get_tag("component") == "google-adk"
 
 
-@pytest.mark.asyncio
-async def test_code_execution_only(test_runner, mock_tracer, request_vcr):
-    """Test code execution in isolation."""
-    message = create_test_message(
-        "Execute this calculation using Python code:\n"
-        "```python\n"
-        "result = 15 + 25\n"
-        "print(f'Answer: {result}')\n"
-        "```"
-    )
-
-    with request_vcr.use_cassette("agent_code_execution.yaml"):
-        try:
-            output = ""
-            async for event in test_runner.run_async(
-                user_id="test-user",
-                session_id="test-session",
-                new_message=message,
-            ):
-                print(f"Event: {type(event)}, Content: {event.content is not None}")
-                if event.content is not None:
-                    print(f"Parts: {len(event.content.parts) if event.content.parts else 0}")
-                    for i, part in enumerate(event.content.parts):
-                        if hasattr(part, "text") and part.text:
-                            print(f"Text: {part.text[:100]}...")
-                            output += part.text + "\n"
-                        if hasattr(part, "function_response"):
-                            print(f"Function response: {part.function_response}")
-                break  # Just look at first event for debugging
-        except Exception as e:
-            print(f"Exception: {e}")
-            pass
-
-    print(f"Final output: '{output}'")
+def test_execute_code_creates_span(mock_invocation_context, mock_tracer):
+    """Test that a span is created when code is executed."""
+    executor = UnsafeLocalCodeExecutor()
+    code_input = CodeExecutionInput(code='print("hello world")')
+    executor.execute_code(mock_invocation_context, code_input)
 
     traces = mock_tracer.pop_traces()
     spans = [s for t in traces for s in t]
-    print(f"Spans found: {[s.name + ' - ' + s.resource for s in spans]}")
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "google_adk.request"
+    assert span.resource == "UnsafeLocalCodeExecutor.execute_code"
+    assert span.get_tag("component") == "google-adk"
+    assert span.get_tag("google_adk.request.provider") == "Gemini"
+    assert span.get_tag("google_adk.request.model") == "gemini-2.5-pro"
+    assert span.error == 0
 
-    # Look for code execution spans
-    code_spans = [s for s in spans if "execute_code" in s.resource or "code" in s.resource.lower()]
-    print(f"Code execution spans: {[s.resource for s in code_spans]}")
+
+def test_execute_code_with_error_creates_span(mock_invocation_context, mock_tracer):
+    """Test that a span is created with error tags when code execution fails."""
+    executor = UnsafeLocalCodeExecutor()
+    code_input = CodeExecutionInput(code='raise ValueError("Test error")')
+    executor.execute_code(mock_invocation_context, code_input)
+
+    traces = mock_tracer.pop_traces()
+    spans = [s for t in traces for s in t]
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "google_adk.request"
+    assert span.resource == "UnsafeLocalCodeExecutor.execute_code"
+    assert span.get_tag("component") == "google-adk"
+    assert span.get_tag("google_adk.request.provider") == "Gemini"
+    assert span.get_tag("google_adk.request.model") == "gemini-2.5-pro"
+    # we don't set error tags for code execution failures
+    assert span.error == 0
 
 
 @pytest.mark.asyncio
