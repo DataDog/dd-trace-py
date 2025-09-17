@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    performance: Batch all telemetry requests within a single heartbeat interval, reducing network requests by 95% (from ~20 to 1 per minute per process).
