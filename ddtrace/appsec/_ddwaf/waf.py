@@ -98,10 +98,15 @@ class DDWaf(WAF):
         for key, value in info_struct.items():
             if isinstance(value, dict):
                 if value.get("error", False):
-                    self.report_error(f"appsec.waf.error::{action}::{key}::{value['error']}", self._cached_version)
+                    self.report_error(
+                        f"appsec.waf.error::{action}::{key}::{value['error']}", self._cached_version, action
+                    )
                 elif value.get("errors", False):
                     self.report_error(
-                        f"appsec.waf.error::{action}::{key}::{str(value['errors'])}", self._cached_version, False
+                        f"appsec.waf.error::{action}::{key}::{str(value['errors'])}",
+                        self._cached_version,
+                        action,
+                        False,
                     )
         self._info = DDWaf_info(
             len(rules.get("loaded", [])),
