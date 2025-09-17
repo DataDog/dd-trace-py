@@ -601,7 +601,7 @@ def test_update_dependencies_event_when_disabled(test_agent_session, ddtrace_run
     # Import httppretty after ddtrace is imported, this ensures that the module is sent in a dependencies event
     # Imports httpretty twice and ensures only one dependency entry is sent
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess("import xmltodict", env=env)
-    events = test_agent_session.get_events("app-dependencies-loaded", subprocess=True)
+    events = test_agent_session.get_events("app-dependencies-loaded")
     assert len(events) == 0, events
 
 
@@ -1026,7 +1026,7 @@ def test_add_integration_error_log_with_log_collection_disabled(mock_time, telem
             telemetry_writer.add_integration_error_log("Test error message", e)
             telemetry_writer.periodic(force_flush=True)
 
-            log_events = test_agent_session.get_events("logs", subprocess=True)
+            log_events = test_agent_session.get_events("logs")
             assert len(log_events) == 0
     finally:
         telemetry_config.LOG_COLLECTION_ENABLED = original_value
