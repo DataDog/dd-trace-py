@@ -1,5 +1,5 @@
+import os
 import re
-import subprocess
 from urllib import parse
 
 
@@ -56,15 +56,22 @@ def normalize_repository_url(url):
 
 
 def _query_git(args):
+    import subprocess  # don't import subprocess (and maybe activate the integration) if not needed
     ver = subprocess.Popen(["git"] + args, stdout=subprocess.PIPE).communicate()[0]
     return ver.strip().decode("utf-8")
 
 
 def get_commit_sha():
+    commit_sha = os.environ.get("DD_GIT_COMMIT_SHA")
+    if commit_sha:
+        return commit_sha
     return _query_git(["rev-parse", "HEAD"])
 
 
 def get_repository_url():
+    repository_url = os.environ.get("DD_GIT_REPOSITORY_URL")
+    if repository_url:
+        return repository_url
     return _query_git(["config", "--get", "remote.origin.url"])
 
 
