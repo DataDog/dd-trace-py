@@ -147,14 +147,17 @@ class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
         self._collector._tracks = {t: ut.queue for t, ut in self._tracks.items()}
 
     def _flush_track(self, track: UploaderTrack) -> None:
-        queue = track.queue
-        payload = queue.flush()
-        if payload is not None:
-            try:
-                self._write_with_backoff(payload, track.endpoint)
-                meter.distribution("batch.cardinality", queue.count)
-            except Exception:
-                log.debug("Cannot upload logs payload", exc_info=True)
+        data = track.queue.flush()
+        if data is None:
+            return
+
+        payload, count = data
+        try:
+            log.debug("Flushing track %s with %d encoded items", track.endpoint, count)
+            self._write_with_backoff(payload, track.endpoint)
+            meter.distribution("batch.cardinality", count)
+        except Exception:
+            log.debug("Cannot upload logs payload", exc_info=True)
 
     def periodic(self) -> None:
         """Upload the buffer content to the logs intake."""
