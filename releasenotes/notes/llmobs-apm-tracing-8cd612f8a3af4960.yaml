@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: fix DD_APM_TRACING_ENABLED flag not disabling APM when using LLM Observability.
