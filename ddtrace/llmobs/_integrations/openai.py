@@ -132,7 +132,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         embedding_inputs = kwargs.get("input", "")
         if isinstance(embedding_inputs, str) or isinstance(embedding_inputs[0], int):
             embedding_inputs = [embedding_inputs]
-        input_documents = []
+        input_documents: List[Document] = []
         for doc in embedding_inputs:
             input_documents.append(Document(text=str(doc)))
         span._set_ctx_items({METADATA: metadata, INPUT_DOCUMENTS: input_documents})

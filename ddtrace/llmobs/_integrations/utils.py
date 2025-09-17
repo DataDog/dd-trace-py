@@ -281,7 +281,7 @@ def get_messages_from_converse_content(role: str, content: List[Dict[str, Any]])
         else:
             content_type = ",".join(content_block.keys())
             unsupported_content_messages.append(
-                {"content": "[Unsupported content type: {}]".format(content_type), "role": role}
+                Message(content="[Unsupported content type: {}]".format(content_type), role=role)
             )
     message: Message = {}
     if tool_calls_info:
@@ -322,7 +322,7 @@ def openai_set_meta_tags_from_chat(
     span: Span, kwargs: Dict[str, Any], messages: Optional[Any], integration_name: str = "openai"
 ) -> None:
     """Extract prompt/response tags from a chat completion and set them as temporary "_ml_obs.meta.*" tags."""
-    input_messages = []
+    input_messages: List[Message] = []
     for m in kwargs.get("messages", []):
         content = str(_get_attr(m, "content", ""))
         role = str(_get_attr(m, "role", ""))
@@ -634,7 +634,7 @@ def _openai_parse_input_response_messages(
     return processed, tool_call_ids
 
 
-def openai_get_output_messages_from_response(response: Optional[Any]) -> List[Dict[str, Any]]:
+def openai_get_output_messages_from_response(response: Optional[Any]) -> List[Message]:
     """
     Parses the output to openai responses api into a list of output messages
 
@@ -765,7 +765,7 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], respo
     metadata = span._get_ctx_item(METADATA) or {}
     metadata.update(openai_get_metadata_from_response(response))
     span._set_ctx_item(METADATA, metadata)
-    output_messages = openai_get_output_messages_from_response(response)
+    output_messages: List[Message] = openai_get_output_messages_from_response(response)
     span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
     tools = _openai_get_tool_definitions(kwargs.get("tools") or [])
     if tools:
