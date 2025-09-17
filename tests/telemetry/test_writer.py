@@ -91,9 +91,9 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
     """asserts that app_started() queues a valid telemetry request which is then sent by periodic()"""
     with override_global_config(dict(_telemetry_dependency_collection=False)):
         # queue an app started event
-        event = telemetry_writer._app_started()
-        assert event is not None, "app_started() did not return an event"
-        telemetry_writer.add_event(event["payload"], "app-started")
+        app_started_payload = telemetry_writer._app_started_payload()
+        assert app_started_payload is not None, "app_started() did not return an event"
+        telemetry_writer.add_event(app_started_payload, "app-started")
         # force a flush
         telemetry_writer.periodic(force_flush=True)
 
@@ -776,42 +776,43 @@ def test_app_product_change_event(mock_time, telemetry_writer, test_agent_sessio
 
     # Assert that the default product status is disabled
     assert any(telemetry_writer._product_enablement.values()) is False
-
+    # Assert that the product status is first reported in app-started event
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, True)
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION, True)
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, True)
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, True)
-    assert all(telemetry_writer._product_enablement.values())
-
     telemetry_writer.periodic(force_flush=True)
-
-    # Assert that there's only an app_started event (since product activation happened before the app started)
+    events = test_agent_session.get_events("app-started")
+    assert len(events) == 1
+    products = events[0]["payload"]["products"]
+    version = _pep440_to_semver()
+    assert products == {
+        TELEMETRY_APM_PRODUCT.APPSEC.value: {"enabled": True, "version": version},
+        TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION.value: {"enabled": True, "version": version},
+        TELEMETRY_APM_PRODUCT.LLMOBS.value: {"enabled": True, "version": version},
+        TELEMETRY_APM_PRODUCT.PROFILER.value: {"enabled": True, "version": version},
+    }
+    # Assert that product change event is not sent, products should be first reported in app-started
     events = test_agent_session.get_events("app-product-change")
     telemetry_writer.periodic(force_flush=True)
     assert not len(events)
-
     # Assert that unchanged status doesn't generate the event
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, True)
     telemetry_writer.periodic(force_flush=True)
     events = test_agent_session.get_events("app-product-change")
     assert not len(events)
-
-    # Assert that a single event is generated
+    # Assert that product change event is sent when product status changes
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, False)
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION, False)
     telemetry_writer.periodic(force_flush=True)
     events = test_agent_session.get_events("app-product-change")
     assert len(events) == 1
-
-    # Assert that payload is as expected
     assert events[0]["request_type"] == "app-product-change"
     products = events[0]["payload"]["products"]
     version = _pep440_to_semver()
     assert products == {
         TELEMETRY_APM_PRODUCT.APPSEC.value: {"enabled": False, "version": version},
         TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION.value: {"enabled": False, "version": version},
-        TELEMETRY_APM_PRODUCT.LLMOBS.value: {"enabled": True, "version": version},
-        TELEMETRY_APM_PRODUCT.PROFILER.value: {"enabled": True, "version": version},
     }
 
 
