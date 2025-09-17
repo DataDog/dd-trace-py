@@ -42,7 +42,13 @@ impl PyConfigurator {
             &ProcessInfo::detect_global("python".to_string()),
         );
         match res_config {
-            datadog_library_config::LoggedResult::Ok(config, _logs) => {
+            datadog_library_config::LoggedResult::Ok(config, logs) => {
+                // Previously, `libdatadog` printed debug logs to stderr. However,
+                // in v21.0.0, we changed the behavior to buffer them and return
+                // them in the logs returned by this `LoggedResult`.
+                for log_msg in logs.iter() {
+                    eprintln!("{}", log_msg);
+                }
                 let list = PyList::empty(py);
                 for c in config.iter() {
                     let dict = PyDict::new(py);
