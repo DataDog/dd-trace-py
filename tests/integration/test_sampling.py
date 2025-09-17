@@ -371,9 +371,6 @@ def test_rate_limiter_on_long_running_spans(tracer):
 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
-@pytest.mark.xfail(
-    USING_NATIVE_WRITER, reason="Native writer does not drop traces when client stats computation is enabled"
-)
 @pytest.mark.snapshot()
 @pytest.mark.subprocess(
     env={
@@ -387,9 +384,14 @@ def test_single_span_and_trace_sampling_match_non_root_span():
     """Validates that a single span sampling rule applied to a non-root span does not
     override the trace sampling decision.
     """
-    # FIXME: When stats computation is enabled the native writer does not drop unsampled spans and does not
-    # send stats to the testagent (and maybe even the real datadog agent).
+    from ddtrace import config
     from ddtrace.trace import tracer
+
+    # NativeWriter needs to fetch agent info before client-side stats can be enabled
+    if config._trace_compute_stats and config._trace_writer_native:
+        import time
+
+        time.sleep(1)
 
     with tracer.trace("non_monkey") as root:
         with tracer.trace("monkey", resource="non_root_span") as span2:
@@ -412,7 +414,6 @@ def test_single_span_and_trace_sampling_match_non_root_span():
 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
-@pytest.mark.xfail(USING_NATIVE_WRITER, reason="Native writer does not drop traces when partial flushing is enabled")
 @pytest.mark.snapshot()
 @pytest.mark.subprocess(
     env={
@@ -423,13 +424,18 @@ def test_single_span_and_trace_sampling_match_non_root_span():
     },
     parametrize={"DD_TRACE_COMPUTE_STATS": ["false", "true"]},
 )
-def test_single_span_and_trace_sampling_match_root_span_paritial_flushing():
+def test_single_span_and_trace_sampling_match_root_span_partial_flushing():
     """Validates that a single span sampling rule applied to a root span does not
     override the trace sampling decision, even when traces are partially flushed.
     """
-    # FIXME: When stats computation is enabled the native writer does not drop unsampled spans and does not
-    # send stats to the testagent (and maybe even the real datadog agent).
+    from ddtrace import config
     from ddtrace.trace import tracer
+
+    # NativeWriter needs to fetch agent info before client-side stats can be enabled
+    if config._trace_writer_native:
+        import time
+
+        time.sleep(1)
 
     with tracer.trace("monkey") as root:
         with tracer.trace("non_monkey") as span2:

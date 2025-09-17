@@ -8,6 +8,7 @@ from ddtrace._trace.pin import Pin
 from ddtrace.appsec._iast import enable_iast_propagation
 from ddtrace.appsec._iast import load_iast
 from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_free_slots_number
 from ddtrace.appsec._iast.main import patch_iast
 from ddtrace.contrib.internal.django.patch import patch as django_patch
 from ddtrace.contrib.internal.requests.patch import patch as requests_patch
@@ -89,6 +90,7 @@ def iast_span(tracer):
     ):
         oce.reconfigure()
         container = TracerSpanContainer(tracer)
+        assert debug_context_array_free_slots_number() > 0
         yield container
         container.reset()
 

@@ -671,7 +671,7 @@ integrations:
   tested_versions_by_dependency:
     pydantic-ai-slim:
       min: 0.3.0
-      max: 0.4.4
+      max: 1.0.1
 
 - integration_name: pylibmc
   is_external_package: true
@@ -701,7 +701,7 @@ integrations:
   tested_versions_by_dependency:
     pymongo:
       min: 3.8.0
-      max: 4.13.2
+      max: 4.15.0
 
 - integration_name: pymysql
   is_external_package: true
