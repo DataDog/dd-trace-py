@@ -177,16 +177,33 @@ def test_uwsgi_threads_processes_no_primary_lazy_apps(uwsgi, tmp_path, monkeypat
     tuple(int(x) for x in version("uwsgi").split(".")) >= (2, 0, 30),
     reason="uwsgi>=2.0.30 does not require --skip-atexit",
 )
-def test_uwsgi_require_skip_atexit_when_lazy(uwsgi, tmp_path, monkeypatch):
-    filename = str(tmp_path / "uwsgi.pprof")
-    monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
-    monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "1")
-    proc = uwsgi("--enable-threads", "--processes", "2", "--lazy-apps")
-    stdout, _ = proc.communicate()
-    assert proc.wait() != 0
-    assert b"skip-atexit option must be set" in stdout
+def test_uwsgi_require_skip_atexit_when_lazy(uwsgi):
+    expected_warning = b"ddtrace.internal.uwsgi.uWSGIConfigDeprecationWarning: skip-atexit option must be set"
 
-    proc = uwsgi("--enable-threads", "--processes", "2", "--lazy")
+    proc = uwsgi("--enable-threads", "--master", "--processes", "2", "--lazy-apps")
+    time.sleep(1)
+    proc.terminate()
     stdout, _ = proc.communicate()
-    assert proc.wait() != 0
-    assert b"skip-atexit option must be set" in stdout
+    assert expected_warning in stdout
+
+    num_workers = 2
+    proc = uwsgi("--enable-threads", "--processes", str(num_workers), "--lazy-apps")
+
+    worker_pids = []
+    logged_warning = 0
+    while True:
+        line = proc.stdout.readline()
+        if line == b"":
+            break
+        if expected_warning in line:
+            logged_warning += 1
+        else:
+            m = re.match(r"^spawned uWSGI worker \d+ .*\(pid: (\d+),", line.decode())
+            if m:
+                worker_pids.append(int(m.group(1)))
+
+        if logged_warning == num_workers:
+            break
+
+    for pid in worker_pids:
+        os.kill(pid, signal.SIGTERM)
