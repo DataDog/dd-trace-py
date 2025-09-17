@@ -232,6 +232,12 @@ class TraceExporterBuilder:
         :param version: The version string of the application.
         """
         ...
+    def set_service(self, service: str) -> TraceExporterBuilder:
+        """
+        Set the service name of the TraceExporter.
+        :param version: The version string of the application.
+        """
+        ...
     def set_git_commit_sha(self, git_commit_sha: str) -> TraceExporterBuilder:
         """
         Set the git commit sha of the TraceExporter.

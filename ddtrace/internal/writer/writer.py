@@ -17,6 +17,7 @@ import ddtrace
 from ddtrace import config
 import ddtrace.internal.native as native
 from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.utils.http
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.settings._agent import config as agent_config
@@ -796,6 +797,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         builder = (
             native.TraceExporterBuilder()
             .set_url(self.intake_url)
+            .set_hostname(get_hostname())
             .set_language("python")
             .set_language_version(compat.PYTHON_VERSION)
             .set_language_interpreter(compat.PYTHON_INTERPRETER)
@@ -805,6 +807,12 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             .set_input_format(self._api_version)
             .set_output_format(self._api_version)
         )
+        if config.service:
+            builder.set_service(config.service)
+        if config.env:
+            builder.set_env(config.env)
+        if config.version:
+            builder.set_app_version(config.version)
         if self._test_session_token is not None:
             builder.set_test_session_token(self._test_session_token)
         if self._stats_opt_out:
