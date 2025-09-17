@@ -26,7 +26,6 @@ from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
 from ddtrace.contrib.internal.trace_utils import _set_url_tag
 from ddtrace.ext import SpanKind
-from ddtrace.ext import azure_servicebus as azure_servicebusx
 from ddtrace.ext import db
 from ddtrace.ext import http
 from ddtrace.ext import net
@@ -904,40 +903,40 @@ def _on_azure_functions_trigger_span_modifier(ctx, azure_functions_config, funct
     _set_azure_function_tags(span, azure_functions_config, function_name, trigger, span_kind)
 
 
-def _on_azure_functions_service_bus_trigger_span_modifier(
+def _on_azure_functions_message_trigger_span_modifier(
     ctx,
     azure_functions_config,
     function_name,
     trigger,
     span_kind,
+    operation,
+    system,
     entity_name,
     fully_qualified_namespace,
-    message_id=None,
-    batch_count=None,
+    message_id,
+    batch_count,
 ):
     span = ctx.span
     _set_azure_function_tags(span, azure_functions_config, function_name, trigger, span_kind)
     _set_azure_messaging_tags(
         ctx,
         entity_name,
-        azure_servicebusx.RECEIVE,
-        azure_servicebusx.SERVICE,
+        operation,
+        system,
         fully_qualified_namespace,
         message_id,
         batch_count,
     )
 
 
-def _on_azure_servicebus_message_modifier(
-    ctx, azure_servicebus_config, operation, entity_name, fully_qualified_namespace, message_id, batch_count
+def _on_azure_message_modifier(
+    ctx, azure_config, operation, system, entity_name, fully_qualified_namespace, message_id, batch_count
 ):
     span = ctx.span
-    span.set_tag_str(COMPONENT, azure_servicebus_config.integration_name)
+    span.set_tag_str(COMPONENT, azure_config.integration_name)
     span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
 
-    _set_azure_messaging_tags(
-        ctx, entity_name, operation, azure_servicebusx.SERVICE, fully_qualified_namespace, message_id, batch_count
-    )
+    _set_azure_messaging_tags(ctx, entity_name, operation, system, fully_qualified_namespace, message_id, batch_count)
 
 
 def _on_router_match(route):
@@ -1005,11 +1004,13 @@ def listen():
     core.on("redis.execute_pipeline", _on_redis_execute_pipeline)
     core.on("valkey.async_command.post", _on_valkey_command_post)
     core.on("valkey.command.post", _on_valkey_command_post)
+    core.on("azure.eventhubs.message_modifier", _on_azure_message_modifier)
+    core.on("azure.functions.event_hubs_trigger_modifier", _on_azure_functions_message_trigger_span_modifier)
     core.on("azure.functions.request_call_modifier", _on_azure_functions_request_span_modifier)
     core.on("azure.functions.start_response", _on_azure_functions_start_response)
     core.on("azure.functions.trigger_call_modifier", _on_azure_functions_trigger_span_modifier)
-    core.on("azure.functions.service_bus_trigger_modifier", _on_azure_functions_service_bus_trigger_span_modifier)
-    core.on("azure.servicebus.message_modifier", _on_azure_servicebus_message_modifier)
+    core.on("azure.functions.service_bus_trigger_modifier", _on_azure_functions_message_trigger_span_modifier)
+    core.on("azure.servicebus.message_modifier", _on_azure_message_modifier)
 
     # web frameworks general handlers
     core.on("web.request.start", _on_web_framework_start_request)
@@ -1075,6 +1076,10 @@ def listen():
         "rq.worker.perform_job",
         "rq.job.perform",
         "rq.job.fetch_many",
+        "azure.eventhub.patched_producer_batch",
+        "azure.eventhub.patched_producer_send",
+        "azure.eventhub.patched_producer_send_batch",
+        "azure.functions.patched_event_hubs",
         "azure.functions.patched_route_request",
         "azure.functions.patched_service_bus",
         "azure.functions.patched_timer",
