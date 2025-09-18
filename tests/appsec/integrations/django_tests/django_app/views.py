@@ -10,6 +10,7 @@ from pathlib import Path
 from pathlib import PosixPath
 import shlex
 import subprocess
+import time
 from typing import Any
 import urllib
 from urllib.parse import quote
@@ -26,6 +27,7 @@ import requests
 from requests.exceptions import ConnectionError  # noqa: A004
 
 from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.appsec._iast.reporter import IastSpanReporter
@@ -63,6 +65,21 @@ def index(request):
 
 def path_params_view(request, year, month):
     return JsonResponse({"year": year, "month": month})
+
+
+def iast_enabled(request):
+    """Return whether IAST request context is enabled, after an optional delay.
+
+    This endpoint is used by concurrency tests to verify the Overhead Control Engine
+    max concurrent requests behavior. It sleeps for the specified delay in ms and
+    returns a JSON object with the enablement status.
+    """
+    try:
+        delay_ms = int(request.GET.get("delay_ms", "200"))
+    except ValueError:
+        delay_ms = 200
+    time.sleep(max(0, delay_ms) / 1000.0)
+    return JsonResponse({"enabled": is_iast_request_enabled()})
 
 
 def body_view(request):
@@ -110,14 +127,12 @@ def xss_http_request_parameter_mark_safe(request):
 def xss_secure(request):
     user_input = request.GET.get("input", "")
 
-    # label xss_http_request_parameter_mark_safe
     return render(request, "index.html", {"user_input": user_input})
 
 
 def ospathjoin_propagation(request):
     user_input = request.GET.get("input", "")
 
-    # label xss_http_request_parameter_mark_safe
     return HttpResponse(
         f"OK:{is_pyobject_tainted(os.path.join(user_input, user_input))}:"
         f"{is_pyobject_tainted(os.path.join(Path(user_input), Path(user_input)))}:"

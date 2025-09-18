@@ -560,7 +560,9 @@ class TelemetryWriter(PeriodicService):
         except ValueError:
             return filename
 
-    def add_gauge_metric(self, namespace: TELEMETRY_NAMESPACE, name: str, value: float, tags: MetricTagType = None):
+    def add_gauge_metric(
+        self, namespace: TELEMETRY_NAMESPACE, name: str, value: float, tags: Optional[MetricTagType] = None
+    ):
         """
         Queues gauge metric
         """
@@ -573,7 +575,9 @@ class TelemetryWriter(PeriodicService):
                 tags,
             )
 
-    def add_rate_metric(self, namespace: TELEMETRY_NAMESPACE, name: str, value: float, tags: MetricTagType = None):
+    def add_rate_metric(
+        self, namespace: TELEMETRY_NAMESPACE, name: str, value: float, tags: Optional[MetricTagType] = None
+    ):
         """
         Queues rate metric
         """
@@ -586,7 +590,9 @@ class TelemetryWriter(PeriodicService):
                 tags,
             )
 
-    def add_count_metric(self, namespace: TELEMETRY_NAMESPACE, name: str, value: int = 1, tags: MetricTagType = None):
+    def add_count_metric(
+        self, namespace: TELEMETRY_NAMESPACE, name: str, value: int = 1, tags: Optional[MetricTagType] = None
+    ):
         """
         Queues count metric
         """
@@ -600,7 +606,7 @@ class TelemetryWriter(PeriodicService):
             )
 
     def add_distribution_metric(
-        self, namespace: TELEMETRY_NAMESPACE, name: str, value: float, tags: MetricTagType = None
+        self, namespace: TELEMETRY_NAMESPACE, name: str, value: float, tags: Optional[MetricTagType] = None
     ):
         """
         Queues distributions metric

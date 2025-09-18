@@ -50,7 +50,7 @@ grpcio,grpc,1.34.1,1.68.1,True
 httpx,httpx,0.17.1,0.27.2,True
 jinja2,jinja2,2.10.3,3.1.4,True
 confluent-kafka,kafka,1.9.2,2.6.2,True
-kombu,kombu,4.6.11,5.4.2,False
+kombu,kombu,4.6.11,5.5.4,False
 langchain,langchain,0.1.20,0.3.18,True
 langgraph,langgraph,0.2.23,0.6.5,True
 langgraph-checkpoint,langgraph,1.0.12,2.1.1,True
@@ -70,10 +70,10 @@ openai-agents,openai_agents,0.0.8,0.0.16,True
 protobuf,protobuf,5.29.3,6.30.1,False
 psycopg,psycopg,3.0.18,3.2.9,True
 psycopg2-binary,psycopg,2.8.6,2.9.10,True
-pydantic-ai-slim,pydantic_ai *,0.3.0,0.4.4,True
+pydantic-ai-slim,pydantic_ai *,0.3.0,1.0.1,True
 pylibmc,pylibmc,1.6.3,1.6.3,True
 pymemcache,pymemcache,3.4.4,4.0.0,True
-pymongo,pymongo,3.8.0,4.13.2,True
+pymongo,pymongo,3.8.0,4.15.0,True
 pymysql,pymysql,0.10.1,1.1.1,True
 pynamodb,pynamodb *,5.0.3,5.5.1,True
 pyodbc,pyodbc,4.0.39,5.2.0,True

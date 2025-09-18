@@ -25,7 +25,7 @@ from tests.utils import override_global_config
 def test_sqli_redaction_suite(
     evidence_input, sources_expected, vulnerabilities_expected, iast_context_defaults, element
 ):
-    with override_global_config(dict(_iast_deduplication_enabled=False)):
+    with override_global_config(dict(_iast_deduplication_enabled=False, _iast_max_vulnerabilities_per_requests=1000)):
         tainted_object = _taint_pyobject_multiranges(
             evidence_input["value"],
             [
@@ -42,7 +42,7 @@ def test_sqli_redaction_suite(
 
         assert is_pyobject_tainted(tainted_object)
 
-        SqlInjection.report(tainted_object)
+        assert SqlInjection.report(tainted_object)
 
         data = _get_iast_data()
         vulnerability = list(data["vulnerabilities"])[0]

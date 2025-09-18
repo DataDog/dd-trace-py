@@ -1,14 +1,8 @@
 from typing import Any
 from typing import Dict
 from typing import List
+from typing import TypedDict  # noqa:F401
 from typing import Union
-
-
-# TypedDict was added to typing in python 3.8
-try:
-    from typing import TypedDict  # noqa:F401
-except ImportError:
-    from typing_extensions import TypedDict
 
 from ddtrace.internal.logger import get_logger
 
@@ -124,6 +118,49 @@ ToolDefinition = TypedDict(
     },
     total=False,
 )
+
+
+def extract_tool_definitions(tool_definitions: List[Dict[str, Any]]) -> List[ToolDefinition]:
+    """Return a list of validated tool definitions."""
+    if not isinstance(tool_definitions, list):
+        log.warning("tool_definitions must be a list of dictionaries.")
+        return []
+
+    validated_tool_definitions = []
+    for i, tool_def in enumerate(tool_definitions):
+        if not isinstance(tool_def, dict):
+            log.warning("Tool definition at index %s must be a dictionary. Skipping.", i)
+            continue
+
+        # name is required
+        name = tool_def.get("name")
+        if not name or not isinstance(name, str):
+            log.warning("Tool definition at index %s must have a non-empty 'name' field. Skipping.", i)
+            continue
+
+        validated_tool_def = ToolDefinition(name=name)
+
+        # description is optional
+        description = tool_def.get("description")
+        if description is not None:
+            if not isinstance(description, str):
+                log.warning(
+                    "Tool definition 'description' at index %s must be a string. Skipping description field.", i
+                )
+            else:
+                validated_tool_def["description"] = description
+
+        # schema is optional
+        schema = tool_def.get("schema")
+        if schema is not None:
+            if not isinstance(schema, dict):
+                log.warning("Tool definition 'schema' at index %s must be a dictionary. Skipping schema field.", i)
+            else:
+                validated_tool_def["schema"] = schema
+
+        validated_tool_definitions.append(validated_tool_def)
+
+    return validated_tool_definitions
 
 
 class Messages:

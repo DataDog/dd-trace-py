@@ -43,14 +43,13 @@ from ddtrace.appsec._iast._taint_tracking import copy_ranges_from_strings
 from ddtrace.appsec._iast._taint_tracking import get_ranges
 from ddtrace.appsec._iast._taint_tracking import new_pyobject_id
 from ddtrace.appsec._iast._taint_tracking import parse_params
-from ddtrace.appsec._iast._taint_tracking import set_ranges
 from ddtrace.appsec._iast._taint_tracking import shift_taint_range
 from ddtrace.appsec._iast._taint_tracking._native import aspects  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._taint_objects import copy_ranges_to_iterable_with_strings
 from ddtrace.appsec._iast._taint_tracking._taint_objects import copy_ranges_to_string
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject_with_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
-from ddtrace.appsec._iast._taint_tracking._taint_objects_base import taint_pyobject_with_ranges
 
 
 TEXT_TYPES = Union[str, bytes, bytearray]
@@ -377,7 +376,7 @@ def format_map_aspect(orig_function: Optional[Callable], flag_added_args: int, *
         if not ranges_orig:
             return result
 
-        return _convert_escaped_text_to_tainted_text(
+        aspect_result = _convert_escaped_text_to_tainted_text(
             as_formatted_evidence(
                 candidate_text, candidate_text_ranges, tag_mapping_function=TagMappingMode.Mapper
             ).format_map(
@@ -394,6 +393,9 @@ def format_map_aspect(orig_function: Optional[Callable], flag_added_args: int, *
             ),
             ranges_orig=ranges_orig,
         )
+        if aspect_result != result:
+            return result
+        return aspect_result
     except Exception as e:
         iast_propagation_error_log(f"format_map_aspect. {e}")
 
@@ -668,7 +670,7 @@ def _distribute_ranges_and_escape(
             element_new_id = new_pyobject_id(bytes([element]))
         else:
             element_new_id = new_pyobject_id(element)
-        set_ranges(element_new_id, element_ranges)
+        taint_pyobject_with_ranges(element_new_id, element_ranges)
 
         formatted_elements_append(
             as_formatted_evidence(

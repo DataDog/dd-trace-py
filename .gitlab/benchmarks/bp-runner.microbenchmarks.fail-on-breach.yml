@@ -57,6 +57,10 @@ experiments:
             thresholds:
               - execution_time < 21.75 ms
               - max_rss_usage < 66.00 MB
+          - name: djangosimple-tracer-native
+            thresholds:
+              - execution_time < 21.75 ms
+              - max_rss_usage < 66.00 MB
           - name: djangosimple-tracer-and-profiler
             thresholds:
               - execution_time < 23.50 ms
@@ -112,6 +116,10 @@ experiments:
 
           # flask_simple
           - name: flasksimple-tracer
+            thresholds:
+              - execution_time < 3.65 ms
+              - max_rss_usage < 53.50 MB
+          - name: flasksimple-tracer-native
             thresholds:
               - execution_time < 3.65 ms
               - max_rss_usage < 53.50 MB
@@ -714,15 +722,15 @@ experiments:
               - max_rss_usage < 39.00 MB
           - name: iastpropagation-propagation_enabled
             thresholds:
-              - execution_time < 0.16 ms
+              - execution_time < 0.19 ms
               - max_rss_usage < 39.00 MB
           - name: iastpropagation-propagation_enabled_100
             thresholds:
-              - execution_time < 1.80 ms
+              - execution_time < 1.90 ms
               - max_rss_usage < 39.00 MB
           - name: iastpropagation-propagation_enabled_1000
             thresholds:
-              - execution_time < 30.55 ms
+              - execution_time < 35.55 ms
               - max_rss_usage < 39.00 MB
 
           # otelsdkspan

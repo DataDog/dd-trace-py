@@ -64,8 +64,6 @@ def _set_waf_updates_metric(info: DDWaf_info, success: bool):
         telemetry.telemetry_writer.add_count_metric(
             TELEMETRY_NAMESPACE.APPSEC, "waf.updates", 1, tags=tags + (("success", bool_str[success]),)
         )
-        if not success:
-            telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, "waf.config_errors", 1, tags=tags)
     except Exception:
         extra = {"product": "appsec", "exec_limit": 6, "more_info": ":waf:updates"}
         logger.warning(WARNING_TAGS.TELEMETRY_METRICS, extra=extra, exc_info=True)
@@ -170,7 +168,7 @@ def _set_waf_request_metrics(*_args):
                 ("request_blocked", bool_str[result.blocked]),
                 ("waf_timeout", bool_str[bool(result.timeout)]),
                 ("input_truncated", bool_str[input_truncated]),
-                ("waf_error", str(result.error)),
+                ("waf_error", bool_str[result.error < 0]),  # waf_error is a boolean in waf.requests
                 ("rate_limited", bool_str[result.rate_limited]),
             )
 

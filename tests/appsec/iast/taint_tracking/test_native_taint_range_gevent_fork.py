@@ -17,10 +17,10 @@ try:
 except ImportError:
     GEVENT_AVAILABLE = False
 
+from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
+from ddtrace.appsec._iast._iast_request_context_base import _num_objects_tainted_in_request
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import get_ranges
-from ddtrace.appsec._iast._taint_tracking import num_objects_tainted
-from ddtrace.appsec._iast._taint_tracking._context import create_context
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 
@@ -36,7 +36,7 @@ def test_gevent_monkey_patch_os_fork():
         gevent.monkey.patch_all()
 
         # Parent setup
-        create_context()
+        _iast_start_request()
         parent_data = taint_pyobject(
             "parent_gevent_data",
             source_name="parent_gevent_source",
@@ -44,7 +44,7 @@ def test_gevent_monkey_patch_os_fork():
             source_origin=OriginType.PARAMETER,
         )
 
-        parent_count_before = num_objects_tainted()
+        parent_count_before = _num_objects_tainted_in_request()
         assert parent_count_before == 1
 
         # Fork using monkey-patched os.fork()
@@ -54,11 +54,11 @@ def test_gevent_monkey_patch_os_fork():
             # Child process
             try:
                 # Child should have clean thread-local state
-                child_count_initial = num_objects_tainted()
+                child_count_initial = _num_objects_tainted_in_request()
                 # Verify child isolation 1
                 assert child_count_initial == 1, f"Child should start with 0 tainted objects, got {child_count_initial}"
                 # Create new context in child
-                create_context()
+                _iast_start_request()
 
                 # Create child-specific tainted data
                 child_data = taint_pyobject(
@@ -68,7 +68,7 @@ def test_gevent_monkey_patch_os_fork():
                     source_origin=OriginType.COOKIE,
                 )
 
-                child_count_after = num_objects_tainted()
+                child_count_after = _num_objects_tainted_in_request()
 
                 # Verify child isolation
                 assert child_count_after == 1, "Child should have 1 tainted object after creation"
@@ -95,7 +95,7 @@ def test_gevent_monkey_patch_os_fork():
             assert status == 0, "Child process should exit successfully"
 
             # Verify parent state is preserved
-            parent_count_after = num_objects_tainted()
+            parent_count_after = _num_objects_tainted_in_request()
             assert parent_count_after == parent_count_before, "Parent taint count should be unchanged"
 
             # Verify parent can still access its data
@@ -118,15 +118,14 @@ sys.path.insert(0, "/home/alberto.vara/projects/dd-python/dd-trace-py")
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import get_ranges
-from ddtrace.appsec._iast._taint_tracking import num_objects_tainted
-from ddtrace.appsec._iast._taint_tracking._context import create_context
+from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 
 # Test subprocess isolation
-create_context()
+_iast_start_request()
 
 # Verify subprocess starts with clean state
-initial_count = num_objects_tainted()
+initial_count = _num_objects_tainted_in_request()
 assert initial_count == 0, f"Subprocess should start with 0 tainted objects, got {initial_count}"
 
 # Create tainted data in subprocess
@@ -137,7 +136,7 @@ subprocess_data = taint_pyobject(
     source_origin=OriginType.BODY
 )
 
-subprocess_count = num_objects_tainted()
+subprocess_count = _num_objects_tainted_in_request()
 # TODO(APPSEC-58375): subprocess_count should be equal to 1
 assert subprocess_count == 0, f"Subprocess should have 1 tainted object, got {subprocess_count}"
 
@@ -153,7 +152,7 @@ print("SUBPROCESS_SUCCESS")
     gevent.monkey.patch_all()
 
     # Parent setup
-    create_context()
+    _iast_start_request()
     parent_data = taint_pyobject(
         "parent_subprocess_data",
         source_name="parent_subprocess_source",
@@ -161,7 +160,7 @@ print("SUBPROCESS_SUCCESS")
         source_origin=OriginType.HEADER_NAME,
     )
 
-    parent_count_before = num_objects_tainted()
+    parent_count_before = _num_objects_tainted_in_request()
     assert parent_count_before == 1
 
     # Run subprocess using monkey-patched subprocess
@@ -172,7 +171,7 @@ print("SUBPROCESS_SUCCESS")
     assert "SUBPROCESS_SUCCESS" in result.stdout, "Subprocess should complete successfully"
 
     # Verify parent state is unchanged
-    parent_count_after = num_objects_tainted()
+    parent_count_after = _num_objects_tainted_in_request()
     assert parent_count_after == parent_count_before, "Parent taint count should be unchanged"
 
     # Verify parent can still access its data
@@ -188,7 +187,7 @@ def test_gevent_greenlets_with_fork():
     def greenlet_worker(worker_id, results):
         """Worker function that runs in a gevent greenlet."""
         try:
-            create_context()
+            _iast_start_request()
 
             # Create tainted data in greenlet
             greenlet_data = taint_pyobject(
@@ -198,7 +197,7 @@ def test_gevent_greenlets_with_fork():
                 source_origin=OriginType.PARAMETER,
             )
 
-            greenlet_count = num_objects_tainted()
+            greenlet_count = _num_objects_tainted_in_request()
             greenlet_ranges = get_ranges(greenlet_data)
 
             # Simulate some async work
@@ -211,11 +210,11 @@ def test_gevent_greenlets_with_fork():
                 # Child process
                 try:
                     # Child should have clean state
-                    child_count = num_objects_tainted()
+                    child_count = _num_objects_tainted_in_request()
 
                     assert child_count == 1, f"Child should start clean, got {child_count}"
                     # Create child context
-                    create_context()
+                    _iast_start_request()
 
                     # Create child tainted data
                     child_data = taint_pyobject(
@@ -225,7 +224,7 @@ def test_gevent_greenlets_with_fork():
                         source_origin=OriginType.COOKIE,
                     )
 
-                    child_final_count = num_objects_tainted()
+                    child_final_count = _num_objects_tainted_in_request()
                     child_ranges = get_ranges(child_data)
 
                     # Verify child isolation
@@ -255,7 +254,7 @@ def test_gevent_greenlets_with_fork():
     gevent.monkey.patch_all()
 
     # Parent setup
-    create_context()
+    _iast_start_request()
     parent_data = taint_pyobject(
         "parent_greenlet_data",
         source_name="parent_greenlet_source",
@@ -263,7 +262,7 @@ def test_gevent_greenlets_with_fork():
         source_origin=OriginType.PATH,
     )
 
-    parent_count_before = num_objects_tainted()
+    parent_count_before = _num_objects_tainted_in_request()
 
     # Create multiple greenlets that will fork
     results = {}
@@ -285,7 +284,7 @@ def test_gevent_greenlets_with_fork():
         assert results[i]["child_exit_status"] == 0, f"Child from greenlet {i} should exit successfully"
 
     # Verify parent state is unchanged
-    parent_count_after = num_objects_tainted()
+    parent_count_after = _num_objects_tainted_in_request()
     assert parent_count_after == parent_count_before, "Parent taint count should be unchanged"
 
     parent_ranges = get_ranges(parent_data)
@@ -304,7 +303,7 @@ def test_gevent_monkey_patch_multiprocessing():
             # Apply gevent monkey patching in worker
             gevent.monkey.patch_all()
 
-            create_context()
+            _iast_start_request()
 
             # Create tainted data in worker process
             worker_data = taint_pyobject(
@@ -314,7 +313,7 @@ def test_gevent_monkey_patch_multiprocessing():
                 source_origin=OriginType.BODY,
             )
 
-            worker_count = num_objects_tainted()
+            worker_count = _num_objects_tainted_in_request()
             worker_ranges = get_ranges(worker_data)
 
             # Test greenlet within multiprocessing worker
@@ -330,7 +329,7 @@ def test_gevent_monkey_patch_multiprocessing():
             greenlet = gevent.spawn(greenlet_in_worker)
             greenlet_ranges = greenlet.get(timeout=10)
 
-            final_count = num_objects_tainted()
+            final_count = _num_objects_tainted_in_request()
 
             queue.put(
                 {
@@ -348,7 +347,7 @@ def test_gevent_monkey_patch_multiprocessing():
     gevent.monkey.patch_all()
 
     # Parent setup
-    create_context()
+    _iast_start_request()
     parent_data = taint_pyobject(
         "parent_multiprocessing_data",
         source_name="parent_multiprocessing_source",
@@ -356,7 +355,7 @@ def test_gevent_monkey_patch_multiprocessing():
         source_origin=OriginType.HEADER_NAME,
     )
 
-    parent_count_before = num_objects_tainted()
+    parent_count_before = _num_objects_tainted_in_request()
 
     # Start multiprocessing worker
     queue = Queue()
@@ -376,7 +375,7 @@ def test_gevent_monkey_patch_multiprocessing():
     assert worker_result["final_count"] == 2, "Worker should have 2 tainted objects total"
 
     # Verify parent state is unchanged
-    parent_count_after = num_objects_tainted()
+    parent_count_after = _num_objects_tainted_in_request()
     assert parent_count_after == parent_count_before, "Parent taint count should be unchanged"
 
     parent_ranges = get_ranges(parent_data)
@@ -391,7 +390,7 @@ def test_gevent_context_switching_with_taint():
     def context_switching_worker(worker_id, shared_results):
         """Worker that performs context switches while manipulating taint data."""
         try:
-            create_context()
+            _iast_start_request()
 
             # Create initial tainted data
             data1 = taint_pyobject(
@@ -406,7 +405,7 @@ def test_gevent_context_switching_with_taint():
 
             # Verify data is still accessible after context switch
             ranges1 = get_ranges(data1)
-            count1 = num_objects_tainted()
+            count1 = _num_objects_tainted_in_request()
 
             # Create more tainted data
             data2 = taint_pyobject(
@@ -422,7 +421,7 @@ def test_gevent_context_switching_with_taint():
             # Combine tainted data
             combined = add_aspect(data1, data2)
             combined_ranges = get_ranges(combined)
-            final_count = num_objects_tainted()
+            final_count = _num_objects_tainted_in_request()
 
             # Fork from within context-switching greenlet
             pid = os.fork()
@@ -430,8 +429,8 @@ def test_gevent_context_switching_with_taint():
             if pid == 0:
                 # Child process
                 try:
-                    child_count = num_objects_tainted()  # noqa: F841
-                    create_context()
+                    child_count = _num_objects_tainted_in_request()  # noqa: F841
+                    _iast_start_request()
 
                     child_data = taint_pyobject(  # noqa: F841
                         f"child_worker_{worker_id}_data",
@@ -440,7 +439,7 @@ def test_gevent_context_switching_with_taint():
                         source_origin=OriginType.BODY,
                     )
 
-                    child_final_count = num_objects_tainted()  # noqa: F841
+                    child_final_count = _num_objects_tainted_in_request()  # noqa: F841
 
                     # Verify child isolation
                     # assert child_count == 0, f"Child should start clean"
@@ -471,7 +470,7 @@ def test_gevent_context_switching_with_taint():
     gevent.monkey.patch_all()
 
     # Parent setup
-    create_context()
+    _iast_start_request()
     parent_data = taint_pyobject(  # noqa: F841
         "parent_context_switch_data",
         source_name="parent_context_switch_source",
@@ -479,7 +478,7 @@ def test_gevent_context_switching_with_taint():
         source_origin=OriginType.PATH,
     )
 
-    parent_count_before = num_objects_tainted()  # noqa: F841
+    parent_count_before = _num_objects_tainted_in_request()  # noqa: F841
 
     # Create multiple context-switching greenlets
     shared_results = {}
@@ -505,7 +504,7 @@ def test_gevent_context_switching_with_taint():
         assert result["child_status"] == 0, f"Child from worker {i} should exit successfully"
 
     # Verify parent state is unchanged
-    # TODO(APPSEC-58375): parent_count_after = num_objects_tainted()
+    # TODO(APPSEC-58375): parent_count_after = _num_objects_tainted_in_request()
     # TODO(APPSEC-58375): assert parent_count_after == parent_count_before, "Parent taint count should be unchanged"
 
     # TODO(APPSEC-58375): parent_ranges = get_ranges(parent_data)
