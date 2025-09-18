@@ -1,9 +1,10 @@
 use anyhow;
 use std::collections::HashMap;
-use std::ffi::c_void;
+use std::ffi::{c_void, c_char, c_int, c_long, CStr};
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Once;
 use std::time::Duration;
+use std::ptr;
 
 use datadog_crashtracker::{
     register_runtime_stack_callback, CallbackError, CrashtrackerConfiguration,
@@ -11,6 +12,50 @@ use datadog_crashtracker::{
 };
 use ddcommon::Endpoint;
 use pyo3::prelude::*;
+
+// Python C API structures for direct stack walking
+// These are opaque pointers to avoid ABI dependencies
+#[repr(C)]
+struct PyObject {
+    _private: [u8; 0],
+}
+
+#[repr(C)]
+struct PyCodeObject {
+    _private: [u8; 0],
+}
+
+#[repr(C)]
+struct PyFrameObject {
+    _private: [u8; 0],
+}
+
+#[repr(C)]
+struct PyThreadState {
+    _private: [u8; 0],
+}
+
+#[repr(C)]
+struct PyInterpreterState {
+    _private: [u8; 0],
+}
+
+// External C API functions we'll link to
+// Using more stable public API functions that are available across Python versions
+extern "C" {
+    // Minimal set of stable Python C API functions available across versions
+
+    // Frame access - most stable approach
+    fn PyEval_GetFrame() -> *mut PyFrameObject;
+    fn PyFrame_GetBack(frame: *mut PyFrameObject) -> *mut PyFrameObject;
+    fn PyFrame_GetCode(frame: *mut PyFrameObject) -> *mut PyCodeObject;
+    fn PyFrame_GetLineNumber(frame: *mut PyFrameObject) -> c_int;
+
+    // Object attribute access - very stable API
+    fn PyObject_GetAttrString(obj: *mut PyObject, attr_name: *const c_char) -> *mut PyObject;
+    fn PyUnicode_AsUTF8(unicode: *mut PyObject) -> *const c_char;
+
+}
 
 pub trait RustWrapper {
     type Inner;
@@ -418,99 +463,133 @@ impl StackBuffer {
         self.len = copy_len;
     }
 
-}
-
-// Improved signal-safer Python frame walker
-// This approach reuses the existing Python high-level API but with better bounds checking
-// and stack-allocated buffers to minimize allocations
-unsafe extern "C" fn native_runtime_stack_callback(
-    emit_frame: unsafe extern "C" fn(*const RuntimeStackFrame),
-    _context: *mut c_void,
-) {
-    // For maximum safety, we'll fall back to the Python with_gil approach
-    // but with improved buffer management and bounds checking
-    Python::with_gil(|py| {
-        // Try to get the current frame using Python's sys._getframe()
-        if let Ok(sys_module) = py.import("sys") {
-            if let Ok(getframe_fn) = sys_module.getattr("_getframe") {
-                if let Ok(frame_obj) = getframe_fn.call0() {
-                    emit_python_stack_with_bounds(emit_frame, py, frame_obj, 0);
-                }
-            }
+    fn set_from_cstr(&mut self, cstr_ptr: *const c_char) {
+        if cstr_ptr.is_null() {
+            self.set_from_str("<null>");
+            return;
         }
-    });
+
+        unsafe {
+            let cstr = match CStr::from_ptr(cstr_ptr).to_str() {
+                Ok(s) => s,
+                Err(_) => "<invalid_utf8>",
+            };
+            self.set_from_str(cstr);
+        }
+    }
 }
 
-// Stack walking with bounds checking and stack-allocated buffers
-fn emit_python_stack_with_bounds(
-    emit_frame: unsafe extern "C" fn(*const RuntimeStackFrame),
-    py: Python,
-    frame_obj: Bound<'_, PyAny>,
-    depth: usize,
-) {
-    if depth >= MAX_FRAMES {
-        return; // Prevent stack overflow
+
+// Static string constants for attribute names (must be null-terminated)
+static CO_NAME: &[u8] = b"co_name\0";
+static CO_FILENAME: &[u8] = b"co_filename\0";
+
+unsafe fn extract_frame_info(
+    frame: *mut PyFrameObject,
+    function_buf: &mut StackBuffer,
+    file_buf: &mut StackBuffer,
+) -> u32 {
+    if frame.is_null() {
+        function_buf.set_from_str("<null_frame>");
+        file_buf.set_from_str("<null_frame>");
+        return 0;
     }
 
-    // Get frame information with error handling
-    let function_name = get_frame_attr_string(py, &frame_obj, "f_code", "co_name");
-    let file_name = get_frame_attr_string(py, &frame_obj, "f_code", "co_filename");
-    let line_number = get_frame_line_number(py, &frame_obj);
+    // Get code object
+    let code = PyFrame_GetCode(frame);
+    if code.is_null() {
+        function_buf.set_from_str("<no_code>");
+        file_buf.set_from_str("<no_code>");
+        return 0;
+    }
 
-    // Use stack-allocated buffers
+    // Extract function name
+    let name_obj = PyObject_GetAttrString(code as *mut PyObject, CO_NAME.as_ptr() as *const c_char);
+    if !name_obj.is_null() {
+        let name_cstr = PyUnicode_AsUTF8(name_obj);
+        if !name_cstr.is_null() {
+            function_buf.set_from_cstr(name_cstr);
+        } else {
+            function_buf.set_from_str("<invalid_name>");
+        }
+    } else {
+        function_buf.set_from_str("<unknown_function>");
+    }
+
+    // Extract filename
+    let filename_obj = PyObject_GetAttrString(code as *mut PyObject, CO_FILENAME.as_ptr() as *const c_char);
+    if !filename_obj.is_null() {
+        let filename_cstr = PyUnicode_AsUTF8(filename_obj);
+        if !filename_cstr.is_null() {
+            file_buf.set_from_cstr(filename_cstr);
+        } else {
+            file_buf.set_from_str("<invalid_filename>");
+        }
+    } else {
+        file_buf.set_from_str("<unknown_file>");
+    }
+
+    // Get line number
+    let line_num = PyFrame_GetLineNumber(frame);
+    if line_num > 0 {
+        line_num as u32
+    } else {
+        0
+    }
+}
+
+unsafe fn walk_frame_chain(
+    emit_frame: unsafe extern "C" fn(*const RuntimeStackFrame),
+    mut frame: *mut PyFrameObject,
+    depth: usize,
+) {
+    if depth >= MAX_FRAMES || frame.is_null() {
+        return;
+    }
+
+    // Stack-allocate buffers for this frame
     let mut function_buf = StackBuffer::new();
     let mut file_buf = StackBuffer::new();
 
-    function_buf.set_from_str(&function_name);
-    file_buf.set_from_str(&file_name);
+    let line_number = extract_frame_info(frame, &mut function_buf, &mut file_buf);
 
     let c_frame = RuntimeStackFrame {
         function_name: function_buf.as_ptr(),
         file_name: file_buf.as_ptr(),
         line_number,
         column_number: 0,
-        class_name: std::ptr::null(),
-        module_name: std::ptr::null(),
+        class_name: ptr::null(),
+        module_name: ptr::null(),
     };
 
-    unsafe {
-        emit_frame(&c_frame);
-    }
+    emit_frame(&c_frame);
 
-    // Get the back frame and recurse with depth limit
-    if let Ok(back_frame) = frame_obj.getattr("f_back") {
-        if !back_frame.is_none() {
-            emit_python_stack_with_bounds(emit_frame, py, back_frame, depth + 1);
-        }
+    // Get the previous frame in the chain
+    let back_frame = PyFrame_GetBack(frame);
+    if !back_frame.is_null() {
+        walk_frame_chain(emit_frame, back_frame, depth + 1);
     }
 }
 
-// Safe attribute extraction with fallback
-fn get_frame_attr_string(_py: Python, frame: &Bound<'_, PyAny>, attr1: &str, attr2: &str) -> String {
-    if let Ok(code) = frame.getattr(attr1) {
-        if let Ok(name) = code.getattr(attr2) {
-            if let Ok(name_str) = name.extract::<String>() {
-                // Truncate if too long for our buffer
-                if name_str.len() < MAX_STRING_LEN {
-                    return name_str;
-                } else {
-                    return name_str.chars().take(MAX_STRING_LEN - 4).collect::<String>() + "...";
-                }
-            }
-        }
+unsafe fn walk_current_thread_stack(
+    emit_frame: unsafe extern "C" fn(*const RuntimeStackFrame),
+) {
+    let frame = PyEval_GetFrame();
+    if !frame.is_null() {
+        walk_frame_chain(emit_frame, frame, 0);
     }
-    "<unknown>".to_string()
 }
 
-// Safe line number extraction
-fn get_frame_line_number(_py: Python, frame: &Bound<'_, PyAny>) -> u32 {
-    if let Ok(lineno) = frame.getattr("f_lineno") {
-        if let Ok(line_num) = lineno.extract::<u32>() {
-            return line_num;
-        }
-    }
-    0
+// Native signal-safe Python frame walker
+// This implementation uses direct Python C API calls
+unsafe extern "C" fn native_runtime_stack_callback(
+    emit_frame: unsafe extern "C" fn(*const RuntimeStackFrame),
+    _context: *mut c_void,
+) {
+    // Walk the current thread's stack
+    walk_current_thread_stack(emit_frame);
 }
+
 
 /// Register the native runtime stack collection callback
 ///
