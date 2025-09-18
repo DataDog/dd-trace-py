@@ -751,6 +751,13 @@ class LLMObs(Service):
         description: str = "",
         tags: Optional[Dict[str, str]] = None,
         config: Optional[ExperimentConfigType] = None,
+        summary_evaluators: Optional[
+            List[
+                Callable[
+                    [List[DatasetRecordInputType], List[JSONType], List[JSONType], Dict[str, List[JSONType]]], JSONType
+                ]
+            ]
+        ] = None,
     ) -> Experiment:
         """Initializes an Experiment to run a task on a Dataset and evaluators.
 
@@ -776,9 +783,21 @@ class LLMObs(Service):
         for evaluator in evaluators:
             sig = inspect.signature(evaluator)
             params = sig.parameters
-            required_params = ("input_data", "output_data", "expected_output")
-            if not all(param in params for param in required_params):
-                raise TypeError("Evaluator function must have parameters {}.".format(required_params))
+            evaluator_required_params = ("input_data", "output_data", "expected_output")
+            if not all(param in params for param in evaluator_required_params):
+                raise TypeError("Evaluator function must have parameters {}.".format(evaluator_required_params))
+
+        if summary_evaluators and not all(callable(summary_evaluator) for summary_evaluator in summary_evaluators):
+            raise TypeError("Summary evaluators must be a list of callable functions.")
+        if summary_evaluators:
+            for summary_evaluator in summary_evaluators:
+                sig = inspect.signature(summary_evaluator)
+                params = sig.parameters
+                summary_evaluator_required_params = ("inputs", "outputs", "expected_outputs", "results_for_evaluator")
+                if not all(param in params for param in summary_evaluator_required_params):
+                    raise TypeError(
+                        "Summary evaluator function must have parameters {}.".format(summary_evaluator_required_params)
+                    )
         return Experiment(
             name,
             task,
@@ -789,6 +808,7 @@ class LLMObs(Service):
             description=description,
             config=config,
             _llmobs_instance=cls._instance,
+            summary_evaluators=summary_evaluators,
         )
 
     @classmethod

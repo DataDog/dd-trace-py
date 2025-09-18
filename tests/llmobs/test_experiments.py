@@ -1216,10 +1216,10 @@ def test_experiment_merge_results(llmobs, test_dataset_one_record):
     exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
     task_results = exp._run_task(1, raise_errors=False)
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
-    merged_results = exp._merge_results(task_results, eval_results)
+    merged_results = exp._merge_results(task_results, eval_results, None)
 
-    assert len(merged_results) == 1
-    exp_result = merged_results[0]
+    assert len(merged_results["rows"]) == 1
+    exp_result = merged_results["rows"][0]
     assert exp_result["idx"] == 0
     assert exp_result["record_id"] != ""
     assert exp_result["input"] == {"prompt": "What is the capital of France?"}
@@ -1243,10 +1243,10 @@ def test_experiment_merge_err_results(llmobs, test_dataset_one_record):
     exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [faulty_evaluator])
     task_results = exp._run_task(1, raise_errors=False)
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
-    merged_results = exp._merge_results(task_results, eval_results)
+    merged_results = exp._merge_results(task_results, eval_results, None)
 
-    assert len(merged_results) == 1
-    exp_result = merged_results[0]
+    assert len(merged_results["rows"]) == 1
+    exp_result = merged_results["rows"][0]
     assert exp_result["idx"] == 0
     assert exp_result["record_id"] != ""
     assert exp_result["input"] == {"prompt": "What is the capital of France?"}
@@ -1290,8 +1290,10 @@ def test_experiment_run(llmobs, test_dataset_one_record):
         exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
         exp._tags = {"ddtrace.version": "1.2.3"}  # FIXME: this is a hack to set the tags for the experiment
         exp_results = exp.run()
-    assert len(exp_results) == 1
-    exp_result = exp_results[0]
+
+    assert len(exp_results["summary_evaluations"]) == 0
+    assert len(exp_results["rows"]) == 1
+    exp_result = exp_results["rows"][0]
     assert exp_result["idx"] == 0
     assert exp_result["input"] == {"prompt": "What is the capital of France?"}
     assert exp_result["output"] == {"prompt": "What is the capital of France?"}
