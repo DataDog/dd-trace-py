@@ -406,7 +406,7 @@ def test_long_span_start(encoding):
 
 @allencodings
 def test_span_encoding_large_resource(encoding):
-    encoder = MSGPACK_ENCODERS[encoding](1 << 12, 1 << 12)
+    encoder = MSGPACK_ENCODERS[encoding](1 << 20, 1 << 20)
     postgres_query = (
         "INSERT INTO table VALUES "
         '(\'x\' * 25001, \'{"top_left": {"x": 0.29411766, "y": 0.123786405}, '

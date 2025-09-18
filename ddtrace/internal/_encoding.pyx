@@ -99,13 +99,10 @@ cdef inline int array_prefix_size(stdint.uint32_t l):
 
 cdef inline object truncate_string(object string):
     if string and len(string) > MAX_SPAN_META_VALUE_LEN:
-        original_len = len(string)
         if PyBytesLike_Check(string):
-            truncated = string[:TRUNCATED_SPAN_ATTRIBUTE_LEN - 14] + b"<truncated>..."
-            return truncated
+            return string[:TRUNCATED_SPAN_ATTRIBUTE_LEN - 14] + b"<truncated>..."
         elif PyUnicode_Check(string):
-            truncated = string[:TRUNCATED_SPAN_ATTRIBUTE_LEN - 14] + "<truncated>..."
-            return truncated
+            return string[:TRUNCATED_SPAN_ATTRIBUTE_LEN - 14] + "<truncated>..."
     return string
 
 cdef inline int pack_bytes(msgpack_packer *pk, char *bs, Py_ssize_t l):
