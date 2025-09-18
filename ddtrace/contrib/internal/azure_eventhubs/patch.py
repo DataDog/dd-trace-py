@@ -200,5 +200,5 @@ def _unpatch(azure_eventhubs_module):
     _u(azure_eventhubs_module.EventHubProducerClient, "send_event")
     _u(azure_eventhubs_module.EventHubProducerClient, "send_batch")
 
-    if azure_eventhubs_module.__name__ == "azure.eventhubs":
+    if azure_eventhubs_module.__name__ == "azure.eventhub":
         _u(azure_eventhubs_module.EventDataBatch, "add")
