@@ -15,9 +15,9 @@ from typing import TextIO
 
 import ddtrace
 from ddtrace import config
+from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native
 from ddtrace.internal.runtime import get_runtime_id
-from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.utils.http
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.settings._agent import config as agent_config
