@@ -107,7 +107,7 @@ class _TelemetryClient:
             else:
                 log.debug("Failed to send Instrumentation Telemetry to %s. Response: %s", self.url, resp.status)
         except Exception as e:
-            log.debug("Failed to send Instrumentation Telemetry to %s. Error: %s", self.url, e)
+            log.debug("Failed to send Instrumentation Telemetry to %s. Error: %s", self.url, str(e))
         finally:
             if conn is not None:
                 conn.close()
