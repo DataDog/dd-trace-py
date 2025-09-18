@@ -43,11 +43,11 @@ Pull Request Requirements
 
 When submitting a pull request, ensure the following requirements are met:
 
-* **PR title follows conventional commit standard** - See the :ref:`pull request naming section<Branches and Pull Requests>` for details.
+* **PR title follows conventional commit standard** - See the `Branches and Pull Requests`_ section for details.
 * **All changes are related to the pull request's stated goal** - Keep changes focused and avoid scope creep.
 * **The change includes tests OR the PR description describes a testing strategy** - All code changes should be tested appropriately.
 * **The change includes or references documentation updates if necessary** - Update user-facing documentation when adding new features or changing behavior.
-* **Backport labels are set if applicable** - Apply appropriate backport labels for fixes and CI changes as described in the :ref:`backporting section<Backporting>`.
+* **Backport labels are set if applicable** - Apply appropriate backport labels for fixes and CI changes as described in the `Backporting`_ section.
 * **Avoids breaking API changes** - Follow the :doc:`versioning policy <versioning>` to maintain backward compatibility.
 * **The PR description includes an overview of the change** - Clearly describe what the change does and why it's needed.
 * **The PR description articulates the motivation for the change** - Explain the problem being solved or the improvement being made.
