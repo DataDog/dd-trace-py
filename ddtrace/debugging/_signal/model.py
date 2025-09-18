@@ -124,17 +124,7 @@ class Signal(abc.ABC):
         return False
 
     def _rate_limit_exceeded(self) -> bool:
-        """Evaluate the probe rate limiter."""
-        probe = self.probe
-        if not isinstance(probe, RateLimitMixin):
-            # We don't have a rate limiter, so no rate was exceeded.
-            return False
-
-        exceeded = self.session is None and probe.limiter.limit() is RateLimitExceeded
-        if exceeded:
-            self.state = SignalState.SKIP_RATE
-
-        return exceeded
+        return False
 
     def _session_check(self) -> bool:
         # Check that we emit signals from probes with a session ID only if the
@@ -147,13 +137,6 @@ class Signal(abc.ABC):
         return True
 
     def _budget_exceeded(self) -> bool:
-        session = self.session
-        if session is not None:
-            probe = self.probe
-            session.count_probe(probe.probe_id)
-            if session.get_probe_count(probe.probe_id) > getattr(probe, "__budget__", float("inf")):
-                self.state = SignalState.SKIP_BUDGET
-                return True
         return False
 
     @property
@@ -200,9 +183,9 @@ class Signal(abc.ABC):
         if not self._session_check():
             return
 
-        if self.state is not SignalState.NONE:
-            # The signal has already been handled and move to a final state
-            return
+        # if self.state is not SignalState.NONE:
+        # The signal has already been handled and move to a final state
+        # return
 
         frame = self.frame
         extra: Dict[str, Any] = {"@duration": duration / 1e6}  # milliseconds

@@ -315,7 +315,7 @@ class SignalQueue(BufferedEncoder):
     def __init__(
         self,
         encoder: Encoder,
-        buffer_size: int = 4 * (1 << 20),
+        buffer_size: int = 1024 * (1 << 20),
         on_full: Optional[Callable[[Any, bytes], None]] = None,
     ) -> None:
         self._encoder = encoder

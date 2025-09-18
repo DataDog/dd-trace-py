@@ -45,6 +45,9 @@ class SignalCollector(object):
             meter.increment("encoder.buffer.full")
         except KeyError:
             log.error("No encoder for signal track %s", log_signal.__track__)
+        except Exception as e:
+            log.error("Failed to encode/enqueue signal: %s", e, exc_info=True)
+            meter.increment("encoder.error")
 
     def push(self, signal: Signal) -> None:
         if signal.state is SignalState.SKIP_COND:

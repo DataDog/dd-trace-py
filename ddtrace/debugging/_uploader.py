@@ -59,6 +59,7 @@ class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
 
         self._agent_endpoints_cache: HourGlass = HourGlass(duration=60.0)
 
+        self._tracks = None
         self.set_track_endpoints()
         self._headers = {
             "Content-type": "application/json; charset=utf-8",
@@ -102,18 +103,25 @@ class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
 
         endpoint_suffix = f"?ddtags={quote(di_config.tags)}" if di_config._tags_in_qs and di_config.tags else ""
 
-        self._tracks = {
-            SignalTrack.LOGS: UploaderTrack(
-                endpoint=f"/debugger/v1/input{endpoint_suffix}",
-                queue=self.__queue__(
-                    encoder=LogSignalJsonEncoder(di_config.service_name), on_full=self._on_buffer_full
+        # Only create the tracks if they don't exist to preserve the track queues.
+        if self._tracks is None:
+            self._tracks = {
+                SignalTrack.LOGS: UploaderTrack(
+                    endpoint=f"/debugger/v1/input{endpoint_suffix}",
+                    queue=self.__queue__(
+                        encoder=LogSignalJsonEncoder(di_config.service_name), on_full=self._on_buffer_full
+                    ),
                 ),
-            ),
-            SignalTrack.SNAPSHOT: UploaderTrack(
-                endpoint=f"{snapshot_track}{endpoint_suffix}",
-                queue=self.__queue__(encoder=SnapshotJsonEncoder(di_config.service_name), on_full=self._on_buffer_full),
-            ),
-        }
+                SignalTrack.SNAPSHOT: UploaderTrack(
+                    endpoint=f"{snapshot_track}{endpoint_suffix}",
+                    queue=self.__queue__(
+                        encoder=SnapshotJsonEncoder(di_config.service_name), on_full=self._on_buffer_full
+                    ),
+                ),
+            }
+        else:
+            self._tracks[SignalTrack.SNAPSHOT].endpoint = f"{snapshot_track}{endpoint_suffix}"
+
         self._collector = self.__collector__({t: ut.queue for t, ut in self._tracks.items()})
 
     def _write(self, payload: bytes, endpoint: str) -> None:
@@ -150,6 +158,7 @@ class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
         queue = track.queue
         payload = queue.flush()
         if payload is not None:
+            log.debug("Uploading payload to endpoint %s with payload %s", track.endpoint, payload)
             try:
                 self._write_with_backoff(payload, track.endpoint)
                 meter.distribution("batch.cardinality", queue.count)
@@ -158,16 +167,23 @@ class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
 
     def periodic(self) -> None:
         """Upload the buffer content to the logs intake."""
-        if self._flush_full:
-            # We received the signal to flush a full buffer
-            self._flush_full = False
-            for track in self._tracks.values():
-                if track.queue.is_full():
-                    self._flush_track(track)
+        try:
+            log.debug("Checking if we need to flush the buffer")
+            if self._flush_full:
+                log.debug("Time to flush the buffer")
+                # We received the signal to flush a full buffer
+                self._flush_full = False
+                for track in self._tracks.values():
+                    if track.queue.is_full():
+                        self._flush_track(track)
 
-        for track in self._tracks.values():
-            if track.queue.count:
-                self._flush_track(track)
+            log.debug("Checking the tracks: %s", self._tracks.values())
+            for track in self._tracks.values():
+                log.debug("Checking the track %s with count %s", track.endpoint, track.queue.count)
+                if track.queue.count:
+                    self._flush_track(track)
+        except Exception as e:
+            log.debug("Error in periodic: %s", e)
 
     on_shutdown = periodic
 
