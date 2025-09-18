@@ -7,7 +7,11 @@ from uuid import uuid4
 from azure.servicebus import ServiceBusClient
 from azure.servicebus import ServiceBusMessage
 from azure.servicebus import ServiceBusReceiveMode
+from azure.servicebus import ServiceBusReceiver
+from azure.servicebus import ServiceBusSender
 from azure.servicebus.aio import ServiceBusClient as ServiceBusClientAsync
+from azure.servicebus.aio import ServiceBusReceiver as ServiceBusReceiverAsync
+from azure.servicebus.aio import ServiceBusSender as ServiceBusSenderAsync
 from azure.servicebus.amqp import AmqpAnnotatedMessage
 import pytest
 
@@ -58,7 +62,14 @@ def make_amqp_annotated_messages():
     ]
 
 
-def run_test(sender, receiver, method, message_payload_type, distributed_tracing_enabled, batch_links_enabled):
+def run_test(
+    sender: ServiceBusSender,
+    receiver: ServiceBusReceiver,
+    method: Union[str, None],
+    message_payload_type: Union[str, None],
+    distributed_tracing_enabled: bool,
+    batch_links_enabled: bool,
+):
     servicebus_messages = make_servicebus_messages()
     amqp_annotated_messages = make_amqp_annotated_messages()
 
@@ -102,7 +113,12 @@ def run_test(sender, receiver, method, message_payload_type, distributed_tracing
 
 
 async def run_test_async(
-    sender, receiver, method, message_payload_type, distributed_tracing_enabled, batch_links_enabled
+    sender: ServiceBusSenderAsync,
+    receiver: ServiceBusReceiverAsync,
+    method: Union[str, None],
+    message_payload_type: Union[str, None],
+    distributed_tracing_enabled: bool,
+    batch_links_enabled: bool,
 ):
     servicebus_messages = make_servicebus_messages()
     amqp_annotated_messages = make_amqp_annotated_messages()
