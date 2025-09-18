@@ -907,8 +907,12 @@ venv = Venv(
         # 3.2     3.6, 3.7, 3.8, 3.9, 3.10
         # 4.0     3.8, 3.9, 3.10
         # 4.1     3.8, 3.9, 3.10, 3.11
-        # 4.2     3.8, 3.9, 3.10, 3.11
+        # 4.2     3.8, 3.9, 3.10, 3.11, 3.12
         # 5.0     3.10, 3.11, 3.12
+        # 5.1     3.10, 3.11, 3.12, 3.13
+        # 5.2     3.10, 3.11, 3.12, 3.13
+        # 6.0     3.12, 3.13
+        # 6.1     3.12, 3.13, 3.14
         # Source: https://docs.djangoproject.com/en/dev/faq/install/#what-python-version-can-i-use-with-django
         Venv(
             name="django",
@@ -969,14 +973,14 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.8"),
+                    pys=select_pys(min_version="3.8", max_version="3.10"),
                     pkgs={
                         "django_hosts": "~=4.0",
                         "django": "~=3.2",
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.8"),
+                    pys=select_pys(min_version="3.8", max_version="3.13"),
                     pkgs={
                         "django_hosts": ["~=5.0", latest],
                         "django": "~=4.0",
@@ -1002,14 +1006,14 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.8"),
+                    pys=select_pys(min_version="3.8", max_version="3.10"),
                     pkgs={
                         "django": "~=3.2",
                         "djangorestframework": ">=3.11,<3.12",
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.8"),
+                    pys=select_pys(min_version="3.8", max_version="3.13"),
                     pkgs={
                         "django": ["~=4.0"],
                         "djangorestframework": ["~=3.13", latest],
@@ -1033,7 +1037,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.8", max_version="3.11"),
+                    pys=select_pys(min_version="3.8", max_version="3.9"),
                     pkgs={
                         "sqlalchemy": "~=1.2.18",
                         "django": "~=2.2.0",
