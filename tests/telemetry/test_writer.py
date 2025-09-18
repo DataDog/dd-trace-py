@@ -10,6 +10,7 @@ import mock
 import pytest
 
 from ddtrace import config
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 import ddtrace.internal.telemetry
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
@@ -451,7 +452,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_PROFILING_PYTORCH_EVENTS_LIMIT", "origin": "default", "value": 1000000},
         {"name": "DD_PROFILING_SAMPLE_POOL_CAPACITY", "origin": "default", "value": 4},
         {"name": "DD_PROFILING_STACK_ENABLED", "origin": "env_var", "value": False},
-        {"name": "DD_PROFILING_STACK_V2_ENABLED", "origin": "default", "value": True},
+        {"name": "DD_PROFILING_STACK_V2_ENABLED", "origin": "default", "value": PYTHON_VERSION_INFO < (3, 14)},
         {"name": "DD_PROFILING_TAGS", "origin": "default", "value": ""},
         {"name": "DD_PROFILING_TIMELINE_ENABLED", "origin": "default", "value": True},
         {"name": "DD_PROFILING_UPLOAD_INTERVAL", "origin": "env_var", "value": 10.0},

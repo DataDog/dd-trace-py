@@ -415,18 +415,30 @@ venv = Venv(
         Venv(
             name="telemetry",
             command="pytest {cmdargs} tests/telemetry/",
-            pys=select_pys(),
             pkgs={
                 "requests": latest,
                 "gunicorn": latest,
-                "flask": "<=2.2.3",
                 "httpretty": "<1.1",
-                "werkzeug": "<2.0",
                 "pytest-randomly": latest,
-                "markupsafe": "<2.0",
                 "xmltodict": latest,
                 "django": latest,
             },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.14"),
+                    pkgs={
+                        "flask": ">=3.1.2",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(max_version="3.13"),
+                    pkgs={
+                        "flask": "<=2.2.3",
+                        "werkzeug": "<2.0",
+                        "markupsafe": "<2.0",
+                    },
+                ),
+            ],
         ),
         Venv(
             name="integration",
