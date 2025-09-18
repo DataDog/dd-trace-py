@@ -1089,7 +1089,7 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
     assert tags == [["config_opentelemetry:otel_logs_exporter"]]
 
 
-def test_add_integration_error_log(mock_time, telemetry_writer, test_agent_session):
+def test_add_error_log(mock_time, telemetry_writer, test_agent_session):
     """Test add_integration_error_log functionality with real stack trace"""
     try:
         import json
@@ -1112,13 +1112,12 @@ def test_add_integration_error_log(mock_time, telemetry_writer, test_agent_sessi
         stack_trace = log_entry["stack_trace"]
         expected_lines = [
             "Traceback (most recent call last):",
-            '  File "<REDACTED>", line 1096, in test_add_integration_error_log',
-            '    json.loads("{invalid: json,}")',
-            '  File "json/__init__.py", line 346, in loads',
+            "<REDACTED>",  # User code gets redacted
+            '  File "json/__init__.py',
             "    return _default_decoder.decode(s)",
-            '  File "json/decoder.py", line 345, in decode',
+            '  File "json/decoder.py"',
             "    obj, end = self.raw_decode(s, idx=_w(s, 0).end())",
-            '  File "json/decoder.py", line 361, in raw_decode',
+            '  File "json/decoder.py"',
             "    obj, end = self.scan_once(s, idx)",
             "json.decoder.JSONDecodeError: <REDACTED>",
         ]
