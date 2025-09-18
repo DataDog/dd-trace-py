@@ -340,21 +340,12 @@ class Experiment:
         self._id: Optional[str] = None
         self._run_name: Optional[str] = None
 
-    def run(
-        self, jobs: int = 1, raise_errors: bool = False, sample_size: Optional[int] = None
-    ) -> Optional[ExperimentResult]:
-        if not self._llmobs_instance:
+    def run(self, jobs: int = 1, raise_errors: bool = False, sample_size: Optional[int] = None) -> ExperimentResult:
+        if not self._llmobs_instance or not self._llmobs_instance.enabled:
             raise ValueError(
                 "LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)` "
                 "and create the experiment via `LLMObs.experiment(...)` before running the experiment."
             )
-        if not self._llmobs_instance.enabled:
-            logger.warning(
-                "Skipping experiment as LLMObs is not enabled. "
-                "Ensure LLM Observability is enabled via `LLMObs.enable(...)` "
-                "or set `DD_LLMOBS_ENABLED=1` and use `ddtrace-run` to run your application."
-            )
-            return None
 
         project = self._llmobs_instance._dne_client.project_create_or_get(self._project_name)
         self._project_id = project.get("_id", "")
