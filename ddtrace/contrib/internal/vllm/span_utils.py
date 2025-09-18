@@ -14,6 +14,7 @@ from vllm.sequence import RequestMetrics, SequenceGroup
 from ddtrace.trace import Context, Pin, Span, Tracer
 from ddtrace.llmobs._integrations.vllm import VLLMIntegration
 from vllm.pooling_params import PoolingParams
+from ddtrace.contrib.internal.vllm.data_extractors import select_prompt_for_span
 
 log = get_logger(__name__)
 
@@ -80,6 +81,8 @@ def inject_trace_headers(
     request_id_arg_pos: Optional[int] = None,
     prompt_arg_pos: Optional[int] = None,
     trace_headers_arg_pos: Optional[int] = None,
+    params_arg_pos: Optional[int] = None,
+    tokenizer: Optional[Any] = None,
 ) -> Optional[tuple]:
     """
     Comprehensive trace headers injection that handles:
@@ -91,13 +94,10 @@ def inject_trace_headers(
         return
 
     parent = pin.tracer.current_span()
-    if not parent:
-        log.debug("[VLLM DD] inject_trace_headers: no parent span")
 
     # Determine if we're working with args or kwargs for trace_headers
     headers_in_args = trace_headers_arg_pos is not None and len(args) > trace_headers_arg_pos
     existing_headers = {}
-    
     if headers_in_args:
         existing_headers = args[trace_headers_arg_pos] or {}
     else:
@@ -105,63 +105,32 @@ def inject_trace_headers(
 
     # Start with existing headers
     headers = dict(existing_headers)
-    # Inject trace context only when parent exists
     if parent:
         HTTPPropagator.inject(parent.context, headers)
     
-    # Try to get prompt from various sources
+    # Extract prompt directly from the provided prompt argument
     prompt_to_inject = None
-    
-    # 1. From parent span context
-    if parent:
-        captured = parent._get_ctx_item("vllm.captured_prompt")
-        if isinstance(captured, str) and captured:
-            prompt_to_inject = captured
-    
-    # 2. From integration cache using request_id
-    if not prompt_to_inject and integration and request_id_arg_pos is not None:
-        req_id = None
-        if len(args) > request_id_arg_pos:
-            req_id = args[request_id_arg_pos]
-        else:
-            req_id = kwargs.get("request_id")
-        
-        if req_id:
-            cached_prompt = integration.get_captured_prompt(str(req_id))
-            if cached_prompt:
-                prompt_to_inject = cached_prompt
-    
-    # 3. From direct prompt argument (for sync/async add_request)
-    if not prompt_to_inject and prompt_arg_pos is not None:
+    if prompt_arg_pos is not None:
         prompt_arg = args[prompt_arg_pos] if len(args) > prompt_arg_pos else kwargs.get("prompt")
-        token_ids_to_inject = None
-        if isinstance(prompt_arg, str) and prompt_arg:
-            prompt_to_inject = prompt_arg
-        elif isinstance(prompt_arg, list) and prompt_arg and isinstance(prompt_arg[0], int):
-            token_ids_to_inject = prompt_arg
-        elif isinstance(prompt_arg, dict):
-            # Handle ExplicitEncoderDecoderPrompt
-            if ("decoder_prompt" in prompt_arg) or ("encoder_prompt" in prompt_arg):
-                nested = prompt_arg.get("decoder_prompt") or prompt_arg.get("encoder_prompt")
-                if isinstance(nested, dict):
-                    if "prompt" in nested and nested.get("prompt"):
-                        prompt_to_inject = nested.get("prompt")
-                    if token_ids_to_inject is None and "prompt_token_ids" in nested:
-                        token_ids_to_inject = nested.get("prompt_token_ids")
-            # Handle plain TextPrompt/TokensPrompt
-            if prompt_to_inject is None and "prompt" in prompt_arg and prompt_arg.get("prompt"):
-                prompt_to_inject = prompt_arg.get("prompt")
-            if token_ids_to_inject is None and "prompt_token_ids" in prompt_arg:
-                token_ids_to_inject = prompt_arg.get("prompt_token_ids")
-
-        # If we only have token ids, attach them under a dedicated header
-        if prompt_to_inject is None and isinstance(token_ids_to_inject, list) and (len(token_ids_to_inject) == 0 or isinstance(token_ids_to_inject[0], int)):
-            headers["x-datadog-prompt-token-ids"] = ",".join(str(i) for i in token_ids_to_inject)
+        # Determine operation type
+        is_embedding = False
+        params_obj = None
+        if params_arg_pos is not None:
+            params_obj = args[params_arg_pos] if len(args) > params_arg_pos else kwargs.get("params")
+        is_embedding = isinstance(params_obj, PoolingParams)
+        # Decode for completion when possible
+        text, token_ids, _ = select_prompt_for_span(prompt_arg,
+                                                    is_embedding=is_embedding,
+                                                    tokenizer=tokenizer)
+        if text:
+            headers["x-datadog-captured-prompt"] = str(text)
+        elif token_ids:
+            headers["x-datadog-captured-prompt"] = str(token_ids)
     
     # Add prompt to headers if found (stringify for safety)
-    if prompt_to_inject is not None:
-        headers["x-datadog-captured-prompt"] = str(prompt_to_inject)
-        log.debug("[VLLM DD] inject_trace_headers: added x-datadog-captured-prompt (type=%s)", type(prompt_to_inject).__name__)
+    captured = headers.get("x-datadog-captured-prompt")
+    if captured is not None:
+        log.debug("[VLLM DD] inject_trace_headers: added x-datadog-captured-prompt (type=%s)", type(captured).__name__)
     
     # Update the appropriate location
     if headers_in_args and headers:

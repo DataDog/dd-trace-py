@@ -9,7 +9,7 @@ from vllm import SamplingParams
 from vllm.outputs import CompletionOutput, PoolingRequestOutput, RequestOutput
 from vllm.sequence import Sequence, SequenceGroup, SequenceStatus
 from vllm.lora.request import LoRARequest
-from ddtrace.trace import Span
+from vllm.inputs import PromptType
 
 
 # ---------- data container ---------------------------------------------------
@@ -199,11 +199,6 @@ def extract_offline_pooling_data(request_output: PoolingRequestOutput, prompts=N
 
     return data
 
-# ---------- tiny lookups used by wrappers -----------------------------------
-def extract_captured_prompt(parent_span: Optional[Span]) -> Optional[str]:
-    return parent_span._get_ctx_item("vllm.captured_prompt") if parent_span else None
-
-
 def extract_model_name(instance: Any) -> Optional[str]:
     """Extract model name from any vLLM engine instance (LLMEngine, AsyncLLMEngine, MQLLMEngineClient)."""
     model_config = getattr(instance, "model_config", None)
@@ -214,3 +209,52 @@ def extract_model_name(instance: Any) -> Optional[str]:
 
 def extract_lora_name(lora_request: Optional[LoRARequest]) -> Optional[str]:
     return _lora_name(lora_request)
+
+
+def select_prompt_for_span(
+    prompt: PromptType,
+    is_embedding: bool = False,
+    tokenizer: Optional[Any] = None,
+) -> tuple[Optional[str], Optional[List[int]], Optional[int]]:
+    text: Optional[str] = None
+    token_ids: Optional[List[int]] = None
+
+    if isinstance(prompt, str):
+        text = prompt
+    elif isinstance(prompt, list) and (not prompt or isinstance(prompt[0], int)):
+        token_ids = prompt  # not standard PromptType, but handle defensively
+    elif isinstance(prompt, dict):
+        # ExplicitEncoderDecoderPrompt
+        if ("decoder_prompt" in prompt) or ("encoder_prompt" in prompt):
+            nested = prompt.get("decoder_prompt") or prompt.get("encoder_prompt")
+            if isinstance(nested, dict):
+                if "prompt" in nested:
+                    text = nested.get("prompt")
+                if "prompt_token_ids" in nested:
+                    token_ids = nested.get("prompt_token_ids")
+            else:
+                if isinstance(nested, str):
+                    text = nested
+                if isinstance(nested, list):
+                    token_ids = nested
+        else:
+            # TextPrompt / TokensPrompt
+            if "prompt" in prompt:
+                text = prompt.get("prompt")
+            if "prompt_token_ids" in prompt:
+                token_ids = prompt.get("prompt_token_ids")
+
+    # Decode for completion when only token ids are available and tokenizer present
+    if not text and token_ids and not is_embedding and tokenizer:
+        text = tokenizer.decode(token_ids)
+
+    # Compute input token count when possible
+    input_tokens: Optional[int] = None
+    if token_ids:
+        input_tokens = len(token_ids)
+    elif text and tokenizer:
+        ids = tokenizer.encode(text, add_special_tokens=False)
+        if isinstance(ids, list):
+            input_tokens = len(ids)
+
+    return text, token_ids, input_tokens
