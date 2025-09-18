@@ -77,7 +77,7 @@ def _patched_producer_init(wrapped, instance, args, kwargs):
 
 def _patched_create_batch(wrapped, instance, args, kwargs):
     pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
+    if not pin or not pin.enabled() or not config.azure_eventhubs.batch_links:
         return wrapped(*args, **kwargs)
 
     batch = wrapped(*args, **kwargs)
@@ -90,7 +90,7 @@ def _patched_create_batch(wrapped, instance, args, kwargs):
 
 async def _patched_create_batch_async(wrapped, instance, args, kwargs):
     pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
+    if not pin or not pin.enabled() or not config.azure_eventhubs.batch_links:
         return await wrapped(*args, **kwargs)
 
     batch = await wrapped(*args, **kwargs)
@@ -103,7 +103,7 @@ async def _patched_create_batch_async(wrapped, instance, args, kwargs):
 
 def _patched_add(wrapped, instance, args, kwargs):
     pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
+    if not pin or not pin.enabled() or not config.azure_eventhubs.batch_links:
         return wrapped(*args, **kwargs)
 
     resource_name = instance._dd_eventhub_name
