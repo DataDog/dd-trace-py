@@ -1,7 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 import sys
-import time
 import traceback
 from typing import TYPE_CHECKING
 from typing import Any
@@ -613,11 +612,15 @@ class Experiment:
         self, experiment_result: ExperimentResult
     ) -> List["LLMObsExperimentEvalMetricEvent"]:
         eval_metrics = []
+        latest_timestamp: int = 0
         for exp_result in experiment_result["rows"]:
             evaluations = exp_result.get("evaluations") or {}
             span_id = exp_result.get("span_id", "")
             trace_id = exp_result.get("trace_id", "")
             timestamp_ns = cast(int, exp_result.get("timestamp", 0))
+            if timestamp_ns > latest_timestamp:
+                latest_timestamp = timestamp_ns
+
             for eval_name, eval_data in evaluations.items():
                 if not eval_data:
                     continue
@@ -636,7 +639,7 @@ class Experiment:
                 summary_eval_data.get("error"),
                 "",
                 "",
-                cast(int, time.time() * 1000000000),
+                latest_timestamp,
                 source="summary",
             )
             eval_metrics.append(eval_metric)
