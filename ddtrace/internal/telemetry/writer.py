@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
-from typing import LiteralString
 from typing import Optional  # noqa:F401
 from typing import Set  # noqa:F401
 from typing import Tuple  # noqa:F401
@@ -516,7 +515,7 @@ class TelemetryWriter(PeriodicService):
             # Logs are hashed using the message, level, tags, and stack_trace. This should prevent duplicatation.
             self._logs.add(data)
 
-    def add_error_log(self, msg: LiteralString, exc: BaseException | tuple) -> None:
+    def add_error_log(self, msg: str, exc: BaseException | tuple) -> None:
         if config.LOG_COLLECTION_ENABLED:
             stack_trace = self._format_stack_trace(exc)
 
