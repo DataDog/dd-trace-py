@@ -107,7 +107,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "DD_EXCEPTION_REPLAY_ENABLED", "origin": "unknown", "value": False},
                     {"name": "DD_FASTAPI_ASYNC_BODY_TIMEOUT_SECONDS", "origin": "default", "value": 0.1},
                     {"name": "DD_INSTRUMENTATION_TELEMETRY_ENABLED", "origin": "unknown", "value": True},
-                    {"name": "DD_PROFILING_STACK_ENABLED", "origin": "unknown", "value": True},
+                    {"name": "DD_PROFILING_STACK_ENABLED", "origin": "unknown", "value": sys.version_info < (3, 14)},
                     {"name": "DD_PROFILING_MEMORY_ENABLED", "origin": "unknown", "value": True},
                     {"name": "DD_PROFILING_HEAP_ENABLED", "origin": "unknown", "value": True},
                     {"name": "DD_PROFILING_LOCK_ENABLED", "origin": "unknown", "value": True},
