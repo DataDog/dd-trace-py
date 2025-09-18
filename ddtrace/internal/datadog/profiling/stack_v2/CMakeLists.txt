@@ -41,11 +41,11 @@ endif()
 
 # Add echion
 set(ECHION_COMMIT
-    "158a50f5bba99bce486b007d4c5ee586836610db" # https://github.com/P403n1x87/echion/commit/158a50f5bba99bce486b007d4c5ee586836610db
+    "80d000f6b59e677796790f3601a1729234757dfe" # https://github.com/P403n1x87/echion/commit/80d000f6b59e677796790f3601a1729234757dfe
     CACHE STRING "Commit hash of echion to use")
 FetchContent_Declare(
     echion
-    GIT_REPOSITORY "https://github.com/P403n1x87/echion.git"
+    GIT_REPOSITORY "https://github.com/kowalskithomas/echion.git"
     GIT_TAG ${ECHION_COMMIT})
 FetchContent_GetProperties(echion)
 

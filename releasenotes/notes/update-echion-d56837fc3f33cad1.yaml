@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    profiling: this upgrades echion to the latest version. This reduces cpu usage.
