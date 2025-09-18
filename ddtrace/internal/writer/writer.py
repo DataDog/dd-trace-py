@@ -329,7 +329,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 else:
                     log_args += (payload,)
 
-            log.error(msg, *log_args)
+            log.error(msg, *log_args, extra={"send_to_telemetry": False})
             self._metrics_dist("http.dropped.bytes", len(payload))
             self._metrics_dist("http.dropped.traces", count)
         return response

@@ -1092,9 +1092,11 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
 def test_add_integration_error_log(mock_time, telemetry_writer, test_agent_session):
     """Test add_integration_error_log functionality with real stack trace"""
     try:
-        raise ValueError("Test exception")
-    except ValueError as e:
-        telemetry_writer.add_integration_error_log("Test error message", e)
+        import json
+
+        json.loads("{invalid: json,}")
+    except Exception as e:
+        telemetry_writer.add_error_log("Test error message", e)
         telemetry_writer.periodic(force_flush=True)
 
         log_events = test_agent_session.get_events("logs")
@@ -1110,9 +1112,15 @@ def test_add_integration_error_log(mock_time, telemetry_writer, test_agent_sessi
         stack_trace = log_entry["stack_trace"]
         expected_lines = [
             "Traceback (most recent call last):",
-            "  <REDACTED>",
-            "    <REDACTED>",
-            "builtins.ValueError: Test exception",
+            '  File "<REDACTED>", line 1096, in test_add_integration_error_log',
+            '    json.loads("{invalid: json,}")',
+            '  File "json/__init__.py", line 346, in loads',
+            "    return _default_decoder.decode(s)",
+            '  File "json/decoder.py", line 345, in decode',
+            "    obj, end = self.raw_decode(s, idx=_w(s, 0).end())",
+            '  File "json/decoder.py", line 361, in raw_decode',
+            "    obj, end = self.scan_once(s, idx)",
+            "json.decoder.JSONDecodeError: <REDACTED>",
         ]
         for expected_line in expected_lines:
             assert expected_line in stack_trace
@@ -1127,7 +1135,7 @@ def test_add_integration_error_log_with_log_collection_disabled(mock_time, telem
         try:
             raise ValueError("Test exception")
         except ValueError as e:
-            telemetry_writer.add_integration_error_log("Test error message", e)
+            telemetry_writer.add_error_log("Test error message", e)
             telemetry_writer.periodic(force_flush=True)
 
             log_events = test_agent_session.get_events("logs", subprocess=True)
@@ -1136,18 +1144,44 @@ def test_add_integration_error_log_with_log_collection_disabled(mock_time, telem
         telemetry_config.LOG_COLLECTION_ENABLED = original_value
 
 
+def test_telemetry_error_handler_respects_send_to_telemetry_false(mock_time, telemetry_writer, test_agent_session):
+    """Test that DDTelemetryErrorHandler does not send logs when send_to_telemetry=False"""
+    from ddtrace.internal.logger import get_logger
+
+    logger = get_logger("ddtrace")
+
+    logger.error("This error should not be sent to telemetry", extra={"send_to_telemetry": False})
+    telemetry_writer.periodic(force_flush=True)
+    log_events = test_agent_session.get_events("logs")
+    assert len(log_events) == 0
+
+    logger.error("This error should be sent to telemetry")
+    telemetry_writer.periodic(force_flush=True)
+    log_events = test_agent_session.get_events("logs")
+    assert len(log_events) == 1
+
+    logs = log_events[0]["payload"]["logs"]
+    assert len(logs) == 1
+    assert logs[0]["message"] == "This error should be sent to telemetry"
+
+
 @pytest.mark.parametrize(
-    "filename, is_redacted",
+    "filename, result",
     [
-        ("/path/to/file.py", True),
-        ("/path/to/ddtrace/contrib/flask/file.py", False),
-        ("/path/to/dd-trace-something/file.py", True),
+        ("/path/to/file.py", "<REDACTED>"),
+        ("/path/to/ddtrace/contrib/flask/file.py", "<REDACTED>"),
+        ("/path/to/lib/python3.13/site-packages/ddtrace/_trace/tracer.py", "ddtrace/_trace/tracer.py"),
+        ("/path/to/lib/python3.13/site-packages/requests/api.py", "requests/api.py"),
+        (
+            "/path/to/python@3.13/3.13.1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/__init__.py",
+            "json/__init__.py",
+        ),
     ],
 )
-def test_redact_filename(filename, is_redacted):
+def test_redact_filename(filename, result):
     """Test file redaction logic"""
     writer = TelemetryWriter(is_periodic=False)
-    assert writer._should_redact(filename) == is_redacted
+    assert writer._format_file_path(filename) == result
 
 
 def test_telemetry_writer_multiple_sources_config(telemetry_writer, test_agent_session):
