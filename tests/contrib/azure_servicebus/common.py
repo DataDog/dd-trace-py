@@ -59,51 +59,38 @@ def make_amqp_annotated_messages():
 
 
 def run_test(sender, receiver, method, message_payload_type, distributed_tracing_enabled, batch_links_enabled):
-    message_length = 0
+    servicebus_messages = make_servicebus_messages()
+    amqp_annotated_messages = make_amqp_annotated_messages()
+
+    message_length = len(servicebus_messages) + len(amqp_annotated_messages)
     now = datetime.now(timezone.utc)
 
     if method == "send_messages" and message_payload_type == "single":
-        for servicebus_message in make_servicebus_messages():
+        for servicebus_message in servicebus_messages:
             sender.send_messages(servicebus_message)
-            message_length += 1
-        for amqp_annotated_message in make_amqp_annotated_messages():
+        for amqp_annotated_message in amqp_annotated_messages:
             sender.send_messages(amqp_annotated_message)
-            message_length += 1
     elif method == "send_messages" and message_payload_type == "list":
-        servicebus_messages = make_servicebus_messages()
         sender.send_messages(servicebus_messages)
-
-        amqp_annotated_messages = make_amqp_annotated_messages()
         sender.send_messages(amqp_annotated_messages)
-
-        message_length = len(servicebus_messages) + len(amqp_annotated_messages)
     elif method == "send_messages" and message_payload_type == "batch":
         servicebus_message_batch = sender.create_message_batch()
-        for servicebus_message in make_servicebus_messages():
+        for servicebus_message in servicebus_messages:
             servicebus_message_batch.add_message(servicebus_message)
-            message_length += 1
         sender.send_messages(servicebus_message_batch)
 
         amqp_annotated_message_batch = sender.create_message_batch()
-        for amqp_annotated_message in make_amqp_annotated_messages():
+        for amqp_annotated_message in amqp_annotated_messages:
             amqp_annotated_message_batch.add_message(amqp_annotated_message)
-            message_length += 1
         sender.send_messages(amqp_annotated_message_batch)
     elif method == "schedule_messages" and message_payload_type == "single":
-        for servicebus_message in make_servicebus_messages():
+        for servicebus_message in servicebus_messages:
             sender.schedule_messages(servicebus_message, now)
-            message_length += 1
-        for amqp_annotated_message in make_amqp_annotated_messages():
+        for amqp_annotated_message in amqp_annotated_messages:
             sender.schedule_messages(amqp_annotated_message, now)
-            message_length += 1
     elif method == "schedule_messages" and message_payload_type == "list":
-        servicebus_messages = make_servicebus_messages()
         sender.schedule_messages(servicebus_messages, now)
-
-        amqp_annotated_messages = make_amqp_annotated_messages()
         sender.schedule_messages(amqp_annotated_messages, now)
-
-        message_length = len(servicebus_messages) + len(amqp_annotated_messages)
 
     received_queue_messages = receiver.receive_messages(max_message_count=message_length, max_wait_time=5)
     assert len(received_queue_messages) == message_length
@@ -117,51 +104,38 @@ def run_test(sender, receiver, method, message_payload_type, distributed_tracing
 async def run_test_async(
     sender, receiver, method, message_payload_type, distributed_tracing_enabled, batch_links_enabled
 ):
-    message_length = 0
+    servicebus_messages = make_servicebus_messages()
+    amqp_annotated_messages = make_amqp_annotated_messages()
+
+    message_length = len(servicebus_messages) + len(amqp_annotated_messages)
     now = datetime.now(timezone.utc)
 
     if method == "send_messages" and message_payload_type == "single":
-        for servicebus_message in make_servicebus_messages():
+        for servicebus_message in servicebus_messages:
             await sender.send_messages(servicebus_message)
-            message_length += 1
-        for amqp_annotated_message in make_amqp_annotated_messages():
+        for amqp_annotated_message in amqp_annotated_messages:
             await sender.send_messages(amqp_annotated_message)
-            message_length += 1
     elif method == "send_messages" and message_payload_type == "list":
-        servicebus_messages = make_servicebus_messages()
         await sender.send_messages(servicebus_messages)
-
-        amqp_annotated_messages = make_amqp_annotated_messages()
         await sender.send_messages(amqp_annotated_messages)
-
-        message_length = len(servicebus_messages) + len(amqp_annotated_messages)
     elif method == "send_messages" and message_payload_type == "batch":
         servicebus_message_batch = await sender.create_message_batch()
-        for servicebus_message in make_servicebus_messages():
+        for servicebus_message in servicebus_messages:
             servicebus_message_batch.add_message(servicebus_message)
-            message_length += 1
         await sender.send_messages(servicebus_message_batch)
 
         amqp_annotated_message_batch = await sender.create_message_batch()
-        for amqp_annotated_message in make_amqp_annotated_messages():
+        for amqp_annotated_message in amqp_annotated_messages:
             amqp_annotated_message_batch.add_message(amqp_annotated_message)
-            message_length += 1
         await sender.send_messages(amqp_annotated_message_batch)
     elif method == "schedule_messages" and message_payload_type == "single":
-        for servicebus_message in make_servicebus_messages():
+        for servicebus_message in servicebus_messages:
             await sender.schedule_messages(servicebus_message, now)
-            message_length += 1
-        for amqp_annotated_message in make_amqp_annotated_messages():
+        for amqp_annotated_message in amqp_annotated_messages:
             await sender.schedule_messages(amqp_annotated_message, now)
-            message_length += 1
     elif method == "schedule_messages" and message_payload_type == "list":
-        servicebus_messages = make_servicebus_messages()
         await sender.schedule_messages(servicebus_messages, now)
-
-        amqp_annotated_messages = make_amqp_annotated_messages()
         await sender.schedule_messages(amqp_annotated_messages, now)
-
-        message_length = len(servicebus_messages) + len(amqp_annotated_messages)
 
     received_queue_messages = await receiver.receive_messages(max_message_count=message_length, max_wait_time=5)
     assert len(received_queue_messages) == message_length
