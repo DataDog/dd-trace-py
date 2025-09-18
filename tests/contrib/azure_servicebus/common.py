@@ -69,7 +69,7 @@ def run_test(sender, receiver, method, message_payload_type, distributed_tracing
         for amqp_annotated_message in make_amqp_annotated_messages():
             sender.send_messages(amqp_annotated_message)
             message_length += 1
-    if method == "send_messages" and message_payload_type == "list":
+    elif method == "send_messages" and message_payload_type == "list":
         servicebus_messages = make_servicebus_messages()
         sender.send_messages(servicebus_messages)
 
@@ -96,7 +96,7 @@ def run_test(sender, receiver, method, message_payload_type, distributed_tracing
         for amqp_annotated_message in make_amqp_annotated_messages():
             sender.schedule_messages(amqp_annotated_message, now)
             message_length += 1
-    if method == "schedule_messages" and message_payload_type == "list":
+    elif method == "schedule_messages" and message_payload_type == "list":
         servicebus_messages = make_servicebus_messages()
         sender.schedule_messages(servicebus_messages, now)
 
@@ -127,7 +127,7 @@ async def run_test_async(
         for amqp_annotated_message in make_amqp_annotated_messages():
             await sender.send_messages(amqp_annotated_message)
             message_length += 1
-    if method == "send_messages" and message_payload_type == "list":
+    elif method == "send_messages" and message_payload_type == "list":
         servicebus_messages = make_servicebus_messages()
         await sender.send_messages(servicebus_messages)
 
@@ -154,7 +154,7 @@ async def run_test_async(
         for amqp_annotated_message in make_amqp_annotated_messages():
             await sender.schedule_messages(amqp_annotated_message, now)
             message_length += 1
-    if method == "schedule_messages" and message_payload_type == "list":
+    elif method == "schedule_messages" and message_payload_type == "list":
         servicebus_messages = make_servicebus_messages()
         await sender.schedule_messages(servicebus_messages, now)
 
