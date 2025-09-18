@@ -4,6 +4,7 @@ import signal
 import subprocess
 import time
 
+from azure.core.exceptions import ResourceNotFoundError
 from azure.storage.blob import BlobServiceClient
 import pytest
 
@@ -88,10 +89,13 @@ def cleanup_checkpoints():
     blob_service_client = BlobServiceClient.from_connection_string(connection_string, api_version="2025-05-05")
     container_client = blob_service_client.get_container_client(container_name)
 
-    blobs = container_client.list_blobs()
+    try:
+        blobs = container_client.list_blobs()
 
-    for blob in blobs:
-        container_client.delete_blob(blob.name)
+        for blob in blobs:
+            container_client.delete_blob(blob.name)
+    except ResourceNotFoundError:
+        pass
 
 
 @pytest.mark.parametrize(
