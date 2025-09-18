@@ -72,12 +72,12 @@ PYBIND11_MODULE(_native, m)
     // Create a atexit callback to cleanup the Initializer before the interpreter finishes
     auto atexit_register = safe_import("atexit", "register");
     atexit_register(py::cpp_function([]() {
+        py::gil_scoped_acquire gil; // safe to touch Python-adjacent state
         // During interpreter shutdown (esp. with gevent), heavy cleanup can
         // trigger refcounting or Python API calls without a valid runtime. We therefore
         // always quiesce the native layer first, then skip heavy cleanup if Python is
         // already finalizing. Only perform cleanup while the runtime is alive.
         TaintEngineContext::set_shutting_down(true);
-        py::gil_scoped_acquire gil; // safe to touch Python-adjacent state
         initializer.reset();
         if (taint_engine_context) {
             taint_engine_context->clear_all_request_context_slots();
