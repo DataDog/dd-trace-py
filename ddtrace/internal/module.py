@@ -111,7 +111,9 @@ def unregister_post_run_module_hook(hook: ModuleHookType) -> None:
 def origin(module: ModuleType) -> t.Optional[Path]:
     """Get the origin source file of the module."""
     try:
-        return module.__dd_origin__
+        # Do not access __dd_origin__ directly to avoid force-loading lazy
+        # modules.
+        return object.__getattribute__(module, "__dd_origin__")
     except AttributeError:
         try:
             # DEV: Use object.__getattribute__ to avoid potential side-effects.
