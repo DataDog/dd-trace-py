@@ -33,6 +33,9 @@ DEPENDENCY_TO_INTEGRATION_MAPPING_SPECIAL_CASES = {
     "datadog_lambda": "aws_lambda",
     "aiohttp-jinja2": "aiohttp_jinja2",
     "aiohttp_jinja2": "aiohttp_jinja2",
+    "azure-eventhub": "azure_eventhubs",
+    "azure-functions": "azure_functions",
+    "azure-servicebus": "azure_servicebus",
 }
 
 INTEGRATION_TO_DEPENDENCY_MAPPING = get_integration_to_dependency_map(DEPENDENCY_TO_INTEGRATION_MAPPING_SPECIAL_CASES)
