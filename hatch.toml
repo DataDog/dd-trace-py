@@ -56,7 +56,7 @@ checks = [
     "security",
     "test",
     "suitespec-check",
-    "integration-error-log-check",
+    "error-log-check",
     "sg",
     "sg-test",
 ]
@@ -78,7 +78,7 @@ riot = [
 suitespec-check = [
     "python scripts/check_suitespec_coverage.py"
 ]
-integration-error-log-check = [
+error-log-check = [
     "python scripts/check_constant_log_message.py"
 ]
 sg = [

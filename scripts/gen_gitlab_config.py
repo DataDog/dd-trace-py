@@ -267,7 +267,7 @@ def gen_pre_checks() -> None:
     )
     check(
         name="Check integration error logs",
-        command="hatch run lint:integration-error-log-check",
+        command="hatch run lint:error-log-check",
         paths={"ddtrace/contrib/**/*.py"},
     )
     if not checks:
