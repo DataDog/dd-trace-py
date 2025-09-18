@@ -673,6 +673,9 @@ def test_crashtracker_runtime_callback():
             return func15()
 
         def func15():
+            return func16()
+
+        def func16():
             ctypes.string_at(0)
             sys.exit(-1)
 

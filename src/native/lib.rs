@@ -31,9 +31,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(crashtracker::crashtracker_on_fork, m)?)?;
         m.add_function(wrap_pyfunction!(crashtracker::crashtracker_status, m)?)?;
         m.add_function(wrap_pyfunction!(crashtracker::crashtracker_receiver, m)?)?;
-        m.add_function(wrap_pyfunction!(crashtracker::crashtracker_register_runtime_callback, m)?)?;
         m.add_function(wrap_pyfunction!(crashtracker::crashtracker_register_native_runtime_callback, m)?)?;
-        m.add_function(wrap_pyfunction!(crashtracker::emit_python_frame, m)?)?;
     }
     m.add_class::<library_config::PyTracerMetadata>()?;
     m.add_class::<library_config::PyAnonymousFileHandle>()?;

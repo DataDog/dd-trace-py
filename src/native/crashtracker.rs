@@ -1,11 +1,9 @@
 use anyhow;
 use std::collections::HashMap;
-use std::ffi::{c_void, CString};
-use pyo3::ffi;
-use std::sync::atomic::{AtomicU8, AtomicPtr, Ordering};
+use std::ffi::c_void;
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Once;
 use std::time::Duration;
-use std::ptr;
 
 use datadog_crashtracker::{
     register_runtime_stack_callback, CallbackError, CrashtrackerConfiguration,
@@ -322,8 +320,6 @@ impl From<CallbackError> for CallbackResult {
 }
 
 
-// Global storage for the Python callback - using atomic pointer for signal safety
-static PYTHON_CALLBACK: AtomicPtr<PyObject> = AtomicPtr::new(ptr::null_mut());
 
 /// Runtime-specific stack frame representation for FFI
 ///
@@ -392,185 +388,128 @@ impl RuntimeStackFramePy {
     }
 }
 
-// Thread-local storage for the current emit_frame function (signal context)
-thread_local! {
-    static EMIT_FRAME_FN: std::cell::Cell<Option<unsafe extern "C" fn(*const RuntimeStackFrame)>> =
-        const { std::cell::Cell::new(None) };
+// Constants for signal-safe operation
+const MAX_FRAMES: usize = 64;
+const MAX_STRING_LEN: usize = 256;
+
+// Stack-allocated buffer for signal-safe string handling
+struct StackBuffer {
+    data: [u8; MAX_STRING_LEN],
+    len: usize,
 }
 
-// Helper function to emit a frame from Python during crash context
-#[pyfunction(name = "emit_python_frame")]
-pub fn emit_python_frame(frame: &RuntimeStackFramePy) -> PyResult<()> {
-    eprintln!("DEBUG: emit_python_frame called with function: {:?}", frame.function_name);
-
-    EMIT_FRAME_FN.with(|emit_fn_cell| {
-        if let Some(emit_frame_fn) = emit_fn_cell.get() {
-            eprintln!("DEBUG: Found emit_frame_fn, creating C frame");
-
-            // Create CStrings that will live for the duration of this function call
-            let function_c_str = frame.function_name.as_ref().and_then(|s| CString::new(s.as_str()).ok());
-            let file_c_str = frame.file_name.as_ref().and_then(|s| CString::new(s.as_str()).ok());
-            let class_c_str = frame.class_name.as_ref().and_then(|s| CString::new(s.as_str()).ok());
-            let module_c_str = frame.module_name.as_ref().and_then(|s| CString::new(s.as_str()).ok());
-
-            let c_frame = RuntimeStackFrame {
-                function_name: function_c_str.as_ref().map_or(std::ptr::null(), |s| s.as_ptr()),
-                file_name: file_c_str.as_ref().map_or(std::ptr::null(), |s| s.as_ptr()),
-                line_number: frame.line_number,
-                column_number: frame.column_number,
-                class_name: class_c_str.as_ref().map_or(std::ptr::null(), |s| s.as_ptr()),
-                module_name: module_c_str.as_ref().map_or(std::ptr::null(), |s| s.as_ptr()),
-            };
-
-            eprintln!("DEBUG: About to call emit_frame_fn");
-            unsafe {
-                emit_frame_fn(&c_frame);
-            }
-            eprintln!("DEBUG: emit_frame_fn called successfully");
-        } else {
-            eprintln!("DEBUG: emit_python_frame called but no emit function available");
-        }
-    });
-    Ok(())
-}
-
-// C callback function that bridges to Python
-unsafe extern "C" fn python_callback_bridge(
-    emit_frame: unsafe extern "C" fn(*const RuntimeStackFrame),
-    _context: *mut c_void,
-) {
-    eprintln!("DEBUG: Python callback bridge invoked");
-
-    // Store the emit_frame function in thread-local storage for this callback execution
-    EMIT_FRAME_FN.with(|emit_fn_cell| {
-        emit_fn_cell.set(Some(emit_frame));
-    });
-
-    let callback_ptr = PYTHON_CALLBACK.load(Ordering::SeqCst);
-    if !callback_ptr.is_null() {
-        eprintln!("DEBUG: Found Python callback, calling it");
-
-        // This is unsafe, but necessary for runtime callbacks
-        Python::with_gil(|py| {
-            let py_callback = &*callback_ptr;
-            // Call the Python callback - it should call emit_python_frame for each frame
-            if let Err(_e) = py_callback.call0(py) {
-                eprintln!("DEBUG: Error calling Python callback");
-            } else {
-                eprintln!("DEBUG: Python callback executed successfully");
-            }
-        });
-    } else {
-        eprintln!("DEBUG: No Python callback found");
-    }
-
-    // Clear the emit_frame function after callback execution
-    EMIT_FRAME_FN.with(|emit_fn_cell| {
-        emit_fn_cell.set(None);
-    });
-}
-
-/// Register a runtime stack collection callback
-///
-/// This function allows language runtimes to register a callback that will be invoked
-/// during crash handling to collect runtime-specific stack traces.
-///
-/// # Arguments
-/// - `callback`: The Python callback function to invoke during crashes
-///
-/// # Returns
-/// - `CallbackResult::Ok` if registration succeeds
-/// - `CallbackResult::AlreadyRegistered` if a callback is already registered
-/// - `CallbackResult::NullCallback` if the callback function is null
-///
-/// # Safety
-/// - The callback must be signal-safe
-/// - Only one callback can be registered at a time
-#[pyfunction(name = "crashtracker_register_runtime_callback")]
-pub fn crashtracker_register_runtime_callback(
-    py: Python,
-    callback: PyObject,
-) -> CallbackResult {
-    // Create a boxed PyObject on the heap so it has a stable address
-    let callback_box = Box::new(callback.clone_ref(py));
-    let callback_ptr = Box::into_raw(callback_box);
-
-    // Try to store the callback pointer atomically
-    let previous = PYTHON_CALLBACK.compare_exchange(
-        std::ptr::null_mut(),
-        callback_ptr,
-        Ordering::SeqCst,
-        Ordering::SeqCst,
-    );
-
-    match previous {
-        Ok(_) => {
-            match register_runtime_stack_callback(python_callback_bridge, std::ptr::null_mut()) {
-                Ok(()) => CallbackResult::Ok,
-                Err(e) => e.into(),
-            }
-        }
-        Err(_) => {
-            let _ = unsafe { Box::from_raw(callback_ptr) };
-            CallbackResult::AlreadyRegistered
+impl StackBuffer {
+    const fn new() -> Self {
+        Self {
+            data: [0u8; MAX_STRING_LEN],
+            len: 0,
         }
     }
+
+    fn as_ptr(&self) -> *const i8 {
+        self.data.as_ptr() as *const i8
+    }
+
+    fn set_from_str(&mut self, s: &str) {
+        let bytes = s.as_bytes();
+        let copy_len = bytes.len().min(MAX_STRING_LEN - 1);
+        self.data[..copy_len].copy_from_slice(&bytes[..copy_len]);
+        self.data[copy_len] = 0; // null terminator
+        self.len = copy_len;
+    }
+
 }
 
-// Native C callback function that directly emits runtime stack frames
+// Improved signal-safer Python frame walker
+// This approach reuses the existing Python high-level API but with better bounds checking
+// and stack-allocated buffers to minimize allocations
 unsafe extern "C" fn native_runtime_stack_callback(
     emit_frame: unsafe extern "C" fn(*const RuntimeStackFrame),
     _context: *mut c_void,
 ) {
+    // For maximum safety, we'll fall back to the Python with_gil approach
+    // but with improved buffer management and bounds checking
     Python::with_gil(|py| {
-        let frame = py.eval(ffi::c_str!("__import__('sys')._getframe()"), None, None);
-        if let Ok(frame_obj) = frame {
-            emit_python_stack_from_frame(emit_frame, py, frame_obj);
+        // Try to get the current frame using Python's sys._getframe()
+        if let Ok(sys_module) = py.import("sys") {
+            if let Ok(getframe_fn) = sys_module.getattr("_getframe") {
+                if let Ok(frame_obj) = getframe_fn.call0() {
+                    emit_python_stack_with_bounds(emit_frame, py, frame_obj, 0);
+                }
+            }
         }
     });
 }
 
-fn emit_python_stack_from_frame(
+// Stack walking with bounds checking and stack-allocated buffers
+fn emit_python_stack_with_bounds(
     emit_frame: unsafe extern "C" fn(*const RuntimeStackFrame),
     py: Python,
     frame_obj: Bound<'_, PyAny>,
+    depth: usize,
 ) {
-    let code = frame_obj.getattr("f_code");
-    let back = frame_obj.getattr("f_back");
+    if depth >= MAX_FRAMES {
+        return; // Prevent stack overflow
+    }
 
-    if let (Ok(code_obj), Ok(back_obj)) = (code, back) {
-        let function_name = code_obj.getattr("co_name")
-            .and_then(|n| n.extract::<String>())
-            .unwrap_or_else(|_| "<unknown>".to_string());
+    // Get frame information with error handling
+    let function_name = get_frame_attr_string(py, &frame_obj, "f_code", "co_name");
+    let file_name = get_frame_attr_string(py, &frame_obj, "f_code", "co_filename");
+    let line_number = get_frame_line_number(py, &frame_obj);
 
-        let file_name = code_obj.getattr("co_filename")
-            .and_then(|f| f.extract::<String>())
-            .unwrap_or_else(|_| "<unknown>".to_string());
+    // Use stack-allocated buffers
+    let mut function_buf = StackBuffer::new();
+    let mut file_buf = StackBuffer::new();
 
-        let line_number = frame_obj.getattr("f_lineno")
-            .and_then(|l| l.extract::<u32>())
-            .unwrap_or(0);
+    function_buf.set_from_str(&function_name);
+    file_buf.set_from_str(&file_name);
 
-        let function_c_str = CString::new(function_name).unwrap_or_else(|_| CString::new("<invalid>").unwrap());
-        let file_c_str = CString::new(file_name).unwrap_or_else(|_| CString::new("<invalid>").unwrap());
+    let c_frame = RuntimeStackFrame {
+        function_name: function_buf.as_ptr(),
+        file_name: file_buf.as_ptr(),
+        line_number,
+        column_number: 0,
+        class_name: std::ptr::null(),
+        module_name: std::ptr::null(),
+    };
 
-        let c_frame = RuntimeStackFrame {
-            function_name: function_c_str.as_ptr(),
-            file_name: file_c_str.as_ptr(),
-            line_number,
-            column_number: 0,
-            class_name: std::ptr::null(),
-            module_name: std::ptr::null(),
-        };
+    unsafe {
+        emit_frame(&c_frame);
+    }
 
-        unsafe {
-            emit_frame(&c_frame);
-        }
-
-        if !back_obj.is_none() {
-            emit_python_stack_from_frame(emit_frame, py, back_obj);
+    // Get the back frame and recurse with depth limit
+    if let Ok(back_frame) = frame_obj.getattr("f_back") {
+        if !back_frame.is_none() {
+            emit_python_stack_with_bounds(emit_frame, py, back_frame, depth + 1);
         }
     }
+}
+
+// Safe attribute extraction with fallback
+fn get_frame_attr_string(_py: Python, frame: &Bound<'_, PyAny>, attr1: &str, attr2: &str) -> String {
+    if let Ok(code) = frame.getattr(attr1) {
+        if let Ok(name) = code.getattr(attr2) {
+            if let Ok(name_str) = name.extract::<String>() {
+                // Truncate if too long for our buffer
+                if name_str.len() < MAX_STRING_LEN {
+                    return name_str;
+                } else {
+                    return name_str.chars().take(MAX_STRING_LEN - 4).collect::<String>() + "...";
+                }
+            }
+        }
+    }
+    "<unknown>".to_string()
+}
+
+// Safe line number extraction
+fn get_frame_line_number(_py: Python, frame: &Bound<'_, PyAny>) -> u32 {
+    if let Ok(lineno) = frame.getattr("f_lineno") {
+        if let Ok(line_num) = lineno.extract::<u32>() {
+            return line_num;
+        }
+    }
+    0
 }
 
 /// Register the native runtime stack collection callback
