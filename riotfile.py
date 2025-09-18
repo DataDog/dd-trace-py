@@ -203,7 +203,7 @@ venv = Venv(
         ),
         Venv(
             name="iast_tdd_propagation",
-            pys=select_pys(min_version="3.9"),
+            pys=select_pys(min_version="3.9", max_version="3.13"),  # pycryptodome doesn't publish 3.14 wheels
             command="pytest {cmdargs} tests/appsec/iast_tdd_propagation/",
             pkgs={
                 "requests": latest,
@@ -330,7 +330,7 @@ venv = Venv(
             name="appsec_iast_default",
             # TODO(avara1986): remove "-vvv --no-ddtrace --no-cov" when CI visibility errors were fixed in #14581
             command="pytest -vvv --no-ddtrace --no-cov {cmdargs} tests/appsec/iast/",
-            pys=select_pys(),
+            pys=select_pys(max_version="3.13"),  # pycryptodome doesn't publish 3.14 wheels
             pkgs={
                 "requests": latest,
                 "urllib3": latest,
@@ -1383,7 +1383,7 @@ venv = Venv(
         Venv(
             name="appsec_iast_memcheck",
             command="pytest --memray --stacks=35 {cmdargs} tests/appsec/iast_memcheck/",
-            pys=select_pys(),
+            pys=select_pys(max_version="3.13"),  # pycryptodome doesn't publish 3.14 wheels
             pkgs={
                 "requests": latest,
                 "urllib3": latest,
