@@ -546,7 +546,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/lib_injection/test_guardrails.py",
             venvs=[
                 Venv(
-                    pys=select_pys(),
+                    pys=select_pys(max_version="3.13"),
                     pkgs={
                         "PyYAML": latest,
                         "pytest-randomly": latest,
