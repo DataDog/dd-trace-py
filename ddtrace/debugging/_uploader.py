@@ -60,7 +60,7 @@ class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
 
         self._agent_endpoints_cache: HourGlass = HourGlass(duration=60.0)
 
-        self._tracks: Optional[Dict[SignalTrack, UploaderTrack]] = None
+        self._tracks: Dict[SignalTrack, UploaderTrack] = {}
         self.set_track_endpoints()
         self._headers = {
             "Content-type": "application/json; charset=utf-8",
@@ -105,7 +105,7 @@ class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
         endpoint_suffix = f"?ddtags={quote(di_config.tags)}" if di_config._tags_in_qs and di_config.tags else ""
 
         # Only create the tracks if they don't exist to preserve the track queue metadata.
-        if self._tracks is None:
+        if not self._tracks:
             self._tracks = {
                 SignalTrack.LOGS: UploaderTrack(
                     endpoint=f"/debugger/v1/input{endpoint_suffix}",
