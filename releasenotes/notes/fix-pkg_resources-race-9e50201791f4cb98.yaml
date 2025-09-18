@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fixed an issue that could have caused some products to fail to start
+    properly in applications that use ``pkg_resources``, either directly or
+    indirectly.
