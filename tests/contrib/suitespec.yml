@@ -379,6 +379,23 @@ suites:
     snapshot: true
     services:
       - azurite
+  azure_functions:eventhubs:
+    parallelism: 4
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@azure_functions'
+      - '@azure_eventhubs'
+      - tests/contrib/azure_functions_eventhubs/*
+      - tests/snapshots/tests.contrib.azure_functions_eventhubs.*
+    pattern: azure_functions:eventhubs
+    runner: riot
+    snapshot: true
+    services:
+      - azurite
+      - azureeventhubsemulator
   azure_functions:servicebus:
     parallelism: 4
     paths:
