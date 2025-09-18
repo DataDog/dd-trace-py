@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
+from typing import Dict
 from typing import Optional
 from typing import Set
 from urllib.parse import quote
@@ -59,6 +60,7 @@ class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
 
         self._agent_endpoints_cache: HourGlass = HourGlass(duration=60.0)
 
+        self._tracks: Optional[Dict[SignalTrack, UploaderTrack]] = None
         self.set_track_endpoints()
         self._headers = {
             "Content-type": "application/json; charset=utf-8",
@@ -102,18 +104,25 @@ class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
 
         endpoint_suffix = f"?ddtags={quote(di_config.tags)}" if di_config._tags_in_qs and di_config.tags else ""
 
-        self._tracks = {
-            SignalTrack.LOGS: UploaderTrack(
-                endpoint=f"/debugger/v1/input{endpoint_suffix}",
-                queue=self.__queue__(
-                    encoder=LogSignalJsonEncoder(di_config.service_name), on_full=self._on_buffer_full
+        # Only create the tracks if they don't exist to preserve the track queue metadata.
+        if self._tracks is None:
+            self._tracks = {
+                SignalTrack.LOGS: UploaderTrack(
+                    endpoint=f"/debugger/v1/input{endpoint_suffix}",
+                    queue=self.__queue__(
+                        encoder=LogSignalJsonEncoder(di_config.service_name), on_full=self._on_buffer_full
+                    ),
                 ),
-            ),
-            SignalTrack.SNAPSHOT: UploaderTrack(
-                endpoint=f"{snapshot_track}{endpoint_suffix}",
-                queue=self.__queue__(encoder=SnapshotJsonEncoder(di_config.service_name), on_full=self._on_buffer_full),
-            ),
-        }
+                SignalTrack.SNAPSHOT: UploaderTrack(
+                    endpoint=f"{snapshot_track}{endpoint_suffix}",
+                    queue=self.__queue__(
+                        encoder=SnapshotJsonEncoder(di_config.service_name), on_full=self._on_buffer_full
+                    ),
+                ),
+            }
+        else:
+            self._tracks[SignalTrack.SNAPSHOT].endpoint = f"{snapshot_track}{endpoint_suffix}"
+
         self._collector = self.__collector__({t: ut.queue for t, ut in self._tracks.items()})
 
     def _write(self, payload: bytes, endpoint: str) -> None:
