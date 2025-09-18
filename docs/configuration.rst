@@ -532,7 +532,7 @@ Application & API Security
      type: Float
      default: 5.0 (unit:milliseconds)
      description: |
-       Each time the WAF is run to analyse a possible threat, this timeout duration is used to limit the waf analysis.
+       Each time the WAF is run to analyze a possible threat, this timeout duration is used to limit the WAF analysis.
        You can increase this value if you're expecting large request payloads to be analyzed.
        Please note that the WAF can be queried multiple times in a single trace.
 
@@ -548,6 +548,8 @@ Application & API Security
 
 Code Security
 -------------
+
+.. ddtrace-configuration-options::
 
    DD_IAST_ENABLED:
      type: Boolean
