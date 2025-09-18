@@ -172,12 +172,15 @@ class _ProfilerInstance(service.Service):
         if self.endpoint_collection_enabled:
             endpoint_call_counter_span_processor.enable()
 
+        max_nframes = profiling_config.max_frames
+        if self._stack_v2_enabled:
+            max_nframes = max(max_nframes, profiling_config.stack.v2_max_frames)
         ddup.config(
             env=self.env,
             service=self.service,
             version=self.version,
             tags=self.tags,
-            max_nframes=profiling_config.max_frames,
+            max_nframes=max_nframes,
             timeline_enabled=profiling_config.timeline_enabled,
             output_filename=profiling_config.output_pprof,
             sample_pool_capacity=profiling_config.sample_pool_capacity,
