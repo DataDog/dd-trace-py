@@ -5,6 +5,7 @@
  * - Aspects: common string operations are replaced by functions that propagate the taint variables.
  * - Taint ranges: Information related to tainted values.
  */
+#include <Python.h>
 #include <memory>
 #include <pybind11/pybind11.h>
 
@@ -72,15 +73,19 @@ PYBIND11_MODULE(_native, m)
     // Create a atexit callback to cleanup the Initializer before the interpreter finishes
     auto atexit_register = safe_import("atexit", "register");
     atexit_register(py::cpp_function([]() {
-        py::gil_scoped_acquire acquire;
-        // Ensure native context stops serving requests before teardown to avoid races.
+        // During interpreter shutdown (esp. with gevent), heavy cleanup can
+        // trigger refcounting or Python API calls without a valid runtime. We therefore
+        // always quiesce the native layer first, then skip heavy cleanup if Python is
+        // already finalizing. Only perform cleanup while the runtime is alive.
+        TaintEngineContext::set_shutting_down(true);
         if (Py_IsFinalizing()) {
-            TaintEngineContext::set_shutting_down(true);
-            initializer.reset();
-            if (taint_engine_context) {
-                taint_engine_context->clear_all_request_context_slots();
-                taint_engine_context.reset();
-            }
+            return; // skip heavy cleanup; OS will reclaim memory safely
+        }
+        py::gil_scoped_acquire gil; // safe to touch Python-adjacent state
+        initializer.reset();
+        if (taint_engine_context) {
+            taint_engine_context->clear_all_request_context_slots();
+            taint_engine_context.reset();
         }
     }));
 
