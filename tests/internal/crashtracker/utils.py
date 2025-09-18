@@ -114,10 +114,13 @@ class CrashtrackerWrapper:
 
 def wait_for_crash_reports(test_agent_client: TestAgentClient) -> List[TestAgentRequest]:
     crash_reports = []
-    for _ in range(5):
-        crash_reports = test_agent_client.crash_reports()
-        if crash_reports:
-            return crash_reports
+    for _ in range(10):  # 10 iterations * 0.1 second = 1 second total
+        incoming_reports = test_agent_client.crash_reports()
+        if incoming_reports:
+            crash_reports.extend(incoming_reports)
+            # If we have both crash ping and crash report (2 reports), we can return early
+            if len(crash_reports) >= 2:
+                return crash_reports
         time.sleep(0.1)
 
     return crash_reports
@@ -126,8 +129,18 @@ def wait_for_crash_reports(test_agent_client: TestAgentClient) -> List[TestAgent
 def get_crash_report(test_agent_client: TestAgentClient) -> TestAgentRequest:
     """Wait for a crash report from the crashtracker listener socket."""
     crash_reports = wait_for_crash_reports(test_agent_client)
-    assert len(crash_reports) == 1
-    return crash_reports[0]
+    # We want at least the crash report
+    assert len(crash_reports) == 2, f"Expected at 2 messages; one ping and one report, got {len(crash_reports)}"
+
+    # Find the actual crash report (the one with "is_crash":"true")
+    actual_crash_report = None
+    for report in crash_reports:
+        if b"is_crash:true" in report["body"]:
+            actual_crash_report = report
+            break
+
+    assert actual_crash_report is not None, "Could not find crash report with 'is_crash:true' tag"
+    return actual_crash_report
 
 
 @contextmanager

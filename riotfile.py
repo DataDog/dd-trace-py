@@ -319,8 +319,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_iast_default",
-            # TODO(avara1986): remove "-vvv --no-ddtrace --no-cov" when CI visibility errors were fixed in #14581
-            command="pytest -vvv --no-ddtrace --no-cov {cmdargs} tests/appsec/iast/",
+            command="pytest -v {cmdargs} tests/appsec/iast/",
             pys=select_pys(),
             pkgs={
                 "requests": latest,
@@ -3316,6 +3315,11 @@ venv = Venv(
                 "pytest-randomly": latest,
             },
             venvs=[
+                Venv(
+                    command="python -m pytest {cmdargs} tests/profiling_v2/test_uwsgi.py",
+                    pys=select_pys(),
+                    pkgs={"uwsgi": "<2.0.30"},
+                ),
                 # Python 3.8 + 3.9
                 Venv(
                     pys=["3.8", "3.9"],
