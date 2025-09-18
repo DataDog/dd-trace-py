@@ -5,7 +5,6 @@
  * - Aspects: common string operations are replaced by functions that propagate the taint variables.
  * - Taint ranges: Information related to tainted values.
  */
-#include <Python.h>
 #include <memory>
 #include <pybind11/pybind11.h>
 
@@ -78,9 +77,6 @@ PYBIND11_MODULE(_native, m)
         // always quiesce the native layer first, then skip heavy cleanup if Python is
         // already finalizing. Only perform cleanup while the runtime is alive.
         TaintEngineContext::set_shutting_down(true);
-        if (Py_IsFinalizing()) {
-            return; // skip heavy cleanup; OS will reclaim memory safely
-        }
         py::gil_scoped_acquire gil; // safe to touch Python-adjacent state
         initializer.reset();
         if (taint_engine_context) {
