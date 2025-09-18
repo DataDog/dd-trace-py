@@ -81,7 +81,8 @@ PYBIND11_MODULE(_native, m)
         bool gevent_active = false;
         try {
             auto is_patched = safe_import("gevent.monkey", "is_module_patched");
-            gevent_active = asbool(is_patched("threading")) || asbool(is_patched("socket")) || asbool(is_patched("ssl"));
+            gevent_active =
+              asbool(is_patched("threading")) || asbool(is_patched("socket")) || asbool(is_patched("ssl"));
         } catch (const py::error_already_set&) {
             PyErr_Clear();
         }
