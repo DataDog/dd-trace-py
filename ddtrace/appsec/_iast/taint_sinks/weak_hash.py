@@ -8,7 +8,9 @@ from ddtrace.settings.asm import config as asm_config
 
 from ..._common_module_patches import try_unwrap
 from ..._constants import IAST_SPAN_TAGS
+from .._iast_request_context_base import get_hash_object_tracking
 from .._iast_request_context_base import is_iast_request_enabled
+from .._iast_request_context_base import set_hash_object_tracking
 from .._metrics import _set_metric_iast_executed_sink
 from .._metrics import _set_metric_iast_instrumented_sink
 from .._patch_modules import WrapFunctonsForIAST
@@ -60,14 +62,15 @@ def patch():
 
     if not asm_config._iast_enabled:
         return
-
     _IS_PATCHED = True
-
     iast_funcs = WrapFunctonsForIAST()
 
     weak_hash_algorithms = get_weak_hash_algorithms()
-
     num_instrumented_sinks = 0
+
+    iast_funcs.wrap_function("hashlib", "md5", wrapped_init_function)
+    iast_funcs.wrap_function("hashlib", "sha1", wrapped_init_function)
+    iast_funcs.wrap_function("hashlib", "new", wrapped_init_function)
     iast_funcs.wrap_function("_hashlib", "HASH.digest", wrapped_digest_function)
     iast_funcs.wrap_function("_hashlib", "HASH.hexdigest", wrapped_digest_function)
     num_instrumented_sinks += 2
@@ -112,9 +115,23 @@ def unpatch_iast():
     try_unwrap("Crypto.Hash.SHA1", "SHA1Hash.hexdigest")
 
 
+def wrapped_init_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
+    if hasattr(wrapped, "__func__"):
+        res = wrapped.__func__(instance, *args, **kwargs)
+    else:
+        res = wrapped(*args, **kwargs)
+    if is_iast_request_enabled():
+        set_hash_object_tracking(res, kwargs.get("usedforsecurity", None) is False)
+    return res
+
+
 def wrapped_digest_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
     if is_iast_request_enabled():
-        if WeakHash.has_quota() and instance.name.lower() in get_weak_hash_algorithms():
+        if (
+            WeakHash.has_quota()
+            and instance.name.lower() in get_weak_hash_algorithms()
+            and get_hash_object_tracking(instance) is False
+        ):
             WeakHash.report(
                 evidence_value=instance.name,
             )

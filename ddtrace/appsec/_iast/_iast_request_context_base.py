@@ -99,10 +99,8 @@ def _iast_finish_request(span=None, shoud_update_global_vulnerability_limit: boo
         core.discard_item(IAST.REQUEST_CONTEXT_KEY)
 
     context_id = _get_iast_context_id()
-    print(f"context_id: {context_id}")
     if context_id is not None:
         finish_request_context(context_id)
-        print(f"finish_request_context: {context_id}")
         IAST_CONTEXT.set(None)
         return True
 
@@ -123,3 +121,29 @@ def _num_objects_tainted_in_request() -> int:
     if context_id is not None:
         return debug_num_tainted_objects(context_id)
     return 0
+
+
+def get_hash_object_tracking_len():
+    env = _get_iast_env()
+    if env:
+        return len(env.iast_hash_object_tracking)
+    return 0
+
+
+def get_hash_object_tracking(obj):
+    env = _get_iast_env()
+    if env:
+        return env.iast_hash_object_tracking.get(id(obj), False)
+    return False
+
+
+def set_hash_object_tracking(result, value):
+    env = _get_iast_env()
+    if env:
+        env.iast_hash_object_tracking[id(result)] = value
+
+
+def clear_hash_object_tracking():
+    env = _get_iast_env()
+    if env:
+        env.iast_hash_object_tracking.clear()
