@@ -1171,6 +1171,8 @@ def test_writer_telemetry_enabled_on_linux(
 
     for method_name in [
         "set_url",
+        "set_service",
+        "set_env",
         "set_language",
         "set_language_version",
         "set_language_interpreter",
