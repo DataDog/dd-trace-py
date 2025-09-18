@@ -195,7 +195,7 @@ class ProbeRegistry(dict):
 
     def get_pending(self, location: str) -> List[Probe]:
         """Get the currently pending probes by location."""
-        return self._pending[location]
+        return self._pending[location].copy()
 
     def __contains__(self, probe: object) -> bool:
         """Check if a probe is in the registry."""
