@@ -72,12 +72,14 @@ PYBIND11_MODULE(_native, m)
     // Create a atexit callback to cleanup the Initializer before the interpreter finishes
     auto atexit_register = safe_import("atexit", "register");
     atexit_register(py::cpp_function([]() {
+        py::gil_scoped_acquire acquire;
         // Ensure native context stops serving requests before teardown to avoid races.
-        // TaintEngineContext::set_shutting_down(true);
-        initializer.reset();
-        if (taint_engine_context) {
-            taint_engine_context->clear_all_request_context_slots();
-            taint_engine_context.reset();
+        if (Py_IsFinalizing()) {
+            TaintEngineContext::set_shutting_down(true) initializer.reset();
+            if (taint_engine_context) {
+                taint_engine_context->clear_all_request_context_slots();
+                taint_engine_context.reset();
+            }
         }
     }));
 
