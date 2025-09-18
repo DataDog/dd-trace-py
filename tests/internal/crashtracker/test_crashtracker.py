@@ -629,6 +629,53 @@ def test_crashtracker_runtime_callback():
 
     with utils.with_test_agent() as client:
         pid = os.fork()
+
+        def func1():
+            return func2()
+
+        def func2():
+            return func3()
+
+        def func3():
+            return func4()
+
+        def func4():
+            return func5()
+
+        def func5():
+            return func6()
+
+        def func6():
+            return func7()
+
+        def func7():
+            return func8()
+
+        def func8():
+            return func9()
+
+        def func9():
+            return func10()
+
+        def func10():
+            return func11()
+
+        def func11():
+            return func12()
+
+        def func12():
+            return func13()
+
+        def func13():
+            return func14()
+
+        def func14():
+            return func15()
+
+        def func15():
+            ctypes.string_at(0)
+            sys.exit(-1)
+
         if pid == 0:
             ct = utils.CrashtrackerWrapper(base_name="runtime_runtime_callback")
             assert ct.start()
@@ -646,8 +693,7 @@ def test_crashtracker_runtime_callback():
                 print(f"Error registering runtime callback: {e}")
                 sys.exit(-1)
 
-            ctypes.string_at(0)
-            sys.exit(-1)
+            func1()
 
         report = utils.get_crash_report(client)
 
