@@ -793,7 +793,7 @@ class LLMObs(Service):
             for summary_evaluator in summary_evaluators:
                 sig = inspect.signature(summary_evaluator)
                 params = sig.parameters
-                summary_evaluator_required_params = ("inputs", "outputs", "expected_outputs", "results_for_evaluator")
+                summary_evaluator_required_params = ("inputs", "outputs", "expected_outputs", "evaluators_results")
                 if not all(param in params for param in summary_evaluator_required_params):
                     raise TypeError(
                         "Summary evaluator function must have parameters {}.".format(summary_evaluator_required_params)
