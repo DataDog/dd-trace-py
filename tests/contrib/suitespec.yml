@@ -358,6 +358,7 @@ suites:
       - '@tracing'
       - '@azure_eventhubs'
       - tests/contrib/azure_eventhubs/*
+      - tests/snapshots/tests.contrib.azure_eventhubs.*
     runner: riot
     snapshot: true
     services:
