@@ -583,8 +583,8 @@ dependencies = [
 
 [[package]]
 name = "datadog-log"
-version = "20.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v20.0.0#9052563dd0a6e9d9ea28b32708b01921b43a1efc"
+version = "21.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v21.0.0#4e1d7bb865885b48b4671fabc6643f0b5386f832"
 dependencies = [
  "chrono",
  "ddcommon-ffi",
