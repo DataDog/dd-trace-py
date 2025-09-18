@@ -462,7 +462,7 @@ Metrics
        v3.11.0:
 
 Application & API Security
-------
+--------------------------
 
 .. ddtrace-configuration-options::
 
@@ -541,13 +541,13 @@ Application & API Security
      default: 1
      description: Maximum number of downstream requests per request whose (request and response) bodies will be analyzed by the WAF
 
-   DD_API_SECURITY_DOWNSTREAM_REQUEST_BODY_ANALYSIS_SAMPLE_RATE
+   DD_API_SECURITY_DOWNSTREAM_REQUEST_BODY_ANALYSIS_SAMPLE_RATE:
      type: Float
      default: 0.5 (between 0. and 1.)
      description: sampling rate for body analysis of downstream requests. Default value is 50%.
 
 Code Security
-------
+-------------
 
    DD_IAST_ENABLED:
      type: Boolean
