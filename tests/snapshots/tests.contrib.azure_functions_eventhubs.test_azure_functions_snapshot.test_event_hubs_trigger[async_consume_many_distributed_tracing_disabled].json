@@ -1,0 +1,136 @@
+[[
+  {
+    "name": "azure.functions.invoke",
+    "service": "test-func",
+    "resource": "EventHubs eventhub",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "serverless",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68cc71e800000000",
+      "aas.function.name": "eventhub",
+      "aas.function.trigger": "EventHubs",
+      "component": "azure_functions",
+      "language": "python",
+      "messaging.batch_count": "2",
+      "messaging.destination.name": "eh1",
+      "messaging.operation": "receive",
+      "messaging.system": "eventhubs",
+      "network.destination.name": "localhost",
+      "runtime-id": "72c33ab5276a4895ab368e080b815b58",
+      "span.kind": "consumer"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 34025
+    },
+    "duration": 167375,
+    "start": 1758228968132688846
+  }],
+[
+  {
+    "name": "azure.functions.invoke",
+    "service": "test-func",
+    "resource": "POST /api/sendeventbatch",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "serverless",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68cc71e700000000",
+      "aas.function.name": "send_batch",
+      "aas.function.trigger": "Http",
+      "component": "azure_functions",
+      "http.method": "POST",
+      "http.route": "/api/sendeventbatch",
+      "http.status_code": "200",
+      "http.url": "http://0.0.0.0:7071/api/sendeventbatch",
+      "http.useragent": "python-httpx/x.xx.x",
+      "language": "python",
+      "runtime-id": "72c33ab5276a4895ab368e080b815b58",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 34025
+    },
+    "duration": 531330208,
+    "start": 1758228967472768846
+  },
+     {
+       "name": "azure.eventhubs.create",
+       "service": "azure_eventhubs",
+       "resource": "eh1",
+       "trace_id": 1,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "worker",
+       "meta": {
+         "_dd.base_service": "test-func",
+         "component": "azure_eventhubs",
+         "messaging.destination.name": "eh1",
+         "messaging.operation": "create",
+         "messaging.system": "eventhubs",
+         "network.destination.name": "localhost",
+         "span.kind": "producer"
+       },
+       "metrics": {
+         "_dd.top_level": 1
+       },
+       "duration": 252916,
+       "start": 1758228967997249638
+     },
+     {
+       "name": "azure.eventhubs.create",
+       "service": "azure_eventhubs",
+       "resource": "eh1",
+       "trace_id": 1,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "worker",
+       "meta": {
+         "_dd.base_service": "test-func",
+         "component": "azure_eventhubs",
+         "messaging.destination.name": "eh1",
+         "messaging.operation": "create",
+         "messaging.system": "eventhubs",
+         "network.destination.name": "localhost",
+         "span.kind": "producer"
+       },
+       "metrics": {
+         "_dd.top_level": 1
+       },
+       "duration": 94792,
+       "start": 1758228967998357221
+     },
+     {
+       "name": "azure.eventhubs.send",
+       "service": "azure_eventhubs",
+       "resource": "eh1",
+       "trace_id": 1,
+       "span_id": 4,
+       "parent_id": 1,
+       "type": "worker",
+       "meta": {
+         "_dd.base_service": "test-func",
+         "component": "azure_eventhubs",
+         "messaging.batch_count": "2",
+         "messaging.destination.name": "eh1",
+         "messaging.operation": "send",
+         "messaging.system": "eventhubs",
+         "network.destination.name": "localhost",
+         "span.kind": "producer"
+       },
+       "metrics": {
+         "_dd.top_level": 1
+       },
+       "duration": 4308666,
+       "start": 1758228967998570388
+     }]]
