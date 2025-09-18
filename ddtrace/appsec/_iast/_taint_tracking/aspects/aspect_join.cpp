@@ -187,7 +187,7 @@ api_join_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
         return nullptr;
     }
     TRY_CATCH_ASPECT("join_aspect", return result, , {
-        const auto ctx_map = Initializer::get_tainting_map();
+        auto ctx_map = taint_engine_context->get_tainted_object_map_from_list_of_pyobjects({ sep, arg0 });
         if (not ctx_map or ctx_map->empty() or get_pyobject_size(result) == 0) {
             // Empty result cannot have taint ranges
             if (decref_arg0) {
