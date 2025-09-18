@@ -2733,7 +2733,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.8"),
+                    pys=select_pys(min_version="3.8", max_version="3.13"),
                     pkgs={
                         "openai": [latest, "~=1.76.2", "==1.66.0"],
                         "tiktoken": latest,
@@ -2988,7 +2988,7 @@ venv = Venv(
         Venv(
             name="langgraph",
             command="pytest {cmdargs} tests/contrib/langgraph",
-            pys=select_pys(min_version="3.9"),
+            pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
                 "pytest-asyncio": latest,
                 "langgraph": ["==0.2.23", "==0.3.21", "==0.3.22", latest],
@@ -3004,12 +3004,14 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": latest,
                 "mcp": ["~=1.10.0", latest],
+                # pydantic 2.2.12.0a1 is the first version to support Python 3.14
+                "pydantic": "==2.12.0a1",
             },
         ),
         Venv(
             name="litellm",
             command="pytest {cmdargs} tests/contrib/litellm",
-            pys=select_pys(min_version="3.9"),
+            pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
                 "litellm": "==1.65.4",
                 "vcrpy": latest,
@@ -3089,6 +3091,7 @@ venv = Venv(
                 "pydantic-ai": ["==0.3.0", "==0.4.4", latest],
                 "vcrpy": "==7.0.0",
                 "typing_extensions": latest,
+                "pydantic": "==2.12.0a1",
             },
         ),
         Venv(
@@ -3261,7 +3264,7 @@ venv = Venv(
                 "langchain": latest,
                 "pandas": latest,
             },
-            pys=select_pys(min_version="3.8"),
+            pys=select_pys(min_version="3.8", max_version="3.13"),
         ),
         Venv(
             name="valkey",
