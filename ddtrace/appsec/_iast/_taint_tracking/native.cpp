@@ -74,10 +74,22 @@ PYBIND11_MODULE(_native, m)
     atexit_register(py::cpp_function([]() {
         py::gil_scoped_acquire gil; // safe to touch Python-adjacent state
         // During interpreter shutdown (esp. with gevent), heavy cleanup can
-        // trigger refcounting or Python API calls without a valid runtime. We therefore
-        // always quiesce the native layer first, then skip heavy cleanup if Python is
-        // already finalizing. Only perform cleanup while the runtime is alive.
-        TaintEngineContext::set_shutting_down(true);
+        // trigger refcounting or Python API calls without a valid runtime.
+        // If gevent monkey-patching is active, skip setting the shutdown flag
+        // because it interferes with greenlet scheduling at exit.
+
+        bool gevent_active = false;
+        try {
+            auto is_patched = safe_import("gevent.monkey", "is_module_patched");
+            gevent_active = asbool(is_patched("threading")) || asbool(is_patched("socket")) || asbool(is_patched("ssl"));
+        } catch (const py::error_already_set&) {
+            PyErr_Clear();
+        }
+
+        if (!gevent_active) {
+            TaintEngineContext::set_shutting_down(true);
+        }
+
         initializer.reset();
         if (taint_engine_context) {
             taint_engine_context->clear_all_request_context_slots();
