@@ -6,6 +6,7 @@ from typing import Tuple
 
 from ddtrace._trace.pin import Pin
 from ddtrace.internal import core
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import AGENT_MANIFEST
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
@@ -39,6 +40,8 @@ class GoogleAdkIntegration(BaseLLMIntegration):
         kind = kwargs.get("kind", None)
         if kind:
             self._register_span(span, kind)
+        # always set the component tag
+        span.set_tag_str(COMPONENT, self._integration_name)
         return span
 
     def _set_base_span_tags(

@@ -44,7 +44,7 @@ suites:
     runner: riot
     snapshot: true
   google_adk:
-    parallelism: 1
+    parallelism: 3
     paths:
       - '@bootstrap'
       - '@core'
