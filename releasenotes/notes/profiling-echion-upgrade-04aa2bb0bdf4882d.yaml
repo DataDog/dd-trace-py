@@ -1,5 +1,5 @@
 ---
 fixes:
   - |
-    profiling: Upgrades echion to resolve a segmentatino fault that can happen
-    on applications with a lot of ``asyncio`` tasks.
+    profiling: Upgrades echion to resolve segmentation faults that can happen
+    on services with a lot of ``asyncio.Task``s.
