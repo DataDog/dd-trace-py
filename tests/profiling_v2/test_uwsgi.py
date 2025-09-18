@@ -48,14 +48,16 @@ def uwsgi(monkeypatch, tmp_path):
         os.unlink(socket_name)
 
 
-def test_uwsgi_threads_disabled(uwsgi):
+def test_uwsgi_threads_disabled(uwsgi, monkeypatch):
+    monkeypatch.setenv("STOP_AFTER_LOAD", "1")
     proc = uwsgi()
     stdout, _ = proc.communicate()
-    assert proc.wait() != 0
+    assert proc.wait() == 0
     assert THREADS_MSG in stdout
 
 
-def test_uwsgi_threads_number_set(uwsgi):
+def test_uwsgi_threads_number_set(uwsgi, monkeypatch):
+    monkeypatch.setenv("STOP_AFTER_LOAD", "1")
     proc = uwsgi("--threads", "1")
     try:
         stdout, _ = proc.communicate(timeout=1)
@@ -81,6 +83,7 @@ def test_uwsgi_threads_enabled(uwsgi, tmp_path, monkeypatch):
 
 
 def test_uwsgi_threads_processes_no_primary(uwsgi, monkeypatch):
+    monkeypatch.setenv("STOP_AFTER_LOAD", "1")
     proc = uwsgi("--enable-threads", "--processes", "2")
     stdout, _ = proc.communicate()
     assert (

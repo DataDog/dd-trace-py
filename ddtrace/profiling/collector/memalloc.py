@@ -14,8 +14,9 @@ except ImportError:
     _memalloc = None  # type: ignore[assignment]
 
 from ddtrace.internal.datadog.profiling import ddup
-from ddtrace.profiling import _threading
-from ddtrace.profiling import collector
+from ddtrace.profiling._threading import get_thread_name
+from ddtrace.profiling._threading import get_thread_native_id
+from ddtrace.profiling.collector import CollectorUnavailable
 from ddtrace.settings.profiling import config
 
 
@@ -44,7 +45,7 @@ class MemoryCollector:
         # type: (...) -> None
         """Start collecting memory profiles."""
         if _memalloc is None:
-            raise collector.CollectorUnavailable
+            raise CollectorUnavailable
 
         try:
             _memalloc.start(self.max_nframe, self.heap_sample_size)
@@ -105,8 +106,8 @@ class MemoryCollector:
 
                 handle.push_threadinfo(
                     thread_id,
-                    _threading.get_thread_native_id(thread_id),
-                    _threading.get_thread_name(thread_id),
+                    get_thread_native_id(thread_id),
+                    get_thread_name(thread_id),
                 )
                 try:
                     for frame in frames:

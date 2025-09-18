@@ -15,8 +15,8 @@ from ddtrace.internal import core
 from ddtrace.internal._threads import periodic_threads
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.datadog.profiling import stack_v2
-from ddtrace.profiling import _threading
-from ddtrace.profiling import collector
+from ddtrace.profiling._threading import get_thread_name, get_thread_native_id, _ThreadLink
+from ddtrace.profiling.collector import PeriodicCollector
 from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _traceback
 from ddtrace.profiling.collector import threading
@@ -98,7 +98,7 @@ IF UNAME_SYSNAME == "Linux":
 
             # We should now be safe doing more Pythonic stuff and maybe releasing the GIL
             for pthread_id, cpu_time in zip(pthread_ids, cpu_times):
-                thread_native_id = _threading.get_thread_native_id(pthread_id)
+                thread_native_id = get_thread_native_id(pthread_id)
                 key = pthread_id, thread_native_id
                 # Do a max(0, …) here just in case the result is < 0:
                 # This should never happen, but it can happen if the one chance in a billion happens:
@@ -136,7 +136,7 @@ ELSE:
             else:
                 cpu_time //= nb_threads
             return {
-                (pthread_id, _threading.get_thread_native_id(pthread_id)): cpu_time
+                (pthread_id, get_thread_native_id(pthread_id)): cpu_time
                 for pthread_id in pthread_ids
             }
 
@@ -261,7 +261,7 @@ cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links) with
         (
             pthread_id,
             native_thread_id,
-            _threading.get_thread_name(pthread_id),
+            get_thread_name(pthread_id),
             running_threads[pthread_id],
             current_exceptions.get(pthread_id),
             thread_span_links.get_active_span_from_thread_id(pthread_id) if thread_span_links else None,
@@ -356,9 +356,9 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
 
 
 if typing.TYPE_CHECKING:
-    _thread_span_links_base = _threading._ThreadLink[ddspan.Span]
+    _thread_span_links_base = _ThreadLink[ddspan.Span]
 else:
-    _thread_span_links_base = _threading._ThreadLink
+    _thread_span_links_base = _ThreadLink
 
 
 class _ThreadSpanLinks(_thread_span_links_base):
@@ -398,7 +398,7 @@ def _default_min_interval_time():
     return sys.getswitchinterval() * 2
 
 
-class StackCollector(collector.PeriodicCollector):
+class StackCollector(PeriodicCollector):
     """Execution stacks collector."""
 
     __slots__ = (
