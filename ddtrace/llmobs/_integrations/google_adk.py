@@ -4,7 +4,6 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
-from ddtrace._trace._limits import TRUNCATED_SPAN_ATTRIBUTE_LEN
 from ddtrace._trace.pin import Pin
 from ddtrace.internal import core
 from ddtrace.internal.utils import get_argument_value
@@ -40,9 +39,6 @@ class GoogleAdkIntegration(BaseLLMIntegration):
         kind = kwargs.get("kind", None)
         if kind:
             self._register_span(span, kind)
-            span._set_ctx_item(SPAN_KIND, kind)
-        if kwargs.get("run_kwargs", None):
-            span._set_ctx_item("run_kwargs", kwargs.get("run_kwargs"))
         return span
 
     def _set_base_span_tags(
@@ -55,8 +51,8 @@ class GoogleAdkIntegration(BaseLLMIntegration):
 
     def _get_model_and_provider(self, model: Optional[Any]) -> Tuple[str, str]:
         model_name = getattr(model, "model_name", "")
-        system = getattr(model, "system", "")
-        return model_name, system
+        model_provider = getattr(model, "system", "")
+        return model_name, model_provider
 
     def _llmobs_set_tags(
         self,
@@ -64,20 +60,21 @@ class GoogleAdkIntegration(BaseLLMIntegration):
         args: List[Any],
         kwargs: Dict[str, Any],
         response: Optional[Any] = None,
-        operation: str = "",
+        operation: str = "",  # being used for span kind: one of "agent", "tool", "code_execute"
     ) -> None:
-        span_kind = span._get_ctx_item(SPAN_KIND)
+        if operation:
+            self._register_span(span, operation)
 
-        if span_kind == "agent":
+        if operation == "agent":
             self._llmobs_set_tags_agent(span, args, kwargs, response)
-        elif span_kind == "tool":
+        elif operation == "tool":
             self._llmobs_set_tags_tool(span, args, kwargs, response)
-        elif span_kind == "code_execute":
+        elif operation == "code_execute":
             self._llmobs_set_tags_code_execute(span, args, kwargs, response)
 
         span._set_ctx_items(
             {
-                SPAN_KIND: span_kind,
+                SPAN_KIND: operation,
                 MODEL_NAME: span.get_tag("google_adk.request.model") or "",
                 MODEL_PROVIDER: span.get_tag("google_adk.request.provider") or "",
             }
@@ -111,13 +108,13 @@ class GoogleAdkIntegration(BaseLLMIntegration):
     def _llmobs_set_tags_tool(
         self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any] = None
     ) -> None:
-        tool = kwargs.get("tool", None)
-        tool_args = kwargs.get("tool_args", None)
+        tool = args[0] if args else kwargs.get("tool")
+        tool_args = args[1] if len(args) > 1 else kwargs.get("args")
+        tool_call_id = kwargs.get("tool_context", {}).function_call_id
 
-        tool_name = getattr(tool, "name")
-        tool_description = getattr(tool, "description")
         span._set_ctx_item(OUTPUT_VALUE, response)
-        tool_id = kwargs.get("tool_call_id", None)
+        tool_name = getattr(tool, "name", "")
+        tool_description = getattr(tool, "description", "")
 
         span._set_ctx_items(
             {
@@ -126,10 +123,6 @@ class GoogleAdkIntegration(BaseLLMIntegration):
                 INPUT_VALUE: tool_args,
             }
         )
-        # if not span.error:
-        #     # depending on the version, the output may be a ToolReturnPart or the raw response
-        #     output_content = getattr(response, "content", "") or response
-        #     span._set_ctx_item(OUTPUT_VALUE, output_content)
 
         core.dispatch(
             DISPATCH_ON_TOOL_CALL,
@@ -138,7 +131,7 @@ class GoogleAdkIntegration(BaseLLMIntegration):
                 safe_json(tool_args),
                 "function",
                 span,
-                tool_id,
+                tool_call_id,
             ),
         )
 
@@ -153,12 +146,10 @@ class GoogleAdkIntegration(BaseLLMIntegration):
         manifest["model"] = agent.model.model
         manifest["description"] = agent.description
         manifest["instructions"] = agent.instruction
-        # manifest["model_settings"] = agent.model_settings
         manifest["model_configuration"] = str(agent.model_config)
-        run_kwargs: dict[str, Any] = span._get_ctx_item("run_kwargs") or {}
         manifest["session_management"] = {
-            "session_id": run_kwargs.get("session_id", None),
-            "user_id": run_kwargs.get("user_id", None),
+            "session_id": kwargs.get("session_id", ""),
+            "user_id": kwargs.get("user_id", ""),
         }
         manifest["tools"] = self._get_agent_tools(agent.tools)
 
@@ -172,15 +163,16 @@ class GoogleAdkIntegration(BaseLLMIntegration):
         output = ""
         if stdout:
             output += stdout
-            span._set_ctx_item("code.stdout", _truncate_value(stdout))
+            span._set_ctx_item("code.stdout", stdout)
         if stderr:
             output += "/n" + stderr
-            span._set_ctx_item("code.stderr", _truncate_value(stderr))
+            span._set_ctx_item("code.stderr", stderr)
 
+        code_input = kwargs.get("code_execution_input", args[1] if len(args) >= 2 and args[1] else None)
         span._set_ctx_items(
             {
                 NAME: "Google ADK Code Execute",
-                INPUT_VALUE: kwargs.get("code_input", None),
+                INPUT_VALUE: code_input.code,
                 OUTPUT_VALUE: output,
             }
         )
@@ -221,13 +213,3 @@ class GoogleAdkIntegration(BaseLLMIntegration):
     def _register_tool(self, span: Span) -> None:
         if self._latest_agent is not None:
             self._running_agents[self._latest_agent].append(span.span_id)
-
-
-def _truncate_value(value):
-    try:
-        s = str(value)
-    except Exception:
-        s = repr(value)
-    if len(s) > TRUNCATED_SPAN_ATTRIBUTE_LEN:
-        return s[:TRUNCATED_SPAN_ATTRIBUTE_LEN]
-    return s

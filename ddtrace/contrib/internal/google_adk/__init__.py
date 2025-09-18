@@ -1,5 +1,5 @@
 """
-The Google ADK integration instruments the Google ADK Python SDK to trace Agent requests.
+The Google ADK integration instruments the Google ADK Python SDK to create spans for Agent requests.
 
 All traces submitted from the Google ADK integration are tagged by:
 
@@ -14,12 +14,6 @@ Enabling
 The Google ADK integration is enabled automatically when you use
 :ref:`ddtrace-run<ddtracerun>` or :ref:`import ddtrace.auto<ddtraceauto>`.
 
-Alternatively, use :func:`patch() <ddtrace.patch>` to manually enable the Google ADK integration::
-
-    from ddtrace import config, patch
-
-    patch(google_adk=True)
-
 Global Configuration
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -32,15 +26,4 @@ Global Configuration
 
    Default: ``DD_SERVICE``
 
-
-Instance Configuration
-~~~~~~~~~~~~~~~~~~~~~~
-
-To configure the Google ADK integration on a per-instance basis use the
-``Pin`` API::
-
-    from google import adk
-    from ddtrace.trace import Pin
-
-    Pin.override(adk, service="my-google-adk-service")
 """
