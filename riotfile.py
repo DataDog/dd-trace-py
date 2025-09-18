@@ -328,8 +328,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_iast_default",
-            # TODO(avara1986): remove "-vvv --no-ddtrace --no-cov" when CI visibility errors were fixed in #14581
-            command="pytest -vvv --no-ddtrace --no-cov {cmdargs} tests/appsec/iast/",
+            command="pytest -v {cmdargs} tests/appsec/iast/",
             pys=select_pys(max_version="3.13"),  # pycryptodome doesn't publish 3.14 wheels
             pkgs={
                 "requests": latest,
