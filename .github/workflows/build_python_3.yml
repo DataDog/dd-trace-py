@@ -36,8 +36,8 @@ jobs:
               && cibuildwheel --print-build-identifiers --platform linux --archs aarch64  | jq -cR '{only: ., os: "ubuntu-24.04-arm"}' \
               && cibuildwheel --print-build-identifiers --platform windows --archs AMD64,x86 | jq -cR '{only: ., os: "windows-latest"}' \
               && cibuildwheel --print-build-identifiers --platform windows --archs ARM64    | jq -cR '{only: ., os: "windows-11-arm"}' \
-              && cibuildwheel --print-build-identifiers --platform macos --archs x86_64 | jq -cR '{only: ., os: "macos-13"}' \
-              && cibuildwheel --print-build-identifiers --platform macos --archs arm64 | jq -cR '{only: ., os: "macos-latest"}'
+              && cibuildwheel --print-build-identifiers --platform macos --archs x86_64 | jq -cR '{only: ., os: "macos-15-large"}' \
+              && cibuildwheel --print-build-identifiers --platform macos --archs arm64 | jq -cR '{only: ., os: "macos-15-xlarge"}'
             } | jq -sc
           )
           echo $MATRIX_INCLUDE
