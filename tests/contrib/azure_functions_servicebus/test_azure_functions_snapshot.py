@@ -25,6 +25,7 @@ params = [
                 "IS_ASYNC": str(a),
                 "CARDINALITY": c,
                 **({"DD_AZURE_FUNCTIONS_DISTRIBUTED_TRACING": str(d)} if d is not None else {}),
+                **({"DD_AZURE_SERVICEBUS_DISTRIBUTED_TRACING": str(d)} if d is not None else {}),
             },
             e,
             "single" if c == "one" else "batch",

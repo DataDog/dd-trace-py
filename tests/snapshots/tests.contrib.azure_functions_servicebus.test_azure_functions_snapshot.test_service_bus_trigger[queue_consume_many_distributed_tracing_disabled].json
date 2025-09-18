@@ -102,22 +102,6 @@
        "metrics": {
          "_dd.top_level": 1
        },
-       "span_links": [
-         {
-           "trace_id": 0,
-           "span_id": 2,
-           "tracestate": "dd=s:1;t.dm:-0;t.tid:68c332cc00000000",
-           "flags": 2147483649,
-           "trace_id_high": 7548933252157800448
-         },
-         {
-           "trace_id": 0,
-           "span_id": 3,
-           "tracestate": "dd=s:1;t.dm:-0;t.tid:68c332cc00000000",
-           "flags": 2147483649,
-           "trace_id_high": 7548933252157800448
-         }
-       ],
        "duration": 9228666,
        "start": 1757622989322707169
      }],
