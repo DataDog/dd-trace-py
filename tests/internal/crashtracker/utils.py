@@ -121,7 +121,7 @@ def wait_for_crash_messages(test_agent_client: TestAgentClient) -> List[TestAgen
         for message in incoming_messages:
             body = message.get("body", b"")
             if isinstance(body, str):
-                body = body.encode('utf-8')
+                body = body.encode("utf-8")
             report_id = (hash(body), frozenset(message.get("headers", {}).items()))
             if report_id not in seen_report_ids:
                 seen_report_ids.add(report_id)
