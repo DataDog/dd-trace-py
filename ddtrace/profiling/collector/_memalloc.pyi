@@ -1,13 +1,12 @@
 import typing
+from collections import namedtuple
 
-from .. import event
-
-# (filename, line number, function name)
-FrameType = event.DDFrame
-StackType = event.StackTraceType
+# (filename, line number, function name, class name)
+DDFrame = namedtuple("DDFrame", ["file_name", "lineno", "function_name", "class_name"])
+StackTraceType = typing.List[DDFrame]
 
 # (stack, thread_id)
-TracebackType = typing.Tuple[StackType, int]
+TracebackType = typing.Tuple[StackTraceType, int]
 
 def start(max_nframe: int, heap_sample_interval: int) -> None: ...
 def stop() -> None: ...
