@@ -14,6 +14,5 @@ class DDTelemetryErrorHandler(logging.Handler):
         - Log all records with a level of ERROR or higher with telemetry
         """
         if record.levelno >= logging.ERROR:
-            # Capture start up errors
-            full_file_name = os.path.join(record.pathname, record.filename)
-            self.telemetry_writer.add_error(1, record.msg, full_file_name, record.lineno)
+            if getattr(record, "send_to_telemetry", None) in (None, True):
+                self.telemetry_writer.add_error_log(record.msg, record.exc_info)

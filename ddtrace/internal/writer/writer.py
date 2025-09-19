@@ -329,7 +329,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 else:
                     log_args += (payload,)
 
-            log.error(msg, *log_args)
+            log.error(msg, *log_args, extra={"send_to_telemetry": False})
             self._metrics_dist("http.dropped.bytes", len(payload))
             self._metrics_dist("http.dropped.traces", count)
         return response
@@ -1042,7 +1042,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 msg += ", payload %s"
                 log_args += (binascii.hexlify(encoded).decode(),)  # type: ignore
 
-            log.error(msg, *log_args)
+            log.error(msg, *log_args, extra={"send_to_telemetry": False})
 
     def periodic(self):
         self.flush_queue(raise_exc=False)
