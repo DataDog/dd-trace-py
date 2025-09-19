@@ -456,16 +456,14 @@ def untrusted_serialization_dill_view(request):
     Dill is optional; if not installed, we handle gracefully. As with pickle,
     encode may drop taint, so treat as smoke test in integration.
     """
+    import dill  # type: ignore
+
     user_input = request.GET.get("input", "")
     data = user_input.encode("utf-8", "ignore")
 
-    try:
-        import dill  # type: ignore
+    # label untrusted_serialization_dill
+    dill.loads(data)
 
-        # label untrusted_serialization_dill
-        dill.loads(data)
-    except Exception:
-        pass
     return HttpResponse("OK", status=200)
 
 
