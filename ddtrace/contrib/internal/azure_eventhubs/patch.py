@@ -55,6 +55,8 @@ def _patch(azure_eventhubs_module):
         _w("azure.eventhub.aio", "EventHubProducerClient.create_batch", _patched_create_batch_async)
         _w("azure.eventhub.aio", "EventHubProducerClient.send_event", _patched_send_event_async)
         _w("azure.eventhub.aio", "EventHubProducerClient.send_batch", _patched_send_batch_async)
+        _w("azure.eventhub.aio", "EventHubProducerClient._buffered_send_event", _patched_send_event_async)
+        _w("azure.eventhub.aio", "EventHubProducerClient._buffered_send_batch", _patched_send_batch_async)
     else:
         Pin().onto(azure_eventhubs_module.EventHubProducerClient)
         Pin().onto(azure_eventhubs_module.EventDataBatch)
@@ -63,6 +65,8 @@ def _patch(azure_eventhubs_module):
         _w("azure.eventhub", "EventHubProducerClient.create_batch", _patched_create_batch)
         _w("azure.eventhub", "EventHubProducerClient.send_event", _patched_send_event)
         _w("azure.eventhub", "EventHubProducerClient.send_batch", _patched_send_batch)
+        _w("azure.eventhub", "EventHubProducerClient._buffered_send_event", _patched_send_event)
+        _w("azure.eventhub", "EventHubProducerClient._buffered_send_batch", _patched_send_batch)
 
 
 def _patched_producer_init(wrapped, instance, args, kwargs):
@@ -199,6 +203,8 @@ def _unpatch(azure_eventhubs_module):
     _u(azure_eventhubs_module.EventHubProducerClient, "create_batch")
     _u(azure_eventhubs_module.EventHubProducerClient, "send_event")
     _u(azure_eventhubs_module.EventHubProducerClient, "send_batch")
+    _u(azure_eventhubs_module.EventHubProducerClient, "_buffered_send_event")
+    _u(azure_eventhubs_module.EventHubProducerClient, "_buffered_send_batch")
 
     if azure_eventhubs_module.__name__ == "azure.eventhub":
         _u(azure_eventhubs_module.EventDataBatch, "add")

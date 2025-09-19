@@ -22,6 +22,8 @@ class TestAzureEventHubsPatch(PatchTestCase.Base):
         self.assert_wrapped(azure_eventhubs.EventHubProducerClient.create_batch)
         self.assert_wrapped(azure_eventhubs.EventHubProducerClient.send_event)
         self.assert_wrapped(azure_eventhubs.EventHubProducerClient.send_batch)
+        self.assert_wrapped(azure_eventhubs.EventHubProducerClient._buffered_send_event)
+        self.assert_wrapped(azure_eventhubs.EventHubProducerClient._buffered_send_batch)
 
     def assert_not_module_patched(self, azure_eventhubs):
         self.assert_not_wrapped(azure_eventhubs.EventDataBatch.add)
@@ -29,6 +31,8 @@ class TestAzureEventHubsPatch(PatchTestCase.Base):
         self.assert_not_wrapped(azure_eventhubs.EventHubProducerClient.create_batch)
         self.assert_not_wrapped(azure_eventhubs.EventHubProducerClient.send_event)
         self.assert_not_wrapped(azure_eventhubs.EventHubProducerClient.send_batch)
+        self.assert_not_wrapped(azure_eventhubs.EventHubProducerClient._buffered_send_event)
+        self.assert_not_wrapped(azure_eventhubs.EventHubProducerClient._buffered_send_batch)
 
     def assert_not_module_double_patched(self, azure_eventhubs):
         self.assert_not_double_wrapped(azure_eventhubs.EventDataBatch.add)
@@ -36,6 +40,8 @@ class TestAzureEventHubsPatch(PatchTestCase.Base):
         self.assert_not_double_wrapped(azure_eventhubs.EventHubProducerClient.create_batch)
         self.assert_not_double_wrapped(azure_eventhubs.EventHubProducerClient.send_event)
         self.assert_not_double_wrapped(azure_eventhubs.EventHubProducerClient.send_batch)
+        self.assert_not_double_wrapped(azure_eventhubs.EventHubProducerClient._buffered_send_event)
+        self.assert_not_double_wrapped(azure_eventhubs.EventHubProducerClient._buffered_send_batch)
 
 
 class TestAzureEventHubsAioPatch(PatchTestCase.Base):
@@ -50,15 +56,21 @@ class TestAzureEventHubsAioPatch(PatchTestCase.Base):
         self.assert_wrapped(azure_eventhubs.EventHubProducerClient.create_batch)
         self.assert_wrapped(azure_eventhubs.EventHubProducerClient.send_event)
         self.assert_wrapped(azure_eventhubs.EventHubProducerClient.send_batch)
+        self.assert_wrapped(azure_eventhubs.EventHubProducerClient._buffered_send_event)
+        self.assert_wrapped(azure_eventhubs.EventHubProducerClient._buffered_send_batch)
 
     def assert_not_module_patched(self, azure_eventhubs):
         self.assert_not_wrapped(azure_eventhubs.EventHubProducerClient.__init__)
         self.assert_not_wrapped(azure_eventhubs.EventHubProducerClient.create_batch)
         self.assert_not_wrapped(azure_eventhubs.EventHubProducerClient.send_event)
         self.assert_not_wrapped(azure_eventhubs.EventHubProducerClient.send_batch)
+        self.assert_not_wrapped(azure_eventhubs.EventHubProducerClient._buffered_send_event)
+        self.assert_not_wrapped(azure_eventhubs.EventHubProducerClient._buffered_send_batch)
 
     def assert_not_module_double_patched(self, azure_eventhubs):
         self.assert_not_double_wrapped(azure_eventhubs.EventHubProducerClient.__init__)
         self.assert_not_double_wrapped(azure_eventhubs.EventHubProducerClient.create_batch)
         self.assert_not_double_wrapped(azure_eventhubs.EventHubProducerClient.send_event)
         self.assert_not_double_wrapped(azure_eventhubs.EventHubProducerClient.send_batch)
+        self.assert_not_double_wrapped(azure_eventhubs.EventHubProducerClient._buffered_send_event)
+        self.assert_not_double_wrapped(azure_eventhubs.EventHubProducerClient._buffered_send_batch)
