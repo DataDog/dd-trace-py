@@ -82,7 +82,7 @@ class EvaluationResult(TypedDict):
     evaluations: Dict[str, Dict[str, JSONType]]
 
 
-class ExperimentResult(TypedDict):
+class ExperimentRowResult(TypedDict):
     idx: int
     record_id: Optional[str]
     span_id: str
@@ -94,6 +94,11 @@ class ExperimentResult(TypedDict):
     evaluations: Dict[str, Dict[str, JSONType]]
     metadata: Dict[str, JSONType]
     error: Dict[str, Optional[str]]
+
+
+class ExperimentResult(TypedDict):
+    summary_evaluations: Dict[str, Dict[str, JSONType]]
+    rows: List[ExperimentRowResult]
 
 
 class Dataset:
@@ -304,11 +309,19 @@ class Experiment:
         tags: Optional[Dict[str, str]] = None,
         config: Optional[ExperimentConfigType] = None,
         _llmobs_instance: Optional["LLMObs"] = None,
+        summary_evaluators: Optional[
+            List[
+                Callable[
+                    [List[DatasetRecordInputType], List[JSONType], List[JSONType], Dict[str, List[JSONType]]], JSONType
+                ]
+            ]
+        ] = None,
     ) -> None:
         self.name = name
         self._task = task
         self._dataset = dataset
         self._evaluators = evaluators
+        self._summary_evaluators = summary_evaluators or []
         self._description = description
         self._tags: Dict[str, str] = tags or {}
         self._tags["ddtrace.version"] = str(ddtrace.__version__)
@@ -327,21 +340,12 @@ class Experiment:
         self._id: Optional[str] = None
         self._run_name: Optional[str] = None
 
-    def run(
-        self, jobs: int = 1, raise_errors: bool = False, sample_size: Optional[int] = None
-    ) -> List[ExperimentResult]:
-        if not self._llmobs_instance:
+    def run(self, jobs: int = 1, raise_errors: bool = False, sample_size: Optional[int] = None) -> ExperimentResult:
+        if not self._llmobs_instance or not self._llmobs_instance.enabled:
             raise ValueError(
                 "LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)` "
                 "and create the experiment via `LLMObs.experiment(...)` before running the experiment."
             )
-        if not self._llmobs_instance.enabled:
-            logger.warning(
-                "Skipping experiment as LLMObs is not enabled. "
-                "Ensure LLM Observability is enabled via `LLMObs.enable(...)` "
-                "or set `DD_LLMOBS_ENABLED=1` and use `ddtrace-run` to run your application."
-            )
-            return []
 
         project = self._llmobs_instance._dne_client.project_create_or_get(self._project_name)
         self._project_id = project.get("_id", "")
@@ -360,11 +364,13 @@ class Experiment:
         self._run_name = experiment_run_name
         task_results = self._run_task(jobs, raise_errors, sample_size)
         evaluations = self._run_evaluators(task_results, raise_errors=raise_errors)
-        experiment_results = self._merge_results(task_results, evaluations)
+        summary_evals = self._run_summary_evaluators(task_results, evaluations, raise_errors)
+        experiment_results = self._merge_results(task_results, evaluations, summary_evals)
         experiment_evals = self._generate_metrics_from_exp_results(experiment_results)
         self._llmobs_instance._dne_client.experiment_eval_post(
             self._id, experiment_evals, convert_tags_dict_to_list(self._tags)
         )
+
         return experiment_results
 
     @property
@@ -476,9 +482,56 @@ class Experiment:
             evaluations.append(evaluation)
         return evaluations
 
+    def _run_summary_evaluators(
+        self, task_results: List[TaskResult], eval_results: List[EvaluationResult], raise_errors: bool = False
+    ) -> List[EvaluationResult]:
+        evaluations: List[EvaluationResult] = []
+        inputs: List[DatasetRecordInputType] = []
+        outputs: List[JSONType] = []
+        expected_outputs: List[JSONType] = []
+        evals_dict = {}
+
+        # name of evaluator (not summary evaluator) -> list of eval results ordered by index of the list of task results
+        # this is being computed so that the user can use the evaluation results in its original form
+        eval_results_by_name: dict[str, List[JSONType]] = {}
+        for idx, task_result in enumerate(task_results):
+            outputs.append(task_result["output"])
+            record: DatasetRecord = self._dataset[idx]
+            inputs.append(record["input_data"])
+            expected_outputs.append(record["expected_output"])
+
+            eval_result_at_idx_by_name = eval_results[idx]["evaluations"]
+            for name, eval_value in eval_result_at_idx_by_name.items():
+                if name not in eval_results_by_name:
+                    eval_results_by_name[name] = []
+
+                eval_results_by_name[name].append(eval_value.get("value"))
+
+        for idx, summary_evaluator in enumerate(self._summary_evaluators):
+            eval_result: JSONType = None
+            eval_err: JSONType = None
+
+            try:
+                eval_result = summary_evaluator(inputs, outputs, expected_outputs, eval_results_by_name)
+            except Exception as e:
+                exc_type, exc_value, exc_tb = sys.exc_info()
+                exc_type_name = type(e).__name__ if exc_type is not None else "Unknown Exception"
+                exc_stack = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
+                eval_err = {"message": str(exc_value), "type": exc_type_name, "stack": exc_stack}
+                if raise_errors:
+                    raise RuntimeError(f"Summary evaluator {summary_evaluator.__name__} failed") from e
+            evals_dict[summary_evaluator.__name__] = {"value": eval_result, "error": eval_err}
+            evaluation: EvaluationResult = {"idx": idx, "evaluations": evals_dict}
+            evaluations.append(evaluation)
+
+        return evaluations
+
     def _merge_results(
-        self, task_results: List[TaskResult], evaluations: List[EvaluationResult]
-    ) -> List[ExperimentResult]:
+        self,
+        task_results: List[TaskResult],
+        evaluations: List[EvaluationResult],
+        summary_evaluations: Optional[List[EvaluationResult]],
+    ) -> ExperimentResult:
         experiment_results = []
         for idx, task_result in enumerate(task_results):
             output_data = task_result["output"]
@@ -486,7 +539,7 @@ class Experiment:
             metadata.update(task_result.get("metadata") or {})
             record: DatasetRecord = self._dataset[idx]
             evals = evaluations[idx]["evaluations"]
-            exp_result: ExperimentResult = {
+            exp_result: ExperimentRowResult = {
                 "idx": idx,
                 "span_id": task_result.get("span_id", ""),
                 "trace_id": task_result.get("trace_id", ""),
@@ -500,10 +553,28 @@ class Experiment:
                 "error": task_result["error"],
             }
             experiment_results.append(exp_result)
-        return experiment_results
+
+        summary_evals: Dict[str, Dict[str, JSONType]] = {}
+        if summary_evaluations:
+            for summary_evaluation in summary_evaluations:
+                for name, eval_data in summary_evaluation["evaluations"].items():
+                    summary_evals[name] = eval_data
+
+        result: ExperimentResult = {
+            "summary_evaluations": summary_evals,
+            "rows": experiment_results,
+        }
+        return result
 
     def _generate_metric_from_evaluation(
-        self, eval_name: str, eval_value: JSONType, err: JSONType, span_id: str, trace_id: str, timestamp_ns: int
+        self,
+        eval_name: str,
+        eval_value: JSONType,
+        err: JSONType,
+        span_id: str,
+        trace_id: str,
+        timestamp_ns: int,
+        source: str = "custom",
     ) -> "LLMObsExperimentEvalMetricEvent":
         metric_type = None
         if eval_value is None:
@@ -516,6 +587,7 @@ class Experiment:
             metric_type = "categorical"
             eval_value = str(eval_value).lower()
         return {
+            "metric_source": source,
             "span_id": span_id,
             "trace_id": trace_id,
             "timestamp_ms": int(timestamp_ns / 1e6),
@@ -528,14 +600,18 @@ class Experiment:
         }
 
     def _generate_metrics_from_exp_results(
-        self, experiment_results: List[ExperimentResult]
+        self, experiment_result: ExperimentResult
     ) -> List["LLMObsExperimentEvalMetricEvent"]:
         eval_metrics = []
-        for exp_result in experiment_results:
+        latest_timestamp: int = 0
+        for exp_result in experiment_result["rows"]:
             evaluations = exp_result.get("evaluations") or {}
             span_id = exp_result.get("span_id", "")
             trace_id = exp_result.get("trace_id", "")
             timestamp_ns = cast(int, exp_result.get("timestamp", 0))
+            if timestamp_ns > latest_timestamp:
+                latest_timestamp = timestamp_ns
+
             for eval_name, eval_data in evaluations.items():
                 if not eval_data:
                     continue
@@ -544,6 +620,20 @@ class Experiment:
                     eval_name, eval_value, eval_data.get("error"), span_id, trace_id, timestamp_ns
                 )
                 eval_metrics.append(eval_metric)
+
+        for name, summary_eval_data in experiment_result.get("summary_evaluations", {}).items():
+            if not summary_eval_data:
+                continue
+            eval_metric = self._generate_metric_from_evaluation(
+                name,
+                summary_eval_data.get("value"),
+                summary_eval_data.get("error"),
+                "",
+                "",
+                latest_timestamp,
+                source="summary",
+            )
+            eval_metrics.append(eval_metric)
         return eval_metrics
 
 
