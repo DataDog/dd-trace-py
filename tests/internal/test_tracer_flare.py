@@ -629,7 +629,9 @@ class TracerFlareTests(TestCase):
         self.flare.revert_configs()
 
 
-@pytest.mark.skipif(PYTHON_VERSION_INFO >= (3, 14), reason="pyfakefs seems not to work with Python 3.14")
+@pytest.mark.skipif(
+    PYTHON_VERSION_INFO >= (3, 14), reason="pyfakefs seems not to fully work with multiprocessing under Python 3.14"
+)
 class TracerFlareMultiprocessTests(TestCase):
     def setUp(self):
         self.setUpPyfakefs()
