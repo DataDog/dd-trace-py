@@ -121,9 +121,13 @@
     alias: moto
     variables:
       MOTO_PORT: 3000
-  azurite:
-    name: registry.ddbuild.io/images/mirror/azure-storage/azurite:3.34.0
-    alias: azurite
+  azureeventhubsemulator:
+    name: registry.ddbuild.io/images/mirror/azure-messaging/eventhubs-emulator:2.1.0
+    alias: azureeventhubsemulator
+    variables:
+      ACCEPT_EULA: "Y"
+      BLOB_SERVER: azurite
+      METADATA_SERVER: azurite
   azureservicebusemulator:
     name: registry.ddbuild.io/images/mirror/azure-messaging/servicebus-emulator:1.1.2
     alias: azureservicebusemulator
@@ -137,3 +141,6 @@
     variables:
       ACCEPT_EULA: "Y"
       MSSQL_SA_PASSWORD: "Localtestpass1!"
+  azurite:
+    name: registry.ddbuild.io/images/mirror/azure-storage/azurite:3.34.0
+    alias: azurite

@@ -3093,6 +3093,15 @@ venv = Venv(
             },
         ),
         Venv(
+            name="azure_eventhubs",
+            command="pytest {cmdargs} tests/contrib/azure_eventhubs",
+            pys=select_pys(min_version="3.8", max_version="3.13"),
+            pkgs={
+                "azure.eventhub": ["~=5.12.0", latest],
+                "pytest-asyncio": "==0.23.7",
+            },
+        ),
+        Venv(
             name="azure_functions",
             command="pytest {cmdargs} tests/contrib/azure_functions",
             pys=select_pys(min_version="3.8", max_version="3.11"),
@@ -3102,12 +3111,31 @@ venv = Venv(
             },
         ),
         Venv(
+            name="azure_functions:eventhubs",
+            command="pytest {cmdargs} tests/contrib/azure_functions_eventhubs",
+            pys=select_pys(min_version="3.8", max_version="3.11"),
+            pkgs={
+                "azure.functions": ["~=1.10.1", latest],
+                "azure.eventhub": latest,
+                "azure.storage.blob": latest,
+            },
+        ),
+        Venv(
+            name="azure_functions:servicebus",
+            command="pytest {cmdargs} tests/contrib/azure_functions_servicebus",
+            pys=select_pys(min_version="3.8", max_version="3.11"),
+            pkgs={
+                "azure.functions": ["~=1.10.1", latest],
+                "azure.servicebus": latest,
+            },
+        ),
+        Venv(
             name="azure_servicebus",
             command="pytest {cmdargs} tests/contrib/azure_servicebus",
             pys=select_pys(min_version="3.8", max_version="3.13"),
             pkgs={
                 "azure.servicebus": ["~=7.14.0", latest],
-                "pytest-asyncio": "==0.24.0",
+                "pytest-asyncio": "==0.23.7",
             },
         ),
         Venv(
