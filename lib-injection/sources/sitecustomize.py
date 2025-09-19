@@ -262,11 +262,23 @@ def get_first_incompatible_sysarg():
     _log("Checking sys.args: len(sys.argv): %s" % (len(sys.argv),), level="debug")
     if len(sys.argv) <= 1:
         return
+
+    # Check the main executable first
     argument = sys.argv[0]
     _log("Is argument %s in deny-list?" % (argument,), level="debug")
     if argument in EXECUTABLES_DENY_LIST or os.path.basename(argument) in EXECUTABLES_DENY_LIST:
         _log("argument %s is in deny-list" % (argument,), level="debug")
         return argument
+
+    # Check for -m module patterns (e.g., python -m py_compile which would match the -m py_compile entry)
+    if len(sys.argv) >= 3 and sys.argv[1] == "-m":
+        module_pattern = "-m %s" % sys.argv[2]
+        _log("Checking -m module pattern: %s" % (module_pattern,), level="debug")
+        if module_pattern in EXECUTABLES_DENY_LIST:
+            _log("-m module pattern %s is in deny-list" % (module_pattern,), level="debug")
+            return module_pattern
+
+    return None
 
 
 def _inject():
