@@ -5,7 +5,7 @@ interactions:
       "98765432101", "parent_id": "", "session_id": "98765432101", "name": "completion_span",
       "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
       "start_ns": 1707763310981223236, "duration": 12345678900, "status": "ok", "meta":
-      {"span.kind": "llm", "model_name": "ada", "model_provider": "openai", "input":
+      {"span": {"kind": "llm"}, "model_name": "ada", "model_provider": "openai", "input":
       {"messages": [{"content": "who broke enigma?"}]}, "output": {"messages": [{"content":
       "\n\nThe Enigma code was broken by a team of codebreakers at Bletchley Park,
       led by mathematician Alan Turing."}]}, "metadata": {"temperature": 0, "max_tokens":

@@ -46,6 +46,8 @@ from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._experiment import UpdatableDatasetRecord
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.settings._agent import config as agent_config
+from ddtrace.llmobs.utils import Meta
+from ddtrace.llmobs.utils import SpanLink
 
 
 logger = get_logger(__name__)
@@ -56,7 +58,7 @@ class _LLMObsSpanEventOptional(TypedDict, total=False):
     service: str
     status_message: str
     collection_errors: List[str]
-    span_links: List[Dict[str, str]]
+    span_links: List[SpanLink]
 
 
 class LLMObsSpanEvent(_LLMObsSpanEventOptional):
@@ -68,7 +70,7 @@ class LLMObsSpanEvent(_LLMObsSpanEventOptional):
     start_ns: int
     duration: int
     status: str
-    meta: Dict[str, Any]
+    meta: Meta
     metrics: Dict[str, Any]
     _dd: Dict[str, str]
 

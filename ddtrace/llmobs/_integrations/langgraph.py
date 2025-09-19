@@ -27,6 +27,7 @@ from ddtrace.llmobs._integrations.constants import LANGGRAPH_ASTREAM_OUTPUT
 from ddtrace.llmobs._integrations.utils import format_langchain_io
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
+from ddtrace.llmobs.utils import SpanLink
 from ddtrace.trace import Span
 
 
@@ -93,11 +94,11 @@ class LangGraphIntegration(BaseLLMIntegration):
             self._get_node_metadata_from_span(span, instance_id) if operation == "node" or is_subgraph else {}
         )
 
-        span_links = [_default_span_link(span)]
-        invoked_node_span_links = invoked_node.get("span_links")
-        if invoked_node_span_links is not None:
+        span_links: List[SpanLink] = [_default_span_link(span)]
+        invoked_node_span_links: List[SpanLink] = invoked_node.get("span_links") or []
+        if invoked_node_span_links:
             span_links = invoked_node_span_links
-        current_span_links = span._get_ctx_item(SPAN_LINKS) or []
+        current_span_links: List[SpanLink] = span._get_ctx_item(SPAN_LINKS) or []
 
         def maybe_format_langchain_io(messages):
             if messages is None:
@@ -230,23 +231,23 @@ class LangGraphIntegration(BaseLLMIntegration):
          not whether it is a standalone graph (called internally during a node execution).
         """
         graph_caller_span = _get_nearest_llmobs_ancestor(graph_span) if graph_span else None
-        output_span_links = [
-            {
+        output_span_links: List[SpanLink] = [
+            SpanLink(
                 **self._graph_nodes_for_graph_by_task_id[graph_span][task_id]["span"],
-                "attributes": {"from": "output", "to": "output"},
-            }
+                attributes={"from": "output", "to": "output"},
+            )
             for task_id in finished_tasks.keys()
         ]
-        graph_span_span_links = graph_span._get_ctx_item(SPAN_LINKS) or []
+        graph_span_span_links: List[SpanLink] = graph_span._get_ctx_item(SPAN_LINKS) or []
         graph_span._set_ctx_item(SPAN_LINKS, graph_span_span_links + output_span_links)
         if graph_caller_span is not None and not is_subgraph_node:
-            graph_caller_span_links = graph_caller_span._get_ctx_item(SPAN_LINKS) or []
-            span_links = [
-                {
-                    "span_id": str(graph_span.span_id) or "undefined",
-                    "trace_id": format_trace_id(graph_span.trace_id),
-                    "attributes": {"from": "output", "to": "output"},
-                }
+            graph_caller_span_links: List[SpanLink] = graph_caller_span._get_ctx_item(SPAN_LINKS) or []
+            span_links: List[SpanLink] = [
+                SpanLink(
+                    span_id=str(graph_span.span_id) or "undefined",
+                    trace_id=format_trace_id(graph_span.trace_id),
+                    attributes={"from": "output", "to": "output"},
+                )
             ]
             graph_caller_span._set_ctx_item(SPAN_LINKS, graph_caller_span_links + span_links)
 
@@ -294,12 +295,12 @@ class LangGraphIntegration(BaseLLMIntegration):
             if not trigger_node_span:
                 continue
 
-            span_link = {
-                "span_id": trigger_node_span.get("span_id", ""),
-                "trace_id": trigger_node_span.get("trace_id", ""),
-                "attributes": {"from": "output", "to": "input"},
-            }
-            span_links: List[Dict[str, Any]] = queued_node.setdefault("span_links", [])
+            span_link = SpanLink(
+                span_id=trigger_node_span.get("span_id", ""),
+                trace_id=trigger_node_span.get("trace_id", ""),
+                attributes={"from": "output", "to": "input"},
+            )
+            span_links: List[SpanLink] = queued_node.setdefault("span_links", [])
             span_links.append(span_link)
 
         return trigger_ids
@@ -311,7 +312,7 @@ class LangGraphIntegration(BaseLLMIntegration):
         Default handler that links any finished tasks not used as triggers for queued tasks to the outer graph span.
         """
         standalone_terminal_task_ids = set(finished_tasks.keys()) - used_finished_tasks_ids
-        graph_span_links = graph_span._get_ctx_item(SPAN_LINKS) or []
+        graph_span_links: List[SpanLink] = graph_span._get_ctx_item(SPAN_LINKS) or []
         for finished_task_id in standalone_terminal_task_ids:
             node = self._graph_nodes_for_graph_by_task_id.get(graph_span, {}).get(finished_task_id)
             if node is None:
@@ -322,11 +323,11 @@ class LangGraphIntegration(BaseLLMIntegration):
                 continue
 
             graph_span_links.append(
-                {
-                    "span_id": span.get("span_id", ""),
-                    "trace_id": span.get("trace_id", ""),
-                    "attributes": {"from": "output", "to": "output"},
-                }
+                SpanLink(
+                    span_id=span.get("span_id", ""),
+                    trace_id=span.get("trace_id", ""),
+                    attributes={"from": "output", "to": "output"},
+                )
             )
         graph_span._set_ctx_item(SPAN_LINKS, graph_span_links)
 
@@ -537,14 +538,14 @@ def _append_finished_task_to_channel_writes_map(
         tasks_for_trigger.append(finished_task_id)
 
 
-def _default_span_link(span: Span) -> dict:
+def _default_span_link(span: Span) -> SpanLink:
     """
     Create a default input-to-input span link for a given span, if there are no
     referenced spans that represent the causal link. In this case, we assume
     the span is linked to its parent's input.
     """
-    return {
-        "span_id": span._get_ctx_item(PARENT_ID_KEY) or ROOT_PARENT_ID,
-        "trace_id": format_trace_id(span.trace_id),
-        "attributes": {"from": "input", "to": "input"},
-    }
+    return SpanLink(
+        span_id=span._get_ctx_item(PARENT_ID_KEY) or ROOT_PARENT_ID,
+        trace_id=format_trace_id(span.trace_id),
+        attributes={"from": "input", "to": "input"},
+    )
