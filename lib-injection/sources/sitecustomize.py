@@ -60,11 +60,13 @@ RESULT = "unknown"
 RESULT_REASON = "unknown"
 RESULT_CLASS = "unknown"
 EXECUTABLES_DENY_LIST = set()
+EXECUTABLE_MODULES_DENY_LIST = set()
 REQUIREMENTS_FILE_LOCATIONS = (
     os.path.abspath(os.path.join(SCRIPT_DIR, "../datadog-lib/requirements.csv")),
     os.path.abspath(os.path.join(SCRIPT_DIR, "requirements.csv")),
 )
 EXECUTABLE_DENY_LOCATION = os.path.abspath(os.path.join(SCRIPT_DIR, "denied_executables.txt"))
+EXECUTABLE_MODULES_DENY_LOCATION = os.path.abspath(os.path.join(SCRIPT_DIR, "denied_executable_modules.txt"))
 SITE_PKGS_MARKER = "site-packages-ddtrace-py"
 BOOTSTRAP_MARKER = "bootstrap"
 
@@ -145,6 +147,24 @@ def build_denied_executables():
     except Exception as e:
         _log("Failed to build denied-executables list: %s" % e, level="debug")
     return denied_executables
+
+
+def build_denied_executable_modules():
+    denied_modules = set()
+    _log("Checking denied-executable-modules list", level="debug")
+    try:
+        if os.path.exists(EXECUTABLE_MODULES_DENY_LOCATION):
+            with open(EXECUTABLE_MODULES_DENY_LOCATION, "r") as denyfile:
+                _log("Found modules deny-list file", level="debug")
+                for line in denyfile.readlines():
+                    cleaned = line.strip("\n").strip()
+                    # Skip empty lines and comments
+                    if cleaned and not cleaned.startswith("#"):
+                        denied_modules.add(cleaned)
+        _log("Built denied-executable-modules list of %s entries" % (len(denied_modules),), level="debug")
+    except Exception as e:
+        _log("Failed to build denied-executable-modules list: %s" % e, level="debug")
+    return denied_modules
 
 
 def create_count_metric(metric, tags=None):
@@ -270,14 +290,18 @@ def get_first_incompatible_sysarg():
         _log("argument %s is in deny-list" % (argument,), level="debug")
         return argument
 
-    # Check for -m module patterns (e.g., python -m py_compile which would match the -m py_compile entry)
-    if len(sys.argv) >= 3 and sys.argv[1] == "-m":
-        module_pattern = "-m %s" % sys.argv[2]
-        _log("Checking -m module pattern: %s" % (module_pattern,), level="debug")
-        if module_pattern in EXECUTABLES_DENY_LIST:
-            _log("-m module pattern %s is in deny-list" % (module_pattern,), level="debug")
-            return module_pattern
-
+    # Check for "-m module" patterns, but only for Python interpreters
+    if len(sys.argv) >= 3:
+        executable_basename = os.path.basename(argument)
+        if executable_basename.startswith("python"):
+            # Look for -m flag in any position from argv[1] onwards
+            for i in range(1, len(sys.argv) - 1):  # -1 because we need argv[i+1] to exist
+                if sys.argv[i] == "-m":
+                    module_name = sys.argv[i + 1]
+                    if module_name in EXECUTABLE_MODULES_DENY_LIST:
+                        _log("Module %s is in deny-list" % (module_name,), level="debug")
+                        return "-m %s" % module_name  # Return in -m format for consistency
+                    break  # Stop after finding the first -m flag
     return None
 
 
@@ -288,6 +312,7 @@ def _inject():
     global PYTHON_RUNTIME
     global DDTRACE_REQUIREMENTS
     global EXECUTABLES_DENY_LIST
+    global EXECUTABLE_MODULES_DENY_LIST
     global TELEMETRY_DATA
     global RESULT
     global RESULT_REASON
@@ -299,6 +324,7 @@ def _inject():
     INSTALLED_PACKAGES = build_installed_pkgs()
     DDTRACE_REQUIREMENTS = build_requirements(PYTHON_VERSION)
     EXECUTABLES_DENY_LIST = build_denied_executables()
+    EXECUTABLE_MODULES_DENY_LIST = build_denied_executable_modules()
     dependency_incomp = False
     runtime_incomp = False
     spec = None
