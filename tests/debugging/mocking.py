@@ -19,7 +19,7 @@ from ddtrace.debugging._redaction import config as redaction_config
 from ddtrace.debugging._redaction import redact
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.snapshot import Snapshot
-from ddtrace.debugging._uploader import LogsIntakeUploaderV1
+from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.settings._core import DDConfig
 from tests.debugging.probe.test_status import DummyProbeStatusLogger
 
@@ -89,12 +89,13 @@ class TestSignalCollector(SignalCollector):
         raise PayloadWaitTimeout()
 
 
-class MockLogsIntakeUploaderV1(LogsIntakeUploaderV1):
+class MockSignalUploader(SignalUploader):
     __collector__ = TestSignalCollector
 
     def __init__(self, interval=0.0):
-        super(MockLogsIntakeUploaderV1, self).__init__(interval)
+        super(MockSignalUploader, self).__init__(interval)
         self.queue = []
+        self._state = self._online
 
     def _write(self, payload, endpoint):
         self.queue.append(payload.decode())
@@ -126,7 +127,7 @@ class MockLogsIntakeUploaderV1(LogsIntakeUploaderV1):
 
 class TestDebugger(Debugger):
     __logger__ = MockProbeStatusLogger
-    __uploader__ = MockLogsIntakeUploaderV1
+    __uploader__ = MockSignalUploader
 
     def add_probes(self, *probes: Probe) -> None:
         self._on_configuration(ProbePollerEvent.NEW_PROBES, probes)
@@ -216,11 +217,11 @@ def debugger(**config_overrides: Any) -> Generator[TestDebugger, None, None]:
 
 
 class MockSpanExceptionHandler(SpanExceptionHandler):
-    __uploader__ = MockLogsIntakeUploaderV1
+    __uploader__ = MockSignalUploader
 
 
 @contextmanager
-def exception_replay(**config_overrides: Any) -> Generator[MockLogsIntakeUploaderV1, None, None]:
+def exception_replay(**config_overrides: Any) -> Generator[MockSignalUploader, None, None]:
     MockSpanExceptionHandler.enable()
 
     handler = MockSpanExceptionHandler._instance

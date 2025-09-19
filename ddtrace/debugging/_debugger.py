@@ -43,7 +43,7 @@ from ddtrace.debugging._probe.status import ProbeStatusLogger
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.model import Signal
 from ddtrace.debugging._signal.model import SignalState
-from ddtrace.debugging._uploader import LogsIntakeUploaderV1
+from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.debugging._uploader import UploaderProduct
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
@@ -193,7 +193,7 @@ class Debugger(Service):
     _probe_meter = _probe_metrics.get_meter("probe")
 
     __rc_adapter__ = ProbeRCAdapter
-    __uploader__ = LogsIntakeUploaderV1
+    __uploader__ = SignalUploader
     __watchdog__ = DebuggerModuleWatchdog
     __logger__ = ProbeStatusLogger
 
