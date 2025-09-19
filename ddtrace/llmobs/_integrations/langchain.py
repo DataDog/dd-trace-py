@@ -40,8 +40,8 @@ from ddtrace.llmobs._integrations.utils import format_langchain_io
 from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
+from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import safe_json
-from ddtrace.llmobs._utils import validate_prompt
 from ddtrace.llmobs.utils import Document, Message, SpanLink, ToolCall
 from ddtrace.trace import Span
 
@@ -885,7 +885,7 @@ class LangChainIntegration(BaseLLMIntegration):
         if prompt_value_meta is not None:
             prompt = prompt_value_meta
             try:
-                prompt = validate_prompt(prompt)
+                prompt = _validate_prompt(prompt, strict_validation=True)
                 span._set_ctx_item(INPUT_PROMPT, prompt)
             except Exception as e:
                 log.debug("Failed to validate langchain prompt", e)

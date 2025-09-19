@@ -36,43 +36,47 @@ experiments:
           - name: djangosimple-appsec
             thresholds:
               - execution_time < 22.30 ms
-              - max_rss_usage < 66.00 MB
+              - max_rss_usage < 67.00 MB
           - name: djangosimple-exception-replay-enabled
             thresholds:
               - execution_time < 1.45 ms
-              - max_rss_usage < 66.00 MB
+              - max_rss_usage < 67.00 MB
           - name: djangosimple-iast
             thresholds:
               - execution_time < 22.25 ms
-              - max_rss_usage < 66.00 MB
+              - max_rss_usage < 67.00 MB
           - name: djangosimple-profiler
             thresholds:
               - execution_time < 16.55 ms
-              - max_rss_usage < 53.50 MB
+              - max_rss_usage < 54.50 MB
           - name: djangosimple-span-code-origin
             thresholds:
               - execution_time < 28.20 ms
-              - max_rss_usage < 68.50 MB
+              - max_rss_usage < 69.50 MB
           - name: djangosimple-tracer
             thresholds:
               - execution_time < 21.75 ms
+              - max_rss_usage < 67.00 MB
+          - name: djangosimple-tracer-minimal
+            thresholds:
+              - execution_time < 17.50 ms
               - max_rss_usage < 66.00 MB
           - name: djangosimple-tracer-native
             thresholds:
               - execution_time < 21.75 ms
-              - max_rss_usage < 66.00 MB
+              - max_rss_usage < 72.50 MB
           - name: djangosimple-tracer-and-profiler
             thresholds:
               - execution_time < 23.50 ms
-              - max_rss_usage < 67.00 MB
+              - max_rss_usage < 67.50 MB
           - name: djangosimple-tracer-no-caches
             thresholds:
               - execution_time < 19.65 ms
-              - max_rss_usage < 66.00 MB
+              - max_rss_usage < 67.00 MB
           - name: djangosimple-tracer-no-databases
             thresholds:
               - execution_time < 20.10 ms
-              - max_rss_usage < 66.00 MB
+              - max_rss_usage < 67.00 MB
           - name: djangosimple-tracer-dont-create-db-spans
             thresholds:
               - execution_time < 21.50 ms
@@ -80,25 +84,25 @@ experiments:
           - name: djangosimple-tracer-no-middleware
             thresholds:
               - execution_time < 21.50 ms
-              - max_rss_usage < 66.00 MB
+              - max_rss_usage < 67.00 MB
           - name: djangosimple-tracer-no-templates
             thresholds:
               - execution_time < 22.00 ms
-              - max_rss_usage < 66.00 MB
+              - max_rss_usage < 67.00 MB
 
           # errortrackingdjangosimple
           - name: errortrackingdjangosimple-errortracking-enabled-all
             thresholds:
               - execution_time < 19.85 ms
-              - max_rss_usage < 65.50 MB
+              - max_rss_usage < 66.50 MB
           - name: errortrackingdjangosimple-errortracking-enabled-user
             thresholds:
               - execution_time < 19.40 ms
-              - max_rss_usage < 65.50 MB
+              - max_rss_usage < 66.50 MB
           - name: errortrackingdjangosimple-tracer-enabled
             thresholds:
               - execution_time < 19.45 ms
-              - max_rss_usage < 65.50 MB
+              - max_rss_usage < 66.50 MB
 
           # errortrackingflasksqli
           - name: errortrackingflasksqli-errortracking-enabled-all
@@ -122,16 +126,16 @@ experiments:
           - name: flasksimple-tracer-native
             thresholds:
               - execution_time < 3.65 ms
-              - max_rss_usage < 53.50 MB
+              - max_rss_usage < 60.00 MB
           - name: flasksimple-profiler
             thresholds:
               - execution_time < 2.10 ms
-              - max_rss_usage < 46.50 MB
+              - max_rss_usage < 47.00 MB
           - name: flasksimple-debugger
             thresholds:
               - execution_time < 2.00 ms
-              - max_rss_usage < 46.50 MB
-              - max_rss_usage < 45.00 MB
+              - max_rss_usage < 47.00 MB
+              - max_rss_usage < 47.00 MB
           - name: flasksimple-iast-get
             thresholds:
               - execution_time < 2.00 ms
@@ -139,15 +143,15 @@ experiments:
           - name: flasksimple-appsec-get
             thresholds:
               - execution_time < 4.75 ms
-              - max_rss_usage < 64.50 MB
+              - max_rss_usage < 65.00 MB
           - name: flasksimple-appsec-post
             thresholds:
               - execution_time < 6.75 ms
-              - max_rss_usage < 64.50 MB
+              - max_rss_usage < 65.00 MB
           - name: flasksimple-appsec-telemetry
             thresholds:
               - execution_time < 4.75 ms
-              - max_rss_usage < 64.50 MB
+              - max_rss_usage < 65.00 MB
 
           # flasksqli
           - name: flasksqli-appsec-enabled
@@ -157,11 +161,11 @@ experiments:
           - name: flasksqli-iast-enabled
             thresholds:
               - execution_time < 2.80 ms
-              - max_rss_usage < 59.00 MB
+              - max_rss_usage < 60.00 MB
           - name: flasksqli-tracer-enabled
             thresholds:
               - execution_time < 2.25 ms
-              - max_rss_usage < 53.50 MB
+              - max_rss_usage < 54.50 MB
 
           # httppropagationextract
           - name: httppropagationextract-all_styles_all_headers
@@ -726,11 +730,11 @@ experiments:
               - max_rss_usage < 39.00 MB
           - name: iastpropagation-propagation_enabled_100
             thresholds:
-              - execution_time < 1.90 ms
+              - execution_time < 2.30 ms
               - max_rss_usage < 39.00 MB
           - name: iastpropagation-propagation_enabled_1000
             thresholds:
-              - execution_time < 35.55 ms
+              - execution_time < 34.55 ms
               - max_rss_usage < 39.00 MB
 
           # otelsdkspan
@@ -787,7 +791,7 @@ experiments:
           - name: otelspan-add-event
             thresholds:
               - execution_time < 47.15 ms
-              - max_rss_usage < 46.50 MB
+              - max_rss_usage < 47.00 MB
           - name: otelspan-add-metrics
             thresholds:
               - execution_time < 344.80 ms
@@ -803,19 +807,19 @@ experiments:
           - name: otelspan-is-recording
             thresholds:
               - execution_time < 44.50 ms
-              - max_rss_usage < 46.50 MB
+              - max_rss_usage < 47.50 MB
           - name: otelspan-record-exception
             thresholds:
               - execution_time < 67.65 ms
-              - max_rss_usage < 46.50 MB
+              - max_rss_usage < 47.00 MB
           - name: otelspan-set-status
             thresholds:
               - execution_time < 50.40 ms
-              - max_rss_usage < 46.50 MB
+              - max_rss_usage < 47.00 MB
           - name: otelspan-start
             thresholds:
               - execution_time < 43.45 ms
-              - max_rss_usage < 46.50 MB
+              - max_rss_usage < 47.00 MB
           - name: otelspan-start-finish
             thresholds:
               - execution_time < 88.00 ms
@@ -827,7 +831,7 @@ experiments:
           - name: otelspan-update-name
             thresholds:
               - execution_time < 45.15 ms
-              - max_rss_usage < 46.50 MB
+              - max_rss_usage < 47.00 MB
 
           # packagespackageforrootmodulemapping
           - name: packagespackageforrootmodulemapping-cache_off

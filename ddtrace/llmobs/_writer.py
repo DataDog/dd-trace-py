@@ -89,6 +89,7 @@ class LLMObsEvaluationMetricEvent(TypedDict, total=False):
 
 
 class LLMObsExperimentEvalMetricEvent(TypedDict, total=False):
+    metric_source: str
     span_id: str
     trace_id: str
     timestamp_ms: int
