@@ -111,10 +111,6 @@ class CrashtrackerWrapper:
     def logs(self):
         return read_files([self.stdout, self.stderr])
 
-# `wait_for_crash_messages` is a bit misleading because this function *does* wait for a crash ping,
-# but the test agent client hold state for the duration of the test so `wait_for_crash_messages`
-# will effectively get all messages the client has received previously, and up until 1 second after the calling point
-
 
 def wait_for_crash_messages(test_agent_client: TestAgentClient) -> List[TestAgentRequest]:
     seen_report_ids = set()
@@ -123,9 +119,6 @@ def wait_for_crash_messages(test_agent_client: TestAgentClient) -> List[TestAgen
     for _ in range(5):
         incoming_messages = test_agent_client.crash_messages()
         for message in incoming_messages:
-            # report A arrives -> crash_reports() returns [A]
-            # report B arrives -> crash_reports() returns [A, B]
-            # We need to identify the second A as a duplicate
             body = message.get("body", b"")
             if isinstance(body, str):
                 body = body.encode('utf-8')
@@ -134,9 +127,9 @@ def wait_for_crash_messages(test_agent_client: TestAgentClient) -> List[TestAgen
                 seen_report_ids.add(report_id)
                 crash_messages.append(message)
 
-        # If we have both crash ping and crash report (2 reports), we can return early
-        if len(crash_messages) >= 2:
-            return crash_messages
+            # If we have both crash ping and crash report (2 reports), we can return early
+            if len(crash_messages) >= 2:
+                return crash_messages
         time.sleep(0.2)
 
     return crash_messages
