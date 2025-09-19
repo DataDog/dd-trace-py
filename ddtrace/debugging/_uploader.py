@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
-from typing import Dict
 from typing import Optional
 from typing import Set
 from urllib.parse import quote
@@ -15,10 +14,8 @@ from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.model import SignalTrack
 from ddtrace.internal import agent
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.periodic import ForksafeAwakeablePeriodicService
 from ddtrace.internal.utils.http import connector
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
-from ddtrace.internal.utils.time import HourGlass
 
 
 log = get_logger(__name__)
@@ -37,16 +34,23 @@ class UploaderProduct(str, Enum):
 class UploaderTrack:
     endpoint: str
     queue: SignalQueue
+    enabled: bool = True
 
 
-class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
-    """Logs intake uploader.
+class SignalUploaderError(Exception):
+    """Signal uploader error."""
 
-    This class implements an interface with the debugger logs intake for both
+    pass
+
+
+class SignalUploader(agent.AgentCheckPeriodicService):
+    """Signal uploader.
+
+    This class implements an interface with the debugger signal intake for both
     the debugger and the events platform.
     """
 
-    _instance: Optional["LogsIntakeUploaderV1"] = None
+    _instance: Optional["SignalUploader"] = None
     _products: Set[UploaderProduct] = set()
     _agent_endpoints: Set[str] = set()
 
@@ -58,10 +62,23 @@ class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
     def __init__(self, interval: Optional[float] = None) -> None:
         super().__init__(interval if interval is not None else di_config.upload_interval_seconds)
 
-        self._agent_endpoints_cache: HourGlass = HourGlass(duration=60.0)
+        self._endpoint_suffix = endpoint_suffix = (
+            f"?ddtags={quote(di_config.tags)}" if di_config._tags_in_qs and di_config.tags else ""
+        )
 
-        self._tracks: Dict[SignalTrack, UploaderTrack] = {}
-        self.set_track_endpoints()
+        self._tracks = {
+            SignalTrack.LOGS: UploaderTrack(
+                endpoint=f"/debugger/v1/input{endpoint_suffix}",
+                queue=self.__queue__(
+                    encoder=LogSignalJsonEncoder(di_config.service_name), on_full=self._on_buffer_full
+                ),
+            ),
+            SignalTrack.SNAPSHOT: UploaderTrack(
+                endpoint=f"/debugger/v2/input{endpoint_suffix}",  # start optimistically
+                queue=self.__queue__(encoder=SnapshotJsonEncoder(di_config.service_name), on_full=self._on_buffer_full),
+            ),
+        }
+        self._collector = self.__collector__({t: ut.queue for t, ut in self._tracks.items()})
         self._headers = {
             "Content-type": "application/json; charset=utf-8",
             "Accept": "text/plain",
@@ -76,7 +93,7 @@ class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
         )(self._write)
 
         log.debug(
-            "Logs intake uploader initialized (url: %s, endpoints: %s, interval: %f)",
+            "Signal uploader initialized (url: %s, endpoints: %s, interval: %f)",
             di_config._intake_url,
             {t: ut.endpoint for t, ut in self._tracks.items()},
             self.interval,
@@ -84,49 +101,36 @@ class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
 
         self._flush_full = False
 
-    def set_track_endpoints(self) -> None:
-        if self._agent_endpoints_cache.trickling():
-            return
+    def info_check(self, agent_info: Optional[dict]) -> bool:
+        if agent_info is None:
+            # Agent is unreachable
+            return False
 
-        try:
-            agent_info = agent.info()
-            self._agent_endpoints = set(agent_info.get("endpoints", [])) if agent_info is not None else set()
-        except Exception:
-            pass  # nosec B110
-        finally:
-            self._agent_endpoints_cache.turn()
+        if "endpoints" not in agent_info:
+            # Agent not supported
+            log.debug("Unsupported Datadog agent detected. Please upgrade to 7.49.")
+            return False
 
-        snapshot_track = "/debugger/v1/input"
-        if "/debugger/v2/input" in self._agent_endpoints:
-            snapshot_track = "/debugger/v2/input"
-        elif "/debugger/v1/diagnostics" in self._agent_endpoints:
-            snapshot_track = "/debugger/v1/diagnostics"
+        endpoints = set(agent_info.get("endpoints", []))
+        snapshot_track = self._tracks[SignalTrack.SNAPSHOT]
+        snapshot_track.enabled = True
 
-        endpoint_suffix = f"?ddtags={quote(di_config.tags)}" if di_config._tags_in_qs and di_config.tags else ""
-
-        # Only create the tracks if they don't exist to preserve the track queue metadata.
-        if not self._tracks:
-            self._tracks = {
-                SignalTrack.LOGS: UploaderTrack(
-                    endpoint=f"/debugger/v1/input{endpoint_suffix}",
-                    queue=self.__queue__(
-                        encoder=LogSignalJsonEncoder(di_config.service_name), on_full=self._on_buffer_full
-                    ),
-                ),
-                SignalTrack.SNAPSHOT: UploaderTrack(
-                    endpoint=f"{snapshot_track}{endpoint_suffix}",
-                    queue=self.__queue__(
-                        encoder=SnapshotJsonEncoder(di_config.service_name), on_full=self._on_buffer_full
-                    ),
-                ),
-            }
+        if "/debugger/v2/input" in endpoints:
+            log.debug("Detected /debugger/v2/input endpoint")
+            snapshot_track.endpoint = f"/debugger/v2/input{self._endpoint_suffix}"
+        elif "/debugger/v1/diagnostics" in endpoints:
+            log.debug("Detected /debugger/v1/diagnostics endpoint fallback")
+            snapshot_track.endpoint = f"/debugger/v1/diagnostics{self._endpoint_suffix}"
         else:
-            self._tracks[SignalTrack.SNAPSHOT].endpoint = f"{snapshot_track}{endpoint_suffix}"
+            snapshot_track.enabled = False
+            log.warning(
+                "Unsupported Datadog agent detected. Snapshots will not be uploaded. "
+                "Please upgrade to version 7.49 or later."
+            )
 
-        self._collector = self.__collector__({t: ut.queue for t, ut in self._tracks.items()})
+        return True
 
     def _write(self, payload: bytes, endpoint: str) -> None:
-        self.set_track_endpoints()
         try:
             with self._connect() as conn:
                 conn.request("POST", endpoint, payload, headers=self._headers)
@@ -134,6 +138,15 @@ class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
                 if not (200 <= resp.status < 300):
                     log.error("Failed to upload payload to endpoint %s: [%d] %r", endpoint, resp.status, resp.read())
                     meter.increment("upload.error", tags={"status": str(resp.status)})
+                    if 400 <= resp.status < 500:
+                        log.error(
+                            "Downgrading debugger endpoint after failed upload attempt to %s: [%d] %r",
+                            endpoint,
+                            resp.status,
+                            resp.read(),
+                        )
+                        msg = "Failed to upload payload"
+                        raise SignalUploaderError(msg)
                 else:
                     meter.increment("upload.success")
                     meter.distribution("upload.size", len(payload))
@@ -157,28 +170,37 @@ class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
 
     def _flush_track(self, track: UploaderTrack) -> None:
         queue = track.queue
-        payload = queue.flush()
-        if payload is not None:
+        if (payload := queue.flush()) is not None and track.enabled:
             try:
                 self._write_with_backoff(payload, track.endpoint)
                 meter.distribution("batch.cardinality", queue.count)
+            except SignalUploaderError:
+                raise  # Propagate error to transition to agent check state
             except Exception:
                 log.debug("Cannot upload logs payload", exc_info=True)
 
-    def periodic(self) -> None:
-        """Upload the buffer content to the logs intake."""
+    def online(self) -> None:
+        """Upload the buffer content to the agent."""
         if self._flush_full:
             # We received the signal to flush a full buffer
             self._flush_full = False
-            for track in self._tracks.values():
-                if track.queue.is_full():
-                    self._flush_track(track)
+            for signal_track, uploader_track in self._tracks.items():
+                if uploader_track.queue.is_full():
+                    try:
+                        self._flush_track(uploader_track)
+                    except SignalUploaderError:
+                        if signal_track is SignalTrack.SNAPSHOT:
+                            uploader_track.endpoint = f"/debugger/v1/diagnostics{self._endpoint_suffix}"
+                            log.debug("Downgrading snapshot endpoint to %s", uploader_track.endpoint)
+                            # Try again immediately. If this fails for the same
+                            # reason we transition to agent check state
+                            self._flush_track(uploader_track)
 
         for track in self._tracks.values():
             if track.queue.count:
                 self._flush_track(track)
 
-    on_shutdown = periodic
+    on_shutdown = online
 
     @classmethod
     def get_collector(cls) -> SignalCollector:
