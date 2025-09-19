@@ -1,19 +1,20 @@
 import re
 from typing import List
 from typing import Optional
+from urllib.parse import urlparse
 
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
+from ddtrace.internal.logger import get_logger
 from ddtrace.settings._config import config
+
+
+log = get_logger(__name__)
 
 
 class ResourceRenamingProcessor(SpanProcessor):
     def __init__(self):
-        self._URL_PATH_EXTRACTION_RE = re.compile(
-            r"^(?P<protocol>[a-z]+://(?P<host>[^?/]+))?(?P<path>/[^?]*)(?P<query>(\?).*)?$"
-        )
-
         self._INT_RE = re.compile(r"^[1-9][0-9]+$")
         self._INT_ID_RE = re.compile(r"^(?=.*[0-9].*)[0-9._-]{3,}$")
         self._HEX_RE = re.compile(r"^(?=.*[0-9].*)[A-Fa-f0-9]{6,}$")
@@ -39,10 +40,12 @@ class ResourceRenamingProcessor(SpanProcessor):
         if not url:
             return "/"
 
-        match = self._URL_PATH_EXTRACTION_RE.match(url)
-        if not match:
+        try:
+            parsed_url = urlparse(url)
+        except ValueError as e:
+            log.error("Failed to parse http.url tag when processing span for resource renaming: %s", e)
             return "/"
-        path = match.group("path")
+        path = parsed_url.path
         if not path or path == "/":
             return "/"
 
