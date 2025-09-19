@@ -72,8 +72,6 @@ DEFAULT_PATH_TRAVERSAL_FUNCTIONS = {
         "rmdir",
         "listdir",
     },
-    "pickle": {"load"},
-    "_pickle": {"load"},
     "posix": {
         "mkdir",
         "remove",
