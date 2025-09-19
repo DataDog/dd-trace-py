@@ -134,6 +134,21 @@ urlpatterns = [
     handler("appsec/propagation/ospathjoin/$", views.ospathjoin_propagation),
     handler("appsec/iast_sampling/$", views.iast_sampling),
     handler("appsec/iast_sampling_2/$", views.iast_sampling_2),
+    handler("appsec/untrusted/yaml/$", views.untrusted_serialization_yaml_view, name="untrusted_serialization_yaml"),
+    handler(
+        "appsec/untrusted/yaml/load/$",
+        views.untrusted_serialization_yaml_load_view,
+        name="untrusted_serialization_yaml_load",
+    ),
+    handler(
+        "appsec/untrusted/yaml/safe_load/$",
+        views.untrusted_serialization_yaml_safe_load_view,
+        name="untrusted_serialization_yaml_safe_load",
+    ),
+    handler(
+        "appsec/untrusted/pickle/$", views.untrusted_serialization_pickle_view, name="untrusted_serialization_pickle"
+    ),
+    handler("appsec/untrusted/dill/$", views.untrusted_serialization_dill_view, name="untrusted_serialization_dill"),
     path(
         "appsec/iast_sampling_by_route_method/<str:q_http_path_parameter>/",
         views.iast_sampling_by_route_method,
