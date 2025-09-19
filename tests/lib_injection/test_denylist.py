@@ -22,7 +22,7 @@ PYTHON_INTERPRETERS = [
     "python3",
     "python3.10",
     "./python",
-    "../bin/python3"
+    "../bin/python3",
 ]
 
 
@@ -58,7 +58,7 @@ def test_python_module_denylist_denied_basic(mock_sitecustomize, python_exe):
         (PYTHON_INTERPRETERS[1], ["-W", "ignore", "-m", "py_compile"], "python -W ignore -m py_compile"),
         (PYTHON_INTERPRETERS[8], ["-u", "-v", "-m", "py_compile"], "python -u -v -m py_compile"),
         (PYTHON_INTERPRETERS[12], ["-O", "-m", "py_compile", "file.py"], "python -O -m py_compile"),
-    ]
+    ],
 )
 def test_python_module_denylist_denied_with_flags(mock_sitecustomize, python_exe, argv_pattern, description):
     assert "py_compile" in mock_sitecustomize.EXECUTABLE_MODULES_DENY_LIST, "py_compile should be in modules deny list"
@@ -85,7 +85,7 @@ def test_regular_python_nondenied(mock_sitecustomize, python_exe):
         (PYTHON_INTERPRETERS[4], "pip", "python -m pip"),
         (PYTHON_INTERPRETERS[11], "pip", "python -m pip"),
         (PYTHON_INTERPRETERS[8], "pip", "python -m pip"),
-    ]
+    ],
 )
 def test_python_module_notdenylist_notdenied(mock_sitecustomize, python_exe, module_name, description):
     argv = [python_exe, "-m", module_name] + (["install", "something"] if module_name == "pip" else [])
@@ -95,7 +95,6 @@ def test_python_module_notdenylist_notdenied(mock_sitecustomize, python_exe, mod
 
 
 def test_binary_denylist_denied(mock_sitecustomize):
-
     denied_binaries = ["/usr/bin/py3compile", "/usr/bin/gcc", "/usr/bin/make", "/usr/sbin/chkrootkit"]
 
     for binary in denied_binaries:
@@ -176,7 +175,16 @@ def test_multiple_m_flags_uses_first(mock_sitecustomize, python_exe):
         assert result is None, f"First -m should be used (json.tool is allowed) for {python_exe}, got '{result}'"
 
 
-@pytest.mark.parametrize("python_exe", [PYTHON_INTERPRETERS[11], PYTHON_INTERPRETERS[1], PYTHON_INTERPRETERS[2], PYTHON_INTERPRETERS[9], PYTHON_INTERPRETERS[14]])
+@pytest.mark.parametrize(
+    "python_exe",
+    [
+        PYTHON_INTERPRETERS[11],
+        PYTHON_INTERPRETERS[1],
+        PYTHON_INTERPRETERS[2],
+        PYTHON_INTERPRETERS[9],
+        PYTHON_INTERPRETERS[14],
+    ],
+)
 def test_py_compile_denied_all_interpreters(mock_sitecustomize, python_exe):
     with patch.object(sys, "argv", [python_exe, "-m", "py_compile", "test.py"]):
         result = mock_sitecustomize.get_first_incompatible_sysarg()
@@ -199,7 +207,7 @@ def test_non_python_executable_with_m_flag_allowed(mock_sitecustomize):
         "/usr/bin/gcc",  # This is actually in deny list, but not for -m
         "/bin/bash",
         "/usr/bin/node",
-        "/usr/bin/java"
+        "/usr/bin/java",
     ]
 
     for executable in non_python_executables:
@@ -207,12 +215,14 @@ def test_non_python_executable_with_m_flag_allowed(mock_sitecustomize):
             result = mock_sitecustomize.get_first_incompatible_sysarg()
 
             if result is not None:
-                assert result == executable or result == os.path.basename(executable), \
-                    f"Expected '{executable}' itself to be denied (if at all), not '-m py_compile'. Got: '{result}'"
+                assert result == executable or result == os.path.basename(
+                    executable
+                ), f"Expected '{executable}' itself to be denied (if at all), not '-m py_compile'. Got: '{result}'"
 
         with patch.object(sys, "argv", [executable, "-m", "some_other_module"]):
             result = mock_sitecustomize.get_first_incompatible_sysarg()
 
             if result is not None:
-                assert result == executable or result == os.path.basename(executable), \
-                    f"Non-Python executable '{executable}' should not be denied for -m patterns. Got: '{result}'"
+                assert result == executable or result == os.path.basename(
+                    executable
+                ), f"Non-Python executable '{executable}' should not be denied for -m patterns. Got: '{result}'"
