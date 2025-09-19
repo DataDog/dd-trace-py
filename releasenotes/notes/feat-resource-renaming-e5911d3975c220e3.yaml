@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    tracing: Added support for resource renaming
+    tracing: Added support for resource renaming, a experimental feature that enables automatic renaming of the resource field of spans for web requests from the Datadog user interface when the resource name does not correctly represent an endpoint.
