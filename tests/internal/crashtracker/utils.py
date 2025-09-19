@@ -111,46 +111,67 @@ class CrashtrackerWrapper:
     def logs(self):
         return read_files([self.stdout, self.stderr])
 
+# `wait_for_crash_messages` is a bit misleading because this function *does* wait for a crash ping,
+# but the test agent client hold state for the duration of the test so `wait_for_crash_messages`
+# will effectively get all messages the client has received previously, and up until 1 second after the calling point
 
-def wait_for_crash_reports(test_agent_client: TestAgentClient) -> List[TestAgentRequest]:
+
+def wait_for_crash_messages(test_agent_client: TestAgentClient) -> List[TestAgentRequest]:
     seen_report_ids = set()
-    crash_reports = []
-    for _ in range(5):  # 5 iterations * 0.2 second = 1 second total
-        incoming_reports = test_agent_client.crash_reports()
-        for report in incoming_reports:
-            # Use a unique identifier to avoid duplicates
-            # We'll use the combination of body content hash and headers as identifier
-            body = report.get("body", b"")
+    crash_messages = []
+    # 5 iterations * 0.2 second = 1 second total should be enough to get ping + report
+    for _ in range(5):
+        incoming_messages = test_agent_client.crash_messages()
+        for message in incoming_messages:
+            # report A arrives -> crash_reports() returns [A]
+            # report B arrives -> crash_reports() returns [A, B]
+            # We need to identify the second A as a duplicate
+            body = message.get("body", b"")
             if isinstance(body, str):
                 body = body.encode('utf-8')
-            report_id = (hash(body), frozenset(report.get("headers", {}).items()))
+            report_id = (hash(body), frozenset(message.get("headers", {}).items()))
             if report_id not in seen_report_ids:
                 seen_report_ids.add(report_id)
-                crash_reports.append(report)
+                crash_messages.append(message)
 
         # If we have both crash ping and crash report (2 reports), we can return early
-        if len(crash_reports) >= 2:
-            return crash_reports
+        if len(crash_messages) >= 2:
+            return crash_messages
         time.sleep(0.2)
 
-    return crash_reports
+    return crash_messages
 
 
 def get_crash_report(test_agent_client: TestAgentClient) -> TestAgentRequest:
     """Wait for a crash report from the crashtracker listener socket."""
-    crash_reports = wait_for_crash_reports(test_agent_client)
+    crash_messages = wait_for_crash_messages(test_agent_client)
     # We want at least the crash report
-    assert len(crash_reports) == 2, f"Expected at 2 messages; one ping and one report, got {len(crash_reports)}"
+    assert len(crash_messages) == 2, f"Expected at least 2 messages; got {len(crash_messages)}"
 
-    # Find the actual crash report (the one with "is_crash":"true")
-    actual_crash_report = None
-    for report in crash_reports:
-        if b"is_crash:true" in report["body"]:
-            actual_crash_report = report
+    # Find the crash report (the one with "is_crash":"true")
+    crash_report = None
+    for message in crash_messages:
+        if b"is_crash:true" in message["body"]:
+            crash_report = message
             break
 
-    assert actual_crash_report is not None, "Could not find crash report with 'is_crash:true' tag"
-    return actual_crash_report
+    assert crash_report is not None, "Could not find crash report with 'is_crash:true' tag"
+    return crash_report
+
+
+def get_crash_ping(test_agent_client: TestAgentClient) -> TestAgentRequest:
+    """Wait for a crash ping from the crashtracker listener socket."""
+    crash_messages = wait_for_crash_messages(test_agent_client)
+    assert len(crash_messages) == 2, f"Expected at least 2 messages; got {len(crash_messages)}"
+
+    crash_ping = None
+    for message in crash_messages:
+        if b"is_crash_ping:true" in message["body"]:
+            crash_ping = message
+            break
+
+    assert crash_ping is not None, "Could not find crash ping with 'is_crash_ping:true' tag"
+    return crash_ping
 
 
 @contextmanager
