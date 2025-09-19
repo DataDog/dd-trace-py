@@ -366,7 +366,7 @@ class Debugger(Service):
                         f"Cannot install probe {probe.probe_id}: "
                         f"no functions at line {line} within source file {module_origin} found"
                     )
-                log.error(message)
+                log.error(message, extra={"send_to_telemetry": False})
                 self._probe_registry.set_error(probe, "NoFunctionsAtLine", message)
                 continue
             for function in (cast(FullyNamedContextWrappedFunction, _) for _ in functions):
@@ -487,7 +487,7 @@ class Debugger(Service):
                     "found (note: if the function exists, it might be decorated with an unsupported decorator)"
                 )
                 self._probe_registry.set_error(probe, "NoFunctionInModule", message)
-                log.error(message)
+                log.error(message, extra={"send_to_telemetry": False})
                 continue
 
             if DebuggerWrappingContext.is_wrapped(function):
