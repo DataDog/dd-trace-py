@@ -27,6 +27,7 @@ from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import VERTEXAI_APM_SPAN_NAME
+from ddtrace.llmobs.utils import SpanLink
 from ddtrace.trace import Span
 
 
@@ -243,13 +244,13 @@ def format_tool_call_arguments(tool_args: str) -> str:
 
 
 def add_span_link(span: Span, span_id: str, trace_id: str, from_io: str, to_io: str) -> None:
-    current_span_links = span._get_ctx_item(SPAN_LINKS) or []
+    current_span_links: List[SpanLink] = span._get_ctx_item(SPAN_LINKS) or []
     current_span_links.append(
-        {
-            "span_id": span_id,
-            "trace_id": trace_id,
-            "attributes": {"from": from_io, "to": to_io},
-        }
+        SpanLink(
+            span_id=span_id,
+            trace_id=trace_id,
+            attributes={"from": from_io, "to": to_io},
+        )
     )
     span._set_ctx_item(SPAN_LINKS, current_span_links)
 

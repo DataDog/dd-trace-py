@@ -435,7 +435,7 @@ class CrewAIIntegration(BaseLLMIntegration):
         crew_id = _get_crew_id(span, "crew")
         is_planning_crew_instance = crew_id in self._planning_crew_ids
         queued_task_node = self._crews_to_tasks.get(crew_id, {}).setdefault(str(queued_task_id), {})
-        span_links = []
+        span_links: List[SpanLink] = []
 
         if isinstance(getattr(queued_task, "context", None), Iterable):
             for finished_task in queued_task.context:
