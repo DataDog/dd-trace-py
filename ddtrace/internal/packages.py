@@ -99,7 +99,19 @@ def _effective_root(rel_path: Path, parent: Path) -> str:
     return base if root.is_dir() and (root / "__init__.py").exists() else "/".join(rel_path.parts[:2])
 
 
-RESOLVED_SYS_PATH = [Path(_).resolve() for _ in sys.path]
+# DEV: Since we can't lock on sys.path, these operations can be racy.
+_SYS_PATH_HASH: t.Optional[int] = None
+_RESOLVED_SYS_PATH: t.List[Path] = []
+
+
+def resolve_sys_path() -> t.List[Path]:
+    global _SYS_PATH_HASH, _RESOLVED_SYS_PATH
+
+    if (h := hash(tuple(sys.path))) != _SYS_PATH_HASH:
+        _SYS_PATH_HASH = h
+        _RESOLVED_SYS_PATH = [Path(_).resolve() for _ in sys.path]
+
+    return _RESOLVED_SYS_PATH
 
 
 def _root_module(path: Path) -> str:
@@ -115,7 +127,7 @@ def _root_module(path: Path) -> str:
     # Try to resolve the root module using sys.path. We keep the shortest
     # relative path as the one more likely to give us the root module.
     min_relative_path = max_parent_path = None
-    for parent_path in RESOLVED_SYS_PATH:
+    for parent_path in resolve_sys_path():
         try:
             relative = path.relative_to(parent_path)
             if min_relative_path is None or len(relative.parents) < len(min_relative_path.parents):
