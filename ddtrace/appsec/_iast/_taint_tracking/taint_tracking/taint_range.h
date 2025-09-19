@@ -36,21 +36,22 @@ using TaintedObjectMapType = std::unordered_map<uintptr_t, std::pair<Py_hash_t, 
  */
 enum class VulnerabilityType
 {
-    CODE_INJECTION = 1,   ///< Code injection vulnerability
-    COMMAND_INJECTION,    ///< Command injection vulnerability
-    HEADER_INJECTION,     ///< HTTP header injection vulnerability
-    UNVALIDATED_REDIRECT, ///< Unvalidate redirect
-    INSECURE_COOKIE,      ///< Insecure cookie configuration
-    NO_HTTPONLY_COOKIE,   ///< Missing HttpOnly flag in cookie
-    NO_SAMESITE_COOKIE,   ///< Missing SameSite attribute in cookie
-    PATH_TRAVERSAL,       ///< Path traversal vulnerability
-    SQL_INJECTION,        ///< SQL injection vulnerability
-    SSRF,                 ///< Server-Side Request Forgery vulnerability
-    STACKTRACE_LEAK,      ///< Stack trace information leakage
-    WEAK_CIPHER,          ///< Weak cryptographic cipher usage
-    WEAK_HASH,            ///< Weak cryptographic hash function usage
-    WEAK_RANDOMNESS,      ///< Weak random number generation
-    XSS,                  ///< Cross-Site Scripting vulnerability
+    CODE_INJECTION = 1,      ///< Code injection vulnerability
+    COMMAND_INJECTION,       ///< Command injection vulnerability
+    HEADER_INJECTION,        ///< HTTP header injection vulnerability
+    UNVALIDATED_REDIRECT,    ///< Unvalidate redirect
+    INSECURE_COOKIE,         ///< Insecure cookie configuration
+    NO_HTTPONLY_COOKIE,      ///< Missing HttpOnly flag in cookie
+    NO_SAMESITE_COOKIE,      ///< Missing SameSite attribute in cookie
+    PATH_TRAVERSAL,          ///< Path traversal vulnerability
+    SQL_INJECTION,           ///< SQL injection vulnerability
+    SSRF,                    ///< Server-Side Request Forgery vulnerability
+    STACKTRACE_LEAK,         ///< Stack trace information leakage
+    UNTRUSTED_SERIALIZATION, ///< Untrusted Serialization
+    WEAK_CIPHER,             ///< Weak cryptographic cipher usage
+    WEAK_HASH,               ///< Weak cryptographic hash function usage
+    WEAK_RANDOMNESS,         ///< Weak random number generation
+    XSS,                     ///< Cross-Site Scripting vulnerability
 };
 
 using TaintedObjectMapTypePtr = shared_ptr<TaintedObjectMapType>;
