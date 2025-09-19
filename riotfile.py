@@ -2700,8 +2700,9 @@ venv = Venv(
                     pkgs={"gevent": "<=24.2.1", "opentelemetry-api": ["~=1.0.0", "~=1.15.0", "~=1.26.0", latest]},
                 ),
                 Venv(
+                    # opentelemetry-api doesn't yet work with Python 3.14
+                    pys=select_pys(min_version="3.9", max_version="3.13"),
                     # Ensure we test against versions of opentelemetry-api that broke compatibility with ddtrace
-                    pys=select_pys(min_version="3.9"),
                     pkgs={"opentelemetry-api": ["~=1.0.0", "~=1.15.0", "~=1.26.0", latest]},
                 ),
                 Venv(
@@ -2712,8 +2713,8 @@ venv = Venv(
                     env={"SDK_EXPORTER_INSTALLED": "1"},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.9"),
-                    # v1.12.0 introduced support for metrics
+                    # opentelemetry-exporter-otlp doesn't yet work with Python 3.14
+                    pys=select_pys(min_version="3.9", max_version="3.13"),
                     # v1.15.0 introduced support for logs
                     pkgs={"opentelemetry-exporter-otlp": ["~=1.15.0", latest]},
                     env={"SDK_EXPORTER_INSTALLED": "1"},
