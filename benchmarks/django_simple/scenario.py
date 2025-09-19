@@ -18,6 +18,7 @@ class DjangoSimple(bm.Scenario):
     django_instrument_templates: bool
     native_writer: bool
     django_minimal: bool
+    resource_renaming_enabled: bool
 
     def run(self):
         os.environ["DJANGO_SETTINGS_MODULE"] = "app"
@@ -49,6 +50,8 @@ class DjangoSimple(bm.Scenario):
             os.environ.update({"DD_EXCEPTION_REPLAY_ENABLED": "1"})
         if self.native_writer:
             os.environ.update({"_DD_TRACE_WRITER_NATIVE": "1"})
+        if self.resource_renaming_enabled:
+            os.environ.update({"DD_TRACE_RESOURCE_RENAMING_ENABLED": "1"})
 
         # This will not work with gevent workers as the gevent hub has not been
         # initialized when this hook is called.

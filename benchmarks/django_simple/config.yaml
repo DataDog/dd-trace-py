@@ -11,6 +11,7 @@ baseline: &baseline
   django_instrument_templates: true
   native_writer: false
   django_minimal: false
+  resource_renaming_enabled: false
 tracer: &tracer
   <<: *baseline
   tracer_enabled: true
@@ -56,3 +57,6 @@ tracer-native:
 tracer-minimal:
   <<: *tracer
   django_minimal: true
+resource-renaming:
+  <<: *tracer
+  resource_renaming_enabled: true
