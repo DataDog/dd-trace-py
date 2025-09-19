@@ -1,0 +1,84 @@
+interactions:
+- request:
+    body: '{"contents": [{"parts": [{"text": "Can you use the failing_tool to test
+      error handling?"}], "role": "user"}], "systemInstruction": {"parts": [{"text":
+      "You are a test agent. When needed: (1) plan, (2) search, (3) write short Python
+      to compute or transform results. Be concise.\n\nYou are an agent. Your internal
+      name is \"test_agent\".\n\n The description about you is \"Test agent for ADK
+      integration testing\""}], "role": "user"}, "tools": [{"functionDeclarations":
+      [{"description": "A tiny search tool stub.", "name": "search_docs", "parameters":
+      {"properties": {"query": {"type": "STRING"}}, "type": "OBJECT"}}, {"description":
+      "Simple arithmetic tool.", "name": "multiply", "parameters": {"properties":
+      {"a": {"type": "INTEGER"}, "b": {"type": "INTEGER"}}, "type": "OBJECT"}}, {"name":
+      "failing_tool", "parameters": {"properties": {"query": {"type": "STRING"}},
+      "type": "OBJECT"}}]}], "generationConfig": {}}'
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '913'
+      content-type:
+      - application/json
+      host:
+      - generativelanguage.googleapis.com
+      user-agent:
+      - google-genai-sdk/1.36.0 gl-python/3.12.11 google-adk/1.0.0 gl-python/3.12.11
+      x-goog-api-client:
+      - google-genai-sdk/1.36.0 gl-python/3.12.11 google-adk/1.0.0 gl-python/3.12.11
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAC/21UyY6jSBC911eUfGV6vGAWjzQHNhsDZscGRqNRAgkGs++41f/elKur29UaDiky
+        3suIyAfxvr68vi58kAdxAFrYLP56/WeOvL5+faxvWJG3MG9n4CM0B0tQt7+478/Xp/eZEna538ZF
+        zoA0/XT4B56DDM7xRQjiNM6j/9qiSBd//M4CddT8z+kZqTpYT28J5q7bxW/4t0/7b5/TLtpr0UXX
+        1oijHLRd/WiDKSOOCvg2zkixCVSioPs16pw7NlhtHMTpV4RAS8eK03g+MRuFA8jlOCbFfej6QFjl
+        B2mMJjZTLKxQBIltVa2+mojKrVogxYDq1BVvWXI5jVkz1tPZV+M23A6Txpu+JAZGqdwkVjqyrJsQ
+        qoH7WF0BXLbXeUaDVCJtCUlIhdKtM5uitcCf8QE5HMzR39Webp9P+2ztqMiJvpimkdADAqWkQzwD
+        udgmETiuTVxwErPPJnWMp7HQDmfdsaaLm/g66fU5OQ1Mu7zKAtybWL7WTsh+Z9lu0okbhbheKx8L
+        Nb6c9kLQtZTXgk7SCMz23Ksdy2FSQbS8YWUSZamHGWofZ9LOtrbl1fCO3b067ESGXJ6Ng11HwSQ2
+        bu6vmYgZIL7Tm1gQzHwz9lCGOH82AMunwx2KXkxXQ7lRaHzYycqyFBNFuTmkf9hal/Ci1AxaBQFJ
+        rFaaGJIma7pZvsUNMjiXS/ni80trPDGrerPzJt+4KjlEdbDJXe92x3zMzasM3vXpajMWLBR05LRt
+        Ty1TMViv10YPekEyYMrv1+L27St5FOegjiXuFJdh2JuuM+FRv2OcvAmHYFATtNPA9rZ39caTYexb
+        +5sLPYoGI+2ihV+yGirtskpga5RdV8ews1yJX+oBubINOh10woSE0+OrEqFVieM7ijzjjeOM3TbG
+        q+mAkKLSh3ujUUhUnn9YNrAv0G2WEVVlQB04Q6xaStoeWrJrA9tAIssfjyzVQUe8DLxOOGVPe7ct
+        eeJD8+T7QjwFtgIY+RKUzI7ncoG7NCbfOIaMBoazMe5uZCHyhGRJTeOJCYhEvPFQwJT4PDSblo0y
+        2STpi0bdY48tDkLpdC4G9vYoj42CcMH9fqdSXzxG77VvIxke8l6NJDu59iuJFXjevhdkLmVTSoCd
+        QFUcxTd/P0/vr8n999fULuoifUxpVgQw/aD/HOtFGOdxc9UhaIr8jWaYivrTSxZxHsBxDq9ePgo8
+        Ui+6BkTwBFswOx/4aTKLsi6ysjWLG8yZons432a1e8/25JSfCGv8B94WLUg/QSj5gT0lbti5bJw+
+        W+iTu863BGncPtzN5GzzyRbnAp/7+tDi5UmyD4P7vcf1yw/R3nU8w7qJ3wWLYDZL+GXzJ/Zl7vJR
+        b1HDpizyBh6DN8bOIQQgG8Whwun16aamUt822m3x8u3lO5sU4QhDBgAA
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Tue, 16 Sep 2025 16:23:17 GMT
+      Server:
+      - scaffolding on HTTPServer2
+      Server-Timing:
+      - gfet4t7; dur=5033
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Origin
+      - X-Origin
+      - Referer
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - '0'
+    status:
+      code: 200
+      message: OK
+version: 1

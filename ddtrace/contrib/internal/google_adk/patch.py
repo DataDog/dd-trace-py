@@ -1,0 +1,238 @@
+import sys
+from typing import Any
+from typing import Dict
+from typing import Tuple
+
+import google.adk as adk
+
+from ddtrace import config
+from ddtrace._trace.pin import Pin
+from ddtrace.contrib.internal.trace_utils import check_module_path
+from ddtrace.contrib.trace_utils import unwrap
+from ddtrace.contrib.trace_utils import with_traced_module
+from ddtrace.contrib.trace_utils import wrap
+from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs._integrations import GoogleAdkIntegration
+
+
+logger = get_logger(__name__)
+
+config._add("google_adk", {})
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"google.adk": ">=1.0.0"}
+
+
+def get_version() -> str:
+    return getattr(adk, "__version__", "")
+
+
+@with_traced_module
+def _traced_agent_run_async(adk, pin, wrapped, instance, args, kwargs):
+    """Trace the main execution of an agent (async generator)."""
+    integration: GoogleAdkIntegration = adk._datadog_integration
+    provider_name, model_name = extract_provider_and_model_name(agent=instance.agent)
+
+    span = integration.trace(
+        pin,
+        "%s.%s" % (instance.__class__.__name__, wrapped.__name__),
+        provider=provider_name,
+        model=model_name,
+        kind="agent",
+        submit_to_llmobs=True,
+        **kwargs,
+    )
+
+    try:
+        agen = wrapped(*args, **kwargs)
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        span.finish()
+        raise
+
+    async def _generator():
+        response_events = []
+        try:
+            async for event in agen:
+                response_events.append(event)
+                yield event
+        except Exception:
+            span.set_exc_info(*sys.exc_info())
+            raise
+        finally:
+            kwargs["instance"] = instance.agent
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=response_events, operation="agent")
+            span.finish()
+            del kwargs["instance"]
+
+    return _generator()
+
+
+@with_traced_module
+async def _traced_functions_call_tool_async(adk, pin, wrapped, instance, args, kwargs):
+    integration: GoogleAdkIntegration = adk._datadog_integration
+    tool_context = kwargs.get("tool_context", {})
+    # Handle cases where invocation context might not exist (e.g., direct tool calls)
+    agent = None
+    if hasattr(tool_context, "_invocation_context") and hasattr(tool_context._invocation_context, "agent"):
+        agent = tool_context._invocation_context.agent
+    provider_name, model_name = extract_provider_and_model_name(agent=agent)
+    instance = instance or args[0]
+
+    with integration.trace(
+        pin,
+        "%s.%s" % (instance.__class__.__name__, wrapped.__name__),
+        provider=provider_name,
+        model=model_name,
+        kind="tool",
+        submit_to_llmobs=True,
+    ) as span:
+        result = None
+        try:
+            result = await wrapped(*args, **kwargs)
+            return result
+        except Exception:
+            span.set_exc_info(*sys.exc_info())
+            raise
+        finally:
+            integration.llmobs_set_tags(
+                span,
+                args=args,
+                kwargs=kwargs,
+                response=result,
+                operation="tool",
+            )
+
+
+@with_traced_module
+async def _traced_functions_call_tool_live(adk, pin, wrapped, instance, args, kwargs):
+    integration: GoogleAdkIntegration = adk._datadog_integration
+    tool_context = kwargs.get("tool_context", {})
+    agent = tool_context._invocation_context.agent
+    provider_name, model_name = extract_provider_and_model_name(agent=agent)
+
+    with integration.trace(
+        pin,
+        "%s.%s" % (instance.__class__.__name__, wrapped.__name__),
+        provider=provider_name,
+        model=model_name,
+        kind="tool",
+        submit_to_llmobs=True,
+    ) as span:
+        result = None
+        try:
+            agen = wrapped(*args, **kwargs)
+            async for item in agen:
+                yield item
+        except Exception:
+            span.set_exc_info(*sys.exc_info())
+            raise
+        finally:
+            integration.llmobs_set_tags(
+                span,
+                args=args,
+                kwargs=kwargs,
+                response=result,
+                operation="tool",
+            )
+
+
+@with_traced_module
+def _traced_code_executor_execute_code(adk, pin, wrapped, instance, args, kwargs):
+    """Trace the execution of code by the agent (sync)."""
+    integration: GoogleAdkIntegration = adk._datadog_integration
+    invocation_context = kwargs.get("invocation_context", args[0] if args else None)
+    provider_name, model_name = extract_provider_and_model_name(agent=getattr(invocation_context, "agent", None))
+
+    # Signature: execute_code(self, invocation_context, code_execution_input)
+    with integration.trace(
+        pin,
+        "%s.%s" % (instance.__class__.__name__, wrapped.__name__),
+        provider=provider_name,
+        model=model_name,
+        kind="code_execute",
+        submit_to_llmobs=True,
+    ) as span:
+        result = None
+        try:
+            result = wrapped(*args, **kwargs)
+            return result
+        except Exception:
+            span.set_exc_info(*sys.exc_info())
+            raise
+        finally:
+            integration.llmobs_set_tags(
+                span,
+                args=args,
+                kwargs=kwargs,
+                response=result,
+                operation="code_execute",
+            )
+
+
+def extract_provider_and_model_name(agent: Any = None) -> Tuple[str, str]:
+    if agent is None:
+        return "google", "google"
+    return agent.model.__class__.__name__.lower(), agent.model.model
+
+
+CODE_EXECUTOR_CLASSES = [
+    "BuiltInCodeExecutor",  # make an external llm tool call to use the llms built in code executor
+    "VertexAiCodeExecutor",
+    "UnsafeLocalCodeExecutor",
+    "ContainerCodeExecutor",  # additional package dependendy
+]
+
+
+def patch():
+    """Patch the `google.adk` library for tracing."""
+
+    if getattr(adk, "_datadog_patch", False):
+        return
+
+    setattr(adk, "_datadog_patch", True)
+    Pin().onto(adk)
+    integration: GoogleAdkIntegration = GoogleAdkIntegration(integration_config=config.google_adk)
+    setattr(adk, "_datadog_integration", integration)
+
+    # Agent entrypoints (async generators)
+    wrap("google.adk", "runners.Runner.run_async", _traced_agent_run_async(adk))
+    wrap("google.adk", "runners.Runner.run_live", _traced_agent_run_async(adk))
+
+    # Tool execution (central dispatch)
+    if check_module_path(adk, "flows.llm_flows.functions.__call_tool_async"):
+        wrap("google.adk", "flows.llm_flows.functions.__call_tool_async", _traced_functions_call_tool_async(adk))
+    if check_module_path(adk, "flows.llm_flows.functions.__call_tool_live"):
+        wrap("google.adk", "flows.llm_flows.functions.__call_tool_live", _traced_functions_call_tool_live(adk))
+
+    # Code executors
+    for code_executor in CODE_EXECUTOR_CLASSES:
+        if check_module_path(adk, f"code_executors.{code_executor}.execute_code"):
+            wrap(
+                "google.adk",
+                f"code_executors.{code_executor}.execute_code",
+                _traced_code_executor_execute_code(adk),
+            )
+
+
+def unpatch():
+    """Unpatch the `google.adk` library."""
+    if not hasattr(adk, "_datadog_patch") or not getattr(adk, "_datadog_patch"):
+        return
+    setattr(adk, "_datadog_patch", False)
+
+    unwrap(adk.runners.Runner, "run_async")
+    unwrap(adk.runners.Runner, "run_live")
+
+    if check_module_path(adk, "flows.llm_flows.functions.__call_tool_async"):
+        unwrap(adk.flows.llm_flows.functions, "__call_tool_async")
+    if check_module_path(adk, "flows.llm_flows.functions.__call_tool_live"):
+        unwrap(adk.flows.llm_flows.functions, "__call_tool_live")
+
+    # Code executors
+    for code_executor in CODE_EXECUTOR_CLASSES:
+        if check_module_path(adk, f"code_executors.{code_executor}.execute_code"):
+            unwrap(getattr(adk.code_executors, code_executor), "execute_code")
+
+    delattr(adk, "_datadog_integration")

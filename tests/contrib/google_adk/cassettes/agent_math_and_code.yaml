@@ -1,0 +1,153 @@
+interactions:
+- request:
+    body: '{"contents": [{"parts": [{"text": "Please use the multiply tool to calculate
+      37 times 29."}], "role": "user"}], "systemInstruction": {"parts": [{"text":
+      "You are a helpful test agent. You can: (1) call tools using the provided functions,
+      (2) execute Python code blocks when they are provided to you. When you see ```python
+      code blocks, execute them using your code execution capability. Always be helpful
+      and use your available capabilities.\n\nYou are an agent. Your internal name
+      is \"test_agent\".\n\n The description about you is \"Test agent for ADK integration
+      testing\""}], "role": "user"}, "tools": [{"functionDeclarations": [{"description":
+      "A tiny search tool stub.", "name": "search_docs", "parameters": {"properties":
+      {"query": {"type": "STRING"}}, "required": ["query"], "type": "OBJECT"}}, {"description":
+      "Simple arithmetic tool.", "name": "multiply", "parameters": {"properties":
+      {"a": {"type": "INTEGER"}, "b": {"type": "INTEGER"}}, "required": ["a", "b"],
+      "type": "OBJECT"}}]}], "generationConfig": {}}'
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '1020'
+      content-type:
+      - application/json
+      host:
+      - generativelanguage.googleapis.com
+      user-agent:
+      - google-genai-sdk/1.36.0 gl-python/3.12.11 google-adk/1.14.1 gl-python/3.12.11
+      x-goog-api-client:
+      - google-genai-sdk/1.36.0 gl-python/3.12.11 google-adk/1.14.1 gl-python/3.12.11
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAC/21T23KiShR99yssXp05IF7QeUMEBaOCoFxOnTrVSjd0uDSBBtRU/n3QxEQzwwMF
+        a63de/eutV5b7TZzAKmPfUBhwfxq/9sg7fbr9X3hSEphShviBjVgBnL6pX1/Xu++Gwkq0wPFJJVA
+        HD8Uf/ApSGCDM0kZU5zFJ+bHdwXIg+IvlQ2zb2B+/L3gUtIQPeEb/vbw//ZYxtCQlEFITRykgJb5
+        dSapkiXRn1OcjHIPsnMelEPTWW1Ws0AZhiqHcUAc+rTT+DpRRMkQHeU4OAhbL8jZyUFLvNzCYn+H
+        dMvKTqCH1BGRRmRcTzpqHOjGMBiz9YTlD0q/KsQt8EaDyvCqRZ7vbIVMBLazOKv+bmURgocr5WzM
+        KVJXI19xc64fzrpxsh4vIup2hhFyp2eucvi4Ohkyh5ZceUYgfiFoFvYVO0QYWa4AQQh1SRv4M1V5
+        coWRqzkjrRat0I2PY62WeqAT9J9yO7Pt+dPalIeyaMimTMu9MJNCUTlyRA1CjtUqZ4pdeb9f4z2R
+        nJ20nnbVs81KhmYfujQyX2x5hVms8mCpTRMh6q25SRXs/HMy9iQR1OZi0QEQCuys0zkgg1fXVN84
+        1XBa4nH8/FyDsYm1iK2JqZMgZk1vU+uDOl9kKCsiUAmVI8zh2gmf980M+w6fkDlaUXVuIh8Bz+b7
+        ShdFXJRsdL1a6YE1PJ68TFgOsDpwhyGfxluBDaXl+sU8golpTF8KLt9YvQPT+ptb/vtyCpOT+N2t
+        xIfxTf5pJQbhFBfhBoKCpBeZaa31T0MzOPXhsYG51q3B9WimLEAAl5CCJnrg0+lMlpMkoxaJYCqR
+        8hq97ujD7XdRfRDw3AdPCQXxA9Xjuj/+OLiYNm1xfJ/hu3g3twQxpqfLVSzZse6y2TR4nOu2i9bd
+        ym6hepxxzLc+dva+xh3MC/y+rwAmzQZ/8v8MfjZDXtsxOSwykhZQ9S+K7ULXgCoi0p9uT8b/7hHN
+        3InBtN5avwFBrCfJwgQAAA==
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Tue, 16 Sep 2025 17:50:08 GMT
+      Server:
+      - scaffolding on HTTPServer2
+      Server-Timing:
+      - gfet4t7; dur=2284
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Origin
+      - X-Origin
+      - Referer
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - '0'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"contents": [{"parts": [{"text": "Please use the multiply tool to calculate
+      37 times 29."}], "role": "user"}, {"parts": [{"thoughtSignature": "CvECAdHtim8rZe_H2au6SXNRNGgF6hI0iigoXtLVJ2wmFACQAXFx5c7UZgr_BcJmZrTiA4VfPTTpya3fI8oC8o9wB-IlgPQ6g9_wB_2cF4vsAUaZ85vQZvKrrVWFoB7_-KzIdVNTooi6NFzQHtfIN8dFYr04hG1lmO9KktY-6kfYDz0vX2lvyQE0fM0uzfalqofGh4FWhfifTY7eahePCJ5dGIFLY78YJX8JwAThYlx9JwC3a-g4LrWpWWHLOSE6EAQESEtub7GChAFx0oIgh0_JvXDiYEbbOiboCXVCOD1IzW_CQJWc1tkSqWENi_iI2aMJDm7k3O0BvgVdzm9ZCAawSKK-aee7_G--cfQ2IOtPRXv6Dui9ljjwa9SiJk_woSPogl_SZRwP5wrKpfpskav7vX7HeOXhjbbbOb-2moHfNtIHSfdfaZW24F1fk0kmRPPvNPgT6xyZp7M5iI5Y6h2nlU7_hCMOqSxaBSQDqs0rRT3c",
+      "functionCall": {"args": {"b": 29, "a": 37}, "name": "multiply"}}], "role":
+      "model"}, {"parts": [{"functionResponse": {"name": "multiply", "response": {"product":
+      1073}}}], "role": "user"}], "systemInstruction": {"parts": [{"text": "You are
+      a helpful test agent. You can: (1) call tools using the provided functions,
+      (2) execute Python code blocks when they are provided to you. When you see ```python
+      code blocks, execute them using your code execution capability. Always be helpful
+      and use your available capabilities.\n\nYou are an agent. Your internal name
+      is \"test_agent\".\n\n The description about you is \"Test agent for ADK integration
+      testing\""}], "role": "user"}, "tools": [{"functionDeclarations": [{"description":
+      "A tiny search tool stub.", "name": "search_docs", "parameters": {"properties":
+      {"query": {"type": "STRING"}}, "required": ["query"], "type": "OBJECT"}}, {"description":
+      "Simple arithmetic tool.", "name": "multiply", "parameters": {"properties":
+      {"a": {"type": "INTEGER"}, "b": {"type": "INTEGER"}}, "required": ["a", "b"],
+      "type": "OBJECT"}}]}], "generationConfig": {}}'
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '1742'
+      content-type:
+      - application/json
+      host:
+      - generativelanguage.googleapis.com
+      user-agent:
+      - google-genai-sdk/1.36.0 gl-python/3.12.11 google-adk/1.14.1 gl-python/3.12.11
+      x-goog-api-client:
+      - google-genai-sdk/1.36.0 gl-python/3.12.11 google-adk/1.14.1 gl-python/3.12.11
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAC/2WQQU+EMBCF7/yKZs4LWVhx1at6UNwsKjEmZg+NjGuz0BI6JBjCf7eUhe1qD20z
+        8/qm7+s8xuCTy1zknFDDDfswFcY6uw89JQklmcZUMsWK13TSjqtz7kZC2A6PYJsEbLVmJErULLpm
+        QrNwuV4F4Mj7+b5bnIbUqsDBoVQ5FpO8nwTwJaTQ3y/ItZKD7DXbpjB3hcyxNeWlNw2w1tBovscN
+        Ejdx+RwKqlqVFWXqgPJWNTZuFMWjm4PnTBBeHvukiBfnby/CxT9jfWfGisLl5iA1KXkh6GeIkt2/
+        Z+CQoD//mljYc+cdqYyg3rDWYiSyx9Iw8qMg9s03rCHUqCslNT7kVpGkjzxN0iceteHmkF7FTeY/
+        L8HrvV9/eFFZGQIAAA==
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Tue, 16 Sep 2025 17:50:56 GMT
+      Server:
+      - scaffolding on HTTPServer2
+      Server-Timing:
+      - gfet4t7; dur=2299
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Origin
+      - X-Origin
+      - Referer
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - '0'
+    status:
+      code: 200
+      message: OK
+version: 1
