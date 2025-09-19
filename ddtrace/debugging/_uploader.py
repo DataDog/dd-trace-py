@@ -124,7 +124,8 @@ class SignalUploader(agent.AgentCheckPeriodicService):
         else:
             snapshot_track.enabled = False
             log.warning(
-                "Unsupported Datadog agent detected. Snapshots will not be uploaded. "
+                "Unsupported Datadog agent detected. "
+                "Snapshots from Dynamic Instrumentation/Exception Replay/Code Origin for Spans will not be uploaded. "
                 "Please upgrade to version 7.49.0 or later."
             )
 
