@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    AWS: adds ``partition`` tag onto AWS traces based on the region.
+
