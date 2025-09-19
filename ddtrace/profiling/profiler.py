@@ -56,6 +56,12 @@ class Profiler(object):
             except uwsgi.uWSGIMasterProcess:
                 # Do nothing, the start() method will be called in each worker subprocess
                 return
+            except uwsgi.uWSGIConfigDeprecationWarning:
+                LOG.warning("uWSGI configuration deprecation warning", exc_info=True)
+                # Turn off profiling in this case, this is mostly for
+                # uwsgi<2.0.30 when --skip-atexit is not set with --lazy-apps
+                # or --lazy. See uwsgi.check_uwsgi() for details.
+                return
 
         self._profiler.start()
 
