@@ -310,7 +310,7 @@ class TelemetryWriter(PeriodicService):
         """Sent when TelemetryWriter is enabled or forks"""
         if self._forked or self.started:
             # app-started events should only be sent by the main process
-            return
+            return None
         #  List of configurations to be collected
 
         self.started = True
@@ -365,7 +365,7 @@ class TelemetryWriter(PeriodicService):
         """Adds a Telemetry event which notifies the agent that an application instance has terminated"""
         if self._forked:
             # app-closing event should only be sent by the main process
-            return
+            return None
         return {"payload": {}, "request_type": "app-closing"}
 
     def _app_integrations_changed_event(self, integrations):
@@ -407,27 +407,27 @@ class TelemetryWriter(PeriodicService):
     def _app_dependencies_loaded_event(self) -> Optional[Dict[str, Any]]:
         """Adds events to report imports done since the last periodic run"""
         if not config.DEPENDENCY_COLLECTION or not self._enabled:
-            return
+            return None
         with self._service_lock:
             newly_imported_deps = modules.get_newly_imported_modules(self._modules_already_imported)
 
         if not newly_imported_deps:
-            return
+            return None
 
         with self._service_lock:
             if packages := update_imported_dependencies(self._imported_dependencies, newly_imported_deps):
                 return {"payload": {"dependencies": packages}, "request_type": "app-dependencies-loaded"}
-        return
+        return None
 
     def _flush_app_endpoints(self) -> Optional[Dict[str, Any]]:
         """Adds a Telemetry event which sends the list of HTTP endpoints found at startup to the agent"""
         import ddtrace.settings.asm as asm_config_module
 
         if not asm_config_module.config._api_security_endpoint_collection or not self._enabled:
-            return
+            return None
 
         if not endpoint_collection.endpoints:
-            return
+            return None
 
         with self._service_lock:
             payload = endpoint_collection.flush(asm_config_module.config._api_security_endpoint_collection_limit)
@@ -438,7 +438,7 @@ class TelemetryWriter(PeriodicService):
         """Adds a Telemetry event which reports the enablement of an APM product"""
 
         if not self._send_product_change_updates:
-            return
+            return None
 
         self._send_product_change_updates = False
         return {
@@ -548,7 +548,7 @@ class TelemetryWriter(PeriodicService):
             if exc_type:
                 formatted_tb.append(f"{exc_type.__module__}.{exc_type.__name__}: {exc_value}")
             return "\n".join(formatted_tb)
-        return
+        return None
 
     def _should_redact(self, filename: str) -> bool:
         return "ddtrace" not in filename
