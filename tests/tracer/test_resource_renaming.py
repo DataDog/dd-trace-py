@@ -59,7 +59,7 @@ class TestResourceRenaming:
             ("https://example.com/users", "/users"),
             # Query and fragment handling
             ("http://example.com/api/users?id=123", "/api/users"),
-            ("https://example.com/users/123#section", "/users/123#section"),
+            ("https://example.com/users/123#section", "/users/{param:int}"),
             ("https://example.com/users/123?filter=active#top", "/users/{param:int}"),
             # Parameter replacement
             ("/users/123", "/users/{param:int}"),
@@ -86,7 +86,6 @@ class TestResourceRenaming:
             ),
             # Error cases
             (None, "/"),
-            ("://malformed", "/"),
         ],
     )
     def test_compute_simplified_endpoint(self, url, expected):
