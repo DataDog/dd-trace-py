@@ -1,5 +1,6 @@
 import concurrent.futures
 import json
+import os
 
 import pytest
 
@@ -52,6 +53,92 @@ def test_iast_stacktrace_error():
     assert "path" not in vulnerability["location"]
     assert "line" not in vulnerability["location"]
     assert vulnerability["hash"]
+
+
+@pytest.mark.parametrize(
+    "server, config",
+    (
+        (
+            gunicorn_server,
+            {
+                "workers": "1",
+                "use_threads": True,
+                "use_gevent": True,
+                "env": {
+                    "DD_APM_TRACING_ENABLED": "true",
+                },
+            },
+        ),
+        (flask_server, {"env": {"DD_APM_TRACING_ENABLED": "true"}}),
+    ),
+)
+def test_iast_vulnerable_request_downstream_parallel(server, config):
+    """Run the vulnerable_request_downstream scenario many times in parallel.
+
+    AIDEV-NOTE: This test is intended to surface flakiness under CPU pressure by
+    starting multiple independent servers on distinct ports concurrently.
+    Each worker uses a unique token and port to avoid shared-state conflicts
+    with the test agent and span collection.
+    """
+    # Keep a moderate fan-out to avoid overloading CI machines
+    fan_out = int(os.environ.get("TEST_PARALLEL_RUNS", "4"))
+    base_port = int(os.environ.get("TEST_PARALLEL_BASE_PORT", "8110"))
+
+    def run_one(idx: int):
+        tok = f"test_iast_vulnerable_request_downstream_parallel_{idx}"
+        _ = start_trace(tok)
+        port = base_port + idx
+        with server(iast_enabled="false", token=tok, port=port, **config) as context:
+            _, flask_client, pid = context
+            trace_id = 1212121212121212121
+            parent_id = 34343434
+            response = flask_client.get(
+                f"/vulnerablerequestdownstream?port={port}",
+                headers={
+                    "x-datadog-trace-id": str(trace_id),
+                    "x-datadog-parent-id": str(parent_id),
+                    "x-datadog-sampling-priority": "-1",
+                    "x-datadog-origin": "rum",
+                    "x-datadog-tags": "_dd.p.other=1",
+                },
+            )
+
+            assert response.status_code == 200
+            # downstream_headers = json.loads(response.text)
+
+            # assert downstream_headers["X-Datadog-Origin"] == "rum"
+            # assert downstream_headers["X-Datadog-Parent-Id"] != "34343434"
+            # assert "_dd.p.other=1" in downstream_headers["X-Datadog-Tags"]
+            # assert downstream_headers["X-Datadog-Sampling-Priority"] == "2"
+            # assert downstream_headers["X-Datadog-Trace-Id"] == "1212121212121212121"
+
+        response_tracer = _get_span(tok)
+        spans = []
+        spans_with_iast = []
+        vulnerabilities = []
+        print(f"tok: {tok}")
+        print(f"response_tracer: {response_tracer}")
+        for trace in response_tracer:
+            for span in trace:
+                if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
+                    spans_with_iast.append(span)
+                iast_data = load_iast_report(span)
+                if iast_data:
+                    vulnerabilities.append(iast_data.get("vulnerabilities"))
+                spans.append(span)
+        clear_session(tok)
+
+        assert len(spans) >= 28, f"Incorrect number of spans ({len(spans)}):\n{spans}"
+        # assert len(spans_with_iast) == 3
+        # assert len(vulnerabilities) == 1
+        # assert len(vulnerabilities[0]) == 2
+        # vulnerability = vulnerabilities[0][0]
+        # assert vulnerability["type"] == VULN_INSECURE_HASHING_TYPE
+        # assert "valueParts" not in vulnerability["evidence"]
+        # assert vulnerability["hash"]
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=fan_out) as ex:
+        list(ex.map(run_one, range(fan_out)))
 
 
 @pytest.mark.parametrize("server", (gunicorn_server, flask_server))

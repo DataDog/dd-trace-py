@@ -997,10 +997,11 @@ def return_headers(*args, **kwargs):
 @app.route("/vulnerablerequestdownstream", methods=["GET"])
 def vulnerable_request_downstream():
     _weak_hash_vulnerability()
+    port = str(request.args.get("port", "8050"))
     # Propagate the received headers to the downstream service
-    http_poolmanager = urllib3.PoolManager(num_pools=1)
+    http_poolmanager = urllib3.PoolManager()
     # Sending a GET request and getting back response as HTTPResponse object.
-    response = http_poolmanager.request("GET", "http://localhost:8050/returnheaders")
+    response = http_poolmanager.request("GET", f"http://localhost:{port}/returnheaders")
     http_poolmanager.clear()
     return Response(response.data)
 
