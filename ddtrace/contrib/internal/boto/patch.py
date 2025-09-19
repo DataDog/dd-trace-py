@@ -124,6 +124,7 @@ def patched_query_request(original_func, instance, args, kwargs):
         if region_name:
             meta[aws.REGION] = region_name
             meta[aws.AWSREGION] = region_name
+            meta[aws.PARTITION] = aws.get_aws_partition(region_name)
 
             if in_aws_lambda():
                 # Derive the peer hostname now that we have both service and region.
@@ -192,6 +193,7 @@ def patched_auth_request(original_func, instance, args, kwargs):
         if region_name:
             meta[aws.REGION] = region_name
             meta[aws.AWSREGION] = region_name
+            meta[aws.PARTITION] = aws.get_aws_partition(region_name)
 
             if in_aws_lambda():
                 # Derive the peer hostname
