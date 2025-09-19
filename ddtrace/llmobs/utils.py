@@ -72,11 +72,13 @@ class ExportedLLMObsSpan(TypedDict):
     span_id: str
     trace_id: str
 
+
 class Document(TypedDict, total=False):
     name: str
     id: str
     text: str
     score: float
+
 
 class Prompt(TypedDict, total=False):
     """
@@ -104,11 +106,13 @@ class Prompt(TypedDict, total=False):
     rag_context_variables: List[str]
     rag_query_variables: List[str]
 
+
 class ToolCall(TypedDict, total=False):
     name: str
     arguments: Dict[str, Any]
     tool_id: str
     type: str
+
 
 class ToolResult(TypedDict, total=False):
     name: str
@@ -116,13 +120,16 @@ class ToolResult(TypedDict, total=False):
     tool_id: str
     type: str
 
+
 class ToolDefinition(TypedDict, total=False):
     name: str
     description: str
     schema: Dict[str, Any]
 
+
 class MessagePromptTemplate(TypedDict):
     template: str
+
 
 class Message(TypedDict, total=False):
     id: str
@@ -133,13 +140,16 @@ class Message(TypedDict, total=False):
     prompt: MessagePromptTemplate
     tool_id: str
 
+
 class SpanField(TypedDict):
     kind: str
+
 
 class ErrorField(TypedDict, total=False):
     message: str
     stack: str
     type: str
+
 
 class MetaIO(TypedDict, total=False):
     parameters: Dict[str, Any]
@@ -147,6 +157,7 @@ class MetaIO(TypedDict, total=False):
     messages: List[Message]
     prompt: Prompt
     documents: List[Document]
+
 
 class Meta(TypedDict, total=False):
     model_name: str
@@ -159,6 +170,7 @@ class Meta(TypedDict, total=False):
     expected_output: MetaIO
     evaluations: Any
     tool_definitions: List[ToolDefinition]
+
 
 class SpanLink(TypedDict):
     span_id: str

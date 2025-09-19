@@ -685,13 +685,16 @@ def _openai_parse_output_response_messages(messages: List[Any]) -> Tuple[List[Me
             message["content"] = text
         elif message_type == "reasoning":
             message["role"] = "reasoning"
-            message["content"] = safe_json(
-                {
-                    "summary": _get_attr(item, "summary", ""),
-                    "encrypted_content": _get_attr(item, "encrypted_content", ""),
-                    "id": _get_attr(item, "id", ""),
-                }
-            ) or ""
+            message["content"] = (
+                safe_json(
+                    {
+                        "summary": _get_attr(item, "summary", ""),
+                        "encrypted_content": _get_attr(item, "encrypted_content", ""),
+                        "id": _get_attr(item, "id", ""),
+                    }
+                )
+                or ""
+            )
         elif message_type == "function_call" or message_type == "custom_tool_call":
             call_id = _get_attr(item, "call_id", "")
             name = _get_attr(item, "name", "")
