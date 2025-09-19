@@ -20,7 +20,7 @@ from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 
 
 log = get_logger(__name__)
-UNSUPPORTED_AGENT = "debugger::unsupported_agent"
+UNSUPPORTED_AGENT = "unsupported_agent"
 logger.set_tag_rate_limit(UNSUPPORTED_AGENT, logger.HOUR)
 
 
