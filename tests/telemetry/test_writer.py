@@ -519,6 +519,8 @@ import ddtrace.settings.exception_replay
         {"name": "DD_TRACE_PROPAGATION_STYLE_INJECT", "origin": "env_var", "value": "tracecontext"},
         {"name": "DD_TRACE_RATE_LIMIT", "origin": "env_var", "value": 50},
         {"name": "DD_TRACE_REPORT_HOSTNAME", "origin": "default", "value": False},
+        {"name": "DD_TRACE_RESOURCE_RENAMING_ALWAYS_SIMPLIFIED_ENDPOINT", "origin": "default", "value": False},
+        {"name": "DD_TRACE_RESOURCE_RENAMING_ENABLED", "origin": "default", "value": False},
         {"name": "DD_TRACE_SAFE_INSTRUMENTATION_ENABLED", "origin": "default", "value": False},
         {
             "name": "DD_TRACE_SAMPLING_RULES",
