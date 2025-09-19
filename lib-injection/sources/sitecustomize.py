@@ -294,7 +294,7 @@ def get_first_incompatible_sysarg():
     if len(sys.argv) >= 3:
         executable_basename = os.path.basename(argument)
         if executable_basename.startswith("python"):
-            # Look for -m flag in any position from argv[1] onwards
+            # Look for -m flag in any position from argv[1:len(-1)]
             for i in range(1, len(sys.argv) - 1):  # -1 because we need argv[i+1] to exist
                 if sys.argv[i] == "-m":
                     module_name = sys.argv[i + 1]
