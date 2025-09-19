@@ -3009,13 +3009,10 @@ venv = Venv(
         Venv(
             name="ray",
             command="pytest {cmdargs} tests/contrib/ray",
-            env={
-                "DD_TRACE_OTEL_ENABLED": "true",
-            },
-            pys=select_pys(min_version="3.9"),
+            pys=select_pys(min_version="3.10"),
             pkgs={
                 "pytest-asyncio": latest,
-                "ray": ["~=2.48.0", latest],
+                "ray[default]": ["~=2.46.0", latest],
             },
         ),
         Venv(
