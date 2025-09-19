@@ -1,6 +1,7 @@
 from contextlib import nullcontext
 import os
 import time
+import uuid
 
 import pytest
 
@@ -65,58 +66,44 @@ def test_logger_configure(output, path, files, max_bytes):
 
 
 LEVELS = ["trace", "debug", "info", "warn", "error"]
-
-
-def wait_for_log(path, expected, timeout=1):
-    start = time.time()
-    while time.time() - start < timeout:
-        if expected in path.read_text():
-            return True
-        time.sleep(0.1)
-    return False
-
-
 cases = [(config, msg, LEVELS.index(msg) >= LEVELS.index(config)) for config in LEVELS for msg in LEVELS]
 
 
-@pytest.mark.parametrize("configured_level, message_level, should_log", cases)
-def test_logger_levels(configured_level, message_level, should_log, tmp_path):
-    log_path = tmp_path / "log.txt"
-    logger.configure(output="file", path=str(log_path))
-    logger.set_log_level(configured_level)
-
-    message = f"{message_level}_msg"
-    logger.log(message_level, message)
-
-    found = wait_for_log(log_path, message)
-    assert found == should_log
-
-
 @pytest.mark.parametrize("backend", ["stdout", "stderr", "file"])
-def test_logger_subprocess(backend, tmp_path, ddtrace_run_python_code_in_subprocess):
-    log_path = tmp_path / "log.txt"
+@pytest.mark.parametrize("configured_level, message_level, should_log", cases)
+def test_logger_subprocess(
+    backend, configured_level, message_level, should_log, tmp_path, ddtrace_run_python_code_in_subprocess
+):
+    log_path = tmp_path / f"{backend}_{configured_level}_{message_level}.log"
 
     env = os.environ.copy()
     env["_DD_TRACE_WRITER_NATIVE"] = "1"
     env["_DD_NATIVE_LOGGING_BACKEND"] = backend
     env["_DD_NATIVE_LOGGING_FILE_PATH"] = log_path
+    env["_DD_NATIVE_LOGGING_LOG_LEVEL"] = configured_level
 
+    message = f"msg_{uuid.uuid4().hex}"
     code = """
 from ddtrace.internal.native._native import logger
 
-logger.log("warn", "message")
-    """
+message_level = f"{}"
+logger.log(message_level, f"{}")
+    """.format(
+        message_level, message
+    )
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
 
     assert status == 0
     if backend == "stdout":
-        assert "message" in out.decode("utf-8")
+        found = message in out.decode("utf8")
         assert err == b""
+        assert found == should_log
     elif backend == "stderr":
-        assert "message" in err.decode("utf-8")
+        found = message in err.decode("utf8")
         assert out == b""
-    else:
-        found = wait_for_log(log_path, "message")
+        assert found == should_log
+    else:  # file
+        found = message in log_path.read_text()
         assert out == b""
         assert err == b""
-        assert found
+        assert found == should_log
