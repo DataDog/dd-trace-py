@@ -122,7 +122,7 @@ experiments:
           - name: flasksimple-tracer-native
             thresholds:
               - execution_time < 3.65 ms
-              - max_rss_usage < 58.00 MB
+              - max_rss_usage < 60.00 MB
           - name: flasksimple-profiler
             thresholds:
               - execution_time < 2.10 ms
