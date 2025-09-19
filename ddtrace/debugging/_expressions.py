@@ -39,6 +39,7 @@ from typing import Optional
 from typing import Tuple
 from typing import Union
 
+from bytecode import BinaryOp
 from bytecode import Bytecode
 from bytecode import Compare
 from bytecode import Instr
@@ -290,7 +291,12 @@ class DDCompiler:
                 raise ValueError("Invalid argument: %r" % a)
             if cb is None:
                 raise ValueError("Invalid argument: %r" % b)
-            return cv + ca + cb + [Instr("BUILD_SLICE", 2), Instr("BINARY_SUBSCR")]
+
+            if PY >= (3, 14):
+                subscr_instruction = Instr("BINARY_OP", BinaryOp.SUBSCR)
+            else:
+                subscr_instruction = Instr("BINARY_SUBSCR")
+            return cv + ca + cb + [Instr("BUILD_SLICE", 2), subscr_instruction]
 
         if _type == "filter":
             a, b = args

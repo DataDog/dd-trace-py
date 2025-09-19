@@ -5,6 +5,9 @@ from pathlib import Path
 import subprocess
 import sys
 
+import pytest
+
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.utils.retry import RetryError
 from tests.utils import _build_env
 from tests.webclient import Client
@@ -64,6 +67,7 @@ def parse_payload(data):
     return json.loads(data)
 
 
+@pytest.mark.skipif(PYTHON_VERSION_INFO >= (3, 14), reason="Gunicorn doesn't yet work with Python 3.14")
 def test_telemetry_metrics_enabled_on_gunicorn_child_process(test_agent_session):
     token = "tests.telemetry.test_telemetry_metrics_e2e.test_telemetry_metrics_enabled_on_gunicorn_child_process"
     with gunicorn_server(telemetry_metrics_enabled="true", token=token) as context:
