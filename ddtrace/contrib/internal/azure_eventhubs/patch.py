@@ -1,4 +1,3 @@
-import os
 from typing import Dict
 
 import azure.eventhub as azure_eventhub
@@ -11,6 +10,7 @@ from ddtrace.ext import azure_eventhubs as azure_eventhubsx
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.settings._config import _get_config
 from ddtrace.trace import Pin
 
 from .utils import create_context
@@ -21,8 +21,8 @@ config._add(
     "azure_eventhubs",
     dict(
         _default_service=schematize_service_name("azure_eventhubs"),
-        distributed_tracing=asbool(os.getenv("DD_AZURE_EVENTHUBS_DISTRIBUTED_TRACING", default=True)),
-        batch_links=asbool(os.getenv("DD_TRACE_AZURE_EVENTHUBS_BATCH_LINKS_ENABLED", default=True)),
+        distributed_tracing=asbool(_get_config("DD_AZURE_EVENTHUBS_DISTRIBUTED_TRACING", default=True)),
+        batch_links=asbool(_get_config("DD_TRACE_AZURE_EVENTHUBS_BATCH_LINKS_ENABLED", default=True)),
     ),
 )
 
