@@ -306,12 +306,11 @@ class TelemetryWriter(PeriodicService):
             msg = "%s:%s: %s" % (filename, line_number, msg)
         self._error = (code, msg)
 
-    def _app_started(self, register_app_shutdown=True):
-        # type: (bool) -> Dict[str, Any]
+    def _app_started(self, register_app_shutdown: bool = True) -> Optional[Dict[str, Any]]:
         """Sent when TelemetryWriter is enabled or forks"""
         if self._forked or self.started:
             # app-started events should only be sent by the main process
-            return {}
+            return
         #  List of configurations to be collected
 
         self.started = True
@@ -365,7 +364,7 @@ class TelemetryWriter(PeriodicService):
         """Adds a Telemetry event which notifies the agent that an application instance has terminated"""
         if self._forked:
             # app-closing event should only be sent by the main process
-            return None
+            return
         return {"payload": {}, "request_type": "app-closing"}
 
     def _app_integrations_changed_event(self, integrations):
@@ -404,23 +403,22 @@ class TelemetryWriter(PeriodicService):
             "request_type": "app-client-configuration-change",
         }
 
-    def _app_dependencies_loaded_event(self):
-        # type: () -> Dict[str, Any]
+    def _app_dependencies_loaded_event(self) -> Optional[Dict[str, Any]]:
         """Adds events to report imports done since the last periodic run"""
         if not config.DEPENDENCY_COLLECTION or not self._enabled:
-            return {}
+            return
         with self._service_lock:
             newly_imported_deps = modules.get_newly_imported_modules(self._modules_already_imported)
 
         if not newly_imported_deps:
-            return {}
+            return
 
         with self._service_lock:
             if packages := update_imported_dependencies(self._imported_dependencies, newly_imported_deps):
                 return {"payload": {"dependencies": packages}, "request_type": "app-dependencies-loaded"}
-        return {}
+        return
 
-    def _flush_app_endpoints(self):
+    def _flush_app_endpoints(self) -> Optional[Dict[str, Any]]:
         """Adds a Telemetry event which sends the list of HTTP endpoints found at startup to the agent"""
         import ddtrace.settings.asm as asm_config_module
 
@@ -435,11 +433,11 @@ class TelemetryWriter(PeriodicService):
             return {"payload": payload, "request_type": "app-endpoints"}
 
     def _app_product_change(self):
-        # type: () -> Dict[str, Any]
+        # type: () -> Optional[Dict[str, Any]]
         """Adds a Telemetry event which reports the enablement of an APM product"""
 
         if not self._send_product_change_updates:
-            return {}
+            return
 
         self._send_product_change_updates = False
         return {
@@ -549,8 +547,7 @@ class TelemetryWriter(PeriodicService):
             if exc_type:
                 formatted_tb.append(f"{exc_type.__module__}.{exc_type.__name__}: {exc_value}")
             return "\n".join(formatted_tb)
-
-        return None
+        return
 
     def _should_redact(self, filename: str) -> bool:
         return "ddtrace" not in filename
