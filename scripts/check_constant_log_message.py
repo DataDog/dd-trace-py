@@ -21,6 +21,7 @@ EXCEPTIONS = {
     "ddtrace/contrib/internal/aws_lambda/patch.py:36",
     # log.error in _probe/registry.py ends up with a log.debug()
     "ddtrace/debugging/_probe/registry.py:137",
+    "ddtrace/debugging/_probe/registry.py:146",
 }
 
 
