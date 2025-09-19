@@ -12,7 +12,7 @@ from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
-from ddtrace.llmobs.utils import ToolCall
+from ddtrace.llmobs.utils import Message, ToolCall
 from ddtrace.llmobs.utils import ToolResult
 
 
@@ -163,7 +163,7 @@ def extract_embedding_metrics_google_genai(response) -> Dict[str, Any]:
     return usage
 
 
-def extract_message_from_part_google_genai(part, role: str) -> Dict[str, Any]:
+def extract_message_from_part_google_genai(part, role: str) -> Message:
     """part is a PartUnion = Union[File, Part, PIL_Image, str]
 
     returns a dict representing a message with format {"role": role, "content": content}
@@ -171,7 +171,7 @@ def extract_message_from_part_google_genai(part, role: str) -> Dict[str, Any]:
     if role == "model":
         role = GOOGLE_GENAI_DEFAULT_MODEL_ROLE
 
-    message: Dict[str, Any] = {"role": role}
+    message: Message = Message(role=role)
     if isinstance(part, str):
         message["content"] = part
         return message
@@ -212,17 +212,17 @@ def extract_message_from_part_google_genai(part, role: str) -> Dict[str, Any]:
     if executable_code:
         language = _get_attr(executable_code, "language", "UNKNOWN")
         code = _get_attr(executable_code, "code", "")
-        message["content"] = safe_json({"language": str(language), "code": str(code)})
+        message["content"] = safe_json({"language": str(language), "code": str(code)}) or ""
         return message
 
     code_execution_result = _get_attr(part, "code_execution_result", None)
     if code_execution_result:
         outcome = _get_attr(code_execution_result, "outcome", "OUTCOME_UNSPECIFIED")
         output = _get_attr(code_execution_result, "output", "")
-        message["content"] = safe_json({"outcome": str(outcome), "output": str(output)})
+        message["content"] = safe_json({"outcome": str(outcome), "output": str(output)}) or ""
         return message
 
-    return {"content": "Unsupported file type: {}".format(type(part)), "role": role}
+    return Message(content="Unsupported file type: {}".format(type(part)), role=role)
 
 
 def llmobs_get_metadata_gemini_vertexai(kwargs, instance):
@@ -241,11 +241,11 @@ def llmobs_get_metadata_gemini_vertexai(kwargs, instance):
     return metadata
 
 
-def extract_message_from_part_gemini_vertexai(part, role=None):
+def extract_message_from_part_gemini_vertexai(part, role=None) -> Message:
     text = _get_attr(part, "text", "")
     function_call = _get_attr(part, "function_call", None)
     function_response = _get_attr(part, "function_response", None)
-    message = {"content": text}
+    message = Message(content=text)
     if role:
         message["role"] = role
     if function_call:

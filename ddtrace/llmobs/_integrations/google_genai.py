@@ -22,7 +22,7 @@ from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_
 from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model_name
 from ddtrace.llmobs._integrations.google_utils import normalize_contents_google_genai
 from ddtrace.llmobs._utils import _get_attr
-from ddtrace.llmobs.utils import Document
+from ddtrace.llmobs.utils import Document, Message
 from ddtrace.llmobs.utils import ToolDefinition
 
 
@@ -122,17 +122,17 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
 
         return messages
 
-    def _extract_messages_from_contents(self, contents, default_role: str) -> List[Dict[str, Any]]:
-        messages = []
+    def _extract_messages_from_contents(self, contents, default_role: str) -> List[Message]:
+        messages: List[Message] = []
         for content in normalize_contents_google_genai(contents):
             role = content.get("role") or default_role
             for part in content.get("parts", []):
                 messages.append(extract_message_from_part_google_genai(part, role))
         return messages
 
-    def _extract_output_messages(self, response) -> List[Dict[str, Any]]:
+    def _extract_output_messages(self, response) -> List[Message]:
         if not response:
-            return [{"content": "", "role": GOOGLE_GENAI_DEFAULT_MODEL_ROLE}]
+            return [Message(content="", role=GOOGLE_GENAI_DEFAULT_MODEL_ROLE)]
         messages = []
         candidates = _get_attr(response, "candidates", [])
         for candidate in candidates:

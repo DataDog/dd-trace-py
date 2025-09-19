@@ -283,11 +283,12 @@ def get_messages_from_converse_content(role: str, content: List[Dict[str, Any]])
             unsupported_content_messages.append(
                 Message(content="[Unsupported content type: {}]".format(content_type), role=role)
             )
-    message: Message = {}
+    message: Message = Message()
     if tool_calls_info:
-        message.update({"tool_calls": tool_calls_info})
+        message["tool_calls"] = tool_calls_info
     if content_blocks:
-        message.update({"content": " ".join(content_blocks), "role": role})
+        message["content"] = " ".join(content_blocks)
+        message["role"] = role
     if message:
         messages.append(message)
     if unsupported_content_messages:
@@ -570,7 +571,7 @@ def _openai_parse_input_response_messages(
     tool_call_ids: List[str] = []
 
     if system_instructions:
-        processed.append({"role": "system", "content": system_instructions})
+        processed.append(Message(role="system", content=system_instructions))
 
     if not messages:
         return processed, tool_call_ids
@@ -579,7 +580,7 @@ def _openai_parse_input_response_messages(
         return [Message(content=messages, role="user")], tool_call_ids
 
     for item in messages:
-        processed_item: Message = {}
+        processed_item: Message = Message()
         # Handle regular message
         if "content" in item and "role" in item:
             processed_item_content = ""
@@ -672,7 +673,7 @@ def _openai_parse_output_response_messages(messages: List[Any]) -> Tuple[List[Me
     tool_call_outputs: List[ToolCall] = []
 
     for item in messages:
-        message: Message = {}
+        message: Message = Message()
         message_type = _get_attr(item, "type", "")
 
         if message_type == "message":

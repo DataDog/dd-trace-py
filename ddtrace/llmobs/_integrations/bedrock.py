@@ -110,7 +110,7 @@ class BedrockIntegration(BaseLLMIntegration):
             self._extract_input_message_for_converse(prompt) if is_converse else self._extract_input_message(prompt)
         )
 
-        output_messages = [{"content": ""}]
+        output_messages: List[Message] = [Message(content="")]
         if not span.error and response is not None:
             if ctx["resource"] == "Converse":
                 output_messages = self._extract_output_message_for_converse(response)
@@ -204,7 +204,7 @@ class BedrockIntegration(BaseLLMIntegration):
         if not isinstance(prompt, list):
             log.warning("Bedrock input is not a list of messages or a string.")
             return [Message(content="")]
-        input_messages = []
+        input_messages: List[Message] = []
         for message in prompt:
             if not isinstance(message, dict):
                 continue
@@ -226,7 +226,7 @@ class BedrockIntegration(BaseLLMIntegration):
         For more info, see bedrock converse response syntax:
         https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_Converse.html#API_runtime_Converse_ResponseSyntax
         """
-        default_content = [{"content": ""}]
+        default_content: List[Message] = [Message(content="")]
         message = response.get("output", {}).get("message", {})
         if not message:
             return default_content
@@ -241,7 +241,7 @@ class BedrockIntegration(BaseLLMIntegration):
         Generator[
             None,
             Dict[str, Any],
-            Tuple[List[Dict[str, Any]], Dict[str, str], Dict[str, int]],
+            Tuple[List[Message], Dict[str, str], Dict[str, int]],
         ]
     ):
         """
@@ -259,7 +259,7 @@ class BedrockIntegration(BaseLLMIntegration):
         """
         usage_metrics: Dict[str, int] = {}
         metadata: Dict[str, str] = {}
-        messages: List[Dict[str, Any]] = []
+        messages: List[Message] = []
 
         text_content_blocks: Dict[int, str] = {}
         tool_content_blocks: Dict[int, Dict[str, Any]] = {}
@@ -336,7 +336,7 @@ class BedrockIntegration(BaseLLMIntegration):
             )
 
         if not messages:
-            messages.append({"role": "assistant", "content": ""})
+            messages.append(Message(content="", role="assistant"))
 
         normalize_input_tokens(usage_metrics)
         return messages, metadata, usage_metrics

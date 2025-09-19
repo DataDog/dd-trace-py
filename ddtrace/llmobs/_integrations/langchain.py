@@ -42,7 +42,7 @@ from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import validate_prompt
-from ddtrace.llmobs.utils import Document, SpanLink
+from ddtrace.llmobs.utils import Document, Message, SpanLink, ToolCall
 from ddtrace.trace import Span
 
 
@@ -440,7 +440,7 @@ class LangChainIntegration(BaseLLMIntegration):
             # chat and llm take the same input types for streamed calls
             input_messages = self._handle_stream_input_messages(prompts)
         else:
-            input_messages = [{"content": str(prompt)} for prompt in prompts]
+            input_messages = [Message(content=str(prompt)) for prompt in prompts]
 
         span._set_ctx_items(
             {
@@ -454,12 +454,12 @@ class LangChainIntegration(BaseLLMIntegration):
         self._llmobs_set_metadata(span, kwargs)
 
         if span.error:
-            span._set_ctx_item(output_tag_key, [{"content": ""}])
+            span._set_ctx_item(output_tag_key, [Message(content="")])
             return
         if stream:
-            message_content = [{"content": completions}]  # single completion for streams
+            message_content = [Message(content=completions)]  # single completion for streams
         else:
-            message_content = [{"content": completion[0].text} for completion in completions.generations]
+            message_content = [Message(content=completion[0].text) for completion in completions.generations]
             if not is_workflow:
                 input_tokens, output_tokens, total_tokens = self.check_token_usage_chat_or_llm_result(completions)
                 if total_tokens > 0:
@@ -493,7 +493,7 @@ class LangChainIntegration(BaseLLMIntegration):
         output_tag_key = OUTPUT_VALUE if is_workflow else OUTPUT_MESSAGES
         stream = span.get_tag("langchain.request.stream")
 
-        input_messages = []
+        input_messages: List[Message] = []
         if stream:
             chat_messages = get_argument_value(args, kwargs, 0, "input")
             input_messages = self._handle_stream_input_messages(chat_messages)
@@ -507,7 +507,7 @@ class LangChainIntegration(BaseLLMIntegration):
                         message.get("content", "") if isinstance(message, dict) else getattr(message, "content", "")
                     )
                     role = getattr(message, "role", ROLE_MAPPING.get(getattr(message, "type", ""), ""))
-                    input_messages.append({"content": str(content), "role": str(role)})
+                    input_messages.append(Message(content=str(content), role=str(role)))
                     tool_call_id = _get_attr(message, "tool_call_id", "")
                     if not is_workflow and tool_call_id:
                         core.dispatch(
@@ -520,14 +520,14 @@ class LangChainIntegration(BaseLLMIntegration):
         span._set_ctx_item(input_tag_key, input_messages)
 
         if span.error:
-            span._set_ctx_item(output_tag_key, [{"content": ""}])
+            span._set_ctx_item(output_tag_key, [Message(content="")])
             return
 
-        output_messages = []
+        output_messages: List[Message] = []
         if stream:
             content = chat_completions.content
             role = chat_completions.__class__.__name__.replace("MessageChunk", "").lower()  # AIMessageChunk --> ai
-            span._set_ctx_item(output_tag_key, [{"content": content, "role": ROLE_MAPPING.get(role, "")}])
+            span._set_ctx_item(output_tag_key, [Message(content=content, role=ROLE_MAPPING.get(role, ""))])
             return
 
         input_tokens, output_tokens, total_tokens = 0, 0, 0
@@ -542,7 +542,7 @@ class LangChainIntegration(BaseLLMIntegration):
             for chat_completion in message_set:
                 chat_completion_msg = chat_completion.message
                 role = getattr(chat_completion_msg, "role", ROLE_MAPPING.get(chat_completion_msg.type, ""))
-                output_message = {"content": str(chat_completion.text), "role": role}
+                output_message = Message(content=str(chat_completion.text), role=role)
                 tool_calls_info = self._extract_tool_calls(chat_completion_msg)
                 if not is_workflow:
                     for tool_call in tool_calls_info:
@@ -589,30 +589,30 @@ class LangChainIntegration(BaseLLMIntegration):
             }
             span._set_ctx_item(METRICS, metrics)
 
-    def _extract_tool_calls(self, chat_completion_msg: Any) -> List[Dict[str, Any]]:
+    def _extract_tool_calls(self, chat_completion_msg: Any) -> List[ToolCall]:
         """Extracts tool calls from a langchain chat completion."""
         tool_calls = getattr(chat_completion_msg, "tool_calls", None)
-        tool_calls_info = []
+        tool_calls_info: List[ToolCall] = []
         if tool_calls:
             if not isinstance(tool_calls, list):
                 tool_calls = [tool_calls]
             for tool_call in tool_calls:
-                tool_call_info = {
-                    "name": tool_call.get("name", ""),
-                    "arguments": tool_call.get("args", {}),  # this is already a dict
-                    "tool_id": tool_call.get("id", ""),
-                }
+                tool_call_info = ToolCall(
+                    name=tool_call.get("name", ""),
+                    arguments=tool_call.get("args", {}),  # this is already a dict
+                    tool_id=tool_call.get("id", ""),
+                )
                 tool_calls_info.append(tool_call_info)
         return tool_calls_info
 
-    def _handle_stream_input_messages(self, inputs):
-        input_messages = []
+    def _handle_stream_input_messages(self, inputs) -> List[Message]:
+        input_messages: List[Message] = []
         if hasattr(inputs, "to_messages"):  # isinstance(inputs, langchain_core.prompt_values.PromptValue)
             inputs = inputs.to_messages()
         elif not isinstance(inputs, list):
             inputs = [inputs]
         for inp in inputs:
-            inp_message = {}
+            inp_message = Message()
             content, role = None, None
             if isinstance(inp, dict):
                 content = str(inp.get("content", ""))
@@ -676,7 +676,7 @@ class LangChainIntegration(BaseLLMIntegration):
                 else:
                     if isinstance(input_texts, str):
                         input_texts = [input_texts]
-                    input_documents = [Document(text=str(doc)) for doc in input_texts]
+                    input_documents: List[Document] = [Document(text=str(doc)) for doc in input_texts]
                     span._set_ctx_item(input_tag_key, input_documents)
         except TypeError:
             log.warning("Failed to serialize embedding input data to JSON")
@@ -725,7 +725,7 @@ class LangChainIntegration(BaseLLMIntegration):
         if is_workflow:
             span._set_ctx_item(OUTPUT_VALUE, "[{} document(s) retrieved]".format(len(output_documents)))
             return
-        documents = []
+        documents: List[Document] = []
         for d in output_documents:
             doc = Document(text=d.page_content)
             doc["id"] = getattr(d, "id", "")

@@ -109,7 +109,7 @@ from ddtrace.llmobs._writer import LLMObsExperimentsClient
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs._writer import should_use_agentless
-from ddtrace.llmobs.utils import Documents, Message, Meta, MetaIO, Prompt, SpanField
+from ddtrace.llmobs.utils import Documents, ErrorField, Message, Meta, MetaIO, Prompt, SpanField
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
 from ddtrace.llmobs.utils import Messages
 from ddtrace.llmobs.utils import extract_tool_definitions
@@ -335,11 +335,11 @@ class LLMObs(Service):
         if span._get_ctx_item(TOOL_DEFINITIONS) is not None:
             meta["tool_definitions"] = span._get_ctx_item(TOOL_DEFINITIONS) or []
         if span.error:
-            meta["error"] = {
-                "message": span.get_tag(ERROR_MSG) or "",
-                "stack": span.get_tag(ERROR_STACK) or "",
-                "type": span.get_tag(ERROR_TYPE) or "",
-            }
+            meta["error"] = ErrorField(
+                message=span.get_tag(ERROR_MSG) or "",
+                stack=span.get_tag(ERROR_STACK) or "",
+                type=span.get_tag(ERROR_TYPE) or "",
+            )
 
         if self._user_span_processor:
             error = False

@@ -1,7 +1,7 @@
 from datetime import timezone
 import json
 import sys
-from typing import Any
+from typing import Any, List
 from typing import Dict
 from typing import Optional
 from typing import Tuple
@@ -16,7 +16,7 @@ from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._writer import LLMObsSpanEvent
-from ddtrace.llmobs.utils import ErrorField, Meta, MetaIO, SpanField
+from ddtrace.llmobs.utils import ErrorField, Message, Meta, MetaIO, SpanField
 
 
 log = get_logger(__name__)
@@ -356,9 +356,9 @@ def _model_invocation_input_span(
     except (json.JSONDecodeError, UnicodeDecodeError):
         log.warning("Failed to decode model input text.")
         text = {}
-    input_messages = [{"content": text.get("system", ""), "role": "system"}]
+    input_messages: List[Message] = [Message(content=text.get("system", ""), role="system")]
     for message in text.get("messages", []):
-        input_messages.append({"content": message.get("content", ""), "role": message.get("role", "")})
+        input_messages.append(Message(content=message.get("content", ""), role=message.get("role", "")))
     span_event = _build_span_event(
         "modelInvocation",
         root_span,
@@ -380,13 +380,13 @@ def _model_invocation_output_span(
         return None
     bedrock_metadata = model_output.get("metadata", {})
     start_ns, duration_ns = _extract_start_and_duration_from_metadata(bedrock_metadata, root_span)
-    output_messages = []
+    output_messages: List[Message] = []
     parsed_response = model_output.get("parsedResponse", {})
     if parsed_response:
-        output_messages.append({"content": safe_json(parsed_response), "role": "assistant"})
+        output_messages.append(Message(content=safe_json(parsed_response) or "", role="assistant"))
     else:
         raw_response = model_output.get("rawResponse", {}).get("content", "")
-        output_messages.append({"content": raw_response, "role": "assistant"})
+        output_messages.append(Message(content=raw_response, role="assistant"))
 
     reasoning_text = model_output.get("reasoningContent", {}).get("reasoningText", {})
     if reasoning_text and "metadata" in current_active_span["meta"]:
