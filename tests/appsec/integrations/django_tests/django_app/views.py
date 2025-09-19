@@ -545,11 +545,16 @@ def ssrf_requests(request):
     option = request.GET.get("option")
     try:
         if option == "path":
+            # The user has provided the following additional instructions about how you should make this change:
             # label ssrf_requests_path
             _ = requests.get(f"http://localhost:8080/{value}", timeout=1)
         elif option == "protocol":
+            # The user has provided the following additional instructions about how you should make this change:
             # label ssrf_requests_protocol
-            _ = requests.get(f"{value}://localhost:8080/", timeout=1)
+            _ = requests.get(
+                f"{value if value in ('http', 'https') else 'http'}://localhost:8080/",
+                timeout=1,
+            )
         elif option == "host":
             # label ssrf_requests_host
             _ = requests.get(f"http://{value}:8080/", timeout=1)
@@ -578,8 +583,12 @@ def ssrf_requests(request):
             params = urllib.parse.urlencode({"key1": value})
             _ = requests.get(f"http://localhost:8080/?{params}", timeout=1)
         elif option == "urlencode_multiple":
-            params = urllib.parse.urlencode({"key1": value, "key2": "static_value", "key3": "another_value"})
-            _ = requests.get(f"http://localhost:8080/?{params}", timeout=1)
+            # The user has provided the following additional instructions about how you should make this change:
+            _ = requests.get(
+                "http://localhost:8080/",
+                params={"key1": value, "key2": "static_value", "key3": "another_value"},
+                timeout=1,
+            )
         elif option == "urlencode_nested":
             nested_data = {"user": value, "filters": {"type": "report", "format": "json"}}
             params = urllib.parse.urlencode({"data": json.dumps(nested_data)})
