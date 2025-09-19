@@ -13,12 +13,17 @@ from ddtrace.debugging._metrics import metrics
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.model import SignalTrack
 from ddtrace.internal import agent
+from ddtrace.internal import logger
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.http import connector
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 
 
 log = get_logger(__name__)
+UNSUPPORTED_AGENT = "unsupported_agent"
+logger.set_tag_rate_limit(UNSUPPORTED_AGENT, logger.HOUR)
+
+
 meter = metrics.get_meter("uploader")
 
 
@@ -124,9 +129,15 @@ class SignalUploader(agent.AgentCheckPeriodicService):
         else:
             snapshot_track.enabled = False
             log.warning(
-                "Unsupported Datadog agent detected. "
-                "Snapshots from Dynamic Instrumentation/Exception Replay/Code Origin for Spans will not be uploaded. "
-                "Please upgrade to version 7.49.0 or later."
+                UNSUPPORTED_AGENT,
+                extra={
+                    "product": "debugger",
+                    "more_info": (
+                        ": Unsupported Datadog agent detected. Snapshots from Dynamic Instrumentation/"
+                        "Exception Replay/Code Origin for Spans will not be uploaded. "
+                        "Please upgrade to version 7.49.0 or later"
+                    ),
+                },
             )
 
         return True
