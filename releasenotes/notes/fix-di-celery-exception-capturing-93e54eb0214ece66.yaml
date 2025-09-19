@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    exception replay: prevent Celery from crashing when a task raises a custom
+    exception with mandatory arguments.
