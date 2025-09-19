@@ -113,15 +113,25 @@ class CrashtrackerWrapper:
 
 
 def wait_for_crash_reports(test_agent_client: TestAgentClient) -> List[TestAgentRequest]:
+    seen_report_ids = set()
     crash_reports = []
-    for _ in range(10):  # 10 iterations * 0.1 second = 1 second total
+    for _ in range(5):  # 5 iterations * 0.2 second = 1 second total
         incoming_reports = test_agent_client.crash_reports()
-        if incoming_reports:
-            crash_reports.extend(incoming_reports)
-            # If we have both crash ping and crash report (2 reports), we can return early
-            if len(crash_reports) >= 2:
-                return crash_reports
-        time.sleep(0.1)
+        for report in incoming_reports:
+            # Use a unique identifier to avoid duplicates
+            # We'll use the combination of body content hash and headers as identifier
+            body = report.get("body", b"")
+            if isinstance(body, str):
+                body = body.encode('utf-8')
+            report_id = (hash(body), frozenset(report.get("headers", {}).items()))
+            if report_id not in seen_report_ids:
+                seen_report_ids.add(report_id)
+                crash_reports.append(report)
+
+        # If we have both crash ping and crash report (2 reports), we can return early
+        if len(crash_reports) >= 2:
+            return crash_reports
+        time.sleep(0.2)
 
     return crash_reports
 
