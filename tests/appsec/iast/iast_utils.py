@@ -134,7 +134,6 @@ def _start_iast_context_and_oce(span=None):
 
 def _end_iast_context_and_oce(span=None):
     result = _iast_finish_request(span)
-    oce.release_request()
     _reset_global_limit()
     return result
 

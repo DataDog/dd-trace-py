@@ -22,79 +22,12 @@ class Initializer
     static constexpr int TAINTEDOBJECTS_STACK_SIZE = 4096;
     stack<TaintedObjectPtr> available_taintedobjects_stack;
     stack<TaintRangePtr> available_ranges_stack;
-    // This is a map instead of a set so we can change the contents on iteration; otherwise
-    // keys and values are the same pointer.
-    unordered_map<TaintedObjectMapType*, TaintedObjectMapTypePtr> active_map_addreses;
-
-    std::mutex active_map_addreses_mutex;
 
   public:
     /**
      * Constructor for the Initializer class.
      */
     Initializer();
-
-    /**
-     * Creates a new taint range map.
-     *
-     * @return A pointer to the created taint range map.
-     */
-    TaintedObjectMapTypePtr create_tainting_map();
-
-    /**
-     * Clears a taint range map.
-     *
-     * @param tx_map The taint range map to be freed.
-     */
-    void clear_tainting_map(const TaintedObjectMapTypePtr& tx_map);
-
-    /**
-     * Gets the current taint range map.
-     *
-     * @return A pointer to the current taint range map.
-     */
-    static TaintedObjectMapTypePtr get_tainting_map();
-
-    /**
-     * Clears all active taint maps.
-     */
-    void clear_tainting_maps();
-
-    /**
-     * Gets the number of tainted objects.
-     *
-     * @return The number of tainted objects.
-     */
-    static int num_objects_tainted();
-
-    static string debug_taint_map();
-
-    /**
-     * Gets the size of active map addresses.
-     *
-     * @return The size of active map addresses.
-     */
-    int active_map_addreses_size() const;
-
-    /**
-     * Creates a new taint tracking context.
-     */
-    void create_context();
-
-    /**
-     * Resets the current taint tracking context.
-     */
-    void reset_context(const TaintedObjectMapTypePtr& tx_map);
-    /**
-     * Resets the current taint tracking context.
-     */
-    void reset_context();
-
-    /**
-     * Resets all current taint tracking contexts.
-     */
-    void reset_contexts();
-
     /**
      * Allocates a new tainted object.
 
@@ -145,6 +78,3 @@ class Initializer
 };
 
 extern unique_ptr<Initializer> initializer;
-
-void
-pyexport_initializer(py::module& m);
