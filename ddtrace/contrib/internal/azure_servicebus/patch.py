@@ -1,4 +1,3 @@
-import os
 from typing import Dict
 
 import azure.servicebus as azure_servicebus
@@ -11,6 +10,7 @@ from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import azure_servicebus as azure_servicebusx
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.settings._config import _get_config
 
 from .utils import create_context
 from .utils import dispatch_message_modifier
@@ -20,8 +20,8 @@ config._add(
     "azure_servicebus",
     dict(
         _default_service=schematize_service_name("azure_servicebus"),
-        distributed_tracing=asbool(os.getenv("DD_AZURE_SERVICEBUS_DISTRIBUTED_TRACING", default=True)),
-        batch_links=asbool(os.getenv("DD_TRACE_AZURE_SERVICEBUS_BATCH_LINKS_ENABLED", default=True)),
+        distributed_tracing=asbool(_get_config("DD_AZURE_SERVICEBUS_DISTRIBUTED_TRACING", default=True)),
+        batch_links=asbool(_get_config("DD_TRACE_AZURE_SERVICEBUS_BATCH_LINKS_ENABLED", default=True)),
     ),
 )
 

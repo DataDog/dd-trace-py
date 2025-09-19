@@ -1,4 +1,3 @@
-import os
 from typing import Dict
 
 import azure.functions as azure_functions
@@ -11,6 +10,7 @@ from ddtrace.ext import SpanKind
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.settings._config import _get_config
 
 from .utils import create_context
 from .utils import wrap_function_with_tracing
@@ -20,7 +20,7 @@ config._add(
     "azure_functions",
     dict(
         _default_service=schematize_service_name("azure_functions"),
-        distributed_tracing=asbool(os.getenv("DD_AZURE_FUNCTIONS_DISTRIBUTED_TRACING", default=True)),
+        distributed_tracing=asbool(_get_config("DD_AZURE_FUNCTIONS_DISTRIBUTED_TRACING", default=True)),
     ),
 )
 
