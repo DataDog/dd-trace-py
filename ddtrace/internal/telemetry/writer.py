@@ -347,7 +347,8 @@ class TelemetryWriter(PeriodicService):
         # type: () -> Dict[str, Any]
         if config.DEPENDENCY_COLLECTION and time.monotonic() - self._extended_time > self._extended_heartbeat_interval:
             self._extended_time += self._extended_heartbeat_interval
-            self._app_dependencies_loaded_event()
+            # Extended heartbeat event must be queued after the dependencies loaded event.
+            # Otherwise, self._imported_dependencies will not be up to date.
             payload = {
                 "dependencies": [
                     {"name": name, "version": version} for name, version in self._imported_dependencies.items()
