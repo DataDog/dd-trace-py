@@ -32,6 +32,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include <atomic>
 #include <memory>
 #include <optional>
 #include <string>
@@ -49,8 +50,14 @@ class TaintEngineContext
     // Parse and clamp capacity from environment
     static size_t assign_request_context_slots_size();
 
+    // Global lifecycle flag to avoid use-after-destruction during interpreter/module teardown.
+    static std::atomic<bool> shutting_down;
+
   public:
     TaintEngineContext();
+
+    // Lifecycle control: mark the context as shutting down to prevent further access.
+    static void set_shutting_down(bool v);
 
     // Fast-path: get the taint map for a known context_id (slot index).
     // Returns nullptr if the slot is empty or out of lifecycle.
