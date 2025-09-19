@@ -1,0 +1,6 @@
+---
+prelude: >
+    **Breaking change** for Dynamic Instrumentation and Exception Replay: the minimum required agent version for these products is now v7.49.0.
+features:
+  - |
+    dynamic instrumentation: snapshots are now uploaded to a new debugger endpoint.

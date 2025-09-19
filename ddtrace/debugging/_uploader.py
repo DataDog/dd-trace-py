@@ -96,7 +96,7 @@ class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
         finally:
             self._agent_endpoints_cache.turn()
 
-        snapshot_track = "/debugger/v1/input"
+        snapshot_track = "/debugger/v1/diagnostics"
         if "/debugger/v2/input" in self._agent_endpoints:
             snapshot_track = "/debugger/v2/input"
         elif "/debugger/v1/diagnostics" in self._agent_endpoints:
@@ -106,6 +106,12 @@ class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
 
         # Only create the tracks if they don't exist to preserve the track queue metadata.
         if not self._tracks:
+            if snapshot_track not in self._agent_endpoints:
+                log.warning(
+                    "Live Debugger and Exception Replay could not verify if the snapshot endpoint is available. "
+                    "You may need to update the agent to v7.49.0 or later for these features to work.",
+                )
+
             self._tracks = {
                 SignalTrack.LOGS: UploaderTrack(
                     endpoint=f"/debugger/v1/input{endpoint_suffix}",
