@@ -1,6 +1,5 @@
 from contextlib import nullcontext
 import os
-import time
 import uuid
 
 import pytest
