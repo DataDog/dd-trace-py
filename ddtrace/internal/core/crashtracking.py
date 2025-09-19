@@ -26,6 +26,8 @@ try:
     from ddtrace.internal.native._native import crashtracker_init
     from ddtrace.internal.native._native import crashtracker_on_fork
     from ddtrace.internal.native._native import crashtracker_status
+    from ddtrace.internal.native._native import crashtracker_register_native_runtime_callback
+    from ddtrace.internal.native._native import CallbackResult
 except ImportError:
     is_available = False
 
@@ -169,3 +171,26 @@ def start(additional_tags: Optional[Dict[str, str]] = None) -> bool:
         print(f"Failed to start crashtracker: {e}", file=sys.stderr)
         return False
     return True
+
+
+def register_runtime_callback() -> bool:
+    """
+    Register the native runtime callback for stack collection during crashes.
+
+    This should be called after crashtracker initialization to enable Python
+    runtime stack trace collection in crash reports.
+
+    Returns:
+        bool: True if callback was registered successfully, False otherwise
+    """
+    if not is_available:
+        return False
+    if not is_started():
+        return False
+
+    try:
+        result = crashtracker_register_native_runtime_callback()
+        return result == CallbackResult.Ok
+    except Exception as e:
+        print(f"Failed to register runtime callback: {e}", file=sys.stderr)
+        return False
