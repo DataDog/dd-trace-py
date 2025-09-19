@@ -12,37 +12,48 @@ from ddtrace.contrib.internal.azure_eventhubs.patch import unpatch
 SNAPSHOT_IGNORES = ["meta.messaging.message_id", "meta._dd.span_links"]
 
 METHODS = ["send_event", "send_batch"]
+BUFFERED_OPTIONS = [False, True]
 ASYNC_OPTIONS = [False, True]
 PAYLOAD_TYPES = ["single", "list", "batch"]
 DISTRIBUTED_TRACING_ENABLED_OPTIONS = [None, False]
 BATCH_LINKS_ENABLED_OPTIONS = [None, False]
 
 
-def is_invalid_test_combination(method, payload_type, batch_links_enabled):
+def is_invalid_test_combination(method, buffered_mode, payload_type, distributed_tracing_enabled, batch_links_enabled):
     return (
+        # Payloads not valid for method
         (method == "send_event" and payload_type in {"list", "batch"})
         or (method == "send_batch" and payload_type == "single")
+        # Only test batch_links config for batches
         or (payload_type != "batch" and batch_links_enabled is False)
+        # Only test buffered mode with enabled configs
+        or (buffered_mode and (distributed_tracing_enabled is False or batch_links_enabled is False))
     )
 
 
 params = [
     (
-        f"{m}{'_async' if a else ''}_{p}"
+        f"{m}{'_buffered' if b else ''}{'_async' if a else ''}_{p}"
         f"_distributed_tracing_{'enabled' if d is None else 'disabled'}"
-        f"{'_batch_links_enabled' if p == 'batch' and b is None else '_batch_links_disabled' if p == 'batch' else ''}",
+        f"{'_batch_links_enabled' if p == 'batch' and bl is None else '_batch_links_disabled' if p == 'batch' else ''}",
         {
             "METHOD": m,
+            "BUFFERED_MODE": str(b),
             "IS_ASYNC": str(a),
             "MESSAGE_PAYLOAD_TYPE": p,
             **({"DD_AZURE_EVENTHUBS_DISTRIBUTED_TRACING": str(d)} if d is not None else {}),
-            **({"DD_TRACE_AZURE_EVENTHUBS_BATCH_LINKS_ENABLED": str(b)} if b is not None else {}),
+            **({"DD_TRACE_AZURE_EVENTHUBS_BATCH_LINKS_ENABLED": str(bl)} if bl is not None else {}),
         },
     )
-    for m, a, p, d, b in itertools.product(
-        METHODS, ASYNC_OPTIONS, PAYLOAD_TYPES, DISTRIBUTED_TRACING_ENABLED_OPTIONS, BATCH_LINKS_ENABLED_OPTIONS
+    for m, b, a, p, d, bl in itertools.product(
+        METHODS,
+        BUFFERED_OPTIONS,
+        ASYNC_OPTIONS,
+        PAYLOAD_TYPES,
+        DISTRIBUTED_TRACING_ENABLED_OPTIONS,
+        BATCH_LINKS_ENABLED_OPTIONS,
     )
-    if not is_invalid_test_combination(m, p, b)
+    if not is_invalid_test_combination(m, b, p, d, bl)
 ]
 
 param_ids, param_values = zip(*params)

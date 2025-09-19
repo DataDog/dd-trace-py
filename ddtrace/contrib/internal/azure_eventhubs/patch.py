@@ -107,7 +107,16 @@ async def _patched_create_batch_async(wrapped, instance, args, kwargs):
 
 def _patched_add(wrapped, instance, args, kwargs):
     pin = Pin.get_from(instance)
-    if not pin or not pin.enabled() or not config.azure_eventhubs.batch_links:
+    if (
+        not pin
+        or not pin.enabled()
+        or not config.azure_eventhubs.batch_links
+        # Skip patching when these attributes haven't been added.
+        # A known case is when a producer client in buffered mode
+        # instantiates a batch without using the create_batch method.
+        or not getattr(instance, "_dd_eventhub_name", None)
+        or not getattr(instance, "_dd_fully_qualified_namespace", None)
+    ):
         return wrapped(*args, **kwargs)
 
     resource_name = instance._dd_eventhub_name

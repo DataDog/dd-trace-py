@@ -4,6 +4,7 @@ from threading import Event
 from threading import Lock
 from threading import Thread
 from typing import List
+from typing import Optional
 from typing import Union
 from uuid import uuid4
 
@@ -60,6 +61,24 @@ def make_amqp_annotated_messages() -> List[Union[EventData, AmqpAnnotatedMessage
             properties={"message_id": uuid4()},
         ),
     ]
+
+
+def on_success(events: List[Union[EventData, AmqpAnnotatedMessage]], partition_id: Optional[str]):
+    pass
+
+
+def on_error(events: List[Union[EventData, AmqpAnnotatedMessage]], partition_id: Optional[str], error: Exception):
+    raise error
+
+
+async def on_success_async(events: List[Union[EventData, AmqpAnnotatedMessage]], partition_id: Optional[str]):
+    pass
+
+
+async def on_error_async(
+    events: List[Union[EventData, AmqpAnnotatedMessage]], partition_id: Optional[str], error: Exception
+):
+    raise error
 
 
 class EventHandler:
@@ -290,6 +309,7 @@ async def run_test_async(
 @pytest.mark.asyncio
 async def test_common():
     method = os.environ.get("METHOD")
+    buffered_mode = os.environ.get("BUFFERED_MODE") == "True"
     is_async = os.environ.get("IS_ASYNC") == "True"
     message_payload_type = os.environ.get("MESSAGE_PAYLOAD_TYPE")
     distributed_tracing_enabled = os.environ.get("DD_AZURE_EVENTHUBS_DISTRIBUTED_TRACING", "True") == "True"
@@ -297,7 +317,11 @@ async def test_common():
 
     if is_async:
         producer_client = EventHubProducerClientAsync.from_connection_string(
-            conn_str=CONNECTION_STRING, eventhub_name=EVENTHUB_NAME
+            conn_str=CONNECTION_STRING,
+            eventhub_name=EVENTHUB_NAME,
+            buffered_mode=buffered_mode,
+            on_error=on_error_async,
+            on_success=on_success_async,
         )
         (consumer_client, event_handler, receive_task) = await create_event_handler_async()
         try:
@@ -314,7 +338,11 @@ async def test_common():
             await close_event_handler_async(consumer_client, receive_task)
     else:
         producer_client = EventHubProducerClient.from_connection_string(
-            conn_str=CONNECTION_STRING, eventhub_name=EVENTHUB_NAME
+            conn_str=CONNECTION_STRING,
+            eventhub_name=EVENTHUB_NAME,
+            buffered_mode=buffered_mode,
+            on_error=on_error,
+            on_success=on_success,
         )
         (consumer_client, event_handler, thread) = create_event_handler()
         try:
