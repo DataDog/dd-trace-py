@@ -753,7 +753,7 @@ def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_se
     # Assert next flush contains app-heartbeat event
     for _ in range(telemetry_writer._periodic_threshold):
         telemetry_writer.periodic()
-        assert test_agent_session.get_events(mock.ANY, filter_heartbeats=False) == []
+        assert test_agent_session.get_events("app-heartbeat", filter_heartbeats=False) == []
 
     telemetry_writer.periodic()
     heartbeat_events = test_agent_session.get_events("app-heartbeat", filter_heartbeats=False)
@@ -765,7 +765,7 @@ def test_app_heartbeat_event(mock_time, telemetry_writer, test_agent_session):
     """asserts that we queue/send app-heartbeat event every 60 seconds when app_heartbeat_event() is called"""
     # Assert a maximum of one heartbeat is queued per flush
     telemetry_writer.periodic(force_flush=True)
-    events = test_agent_session.get_events(mock.ANY, filter_heartbeats=False)
+    events = test_agent_session.get_events("app-heartbeat", filter_heartbeats=False)
     assert len(events) > 0
 
 
