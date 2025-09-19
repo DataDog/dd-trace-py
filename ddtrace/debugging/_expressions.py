@@ -293,10 +293,10 @@ class DDCompiler:
                 raise ValueError("Invalid argument: %r" % b)
 
             if PY >= (3, 14):
-                subscr_instructions = [Instr("BINARY_OP", BinaryOp.SUBSCR)]
+                subscr_instruction = Instr("BINARY_OP", BinaryOp.SUBSCR)
             else:
-                subscr_instructions = [Instr("BINARY_SUBSCR")]
-            return cv + ca + cb + [Instr("BUILD_SLICE", 2)] + subscr_instructions
+                subscr_instruction = Instr("BINARY_SUBSCR")
+            return cv + ca + cb + [Instr("BUILD_SLICE", 2), subscr_instruction]
 
         if _type == "filter":
             a, b = args
