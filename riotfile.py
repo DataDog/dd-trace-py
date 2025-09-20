@@ -79,6 +79,85 @@ def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYT
     return [version_to_str(version) for version in SUPPORTED_PYTHON_VERSIONS if min_version <= version <= max_version]
 
 
+def create_memory_allocator_venvs() -> List[Venv]:
+    """Create venv variants for testing different Python memory allocators."""
+    import ctypes
+    
+    allocator_configs = [
+        {
+            "name_suffix": "pymalloc",
+            "env": {"PYTHONMALLOC": "pymalloc"},
+            "description": "Python's default small object allocator"
+        },
+        {
+            "name_suffix": "malloc", 
+            "env": {"PYTHONMALLOC": "malloc"},
+            "description": "System malloc allocator"
+        },
+        {
+            "name_suffix": "malloc-debug",
+            "env": {"PYTHONMALLOC": "malloc_debug"},
+            "description": "System malloc with debug hooks"
+        },
+        {
+            "name_suffix": "pymalloc-debug",
+            "env": {"PYTHONMALLOC": "pymalloc_debug"}, 
+            "description": "Python malloc with debug hooks"
+        }
+    ]
+    
+    # Conditionally add jemalloc variant if the library is available
+    jemalloc_names = [
+        "libjemalloc.so.2",    # Ubuntu/Debian
+        "libjemalloc.so.1",    # Older versions
+        "libjemalloc.so",      # Generic
+        "libjemalloc.dylib",   # macOS (though less common)
+    ]
+    
+    for lib_name in jemalloc_names:
+        try:
+            # Try to load jemalloc library (OSError is raised if not found)
+            ctypes.CDLL(lib_name)
+
+            allocator_configs.append({
+                "name_suffix": "jemalloc",
+                "env": {
+                    "PYTHONMALLOC": "malloc",
+                    "LD_PRELOAD": lib_name
+                },
+                "description": "jemalloc high-performance allocator"
+            })
+
+            break
+        except (OSError, AttributeError):
+            # Library not found or ctypes issue - try next name
+            continue
+    
+    venvs = []
+    for config in allocator_configs:
+        venvs.append(Venv(
+            name=f"profile-v2-{config['name_suffix']}",
+            command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling_v2",
+            pys=select_pys(),
+            env=config["env"],
+            pkgs=_profile_v2_pkgs
+        ))
+    
+    return venvs
+
+
+# Common package configuration for profiling v2 tests
+_profile_v2_pkgs = {
+    "gunicorn": latest,
+    "jsonschema": latest,
+    "lz4": latest,
+    "pytest-cpp": latest,
+    "pytest-benchmark": latest,
+    "py-cpuinfo": "~=8.0.0",
+    "pytest-asyncio": "==0.21.1",
+    "pytest-randomly": latest,
+}
+
 # Common venv configurations for appsec threats testing
 _appsec_threats_iast_variants = [
     Venv(
@@ -3291,21 +3370,17 @@ venv = Venv(
             env={
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
                 "CPUCOUNT": "12",
+                # Default values for memory allocator testing - can be overridden with --pass-env
+                "PYTHONMALLOC": "pymalloc",
             },
-            pkgs={
-                "gunicorn": latest,
-                "jsonschema": latest,
-                "lz4": latest,
-                "pytest-cpp": latest,
-                #
-                # pytest-benchmark depends on cpuinfo which dropped support for Python<=3.6 in 9.0
-                # See https://github.com/workhorsy/py-cpuinfo/issues/177
-                "pytest-benchmark": latest,
-                "py-cpuinfo": "~=8.0.0",
-                "pytest-asyncio": "==0.21.1",
-                "pytest-randomly": latest,
-            },
+            pkgs=_profile_v2_pkgs,
             venvs=[
+                Venv(
+                    command="python -m pytest {cmdargs} tests/profiling_v2/test_uwsgi.py",
+                    pys=select_pys(),
+                    pkgs={"uwsgi": "<2.0.30"},
+                ),
+                *create_memory_allocator_venvs(),
                 # Python 3.8 + 3.9
                 Venv(
                     pys=["3.8", "3.9"],

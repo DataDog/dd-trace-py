@@ -50,7 +50,7 @@ def test_memory_collector(tmp_path):
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
 
-    ddup.config(
+    ddup.config(  # pyright: ignore[reportCallIssue]
         service=test_name,
         version="test",
         env="test",
