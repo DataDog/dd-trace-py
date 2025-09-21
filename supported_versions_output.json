@@ -624,7 +624,7 @@
         "dependency": "sqlalchemy",
         "integration": "sqlalchemy",
         "minimum_tracer_supported": "1.3.24",
-        "max_tracer_supported": "2.0.40",
+        "max_tracer_supported": "2.0.43",
         "auto-instrumented": false
     },
     {

@@ -86,7 +86,7 @@ requests,requests,2.20.1,2.32.3,True
 rq,rq,1.8.1,1.16.2,True
 sanic,sanic,20.12.7,24.6.0,True
 snowflake-connector-python,snowflake,2.3.10,3.12.2,False
-sqlalchemy,sqlalchemy,1.3.24,2.0.40,False
+sqlalchemy,sqlalchemy,1.3.24,2.0.43,False
 pysqlite3-binary,sqlite3,0.5.2.post3,0.5.2.post3,True
 starlette,starlette,0.14.2,0.47.1,True
 structlog,structlog,20.2.0,24.4.0,True
