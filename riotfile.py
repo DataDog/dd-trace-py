@@ -3173,6 +3173,18 @@ venv = Venv(
             },
             pys=select_pys(min_version="3.8"),
         ),
+
+        Venv(
+            name="vllm",
+            command="pytest {cmdargs} tests/contrib/vllm",
+            pkgs={
+                "pytest-asyncio": "==0.21.1",
+                "pytest-randomly": latest,
+                "torch": latest,
+                "vllm": "==0.10.1",
+            },
+            pys=select_pys(min_version="3.10"),
+        ),
         Venv(
             name="valkey",
             command="pytest {cmdargs} tests/contrib/valkey",

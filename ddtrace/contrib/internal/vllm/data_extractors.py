@@ -27,6 +27,7 @@ class RequestData:
     sampling_params: Optional[SamplingParams] = None
     input_: Optional[Any] = None
     num_embeddings: Optional[int] = None
+    seed: Optional[int] = None
 
 
 # ---------- small utilities --------------------------------------------------

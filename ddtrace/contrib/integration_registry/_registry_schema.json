@@ -45,6 +45,10 @@
             "type": "string",
             "pattern": "^[a-z0-9_]+$"
           },
+          "gpu": {
+            "description": "Optional: Whether tests for this integration require a GPU runner.",
+            "type": "boolean"
+          },
           "is_external_package": {
             "description": "True if this instruments an external PyPI package, False for stdlib/internal/testing.",
             "type": "boolean"

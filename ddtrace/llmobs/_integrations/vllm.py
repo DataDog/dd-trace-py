@@ -53,7 +53,7 @@ class VLLMIntegration(BaseLLMIntegration):
         "encoding_format",
         "finish_reason",
         "stop_reason",
-        "lora_name"
+        "lora_name",
     }
 
     # ----- base tags ---------------------------------------------------------

@@ -693,6 +693,14 @@
         "auto-instrumented": true
     },
     {
+        "dependency": "vllm",
+        "integration": "vllm",
+        "minimum_tracer_supported": "0.10.1",
+        "max_tracer_supported": "0.10.1",
+        "pinned": "true",
+        "auto-instrumented": true
+    },
+    {
         "dependency": "yaaredis",
         "integration": "yaaredis",
         "minimum_tracer_supported": "2.0.4",

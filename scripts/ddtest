@@ -9,7 +9,12 @@ then
     CMD=bash
 fi
 
-docker compose run \
+COMPOSE_FILES=("-f" "/home/ubuntu/dd-trace-py/docker-compose.yml")
+if command -v nvidia-smi >/dev/null 2>&1; then
+    COMPOSE_FILES+=("-f" "/home/ubuntu/dd-trace-py/docker-compose.gpu.yml")
+fi
+
+docker compose ${COMPOSE_FILES[@]} run \
        -e DD_TRACE_AGENT_URL \
        --rm \
        -i \

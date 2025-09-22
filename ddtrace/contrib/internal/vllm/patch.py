@@ -49,7 +49,7 @@ def _safe_wrap(mod: str, name: str, wrapper) -> bool:
         return False
 
 
-def _safe_unwrap(mod: str, name: str) -> bool:
+def _safe_unwrap(mod, name: str) -> bool:
     try:
         unwrap(mod, name)
         return True
@@ -462,15 +462,15 @@ def unpatch():
 
     vllm._datadog_patch = False
 
-    _safe_unwrap("vllm.v1.engine.async_llm", "AsyncLLM.generate")
-    _safe_unwrap("vllm.v1.engine.async_llm", "AsyncLLM.encode")
-    _safe_unwrap("vllm.entrypoints.llm", "LLM.generate")
-    _safe_unwrap("vllm.entrypoints.llm", "LLM.encode")
-    _safe_unwrap("vllm.entrypoints.llm", "LLM._cross_encoding_score")
+    _safe_unwrap(vllm.v1.engine.async_llm.AsyncLLM, "generate")
+    _safe_unwrap(vllm.v1.engine.async_llm.AsyncLLM, "encode")
+    _safe_unwrap(vllm.entrypoints.llm.LLM, "generate")
+    _safe_unwrap(vllm.entrypoints.llm.LLM, "encode")
+    _safe_unwrap(vllm.entrypoints.llm.LLM, "_cross_encoding_score")
     
-    _safe_unwrap("vllm.engine.async_llm_engine", "_AsyncLLMEngine.add_request_async")
-    _safe_unwrap("vllm.engine.llm_engine", "LLMEngine.add_request")
-    _safe_unwrap("vllm.engine.multiprocessing.client", "MQLLMEngineClient._process_request")
-    _safe_unwrap("vllm.engine.llm_engine", "LLMEngine.do_tracing")
+    _safe_unwrap(vllm.engine.async_llm_engine._AsyncLLMEngine, "add_request_async")
+    _safe_unwrap(vllm.engine.llm_engine.LLMEngine, "add_request")
+    _safe_unwrap(vllm.engine.multiprocessing.client.MQLLMEngineClient, "_process_request")
+    _safe_unwrap(vllm.engine.llm_engine.LLMEngine, "do_tracing")
 
     delattr(vllm, "_datadog_integration")

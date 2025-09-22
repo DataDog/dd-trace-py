@@ -29,10 +29,13 @@ class JobSpec:
     allow_failure: bool = False
     paths: t.Optional[t.Set[str]] = None  # ignored
     only: t.Optional[t.Set[str]] = None  # ignored
+    gpu: bool = False
 
     def __str__(self) -> str:
         lines = []
         base = f".test_base_{self.runner}"
+        if self.gpu:
+            base += "_gpu"
         if self.snapshot:
             base += "_snapshot"
 
@@ -125,6 +128,24 @@ def gen_required_suites() -> None:
 
     suites = suitespec.get_suites()
 
+    # Load GPU-enabled integrations from registry
+    gpu_integrations: t.Set[str] = set()
+    try:
+        import yaml  # type: ignore
+        registry_path = ROOT / "ddtrace" / "contrib" / "integration_registry" / "registry.yaml"
+        with registry_path.open("r", encoding="utf-8") as f:
+            reg = yaml.safe_load(f) or {}
+            for entry in reg.get("integrations", []) or []:
+                try:
+                    if entry.get("gpu") is True:
+                        name = str(entry.get("integration_name", "")).strip()
+                        if name:
+                            gpu_integrations.add(name)
+                except Exception:
+                    continue
+    except Exception:
+        gpu_integrations = set()
+
     required_suites: t.List[str] = []
 
     for_each_testrun_needed(
@@ -156,6 +177,9 @@ def gen_required_suites() -> None:
         # Store the stage in the suite config for later use
         suite_config["_stage"] = stage
         suite_config["_clean_name"] = clean_name
+        # Mark GPU requirement if the clean suite name matches a GPU integration
+        if clean_name in gpu_integrations:
+            suite_config["gpu"] = True
 
     # Sort stages: setup first, then alphabetically
     sorted_stages = ["setup"] + sorted(stages - {"setup"})

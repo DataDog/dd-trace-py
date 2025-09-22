@@ -38,6 +38,13 @@ You can access it by running
 
     $ scripts/ddtest
 
+GPU testing (vLLM)
+------------------
+
+vLLM tests require a GPU. Locally, ``scripts/ddtest`` will automatically pass ``--gpus all`` to Docker when a compatible GPU runtime is detected (``nvidia-smi`` present). If no GPU is available, vLLM tests are automatically skipped via ``tests/contrib/vllm/conftest.py``.
+
+On CI, suites with GPU requirements are executed on GPU runners automatically. This is driven by the integration registry flag ``gpu: true`` (set for ``vllm``), which routes those jobs to GPU-enabled templates.
+
 Some of our test suites are managed with Riot, others with Hatch.
 
 You can run riot and hatch commands in the test runner container with commands like these:

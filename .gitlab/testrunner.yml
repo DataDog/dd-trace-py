@@ -1,5 +1,6 @@
 variables:
   TESTRUNNER_IMAGE: registry.ddbuild.io/dd-trace-py:v73166438-4077fc2-testrunner-2025.08.08@sha256:456e32d2fdc19569fb34d705d1ccf193c179cc5364d1f93e60f825d189647c3d
+  TESTRUNNER_GPU_IMAGE: ${TESTRUNNER_IMAGE}
 
 .testrunner:
   image:
@@ -14,6 +15,26 @@ variables:
     - git config --global --add safe.directory ${CI_PROJECT_DIR}
     - pyenv global 3.12 3.8 3.9 3.10 3.11 3.13
     - export _CI_DD_AGENT_URL=http://${HOST_IP}:8126/
+  retry: 2
+  artifacts:
+    reports:
+      junit: test-results/junit*.xml
+
+.testrunner_gpu:
+  image:
+    name: ${TESTRUNNER_GPU_IMAGE}
+    docker:
+      user: bits
+  # Use GPU-enabled runners
+  tags: [ "gpu:a10-amd64" ]
+  timeout: 40m
+  before_script:
+    - ulimit -c unlimited
+    - git config --global --add safe.directory ${CI_PROJECT_DIR}
+    - pyenv global 3.12 3.8 3.9 3.10 3.11 3.13
+    - export _CI_DD_AGENT_URL=http://${HOST_IP}:8126/
+    - export NVIDIA_VISIBLE_DEVICES=all
+    - export NVIDIA_DRIVER_CAPABILITIES=compute,utility
   retry: 2
   artifacts:
     reports:
