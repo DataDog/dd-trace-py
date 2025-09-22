@@ -74,6 +74,8 @@ except ImportError:
 import distutils.ccompiler
 import distutils.errors
 
+from ddtrace.settings._config import _get_env
+
 WIN = sys.platform.startswith("win32") and "mingw" not in sysconfig.get_platform()
 MACOS = sys.platform.startswith("darwin")
 STD_TMPL = "/std:c++{}" if WIN else "-std=c++{}"
@@ -150,8 +152,8 @@ class Pybind11Extension(_Extension):
             cflags += ["/EHsc", "/bigobj"]
         else:
             cflags += ["-fvisibility=hidden"]
-            env_cflags = os.environ.get("CFLAGS", "")
-            env_cppflags = os.environ.get("CPPFLAGS", "")
+            env_cflags = _get_env("CFLAGS", "")
+            env_cppflags = _get_env("CPPFLAGS", "")
             c_cpp_flags = shlex.split(env_cflags) + shlex.split(env_cppflags)
             if not any(opt.startswith("-g") for opt in c_cpp_flags):
                 cflags += ["-g0"]
@@ -171,9 +173,7 @@ class Pybind11Extension(_Extension):
     @cxx_std.setter
     def cxx_std(self, level: int) -> None:
         if self._cxx_level:
-            warnings.warn(
-                "You cannot safely change the cxx_level after setting it!", stacklevel=2
-            )
+            warnings.warn("You cannot safely change the cxx_level after setting it!", stacklevel=2)
 
         # MSVC 2015 Update 3 and later only have 14 (and later 17) modes, so
         # force a valid flag here.
@@ -188,7 +188,7 @@ class Pybind11Extension(_Extension):
         cflags = [STD_TMPL.format(level)]
         ldflags = []
 
-        if MACOS and "MACOSX_DEPLOYMENT_TARGET" not in os.environ:
+        if MACOS and _get_env("MACOSX_DEPLOYMENT_TARGET") is None:
             # C++17 requires a higher min version of macOS. An earlier version
             # (10.12 or 10.13) can be set manually via environment variable if
             # you are careful in your feature usage, but 10.14 is the safest
@@ -287,9 +287,7 @@ class build_ext(_build_ext):  # noqa: N801
         super().build_extensions()
 
 
-def intree_extensions(
-    paths: Iterable[str], package_dir: Optional[Dict[str, str]] = None
-) -> List[Pybind11Extension]:
+def intree_extensions(paths: Iterable[str], package_dir: Optional[Dict[str, str]] = None) -> List[Pybind11Extension]:
     """
     Generate Pybind11Extensions from source files directly located in a Python
     source tree.
@@ -320,10 +318,7 @@ def intree_extensions(
                 exts.append(Pybind11Extension(qualified_name, [path]))
                 break
         else:
-            msg = (
-                f"path {path} is not a child of any of the directories listed "
-                f"in 'package_dir' ({package_dir})"
-            )
+            msg = f"path {path} is not a child of any of the directories listed " f"in 'package_dir' ({package_dir})"
             raise ValueError(msg)
 
     return exts
@@ -447,7 +442,7 @@ class ParallelCompile:
 
             # Determine the number of compilation threads, unless set by an environment variable.
             if self.envvar is not None:
-                threads = int(os.environ.get(self.envvar, self.default))
+                threads = int(_get_env(self.envvar, self.default))
 
             def _single_compile(obj: Any) -> None:
                 try:
