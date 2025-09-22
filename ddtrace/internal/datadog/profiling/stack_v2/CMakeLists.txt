@@ -35,7 +35,7 @@ endif()
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
-if(NOT Threads_FOUND OR NOT CMAKE_USE_PTHREADSINIT)
+if(NOT Threads_FOUND OR NOT CMAKE_USE_PTHREADS_INIT)
     message(FATAL_ERROR "pthread compatible library not found")
 endif()
 
