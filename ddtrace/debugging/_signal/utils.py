@@ -330,4 +330,11 @@ def capture_value(
     elif len(fields) > maxfields:
         data["notCapturedReason"] = "fieldCount"
 
+    if _isinstance(value, BaseException):
+        # DEV: Celery doesn't like that we store references to these objects so we
+        # delete them as soon as we're done with them.
+        for attr in ("args", "__cause__", "__context__", "__suppress_context__"):
+            if attr in fields:
+                del fields[attr]
+
     return data
