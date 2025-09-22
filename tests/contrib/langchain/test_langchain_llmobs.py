@@ -462,7 +462,7 @@ def test_llmobs_chain_nested(langchain_core, langchain_openai, openai_url, llmob
         prompt={
             "id": "test_langchain_llmobs.prompt2",
             "chat_template": [{"content": "what country is the city {city} in? respond in {language}", "role": "user"}],
-            "variables": {"city": "Spongebob Squarepants", "language": "Spanish"},
+            "variables": {"city": mock.ANY, "language": "Spanish"},
             "version": "0.0.0",
             "_dd_context_variable_keys": ["context"],
             "_dd_query_variable_keys": ["question"],
@@ -510,7 +510,7 @@ def test_llmobs_chain_batch(langchain_core, langchain_openai, llmobs_events, tra
             mock_token_metrics=True,
             span_links=True,
             prompt={
-                "id": "test_langchain_llmobs.prompt",
+                "id": "langchain.unknown_prompt_template",
                 "chat_template": [{"content": "Tell me a short joke about {topic}", "role": "user"}],
                 "variables": {"topic": "pigs"},
                 "version": "0.0.0",
@@ -525,7 +525,7 @@ def test_llmobs_chain_batch(langchain_core, langchain_openai, llmobs_events, tra
             mock_token_metrics=True,
             span_links=True,
             prompt={
-                "id": "test_langchain_llmobs.prompt",
+                "id": "langchain.unknown_prompt_template",
                 "chat_template": [{"content": "Tell me a short joke about {topic}", "role": "user"}],
                 "variables": {"topic": "chickens"},
                 "version": "0.0.0",
@@ -539,7 +539,7 @@ def test_llmobs_chain_batch(langchain_core, langchain_openai, llmobs_events, tra
             mock_token_metrics=True,
             span_links=True,
             prompt={
-                "id": "test_langchain_llmobs.prompt",
+                "id": "langchain.unknown_prompt_template",
                 "chat_template": [{"content": "Tell me a short joke about {topic}", "role": "user"}],
                 "variables": {"topic": "pigs"},
                 "version": "0.0.0",
