@@ -6,7 +6,7 @@ import os.path
 import sys
 import time
 import types
-import typing
+from typing import Any, Callable, Dict, Optional, Tuple, Type
 
 import wrapt
 
@@ -19,8 +19,7 @@ from ddtrace.settings.profiling import config
 from ddtrace.trace import Tracer
 
 
-def _current_thread():
-    # type: (...) -> typing.Tuple[int, str]
+def _current_thread() -> Tuple[int, str]:
     thread_id = _thread.get_ident()
     return thread_id, _threading.get_thread_name(thread_id)
 
@@ -42,8 +41,8 @@ else:
 class _ProfiledLock(wrapt.ObjectProxy):
     def __init__(
         self,
-        wrapped: typing.Any,
-        tracer: typing.Optional[Tracer],
+        wrapped: Any,
+        tracer: Optional[Tracer],
         max_nframes: int,
         capture_sampler: collector.CaptureSampler,
         endpoint_collection_enabled: bool,
@@ -56,15 +55,15 @@ class _ProfiledLock(wrapt.ObjectProxy):
         frame = sys._getframe(2 if WRAPT_C_EXT else 3)
         code = frame.f_code
         self._self_init_loc = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
-        self._self_name: typing.Optional[str] = None
+        self._self_name: Optional[str] = None
 
-    def __aenter__(self, *args, **kwargs):
+    def __aenter__(self, *args: Any, **kwargs: Any) -> Any:
         return self._acquire(self.__wrapped__.__aenter__, *args, **kwargs)
 
-    def __aexit__(self, *args, **kwargs):
+    def __aexit__(self, *args: Any, **kwargs: Any) -> Any:
         return self._release(self.__wrapped__.__aexit__, *args, **kwargs)
 
-    def _acquire(self, inner_func, *args, **kwargs):
+    def _acquire(self, inner_func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         if not self._self_capture_sampler.capture():
             return inner_func(*args, **kwargs)
 
@@ -106,11 +105,10 @@ class _ProfiledLock(wrapt.ObjectProxy):
             except Exception:
                 pass  # nosec
 
-    def acquire(self, *args, **kwargs):
+    def acquire(self, *args: Any, **kwargs: Any) -> Any:
         return self._acquire(self.__wrapped__.acquire, *args, **kwargs)
 
-    def _release(self, inner_func, *args, **kwargs):
-        # type (typing.Any, typing.Any) -> None
+    def _release(self, inner_func: Any, *args: Any, **kwargs: Any) -> None:
 
         # The underlying threading.Lock class is implemented using C code, and
         # it doesn't have the __dict__ attribute. So we can't do
@@ -162,18 +160,18 @@ class _ProfiledLock(wrapt.ObjectProxy):
                     handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
                 handle.flush_sample()
 
-    def release(self, *args, **kwargs):
+    def release(self, *args: Any, **kwargs: Any) -> Any:
         return self._release(self.__wrapped__.release, *args, **kwargs)
 
     acquire_lock = acquire
 
-    def __enter__(self, *args, **kwargs):
+    def __enter__(self, *args: Any, **kwargs: Any) -> Any:
         return self._acquire(self.__wrapped__.__enter__, *args, **kwargs)
 
-    def __exit__(self, *args, **kwargs):
+    def __exit__(self, *args: Any, **kwargs: Any) -> None:
         self._release(self.__wrapped__.__exit__, *args, **kwargs)
 
-    def _find_self_name(self, var_dict: typing.Dict):
+    def _find_self_name(self, var_dict: Dict[str, Any]) -> Optional[str]:
         for name, value in var_dict.items():
             if name.startswith("__") or isinstance(value, types.ModuleType):
                 continue
@@ -188,7 +186,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
     # Get lock acquire/release call location and variable name the lock is assigned to
     # This function propagates ValueError if the frame depth is <= 3.
-    def _maybe_update_self_name(self):
+    def _maybe_update_self_name(self) -> None:
         if self._self_name is not None:
             return
         # We expect the call stack to be like this:
@@ -223,60 +221,58 @@ class FunctionWrapper(wrapt.FunctionWrapper):
     # Override the __get__ method: whatever happens, _allocate_lock is always considered by Python like a "static"
     # method, even when used as a class attribute. Python never tried to "bind" it to a method, because it sees it is a
     # builtin function. Override default wrapt behavior here that tries to detect bound method.
-    def __get__(self, instance, owner=None):
+    def __get__(self, instance: Any, owner: Optional[Type] = None) -> "FunctionWrapper":
         return self
 
 
 class LockCollector(collector.CaptureSamplerCollector):
     """Record lock usage."""
 
+    PROFILED_LOCK_CLASS: Type[_ProfiledLock]
+
+    PROFILED_LOCK_CLASS: Type[_ProfiledLock]
+
+    PROFILED_LOCK_CLASS: Type[_ProfiledLock]
+
+    PROFILED_LOCK_CLASS: Type[_ProfiledLock]
+
     def __init__(
         self,
-        nframes=config.max_frames,
-        endpoint_collection_enabled=config.endpoint_collection,
-        tracer=None,
-        *args,
-        **kwargs,
-    ):
+        nframes: int = config.max_frames,
+        endpoint_collection_enabled: bool = config.endpoint_collection,
+        tracer: Optional[Tracer] = None,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(*args, **kwargs)
-        self.nframes = nframes
-        self.endpoint_collection_enabled = endpoint_collection_enabled
-        self.tracer = tracer
-        self._original = None
+        self.nframes: int = nframes
+        self.endpoint_collection_enabled: bool = endpoint_collection_enabled
+        self.tracer: Optional[Tracer] = tracer
+        self._original: Optional[Any] = None
 
     @abc.abstractmethod
-    def _get_patch_target(self):
-        # type: (...) -> typing.Any
-        pass
+    def _get_patch_target(self) -> Callable[..., Any]: ...
 
     @abc.abstractmethod
-    def _set_patch_target(
-        self,
-        value,  # type: typing.Any
-    ):
-        # type: (...) -> None
-        pass
+    def _set_patch_target(self, value: Any) -> None: ...
 
-    def _start_service(self):
-        # type: (...) -> None
+    def _start_service(self) -> None:
         """Start collecting lock usage."""
         self.patch()
         super(LockCollector, self)._start_service()  # type: ignore[safe-super]
 
-    def _stop_service(self):
-        # type: (...) -> None
+    def _stop_service(self) -> None:
         """Stop collecting lock usage."""
         super(LockCollector, self)._stop_service()  # type: ignore[safe-super]
         self.unpatch()
 
-    def patch(self):
-        # type: (...) -> None
+    def patch(self) -> None:
         """Patch the module for tracking lock allocation."""
         # We only patch the lock from the `threading` module.
         # Nobody should use locks from `_thread`; if they do so, then it's deliberate and we don't profile.
         self._original = self._get_patch_target()
 
-        def _allocate_lock(wrapped, instance, args, kwargs):
+        def _allocate_lock(wrapped: Any, instance: Any, args: Any, kwargs: Any) -> _ProfiledLock:
             lock = wrapped(*args, **kwargs)
             return self.PROFILED_LOCK_CLASS(
                 lock,
@@ -288,7 +284,6 @@ class LockCollector(collector.CaptureSamplerCollector):
 
         self._set_patch_target(FunctionWrapper(self._original, _allocate_lock))
 
-    def unpatch(self):
-        # type: (...) -> None
+    def unpatch(self) -> None:
         """Unpatch the threading module for tracking lock allocation."""
         self._set_patch_target(self._original)
