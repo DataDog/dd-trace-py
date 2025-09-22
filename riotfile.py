@@ -220,6 +220,8 @@ venv = Venv(
             pkgs={
                 "requests": latest,
                 "pylibmc": latest,
+                "PyYAML": latest,
+                "dill": latest,
                 "bcrypt": "==4.2.1",
                 "pytest-django[testing]": "==3.10.0",
             },

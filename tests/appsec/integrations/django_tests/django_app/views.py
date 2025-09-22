@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 from pathlib import PosixPath
+import pickle
 import shlex
 import subprocess
 import time
@@ -26,6 +27,7 @@ from django.views.decorators.csrf import csrf_exempt
 import requests
 from requests.exceptions import ConnectionError  # noqa: A004
 import urllib3
+import yaml
 
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
@@ -105,6 +107,25 @@ def weak_hash_view(request):
     m.update(b"Nobody inspects")
     m.update(b" the spammish repetition")
     m.digest()
+    return HttpResponse("OK", status=200)
+
+
+def untrusted_serialization_yaml_load_view(request):
+    """Endpoint to exercise UNTRUSTED_SERIALIZATION via yaml.load.
+
+    Uses UnsafeLoader when available to match unsafe execution behavior.
+    """
+    user_input = request.GET.get("input", "")
+    # label untrusted_serialization_yaml_load
+    yaml.load(user_input, Loader=getattr(yaml, "UnsafeLoader", None))
+    return HttpResponse("OK", status=200)
+
+
+def untrusted_serialization_yaml_safe_load_view(request):
+    """Endpoint using yaml.safe_load; should not report untrusted serialization."""
+    user_input = request.GET.get("input", "")
+    # label untrusted_serialization_yaml_safe_load
+    yaml.safe_load(user_input)
     return HttpResponse("OK", status=200)
 
 
@@ -400,7 +421,6 @@ def command_injection_subprocess(request):
     # label iast_command_injection_subprocess
     subp = subprocess.Popen(args=[cmd, "-la", filename], shell=True)
     subp.communicate()
-    subp.wait()
     return HttpResponse("OK", status=200)
 
 
@@ -444,6 +464,52 @@ def vulnerable_request_downstream(request):
     http_poolmanager.clear()
 
     return HttpResponse(response.data, status=200, content_type="application/json")
+
+
+def untrusted_serialization_yaml_view(request):
+    """Endpoint to exercise UNTRUSTED_SERIALIZATION via YAML loaders.
+
+    Uses a tainted query parameter and yaml.unsafe_load to trigger the sink.
+    """
+    user_input = request.GET.get("input", "")
+    # label untrusted_serialization_yaml_view
+    yaml.unsafe_load(user_input)
+    return HttpResponse("OK", status=200)
+
+
+def untrusted_serialization_pickle_view(request):
+    """Endpoint to exercise pickle.loads with user input.
+
+    Note: We convert the string to bytes. Current IAST may not propagate taint
+    through encode, so Django integration test is a smoke test (no vuln expected).
+    """
+    user_input = request.GET.get("input", "")
+    data = user_input.encode("utf-8", "ignore")
+    try:
+        # label untrusted_serialization_pickle
+        pickle.loads(data)
+    except Exception:
+        pass
+    return HttpResponse("OK", status=200)
+
+
+def untrusted_serialization_dill_view(request):
+    """Endpoint to exercise dill.loads with user input.
+
+    Dill is optional; if not installed, we handle gracefully. As with pickle,
+    encode may drop taint, so treat as smoke test in integration.
+    """
+    import dill  # type: ignore
+
+    user_input = request.GET.get("input", "")
+    data = user_input.encode("utf-8", "ignore")
+
+    try:
+        # label untrusted_serialization_dill
+        dill.loads(data)
+    except Exception:
+        pass
+    return HttpResponse("OK", status=200)
 
 
 def command_injection_secure_mark(request):
