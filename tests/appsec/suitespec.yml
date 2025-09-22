@@ -109,7 +109,15 @@ suites:
   appsec_integrations_packages:
     env:
       TEST_POSTGRES_HOST: postgres
+      TEST_POSTGRES_USER: postgres
+      TEST_POSTGRES_PASSWORD: postgres
+      TEST_POSTGRES_DB: postgres
+      TEST_POSTGRES_PORT: 5432
       TEST_MYSQL_HOST: mysql
+      TEST_MYSQL_USER: test
+      TEST_MYSQL_PASSWORD: test
+      TEST_MYSQL_DB: test
+      TEST_MYSQL_PORT: 3306
     parallelism: 6
     paths:
       - '@bootstrap'
