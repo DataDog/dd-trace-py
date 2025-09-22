@@ -1,7 +1,7 @@
 [[
   {
     "name": "ray.job",
-    "service": "raysubmit_adr9j9h8CKhLtJtU",
+    "service": "simple_wait",
     "resource": "ray.job",
     "trace_id": 0,
     "span_id": 1,
@@ -34,7 +34,7 @@
   },
      {
        "name": "ray.job.submit",
-       "service": "raysubmit_adr9j9h8CKhLtJtU",
+       "service": "simple_wait",
        "resource": "ray.job.submit",
        "trace_id": 0,
        "span_id": 2,
@@ -59,7 +59,7 @@
      },
      {
        "name": "JobSupervisor.run.remote()",
-       "service": "raysubmit_adr9j9h8CKhLtJtU",
+       "service": "simple_wait",
        "resource": "JobSupervisor.run.remote()",
        "trace_id": 0,
        "span_id": 3,
@@ -88,7 +88,7 @@
      },
         {
           "name": "JobSupervisor.run",
-          "service": "raysubmit_adr9j9h8CKhLtJtU",
+          "service": "simple_wait",
           "resource": "JobSupervisor.run",
           "trace_id": 0,
           "span_id": 4,
@@ -127,7 +127,7 @@
         },
            {
              "name": "JobSupervisor._get_driver_env_vars",
-             "service": "raysubmit_adr9j9h8CKhLtJtU",
+             "service": "simple_wait",
              "resource": "JobSupervisor._get_driver_env_vars",
              "trace_id": 0,
              "span_id": 5,
@@ -159,7 +159,7 @@
            },
               {
                 "name": "JobSupervisor._get_driver_runtime_env",
-                "service": "raysubmit_adr9j9h8CKhLtJtU",
+                "service": "simple_wait",
                 "resource": "JobSupervisor._get_driver_runtime_env",
                 "trace_id": 0,
                 "span_id": 9,
@@ -191,7 +191,7 @@
               },
            {
              "name": "exec simple_wait.py",
-             "service": "raysubmit_adr9j9h8CKhLtJtU",
+             "service": "simple_wait",
              "resource": "exec simple_wait.py",
              "trace_id": 0,
              "span_id": 6,
@@ -221,7 +221,7 @@
            },
            {
              "name": "__main__.add_one.remote()",
-             "service": "raysubmit_adr9j9h8CKhLtJtU",
+             "service": "simple_wait",
              "resource": "__main__.add_one.remote()",
              "trace_id": 0,
              "span_id": 7,
@@ -261,7 +261,7 @@
            },
               {
                 "name": "__main__.add_one",
-                "service": "raysubmit_adr9j9h8CKhLtJtU",
+                "service": "simple_wait",
                 "resource": "__main__.add_one",
                 "trace_id": 0,
                 "span_id": 10,
@@ -302,7 +302,7 @@
               },
            {
              "name": "ray.wait",
-             "service": "raysubmit_adr9j9h8CKhLtJtU",
+             "service": "simple_wait",
              "resource": "ray.wait",
              "trace_id": 0,
              "span_id": 8,

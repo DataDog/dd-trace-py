@@ -2,6 +2,7 @@ import inspect
 from inspect import Parameter
 from inspect import Signature
 import os
+import re
 import sys
 from typing import Any
 from typing import Callable
@@ -22,6 +23,15 @@ from .constants import RAY_SUBMISSION_ID
 from .constants import RAY_SUBMISSION_ID_TAG
 from .constants import RAY_TASK_ID
 from .constants import RAY_WORKER_ID
+
+
+# The job name regex serves to convert a submission ID in the format job:train_my_model,run:1758573287
+# to the job name train_my_model
+JOB_NAME_REGEX = re.compile(r"^job\:([A-Za-z0-9_\.\-]+),run:([A-Za-z0-9_\.\-]+)$")
+# The entry point regex is intended to extract the name of the Python script from a Ray entrypoint,
+# for example, if the entrypoint is python3 woof.py --breed mutt
+# then the job name will be woof
+ENTRY_POINT_REGEX = re.compile(r"([^\s\/\\]+)\.py")
 
 
 def _inject_dd_trace_ctx_kwarg(method: Callable) -> Signature:
@@ -177,3 +187,25 @@ def is_cython(obj):
 
     # Check if function or method, respectively
     return check_cython(obj) or (hasattr(obj, "__func__") and check_cython(obj.__func__))
+
+
+def get_dd_job_name_from_submission_id(submission_id: str):
+    """
+    Get the job name from the submission id.
+    If the submission id is set but not in a job:test,run:3 format, return the default job name.
+    If the submission id is not set, return None.
+    """
+    match = JOB_NAME_REGEX.match(submission_id)
+    if match:
+        return match.group(1)
+    return None
+
+
+def get_dd_job_name_from_entrypoint(entrypoint: str):
+    """
+    Get the job name from the entrypoint.
+    """
+    match = ENTRY_POINT_REGEX.search(entrypoint)
+    if match:
+        return match.group(1)
+    return None
