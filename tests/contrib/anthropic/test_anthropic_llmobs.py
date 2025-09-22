@@ -665,7 +665,12 @@ class TestLLMObsAnthropic:
                 + " the location is fully specified. We can proceed with calling the get_weather tool.\n</thinking>",
                 "type": "text",
             },
-            {"name": "get_weather", "input": {"location": "San Francisco, CA"}, "id": "toolu_01DYJo37oETVsCdLTTcCWcdq", "type": "tool_use"},
+            {
+                "name": "get_weather",
+                "input": {"location": "San Francisco, CA"},
+                "id": "toolu_01DYJo37oETVsCdLTTcCWcdq",
+                "type": "tool_use",
+            },
         ]
 
         traces = mock_tracer.pop_traces()
