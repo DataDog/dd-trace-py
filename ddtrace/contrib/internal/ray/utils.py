@@ -12,6 +12,10 @@ import ray
 from ray.runtime_context import get_runtime_context
 
 from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
+from ddtrace.constants import _DJM_ENABLED_KEY
+from ddtrace.constants import _FILTER_KEPT_KEY
+from ddtrace.constants import _SAMPLING_PRIORITY_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.propagation.http import _TraceContext
 
 from .constants import DD_TRACE_CTX
@@ -71,30 +75,36 @@ def _extract_tracing_context_from_env():
     return None
 
 
-def _inject_ray_span_tags(span):
-    runtime_context = get_runtime_context()
-
+def _inject_ray_span_tags_and_metrics(span):
     span.set_tag_str("component", "ray")
-    span.set_tag_str(RAY_JOB_ID, runtime_context.get_job_id())
-    span.set_tag_str(RAY_NODE_ID, runtime_context.get_node_id())
-    span.set_tag_str(RAY_PID, str(os.getpid()))
-
-    worker_id = runtime_context.get_worker_id()
-    if worker_id is not None:
-        span.set_tag_str(RAY_WORKER_ID, worker_id)
-
-    if runtime_context.worker.mode == ray._private.worker.WORKER_MODE:
-        task_id = runtime_context.get_task_id()
-        if task_id is not None:
-            span.set_tag_str(RAY_TASK_ID, task_id)
-
-    actor_id = runtime_context.get_actor_id()
-    if actor_id is not None:
-        span.set_tag_str(RAY_ACTOR_ID, actor_id)
+    span.set_metric(_DJM_ENABLED_KEY, 1)
+    span.set_metric(_FILTER_KEPT_KEY, 1)
+    span.set_metric(_SPAN_MEASURED_KEY, 1)
+    span.set_metric(_SAMPLING_PRIORITY_KEY, 2)
 
     submission_id = os.environ.get(RAY_SUBMISSION_ID)
     if submission_id is not None:
         span.set_tag_str(RAY_SUBMISSION_ID_TAG, submission_id)
+
+    if ray.is_initialized():
+        runtime_context = get_runtime_context()
+
+        span.set_tag_str(RAY_JOB_ID, runtime_context.get_job_id())
+        span.set_tag_str(RAY_NODE_ID, runtime_context.get_node_id())
+        span.set_tag_str(RAY_PID, str(os.getpid()))
+
+        worker_id = runtime_context.get_worker_id()
+        if worker_id is not None:
+            span.set_tag_str(RAY_WORKER_ID, worker_id)
+
+        if runtime_context.worker.mode == ray._private.worker.WORKER_MODE:
+            task_id = runtime_context.get_task_id()
+            if task_id is not None:
+                span.set_tag_str(RAY_TASK_ID, task_id)
+
+        actor_id = runtime_context.get_actor_id()
+        if actor_id is not None:
+            span.set_tag_str(RAY_ACTOR_ID, actor_id)
 
 
 def set_maybe_big_tag(span, tag_name, tag_value):

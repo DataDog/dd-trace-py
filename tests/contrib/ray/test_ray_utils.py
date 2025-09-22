@@ -6,11 +6,7 @@ def test_get_dd_job_name_from_submission_id():
     assert (
         get_dd_job_name_from_submission_id("job:frobnitzigate_idiosyncrasies,run:38") == "frobnitzigate_idiosyncrasies"
     )
-    assert (
-        get_dd_job_name_from_submission_id("joe.schmoe-cf32445c3b2842958956ba6b6225ad")
-        == "joe.schmoe-cf32445c3b2842958956ba6b6225ad"
-    )
-    assert get_dd_job_name_from_submission_id("mortar.clustering.pipeline") == "mortar.clustering.pipeline"
+    assert get_dd_job_name_from_submission_id("joe.schmoe-cf32445c3b2842958956ba6b6225ad") is None
     assert get_dd_job_name_from_submission_id("") is None
 
 

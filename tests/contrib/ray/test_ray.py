@@ -68,7 +68,6 @@ class TestRayIntegration(TracerTestCase):
     def setUpClass(cls):
         super(TestRayIntegration, cls).setUpClass()
 
-        os.environ["_DD_TRACE_RAY_TESTING"] = "true"
         os.environ["DD_TRACE_RAY_REGISTER_LONG_RUNNING_THRESHOLD"] = "30"
 
         try:

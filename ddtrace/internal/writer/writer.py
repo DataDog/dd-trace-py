@@ -15,7 +15,7 @@ from typing import TextIO
 
 import ddtrace
 from ddtrace import config
-from ddtrace.contrib.internal.ray import in_ray_job
+from ddtrace.internal.dist_computing.utils import in_ray_job
 import ddtrace.internal.native as native
 from ddtrace.internal.runtime import get_runtime_id
 import ddtrace.internal.utils.http

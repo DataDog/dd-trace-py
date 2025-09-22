@@ -28,8 +28,19 @@ The Ray integration can be configured using environment variables:
 
 - ``DD_TRACE_RAY_RESUBMIT_LONG_RUNNING_INTERVAL``: Interval for resubmitting long-running
     spans (default: ``120.0`` seconds)
-- ``DD_TRACE_RAY_REGISTER_LONG_RUNNING_THRESHOLD``: Maximum span duration before it is considered
-    long-runnning (default: ``10.0``seconds)
+
+Ray service name can be configured by:
+- specifiying in submission-id using job:your-job-name during job submission
+  For instance:
+  `ray job submit --submission-id="job:my_model,run:39" -- python entrypoint.py`
+
+- specifying in metadata during job sumission
+  For instance:
+  `ray job submit --metadata-json='{"job_name": "my_model"}' -- python entrypoint.py`
+
+- specifying DD_SERVICE when initializing your ray cluster.
+
+By default, the service name will be the name of your entrypoint
 
 Notes
 ~~~~~
@@ -38,14 +49,3 @@ Notes
 - The integration filters out non-Ray dashboard spans to reduce noise.
 - Actor methods like ``ping`` and ``_polling`` are excluded from tracing to reduce noise.
 """
-
-import os
-
-
-def in_ray_job():
-    # type: () -> bool
-    """Returns whether we are in a ray environemt.
-    This is accomplished by checking if the _RAY_SUBMISSION_ID environment variable is defined
-    which means a job has been submitted and is traced
-    """
-    return bool(os.environ.get("_RAY_SUBMISSION_ID", False))

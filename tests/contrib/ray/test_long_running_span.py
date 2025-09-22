@@ -14,11 +14,11 @@ class TestLongRunningSpan(TracerTestCase):
         super().setUp()
         # Override timing values to make tests run quickly
         self.original_resubmit_interval = getattr(config.ray, "resubmit_interval", 120.0)
-        self.original_register_treshold = getattr(config.ray, "register_treshold", 10.0)
+        self.original_initial_submit_threshold = getattr(config.ray, "initial_submit_threshold", 10.0)
 
         # Set fast timing for testing
         config.ray.resubmit_interval = 2  # 2s instead of 120s
-        config.ray.register_treshold = 1  # 1s instead of 10s
+        config.ray.initial_submit_threshold = 1  # 1s instead of 10s
 
         # Clear any existing spans from the job manager
         with _job_manager._lock:
@@ -29,7 +29,7 @@ class TestLongRunningSpan(TracerTestCase):
     def tearDown(self):
         # Restore original values
         config.ray.resubmit_interval = self.original_resubmit_interval
-        config.ray.register_treshold = self.original_register_treshold
+        config.ray.initial_submit_threshold = self.original_initial_submit_threshold
 
         # Clean up any remaining timers
         with _job_manager._lock:
@@ -64,7 +64,7 @@ class TestLongRunningSpan(TracerTestCase):
             job_spans = _job_manager._job_spans.get(submission_id, {})
             self.assertNotIn((span.trace_id, span.span_id), job_spans)
 
-        self.assertEqual(span.get_metric("_dd.partial_version"), -1)
+        self.assertIsNone(span.get_metric("_dd.partial_version"))
         self.assertEqual(span.get_metric("_dd.was_long_running"), 1)
         self.assertTrue(span.finished)
 
