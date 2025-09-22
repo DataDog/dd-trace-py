@@ -318,11 +318,13 @@ class TraceMiddleware:
 
                 Note:
                     - Spans are linked to the handshake span
-                    - Receive spans remain open until the next receive operation or connection close
+                    - Receive spans are finished exactly when the next receive operation starts
                 """
 
                 if not self.integration_config.trace_asgi_websocket_messages:
                     return await receive()
+
+                current_receive_span = scope.get("datadog", {}).get("current_receive_span")
 
                 with core.context_with_data(
                     "asgi.websocket.receive.message",
@@ -336,6 +338,10 @@ class TraceMiddleware:
                     call_trace=False,
                     activate=True,
                 ) as ctx:
+                    if current_receive_span:
+                        current_receive_span.finish()
+                        scope["datadog"].pop("current_receive_span", None)
+
                     recv_span = ctx.span
                     try:
                         message = await receive()
@@ -380,6 +386,16 @@ class TraceMiddleware:
                 """
                 try:
                     if (
+                        scope["type"] == "websocket"
+                        and self.integration_config.trace_asgi_websocket_messages
+                        and message.get("type") == "websocket.accept"
+                    ):
+                        # Close handshake span once connection is upgraded
+                        if span and span.error == 0:
+                            span.finish()
+                        return await send(message)
+
+                    elif (
                         scope["type"] == "websocket"
                         and self.integration_config.trace_asgi_websocket_messages
                         and message.get("type") == "websocket.send"
@@ -498,7 +514,7 @@ class TraceMiddleware:
         current_receive_span = scope.get("datadog", {}).get("current_receive_span")
 
         # Use receive span as parent if it exists, otherwise use main span
-        if current_receive_span:
+        if self.integration_config.websocket_messages_separate_traces and current_receive_span:
             parent_span = current_receive_span
         else:
             parent_span = request_span

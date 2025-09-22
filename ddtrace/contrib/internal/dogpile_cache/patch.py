@@ -11,8 +11,8 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace._trace.pin import _DD_PIN_NAME
 from ddtrace._trace.pin import _DD_PIN_PROXY_NAME
+from ddtrace._trace.pin import Pin
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.trace import Pin
 
 from .lock import _wrap_lock_ctor
 from .region import _wrap_get_create

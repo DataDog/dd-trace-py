@@ -4,10 +4,12 @@ import sqlite3
 import subprocess
 from typing import Optional
 
+from flask import Blueprint
 from flask import Flask
 from flask import request
 
 # from ddtrace.appsec.iast import ddtrace_iast_flask_patch
+from ddtrace._trace.pin import Pin
 import ddtrace.constants
 from ddtrace.trace import tracer
 from tests.webclient import PingFilter
@@ -24,9 +26,12 @@ def index():
     return "ok ASM"
 
 
-@app.route("/asm/", methods=["GET", "POST", "OPTIONS"])
-@app.route("/asm/<int:param_int>/<string:param_str>/", methods=["GET", "POST", "OPTIONS"])
-@app.route("/asm/<int:param_int>/<string:param_str>", methods=["GET", "POST", "OPTIONS"])
+asm = Blueprint("asm", __name__, url_prefix="/asm")
+
+
+@asm.route("/", methods=["GET", "POST", "OPTIONS"])
+@asm.route("/<int:param_int>/<string:param_str>/", methods=["GET", "POST", "OPTIONS"])
+@asm.route("/<int:param_int>/<string:param_str>", methods=["GET", "POST", "OPTIONS"])
 def multi_view(param_int=0, param_str=""):
     query_params = request.args.to_dict()
     body = {
@@ -40,9 +45,9 @@ def multi_view(param_int=0, param_str=""):
     headers_query = query_params.get("headers", "").split(",")
     priority = query_params.get("priority", None)
     if priority in ("keep", "drop"):
-        tracer.current_span().set_tag(
-            ddtrace.constants.MANUAL_KEEP_KEY if priority == "keep" else ddtrace.constants.MANUAL_DROP_KEY
-        )
+        span = tracer.current_span()
+        if span is not None:
+            span.set_tag(ddtrace.constants.MANUAL_KEEP_KEY if priority == "keep" else ddtrace.constants.MANUAL_DROP_KEY)
     response_headers = {}
     for header in headers_query:
         vk = header.split("=")
@@ -56,7 +61,7 @@ def multi_view(param_int=0, param_str=""):
 def new_service(service_name: str):
     import ddtrace
 
-    ddtrace.trace.Pin._override(Flask, service=service_name, tracer=ddtrace.tracer)
+    Pin._override(Flask, service=service_name, tracer=ddtrace.tracer)
     return service_name
 
 
@@ -156,6 +161,57 @@ def rasp(endpoint: str):
         return "<\\br>\n".join(res)
     tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
     return f"Unknown endpoint: {endpoint}"
+
+
+@app.route("/redirect/<string:url>/", methods=["GET", "POST"])
+def redirect(url: str):
+    import urllib.request
+
+    url = "http://" + url
+    body_str = request.data.decode()
+    if body_str:
+        body = json.loads(body_str)
+    else:
+        body = None
+    try:
+        if body:
+            request_urllib = urllib.request.Request(
+                url, method="POST", data=json.dumps(body).encode(), headers={"Content-Type": "application/json"}
+            )
+        else:
+            request_urllib = urllib.request.Request(url, method="GET")
+        with urllib.request.urlopen(request_urllib, timeout=0.5) as f:
+            payload = {"payload": f.read().decode(errors="ignore")}
+    except Exception as e:
+        import traceback
+
+        payload = {"error": repr(e), "trace": traceback.format_exc()}
+    return payload
+
+
+@app.route("/redirect_requests/<string:url>/", methods=["GET", "POST"])
+def redirect_requests(url: str):
+    import requests
+
+    full_url = "http://" + url
+    body_str = request.data.decode()
+    if body_str:
+        body = body_str
+    else:
+        body = None
+    method = "POST" if body is not None else "GET"
+    headers = {"TagHost": url}
+    if body is not None:
+        headers["Content-Type"] = "application/json"
+    try:
+        with requests.Session() as s:
+            response = s.request(method, full_url, data=body, headers=headers)
+            payload = {"payload": response.text}
+    except Exception as e:
+        import traceback
+
+        payload = {"error": repr(e), "trace": traceback.format_exc()}
+    return payload
 
 
 # Auto user event manual instrumentation
@@ -260,3 +316,6 @@ def service_renaming():
         if root_span is not None:
             root_span.service = service_name
             root_span.set_tag("scope", service_name)
+
+
+app.register_blueprint(asm)

@@ -16,6 +16,7 @@ from wrapt import FunctionWrapper
 import ddtrace
 from ddtrace import tracer
 from ddtrace.appsec._iast import ddtrace_iast_flask_patch
+from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.internal.utils.formats import asbool
 from tests.appsec.iast_packages.packages.pkg_aiohttp import pkg_aiohttp
@@ -206,8 +207,24 @@ def appsec_body_hang():
     return "OK_test-body-hang", 200
 
 
+@app.route("/iast-enabled", methods=["GET"])
+def iast_enabled():
+    """Return whether IAST request context is enabled, after an optional delay.
+
+    This endpoint mirrors the FastAPI version used in concurrency tests.
+    """
+    try:
+        delay_ms = int(request.args.get("delay_ms", "200"))
+    except Exception:
+        delay_ms = 200
+    import time as _time
+
+    _time.sleep(max(0, delay_ms) / 1000.0)
+    return Response("true" if is_iast_request_enabled() else "false")
+
+
 @app.route("/iast-cmdi-vulnerability", methods=["GET"])
-def iast_cmdi_vulnerability():
+def view_iast_iast_cmdi_vulnerability():
     filename = request.args.get("filename")
     subp = subprocess.Popen(args=["ls", "-la", filename])
     subp.communicate()
@@ -217,11 +234,40 @@ def iast_cmdi_vulnerability():
 
 
 @app.route("/iast-cmdi-vulnerability-secure", methods=["GET"])
-def view_cmdi_secure():
+def view_iast_cmdi_secure():
     filename = request.args.get("filename")
     subp = subprocess.Popen(args=["ls", "-la", shlex.quote(filename)])
     subp.wait()
     return Response("OK")
+
+
+@app.route("/iast-sqli-vulnerability-complex", methods=["GET"])
+def view_iast_sqli_complex():
+    from sqlalchemy import case
+    from sqlalchemy import create_engine
+    from sqlalchemy import func
+    from sqlalchemy import literal
+    from sqlalchemy import select
+    from sqlalchemy.orm import sessionmaker
+
+    engine = create_engine("sqlite:///:memory:")
+    Session = sessionmaker(bind=engine)
+    session = Session()
+
+    dummy_table = select(literal(1).label("dummy")).subquery()
+    # Move the expression directly into session.query
+    case_expr = case(
+        (literal(1) == literal(1), literal("1")),
+        (func.lower("Hi") == literal("hi"), literal("hi")),
+        (func.lower("Bye") == literal("bye"), literal("bye")),
+        else_=None,
+    ).label("result")
+    query = session.query(case_expr).select_from(dummy_table)
+    # Short query
+    results = query.all()
+    session.close()
+    engine.dispose()
+    return Response(f"OK: {results}")
 
 
 @app.route("/iast-unvalidated_redirect-header", methods=["GET"])

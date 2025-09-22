@@ -3,32 +3,28 @@ from collections import defaultdict
 from itertools import chain
 import logging
 from threading import RLock
-from typing import Any
 from typing import DefaultDict
 from typing import Dict
 from typing import List
 from typing import Optional
-from typing import Union
 
 from ddtrace._trace.sampler import DatadogSampler
-from ddtrace._trace.sampler import RateSampler
 from ddtrace._trace.span import Span
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.constants import _APM_ENABLED_METRIC_KEY as MK_APM_ENABLED
-from ddtrace.constants import _SAMPLING_PRIORITY_KEY
-from ddtrace.constants import USER_KEEP
+from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.internal import gitmetadata
 from ddtrace.internal import telemetry
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
 from ddtrace.internal.constants import MAX_UINT_64BITS
+from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
-from ddtrace.internal.sampling import is_single_span_sampled
 from ddtrace.internal.service import ServiceStatusError
-from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import create_trace_writer
@@ -123,28 +119,30 @@ class TraceSamplingProcessor(TraceProcessor):
         compute_stats_enabled: bool,
         single_span_rules: List[SpanSamplingRule],
         apm_opt_out: bool,
-        agent_based_samplers: Optional[dict] = None,
     ):
         super(TraceSamplingProcessor, self).__init__()
         self._compute_stats_enabled = compute_stats_enabled
         self.single_span_rules = single_span_rules
+        self.sampler = DatadogSampler()
         self.apm_opt_out = apm_opt_out
 
+    @property
+    def apm_opt_out(self):
+        return self._apm_opt_out
+
+    @apm_opt_out.setter
+    def apm_opt_out(self, value):
         # If ASM is enabled but tracing is disabled,
         # we need to set the rate limiting to 1 trace per minute
         # for the backend to consider the service as alive.
-        sampler_kwargs: Dict[str, Any] = {
-            "agent_based_samplers": agent_based_samplers,
-        }
-        if self.apm_opt_out:
-            sampler_kwargs.update(
-                {
-                    "rate_limit": 1,
-                    "rate_limit_window": 60e9,
-                    "rate_limit_always_on": True,
-                }
-            )
-        self.sampler: Union[DatadogSampler, RateSampler] = DatadogSampler(**sampler_kwargs)
+        if value:
+            self.sampler.limiter = RateLimiter(rate_limit=1, time_window=60e9)
+            self.sampler._rate_limit_always_on = True
+            log.debug("Enabling apm opt out on DatadogSampler: %s", self.sampler)
+        else:
+            self.sampler.limiter = RateLimiter(rate_limit=int(config._trace_rate_limit), time_window=1e9)
+            self.sampler._rate_limit_always_on = False
+        self._apm_opt_out = value
 
     def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         if trace:
@@ -155,36 +153,35 @@ class TraceSamplingProcessor(TraceProcessor):
                     if span._local_root_value is None:
                         span.set_metric(MK_APM_ENABLED, 0)
 
-            # only trace sample if we haven't already sampled
             if chunk_root.context.sampling_priority is None:
                 self.sampler.sample(chunk_root._local_root)
-            # When stats computation is enabled in the tracer then we can
-            # safely drop the traces. When using the NativeWriter this is handled by native code.
-            if (
-                not config._trace_writer_native
-                and self._compute_stats_enabled
-                and not self.apm_opt_out
-                and chunk_root.context.sampling_priority is not None
-                and chunk_root.context.sampling_priority <= 0
-            ):
-                # When any span is marked as keep by a single span sampling
-                # decision then we still send all and only those spans.
-                single_spans = [_ for _ in trace if is_single_span_sampled(_)]
-                return single_spans or None
+                if chunk_root.context.sampling_priority is None:
+                    # NOTE: This should never happen, `self.sampler.sample(..)` should always set the sampling priority.
+                    log.error(
+                        "DatadogSampler failed to sample trace. Local Root: %s",
+                        chunk_root._local_root,
+                    )
+                    return trace
 
-            # single span sampling rules are applied after trace sampling
-            if self.single_span_rules:
+            # single span sampling rules are applied if the trace is about to be dropped
+            if self.single_span_rules and chunk_root.context.sampling_priority <= 0:
+                single_spans = []
+                # When stats computation is enabled in the tracer then we can safely drop the traces.
+                # When using the NativeWriter this is handled by native code.
+                can_drop_trace = (
+                    not config._trace_writer_native and self._compute_stats_enabled and not self.apm_opt_out
+                )
                 for span in trace:
-                    if span.context.sampling_priority is not None and span.context.sampling_priority <= 0:
-                        for rule in self.single_span_rules:
-                            if rule.match(span):
-                                rule.sample(span)
-                                # If stats computation is enabled, we won't send all spans to the agent.
-                                # In order to ensure that the agent does not update priority sampling rates
-                                # due to single spans sampling, we set all of these spans to manual keep.
-                                if config._trace_compute_stats:
-                                    span.set_metric(_SAMPLING_PRIORITY_KEY, USER_KEEP)
-                                break
+                    for rule in self.single_span_rules:
+                        if rule.match(span):
+                            # Sampling a span here does NOT effect the sampling priotiy. This operation
+                            # simply marks a span as single-span sampled.
+                            rule.sample(span)
+                            if can_drop_trace:
+                                single_spans.append(span)
+                            break
+                if can_drop_trace:
+                    return single_spans
             return trace
         return None
 
@@ -210,6 +207,16 @@ class TopLevelSpanProcessor(SpanProcessor):
             span._metrics["_dd.top_level"] = 1  # PERF: avoid setting via Span.set_metric
 
 
+class ServiceNameProcessor(TraceProcessor):
+    """Processor that adds the service name to the globalconfig."""
+
+    def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
+        for span in trace:
+            if span.service:
+                config._add_extra_service(span.service)
+        return trace
+
+
 class TraceTagsProcessor(TraceProcessor):
     """Processor that applies trace-level tags to the trace."""
 
@@ -226,18 +233,31 @@ class TraceTagsProcessor(TraceProcessor):
         if not trace:
             return trace
 
-        chunk_root = trace[0]
-        chunk_root._update_tags_from_context()
-        self._set_git_metadata(chunk_root)
-        chunk_root.set_tag_str("language", "python")
-        # for 128 bit trace ids
-        if chunk_root.trace_id > MAX_UINT_64BITS:
-            trace_id_hob = _get_64_highest_order_bits_as_hex(chunk_root.trace_id)
-            chunk_root.set_tag_str(HIGHER_ORDER_TRACE_ID_BITS, trace_id_hob)
+        spans_to_tag = [trace[0]]
 
-        if LAST_DD_PARENT_ID_KEY in chunk_root._meta and chunk_root._parent is not None:
-            # we should only set the last parent id on local root spans
-            del chunk_root._meta[LAST_DD_PARENT_ID_KEY]
+        # When using the native writer and CSS, TraceTagsProcessor runs before dropping spans.
+        # Thus trace tags are applied to a root span which may be dropped by sampling, even though
+        # some spans of the chunk are sampled. We prevent it by adding trace tags to the first
+        # single-sampled span of the chunk.
+        if config._trace_compute_stats and config._trace_writer_native:
+            for span in trace:
+                if span.get_metric(_SINGLE_SPAN_SAMPLING_MECHANISM) == SamplingMechanism.SPAN_SAMPLING_RULE:
+                    spans_to_tag.append(span)
+                    break
+
+        for span in spans_to_tag:
+            span._update_tags_from_context()
+            self._set_git_metadata(span)
+            span.set_tag_str("language", "python")
+            # for 128 bit trace ids
+            if span.trace_id > MAX_UINT_64BITS:
+                trace_id_hob = _get_64_highest_order_bits_as_hex(span.trace_id)
+                span.set_tag_str(HIGHER_ORDER_TRACE_ID_BITS, trace_id_hob)
+
+            if LAST_DD_PARENT_ID_KEY in span._meta and span._parent is not None:
+                # we should only set the last parent id on local root spans
+                del span._meta[LAST_DD_PARENT_ID_KEY]
+
         return trace
 
 
@@ -282,6 +302,7 @@ class SpanAggregator(SpanProcessor):
         self.tags_processor = TraceTagsProcessor()
         self.dd_processors = dd_processors or []
         self.user_processors = user_processors or []
+        self.service_name_processor = ServiceNameProcessor()
         self.writer = create_trace_writer(response_callback=self._agent_response_callback)
         # Initialize the trace buffer and lock
         self._traces: DefaultDict[int, _Trace] = defaultdict(lambda: _Trace())
@@ -299,6 +320,7 @@ class SpanAggregator(SpanProcessor):
             f"{self.__class__.__name__}("
             f"{self.partial_flush_enabled}, "
             f"{self.partial_flush_min_spans}, "
+            f"{self.service_name_processor},"
             f"{self.sampling_processor},"
             f"{self.tags_processor},"
             f"{self.dd_processors}, "
@@ -318,89 +340,67 @@ class SpanAggregator(SpanProcessor):
         log.debug(self.SPAN_START_DEBUG_MESSAGE, span, len(trace.spans))
 
     def on_span_finish(self, span: Span) -> None:
+        # Acquire lock to get finished and update trace.spans
         with self._lock:
             integration_name = span._meta.get(COMPONENT, span._span_api)
             self._span_metrics["spans_finished"][integration_name] += 1
 
-            # Calling finish on a span that we did not see the start for
-            # DEV: This can occur if the SpanAggregator is recreated while there is a span in progress
-            #      e.g. `tracer.configure()` is called after starting a span
             if span.trace_id not in self._traces:
-                log_msg = "finished span not connected to a trace"
-                telemetry.telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.ERROR, log_msg)
-                log.debug("%s: %s", log_msg, span)
                 return
 
             trace = self._traces[span.trace_id]
             num_buffered = len(trace.spans)
             trace.num_finished += 1
             should_partial_flush = self.partial_flush_enabled and trace.num_finished >= self.partial_flush_min_spans
-            if trace.num_finished == num_buffered or should_partial_flush:
-                trace_spans = trace.spans
-                trace.spans = []
-                if trace.num_finished < num_buffered:
-                    finished = []
-                    for s in trace_spans:
-                        if s.finished:
-                            finished.append(s)
-                        else:
-                            trace.spans.append(s)
-                else:
-                    finished = trace_spans
+            is_trace_complete = trace.num_finished >= len(trace.spans)
+            if not is_trace_complete and not should_partial_flush:
+                return
 
-                num_finished = len(finished)
-                trace.num_finished -= num_finished
-                if trace.num_finished != 0:
-                    log_msg = "unexpected finished span count"
-                    telemetry.telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.ERROR, log_msg)
-                    log.debug("%s (%s) for span %s", log_msg, num_finished, span)
-                    trace.num_finished = 0
-
-                # If we have removed all spans from this trace, then delete the trace from the traces dict
-                if len(trace.spans) == 0:
-                    del self._traces[span.trace_id]
-
-                # No spans to process, return early
+            if not is_trace_complete:
+                finished = [s for s in trace.spans if s.finished]
                 if not finished:
                     return
-
-                # Set partial flush tag on the first span
-                if should_partial_flush:
-                    finished[0]._metrics[
-                        "_dd.py.partial_flush"
-                    ] = num_finished  # PERF: avoid setting via Span.set_metric
-
-                spans: Optional[List[Span]] = finished
-                for tp in chain(
-                    self.dd_processors, self.user_processors, [self.sampling_processor, self.tags_processor]
-                ):
-                    try:
-                        if spans is None:
-                            return
-                        spans = tp.process_trace(spans)
-                    except Exception:
-                        log.error("error applying processor %r", tp, exc_info=True)
-
+                trace.spans[:] = [s for s in trace.spans if not s.finished]  # In-place update
+                trace.num_finished = 0
+            else:
+                finished = trace.spans
+                del self._traces[span.trace_id]
+                # perf: Flush span finish metrics to the telemetry writer after the trace is complete
                 self._queue_span_count_metrics("spans_finished", "integration_name")
-                if spans is not None:
-                    for span in spans:
-                        if span.service:
-                            # report extra service name as it may have been set after the span creation by the customer
-                            config._add_extra_service(span.service)
 
-                    log.debug(
-                        self.SPAN_FINISH_DEBUG_MESSAGE,
-                        len(spans),
-                        num_buffered,
-                        num_finished - len(spans),
-                        num_buffered - num_finished,
-                        span.trace_id,
-                        spans[0].name,
-                        should_partial_flush,
-                    )
-                    self.writer.write(spans)
-                return
-            return None
+        num_finished = len(finished)
+        if should_partial_flush:
+            # FIXME(munir): should_partial_flush should return false if all the spans in the trace are finished.
+            # For example if partial flushing min spans is 10 and the trace has 10 spans, the trace should
+            # not have a partial flush metric. This trace was processed in its entirety.
+            finished[0].set_metric("_dd.py.partial_flush", num_finished)
+
+        # perf: Process spans outside of the span aggregator lock
+        spans = finished
+        for tp in chain(
+            self.dd_processors,
+            self.user_processors,
+            [self.sampling_processor, self.tags_processor, self.service_name_processor],
+        ):
+            try:
+                spans = tp.process_trace(spans) or []
+                if not spans:
+                    return
+            except Exception:
+                log.error("error applying processor %r to trace %d", tp, span.trace_id, exc_info=True)
+
+        if spans:
+            log.debug(
+                self.SPAN_FINISH_DEBUG_MESSAGE,
+                len(spans),
+                num_buffered,
+                num_finished - len(spans),
+                num_buffered - num_finished,
+                spans[0].trace_id,
+                spans[0].name,
+                should_partial_flush,
+            )
+            self.writer.write(spans)
 
     def _agent_response_callback(self, resp: AgentResponse) -> None:
         """Handle the response from the agent.
@@ -478,25 +478,19 @@ class SpanAggregator(SpanProcessor):
         This method is typically used after a process fork or during runtime reconfiguration.
         Arguments that are None will not override existing values.
         """
+        if not reset_buffer:
+            # Flush any encoded spans in the writer's buffer. This operation ensures encoded spans
+            # are not dropped when the writer is recreated. This operation should not be handled after a fork.
+            self.writer.flush_queue()
         # Re-create the writer to ensure it is consistent with updated configurations (ex: api_version)
         self.writer = self.writer.recreate(appsec_enabled=appsec_enabled)
 
-        # Recreate the sampling processor using new or existing config values.
-        # If an argument is None, the current value is preserved.
-        if compute_stats is None:
-            compute_stats = self.sampling_processor._compute_stats_enabled
-        if apm_opt_out is None:
-            apm_opt_out = self.sampling_processor.apm_opt_out
-        self.sampling_processor = TraceSamplingProcessor(
-            compute_stats,
-            get_span_sampling_rules(),
-            apm_opt_out,
-            self.sampling_processor.sampler._agent_based_samplers
-            if isinstance(self.sampling_processor.sampler, DatadogSampler)
-            else None,
-        )
+        if compute_stats is not None:
+            self.sampling_processor._compute_stats_enabled = compute_stats
 
-        # Update user processors if provided.
+        if apm_opt_out is not None:
+            self.sampling_processor.apm_opt_out = apm_opt_out
+
         if user_processors is not None:
             self.user_processors = user_processors
 

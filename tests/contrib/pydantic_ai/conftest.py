@@ -3,10 +3,12 @@ import os
 import pytest
 import vcr
 
+from ddtrace._trace.pin import Pin
+from ddtrace.contrib.internal.openai.patch import patch as patch_openai
+from ddtrace.contrib.internal.openai.patch import unpatch as unpatch_openai
 from ddtrace.contrib.internal.pydantic_ai.patch import patch
 from ddtrace.contrib.internal.pydantic_ai.patch import unpatch
 from ddtrace.llmobs import LLMObs as llmobs_service
-from ddtrace.trace import Pin
 from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.utils import DummyTracer
 from tests.utils import override_global_config
@@ -42,6 +44,18 @@ def pydantic_ai(ddtrace_global_config, monkeypatch):
 
         yield pydantic_ai
         unpatch()
+
+
+@pytest.fixture
+def openai_patched(mock_tracer):
+    patch_openai()
+    import openai
+
+    pin = Pin.get_from(openai)
+    pin._override(openai, tracer=mock_tracer)
+
+    yield openai
+    unpatch_openai()
 
 
 @pytest.fixture

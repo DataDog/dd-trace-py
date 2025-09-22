@@ -5,6 +5,7 @@ from typing import Dict
 import anthropic
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.anthropic._streaming import handle_streamed_response
 from ddtrace.contrib.internal.anthropic._streaming import is_streaming_operation
 from ddtrace.contrib.internal.trace_utils import unwrap
@@ -12,7 +13,6 @@ from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations import AnthropicIntegration
-from ddtrace.trace import Pin
 
 
 log = get_logger(__name__)

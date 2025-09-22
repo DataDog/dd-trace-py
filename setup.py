@@ -47,7 +47,23 @@ from urllib.request import urlretrieve
 
 HERE = Path(__file__).resolve().parent
 
-COMPILE_MODE = "Release"
+CURRENT_OS = platform.system()
+
+# What's meant by each build mode is similar to that from CMake, except that
+# non-CMake extensions are by default built with debug symbols. And we build
+# with Release by default for Windows.
+# Released wheels on Linux and macOS are stripped of debug symbols. We use
+# scripts/extract_debug_symbols.py to extract the debug symbols from the wheels.
+# C/C++ and Cython extensions built with setuptools.Extension, and
+# Cython.Distutils.Extension by default inherits CFLAGS from the Python
+# interpreter, and it usually has -O3 -g. So they're built with debug symbols
+# by default.
+# RustExtension src/native has two build profiles, release and debug, and only
+# DD_COMPILE_MODE=Debug will build with debug profile, and rest will build with
+# release profile, which also has debug symbols by default.
+# And when MinSizeRel or Release is used, we strip the debug symbols from the
+# wheels, see try_strip_symbols() below.
+COMPILE_MODE = "Release" if CURRENT_OS == "Windows" else "RelWithDebInfo"
 if "DD_COMPILE_DEBUG" in os.environ:
     warnings.warn(
         "The DD_COMPILE_DEBUG environment variable is deprecated and will be deleted, "
@@ -55,7 +71,7 @@ if "DD_COMPILE_DEBUG" in os.environ:
     )
     COMPILE_MODE = "Debug"
 else:
-    COMPILE_MODE = os.environ.get("DD_COMPILE_MODE", "Release")
+    COMPILE_MODE = os.environ.get("DD_COMPILE_MODE", COMPILE_MODE)
 
 FAST_BUILD = os.getenv("DD_FAST_BUILD", "false").lower() in ("1", "yes", "on", "true")
 if FAST_BUILD:
@@ -81,7 +97,7 @@ BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.27.0"
+LIBDDWAF_VERSION = "1.28.0"
 
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
 # libdatadog v15.0.0 requires rust 1.78.
@@ -340,9 +356,15 @@ class LibraryDownload:
                 # Darwin Universal2 should bundle both architectures
                 if target_platform and not target_platform.endswith(("universal2", arch)):
                     continue
-            elif CURRENT_OS == "Windows" and (not is_64_bit_python() != arch.endswith("32")):
-                # Win32 can be built on a 64-bit machine so build_platform may not be relevant
-                continue
+            elif CURRENT_OS == "Windows":
+                if arch == "win32" and is_64_bit_python():
+                    continue  # Skip 32-bit builds on 64-bit Python
+                elif arch in ["x64", "arm64"] and not is_64_bit_python():
+                    continue  # Skip 64-bit builds on 32-bit Python
+                elif arch == "arm64" and platform.machine().lower() not in ["arm64", "aarch64"]:
+                    continue  # Skip ARM64 builds on non-ARM64 machines
+                elif arch == "x64" and platform.machine().lower() not in ["amd64", "x86_64"]:
+                    continue  # Skip x64 builds on non-x64 machines
 
             arch_dir = download_dir / arch
 
@@ -428,7 +450,7 @@ class LibDDWafDownload(LibraryDownload):
     version = LIBDDWAF_VERSION
     url_root = "https://github.com/DataDog/libddwaf/releases/download"
     available_releases = {
-        "Windows": ["win32", "x64"],
+        "Windows": ["arm64", "win32", "x64"],
         "Darwin": ["arm64", "x86_64"],
         "Linux": ["aarch64", "x86_64"],
     }
@@ -614,7 +636,7 @@ class CustomBuildExt(build_ext):
         cmake_args += [
             "-S{}".format(ext.source_dir),  # cmake>=3.13
             "-B{}".format(cmake_build_dir),  # cmake>=3.13
-            "-DPython3_ROOT_DIR={}".format(sysconfig.get_config_var("prefix")),
+            "-DPython3_ROOT_DIR={}".format(sys.prefix),
             "-DPYTHON_EXECUTABLE={}".format(sys.executable),
             "-DCMAKE_BUILD_TYPE={}".format(ext.build_type),
             "-DLIB_INSTALL_DIR={}".format(output_dir),
@@ -661,9 +683,16 @@ class CustomBuildExt(build_ext):
 
         # platform/version-specific arguments--may go into cmake, build, or install as needed
         if CURRENT_OS == "Windows":
-            cmake_args += [
-                "-A{}".format("x64" if platform.architecture()[0] == "64bit" else "Win32"),
-            ]
+            arch = platform.machine().lower()
+            if arch in ("amd64", "x86_64"):
+                cmake_arch = "x64"
+            elif arch in ("x86", "i386", "i686"):
+                cmake_arch = "Win32"
+            elif arch == "arm64":
+                cmake_arch = "ARM64"
+            else:
+                raise RuntimeError(f"Unsupported architecture: {arch}")
+            cmake_args += [f"-A{cmake_arch}"]
         if CURRENT_OS == "Darwin":
             # Cross-compile support for macOS - respect ARCHFLAGS if set
             # Darwin Universal2 should bundle both architectures

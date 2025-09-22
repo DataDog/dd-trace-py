@@ -46,6 +46,8 @@ SAMPLING_MECHANISM_CONSTANTS = {
     "-{}".format(value) for name, value in vars(SamplingMechanism).items() if name.isupper()
 }
 
+KNUTH_SAMPLE_RATE_KEY = "_dd.p.ksr"
+
 SpanSamplingRules = TypedDict(
     "SpanSamplingRules",
     {
@@ -235,11 +237,6 @@ def _check_unsupported_pattern(string: str) -> None:
             raise ValueError("Unsupported Glob pattern found, character:%r is not supported" % char)
 
 
-def is_single_span_sampled(span):
-    # type: (Span) -> bool
-    return span.get_metric(_SINGLE_SPAN_SAMPLING_MECHANISM) == SamplingMechanism.SPAN_SAMPLING_RULE
-
-
 def _set_sampling_tags(span: Span, sampled: bool, sample_rate: float, mechanism: int) -> None:
     # Set the sampling mechanism once but never overwrite an existing tag
     if not span.context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
@@ -252,8 +249,10 @@ def _set_sampling_tags(span: Span, sampled: bool, sample_rate: float, mechanism:
         SamplingMechanism.REMOTE_DYNAMIC_TRACE_SAMPLING_RULE,
     ):
         span.set_metric(_SAMPLING_RULE_DECISION, sample_rate)
+        span.set_tag_str(KNUTH_SAMPLE_RATE_KEY, f"{sample_rate:.6g}")
     elif mechanism == SamplingMechanism.AGENT_RATE_BY_SERVICE:
         span.set_metric(_SAMPLING_AGENT_DECISION, sample_rate)
+        span.set_tag_str(KNUTH_SAMPLE_RATE_KEY, f"{sample_rate:.6g}")
     # Set the sampling priority
     priorities = SAMPLING_MECHANISM_TO_PRIORITIES[mechanism]
     priority_index = _KEEP_PRIORITY_INDEX if sampled else _REJECT_PRIORITY_INDEX

@@ -160,7 +160,6 @@ components:
     - ddtrace/contrib/internal/redis/*
     - ddtrace/contrib/internal/aredis/*
     - ddtrace/contrib/internal/yaaredis/*
-    - ddtrace/_trace/utils_redis.py
     - ddtrace/contrib/internal/redis_utils.py
     - ddtrace/ext/redis.py
   requests:
@@ -349,7 +348,7 @@ suites:
     runner: riot
     snapshot: true
   azure_functions:
-    parallelism: 2
+    parallelism: 4
     paths:
       - '@bootstrap'
       - '@core'
@@ -358,14 +357,31 @@ suites:
       - '@azure_functions'
       - tests/contrib/azure_functions/*
       - tests/snapshots/tests.contrib.azure_functions.*
+    pattern: ^azure_functions$
     runner: riot
     snapshot: true
     services:
       - azurite
-      - azureservicebusemulator
+  azure_functions:servicebus:
+    parallelism: 4
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@azure_functions'
+      - '@azure_servicebus'
+      - tests/contrib/azure_functions_servicebus/*
+      - tests/snapshots/tests.contrib.azure_functions_servicebus.*
+    pattern: azure_functions:servicebus
+    runner: riot
+    snapshot: true
+    services:
+      - azurite
       - azuresqledge
+      - azureservicebusemulator
   azure_servicebus:
-    parallelism: 1
+    parallelism: 4
     paths:
       - '@bootstrap'
       - '@core'
@@ -377,8 +393,8 @@ suites:
     runner: riot
     snapshot: true
     services:
-      - azureservicebusemulator
       - azuresqledge
+      - azureservicebusemulator
   botocore:
     parallelism: 11
     paths:

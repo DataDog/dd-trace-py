@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from ddtrace._trace.pin import Pin
 import ddtrace.constants
 from ddtrace.trace import tracer
 
@@ -46,7 +47,7 @@ def get_app():
         With middlewares, the BlockingException can become nested multiple levels deep inside
         an ExceptionGroup (or BaseExceptionGroup). The nesting depends the version of FastAPI
         and AnyIO used, as well as the version of python.
-        By adding this empty middleware, we ensure that the BlockingException is catched
+        By adding this empty middleware, we ensure that the BlockingException is caught
         no matter how deep the ExceptionGroup is nested or else the contrib tests fail.
         """
         return await call_next(request)
@@ -62,16 +63,16 @@ def get_app():
 
         return await call_next(request)
 
-    @app.get("/")
-    @app.post("/")
-    @app.options("/")
+    @app.get("/", response_class=HTMLResponse, status_code=200)
+    @app.post("/", response_class=HTMLResponse, status_code=200)
+    @app.options("/", response_class=HTMLResponse, status_code=200)
     async def read_homepage():  # noqa: B008
-        return HTMLResponse("ok ASM", 200)
+        return "ok ASM"
 
-    @app.get("/asm/{param_int:int}/{param_str:str}/")
-    @app.post("/asm/{param_int:int}/{param_str:str}/")
-    @app.get("/asm/{param_int:int}/{param_str:str}")
-    @app.post("/asm/{param_int:int}/{param_str:str}")
+    @app.get("/asm/{param_int:int}/{param_str:str}/", response_class=JSONResponse)
+    @app.post("/asm/{param_int:int}/{param_str:str}/", response_class=JSONResponse)
+    @app.get("/asm/{param_int:int}/{param_str:str}", response_class=JSONResponse)
+    @app.post("/asm/{param_int:int}/{param_str:str}", response_class=JSONResponse)
     async def multi_view(param_int: int, param_str: str, request: Request):  # noqa: B008
         query_params = dict(request.query_params)
         body = {
@@ -128,13 +129,13 @@ def get_app():
     async def new_service(service_name: str, request: Request):  # noqa: B008
         import ddtrace
 
-        ddtrace.trace.Pin._override(app, service=service_name, tracer=ddtrace.tracer)
+        Pin._override(app, service=service_name, tracer=ddtrace.tracer)
         return HTMLResponse(service_name, 200)
 
     async def slow_numbers(minimum, maximum):
         for number in range(minimum, maximum):
             yield "%d" % number
-            await asyncio.sleep(0.25)
+            await asyncio.sleep(0.0625)
 
     @app.get("/stream/")
     async def stream():
@@ -165,6 +166,7 @@ def get_app():
         elif endpoint == "ssrf":
             res = ["ssrf endpoint"]
             for param in query_params:
+                urlname = ""
                 if param.startswith("url"):
                     urlname = query_params[param]
                     if not urlname.startswith("http"):
@@ -173,18 +175,18 @@ def get_app():
                     if param.startswith("url_urlopen_request"):
                         import urllib.request
 
-                        request = urllib.request.Request(urlname)
-                        with urllib.request.urlopen(request, timeout=0.15) as f:
+                        request_urllib = urllib.request.Request(urlname, method="GET")
+                        with urllib.request.urlopen(request_urllib, timeout=0.5) as f:
                             res.append(f"Url: {f.read()}")
                     elif param.startswith("url_urlopen_string"):
                         import urllib.request
 
-                        with urllib.request.urlopen(urlname, timeout=0.15) as f:
+                        with urllib.request.urlopen(urlname, timeout=0.5) as f:
                             res.append(f"Url: {f.read()}")
                     elif param.startswith("url_requests"):
                         import requests
 
-                        r = requests.get(urlname, timeout=0.15)
+                        r = requests.get(urlname, timeout=0.5)
                         res.append(f"Url: {r.text}")
                 except Exception as e:
                     res.append(f"Error: {e}")
@@ -223,19 +225,78 @@ def get_app():
                 if param.startswith("cmda"):
                     cmd = query_params[param]
                     try:
-                        res.append(f"cmd stdout: {subprocess.run([cmd, '-c', '3', 'localhost'], timeout=1)}")
+                        res.append(f"cmd stdout: {subprocess.run([cmd, '-c', '3', 'localhost'], timeout=0.25)}")
                     except Exception as e:
                         res.append(f"Error: {e}")
                 elif param.startswith("cmds"):
                     cmd = query_params[param]
                     try:
-                        res.append(f"cmd stdout: {subprocess.run(cmd, timeout=1)}")
+                        res.append(f"cmd stdout: {subprocess.run(cmd, timeout=0.25)}")
                     except Exception as e:
                         res.append(f"Error: {e}")
             tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
             return HTMLResponse("<\\br>\n".join(res))
         tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
         return HTMLResponse(f"Unknown endpoint: {endpoint}")
+
+    @app.get("/redirect/{url:str}/", response_class=JSONResponse)
+    async def redirect_get(url: str, request: Request):
+        import urllib.request
+
+        url = "http://" + url
+        try:
+            request_urllib = urllib.request.Request(url, method="GET")
+            with urllib.request.urlopen(request_urllib, timeout=0.5) as f:
+                payload = {"payload": f.read()}
+        except Exception as e:
+            payload = {"error": repr(e)}
+        return payload
+
+    @app.post("/redirect/{url:str}/", response_class=JSONResponse)
+    async def redirect_post(url: str, request: Request):
+        import urllib.request
+
+        url = "http://" + url
+        try:
+            request_urllib = urllib.request.Request(
+                url, method="POST", data=(await request.body()), headers={"Content-Type": "application/json"}
+            )
+            with urllib.request.urlopen(request_urllib, timeout=0.5) as f:
+                payload = {"payload": f.read()}
+        except Exception as e:
+            payload = {"error": repr(e)}
+        return payload
+
+    @app.get("/redirect_requests/{url:str}/", response_class=JSONResponse)
+    async def redirect_requests_get(url: str, request: Request):
+        import requests
+
+        full_url = "http://" + url
+        try:
+            with requests.Session() as s:
+                response = s.get(full_url, timeout=0.5, headers={"TagHost": url})
+                payload = {"payload": response.text}
+        except Exception as e:
+            payload = {"error": repr(e)}
+        return payload
+
+    @app.post("/redirect_requests/{url:str}/", response_class=JSONResponse)
+    async def redirect_requests_post(url: str, request: Request):
+        import requests
+
+        full_url = "http://" + url
+        try:
+            with requests.Session() as s:
+                response = s.post(
+                    full_url,
+                    data=(await request.body()),
+                    headers={"Content-Type": "application/json", "TagHost": url},
+                    timeout=0.5,
+                )
+                payload = {"payload": response.text}
+        except Exception as e:
+            payload = {"error": repr(e)}
+        return payload
 
     @app.get("/login/")
     async def login_user(request: Request):

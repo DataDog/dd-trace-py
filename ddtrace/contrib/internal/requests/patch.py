@@ -5,11 +5,11 @@ import requests
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.trace import Pin
 
 from .connection import _wrap_send
 from .session import TracedSession
