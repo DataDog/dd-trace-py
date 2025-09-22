@@ -12,7 +12,7 @@ from ._logger import configure_ddtrace_logger
 # configure ddtrace logger before other modules log
 configure_ddtrace_logger()  # noqa: E402
 
-from .settings._config import config
+from .settings._config import config, _get_env
 
 
 # Enable telemetry writer and excepthook as early as possible to ensure we capture any exceptions from initialization
@@ -29,7 +29,7 @@ from .version import get_version  # noqa: E402
 __version__ = get_version()
 
 # TODO: Deprecate accessing tracer from ddtrace.__init__ module in v4.0
-if os.environ.get("_DD_GLOBAL_TRACER_INIT", "true").lower() in ("1", "true"):
+if _get_env("_DD_GLOBAL_TRACER_INIT", "true").lower() in ("1", "true"):
     from ddtrace.trace import tracer  # noqa: F401
 
 __all__ = [
