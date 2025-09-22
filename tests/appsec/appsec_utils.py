@@ -92,6 +92,60 @@ def flask_server(
 
 
 @contextmanager
+def gunicorn_django_server(
+    use_ddtrace_cmd: bool = True,
+    appsec_enabled: str = "true",
+    iast_enabled: str = "false",
+    remote_configuration_enabled: str = "true",
+    tracer_enabled: str = "true",
+    apm_tracing_enabled: str = "true",
+    token: str | None = None,
+    port: int = 8000,
+    workers: str = "1",
+    use_threads: bool = False,
+    use_gevent: bool = False,
+    assert_debug: bool = False,
+    env: dict | None = None,
+):
+    """Run the Django test application under Gunicorn.
+
+    Uses the WSGI application at
+    ``tests.appsec.integrations.django_tests.django_app.wsgi:application``.
+    Mirrors options supported by gunicorn_flask_server.
+    """
+    cmd = ["gunicorn", "-w", workers, "--log-level", "debug"]
+    if use_ddtrace_cmd:
+        cmd = ["python", "-m", "ddtrace.commands.ddtrace_run"] + cmd
+    if use_threads:
+        cmd += ["--threads", "1"]
+    if use_gevent:
+        cmd += ["-k", "gevent"]
+    cmd += [
+        "-b",
+        f"0.0.0.0:{port}",
+        "tests.appsec.integrations.django_tests.django_app.wsgi:application",
+    ]
+    # Ensure Django settings are set for WSGI
+    extra_env = {
+        "DJANGO_SETTINGS_MODULE": "tests.appsec.integrations.django_tests.django_app.settings",
+    }
+    if env:
+        extra_env.update(env)
+    yield from appsec_application_server(
+        cmd,
+        appsec_enabled=appsec_enabled,
+        iast_enabled=iast_enabled,
+        apm_tracing_enabled=apm_tracing_enabled,
+        remote_configuration_enabled=remote_configuration_enabled,
+        tracer_enabled=tracer_enabled,
+        token=token,
+        env=extra_env,
+        port=port,
+        assert_debug=assert_debug,
+    )
+
+
+@contextmanager
 def django_server(
     python_cmd="python",
     appsec_enabled="false",

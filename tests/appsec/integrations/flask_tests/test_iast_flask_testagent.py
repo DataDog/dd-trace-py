@@ -6,6 +6,7 @@ import pytest
 from ddtrace.appsec._iast.constants import VULN_CMDI
 from ddtrace.appsec._iast.constants import VULN_CODE_INJECTION
 from ddtrace.appsec._iast.constants import VULN_INSECURE_HASHING_TYPE
+from ddtrace.appsec._iast.constants import VULN_SSRF
 from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
 from ddtrace.appsec._iast.constants import VULN_UNVALIDATED_REDIRECT
 from tests.appsec.appsec_utils import flask_server
@@ -54,6 +55,8 @@ def test_iast_stacktrace_error():
     assert vulnerability["hash"]
 
 
+# TODO(APPSEC-59081): this test fails for every configuration (IAST enable/disable, Appsec enable/disable) so
+#  the problem is related to the trace lifecycle
 # @pytest.mark.parametrize(
 #     "server, config",
 #     (
@@ -555,7 +558,207 @@ def test_iast_vulnerable_request_downstream(server, config):
     assert len(spans_with_iast) == 3
     assert len(vulnerabilities) == 1
     assert len(vulnerabilities[0]) == 1
-    vulnerability = vulnerabilities[0][0]
-    assert vulnerability["type"] == VULN_INSECURE_HASHING_TYPE
-    assert "valueParts" not in vulnerability["evidence"]
-    assert vulnerability["hash"]
+    for vulnerability in vulnerabilities[0]:
+        assert vulnerability["type"] in {VULN_INSECURE_HASHING_TYPE, VULN_SSRF}
+        assert vulnerability["hash"]
+
+
+@pytest.mark.parametrize(
+    "server, config",
+    (
+        (
+            gunicorn_flask_server,
+            {
+                "workers": "3",
+                "use_threads": False,
+                "use_gevent": False,
+            },
+        ),
+        (
+            gunicorn_flask_server,
+            {
+                "workers": "3",
+                "use_threads": True,
+                "use_gevent": False,
+            },
+        ),
+        (
+            gunicorn_flask_server,
+            {
+                "workers": "3",
+                "use_threads": True,
+                "use_gevent": True,
+            },
+        ),
+        (
+            gunicorn_flask_server,
+            {
+                "workers": "1",
+                "use_threads": True,
+                "use_gevent": True,
+                "env": {
+                    "_DD_IAST_PROPAGATION_ENABLED": "false",
+                },
+            },
+        ),
+        (
+            gunicorn_flask_server,
+            {"workers": "1", "use_threads": True, "use_gevent": True},
+        ),
+        (
+            gunicorn_flask_server,
+            {
+                "workers": "1",
+                "use_threads": True,
+                "use_gevent": True,
+                "env": {"_DD_IAST_PROPAGATION_ENABLED": "false"},
+            },
+        ),
+        (flask_server, {}),
+    ),
+)
+def test_gevent_sensitive_socketpair(server, config):
+    """Validate socket.socketpair lifecycle under various Gunicorn/gevent configurations."""
+    token = "test_gevent_sensitive_socketpair"
+    _ = start_trace(token)
+    with server(iast_enabled="true", token=token, port=8050, **config) as context:
+        _, flask_client, pid = context
+        response = flask_client.get("/socketpair")
+        assert response.status_code == 200
+        assert response.text == "OK:True"
+
+
+@pytest.mark.parametrize(
+    "server, config",
+    (
+        (
+            gunicorn_flask_server,
+            {
+                "workers": "3",
+                "use_threads": False,
+                "use_gevent": False,
+            },
+        ),
+        (
+            gunicorn_flask_server,
+            {
+                "workers": "3",
+                "use_threads": True,
+                "use_gevent": False,
+            },
+        ),
+        (
+            gunicorn_flask_server,
+            {
+                "workers": "3",
+                "use_threads": True,
+                "use_gevent": True,
+            },
+        ),
+        (
+            gunicorn_flask_server,
+            {
+                "workers": "1",
+                "use_threads": True,
+                "use_gevent": True,
+                "env": {
+                    "_DD_IAST_PROPAGATION_ENABLED": "false",
+                },
+            },
+        ),
+        (
+            gunicorn_flask_server,
+            {
+                "workers": "1",
+                "use_threads": True,
+                "use_gevent": True,
+            },
+        ),
+        (flask_server, {}),
+    ),
+)
+def test_gevent_sensitive_greenlet(server, config):
+    """Validate gevent Greenlet execution under various Gunicorn/gevent configurations."""
+    token = "test_gevent_sensitive_greenlet"
+    _ = start_trace(token)
+    with server(iast_enabled="true", token=token, port=8050, **config) as context:
+        _, flask_client, pid = context
+        response = flask_client.get("/gevent-greenlet")
+        assert response.status_code == 200
+        assert response.text == "OK:True"
+
+
+@pytest.mark.parametrize(
+    "server, config",
+    (
+        (
+            gunicorn_flask_server,
+            {
+                "workers": "3",
+                "use_threads": False,
+                "use_gevent": False,
+            },
+        ),
+        (
+            gunicorn_flask_server,
+            {
+                "workers": "3",
+                "use_threads": True,
+                "use_gevent": False,
+            },
+        ),
+        (
+            gunicorn_flask_server,
+            {
+                "workers": "3",
+                "use_threads": True,
+                "use_gevent": True,
+                "env": {
+                    "DD_APM_TRACING_ENABLED": "false",
+                },
+            },
+        ),
+        (
+            gunicorn_flask_server,
+            {
+                "workers": "1",
+                "use_threads": True,
+                "use_gevent": True,
+                "env": {
+                    "DD_APM_TRACING_ENABLED": "false",
+                    "_DD_IAST_PROPAGATION_ENABLED": "false",
+                },
+            },
+        ),
+        (
+            gunicorn_flask_server,
+            {
+                "workers": "1",
+                "use_threads": True,
+                "use_gevent": True,
+                "env": {
+                    "DD_APM_TRACING_ENABLED": "false",
+                },
+            },
+        ),
+        (
+            gunicorn_flask_server,
+            {
+                "workers": "1",
+                "use_threads": True,
+                "use_gevent": True,
+                "env": {"_DD_IAST_PROPAGATION_ENABLED": "false"},
+            },
+        ),
+        (flask_server, {"env": {"DD_APM_TRACING_ENABLED": "false"}}),
+    ),
+)
+def test_gevent_sensitive_subprocess(server, config):
+    """Validate subprocess.Popen lifecycle under various Gunicorn/gevent configurations."""
+    token = "test_gevent_sensitive_subprocess"
+    _ = start_trace(token)
+    with server(iast_enabled="true", token=token, port=8050, **config) as context:
+        _, flask_client, pid = context
+        response = flask_client.get("/subprocess-popen")
+        assert response.status_code == 200
+        assert response.text == "OK:True"

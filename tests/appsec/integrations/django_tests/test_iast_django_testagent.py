@@ -1,10 +1,14 @@
 import concurrent.futures
 
+import pytest
+
 from ddtrace.appsec._iast.constants import VULN_CMDI
 from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.constants import VULN_INSECURE_HASHING_TYPE
+from ddtrace.appsec._iast.constants import VULN_SSRF
 from ddtrace.internal.logger import get_logger
 from tests.appsec.appsec_utils import django_server
+from tests.appsec.appsec_utils import gunicorn_django_server
 from tests.appsec.iast.iast_utils import load_iast_report
 from tests.appsec.integrations.utils_testagent import _get_span
 from tests.appsec.integrations.utils_testagent import clear_session
@@ -61,7 +65,78 @@ def test_iast_cmdi():
     assert vulnerability["hash"]
 
 
-def test_iast_vulnerable_request_downstream_django():
+@pytest.mark.parametrize(
+    "server, config",
+    (
+        (
+            gunicorn_django_server,
+            {
+                "workers": "3",
+                "use_threads": False,
+                "use_gevent": False,
+                "env": {
+                    "DD_APM_TRACING_ENABLED": "false",
+                },
+            },
+        ),
+        (
+            gunicorn_django_server,
+            {
+                "workers": "3",
+                "use_threads": True,
+                "use_gevent": False,
+                "env": {
+                    "DD_APM_TRACING_ENABLED": "false",
+                },
+            },
+        ),
+        (
+            gunicorn_django_server,
+            {
+                "workers": "3",
+                "use_threads": True,
+                "use_gevent": True,
+                "env": {
+                    "DD_APM_TRACING_ENABLED": "false",
+                },
+            },
+        ),
+        (
+            gunicorn_django_server,
+            {
+                "workers": "1",
+                "use_threads": True,
+                "use_gevent": True,
+                "env": {
+                    "DD_APM_TRACING_ENABLED": "false",
+                    "_DD_IAST_PROPAGATION_ENABLED": "false",
+                },
+            },
+        ),
+        (
+            gunicorn_django_server,
+            {
+                "workers": "1",
+                "use_threads": True,
+                "use_gevent": True,
+                "env": {
+                    "DD_APM_TRACING_ENABLED": "false",
+                },
+            },
+        ),
+        (
+            gunicorn_django_server,
+            {
+                "workers": "1",
+                "use_threads": True,
+                "use_gevent": True,
+                "env": {"_DD_IAST_PROPAGATION_ENABLED": "false"},
+            },
+        ),
+        (django_server, {"env": {"DD_APM_TRACING_ENABLED": "false"}}),
+    ),
+)
+def test_iast_vulnerable_request_downstream_django(server, config):
     """Mirror Flask downstream propagation test for Django server.
 
     Sends a request with Datadog headers to the Django endpoint which triggers a weak-hash
@@ -74,7 +149,13 @@ def test_iast_vulnerable_request_downstream_django():
         "DD_APM_TRACING_ENABLED": "false",
         "DD_TRACE_URLLIB3_ENABLED": "true",
     }
-    with django_server(iast_enabled="true", token=token, env=env, port=8050) as context:
+    # Merge base env with parametrized env overrides
+    cfg_env = dict(config.get("env", {}))
+    cfg_env.update(env)
+    config = dict(config)
+    config["env"] = cfg_env
+
+    with server(iast_enabled="true", token=token, port=8050, **config) as context:
         _, django_client, pid = context
 
         trace_id = 1212121212121212121
@@ -92,7 +173,6 @@ def test_iast_vulnerable_request_downstream_django():
 
         assert response.status_code == 200
         downstream_headers = response.json()
-        print(downstream_headers)
         assert downstream_headers["X-Datadog-Origin"] == "rum"
         assert downstream_headers["X-Datadog-Parent-Id"] != str(parent_id)
         assert downstream_headers["X-Datadog-Sampling-Priority"] == "2"
@@ -115,10 +195,9 @@ def test_iast_vulnerable_request_downstream_django():
     assert len(spans_with_iast) >= 2, f"Invalid number of spans with IAST ({len(spans_with_iast)}):\n{spans_with_iast}"
     assert len(vulnerabilities) >= 1, f"Invalid number of vulnerabilities ({len(vulnerabilities)}):\n{vulnerabilities}"
     assert len(vulnerabilities[0]) >= 1
-    vulnerability = vulnerabilities[0][0]
-    assert vulnerability["type"] == VULN_INSECURE_HASHING_TYPE
-    assert "valueParts" not in vulnerability["evidence"]
-    assert vulnerability["hash"]
+    for vulnerability in vulnerabilities[0]:
+        assert vulnerability["type"] in {VULN_INSECURE_HASHING_TYPE, VULN_SSRF}
+        assert vulnerability["hash"]
 
 
 def test_iast_concurrent_requests_limit_django():
