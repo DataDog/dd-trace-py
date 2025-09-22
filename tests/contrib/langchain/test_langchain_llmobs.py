@@ -27,6 +27,47 @@ from tests.subprocesstest import run_in_subprocess
 
 PINECONE_VERSION = parse_version(pinecone_.__version__)
 
+# Multi-message prompt template test constants
+
+PROMPT_TEMPLATE_EXPECTED_CHAT_TEMPLATE = [
+    {"role": "system", "content": "You are a {role} assistant."},
+    {"role": "system", "content": "Your expertise is in {domain}."},
+    {"role": "system", "content": "Additional context: {context}"},
+    {"role": "user", "content": "I'm a user seeking help."},
+    {"role": "user", "content": "Please help with {task}"},
+    {"role": "user", "content": "Specifically, I need {specific_help}"},
+    {"role": "assistant", "content": "I understand your request."},
+    {"role": "assistant", "content": "I'll help you with {task}."},
+    {"role": "assistant", "content": "Let me provide {output_type}"},
+    {"role": "developer", "content": "Make it {style} and under {limit} words"},
+]
+
+
+def _create_multi_message_prompt_template(langchain_core):
+    """Helper function to create multi-message ChatPromptTemplate with mixed input types."""
+    from langchain_core.messages import AIMessage
+    from langchain_core.messages import HumanMessage
+    from langchain_core.messages import SystemMessage
+    from langchain_core.prompts import AIMessagePromptTemplate
+    from langchain_core.prompts import ChatMessagePromptTemplate
+    from langchain_core.prompts import HumanMessagePromptTemplate
+    from langchain_core.prompts import SystemMessagePromptTemplate
+
+    return langchain_core.prompts.ChatPromptTemplate.from_messages(
+        [
+            SystemMessage(content="You are a {role} assistant."),
+            ("system", "Your expertise is in {domain}."),
+            SystemMessagePromptTemplate.from_template("Additional context: {context}"),
+            HumanMessage(content="I'm a user seeking help."),
+            ("human", "Please help with {task}"),
+            HumanMessagePromptTemplate.from_template("Specifically, I need {specific_help}"),
+            AIMessage(content="I understand your request."),
+            ("ai", "I'll help you with {task}."),
+            AIMessagePromptTemplate.from_template("Let me provide {output_type}"),
+            ChatMessagePromptTemplate.from_template("Make it {style} and under {limit} words", role="developer"),
+        ]
+    )
+
 
 def _expected_langchain_llmobs_llm_span(
     span, input_role=None, mock_io=False, mock_token_metrics=False, span_links=False, metadata=None
@@ -215,6 +256,128 @@ def test_llmobs_string_prompt_template_invoke_chat_model(
     assert actual_prompt["id"] == "test_langchain_llmobs.prompt_template"
     assert actual_prompt["template"] == template_string
     assert actual_prompt["variables"] == variable_dict
+
+
+def test_llmobs_string_prompt_template_single_variable_string_input(
+    langchain_core, langchain_openai, openai_url, llmobs_events, tracer
+):
+    """Test StringPromptTemplate with single variable using string input (not dict)."""
+    template_string = "Write a creative story about {topic}."
+    single_variable_template = langchain_core.prompts.PromptTemplate(
+        input_variables=["topic"], template=template_string
+    )
+    llm = langchain_openai.OpenAI(base_url=openai_url)
+    chain = single_variable_template | llm
+
+    # Pass string input directly instead of dict for single variable template
+    string_input = "time travel"
+    chain.invoke(string_input)
+
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+    assert len(llmobs_events) == 2
+    actual_prompt = llmobs_events[1]["meta"]["input"]["prompt"]
+    assert actual_prompt["id"] == "test_langchain_llmobs.single_variable_template"
+    assert actual_prompt["template"] == template_string
+    # Should convert string input to dict format with single variable
+    assert actual_prompt["variables"] == {"topic": "time travel"}
+
+
+def test_llmobs_multi_message_prompt_template_sync_chain(
+    langchain_core, langchain_openai, openai_url, llmobs_events, tracer
+):
+    """Test multi-message ChatPromptTemplate with mixed input types (sync + chain)."""
+    multi_message_template = _create_multi_message_prompt_template(langchain_core)
+    llm = langchain_openai.ChatOpenAI(base_url=openai_url)
+    chain = multi_message_template | llm
+
+    variable_dict = {
+        "domain": "creative writing",
+        "context": "focus on storytelling",
+        "task": "writing a short story",
+        "specific_help": "character development",
+        "output_type": "guidance",
+        "style": "engaging",
+        "limit": "100",
+    }
+
+    chain.invoke(variable_dict)
+
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+    assert len(llmobs_events) == 2
+
+    # Verify the prompt structure in the LLM span
+    actual_prompt = llmobs_events[1]["meta"]["input"]["prompt"]
+    assert actual_prompt["id"] == "test_langchain_llmobs.multi_message_template"
+    assert actual_prompt["variables"] == variable_dict
+    assert (
+        "template" not in actual_prompt or actual_prompt["template"] is None
+    )  # Should be None for multi-message templates
+    assert actual_prompt["chat_template"] == PROMPT_TEMPLATE_EXPECTED_CHAT_TEMPLATE
+
+
+def test_llmobs_multi_message_prompt_template_sync_direct(
+    langchain_core, langchain_openai, openai_url, llmobs_events, tracer
+):
+    """Test multi-message ChatPromptTemplate with mixed input types (sync + direct)."""
+    multi_message_template = _create_multi_message_prompt_template(langchain_core)
+    llm = langchain_openai.ChatOpenAI(base_url=openai_url)
+
+    variable_dict = {
+        "domain": "data analysis",
+        "context": "focus on accuracy",
+        "task": "analyzing datasets",
+        "specific_help": "statistical methods",
+        "output_type": "insights",
+        "style": "detailed",
+        "limit": "150",
+    }
+
+    # Test direct invoke on template then LLM (no chain)
+    prompt_value = multi_message_template.invoke(variable_dict)
+    llm.invoke(prompt_value)
+
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+    assert len(llmobs_events) == 1  # Only LLM span for direct invoke
+
+    # Verify the prompt structure
+    actual_prompt = llmobs_events[0]["meta"]["input"]["prompt"]
+    assert actual_prompt["id"] == "test_langchain_llmobs.multi_message_template"
+    assert actual_prompt["variables"] == variable_dict
+    assert "template" not in actual_prompt or actual_prompt["template"] is None
+    assert actual_prompt["chat_template"] == PROMPT_TEMPLATE_EXPECTED_CHAT_TEMPLATE
+
+
+@pytest.mark.asyncio
+async def test_llmobs_multi_message_prompt_template_async_direct(
+    langchain_core, langchain_openai, openai_url, llmobs_events, tracer
+):
+    """Test multi-message ChatPromptTemplate with mixed input types (async + direct)."""
+    multi_message_template = _create_multi_message_prompt_template(langchain_core)
+    llm = langchain_openai.ChatOpenAI(base_url=openai_url)
+
+    variable_dict = {
+        "domain": "software engineering",
+        "context": "focus on best practices",
+        "task": "code review",
+        "specific_help": "performance optimization",
+        "output_type": "recommendations",
+        "style": "thorough",
+        "limit": "200",
+    }
+
+    # Test direct async invoke on template then LLM
+    prompt_value = await multi_message_template.ainvoke(variable_dict)
+    await llm.ainvoke(prompt_value)
+
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+    assert len(llmobs_events) == 1  # Only LLM span for direct invoke
+
+    # Verify the prompt structure
+    actual_prompt = llmobs_events[0]["meta"]["input"]["prompt"]
+    assert actual_prompt["id"] == "test_langchain_llmobs.multi_message_template"
+    assert actual_prompt["variables"] == variable_dict
+    assert "template" not in actual_prompt or actual_prompt["template"] is None
+    assert actual_prompt["chat_template"] == PROMPT_TEMPLATE_EXPECTED_CHAT_TEMPLATE
 
 
 def test_llmobs_chain(langchain_core, langchain_openai, openai_url, llmobs_events, tracer):

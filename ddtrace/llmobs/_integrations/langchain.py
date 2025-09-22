@@ -35,6 +35,7 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._integrations.utils import LANGCHAIN_ROLE_MAPPING
 from ddtrace.llmobs._integrations.utils import extract_instance_metadata_from_stack
 from ddtrace.llmobs._integrations.utils import format_langchain_io
 from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
@@ -843,12 +844,54 @@ class LangChainIntegration(BaseLLMIntegration):
 
     def handle_prompt_template_invoke(self, instance, result, args: List[Any], kwargs: Dict[str, Any]):
         """On prompt template invoke, store the template on the result so its available to consuming .invoke()."""
-        template, variables = None, None
+        chat_template, template, variables = None, None, None
         if hasattr(instance, "template") and isinstance(instance.template, str):
             template = instance.template
-        variables = get_argument_value(args, kwargs, 0, "input", optional=True)
+        if (
+            hasattr(instance, "messages")
+            and isinstance(instance.messages, list)
+            and result is not None
+            and hasattr(result, "messages")
+            and isinstance(result.messages, list)
+        ):
+            messages = []
+            if len(instance.messages) != len(result.messages):
+                # langchain allows for message placeholder templates, but we don't support them yet
+                # these are templates where a template variable takes as its value several complete messages
+                log.debug(
+                    "Instance messages and result messages have different lengths; message placeholder not supported"
+                )
+                return
 
-        if not template or not variables or not isinstance(variables, dict):
+            for m, r in zip(instance.messages, result.messages):
+                # message templates do not have a role: the role is derived from the instance class
+                # instead, we use the resulting message
+                if hasattr(r, "type") and r.type in LANGCHAIN_ROLE_MAPPING:
+                    # a standard message: ai, system, or human
+                    role = LANGCHAIN_ROLE_MAPPING.get(r.type)
+                elif hasattr(r, "role"):
+                    # a chat message
+                    role = r.role
+                role = role if role is not None else "unknown"
+
+                if hasattr(m, "content"):
+                    # a message in the template that is not a template itself
+                    messages.append({"role": role, "content": m.content})
+                elif hasattr(m, "prompt") and hasattr(m.prompt, "template"):
+                    # a template message
+                    messages.append({"role": role, "content": m.prompt.template})
+                else:
+                    messages = []
+                    log.debug("Failed to parse template messages")
+                    break
+            chat_template = messages if messages else None
+        variables = get_argument_value(args, kwargs, 0, "input", optional=True)
+        if isinstance(variables, str) and hasattr(instance, "input_variables"):
+            # variables should be passed in as a dict, but a string is allowed if there is only one input variable
+            if len(instance.input_variables) == 1:
+                variables = {instance.input_variables[0]: variables}
+
+        if (not template and not chat_template) or not variables or not isinstance(variables, dict):
             return
 
         prompt_id = self._get_prompt_variable_name(instance)
@@ -856,6 +899,7 @@ class LangChainIntegration(BaseLLMIntegration):
         prompt = {
             "variables": variables,
             "template": template,
+            "chat_template": chat_template,
             "id": prompt_id if prompt_id is not None else "unknown",
             "version": "0.0.0",
             "rag_context_variables": [],
