@@ -14,11 +14,11 @@ class TestLongRunningSpan(TracerTestCase):
         super().setUp()
         # Override timing values to make tests run quickly
         self.original_resubmit_interval = getattr(config.ray, "resubmit_interval", 120.0)
-        self.original_register_treshold = getattr(config.ray, "register_treshold", 10.0)
+        self.original_watch_delay = getattr(config.ray, "watch_delay", 10.0)
 
         # Set fast timing for testing
         config.ray.resubmit_interval = 2  # 2s instead of 120s
-        config.ray.register_treshold = 1  # 1s instead of 10s
+        config.ray.watch_delay = 1  # 1s instead of 10s
 
         # Clear any existing spans from the job manager
         with _job_manager._lock:
@@ -29,7 +29,7 @@ class TestLongRunningSpan(TracerTestCase):
     def tearDown(self):
         # Restore original values
         config.ray.resubmit_interval = self.original_resubmit_interval
-        config.ray.register_treshold = self.original_register_treshold
+        config.ray.watch_delay = self.original_watch_delay
 
         # Clean up any remaining timers
         with _job_manager._lock:
@@ -69,7 +69,7 @@ class TestLongRunningSpan(TracerTestCase):
         self.assertTrue(span.finished)
 
     def test_not_long_running_span(self):
-        """Test when a potential long running span lasts less then register_treshold"""
+        """Test when a potential long running span lasts less then watch_delay"""
         span = self.tracer.start_span("test.not.long.running", service="test-service")
         span.set_tag_str("ray.submission_id", "test-submission-123")
 
