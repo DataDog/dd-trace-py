@@ -759,6 +759,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "build_common",
+ "cc",
  "data-pipeline",
  "datadog-crashtracker",
  "datadog-ddsketch",

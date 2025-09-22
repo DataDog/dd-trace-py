@@ -29,6 +29,7 @@ pyo3-ffi = "0.25"
 
 [build-dependencies]
 pyo3-build-config = "0.25"
+cc = "1.0"
 build_common = { git = "https://github.com/DataDog/libdatadog", rev = "488d39573f008957784aa4ef726fadb4bee5a302", features = [
     "cbindgen",
 ] }

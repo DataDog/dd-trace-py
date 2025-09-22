@@ -1,10 +1,10 @@
 use anyhow;
 use std::collections::HashMap;
-use std::ffi::{c_void, c_int, c_char};
+use std::ffi::{c_char, c_int, c_void};
+use std::ptr;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Once;
 use std::time::Duration;
-use std::ptr;
 // Removed unused imports for debug logging
 
 use datadog_crashtracker::{
@@ -14,13 +14,15 @@ use datadog_crashtracker::{
 use ddcommon::Endpoint;
 use pyo3::prelude::*;
 
-// Using pyo3_ffi types for PyInterpreterState and PyThreadState
-// No need to define our own since we're using _Py_DumpTracebackThreads
-
-// Use faulthandler public API instead of internal _Py_DumpTracebackThreads
-// This is more reliable and doesn't require internal symbols
 extern "C" {
-    // System calls for creating memory-based file descriptors
+    fn crashtracker_dump_traceback_threads(
+        fd: c_int,
+        interp: *mut pyo3_ffi::PyInterpreterState,
+        current_tstate: *mut pyo3_ffi::PyThreadState,
+    ) -> *const c_char;
+
+    fn crashtracker_get_current_tstate() -> *mut pyo3_ffi::PyThreadState;
+
     fn pipe(pipefd: *mut [c_int; 2]) -> c_int;
     fn read(fd: c_int, buf: *mut c_void, count: usize) -> isize;
     fn close(fd: c_int) -> c_int;
@@ -334,8 +336,6 @@ impl From<CallbackError> for CallbackResult {
     }
 }
 
-
-
 /// Runtime-specific stack frame representation for FFI
 ///
 /// This struct is used to pass runtime stack frame information from language
@@ -435,10 +435,13 @@ impl StackBuffer {
     }
 }
 
-
 // Parse a single traceback line into frame information
 // '  File "/path/to/file.py", line 42, in function_name'
-fn parse_traceback_line(line: &str, function_buf: &mut StackBuffer, file_buf: &mut StackBuffer) -> u32 {
+fn parse_traceback_line(
+    line: &str,
+    function_buf: &mut StackBuffer,
+    file_buf: &mut StackBuffer,
+) -> u32 {
     let trimmed = line.trim();
 
     // Look for the pattern: File "filename", line number, in function_name
@@ -521,12 +524,13 @@ unsafe fn parse_and_emit_traceback(
     }
 }
 
-unsafe fn dump_python_traceback_via_faulthandler(
+unsafe fn dump_python_traceback_via_cpython_api(
     emit_frame: unsafe extern "C" fn(*const RuntimeStackFrame),
 ) {
-    // Create a pipe to capture faulthandler output
+    // Create a pipe to capture CPython internal traceback dump
     let mut pipefd: [c_int; 2] = [0, 0];
     if pipe(&mut pipefd as *mut [c_int; 2]) != 0 {
+        emit_fallback_frame(emit_frame, "<pipe_creation_failed>");
         return;
     }
 
@@ -536,38 +540,59 @@ unsafe fn dump_python_traceback_via_faulthandler(
     // Make the read end non-blocking
     fcntl(read_fd, F_SETFL, O_NONBLOCK);
 
-    // TODO: This is not safe, we should try to use _PyDumpTracebackThreads instead
-    let python_code = format!(
-        "import sys, faulthandler, os; faulthandler.dump_traceback(file=os.fdopen({}, 'w'), all_threads=True)",
-        write_fd
-    );
+    // Get the current thread state safely - same approach as CPython's faulthandler
+    // SIGSEGV, SIGFPE, SIGABRT, SIGBUS and SIGILL are synchronous signals and
+    // are thus delivered to the thread that caused the fault.
+    let current_tstate = crashtracker_get_current_tstate();
 
-    let c_code = std::ffi::CString::new(python_code).unwrap();
-
-    let result = pyo3_ffi::PyRun_SimpleString(c_code.as_ptr());
+    // Call the CPython internal API via our C wrapper
+    // Pass NULL for interpreter state - let _Py_DumpTracebackThreads handle it internally
+    let error_msg = crashtracker_dump_traceback_threads(write_fd, ptr::null_mut(), current_tstate);
 
     close(write_fd);
 
-    if result == 0 {
-        let mut buffer = vec![0u8; MAX_TRACEBACK_SIZE];
-        let bytes_read = read(read_fd, buffer.as_mut_ptr() as *mut c_void, MAX_TRACEBACK_SIZE);
-
+    // Check for errors from _Py_DumpTracebackThreads
+    if !error_msg.is_null() {
         close(read_fd);
-
-        if bytes_read > 0 {
-            buffer.truncate(bytes_read as usize);
-            if let Ok(traceback_text) = std::str::from_utf8(&buffer) {
-                parse_and_emit_traceback(traceback_text, emit_frame);
-                return;
-            }
+        let error_str = std::ffi::CStr::from_ptr(error_msg);
+        if let Ok(error_string) = error_str.to_str() {
+            emit_fallback_frame(emit_frame, error_string);
+        } else {
+            emit_fallback_frame(emit_frame, "<cpython_api_error>");
         }
-    } else {
-        close(read_fd);
+        return;
     }
 
+    // Read the traceback output
+    let mut buffer = vec![0u8; MAX_TRACEBACK_SIZE];
+    let bytes_read = read(
+        read_fd,
+        buffer.as_mut_ptr() as *mut c_void,
+        MAX_TRACEBACK_SIZE,
+    );
+
+    close(read_fd);
+
+    if bytes_read > 0 {
+        buffer.truncate(bytes_read as usize);
+        if let Ok(traceback_text) = std::str::from_utf8(&buffer) {
+            parse_and_emit_traceback(traceback_text, emit_frame);
+            return;
+        }
+    }
+
+    // If we get here, something went wrong with reading the output
+    emit_fallback_frame(emit_frame, "<traceback_read_failed>");
+}
+
+// Helper function to emit a fallback frame with error information
+unsafe fn emit_fallback_frame(
+    emit_frame: unsafe extern "C" fn(*const RuntimeStackFrame),
+    error_msg: &str,
+) {
     let mut function_buf = StackBuffer::new();
     let mut file_buf = StackBuffer::new();
-    function_buf.set_from_str("<faulthandler_failed>");
+    function_buf.set_from_str(error_msg);
     file_buf.set_from_str("<crashtracker_fallback>");
 
     let fallback_frame = RuntimeStackFrame {
@@ -586,10 +611,9 @@ unsafe extern "C" fn native_runtime_stack_callback(
     emit_frame: unsafe extern "C" fn(*const RuntimeStackFrame),
     _context: *mut c_void,
 ) {
-    // Use faulthandler module to dump traceback
-    dump_python_traceback_via_faulthandler(emit_frame);
+    // Use CPython internal API to dump traceback directly - more reliable than faulthandler
+    dump_python_traceback_via_cpython_api(emit_frame);
 }
-
 
 /// Register the native runtime stack collection callback
 ///

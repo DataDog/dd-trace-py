@@ -3,14 +3,9 @@
     "format": "Datadog Runtime Callback 1.0",
     "frames": [
       {
-        "function": "<module>",
-        "file": "<string>",
-        "line": 1
-      },
-      {
         "function": "string_at",
-        "file": "/home/bits/.pyenv/versions/3.13.5/lib/python3.13/ctypes/__init__.py",
-        "line": 538
+        "file": "/home/bits/.pyenv/versions/3.11.13/lib/python3.11/ctypes/__init__.py",
+        "line": 519
       },
       {
         "function": "func16",
