@@ -31,7 +31,7 @@ log_extra = {"product": "appsec", "stack_limit": 4, "exec_limit": 4}
 
 
 @deduplication
-def _set_waf_error_log(msg: str, version: str, error_level: bool = True) -> None:
+def _set_waf_error_log(msg: str, version: str, action: str, error_level: bool = True) -> None:
     """used for waf configuration errors"""
     try:
         log_tags = {
@@ -47,6 +47,7 @@ def _set_waf_error_log(msg: str, version: str, error_level: bool = True) -> None
         tags = (
             ("waf_version", ddwaf_version),
             ("event_rules_version", version or UNKNOWN_VERSION),
+            ("action", action),
         )
         telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, "waf.config_errors", 1, tags=tags)
     except Exception:
@@ -64,8 +65,6 @@ def _set_waf_updates_metric(info: DDWaf_info, success: bool):
         telemetry.telemetry_writer.add_count_metric(
             TELEMETRY_NAMESPACE.APPSEC, "waf.updates", 1, tags=tags + (("success", bool_str[success]),)
         )
-        if not success:
-            telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, "waf.config_errors", 1, tags=tags)
     except Exception:
         extra = {"product": "appsec", "exec_limit": 6, "more_info": ":waf:updates"}
         logger.warning(WARNING_TAGS.TELEMETRY_METRICS, extra=extra, exc_info=True)
@@ -82,7 +81,9 @@ def _set_waf_init_metric(info: DDWaf_info, success: bool):
             TELEMETRY_NAMESPACE.APPSEC, "waf.init", 1, tags=tags + (("success", bool_str[success]),)
         )
         if not success:
-            telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, "waf.config_errors", 1, tags=tags)
+            telemetry.telemetry_writer.add_count_metric(
+                TELEMETRY_NAMESPACE.APPSEC, "waf.config_errors", 1, tags=tags + (("action", "init"),)
+            )
     except Exception:
         extra = {"product": "appsec", "exec_limit": 6, "more_info": ":waf:init"}
         logger.warning(WARNING_TAGS.TELEMETRY_METRICS, extra=extra, exc_info=True)
@@ -170,7 +171,7 @@ def _set_waf_request_metrics(*_args):
                 ("request_blocked", bool_str[result.blocked]),
                 ("waf_timeout", bool_str[bool(result.timeout)]),
                 ("input_truncated", bool_str[input_truncated]),
-                ("waf_error", str(result.error)),
+                ("waf_error", bool_str[result.error < 0]),  # waf_error is a boolean in waf.requests
                 ("rate_limited", bool_str[result.rate_limited]),
             )
 

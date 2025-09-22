@@ -1,6 +1,6 @@
 #include "taint_range.h"
+#include "context/taint_engine_context.h"
 #include "initializer/initializer.h"
-#include "utils/string_utils.h"
 
 namespace py = pybind11;
 
@@ -89,24 +89,23 @@ api_shift_taint_ranges(const TaintRangeRefs& source_taint_ranges,
     return shift_taint_ranges(source_taint_ranges, offset);
 }
 
-py::object
-api_set_ranges(py::handle& str, const TaintRangeRefs& ranges)
+bool
+api_set_ranges(py::handle& str, const TaintRangeRefs& ranges, const size_t contextid)
 {
-    const auto tx_map = Initializer::get_tainting_map();
-
+    const auto tx_map = taint_engine_context->get_tainted_object_map_by_ctx_id(contextid);
     if (not tx_map) {
-        throw py::value_error(MSG_ERROR_TAINT_MAP);
+        return false;
     }
-    set_ranges(str.ptr(), ranges, tx_map);
-    return py::none();
+    const bool ok = set_ranges(str.ptr(), ranges, tx_map);
+    return ok;
 }
 
 /**
- * set_ranges_from_values.
+ * api_taint_pyobject.
  *
  * The equivalent Python script of this function is:
  *  ```
- *  api_set_ranges_from_values
+ *  api_taint_pyobject
  *  pyobject_newid = new_pyobject_id(pyobject)
  *  source = Source(source_name, source_value, source_origin)
  *  pyobject_range = TaintRange(0, len(pyobject), source)
@@ -123,18 +122,19 @@ api_set_ranges(py::handle& str, const TaintRangeRefs& ranges)
  * @param nargs The number of arguments in the 'args' array.
  */
 PyObject*
-api_set_ranges_from_values(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
+api_taint_pyobject(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
 {
     bool result = false;
     const char* result_error_msg = MSG_ERROR_N_PARAMS;
     PyObject* pyobject_n = nullptr;
 
-    if (nargs == 5) {
+    if (nargs == 6) {
         PyObject* tainted_object = args[0];
-        const auto tx_map = Initializer::get_tainting_map();
+        PyObject* ctx_obj = args[5];
+        size_t context_id = PyLong_AsSize_t(ctx_obj);
+        const auto tx_map = taint_engine_context->get_tainted_object_map_by_ctx_id(context_id);
         if (not tx_map) {
-            py::set_error(PyExc_ValueError, MSG_ERROR_TAINT_MAP);
-            return nullptr;
+            return tainted_object;
         }
 
         pyobject_n = new_pyobject_id(tainted_object);
@@ -167,16 +167,16 @@ api_set_ranges_from_values(PyObject* self, PyObject* const* args, const Py_ssize
 }
 
 std::pair<TaintRangeRefs, bool>
-get_ranges(PyObject* string_input, const TaintRangeMapTypePtr& tx_map)
+get_ranges(PyObject* string_input, const TaintedObjectMapTypePtr& tx_map)
 {
     TaintRangeRefs result;
+    if (not tx_map or tx_map->empty()) {
+        return { result, true };
+    }
     if (not is_tainteable(string_input)) {
         return std::make_pair(result, true);
     }
 
-    if (tx_map->empty()) {
-        return std::make_pair(result, false);
-    }
     const auto it = tx_map->find(get_unique_id(string_input));
     if (it == tx_map->end()) {
         return std::make_pair(result, false);
@@ -191,8 +191,16 @@ get_ranges(PyObject* string_input, const TaintRangeMapTypePtr& tx_map)
 }
 
 bool
-set_ranges(PyObject* str, const TaintRangeRefs& ranges, const TaintRangeMapTypePtr& tx_map)
+set_ranges(PyObject* str, const TaintRangeRefs& ranges, const TaintedObjectMapTypePtr& tx_map)
 {
+    // Guard: invalid taint map
+    if (not tx_map) {
+        return false;
+    }
+    // Guard: only text-like objects are supported for taint
+    if (not is_tainteable(str)) {
+        return false;
+    }
     if (ranges.empty()) {
         return false;
     }
@@ -208,36 +216,8 @@ set_ranges(PyObject* str, const TaintRangeRefs& ranges, const TaintRangeMapTypeP
     }
 
     tx_map->insert({ obj_id, std::make_pair(get_internal_hash(str), new_tainted_object) });
+
     return true;
-}
-
-// Returns a tuple with (all ranges, ranges of candidate_text)
-// FIXME: Take a PyList as parameter_list instead of a py::tuple (same for the
-// result)
-std::tuple<TaintRangeRefs, TaintRangeRefs>
-are_all_text_all_ranges(PyObject* candidate_text, const py::tuple& parameter_list)
-{
-    if (not is_tainteable(candidate_text))
-        return {};
-
-    TaintRangeRefs all_ranges;
-    const auto tx_map = Initializer::get_tainting_map();
-    if (not tx_map or tx_map->empty()) {
-        return { {}, {} };
-    }
-
-    auto [candidate_text_ranges, ranges_error] = get_ranges(candidate_text, tx_map);
-    if (not ranges_error) {
-        for (const auto& param_handler : parameter_list) {
-            if (const auto param = param_handler.cast<py::object>().ptr(); is_tainteable(param)) {
-                if (auto [ranges, ranges_error] = get_ranges(param, tx_map); not ranges_error) {
-                    all_ranges.insert(all_ranges.end(), ranges.begin(), ranges.end());
-                }
-            }
-        }
-        all_ranges.insert(all_ranges.end(), candidate_text_ranges.begin(), candidate_text_ranges.end());
-    }
-    return { all_ranges, candidate_text_ranges };
 }
 
 TaintRangePtr
@@ -260,15 +240,15 @@ get_range_by_hash(const size_t range_hash, optional<TaintRangeRefs>& taint_range
 TaintRangeRefs
 api_get_ranges(const py::handle& string_input)
 {
-    const auto tx_map = Initializer::get_tainting_map();
+    const auto tx_map = taint_engine_context->get_tainted_object_map(string_input.ptr());
 
-    if (not tx_map) {
-        throw py::value_error(MSG_ERROR_TAINT_MAP);
+    if (not tx_map or tx_map->empty()) {
+        return {};
     }
 
     auto [ranges, ranges_error] = get_ranges(string_input.ptr(), tx_map);
     if (ranges_error) {
-        throw py::value_error(MSG_ERROR_GET_RANGES_TYPE);
+        return {};
     }
     return ranges;
 }
@@ -276,7 +256,7 @@ api_get_ranges(const py::handle& string_input)
 void
 api_copy_ranges_from_strings(py::handle& str_1, py::handle& str_2)
 {
-    const auto tx_map = Initializer::get_tainting_map();
+    const auto tx_map = taint_engine_context->get_tainted_object_map(str_1.ptr());
 
     if (not tx_map) {
         py::set_error(PyExc_ValueError, MSG_ERROR_TAINT_MAP);
@@ -299,7 +279,7 @@ api_copy_and_shift_ranges_from_strings(py::handle& str_1,
                                        const int offset,
                                        const int new_length = -1)
 {
-    const auto tx_map = Initializer::get_tainting_map();
+    const auto tx_map = taint_engine_context->get_tainted_object_map(str_1.ptr());
     if (not tx_map) {
         py::set_error(PyExc_ValueError, MSG_ERROR_TAINT_MAP);
         return;
@@ -316,12 +296,13 @@ api_copy_and_shift_ranges_from_strings(py::handle& str_1,
 }
 
 TaintedObjectPtr
-get_tainted_object(PyObject* str, const TaintRangeMapTypePtr& tx_map)
+get_tainted_object(PyObject* str, const TaintedObjectMapTypePtr& tx_map)
 {
-    if (not str)
+    if (not str) {
         return nullptr;
+    }
 
-    if (is_notinterned_notfasttainted_unicode(str) or tx_map->empty()) {
+    if (tx_map->empty()) {
         return nullptr;
     }
 
@@ -372,7 +353,7 @@ get_internal_hash(PyObject* obj)
 }
 
 void
-set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, const TaintRangeMapTypePtr& tx_map)
+set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, const TaintedObjectMapTypePtr& tx_map)
 {
     if (not str or not is_tainteable(str)) {
         return;
@@ -411,12 +392,6 @@ pyexport_taintrange(py::module& m)
           "candidate_text"_a);
     m.def("set_fast_tainted_if_notinterned_unicode", &api_set_fast_tainted_if_unicode, "text"_a);
 
-    m.def("are_all_text_all_ranges",
-          &api_are_all_text_all_ranges,
-          "candidate_text"_a,
-          "parameter_list"_a,
-          py::return_value_policy::move);
-
     m.def("shift_taint_range",
           &api_shift_taint_range,
           py::return_value_policy::move,
@@ -431,7 +406,7 @@ pyexport_taintrange(py::module& m)
           "new_length"_a = -1);
 
     // m.def("set_ranges", py::overload_cast<PyObject*, const TaintRangeRefs&>(&api_set_ranges), "str"_a, "ranges"_a);
-    m.def("set_ranges", &api_set_ranges, "str"_a, "ranges"_a);
+    m.def("set_ranges", &api_set_ranges, "str"_a, "ranges"_a, "contextid"_a);
     m.def("copy_ranges_from_strings", &api_copy_ranges_from_strings, "str_1"_a, "str_2"_a);
     m.def("copy_and_shift_ranges_from_strings",
           &api_copy_and_shift_ranges_from_strings,
@@ -483,6 +458,7 @@ pyexport_taintrange(py::module& m)
       .value("SQL_INJECTION", VulnerabilityType::SQL_INJECTION)
       .value("SSRF", VulnerabilityType::SSRF)
       .value("STACKTRACE_LEAK", VulnerabilityType::STACKTRACE_LEAK)
+      .value("UNTRUSTED_SERIALIZATION", VulnerabilityType::UNTRUSTED_SERIALIZATION)
       .value("WEAK_CIPHER", VulnerabilityType::WEAK_CIPHER)
       .value("WEAK_HASH", VulnerabilityType::WEAK_HASH)
       .value("WEAK_RANDOMNESS", VulnerabilityType::WEAK_RANDOMNESS)

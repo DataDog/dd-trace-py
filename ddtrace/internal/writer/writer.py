@@ -15,11 +15,13 @@ from typing import TextIO
 
 import ddtrace
 from ddtrace import config
+from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native
 from ddtrace.internal.runtime import get_runtime_id
 import ddtrace.internal.utils.http
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.settings._agent import config as agent_config
+from ddtrace.settings.asm import ai_guard_config
 from ddtrace.settings.asm import config as asm_config
 
 from ...constants import _KEEP_SPANS_RATE_KEY
@@ -542,6 +544,7 @@ class AgentWriter(HTTPWriter, AgentWriterInterface):
             or in_azure_function()
             or asm_config._asm_enabled
             or asm_config._iast_enabled
+            or ai_guard_config._ai_guard_enabled
         ):
             default_api_version = "v0.4"
 
@@ -734,6 +737,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             or in_azure_function()
             or asm_config._asm_enabled
             or asm_config._iast_enabled
+            or ai_guard_config._ai_guard_enabled
         ):
             default_api_version = "v0.4"
 
@@ -793,6 +797,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         builder = (
             native.TraceExporterBuilder()
             .set_url(self.intake_url)
+            .set_hostname(get_hostname())
             .set_language("python")
             .set_language_version(compat.PYTHON_VERSION)
             .set_language_interpreter(compat.PYTHON_INTERPRETER)
@@ -802,6 +807,12 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             .set_input_format(self._api_version)
             .set_output_format(self._api_version)
         )
+        if config.service:
+            builder.set_service(config.service)
+        if config.env:
+            builder.set_env(config.env)
+        if config.version:
+            builder.set_app_version(config.version)
         if self._test_session_token is not None:
             builder.set_test_session_token(self._test_session_token)
         if self._stats_opt_out:

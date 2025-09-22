@@ -180,6 +180,7 @@ def patched_lib_fn(original_func, instance, args, kwargs):
         "botocore.instrumented_lib_function",
         span_name="{}.{}".format(original_func.__module__, original_func.__name__),
         tags={COMPONENT: config.botocore.integration_name, SPAN_KIND: SpanKind.CLIENT},
+        pin=pin,
     ) as ctx, ctx.span:
         return original_func(*args, **kwargs)
 

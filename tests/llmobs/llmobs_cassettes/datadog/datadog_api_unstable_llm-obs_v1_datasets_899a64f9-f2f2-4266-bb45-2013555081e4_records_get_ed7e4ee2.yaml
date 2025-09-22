@@ -1,0 +1,45 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Length
+      : - '0'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.3
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/899a64f9-f2f2-4266-bb45-2013555081e4/records
+  response:
+    body:
+      string: '{"data":[{"id":"805d91cb-423e-445a-9cdd-631b86d74f49","type":"datasets","attributes":{"author":{"id":"de473b30-eb9f-11e9-a77a-c7405862b8bd"},"created_at":"2025-09-09T04:32:13.064111Z","dataset_id":"899a64f9-f2f2-4266-bb45-2013555081e4","expected_output":{},"input":{"in0":"r0v1","in1":"r0v2","in2":"r0v3"},"metadata":{},"updated_at":"2025-09-09T04:32:13.064111Z"}},{"id":"71be1b18-7487-49a3-86d4-660b6f8c5f98","type":"datasets","attributes":{"author":{"id":"de473b30-eb9f-11e9-a77a-c7405862b8bd"},"created_at":"2025-09-09T04:32:13.064111Z","dataset_id":"899a64f9-f2f2-4266-bb45-2013555081e4","expected_output":{},"input":{"in0":"r1v1","in1":"r1v2","in2":"r1v3"},"metadata":{},"updated_at":"2025-09-09T04:32:13.064111Z"}}],"meta":{"after":""}}'
+    headers:
+      content-length:
+      - '742'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Tue, 09 Sep 2025 04:32:18 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

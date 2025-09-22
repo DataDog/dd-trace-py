@@ -2,9 +2,12 @@ import logging
 from os import path
 from typing import Optional
 
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry import get_config
 from ddtrace.internal.utils.formats import asbool
 
+
+log = get_logger(__name__)
 
 DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] {}- %(message)s".format(
     "[dd.service=%(dd.service)s dd.env=%(dd.env)s dd.version=%(dd.version)s"
@@ -53,6 +56,8 @@ def configure_ddtrace_logger():
 
     _configure_ddtrace_debug_logger(ddtrace_logger)
     _configure_ddtrace_file_logger(ddtrace_logger)
+    # Calling _configure_ddtrace_native_logger should come after Python logging has been configured.
+    _configure_ddtrace_native_logger()
 
 
 def _configure_ddtrace_debug_logger(logger):
@@ -80,6 +85,7 @@ def _add_file_handler(
     log_level: int,
     handler_name: Optional[str] = None,
     max_file_bytes: int = DEFAULT_FILE_SIZE_BYTES,
+    formatter: Optional[logging.Formatter] = None,
 ):
     ddtrace_file_handler = None
     if log_path is not None:
@@ -90,8 +96,11 @@ def _add_file_handler(
         ddtrace_file_handler = RotatingFileHandler(
             filename=log_path, mode="a", maxBytes=max_file_bytes, backupCount=num_backup
         )
-        log_format = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] - %(message)s"
-        log_formatter = logging.Formatter(log_format)
+        if formatter is None:
+            log_format = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] - %(message)s"
+            log_formatter = logging.Formatter(log_format)
+        else:
+            log_formatter = formatter
         ddtrace_file_handler.setLevel(log_level)
         ddtrace_file_handler.setFormatter(log_formatter)
         if handler_name:
@@ -121,3 +130,24 @@ def get_log_injection_state(raw_config: Optional[str]) -> bool:
                 normalized,
             )
     return False
+
+
+def _configure_ddtrace_native_logger():
+    try:
+        from ddtrace.internal.native._native import logger
+
+        native_writer_enabled = get_config("_DD_TRACE_WRITER_NATIVE", False, asbool, report_telemetry=True)
+        if native_writer_enabled:
+            backend = get_config("_DD_NATIVE_LOGGING_BACKEND", "file", report_telemetry=True)
+            kwargs = {"output": backend}
+            if backend == "file":
+                kwargs["path"] = get_config("_DD_NATIVE_LOGGING_FILE_PATH", "native.log", report_telemetry=True)
+                kwargs["max_size_bytes"] = get_config(
+                    "_DD_NATIVE_LOGGING_FILE_SIZE_BYTES", 4096, int, report_telemetry=True
+                )
+                kwargs["max_files"] = get_config("_DD_NATIVE_LOGGING_FILE_ROTATION_LEN", 1, int, report_telemetry=True)
+
+            logger.configure(**kwargs)
+            logger.set_log_level(get_config("_DD_NATIVE_LOGGING_LOG_LEVEL", "warn", report_telemetry=True))
+    except Exception:
+        log.warning("Failed to initialize native logger", exc_info=True)
