@@ -4,11 +4,12 @@ This is normally started automatically when ``ddtrace`` is imported. It can be d
 ``DD_INSTRUMENTATION_TELEMETRY_ENABLED`` variable to ``False``.
 """
 
-import os
 import typing as t
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import _env
 from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings._core import ENV_CONFIG
 from ddtrace.internal.settings._core import FLEET_CONFIG
 from ddtrace.internal.settings._core import FLEET_CONFIG_IDS
 from ddtrace.internal.settings._core import LOCAL_CONFIG
@@ -60,7 +61,7 @@ def get_config(
             effective_val = val
             break
 
-    if otel_env is not None and otel_env in os.environ:
+    if otel_env is not None and otel_env in ENV_CONFIG:
         raw_val, parsed_val = parse_otel_env(otel_env)
         if parsed_val is not None:
             val = parsed_val
@@ -75,14 +76,14 @@ def get_config(
             _invalid_otel_config(otel_env)
 
     for env in envs:
-        if env in os.environ:
-            val = os.environ[env]
+        if env in ENV_CONFIG:
+            val = ENV_CONFIG[env]
             if modifier:
                 val = modifier(val)
 
             if report_telemetry:
                 telemetry_writer.add_configuration(telemetry_name, val, "env_var")
-                if otel_env is not None and otel_env in os.environ:
+                if otel_env is not None and otel_env in ENV_CONFIG:
                     _hiding_otel_config(otel_env, env)
             effective_val = val
             break
@@ -96,7 +97,7 @@ def get_config(
 
             if report_telemetry:
                 telemetry_writer.add_configuration(telemetry_name, val, "fleet_stable_config", config_id)
-                if otel_env is not None and otel_env in os.environ:
+                if otel_env is not None and otel_env in ENV_CONFIG:
                     _hiding_otel_config(otel_env, env)
             effective_val = val
             break
@@ -132,7 +133,7 @@ def _invalid_otel_config(otel_env):
     log.warning(
         "Setting %s to %s is not supported by ddtrace, this configuration will be ignored.",
         otel_env,
-        os.environ.get(otel_env, ""),
+        _env.getenv(otel_env, ""),
     )
     telemetry_writer.add_count_metric(
         TELEMETRY_NAMESPACE.TRACERS,
@@ -153,7 +154,7 @@ def _unsupported_otel_config(otel_env):
 
 
 def validate_otel_envs():
-    user_envs = {key.upper(): value for key, value in os.environ.items()}
+    user_envs = {key.upper(): value for key, value in ENV_CONFIG.items()}
     for otel_env, _ in user_envs.items():
         if (
             otel_env not in ENV_VAR_MAPPINGS
@@ -163,7 +164,7 @@ def validate_otel_envs():
             _unsupported_otel_config(otel_env)
         elif otel_env == "OTEL_LOGS_EXPORTER":
             # check for invalid values
-            otel_value = os.environ.get(otel_env, "none").lower()
+            otel_value = _env.getenv(otel_env, "none").lower()
             if otel_value != "none":
                 _invalid_otel_config(otel_env)
             # TODO: Separate from validation
@@ -175,9 +176,8 @@ def validate_otel_envs():
 
 def validate_and_report_otel_metrics_exporter_enabled():
     metrics_exporter_enabled = True
-    user_envs = {key.upper(): value for key, value in os.environ.items()}
-    if "OTEL_METRICS_EXPORTER" in user_envs:
-        otel_value = os.environ.get("OTEL_METRICS_EXPORTER", "otlp").lower()
+    if "OTEL_METRICS_EXPORTER" in _env.environ:
+        otel_value = _env.getenv("OTEL_METRICS_EXPORTER", "otlp").lower()
         if otel_value == "none":
             metrics_exporter_enabled = False
         elif otel_value != "otlp":
@@ -194,7 +194,7 @@ def _hiding_otel_config(otel_env, dd_env):
         "Datadog configuration %s is already set. OpenTelemetry configuration will be ignored: %s=%s",
         dd_env,
         otel_env,
-        os.environ[otel_env],
+        ENV_CONFIG[otel_env],
     )
     telemetry_writer.add_count_metric(
         TELEMETRY_NAMESPACE.TRACERS,

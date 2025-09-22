@@ -1,11 +1,11 @@
 import enum
 import json
-import os
 import typing as t
 
 from envier import En
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import _env
 from ddtrace.internal.settings.http import HttpConfig
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
@@ -30,7 +30,7 @@ def post_preload():
     if _config.enabled:
         from ddtrace._monkey import _patch_all
 
-        modules_to_patch = os.getenv("DD_PATCH_MODULES")
+        modules_to_patch = _env.getenv("DD_PATCH_MODULES")
         modules_to_str = parse_tags_str(modules_to_patch)
         modules_to_bool = {k: asbool(v) for k, v in modules_to_str.items()}
         _patch_all(**modules_to_bool)

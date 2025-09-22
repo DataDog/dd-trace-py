@@ -2,7 +2,6 @@ import dataclasses
 from functools import reduce
 import json
 import operator
-import os
 from typing import Any
 from typing import Dict
 from typing import List
@@ -20,6 +19,7 @@ from ddtrace.appsec._iast.constants import VULN_INSECURE_HASHING_TYPE
 from ddtrace.appsec._iast.constants import VULN_WEAK_CIPHER_TYPE
 from ddtrace.appsec._iast.constants import VULN_WEAK_RANDOMNESS
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import _env
 
 
 log = get_logger(__name__)
@@ -99,7 +99,9 @@ class Vulnerability:
     type: str
     evidence: Evidence
     location: Location
-    hash: int = dataclasses.field(init=False, compare=False, hash=("PYTEST_CURRENT_TEST" in os.environ), repr=False)
+    hash: int = dataclasses.field(
+        init=False, compare=False, hash=(_env.getenv("PYTEST_CURRENT_TEST") is not None), repr=False
+    )
 
     def __post_init__(self):
         self.hash = zlib.crc32(repr(self).encode())
