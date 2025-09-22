@@ -3423,7 +3423,7 @@ venv = Venv(
             venvs=[
                 Venv(
                     command="python -m pytest {cmdargs} tests/profiling_v2/test_uwsgi.py",
-                    pys=select_pys(),
+                    pys=select_pys(max_version="3.13"),
                     pkgs={"uwsgi": "<2.0.30"},
                 ),
                 # Python 3.8 + 3.9
