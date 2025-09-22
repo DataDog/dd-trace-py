@@ -228,6 +228,8 @@ venv = Venv(
             pkgs={
                 "requests": latest,
                 "pylibmc": latest,
+                "PyYAML": latest,
+                "dill": latest,
                 "bcrypt": "==4.2.1",
                 "pytest-django[testing]": "==3.10.0",
             },
@@ -555,7 +557,7 @@ venv = Venv(
         ),
         Venv(
             name="lib_injection",
-            command="pytest {cmdargs} tests/lib_injection/test_guardrails.py",
+            command="pytest {cmdargs} tests/lib_injection/",
             venvs=[
                 Venv(
                     pys=select_pys(max_version="3.13"),
@@ -3206,12 +3208,21 @@ venv = Venv(
             },
         ),
         Venv(
+            name="azure_functions:servicebus",
+            command="pytest {cmdargs} tests/contrib/azure_functions_servicebus",
+            pys=select_pys(min_version="3.8", max_version="3.11"),
+            pkgs={
+                "azure.functions": ["~=1.10.1", latest],
+                "azure.servicebus": latest,
+            },
+        ),
+        Venv(
             name="azure_servicebus",
             command="pytest {cmdargs} tests/contrib/azure_servicebus",
             pys=select_pys(min_version="3.8", max_version="3.13"),
             pkgs={
                 "azure.servicebus": ["~=7.14.0", latest],
-                "pytest-asyncio": "==0.24.0",
+                "pytest-asyncio": "==0.23.7",
             },
         ),
         Venv(
