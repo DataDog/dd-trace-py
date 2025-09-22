@@ -155,7 +155,7 @@ class VulnerabilityBase:
     ):
         if isinstance(evidence_value, IAST.TEXT_TYPES):
             if isinstance(evidence_value, (bytes, bytearray)):
-                evidence_value = evidence_value.decode("utf-8")
+                evidence_value = evidence_value.decode("utf-8", "ignore")
             evidence = Evidence(value=evidence_value, dialect=dialect)
         else:
             log.debug("Unexpected evidence_value type: %s", type(evidence_value))
