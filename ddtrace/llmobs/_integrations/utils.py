@@ -434,7 +434,7 @@ def _openai_extract_tool_calls_and_results_chat(
 
         tool_call_info = ToolCall(
             name=str(tool_name),
-            arguments=safe_load_json(raw_args) if isinstance(raw_args, str) else raw_args,
+            arguments=raw_args,
             tool_id=str(tool_id),
             type=str(tool_type),
         )
@@ -682,19 +682,20 @@ def _openai_parse_output_response_messages(messages: List[Any]) -> Tuple[List[Me
             for content in _get_attr(item, "content", []) or []:
                 text += str(_get_attr(content, "text", "") or "")
                 text += str(_get_attr(content, "refusal", "") or "")
-            message["role"] = str(_get_attr(item, "role", "assistant"))
-            message["content"] = text
+            message.update({"role": str(_get_attr(item, "role", "assistant")), "content": text})
         elif message_type == "reasoning":
-            message["role"] = "reasoning"
-            message["content"] = (
-                safe_json(
-                    {
-                        "summary": _get_attr(item, "summary", ""),
-                        "encrypted_content": _get_attr(item, "encrypted_content", ""),
-                        "id": _get_attr(item, "id", ""),
-                    }
-                )
-                or ""
+            message.update(
+                {
+                    "role": "reasoning",
+                    "content": safe_json(
+                        {
+                            "summary": _get_attr(item, "summary", ""),
+                            "encrypted_content": _get_attr(item, "encrypted_content", ""),
+                            "id": _get_attr(item, "id", ""),
+                        }
+                    )
+                    or "",
+                }
             )
         elif message_type == "function_call" or message_type == "custom_tool_call":
             call_id = _get_attr(item, "call_id", "")
@@ -1228,7 +1229,7 @@ def get_final_message_converse_stream_message(
     message_output = Message(role=message["role"])
 
     text_contents = [text_blocks[idx] for idx in indices if idx in text_blocks]
-    message_output["content"] = "".join(text_contents) if text_contents else ""
+    message_output.update({"content": "".join(text_contents)} if text_contents else {})
 
     tool_calls = []
     for idx in indices:
