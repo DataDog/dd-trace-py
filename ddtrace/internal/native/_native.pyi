@@ -317,6 +317,11 @@ class TraceExporterBuilder:
         :param runtime_id: The runtime id to use for telemetry.
         """
         ...
+    def enable_health_metrics(self) -> TraceExporterBuilder:
+        """
+        Enable health metrics in the TraceExporter
+        """
+        ...
     def build(self) -> TraceExporter:
         """
         Build and return a TraceExporter instance with the configured settings.
