@@ -99,13 +99,13 @@ def gunicorn_django_server(
     remote_configuration_enabled: str = "true",
     tracer_enabled: str = "true",
     apm_tracing_enabled: str = "true",
-    token: str | None = None,
+    token: str = None,
     port: int = 8000,
     workers: str = "1",
     use_threads: bool = False,
     use_gevent: bool = False,
     assert_debug: bool = False,
-    env: dict | None = None,
+    env: dict = None,
 ):
     """Run the Django test application under Gunicorn.
 
