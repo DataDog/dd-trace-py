@@ -2,6 +2,7 @@ import concurrent.futures
 
 from ddtrace.appsec._iast.constants import VULN_CMDI
 from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
+from ddtrace.appsec._iast.constants import VULN_INSECURE_HASHING_TYPE
 from ddtrace.internal.logger import get_logger
 from tests.appsec.appsec_utils import django_server
 from tests.appsec.iast.iast_utils import load_iast_report
@@ -57,6 +58,66 @@ def test_iast_cmdi():
     assert vulnerability["location"]["spanId"]
     assert not vulnerability["location"]["path"].startswith("werkzeug")
     assert vulnerability["location"]["stackId"]
+    assert vulnerability["hash"]
+
+
+def test_iast_vulnerable_request_downstream_django():
+    """Mirror Flask downstream propagation test for Django server.
+
+    Sends a request with Datadog headers to the Django endpoint which triggers a weak-hash
+    vulnerability and then calls a downstream endpoint to echo headers. Asserts that headers are
+    properly propagated and that an IAST WEAK_HASH vulnerability is reported.
+    """
+    token = "test_iast_vulnerable_request_downstream_django"
+    _ = start_trace(token)
+    env = {
+        "DD_APM_TRACING_ENABLED": "false",
+        "DD_TRACE_URLLIB3_ENABLED": "true",
+    }
+    with django_server(iast_enabled="true", token=token, env=env, port=8050) as context:
+        _, django_client, pid = context
+
+        trace_id = 1212121212121212121
+        parent_id = 34343434
+        response = django_client.get(
+            "/vulnerablerequestdownstream/?port=8050",
+            headers={
+                "x-datadog-trace-id": str(trace_id),
+                "x-datadog-parent-id": str(parent_id),
+                "x-datadog-sampling-priority": "-1",
+                "x-datadog-origin": "rum",
+                "x-datadog-tags": "_dd.p.other=1",
+            },
+        )
+
+        assert response.status_code == 200
+        downstream_headers = response.json()
+        print(downstream_headers)
+        assert downstream_headers["X-Datadog-Origin"] == "rum"
+        assert downstream_headers["X-Datadog-Parent-Id"] != str(parent_id)
+        assert downstream_headers["X-Datadog-Sampling-Priority"] == "2"
+
+    response_tracer = _get_span(token)
+    spans = []
+    spans_with_iast = []
+    vulnerabilities = []
+    for trace in response_tracer:
+        for span in trace:
+            if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
+                spans_with_iast.append(span)
+            iast_data = load_iast_report(span)
+            if iast_data:
+                vulnerabilities.append(iast_data.get("vulnerabilities"))
+            spans.append(span)
+    clear_session(token)
+
+    assert len(spans) >= 8, f"Incorrect number of spans ({len(spans)}):\n{spans}"
+    assert len(spans_with_iast) >= 2, f"Invalid number of spans with IAST ({len(spans_with_iast)}):\n{spans_with_iast}"
+    assert len(vulnerabilities) >= 1, f"Invalid number of vulnerabilities ({len(vulnerabilities)}):\n{vulnerabilities}"
+    assert len(vulnerabilities[0]) >= 1
+    vulnerability = vulnerabilities[0][0]
+    assert vulnerability["type"] == VULN_INSECURE_HASHING_TYPE
+    assert "valueParts" not in vulnerability["evidence"]
     assert vulnerability["hash"]
 
 

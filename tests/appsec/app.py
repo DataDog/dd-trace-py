@@ -1,10 +1,10 @@
-"""This Flask application is imported on tests.appsec.appsec_utils.gunicorn_server"""
+"""This Flask application is imported on tests.appsec.appsec_utils.gunicorn_flask_server"""
 import ddtrace.auto  # noqa: F401  # isort: skip
 import copy
 import os
 import re
 import shlex
-import subprocess  # nosec
+import subprocess
 
 from flask import Flask
 from flask import Response
@@ -13,7 +13,6 @@ from flask import request
 import urllib3
 from wrapt import FunctionWrapper
 
-import ddtrace
 from ddtrace import tracer
 from ddtrace.appsec._iast import ddtrace_iast_flask_patch
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
@@ -97,9 +96,6 @@ from tests.appsec.iast_packages.packages.pkg_yarl import pkg_yarl
 from tests.appsec.iast_packages.packages.pkg_zipp import pkg_zipp
 import tests.appsec.integrations.flask_tests.module_with_import_errors as module_with_import_errors
 
-
-# Patch urllib3 since they are not patched automatically
-ddtrace.patch_all(urllib3=True)  # type: ignore
 
 app = Flask(__name__)
 app.register_blueprint(pkg_aiohttp)
@@ -999,7 +995,7 @@ def vulnerable_request_downstream():
     _weak_hash_vulnerability()
     port = str(request.args.get("port", "8050"))
     # Propagate the received headers to the downstream service
-    http_poolmanager = urllib3.PoolManager()
+    http_poolmanager = urllib3.PoolManager(num_pools=1)
     # Sending a GET request and getting back response as HTTPResponse object.
     response = http_poolmanager.request("GET", f"http://localhost:{port}/returnheaders")
     http_poolmanager.clear()

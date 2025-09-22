@@ -156,6 +156,7 @@ venv = Venv(
             pys=select_pys(),
             command="python -m pytest -vvv -s -n 8 --no-cov --no-ddtrace tests/appsec/integrations/packages_tests/",
             pkgs={
+                "gevent": latest,
                 "pytest-xdist": latest,
                 "pytest-asyncio": latest,
                 "requests": latest,

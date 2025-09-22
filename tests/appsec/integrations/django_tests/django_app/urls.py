@@ -23,8 +23,10 @@ urlpatterns = [
     handler(r"^$", views.index),
     handler(r"^shutdown$", shutdown),
     handler(r"^iast-enabled/$", views.iast_enabled),
+    handler(r"^vulnerablerequestdownstream/$", views.vulnerable_request_downstream),
     # This must precede composed-view.
     handler("appsec/response-header/$", views.magic_header_key, name="response-header"),
+    handler("appsec/returnheaders/$", views.return_headers, name="return_headers"),
     handler("appsec/body/$", views.body_view, name="body_view"),
     handler("appsec/view_with_exception/$", views.view_with_exception, name="view_with_exception"),
     handler("appsec/weak-hash/$", views.weak_hash_view, name="weak_hash"),

@@ -20,7 +20,7 @@ FILE_PATH = Path(__file__).resolve().parent
 
 
 @contextmanager
-def gunicorn_server(
+def gunicorn_flask_server(
     use_ddtrace_cmd=True,
     appsec_enabled="true",
     iast_enabled="false",
@@ -234,50 +234,6 @@ def appsec_application_server(
     env["DD_TRACE_AGENT_URL"] = os.environ.get("DD_TRACE_AGENT_URL", "")
     env["FLASK_RUN_PORT"] = str(port)
 
-    def _make_preexec() -> _t.Optional[_t.Callable[[], None]]:
-        """Create a preexec_fn that applies resource limits if configured.
-
-        Returns None if no limits were requested.
-        """
-        mem_mb = os.environ.get("TEST_SUBPROC_MEM_MB")
-        cpu_aff = os.environ.get("TEST_SUBPROC_CPU_AFFINITY")
-        nice_val = os.environ.get("TEST_SUBPROC_NICE")
-        if not any((mem_mb, cpu_aff, nice_val)):
-            return None
-
-        # Import inside to keep portability on Windows.
-        try:
-            import resource  # type: ignore[attr-defined]
-        except Exception:  # pragma: no cover
-            resource = None  # type: ignore[assignment]
-
-        def _preexec():  # pragma: no cover - exercised in integration tests
-            # Set process group leader (already done via start_new_session)
-            # Apply niceness first to reduce priority
-            if nice_val is not None:
-                try:
-                    os.nice(int(nice_val))
-                except Exception:
-                    pass
-            # CPU affinity (Linux only)
-            if cpu_aff:
-                try:
-                    cpus = {int(x) for x in cpu_aff.split(",") if x.strip() != ""}
-                    if hasattr(os, "sched_setaffinity") and cpus:
-                        os.sched_setaffinity(0, cpus)  # type: ignore[attr-defined]
-                except Exception:
-                    pass
-            # Memory limit via RLIMIT_AS (virtual memory)
-            if mem_mb and resource is not None:
-                try:
-                    limit_bytes = int(mem_mb) * 1024 * 1024
-                    resource.setrlimit(resource.RLIMIT_AS, (limit_bytes, limit_bytes))
-                except Exception:
-                    # Fall back silently if not supported
-                    pass
-
-        return _preexec
-
     subprocess_kwargs = {
         "env": env,
         "start_new_session": True,
@@ -343,3 +299,48 @@ def appsec_application_server(
             assert "Return from " in process_output
             assert "Return value is tainted" in process_output
             assert "Tainted arguments:" in process_output
+
+
+def _make_preexec() -> _t.Optional[_t.Callable[[], None]]:
+    """Create a preexec_fn that applies resource limits if configured.
+
+    Returns None if no limits were requested.
+    """
+    mem_mb = os.environ.get("TEST_SUBPROC_MEM_MB")
+    cpu_aff = os.environ.get("TEST_SUBPROC_CPU_AFFINITY")
+    nice_val = os.environ.get("TEST_SUBPROC_NICE")
+    if not any((mem_mb, cpu_aff, nice_val)):
+        return None
+
+    # Import inside to keep portability on Windows.
+    try:
+        import resource  # type: ignore[attr-defined]
+    except Exception:  # pragma: no cover
+        resource = None  # type: ignore[assignment]
+
+    def _preexec():  # pragma: no cover - exercised in integration tests
+        # Set process group leader (already done via start_new_session)
+        # Apply niceness first to reduce priority
+        if nice_val is not None:
+            try:
+                os.nice(int(nice_val))
+            except Exception:
+                pass
+        # CPU affinity (Linux only)
+        if cpu_aff:
+            try:
+                cpus = {int(x) for x in cpu_aff.split(",") if x.strip() != ""}
+                if hasattr(os, "sched_setaffinity") and cpus:
+                    os.sched_setaffinity(0, cpus)  # type: ignore[attr-defined]
+            except Exception:
+                pass
+        # Memory limit via RLIMIT_AS (virtual memory)
+        if mem_mb and resource is not None:
+            try:
+                limit_bytes = int(mem_mb) * 1024 * 1024
+                resource.setrlimit(resource.RLIMIT_AS, (limit_bytes, limit_bytes))
+            except Exception:
+                # Fall back silently if not supported
+                pass
+
+    return _preexec

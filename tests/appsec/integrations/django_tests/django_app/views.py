@@ -25,6 +25,7 @@ from django.utils.safestring import mark_safe
 from django.views.decorators.csrf import csrf_exempt
 import requests
 from requests.exceptions import ConnectionError  # noqa: A004
+import urllib3
 
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
@@ -401,6 +402,48 @@ def command_injection_subprocess(request):
     subp.communicate()
     subp.wait()
     return HttpResponse("OK", status=200)
+
+
+def return_headers(request):
+    """Return all incoming request headers as JSON.
+
+    Uses request.headers where available (Django >= 2.2), otherwise falls back to META.
+    """
+    headers = {}
+    if hasattr(request, "headers"):
+        for key, value in request.headers.items():
+            headers[key] = value
+    else:
+        # Django < 2.2 compatibility: reconstruct headers from META
+        for key, value in request.META.items():
+            if key.startswith("HTTP_"):
+                name = key[5:].replace("_", "-").title()
+                headers[name] = value
+            elif key in ("CONTENT_TYPE", "CONTENT_LENGTH"):
+                name = key.replace("_", "-").title()
+                headers[name] = value
+    return JsonResponse(headers)
+
+
+def vulnerable_request_downstream(request):
+    """Trigger a weak-hash vulnerability, then call downstream return-headers endpoint.
+
+    Mirrors Flask's /vulnerablerequestdownstream behavior to validate header propagation
+    and IAST instrumentation under Django.
+    """
+    # Trigger weak hash for IAST
+    m = hashlib.md5()
+    m.update(b"Nobody inspects")
+    m.update(b" the spammish repetition")
+    _ = m.digest()
+
+    port = request.GET.get("port", "8050")
+    http_poolmanager = urllib3.PoolManager(num_pools=1)
+    # Sending a GET request and getting back response as HTTPResponse object.
+    response = http_poolmanager.request("GET", f"http://localhost:{port}/appsec/returnheaders")
+    http_poolmanager.clear()
+
+    return HttpResponse(response.data, status=200, content_type="application/json")
 
 
 def command_injection_secure_mark(request):
