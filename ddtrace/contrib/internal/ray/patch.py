@@ -188,7 +188,7 @@ def traced_submit_job(wrapped, instance, args, kwargs):
     )
 
     # Root span creation
-    job_span = tracer.start_span("ray.job", service=job_name, span_type=SpanTypes.RAY)
+    job_span = tracer.start_span("ray.job", service=job_name or DEFAULT_JOB_NAME, span_type=SpanTypes.RAY)
     job_span.set_tag_str("component", "ray")
     job_span.set_tag_str(RAY_SUBMISSION_ID_TAG, submission_id)
     tracer.context_provider.activate(job_span)
