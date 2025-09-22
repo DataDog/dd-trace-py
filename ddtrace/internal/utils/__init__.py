@@ -4,6 +4,7 @@ from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
+from ddtrace.internal.constants import BAGGAGE_TAG_PREFIX
 
 
 class ArgumentError(Exception):
@@ -77,7 +78,7 @@ def _get_metas_to_propagate(context):
     metas_to_propagate = []
     # copying context._meta.items() to avoid RuntimeError: dictionary changed size during iteration
     for k, v in list(context._meta.items()):
-        if isinstance(k, str) and k.startswith("_dd.p."):
+        if isinstance(k, str) and (k.startswith("_dd.p.") or k.startswith(BAGGAGE_TAG_PREFIX)):
             metas_to_propagate.append((k, v))
     return metas_to_propagate
 

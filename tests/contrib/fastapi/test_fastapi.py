@@ -944,6 +944,25 @@ def test_baggage_span_tagging_default(client, tracer, test_spans):
     assert request_span.get_tag("baggage.region") is None
 
 
+def test_baggage_span_tags_propagate_to_child_spans(client, tracer, test_spans):
+    # Baggage header contains keys where user.id/account.id are in the default allowlist,
+    # and region is not. We expect the allowed baggage tags to appear on all spans.
+    response = client.get("/", headers={"baggage": "user.id=123,account.id=456,region=us-west"})
+
+    assert response.status_code == 200
+
+    traces = test_spans.pop_traces()
+    assert len(traces) >= 1
+    spans = traces[0]
+    assert len(spans) >= 1
+
+    for span in spans:
+        assert span.get_tag("baggage.user.id") == "123"
+        assert span.get_tag("baggage.account.id") == "456"
+        # Since "region" is not in the default list, its baggage tag should not be present.
+        assert span.get_tag("baggage.region") is None
+
+
 def test_baggage_span_tagging_no_headers(client, tracer, test_spans):
     response = client.get("/", headers={})
     assert response.status_code == 200
