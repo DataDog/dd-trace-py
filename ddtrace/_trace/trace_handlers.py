@@ -34,9 +34,9 @@ from ddtrace.ext import SpanLinkKind
 from ddtrace.ext import azure_servicebus as azure_servicebusx
 from ddtrace.ext import db
 from ddtrace.ext import http
-from ddtrace.ext import websocket
 from ddtrace.ext import net
 from ddtrace.ext import redis as redisx
+from ddtrace.ext import websocket
 from ddtrace.internal import core
 from ddtrace.internal.compat import is_valid_ip
 from ddtrace.internal.compat import maybe_stringify
@@ -49,7 +49,6 @@ from ddtrace.internal.constants import MESSAGING_DESTINATION_NAME
 from ddtrace.internal.constants import MESSAGING_MESSAGE_ID
 from ddtrace.internal.constants import MESSAGING_OPERATION
 from ddtrace.internal.constants import MESSAGING_SYSTEM
-from ddtrace.internal.constants import NETWORK_DESTINATION_NAME
 from ddtrace.internal.constants import SPAN_LINK_KIND
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import _inherit_sampling_tags
@@ -1181,7 +1180,6 @@ def listen():
     core.on("azure.functions.start_response", _on_azure_functions_start_response)
     core.on("azure.functions.trigger_call_modifier", _on_azure_functions_trigger_span_modifier)
     core.on("azure.functions.service_bus_trigger_modifier", _on_azure_functions_service_bus_trigger_span_modifier)
-    core.on("azure.servicebus.send_message_modifier", _on_azure_servicebus_send_message_modifier)
     core.on("asgi.websocket.receive.message", _on_asgi_websocket_receive_message)
     core.on("asgi.websocket.send.message", _on_asgi_websocket_send_message)
     core.on("asgi.websocket.disconnect.message", _on_asgi_websocket_disconnect_message)
