@@ -189,9 +189,9 @@ def extract_message_from_part_google_genai(part, role: str) -> Message:
     function_call = _get_attr(part, "function_call", None)
     if function_call:
         tool_call_info = ToolCall(
-            name=_get_attr(function_call, "name", "") or "",
+            name=str(_get_attr(function_call, "name", "") or ""),
             arguments=_get_attr(function_call, "args", {}) or {},
-            tool_id=_get_attr(function_call, "id", "") or "",
+            tool_id=str(_get_attr(function_call, "id", "") or ""),
             type="function_call",
         )
         message["tool_calls"] = [tool_call_info]
@@ -201,9 +201,9 @@ def extract_message_from_part_google_genai(part, role: str) -> Message:
     if function_response:
         result = _get_attr(function_response, "response", "") or ""
         tool_result_info = ToolResult(
-            name=_get_attr(function_response, "name", "") or "",
+            name=str(_get_attr(function_response, "name", "") or ""),
             result=result if isinstance(result, str) else json.dumps(result),
-            tool_id=_get_attr(function_response, "id", "") or "",
+            tool_id=str(_get_attr(function_response, "id", "") or ""),
             type="function_response",
         )
         message["tool_results"] = [tool_result_info]
@@ -246,7 +246,7 @@ def extract_message_from_part_gemini_vertexai(part, role=None) -> Message:
     text = _get_attr(part, "text", "")
     function_call = _get_attr(part, "function_call", None)
     function_response = _get_attr(part, "function_response", None)
-    message = Message(content=text)
+    message = Message(content=str(text))
     if role:
         message["role"] = role
     if function_call:

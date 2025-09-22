@@ -157,7 +157,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
     def _extract_embedding_input_documents(self, args, kwargs, config) -> List[Document]:
         contents = kwargs.get("contents")
         messages = self._extract_messages_from_contents(contents, "user")
-        documents = [Document(text=str(message["content"])) for message in messages]
+        documents = [Document(text=str(message.get("content", ""))) for message in messages]
         return documents
 
     def _extract_metadata(self, config, params) -> Dict[str, Any]:
@@ -176,8 +176,8 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             schema = {"value": repr(schema)}
 
         return ToolDefinition(
-            name=_get_attr(function_declaration, "name", "") or "",
-            description=_get_attr(function_declaration, "description", "") or "",
+            name=str(_get_attr(function_declaration, "name", "") or ""),
+            description=str(_get_attr(function_declaration, "description", "") or ""),
             schema=schema,
         )
 

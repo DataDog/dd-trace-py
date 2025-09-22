@@ -123,7 +123,7 @@ class AnthropicIntegration(BaseLLMIntegration):
             elif isinstance(content, list):
                 for block in content:
                     if _get_attr(block, "type", None) == "text":
-                        input_messages.append(Message(content=_get_attr(block, "text", ""), role=str(role)))
+                        input_messages.append(Message(content=str(_get_attr(block, "text", "")), role=str(role)))
 
                     elif _get_attr(block, "type", None) == "image":
                         # Store a placeholder for potentially enormous binary image data.

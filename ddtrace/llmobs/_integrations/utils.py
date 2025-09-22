@@ -700,12 +700,12 @@ def _openai_parse_output_response_messages(messages: List[Any]) -> Tuple[List[Me
             call_id = _get_attr(item, "call_id", "")
             name = _get_attr(item, "name", "")
             raw_arguments = _get_attr(item, "input", "") or _get_attr(item, "arguments", OAI_HANDOFF_TOOL_ARG)
-            arguments = safe_load_json(raw_arguments)
+            arguments = safe_load_json(str(raw_arguments))
             tool_call_info = ToolCall(
-                tool_id=call_id,
+                tool_id=str(call_id),
                 arguments=arguments,
-                name=name,
-                type=_get_attr(item, "type", "function"),
+                name=str(name),
+                type=str(_get_attr(item, "type", "function")),
             )
             tool_call_outputs.append(tool_call_info)
             message.update(
@@ -784,24 +784,24 @@ def _openai_get_tool_definitions(tools: List[Any]) -> List[ToolDefinition]:
         if _get_attr(tool, "function", None):
             function = _get_attr(tool, "function", {})
             tool_definition = ToolDefinition(
-                name=_get_attr(function, "name", ""),
-                description=_get_attr(function, "description", ""),
+                name=str(_get_attr(function, "name", "")),
+                description=str(_get_attr(function, "description", "")),
                 schema=_get_attr(function, "parameters", {}),
             )
         # chat API custom tool access
         elif _get_attr(tool, "custom", None):
             custom_tool = _get_attr(tool, "custom", {})
             tool_definition = ToolDefinition(
-                name=_get_attr(custom_tool, "name", ""),
-                description=_get_attr(custom_tool, "description", ""),
+                name=str(_get_attr(custom_tool, "name", "")),
+                description=str(_get_attr(custom_tool, "description", "")),
                 schema=_get_attr(custom_tool, "format", {}),  # format is a dict
             )
         # chat API function access and response API tool access
         # only handles FunctionToolParam and CustomToolParam for response API for now
         else:
             tool_definition = ToolDefinition(
-                name=_get_attr(tool, "name", ""),
-                description=_get_attr(tool, "description", ""),
+                name=str(_get_attr(tool, "name", "")),
+                description=str(_get_attr(tool, "description", "")),
                 schema=_get_attr(tool, "parameters", {}) or _get_attr(tool, "format", {}),
             )
         if not any(tool_definition.values()):

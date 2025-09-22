@@ -100,7 +100,7 @@ def test_llmobs_openai_llm_proxy(mock_generate, langchain_openai, llmobs_events,
     llm.invoke("What is the capital of France?")
     span = tracer.pop_traces()[0][0]
     assert len(llmobs_events) == 2
-    assert llmobs_events[1]["meta"]["span.kind"] == "llm"
+    assert llmobs_events[1]["meta"]["span"]["kind"] == "llm"
 
 
 def test_llmobs_openai_chat_model(langchain_openai, llmobs_events, tracer, openai_url):
@@ -151,7 +151,7 @@ def test_llmobs_openai_chat_model_proxy(mock_generate, langchain_openai, llmobs_
     chat_model.invoke([HumanMessage(content="What is the capital of France?")])
     span = tracer.pop_traces()[0][0]
     assert len(llmobs_events) == 2
-    assert llmobs_events[1]["meta"]["span.kind"] == "llm"
+    assert llmobs_events[1]["meta"]["span"]["kind"] == "llm"
 
 
 def test_llmobs_string_prompt_template_invoke(langchain_core, langchain_openai, openai_url, llmobs_events, tracer):
@@ -654,8 +654,8 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
             call_args = call.args[0]
 
             assert (
-                call_args["meta"]["span.kind"] == span_kind
-            ), f"Span kind is {call_args['meta']['span.kind']} but expected {span_kind}"
+                call_args["meta"]["span"]["kind"] == span_kind
+            ), f"Span kind is {call_args['meta']['span']['kind']} but expected {span_kind}"
             if span_kind == "workflow":
                 assert len(call_args["meta"]["input"]["value"]) > 0
                 assert len(call_args["meta"]["output"]["value"]) > 0
