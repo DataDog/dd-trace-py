@@ -35,6 +35,7 @@ from ..internal.logger import get_logger
 from ..internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ..internal.serverless import in_aws_lambda
 from ..internal.telemetry import get_config as _get_config
+from ..internal.telemetry import get_env as _get_env  # noqa:F401
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
 from ._inferred_base_service import detect_service

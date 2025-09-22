@@ -1,5 +1,4 @@
 import importlib
-import os
 from types import ModuleType
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Set
@@ -9,6 +8,7 @@ from wrapt.importer import when_imported
 
 from ddtrace.internal.compat import Path
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.settings._config import _get_env
 from ddtrace.settings._config import config
 from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.vendor.packaging.specifiers import SpecifierSet
@@ -17,7 +17,7 @@ from ddtrace.vendor.packaging.version import Version
 from .internal import telemetry
 from .internal.logger import get_logger
 from .internal.utils import formats
-from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
+from .internal.utils.deprecations import DDTraceDeprecationWarning
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -351,8 +351,8 @@ def _patch_all(**patch_modules: bool) -> None:
     # The enabled setting can be overridden by environment variables
     for module, _enabled in modules.items():
         env_var = "DD_TRACE_%s_ENABLED" % module.upper()
-        if module not in _NOT_PATCHABLE_VIA_ENVVAR and env_var in os.environ:
-            modules[module] = formats.asbool(os.environ[env_var])
+        if module not in _NOT_PATCHABLE_VIA_ENVVAR and (env_val := _get_env(env_var)) is not None:
+            modules[module] = formats.asbool(env_val)
 
         # Enable all dependencies for the module
         if modules[module]:
