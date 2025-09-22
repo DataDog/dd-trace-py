@@ -77,7 +77,7 @@ def test_iast_untrusted_serialization_yaml():
     ) as context:
         _, django_client, pid = context
 
-        response = django_client.get("/appsec/untrusted/yaml/?input=a: 1")
+        response = django_client.get("/iast/untrusted/yaml/?input=a: 1")
 
         assert response.status_code == 200
 

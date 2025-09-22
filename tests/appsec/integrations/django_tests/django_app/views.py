@@ -461,9 +461,11 @@ def untrusted_serialization_dill_view(request):
     user_input = request.GET.get("input", "")
     data = user_input.encode("utf-8", "ignore")
 
-    # label untrusted_serialization_dill
-    dill.loads(data)
-
+    try:
+        # label untrusted_serialization_dill
+        dill.loads(data)
+    except Exception:
+        pass
     return HttpResponse("OK", status=200)
 
 
