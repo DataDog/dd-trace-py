@@ -254,7 +254,6 @@ def appsec_application_server(
 ):
     """Start an application server subprocess for AppSec/IAST tests.
 
-    AIDEV-NOTE: Optional resource limiting
     This helper optionally applies CPU/memory limits to the spawned subprocess when the following
     environment variables are set (Linux/Unix only):
       - TEST_SUBPROC_MEM_MB: integer megabytes to cap address space (RLIMIT_AS)

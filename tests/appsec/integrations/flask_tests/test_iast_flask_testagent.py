@@ -77,11 +77,6 @@ def test_iast_stacktrace_error():
 # )
 # def test_iast_vulnerable_request_downstream_parallel(server, config):
 #     """Run the vulnerable_request_downstream scenario many times in parallel.
-#
-#     AIDEV-NOTE: This test is intended to surface flakiness under CPU pressure by
-#     starting multiple independent servers on distinct ports concurrently.
-#     Each worker uses a unique token and port to avoid shared-state conflicts
-#     with the test agent and span collection.
 #     """
 #     # Keep a moderate fan-out to avoid overloading CI machines
 #     fan_out = int(os.environ.get("TEST_PARALLEL_RUNS", "4"))
