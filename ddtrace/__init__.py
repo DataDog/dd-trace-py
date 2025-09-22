@@ -14,6 +14,7 @@ configure_ddtrace_logger()  # noqa: E402
 
 # Enable telemetry writer and excepthook as early as possible to ensure we capture any exceptions from initialization
 import ddtrace.internal.telemetry  # noqa: E402
+from .settings._config import config, _get_env
 from ddtrace.vendor import debtcollector
 
 from ._monkey import patch  # noqa: E402
@@ -27,7 +28,7 @@ from .version import get_version  # noqa: E402
 __version__ = get_version()
 
 # TODO: Deprecate accessing tracer from ddtrace.__init__ module in v4.0
-if os.environ.get("_DD_GLOBAL_TRACER_INIT", "true").lower() in ("1", "true"):
+if _get_env("_DD_GLOBAL_TRACER_INIT", "true").lower() in ("1", "true"):
     from ddtrace.trace import tracer  # noqa: F401
 
 __all__ = [
