@@ -14,6 +14,7 @@ from ddtrace.debugging._metrics import metrics
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.model import SignalTrack
 from ddtrace.internal import agent
+from ddtrace.internal import logger
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import ForksafeAwakeablePeriodicService
 from ddtrace.internal.utils.http import connector
@@ -22,6 +23,9 @@ from ddtrace.internal.utils.time import HourGlass
 
 
 log = get_logger(__name__)
+UNSUPPORTED_AGENT = "unsupported_agent"
+logger.set_tag_rate_limit(UNSUPPORTED_AGENT, logger.HOUR)
+
 meter = metrics.get_meter("uploader")
 
 
@@ -99,19 +103,11 @@ class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
         snapshot_track = "/debugger/v1/diagnostics"
         if "/debugger/v2/input" in self._agent_endpoints:
             snapshot_track = "/debugger/v2/input"
-        elif "/debugger/v1/diagnostics" in self._agent_endpoints:
-            snapshot_track = "/debugger/v1/diagnostics"
 
         endpoint_suffix = f"?ddtags={quote(di_config.tags)}" if di_config._tags_in_qs and di_config.tags else ""
 
         # Only create the tracks if they don't exist to preserve the track queue metadata.
         if not self._tracks:
-            if snapshot_track not in self._agent_endpoints:
-                log.warning(
-                    "Live Debugger and Exception Replay could not verify if the snapshot endpoint is available. "
-                    "You may need to update the agent to v7.49.0 or later for these features to work.",
-                )
-
             self._tracks = {
                 SignalTrack.LOGS: UploaderTrack(
                     endpoint=f"/debugger/v1/input{endpoint_suffix}",
@@ -137,7 +133,20 @@ class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
             with self._connect() as conn:
                 conn.request("POST", endpoint, payload, headers=self._headers)
                 resp = conn.getresponse()
-                if not (200 <= resp.status < 300):
+                if resp.status == 404:
+                    log.warning(
+                        UNSUPPORTED_AGENT,
+                        extra={
+                            "product": "debugger",
+                            "more_info": (
+                                "Unsupported Datadog agent detected. Snapshots from Dynamic Instrumentation/"
+                                "Exception Replay/Code Origin for Spans will not be uploaded. "
+                                "Please upgrade to version 7.49.0 or later"
+                            ),
+                        },
+                    )
+                    meter.increment("upload.error", tags={"status": str(resp.status)})
+                elif not (200 <= resp.status < 300):
                     log.error("Failed to upload payload to endpoint %s: [%d] %r", endpoint, resp.status, resp.read())
                     meter.increment("upload.error", tags={"status": str(resp.status)})
                 else:
