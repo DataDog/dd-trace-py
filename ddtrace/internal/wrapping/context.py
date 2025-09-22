@@ -67,8 +67,53 @@ CONTEXT_HEAD = Assembly()
 CONTEXT_RETURN = Assembly()
 CONTEXT_FOOT = Assembly()
 
-if sys.version_info >= (3, 14):
-    raise NotImplementedError("Python >= 3.14 is not supported yet")
+if sys.version_info >= (3, 15):
+    raise NotImplementedError("Python >= 3.15 is not supported yet")
+elif sys.version_info >= (3, 14):
+    CONTEXT_HEAD.parse(
+        r"""
+            load_const                  {context_enter}
+            push_null
+            call                        0
+            pop_top
+        """
+    )
+    CONTEXT_RETURN.parse(
+        r"""
+            push_null
+            load_const                  {context_return}
+            swap                        3
+            call                        1
+        """
+    )
+
+    CONTEXT_RETURN_CONST = Assembly()
+    CONTEXT_RETURN_CONST.parse(
+        r"""
+            load_const                  {context_return}
+            push_null
+            load_const                  {value}
+            call                        1
+        """
+    )
+
+    CONTEXT_FOOT.parse(
+        r"""
+        try                             @_except lasti
+            push_exc_info
+            load_const                  {context_exit}
+            push_null
+            call                        0
+            pop_top
+            reraise                     2
+        tried
+
+        _except:
+            copy                        3
+            pop_except
+            reraise                     1
+        """
+    )
 elif sys.version_info >= (3, 13):
     CONTEXT_HEAD.parse(
         r"""

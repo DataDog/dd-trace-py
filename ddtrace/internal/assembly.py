@@ -41,7 +41,10 @@ def relocate(instrs: bc.Bytecode, lineno: int) -> bc.Bytecode:
 
 def transform_instruction(opcode: str, arg: t.Any) -> t.Tuple[str, t.Any]:
     # Handle pseudo-instructions
-    if sys.version_info >= (3, 12):
+    if sys.version_info >= (3, 14):
+        if opcode.upper() == "LOAD_ATTR" and not isinstance(arg, tuple):
+            arg = (True, arg)
+    elif sys.version_info >= (3, 12):
         if opcode.upper() == "LOAD_METHOD":
             opcode = "LOAD_ATTR"
             arg = (True, arg)

@@ -30,7 +30,86 @@ PY = sys.version_info[:2]
 GENERATOR_ASSEMBLY = Assembly()
 GENERATOR_HEAD_ASSEMBLY = None
 
-if PY >= (3, 12):
+if PY >= (3, 14):
+    GENERATOR_HEAD_ASSEMBLY = Assembly()
+    GENERATOR_HEAD_ASSEMBLY.parse(
+        r"""
+            return_generator
+            pop_top
+        """
+    )
+
+    GENERATOR_ASSEMBLY.parse(
+        r"""
+        try                             @stopiter
+            copy                        1
+            store_fast                  $__ddgen
+            load_attr                   $send
+            store_fast                  $__ddgensend
+            push_null
+            load_const                  next
+            load_fast                   $__ddgen
+
+        loop:
+            call                        1
+        tried
+
+        yield:
+        try                             @genexit lasti
+            yield_value                 3
+            resume                      1
+            push_null
+            swap                        2
+            load_fast                   $__ddgensend
+            swap                        2
+            jump_backward               @loop
+        tried
+
+        genexit:
+        try                             @stopiter
+            push_exc_info
+            load_const                  GeneratorExit
+            check_exc_match
+            pop_jump_if_false           @exc
+            pop_top
+            load_fast                   $__ddgen
+            load_attr                 $close
+            call                        0
+            swap                        2
+            pop_except
+            load_const                  None
+            return_value
+
+        exc:
+            pop_top
+            push_null
+            load_fast                   $__ddgen
+            load_attr                   $throw
+            push_null
+            load_const                  sys.exc_info
+            call                        0
+            call_function_ex
+            swap                        2
+            pop_except
+            jump_backward               @yield
+        tried
+
+        stopiter:
+            push_exc_info
+            load_const                  StopIteration
+            check_exc_match
+            pop_jump_if_false           @propagate
+            pop_top
+            pop_except
+            load_const                  None
+            return_value
+
+        propagate:
+            reraise                     0
+        """
+    )
+
+elif PY >= (3, 12):
     GENERATOR_HEAD_ASSEMBLY = Assembly()
     GENERATOR_HEAD_ASSEMBLY.parse(
         r"""

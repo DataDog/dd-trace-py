@@ -40,7 +40,18 @@ def _add(lineno):
 
 
 UPDATE_MAP = Assembly()
-if PY >= (3, 12):
+if PY >= (3, 14):
+    UPDATE_MAP.parse(
+        r"""
+            copy                1
+            load_attr           $update
+            load_fast           {varkwargsname}
+            call                1
+            pop_top
+        """
+    )
+
+elif PY >= (3, 12):
     UPDATE_MAP.parse(
         r"""
             copy                1
