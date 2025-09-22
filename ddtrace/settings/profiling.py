@@ -65,6 +65,9 @@ def _check_for_stack_v2_available():
 
 
 def _parse_profiling_enabled(raw: str) -> bool:
+    if sys.version_info >= (3, 14):
+        return False
+
     # Try to derive whether we're enabled via DD_INJECTION_ENABLED
     # - Are we injected (DD_INJECTION_ENABLED set)
     # - Is profiling enabled ("profiler" in the list)
@@ -372,7 +375,7 @@ ddup_failure_msg, ddup_is_available = _check_for_ddup_available()
 
 # We need to check if ddup is available, and turn off profiling if it is not.
 if not ddup_is_available:
-    # We known it is supported on 3.14, so don't report the error, but still disable
+    # We know it is not supported on 3.14, so don't report the error, but still disable
     if sys.version_info < (3, 14):
         msg = ddup_failure_msg or "libdd not available"
         logger.warning("Failed to load ddup module (%s), disabling profiling", msg)
