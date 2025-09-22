@@ -25,6 +25,13 @@ log = get_logger(__name__)
 __all__ = ["telemetry_writer"]
 
 
+def get_env(env_name: str, default: t.Any = None) -> t.Any:
+    if env_name.startswith(("DD_", "OTEL_", "_DD")):
+        return get_config(env_name, default)
+
+    return os.environ.get(env_name, default)
+
+
 def get_config(
     envs: t.Union[str, t.List[str]],
     default: t.Any = None,
