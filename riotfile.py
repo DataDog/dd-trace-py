@@ -219,6 +219,8 @@ venv = Venv(
             command="pytest -vvv {cmdargs} tests/appsec/integrations/django_tests/",
             pkgs={
                 "requests": latest,
+                "gunicorn": latest,
+                "gevent": latest,
                 "pylibmc": latest,
                 "PyYAML": latest,
                 "dill": latest,
