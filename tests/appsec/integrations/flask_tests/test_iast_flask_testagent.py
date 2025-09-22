@@ -18,6 +18,76 @@ from tests.appsec.integrations.utils_testagent import clear_session
 from tests.appsec.integrations.utils_testagent import start_trace
 
 
+_GEVENT_SERVERS_SCENARIOS = (
+    (
+        gunicorn_flask_server,
+        {
+            "workers": "3",
+            "use_threads": False,
+            "use_gevent": False,
+            "env": {
+                "DD_APM_TRACING_ENABLED": "false",
+            },
+        },
+    ),
+    (
+        gunicorn_flask_server,
+        {
+            "workers": "3",
+            "use_threads": True,
+            "use_gevent": False,
+            "env": {
+                "DD_APM_TRACING_ENABLED": "false",
+            },
+        },
+    ),
+    (
+        gunicorn_flask_server,
+        {
+            "workers": "3",
+            "use_threads": True,
+            "use_gevent": True,
+            "env": {
+                "DD_APM_TRACING_ENABLED": "false",
+            },
+        },
+    ),
+    (
+        gunicorn_flask_server,
+        {
+            "workers": "1",
+            "use_threads": True,
+            "use_gevent": True,
+            "env": {
+                "DD_APM_TRACING_ENABLED": "false",
+                "_DD_IAST_PROPAGATION_ENABLED": "false",
+            },
+        },
+    ),
+    (
+        gunicorn_flask_server,
+        {
+            "workers": "1",
+            "use_threads": True,
+            "use_gevent": True,
+            "env": {
+                "DD_APM_TRACING_ENABLED": "false",
+            },
+        },
+    ),
+    (
+        gunicorn_flask_server,
+        {
+            "workers": "1",
+            "use_threads": True,
+            "use_gevent": True,
+            "env": {"_DD_IAST_PROPAGATION_ENABLED": "false"},
+        },
+    ),
+    (flask_server, {"env": {"DD_APM_TRACING_ENABLED": "false"}}),
+)
+
+
 @pytest.mark.skip(reason="Stacktrace error in debug mode doesn't work outside the request APPSEC-56862")
 def test_iast_stacktrace_error():
     token = "test_iast_stacktrace_error"
@@ -433,77 +503,7 @@ def test_iast_unvalidated_redirect():
     assert vulnerability["hash"]
 
 
-@pytest.mark.parametrize(
-    "server, config",
-    (
-        (
-            gunicorn_flask_server,
-            {
-                "workers": "3",
-                "use_threads": False,
-                "use_gevent": False,
-                "env": {
-                    "DD_APM_TRACING_ENABLED": "false",
-                },
-            },
-        ),
-        (
-            gunicorn_flask_server,
-            {
-                "workers": "3",
-                "use_threads": True,
-                "use_gevent": False,
-                "env": {
-                    "DD_APM_TRACING_ENABLED": "false",
-                },
-            },
-        ),
-        (
-            gunicorn_flask_server,
-            {
-                "workers": "3",
-                "use_threads": True,
-                "use_gevent": True,
-                "env": {
-                    "DD_APM_TRACING_ENABLED": "false",
-                },
-            },
-        ),
-        (
-            gunicorn_flask_server,
-            {
-                "workers": "1",
-                "use_threads": True,
-                "use_gevent": True,
-                "env": {
-                    "DD_APM_TRACING_ENABLED": "false",
-                    "_DD_IAST_PROPAGATION_ENABLED": "false",
-                },
-            },
-        ),
-        (
-            gunicorn_flask_server,
-            {
-                "workers": "1",
-                "use_threads": True,
-                "use_gevent": True,
-                "env": {
-                    "DD_APM_TRACING_ENABLED": "false",
-                },
-            },
-        ),
-        (
-            gunicorn_flask_server,
-            {
-                "workers": "1",
-                "use_threads": True,
-                "use_gevent": True,
-                "env": {"_DD_IAST_PROPAGATION_ENABLED": "false"},
-            },
-        ),
-        (flask_server, {"env": {"DD_APM_TRACING_ENABLED": "false"}}),
-    ),
-)
+@pytest.mark.parametrize("server, config", _GEVENT_SERVERS_SCENARIOS)
 def test_iast_vulnerable_request_downstream(server, config):
     """Gevent has a lot of problematic interactions with the tracer. When IAST applies AST transformations to a file
     and reloads the module using compile and exec, it can interfere with Gevent’s monkey patching
@@ -558,60 +558,7 @@ def test_iast_vulnerable_request_downstream(server, config):
         assert vulnerability["hash"]
 
 
-@pytest.mark.parametrize(
-    "server, config",
-    (
-        (
-            gunicorn_flask_server,
-            {
-                "workers": "3",
-                "use_threads": False,
-                "use_gevent": False,
-            },
-        ),
-        (
-            gunicorn_flask_server,
-            {
-                "workers": "3",
-                "use_threads": True,
-                "use_gevent": False,
-            },
-        ),
-        (
-            gunicorn_flask_server,
-            {
-                "workers": "3",
-                "use_threads": True,
-                "use_gevent": True,
-            },
-        ),
-        (
-            gunicorn_flask_server,
-            {
-                "workers": "1",
-                "use_threads": True,
-                "use_gevent": True,
-                "env": {
-                    "_DD_IAST_PROPAGATION_ENABLED": "false",
-                },
-            },
-        ),
-        (
-            gunicorn_flask_server,
-            {"workers": "1", "use_threads": True, "use_gevent": True},
-        ),
-        (
-            gunicorn_flask_server,
-            {
-                "workers": "1",
-                "use_threads": True,
-                "use_gevent": True,
-                "env": {"_DD_IAST_PROPAGATION_ENABLED": "false"},
-            },
-        ),
-        (flask_server, {}),
-    ),
-)
+@pytest.mark.parametrize("server, config", _GEVENT_SERVERS_SCENARIOS)
 def test_gevent_sensitive_socketpair(server, config):
     """Validate socket.socketpair lifecycle under various Gunicorn/gevent configurations."""
     token = "test_gevent_sensitive_socketpair"
@@ -623,55 +570,7 @@ def test_gevent_sensitive_socketpair(server, config):
         assert response.text == "OK:True"
 
 
-@pytest.mark.parametrize(
-    "server, config",
-    (
-        (
-            gunicorn_flask_server,
-            {
-                "workers": "3",
-                "use_threads": False,
-                "use_gevent": False,
-            },
-        ),
-        (
-            gunicorn_flask_server,
-            {
-                "workers": "3",
-                "use_threads": True,
-                "use_gevent": False,
-            },
-        ),
-        (
-            gunicorn_flask_server,
-            {
-                "workers": "3",
-                "use_threads": True,
-                "use_gevent": True,
-            },
-        ),
-        (
-            gunicorn_flask_server,
-            {
-                "workers": "1",
-                "use_threads": True,
-                "use_gevent": True,
-                "env": {
-                    "_DD_IAST_PROPAGATION_ENABLED": "false",
-                },
-            },
-        ),
-        (
-            gunicorn_flask_server,
-            {
-                "workers": "1",
-                "use_threads": True,
-                "use_gevent": True,
-            },
-        ),
-        (flask_server, {}),
-    ),
-)
+@pytest.mark.parametrize("server, config", _GEVENT_SERVERS_SCENARIOS)
 def test_gevent_sensitive_greenlet(server, config):
     """Validate gevent Greenlet execution under various Gunicorn/gevent configurations."""
     token = "test_gevent_sensitive_greenlet"
@@ -683,76 +582,12 @@ def test_gevent_sensitive_greenlet(server, config):
         assert response.text == "OK:True"
 
 
-@pytest.mark.parametrize(
-    "server, config",
-    (
-        (
-            gunicorn_flask_server,
-            {
-                "workers": "3",
-                "use_threads": False,
-                "use_gevent": False,
-            },
-        ),
-        (
-            gunicorn_flask_server,
-            {
-                "workers": "3",
-                "use_threads": True,
-                "use_gevent": False,
-            },
-        ),
-        (
-            gunicorn_flask_server,
-            {
-                "workers": "3",
-                "use_threads": True,
-                "use_gevent": True,
-                "env": {
-                    "DD_APM_TRACING_ENABLED": "false",
-                },
-            },
-        ),
-        (
-            gunicorn_flask_server,
-            {
-                "workers": "1",
-                "use_threads": True,
-                "use_gevent": True,
-                "env": {
-                    "DD_APM_TRACING_ENABLED": "false",
-                    "_DD_IAST_PROPAGATION_ENABLED": "false",
-                },
-            },
-        ),
-        (
-            gunicorn_flask_server,
-            {
-                "workers": "1",
-                "use_threads": True,
-                "use_gevent": True,
-                "env": {
-                    "DD_APM_TRACING_ENABLED": "false",
-                },
-            },
-        ),
-        (
-            gunicorn_flask_server,
-            {
-                "workers": "1",
-                "use_threads": True,
-                "use_gevent": True,
-                "env": {"_DD_IAST_PROPAGATION_ENABLED": "false"},
-            },
-        ),
-        (flask_server, {"env": {"DD_APM_TRACING_ENABLED": "false"}}),
-    ),
-)
+@pytest.mark.parametrize("server, config", _GEVENT_SERVERS_SCENARIOS)
 def test_gevent_sensitive_subprocess(server, config):
     """Validate subprocess.Popen lifecycle under various Gunicorn/gevent configurations."""
     token = "test_gevent_sensitive_subprocess"
     _ = start_trace(token)
-    with server(iast_enabled="true", token=token, port=8050, **config) as context:
+    with server(use_ddtrace_cmd=True, iast_enabled="false", token=token, port=8050, **config) as context:
         _, flask_client, pid = context
         response = flask_client.get("/subprocess-popen")
         assert response.status_code == 200
