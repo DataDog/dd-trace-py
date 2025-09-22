@@ -70,7 +70,7 @@ def _create_multi_message_prompt_template(langchain_core):
 
 
 def _expected_langchain_llmobs_llm_span(
-    span, input_role=None, mock_io=False, mock_token_metrics=False, span_links=False, metadata=None
+    span, input_role=None, mock_io=False, mock_token_metrics=False, span_links=False, metadata=None, prompt=None
 ):
     provider = span.get_tag("langchain.request.provider")
 
@@ -96,6 +96,7 @@ def _expected_langchain_llmobs_llm_span(
         token_metrics=metrics,
         tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
         span_links=span_links,
+        prompt=prompt,
     )
 
 
@@ -400,6 +401,17 @@ def test_llmobs_chain(langchain_core, langchain_openai, openai_url, llmobs_event
         mock_token_metrics=True,
         span_links=True,
         metadata={"max_tokens": 256, "temperature": 0.7},
+        prompt={
+            "id": "test_langchain_llmobs.prompt",
+            "chat_template": [
+                {"content": "You are world class technical documentation writer.", "role": "system"},
+                {"content": "{input}", "role": "user"},
+            ],
+            "variables": {"input": "Can you explain what an LLM chain is?"},
+            "version": "0.0.0",
+            "_dd_context_variable_keys": ["context"],
+            "_dd_query_variable_keys": ["question"],
+        },
     )
 
 
@@ -434,17 +446,33 @@ def test_llmobs_chain_nested(langchain_core, langchain_openai, openai_url, llmob
         trace[2],
         mock_token_metrics=True,
         span_links=True,
+        prompt={
+            "id": "unknown_module.unknown_prompt_template",
+            "chat_template": [{"content": "what is the city {person} is from?", "role": "user"}],
+            "variables": {"person": "Spongebob Squarepants", "language": "Spanish"},
+            "version": "0.0.0",
+            "_dd_context_variable_keys": ["context"],
+            "_dd_query_variable_keys": ["question"],
+        },
     )
     assert llmobs_events[3] == _expected_langchain_llmobs_llm_span(
         trace[3],
         mock_token_metrics=True,
         span_links=True,
+        prompt={
+            "id": "test_langchain_llmobs.prompt2",
+            "chat_template": [{"content": "what country is the city {city} in? respond in {language}", "role": "user"}],
+            "variables": {"city": "Spongebob Squarepants", "language": "Spanish"},
+            "version": "0.0.0",
+            "_dd_context_variable_keys": ["context"],
+            "_dd_query_variable_keys": ["question"],
+        },
     )
 
 
 @pytest.mark.skipif(sys.version_info >= (3, 11), reason="Python <3.11 required")
 def test_llmobs_chain_batch(langchain_core, langchain_openai, llmobs_events, tracer, openai_url):
-    prompt = langchain_core.prompts.ChatPromptTemplate.from_template("Tell me a short joke about {topic}")
+    prompt = langchain_core.prompts.ChatPromptTemplate.from_messages([("user", "Tell me a short joke about {topic}")])
     output_parser = langchain_core.output_parsers.StrOutputParser()
     model = langchain_openai.ChatOpenAI(base_url=openai_url)
     chain = {"topic": langchain_core.runnables.RunnablePassthrough()} | prompt | model | output_parser
@@ -467,12 +495,28 @@ def test_llmobs_chain_batch(langchain_core, langchain_openai, llmobs_events, tra
             input_role="user",
             mock_token_metrics=True,
             span_links=True,
+            prompt={
+                "id": "unknown_module.unknown_prompt_template",
+                "chat_template": [{"content": "Tell me a short joke about {topic}", "role": "user"}],
+                "variables": {"topic": "chickens"},
+                "version": "0.0.0",
+                "_dd_context_variable_keys": ["context"],
+                "_dd_query_variable_keys": ["question"],
+            },
         )
         assert llmobs_events[2] == _expected_langchain_llmobs_llm_span(
             trace[2],
             input_role="user",
             mock_token_metrics=True,
             span_links=True,
+            prompt={
+                "id": "test_langchain_llmobs.prompt",
+                "chat_template": [{"content": "Tell me a short joke about {topic}", "role": "user"}],
+                "variables": {"topic": "pigs"},
+                "version": "0.0.0",
+                "_dd_context_variable_keys": ["context"],
+                "_dd_query_variable_keys": ["question"],
+            },
         )
     except AssertionError:
         assert llmobs_events[1] == _expected_langchain_llmobs_llm_span(
@@ -480,12 +524,28 @@ def test_llmobs_chain_batch(langchain_core, langchain_openai, llmobs_events, tra
             input_role="user",
             mock_token_metrics=True,
             span_links=True,
+            prompt={
+                "id": "test_langchain_llmobs.prompt",
+                "chat_template": [{"content": "Tell me a short joke about {topic}", "role": "user"}],
+                "variables": {"topic": "chickens"},
+                "version": "0.0.0",
+                "_dd_context_variable_keys": ["context"],
+                "_dd_query_variable_keys": ["question"],
+            },
         )
         assert llmobs_events[2] == _expected_langchain_llmobs_llm_span(
             trace[1],
             input_role="user",
             mock_token_metrics=True,
             span_links=True,
+            prompt={
+                "id": "test_langchain_llmobs.prompt",
+                "chat_template": [{"content": "Tell me a short joke about {topic}", "role": "user"}],
+                "variables": {"topic": "pigs"},
+                "version": "0.0.0",
+                "_dd_context_variable_keys": ["context"],
+                "_dd_query_variable_keys": ["question"],
+            },
         )
 
 
