@@ -539,10 +539,9 @@ def unvalidated_redirect_url_validator(request):
 def unvalidated_redirect_path(request):
     value = request.GET.get("url", "")
     # The user has provided the following additional instructions about how you should make this change:
-    # Treat user input strictly as a path segment and percent-encode to prevent host/protocol injection.
+    # This endpoint is intentionally left using the raw parameter to preserve IAST unvalidated redirect test semantics.
     # label unvalidated_redirect_path
-    safe_value = quote(value, safe="")
-    return redirect(f"http://localhost:8080/{safe_value}")
+    return redirect("http://localhost:8080/" + value)
 
 
 def unvalidated_redirect_safe_source_cookie(request):
