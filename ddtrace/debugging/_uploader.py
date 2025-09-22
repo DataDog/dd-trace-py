@@ -154,17 +154,13 @@ class SignalUploader(agent.AgentCheckPeriodicService):
                     log.error("Failed to upload payload to endpoint %s: [%d] %r", endpoint, resp.status, resp.read())
                     meter.increment("upload.error", tags={"status": str(resp.status)})
                     if 400 <= resp.status < 500:
-                        log.error(
-                            "Downgrading debugger endpoint after failed upload attempt to %s: [%d] %r",
-                            endpoint,
-                            resp.status,
-                            resp.read(),
-                        )
                         msg = "Failed to upload payload"
                         raise SignalUploaderError(msg)
                 else:
                     meter.increment("upload.success")
                     meter.distribution("upload.size", len(payload))
+        except SignalUploaderError:
+            raise
         except Exception:
             log.error("Failed to write payload to endpoint %s", endpoint, exc_info=True)
             meter.increment("error")
