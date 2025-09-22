@@ -329,7 +329,8 @@ class LLMObs(Service):
                     "Dropping prompt on non-LLM span kind, annotating prompts is only supported for LLM span kinds."
                 )
             else:
-                meta["input"]["prompt"] = Prompt(template=prompt_json_str or "")
+                prompt_dict = cast(Prompt, prompt_json_str)
+                meta["input"]["prompt"] = prompt_dict
         elif span_kind == "llm":
             parent_span = _get_nearest_llmobs_ancestor(span)
             if parent_span is not None:

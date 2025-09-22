@@ -365,9 +365,9 @@ def test_error_is_set(tracer, llmobs_events):
             llm_span._set_ctx_item(const.SPAN_KIND, "llm")
             raise ValueError("error")
     span_event = llmobs_events[0]
-    assert span_event["meta"]["error.message"] == "error"
-    assert "ValueError" in span_event["meta"]["error.type"]
-    assert 'raise ValueError("error")' in span_event["meta"]["error.stack"]
+    assert span_event["meta"]["error"]["message"] == "error"
+    assert "ValueError" in span_event["meta"]["error"]["type"]
+    assert 'raise ValueError("error")' in span_event["meta"]["error"]["stack"]
 
 
 def test_model_provider_defaults_to_custom(tracer, llmobs_events):
