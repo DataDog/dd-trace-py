@@ -4,6 +4,7 @@ from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
+
 from ddtrace.internal.constants import BAGGAGE_TAG_PREFIX
 
 
