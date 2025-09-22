@@ -1,7 +1,7 @@
 [[
   {
     "name": "ray.job",
-    "service": "raysubmit_p4qyzGF2UjAseg8C",
+    "service": "raysubmit_Tv8LhVauSxr9Lhzt",
     "resource": "ray.job",
     "trace_id": 0,
     "span_id": 1,
@@ -10,16 +10,15 @@
     "error": 1,
     "meta": {
       "_dd.base_service": "ray.dashboard",
-      "_dd.hostname": "docker-desktop",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68ca810200000000",
+      "_dd.p.tid": "68d195a500000000",
       "component": "ray",
-      "error.message": "Job entrypoint command failed with exit code 1, last available logs (truncated to 20,000 chars):\n  File \"/home/bits/project/.riot/venv_py3135_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_ray[default]/lib/python3.13/site-packages/ray/_private/worker.py\", line 968, in get_objects\n    raise value.as_instanceof_cause()\nray.exceptions.RayTaskError(ValueError): \u001b[36mray::add_one()\u001b[39m (pid=2230, ip=192.168.65.3)\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/patch.py\", line 98, in wrapped_function\n    return _wrap_task_execution(function, *args, **kwargs)\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/patch.py\", line 128, in _wrap_task_execution\n    result = wrapped(*args, **kwargs)\n  File \"/home/bits/project/tests/contrib/ray/jobs/error_in_task.py\", line 9, in add_one\n    raise ValueError(\"foo\")\nValueError: foo\n",
+      "error.message": "Job entrypoint command failed with exit code 1, last available logs (truncated to 20,000 chars):\nray.exceptions.RayTaskError(ValueError): \u001b[36mray::add_one()\u001b[39m (pid=13643, ip=192.168.65.3)\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/patch.py\", line 94, in wrapped_function\n    return _wrap_task_execution(function, *args, **kwargs)\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/patch.py\", line 124, in _wrap_task_execution\n    result = wrapped(*args, **kwargs)\n  File \"/home/bits/project/tests/contrib/ray/jobs/error_in_task.py\", line 9, in add_one\n    raise ValueError(\"foo\")\nValueError: foo\n\u001b[36m(pid=13639)\u001b[0m 2025-09-22 18:30:00,980 WARNING [ddtrace.contrib.ray] [ray.py:19] [dd.service=ray._private.workers dd.env= dd.version= dd.trace_id=0 dd.span_id=0] - Deactivating OpenTelemetry tracing in favor of Datadog tracing as both are not compatible.\n\u001b[36m(pid=13642)\u001b[0m 2025-09-22 18:30:01,005 WARNING [ddtrace.contrib.ray] [ray.py:19] [dd.service=ray._private.workers dd.env= dd.version= dd.trace_id=0 dd.span_id=0] - Deactivating OpenTelemetry tracing in favor of Datadog tracing as both are not compatible.\u001b[32m [repeated 3x across cluster] (Ray deduplicates logs by default. Set RAY_DEDUP_LOGS=0 to disable log deduplication, or see https://docs.ray.io/en/master/ray-observability/user-guides/configure-logging.html#log-deduplication for more options.)\u001b[0m\n",
       "language": "python",
-      "ray.job.message": "Job entrypoint command failed with exit code 1, last available logs (truncated to 20,000 chars):\n  File \"/home/bits/project/.riot/venv_py3135_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_ray[default]/lib/python3.13/site-packages/ray/_private/worker.py\", line 968, in get_objects\n    raise value.as_instanceof_cause()\nray.exceptions.RayTaskError(ValueError): \u001b[36mray::add_one()\u001b[39m (pid=2230, ip=192.168.65.3)\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/patch.py\", line 98, in wrapped_function\n    return _wrap_task_execution(function, *args, **kwargs)\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/patch.py\", line 128, in _wrap_task_execution\n    result = wrapped(*args, **kwargs)\n  File \"/home/bits/project/tests/contrib/ray/jobs/error_in_task.py\", line 9, in add_one\n    raise ValueError(\"foo\")\nValueError: foo\n",
+      "ray.job.message": "Job entrypoint command failed with exit code 1, last available logs (truncated to 20,000 chars):\nray.exceptions.RayTaskError(ValueError): \u001b[36mray::add_one()\u001b[39m (pid=13643, ip=192.168.65.3)\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/patch.py\", line 94, in wrapped_function\n    return _wrap_task_execution(function, *args, **kwargs)\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/patch.py\", line 124, in _wrap_task_execution\n    result = wrapped(*args, **kwargs)\n  File \"/home/bits/project/tests/contrib/ray/jobs/error_in_task.py\", line 9, in add_one\n    raise ValueError(\"foo\")\nValueError: foo\n\u001b[36m(pid=13639)\u001b[0m 2025-09-22 18:30:00,980 WARNING [ddtrace.contrib.ray] [ray.py:19] [dd.service=ray._private.workers dd.env= dd.version= dd.trace_id=0 dd.span_id=0] - Deactivating OpenTelemetry tracing in favor of Datadog tracing as both are not compatible.\n\u001b[36m(pid=13642)\u001b[0m 2025-09-22 18:30:01,005 WARNING [ddtrace.contrib.ray] [ray.py:19] [dd.service=ray._private.workers dd.env= dd.version= dd.trace_id=0 dd.span_id=0] - Deactivating OpenTelemetry tracing in favor of Datadog tracing as both are not compatible.\u001b[32m [repeated 3x across cluster] (Ray deduplicates logs by default. Set RAY_DEDUP_LOGS=0 to disable log deduplication, or see https://docs.ray.io/en/master/ray-observability/user-guides/configure-logging.html#log-deduplication for more options.)\u001b[0m\n",
       "ray.job.status": "FAILED",
-      "ray.submission_id": "raysubmit_p4qyzGF2UjAseg8C",
-      "runtime-id": "6cec296b9ec54202916b51bc4ab5e15c"
+      "ray.submission_id": "raysubmit_Tv8LhVauSxr9Lhzt",
+      "runtime-id": "3053bd0953844697ace1b9ac6208046c"
     },
     "metrics": {
       "_dd.djm.enabled": 1,
@@ -28,14 +27,14 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2,
-      "process_id": 1047
+      "process_id": 11748
     },
-    "duration": 6890081920,
-    "start": 1758101762243241961
+    "duration": 5788719377,
+    "start": 1758565797921604800
   },
      {
        "name": "ray.job.submit",
-       "service": "raysubmit_p4qyzGF2UjAseg8C",
+       "service": "raysubmit_Tv8LhVauSxr9Lhzt",
        "resource": "ray.job.submit",
        "trace_id": 0,
        "span_id": 2,
@@ -44,7 +43,6 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "ray.dashboard",
-         "_dd.hostname": "docker-desktop",
          "component": "ray",
          "ray.job.submit_status": "success",
          "span.kind": "producer"
@@ -55,12 +53,12 @@
          "_dd.measured": 1,
          "_sampling_priority_v1": 2
        },
-       "duration": 33292,
-       "start": 1758101762243401169
+       "duration": 39167,
+       "start": 1758565797921765966
      },
      {
        "name": "JobSupervisor.run.remote()",
-       "service": "raysubmit_p4qyzGF2UjAseg8C",
+       "service": "raysubmit_Tv8LhVauSxr9Lhzt",
        "resource": "JobSupervisor.run.remote()",
        "trace_id": 0,
        "span_id": 3,
@@ -69,13 +67,12 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "ray.dashboard",
-         "_dd.hostname": "docker-desktop",
          "component": "ray",
-         "ray.actor_method.args": "[]",
+         "ray.actor_method.args": "()",
          "ray.actor_method.kwargs": "{'_start_signal_actor': None, 'resources_specified': False}",
          "ray.job_id": "01000000",
-         "ray.node_id": "78562b632e9e7fa2546f26171a5a0859929e0344100de9d84ff4dbb1",
-         "ray.pid": "1047",
+         "ray.node_id": "5f4828d75a9a8f038af14b401614da94151c75409986d45188c12de0",
+         "ray.pid": "11748",
          "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
          "span.kind": "producer"
        },
@@ -85,12 +82,12 @@
          "_dd.measured": 1,
          "_sampling_priority_v1": 2
        },
-       "duration": 305291,
-       "start": 1758101762246970503
+       "duration": 291500,
+       "start": 1758565797925059633
      },
         {
           "name": "JobSupervisor.run",
-          "service": "raysubmit_p4qyzGF2UjAseg8C",
+          "service": "raysubmit_Tv8LhVauSxr9Lhzt",
           "resource": "JobSupervisor.run",
           "trace_id": 0,
           "span_id": 4,
@@ -99,25 +96,24 @@
           "error": 1,
           "meta": {
             "_dd.base_service": "ray._private.workers",
-            "_dd.hostname": "docker-desktop",
-            "_dd.p.tid": "68ca810200000000",
-            "_dd.parent_id": "338fc2f6e8490cbd",
+            "_dd.p.tid": "68d195a500000000",
+            "_dd.parent_id": "e3f13e6a47ed6634",
             "component": "ray",
             "error.message": "",
-            "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/span_manager.py\", line 24, in long_running_ray_span\n    yield span\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/patch.py\", line 280, in _traced_run_method\n    raise e\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/patch.py\", line 273, in _traced_run_method\n    await method(self, *args, **kwargs)\n  File \"/home/bits/project/.riot/venv_py3135_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_ray[default]/lib/python3.13/site-packages/ray/dashboard/modules/job/job_supervisor.py\", line 472, in run\n    ray.actor.exit_actor()\n    ~~~~~~~~~~~~~~~~~~~~^^\n  File \"/home/bits/project/.riot/venv_py3135_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_ray[default]/lib/python3.13/site-packages/ray/actor.py\", line 2387, in exit_actor\n    raise AsyncioActorExit()\nray.exceptions.AsyncioActorExit\n",
+            "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/span_manager.py\", line 24, in long_running_ray_span\n    yield span\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/patch.py\", line 309, in _traced_run_method\n    raise e\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/patch.py\", line 302, in _traced_run_method\n    await method(self, *args, **kwargs)\n  File \"/home/bits/project/.riot/venv_py31018_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_ray[default]~2460/lib/python3.10/site-packages/ray/dashboard/modules/job/job_supervisor.py\", line 474, in run\n    ray.actor.exit_actor()\n  File \"/home/bits/project/.riot/venv_py31018_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_ray[default]~2460/lib/python3.10/site-packages/ray/actor.py\", line 1806, in exit_actor\n    raise AsyncioActorExit()\nray.exceptions.AsyncioActorExit\n",
             "error.type": "ray.exceptions.AsyncioActorExit",
             "language": "python",
-            "ray.actor_id": "4f582dd54b2540c3ead02aeb01000000",
+            "ray.actor_id": "4d79669d165dd9676da7c3c401000000",
             "ray.job_id": "01000000",
-            "ray.node_id": "78562b632e9e7fa2546f26171a5a0859929e0344100de9d84ff4dbb1",
-            "ray.pid": "2129",
-            "ray.submission_id": "raysubmit_p4qyzGF2UjAseg8C",
-            "ray.task_id": "71b133a11e1c461c4f582dd54b2540c3ead02aeb01000000",
-            "ray.worker_id": "c6203c4de04bad390427905e4ab6126b9796240e7e6798d4b5023328",
-            "runtime-id": "28282dde5c504a99b4d9494026e78afe",
+            "ray.node_id": "5f4828d75a9a8f038af14b401614da94151c75409986d45188c12de0",
+            "ray.pid": "13519",
+            "ray.submission_id": "raysubmit_Tv8LhVauSxr9Lhzt",
+            "ray.task_id": "71b133a11e1c461c4d79669d165dd9676da7c3c401000000",
+            "ray.worker_id": "d04e23d11add28e04f38ed950be7eacef996e41a2f3f2e4809055b5a",
+            "runtime-id": "6e0e964775924188be19a9d8cbd35ccf",
             "span.kind": "consumer",
-            "traceparent": "00-68ca810200000000f72ecf263f3772c4-338fc2f6e8490cbd-00",
-            "tracestate": "dd=p:338fc2f6e8490cbd"
+            "traceparent": "00-68d195a500000000ac9b70450ce512ad-e3f13e6a47ed6634-00",
+            "tracestate": "dd=p:e3f13e6a47ed6634"
           },
           "metrics": {
             "_dd.djm.enabled": 1,
@@ -126,14 +122,14 @@
             "_dd.top_level": 1,
             "_dd.tracer_kr": 1.0,
             "_sampling_priority_v1": 2,
-            "process_id": 2129
+            "process_id": 13519
           },
-          "duration": 5764122836,
-          "start": 1758101763093580003
+          "duration": 4346499627,
+          "start": 1758565798679580633
         },
            {
              "name": "JobSupervisor._get_driver_env_vars",
-             "service": "raysubmit_p4qyzGF2UjAseg8C",
+             "service": "raysubmit_Tv8LhVauSxr9Lhzt",
              "resource": "JobSupervisor._get_driver_env_vars",
              "trace_id": 0,
              "span_id": 5,
@@ -142,17 +138,16 @@
              "error": 0,
              "meta": {
                "_dd.base_service": "ray._private.workers",
-               "_dd.hostname": "docker-desktop",
                "component": "ray",
-               "ray.actor_id": "4f582dd54b2540c3ead02aeb01000000",
+               "ray.actor_id": "4d79669d165dd9676da7c3c401000000",
                "ray.actor_method.args": "(False,)",
                "ray.actor_method.kwargs": "{}",
                "ray.job_id": "01000000",
-               "ray.node_id": "78562b632e9e7fa2546f26171a5a0859929e0344100de9d84ff4dbb1",
-               "ray.pid": "2129",
-               "ray.submission_id": "raysubmit_p4qyzGF2UjAseg8C",
-               "ray.task_id": "71b133a11e1c461c4f582dd54b2540c3ead02aeb01000000",
-               "ray.worker_id": "c6203c4de04bad390427905e4ab6126b9796240e7e6798d4b5023328",
+               "ray.node_id": "5f4828d75a9a8f038af14b401614da94151c75409986d45188c12de0",
+               "ray.pid": "13519",
+               "ray.submission_id": "raysubmit_Tv8LhVauSxr9Lhzt",
+               "ray.task_id": "71b133a11e1c461c4d79669d165dd9676da7c3c401000000",
+               "ray.worker_id": "d04e23d11add28e04f38ed950be7eacef996e41a2f3f2e4809055b5a",
                "span.kind": "consumer"
              },
              "metrics": {
@@ -161,31 +156,30 @@
                "_dd.measured": 1,
                "_sampling_priority_v1": 2
              },
-             "duration": 1602000,
-             "start": 1758101763095024420
+             "duration": 1813125,
+             "start": 1758565798680898925
            },
               {
                 "name": "JobSupervisor._get_driver_runtime_env",
-                "service": "raysubmit_p4qyzGF2UjAseg8C",
+                "service": "raysubmit_Tv8LhVauSxr9Lhzt",
                 "resource": "JobSupervisor._get_driver_runtime_env",
                 "trace_id": 0,
-                "span_id": 11,
+                "span_id": 12,
                 "parent_id": 5,
                 "type": "ray",
                 "error": 0,
                 "meta": {
                   "_dd.base_service": "ray._private.workers",
-                  "_dd.hostname": "docker-desktop",
                   "component": "ray",
-                  "ray.actor_id": "4f582dd54b2540c3ead02aeb01000000",
+                  "ray.actor_id": "4d79669d165dd9676da7c3c401000000",
                   "ray.actor_method.args": "(False,)",
                   "ray.actor_method.kwargs": "{}",
                   "ray.job_id": "01000000",
-                  "ray.node_id": "78562b632e9e7fa2546f26171a5a0859929e0344100de9d84ff4dbb1",
-                  "ray.pid": "2129",
-                  "ray.submission_id": "raysubmit_p4qyzGF2UjAseg8C",
-                  "ray.task_id": "71b133a11e1c461c4f582dd54b2540c3ead02aeb01000000",
-                  "ray.worker_id": "c6203c4de04bad390427905e4ab6126b9796240e7e6798d4b5023328",
+                  "ray.node_id": "5f4828d75a9a8f038af14b401614da94151c75409986d45188c12de0",
+                  "ray.pid": "13519",
+                  "ray.submission_id": "raysubmit_Tv8LhVauSxr9Lhzt",
+                  "ray.task_id": "71b133a11e1c461c4d79669d165dd9676da7c3c401000000",
+                  "ray.worker_id": "d04e23d11add28e04f38ed950be7eacef996e41a2f3f2e4809055b5a",
                   "span.kind": "consumer"
                 },
                 "metrics": {
@@ -194,12 +188,12 @@
                   "_dd.measured": 1,
                   "_sampling_priority_v1": 2
                 },
-                "duration": 157250,
-                "start": 1758101763096440128
+                "duration": 140708,
+                "start": 1758565798682550175
               },
            {
              "name": "exec error_in_task.py",
-             "service": "raysubmit_p4qyzGF2UjAseg8C",
+             "service": "raysubmit_Tv8LhVauSxr9Lhzt",
              "resource": "exec error_in_task.py",
              "trace_id": 0,
              "span_id": 6,
@@ -208,15 +202,14 @@
              "error": 0,
              "meta": {
                "_dd.base_service": "ray._private.workers",
-               "_dd.hostname": "docker-desktop",
                "component": "ray",
-               "ray.actor_id": "4f582dd54b2540c3ead02aeb01000000",
+               "ray.actor_id": "4d79669d165dd9676da7c3c401000000",
                "ray.job_id": "01000000",
-               "ray.node_id": "78562b632e9e7fa2546f26171a5a0859929e0344100de9d84ff4dbb1",
-               "ray.pid": "2129",
-               "ray.submission_id": "raysubmit_p4qyzGF2UjAseg8C",
-               "ray.task_id": "71b133a11e1c461c4f582dd54b2540c3ead02aeb01000000",
-               "ray.worker_id": "c6203c4de04bad390427905e4ab6126b9796240e7e6798d4b5023328",
+               "ray.node_id": "5f4828d75a9a8f038af14b401614da94151c75409986d45188c12de0",
+               "ray.pid": "13519",
+               "ray.submission_id": "raysubmit_Tv8LhVauSxr9Lhzt",
+               "ray.task_id": "71b133a11e1c461c4d79669d165dd9676da7c3c401000000",
+               "ray.worker_id": "d04e23d11add28e04f38ed950be7eacef996e41a2f3f2e4809055b5a",
                "span.kind": "consumer"
              },
              "metrics": {
@@ -225,12 +218,12 @@
                "_dd.measured": 1,
                "_sampling_priority_v1": 2
              },
-             "duration": 447042,
-             "start": 1758101763096784878
+             "duration": 451625,
+             "start": 1758565798682827258
            },
            {
              "name": "__main__.add_one.remote()",
-             "service": "raysubmit_p4qyzGF2UjAseg8C",
+             "service": "raysubmit_Tv8LhVauSxr9Lhzt",
              "resource": "__main__.add_one.remote()",
              "trace_id": 0,
              "span_id": 7,
@@ -239,23 +232,22 @@
              "error": 0,
              "meta": {
                "_dd.base_service": "project",
-               "_dd.hostname": "docker-desktop",
-               "_dd.p.tid": "68ca810200000000",
-               "_dd.parent_id": "600a65d12323e96a",
+               "_dd.p.tid": "68d195a500000000",
+               "_dd.parent_id": "1b1ee365fe40dcfa",
                "component": "ray",
                "language": "python",
                "ray.job_id": "04000000",
-               "ray.node_id": "78562b632e9e7fa2546f26171a5a0859929e0344100de9d84ff4dbb1",
-               "ray.pid": "2182",
-               "ray.submission_id": "raysubmit_p4qyzGF2UjAseg8C",
+               "ray.node_id": "5f4828d75a9a8f038af14b401614da94151c75409986d45188c12de0",
+               "ray.pid": "13583",
+               "ray.submission_id": "raysubmit_Tv8LhVauSxr9Lhzt",
                "ray.task.args": "(0,)",
                "ray.task.kwargs": "{}",
                "ray.task.submit_status": "success",
                "ray.worker_id": "04000000ffffffffffffffffffffffffffffffffffffffffffffffff",
-               "runtime-id": "d52659917d584cf39596aed7890d981c",
+               "runtime-id": "54bef43ec28b4f019f41dbfc0f6ccf7d",
                "span.kind": "producer",
-               "traceparent": "00-68ca810200000000f72ecf263f3772c4-600a65d12323e96a-00",
-               "tracestate": "dd=p:600a65d12323e96a;s:0"
+               "traceparent": "00-68d195a500000000ac9b70450ce512ad-1b1ee365fe40dcfa-00",
+               "tracestate": "dd=p:1b1ee365fe40dcfa;s:0"
              },
              "metrics": {
                "_dd.djm.enabled": 1,
@@ -264,43 +256,42 @@
                "_dd.top_level": 1,
                "_dd.tracer_kr": 1.0,
                "_sampling_priority_v1": 2,
-               "process_id": 2182
+               "process_id": 13583
              },
-             "duration": 3168167,
-             "start": 1758101763687217378
+             "duration": 2874792,
+             "start": 1758565799224362675
            },
               {
                 "name": "__main__.add_one",
-                "service": "raysubmit_p4qyzGF2UjAseg8C",
+                "service": "raysubmit_Tv8LhVauSxr9Lhzt",
                 "resource": "__main__.add_one",
                 "trace_id": 0,
-                "span_id": 12,
+                "span_id": 13,
                 "parent_id": 7,
                 "type": "ray",
                 "error": 1,
                 "meta": {
                   "_dd.base_service": "ray._private.workers",
-                  "_dd.hostname": "docker-desktop",
-                  "_dd.p.tid": "68ca810200000000",
-                  "_dd.parent_id": "7f6cb90c2c8ffa23",
+                  "_dd.p.tid": "68d195a500000000",
+                  "_dd.parent_id": "bae16bc7da9cc228",
                   "component": "ray",
                   "error.message": "foo",
-                  "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/span_manager.py\", line 24, in long_running_ray_span\n    yield span\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/patch.py\", line 128, in _wrap_task_execution\n    result = wrapped(*args, **kwargs)\n  File \"/home/bits/project/tests/contrib/ray/jobs/error_in_task.py\", line 9, in add_one\n    raise ValueError(\"foo\")\nValueError: foo\n",
+                  "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/span_manager.py\", line 24, in long_running_ray_span\n    yield span\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/patch.py\", line 124, in _wrap_task_execution\n    result = wrapped(*args, **kwargs)\n  File \"/home/bits/project/tests/contrib/ray/jobs/error_in_task.py\", line 9, in add_one\n    raise ValueError(\"foo\")\nValueError: foo\n",
                   "error.type": "builtins.ValueError",
                   "language": "python",
                   "ray.job_id": "04000000",
-                  "ray.node_id": "78562b632e9e7fa2546f26171a5a0859929e0344100de9d84ff4dbb1",
-                  "ray.pid": "2230",
-                  "ray.submission_id": "raysubmit_p4qyzGF2UjAseg8C",
+                  "ray.node_id": "5f4828d75a9a8f038af14b401614da94151c75409986d45188c12de0",
+                  "ray.pid": "13643",
+                  "ray.submission_id": "raysubmit_Tv8LhVauSxr9Lhzt",
                   "ray.task.args": "(0,)",
                   "ray.task.kwargs": "{}",
                   "ray.task.status": "error",
                   "ray.task_id": "ca80f3a8e8ba2e50ffffffffffffffffffffffff04000000",
-                  "ray.worker_id": "4782a548f0a4f9fbb7182a3116f7d481735b6d0a783ca816d46adf24",
-                  "runtime-id": "4b124518e8ef4ed4bf34fcfc40a87642",
+                  "ray.worker_id": "d649b86e5ff6736973f1172f0d328af4cb7ae24cb01168fe273826c4",
+                  "runtime-id": "daa7457e5a874b9f90e25c7f770e168a",
                   "span.kind": "consumer",
-                  "traceparent": "00-68ca810200000000f72ecf263f3772c4-7f6cb90c2c8ffa23-00",
-                  "tracestate": "dd=p:7f6cb90c2c8ffa23;s:0"
+                  "traceparent": "00-68d195a500000000ac9b70450ce512ad-bae16bc7da9cc228-00",
+                  "tracestate": "dd=p:bae16bc7da9cc228;s:0"
                 },
                 "metrics": {
                   "_dd.djm.enabled": 1,
@@ -309,14 +300,14 @@
                   "_dd.top_level": 1,
                   "_dd.tracer_kr": 1.0,
                   "_sampling_priority_v1": 2,
-                  "process_id": 2230
+                  "process_id": 13643
                 },
-                "duration": 2611209,
-                "start": 1758101765610376629
+                "duration": 3147791,
+                "start": 1758565800981728718
               },
            {
              "name": "__main__.add_one.remote()",
-             "service": "raysubmit_p4qyzGF2UjAseg8C",
+             "service": "raysubmit_Tv8LhVauSxr9Lhzt",
              "resource": "__main__.add_one.remote()",
              "trace_id": 0,
              "span_id": 8,
@@ -325,23 +316,22 @@
              "error": 0,
              "meta": {
                "_dd.base_service": "project",
-               "_dd.hostname": "docker-desktop",
-               "_dd.p.tid": "68ca810200000000",
-               "_dd.parent_id": "600a65d12323e96a",
+               "_dd.p.tid": "68d195a500000000",
+               "_dd.parent_id": "1b1ee365fe40dcfa",
                "component": "ray",
                "language": "python",
                "ray.job_id": "04000000",
-               "ray.node_id": "78562b632e9e7fa2546f26171a5a0859929e0344100de9d84ff4dbb1",
-               "ray.pid": "2182",
-               "ray.submission_id": "raysubmit_p4qyzGF2UjAseg8C",
+               "ray.node_id": "5f4828d75a9a8f038af14b401614da94151c75409986d45188c12de0",
+               "ray.pid": "13583",
+               "ray.submission_id": "raysubmit_Tv8LhVauSxr9Lhzt",
                "ray.task.args": "(1,)",
                "ray.task.kwargs": "{}",
                "ray.task.submit_status": "success",
                "ray.worker_id": "04000000ffffffffffffffffffffffffffffffffffffffffffffffff",
-               "runtime-id": "d52659917d584cf39596aed7890d981c",
+               "runtime-id": "54bef43ec28b4f019f41dbfc0f6ccf7d",
                "span.kind": "producer",
-               "traceparent": "00-68ca810200000000f72ecf263f3772c4-600a65d12323e96a-00",
-               "tracestate": "dd=p:600a65d12323e96a;s:0"
+               "traceparent": "00-68d195a500000000ac9b70450ce512ad-1b1ee365fe40dcfa-00",
+               "tracestate": "dd=p:1b1ee365fe40dcfa;s:0"
              },
              "metrics": {
                "_dd.djm.enabled": 1,
@@ -350,43 +340,42 @@
                "_dd.top_level": 1,
                "_dd.tracer_kr": 1.0,
                "_sampling_priority_v1": 2,
-               "process_id": 2182
+               "process_id": 13583
              },
-             "duration": 235958,
-             "start": 1758101763692579420
+             "duration": 191417,
+             "start": 1758565799228905717
            },
               {
                 "name": "__main__.add_one",
-                "service": "raysubmit_p4qyzGF2UjAseg8C",
+                "service": "raysubmit_Tv8LhVauSxr9Lhzt",
                 "resource": "__main__.add_one",
                 "trace_id": 0,
-                "span_id": 13,
+                "span_id": 14,
                 "parent_id": 8,
                 "type": "ray",
                 "error": 1,
                 "meta": {
                   "_dd.base_service": "ray._private.workers",
-                  "_dd.hostname": "docker-desktop",
-                  "_dd.p.tid": "68ca810200000000",
-                  "_dd.parent_id": "0a3ebb4252291aef",
+                  "_dd.p.tid": "68d195a500000000",
+                  "_dd.parent_id": "00856961713b01c9",
                   "component": "ray",
                   "error.message": "foo",
-                  "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/span_manager.py\", line 24, in long_running_ray_span\n    yield span\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/patch.py\", line 128, in _wrap_task_execution\n    result = wrapped(*args, **kwargs)\n  File \"/home/bits/project/tests/contrib/ray/jobs/error_in_task.py\", line 9, in add_one\n    raise ValueError(\"foo\")\nValueError: foo\n",
+                  "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/span_manager.py\", line 24, in long_running_ray_span\n    yield span\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/patch.py\", line 124, in _wrap_task_execution\n    result = wrapped(*args, **kwargs)\n  File \"/home/bits/project/tests/contrib/ray/jobs/error_in_task.py\", line 9, in add_one\n    raise ValueError(\"foo\")\nValueError: foo\n",
                   "error.type": "builtins.ValueError",
                   "language": "python",
                   "ray.job_id": "04000000",
-                  "ray.node_id": "78562b632e9e7fa2546f26171a5a0859929e0344100de9d84ff4dbb1",
-                  "ray.pid": "2228",
-                  "ray.submission_id": "raysubmit_p4qyzGF2UjAseg8C",
+                  "ray.node_id": "5f4828d75a9a8f038af14b401614da94151c75409986d45188c12de0",
+                  "ray.pid": "13640",
+                  "ray.submission_id": "raysubmit_Tv8LhVauSxr9Lhzt",
                   "ray.task.args": "(1,)",
                   "ray.task.kwargs": "{}",
                   "ray.task.status": "error",
                   "ray.task_id": "d8c1ad1586102897ffffffffffffffffffffffff04000000",
-                  "ray.worker_id": "14b50e1bf78424ce9f8a060619e42c35ac48dfee6e20d9ba7ec672a2",
-                  "runtime-id": "e700c71e63c4406bbe5a1bce5c0cca56",
+                  "ray.worker_id": "5b8d9035c0d7e3d07301d3d610efb0f9dbb6eb4fd2202e8d8c6b6bb7",
+                  "runtime-id": "0653fb8a17274e4b91cf55fc13985b43",
                   "span.kind": "consumer",
-                  "traceparent": "00-68ca810200000000f72ecf263f3772c4-0a3ebb4252291aef-00",
-                  "tracestate": "dd=p:0a3ebb4252291aef;s:0"
+                  "traceparent": "00-68d195a500000000ac9b70450ce512ad-00856961713b01c9-00",
+                  "tracestate": "dd=p:00856961713b01c9;s:0"
                 },
                 "metrics": {
                   "_dd.djm.enabled": 1,
@@ -395,14 +384,14 @@
                   "_dd.top_level": 1,
                   "_dd.tracer_kr": 1.0,
                   "_sampling_priority_v1": 2,
-                  "process_id": 2228
+                  "process_id": 13640
                 },
-                "duration": 3366583,
-                "start": 1758101765635094796
+                "duration": 4948958,
+                "start": 1758565801002959301
               },
            {
              "name": "__main__.add_one.remote()",
-             "service": "raysubmit_p4qyzGF2UjAseg8C",
+             "service": "raysubmit_Tv8LhVauSxr9Lhzt",
              "resource": "__main__.add_one.remote()",
              "trace_id": 0,
              "span_id": 9,
@@ -411,23 +400,22 @@
              "error": 0,
              "meta": {
                "_dd.base_service": "project",
-               "_dd.hostname": "docker-desktop",
-               "_dd.p.tid": "68ca810200000000",
-               "_dd.parent_id": "600a65d12323e96a",
+               "_dd.p.tid": "68d195a500000000",
+               "_dd.parent_id": "1b1ee365fe40dcfa",
                "component": "ray",
                "language": "python",
                "ray.job_id": "04000000",
-               "ray.node_id": "78562b632e9e7fa2546f26171a5a0859929e0344100de9d84ff4dbb1",
-               "ray.pid": "2182",
-               "ray.submission_id": "raysubmit_p4qyzGF2UjAseg8C",
+               "ray.node_id": "5f4828d75a9a8f038af14b401614da94151c75409986d45188c12de0",
+               "ray.pid": "13583",
+               "ray.submission_id": "raysubmit_Tv8LhVauSxr9Lhzt",
                "ray.task.args": "(2,)",
                "ray.task.kwargs": "{}",
                "ray.task.submit_status": "success",
                "ray.worker_id": "04000000ffffffffffffffffffffffffffffffffffffffffffffffff",
-               "runtime-id": "d52659917d584cf39596aed7890d981c",
+               "runtime-id": "54bef43ec28b4f019f41dbfc0f6ccf7d",
                "span.kind": "producer",
-               "traceparent": "00-68ca810200000000f72ecf263f3772c4-600a65d12323e96a-00",
-               "tracestate": "dd=p:600a65d12323e96a;s:0"
+               "traceparent": "00-68d195a500000000ac9b70450ce512ad-1b1ee365fe40dcfa-00",
+               "tracestate": "dd=p:1b1ee365fe40dcfa;s:0"
              },
              "metrics": {
                "_dd.djm.enabled": 1,
@@ -436,43 +424,42 @@
                "_dd.top_level": 1,
                "_dd.tracer_kr": 1.0,
                "_sampling_priority_v1": 2,
-               "process_id": 2182
+               "process_id": 13583
              },
-             "duration": 184708,
-             "start": 1758101763694833837
+             "duration": 179167,
+             "start": 1758565799230327050
            },
               {
                 "name": "__main__.add_one",
-                "service": "raysubmit_p4qyzGF2UjAseg8C",
+                "service": "raysubmit_Tv8LhVauSxr9Lhzt",
                 "resource": "__main__.add_one",
                 "trace_id": 0,
-                "span_id": 14,
+                "span_id": 15,
                 "parent_id": 9,
                 "type": "ray",
                 "error": 1,
                 "meta": {
                   "_dd.base_service": "ray._private.workers",
-                  "_dd.hostname": "docker-desktop",
-                  "_dd.p.tid": "68ca810200000000",
-                  "_dd.parent_id": "6689321ea6482242",
+                  "_dd.p.tid": "68d195a500000000",
+                  "_dd.parent_id": "bf14b65fbe8e151a",
                   "component": "ray",
                   "error.message": "foo",
-                  "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/span_manager.py\", line 24, in long_running_ray_span\n    yield span\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/patch.py\", line 128, in _wrap_task_execution\n    result = wrapped(*args, **kwargs)\n  File \"/home/bits/project/tests/contrib/ray/jobs/error_in_task.py\", line 9, in add_one\n    raise ValueError(\"foo\")\nValueError: foo\n",
+                  "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/span_manager.py\", line 24, in long_running_ray_span\n    yield span\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/patch.py\", line 124, in _wrap_task_execution\n    result = wrapped(*args, **kwargs)\n  File \"/home/bits/project/tests/contrib/ray/jobs/error_in_task.py\", line 9, in add_one\n    raise ValueError(\"foo\")\nValueError: foo\n",
                   "error.type": "builtins.ValueError",
                   "language": "python",
                   "ray.job_id": "04000000",
-                  "ray.node_id": "78562b632e9e7fa2546f26171a5a0859929e0344100de9d84ff4dbb1",
-                  "ray.pid": "2231",
-                  "ray.submission_id": "raysubmit_p4qyzGF2UjAseg8C",
+                  "ray.node_id": "5f4828d75a9a8f038af14b401614da94151c75409986d45188c12de0",
+                  "ray.pid": "13639",
+                  "ray.submission_id": "raysubmit_Tv8LhVauSxr9Lhzt",
                   "ray.task.args": "(2,)",
                   "ray.task.kwargs": "{}",
                   "ray.task.status": "error",
                   "ray.task_id": "5da13aa9e2150759ffffffffffffffffffffffff04000000",
-                  "ray.worker_id": "08949b27735a13ccd92863c537888d7a7e78017efb171a388239f972",
-                  "runtime-id": "4aea6dfb6c7f478c832b5f7966921f47",
+                  "ray.worker_id": "a23097c848a2e620977934eba6cb83df98c2c3f152892bb7930db33f",
+                  "runtime-id": "74bd6d25a5f34083a5f50512a01425ec",
                   "span.kind": "consumer",
-                  "traceparent": "00-68ca810200000000f72ecf263f3772c4-6689321ea6482242-00",
-                  "tracestate": "dd=p:6689321ea6482242;s:0"
+                  "traceparent": "00-68d195a500000000ac9b70450ce512ad-bf14b65fbe8e151a-00",
+                  "tracestate": "dd=p:bf14b65fbe8e151a;s:0"
                 },
                 "metrics": {
                   "_dd.djm.enabled": 1,
@@ -481,14 +468,14 @@
                   "_dd.top_level": 1,
                   "_dd.tracer_kr": 1.0,
                   "_sampling_priority_v1": 2,
-                  "process_id": 2231
+                  "process_id": 13639
                 },
-                "duration": 3489709,
-                "start": 1758101765633770004
+                "duration": 5753542,
+                "start": 1758565800986081509
               },
            {
              "name": "__main__.add_one.remote()",
-             "service": "raysubmit_p4qyzGF2UjAseg8C",
+             "service": "raysubmit_Tv8LhVauSxr9Lhzt",
              "resource": "__main__.add_one.remote()",
              "trace_id": 0,
              "span_id": 10,
@@ -497,23 +484,22 @@
              "error": 0,
              "meta": {
                "_dd.base_service": "project",
-               "_dd.hostname": "docker-desktop",
-               "_dd.p.tid": "68ca810200000000",
-               "_dd.parent_id": "600a65d12323e96a",
+               "_dd.p.tid": "68d195a500000000",
+               "_dd.parent_id": "1b1ee365fe40dcfa",
                "component": "ray",
                "language": "python",
                "ray.job_id": "04000000",
-               "ray.node_id": "78562b632e9e7fa2546f26171a5a0859929e0344100de9d84ff4dbb1",
-               "ray.pid": "2182",
-               "ray.submission_id": "raysubmit_p4qyzGF2UjAseg8C",
+               "ray.node_id": "5f4828d75a9a8f038af14b401614da94151c75409986d45188c12de0",
+               "ray.pid": "13583",
+               "ray.submission_id": "raysubmit_Tv8LhVauSxr9Lhzt",
                "ray.task.args": "(3,)",
                "ray.task.kwargs": "{}",
                "ray.task.submit_status": "success",
                "ray.worker_id": "04000000ffffffffffffffffffffffffffffffffffffffffffffffff",
-               "runtime-id": "d52659917d584cf39596aed7890d981c",
+               "runtime-id": "54bef43ec28b4f019f41dbfc0f6ccf7d",
                "span.kind": "producer",
-               "traceparent": "00-68ca810200000000f72ecf263f3772c4-600a65d12323e96a-00",
-               "tracestate": "dd=p:600a65d12323e96a;s:0"
+               "traceparent": "00-68d195a500000000ac9b70450ce512ad-1b1ee365fe40dcfa-00",
+               "tracestate": "dd=p:1b1ee365fe40dcfa;s:0"
              },
              "metrics": {
                "_dd.djm.enabled": 1,
@@ -522,43 +508,42 @@
                "_dd.top_level": 1,
                "_dd.tracer_kr": 1.0,
                "_sampling_priority_v1": 2,
-               "process_id": 2182
+               "process_id": 13583
              },
-             "duration": 238750,
-             "start": 1758101763696649378
+             "duration": 139750,
+             "start": 1758565799231130592
            },
               {
                 "name": "__main__.add_one",
-                "service": "raysubmit_p4qyzGF2UjAseg8C",
+                "service": "raysubmit_Tv8LhVauSxr9Lhzt",
                 "resource": "__main__.add_one",
                 "trace_id": 0,
-                "span_id": 15,
+                "span_id": 16,
                 "parent_id": 10,
                 "type": "ray",
                 "error": 1,
                 "meta": {
                   "_dd.base_service": "ray._private.workers",
-                  "_dd.hostname": "docker-desktop",
-                  "_dd.p.tid": "68ca810200000000",
-                  "_dd.parent_id": "22d7cac664932f1a",
+                  "_dd.p.tid": "68d195a500000000",
+                  "_dd.parent_id": "7ac2fcd56916f753",
                   "component": "ray",
                   "error.message": "foo",
-                  "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/span_manager.py\", line 24, in long_running_ray_span\n    yield span\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/patch.py\", line 128, in _wrap_task_execution\n    result = wrapped(*args, **kwargs)\n  File \"/home/bits/project/tests/contrib/ray/jobs/error_in_task.py\", line 9, in add_one\n    raise ValueError(\"foo\")\nValueError: foo\n",
+                  "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/span_manager.py\", line 24, in long_running_ray_span\n    yield span\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/patch.py\", line 124, in _wrap_task_execution\n    result = wrapped(*args, **kwargs)\n  File \"/home/bits/project/tests/contrib/ray/jobs/error_in_task.py\", line 9, in add_one\n    raise ValueError(\"foo\")\nValueError: foo\n",
                   "error.type": "builtins.ValueError",
                   "language": "python",
                   "ray.job_id": "04000000",
-                  "ray.node_id": "78562b632e9e7fa2546f26171a5a0859929e0344100de9d84ff4dbb1",
-                  "ray.pid": "2229",
-                  "ray.submission_id": "raysubmit_p4qyzGF2UjAseg8C",
+                  "ray.node_id": "5f4828d75a9a8f038af14b401614da94151c75409986d45188c12de0",
+                  "ray.pid": "13642",
+                  "ray.submission_id": "raysubmit_Tv8LhVauSxr9Lhzt",
                   "ray.task.args": "(3,)",
                   "ray.task.kwargs": "{}",
                   "ray.task.status": "error",
                   "ray.task_id": "011ae9488efe4e25ffffffffffffffffffffffff04000000",
-                  "ray.worker_id": "1f953cf06721e7bbb34429df1a06ce03818fb0120f80c828893c1db9",
-                  "runtime-id": "a76469ce81144325aba73b9c85c580c6",
+                  "ray.worker_id": "e8fd6d29ee3069a016129b818e7519e51bb58249abe70dc242bd84db",
+                  "runtime-id": "68f4dddc92d045cf81912a80ed3f1e9c",
                   "span.kind": "consumer",
-                  "traceparent": "00-68ca810200000000f72ecf263f3772c4-22d7cac664932f1a-00",
-                  "tracestate": "dd=p:22d7cac664932f1a;s:0"
+                  "traceparent": "00-68d195a500000000ac9b70450ce512ad-7ac2fcd56916f753-00",
+                  "tracestate": "dd=p:7ac2fcd56916f753;s:0"
                 },
                 "metrics": {
                   "_dd.djm.enabled": 1,
@@ -567,8 +552,48 @@
                   "_dd.top_level": 1,
                   "_dd.tracer_kr": 1.0,
                   "_sampling_priority_v1": 2,
-                  "process_id": 2229
+                  "process_id": 13642
                 },
-                "duration": 3064042,
-                "start": 1758101765648753879
-              }]]
+                "duration": 1946500,
+                "start": 1758565801012670343
+              },
+           {
+             "name": "ray.get",
+             "service": "raysubmit_Tv8LhVauSxr9Lhzt",
+             "resource": "ray.get",
+             "trace_id": 0,
+             "span_id": 11,
+             "parent_id": 4,
+             "type": "ray",
+             "error": 1,
+             "meta": {
+               "_dd.base_service": "project",
+               "_dd.p.tid": "68d195a500000000",
+               "_dd.parent_id": "1b1ee365fe40dcfa",
+               "component": "ray",
+               "error.message": "\u001b[36mray::add_one()\u001b[39m (pid=13643, ip=192.168.65.3)\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/patch.py\", line 94, in wrapped_function\n    return _wrap_task_execution(function, *args, **kwargs)\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/patch.py\", line 124, in _wrap_task_execution\n    result = wrapped(*args, **kwargs)\n  File \"/home/bits/project/tests/contrib/ray/jobs/error_in_task.py\", line 9, in add_one\n    raise ValueError(\"foo\")\nValueError: foo",
+               "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/span_manager.py\", line 24, in long_running_ray_span\n    yield span\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/patch.py\", line 254, in traced_get\n    return wrapped(*args, **kwargs)\n  File \"/home/bits/project/.riot/venv_py31018_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_ray[default]~2460/lib/python3.10/site-packages/ray/_private/auto_init_hook.py\", line 21, in auto_init_wrapper\n    return fn(*args, **kwargs)\n  File \"/home/bits/project/.riot/venv_py31018_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_ray[default]~2460/lib/python3.10/site-packages/ray/_private/client_mode_hook.py\", line 103, in wrapper\n    return func(*args, **kwargs)\n  File \"/home/bits/project/.riot/venv_py31018_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_ray[default]~2460/lib/python3.10/site-packages/ray/_private/worker.py\", line 2822, in get\n    values, debugger_breakpoint = worker.get_objects(object_refs, timeout=timeout)\n  File \"/home/bits/project/.riot/venv_py31018_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_ray[default]~2460/lib/python3.10/site-packages/ray/_private/worker.py\", line 930, in get_objects\n    raise value.as_instanceof_cause()\nray.exceptions.RayTaskError(ValueError): \u001b[36mray::add_one()\u001b[39m (pid=13643, ip=192.168.65.3)\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/patch.py\", line 94, in wrapped_function\n    return _wrap_task_execution(function, *args, **kwargs)\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/patch.py\", line 124, in _wrap_task_execution\n    result = wrapped(*args, **kwargs)\n  File \"/home/bits/project/tests/contrib/ray/jobs/error_in_task.py\", line 9, in add_one\n    raise ValueError(\"foo\")\nValueError: foo\n",
+               "error.type": "ray.exceptions.RayTaskError(ValueError)",
+               "language": "python",
+               "ray.job_id": "04000000",
+               "ray.node_id": "5f4828d75a9a8f038af14b401614da94151c75409986d45188c12de0",
+               "ray.pid": "13583",
+               "ray.submission_id": "raysubmit_Tv8LhVauSxr9Lhzt",
+               "ray.worker_id": "04000000ffffffffffffffffffffffffffffffffffffffffffffffff",
+               "runtime-id": "54bef43ec28b4f019f41dbfc0f6ccf7d",
+               "span.kind": "producer",
+               "traceparent": "00-68d195a500000000ac9b70450ce512ad-1b1ee365fe40dcfa-00",
+               "tracestate": "dd=p:1b1ee365fe40dcfa;s:0"
+             },
+             "metrics": {
+               "_dd.djm.enabled": 1,
+               "_dd.filter.kept": 1,
+               "_dd.measured": 1,
+               "_dd.top_level": 1,
+               "_dd.tracer_kr": 1.0,
+               "_sampling_priority_v1": 2,
+               "process_id": 13583
+             },
+             "duration": 1767226250,
+             "start": 1758565799231896384
+           }]]

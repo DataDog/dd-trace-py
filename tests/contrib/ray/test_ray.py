@@ -130,6 +130,10 @@ class TestRayIntegration(TracerTestCase):
         with pytest.raises(subprocess.CalledProcessError):
             submit_ray_job("jobs/error_in_task.py")
 
+    @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_simple_get", ignores=RAY_SNAPSHOT_IGNORES)
+    def test_simple_get(self):
+        submit_ray_job("jobs/simple_get.py")
+
     @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_simple_wait", ignores=RAY_SNAPSHOT_IGNORES)
     def test_simple_wait(self):
         submit_ray_job("jobs/simple_wait.py")
