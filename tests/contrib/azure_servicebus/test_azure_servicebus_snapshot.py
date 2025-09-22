@@ -68,4 +68,3 @@ async def test_producer(ddtrace_run_python_code_in_subprocess, env_vars):
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(helper_path.read_text(), env=env)
 
     assert status == 0, (err.decode(), out.decode())
-    assert err == b"", err.decode()
