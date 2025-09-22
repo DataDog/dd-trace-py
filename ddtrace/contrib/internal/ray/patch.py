@@ -451,7 +451,7 @@ def patch():
 
     _w(ray.actor, "_modify_class", inject_tracing_into_actor_class)
     _w(ray.actor.ActorHandle, "_actor_method_call", traced_actor_method_call)
-    _w(ray, "get", traced_wait)
+    _w(ray, "get", traced_get)
     _w(ray, "wait", traced_wait)
 
 
