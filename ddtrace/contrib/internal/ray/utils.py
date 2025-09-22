@@ -25,7 +25,12 @@ from .constants import RAY_TASK_ID
 from .constants import RAY_WORKER_ID
 
 
+# The job name regex serves to convert a submission ID in the format job:train_my_model,run:1758573287
+# to the job name train_my_model
 JOB_NAME_REGEX = re.compile(r"^job\:([A-Za-z0-9_\.\-]+),run:([A-Za-z0-9_\.\-]+)$")
+# The entry point regex is intended to extract the name of the Python script from a Ray entrypoint,
+# for example, if the entrypoint is python3 woof.py --breed mutt
+# then the job name will be woof
 ENTRY_POINT_REGEX = re.compile(r"([^\s\/\\]+)\.py")
 
 
