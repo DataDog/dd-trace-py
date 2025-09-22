@@ -19,4 +19,4 @@ def test_get_dd_job_name_from_entrypoint():
     assert get_dd_job_name_from_entrypoint("python3 hello.py") == "hello"
     assert get_dd_job_name_from_entrypoint("/Users/bits/.pyenv/shims/python3 woof.py") == "woof"
     assert get_dd_job_name_from_entrypoint("python3 woof.py --breed mutt") == "woof"
-    assert get_dd_job_name_from_entrypoint("perl meow.pl") == "perl meow.pl"
+    assert get_dd_job_name_from_entrypoint("perl meow.pl") is None
