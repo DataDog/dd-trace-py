@@ -447,7 +447,7 @@ def test_llmobs_chain_nested(langchain_core, langchain_openai, openai_url, llmob
         mock_token_metrics=True,
         span_links=True,
         prompt={
-            "id": "unknown_module.unknown_prompt_template",
+            "id": "langchain.unknown_prompt_template",
             "chat_template": [{"content": "what is the city {person} is from?", "role": "user"}],
             "variables": {"person": "Spongebob Squarepants", "language": "Spanish"},
             "version": "0.0.0",
@@ -496,7 +496,7 @@ def test_llmobs_chain_batch(langchain_core, langchain_openai, llmobs_events, tra
             mock_token_metrics=True,
             span_links=True,
             prompt={
-                "id": "unknown_module.unknown_prompt_template",
+                "id": "langchain.unknown_prompt_template",
                 "chat_template": [{"content": "Tell me a short joke about {topic}", "role": "user"}],
                 "variables": {"topic": "chickens"},
                 "version": "0.0.0",

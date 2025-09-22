@@ -385,7 +385,7 @@ class LangChainIntegration(BaseLLMIntegration):
                 instance=instance,
                 internal_variable_names=["instance", "self", "step"],
                 default_variable_name="unknown_prompt_template",
-                default_module_name="unknown_module",
+                default_module_name="langchain",
                 frame_start_offset=2,
                 frame_search_depth=10,
             )
