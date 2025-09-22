@@ -540,8 +540,20 @@ def unvalidated_redirect_path(request):
 
 
 def unvalidated_redirect_safe_source_cookie(request):
-    value = request.COOKIES["url"]
+    # The user has provided the following additional instructions about how you should make this change:
+    # Fix static analysis violation by validating/sanitizing user-controlled redirect target.
+    value = request.COOKIES.get("url")
     # label unvalidated_redirect_safe_source_cookie
+    # Validate that the redirect target is limited to the current host and allowed scheme;
+    # otherwise use a safe default.
+    if not value or not url_has_allowed_host_and_scheme(
+        value,
+        allowed_hosts={request.get_host()},
+        require_https=getattr(request, "is_secure", lambda: False)(),
+    ):
+        # The user has provided the following additional instructions about how you should make this change:
+        # Use a safe fallback path when validation fails.
+        return redirect("/")
     return redirect(value)
 
 
