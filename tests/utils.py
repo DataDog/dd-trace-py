@@ -1162,7 +1162,7 @@ class TestAgentClient:
                 reqs.append(req)
         return reqs
 
-    def crash_reports(self) -> List[TestAgentRequest]:
+    def crash_messages(self) -> List[TestAgentRequest]:
         reqs = []
         for req in self.telemetry_requests(telemetry_type="logs"):
             # Parse the json data in order to filter based on "origin" key,
