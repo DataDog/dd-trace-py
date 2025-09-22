@@ -158,6 +158,8 @@ def django_server(
     env=None,
     assert_debug=False,
     manual_propagation_debug=False,
+    *args,
+    **kwargs,
 ):
     """
     Context manager that runs a Django test server in a subprocess.
