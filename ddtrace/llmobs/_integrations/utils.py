@@ -1108,7 +1108,7 @@ class OaiSpanAdapter:
             return None
         return self.error.get("data")
 
-    def llmobs_input_messages(self) -> Tuple[List[Dict[str, Any]], List[str]]:
+    def llmobs_input_messages(self) -> Tuple[List[Message], List[str]]:
         """Returns processed input messages for LLM Obs LLM spans.
 
         Returns:
@@ -1117,7 +1117,7 @@ class OaiSpanAdapter:
         """
         return _openai_parse_input_response_messages(self.input, self.response_system_instructions)
 
-    def llmobs_output_messages(self) -> Tuple[List[Dict[str, Any]], List[ToolCall]]:
+    def llmobs_output_messages(self) -> Tuple[List[Message], List[ToolCall]]:
         """Returns processed output messages for LLM Obs LLM spans.
 
         Returns:

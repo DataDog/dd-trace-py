@@ -233,7 +233,8 @@ class LangGraphIntegration(BaseLLMIntegration):
         graph_caller_span = _get_nearest_llmobs_ancestor(graph_span) if graph_span else None
         output_span_links: List[SpanLink] = [
             SpanLink(
-                **self._graph_nodes_for_graph_by_task_id[graph_span][task_id]["span"],
+                span_id=self._graph_nodes_for_graph_by_task_id[graph_span][task_id]["span"]["span_id"],
+                trace_id=self._graph_nodes_for_graph_by_task_id[graph_span][task_id]["span"]["trace_id"],
                 attributes={"from": "output", "to": "output"},
             )
             for task_id in finished_tasks.keys()

@@ -4,6 +4,7 @@ import sys
 from typing import Any
 from typing import Dict
 from typing import List
+from typing import Literal
 from typing import Optional
 from typing import Tuple
 
@@ -91,7 +92,7 @@ def _build_span_event(
     }
     if metadata is not None:
         span_event["meta"]["metadata"] = metadata
-    io_key = "messages" if span_kind == "llm" else "value"
+    io_key: Literal["messages", "value"] = "messages" if span_kind == "llm" else "value"
     if input_val is not None and "input" in span_event["meta"]:
         span_event["meta"]["input"][io_key] = input_val
     if output_val is not None and "output" in span_event["meta"]:

@@ -111,8 +111,8 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             }
         )
 
-    def _extract_input_messages(self, args: List[Any], kwargs: Dict[str, Any], config) -> List[Dict[str, Any]]:
-        messages = []
+    def _extract_input_messages(self, args: List[Any], kwargs: Dict[str, Any], config) -> List[Message]:
+        messages: List[Message] = []
 
         system_instruction = _get_attr(config, "system_instruction", None)
         if system_instruction is not None:
