@@ -37,6 +37,7 @@ class UploaderProduct(str, Enum):
 
 @dataclass
 class UploaderTrack:
+    track: SignalTrack
     endpoint: str
     queue: SignalQueue
     enabled: bool = True
@@ -73,12 +74,14 @@ class SignalUploader(agent.AgentCheckPeriodicService):
 
         self._tracks = {
             SignalTrack.LOGS: UploaderTrack(
+                track=SignalTrack.LOGS,
                 endpoint=f"/debugger/v1/input{endpoint_suffix}",
                 queue=self.__queue__(
                     encoder=LogSignalJsonEncoder(di_config.service_name), on_full=self._on_buffer_full
                 ),
             ),
             SignalTrack.SNAPSHOT: UploaderTrack(
+                track=SignalTrack.SNAPSHOT,
                 endpoint=f"/debugger/v2/input{endpoint_suffix}",  # start optimistically
                 queue=self.__queue__(encoder=SnapshotJsonEncoder(di_config.service_name), on_full=self._on_buffer_full),
             ),
@@ -113,7 +116,7 @@ class SignalUploader(agent.AgentCheckPeriodicService):
 
         if "endpoints" not in agent_info:
             # Agent not supported
-            log.debug("Unsupported Datadog agent detected. Please upgrade to 7.49.")
+            log.debug("Unsupported Datadog agent detected. Please upgrade to 7.49.0.")
             return False
 
         endpoints = set(agent_info.get("endpoints", []))
@@ -133,7 +136,7 @@ class SignalUploader(agent.AgentCheckPeriodicService):
                 extra={
                     "product": "debugger",
                     "more_info": (
-                        ": Unsupported Datadog agent detected. Snapshots from Dynamic Instrumentation/"
+                        "Unsupported Datadog agent detected. Snapshots from Dynamic Instrumentation/"
                         "Exception Replay/Code Origin for Spans will not be uploaded. "
                         "Please upgrade to version 7.49.0 or later"
                     ),
@@ -187,7 +190,14 @@ class SignalUploader(agent.AgentCheckPeriodicService):
                 self._write_with_backoff(payload, track.endpoint)
                 meter.distribution("batch.cardinality", queue.count)
             except SignalUploaderError:
-                raise  # Propagate error to transition to agent check state
+                if track.track is SignalTrack.SNAPSHOT and not track.endpoint.startswith("/debugger/v1/diagnostics"):
+                    # Downgrade to diagnostics endpoint and retry once
+                    track.endpoint = f"/debugger/v1/diagnostics{self._endpoint_suffix}"
+                    log.debug("Downgrading snapshot endpoint to %s and trying again", track.endpoint)
+                    self._write_with_backoff(payload, track.endpoint)
+                    meter.distribution("batch.cardinality", queue.count)
+                else:
+                    raise  # Propagate error to transition to agent check state
             except Exception:
                 log.debug("Cannot upload logs payload", exc_info=True)
 
@@ -196,21 +206,20 @@ class SignalUploader(agent.AgentCheckPeriodicService):
         if self._flush_full:
             # We received the signal to flush a full buffer
             self._flush_full = False
-            for signal_track, uploader_track in self._tracks.items():
+            for uploader_track in self._tracks.values():
                 if uploader_track.queue.is_full():
-                    try:
-                        self._flush_track(uploader_track)
-                    except SignalUploaderError:
-                        if signal_track is SignalTrack.SNAPSHOT:
-                            uploader_track.endpoint = f"/debugger/v1/diagnostics{self._endpoint_suffix}"
-                            log.debug("Downgrading snapshot endpoint to %s", uploader_track.endpoint)
-                            # Try again immediately. If this fails for the same
-                            # reason we transition to agent check state
-                            self._flush_track(uploader_track)
+                    self._flush_track(uploader_track)
 
         for track in self._tracks.values():
             if track.queue.count:
                 self._flush_track(track)
+
+        if not self._tracks[SignalTrack.SNAPSHOT].enabled:
+            # If the snapshot track is not enabled, we raise an exception to
+            # transition back to the agent check state in case we detect an
+            # agent that can handle snapshots safely.
+            msg = "Snapshot track not enabled"
+            raise ValueError(msg)
 
     on_shutdown = online
 
