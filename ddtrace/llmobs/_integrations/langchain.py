@@ -42,7 +42,10 @@ from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import safe_json
-from ddtrace.llmobs.utils import Document, Message, SpanLink, ToolCall
+from ddtrace.llmobs.utils import Document
+from ddtrace.llmobs.utils import Message
+from ddtrace.llmobs.utils import SpanLink
+from ddtrace.llmobs.utils import ToolCall
 from ddtrace.trace import Span
 
 

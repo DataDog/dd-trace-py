@@ -22,7 +22,8 @@ from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_
 from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model_name
 from ddtrace.llmobs._integrations.google_utils import normalize_contents_google_genai
 from ddtrace.llmobs._utils import _get_attr
-from ddtrace.llmobs.utils import Document, Message
+from ddtrace.llmobs.utils import Document
+from ddtrace.llmobs.utils import Message
 from ddtrace.llmobs.utils import ToolDefinition
 
 

@@ -13,7 +13,6 @@ from typing import Literal
 from typing import Optional
 from typing import Set
 from typing import Tuple
-from typing import TypedDict
 from typing import Union
 from typing import cast
 
@@ -109,10 +108,15 @@ from ddtrace.llmobs._writer import LLMObsExperimentsClient
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs._writer import should_use_agentless
-from ddtrace.llmobs.utils import Documents, ErrorField, Message, Meta, MetaIO, Prompt, SpanField
+from ddtrace.llmobs.utils import Documents
+from ddtrace.llmobs.utils import ErrorField
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
+from ddtrace.llmobs.utils import Message
 from ddtrace.llmobs.utils import Messages
+from ddtrace.llmobs.utils import Meta
+from ddtrace.llmobs.utils import MetaIO
 from ddtrace.llmobs.utils import Prompt
+from ddtrace.llmobs.utils import SpanField
 from ddtrace.llmobs.utils import extract_tool_definitions
 from ddtrace.propagation.http import HTTPPropagator
 

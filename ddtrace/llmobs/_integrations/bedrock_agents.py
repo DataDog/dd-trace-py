@@ -1,8 +1,9 @@
 from datetime import timezone
 import json
 import sys
-from typing import Any, List
+from typing import Any
 from typing import Dict
+from typing import List
 from typing import Optional
 from typing import Tuple
 
@@ -16,7 +17,11 @@ from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._writer import LLMObsSpanEvent
-from ddtrace.llmobs.utils import ErrorField, Message, Meta, MetaIO, SpanField
+from ddtrace.llmobs.utils import ErrorField
+from ddtrace.llmobs.utils import Message
+from ddtrace.llmobs.utils import Meta
+from ddtrace.llmobs.utils import MetaIO
+from ddtrace.llmobs.utils import SpanField
 
 
 log = get_logger(__name__)

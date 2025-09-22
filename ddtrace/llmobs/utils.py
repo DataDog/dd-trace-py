@@ -80,33 +80,6 @@ class Document(TypedDict, total=False):
     score: float
 
 
-class Prompt(TypedDict, total=False):
-    """
-    A Prompt object that contains the information needed to render a prompt.
-        id: str - the id of the prompt set by the user. Should be unique per ml_app.
-        version: str - user tag for the version of the prompt.
-        variables: Dict[str, str] - a dictionary of variables that will be used to render the prompt
-        chat_template: Optional[Union[List[Dict[str, str]], List[Message]]]
-            - A list of dicts of (role,template)
-            where role is the role of the prompt and template is the template string
-        template: Optional[str]
-            - It also accepts a string that represents the template for the prompt. Will default to "user" for a role
-        tags: Optional[Dict[str, str]]
-            - List of tags to add to the prompt run.
-        rag_context_variables: List[str] - a list of variable key names that contain ground truth context information
-        rag_query_variables: List[str] - a list of variable key names that contains query information
-    """
-
-    version: str
-    id: str
-    template: str
-    chat_template: Union[List[Dict[str, str]], List[Message]]
-    variables: Dict[str, str]
-    tags: Dict[str, str]
-    rag_context_variables: List[str]
-    rag_query_variables: List[str]
-
-
 class ToolCall(TypedDict, total=False):
     name: str
     arguments: Dict[str, Any]
@@ -149,6 +122,33 @@ class ErrorField(TypedDict, total=False):
     message: str
     stack: str
     type: str
+
+
+class Prompt(TypedDict, total=False):
+    """
+    A Prompt object that contains the information needed to render a prompt.
+        id: str - the id of the prompt set by the user. Should be unique per ml_app.
+        version: str - user tag for the version of the prompt.
+        variables: Dict[str, str] - a dictionary of variables that will be used to render the prompt
+        chat_template: Optional[Union[List[Dict[str, str]], List[Message]]]
+            - A list of dicts of (role,template)
+            where role is the role of the prompt and template is the template string
+        template: Optional[str]
+            - It also accepts a string that represents the template for the prompt. Will default to "user" for a role
+        tags: Optional[Dict[str, str]]
+            - List of tags to add to the prompt run.
+        rag_context_variables: List[str] - a list of variable key names that contain ground truth context information
+        rag_query_variables: List[str] - a list of variable key names that contains query information
+    """
+
+    version: str
+    id: str
+    template: str
+    chat_template: Union[List[Dict[str, str]], List[Message]]
+    variables: Dict[str, str]
+    tags: Dict[str, str]
+    rag_context_variables: List[str]
+    rag_query_variables: List[str]
 
 
 class MetaIO(TypedDict, total=False):

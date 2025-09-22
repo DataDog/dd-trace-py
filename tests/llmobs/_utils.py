@@ -2,7 +2,9 @@ import os
 
 import mock
 
-from ddtrace.llmobs.utils import ErrorField, Meta, SpanField
+from ddtrace.llmobs.utils import ErrorField
+from ddtrace.llmobs.utils import Meta
+from ddtrace.llmobs.utils import SpanField
 
 
 try:

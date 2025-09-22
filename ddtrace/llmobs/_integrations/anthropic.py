@@ -24,7 +24,8 @@ from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
 from ddtrace.llmobs._utils import _get_attr
-from ddtrace.llmobs.utils import Message, ToolCall
+from ddtrace.llmobs.utils import Message
+from ddtrace.llmobs.utils import ToolCall
 from ddtrace.llmobs.utils import ToolDefinition
 from ddtrace.llmobs.utils import ToolResult
 from ddtrace.trace import Span
