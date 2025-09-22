@@ -6,7 +6,13 @@ import os.path
 import sys
 import time
 import types
-import typing
+from typing import Any
+from typing import Callable
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Tuple
+from typing import Type
 
 import wrapt
 
@@ -15,14 +21,12 @@ from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
 from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _traceback
+from ddtrace.profiling.event import DDFrame
 from ddtrace.settings.profiling import config
 from ddtrace.trace import Tracer
 
 
-T = typing.TypeVar("T")
-
-
-def _current_thread() -> typing.Tuple[int, str]:
+def _current_thread() -> Tuple[int, str]:
     thread_id = _thread.get_ident()
     return thread_id, _threading.get_thread_name(thread_id)
 
@@ -44,8 +48,8 @@ else:
 class _ProfiledLock(wrapt.ObjectProxy):
     def __init__(
         self,
-        wrapped: typing.Any,
-        tracer: typing.Optional[Tracer],
+        wrapped: Any,
+        tracer: Optional[Tracer],
         max_nframes: int,
         capture_sampler: collector.CaptureSampler,
         endpoint_collection_enabled: bool,
@@ -58,15 +62,15 @@ class _ProfiledLock(wrapt.ObjectProxy):
         frame = sys._getframe(2 if WRAPT_C_EXT else 3)
         code = frame.f_code
         self._self_init_loc = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
-        self._self_name: typing.Optional[str] = None
+        self._self_name: Optional[str] = None
 
-    def __aenter__(self, *args: typing.Any, **kwargs: typing.Any) -> typing.Any:
+    def __aenter__(self, *args: Any, **kwargs: Any) -> Any:
         return self._acquire(self.__wrapped__.__aenter__, *args, **kwargs)
 
-    def __aexit__(self, *args: typing.Any, **kwargs: typing.Any) -> None:
+    def __aexit__(self, *args: Any, **kwargs: Any) -> Any:
         return self._release(self.__wrapped__.__aexit__, *args, **kwargs)
 
-    def _acquire(self, inner_func: typing.Callable[..., T], *args: typing.Any, **kwargs: typing.Any) -> T:
+    def _acquire(self, inner_func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         if not self._self_capture_sampler.capture():
             return inner_func(*args, **kwargs)
 
@@ -88,6 +92,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                 else:
                     frame = task_frame
 
+                frames: List[DDFrame]
                 frames, _ = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
 
                 thread_native_id = _threading.get_thread_native_id(thread_id)
@@ -102,20 +107,16 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
                 if self._self_tracer is not None:
                     handle.push_span(self._self_tracer.current_span())
-
-                for f in frames:
-                    handle.push_frame(f.function_name, f.file_name, 0, f.lineno)
-
+                for ddframe in frames:
+                    handle.push_frame(ddframe.function_name, ddframe.file_name, 0, ddframe.lineno)
                 handle.flush_sample()
             except Exception:
                 pass  # nosec
 
-    def acquire(self, *args: typing.Any, **kwargs: typing.Any) -> typing.Any:
+    def acquire(self, *args: Any, **kwargs: Any) -> Any:
         return self._acquire(self.__wrapped__.acquire, *args, **kwargs)
 
-    def _release(self, inner_func: typing.Callable[..., typing.Any], *args: typing.Any, **kwargs: typing.Any) -> None:
-        # type (typing.Any, typing.Any) -> None
-
+    def _release(self, inner_func: Any, *args: Any, **kwargs: Any) -> None:
         # The underlying threading.Lock class is implemented using C code, and
         # it doesn't have the __dict__ attribute. So we can't do
         # self.__dict__.pop("_self_acquired_at", None) to remove the attribute.
@@ -148,6 +149,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                 else:
                     frame = task_frame
 
+                frames: List[DDFrame]
                 frames, _ = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
 
                 thread_native_id = _threading.get_thread_native_id(thread_id)
@@ -162,23 +164,22 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
                 if self._self_tracer is not None:
                     handle.push_span(self._self_tracer.current_span())
-
-                for f in frames:
-                    handle.push_frame(f.function_name, f.file_name, 0, f.lineno)
+                for ddframe in frames:
+                    handle.push_frame(ddframe.function_name, ddframe.file_name, 0, ddframe.lineno)
                 handle.flush_sample()
 
-    def release(self, *args: typing.Any, **kwargs: typing.Any) -> None:
+    def release(self, *args: Any, **kwargs: Any) -> Any:
         return self._release(self.__wrapped__.release, *args, **kwargs)
 
     acquire_lock = acquire
 
-    def __enter__(self, *args: typing.Any, **kwargs: typing.Any) -> typing.Any:
+    def __enter__(self, *args: Any, **kwargs: Any) -> Any:
         return self._acquire(self.__wrapped__.__enter__, *args, **kwargs)
 
-    def __exit__(self, *args: typing.Any, **kwargs: typing.Any) -> None:
+    def __exit__(self, *args: Any, **kwargs: Any) -> None:
         self._release(self.__wrapped__.__exit__, *args, **kwargs)
 
-    def _find_self_name(self, var_dict: typing.Dict) -> typing.Optional[str]:
+    def _find_self_name(self, var_dict: Dict[str, Any]) -> Optional[str]:
         for name, value in var_dict.items():
             if name.startswith("__") or isinstance(value, types.ModuleType):
                 continue
@@ -228,43 +229,36 @@ class FunctionWrapper(wrapt.FunctionWrapper):
     # Override the __get__ method: whatever happens, _allocate_lock is always considered by Python like a "static"
     # method, even when used as a class attribute. Python never tried to "bind" it to a method, because it sees it is a
     # builtin function. Override default wrapt behavior here that tries to detect bound method.
-    def __get__(
-        self,
-        instance: typing.Optional[typing.Any],
-        owner: typing.Optional[typing.Any] = None,
-    ) -> "FunctionWrapper":
+    def __get__(self, instance: Any, owner: Optional[Type] = None) -> "FunctionWrapper":
         return self
 
 
 class LockCollector(collector.CaptureSamplerCollector):
     """Record lock usage."""
 
-    PROFILED_LOCK_CLASS: typing.Type[typing.Any]
+    PROFILED_LOCK_CLASS: Type[Any]
 
     def __init__(
         self,
         nframes: int = config.max_frames,
         endpoint_collection_enabled: bool = config.endpoint_collection,
-        tracer: typing.Optional[Tracer] = None,
-        *args: typing.Any,
-        **kwargs: typing.Any,
+        tracer: Optional[Tracer] = None,
+        *args: Any,
+        **kwargs: Any,
     ) -> None:
         super().__init__(*args, **kwargs)
-        self.nframes = nframes
-        self.endpoint_collection_enabled = endpoint_collection_enabled
-        self.tracer = tracer
-        self._original: typing.Optional[typing.Any] = None
+        self.nframes: int = nframes
+        self.endpoint_collection_enabled: bool = endpoint_collection_enabled
+        self.tracer: Optional[Tracer] = tracer
+        self._original: Optional[Any] = None
 
     @abc.abstractmethod
-    def _get_patch_target(self) -> typing.Type[typing.Any]:
-        raise NotImplementedError
+    def _get_patch_target(self) -> Callable[..., Any]:
+        ...
 
     @abc.abstractmethod
-    def _set_patch_target(
-        self,
-        value: typing.Any,
-    ) -> None:
-        raise NotImplementedError
+    def _set_patch_target(self, value: Any) -> None:
+        ...
 
     def _start_service(self) -> None:
         """Start collecting lock usage."""
@@ -282,14 +276,9 @@ class LockCollector(collector.CaptureSamplerCollector):
         # Nobody should use locks from `_thread`; if they do so, then it's deliberate and we don't profile.
         self._original = self._get_patch_target()
 
-        def _allocate_lock(
-            wrapped: typing.Any,
-            instance: typing.Any,
-            args: typing.Tuple[typing.Any, ...],
-            kwargs: typing.Dict[str, typing.Any],
-        ) -> typing.Any:
+        def _allocate_lock(wrapped: Any, instance: Any, args: Any, kwargs: Any) -> _ProfiledLock:
             lock = wrapped(*args, **kwargs)
-            return self.PROFILED_LOCK_CLASS(
+            return self.PROFILED_LOCK_CLASS(  # type: ignore[attr-defined]
                 lock,
                 self.tracer,
                 self.nframes,
