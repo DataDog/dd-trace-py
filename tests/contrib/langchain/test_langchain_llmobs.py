@@ -472,7 +472,7 @@ def test_llmobs_chain_nested(langchain_core, langchain_openai, openai_url, llmob
 
 @pytest.mark.skipif(sys.version_info >= (3, 11), reason="Python <3.11 required")
 def test_llmobs_chain_batch(langchain_core, langchain_openai, llmobs_events, tracer, openai_url):
-    prompt = langchain_core.prompts.ChatPromptTemplate.from_messages([("user", "Tell me a short joke about {topic}")])
+    prompt = langchain_core.prompts.ChatPromptTemplate.from_template("Tell me a short joke about {topic}")
     output_parser = langchain_core.output_parsers.StrOutputParser()
     model = langchain_openai.ChatOpenAI(base_url=openai_url)
     chain = {"topic": langchain_core.runnables.RunnablePassthrough()} | prompt | model | output_parser
