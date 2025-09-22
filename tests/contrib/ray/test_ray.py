@@ -43,6 +43,7 @@ RAY_SNAPSHOT_IGNORES = [
     "meta.ray.actor_id",
     "meta.ray.task_id",
     "meta.ray.submission_id",
+    "meta.ray.pid",
     "meta.tracestate",
     "meta.traceparent",
     "meta.error.message",
@@ -70,7 +71,7 @@ class TestRayIntegration(TracerTestCase):
         super(TestRayIntegration, cls).setUpClass()
 
         os.environ["_DD_TRACE_RAY_TESTING"] = "true"
-        os.environ["DD_TRACE_RAY_WATCH_LONG_RUNNING_DELAY"] = "30"
+        os.environ["DD_TRACE_RAY_REGISTER_LONG_RUNNING_THRESHOLD"] = "30"
 
         try:
             subprocess.run(["ray", "stop", "--force"], capture_output=True, check=False)
@@ -86,7 +87,7 @@ class TestRayIntegration(TracerTestCase):
                     "--head",
                     "--dashboard-host=127.0.0.1",
                     "--port=0",
-                    "--tracing-startup-hook=ddtrace.contrib.internal.ray.hook:setup_tracing",
+                    "--tracing-startup-hook=ddtrace.contrib.ray:setup_tracing",
                 ],
                 capture_output=True,
                 text=True,
