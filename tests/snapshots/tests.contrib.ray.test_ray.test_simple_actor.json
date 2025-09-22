@@ -1,7 +1,7 @@
 [[
   {
     "name": "ray.job",
-    "service": "raysubmit_gBAZLY4iRuFJiY4b",
+    "service": "simple_actor",
     "resource": "ray.job",
     "trace_id": 0,
     "span_id": 1,
@@ -34,7 +34,7 @@
   },
      {
        "name": "ray.job.submit",
-       "service": "raysubmit_gBAZLY4iRuFJiY4b",
+       "service": "simple_actor",
        "resource": "ray.job.submit",
        "trace_id": 0,
        "span_id": 2,
@@ -59,7 +59,7 @@
      },
      {
        "name": "JobSupervisor.run.remote()",
-       "service": "raysubmit_gBAZLY4iRuFJiY4b",
+       "service": "simple_actor",
        "resource": "JobSupervisor.run.remote()",
        "trace_id": 0,
        "span_id": 3,
@@ -89,7 +89,7 @@
      },
         {
           "name": "JobSupervisor.run",
-          "service": "raysubmit_gBAZLY4iRuFJiY4b",
+          "service": "simple_actor",
           "resource": "JobSupervisor.run",
           "trace_id": 0,
           "span_id": 4,
@@ -129,7 +129,7 @@
         },
            {
              "name": "JobSupervisor._get_driver_env_vars",
-             "service": "raysubmit_gBAZLY4iRuFJiY4b",
+             "service": "simple_actor",
              "resource": "JobSupervisor._get_driver_env_vars",
              "trace_id": 0,
              "span_id": 5,
@@ -162,7 +162,7 @@
            },
               {
                 "name": "JobSupervisor._get_driver_runtime_env",
-                "service": "raysubmit_gBAZLY4iRuFJiY4b",
+                "service": "simple_actor",
                 "resource": "JobSupervisor._get_driver_runtime_env",
                 "trace_id": 0,
                 "span_id": 8,
@@ -195,7 +195,7 @@
               },
            {
              "name": "exec simple_actor.py",
-             "service": "raysubmit_gBAZLY4iRuFJiY4b",
+             "service": "simple_actor",
              "resource": "exec simple_actor.py",
              "trace_id": 0,
              "span_id": 6,
@@ -226,7 +226,7 @@
            },
            {
              "name": "Counter.increment_get_and_double.remote()",
-             "service": "raysubmit_gBAZLY4iRuFJiY4b",
+             "service": "simple_actor",
              "resource": "Counter.increment_get_and_double.remote()",
              "trace_id": 0,
              "span_id": 7,
@@ -266,7 +266,7 @@
            },
               {
                 "name": "Counter.increment_get_and_double",
-                "service": "raysubmit_gBAZLY4iRuFJiY4b",
+                "service": "simple_actor",
                 "resource": "Counter.increment_get_and_double",
                 "trace_id": 0,
                 "span_id": 9,
@@ -308,7 +308,7 @@
               },
                  {
                    "name": "Counter.increment_and_get",
-                   "service": "raysubmit_gBAZLY4iRuFJiY4b",
+                   "service": "simple_actor",
                    "resource": "Counter.increment_and_get",
                    "trace_id": 0,
                    "span_id": 10,
@@ -341,7 +341,7 @@
                  },
                     {
                       "name": "Counter.increment",
-                      "service": "raysubmit_gBAZLY4iRuFJiY4b",
+                      "service": "simple_actor",
                       "resource": "Counter.increment",
                       "trace_id": 0,
                       "span_id": 11,
@@ -374,7 +374,7 @@
                     },
                     {
                       "name": "Counter.get_value",
-                      "service": "raysubmit_gBAZLY4iRuFJiY4b",
+                      "service": "simple_actor",
                       "resource": "Counter.get_value",
                       "trace_id": 0,
                       "span_id": 12,

@@ -1,7 +1,7 @@
 [[
   {
     "name": "ray.job",
-    "service": "raysubmit_DViFN6C258zqpTa8",
+    "service": "actor_interactions",
     "resource": "ray.job",
     "trace_id": 0,
     "span_id": 1,
@@ -34,7 +34,7 @@
   },
      {
        "name": "ray.job.submit",
-       "service": "raysubmit_DViFN6C258zqpTa8",
+       "service": "actor_interactions",
        "resource": "ray.job.submit",
        "trace_id": 0,
        "span_id": 2,
@@ -59,7 +59,7 @@
      },
      {
        "name": "JobSupervisor.run.remote()",
-       "service": "raysubmit_DViFN6C258zqpTa8",
+       "service": "actor_interactions",
        "resource": "JobSupervisor.run.remote()",
        "trace_id": 0,
        "span_id": 3,
@@ -89,7 +89,7 @@
      },
         {
           "name": "JobSupervisor.run",
-          "service": "raysubmit_DViFN6C258zqpTa8",
+          "service": "actor_interactions",
           "resource": "JobSupervisor.run",
           "trace_id": 0,
           "span_id": 4,
@@ -129,7 +129,7 @@
         },
            {
              "name": "JobSupervisor._get_driver_env_vars",
-             "service": "raysubmit_DViFN6C258zqpTa8",
+             "service": "actor_interactions",
              "resource": "JobSupervisor._get_driver_env_vars",
              "trace_id": 0,
              "span_id": 5,
@@ -162,7 +162,7 @@
            },
               {
                 "name": "JobSupervisor._get_driver_runtime_env",
-                "service": "raysubmit_DViFN6C258zqpTa8",
+                "service": "actor_interactions",
                 "resource": "JobSupervisor._get_driver_runtime_env",
                 "trace_id": 0,
                 "span_id": 10,
@@ -195,7 +195,7 @@
               },
            {
              "name": "exec actor_interactions.py",
-             "service": "raysubmit_DViFN6C258zqpTa8",
+             "service": "actor_interactions",
              "resource": "exec actor_interactions.py",
              "trace_id": 0,
              "span_id": 6,
@@ -226,7 +226,7 @@
            },
            {
              "name": "Sender.send_message.remote()",
-             "service": "raysubmit_DViFN6C258zqpTa8",
+             "service": "actor_interactions",
              "resource": "Sender.send_message.remote()",
              "trace_id": 0,
              "span_id": 7,
@@ -266,7 +266,7 @@
            },
               {
                 "name": "Sender.send_message",
-                "service": "raysubmit_DViFN6C258zqpTa8",
+                "service": "actor_interactions",
                 "resource": "Sender.send_message",
                 "trace_id": 0,
                 "span_id": 11,
@@ -308,7 +308,7 @@
               },
                  {
                    "name": "Receiver.receive_message.remote()",
-                   "service": "raysubmit_DViFN6C258zqpTa8",
+                   "service": "actor_interactions",
                    "resource": "Receiver.receive_message.remote()",
                    "trace_id": 0,
                    "span_id": 14,
@@ -341,7 +341,7 @@
                  },
                     {
                       "name": "Receiver.receive_message",
-                      "service": "raysubmit_DViFN6C258zqpTa8",
+                      "service": "actor_interactions",
                       "resource": "Receiver.receive_message",
                       "trace_id": 0,
                       "span_id": 15,
@@ -383,7 +383,7 @@
                     },
            {
              "name": "Sender.get_sent_count.remote()",
-             "service": "raysubmit_DViFN6C258zqpTa8",
+             "service": "actor_interactions",
              "resource": "Sender.get_sent_count.remote()",
              "trace_id": 0,
              "span_id": 8,
@@ -423,7 +423,7 @@
            },
               {
                 "name": "Sender.get_sent_count",
-                "service": "raysubmit_DViFN6C258zqpTa8",
+                "service": "actor_interactions",
                 "resource": "Sender.get_sent_count",
                 "trace_id": 0,
                 "span_id": 12,
@@ -465,7 +465,7 @@
               },
            {
              "name": "Receiver.get_messages.remote()",
-             "service": "raysubmit_DViFN6C258zqpTa8",
+             "service": "actor_interactions",
              "resource": "Receiver.get_messages.remote()",
              "trace_id": 0,
              "span_id": 9,
@@ -505,7 +505,7 @@
            },
               {
                 "name": "Receiver.get_messages",
-                "service": "raysubmit_DViFN6C258zqpTa8",
+                "service": "actor_interactions",
                 "resource": "Receiver.get_messages",
                 "trace_id": 0,
                 "span_id": 13,

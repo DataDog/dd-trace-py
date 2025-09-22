@@ -1,19 +1,22 @@
-import os
+from ddtrace.contrib.internal.ray.utils import get_dd_job_name_from_entrypoint
+from ddtrace.contrib.internal.ray.utils import get_dd_job_name_from_submission_id
 
-from ddtrace.contrib.internal.ray.utils import get_dd_job_name
+
+def test_get_dd_job_name_from_submission_id():
+    assert (
+        get_dd_job_name_from_submission_id("job:frobnitzigate_idiosyncrasies,run:38") == "frobnitzigate_idiosyncrasies"
+    )
+    assert (
+        get_dd_job_name_from_submission_id("joe.schmoe-cf32445c3b2842958956ba6b6225ad")
+        == "joe.schmoe-cf32445c3b2842958956ba6b6225ad"
+    )
+    assert get_dd_job_name_from_submission_id("mortar.clustering.pipeline") == "mortar.clustering.pipeline"
+    assert get_dd_job_name_from_submission_id("") is None
 
 
-def test_get_dd_job_name():
-    assert get_dd_job_name("job:frobnitzigate_idiosyncrasies,run:38") == "frobnitzigate_idiosyncrasies"
-    assert get_dd_job_name("joe.schmoe-cf32445c3b2842958956ba6b6225ad") == "joe.schmoe-cf32445c3b2842958956ba6b6225ad"
-    assert get_dd_job_name("mortar.clustering.pipeline") == "mortar.clustering.pipeline"
-    os.environ["_RAY_JOB_NAME"] = "train.cool.model"
-    assert get_dd_job_name("whatever") == "train.cool.model"
-    del os.environ["_RAY_JOB_NAME"]
-    assert get_dd_job_name() is None
-    os.environ["_RAY_SUBMISSION_ID"] = "job:frobnitzigate_idiosyncrasies,run:38"
-    assert get_dd_job_name() == "frobnitzigate_idiosyncrasies"
-    os.environ["_RAY_SUBMISSION_ID"] = "whatever"
-    assert get_dd_job_name() == "whatever"
-    del os.environ["_RAY_SUBMISSION_ID"]
-    assert get_dd_job_name() is None
+def test_get_dd_job_name_from_entrypoint():
+    assert get_dd_job_name_from_entrypoint("python hello.py") == "hello"
+    assert get_dd_job_name_from_entrypoint("python3 hello.py") == "hello"
+    assert get_dd_job_name_from_entrypoint("/Users/bits/.pyenv/shims/python3 woof.py") == "woof"
+    assert get_dd_job_name_from_entrypoint("python3 woof.py --breed mutt") == "woof"
+    assert get_dd_job_name_from_entrypoint("perl meow.pl") == "perl meow.pl"

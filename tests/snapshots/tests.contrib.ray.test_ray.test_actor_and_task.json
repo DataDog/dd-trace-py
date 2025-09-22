@@ -1,7 +1,7 @@
 [[
   {
     "name": "ray.job",
-    "service": "raysubmit_QtgsTNMg7sPPFJg4",
+    "service": "actor_and_task",
     "resource": "ray.job",
     "trace_id": 0,
     "span_id": 1,
@@ -34,7 +34,7 @@
   },
      {
        "name": "ray.job.submit",
-       "service": "raysubmit_QtgsTNMg7sPPFJg4",
+       "service": "actor_and_task",
        "resource": "ray.job.submit",
        "trace_id": 0,
        "span_id": 2,
@@ -59,7 +59,7 @@
      },
      {
        "name": "JobSupervisor.run.remote()",
-       "service": "raysubmit_QtgsTNMg7sPPFJg4",
+       "service": "actor_and_task",
        "resource": "JobSupervisor.run.remote()",
        "trace_id": 0,
        "span_id": 3,
@@ -89,7 +89,7 @@
      },
         {
           "name": "JobSupervisor.run",
-          "service": "raysubmit_QtgsTNMg7sPPFJg4",
+          "service": "actor_and_task",
           "resource": "JobSupervisor.run",
           "trace_id": 0,
           "span_id": 4,
@@ -129,7 +129,7 @@
         },
            {
              "name": "JobSupervisor._get_driver_env_vars",
-             "service": "raysubmit_QtgsTNMg7sPPFJg4",
+             "service": "actor_and_task",
              "resource": "JobSupervisor._get_driver_env_vars",
              "trace_id": 0,
              "span_id": 5,
@@ -162,7 +162,7 @@
            },
               {
                 "name": "JobSupervisor._get_driver_runtime_env",
-                "service": "raysubmit_QtgsTNMg7sPPFJg4",
+                "service": "actor_and_task",
                 "resource": "JobSupervisor._get_driver_runtime_env",
                 "trace_id": 0,
                 "span_id": 8,
@@ -195,7 +195,7 @@
               },
            {
              "name": "exec actor_and_task.py",
-             "service": "raysubmit_QtgsTNMg7sPPFJg4",
+             "service": "actor_and_task",
              "resource": "exec actor_and_task.py",
              "trace_id": 0,
              "span_id": 6,
@@ -226,7 +226,7 @@
            },
            {
              "name": "ComputationManager.compute_and_store.remote()",
-             "service": "raysubmit_QtgsTNMg7sPPFJg4",
+             "service": "actor_and_task",
              "resource": "ComputationManager.compute_and_store.remote()",
              "trace_id": 0,
              "span_id": 7,
@@ -266,7 +266,7 @@
            },
               {
                 "name": "ComputationManager.compute_and_store",
-                "service": "raysubmit_QtgsTNMg7sPPFJg4",
+                "service": "actor_and_task",
                 "resource": "ComputationManager.compute_and_store",
                 "trace_id": 0,
                 "span_id": 9,
@@ -308,7 +308,7 @@
               },
                  {
                    "name": "ComputationManager.increment_count",
-                   "service": "raysubmit_QtgsTNMg7sPPFJg4",
+                   "service": "actor_and_task",
                    "resource": "ComputationManager.increment_count",
                    "trace_id": 0,
                    "span_id": 10,
@@ -341,7 +341,7 @@
                  },
                  {
                    "name": "__main__.batch_compute.remote()",
-                   "service": "raysubmit_QtgsTNMg7sPPFJg4",
+                   "service": "actor_and_task",
                    "resource": "__main__.batch_compute.remote()",
                    "trace_id": 0,
                    "span_id": 11,
@@ -375,7 +375,7 @@
                  },
                     {
                       "name": "__main__.batch_compute",
-                      "service": "raysubmit_QtgsTNMg7sPPFJg4",
+                      "service": "actor_and_task",
                       "resource": "__main__.batch_compute",
                       "trace_id": 0,
                       "span_id": 17,
@@ -417,7 +417,7 @@
                     },
                        {
                          "name": "__main__.compute_value.remote()",
-                         "service": "raysubmit_QtgsTNMg7sPPFJg4",
+                         "service": "actor_and_task",
                          "resource": "__main__.compute_value.remote()",
                          "trace_id": 0,
                          "span_id": 18,
@@ -450,7 +450,7 @@
                        },
                           {
                             "name": "__main__.compute_value",
-                            "service": "raysubmit_QtgsTNMg7sPPFJg4",
+                            "service": "actor_and_task",
                             "resource": "__main__.compute_value",
                             "trace_id": 0,
                             "span_id": 21,
@@ -492,7 +492,7 @@
                           },
                        {
                          "name": "__main__.compute_value.remote()",
-                         "service": "raysubmit_QtgsTNMg7sPPFJg4",
+                         "service": "actor_and_task",
                          "resource": "__main__.compute_value.remote()",
                          "trace_id": 0,
                          "span_id": 19,
@@ -525,7 +525,7 @@
                        },
                           {
                             "name": "__main__.compute_value",
-                            "service": "raysubmit_QtgsTNMg7sPPFJg4",
+                            "service": "actor_and_task",
                             "resource": "__main__.compute_value",
                             "trace_id": 0,
                             "span_id": 22,
@@ -567,7 +567,7 @@
                           },
                        {
                          "name": "__main__.compute_value.remote()",
-                         "service": "raysubmit_QtgsTNMg7sPPFJg4",
+                         "service": "actor_and_task",
                          "resource": "__main__.compute_value.remote()",
                          "trace_id": 0,
                          "span_id": 20,
@@ -600,7 +600,7 @@
                        },
                           {
                             "name": "__main__.compute_value",
-                            "service": "raysubmit_QtgsTNMg7sPPFJg4",
+                            "service": "actor_and_task",
                             "resource": "__main__.compute_value",
                             "trace_id": 0,
                             "span_id": 23,
@@ -642,7 +642,7 @@
                           },
                  {
                    "name": "ComputationManager.add_result",
-                   "service": "raysubmit_QtgsTNMg7sPPFJg4",
+                   "service": "actor_and_task",
                    "resource": "ComputationManager.add_result",
                    "trace_id": 0,
                    "span_id": 12,
@@ -675,7 +675,7 @@
                  },
                  {
                    "name": "ComputationManager.add_result",
-                   "service": "raysubmit_QtgsTNMg7sPPFJg4",
+                   "service": "actor_and_task",
                    "resource": "ComputationManager.add_result",
                    "trace_id": 0,
                    "span_id": 13,
@@ -708,7 +708,7 @@
                  },
                  {
                    "name": "ComputationManager.add_result",
-                   "service": "raysubmit_QtgsTNMg7sPPFJg4",
+                   "service": "actor_and_task",
                    "resource": "ComputationManager.add_result",
                    "trace_id": 0,
                    "span_id": 14,
@@ -741,7 +741,7 @@
                  },
                  {
                    "name": "ComputationManager.get_count",
-                   "service": "raysubmit_QtgsTNMg7sPPFJg4",
+                   "service": "actor_and_task",
                    "resource": "ComputationManager.get_count",
                    "trace_id": 0,
                    "span_id": 15,
@@ -774,7 +774,7 @@
                  },
                  {
                    "name": "ComputationManager.get_results",
-                   "service": "raysubmit_QtgsTNMg7sPPFJg4",
+                   "service": "actor_and_task",
                    "resource": "ComputationManager.get_results",
                    "trace_id": 0,
                    "span_id": 16,

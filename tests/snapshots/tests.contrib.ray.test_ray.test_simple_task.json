@@ -1,7 +1,7 @@
 [[
   {
     "name": "ray.job",
-    "service": "raysubmit_QxnykHHjqCxNLyVB",
+    "service": "simple_task",
     "resource": "ray.job",
     "trace_id": 0,
     "span_id": 1,
@@ -34,7 +34,7 @@
   },
      {
        "name": "ray.job.submit",
-       "service": "raysubmit_QxnykHHjqCxNLyVB",
+       "service": "simple_task",
        "resource": "ray.job.submit",
        "trace_id": 0,
        "span_id": 2,
@@ -59,7 +59,7 @@
      },
      {
        "name": "JobSupervisor.run.remote()",
-       "service": "raysubmit_QxnykHHjqCxNLyVB",
+       "service": "simple_task",
        "resource": "JobSupervisor.run.remote()",
        "trace_id": 0,
        "span_id": 3,
@@ -89,7 +89,7 @@
      },
         {
           "name": "JobSupervisor.run",
-          "service": "raysubmit_QxnykHHjqCxNLyVB",
+          "service": "simple_task",
           "resource": "JobSupervisor.run",
           "trace_id": 0,
           "span_id": 4,
@@ -129,7 +129,7 @@
         },
            {
              "name": "JobSupervisor._get_driver_env_vars",
-             "service": "raysubmit_QxnykHHjqCxNLyVB",
+             "service": "simple_task",
              "resource": "JobSupervisor._get_driver_env_vars",
              "trace_id": 0,
              "span_id": 5,
@@ -162,7 +162,7 @@
            },
               {
                 "name": "JobSupervisor._get_driver_runtime_env",
-                "service": "raysubmit_QxnykHHjqCxNLyVB",
+                "service": "simple_task",
                 "resource": "JobSupervisor._get_driver_runtime_env",
                 "trace_id": 0,
                 "span_id": 11,
@@ -195,7 +195,7 @@
               },
            {
              "name": "exec simple_task.py",
-             "service": "raysubmit_QxnykHHjqCxNLyVB",
+             "service": "simple_task",
              "resource": "exec simple_task.py",
              "trace_id": 0,
              "span_id": 6,
@@ -226,7 +226,7 @@
            },
            {
              "name": "__main__.add_one.remote()",
-             "service": "raysubmit_QxnykHHjqCxNLyVB",
+             "service": "simple_task",
              "resource": "__main__.add_one.remote()",
              "trace_id": 0,
              "span_id": 7,
@@ -267,7 +267,7 @@
            },
               {
                 "name": "__main__.add_one",
-                "service": "raysubmit_QxnykHHjqCxNLyVB",
+                "service": "simple_task",
                 "resource": "__main__.add_one",
                 "trace_id": 0,
                 "span_id": 12,
@@ -309,7 +309,7 @@
               },
            {
              "name": "__main__.add_one.remote()",
-             "service": "raysubmit_QxnykHHjqCxNLyVB",
+             "service": "simple_task",
              "resource": "__main__.add_one.remote()",
              "trace_id": 0,
              "span_id": 8,
@@ -350,7 +350,7 @@
            },
               {
                 "name": "__main__.add_one",
-                "service": "raysubmit_QxnykHHjqCxNLyVB",
+                "service": "simple_task",
                 "resource": "__main__.add_one",
                 "trace_id": 0,
                 "span_id": 13,
@@ -392,7 +392,7 @@
               },
            {
              "name": "__main__.add_one.remote()",
-             "service": "raysubmit_QxnykHHjqCxNLyVB",
+             "service": "simple_task",
              "resource": "__main__.add_one.remote()",
              "trace_id": 0,
              "span_id": 9,
@@ -433,7 +433,7 @@
            },
               {
                 "name": "__main__.add_one",
-                "service": "raysubmit_QxnykHHjqCxNLyVB",
+                "service": "simple_task",
                 "resource": "__main__.add_one",
                 "trace_id": 0,
                 "span_id": 14,
@@ -475,7 +475,7 @@
               },
            {
              "name": "__main__.add_one.remote()",
-             "service": "raysubmit_QxnykHHjqCxNLyVB",
+             "service": "simple_task",
              "resource": "__main__.add_one.remote()",
              "trace_id": 0,
              "span_id": 10,
@@ -516,7 +516,7 @@
            },
               {
                 "name": "__main__.add_one",
-                "service": "raysubmit_QxnykHHjqCxNLyVB",
+                "service": "simple_task",
                 "resource": "__main__.add_one",
                 "trace_id": 0,
                 "span_id": 15,

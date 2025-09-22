@@ -7,7 +7,6 @@ import sys
 from typing import Any
 from typing import Callable
 from typing import List
-from typing import Optional
 
 import ray
 from ray.runtime_context import get_runtime_context
@@ -27,6 +26,7 @@ from .constants import RAY_WORKER_ID
 
 
 JOB_NAME_REGEX = re.compile(r"^job\:([A-Za-z0-9_\.\-]+),run:([A-Za-z0-9_\.\-]+)$")
+ENTRY_POINT_REGEX = re.compile(r"([^\s\/\\]+)\.py")
 
 
 def _inject_dd_trace_ctx_kwarg(method: Callable) -> Signature:
@@ -184,28 +184,23 @@ def is_cython(obj):
     return check_cython(obj) or (hasattr(obj, "__func__") and check_cython(obj.__func__))
 
 
-# Memoize the job name for each submission id to avoid running the expensive regex logic multiple times
-dd_job_names = {}
-
-
-def get_dd_job_name(submission_id: Optional[str] = None):
+def get_dd_job_name_from_submission_id(submission_id: str):
     """
     Get the job name from the submission id.
-    If the submission id is not a valid job name, return the default job name.
-    If the submission id is not set, return the default job name.
+    If the submission id is set but not in a job:test,run:3 format, return the default job name.
+    If the submission id is not set, return None.
     """
-    job_name = os.environ.get("_RAY_JOB_NAME")
-    if job_name:
-        return job_name
-    if submission_id is None:
-        submission_id = os.environ.get("_RAY_SUBMISSION_ID") or ""
-    if submission_id in dd_job_names:
-        return dd_job_names[submission_id]
     match = JOB_NAME_REGEX.match(submission_id)
     if match:
-        dd_job_names[submission_id] = match.group(1)
         return match.group(1)
-    elif submission_id:
-        dd_job_names[submission_id] = submission_id
-        return submission_id
+    return None
+
+
+def get_dd_job_name_from_entrypoint(entrypoint: str):
+    """
+    Get the job name from the entrypoint.
+    """
+    match = ENTRY_POINT_REGEX.search(entrypoint)
+    if match:
+        return match.group(1)
     return None
