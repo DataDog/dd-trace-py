@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    tests(appsec-django): Sanitize redirect targets and encode path segments in Django test views to address SSRF/open-redirect static analysis findings; no user-facing behavior changes.
