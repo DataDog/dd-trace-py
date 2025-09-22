@@ -214,7 +214,7 @@ def run_test(
     if method == "send_event" and message_payload_type == "single":
         for e in events:
             producer_client.send_event(e)
-        for m in make_amqp_annotated_messages():
+        for m in amqp_annotated_messages:
             producer_client.send_event(m)
     if method == "send_batch" and message_payload_type == "list":
         producer_client.send_batch(events)
@@ -259,7 +259,7 @@ async def run_test_async(
     if method == "send_event" and message_payload_type == "single":
         for e in events:
             await producer_client.send_event(e)
-        for m in make_amqp_annotated_messages():
+        for m in amqp_annotated_messages:
             await producer_client.send_event(m)
     if method == "send_batch" and message_payload_type == "list":
         await producer_client.send_batch(events)
