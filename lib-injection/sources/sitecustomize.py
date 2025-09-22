@@ -294,14 +294,16 @@ def get_first_incompatible_sysarg():
     if len(sys.argv) >= 3:
         executable_basename = os.path.basename(argument)
         if executable_basename.startswith("python"):
-            # Look for -m flag in any position from argv[1:len(-1)]
-            for i in range(1, len(sys.argv) - 1):  # -1 because we need argv[i+1] to exist
-                if sys.argv[i] == "-m":
-                    module_name = sys.argv[i + 1]
+            try:
+                m_index = sys.argv.index("-m")
+                if m_index + 1 < len(sys.argv):
+                    module_name = sys.argv[m_index + 1]
                     if module_name in EXECUTABLE_MODULES_DENY_LIST:
                         _log("Module %s is in deny-list" % (module_name,), level="debug")
-                        return "-m %s" % module_name  # Return in -m format for consistency
-                    break  # Stop after finding the first -m flag
+                        return "-m %s" % module_name
+            except ValueError:
+                # "-m" not found in sys.argv, continue normally
+                pass
     return None
 
 
