@@ -527,16 +527,22 @@ def unvalidated_redirect_url(request):
 
 
 def unvalidated_redirect_url_validator(request):
-    value = request.GET.get("url")
-    if url_has_allowed_host_and_scheme(value, allowed_hosts={request.get_host()}):
+    value = request.GET.get("url", "")
+    # The user has provided the following additional instructions about how you should make this change:
+    # Sanitize/validate any redirect target derived from request data to avoid SSRF/open redirect.
+    if value and url_has_allowed_host_and_scheme(value, allowed_hosts={request.get_host()}):
         return redirect(value)
-    return redirect(value)
+    # Fallback to a safe, local path if the provided URL is not allowed
+    return redirect("/")
 
 
 def unvalidated_redirect_path(request):
-    value = request.GET.get("url")
+    value = request.GET.get("url", "")
+    # The user has provided the following additional instructions about how you should make this change:
+    # Treat user input strictly as a path segment and percent-encode to prevent host/protocol injection.
     # label unvalidated_redirect_path
-    return redirect("http://localhost:8080/" + value)
+    safe_value = quote(value, safe="")
+    return redirect(f"http://localhost:8080/{safe_value}")
 
 
 def unvalidated_redirect_safe_source_cookie(request):
@@ -546,9 +552,12 @@ def unvalidated_redirect_safe_source_cookie(request):
 
 
 def unvalidated_redirect_safe_source_header(request):
-    value = request.META["url"]
+    value = request.META.get("url", "")
+    # The user has provided the following additional instructions about how you should make this change:
+    # Percent-encode header-derived path components before constructing redirect URLs.
     # label unvalidated_redirect_safe_source_header
-    return redirect("http://localhost:8080/" + value)
+    safe_value = quote(value, safe="")
+    return redirect(f"http://localhost:8080/{safe_value}")
 
 
 def unvalidated_redirect_path_multiple_sources(request):
