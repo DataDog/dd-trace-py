@@ -665,7 +665,7 @@ class TestLLMObsAnthropic:
                 + " the location is fully specified. We can proceed with calling the get_weather tool.\n</thinking>",
                 "type": "text",
             },
-            {"text": WEATHER_OUTPUT_MESSAGE_2_TOOL_CALL, "type": "text"},
+            {"name": "get_weather", "input": {"location": "San Francisco, CA"}, "id": "toolu_01DYJo37oETVsCdLTTcCWcdq", "type": "tool_use"},
         ]
 
         traces = mock_tracer.pop_traces()
@@ -733,7 +733,7 @@ class TestLLMObsAnthropic:
                 input_messages=[
                     {"content": WEATHER_PROMPT, "role": "user"},
                     {"content": message[0]["text"], "role": "assistant"},
-                    {"content": message[1]["text"], "role": "assistant"},
+                    {"content": "", "role": "assistant", "tool_calls": WEATHER_OUTPUT_MESSAGE_2_TOOL_CALL},
                     {"content": "", "role": "user", "tool_results": WEATHER_TOOL_RESULT},
                 ],
                 output_messages=[
