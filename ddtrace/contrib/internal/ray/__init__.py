@@ -29,7 +29,7 @@ The Ray integration can be configured using environment variables:
 - ``DD_TRACE_RAY_RESUBMIT_LONG_RUNNING_INTERVAL``: Interval for resubmitting long-running
     spans (default: ``120.0`` seconds)
 - ``DD_TRACE_RAY_REGISTER_LONG_RUNNING_THRESHOLD``: Maximum span duration before it is considered
-    long-runnning (default: ``10.0``seconds)
+    long-runnning (default: ``10.0`` seconds)
 
 Notes
 ~~~~~
