@@ -163,10 +163,6 @@ class TelemetryWriter(PeriodicService):
         self._periodic_count = 0
         self._is_periodic = is_periodic
         self._integrations_queue = dict()  # type: Dict[str, Dict]
-        # Currently telemetry only supports reporting a single error.
-        # If we'd like to report multiple errors in the future
-        # we could hack it in by xor-ing error codes and concatenating strings
-        self._error = (0, "")  # type: Tuple[int, str]
         self._namespace = MetricNamespace()
         self._logs = set()  # type: Set[Dict[str, Any]]
         self._forked = False  # type: bool
@@ -301,15 +297,6 @@ class TelemetryWriter(PeriodicService):
                 self._integrations_queue[integration_name]["compatible"] = error_msg == ""
                 self._integrations_queue[integration_name]["error"] = error_msg
 
-    def add_error(self, code, msg, filename, line_number):
-        # type: (int, str, Optional[str], Optional[int]) -> None
-        """Add an error to be submitted with an event.
-        Note that this overwrites any previously set errors.
-        """
-        if filename and line_number is not None:
-            msg = "%s:%s: %s" % (filename, line_number, msg)
-        self._error = (code, msg)
-
     def _app_started(self, register_app_shutdown=True):
         # type: (bool) -> None
         """Sent when TelemetryWriter is enabled or forks"""
@@ -330,10 +317,6 @@ class TelemetryWriter(PeriodicService):
 
         payload = {
             "configuration": self._flush_configuration_queue(),
-            "error": {
-                "code": self._error[0],
-                "message": self._error[1],
-            },
             "products": products,
         }  # type: Dict[str, Union[Dict[str, Any], List[Any]]]
         # Add time to value telemetry metrics for single step instrumentation
@@ -343,9 +326,6 @@ class TelemetryWriter(PeriodicService):
                 "install_type": config.INSTALL_TYPE,
                 "install_time": config.INSTALL_TIME,
             }
-
-        # Reset the error after it has been reported.
-        self._error = (0, "")
         self.add_event(payload, "app-started")
 
     def _app_heartbeat_event(self):
@@ -524,9 +504,9 @@ class TelemetryWriter(PeriodicService):
             # Logs are hashed using the message, level, tags, and stack_trace. This should prevent duplicatation.
             self._logs.add(data)
 
-    def add_error_log(self, msg: str, exc: BaseException) -> None:
+    def add_error_log(self, msg: str, exc: Union[BaseException, tuple, None]) -> None:
         if config.LOG_COLLECTION_ENABLED:
-            stack_trace = self._format_stack_trace(exc)
+            stack_trace = None if exc is None else self._format_stack_trace(exc)
 
             self.add_log(
                 TELEMETRY_LOG_LEVEL.ERROR,
@@ -534,8 +514,11 @@ class TelemetryWriter(PeriodicService):
                 stack_trace=stack_trace if stack_trace is not None else "",
             )
 
-    def _format_stack_trace(self, exc: BaseException) -> Optional[str]:
-        exc_type, _, exc_traceback = type(exc), exc, getattr(exc, "__traceback__", None)
+    def _format_stack_trace(self, exc: Union[BaseException, tuple]) -> Optional[str]:
+        if isinstance(exc, tuple) and len(exc) == 3:
+            exc_type, _, exc_traceback = exc
+        else:
+            exc_type, _, exc_traceback = type(exc), exc, getattr(exc, "__traceback__", None)
 
         if not exc_traceback:
             return None
@@ -759,7 +742,8 @@ class TelemetryWriter(PeriodicService):
 
             lineno = traceback.tb_frame.f_code.co_firstlineno
             filename = traceback.tb_frame.f_code.co_filename
-            self.add_error(1, str(value), filename, lineno)
+
+            self.add_error_log("Unhandled exception from ddtrace code", (tp, None, root_traceback))
 
             dir_parts = filename.split(os.path.sep)
             # Check if exception was raised in the  `ddtrace.contrib` package
