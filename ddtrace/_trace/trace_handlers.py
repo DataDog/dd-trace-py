@@ -1050,6 +1050,7 @@ def listen():
         "azure.functions.patched_timer",
         "azure.servicebus.patched_producer",
         "psycopg.patched_connect",
+        "dramatiq.Actor.send_with_options",
     ):
         core.on(f"context.started.{context_name}", _start_span)
 

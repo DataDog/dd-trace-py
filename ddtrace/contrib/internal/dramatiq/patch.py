@@ -60,7 +60,7 @@ def _traced_send_with_options_function(integration_config: Config) -> Callable[[
     ) -> Callable[[Any], Any]:
         with core.context_with_data(
             "dramatiq.Actor.send_with_options",
-            span_name="dramatiq.Actor.send_with_option",
+            span_name="dramatiq.Actor.send_with_options",
             span_type=SpanTypes.WORKER,
             service=trace_utils.ext_service(pin=None, int_config=integration_config),
             tags={
@@ -69,7 +69,6 @@ def _traced_send_with_options_function(integration_config: Config) -> Callable[[
                 "actor.options": instance.options,
             },
         ) as ctx, ctx.span:
-            print("the ctx.span is ------> ", ctx.span)
             return func(*args, **kwargs)
 
     return _traced_send_with_options
