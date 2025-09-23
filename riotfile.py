@@ -163,8 +163,9 @@ venv = Venv(
         Venv(
             name="appsec_integrations_packages",
             pys=select_pys(),
-            command="python -m pytest -vvv -s -n 8 --no-cov --no-ddtrace tests/appsec/integrations/packages_tests/",
+            command="python -m pytest -v tests/appsec/integrations/packages_tests/",
             pkgs={
+                "gevent": latest,
                 "pytest-xdist": latest,
                 "pytest-asyncio": latest,
                 "requests": latest,
@@ -227,6 +228,8 @@ venv = Venv(
             command="pytest -vvv {cmdargs} tests/appsec/integrations/django_tests/",
             pkgs={
                 "requests": latest,
+                "gunicorn": latest,
+                "gevent": latest,
                 "pylibmc": latest,
                 "PyYAML": latest,
                 "dill": latest,

@@ -49,7 +49,7 @@ def transform_instruction(opcode: str, arg: t.Any) -> t.Tuple[str, t.Any]:
             opcode = "LOAD_ATTR"
             arg = (True, arg)
         elif opcode.upper() == "LOAD_ATTR" and not isinstance(arg, tuple):
-            arg = (False, arg)
+            arg = (sys.version_info >= (3, 14), arg)
 
     return opcode, arg
 
