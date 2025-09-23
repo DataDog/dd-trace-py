@@ -1431,12 +1431,8 @@ class PytestTestCase(PytestTestCaseBase):
         os.chdir(str(package_a_dir))
         with open("test_a.py", "w+") as fd:
             fd.write(
-                textwrap.dedent(
-                    """
-                def test_ok():
-                    assert True
-                """
-                )
+                """def test_ok():
+                assert True"""
             )
         self.testdir.chdir()
         self.inline_run("--ddtrace")
@@ -1462,23 +1458,15 @@ class PytestTestCase(PytestTestCaseBase):
         os.chdir(str(package_a_dir))
         with open("test_a.py", "w+") as fd:
             fd.write(
-                textwrap.dedent(
-                    """
-                def test_ok():
-                    assert True
-                """
-                )
+                """def test_ok():
+                assert True"""
             )
         package_b_dir = self.testdir.mkpydir("test_package_b")
         os.chdir(str(package_b_dir))
         with open("test_b.py", "w+") as fd:
             fd.write(
-                textwrap.dedent(
-                    """
-                def test_not_ok():
-                    assert 0
-                """
-                )
+                """def test_not_ok():
+                assert 0"""
             )
         self.testdir.chdir()
         self.inline_run("--ddtrace")
@@ -1508,20 +1496,12 @@ class PytestTestCase(PytestTestCaseBase):
         os.chdir(str(package_a_dir))
         with open("test_a.py", "w+") as fd:
             fd.write(
-                textwrap.dedent(
-                    """
-                def test_ok():
-                    assert True
-                class TestClassOuter:
-                    class TestClassInner:
-                        def test_class_inner(self):
-                            assert True
-                    def test_class_outer(self):
-                        assert True
-                def test_after_class():
-                    assert True
-                """
-                )
+                "def test_ok():\n\tassert True\n"
+                "class TestClassOuter:\n"
+                "\tclass TestClassInner:\n"
+                "\t\tdef test_class_inner(self):\n\t\t\tassert True\n"
+                "\tdef test_class_outer(self):\n\t\tassert True\n"
+                "def test_after_class():\n\tassert True"
             )
         self.testdir.chdir()
         rec = self.inline_run("--ddtrace")
@@ -1541,23 +1521,15 @@ class PytestTestCase(PytestTestCaseBase):
         os.chdir(str(package_a_dir))
         with open("test_a.py", "w+") as fd:
             fd.write(
-                textwrap.dedent(
-                    """
-                def test_not_ok():
-                    assert 0
-                """
-                )
+                """def test_not_ok():
+                assert 0"""
             )
         package_b_dir = self.testdir.mkpydir("test_package_b")
         os.chdir(str(package_b_dir))
         with open("test_b.py", "w+") as fd:
             fd.write(
-                textwrap.dedent(
-                    """
-                def test_ok():
-                    assert True
-                """
-                )
+                """def test_ok():
+                assert True"""
             )
         self.testdir.chdir()
         self.inline_run("--ignore=test_package_a", "--ddtrace")
@@ -2091,12 +2063,8 @@ class PytestTestCase(PytestTestCaseBase):
             pass
         with open("test_inner_abc.py", "w+") as fd:
             fd.write(
-                textwrap.dedent(
-                    """
-                def test_inner_ok():
-                    assert True
-                """
-                )
+                """def test_inner_ok():
+                assert True"""
             )
         with open("test_inner_class_abc.py", "w+") as fd:
             fd.write(
@@ -2189,12 +2157,8 @@ class PytestTestCase(PytestTestCaseBase):
         os.chdir(str(package_outer_dir))
         with open("test_outer_abc.py", "w+") as fd:
             fd.write(
-                textwrap.dedent(
-                    """
-                def test_outer_ok():
-                    assert True
-                """
-                )
+                """def test_outer_ok():
+                assert True"""
             )
         os.mkdir("test_inner_package")
         os.chdir("test_inner_package")
@@ -2202,12 +2166,8 @@ class PytestTestCase(PytestTestCaseBase):
             pass
         with open("test_inner_abc.py", "w+") as fd:
             fd.write(
-                textwrap.dedent(
-                    """
-                def test_inner_ok():
-                    assert True
-                """
-                )
+                """def test_inner_ok():
+                assert True"""
             )
         self.testdir.chdir()
 
@@ -2289,12 +2249,8 @@ class PytestTestCase(PytestTestCaseBase):
         os.chdir(str(package_outer_dir))
         with open("test_outer_abc.py", "w+") as fd:
             fd.write(
-                textwrap.dedent(
-                    """
-                def test_outer_ok():
-                    assert True
-                """
-                )
+                """def test_outer_ok():
+                assert True"""
             )
         os.mkdir("test_inner_package")
         os.chdir("test_inner_package")
@@ -2302,12 +2258,8 @@ class PytestTestCase(PytestTestCaseBase):
             pass
         with open("test_inner_abc.py", "w+") as fd:
             fd.write(
-                textwrap.dedent(
-                    """
-                def test_inner_ok():
-                    assert True
-                """
-                )
+                """def test_inner_ok():
+                assert True"""
             )
         self.testdir.chdir()
         with mock.patch(
@@ -2356,12 +2308,8 @@ class PytestTestCase(PytestTestCaseBase):
         os.chdir(str(package_outer_dir))
         with open("test_outer_abc.py", "w+") as fd:
             fd.write(
-                textwrap.dedent(
-                    """
-                def test_outer_ok():
-                    assert True
-                """
-                )
+                """def test_outer_ok():
+                assert True"""
             )
         os.mkdir("test_inner_package")
         os.chdir("test_inner_package")
@@ -2369,12 +2317,8 @@ class PytestTestCase(PytestTestCaseBase):
             pass
         with open("test_inner_abc.py", "w+") as fd:
             fd.write(
-                textwrap.dedent(
-                    """
-                def test_inner_ok():
-                    assert True
-                """
-                )
+                """def test_inner_ok():
+                assert True"""
             )
         self.testdir.chdir()
         with mock.patch(
@@ -2431,12 +2375,8 @@ class PytestTestCase(PytestTestCaseBase):
         os.chdir(str(package_outer_dir))
         with open("test_outer_abc.py", "w+") as fd:
             fd.write(
-                textwrap.dedent(
-                    """
-                def test_outer_ok():
-                    assert True
-                """
-                )
+                """def test_outer_ok():
+                assert True"""
             )
         os.mkdir("test_inner_package")
         os.chdir("test_inner_package")
@@ -2444,12 +2384,8 @@ class PytestTestCase(PytestTestCaseBase):
             pass
         with open("test_inner_abc.py", "w+") as fd:
             fd.write(
-                textwrap.dedent(
-                    """
-                def test_inner_ok():
-                    assert True
-                """
-                )
+                """def test_inner_ok():
+                assert True"""
             )
         self.testdir.chdir()
         with mock.patch(
@@ -2502,168 +2438,6 @@ class PytestTestCase(PytestTestCaseBase):
         for skipped_test_span in skipped_test_spans:
             assert skipped_test_span.get_tag("test.skipped_by_itr") == "true"
 
-    def test_pytest_test_level_skipping_counts_tests_not_suites(self):
-        """
-        Regression test for test level skipping count bug.
-
-        When ITR is enabled at suite level and suites are skipped, the `itr.tests_skipping.count` tag
-        should count the number of tests that were skipped (contained within those suites).
-
-        This test creates 2 suites with multiple tests each (4 tests total), expects all suites to be
-        skipped, and verifies that the count reflects the number of tests (4), not suites (2).
-        """
-        package_outer_dir = self.testdir.mkpydir("test_outer_package")
-        os.chdir(str(package_outer_dir))
-        with open("test_outer_abc.py", "w+") as fd:
-            fd.write(
-                textwrap.dedent(
-                    """
-                def test_outer_1():
-                    assert True
-
-                def test_outer_2():
-                    assert True
-                """
-                )
-            )
-        os.mkdir("test_inner_package")
-        os.chdir("test_inner_package")
-        with open("__init__.py", "w+"):
-            pass
-        with open("test_inner_abc.py", "w+") as fd:
-            fd.write(
-                textwrap.dedent(
-                    """
-                def test_inner_1():
-                    assert True
-
-                def test_inner_2():
-                    assert True
-                """
-                )
-            )
-        self.testdir.chdir()
-
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_item_itr_skippable", return_value=True
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig",
-            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
-        ):
-            self.inline_run("--ddtrace")
-
-        spans = self.pop_spans()
-        assert len(spans) == 9  # 1 session + 2 modules + 2 suites + 4 tests
-
-        # Verify session span tags
-        session_span = _get_spans_from_list(spans, "session")[0]
-        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
-        assert session_span.get_tag("test.itr.tests_skipping.tests_skipped") == "true"
-        assert session_span.get_tag("_dd.ci.itr.tests_skipped") == "true"
-        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
-
-        # This is the regression test: should count tests (4), not suites (2)
-        expected_test_count = 4  # 4 individual tests were skipped
-        actual_count = session_span.get_metric("test.itr.tests_skipping.count")
-        assert (
-            actual_count == expected_test_count
-        ), f"Expected {expected_test_count} tests skipped but got {actual_count}"
-
-        # Verify all test spans were skipped by ITR
-        skipped_test_spans = [x for x in spans if x.get_tag("test.status") == "skip" and x.get_tag("type") == "test"]
-        assert len(skipped_test_spans) == 4
-        for skipped_test_span in skipped_test_spans:
-            assert skipped_test_span.get_tag("test.skipped_by_itr") == "true"
-
-    def test_pytest_suite_level_skipping_counts_tests_not_suites(self):
-        """
-        Regression test for suite level skipping count bug.
-
-        When ITR is enabled at suite level and suites are skipped, the `itr.tests_skipping.count` tag
-        should count the number of tests that were skipped (contained within those suites).
-
-        This test creates 2 suites with multiple tests each (4 tests total), expects all suites to be
-        skipped, and verifies that the count reflects the number of tests (4), not suites (2).
-        """
-        package_outer_dir = self.testdir.mkpydir("test_outer_package")
-        os.chdir(str(package_outer_dir))
-        with open("test_outer_abc.py", "w+") as fd:
-            fd.write(
-                textwrap.dedent(
-                    """
-                def test_outer_1():
-                    assert True
-
-                def test_outer_2():
-                    assert True
-                """
-                )
-            )
-        os.mkdir("test_inner_package")
-        os.chdir("test_inner_package")
-        with open("__init__.py", "w+"):
-            pass
-        with open("test_inner_abc.py", "w+") as fd:
-            fd.write(
-                textwrap.dedent(
-                    """
-                def test_inner_1():
-                    assert True
-
-                def test_inner_2():
-                    assert True
-                """
-                )
-            )
-        self.testdir.chdir()
-
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_item_itr_skippable", return_value=True
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig",
-            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.SUITE),
-        ):
-            self.inline_run("--ddtrace")
-
-        spans = self.pop_spans()
-        assert len(spans) == 9  # 1 session + 2 modules + 2 suites + 4 tests
-
-        # Verify session span tags
-        session_span = _get_spans_from_list(spans, "session")[0]
-        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
-        assert session_span.get_tag("test.itr.tests_skipping.tests_skipped") == "true"
-        assert session_span.get_tag("_dd.ci.itr.tests_skipped") == "true"
-        assert session_span.get_tag("test.itr.tests_skipping.type") == "suite"
-
-        # This is the regression test: should count tests (4), not suites (2)
-        expected_test_count = 4  # 4 individual tests were skipped
-        actual_count = session_span.get_metric("test.itr.tests_skipping.count")
-        assert (
-            actual_count == expected_test_count
-        ), f"Expected {expected_test_count} tests skipped but got {actual_count}"
-
-        # Verify all test spans were skipped by ITR
-        skipped_test_spans = [x for x in spans if x.get_tag("test.status") == "skip" and x.get_tag("type") == "test"]
-        assert len(skipped_test_spans) == 4
-        for skipped_test_span in skipped_test_spans:
-            assert skipped_test_span.get_tag("test.skipped_by_itr") == "true"
-
     def test_pytest_skip_none_test_suites(self):
         """
         Test that running pytest on two nested packages with 1 test each. It should generate
@@ -2674,12 +2448,8 @@ class PytestTestCase(PytestTestCaseBase):
         os.chdir(str(package_outer_dir))
         with open("test_outer_abc.py", "w+") as fd:
             fd.write(
-                textwrap.dedent(
-                    """
-                def test_outer_ok():
-                    assert True
-                """
-                )
+                """def test_outer_ok():
+                assert True"""
             )
         os.mkdir("test_inner_package")
         os.chdir("test_inner_package")
@@ -2687,12 +2457,8 @@ class PytestTestCase(PytestTestCaseBase):
             pass
         with open("test_inner_abc.py", "w+") as fd:
             fd.write(
-                textwrap.dedent(
-                    """
-                def test_inner_ok():
-                    assert True
-                """
-                )
+                """def test_inner_ok():
+                assert True"""
             )
         self.testdir.chdir()
         with mock.patch(
@@ -2741,12 +2507,8 @@ class PytestTestCase(PytestTestCaseBase):
         os.chdir(str(package_outer_dir))
         with open("test_outer_abc.py", "w+") as fd:
             fd.write(
-                textwrap.dedent(
-                    """
-                def test_outer_ok():
-                    assert True
-                """
-                )
+                """def test_outer_ok():
+                assert True"""
             )
         os.mkdir("test_inner_package")
         os.chdir("test_inner_package")
@@ -2754,12 +2516,8 @@ class PytestTestCase(PytestTestCaseBase):
             pass
         with open("test_inner_abc.py", "w+") as fd:
             fd.write(
-                textwrap.dedent(
-                    """
-                def test_inner_ok():
-                    assert True
-                """
-                )
+                """def test_inner_ok():
+                assert True"""
             )
         self.testdir.chdir()
         with mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"):
@@ -2794,12 +2552,8 @@ class PytestTestCase(PytestTestCaseBase):
         os.chdir(str(package_outer_dir))
         with open("test_outer_abc.py", "w+") as fd:
             fd.write(
-                textwrap.dedent(
-                    """
-                def test_outer_ok():
-                    assert True
-                """
-                )
+                """def test_outer_ok():
+                assert True"""
             )
         os.mkdir("test_inner_package")
         os.chdir("test_inner_package")
@@ -2807,12 +2561,8 @@ class PytestTestCase(PytestTestCaseBase):
             pass
         with open("test_inner_abc.py", "w+") as fd:
             fd.write(
-                textwrap.dedent(
-                    """
-                def test_inner_ok():
-                    assert True
-                """
-                )
+                """def test_inner_ok():
+                assert True"""
             )
         self.testdir.chdir()
 
@@ -2866,12 +2616,8 @@ class PytestTestCase(PytestTestCaseBase):
         os.chdir(str(package_outer_dir))
         with open("test_outer_abc.py", "w+") as fd:
             fd.write(
-                textwrap.dedent(
-                    """
-                def test_outer_ok():
-                    assert True
-                """
-                )
+                """def test_outer_ok():
+                assert True"""
             )
         os.mkdir("test_inner_package")
         os.chdir("test_inner_package")
@@ -2879,12 +2625,8 @@ class PytestTestCase(PytestTestCaseBase):
             pass
         with open("test_inner_abc.py", "w+") as fd:
             fd.write(
-                textwrap.dedent(
-                    """
-                def test_inner_ok():
-                    assert True
-                    """
-                )
+                """def test_inner_ok():
+                assert True"""
             )
         self.testdir.chdir()
 

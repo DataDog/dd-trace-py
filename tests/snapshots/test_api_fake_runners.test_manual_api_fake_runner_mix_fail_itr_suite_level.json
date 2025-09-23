@@ -517,7 +517,7 @@
       "_sampling_priority_v1": 1,
       "process_id": 32216,
       "test.code_coverage.lines_pct": 79.79,
-      "test.itr.tests_skipping.count": 7
+      "test.itr.tests_skipping.count": 1
     },
     "duration": 25941084,
     "start": 1733391663023824379
@@ -534,7 +534,7 @@
        "meta": {
          "_dd.base_service": "test_manual_api_fake_runner_mix_fail_itr_suite_level0",
          "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
-         "_dd.ci.itr.tests_skipped": "true",
+         "_dd.ci.itr.tests_skipped": "false",
          "_dd.origin": "ciapp-test",
          "_dd.p.dm": "-0",
          "_dd.p.tid": "6751752f00000000",
@@ -572,7 +572,7 @@
          "test.framework_version": "1.0.0",
          "test.itr.forced_run": "false",
          "test.itr.tests_skipping.enabled": "false",
-         "test.itr.tests_skipping.tests_skipped": "true",
+         "test.itr.tests_skipping.tests_skipped": "false",
          "test.itr.tests_skipping.type": "suite",
          "test.itr.unskippable": "false",
          "test.module": "module_1",
@@ -587,7 +587,7 @@
          "_dd.py.partial_flush": 1,
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1,
-         "test.itr.tests_skipping.count": 1
+         "test.itr.tests_skipping.count": 0
        },
        "duration": 21794750,
        "start": 1733391663024534963
@@ -639,7 +639,7 @@
             "test.framework": "dd_manual_test_fw",
             "test.framework_version": "1.0.0",
             "test.itr.forced_run": "false",
-            "test.itr.tests_skipping.tests_skipped": "true",
+            "test.itr.tests_skipping.tests_skipped": "false",
             "test.itr.unskippable": "false",
             "test.module": "module_1",
             "test.module_path": "",
@@ -655,7 +655,7 @@
             "_dd.py.partial_flush": 1,
             "_dd.tracer_kr": 1.0,
             "_sampling_priority_v1": 1,
-            "test.itr.tests_skipping.count": 1
+            "test.itr.tests_skipping.count": 0
           },
           "duration": 21659000,
           "start": 1733391663024570463
@@ -672,7 +672,7 @@
        "meta": {
          "_dd.base_service": "test_manual_api_fake_runner_mix_fail_itr_suite_level0",
          "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
-         "_dd.ci.itr.tests_skipped": "true",
+         "_dd.ci.itr.tests_skipped": "false",
          "_dd.origin": "ciapp-test",
          "_dd.p.dm": "-0",
          "_dd.p.tid": "6751752f00000000",
@@ -710,7 +710,7 @@
          "test.framework_version": "1.0.0",
          "test.itr.forced_run": "false",
          "test.itr.tests_skipping.enabled": "false",
-         "test.itr.tests_skipping.tests_skipped": "true",
+         "test.itr.tests_skipping.tests_skipped": "false",
          "test.itr.tests_skipping.type": "suite",
          "test.itr.unskippable": "false",
          "test.module": "module_2",
@@ -725,7 +725,7 @@
          "_dd.py.partial_flush": 1,
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1,
-         "test.itr.tests_skipping.count": 1
+         "test.itr.tests_skipping.count": 0
        },
        "duration": 1061417,
        "start": 1733391663046384504
@@ -777,7 +777,7 @@
             "test.framework": "dd_manual_test_fw",
             "test.framework_version": "1.0.0",
             "test.itr.forced_run": "false",
-            "test.itr.tests_skipping.tests_skipped": "true",
+            "test.itr.tests_skipping.tests_skipped": "false",
             "test.itr.unskippable": "false",
             "test.module": "module_2",
             "test.module_path": "",
@@ -793,7 +793,7 @@
             "_dd.py.partial_flush": 1,
             "_dd.tracer_kr": 1.0,
             "_sampling_priority_v1": 1,
-            "test.itr.tests_skipping.count": 1
+            "test.itr.tests_skipping.count": 0
           },
           "duration": 945708,
           "start": 1733391663046413046
@@ -1069,7 +1069,7 @@
          "_dd.py.partial_flush": 1,
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1,
-         "test.itr.tests_skipping.count": 5
+         "test.itr.tests_skipping.count": 1
        },
        "duration": 928208,
        "start": 1733391663048698171
@@ -1138,7 +1138,7 @@
             "_dd.py.partial_flush": 1,
             "_dd.tracer_kr": 1.0,
             "_sampling_priority_v1": 1,
-            "test.itr.tests_skipping.count": 3
+            "test.itr.tests_skipping.count": 1
           },
           "duration": 411791,
           "start": 1733391663048719213
@@ -1190,7 +1190,7 @@
             "test.framework": "dd_manual_test_fw",
             "test.framework_version": "1.0.0",
             "test.itr.forced_run": "true",
-            "test.itr.tests_skipping.tests_skipped": "true",
+            "test.itr.tests_skipping.tests_skipped": "false",
             "test.itr.unskippable": "true",
             "test.module": "module_4",
             "test.module_path": "",
@@ -1206,7 +1206,7 @@
             "_dd.py.partial_flush": 1,
             "_dd.tracer_kr": 1.0,
             "_sampling_priority_v1": 1,
-            "test.itr.tests_skipping.count": 2
+            "test.itr.tests_skipping.count": 0
           },
           "duration": 353125,
           "start": 1733391663049183129
