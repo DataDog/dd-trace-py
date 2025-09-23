@@ -26,6 +26,7 @@ from .data_extractors import (
     extract_v0_data,
     extract_v1_streaming_data,
     _embedding_dim,
+    _embedding_shape_info,
     select_prompt_for_span,
 )
 from .span_utils import (
@@ -115,7 +116,6 @@ def traced_llmengine_do_tracing(vllm, pin, func, instance, args, kwargs):
         #        data.prompt = tokenizer.decode(seq_group.prompt_token_ids)
         if operation == "embedding":
             data.input_ = seq_group.prompt_token_ids
-            data.num_embeddings = 1
         
         _tag_if_enabled(integration, span, data, operation=operation)
         set_latency_metrics(span, metrics_obj)
@@ -330,8 +330,9 @@ def traced_asyncllm_encode(vllm, pin, func, instance, args, kwargs):
         data = RequestData()
         data.input_tokens = input_tokens
         data.input_ = token_ids
-        data.embedding_dim = _embedding_dim(out.outputs.data)
-        data.num_embeddings = 1
+        num_emb, emb_dim = _embedding_shape_info(out.outputs.data)
+        data.embedding_dim = emb_dim
+        data.num_embeddings = num_emb or 1
 
         _tag_if_enabled(integration, span, data, operation="embedding")
         span.finish()

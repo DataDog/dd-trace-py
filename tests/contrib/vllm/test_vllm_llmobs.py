@@ -255,7 +255,12 @@ def test_llmobs_reward(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
         "The capital of France is",
     ]
 
-    llm.reward(prompts)
+    res = llm.reward(prompts)
+    print("---RES---")
+    print(res)
+    print("Number of embeddings:", len(res))
+    print("Size of each embedding:", len(res[0].outputs.data))
+    print("Shape of each embedding:", res[0].outputs.data.shape)
     traces = mock_tracer.pop_traces()
     spans = [s for t in traces for s in t]
     print("---LLMOBS EVENTS---")
@@ -264,6 +269,31 @@ def test_llmobs_reward(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
     print("---SPANS---")
     print(spans)
     print("---END SPANS---")
+
+    # Expect one event per input prompt
+    assert len(llmobs_events) == len(prompts) == len(spans)
+    span_by_id = {s.span_id: s for s in spans}
+
+    expected_token_metrics_by_text = {
+        "[0, 35378, 4, 759, 9351, 83, 2]": {"input_tokens": 7, "output_tokens": 0, "total_tokens": 7},
+        "[0, 581, 10323, 111, 9942, 83, 2]": {"input_tokens": 7, "output_tokens": 0, "total_tokens": 7},
+    }
+
+    for event in llmobs_events:
+        span = span_by_id[int(event["span_id"])]
+        token_text = event["meta"]["input"]["documents"][0]["text"]
+        expected = _expected_llmobs_llm_span_event(
+            span,
+            span_kind="embedding",
+            model_name="BAAI/bge-reranker-v2-m3",
+            model_provider="vllm",
+            input_documents=[{"text": token_text}],
+            output_value="[7 embedding(s) returned with size 1024]",
+            metadata={"embedding_dim": 1024},
+            token_metrics=expected_token_metrics_by_text[token_text],
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm"},
+        )
+        assert event == expected
 
 
 def test_llmobs_score(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
