@@ -132,7 +132,7 @@ def _langchain_llm_generate_after(prompts, completions):
                 )
                 setattr(gen, text_attr, new_text)
     except Exception as e:
-        iast_error(f"propagation::source::langchain _langchain_llm_generate_after. {e}")
+        iast_error("propagation::source::langchain _langchain_llm_generate_after", e)
 
 
 def _langchain_chatmodel_generate_after(messages, completions):
@@ -200,7 +200,7 @@ def _langchain_chatmodel_generate_after(messages, completions):
                                 if isinstance(arguments, str):
                                     function_call["arguments"] = _iast_taint_if_str(source, arguments)
     except Exception as e:
-        iast_error(f"propagation::source::langchain _langchain_chatmodel_generate_after. {e}")
+        iast_error("propagation::source::langchain _langchain_chatmodel_generate_after", e)
 
 
 def _langchain_stream_chunk_callback(interface_type, args, kwargs):
@@ -218,7 +218,7 @@ def _create_taint_chunk_callback(source):
         try:
             _langchain_iast_taint_chunk(source, chunk)
         except Exception as e:
-            iast_error(f"propagation::source::langchain _langchain_iast_taint_chunk. {e}")
+            iast_error("propagation::source::langchain _langchain_iast_taint_chunk", e)
 
     return _iast_chunk_taint
 
@@ -333,7 +333,7 @@ def _propagate_prompt_template_format(kwargs, result):
                 source = ranges[0].source
                 return taint_pyobject(result, source.name, source.value, source.origin)
     except Exception as e:
-        iast_error(f"propagation::source::langchain iast_propagate_prompt_template_format. {e}")
+        iast_error("propagation::source::langchain iast_propagate_prompt_template_format", e)
     return result
 
 
@@ -364,5 +364,5 @@ def _propagante_agentoutput_parse(args, kwargs, result):
                 values = result.return_values
                 values["output"] = taint_pyobject(values["output"], source.name, source.value, source.origin)
     except Exception as e:
-        iast_error(f"propagation::source::langchain taint_parser_output. {e}")
+        iast_error("propagation::source::langchain taint_parser_output", e)
     return result

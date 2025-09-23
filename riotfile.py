@@ -154,8 +154,9 @@ venv = Venv(
         Venv(
             name="appsec_integrations_packages",
             pys=select_pys(),
-            command="python -m pytest -vvv -s -n 8 --no-cov --no-ddtrace tests/appsec/integrations/packages_tests/",
+            command="python -m pytest -v tests/appsec/integrations/packages_tests/",
             pkgs={
+                "gevent": latest,
                 "pytest-xdist": latest,
                 "pytest-asyncio": latest,
                 "requests": latest,
@@ -218,6 +219,8 @@ venv = Venv(
             command="pytest -vvv {cmdargs} tests/appsec/integrations/django_tests/",
             pkgs={
                 "requests": latest,
+                "gunicorn": latest,
+                "gevent": latest,
                 "pylibmc": latest,
                 "PyYAML": latest,
                 "dill": latest,
@@ -2197,7 +2200,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.8"),
+                    pys=select_pys(min_version="3.8", max_version="3.13"),
                     pkgs={
                         "pytest-asyncio": ["==0.23.7"],
                     },
@@ -2222,9 +2225,15 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.8"),
+                    pys=select_pys(min_version="3.8", max_version="3.12"),
                     pkgs={
                         "pytest-asyncio": ["==0.23.7"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.13"),
+                    pkgs={
+                        "pytest-asyncio": [">=1.0.0"],
                     },
                 ),
             ],
@@ -2625,11 +2634,23 @@ venv = Venv(
         Venv(
             name="asyncio",
             command="pytest {cmdargs} tests/contrib/asyncio",
-            pys=select_pys(),
             pkgs={
                 "pytest-randomly": latest,
-                "pytest-asyncio": "==0.21.1",
             },
+            venvs=[
+                Venv(
+                    pys=select_pys(max_version="3.12"),
+                    pkgs={
+                        "pytest-asyncio": "==0.21.1",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.13"),
+                    pkgs={
+                        "pytest-asyncio": ">=1.0.0",
+                    },
+                ),
+            ],
         ),
         Venv(
             name="openai",
