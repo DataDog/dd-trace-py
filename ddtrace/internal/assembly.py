@@ -41,10 +41,7 @@ def relocate(instrs: bc.Bytecode, lineno: int) -> bc.Bytecode:
 
 def transform_instruction(opcode: str, arg: t.Any) -> t.Tuple[str, t.Any]:
     # Handle pseudo-instructions
-    if sys.version_info >= (3, 14):
-        if opcode.upper() == "LOAD_ATTR" and not isinstance(arg, tuple):
-            arg = (True, arg)
-    elif sys.version_info >= (3, 12):
+    if sys.version_info >= (3, 12):
         if opcode.upper() == "LOAD_METHOD":
             opcode = "LOAD_ATTR"
             arg = (True, arg)
@@ -160,6 +157,11 @@ class Assembly:
 
     def parse_opcode(self, text: str) -> str:
         opcode = text.upper()
+
+        # `dis` doesn't include `LOAD_METHOD` in 3.14.0rc1
+        if sys.version_info >= (3, 14) and opcode == "LOAD_METHOD":
+            return opcode
+
         if opcode not in dis.opmap:
             raise ValueError("unknown opcode %s" % opcode)
 
