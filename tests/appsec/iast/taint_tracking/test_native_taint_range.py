@@ -592,7 +592,13 @@ def test_contexts_in_threads(caplog, telemetry_writer):
             pytest.fail(message)
 
     list_metrics_logs = list(telemetry_writer._logs)
-    assert len(list_metrics_logs) == 0
+    # list_metrics_logs can contain a log if the tracer did not success to send data
+    filtered_logs = [
+        log
+        for log in list_metrics_logs
+        if log.get("message", "") != "failed to send, dropping %d traces to intake at %s after %d retries"
+    ]
+    assert len(filtered_logs) == 0
 
 
 def test_context_race_conditions_threads(caplog, telemetry_writer):
@@ -607,7 +613,13 @@ def test_context_race_conditions_threads(caplog, telemetry_writer):
     log_messages = [record.message for record in caplog.get_records("call")]
     assert len([message for message in log_messages if IAST_VALID_LOG.search(message)]) == 0
     list_metrics_logs = list(telemetry_writer._logs)
-    assert len(list_metrics_logs) == 0
+    # list_metrics_logs can contain a log if the tracer did not success to send data
+    filtered_logs = [
+        log
+        for log in list_metrics_logs
+        if log.get("message", "") != "failed to send, dropping %d traces to intake at %s after %d retries"
+    ]
+    assert len(filtered_logs) == 0
 
 
 @pytest.mark.asyncio
@@ -621,8 +633,15 @@ async def test_context_race_conditions_async(caplog, telemetry_writer):
     assert results.count(True) == 7
     log_messages = [record.message for record in caplog.get_records("call")]
     assert len([message for message in log_messages if IAST_VALID_LOG.search(message)]) == 0
-    list_metrics_logs = list(telemetry_writer._logs)
-    assert len(list_metrics_logs) == 0
+    list_metrics_logs = list(
+        telemetry_writer._logs
+    )  # list_metrics_logs can contain a log if the tracer did not success to send data
+    filtered_logs = [
+        log
+        for log in list_metrics_logs
+        if log.get("message", "") != "failed to send, dropping %d traces to intake at %s after %d retries"
+    ]
+    assert len(filtered_logs) == 0
 
 
 @pytest.mark.asyncio
@@ -641,7 +660,13 @@ async def test_race_conditions_reset_contexs_async(caplog, telemetry_writer):
             pytest.fail(message)
 
     list_metrics_logs = list(telemetry_writer._logs)
-    assert len(list_metrics_logs) == 0
+    # list_metrics_logs can contain a log if the tracer did not success to send data
+    filtered_logs = [
+        log
+        for log in list_metrics_logs
+        if log.get("message", "") != "failed to send, dropping %d traces to intake at %s after %d retries"
+    ]
+    assert len(filtered_logs) == 0
 
 
 @pytest.mark.parametrize(
