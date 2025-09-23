@@ -270,6 +270,8 @@ import ddtrace.settings.exception_replay
     env["DD_TRACE_WRITER_REUSE_CONNECTIONS"] = "True"
     env["DD_TAGS"] = "team:apm,component:web"
     env["DD_INSTRUMENTATION_CONFIG_ID"] = "abcedf123"
+    env["DD_LOGS_OTEL_ENABLED"] = "True"
+    env["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://localhost:4317"
 
     file = tmpdir.join("moon_ears.json")
     file.write('[{"service":"xy?","name":"a*c"}]')
@@ -305,9 +307,11 @@ import ddtrace.settings.exception_replay
     expected = [
         {"name": "DD_AGENT_HOST", "origin": "default", "value": None},
         {"name": "DD_API_KEY", "origin": "default", "value": None},
+        {"name": "DD_API_SECURITY_DOWNSTREAM_REQUEST_BODY_ANALYSIS_SAMPLE_RATE", "origin": "default", "value": 0.5},
         {"name": "DD_API_SECURITY_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_API_SECURITY_ENDPOINT_COLLECTION_ENABLED", "origin": "default", "value": True},
         {"name": "DD_API_SECURITY_ENDPOINT_COLLECTION_MESSAGE_LIMIT", "origin": "default", "value": 300},
+        {"name": "DD_API_SECURITY_MAX_DOWNSTREAM_REQUEST_BODY_ANALYSIS", "origin": "default", "value": 1},
         {"name": "DD_API_SECURITY_PARSE_RESPONSE_BODY", "origin": "default", "value": True},
         {"name": "DD_API_SECURITY_SAMPLE_DELAY", "origin": "default", "value": 30.0},
         {"name": "DD_APM_TRACING_ENABLED", "origin": "default", "value": True},
@@ -424,7 +428,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_LLMOBS_ML_APP", "origin": "default", "value": None},
         {"name": "DD_LLMOBS_SAMPLE_RATE", "origin": "default", "value": 1.0},
         {"name": "DD_LOGS_INJECTION", "origin": "env_var", "value": True},
-        {"name": "DD_LOGS_OTEL_ENABLED", "origin": "default", "value": False},
+        {"name": "DD_LOGS_OTEL_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_METRICS_OTEL_ENABLED", "origin": "default", "value": False},
         {"name": "DD_PROFILING_AGENTLESS", "origin": "default", "value": False},
         {"name": "DD_PROFILING_API_TIMEOUT", "origin": "default", "value": 10.0},
@@ -515,6 +519,8 @@ import ddtrace.settings.exception_replay
         {"name": "DD_TRACE_PROPAGATION_STYLE_INJECT", "origin": "env_var", "value": "tracecontext"},
         {"name": "DD_TRACE_RATE_LIMIT", "origin": "env_var", "value": 50},
         {"name": "DD_TRACE_REPORT_HOSTNAME", "origin": "default", "value": False},
+        {"name": "DD_TRACE_RESOURCE_RENAMING_ALWAYS_SIMPLIFIED_ENDPOINT", "origin": "default", "value": False},
+        {"name": "DD_TRACE_RESOURCE_RENAMING_ENABLED", "origin": "default", "value": False},
         {"name": "DD_TRACE_SAFE_INSTRUMENTATION_ENABLED", "origin": "default", "value": False},
         {
             "name": "DD_TRACE_SAMPLING_RULES",
@@ -532,6 +538,46 @@ import ddtrace.settings.exception_replay
         {"name": "DD_USER_MODEL_LOGIN_FIELD", "origin": "default", "value": ""},
         {"name": "DD_USER_MODEL_NAME_FIELD", "origin": "default", "value": ""},
         {"name": "DD_VERSION", "origin": "default", "value": None},
+        {
+            "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
+            "origin": "env_var",
+            "value": "http://localhost:4317",
+        },
+        {
+            "name": "OTEL_EXPORTER_OTLP_HEADERS",
+            "origin": "default",
+            "value": "",
+        },
+        {
+            "name": "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT",
+            "origin": "env_var",
+            "value": "http://localhost:4317",
+        },
+        {
+            "name": "OTEL_EXPORTER_OTLP_LOGS_HEADERS",
+            "origin": "default",
+            "value": "",
+        },
+        {
+            "name": "OTEL_EXPORTER_OTLP_LOGS_PROTOCOL",
+            "origin": "default",
+            "value": "grpc",
+        },
+        {
+            "name": "OTEL_EXPORTER_OTLP_LOGS_TIMEOUT",
+            "origin": "default",
+            "value": 10000,
+        },
+        {
+            "name": "OTEL_EXPORTER_OTLP_PROTOCOL",
+            "origin": "default",
+            "value": "grpc",
+        },
+        {
+            "name": "OTEL_EXPORTER_OTLP_TIMEOUT",
+            "origin": "default",
+            "value": 10000,
+        },
         {"name": "_DD_APPSEC_DEDUPLICATION_ENABLED", "origin": "default", "value": True},
         {"name": "_DD_IAST_LAZY_TAINT", "origin": "default", "value": False},
         {"name": "_DD_IAST_USE_ROOT_SPAN", "origin": "default", "value": False},
@@ -1045,12 +1091,14 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
     assert tags == [["config_opentelemetry:otel_logs_exporter"]]
 
 
-def test_add_integration_error_log(mock_time, telemetry_writer, test_agent_session):
+def test_add_error_log(mock_time, telemetry_writer, test_agent_session):
     """Test add_integration_error_log functionality with real stack trace"""
     try:
-        raise ValueError("Test exception")
-    except ValueError as e:
-        telemetry_writer.add_integration_error_log("Test error message", e)
+        import json
+
+        json.loads("{invalid: json,}")
+    except Exception as e:
+        telemetry_writer.add_error_log("Test error message", e)
         telemetry_writer.periodic(force_flush=True)
 
         log_events = test_agent_session.get_events("logs")
@@ -1066,9 +1114,14 @@ def test_add_integration_error_log(mock_time, telemetry_writer, test_agent_sessi
         stack_trace = log_entry["stack_trace"]
         expected_lines = [
             "Traceback (most recent call last):",
-            "  <REDACTED>",
-            "    <REDACTED>",
-            "builtins.ValueError: Test exception",
+            "<REDACTED>",  # User code gets redacted
+            '  File "json/__init__.py',
+            "    return _default_decoder.decode(s)",
+            '  File "json/decoder.py"',
+            "    obj, end = self.raw_decode(s, idx=_w(s, 0).end())",
+            '  File "json/decoder.py"',
+            "    obj, end = self.scan_once(s, idx)",
+            "json.decoder.JSONDecodeError: <REDACTED>",
         ]
         for expected_line in expected_lines:
             assert expected_line in stack_trace
@@ -1083,7 +1136,7 @@ def test_add_integration_error_log_with_log_collection_disabled(mock_time, telem
         try:
             raise ValueError("Test exception")
         except ValueError as e:
-            telemetry_writer.add_integration_error_log("Test error message", e)
+            telemetry_writer.add_error_log("Test error message", e)
             telemetry_writer.periodic(force_flush=True)
 
             log_events = test_agent_session.get_events("logs", subprocess=True)
@@ -1093,17 +1146,22 @@ def test_add_integration_error_log_with_log_collection_disabled(mock_time, telem
 
 
 @pytest.mark.parametrize(
-    "filename, is_redacted",
+    "filename, result",
     [
-        ("/path/to/file.py", True),
-        ("/path/to/ddtrace/contrib/flask/file.py", False),
-        ("/path/to/dd-trace-something/file.py", True),
+        ("/path/to/file.py", "<REDACTED>"),
+        ("/path/to/ddtrace/contrib/flask/file.py", "<REDACTED>"),
+        ("/path/to/lib/python3.13/site-packages/ddtrace/_trace/tracer.py", "ddtrace/_trace/tracer.py"),
+        ("/path/to/lib/python3.13/site-packages/requests/api.py", "requests/api.py"),
+        (
+            "/path/to/python@3.13/3.13.1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/__init__.py",
+            "json/__init__.py",
+        ),
     ],
 )
-def test_redact_filename(filename, is_redacted):
+def test_redact_filename(filename, result):
     """Test file redaction logic"""
     writer = TelemetryWriter(is_periodic=False)
-    assert writer._should_redact(filename) == is_redacted
+    assert writer._format_file_path(filename) == result
 
 
 def test_telemetry_writer_multiple_sources_config(telemetry_writer, test_agent_session):

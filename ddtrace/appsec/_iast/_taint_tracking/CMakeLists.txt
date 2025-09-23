@@ -23,7 +23,8 @@ add_compile_options(
     -pthread
     -Wall
     -Wno-unknown-pragmas
-    -U_FORTIFY_SOURCE)
+    -U_FORTIFY_SOURCE
+    -g) # Add debug symbols always, it will be stripped in release/minsizerel by cmake
 
 if(BUILD_MACOS)
     # https://pybind11.readthedocs.io/en/stable/compiling.html#building-manually
@@ -58,6 +59,7 @@ file(
     GLOB
     SOURCE_FILES
     "*.cpp"
+    "context/*.cpp"
     "aspects/*.cpp"
     "initializer/*.cpp"
     "tainted_ops/*.cpp"
@@ -67,6 +69,7 @@ file(
     GLOB
     HEADER_FILES
     "*.h"
+    "context/*.h"
     "aspects/*.h"
     "initializer/*.h"
     "tainted_ops/*.h"

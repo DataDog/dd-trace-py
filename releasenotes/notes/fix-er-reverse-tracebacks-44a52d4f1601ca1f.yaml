@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    exception replay: ensure that value capture starts from the leaf frame of
+    the innermost exception.

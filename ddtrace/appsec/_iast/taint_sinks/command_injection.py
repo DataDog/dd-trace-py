@@ -3,6 +3,7 @@ from typing import Union
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
+from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec._iast._span_metrics import increment_iast_span_metric
@@ -14,7 +15,6 @@ from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.settings.asm import config as asm_config
 
 from .._logs import iast_error
-from .._logs import iast_propagation_sink_point_debug_log
 from ._base import VulnerabilityBase
 
 
@@ -61,9 +61,8 @@ def _iast_report_cmdi(shell_args: Union[str, List[str]]) -> None:
     report_cmdi = ""
 
     try:
-        if asm_config.is_iast_request_enabled:
+        if is_iast_request_enabled():
             if CommandInjection.has_quota():
-                iast_propagation_sink_point_debug_log("Check command injection sink point")
                 from .._taint_tracking.aspects import join_aspect
 
                 if isinstance(shell_args, (list, tuple)):
@@ -75,7 +74,6 @@ def _iast_report_cmdi(shell_args: Union[str, List[str]]) -> None:
                     report_cmdi = shell_args
 
                 if report_cmdi and isinstance(report_cmdi, IAST.TEXT_TYPES):
-                    iast_propagation_sink_point_debug_log("Reporting command injection")
                     CommandInjection.report(evidence_value=report_cmdi)
 
             # Reports Span Metrics
@@ -83,4 +81,4 @@ def _iast_report_cmdi(shell_args: Union[str, List[str]]) -> None:
         # Report Telemetry Metrics
         _set_metric_iast_executed_sink(CommandInjection.vulnerability_type)
     except Exception as e:
-        iast_error(f"propagation::sink_point::Error in _iast_report_cmdi. {e}")
+        iast_error("propagation::sink_point::Error in _iast_report_cmdi", e)

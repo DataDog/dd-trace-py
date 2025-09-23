@@ -1,0 +1,4 @@
+fixes:
+  - |
+    LLM Observability: Fixes an issue where certain Google GenAI LLM requests were not being traced due to importing from
+    google.genai.types on startup.

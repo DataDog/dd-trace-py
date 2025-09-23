@@ -17,7 +17,7 @@ integrations:
   tested_versions_by_dependency:
     aiohttp:
       min: 3.7.4.post0
-      max: 3.12.11
+      max: 3.12.15
 
 - integration_name: aiohttp_jinja2
   is_external_package: true
@@ -485,7 +485,7 @@ integrations:
   tested_versions_by_dependency:
     kombu:
       min: 4.6.11
-      max: 5.4.2
+      max: 5.5.4
 
 - integration_name: langchain
   is_external_package: true
@@ -567,7 +567,7 @@ integrations:
   tested_versions_by_dependency:
     mariadb:
       min: 1.0.11
-      max: 1.1.12
+      max: 1.1.13
 
 - integration_name: mcp
   is_external_package: true
@@ -671,7 +671,7 @@ integrations:
   tested_versions_by_dependency:
     pydantic-ai-slim:
       min: 0.3.0
-      max: 0.4.4
+      max: 1.0.1
 
 - integration_name: pylibmc
   is_external_package: true
@@ -701,7 +701,7 @@ integrations:
   tested_versions_by_dependency:
     pymongo:
       min: 3.8.0
-      max: 4.13.2
+      max: 4.15.0
 
 - integration_name: pymysql
   is_external_package: true

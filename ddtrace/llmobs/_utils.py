@@ -2,9 +2,11 @@ from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import is_dataclass
 import json
+from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Set
 from typing import Tuple
 from typing import Union
 
@@ -13,6 +15,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import CREWAI_APM_SPAN_NAME
+from ddtrace.llmobs._constants import DEFAULT_PROMPT_NAME
 from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
 from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
@@ -26,11 +29,14 @@ from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import VERTEXAI_APM_SPAN_NAME
+from ddtrace.llmobs.utils import Message
+from ddtrace.llmobs.utils import Prompt
 from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
 
+ValidatedPromptDict = Dict[str, Union[str, Dict[str, Any], List[str], List[Dict[str, str]], List[Message]]]
 
 STANDARD_INTEGRATION_SPAN_NAMES = (
     CREWAI_APM_SPAN_NAME,
@@ -41,68 +47,101 @@ STANDARD_INTEGRATION_SPAN_NAMES = (
 )
 
 
-def validate_prompt(prompt: dict) -> Dict[str, Union[str, dict, List[str]]]:
-    validated_prompt = {}  # type: Dict[str, Union[str, dict, List[str]]]
+def _validate_prompt(prompt: Union[Dict[str, Any], Prompt], strict_validation: bool) -> ValidatedPromptDict:
     if not isinstance(prompt, dict):
-        raise TypeError("Prompt must be a dictionary")
+        raise TypeError(f"Prompt must be a dictionary, received {type(prompt).__name__}.")
+
+    ml_app = config._llmobs_ml_app
+    prompt_id = prompt.get("id")
+    version = prompt.get("version")
+    tags = prompt.get("tags")
     variables = prompt.get("variables")
     template = prompt.get("template")
-    version = prompt.get("version")
-    prompt_id = prompt.get("id")
+    chat_template = prompt.get("chat_template")
     ctx_variable_keys = prompt.get("rag_context_variables")
-    rag_query_variable_keys = prompt.get("rag_query_variables")
-    if variables is not None:
+    query_variable_keys = prompt.get("rag_query_variables")
+
+    if strict_validation:
+        if prompt_id is None:
+            raise ValueError("'id' must be provided")
+        if template is None and chat_template is None:
+            raise ValueError("One of 'template' or 'chat_template' must be provided to annotate a prompt.")
+
+    if template and chat_template:
+        raise ValueError("Only one of 'template' or 'chat_template' can be provided, not both.")
+
+    final_prompt_id = prompt_id or f"{ml_app}_{DEFAULT_PROMPT_NAME}"
+    final_ctx_variable_keys = ctx_variable_keys or ["context"]
+    final_query_variable_keys = query_variable_keys or ["question"]
+
+    if not isinstance(final_prompt_id, str):
+        raise TypeError(f"prompt_id {final_prompt_id} must be a string, received {type(final_prompt_id).__name__}")
+
+    if not (isinstance(final_ctx_variable_keys, list) and all(isinstance(i, str) for i in final_ctx_variable_keys)):
+        raise TypeError(f"ctx_variables must be a list of strings, received {type(final_ctx_variable_keys).__name__}")
+
+    if not (isinstance(final_query_variable_keys, list) and all(isinstance(i, str) for i in final_query_variable_keys)):
+        raise TypeError(
+            f"query_variables must be a list of strings, received {type(final_query_variable_keys).__name__}"
+        )
+
+    if version and not isinstance(version, str):
+        raise TypeError(f"version: {version} must be a string, received {type(version).__name__}")
+
+    if tags:
+        if not isinstance(tags, dict):
+            raise TypeError(
+                f"tags: {tags} must be a dictionary of string key-value pairs, received {type(tags).__name__}"
+            )
+        if not all(isinstance(k, str) for k in tags):
+            raise TypeError("Keys of 'tags' must all be strings.")
+        if not all(isinstance(k, str) for k in tags.values()):
+            raise TypeError("Values of 'tags' must all be strings.")
+
+    if template and not isinstance(template, str):
+        raise TypeError(f"template: {template} must be a string, received {type(template).__name__}")
+
+    if chat_template:
+        if not isinstance(chat_template, list):
+            raise TypeError("chat_template must be a list of dictionaries with string-string key value pairs.")
+        for ct in chat_template:
+            if not (isinstance(ct, dict) and all(k in ct for k in ("role", "content"))):
+                raise TypeError(
+                    "Each 'chat_template' entry should be a string-string dictionary with role and content keys."
+                )
+
+    if variables:
         if not isinstance(variables, dict):
-            raise TypeError("Prompt variables must be a dictionary.")
-        if not any(isinstance(k, str) or isinstance(v, str) for k, v in variables.items()):
-            raise TypeError("Prompt variable keys and values must be strings.")
-        validated_prompt["variables"] = variables
-    if template is not None:
-        if not isinstance(template, str):
-            raise TypeError("Prompt template must be a string")
-        validated_prompt["template"] = template
-    if version is not None:
-        if not isinstance(version, str):
-            raise TypeError("Prompt version must be a string.")
+            raise TypeError(
+                f"variables: {variables} must be a dictionary with string keys, received {type(variables).__name__}"
+            )
+        if not all(isinstance(k, str) for k in variables):
+            raise TypeError("Keys of 'variables' must all be strings.")
+
+    final_chat_template = []
+    if chat_template:
+        for msg in chat_template:
+            final_chat_template.append(Message(role=msg["role"], content=msg["content"]))
+
+    validated_prompt: ValidatedPromptDict = {}
+    if final_prompt_id:
+        validated_prompt["id"] = final_prompt_id
+    if version:
         validated_prompt["version"] = version
-    if prompt_id is not None:
-        if not isinstance(prompt_id, str):
-            raise TypeError("Prompt id must be a string.")
-        validated_prompt["id"] = prompt_id
-    if ctx_variable_keys is not None:
-        if not isinstance(ctx_variable_keys, list):
-            raise TypeError("Prompt field `context_variable_keys` must be a list of strings.")
-        if not all(isinstance(k, str) for k in ctx_variable_keys):
-            raise TypeError("Prompt field `context_variable_keys` must be a list of strings.")
-        validated_prompt[INTERNAL_CONTEXT_VARIABLE_KEYS] = ctx_variable_keys
-    else:
-        validated_prompt[INTERNAL_CONTEXT_VARIABLE_KEYS] = ["context"]
-    if rag_query_variable_keys is not None:
-        if not isinstance(rag_query_variable_keys, list):
-            raise TypeError("Prompt field `rag_query_variables` must be a list of strings.")
-        if not all(isinstance(k, str) for k in rag_query_variable_keys):
-            raise TypeError("Prompt field `rag_query_variables` must be a list of strings.")
-        validated_prompt[INTERNAL_QUERY_VARIABLE_KEYS] = rag_query_variable_keys
-    else:
-        validated_prompt[INTERNAL_QUERY_VARIABLE_KEYS] = ["question"]
+    if variables:
+        validated_prompt["variables"] = variables
+    if template:
+        validated_prompt["template"] = template
+    if final_chat_template:
+        validated_prompt["chat_template"] = final_chat_template
+    if tags:
+        validated_prompt["tags"] = tags
+    if final_ctx_variable_keys:
+        validated_prompt[INTERNAL_CONTEXT_VARIABLE_KEYS] = final_ctx_variable_keys
+    if final_query_variable_keys:
+        validated_prompt[INTERNAL_QUERY_VARIABLE_KEYS] = final_query_variable_keys
+
     return validated_prompt
-
-
-class LinkTracker:
-    def __init__(self, object_span_links=None):
-        self._object_span_links = object_span_links or {}
-
-    def get_object_id(self, obj):
-        return f"{type(obj).__name__}_{id(obj)}"
-
-    def add_span_links_to_object(self, obj, span_links):
-        obj_id = self.get_object_id(obj)
-        if obj_id not in self._object_span_links:
-            self._object_span_links[obj_id] = []
-        self._object_span_links[obj_id] += span_links
-
-    def get_span_links_from_object(self, obj):
-        return self._object_span_links.get(self.get_object_id(obj), [])
 
 
 class AnnotationContext:
@@ -180,7 +219,7 @@ def _get_ml_app(span: Span) -> Optional[str]:
         if ml_app is not None:
             return ml_app
         llmobs_parent = _get_nearest_llmobs_ancestor(llmobs_parent)
-    return ml_app or span.context._meta.get(PROPAGATED_ML_APP_KEY) or config._llmobs_ml_app
+    return ml_app or span.context._meta.get(PROPAGATED_ML_APP_KEY) or config._llmobs_ml_app or config.service
 
 
 def _get_session_id(span: Span) -> Optional[str]:
@@ -295,16 +334,23 @@ class TrackedToolCall:
     arguments: str
     llm_span_context: Dict[str, str]  # span/trace id of the LLM span that initiated this tool call
     tool_span_context: Optional[Dict[str, str]] = None  # span/trace id of the tool span that executed this call
-    is_handoff_completed: bool = False  # Track if handoff is completed to noisy links
     tool_kind: str = "function"  # one of "function", "handoff"
 
 
-class ToolCallTracker:
-    """Used to track tool data and their associated llm/tool spans for span linking."""
+class LinkTracker:
+    """
+    This class is used to create span links across integrations.
+
+    The primary use cases are:
+    - Linking LLM spans to their associated tool spans and vice versa
+    - Linking LLM spans to their associated guardrail spans and vice versa
+    """
 
     def __init__(self):
         self._tool_calls: Dict[str, TrackedToolCall] = {}  # maps tool id's to tool call data
         self._lookup_tool_id: Dict[Tuple[str, str], str] = {}  # maps (tool_name, arguments) to tool id's
+        self._active_guardrail_spans: Set[Span] = set()
+        self._last_llm_span: Optional[Span] = None
 
     def on_llm_tool_choice(
         self, tool_id: str, tool_name: str, arguments: str, llm_span_context: Dict[str, str]
@@ -366,18 +412,12 @@ class ToolCallTracker:
         Called when an LLM span finishes. This is used to link the output of a tool call to the input of an
         LLM span.
 
-        For handoff tool calls, we need to mark the handoff as completed since we only want to link
-        the output of a handoff tool span to the FIRST LLM call that has that handoff as input.
-
-        For function tool calls, the tool output is used as context for every LLM call that has that tool call
-        as an input.
+        The tool call is removed from the tracker since we only want to link the output of a tool call to the FIRST
+        LLM call that has that tool call as an input to reduce noisy links.
         """
-        tool_call = self._tool_calls.get(tool_id)
-        if not tool_call or not tool_call.tool_span_context or tool_call.is_handoff_completed:
+        tool_call = self._tool_calls.pop(tool_id, None)
+        if not tool_call or not tool_call.tool_span_context:
             return
-
-        if tool_call.tool_kind == "handoff":
-            self._tool_calls[tool_id].is_handoff_completed = True
 
         add_span_link(
             llm_span,
@@ -386,3 +426,47 @@ class ToolCallTracker:
             "output",
             "input",
         )
+
+    def on_llm_span_finish(self, span: Span) -> None:
+        """
+        Called when an LLM span event is created. If the LLM span is the first LLM span,
+        it will consume all active guardrail links.
+        """
+        self._last_llm_span = span
+        spans_to_remove = set()
+        for guardrail_span in self._active_guardrail_spans:
+            # some guardrail spans may have LLM spans as children which we don't want to link to
+            if _get_nearest_llmobs_ancestor(guardrail_span) == _get_nearest_llmobs_ancestor(span):
+                add_span_link(
+                    span,
+                    str(guardrail_span.span_id),
+                    format_trace_id(guardrail_span.trace_id),
+                    "output",
+                    "input",
+                )
+                spans_to_remove.add(guardrail_span)
+        self._active_guardrail_spans -= spans_to_remove
+
+    def on_guardrail_span_start(self, span: Span) -> None:
+        """
+        Called when a guardrail span starts. This is used to track the active guardrail
+        spans and link the output of the last LLM span to the input of the guardrail span.
+        """
+        self._active_guardrail_spans.add(span)
+        if self._last_llm_span is not None and _get_nearest_llmobs_ancestor(span) == _get_nearest_llmobs_ancestor(
+            self._last_llm_span
+        ):
+            add_span_link(
+                span,
+                str(self._last_llm_span.span_id),
+                format_trace_id(self._last_llm_span.trace_id),
+                "output",
+                "input",
+            )
+
+    def on_openai_agent_span_finish(self) -> None:
+        """
+        Called when an OpenAI agent span finishes. This is used to reset the last LLM span
+        since output guardrails are only linked to the last LLM span for a particular agent.
+        """
+        self._last_llm_span = None

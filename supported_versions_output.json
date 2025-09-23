@@ -10,7 +10,7 @@
         "dependency": "aiohttp",
         "integration": "aiohttp",
         "minimum_tracer_supported": "3.7.4.post0",
-        "max_tracer_supported": "3.12.11",
+        "max_tracer_supported": "3.12.15",
         "auto-instrumented": true
     },
     {
@@ -68,7 +68,7 @@
         "dependency": "pytest-asyncio",
         "integration": "asyncio",
         "minimum_tracer_supported": "0.21.1",
-        "max_tracer_supported": "0.21.1",
+        "max_tracer_supported": "1.2.0",
         "pinned": "true",
         "auto-instrumented": true
     },
@@ -368,7 +368,7 @@
         "dependency": "kombu",
         "integration": "kombu",
         "minimum_tracer_supported": "4.6.11",
-        "max_tracer_supported": "5.4.2",
+        "max_tracer_supported": "5.5.4",
         "auto-instrumented": false
     },
     {
@@ -432,7 +432,7 @@
         "dependency": "mariadb",
         "integration": "mariadb",
         "minimum_tracer_supported": "1.0.11",
-        "max_tracer_supported": "1.1.12",
+        "max_tracer_supported": "1.1.13",
         "auto-instrumented": true
     },
     {
@@ -509,7 +509,7 @@
         "dependency": "pydantic-ai-slim",
         "integration": "pydantic_ai",
         "minimum_tracer_supported": "0.3.0",
-        "max_tracer_supported": "0.4.4",
+        "max_tracer_supported": "1.0.1",
         "pinned": "true",
         "auto-instrumented": true
     },
@@ -531,7 +531,7 @@
         "dependency": "pymongo",
         "integration": "pymongo",
         "minimum_tracer_supported": "3.8.0",
-        "max_tracer_supported": "4.13.2",
+        "max_tracer_supported": "4.15.0",
         "auto-instrumented": true
     },
     {
