@@ -17,11 +17,18 @@ from typing import Tuple
 EXCEPTIONS = {
     # only constant message can be log.error()
     "ddtrace/internal/telemetry/logging.py:18",
-    # Allowed if all log.exception calls use constant messages (checked by this script)
+    # log.exception calls use constant messages
     "ddtrace/contrib/internal/aws_lambda/patch.py:36",
     # log.error in _probe/registry.py ends up with a log.debug()
     "ddtrace/debugging/_probe/registry.py:137",
     "ddtrace/debugging/_probe/registry.py:146",
+    # we added a constant check for the wrapping method of add_error_log
+    "ddtrace/appsec/_iast/_metrics.py:53",
+    # we added a constant check for the wrapping method of iast_error
+    "ddtrace/appsec/_iast/_logs.py:41",
+    "ddtrace/appsec/_iast/_logs.py:45",
+    # the non constant part is an object type
+    "ddtrace/appsec/_iast/_taint_tracking/_taint_objects_base.py:75",
 }
 
 
@@ -45,14 +52,20 @@ class LogMessageChecker(ast.NodeVisitor):
         return False
 
     def visit_Call(self, node: ast.Call) -> None:
-        """Check if this is a log.error() or add_error_log call with non-constant first arg."""
+        """Check if this is a log.error(), add_error_log, or iast_error call with non-constant first arg."""
         fn = node.func
 
         # Check for add_error_log calls
         is_add_integration_error = isinstance(fn, ast.Attribute) and fn.attr == "add_error_log"
         # Check for log.error() calls (simple check for .error() on any variable)
         is_log_error = isinstance(fn, ast.Attribute) and (fn.attr == "error" or fn.attr == "exception")
-        is_target = is_add_integration_error or is_log_error
+        # Check for iast_error calls
+        is_iast_log = isinstance(fn, ast.Name) and (
+            fn.id == "iast_error"
+            or fn.id == "iast_instrumentation_ast_patching_errorr_log"
+            or fn.id == "iast_propagation_error_log"
+        )
+        is_target = is_add_integration_error or is_log_error or is_iast_log
 
         if is_target and node.args:
             msg = node.args[0]
