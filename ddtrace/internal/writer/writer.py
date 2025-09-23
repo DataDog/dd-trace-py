@@ -828,6 +828,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 config._telemetry_heartbeat_interval * 1000
             )  # Convert DD_TELEMETRY_HEARTBEAT_INTERVAL to milliseconds
             builder.enable_telemetry(heartbeat_ms, get_runtime_id())
+        if config._health_metrics_enabled:
+            builder.enable_health_metrics()
 
         return builder.build()
 

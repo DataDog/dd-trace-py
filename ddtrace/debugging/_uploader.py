@@ -180,18 +180,18 @@ class SignalUploader(agent.AgentCheckPeriodicService):
         self._collector._tracks = {t: ut.queue for t, ut in self._tracks.items()}
 
     def _flush_track(self, track: UploaderTrack) -> None:
-        queue = track.queue
-        if (payload := queue.flush()) is not None and track.enabled:
+        if (data := track.queue.flush()) is not None and track.enabled:
+            payload, count = data
             try:
                 self._write_with_backoff(payload, track.endpoint)
-                meter.distribution("batch.cardinality", queue.count)
+                meter.distribution("batch.cardinality", count)
             except SignalUploaderError:
                 if track.track is SignalTrack.SNAPSHOT and not track.endpoint.startswith("/debugger/v1/diagnostics"):
                     # Downgrade to diagnostics endpoint and retry once
                     track.endpoint = f"/debugger/v1/diagnostics{self._endpoint_suffix}"
                     log.debug("Downgrading snapshot endpoint to %s and trying again", track.endpoint)
                     self._write_with_backoff(payload, track.endpoint)
-                    meter.distribution("batch.cardinality", queue.count)
+                    meter.distribution("batch.cardinality", count)
                 else:
                     raise  # Propagate error to transition to agent check state
             except Exception:
