@@ -173,7 +173,7 @@ telemetry_writer.periodic(force_flush=True)
     app_started_events = [event for event in events if event["request_type"] == "app-started"]
     assert len(app_started_events) == 1
 
-    logs_event = test_agent_session.get_events("logs", subprocess=True)
+    logs_event = test_agent_session.get_events("logs")
     error_log = logs_event[0]["payload"]["logs"][0]
     assert error_log["message"] == "error applying processor %r to trace %d"
     assert error_log["level"] == "ERROR"
@@ -210,7 +210,7 @@ raise Exception('bad_code')
 
     # the tracer should not capture logs from non ddtrace code
     # i will not test further as it will be removed in next PR
-    logs_event = test_agent_session.get_events("logs", subprocess=True)
+    logs_event = test_agent_session.get_events("logs")
     assert len(logs_event) == 1
 
 
@@ -268,7 +268,7 @@ f.wsgi_app()
     app_started_event = test_agent_session.get_events("app-started")
     assert len(app_started_event) == 1
 
-    logs_event = test_agent_session.get_events("logs", subprocess=True)
+    logs_event = test_agent_session.get_events("logs")
     error_log = logs_event[0]["payload"]["logs"][0]
     assert error_log["message"] == "Unhandled exception from ddtrace code"
     assert error_log["level"] == "ERROR"
