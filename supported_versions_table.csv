@@ -8,7 +8,7 @@ aiopg,aiopg *,0.16.0,1.4.0,True
 algoliasearch,algoliasearch *,2.5.0,2.6.3,True
 anthropic,anthropic,0.28.1,0.67.0,True
 aredis,aredis,1.1.8,1.1.8,True
-pytest-asyncio,asyncio *,0.21.1,0.21.1,True
+pytest-asyncio,asyncio *,0.21.1,1.2.0,True
 asyncpg,asyncpg,0.22.0,0.30.0,True
 avro,avro,1.12.0,1.12.0,True
 datadog-lambda,aws_lambda,6.105.0,6.105.0,True

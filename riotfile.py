@@ -2726,11 +2726,23 @@ venv = Venv(
         Venv(
             name="asyncio",
             command="pytest {cmdargs} tests/contrib/asyncio",
-            pys=select_pys(),
             pkgs={
                 "pytest-randomly": latest,
-                "pytest-asyncio": "==0.21.1",
             },
+            venvs=[
+                Venv(
+                    pys=select_pys(max_version="3.12"),
+                    pkgs={
+                        "pytest-asyncio": "==0.21.1",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.13"),
+                    pkgs={
+                        "pytest-asyncio": ">=1.0.0",
+                    },
+                ),
+            ],
         ),
         Venv(
             name="openai",
