@@ -56,17 +56,6 @@ def mock_tracer(adk):
     yield mock_tracer
 
 
-@pytest.fixture
-def adk_runner(adk):
-    class FakeAgent:
-        name = "fake-agent"
-        instruction = "instr"
-        model_config = {"model": "test"}
-        tools = []
-
-    return adk.runners.InMemoryRunner(agent=FakeAgent(), app_name="TestApp")
-
-
 @pytest.fixture(scope="session")
 def request_vcr():
     yield get_request_vcr()

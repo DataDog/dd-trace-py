@@ -82,8 +82,8 @@ class GoogleAdkIntegration(BaseLLMIntegration):
         agent_name = getattr(agent_instance, "name", None)
 
         self._tag_agent_manifest(span, kwargs, agent_instance)
-        user_prompt_parts = list(get_argument_value(args, kwargs, 0, "new_message") or [])
-        user_prompt_parts = getattr(user_prompt_parts, "parts", user_prompt_parts)
+        user_prompt_parts = get_argument_value(args, kwargs, 0, "new_message") or []
+        user_prompt_parts = list(getattr(user_prompt_parts, "parts", user_prompt_parts))
         user_prompt = ""
         for part in user_prompt_parts:
             user_prompt += extract_message_from_part_google_genai(part, "user").get("content", "")
