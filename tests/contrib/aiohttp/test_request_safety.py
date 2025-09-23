@@ -7,10 +7,33 @@ import asyncio
 import threading
 from urllib import request
 
+import pytest_asyncio
+
+from ddtrace.internal.utils.version import parse_version
 from tests.utils import assert_is_measured
 
 
-async def test_full_request(patched_app_tracer, aiohttp_client, loop):
+PYTEST_ASYNCIO_VERSION = parse_version(pytest_asyncio.__version__)
+
+
+if PYTEST_ASYNCIO_VERSION < (1, 0):
+
+    async def test_full_request(patched_app_tracer, aiohttp_client, loop):
+        return _test_full_request(patched_app_tracer, aiohttp_client, loop=loop)
+
+    async def test_multiple_full_request(patched_app_tracer, aiohttp_client, loop):
+        return _test_multiple_full_request(patched_app_tracer, aiohttp_client, loop=loop)
+
+else:
+
+    async def test_full_request(patched_app_tracer, aiohttp_client):
+        return _test_full_request(patched_app_tracer, aiohttp_client)
+
+    async def test_multiple_full_request(patched_app_tracer, aiohttp_client):
+        return _test_multiple_full_request(patched_app_tracer, aiohttp_client)
+
+
+async def _test_full_request(patched_app_tracer, aiohttp_client, loop=None):
     app, tracer = patched_app_tracer
     client = await aiohttp_client(app)
     # it should create a root span when there is a handler hit
@@ -31,7 +54,7 @@ async def test_full_request(patched_app_tracer, aiohttp_client, loop):
     assert request_span.get_tag("span.kind") == "server"
 
 
-async def test_multiple_full_request(patched_app_tracer, aiohttp_client, loop):
+async def _test_multiple_full_request(patched_app_tracer, aiohttp_client, loop=None):
     NUMBER_REQUESTS = 10
     responses = []
 

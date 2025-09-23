@@ -2273,7 +2273,6 @@ venv = Venv(
             name="aiohttp",
             command="pytest {cmdargs} tests/contrib/aiohttp",
             pkgs={
-                "pytest-aiohttp": ["==1.0.5"],
                 "pytest-randomly": latest,
                 "aiohttp": [
                     "~=3.7",
@@ -2294,9 +2293,17 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.8", max_version="3.13"),
+                    pys=select_pys(min_version="3.8", max_version="3.12"),
                     pkgs={
                         "pytest-asyncio": ["==0.23.7"],
+                        "pytest-aiohttp": ["==1.0.5"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.13"),
+                    pkgs={
+                        "pytest-asyncio": [">=1.0.0"],
+                        "pytest-aiohttp": latest,
                     },
                 ),
             ],
