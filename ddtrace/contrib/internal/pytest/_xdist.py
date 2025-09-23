@@ -15,12 +15,13 @@ from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility.api import InternalTestSession
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.settings._config import _get_env
 
 
 log = get_logger(__name__)
 
 # xdist-related constants
-PYTEST_XDIST_WORKER_VALUE = os.environ.get("PYTEST_XDIST_WORKER")
+PYTEST_XDIST_WORKER_VALUE = _get_env("PYTEST_XDIST_WORKER")
 XDIST_UNSET = "UNSET"
 XDIST_AUTO = "auto"
 XDIST_LOGICAL = "logical"
