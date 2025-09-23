@@ -2588,10 +2588,10 @@ class PytestTestCase(PytestTestCaseBase):
         Regression test for suite level skipping count bug.
 
         When ITR is enabled at suite level and suites are skipped, the `itr.tests_skipping.count` tag
-        should count the number of tests that were skipped (contained within those suites).
+        should count the number of suites that were skipped (instead of the number of tests).
 
         This test creates 2 suites with multiple tests each (4 tests total), expects all suites to be
-        skipped, and verifies that the count reflects the number of tests (4), not suites (2).
+        skipped, and verifies that the count reflects the number of suites (2), not tests (4).
         """
         package_outer_dir = self.testdir.mkpydir("test_outer_package")
         os.chdir(str(package_outer_dir))

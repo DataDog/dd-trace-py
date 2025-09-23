@@ -1690,6 +1690,12 @@ def test_func2():
 
         # The ITR skipping type should be suite due to explicit env var override
         assert session_span.get_tag("test.itr.tests_skipping.type") == "suite"
+        actual_count = session_span.get_metric("test.itr.tests_skipping.count")
+        expected_suite_count = 1  # 2 individual tests were skipped
+        actual_count = session_span.get_metric("test.itr.tests_skipping.count")
+        assert (
+            actual_count == expected_suite_count
+        ), f"Expected {expected_suite_count} suites skipped but got {actual_count}"
 
     def test_explicit_env_var_overrides_xdist_test_mode(self):
         """Test that explicit _DD_CIVISIBILITY_ITR_SUITE_MODE=False overrides xdist suite-level detection."""
