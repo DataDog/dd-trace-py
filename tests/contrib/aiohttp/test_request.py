@@ -24,6 +24,21 @@ if PYTEST_ASYNCIO_VERSION < (1, 0):
     async def test_full_request(patched_app_tracer, aiohttp_client, loop):
         return _test_full_request(patched_app_tracer, aiohttp_client, loop=loop)
 
+    async def test_stream_request(patched_app_tracer, aiohttp_client, loop):
+        return _test_stream_request(patched_app_tracer, aiohttp_client, loop=loop)
+
+    async def test_multiple_full_request(patched_app_tracer, aiohttp_client, loop):
+        return _test_multiple_full_request(patched_app_tracer, aiohttp_client, loop=loop)
+
+    async def test_user_specified_service(tracer, aiohttp_client, loop):
+        return _test_user_specified_service(tracer, aiohttp_client, loop=loop)
+
+    async def test_http_request_header_tracing(patched_app_tracer, aiohttp_client, loop):
+        return _test_http_request_header_tracing(patched_app_tracer, aiohttp_client, loop=loop)
+
+    async def test_http_response_header_tracing(patched_app_tracer, aiohttp_client, loop):
+        return _test_http_response_header_tracing(patched_app_tracer, aiohttp_client, loop=loop)
+
 else:
 
     async def test_full_request_w_mem_leak_prevention_flag(patched_app_tracer, aiohttp_client):
@@ -31,6 +46,21 @@ else:
 
     async def test_full_request(patched_app_tracer, aiohttp_client):
         return _test_full_request(patched_app_tracer, aiohttp_client)
+
+    async def test_stream_request(patched_app_tracer, aiohttp_client):
+        return _test_stream_request(patched_app_tracer, aiohttp_client)
+
+    async def test_multiple_full_request(patched_app_tracer, aiohttp_client):
+        return _test_multiple_full_request(patched_app_tracer, aiohttp_client)
+
+    async def test_user_specified_service(tracer, aiohttp_client):
+        return _test_user_specified_service(tracer, aiohttp_client)
+
+    async def test_http_request_header_tracing(patched_app_tracer, aiohttp_client):
+        return _test_http_request_header_tracing(patched_app_tracer, aiohttp_client)
+
+    async def test_http_response_header_tracing(patched_app_tracer, aiohttp_client):
+        return _test_http_response_header_tracing(patched_app_tracer, aiohttp_client)
 
 
 async def _test_full_request(patched_app_tracer, aiohttp_client, loop=None):
@@ -81,7 +111,7 @@ async def _test_full_request_w_mem_leak_prevention_flag(patched_app_tracer, aioh
         config.aiohttp.disable_stream_timing_for_mem_leak = False
 
 
-async def test_stream_request(patched_app_tracer, aiohttp_client, loop):
+async def _test_stream_request(patched_app_tracer, aiohttp_client, loop=None):
     app, tracer = patched_app_tracer
     async with await aiohttp_client(app) as client:
         response = await client.request("GET", "/stream/")
@@ -91,7 +121,7 @@ async def test_stream_request(patched_app_tracer, aiohttp_client, loop):
     assert abs(0.5 - request_span.duration) < 0.05
 
 
-async def test_multiple_full_request(patched_app_tracer, aiohttp_client, loop):
+async def _test_multiple_full_request(patched_app_tracer, aiohttp_client, loop=None):
     app, tracer = patched_app_tracer
     client = await aiohttp_client(app)
 
@@ -119,7 +149,7 @@ async def test_multiple_full_request(patched_app_tracer, aiohttp_client, loop):
     assert 1 == len(traces[0])
 
 
-async def test_user_specified_service(tracer, aiohttp_client, loop):
+async def _test_user_specified_service(tracer, aiohttp_client, loop=None):
     """
     When a service name is specified by the user
         The aiohttp integration should use it as the service name
@@ -137,7 +167,7 @@ async def test_user_specified_service(tracer, aiohttp_client, loop):
         assert request_span.service == "mysvc"
 
 
-async def test_http_request_header_tracing(patched_app_tracer, aiohttp_client, loop):
+async def _test_http_request_header_tracing(patched_app_tracer, aiohttp_client, loop=None):
     app, tracer = patched_app_tracer
     client = await aiohttp_client(app)
 
@@ -156,7 +186,7 @@ async def test_http_request_header_tracing(patched_app_tracer, aiohttp_client, l
     assert request_span.get_tag("span.kind") == "server"
 
 
-async def test_http_response_header_tracing(patched_app_tracer, aiohttp_client, loop):
+async def _test_http_response_header_tracing(patched_app_tracer, aiohttp_client, loop=None):
     app, tracer = patched_app_tracer
     client = await aiohttp_client(app)
 
