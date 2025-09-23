@@ -16,5 +16,7 @@ def setup_tracing():
     patch(ray=True)
 
     if _is_tracing_enabled():
-        log.warning("Deactivating OpenTelemetry tracing in favor of Datadog tracing as both are not compatible.")
+        # Specifying a hook will activate opentelemetry instrumentation automatically.
+        # We silently deactivate it as users might be confused as they
+        # probably do not activate otel on purpose
         tracing_helper._global_is_tracing_enabled = False
