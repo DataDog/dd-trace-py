@@ -15,7 +15,9 @@ on:
 jobs:
   test:
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 9
+    # Python 3.11 + valgrind combination is slower and times out at 9 minutes
+    # Other combinations complete within 9 minutes (e.g., Python 3.12 + valgrind finishes in ~6.5 minutes)
+    timeout-minutes: ${{ (matrix.sanitizer == 'valgrind' && matrix.python-version == '3.11' && 11) || 9 }}
     strategy:
       fail-fast: false
       matrix:
