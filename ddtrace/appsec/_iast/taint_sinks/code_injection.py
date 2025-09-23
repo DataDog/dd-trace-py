@@ -85,7 +85,7 @@ def _iast_coi(wrapped, instance, args, kwargs):
             func_locals = caller_frame.f_locals
             func_locals_copy_to_check = func_locals.copy() if func_locals else None
     except Exception as e:
-        iast_propagation_sink_point_debug_log(f"Error in _iast_code_injection. {e}")
+        iast_propagation_sink_point_debug_log("Error in _iast_code_injection", e)
         return wrapped(*args, **kwargs)
 
     res = wrapped(args[0], func_globals, func_locals)
@@ -102,7 +102,7 @@ def _iast_coi(wrapped, instance, args, kwargs):
             for key in diff_keys:
                 func_globals[key] = func_locals[key]
     except Exception as e:
-        iast_propagation_sink_point_debug_log(f"Error in _iast_code_injection. {e}")
+        iast_propagation_sink_point_debug_log("Error in _iast_code_injection", e)
 
     return res
 
@@ -120,5 +120,5 @@ def _iast_report_code_injection(code_string: Text):
             # Report Telemetry Metrics
             _set_metric_iast_executed_sink(CodeInjection.vulnerability_type)
     except Exception as e:
-        iast_error(f"propagation::sink_point::Error in _iast_report_code_injection. {e}")
+        iast_error("propagation::sink_point::Error in _iast_report_code_injection", e)
     return reported

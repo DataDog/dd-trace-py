@@ -73,4 +73,4 @@ def _iast_report_ssrf(func: Callable, *args, **kwargs):
                 # Report Telemetry Metrics
                 increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, SSRF.vulnerability_type)
             except Exception as e:
-                iast_error(f"propagation::sink_point::Error in _iast_report_ssrf. {e}")
+                iast_error("propagation::sink_point::Error in _iast_report_ssrf", e)
