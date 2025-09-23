@@ -24,8 +24,6 @@ build_base_venvs:
   artifacts:
     name: venv_$PYTHON_VERSION
     paths:
-      - scripts/restore-ext-cache.sh
-      - scripts/save-ext-cache.sh
       - .riot/venv_*
       - ddtrace/_version.py
       - ddtrace/**/*.so*

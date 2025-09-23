@@ -156,6 +156,11 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
+    fn enable_health_metrics(mut slf: PyRefMut<'_, Self>) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.enable_health_metrics();
+        Ok(slf.into())
+    }
+
     /// Consumes the wrapped builder.
     ///
     /// The builder shouldn't be reused

@@ -1,15 +1,8 @@
 import atexit
+import http.client as httplib
 import json
 from typing import List  # noqa:F401
-
-
-# TypedDict was added to typing in python 3.8
-try:
-    from typing import TypedDict  # noqa:F401
-except ImportError:
-    from typing_extensions import TypedDict
-
-import http.client as httplib
+from typing import TypedDict  # noqa:F401
 
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger

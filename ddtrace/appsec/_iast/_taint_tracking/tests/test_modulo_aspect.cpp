@@ -33,6 +33,68 @@ TEST_F(AspectModuloCheck, check_api_modulo_aspect_string_positional)
     Py_DecRef(result);
 }
 
+TEST_F(AspectModuloCheck, check_api_modulo_aspect_float_parameter)
+{
+    // template: "%0.2f", arg: 3.14159 -> "3.14"
+    PyObject* candidate_text = this->StringToPyObjectStr("%0.2f");
+    PyObject* param = PyFloat_FromDouble(3.14159);
+
+    PyObject* candidate_result = PyNumber_Remainder(candidate_text, param);
+    ASSERT_TRUE(candidate_result != nullptr);
+
+    PyObject* args_array[3];
+    args_array[0] = candidate_text;
+    args_array[1] = param;            // non-tuple
+    args_array[2] = candidate_result; // borrowed
+
+    PyObject* result = api_modulo_aspect(nullptr, args_array, 3);
+    EXPECT_FALSE(has_pyerr());
+
+    std::string result_string = this->PyObjectStrToString(result);
+    EXPECT_EQ(result_string, "3.14");
+
+    Py_DecRef(candidate_text);
+    Py_DecRef(param);
+    Py_DecRef(candidate_result);
+    Py_DecRef(result);
+}
+
+TEST_F(AspectModuloCheck, check_api_modulo_aspect_float_parameter_with_tainted_template)
+{
+    // Create a context and taint the template prefix to simulate tainted template without percent in the tainted range
+    this->context_id = taint_engine_context->start_request_context();
+    ASSERT_TRUE(this->context_id.has_value());
+    auto tx_map = taint_engine_context->get_tainted_object_map_by_ctx_id(this->context_id.value());
+
+    PyObject* candidate_text = this->StringToPyObjectStr("template %0.2f");
+    PyObject* param = PyFloat_FromDouble(3.14159);
+
+    // Taint the word "template" (positions 0..8)
+    auto source = Source("input1", "template", OriginType::PARAMETER);
+    auto range = initializer->allocate_taint_range(0, 8, source, {});
+    TaintRangeRefs ranges{ range };
+    ASSERT_TRUE(set_ranges(candidate_text, ranges, tx_map));
+
+    PyObject* candidate_result = PyNumber_Remainder(candidate_text, param);
+    ASSERT_TRUE(candidate_result != nullptr);
+
+    PyObject* args_array[3];
+    args_array[0] = candidate_text;
+    args_array[1] = param;
+    args_array[2] = candidate_result;
+
+    PyObject* result = api_modulo_aspect(nullptr, args_array, 3);
+    EXPECT_FALSE(has_pyerr());
+
+    std::string result_string = this->PyObjectStrToString(result);
+    EXPECT_EQ(result_string, "template 3.14");
+
+    Py_DecRef(candidate_text);
+    Py_DecRef(param);
+    Py_DecRef(candidate_result);
+    Py_DecRef(result);
+}
+
 TEST_F(AspectModuloCheck, check_api_modulo_aspect_string_tuple)
 {
     // template: "%s-%s", args: ("a", "b") -> "a-b"

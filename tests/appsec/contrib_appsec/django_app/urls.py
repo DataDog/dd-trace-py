@@ -197,6 +197,31 @@ def redirect(request, url: str):
 
 
 @csrf_exempt
+def redirect_requests(request, url: str):
+    import requests
+
+    full_url = "http://" + url
+    body_str = request.body.decode()
+    if body_str:
+        body = body_str
+    else:
+        body = None
+    method = "POST" if body is not None else "GET"
+    headers = {"TagHost": url}
+    if body is not None:
+        headers["Content-Type"] = "application/json"
+    try:
+        with requests.Session() as s:
+            response = s.request(method, full_url, data=body, headers=headers)
+            payload = {"payload": response.text}
+    except Exception as e:
+        import traceback
+
+        payload = {"error": repr(e), "trace": traceback.format_exc()}
+    return JsonResponse(payload)
+
+
+@csrf_exempt
 def login_user(request):
     from django.contrib.auth import authenticate
     from django.contrib.auth import get_user_model
@@ -314,6 +339,7 @@ if django.VERSION >= (2, 0, 0):
         path("rasp/<str:endpoint>/", rasp, name="rasp"),
         path("rasp/<str:endpoint>", rasp, name="rasp"),
         path("redirect/<str:url>/", redirect, name="redirect"),
+        path("redirect_requests/<str:url>/", redirect_requests, name="redirect_requests"),
         path(route="login/", view=login_user, name="login"),
         path("login", login_user, name="login"),
         path("login_sdk/", login_user_sdk, name="login_sdk"),
@@ -328,6 +354,7 @@ else:
         path(r"rasp/(?P<endpoint>\w+)/$", new_service, name="rasp"),
         path(r"rasp/(?P<endpoint>\w+)$", new_service, name="rasp"),
         path(r"redirect/(?P<url>\w+)$", redirect, name="redirect"),
+        path(r"redirect_requests/(?P<url>\w+)$", redirect_requests, name="redirect_requests"),
         path("login/", login_user, name="login"),
         path("login", login_user, name="login"),
     ]

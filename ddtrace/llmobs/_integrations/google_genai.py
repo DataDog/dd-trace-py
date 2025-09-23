@@ -3,12 +3,6 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
-
-try:
-    from google.genai.types import FunctionDeclaration
-except ImportError:
-    FunctionDeclaration = None
-
 from ddtrace._trace.span import Span
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -187,6 +181,10 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         )
 
     def _extract_tools(self, config) -> List[ToolDefinition]:
+        try:
+            from google.genai.types import FunctionDeclaration
+        except ImportError:
+            FunctionDeclaration = None
         tool_definitions = []
         tools = _get_attr(config, "tools", []) or []
         for tool in tools:

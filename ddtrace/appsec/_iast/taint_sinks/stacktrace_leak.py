@@ -2,6 +2,7 @@ import os
 import re
 
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
+from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast._iast_request_context_base import set_iast_stacktrace_reported
 from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
@@ -11,7 +12,6 @@ from ddtrace.appsec._iast.constants import STACKTRACE_EXCEPTION_REGEX
 from ddtrace.appsec._iast.constants import STACKTRACE_FILE_LINE
 from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
-from ddtrace.settings.asm import config as asm_config
 
 
 class StacktraceLeak(VulnerabilityBase):
@@ -121,9 +121,9 @@ def iast_check_stacktrace_leak(content: str) -> None:
 
         _set_metric_iast_executed_sink(StacktraceLeak.vulnerability_type)
         evidence = "Module: %s\nException: %s" % (module_name.strip(), exception_line.strip())
-        if asm_config.is_iast_request_enabled:
+        if is_iast_request_enabled():
             StacktraceLeak.report(evidence_value=evidence)
         else:
             set_report_stacktrace_later(evidence)
     except Exception as e:
-        iast_error(f"propagation::sink_point::Error in iast_check_stacktrace_leak. {e}")
+        iast_error("propagation::sink_point::Error in iast_check_stacktrace_leak", e)

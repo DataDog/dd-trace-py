@@ -15,6 +15,16 @@ def parametrized_weak_hash(hash_func, method):
     getattr(m, method)()
 
 
+def parametrized_safe_weak_hash(hash_func, method, usedforsecurity):
+    import hashlib
+
+    m = getattr(hashlib, hash_func)(usedforsecurity=usedforsecurity)
+    m.update(b"Nobody inspects")
+    m.update(b" the spammish repetition")
+    # label parametrized_safe_weak_hash
+    getattr(m, method)()
+
+
 def hashlib_new():
     import hashlib
 

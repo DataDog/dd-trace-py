@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    sampling: This change prevents the DatadogSampler from getting recreated whenever the SpanAggregator is reset, and instead updates the rate limiter that the sampler uses.

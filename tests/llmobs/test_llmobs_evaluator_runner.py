@@ -92,6 +92,7 @@ def test_evaluator_runner_multiple_evaluators(llmobs, mock_llmobs_eval_metric_wr
     ]
 
 
+@pytest.mark.skip(reason="Skipping due to flakiness in hitting the staging endpoint")
 def test_evaluator_runner_on_exit(mock_writer_logs, run_python_code_in_subprocess):
     env = os.environ.copy()
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(__file__)))]

@@ -2000,11 +2000,12 @@ class Contrib_TestClass_For_Threats:
     @pytest.mark.parametrize(
         ("endpoint", "data", "tag"),
         [
-            ("www.datadog.com", None, "TAG_API10_HEADER"),
+            ("www.datadoghq.com", None, "TAG_API10_HEADER"),
             ("www.google.com", {"payload": "qw2jedrkjerbgol23ewpfirj2qw3or"}, "TAG_API10_BODY"),
         ],
     )
-    def test_api10_addresses(self, endpoint, data, tag, interface, get_tag):
+    @pytest.mark.parametrize("integration", ["", "_requests"])
+    def test_api10_addresses(self, integration, endpoint, data, tag, interface, get_tag):
         """test api10 on downstream request headers and body"""
         from urllib.parse import quote
 
@@ -2018,14 +2019,14 @@ class Contrib_TestClass_For_Threats:
             )
         ):
             self.update_tracer(interface)
-            url = f"/redirect/{quote(endpoint, safe='')}/"
+            url = f"/redirect{integration}/{quote(endpoint, safe='')}/"
             if data:
                 response = interface.client.post(url, data=json.dumps(data), content_type="application/json")
             else:
                 response = interface.client.get(url)
             assert self.status(response) == 200, f"{self.status(response)} is not 200"
             c_tag = get_tag("_dd.appsec.trace.mark")
-            assert c_tag == tag, f"[{c_tag}] is not [{tag}] {response.text}"
+            assert c_tag == tag, f"[{c_tag}] is not [{tag}] {response.text[:50]}"
 
 
 @contextmanager

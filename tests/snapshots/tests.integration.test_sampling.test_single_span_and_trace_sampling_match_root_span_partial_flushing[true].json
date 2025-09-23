@@ -1,0 +1,30 @@
+[[
+  {
+    "name": "monkey",
+    "service": "animals",
+    "resource": "monkey",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-3",
+      "_dd.p.ksr": "0",
+      "_dd.p.tid": "68a5d77c00000000",
+      "language": "python",
+      "runtime-id": "643fa3aa63d140ceb4d1b28983fc68cb"
+    },
+    "metrics": {
+      "_dd.py.partial_flush": 1,
+      "_dd.rule_psr": 0.0,
+      "_dd.span_sampling.mechanism": 8,
+      "_dd.span_sampling.rule_rate": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": -1,
+      "process_id": 6548
+    },
+    "duration": 120625,
+    "start": 1758013735498309959
+  }]]

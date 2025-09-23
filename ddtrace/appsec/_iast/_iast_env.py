@@ -1,10 +1,14 @@
+from typing import TYPE_CHECKING
 from typing import Dict
 from typing import Optional
 
 from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.internal import core
+
+
+if TYPE_CHECKING:  # pragma: no cover - type checking only
+    from ddtrace.appsec._iast.reporter import IastSpanReporter
 
 
 class IASTEnvironment:
@@ -17,9 +21,9 @@ class IASTEnvironment:
     def __init__(self, span: Optional[Span] = None):
         self.span = span or core.get_span()
 
-        self.request_enabled: bool = False
-        self.iast_reporter: Optional[IastSpanReporter] = None
+        self.iast_reporter: Optional["IastSpanReporter"] = None
         self.iast_span_metrics: Dict[str, int] = {}
+        self.iast_hash_object_tracking: Dict[int, bool] = {}
         self.iast_stack_trace_reported: bool = False
         self.vulnerability_copy_global_limit: Dict[str, int] = {}
         self.vulnerabilities_request_limit: Dict[str, int] = {}

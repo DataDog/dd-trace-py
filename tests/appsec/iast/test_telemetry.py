@@ -187,7 +187,7 @@ def test_log_metric(telemetry_writer):
     list_metrics_logs = list(telemetry_writer._logs)
     assert len(list_metrics_logs) == 1
     assert list_metrics_logs[0]["message"] == "test_format_key_error_and_no_log_metric raises"
-    assert str(list_metrics_logs[0]["stack_trace"]).startswith('  File "/')
+    assert "stack_trace" not in list_metrics_logs[0].keys()
 
 
 def test_log_metric_debug_disabled(telemetry_writer):
@@ -206,7 +206,7 @@ def test_log_metric_debug_deduplication(telemetry_writer):
         list_metrics_logs = list(telemetry_writer._logs)
         assert len(list_metrics_logs) == 1
         assert list_metrics_logs[0]["message"] == "test_log_metric_debug_deduplication raises 2"
-        assert "stack_trace" in list_metrics_logs[0].keys()
+        assert "stack_trace" not in list_metrics_logs[0].keys()
 
 
 def test_log_metric_debug_disabled_deduplication(telemetry_writer):
@@ -228,7 +228,7 @@ def test_log_metric_debug_deduplication_different_messages(telemetry_writer):
         assert list_metrics_logs[0]["message"].startswith(
             "test_log_metric_debug_deduplication_different_messages raises"
         )
-        assert "stack_trace" in list_metrics_logs[0].keys()
+        assert "stack_trace" not in list_metrics_logs[0].keys()
 
 
 def test_log_metric_debug_disabled_deduplication_different_messages(telemetry_writer):

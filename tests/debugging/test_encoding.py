@@ -11,6 +11,7 @@ import pytest
 from ddtrace.debugging._encoding import JSONTree
 from ddtrace.debugging._encoding import LogSignalJsonEncoder
 from ddtrace.debugging._encoding import SignalQueue
+from ddtrace.debugging._encoding import SnapshotJsonEncoder
 from ddtrace.debugging._probe.model import MAXSIZE
 from ddtrace.debugging._probe.model import CaptureLimits
 from ddtrace.debugging._signal import utils
@@ -234,8 +235,9 @@ def test_batch_json_encoder():
         for _ in range(2 * n_snapshots):
             queue.put(s)
 
-    count = queue.count
-    payload = queue.flush()
+    data = queue.flush()
+    assert data is not None
+    payload, count = data
     decoded = json.loads(payload.decode())
     assert len(decoded) == count
     assert n_snapshots <= count + 1  # Allow for rounding errors
@@ -260,13 +262,19 @@ def test_batch_flush_reencode():
     queue = SignalQueue(LogSignalJsonEncoder(None))
 
     snapshot_total_size = sum(queue.put(s) for _ in range(2))
-    assert queue.count == 2
-    assert len(queue.flush()) == snapshot_total_size + 3
+    data = queue.flush()
+    assert data is not None
+    payload, count = data
+    assert count == 2
+    assert len(payload) == snapshot_total_size + 3
 
     a, b = queue.put(s), queue.put(s)
     assert abs(a - b) < 1024
-    assert queue.count == 2
-    assert len(queue.flush()) == a + b + 3
+    data = queue.flush()
+    assert data is not None
+    payload, count = data
+    assert count == 2
+    assert len(payload) == a + b + 3
 
 
 # ---- Side effects ----
@@ -580,7 +588,7 @@ def test_json_tree():
     ],
 )
 def test_json_pruning_not_capture_depth(size, expected):
-    class TestEncoder(LogSignalJsonEncoder):
+    class TestEncoder(SnapshotJsonEncoder):
         MAX_SIGNAL_SIZE = size
         MIN_LEVEL = 0
 

@@ -55,6 +55,7 @@ class APPSEC(metaclass=Constant_Class):
     ENABLED_ORIGIN_UNKNOWN: Literal["unknown"] = "unknown"
     ENABLED_ORIGIN_RC: Literal["remote_config"] = "remote_config"
     ENABLED_ORIGIN_ENV: Literal["env_var"] = "env_var"
+    ENABLED_ORIGIN_SSI: Literal["ssi"] = "ssi"
     JSON: Literal["_dd.appsec.json"] = "_dd.appsec.json"
     STRUCT: Literal["appsec"] = "appsec"
     EVENT_RULE_VERSION: Literal["_dd.appsec.event_rules.version"] = "_dd.appsec.event_rules.version"

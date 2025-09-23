@@ -10,6 +10,8 @@ baseline: &baseline
   always_create_database_spans: true
   django_instrument_templates: true
   native_writer: false
+  django_minimal: false
+  resource_renaming_enabled: false
 tracer: &tracer
   <<: *baseline
   tracer_enabled: true
@@ -52,3 +54,9 @@ tracer-no-templates:
 tracer-native:
   <<: *tracer
   native_writer: true
+tracer-minimal:
+  <<: *tracer
+  django_minimal: true
+resource-renaming:
+  <<: *tracer
+  resource_renaming_enabled: true

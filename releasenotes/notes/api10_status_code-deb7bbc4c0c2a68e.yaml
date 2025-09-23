@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    AAP: make sure the status code for downstream requests is properly sent to libddwaf.

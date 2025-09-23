@@ -142,6 +142,7 @@ def override_global_config(values):
         "service",
         "_raise",
         "_trace_compute_stats",
+        "_trace_resource_renaming_always_simplified_endpoint",
         "_obfuscation_query_string_pattern",
         "_global_query_string_obfuscation_disabled",
         "_ci_visibility_agentless_url",
@@ -171,6 +172,7 @@ def override_global_config(values):
         "_llmobs_instrumented_proxy_urls",
         "_data_streams_enabled",
         "_inferred_proxy_services_enabled",
+        "_lib_was_injected",
     ]
 
     asm_config_keys = asm_config._asm_config_keys
@@ -1161,7 +1163,7 @@ class TestAgentClient:
                 reqs.append(req)
         return reqs
 
-    def crash_reports(self) -> List[TestAgentRequest]:
+    def crash_messages(self) -> List[TestAgentRequest]:
         reqs = []
         for req in self.telemetry_requests(telemetry_type="logs"):
             # Parse the json data in order to filter based on "origin" key,

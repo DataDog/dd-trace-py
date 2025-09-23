@@ -1,5 +1,6 @@
 from typing import Any
 from typing import Dict
+from typing import Optional
 from typing import Sequence
 from typing import Tuple
 
@@ -41,7 +42,7 @@ class DDWaf(WAF):
         self,
         ctx: ddwaf_context_capsule,
         data: DDWafRulesType,
-        ephemeral_data: DDWafRulesType = None,
+        ephemeral_data: Optional[DDWafRulesType] = None,
         timeout_ms: float = DEFAULT.WAF_TIMEOUT,
     ) -> DDWaf_result:
         LOGGER.debug("DDWaf features disabled. dry run")

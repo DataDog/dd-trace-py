@@ -1,5 +1,6 @@
+from typing import Union
+
 from ddtrace.appsec._iast._metrics import _set_iast_error_metric
-from ddtrace.appsec._iast._utils import _is_iast_debug_enabled
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
@@ -40,19 +41,9 @@ def iast_instrumentation_ast_patching_errorr_log(msg):
     iast_error(msg, default_prefix="iast::instrumentation::ast_patching::")
 
 
-def iast_propagation_error_log(msg):
-    iast_error(msg, default_prefix="iast::propagation::error::")
+def iast_propagation_error_log(msg, exc: Union[BaseException, tuple, None] = None):
+    iast_error(msg, default_prefix="iast::propagation::error::", exc=exc)
 
 
-def iast_error(msg, default_prefix="iast::"):
-    if _is_iast_debug_enabled():
-        # Import inspect locally to avoid gevent compatibility issues.
-        # Top-level imports of inspect can interfere with gevent's monkey patching
-        # and cause sporadic worker timeouts in Gunicorn applications.
-        # See ddtrace/internal/iast/product.py for detailed explanation.
-        import inspect
-
-        stack = inspect.stack()
-        frame_info = "\n".join("%s %s" % (frame_info.filename, frame_info.lineno) for frame_info in stack[:7])
-        log.debug("%s%s:\n%s", default_prefix, msg, frame_info)
-        _set_iast_error_metric(f"{default_prefix}{msg}")
+def iast_error(msg, default_prefix="iast::", exc: Union[BaseException, tuple, None] = None):
+    _set_iast_error_metric(f"{default_prefix}{msg}", exc=exc)

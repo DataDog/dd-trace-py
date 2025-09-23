@@ -36,21 +36,22 @@ using TaintedObjectMapType = std::unordered_map<uintptr_t, std::pair<Py_hash_t, 
  */
 enum class VulnerabilityType
 {
-    CODE_INJECTION = 1,   ///< Code injection vulnerability
-    COMMAND_INJECTION,    ///< Command injection vulnerability
-    HEADER_INJECTION,     ///< HTTP header injection vulnerability
-    UNVALIDATED_REDIRECT, ///< Unvalidate redirect
-    INSECURE_COOKIE,      ///< Insecure cookie configuration
-    NO_HTTPONLY_COOKIE,   ///< Missing HttpOnly flag in cookie
-    NO_SAMESITE_COOKIE,   ///< Missing SameSite attribute in cookie
-    PATH_TRAVERSAL,       ///< Path traversal vulnerability
-    SQL_INJECTION,        ///< SQL injection vulnerability
-    SSRF,                 ///< Server-Side Request Forgery vulnerability
-    STACKTRACE_LEAK,      ///< Stack trace information leakage
-    WEAK_CIPHER,          ///< Weak cryptographic cipher usage
-    WEAK_HASH,            ///< Weak cryptographic hash function usage
-    WEAK_RANDOMNESS,      ///< Weak random number generation
-    XSS,                  ///< Cross-Site Scripting vulnerability
+    CODE_INJECTION = 1,      ///< Code injection vulnerability
+    COMMAND_INJECTION,       ///< Command injection vulnerability
+    HEADER_INJECTION,        ///< HTTP header injection vulnerability
+    UNVALIDATED_REDIRECT,    ///< Unvalidate redirect
+    INSECURE_COOKIE,         ///< Insecure cookie configuration
+    NO_HTTPONLY_COOKIE,      ///< Missing HttpOnly flag in cookie
+    NO_SAMESITE_COOKIE,      ///< Missing SameSite attribute in cookie
+    PATH_TRAVERSAL,          ///< Path traversal vulnerability
+    SQL_INJECTION,           ///< SQL injection vulnerability
+    SSRF,                    ///< Server-Side Request Forgery vulnerability
+    STACKTRACE_LEAK,         ///< Stack trace information leakage
+    UNTRUSTED_SERIALIZATION, ///< Untrusted Serialization
+    WEAK_CIPHER,             ///< Weak cryptographic cipher usage
+    WEAK_HASH,               ///< Weak cryptographic hash function usage
+    WEAK_RANDOMNESS,         ///< Weak random number generation
+    XSS,                     ///< Cross-Site Scripting vulnerability
 };
 
 using TaintedObjectMapTypePtr = shared_ptr<TaintedObjectMapType>;
@@ -143,8 +144,8 @@ get_ranges(PyObject* string_input, const TaintedObjectMapTypePtr& tx_map);
 bool
 set_ranges(PyObject* str, const TaintRangeRefs& ranges, const TaintedObjectMapTypePtr& tx_map);
 
-py::object
-api_set_ranges(py::handle& str, const TaintRangeRefs& ranges);
+bool
+api_set_ranges(py::handle& str, const TaintRangeRefs& ranges, const size_t contextid);
 
 TaintRangeRefs
 api_get_ranges(const py::handle& string_input);
@@ -156,19 +157,7 @@ inline void
 api_copy_and_shift_ranges_from_strings(py::handle& str_1, py::handle& str_2, int offset, int new_length);
 
 PyObject*
-api_set_ranges_from_values(PyObject* self, PyObject* const* args, Py_ssize_t nargs);
-
-PyObject*
 api_taint_pyobject(PyObject* self, PyObject* const* args, const Py_ssize_t nargs);
-
-// Returns a tuple with (all ranges, ranges of candidate_text)
-std::tuple<TaintRangeRefs, TaintRangeRefs>
-are_all_text_all_ranges(PyObject* candidate_text, const py::tuple& parameter_list);
-inline std::tuple<TaintRangeRefs, TaintRangeRefs>
-api_are_all_text_all_ranges(py::handle& candidate_text, const py::tuple& parameter_list)
-{
-    return are_all_text_all_ranges(candidate_text.ptr(), parameter_list);
-}
 
 TaintRangePtr
 get_range_by_hash(size_t range_hash, optional<TaintRangeRefs>& taint_ranges);

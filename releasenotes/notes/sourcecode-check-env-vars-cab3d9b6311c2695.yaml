@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    source code integration: check that ``DD_GIT_COMMIT_SHA`` and ``DD_GIT_REPOSITORY_URL`` are defined before
+    using the git command.

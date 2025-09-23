@@ -64,6 +64,8 @@ def update_system_tests_version(latest_version: str):
             lines[i] = f"{' ' * indent}SYSTEM_TESTS_REF: \"{latest_version}\""
             break
 
+    if lines and lines[-1]:
+        lines.append("")
     with open(gitlab_ci_path, "w") as file:
         file.write("\n".join(lines))
 

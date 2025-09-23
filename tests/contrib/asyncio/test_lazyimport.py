@@ -1,7 +1,7 @@
 import pytest  # noqa: I001
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(err=lambda _: True)
 def test_lazy_import():
     import ddtrace.auto  # noqa: F401,I001
     from ddtrace.trace import tracer  # noqa: I001
@@ -18,7 +18,7 @@ def test_lazy_import():
     assert tracer.context_provider.active() is None
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(err=lambda _: True)
 def test_asyncio_not_imported_by_auto_instrumentation():
     # Module unloading is not supported for asyncio, a simple workaround
     # is to ensure asyncio is not imported by ddtrace.auto or ddtrace-run.

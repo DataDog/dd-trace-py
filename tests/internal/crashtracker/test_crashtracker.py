@@ -129,7 +129,8 @@ def test_crashtracker_simple():
     # 2. Listens on that port for new connections
     # 3. Starts the crashtracker with the URL set to the port
     # 4. Crashes the process
-    # 5. Verifies that the crashtracker sends a crash report to the server
+    # 5. Verifies that the crashtracker sends a crash ping to the server
+    # 6. Verifies that the crashtracker sends a crash report to the server
     import ctypes
     import os
 
@@ -147,8 +148,10 @@ def test_crashtracker_simple():
             ctypes.string_at(0)
             sys.exit(-1)
 
-        # Part 5
-        # Check to see if the listening socket was triggered, if so accept the connection
+        # Part 5, Check for the crash ping
+        _ping = utils.get_crash_ping(client)
+
+        # Part 6, Check to see if the listening socket was triggered, if so accept the connection
         # then check to see if the resulting connection is readable
         report = utils.get_crash_report(client)
         # The crash came from string_at.  Since the over-the-wire format is multipart, chunked HTTP,
@@ -181,7 +184,10 @@ def test_crashtracker_simple_fork():
             ctypes.string_at(0)
             sys.exit(-1)  # just in case
 
-        # Part 5, check
+        # Part 5, check for crash ping
+        _ping = utils.get_crash_ping(client)
+
+        # Part 6, check for crash report
         report = utils.get_crash_report(client)
         assert b"string_at" in report["body"]
 
@@ -235,7 +241,10 @@ def test_crashtracker_simple_sigbus():
                 arr[4095] = b"x"  # sigbus
             sys.exit(-1)  # just in case
 
-        # Part 5, check
+        # Part 5, check for crash ping
+        _ping = utils.get_crash_ping(client)
+
+        # Part 6, check for crash report
         report = utils.get_crash_report(client)
         assert report["body"]
 
@@ -261,7 +270,10 @@ def test_crashtracker_raise_sigsegv():
             os.kill(os.getpid(), signal.SIGSEGV.value)
             sys.exit(-1)
 
-        # Part 5, check
+        # Part 5, check for crash ping
+        _ping = utils.get_crash_ping(client)
+
+        # Part 6, check for crash report
         report = utils.get_crash_report(client)
         assert b"os_kill" in report["body"]
 
@@ -287,7 +299,10 @@ def test_crashtracker_raise_sigbus():
             os.kill(os.getpid(), signal.SIGBUS.value)
             sys.exit(-1)
 
-        # Part 5, check
+        # Part 5, check for crash ping
+        _ping = utils.get_crash_ping(client)
+
+        # Part 6, check for crash report
         report = utils.get_crash_report(client)
         assert b"os_kill" in report["body"]
 
@@ -311,7 +326,10 @@ def test_crashtracker_preload_default(ddtrace_run_python_code_in_subprocess):
         assert not stderr
         assert exitcode == -11  # exit code for SIGSEGV
 
-        # Wait for the connection
+        # Part 5, check for crash ping
+        _ping = utils.get_crash_ping(client)
+
+        # Part 6, check for crash report
         report = utils.get_crash_report(client)
         assert b"string_at" in report["body"]
 
@@ -330,7 +348,7 @@ def test_crashtracker_preload_disabled(ddtrace_run_python_code_in_subprocess):
         assert exitcode == -11
 
         # No crash reports should be sent
-        assert client.crash_reports() == []
+        assert client.crash_messages() == []
 
 
 auto_code = """
@@ -352,7 +370,10 @@ def test_crashtracker_auto_default(run_python_code_in_subprocess):
         assert not stderr
         assert exitcode == -11
 
-        # Wait for the connection
+        # Part 5, check for crash ping
+        _ping = utils.get_crash_ping(client)
+
+        # Part 6, check for crash report
         report = utils.get_crash_report(client)
         assert b"string_at" in report["body"]
 
@@ -369,6 +390,9 @@ def test_crashtracker_auto_nostack(run_python_code_in_subprocess):
         assert not stdout
         assert not stderr
         assert exitcode == -11
+
+        # Check for crash ping
+        _ping = utils.get_crash_ping(client)
 
         # Wait for the connection
         report = utils.get_crash_report(client)
@@ -389,7 +413,7 @@ def test_crashtracker_auto_disabled(run_python_code_in_subprocess):
         assert exitcode == -11
 
         # No crash reports should be sent
-        assert client.crash_reports() == []
+        assert client.crash_messages() == []
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
@@ -413,6 +437,10 @@ def test_crashtracker_tags_required():
             ctypes.string_at(0)
             sys.exit(-1)
 
+        # Check for crash ping
+        _ping = utils.get_crash_ping(client)
+
+        # Check for crash report
         report = utils.get_crash_report(client)
         assert b"string_at" in report["body"]
 
@@ -446,7 +474,10 @@ def test_crashtracker_user_tags_envvar(run_python_code_in_subprocess):
         assert not stderr
         assert exitcode == -11
 
-        # Wait for the connection
+        # Check for crash ping
+        _ping = utils.get_crash_ping(client)
+
+        # Check for crash report
         report = utils.get_crash_report(client)
 
         # Now check for the tags
@@ -466,6 +497,10 @@ def test_crashtracker_set_tag_profiler_config(snapshot_context, run_python_code_
         assert not stderr
         assert exitcode == -11
 
+        # Check for crash ping
+        _ping = utils.get_crash_ping(client)
+
+        # Check for crash report
         report = utils.get_crash_report(client)
         # Now check for the profiler_config tag
         assert b"profiler_config" in report["body"]
@@ -501,6 +536,10 @@ def test_crashtracker_user_tags_profiling():
             ctypes.string_at(0)
             sys.exit(-1)
 
+        # Check for crash ping
+        _ping = utils.get_crash_ping(client)
+
+        # Check for crash report
         report = utils.get_crash_report(client)
         assert b"string_at" in report["body"]
 
@@ -539,6 +578,10 @@ def test_crashtracker_user_tags_core():
             ctypes.string_at(0)
             sys.exit(-1)
 
+        # Check for crash ping
+        _ping = utils.get_crash_ping(client)
+
+        # Check for crash report
         report = utils.get_crash_report(client)
         assert b"string_at" in report["body"]
 

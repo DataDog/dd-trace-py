@@ -105,7 +105,7 @@ class ddwaf_object(ctypes.Structure):
 
     def __init__(
         self,
-        struct: DDWafRulesType = None,
+        struct: Optional[DDWafRulesType] = None,
         observator: _observator = _observator(),  # noqa : B008
         max_objects: int = DDWAF_MAX_CONTAINER_SIZE,
         max_depth: int = DDWAF_MAX_CONTAINER_DEPTH,

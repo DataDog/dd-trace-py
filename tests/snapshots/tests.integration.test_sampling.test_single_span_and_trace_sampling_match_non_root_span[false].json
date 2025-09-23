@@ -13,17 +13,17 @@
       "_dd.p.ksr": "0",
       "_dd.p.tid": "68a5d4f600000000",
       "language": "python",
-      "runtime-id": "bd82a94572fa42f3b93b6c15e1cce2b0"
+      "runtime-id": "64bf6d3f1d7c4f62b4a4641d09d5f3c4"
     },
     "metrics": {
       "_dd.rule_psr": 0.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": -1,
-      "process_id": 53038
+      "process_id": 6556
     },
-    "duration": 67000,
-    "start": 1755698422307154000
+    "duration": 70916,
+    "start": 1758013735832416710
   },
      {
        "name": "monkey",
@@ -38,8 +38,8 @@
          "_dd.span_sampling.mechanism": 8,
          "_dd.span_sampling.rule_rate": 1
        },
-       "duration": 28000,
-       "start": 1755698422307179000
+       "duration": 29125,
+       "start": 1758013735832443876
      },
         {
           "name": "human_monkey",
@@ -50,8 +50,8 @@
           "parent_id": 2,
           "type": "",
           "error": 0,
-          "duration": 7000,
-          "start": 1755698422307192000
+          "duration": 6625,
+          "start": 1758013735832458460
         },
      {
        "name": "donkey_monkey",
@@ -62,6 +62,6 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "duration": 4000,
-       "start": 1755698422307214000
+       "duration": 4417,
+       "start": 1758013735832479668
      }]]

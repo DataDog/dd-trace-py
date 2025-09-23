@@ -1,3 +1,5 @@
+from collections import ChainMap
+import enum
 import typing as t
 
 from ddtrace import config
@@ -17,29 +19,25 @@ requires = ["remote-configuration"]
 log = get_logger(__name__)
 
 
-def _rc_callback(payloads: t.Sequence[Payload]) -> None:
-    for payload in payloads:
-        if payload.metadata is None or (content := payload.content) is None:
-            log.debug("ignoring invalid APM Tracing remote config payload")
-            continue
+class APMCapabilities(enum.IntFlag):
+    APM_TRACING_MULTICONFIG = 1 << 45
 
-        if (service_target := t.cast(t.Optional[dict], content.get("service_target"))) is not None:
-            if (
-                service := t.cast(t.Optional[str], service_target.get("service"))
-            ) is not None and service != config.service:
-                log.debug("ignoring APM Tracing remote config payload for service: %r != %r", service, config.service)
-                continue
 
-            if (env := t.cast(str, service_target.get("env"))) is not None and env != config.env:
-                log.debug("ignoring APM Tracing remote config payload for env: %r != %r", env, config.env)
-                continue
-        else:
-            log.debug("APM Tracing remote config payload has no service_target, accepting")
+def config_key(payload: Payload) -> int:
+    content = t.cast(dict, payload.content)
 
-        if (lib_config := t.cast(dict, content.get("lib_config"))) is not None:
-            dispatch("apm-tracing.rc", (lib_config, config))
-        else:
-            log.debug("ignoring invalid APM Tracing remote config payload with no lib_config")
+    service_target = t.cast(t.Optional[dict], content.get("service_target"))
+    service = t.cast(str, service_target.get("service")) if service_target is not None else None
+    env = t.cast(str, service_target.get("env")) if service_target is not None else None
+    cluster_target = t.cast(t.Optional[dict], content.get("k8s_target_v2"))
+
+    # Precedence ordering goes from most specific to least specific:
+    # 1. Service, 2. Env, 3. Cluster target, 4. Wildcard `*`
+    return (
+        ((service is not None and service != "*") << 2)
+        | ((env is not None and env != "*") << 1)
+        | (cluster_target is not None) << 0
+    )
 
 
 class APMTracingAdapter(PubSub):
@@ -49,7 +47,74 @@ class APMTracingAdapter(PubSub):
 
     def __init__(self):
         self._publisher = self.__publisher_class__(self.__shared_data__)
-        self._subscriber = self.__subscriber_class__(self.__shared_data__, _rc_callback, "APM_TRACING")
+        self._subscriber = self.__subscriber_class__(self.__shared_data__, self.rc_callback, "APM_TRACING")
+
+        # Configuration overrides
+        self.config_map: t.Dict[str, Payload] = {}
+
+    def get_chained_lib_config(self) -> t.ChainMap:
+        # Get items in insertion order, then sort by precedence while preserving order for ties
+        items_with_order = [(i, p) for i, p in enumerate(self.config_map.values())]
+
+        return ChainMap(
+            *(
+                t.cast(dict, content["lib_config"])
+                for content in (
+                    p.content
+                    for _, p in sorted(
+                        items_with_order,
+                        key=lambda x: (
+                            config_key(x[1]),
+                            x[0],
+                        ),  # Higher precedence first, then newer (higher index) first
+                        reverse=True,
+                    )
+                    if p.content is not None and "lib_config" in p.content
+                )
+            )
+        )
+
+    def rc_callback(self, payloads: t.Sequence[Payload]) -> None:
+        seen_config_ids = set()
+        for payload in payloads:
+            if payload.metadata is None:
+                log.debug("ignoring invalid APM Tracing remote config payload, path: %s", payload.path)
+                continue
+
+            log.debug("Received APM tracing config payload: %s", payload)
+
+            config_id = payload.metadata.id
+            seen_config_ids.add(config_id)
+
+            if (content := payload.content) is None:
+                log.debug(
+                    "ignoring invalid APM Tracing remote config payload with no content, product: %s, path: %s",
+                    payload.metadata.product_name,
+                    payload.path,
+                )
+                continue
+
+            service_target = t.cast(t.Optional[dict], content.get("service_target"))
+
+            service = t.cast(str, service_target.get("service")) if service_target is not None else None
+            env = t.cast(str, service_target.get("env")) if service_target is not None else None
+
+            if service is not None and service != "*" and service != config.service:
+                log.debug("ignoring APM Tracing remote config payload for service: %r != %r", service, config.service)
+                continue
+
+            if env is not None and env != "*" and env != config.env:
+                log.debug("ignoring APM Tracing remote config payload for env: %r != %r", env, config.env)
+                continue
+
+            self.config_map[config_id] = payload
+
+        # Remove configurations that are no longer present
+        for config_id in set(self.config_map.keys()) - seen_config_ids:
+            log.debug("Removing APM tracing config %s", config_id)
+            self.config_map.pop(config_id, None)
+
+        dispatch("apm-tracing.rc", (dict(self.get_chained_lib_config()), config))
 
 
 def post_preload():

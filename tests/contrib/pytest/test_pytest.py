@@ -48,7 +48,7 @@ _PYTEST_SUPPORTS_ITR = _pytest_version_supports_itr()
 def _get_spans_from_list(
     spans: t.List[ddtrace.trace.Span],
     span_type: str,
-    name: str = None,
+    name: t.Optional[str] = None,
     status: t.Optional[str] = None,
 ) -> t.List[ddtrace.trace.Span]:
     _names_map = {

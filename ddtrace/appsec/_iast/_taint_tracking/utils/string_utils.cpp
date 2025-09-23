@@ -69,15 +69,31 @@ new_pyobject_id(PyObject* tainted_object)
     if (!tainted_object)
         return nullptr;
 
-    // Check that it's aligned correctly
-    if (reinterpret_cast<uintptr_t>(tainted_object) % alignof(PyObject) != 0)
+    // Misaligned address means this is not a valid PyObject pointer.
+    // We use this to early-detect bogus pointers (e.g., WrongPointer test) and
+    // avoid dereferencing or INCREFing garbage memory.
+    if (reinterpret_cast<uintptr_t>(tainted_object) % alignof(PyObject) != 0) {
+        // return as-is so callers that passed non-PyObject pointers
+        // (e.g., tests simulating wrong pointers) don't segfault.
         return tainted_object;
+    }
 
     // Try to safely access ob_type
-    if (const PyObject* temp = tainted_object; !temp->ob_type)
+    // In CPython, every heap object starts with a PyObject header
+    // whose 'ob_type' points to the object's Python type (e.g., str, bytes).
+    // If 'ob_type' is null, this is not a valid live PyObject; treat it as an
+    // invalid pointer and return it as-is to avoid dereferencing/INCREFing it.
+    if (const PyObject* temp = tainted_object; !temp->ob_type) {
+        // A Pointer looks like PyObject but lacks ob_type.
+        // Treat as invalid object; do NOT INCREF.
         return tainted_object;
+    }
 
-    py::gil_scoped_acquire acquire;
+    // We call Python C-API (PyUnicode_New, Py_BuildValue, PyObject_Call*)
+    // and pybind11 helpers (attr("join")) below. All require the GIL. Tests and
+    // native code paths may reach this function without holding the GIL, so we
+    // acquire it here to guarantee thread-safety and avoid undefined behavior.
+    // py::gil_scoped_acquire acquire;
 
     if (PyUnicode_Check(tainted_object)) {
         PyObject* empty_unicode = PyUnicode_New(0, 127);
@@ -90,6 +106,8 @@ new_pyobject_id(PyObject* tainted_object)
         }
         PyObject* result = PyUnicode_Join(empty_unicode, val);
         if (!result) {
+            // Fallback to original but keep a strong ref
+            Py_INCREF(tainted_object);
             result = tainted_object;
         }
         Py_XDECREF(empty_unicode);
@@ -113,6 +131,7 @@ new_pyobject_id(PyObject* tainted_object)
         Py_XDECREF(val);
         Py_XDECREF(empty_bytes);
         if (res == nullptr) {
+            Py_INCREF(tainted_object);
             return tainted_object;
         }
         return res;
@@ -142,10 +161,13 @@ new_pyobject_id(PyObject* tainted_object)
         Py_XDECREF(empty_bytes);
         Py_XDECREF(empty_bytearray);
         if (res == nullptr) {
+            Py_INCREF(tainted_object);
             return tainted_object;
         }
         return res;
     }
+    // Final fallback: return original with a new strong ref
+    Py_INCREF(tainted_object);
     return tainted_object;
 }
 

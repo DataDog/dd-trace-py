@@ -40,7 +40,7 @@ class TestOperatorModuloReplacement(BaseReplacement):
 
         result = mod.do_modulo(template, parameter)
 
-        assert result == expected_result
+        assert result == expected_result, f"Expected  {expected_result}. RESULT: {result}"
         assert as_formatted_evidence(result, tag_mapping_function=None) == escaped_expected_result
 
     def test_modulo_when_template_is_none_then_raises_attribute_error(self):  # type: () -> None

@@ -179,7 +179,7 @@ api_str_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs, Py
     }
 
     TRY_CATCH_ASPECT("str_aspect", return result_o, , {
-        const auto tx_map = Initializer::get_tainting_map();
+        const auto tx_map = taint_engine_context->get_tainted_object_map(text);
         if (!tx_map || tx_map->empty()) {
             return result_o;
         }

@@ -14,6 +14,7 @@ VULN_HEADER_INJECTION = "HEADER_INJECTION"
 VULN_UNVALIDATED_REDIRECT = "UNVALIDATED_REDIRECT"
 VULN_CODE_INJECTION = "CODE_INJECTION"
 VULN_XSS = "XSS"
+VULN_UNTRUSTED_SERIALIZATION = "UNTRUSTED_SERIALIZATION"
 VULN_SSRF = "SSRF"
 VULN_STACKTRACE_LEAK = "STACKTRACE_LEAK"
 
@@ -71,8 +72,6 @@ DEFAULT_PATH_TRAVERSAL_FUNCTIONS = {
         "rmdir",
         "listdir",
     },
-    "pickle": {"load"},
-    "_pickle": {"load"},
     "posix": {
         "mkdir",
         "remove",

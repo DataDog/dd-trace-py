@@ -1,19 +1,19 @@
 import itertools
 from typing import Any
 from typing import Sequence
+from typing import Tuple
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
-from ddtrace.appsec._iast._iast_request_context_base import IAST_CONTEXT
+from ddtrace.appsec._iast._iast_request_context_base import _get_iast_context_id
 from ddtrace.appsec._iast._logs import iast_propagation_debug_log
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_source
 from ddtrace.appsec._iast._span_metrics import increment_iast_span_metric
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import TaintRange
+from ddtrace.appsec._iast._taint_tracking import set_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import _taint_pyobject_base
-from ddtrace.appsec._iast._taint_tracking._taint_objects_base import _taint_pyobject_base_new
 from ddtrace.internal.logger import get_logger
-from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
@@ -21,26 +21,10 @@ log = get_logger(__name__)
 
 def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_origin=None) -> Any:
     try:
-        if asm_config.is_iast_request_enabled:
+        if (contextid := _get_iast_context_id()) is not None:
             if source_origin is None:
                 source_origin = OriginType.PARAMETER
-
-            res = _taint_pyobject_base(pyobject, source_name, source_value, source_origin)
-            _set_metric_iast_executed_source(source_origin)
-            increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE, source_origin)
-            return res
-    except ValueError:
-        iast_propagation_debug_log(f"taint_pyobject error (pyobject type {type(pyobject)})", exc_info=True)
-    return pyobject
-
-
-def taint_pyobject_new(pyobject: Any, source_name: Any, source_value: Any, source_origin=None) -> Any:
-    try:
-        if (contextid := IAST_CONTEXT.get()) is not None:
-            if source_origin is None:
-                source_origin = OriginType.PARAMETER
-
-            res = _taint_pyobject_base_new(pyobject, source_name, source_value, source_origin, contextid)
+            res = _taint_pyobject_base(pyobject, source_name, source_value, source_origin, contextid)
             _set_metric_iast_executed_source(source_origin)
             increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE, source_origin)
             return res
@@ -51,7 +35,7 @@ def taint_pyobject_new(pyobject: Any, source_name: Any, source_value: Any, sourc
 
 def copy_ranges_to_string(pyobject: str, ranges: Sequence[TaintRange]) -> str:
     # NB this function uses comment-based type annotation because TaintRange is conditionally imported
-    if asm_config.is_iast_request_enabled:
+    if (contextid := _get_iast_context_id()) is not None:
         if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):
             return pyobject
 
@@ -70,6 +54,7 @@ def copy_ranges_to_string(pyobject: str, ranges: Sequence[TaintRange]) -> str:
                     source_name=r.source.name,
                     source_value=r.source.value,
                     source_origin=r.source.origin,
+                    contextid=contextid,
                 )
                 break
         else:
@@ -79,6 +64,7 @@ def copy_ranges_to_string(pyobject: str, ranges: Sequence[TaintRange]) -> str:
                 source_name=ranges[0].source.name,
                 source_value=ranges[0].source.value,
                 source_origin=ranges[0].source.origin,
+                contextid=contextid,
             )
     return pyobject
 
@@ -96,3 +82,11 @@ def copy_ranges_to_iterable_with_strings(iterable, ranges):
         new_result.append(i)
 
     return iterable_type(new_result)  # type: ignore[call-arg]
+
+
+def taint_pyobject_with_ranges(pyobject: Any, ranges: Tuple) -> bool:
+    if (contextid := _get_iast_context_id()) is None:
+        return False
+    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):
+        return False
+    return set_ranges(pyobject, ranges, contextid)

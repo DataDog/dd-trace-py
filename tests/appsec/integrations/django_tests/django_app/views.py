@@ -8,8 +8,10 @@ import json
 import os
 from pathlib import Path
 from pathlib import PosixPath
+import pickle
 import shlex
 import subprocess
+import time
 from typing import Any
 import urllib
 from urllib.parse import quote
@@ -24,8 +26,11 @@ from django.utils.safestring import mark_safe
 from django.views.decorators.csrf import csrf_exempt
 import requests
 from requests.exceptions import ConnectionError  # noqa: A004
+import urllib3
+import yaml
 
 from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.appsec._iast.reporter import IastSpanReporter
@@ -65,6 +70,21 @@ def path_params_view(request, year, month):
     return JsonResponse({"year": year, "month": month})
 
 
+def iast_enabled(request):
+    """Return whether IAST request context is enabled, after an optional delay.
+
+    This endpoint is used by concurrency tests to verify the Overhead Control Engine
+    max concurrent requests behavior. It sleeps for the specified delay in ms and
+    returns a JSON object with the enablement status.
+    """
+    try:
+        delay_ms = int(request.GET.get("delay_ms", "200"))
+    except ValueError:
+        delay_ms = 200
+    time.sleep(max(0, delay_ms) / 1000.0)
+    return JsonResponse({"enabled": is_iast_request_enabled()})
+
+
 def body_view(request):
     # Django >= 3
     if hasattr(request, "headers"):
@@ -90,6 +110,25 @@ def weak_hash_view(request):
     return HttpResponse("OK", status=200)
 
 
+def untrusted_serialization_yaml_load_view(request):
+    """Endpoint to exercise UNTRUSTED_SERIALIZATION via yaml.load.
+
+    Uses UnsafeLoader when available to match unsafe execution behavior.
+    """
+    user_input = request.GET.get("input", "")
+    # label untrusted_serialization_yaml_load
+    yaml.load(user_input, Loader=getattr(yaml, "UnsafeLoader", None))
+    return HttpResponse("OK", status=200)
+
+
+def untrusted_serialization_yaml_safe_load_view(request):
+    """Endpoint using yaml.safe_load; should not report untrusted serialization."""
+    user_input = request.GET.get("input", "")
+    # label untrusted_serialization_yaml_safe_load
+    yaml.safe_load(user_input)
+    return HttpResponse("OK", status=200)
+
+
 def block_callable_view(request):
     _asm_request_context.block_request()
     return HttpResponse("OK", status=200)
@@ -110,14 +149,12 @@ def xss_http_request_parameter_mark_safe(request):
 def xss_secure(request):
     user_input = request.GET.get("input", "")
 
-    # label xss_http_request_parameter_mark_safe
     return render(request, "index.html", {"user_input": user_input})
 
 
 def ospathjoin_propagation(request):
     user_input = request.GET.get("input", "")
 
-    # label xss_http_request_parameter_mark_safe
     return HttpResponse(
         f"OK:{is_pyobject_tainted(os.path.join(user_input, user_input))}:"
         f"{is_pyobject_tainted(os.path.join(Path(user_input), Path(user_input)))}:"
@@ -384,7 +421,94 @@ def command_injection_subprocess(request):
     # label iast_command_injection_subprocess
     subp = subprocess.Popen(args=[cmd, "-la", filename], shell=True)
     subp.communicate()
-    subp.wait()
+    return HttpResponse("OK", status=200)
+
+
+def return_headers(request):
+    """Return all incoming request headers as JSON.
+
+    Uses request.headers where available (Django >= 2.2), otherwise falls back to META.
+    """
+    headers = {}
+    if hasattr(request, "headers"):
+        for key, value in request.headers.items():
+            headers[key] = value
+    else:
+        # Django < 2.2 compatibility: reconstruct headers from META
+        for key, value in request.META.items():
+            if key.startswith("HTTP_"):
+                name = key[5:].replace("_", "-").title()
+                headers[name] = value
+            elif key in ("CONTENT_TYPE", "CONTENT_LENGTH"):
+                name = key.replace("_", "-").title()
+                headers[name] = value
+    return JsonResponse(headers)
+
+
+def vulnerable_request_downstream(request):
+    """Trigger a weak-hash vulnerability, then call downstream return-headers endpoint.
+
+    Mirrors Flask's /vulnerablerequestdownstream behavior to validate header propagation
+    and IAST instrumentation under Django.
+    """
+    # Trigger weak hash for IAST
+    m = hashlib.md5()
+    m.update(b"Nobody inspects")
+    m.update(b" the spammish repetition")
+    _ = m.digest()
+
+    port = request.GET.get("port", "8050")
+    http_poolmanager = urllib3.PoolManager(num_pools=1)
+    # Sending a GET request and getting back response as HTTPResponse object.
+    response = http_poolmanager.request("GET", f"http://localhost:{port}/appsec/returnheaders")
+    http_poolmanager.clear()
+
+    return HttpResponse(response.data, status=200, content_type="application/json")
+
+
+def untrusted_serialization_yaml_view(request):
+    """Endpoint to exercise UNTRUSTED_SERIALIZATION via YAML loaders.
+
+    Uses a tainted query parameter and yaml.unsafe_load to trigger the sink.
+    """
+    user_input = request.GET.get("input", "")
+    # label untrusted_serialization_yaml_view
+    yaml.unsafe_load(user_input)
+    return HttpResponse("OK", status=200)
+
+
+def untrusted_serialization_pickle_view(request):
+    """Endpoint to exercise pickle.loads with user input.
+
+    Note: We convert the string to bytes. Current IAST may not propagate taint
+    through encode, so Django integration test is a smoke test (no vuln expected).
+    """
+    user_input = request.GET.get("input", "")
+    data = user_input.encode("utf-8", "ignore")
+    try:
+        # label untrusted_serialization_pickle
+        pickle.loads(data)
+    except Exception:
+        pass
+    return HttpResponse("OK", status=200)
+
+
+def untrusted_serialization_dill_view(request):
+    """Endpoint to exercise dill.loads with user input.
+
+    Dill is optional; if not installed, we handle gracefully. As with pickle,
+    encode may drop taint, so treat as smoke test in integration.
+    """
+    import dill  # type: ignore
+
+    user_input = request.GET.get("input", "")
+    data = user_input.encode("utf-8", "ignore")
+
+    try:
+        # label untrusted_serialization_dill
+        dill.loads(data)
+    except Exception:
+        pass
     return HttpResponse("OK", status=200)
 
 
