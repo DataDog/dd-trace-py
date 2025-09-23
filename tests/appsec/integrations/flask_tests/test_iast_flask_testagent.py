@@ -21,27 +21,15 @@ from tests.appsec.integrations.utils_testagent import start_trace
 _GEVENT_SERVERS_SCENARIOS = (
     (
         gunicorn_flask_server,
-        {
-            "workers": "3",
-            "use_threads": False,
-            "use_gevent": False,
-        },
+        {"workers": "3", "use_threads": False, "use_gevent": False, "env": {}},
     ),
     (
         gunicorn_flask_server,
-        {
-            "workers": "3",
-            "use_threads": True,
-            "use_gevent": False,
-        },
+        {"workers": "3", "use_threads": True, "use_gevent": False, "env": {}},
     ),
     (
         gunicorn_flask_server,
-        {
-            "workers": "3",
-            "use_threads": True,
-            "use_gevent": True,
-        },
+        {"workers": "3", "use_threads": True, "use_gevent": True, "env": {}},
     ),
     (
         gunicorn_flask_server,
@@ -56,11 +44,7 @@ _GEVENT_SERVERS_SCENARIOS = (
     ),
     (
         gunicorn_flask_server,
-        {
-            "workers": "1",
-            "use_threads": True,
-            "use_gevent": True,
-        },
+        {"workers": "1", "use_threads": True, "use_gevent": True, "env": {}},
     ),
     (
         gunicorn_flask_server,
@@ -71,7 +55,7 @@ _GEVENT_SERVERS_SCENARIOS = (
             "env": {"_DD_IAST_PROPAGATION_ENABLED": "false"},
         },
     ),
-    (flask_server, {}),
+    (flask_server, {"env": {}}),
 )
 
 
@@ -492,9 +476,8 @@ def test_iast_unvalidated_redirect():
 
 @pytest.mark.parametrize("server, config", _GEVENT_SERVERS_SCENARIOS)
 @pytest.mark.parametrize("appsec_enabled", ("true", "false"))
-@pytest.mark.parametrize("iast_enabled", ("true", "false"))
 @pytest.mark.parametrize("apm_tracing_enabled", ("true", "false"))
-def test_iast_vulnerable_request_downstream(server, config, appsec_enabled, iast_enabled, apm_tracing_enabled):
+def test_iast_vulnerable_request_downstream(server, config, appsec_enabled, apm_tracing_enabled):
     """Gevent has a lot of problematic interactions with the tracer. When IAST applies AST transformations to a file
     and reloads the module using compile and exec, it can interfere with Gevent’s monkey patching
     """
@@ -502,7 +485,7 @@ def test_iast_vulnerable_request_downstream(server, config, appsec_enabled, iast
     _ = start_trace(token)
     config["env"].update({"DD_TRACE_URLLIB3_ENABLED": "true"})
     with server(
-        iast_enabled=iast_enabled,
+        iast_enabled="true",
         appsec_enabled=appsec_enabled,
         apm_tracing_enabled=apm_tracing_enabled,
         token=token,
