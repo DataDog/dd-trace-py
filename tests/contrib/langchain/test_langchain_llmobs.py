@@ -4,7 +4,6 @@ from operator import itemgetter
 import os
 import sys
 
-import langchain
 from langchain_core.messages import AIMessage
 from langchain_core.messages import HumanMessage
 import mock
@@ -416,8 +415,6 @@ def test_llmobs_embedding_query(langchain_openai, llmobs_events, tracer, openai_
 
 
 def test_llmobs_embedding_documents(langchain_community, llmobs_events, tracer):
-    if langchain_community is None:
-        pytest.skip("langchain-community not installed which is required for this test.")
     embedding_model = langchain_community.embeddings.FakeEmbeddings(size=1536)
     embedding_model.embed_documents(["hello world", "goodbye world"])
 
@@ -600,8 +597,8 @@ def test_llmobs_non_ascii_completion(langchain_openai, openai_url, llmobs_events
     assert actual_llmobs_span_event["meta"]["input"]["messages"][0]["content"] == "안녕,\n 지금 몇 시야?"
 
 
-def test_llmobs_set_tags_with_none_response(langchain_openai, llmobs_events, tracer):
-    integration = langchain._datadog_integration
+def test_llmobs_set_tags_with_none_response(langchain_core):
+    integration = langchain_core._datadog_integration
     integration._llmobs_set_tags(
         span=Span("test_span", service="test_service"),
         args=[],
@@ -728,10 +725,10 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
 
     @run_in_subprocess(env_overrides=openai_env_config)
     def test_llmobs_langchain_with_embedding_model_openai_enabled(self):
-        import langchain  # noqa: F401
+        import langchain_community  # noqa: F401
         from langchain_openai import OpenAIEmbeddings
 
-        patch(langchain=True, openai=True)
+        patch(langchain=True, openai=True, langchain_community=True)
 
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
         self._call_openai_embedding(OpenAIEmbeddings)
@@ -739,10 +736,10 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
 
     @run_in_subprocess(env_overrides=openai_env_config)
     def test_llmobs_langchain_with_embedding_model_openai_disabled(self):
-        import langchain  # noqa: F401
+        import langchain_community  # noqa: F401
         from langchain_openai import OpenAIEmbeddings
 
-        patch(langchain=True)
+        patch(langchain=True, langchain_community=True)
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
         self._call_openai_embedding(OpenAIEmbeddings)
         self._assert_trace_structure_from_writer_call_args(["embedding"])

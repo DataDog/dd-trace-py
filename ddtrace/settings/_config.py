@@ -129,6 +129,8 @@ INTEGRATION_CONFIGS = frozenset(
         "elasticsearch",
         "sqlalchemy",
         "langchain",
+        "langchain_core",
+        "langchain_community",
         "pymysql",
         "psycopg",
         "graphql",

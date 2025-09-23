@@ -1,45 +1,13 @@
-import os
 import sys
 from typing import Any
 from typing import Dict
 from typing import Optional
 from typing import Tuple
 
-import langchain
-
-
-try:
-    import langchain_core
-except ImportError:
-    langchain_core = None
-try:
-    import langchain_community
-except ImportError:
-    langchain_community = None
-try:
-    import langchain_openai
-except ImportError:
-    langchain_openai = None
-try:
-    import langchain_pinecone
-except ImportError:
-    langchain_pinecone = None
-
-
-try:
-    from langchain.callbacks.openai_info import get_openai_token_cost_for_model
-except ImportError:
-    try:
-        from langchain_community.callbacks.openai_info import get_openai_token_cost_for_model
-    except ImportError:
-        get_openai_token_cost_for_model = None
-
-import wrapt
+import langchain_core
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
-from ddtrace.contrib.internal.langchain.constants import text_embedding_models
-from ddtrace.contrib.internal.langchain.constants import vectorstore_classes
 from ddtrace.contrib.internal.langchain.utils import shared_stream
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
@@ -48,8 +16,6 @@ from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.internal.utils.formats import deep_getattr
-from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations import LangChainIntegration
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.trace import Span
@@ -58,21 +24,15 @@ from ddtrace.trace import Span
 log = get_logger(__name__)
 
 
-def get_version():
-    # type: () -> str
-    return getattr(langchain, "__version__", "")
-
-
-config._add(
-    "langchain",
-    {
-        "span_char_limit": int(os.getenv("DD_LANGCHAIN_SPAN_CHAR_LIMIT", 128)),
-    },
-)
+def get_version() -> str:
+    return getattr(langchain_core, "__version__", "")
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"langchain": ">=0.1"}
+    return {"langchain_core": ">=0.1"}
+
+
+config._add("langchain", {})
 
 
 def _extract_model_name(instance: Any) -> Optional[str]:
@@ -93,9 +53,9 @@ def _raising_dispatch(event_id: str, args: Tuple[Any, ...] = ()):
 
 
 @with_traced_module
-def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
+def traced_llm_generate(langchain_core, pin, func, instance, args, kwargs):
     llm_provider = instance._llm_type
-    integration = langchain._datadog_integration
+    integration: LangChainIntegration = langchain_core._datadog_integration
     model = _extract_model_name(instance)
     prompts = get_argument_value(args, kwargs, 0, "prompts")
     span = integration.trace(
@@ -127,10 +87,10 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
 
 
 @with_traced_module
-async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
+async def traced_llm_agenerate(langchain_core, pin, func, instance, args, kwargs):
     llm_provider = instance._llm_type
     prompts = get_argument_value(args, kwargs, 0, "prompts")
-    integration = langchain._datadog_integration
+    integration: LangChainIntegration = langchain_core._datadog_integration
     model = _extract_model_name(instance)
     span = integration.trace(
         pin,
@@ -161,10 +121,10 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
 
 
 @with_traced_module
-def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
+def traced_chat_model_generate(langchain_core, pin, func, instance, args, kwargs):
     llm_provider = instance._llm_type.split("-")[0]
     chat_messages = get_argument_value(args, kwargs, 0, "messages")
-    integration = langchain._datadog_integration
+    integration: LangChainIntegration = langchain_core._datadog_integration
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__module__, instance.__class__.__name__),
@@ -194,10 +154,10 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
 
 
 @with_traced_module
-async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwargs):
+async def traced_chat_model_agenerate(langchain_core, pin, func, instance, args, kwargs):
     llm_provider = instance._llm_type.split("-")[0]
     chat_messages = get_argument_value(args, kwargs, 0, "messages")
-    integration = langchain._datadog_integration
+    integration: LangChainIntegration = langchain_core._datadog_integration
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__module__, instance.__class__.__name__),
@@ -227,39 +187,7 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
 
 
 @with_traced_module
-def traced_embedding(langchain, pin, func, instance, args, kwargs):
-    """
-    This traces both embed_query(text) and embed_documents(texts), so we need to make sure
-    we get the right arg/kwarg.
-    """
-    provider = instance.__class__.__name__.split("Embeddings")[0].lower()
-    integration = langchain._datadog_integration
-    span = integration.trace(
-        pin,
-        "%s.%s" % (instance.__module__, instance.__class__.__name__),
-        submit_to_llmobs=True,
-        interface_type="embedding",
-        provider=provider,
-        model=_extract_model_name(instance),
-        instance=instance,
-    )
-
-    integration.record_instance(instance, span)
-
-    embeddings = None
-    try:
-        embeddings = func(*args, **kwargs)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=embeddings, operation="embedding")
-        span.finish()
-    return embeddings
-
-
-@with_traced_module
-def traced_lcel_runnable_sequence(langchain, pin, func, instance, args, kwargs):
+def traced_lcel_runnable_sequence(langchain_core, pin, func, instance, args, kwargs):
     """
     Traces the top level call of a LangChain Expression Language (LCEL) chain.
 
@@ -272,7 +200,7 @@ def traced_lcel_runnable_sequence(langchain, pin, func, instance, args, kwargs):
 
     This method captures the initial inputs to the chain, as well as the final outputs, and tags them appropriately.
     """
-    integration = langchain._datadog_integration
+    integration: LangChainIntegration = langchain_core._datadog_integration
     span = integration.trace(
         pin,
         "{}.{}".format(instance.__module__, instance.__class__.__name__),
@@ -303,11 +231,11 @@ def traced_lcel_runnable_sequence(langchain, pin, func, instance, args, kwargs):
 
 
 @with_traced_module
-async def traced_lcel_runnable_sequence_async(langchain, pin, func, instance, args, kwargs):
+async def traced_lcel_runnable_sequence_async(langchain_core, pin, func, instance, args, kwargs):
     """
     Similar to `traced_lcel_runnable_sequence`, but for async chaining calls.
     """
-    integration = langchain._datadog_integration
+    integration: LangChainIntegration = langchain_core._datadog_integration
     span = integration.trace(
         pin,
         "{}.{}".format(instance.__module__, instance.__class__.__name__),
@@ -338,35 +266,8 @@ async def traced_lcel_runnable_sequence_async(langchain, pin, func, instance, ar
 
 
 @with_traced_module
-def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
-    integration = langchain._datadog_integration
-    provider = instance.__class__.__name__.lower()
-    span = integration.trace(
-        pin,
-        "%s.%s" % (instance.__module__, instance.__class__.__name__),
-        submit_to_llmobs=True,
-        interface_type="similarity_search",
-        provider=provider,
-        instance=instance,
-    )
-
-    integration.record_instance(instance, span)
-
-    documents = []
-    try:
-        documents = func(*args, **kwargs)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=documents, operation="retrieval")
-        span.finish()
-    return documents
-
-
-@with_traced_module
-def traced_chain_stream(langchain, pin, func, instance, args, kwargs):
-    integration: LangChainIntegration = langchain._datadog_integration
+def traced_chain_stream(langchain_core, pin, func, instance, args, kwargs):
+    integration: LangChainIntegration = langchain_core._datadog_integration
 
     def _on_span_started(span: Span):
         integration.record_instance(instance, span)
@@ -407,8 +308,8 @@ def traced_chain_stream(langchain, pin, func, instance, args, kwargs):
 
 
 @with_traced_module
-def traced_chat_stream(langchain, pin, func, instance, args, kwargs):
-    integration: LangChainIntegration = langchain._datadog_integration
+def traced_chat_stream(langchain_core, pin, func, instance, args, kwargs):
+    integration: LangChainIntegration = langchain_core._datadog_integration
     llm_provider = instance._llm_type
     model = _extract_model_name(instance)
 
@@ -440,8 +341,8 @@ def traced_chat_stream(langchain, pin, func, instance, args, kwargs):
 
 
 @with_traced_module
-def traced_llm_stream(langchain, pin, func, instance, args, kwargs):
-    integration: LangChainIntegration = langchain._datadog_integration
+def traced_llm_stream(langchain_core, pin, func, instance, args, kwargs):
+    integration: LangChainIntegration = langchain_core._datadog_integration
     llm_provider = instance._llm_type
     model = _extract_model_name(instance)
 
@@ -478,8 +379,8 @@ def traced_llm_stream(langchain, pin, func, instance, args, kwargs):
 
 
 @with_traced_module
-def traced_base_tool_invoke(langchain, pin, func, instance, args, kwargs):
-    integration = langchain._datadog_integration
+def traced_base_tool_invoke(langchain_core, pin, func, instance, args, kwargs):
+    integration = langchain_core._datadog_integration
     tool_input = get_argument_value(args, kwargs, 0, "input")
     config = get_argument_value(args, kwargs, 1, "config", optional=True)
 
@@ -519,8 +420,8 @@ def traced_base_tool_invoke(langchain, pin, func, instance, args, kwargs):
 
 
 @with_traced_module
-async def traced_base_tool_ainvoke(langchain, pin, func, instance, args, kwargs):
-    integration = langchain._datadog_integration
+async def traced_base_tool_ainvoke(langchain_core, pin, func, instance, args, kwargs):
+    integration = langchain_core._datadog_integration
     tool_input = get_argument_value(args, kwargs, 0, "input")
     config = get_argument_value(args, kwargs, 1, "config", optional=True)
 
@@ -560,11 +461,11 @@ async def traced_base_tool_ainvoke(langchain, pin, func, instance, args, kwargs)
 
 
 @with_traced_module
-def patched_base_prompt_template_invoke(langchain, pin, func, instance, args, kwargs):
+def patched_base_prompt_template_invoke(langchain_core, pin, func, instance, args, kwargs):
     """
     No actual tracing happens here--we just need to move the prompt template to somewhere it can be accessed later.
     """
-    integration: LangChainIntegration = langchain._datadog_integration
+    integration: LangChainIntegration = langchain_core._datadog_integration
     if integration.llmobs_enabled is False:
         return func(*args, **kwargs)
 
@@ -574,11 +475,11 @@ def patched_base_prompt_template_invoke(langchain, pin, func, instance, args, kw
 
 
 @with_traced_module
-async def patched_base_prompt_template_ainvoke(langchain, pin, func, instance, args, kwargs):
+async def patched_base_prompt_template_ainvoke(langchain_core, pin, func, instance, args, kwargs):
     """
     async version of above patched_base_prompt_template_invoke
     """
-    integration: LangChainIntegration = langchain._datadog_integration
+    integration: LangChainIntegration = langchain_core._datadog_integration
     if integration.llmobs_enabled is False:
         return await func(*args, **kwargs)
 
@@ -588,7 +489,7 @@ async def patched_base_prompt_template_ainvoke(langchain, pin, func, instance, a
 
 
 @with_traced_module
-def patched_language_model_invoke(langchain, pin, func, instance, args, kwargs):
+def patched_language_model_invoke(langchain_core, pin, func, instance, args, kwargs):
     """
     Wrapper for BaseLLM.invoke() and BaseChatModel.invoke() methods to handle prompt template metadata transfer.
 
@@ -598,7 +499,7 @@ def patched_language_model_invoke(langchain, pin, func, instance, args, kwargs):
     that templating information before it is consumed.
     Since child spans may need to read the tagged data, we must tag before calling the wrapped function.
     """
-    integration: LangChainIntegration = langchain._datadog_integration
+    integration: LangChainIntegration = langchain_core._datadog_integration
     if integration.llmobs_enabled is False:
         return func(*args, **kwargs)
 
@@ -608,11 +509,11 @@ def patched_language_model_invoke(langchain, pin, func, instance, args, kwargs):
 
 
 @with_traced_module
-async def patched_language_model_ainvoke(langchain, pin, func, instance, args, kwargs):
+async def patched_language_model_ainvoke(langchain_core, pin, func, instance, args, kwargs):
     """
     async version of above patched_language_model_invoke
     """
-    integration: LangChainIntegration = langchain._datadog_integration
+    integration: LangChainIntegration = langchain_core._datadog_integration
     if integration.llmobs_enabled is False:
         return await func(*args, **kwargs)
 
@@ -621,164 +522,57 @@ async def patched_language_model_ainvoke(langchain, pin, func, instance, args, k
     return response
 
 
-def _patch_embeddings_and_vectorstores():
-    """
-    Text embedding models override two abstract base methods instead of super calls,
-    so we need to wrap each langchain-provided text embedding and vectorstore model.
-    """
-    if langchain_community is None:
-        return
-
-    from langchain_community import embeddings  # noqa:F401
-    from langchain_community import vectorstores  # noqa:F401
-
-    for text_embedding_model in text_embedding_models:
-        if hasattr(langchain_community.embeddings, text_embedding_model):
-            # Ensure not double patched, as some Embeddings interfaces are pointers to other Embeddings.
-            if not isinstance(
-                deep_getattr(langchain_community.embeddings, "%s.embed_query" % text_embedding_model),
-                wrapt.ObjectProxy,
-            ):
-                wrap(
-                    langchain_community.__name__,
-                    "embeddings.%s.embed_query" % text_embedding_model,
-                    traced_embedding(langchain),
-                )
-            if not isinstance(
-                deep_getattr(langchain_community.embeddings, "%s.embed_documents" % text_embedding_model),
-                wrapt.ObjectProxy,
-            ):
-                wrap(
-                    langchain_community.__name__,
-                    "embeddings.%s.embed_documents" % text_embedding_model,
-                    traced_embedding(langchain),
-                )
-    for vectorstore in vectorstore_classes:
-        if hasattr(langchain_community.vectorstores, vectorstore):
-            # Ensure not double patched, as some Embeddings interfaces are pointers to other Embeddings.
-            if not isinstance(
-                deep_getattr(langchain_community.vectorstores, "%s.similarity_search" % vectorstore),
-                wrapt.ObjectProxy,
-            ):
-                wrap(
-                    langchain_community.__name__,
-                    "vectorstores.%s.similarity_search" % vectorstore,
-                    traced_similarity_search(langchain),
-                )
-
-
-def _unpatch_embeddings_and_vectorstores():
-    """
-    Text embedding models override two abstract base methods instead of super calls,
-    so we need to unwrap each langchain-provided text embedding and vectorstore model.
-    """
-    if langchain_community is None:
-        return
-
-    for text_embedding_model in text_embedding_models:
-        if hasattr(langchain_community.embeddings, text_embedding_model):
-            if isinstance(
-                deep_getattr(langchain_community.embeddings, "%s.embed_query" % text_embedding_model),
-                wrapt.ObjectProxy,
-            ):
-                unwrap(getattr(langchain_community.embeddings, text_embedding_model), "embed_query")
-            if isinstance(
-                deep_getattr(langchain_community.embeddings, "%s.embed_documents" % text_embedding_model),
-                wrapt.ObjectProxy,
-            ):
-                unwrap(getattr(langchain_community.embeddings, text_embedding_model), "embed_documents")
-    for vectorstore in vectorstore_classes:
-        if hasattr(langchain_community.vectorstores, vectorstore):
-            if isinstance(
-                deep_getattr(langchain_community.vectorstores, "%s.similarity_search" % vectorstore),
-                wrapt.ObjectProxy,
-            ):
-                unwrap(getattr(langchain_community.vectorstores, vectorstore), "similarity_search")
-
-
 def patch():
-    if getattr(langchain, "_datadog_patch", False):
+    if getattr(langchain_core, "_datadog_patch", False):
         return
 
-    version = parse_version(get_version())
-    if parse_version(get_version()) < (0, 1, 0):
-        log.warning("langchain version %s is not supported, please upgrade to langchain version 0.1 or later", version)
-        return
+    langchain_core._datadog_patch = True
+    integration = LangChainIntegration(integration_config=config.langchain_core)
+    langchain_core._datadog_integration = integration
 
-    langchain._datadog_patch = True
+    Pin().onto(langchain_core)
 
-    Pin().onto(langchain)
-    integration = LangChainIntegration(integration_config=config.langchain)
-    langchain._datadog_integration = integration
+    from langchain_core.language_models.chat_models import BaseChatModel
+    from langchain_core.language_models.llms import BaseLLM
+    from langchain_core.prompts.base import BasePromptTemplate
+    from langchain_core.runnables.base import RunnableSequence
+    from langchain_core.tools import BaseTool
 
-    # Langchain doesn't allow wrapping directly from root, so we have to import the base classes first before wrapping.
-    # ref: https://github.com/DataDog/dd-trace-py/issues/7123
-    from langchain.chains.base import Chain  # noqa:F401
-    from langchain_core.tools import BaseTool  # noqa:F401
+    wrap(BaseLLM, "generate", traced_llm_generate(langchain_core))
+    wrap(BaseLLM, "agenerate", traced_llm_agenerate(langchain_core))
+    wrap(BaseLLM, "invoke", patched_language_model_invoke(langchain_core))
+    wrap(BaseLLM, "ainvoke", patched_language_model_ainvoke(langchain_core))
+    wrap(BaseLLM, "stream", traced_llm_stream(langchain_core))
+    wrap(BaseLLM, "astream", traced_llm_stream(langchain_core))
 
-    wrap("langchain_core", "language_models.llms.BaseLLM.generate", traced_llm_generate(langchain))
-    wrap("langchain_core", "language_models.llms.BaseLLM.agenerate", traced_llm_agenerate(langchain))
-    wrap("langchain_core", "language_models.llms.BaseLLM.invoke", patched_language_model_invoke(langchain))
-    wrap("langchain_core", "language_models.llms.BaseLLM.ainvoke", patched_language_model_ainvoke(langchain))
-    wrap(
-        "langchain_core",
-        "language_models.chat_models.BaseChatModel.generate",
-        traced_chat_model_generate(langchain),
-    )
-    wrap(
-        "langchain_core",
-        "language_models.chat_models.BaseChatModel.agenerate",
-        traced_chat_model_agenerate(langchain),
-    )
-    wrap(
-        "langchain_core",
-        "language_models.chat_models.BaseChatModel.invoke",
-        patched_language_model_invoke(langchain),
-    )
-    wrap(
-        "langchain_core",
-        "language_models.chat_models.BaseChatModel.ainvoke",
-        patched_language_model_ainvoke(langchain),
-    )
-    wrap("langchain_core", "runnables.base.RunnableSequence.invoke", traced_lcel_runnable_sequence(langchain))
-    wrap("langchain_core", "runnables.base.RunnableSequence.ainvoke", traced_lcel_runnable_sequence_async(langchain))
-    wrap("langchain_core", "runnables.base.RunnableSequence.batch", traced_lcel_runnable_sequence(langchain))
-    wrap("langchain_core", "runnables.base.RunnableSequence.abatch", traced_lcel_runnable_sequence_async(langchain))
-    wrap("langchain_core", "runnables.base.RunnableSequence.stream", traced_chain_stream(langchain))
-    wrap("langchain_core", "runnables.base.RunnableSequence.astream", traced_chain_stream(langchain))
-    wrap(
-        "langchain_core",
-        "language_models.chat_models.BaseChatModel.stream",
-        traced_chat_stream(langchain),
-    )
-    wrap(
-        "langchain_core",
-        "language_models.chat_models.BaseChatModel.astream",
-        traced_chat_stream(langchain),
-    )
-    wrap("langchain_core", "prompts.base.BasePromptTemplate.invoke", patched_base_prompt_template_invoke(langchain))
-    wrap("langchain_core", "prompts.base.BasePromptTemplate.ainvoke", patched_base_prompt_template_ainvoke(langchain))
-    wrap("langchain_core", "language_models.llms.BaseLLM.stream", traced_llm_stream(langchain))
-    wrap("langchain_core", "language_models.llms.BaseLLM.astream", traced_llm_stream(langchain))
+    wrap(BaseChatModel, "generate", traced_chat_model_generate(langchain_core))
+    wrap(BaseChatModel, "agenerate", traced_chat_model_agenerate(langchain_core))
+    wrap(BaseChatModel, "invoke", patched_language_model_invoke(langchain_core))
+    wrap(BaseChatModel, "ainvoke", patched_language_model_ainvoke(langchain_core))
+    wrap(BaseChatModel, "stream", traced_chat_stream(langchain_core))
+    wrap(BaseChatModel, "astream", traced_chat_stream(langchain_core))
 
-    wrap("langchain_core", "tools.BaseTool.invoke", traced_base_tool_invoke(langchain))
-    wrap("langchain_core", "tools.BaseTool.ainvoke", traced_base_tool_ainvoke(langchain))
-    if langchain_openai:
-        wrap("langchain_openai", "OpenAIEmbeddings.embed_documents", traced_embedding(langchain))
-    if langchain_pinecone:
-        wrap("langchain_pinecone", "PineconeVectorStore.similarity_search", traced_similarity_search(langchain))
+    wrap(RunnableSequence, "invoke", traced_lcel_runnable_sequence(langchain_core))
+    wrap(RunnableSequence, "ainvoke", traced_lcel_runnable_sequence_async(langchain_core))
+    wrap(RunnableSequence, "batch", traced_lcel_runnable_sequence(langchain_core))
+    wrap(RunnableSequence, "abatch", traced_lcel_runnable_sequence_async(langchain_core))
+    wrap(RunnableSequence, "stream", traced_chain_stream(langchain_core))
+    wrap(RunnableSequence, "astream", traced_chain_stream(langchain_core))
 
-    if langchain_community:
-        _patch_embeddings_and_vectorstores()
+    wrap(BasePromptTemplate, "invoke", patched_base_prompt_template_invoke(langchain_core))
+    wrap(BasePromptTemplate, "ainvoke", patched_base_prompt_template_ainvoke(langchain_core))
+
+    wrap(BaseTool, "invoke", traced_base_tool_invoke(langchain_core))
+    wrap(BaseTool, "ainvoke", traced_base_tool_ainvoke(langchain_core))
 
     core.dispatch("langchain.patch", tuple())
 
 
 def unpatch():
-    if not getattr(langchain, "_datadog_patch", False):
+    if not getattr(langchain_core, "_datadog_patch", False):
         return
 
-    langchain._datadog_patch = False
+    langchain_core._datadog_patch = False
 
     unwrap(langchain_core.language_models.llms.BaseLLM, "generate")
     unwrap(langchain_core.language_models.llms.BaseLLM, "agenerate")
@@ -802,14 +596,3 @@ def unpatch():
     unwrap(langchain_core.tools.BaseTool, "ainvoke")
     unwrap(langchain_core.prompts.base.BasePromptTemplate, "invoke")
     unwrap(langchain_core.prompts.base.BasePromptTemplate, "ainvoke")
-    if langchain_openai:
-        unwrap(langchain_openai.OpenAIEmbeddings, "embed_documents")
-    if langchain_pinecone:
-        unwrap(langchain_pinecone.PineconeVectorStore, "similarity_search")
-
-    if langchain_community:
-        _unpatch_embeddings_and_vectorstores()
-
-    core.dispatch("langchain.unpatch", tuple())
-
-    delattr(langchain, "_datadog_integration")

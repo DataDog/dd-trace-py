@@ -109,6 +109,7 @@ PATCH_MODULES = {
     "tornado": False,
     "openai": True,
     "langchain": True,
+    "langchain_community": True,
     "anthropic": True,
     "crewai": True,
     "pydantic_ai": True,
@@ -165,6 +166,7 @@ _MODULES_FOR_CONTRIB = {
     "kafka": ("confluent_kafka",),
     "google_generativeai": ("google.generativeai",),
     "google_genai": ("google.genai",),
+    "langchain": ("langchain_core",),
     "langgraph": (
         "langgraph",
         "langgraph.graph",

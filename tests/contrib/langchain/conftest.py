@@ -4,8 +4,10 @@ import os
 import pytest
 
 from ddtrace._trace.pin import Pin
-from ddtrace.contrib.internal.langchain.patch import patch
-from ddtrace.contrib.internal.langchain.patch import unpatch
+from ddtrace.contrib.internal.langchain.patch import patch as langchain_core_patch
+from ddtrace.contrib.internal.langchain.patch import unpatch as langchain_core_unpatch
+from ddtrace.contrib.internal.langchain_community.patch import patch as langchain_community_patch
+from ddtrace.contrib.internal.langchain_community.patch import unpatch as langchain_community_unpatch
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs as llmobs_service
 from tests.llmobs._utils import TestLLMObsSpanWriter
@@ -28,10 +30,16 @@ def llmobs_span_writer():
 
 
 @pytest.fixture
-def tracer(langchain):
+def tracer(langchain_core, langchain_community):
     tracer = DummyTracer()
-    pin = Pin.get_from(langchain)
-    pin._override(langchain, tracer=tracer)
+
+    pin = Pin.get_from(langchain_core)
+    pin._override(langchain_core, tracer=tracer)
+
+    if langchain_community:
+        pin = Pin.get_from(langchain_community)
+        pin._override(langchain_community, tracer=tracer)
+
     yield tracer
 
 
@@ -55,40 +63,37 @@ def llmobs_events(llmobs, llmobs_span_writer):
 
 
 @pytest.fixture
-def langchain():
+def langchain_community():
     with override_env(
         dict(
             OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"),
             ANTHROPIC_API_KEY=os.getenv("ANTHROPIC_API_KEY", "<not-a-real-key>"),
         )
     ):
-        patch()
-        import langchain
-
-        yield langchain
-        unpatch()
-
-
-@pytest.fixture
-def langchain_community(langchain):
-    try:
+        langchain_community_patch()
         import langchain_community
 
         yield langchain_community
-    except ImportError:
-        yield
+        langchain_community_unpatch()
 
 
 @pytest.fixture
-def langchain_core(langchain):
-    import langchain_core
-    import langchain_core.prompts  # noqa: F401
+def langchain_core():
+    with override_env(
+        dict(
+            OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"),
+            ANTHROPIC_API_KEY=os.getenv("ANTHROPIC_API_KEY", "<not-a-real-key>"),
+        )
+    ):
+        langchain_core_patch()
+        import langchain_core
 
-    yield langchain_core
+        yield langchain_core
+        langchain_core_unpatch()
 
 
 @pytest.fixture
-def langchain_openai(langchain):
+def langchain_openai(langchain_core, langchain_community):
     try:
         import langchain_openai
 
@@ -114,7 +119,7 @@ def anthropic_url() -> str:
 
 
 @pytest.fixture
-def langchain_cohere(langchain):
+def langchain_cohere(langchain_core):
     try:
         import langchain_cohere
 
@@ -124,7 +129,7 @@ def langchain_cohere(langchain):
 
 
 @pytest.fixture
-def langchain_anthropic(langchain):
+def langchain_anthropic(langchain_core):
     try:
         import langchain_anthropic
 
@@ -134,7 +139,7 @@ def langchain_anthropic(langchain):
 
 
 @pytest.fixture
-def langchain_pinecone(langchain):
+def langchain_pinecone(langchain_community):
     with override_env(
         dict(
             PINECONE_API_KEY=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
