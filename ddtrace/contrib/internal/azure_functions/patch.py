@@ -110,11 +110,15 @@ def _wrap_event_hubs_trigger(pin, func, function_name, trigger_arg_name, trigger
             batch_count = None
             metadata = getattr(msg_arg_value, "metadata", {})
             fully_qualified_namespace = metadata.get("PartitionContext", {}).get("FullyQualifiedNamespace")
-            message_id = metadata.get("SystemProperties", {}).get("message-id", None)
+            message_id = metadata.get("SystemProperties", {}).get("message-id")
 
             if config.azure_functions.distributed_tracing:
                 parent_context = HTTPPropagator.extract(metadata.get("Properties", {}))
-                if parent_context.trace_id is not None and parent_context.span_id is not None:
+                if (
+                    parent_context is not None
+                    and parent_context.trace_id is not None
+                    and parent_context.span_id is not None
+                ):
                     ctx.span.link_span(parent_context)
         else:
             batch_count = None
