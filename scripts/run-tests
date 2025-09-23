@@ -1,7 +1,9 @@
 #!/usr/bin/env uv run --script
+# -*- mode: python -*-
 # /// script
 # requires-python = ">=3.8"
 # dependencies = [
+#     "riot>=0.20.1",
 #     "ruamel.yaml>=0.17.21",
 # ]
 # ///
@@ -21,8 +23,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, List, Set, Optional, Tuple, NamedTuple
-import tempfile
+from typing import Dict, List, Set, NamedTuple
 
 # Add project root and tests to Python path to import suitespec and riotfile
 ROOT = Path(__file__).parents[1]
