@@ -148,10 +148,10 @@ def test_crashtracker_simple():
             ctypes.string_at(0)
             sys.exit(-1)
 
-        # Part 5
+        # Part 5, Check for the crash ping
         _ping = utils.get_crash_ping(client)
-        # Part 6
-        # Check to see if the listening socket was triggered, if so accept the connection
+
+        # Part 6, Check to see if the listening socket was triggered, if so accept the connection
         # then check to see if the resulting connection is readable
         report = utils.get_crash_report(client)
         # The crash came from string_at.  Since the over-the-wire format is multipart, chunked HTTP,
