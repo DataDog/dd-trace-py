@@ -157,6 +157,11 @@ class Assembly:
 
     def parse_opcode(self, text: str) -> str:
         opcode = text.upper()
+
+        # `dis` doesn't include `LOAD_METHOD` in 3.14.0rc1
+        if sys.version_info >= (3, 14) and opcode == "LOAD_METHOD":
+            return opcode
+
         if opcode not in dis.opmap:
             raise ValueError("unknown opcode %s" % opcode)
 

@@ -73,7 +73,7 @@ if PY >= (3, 14):
             pop_jump_if_false           @exc
             pop_top
             load_fast                   $__ddgen
-            load_attr                 $close
+            load_method                 $close
             call                        0
             swap                        2
             pop_except
