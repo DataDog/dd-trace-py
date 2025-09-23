@@ -2,7 +2,7 @@ from google.adk.code_executors.code_execution_utils import CodeExecutionInput
 from google.adk.code_executors.unsafe_local_code_executor import UnsafeLocalCodeExecutor
 import pytest
 
-from tests.contrib.google_adk.app import create_test_message
+from tests.contrib.google_adk.conftest import create_test_message
 
 
 @pytest.mark.asyncio

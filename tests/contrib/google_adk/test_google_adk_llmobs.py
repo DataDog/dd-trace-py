@@ -2,7 +2,7 @@ from unittest import mock
 
 import pytest
 
-from tests.contrib.google_adk.app import create_test_message
+from tests.contrib.google_adk.conftest import create_test_message
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 
 

@@ -199,9 +199,9 @@ def extract_message_from_part_google_genai(part, role: str) -> Dict[str, Any]:
     function_call = _get_attr(part, "function_call", None)
     if function_call:
         tool_call_info = ToolCall(
-            name=str(_get_attr(function_call, "name", "") or ""),
-            arguments=dict(_get_attr(function_call, "args", {}) or {}),
-            tool_id=str(_get_attr(function_call, "id", "") or ""),
+            name=_get_attr(function_call, "name", ""),
+            arguments=_get_attr(function_call, "args", {}),
+            tool_id=_get_attr(function_call, "id", ""),
             type="function_call",
         )
         message["tool_calls"] = [tool_call_info]

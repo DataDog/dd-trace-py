@@ -1,16 +1,23 @@
 import os
+from typing import Any
 from unittest.mock import MagicMock
 
 from google.adk.agents.invocation_context import InvocationContext
+from google.adk.agents.llm_agent import LlmAgent
+from google.adk.code_executors import UnsafeLocalCodeExecutor
+from google.adk.models.google_llm import Gemini
+from google.adk.runners import InMemoryRunner
 from google.adk.sessions.base_session_service import BaseSessionService
 from google.adk.sessions.session import Session
+from google.adk.tools.function_tool import FunctionTool
+from google.genai import types
+
 import pytest
 
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.google_adk.patch import patch as adk_patch
 from ddtrace.contrib.internal.google_adk.patch import unpatch as adk_unpatch
 from ddtrace.llmobs import LLMObs
-from tests.contrib.google_adk.app import setup_test_agent
 from tests.contrib.google_adk.utils import get_request_vcr
 from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.utils import DummyTracer
@@ -50,70 +57,6 @@ def mock_tracer(adk):
     yield mock_tracer
 
 
-class DummyTool:
-    def __init__(self, name: str = "dummy_tool", description: str = "desc", mandatory_args=None):
-        self.name = name
-        self.description = description
-        self._mandatory_args = list(mandatory_args or [])
-
-    def _get_mandatory_args(self):
-        return self._mandatory_args
-
-
-class DummyAgent:
-    def __init__(self):
-        self.name = "test-agent"
-        self.instruction = "do things"
-        self.model_config = {"model": "gemini-2.0"}
-        self.tools = [DummyTool(name="get_current_weather", description="weather", mandatory_args=["location"])]
-
-
-class DummyRunner:
-    def __init__(self):
-        self.agent = DummyAgent()
-        self.app_name = "TestApp"
-        self.session_service = type(
-            "SessSvc",
-            (),
-            {
-                "get_session": staticmethod(
-                    lambda app_name, user_id, session_id: _async_return(
-                        type(
-                            "Sess",
-                            (),
-                            {
-                                "app_name": app_name,
-                                "user_id": user_id,
-                                "id": session_id,
-                                "events": [],
-                            },
-                        )()
-                    )
-                )
-            },
-        )()
-
-
-async def _async_return(value):
-    return value
-
-
-class DummyCodeInput:
-    def __init__(self, code: str):
-        self.code = code
-
-
-class DummyCodeResult:
-    def __init__(self, stdout: str = "", stderr: str = ""):
-        self.stdout = stdout
-        self.stderr = stderr
-
-
-@pytest.fixture
-def dummy_runner():
-    return DummyRunner()
-
-
 @pytest.fixture
 def adk_runner(adk):
     class FakeAgent:
@@ -125,28 +68,9 @@ def adk_runner(adk):
     return adk.runners.InMemoryRunner(agent=FakeAgent(), app_name="TestApp")
 
 
-def mk_session(app_name: str = "app", user_id: str = "user", session_id: str = "sid"):
-    return type("Sess", (), {"app_name": app_name, "user_id": user_id, "id": session_id, "events": []})()
-
-
 @pytest.fixture(scope="session")
 def request_vcr():
     yield get_request_vcr()
-
-
-@pytest.fixture
-def dummy_tool():
-    return DummyTool()
-
-
-@pytest.fixture
-def dummy_code_input():
-    return DummyCodeInput("print('hello')")
-
-
-@pytest.fixture
-def dummy_code_result():
-    return DummyCodeResult(stdout="ok", stderr="")
 
 
 @pytest.fixture
@@ -195,3 +119,58 @@ def adk_llmobs(mock_tracer, llmobs_span_writer):
 @pytest.fixture
 def llmobs_events(adk_llmobs, llmobs_span_writer):
     return llmobs_span_writer.events
+
+
+def search_docs(query: str) -> dict[str, Any]:
+    """A tiny search tool stub."""
+    return {"results": [f"Found reference for: {query}"]}
+
+
+def multiply(a: int, b: int) -> dict[str, Any]:
+    """Simple arithmetic tool."""
+    return {"product": a * b}
+
+
+async def setup_test_agent():
+    """Set up a test agent with tools and code executor."""
+    model = Gemini(model="gemini-2.5-pro")
+
+    # Wrap Python callables as tools the agent can invoke
+    tools = [
+        FunctionTool(func=search_docs),
+        FunctionTool(func=multiply),
+    ]
+
+    # Enable code execution so the model can emit code blocks that get executed
+    code_executor = UnsafeLocalCodeExecutor()
+
+    agent = LlmAgent(
+        name="test_agent",
+        description="Test agent for ADK integration testing",
+        model=model,
+        tools=tools,  # type: ignore[arg-type]
+        code_executor=code_executor,
+        instruction=(
+            "You are a helpful test agent. You can: (1) call tools using the provided functions, "
+            "(2) execute Python code blocks when they are provided to you. "
+            "When you see ```python code blocks, execute them using your code execution capability. "
+            "Always be helpful and use your available capabilities."
+        ),
+    )
+
+    runner = InMemoryRunner(agent=agent, app_name="TestADKApp")
+    await runner.session_service.create_session(
+        app_name=runner.app_name,
+        user_id="test-user",
+        session_id="test-session",
+    )
+
+    return runner
+
+
+def create_test_message(text: str) -> types.Content:
+    """Create a test message content."""
+    return types.Content(
+        role="user",
+        parts=[types.Part(text=text)],
+    )

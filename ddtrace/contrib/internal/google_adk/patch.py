@@ -2,6 +2,7 @@ import sys
 from typing import Any
 from typing import Dict
 from typing import Tuple
+from typing import Union
 
 import google.adk as adk
 
@@ -12,6 +13,7 @@ from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._integrations import GoogleAdkIntegration
 
 
@@ -72,11 +74,11 @@ def _traced_agent_run_async(adk, pin, wrapped, instance, args, kwargs):
 @with_traced_module
 async def _traced_functions_call_tool_async(adk, pin, wrapped, instance, args, kwargs):
     integration: GoogleAdkIntegration = adk._datadog_integration
-    tool_context = kwargs.get("tool_context", {})
-    # Handle cases where invocation context might not exist (e.g., direct tool calls)
-    agent = None
-    if hasattr(tool_context, "_invocation_context") and hasattr(tool_context._invocation_context, "agent"):
-        agent = tool_context._invocation_context.agent
+    agent = extract_agent_from_tool_context(args, kwargs)
+    if agent is None:
+        logger.warning('Unable to trace google adk live tool call, could not extract agent from tool context.')
+        return wrapped(*args, **kwargs)
+
     provider_name, model_name = extract_provider_and_model_name(agent=agent)
     instance = instance or args[0]
 
@@ -108,8 +110,13 @@ async def _traced_functions_call_tool_async(adk, pin, wrapped, instance, args, k
 @with_traced_module
 async def _traced_functions_call_tool_live(adk, pin, wrapped, instance, args, kwargs):
     integration: GoogleAdkIntegration = adk._datadog_integration
-    tool_context = kwargs.get("tool_context", {})
-    agent = tool_context._invocation_context.agent
+    agent = extract_agent_from_tool_context(args, kwargs)
+    if agent is None:
+        logger.warning('Unable to trace google adk live tool call, could not extract agent from tool context.')
+        agen = wrapped(*args, **kwargs)
+        async for item in agen:
+            yield item
+
     provider_name, model_name = extract_provider_and_model_name(agent=agent)
 
     with integration.trace(
@@ -142,7 +149,7 @@ async def _traced_functions_call_tool_live(adk, pin, wrapped, instance, args, kw
 def _traced_code_executor_execute_code(adk, pin, wrapped, instance, args, kwargs):
     """Trace the execution of code by the agent (sync)."""
     integration: GoogleAdkIntegration = adk._datadog_integration
-    invocation_context = kwargs.get("invocation_context", args[0] if args else None)
+    invocation_context = get_argument_value(args, kwargs, 0, "invocation_context")
     provider_name, model_name = extract_provider_and_model_name(agent=getattr(invocation_context, "agent", None))
 
     # Signature: execute_code(self, invocation_context, code_execution_input)
@@ -169,6 +176,13 @@ def _traced_code_executor_execute_code(adk, pin, wrapped, instance, args, kwargs
                 response=result,
                 operation="code_execute",
             )
+
+def extract_agent_from_tool_context(args: Any, kwargs: Any) -> Union[str, None]:
+    tool_context = get_argument_value(args, kwargs, 2, "tool_context")
+    agent = None
+    if hasattr(tool_context, "_invocation_context") and hasattr(tool_context._invocation_context, "agent"):
+        agent = tool_context._invocation_context.agent
+    return agent
 
 
 def extract_provider_and_model_name(agent: Any = None) -> Tuple[str, str]:
@@ -201,10 +215,8 @@ def patch():
     wrap("google.adk", "runners.Runner.run_live", _traced_agent_run_async(adk))
 
     # Tool execution (central dispatch)
-    if check_module_path(adk, "flows.llm_flows.functions.__call_tool_async"):
-        wrap("google.adk", "flows.llm_flows.functions.__call_tool_async", _traced_functions_call_tool_async(adk))
-    if check_module_path(adk, "flows.llm_flows.functions.__call_tool_live"):
-        wrap("google.adk", "flows.llm_flows.functions.__call_tool_live", _traced_functions_call_tool_live(adk))
+    wrap("google.adk", "flows.llm_flows.functions.__call_tool_async", _traced_functions_call_tool_async(adk))
+    wrap("google.adk", "flows.llm_flows.functions.__call_tool_live", _traced_functions_call_tool_live(adk))
 
     # Code executors
     for code_executor in CODE_EXECUTOR_CLASSES:
@@ -225,10 +237,8 @@ def unpatch():
     unwrap(adk.runners.Runner, "run_async")
     unwrap(adk.runners.Runner, "run_live")
 
-    if check_module_path(adk, "flows.llm_flows.functions.__call_tool_async"):
-        unwrap(adk.flows.llm_flows.functions, "__call_tool_async")
-    if check_module_path(adk, "flows.llm_flows.functions.__call_tool_live"):
-        unwrap(adk.flows.llm_flows.functions, "__call_tool_live")
+    unwrap(adk.flows.llm_flows.functions, "__call_tool_async")
+    unwrap(adk.flows.llm_flows.functions, "__call_tool_live")
 
     # Code executors
     for code_executor in CODE_EXECUTOR_CLASSES:
