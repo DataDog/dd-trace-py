@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: Fixes encoding bytes objects as span attributes by truncating byte string, rather than throwing PyErr_Format.

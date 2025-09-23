@@ -154,8 +154,9 @@ venv = Venv(
         Venv(
             name="appsec_integrations_packages",
             pys=select_pys(),
-            command="python -m pytest -vvv -s -n 8 --no-cov --no-ddtrace tests/appsec/integrations/packages_tests/",
+            command="python -m pytest -v tests/appsec/integrations/packages_tests/",
             pkgs={
+                "gevent": latest,
                 "pytest-xdist": latest,
                 "pytest-asyncio": latest,
                 "requests": latest,
@@ -218,7 +219,11 @@ venv = Venv(
             command="pytest -vvv {cmdargs} tests/appsec/integrations/django_tests/",
             pkgs={
                 "requests": latest,
+                "gunicorn": latest,
+                "gevent": latest,
                 "pylibmc": latest,
+                "PyYAML": latest,
+                "dill": latest,
                 "bcrypt": "==4.2.1",
                 "pytest-django[testing]": "==3.10.0",
             },
@@ -319,8 +324,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_iast_default",
-            # TODO(avara1986): remove "-vvv --no-ddtrace --no-cov" when CI visibility errors were fixed in #14581
-            command="pytest -vvv --no-ddtrace --no-cov {cmdargs} tests/appsec/iast/",
+            command="pytest -v {cmdargs} tests/appsec/iast/",
             pys=select_pys(),
             pkgs={
                 "requests": latest,
@@ -515,7 +519,7 @@ venv = Venv(
         ),
         Venv(
             name="lib_injection",
-            command="pytest {cmdargs} tests/lib_injection/test_guardrails.py",
+            command="pytest {cmdargs} tests/lib_injection/",
             venvs=[
                 Venv(
                     pys=select_pys(),
@@ -2196,7 +2200,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.8"),
+                    pys=select_pys(min_version="3.8", max_version="3.13"),
                     pkgs={
                         "pytest-asyncio": ["==0.23.7"],
                     },
@@ -2221,9 +2225,15 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.8"),
+                    pys=select_pys(min_version="3.8", max_version="3.12"),
                     pkgs={
                         "pytest-asyncio": ["==0.23.7"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.13"),
+                    pkgs={
+                        "pytest-asyncio": [">=1.0.0"],
                     },
                 ),
             ],
@@ -2624,11 +2634,23 @@ venv = Venv(
         Venv(
             name="asyncio",
             command="pytest {cmdargs} tests/contrib/asyncio",
-            pys=select_pys(),
             pkgs={
                 "pytest-randomly": latest,
-                "pytest-asyncio": "==0.21.1",
             },
+            venvs=[
+                Venv(
+                    pys=select_pys(max_version="3.12"),
+                    pkgs={
+                        "pytest-asyncio": "==0.21.1",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.13"),
+                    pkgs={
+                        "pytest-asyncio": ">=1.0.0",
+                    },
+                ),
+            ],
         ),
         Venv(
             name="openai",
@@ -3103,12 +3125,21 @@ venv = Venv(
             },
         ),
         Venv(
+            name="azure_functions:servicebus",
+            command="pytest {cmdargs} tests/contrib/azure_functions_servicebus",
+            pys=select_pys(min_version="3.8", max_version="3.11"),
+            pkgs={
+                "azure.functions": ["~=1.10.1", latest],
+                "azure.servicebus": latest,
+            },
+        ),
+        Venv(
             name="azure_servicebus",
             command="pytest {cmdargs} tests/contrib/azure_servicebus",
             pys=select_pys(min_version="3.8", max_version="3.13"),
             pkgs={
                 "azure.servicebus": ["~=7.14.0", latest],
-                "pytest-asyncio": "==0.24.0",
+                "pytest-asyncio": "==0.23.7",
             },
         ),
         Venv(
@@ -3307,6 +3338,11 @@ venv = Venv(
                 "pytest-randomly": latest,
             },
             venvs=[
+                Venv(
+                    command="python -m pytest {cmdargs} tests/profiling_v2/test_uwsgi.py",
+                    pys=select_pys(),
+                    pkgs={"uwsgi": "<2.0.30"},
+                ),
                 # Python 3.8 + 3.9
                 Venv(
                     pys=["3.8", "3.9"],

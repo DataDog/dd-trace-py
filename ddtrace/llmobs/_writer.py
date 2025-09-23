@@ -87,6 +87,7 @@ class LLMObsEvaluationMetricEvent(TypedDict, total=False):
 
 
 class LLMObsExperimentEvalMetricEvent(TypedDict, total=False):
+    metric_source: str
     span_id: str
     trace_id: str
     timestamp_ms: int
@@ -309,7 +310,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
     EVP_SUBDOMAIN_HEADER_VALUE = EXP_SUBDOMAIN_NAME
     AGENTLESS_BASE_URL = AGENTLESS_EXP_BASE_URL
     ENDPOINT = ""
-    TIMEOUT = 5.0
+    TIMEOUT = 10.0
     BULK_UPLOAD_TIMEOUT = 60.0
     LIST_RECORDS_TIMEOUT = 20
     SUPPORTED_UPLOAD_EXTS = {"csv"}
