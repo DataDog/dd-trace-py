@@ -17,7 +17,7 @@ integrations:
   tested_versions_by_dependency:
     aiohttp:
       min: 3.7.4.post0
-      max: 3.12.11
+      max: 3.12.15
 
 - integration_name: aiohttp_jinja2
   is_external_package: true
@@ -567,7 +567,7 @@ integrations:
   tested_versions_by_dependency:
     mariadb:
       min: 1.0.11
-      max: 1.1.12
+      max: 1.1.13
 
 - integration_name: mcp
   is_external_package: true

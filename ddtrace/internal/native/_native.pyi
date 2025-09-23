@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import Dict, List, Literal, Optional
 
 class DDSketch:
     def __init__(self): ...
@@ -232,6 +232,12 @@ class TraceExporterBuilder:
         :param version: The version string of the application.
         """
         ...
+    def set_service(self, service: str) -> TraceExporterBuilder:
+        """
+        Set the service name of the TraceExporter.
+        :param version: The version string of the application.
+        """
+        ...
     def set_git_commit_sha(self, git_commit_sha: str) -> TraceExporterBuilder:
         """
         Set the git commit sha of the TraceExporter.
@@ -345,6 +351,57 @@ class BuilderError(Exception):
     """
 
     ...
+
+class logger:
+    """
+    Native logging module for configuring and managing log output.
+    """
+
+    @staticmethod
+    def configure(
+        output: Literal["stdout", "stderr", "file"] = "stdout",
+        path: Optional[str] = None,
+        max_files: Optional[int] = None,
+        max_size_bytes: Optional[int] = None,
+    ) -> None:
+        """
+        Configure the logger with the specified output destination.
+
+        :param output: Output destination ("stdout", "stderr", or "file")
+        :param path: File path (required if output is "file")
+        :param max_files: Maximum number of log files to keep (for file output)
+        :param max_size_bytes: Maximum size of each log file in bytes (for file output)
+        :raises ValueError: If configuration is invalid
+        """
+        ...
+    @staticmethod
+    def disable(output: str) -> None:
+        """
+        Disable logging output by type.
+
+        :param output: Output type to disable ("file", "stdout", or "stderr")
+        :raises ValueError: If output type is invalid
+        """
+        ...
+    @staticmethod
+    def set_log_level(level: str) -> None:
+        """
+        Set the log level for the logger.
+
+        :param level: Log level ("trace", "debug", "info", "warn", or "error")
+        :raises ValueError: If log level is invalid
+        """
+        ...
+    @staticmethod
+    def log(level: str, message: str) -> None:
+        """
+        Logs messages
+
+        :param level: Log level ("trace", "debug", "info", "warn", or "error")
+        :param message: message to be displayed in the log.
+        :raises ValueError: If log level is invalid
+        """
+        ...
 
 class DeserializationError(Exception):
     """
