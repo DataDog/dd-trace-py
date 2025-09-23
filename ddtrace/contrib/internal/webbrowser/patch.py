@@ -27,12 +27,6 @@ def patch():
 
         _w("webbrowser", "open", _wrap_open)
 
-    if asm_config._iast_enabled:
-        from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
-        from ddtrace.appsec._iast.constants import VULN_SSRF
-
-        _set_metric_iast_instrumented_sink(VULN_SSRF)
-
 
 def unpatch():
     """unpatch any previously patched modules"""

@@ -88,6 +88,29 @@ DEFAULT_PATH_TRAVERSAL_FUNCTIONS = {
     "tarfile": {"open"},
     "zipfile": {"ZipFile"},
 }
+
+DEFAULT_COMMAND_INJECTION_FUNCTIONS = {
+    "subprocess": {"Popen", "Popen.wait", "run"},
+    "os": {
+        "system",
+        "spawnl",
+        "spawnlp",
+        "spawnv",
+        "spawnvp",
+        "spawnvp",
+    },
+    "posix": {
+        "system",
+    },
+}
+
+DEFAULT_SSRF_FUNCTIONS = {
+    "requests.api": {"get", "post", "put"},
+    "urllib3._request_methods": {
+        "RequestMethods.request",
+    },
+}
+
 DBAPI_SQLITE = "sqlite"
 DBAPI_PSYCOPG = "psycopg"
 DBAPI_MYSQL = "mysql"
