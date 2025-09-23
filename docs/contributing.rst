@@ -38,6 +38,23 @@ Correctness and code style are automatically checked in continuous integration, 
 various tools including Flake8, Black, and MyPy. This means that code reviews don't need to worry about style
 and can focus on substance.
 
+Pull Request Requirements
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When submitting a pull request, ensure the following requirements are met:
+
+* **PR title follows conventional commit standard** - See the `Branches and Pull Requests`_ section for details.
+* **All changes are related to the pull request's stated goal** - Keep changes focused and avoid scope creep.
+* **The change includes tests OR the PR description describes a testing strategy** - All code changes should be tested appropriately.
+* **The change includes or references documentation updates if necessary** - Update user-facing documentation when adding new features or changing behavior.
+* **Backport labels are set if applicable** - Apply appropriate backport labels for fixes and CI changes as described in the `Backporting`_ section.
+* **Avoids breaking API changes** - Follow the :doc:`versioning policy <versioning>` to maintain backward compatibility.
+* **The PR description includes an overview of the change** - Clearly describe what the change does and why it's needed.
+* **The PR description articulates the motivation for the change** - Explain the problem being solved or the improvement being made.
+* **The PR description notes risks associated with the change, if any** - Document any potential impacts or considerations.
+* **Newly-added code is easy to change** - Write maintainable code that follows established patterns.
+* **Testing strategy adequately addresses listed risks** - Ensure tests cover the scenarios and edge cases relevant to your change.
+
 Branches and Pull Requests
 --------------------------
 
@@ -54,6 +71,7 @@ in pull request names are enumerated :ref:`in the release notes documentation<re
 
 Pull requests that change the library's public API require a :ref:`release note<release_notes>`.
 If your pull request doesn't change the public API, apply the ``no-changelog`` label.
+Release notes should be written from the user's perspective and clearly explain the impact or benefit of the change.
 
 Once approved, pull requests should be merged with the "Squash and Merge" option.
 At this time, do not use the merge queue option.

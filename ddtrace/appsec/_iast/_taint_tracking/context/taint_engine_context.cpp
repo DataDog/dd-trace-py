@@ -59,6 +59,15 @@ TaintEngineContext::TaintEngineContext()
 {
 }
 
+// Lifecycle guard. Prevent access during interpreter/module teardown.
+std::atomic<bool> TaintEngineContext::shutting_down{ false };
+
+void
+TaintEngineContext::set_shutting_down(bool v)
+{
+    shutting_down.store(v, std::memory_order_release);
+}
+
 std::optional<size_t>
 TaintEngineContext::start_request_context()
 {
@@ -171,6 +180,9 @@ TaintEngineContext::get_tainted_object_map(PyObject* obj)
 TaintedObjectMapTypePtr
 TaintEngineContext::get_tainted_object_map_from_pyobject(PyObject* tainted_object)
 {
+    if (shutting_down.load(std::memory_order_acquire)) {
+        return nullptr;
+    }
     for (const auto& context_map : request_context_slots) {
         if (!context_map) {
             continue;
@@ -308,7 +320,7 @@ pyexport_taint_engine_context(py::module& m)
 
     m.def("debug_taint_map", [](size_t ctx_id) { return taint_engine_context->debug_taint_map(ctx_id); });
 
-    m.def("debug_debug_num_tainted_objects",
+    m.def("debug_num_tainted_objects",
           [](size_t ctx_id) { return taint_engine_context->debug_num_tainted_objects(ctx_id); });
 }
 
