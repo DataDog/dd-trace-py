@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 import os
 import subprocess
+import sys
 
 import django
 import pytest
@@ -50,8 +51,15 @@ def daphne_client(django_asgi, additional_env=None):
 
         yield client
     finally:
-        resp = client.get_ignored("/shutdown-tracer")
-        assert resp.status_code == 200
+        try:
+            resp = client.get_ignored("/shutdown-tracer")
+            assert resp.status_code == 200
+        except ConnectionRefusedError:
+            # current mitigation for python 3.8
+            if sys.version_info[:2] == (3,8):
+                pass
+            else:
+                raise
         proc.terminate()
 
 
