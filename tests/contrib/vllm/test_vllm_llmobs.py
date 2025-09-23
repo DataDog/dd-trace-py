@@ -3,32 +3,13 @@ import pytest
 import vllm
 
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
-
-
-def _create_llm_autotune(model, **kwargs):
-    """Create vLLM LLM by retrying with higher gpu_memory_utilization.
-
-    Tries a set of utilization levels until engine starts successfully,
-    which makes tests resilient across different GPU sizes.
-    """
-    util_candidates = kwargs.pop(
-        "gpu_util_candidates",
-        [0.1, 0.2, 0.3, 0.5, 0.7, 0.85, 0.9, 0.95],
-    )
-    last_error = None
-    for util in util_candidates:
-        try:
-            return vllm.LLM(model=model, gpu_memory_utilization=util, **kwargs)
-        except Exception as exc:  # Engine may fail with various exceptions
-            last_error = exc
-            continue
-    # If all attempts fail, raise the last error for visibility
-    raise last_error
+from ._utils import get_cached_llm
 
 
 def test_llmobs_basic(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
-    llm = _create_llm_autotune(
+    llm = get_cached_llm(
         model="facebook/opt-125m",
+        engine_mode=vllm_engine_mode,
         max_model_len=512,
         enforce_eager=True,
         compilation_config=0,
@@ -68,8 +49,9 @@ def test_llmobs_basic(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
 
 
 def test_llmobs_chat(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
-    llm = _create_llm_autotune(
+    llm = get_cached_llm(
         model="facebook/opt-125m",
+        engine_mode=vllm_engine_mode,
         max_model_len=512,
         enforce_eager=True,
         compilation_config=0,
@@ -131,7 +113,7 @@ def test_llmobs_chat(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
             "frequency_penalty": 0.0,
             "finish_reason": "length",
         }
-        | ({"num_cached_tokens": 0} if vllm_engine_mode == "1" else {}),
+        | ({"num_cached_tokens": mock.ANY} if vllm_engine_mode == "1" else {}),
         token_metrics={"input_tokens": 37, "output_tokens": 16, "total_tokens": 53},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm"},
     )
@@ -139,9 +121,10 @@ def test_llmobs_chat(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
 
 
 def test_llmobs_classify(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
-    llm = _create_llm_autotune(
+    llm = get_cached_llm(
         model="BAAI/bge-reranker-v2-m3",
         runner="pooling",
+        engine_mode=vllm_engine_mode,
         max_model_len=512,
         enforce_eager=True,
         compilation_config=0,
@@ -190,9 +173,10 @@ def test_llmobs_classify(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
 
 
 def test_llmobs_embed(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
-    llm = _create_llm_autotune(
+    llm = get_cached_llm(
         model="intfloat/e5-small",
         runner="pooling",
+        engine_mode=vllm_engine_mode,
         enforce_eager=True,
         compilation_config=0,
         max_model_len=512,
@@ -241,9 +225,10 @@ def test_llmobs_embed(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
 
 
 def test_llmobs_reward(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
-    llm = _create_llm_autotune(
+    llm = get_cached_llm(
         model="BAAI/bge-reranker-v2-m3",
         runner="pooling",
+        engine_mode=vllm_engine_mode,
         enforce_eager=True,
         compilation_config=0,
         max_model_len=512,
@@ -297,9 +282,10 @@ def test_llmobs_reward(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
 
 
 def test_llmobs_score(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
-    llm = _create_llm_autotune(
+    llm = get_cached_llm(
         model="BAAI/bge-reranker-v2-m3",
         runner="pooling",
+        engine_mode=vllm_engine_mode,
         enforce_eager=True,
         max_model_len=512,
         compilation_config=0,

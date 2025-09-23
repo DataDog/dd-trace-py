@@ -1,4 +1,5 @@
 import pytest
+from ._utils import get_cached_llm
 
 IGNORE_FIELDS = [
     "metrics.vllm.latency.ttft",
@@ -14,9 +15,9 @@ def test_basic(vllm, vllm_engine_mode):
         "The future of AI is",
     ]
 
-    llm = vllm.LLM(
+    llm = get_cached_llm(
         model="facebook/opt-125m",
-        gpu_memory_utilization=0.05,
+        engine_mode=vllm_engine_mode,
         max_model_len=512,
         enforce_eager=True,
         compilation_config=0,
@@ -25,14 +26,11 @@ def test_basic(vllm, vllm_engine_mode):
     outputs = llm.generate(prompts, sampling)
 
 
-    #assert len(outputs) == len(prompts)
-
-
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_chat(vllm, vllm_engine_mode):
-    llm = vllm.LLM(
+    llm = get_cached_llm(
         model="facebook/opt-125m",
-        gpu_memory_utilization=0.05,
+        engine_mode=vllm_engine_mode,
         max_model_len=512,
         enforce_eager=True,
         compilation_config=0,
@@ -60,15 +58,14 @@ def test_chat(vllm, vllm_engine_mode):
         "Assistant:"
     )
     outputs = llm.chat(conversation, sampling_params, chat_template=simple_chat_template, use_tqdm=False)
-    #assert len(outputs) == 1
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_classify(vllm, vllm_engine_mode):
-    llm = vllm.LLM(
+    llm = get_cached_llm(
         model="BAAI/bge-reranker-v2-m3",
         runner="pooling",
-        gpu_memory_utilization=0.05,
+        engine_mode=vllm_engine_mode,
         max_model_len=512,
         enforce_eager=True,
         compilation_config=0,
@@ -81,16 +78,15 @@ def test_classify(vllm, vllm_engine_mode):
     ]
 
     outputs = llm.classify(prompts)
-    #assert len(outputs) == len(prompts)
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_embed(vllm, vllm_engine_mode):
 
-    llm = vllm.LLM(
+    llm = get_cached_llm(
         model="intfloat/e5-small",
         runner="pooling",
-        gpu_memory_utilization=0.05,
+        engine_mode=vllm_engine_mode,
         enforce_eager=True,
         compilation_config=0,
         max_model_len=512,
@@ -108,10 +104,10 @@ def test_embed(vllm, vllm_engine_mode):
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_reward(vllm, vllm_engine_mode):
 
-    llm = vllm.LLM(
+    llm = get_cached_llm(
         model="BAAI/bge-reranker-v2-m3",
         runner="pooling",
-        gpu_memory_utilization=0.05,
+        engine_mode=vllm_engine_mode,
         enforce_eager=True,
         compilation_config=0,
         max_model_len=512,
@@ -124,15 +120,15 @@ def test_reward(vllm, vllm_engine_mode):
     ]
 
     outputs = llm.reward(prompts)
-    #assert len(outputs) == len(prompts)
+
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_score(vllm, vllm_engine_mode):
 
-    llm = vllm.LLM(
+    llm = get_cached_llm(
         model="BAAI/bge-reranker-v2-m3",
         runner="pooling",
-        gpu_memory_utilization=0.05,
+        engine_mode=vllm_engine_mode,
         enforce_eager=True,
         max_model_len=512,
         compilation_config=0,
@@ -146,4 +142,3 @@ def test_score(vllm, vllm_engine_mode):
     ]
 
     outputs = llm.score(text_1, texts_2)
-    #assert len(outputs) == len(texts_2)

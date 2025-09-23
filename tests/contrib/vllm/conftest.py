@@ -1,5 +1,7 @@
-import importlib
+import pytest
 
+from ._utils import shutdown_cached_llms
+import importlib
 import pytest
 
 from ddtrace._trace.pin import Pin
@@ -11,6 +13,13 @@ from ddtrace.llmobs import LLMObs
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import override_global_config
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _shutdown_cached_llms_session():
+    yield
+    shutdown_cached_llms()
+
 
 @pytest.fixture(autouse=True, scope="session")
 def require_gpu():
