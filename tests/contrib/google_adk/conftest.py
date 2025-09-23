@@ -11,7 +11,6 @@ from google.adk.sessions.base_session_service import BaseSessionService
 from google.adk.sessions.session import Session
 from google.adk.tools.function_tool import FunctionTool
 from google.genai import types
-
 import pytest
 
 from ddtrace._trace.pin import Pin

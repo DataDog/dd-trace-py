@@ -130,7 +130,7 @@ def expected_llmobs_tool_span_events_agent_run(
                 "capability. Always be helpful and use "
                 "your available capabilities.",
                 "model": "gemini-2.5-pro",
-                "model_configuration": "{'arbitrary_types_allowed': True, 'extra': 'forbid'}",
+                "model_configuration": '{"arbitrary_types_allowed": true, "extra": "forbid"}',
                 "name": "test_agent",
                 "session_management": {"session_id": "test-session", "user_id": "test-user"},
                 "tools": [
@@ -185,7 +185,7 @@ def expected_llmobs_agent_span_event_with_tools(llmobs_event, agent_span, tool_s
                 "capability. Always be helpful and use "
                 "your available capabilities.",
                 "model": "gemini-2.5-pro",
-                "model_configuration": "{'arbitrary_types_allowed': True, 'extra': 'forbid'}",
+                "model_configuration": '{"arbitrary_types_allowed": true, "extra": "forbid"}',
                 "name": "test_agent",
                 "session_management": {"session_id": "test-session", "user_id": "test-user"},
                 "tools": [

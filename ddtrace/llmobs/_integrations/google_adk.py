@@ -23,8 +23,8 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.google_utils import extract_generation_metrics_google_genai
-from ddtrace.llmobs._integrations.google_utils import extract_messages_from_adk_events
 from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_google_genai
+from ddtrace.llmobs._integrations.google_utils import extract_messages_from_adk_events
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.trace import Span
@@ -60,7 +60,6 @@ class GoogleAdkIntegration(BaseLLMIntegration):
         response: Optional[Any] = None,
         operation: str = "",  # being used for span kind: one of "agent", "tool", "code_execute"
     ) -> None:
-
         if operation == "agent":
             self._llmobs_set_tags_agent(span, args, kwargs, response)
         elif operation == "tool":
@@ -83,7 +82,7 @@ class GoogleAdkIntegration(BaseLLMIntegration):
         agent_name = getattr(agent_instance, "name", None)
 
         self._tag_agent_manifest(span, kwargs, agent_instance)
-        user_prompt_parts = get_argument_value(args, kwargs, 0, "new_message")
+        user_prompt_parts = list(get_argument_value(args, kwargs, 0, "new_message") or [])
         user_prompt_parts = getattr(user_prompt_parts, "parts", user_prompt_parts)
         user_prompt = ""
         for part in user_prompt_parts:
