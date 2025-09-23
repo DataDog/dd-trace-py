@@ -106,6 +106,8 @@ OUTCOME_QUARANTINED = "quarantined"
 DISABLED_BY_TEST_MANAGEMENT_REASON = "Flaky test is disabled by Datadog"
 INCOMPATIBLE_PLUGINS = ("flaky", "rerunfailures")
 
+skipped_suites = set()
+
 skip_pytest_runtest_protocol = False
 
 # Module-level variable to store the current test's coverage collector
@@ -151,11 +153,35 @@ def _handle_itr_should_skip(item, test_id) -> bool:
         if hasattr(item.config, "workeroutput"):
             if "itr_skipped_count" not in item.config.workeroutput:
                 item.config.workeroutput["itr_skipped_count"] = 0
-            item.config.workeroutput["itr_skipped_count"] += 1
+            if not is_suite_skipping_mode:
+                item.config.workeroutput["itr_skipped_count"] += 1
 
         return True
 
     return False
+
+
+def _handle_itr_xdist_skipped_suite(item, suite_id) -> bool:
+    if suite_id in skipped_suites:
+        log.debug("Suite is already skipped")
+        return False
+
+    ## These checks are already performed upstream
+    # if not InternalTestSession.is_test_skipping_enabled():
+    #     log.debug("Test skipping not enabled")
+    #     return False
+
+    # ci_visibility_service = require_ci_visibility_service()
+    # is_suite_skipping_mode = ci_visibility_service._suite_skipping_mode
+    # if not is_suite_skipping_mode:
+    #     return False
+
+    if hasattr(item.config, "workeroutput"):
+        if "itr_skipped_count" not in item.config.workeroutput:
+            item.config.workeroutput["itr_skipped_count"] = 0
+        item.config.workeroutput["itr_skipped_count"] += 1
+    skipped_suites.add(suite_id)
+    return True
 
 
 def _handle_test_management(item, test_id):
@@ -605,6 +631,7 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
     if next_test_id is None or next_test_id.parent_id != suite_id:
         if InternalTestSuite.is_itr_skippable(suite_id) and not InternalTestSuite.was_itr_forced_run(suite_id):
             InternalTestSuite.mark_itr_skipped(suite_id)
+            _handle_itr_xdist_skipped_suite(item, suite_id)
         else:
             _handle_coverage_dependencies(suite_id)
         InternalTestSuite.finish(suite_id)
