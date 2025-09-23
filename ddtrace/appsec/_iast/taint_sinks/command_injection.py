@@ -15,7 +15,6 @@ from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.settings.asm import config as asm_config
 
 from .._logs import iast_error
-from .._logs import iast_propagation_sink_point_debug_log
 from ._base import VulnerabilityBase
 
 
@@ -64,7 +63,6 @@ def _iast_report_cmdi(shell_args: Union[str, List[str]]) -> None:
     try:
         if is_iast_request_enabled():
             if CommandInjection.has_quota():
-                iast_propagation_sink_point_debug_log("Check command injection sink point")
                 from .._taint_tracking.aspects import join_aspect
 
                 if isinstance(shell_args, (list, tuple)):
@@ -76,7 +74,6 @@ def _iast_report_cmdi(shell_args: Union[str, List[str]]) -> None:
                     report_cmdi = shell_args
 
                 if report_cmdi and isinstance(report_cmdi, IAST.TEXT_TYPES):
-                    iast_propagation_sink_point_debug_log("Reporting command injection")
                     CommandInjection.report(evidence_value=report_cmdi)
 
             # Reports Span Metrics

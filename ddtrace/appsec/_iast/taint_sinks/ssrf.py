@@ -43,7 +43,7 @@ def _iast_report_ssrf(func: Callable, *args, **kwargs):
     func_key = func_name(func)
     arg_pos, kwarg_name = _FUNC_TO_URL_ARGUMENT.get(func_key, (None, None))
     if arg_pos is None:
-        iast_propagation_sink_point_debug_log("%s not found in list of functions supported for SSRF", func_key)
+        iast_propagation_sink_point_debug_log(f"{func_key} not found in list of functions supported for SSRF")
         return
 
     try:
@@ -51,7 +51,7 @@ def _iast_report_ssrf(func: Callable, *args, **kwargs):
         report_ssrf = get_argument_value(list(args), kwargs, arg_pos, kw)
     except ArgumentError:
         iast_propagation_sink_point_debug_log(
-            "Failed to get URL argument from _FUNC_TO_URL_ARGUMENT dict for function %s", func_key
+            f"Failed to get URL argument from _FUNC_TO_URL_ARGUMENT dict for function {func_key}"
         )
         return
     if report_ssrf and isinstance(report_ssrf, IAST.TEXT_TYPES):
