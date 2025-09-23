@@ -1,0 +1,28 @@
+[[
+  {
+    "name": "vllm.request",
+    "service": "tests.contrib.vllm",
+    "resource": "vllm.request",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "llm",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68d25dd200000000",
+      "language": "python",
+      "runtime-id": "45a949904b974bac99b8d25671cf7d53",
+      "vllm.request.model": "facebook/opt-125m",
+      "vllm.request.provider": "vllm"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 9145
+    },
+    "duration": 459685849,
+    "start": 1758617042768229247
+  }]]

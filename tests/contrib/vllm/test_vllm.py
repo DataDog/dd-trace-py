@@ -1,5 +1,6 @@
 import pytest
-from ._utils import get_cached_llm
+from ._utils import get_cached_llm, get_cached_async_engine
+from vllm.sampling_params import RequestOutputKind
 
 IGNORE_FIELDS = [
     "metrics.vllm.latency.ttft",
@@ -142,3 +143,29 @@ def test_score(vllm, vllm_engine_mode):
     ]
 
     outputs = llm.score(text_1, texts_2)
+
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+async def test_async_streaming(vllm, vllm_engine_mode):
+    engine = get_cached_async_engine(
+        model="facebook/opt-125m",
+        engine_mode=vllm_engine_mode,
+        enforce_eager=True,
+    )
+
+    sampling_params = vllm.SamplingParams(
+        max_tokens=64,
+        temperature=0.8,
+        top_p=0.95,
+        seed=42,
+        output_kind=RequestOutputKind.DELTA,
+    )
+
+    async for out in engine.generate(
+        request_id="stream-test-1",
+        prompt="The future of artificial intelligence is",
+        sampling_params=sampling_params,
+    ):
+        if out.finished:
+            break

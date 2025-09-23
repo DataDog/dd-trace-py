@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import vllm
+from vllm.engine.arg_utils import AsyncEngineArgs
 
 
 def _create_llm_autotune(model, **kwargs):
@@ -37,6 +38,34 @@ def get_cached_llm(model: str, *, engine_mode: str | None = None, **kwargs):
     llm = _create_llm_autotune(model=model, **llm_kwargs)
     _LLM_CACHE[key] = llm
     return llm
+
+
+def get_cached_async_engine(model: str, *, engine_mode: str | None = None, **kwargs):
+    mode_key = engine_mode if engine_mode is not None else os.environ.get("VLLM_USE_V1", "0")
+    key = (model, "async", mode_key)
+    cached = _LLM_CACHE.get(key)
+    if cached is not None:
+        return cached
+
+    util_candidates = kwargs.pop(
+        "gpu_util_candidates",
+        [0.05, 0.1, 0.2, 0.3, 0.5, 0.7, 0.8, 0.9, 0.95],
+    )
+    last_error = None
+    for util in util_candidates:
+        try:
+            args = AsyncEngineArgs(model=model, gpu_memory_utilization=util, **kwargs)
+            if mode_key == "1":
+                from vllm.v1.engine.async_llm import AsyncLLM as _Async  # type: ignore
+            else:
+                from vllm.engine.async_llm_engine import AsyncLLMEngine as _Async  # type: ignore
+            engine = _Async.from_engine_args(args)
+            _LLM_CACHE[key] = engine
+            return engine
+        except Exception as exc:  # pragma: no cover
+            last_error = exc
+            continue
+    raise last_error
 
 
 def shutdown_cached_llms() -> None:

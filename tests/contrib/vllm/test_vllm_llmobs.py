@@ -3,7 +3,8 @@ import pytest
 import vllm
 
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
-from ._utils import get_cached_llm
+from ._utils import get_cached_llm, get_cached_async_engine
+from vllm.sampling_params import RequestOutputKind
 
 
 def test_llmobs_basic(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
@@ -333,3 +334,66 @@ def test_llmobs_score(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
         )
         assert event == expected
 
+
+@pytest.mark.asyncio
+async def test_llmobs_async_streaming(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
+    engine = get_cached_async_engine(
+        model="facebook/opt-125m",
+        engine_mode=vllm_engine_mode,
+        enforce_eager=True,
+    )
+
+    sampling_params = vllm.SamplingParams(
+        max_tokens=64,
+        temperature=0.8,
+        top_p=0.95,
+        seed=42,
+        output_kind=RequestOutputKind.DELTA,
+    )
+
+    async for out in engine.generate(
+        request_id="stream-test-1",
+        prompt="The future of AI is",
+        sampling_params=sampling_params,
+    ):
+        if out.finished:
+            break
+
+    traces = mock_tracer.pop_traces()
+    spans = [s for t in traces for s in t]
+    print("---LLMOBS EVENTS---")
+    print(llmobs_events)
+    print("---END LLMOBS EVENTS---")
+    print("---SPANS---")
+    print(spans)
+    print("---END SPANS---")
+
+    # Assertions based on observed stdout
+    assert len(llmobs_events) == 1
+    assert len(spans) >= 1
+    span = spans[0]
+    expected = _expected_llmobs_llm_span_event(
+        span,
+        model_name="facebook/opt-125m",
+        model_provider="vllm",
+        input_messages=[{"content": "The future of AI is", "role": ""}],
+        output_messages=[{
+            "content": " in the minds of scientists\nThe future of AI is in the minds of scientists, and I believe that's because the tools are being used to drive what's happening in artificial intelligence. One of the main challenges for AI is how to do something like that. In order to make that possible, we need to start to",
+            "role": "",
+        }],
+        metadata={
+            "seed": 42,
+            "top_k": 0,
+            "n": 1,
+            "temperature": 0.8,
+            "presence_penalty": 0.0,
+            "top_p": 0.95,
+            "repetition_penalty": 1.0,
+            "max_tokens": 64,
+            "frequency_penalty": 0.0,
+            "finish_reason": "length",
+        } | ({"num_cached_tokens": 0} if vllm_engine_mode == "1" else {}),
+        token_metrics={"input_tokens": 6, "output_tokens": 64, "total_tokens": 70},
+        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm"},
+    )
+    assert llmobs_events[0] == expected
