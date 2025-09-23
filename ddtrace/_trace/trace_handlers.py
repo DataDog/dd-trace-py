@@ -1002,7 +1002,6 @@ def _on_asgi_websocket_receive_message(ctx, scope, message, integration_config):
     This handler is called when a websocket receive message event is dispatched.
     It sets up the span with appropriate tags, metrics, and links.
     """
-    # breakpoint()
     span = ctx.span
 
     # Set standard component and span kind tags
@@ -1262,6 +1261,10 @@ def listen():
         core.on(f"context.started.{context_name}", _start_span)
 
     for name in (
+        "asgi.websocket.close.message",
+        "asgi.websocket.disconnect.message",
+        "asgi.websocket.receive.message",
+        "asgi.websocket.send.message",
         "django.middleware.__call__",
         "django.middleware.func",
         "django.middleware.process_exception",

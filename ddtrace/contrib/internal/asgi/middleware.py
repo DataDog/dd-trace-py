@@ -507,7 +507,7 @@ class TraceMiddleware:
             call_trace=False,
             activate=True,
             tags={COMPONENT: self.integration_config.integration_name, SPAN_KIND: SpanKind.PRODUCER},
-        ) as ctx, ctx.span as send_span:  # noqa: F841
+        ) as ctx:  # noqa: F841
             core.dispatch("asgi.websocket.send.message", (ctx, scope, message, self.integration_config))
 
     def _handle_websocket_close_message(self, scope: Mapping[str, Any], message: Mapping[str, Any], request_span: Span):
@@ -530,7 +530,7 @@ class TraceMiddleware:
             call_trace=False,
             activate=True,
             tags={COMPONENT: self.integration_config.integration_name, SPAN_KIND: SpanKind.PRODUCER},
-        ) as ctx, ctx.span as close_span:  # noqa: F841
+        ) as ctx:  # noqa: F841
             core.dispatch("asgi.websocket.close.message", (ctx, scope, message, self.integration_config))
 
         _cleanup_previous_receive(scope)
@@ -585,7 +585,7 @@ class TraceMiddleware:
             call_trace=False,
             activate=True,
             tags={COMPONENT: self.integration_config.integration_name, SPAN_KIND: SpanKind.CONSUMER},
-        ) as ctx, ctx.span:
+        ) as ctx:
             core.dispatch("asgi.websocket.disconnect.message", (ctx, scope, message, self.integration_config))
 
         if request_span and request_span.error == 0:
