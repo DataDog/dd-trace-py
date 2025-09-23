@@ -5,9 +5,9 @@ pub use datadog_profiling_ffi::*;
 mod data_pipeline;
 mod ddsketch;
 mod library_config;
+mod log;
 
 use pyo3::prelude::*;
-use pyo3::wrap_pyfunction;
 
 /// Dummy function to check if imported lib is generated on windows builds.
 #[no_mangle]
@@ -34,5 +34,10 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<library_config::PyAnonymousFileHandle>()?;
     m.add_wrapped(wrap_pyfunction!(library_config::store_metadata))?;
     data_pipeline::register_data_pipeline(m)?;
+
+    // Add logger submodule
+    let logger_module = pyo3::wrap_pymodule!(log::logger);
+    m.add_wrapped(logger_module)?;
+
     Ok(())
 }

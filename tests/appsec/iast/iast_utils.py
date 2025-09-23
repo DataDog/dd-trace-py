@@ -122,8 +122,10 @@ def iast_hypothesis_test(func):
 
 
 def _get_iast_data():
+    data = {}
     span_report = get_iast_reporter()
-    data = span_report.build_and_scrub_value_parts()
+    if span_report:
+        data = span_report.build_and_scrub_value_parts()
     return data
 
 
