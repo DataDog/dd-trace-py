@@ -99,6 +99,9 @@ def get_local(_locals: Mapping[str, Any], name: str) -> Any:
 
 
 class DDCompiler:
+    def __init__(self):
+        self._in_lambda = False
+
     @classmethod
     def __getmember__(cls, o, a):
         return object.__getattribute__(o, a)
@@ -128,7 +131,11 @@ class DDCompiler:
         return FunctionType(abstract_code.to_code(), {}, name, (), None)
 
     def _make_lambda(self, ast: DDASTType) -> Callable[[Any, Any], Any]:
-        return self._make_function(ast, ("_dd_it", "_dd_key", "_dd_value", "_locals"), "<lambda>")
+        self._in_lambda = True
+        try:
+            return self._make_function(ast, ("_dd_it", "_dd_key", "_dd_value", "_locals"), "<lambda>")
+        finally:
+            self._in_lambda = False
 
     def _compile_direct_predicate(self, ast: DDASTType) -> Optional[List[Instr]]:
         # direct_predicate       =>  {"<direct_predicate_type>": <predicate>}
@@ -248,6 +255,9 @@ class DDCompiler:
                 return None
 
             if arg in {"@it", "@key", "@value"}:
+                if not self._in_lambda:
+                    msg = f"Invalid use of {arg} outside of lambda"
+                    raise ValueError(msg)
                 return [Instr("LOAD_FAST", f"_dd_{arg[1:]}")]
 
             return self._call_function(
