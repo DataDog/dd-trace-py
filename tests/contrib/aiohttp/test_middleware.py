@@ -118,7 +118,7 @@ if __name__ == "__main__":
         ("foo=bar&foo=baz&x=y", True),
     ),
 )
-async def test_param_handler(app_tracer, aiohttp_client, loop, query_string, trace_query_string):
+async def test_param_handler(app_tracer, aiohttp_client, query_string, trace_query_string):
     app, tracer = app_tracer
     if trace_query_string:
         app[CONFIG_KEY]["trace_query_string"] = True
@@ -267,7 +267,7 @@ async def test_coroutine_chaining(app_tracer, aiohttp_client):
     assert root.get_tag("span.kind") == "server"
 
 
-async def test_static_handler(app_tracer, aiohttp_client, loop):
+async def test_static_handler(app_tracer, aiohttp_client):
     app, tracer = app_tracer
     client = await aiohttp_client(app)
     # it should create a trace with multiple spans
