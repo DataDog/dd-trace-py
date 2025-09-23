@@ -103,10 +103,9 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
         app_started_events = test_agent_session.get_events("app-started")
         assert len(app_started_events) == 1
         validate_request_body(app_started_events[0], None, "app-started")
-        assert len(app_started_events[0]["payload"]) == 3
+        assert len(app_started_events[0]["payload"]) == 2
         assert app_started_events[0]["payload"].get("configuration")
         assert app_started_events[0]["payload"].get("products")
-        assert app_started_events[0]["payload"].get("error") == {"code": 0, "message": ""}
 
 
 def test_app_started_event_configuration_override(test_agent_session, run_python_code_in_subprocess, tmpdir):
