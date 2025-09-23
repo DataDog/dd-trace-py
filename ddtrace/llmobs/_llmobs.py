@@ -101,9 +101,9 @@ from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.llmobs._utils import _is_evaluation_span
+from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import enforce_message_role
 from ddtrace.llmobs._utils import safe_json
-from ddtrace.llmobs._utils import validate_prompt
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 from ddtrace.llmobs._writer import LLMObsExperimentsClient
@@ -113,6 +113,7 @@ from ddtrace.llmobs._writer import should_use_agentless
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
 from ddtrace.llmobs.utils import Messages
+from ddtrace.llmobs.utils import Prompt
 from ddtrace.llmobs.utils import extract_tool_definitions
 from ddtrace.propagation.http import HTTPPropagator
 
@@ -757,6 +758,13 @@ class LLMObs(Service):
         description: str = "",
         tags: Optional[Dict[str, str]] = None,
         config: Optional[ExperimentConfigType] = None,
+        summary_evaluators: Optional[
+            List[
+                Callable[
+                    [List[DatasetRecordInputType], List[JSONType], List[JSONType], Dict[str, List[JSONType]]], JSONType
+                ]
+            ]
+        ] = None,
     ) -> Experiment:
         """Initializes an Experiment to run a task on a Dataset and evaluators.
 
@@ -782,9 +790,21 @@ class LLMObs(Service):
         for evaluator in evaluators:
             sig = inspect.signature(evaluator)
             params = sig.parameters
-            required_params = ("input_data", "output_data", "expected_output")
-            if not all(param in params for param in required_params):
-                raise TypeError("Evaluator function must have parameters {}.".format(required_params))
+            evaluator_required_params = ("input_data", "output_data", "expected_output")
+            if not all(param in params for param in evaluator_required_params):
+                raise TypeError("Evaluator function must have parameters {}.".format(evaluator_required_params))
+
+        if summary_evaluators and not all(callable(summary_evaluator) for summary_evaluator in summary_evaluators):
+            raise TypeError("Summary evaluators must be a list of callable functions.")
+        if summary_evaluators:
+            for summary_evaluator in summary_evaluators:
+                sig = inspect.signature(summary_evaluator)
+                params = sig.parameters
+                summary_evaluator_required_params = ("inputs", "outputs", "expected_outputs", "evaluators_results")
+                if not all(param in params for param in summary_evaluator_required_params):
+                    raise TypeError(
+                        "Summary evaluator function must have parameters {}.".format(summary_evaluator_required_params)
+                    )
         return Experiment(
             name,
             task,
@@ -795,6 +815,7 @@ class LLMObs(Service):
             description=description,
             config=config,
             _llmobs_instance=cls._instance,
+            summary_evaluators=summary_evaluators,
         )
 
     @classmethod
@@ -847,7 +868,10 @@ class LLMObs(Service):
 
     @classmethod
     def annotation_context(
-        cls, tags: Optional[Dict[str, Any]] = None, prompt: Optional[dict] = None, name: Optional[str] = None
+        cls,
+        tags: Optional[Dict[str, Any]] = None,
+        prompt: Optional[Union[dict, Prompt]] = None,
+        name: Optional[str] = None,
     ) -> AnnotationContext:
         """
         Sets specified attributes on all LLMObs spans created while the returned AnnotationContext is active.
@@ -856,10 +880,16 @@ class LLMObs(Service):
         :param tags: Dictionary of JSON serializable key-value tag pairs to set or update on the LLMObs span
                      regarding the span's context.
         :param prompt: A dictionary that represents the prompt used for an LLM call in the following form:
-                        `{"template": "...", "id": "...", "version": "...", "variables": {"variable_1": "...", ...}}`.
+                        `{
+                            "id": "...",
+                            "version": "...",
+                            "chat_template": [{"content": "...", "role": "..."}, ...],
+                            "variables": {"variable_1": "...", ...}}`.
+                            "tags": {"key1": "value1", "key2": "value2"},
+                        }`
                         Can also be set using the `ddtrace.llmobs.utils.Prompt` constructor class.
                         - This argument is only applicable to LLM spans.
-                        - The dictionary may contain two optional keys relevant to RAG applications:
+                        - The dictionary may contain optional keys relevant to Templates and RAG applications:
                             `rag_context_variables` - a list of variable key names that contain ground
                                                         truth context information
                             `rag_query_variables` - a list of variable key names that contains query
@@ -1295,7 +1325,14 @@ class LLMObs(Service):
         :param Span span: Span to annotate. If no span is provided, the current active span will be used.
                           Must be an LLMObs-type span, i.e. generated by the LLMObs SDK.
         :param prompt: A dictionary that represents the prompt used for an LLM call in the following form:
-                        `{"template": "...", "id": "...", "version": "...", "variables": {"variable_1": "...", ...}}`.
+                        `{
+                            "id": "...",
+                            "template": "...",
+                            "chat_template": [{"content": "...", "role": "..."}, ...])
+                            "version": "...",
+                            "variables": {"variable_1": "...", ...},
+                            tags": {"tag_1": "...", ...},
+                        }`.
                         Can also be set using the `ddtrace.llmobs.utils.Prompt` constructor class.
                         - This argument is only applicable to LLM spans.
                         - The dictionary may contain two optional keys relevant to RAG applications:
@@ -1379,11 +1416,11 @@ class LLMObs(Service):
                 span.name = _name
             if prompt is not None:
                 try:
-                    validated_prompt = validate_prompt(prompt)
+                    validated_prompt = _validate_prompt(prompt, strict_validation=False)
                     cls._set_dict_attribute(span, INPUT_PROMPT, validated_prompt)
-                except TypeError:
+                except (ValueError, TypeError) as e:
                     error = "invalid_prompt"
-                    log.warning("Failed to validate prompt with error: ", exc_info=True)
+                    log.warning("Failed to validate prompt with error:", str(e), exc_info=True)
             if not span_kind:
                 log.debug("Span kind not specified, skipping annotation for input/output data")
                 return

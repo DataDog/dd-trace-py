@@ -330,7 +330,7 @@ def test_crashtracker_preload_disabled(ddtrace_run_python_code_in_subprocess):
         assert exitcode == -11
 
         # No crash reports should be sent
-        assert client.crash_reports() == []
+        assert client.crash_messages() == []
 
 
 auto_code = """
@@ -389,7 +389,7 @@ def test_crashtracker_auto_disabled(run_python_code_in_subprocess):
         assert exitcode == -11
 
         # No crash reports should be sent
-        assert client.crash_reports() == []
+        assert client.crash_messages() == []
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
