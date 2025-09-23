@@ -95,6 +95,6 @@ def get_aws_partition(region_name):
 
 AWSREGION = "aws.region"
 REGION = "region"
-PARTITION = "partition"
+PARTITION = "aws.partition"
 AGENT = "aws.agent"
 OPERATION = "aws.operation"

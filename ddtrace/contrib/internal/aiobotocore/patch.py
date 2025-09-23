@@ -162,7 +162,7 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
         }
 
         if region_name:
-            meta["partition"] = aws.get_aws_partition(region_name)
+            meta["aws.partition"] = aws.get_aws_partition(region_name)
 
         span.set_tags(meta)
 
