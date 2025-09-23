@@ -56,7 +56,7 @@ def daphne_client(django_asgi, additional_env=None):
             assert resp.status_code == 200
         except ConnectionRefusedError:
             # current mitigation for python 3.8
-            if sys.version_info[:2] == (3,8):
+            if sys.version_info[:2] == (3, 8):
                 pass
             else:
                 raise
