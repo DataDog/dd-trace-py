@@ -112,35 +112,44 @@ class CrashtrackerWrapper:
         return read_files([self.stdout, self.stderr])
 
 
-def wait_for_crash_reports(test_agent_client: TestAgentClient) -> List[TestAgentRequest]:
-    crash_reports = []
-    for _ in range(10):  # 10 iterations * 0.1 second = 1 second total
-        incoming_reports = test_agent_client.crash_reports()
-        if incoming_reports:
-            crash_reports.extend(incoming_reports)
-            # If we have both crash ping and crash report (2 reports), we can return early
-            if len(crash_reports) >= 2:
-                return crash_reports
-        time.sleep(0.1)
+def wait_for_crash_messages(test_agent_client: TestAgentClient) -> List[TestAgentRequest]:
+    seen_report_ids = set()
+    crash_messages = []
+    # 5 iterations * 0.2 second = 1 second total should be enough to get ping + report
+    for _ in range(5):
+        incoming_messages = test_agent_client.crash_messages()
+        for message in incoming_messages:
+            body = message.get("body", b"")
+            if isinstance(body, str):
+                body = body.encode("utf-8")
+            report_id = (hash(body), frozenset(message.get("headers", {}).items()))
+            if report_id not in seen_report_ids:
+                seen_report_ids.add(report_id)
+                crash_messages.append(message)
 
-    return crash_reports
+            # If we have both crash ping and crash report (2 reports), we can return early
+            if len(crash_messages) >= 2:
+                return crash_messages
+        time.sleep(0.2)
+
+    return crash_messages
 
 
 def get_crash_report(test_agent_client: TestAgentClient) -> TestAgentRequest:
     """Wait for a crash report from the crashtracker listener socket."""
-    crash_reports = wait_for_crash_reports(test_agent_client)
+    crash_messages = wait_for_crash_messages(test_agent_client)
     # We want at least the crash report
-    assert len(crash_reports) == 2, f"Expected at 2 messages; one ping and one report, got {len(crash_reports)}"
+    assert len(crash_messages) == 2, f"Expected at least 2 messages; got {len(crash_messages)}"
 
-    # Find the actual crash report (the one with "is_crash":"true")
-    actual_crash_report = None
-    for report in crash_reports:
-        if b"is_crash:true" in report["body"]:
-            actual_crash_report = report
+    # Find the crash report (the one with "is_crash":"true")
+    crash_report = None
+    for message in crash_messages:
+        if b"is_crash:true" in message["body"]:
+            crash_report = message
             break
 
-    assert actual_crash_report is not None, "Could not find crash report with 'is_crash:true' tag"
-    return actual_crash_report
+    assert crash_report is not None, "Could not find crash report with 'is_crash:true' tag"
+    return crash_report
 
 
 @contextmanager
