@@ -2,6 +2,7 @@ import os
 
 from opentracing.scope_managers.asyncio import AsyncioScopeManager
 import pytest
+import pytest_asyncio
 
 from ddtrace._trace.sampler import RateSampler
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
@@ -12,6 +13,7 @@ from ddtrace.contrib.internal.aiohttp.middlewares import CONFIG_KEY
 from ddtrace.contrib.internal.aiohttp.middlewares import trace_app
 from ddtrace.contrib.internal.aiohttp.middlewares import trace_middleware
 from ddtrace.ext import http
+from ddtrace.internal.utils.version import parse_version
 from tests.opentracer.utils import init_tracer
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import assert_span_http_status_code
@@ -19,6 +21,9 @@ from tests.utils import override_global_config
 
 from .app.web import noop_middleware
 from .app.web import setup_app
+
+
+PYTEST_ASYNCIO_VERSION = parse_version(pytest_asyncio.__version__)
 
 
 async def test_handler(app_tracer, aiohttp_client):
@@ -48,6 +53,7 @@ async def test_handler(app_tracer, aiohttp_client):
     assert span.get_tag("span.kind") == "server"
 
 
+@pytest.mark.skipif(PYTEST_ASYNCIO_VERSION >= (1, 0), reason="'loop' fixture removed")
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
 def test_service_operation_schema(ddtrace_run_python_code_in_subprocess, schema_version):
     """
