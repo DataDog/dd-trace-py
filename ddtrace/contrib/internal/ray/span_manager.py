@@ -126,9 +126,10 @@ class LongRunningJobManager:
     def _finish_span(self, span, job_info=None):
         # was_long_running
         if span.get_metric("_dd.partial_version") is not None:
-            span.set_metric("_dd.partial_version", -1)
-            span.set_metric("_dd.was_long_running", 1)
-            span.set_tag_str("ray.job.status", "FINISHED")
+            del span._metrics["_dd.partial_version"]
+
+        span.set_metric("_dd.was_long_running", 1)
+        span.set_tag_str("ray.job.status", "FINISHED")
 
         if job_info:
             span.set_tag_str("ray.job.status", job_info.status)
