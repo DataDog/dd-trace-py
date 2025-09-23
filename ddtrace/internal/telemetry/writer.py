@@ -294,15 +294,6 @@ class TelemetryWriter(PeriodicService):
                 self._integrations_queue[integration_name]["compatible"] = error_msg == ""
                 self._integrations_queue[integration_name]["error"] = error_msg
 
-    def add_error(self, code, msg, filename, line_number):
-        # type: (int, str, Optional[str], Optional[int]) -> None
-        """Add an error to be submitted with an event.
-        Note that this overwrites any previously set errors.
-        """
-        if filename and line_number is not None:
-            msg = "%s:%s: %s" % (filename, line_number, msg)
-        self._error = (code, msg)
-
     def _app_started(self, register_app_shutdown: bool = True) -> Optional[Dict[str, Any]]:
         """Sent when TelemetryWriter is enabled or forks"""
         if self._forked or self.started:
