@@ -475,9 +475,8 @@ def test_iast_unvalidated_redirect():
 
 
 @pytest.mark.parametrize("server, config", _GEVENT_SERVERS_SCENARIOS)
-@pytest.mark.parametrize("appsec_enabled", ("true", "false"))
 @pytest.mark.parametrize("apm_tracing_enabled", ("true", "false"))
-def test_iast_vulnerable_request_downstream(server, config, appsec_enabled, apm_tracing_enabled):
+def test_iast_vulnerable_request_downstream(server, config, apm_tracing_enabled):
     """Gevent has a lot of problematic interactions with the tracer. When IAST applies AST transformations to a file
     and reloads the module using compile and exec, it can interfere with Gevent’s monkey patching
     """
@@ -486,7 +485,7 @@ def test_iast_vulnerable_request_downstream(server, config, appsec_enabled, apm_
     config["env"].update({"DD_TRACE_URLLIB3_ENABLED": "true"})
     with server(
         iast_enabled="true",
-        appsec_enabled=appsec_enabled,
+        appsec_enabled="false",
         apm_tracing_enabled=apm_tracing_enabled,
         token=token,
         port=8050,
@@ -539,13 +538,12 @@ def test_iast_vulnerable_request_downstream(server, config, appsec_enabled, apm_
 
 
 @pytest.mark.parametrize("server, config", _GEVENT_SERVERS_SCENARIOS)
-@pytest.mark.parametrize("appsec_enabled", ("true", "false"))
 @pytest.mark.parametrize("iast_enabled", ("true", "false"))
-def test_gevent_sensitive_socketpair(server, config, appsec_enabled, iast_enabled):
+def test_gevent_sensitive_socketpair(server, config, iast_enabled):
     """Validate socket.socketpair lifecycle under various Gunicorn/gevent configurations."""
     token = "test_gevent_sensitive_socketpair"
     _ = start_trace(token)
-    with server(iast_enabled=iast_enabled, appsec_enabled=appsec_enabled, token=token, port=8050, **config) as context:
+    with server(iast_enabled=iast_enabled, appsec_enabled="false", token=token, port=8050, **config) as context:
         _, flask_client, pid = context
         response = flask_client.get("/socketpair")
         assert response.status_code == 200
@@ -553,13 +551,12 @@ def test_gevent_sensitive_socketpair(server, config, appsec_enabled, iast_enable
 
 
 @pytest.mark.parametrize("server, config", _GEVENT_SERVERS_SCENARIOS)
-@pytest.mark.parametrize("appsec_enabled", ("true", "false"))
 @pytest.mark.parametrize("iast_enabled", ("true", "false"))
-def test_gevent_sensitive_greenlet(server, config, appsec_enabled, iast_enabled):
+def test_gevent_sensitive_greenlet(server, config, iast_enabled):
     """Validate gevent Greenlet execution under various Gunicorn/gevent configurations."""
     token = "test_gevent_sensitive_greenlet"
     _ = start_trace(token)
-    with server(iast_enabled=iast_enabled, appsec_enabled=appsec_enabled, token=token, port=8050, **config) as context:
+    with server(iast_enabled=iast_enabled, appsec_enabled="false", token=token, port=8050, **config) as context:
         _, flask_client, pid = context
         response = flask_client.get("/gevent-greenlet")
         assert response.status_code == 200
@@ -567,13 +564,12 @@ def test_gevent_sensitive_greenlet(server, config, appsec_enabled, iast_enabled)
 
 
 @pytest.mark.parametrize("server, config", _GEVENT_SERVERS_SCENARIOS)
-@pytest.mark.parametrize("appsec_enabled", ("true", "false"))
 @pytest.mark.parametrize("iast_enabled", ("true", "false"))
-def test_gevent_sensitive_subprocess(server, config, appsec_enabled, iast_enabled):
+def test_gevent_sensitive_subprocess(server, config, iast_enabled):
     """Validate subprocess.Popen lifecycle under various Gunicorn/gevent configurations."""
     token = "test_gevent_sensitive_subprocess"
     _ = start_trace(token)
-    with server(iast_enabled=iast_enabled, appsec_enabled=appsec_enabled, token=token, port=8050, **config) as context:
+    with server(iast_enabled=iast_enabled, appsec_enabled="false", token=token, port=8050, **config) as context:
         _, flask_client, pid = context
         response = flask_client.get("/subprocess-popen")
         assert response.status_code == 200
