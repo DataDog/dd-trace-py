@@ -167,6 +167,7 @@ def gen_required_suites() -> None:
     # Collect stages from suite configurations
     stages = {"setup"}  # setup is always needed
     for suite_name, suite_config in suites.items():
+        print(f"suite_name: {suite_name}")
         # Extract stage from suite name prefix if present
         if "::" in suite_name:
             stage, _, clean_name = suite_name.partition("::")
@@ -181,6 +182,15 @@ def gen_required_suites() -> None:
         # Mark GPU requirement if the clean suite name matches a GPU integration
         if clean_name in gpu_integrations:
             suite_config["gpu"] = True
+        # Additionally, mark GPU if the suite paths explicitly include the vLLM component tag
+        # This covers suites like 'llmobs' that include '@vllm' tests under a broader suite name
+        try:
+            paths = set(suite_config.get("paths") or [])
+            if "@vllm" in paths:
+                suite_config["gpu"] = True
+        except Exception:
+            pass
+        print(f"suite_config: {suite_config}")
 
     # Sort stages: setup first, then alphabetically
     sorted_stages = ["setup"] + sorted(stages - {"setup"})
