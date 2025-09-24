@@ -64,6 +64,14 @@ def _derive_metrics_temporality_preference(config: "ExporterConfig"):
     return get_config("OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE", config.DEFAULT_METRICS_TEMPORALITY_PREFERENCE)
 
 
+def _derive_metrics_metric_reader_export_interval(config: "ExporterConfig"):
+    return get_config("OTEL_METRIC_EXPORT_INTERVAL", config.DEFAULT_METRICS_METRIC_READER_EXPORT_INTERVAL, int)
+
+
+def _derive_metrics_metric_reader_export_timeout(config: "ExporterConfig"):
+    return get_config("OTEL_METRIC_EXPORT_TIMEOUT", config.DEFAULT_METRICS_METRIC_READER_EXPORT_TIMEOUT, int)
+
+
 class OpenTelemetryConfig(DDConfig):
     __prefix__ = "otel"
 
@@ -78,6 +86,8 @@ class ExporterConfig(DDConfig):
     DEFAULT_HEADERS: str = ""
     DEFAULT_TIMEOUT: int = 10000
     DEFAULT_METRICS_TEMPORALITY_PREFERENCE: str = "delta"
+    DEFAULT_METRICS_METRIC_READER_EXPORT_INTERVAL: int = 10000
+    DEFAULT_METRICS_METRIC_READER_EXPORT_TIMEOUT: int = 7500
 
     PROTOCOL = DDConfig.v(t.Optional[str], "otlp.protocol", default="grpc")
     ENDPOINT = DDConfig.d(str, _derive_endpoint)
@@ -94,6 +104,8 @@ class ExporterConfig(DDConfig):
     METRICS_HEADERS = DDConfig.d(str, _derive_metrics_headers)
     METRICS_TIMEOUT = DDConfig.d(int, _derive_metrics_timeout)
     METRICS_TEMPORALITY_PREFERENCE = DDConfig.d(str, _derive_metrics_temporality_preference)
+    METRICS_METRIC_READER_EXPORT_INTERVAL = DDConfig.d(int, _derive_metrics_metric_reader_export_interval)
+    METRICS_METRIC_READER_EXPORT_TIMEOUT = DDConfig.d(int, _derive_metrics_metric_reader_export_timeout)
 
 
 OpenTelemetryConfig.include(ExporterConfig, namespace="exporter")

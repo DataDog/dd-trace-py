@@ -604,6 +604,16 @@ import ddtrace.settings.exception_replay
             "origin": "default",
             "value": 10000,
         },
+        {
+            "name": "OTEL_METRIC_EXPORT_INTERVAL",
+            "origin": "default",
+            "value": 10000,
+        },
+        {
+            "name": "OTEL_METRIC_EXPORT_TIMEOUT",
+            "origin": "default",
+            "value": 7500,
+        },
         {"name": "_DD_APPSEC_DEDUPLICATION_ENABLED", "origin": "default", "value": True},
         {"name": "_DD_IAST_LAZY_TAINT", "origin": "default", "value": False},
         {"name": "_DD_IAST_USE_ROOT_SPAN", "origin": "default", "value": False},

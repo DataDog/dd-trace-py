@@ -154,6 +154,8 @@ def _initialize_metrics(exporter_class, protocol, resource):
         # The default endpoint is resolved using the hostname from DD_AGENT.. and DD_TRACE_AGENT_... configs
         os.environ["OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"] = otel_config.exporter.METRICS_ENDPOINT
         os.environ["OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE"] = otel_config.exporter.METRICS_TEMPORALITY_PREFERENCE
+        os.environ["OTEL_METRIC_EXPORT_INTERVAL"] = str(otel_config.exporter.METRICS_METRIC_READER_EXPORT_INTERVAL)
+        os.environ["OTEL_METRIC_EXPORT_TIMEOUT"] = str(otel_config.exporter.METRICS_METRIC_READER_EXPORT_TIMEOUT)
         _init_metrics({protocol: exporter_class}, resource=resource)
         return True
     except ImportError as e:
