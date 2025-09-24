@@ -62,6 +62,23 @@ include:
   parallel: 2
   before_script:
     - !reference [.testrunner_gpu, before_script]
+    # GPU diagnostics
+    - nvidia-smi || true
+    - |
+      python - <<'PY'
+      import sys
+      try:
+          import torch
+          print("torch:", torch.__version__, "cuda:", getattr(torch.version, "cuda", None), "is_available:", torch.cuda.is_available())
+      except Exception as e:
+          print("torch import error:", e, file=sys.stderr)
+      try:
+          import vllm
+          print("vllm:", getattr(vllm, "__version__", "unknown"))
+      except Exception as e:
+          print("vllm import error:", e, file=sys.stderr)
+      PY
+    - ls -l /usr/lib/x86_64-linux-gnu/libcuda* || true
   script:
     - export PYTEST_ADDOPTS="${PYTEST_ADDOPTS} --ddtrace"
     - export _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER=true
@@ -146,6 +163,23 @@ include:
     - !reference [.services, ddagent]
   before_script:
     - !reference [.testrunner_gpu, before_script]
+    # GPU diagnostics
+    - nvidia-smi || true
+    - |
+      python - <<'PY'
+      import sys
+      try:
+          import torch
+          print("torch:", torch.__version__, "cuda:", getattr(torch.version, "cuda", None), "is_available:", torch.cuda.is_available())
+      except Exception as e:
+          print("torch import error:", e, file=sys.stderr)
+      try:
+          import vllm
+          print("vllm:", getattr(vllm, "__version__", "unknown"))
+      except Exception as e:
+          print("vllm import error:", e, file=sys.stderr)
+      PY
+    - ls -l /usr/lib/x86_64-linux-gnu/libcuda* || true
     - unset DD_SERVICE
     - unset DD_ENV
     - unset DD_TAGS
