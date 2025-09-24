@@ -455,7 +455,7 @@ def patched_add_url_rule(wrapped, instance, args, kwargs):
             #   should we do something special with these views? Change the name/resource? Add tags?
             core.dispatch("service_entrypoint.patch", (unwrap(view_func),))
             wrapped_view = wrap_view(instance, view_func, name=endpoint, resource=rule)
-        for method in kwargs.get("methods", []):
+        for method in kwargs.get("methods", []) or []:
             endpoint_collection.add_endpoint(method, rule, operation_name="flask.request")
         return wrapped(
             rule,
