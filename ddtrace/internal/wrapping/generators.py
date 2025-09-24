@@ -77,7 +77,6 @@ if PY >= (3, 14):
             call                        0
             swap                        2
             pop_except
-            load_const                  None
             return_value
 
         exc:
