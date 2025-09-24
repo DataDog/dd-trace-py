@@ -71,6 +71,5 @@ def ast_function(
         and DEFAULT_SSRF_FUNCTIONS.get(func.__module__)
         and func_name in DEFAULT_SSRF_FUNCTIONS[func.__module__]
     ):
-        # print(f"SSRF: func! {func}, func_name: {func_name}, module: {func.__module__}")
         _iast_report_ssrf(func_name, func.__module__, *args, **kwargs)
     return func(*args, **kwargs)

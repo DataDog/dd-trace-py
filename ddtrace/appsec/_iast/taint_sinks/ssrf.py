@@ -19,12 +19,12 @@ class SSRF(VulnerabilityBase):
 
 
 _FUNC_TO_URL_ARGUMENT = {
-    "http.client.request": (1, "url"),
-    "requests.sessions.request": (1, "url"),
-    "urllib.request.urlopen": (0, "url"),
-    "urllib3._request_methods.request": (1, "url"),
-    "urllib3.request.request": (1, "url"),
-    "webbrowser.open": (0, "url"),
+    "requests.api": (0, "url"),
+    "urllib.request": (0, "url"),
+    "urllib3": (0, "url"),
+    "http.client": (1, "url"),
+    "urllib3._request_methods": (1, "url"),
+    "webbrowser": (0, "url"),
 }
 
 
@@ -38,10 +38,6 @@ def _iast_report_ssrf(func_name: str, module_name, *args, **kwargs):
     no vulnerability is reported.
     """
     arg_pos, kwarg_name = _FUNC_TO_URL_ARGUMENT.get(module_name, (None, None))
-    print(f"arg_pos: {arg_pos}")
-    print(f"kwarg_name: {kwarg_name}")
-    print(f"args: {args}")
-    print(f"kwargs: {kwargs}")
     if arg_pos is None:
         iast_propagation_sink_point_debug_log(
             f"{module_name}.{func_name} not found in list of functions supported for SSRF"
@@ -51,13 +47,11 @@ def _iast_report_ssrf(func_name: str, module_name, *args, **kwargs):
     try:
         kw = kwarg_name if kwarg_name else ""
         report_ssrf = get_argument_value(list(args), kwargs, arg_pos, kw)
-    except ArgumentError as e:
-        print(f"ArgumentError: {e}")
+    except ArgumentError:
         iast_propagation_sink_point_debug_log(
             f"Failed to get URL argument from _FUNC_TO_URL_ARGUMENT dict for function {module_name}.{func_name}"
         )
         return
-    print(f"REPORT SSRF: {report_ssrf}")
     if report_ssrf and isinstance(report_ssrf, IAST.TEXT_TYPES):
         if is_iast_request_enabled():
             try:
@@ -77,5 +71,4 @@ def _iast_report_ssrf(func_name: str, module_name, *args, **kwargs):
                 # Report Telemetry Metrics
                 increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, SSRF.vulnerability_type)
             except Exception as e:
-                print(f"ssrf error!!!!!!!!!! {e}")
                 iast_error("propagation::sink_point::Error in _iast_report_ssrf", e)

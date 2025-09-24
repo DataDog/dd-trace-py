@@ -106,8 +106,20 @@ DEFAULT_COMMAND_INJECTION_FUNCTIONS = {
 
 DEFAULT_SSRF_FUNCTIONS = {
     "requests.api": {"get", "post", "put"},
+    "urllib3": {
+        "request",
+    },
     "urllib3._request_methods": {
-        "RequestMethods.request",
+        "request",
+    },
+    "http.client": {
+        "request",
+    },
+    "urllib.request": {
+        "urlopen",
+    },
+    "webbrowser": {
+        "open",
     },
 }
 
