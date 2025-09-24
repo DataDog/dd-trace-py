@@ -875,7 +875,7 @@ class LangChainIntegration(BaseLLMIntegration):
                     messages.append({"role": role, "content": m.content})
                 elif hasattr(m, "prompt") and hasattr(m.prompt, "template"):
                     # a template message
-                    messages.append({"role": role, "content": m.prompt.template})
+                    messages.append({"role": role, "content": str(m.prompt.template or "")})
                 else:
                     messages = []
                     log.debug("Failed to parse template messages")
