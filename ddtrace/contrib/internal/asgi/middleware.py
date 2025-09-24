@@ -559,7 +559,12 @@ class TraceMiddleware:
             core.dispatch("asgi.start_response", ("asgi",))
 
     def _handle_websocket_receive_message(
-        self, ctx: core.ExecutionContext, scope: Mapping[str, Any], message: Mapping[str, Any], recv_span: Span, request_span: Span
+        self,
+        ctx: core.ExecutionContext,
+        scope: Mapping[str, Any],
+        message: Mapping[str, Any],
+        recv_span: Span,
+        request_span: Span,
     ):
         _cleanup_previous_receive(scope)
         core.dispatch("asgi.websocket.receive.message", (ctx, scope, message, self.integration_config))
