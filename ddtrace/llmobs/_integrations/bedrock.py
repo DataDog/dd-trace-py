@@ -35,8 +35,8 @@ from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_outpu
 from ddtrace.llmobs._telemetry import record_bedrock_agent_span_event_created
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._writer import LLMObsSpanEvent
-from ddtrace.llmobs.utils import Message
-from ddtrace.llmobs.utils import ToolDefinition
+from ddtrace.llmobs.types import Message
+from ddtrace.llmobs.types import ToolDefinition
 from ddtrace.trace import Span
 
 

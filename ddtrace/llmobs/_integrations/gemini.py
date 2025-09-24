@@ -20,7 +20,7 @@ from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_
 from ddtrace.llmobs._integrations.google_utils import get_system_instructions_gemini_vertexai
 from ddtrace.llmobs._integrations.google_utils import llmobs_get_metadata_gemini_vertexai
 from ddtrace.llmobs._utils import _get_attr
-from ddtrace.llmobs.utils import Message
+from ddtrace.llmobs.types import Message
 from ddtrace.trace import Span
 
 

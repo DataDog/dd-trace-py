@@ -12,9 +12,9 @@ from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
-from ddtrace.llmobs.utils import Message
-from ddtrace.llmobs.utils import ToolCall
-from ddtrace.llmobs.utils import ToolResult
+from ddtrace.llmobs.types import Message
+from ddtrace.llmobs.types import ToolCall
+from ddtrace.llmobs.types import ToolResult
 
 
 # Google GenAI has roles "model" and "user", but in order to stay consistent with other integrations,

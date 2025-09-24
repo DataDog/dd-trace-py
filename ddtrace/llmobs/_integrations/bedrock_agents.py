@@ -18,11 +18,11 @@ from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._writer import LLMObsSpanEvent
-from ddtrace.llmobs.utils import ErrorField
-from ddtrace.llmobs.utils import Message
-from ddtrace.llmobs.utils import Meta
-from ddtrace.llmobs.utils import MetaIO
-from ddtrace.llmobs.utils import SpanField
+from ddtrace.llmobs.types import ErrorField
+from ddtrace.llmobs.types import Message
+from ddtrace.llmobs.types import Meta
+from ddtrace.llmobs.types import MetaIO
+from ddtrace.llmobs.types import SpanField
 
 
 log = get_logger(__name__)

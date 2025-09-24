@@ -45,8 +45,8 @@ from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._experiment import UpdatableDatasetRecord
 from ddtrace.llmobs._utils import safe_json
-from ddtrace.llmobs.utils import Meta
-from ddtrace.llmobs.utils import SpanLink
+from ddtrace.llmobs.types import Meta
+from ddtrace.llmobs.types import SpanLink
 from ddtrace.settings._agent import config as agent_config
 
 

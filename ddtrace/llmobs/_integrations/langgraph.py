@@ -27,7 +27,7 @@ from ddtrace.llmobs._integrations.constants import LANGGRAPH_ASTREAM_OUTPUT
 from ddtrace.llmobs._integrations.utils import format_langchain_io
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
-from ddtrace.llmobs.utils import SpanLink
+from ddtrace.llmobs.types import SpanLink
 from ddtrace.trace import Span
 
 

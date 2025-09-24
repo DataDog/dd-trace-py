@@ -29,10 +29,10 @@ from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import safe_load_json
-from ddtrace.llmobs.utils import Message
-from ddtrace.llmobs.utils import ToolCall
-from ddtrace.llmobs.utils import ToolDefinition
-from ddtrace.llmobs.utils import ToolResult
+from ddtrace.llmobs.types import Message
+from ddtrace.llmobs.types import ToolCall
+from ddtrace.llmobs.types import ToolDefinition
+from ddtrace.llmobs.types import ToolResult
 
 
 try:

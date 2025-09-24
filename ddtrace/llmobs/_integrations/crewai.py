@@ -24,7 +24,7 @@ from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import safe_json
-from ddtrace.llmobs.utils import SpanLink
+from ddtrace.llmobs.types import SpanLink
 from ddtrace.trace import Span
 
 

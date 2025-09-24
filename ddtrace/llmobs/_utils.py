@@ -29,9 +29,9 @@ from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import VERTEXAI_APM_SPAN_NAME
-from ddtrace.llmobs.utils import Message
-from ddtrace.llmobs.utils import Prompt
-from ddtrace.llmobs.utils import SpanLink
+from ddtrace.llmobs.types import Message
+from ddtrace.llmobs.types import Prompt
+from ddtrace.llmobs.types import SpanLink
 from ddtrace.trace import Span
 
 
