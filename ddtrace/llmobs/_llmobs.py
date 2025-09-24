@@ -608,7 +608,7 @@ class LLMObs(Service):
 
             # Add APM trace filter to drop all APM traces when DD_APM_TRACING_ENABLED is falsy
             apm_filter = APMTracingEnabledFilter()
-            cls._instance.tracer._span_aggregator.user_processors.append(apm_filter)
+            cls._instance.tracer._span_aggregator.dd_processors.append(apm_filter)
 
             cls.enabled = True
             cls._instance.start()
