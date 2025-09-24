@@ -224,7 +224,7 @@ def test_iast_vulnerable_request_downstream_django(server, config):
     #   File "/python310importlib/_bootstrap.py", line 923, in _find_spec
     #     meta_path = sys.meta_path
     #  NameError: name 'sys' is not defined
-    with server(use_ddtrace_cmd=False, iast_enabled="true", token=token, port=8050, **config) as context:
+    with server(iast_enabled="true", appsec_enabled="false", token=token, port=8050, **config) as context:
         _, django_client, pid = context
 
         trace_id = 1212121212121212121

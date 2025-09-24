@@ -976,10 +976,17 @@ def iast_ast_patching_non_re_search():
     return resp
 
 
-@app.route("/common-modules-patch-read", methods=["GET"])
-def test_flask_common_modules_patch_read():
-    copy_open = copy.deepcopy(open)
-    return Response(f"OK: {isinstance(copy_open, FunctionWrapper)}")
+@app.route("/common-modules-patch", methods=["GET"])
+def test_flask_common_modules_patch():
+    function = request.args.get("function")
+    copy_function = ""
+    if function == "open":
+        copy_function = copy.deepcopy(open)
+    elif function == "os_system":
+        copy_function = os.system
+    elif function == "subprocess_popen":
+        copy_function = subprocess.Popen.__init__
+    return Response(f"OK: {isinstance(copy_function, FunctionWrapper)}")
 
 
 @app.route("/returnheaders", methods=["GET"])
@@ -1052,14 +1059,14 @@ def subprocess_popen_ok():
     ok = True
     try:
         pass
-        # TODO(APPSEC-59081): this test fails for every configuration (IAST enable/disable, Appsec enable/disable) so
-        #  the problem is related to the trace lifecycle
-        # subp = subprocess.Popen(args=["/bin/echo", "ok"]) if os.path.exists("/bin/echo") else subprocess.Popen(
-        #     args=["echo", "ok"]
-        # )
-        # subp.communicate()
-        # rc = subp.wait()
-        # ok = rc == 0
+        subp = (
+            subprocess.Popen(args=["/bin/echo", "ok"])
+            if os.path.exists("/bin/echo")
+            else subprocess.Popen(args=["echo", "ok"])
+        )
+        subp.communicate()
+        rc = subp.wait()
+        ok = rc == 0
     except Exception:
         ok = False
     return Response(f"OK:{ok}")
