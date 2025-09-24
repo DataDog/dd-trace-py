@@ -185,6 +185,7 @@ class AstVisitor(ast.NodeTransformer):
         # Sink points
         self._taint_sink_replace_any = self._merge_dicts(
             _ASPECTS_SPEC["taint_sinks"]["weak_randomness"],
+            *[functions for module, functions in _ASPECTS_SPEC["taint_sinks"]["path_traversal"].items()],
             *[functions for module, functions in _ASPECTS_SPEC["taint_sinks"]["cmd_injection"].items()],
             *[functions for module, functions in _ASPECTS_SPEC["taint_sinks"]["ssrf"].items()],
         )
