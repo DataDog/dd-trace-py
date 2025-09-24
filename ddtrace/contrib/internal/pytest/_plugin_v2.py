@@ -1,6 +1,5 @@
 import os
 from pathlib import Path
-import re
 import typing as t
 
 from _pytest.runner import runtestprotocol
@@ -101,7 +100,6 @@ if _pytest_version_supports_attempt_to_fix():
 log = get_logger(__name__)
 
 
-_NODEID_REGEX = re.compile("^((?P<module>.*)/(?P<suite>[^/]*?))::(?P<name>.*?)$")
 OUTCOME_QUARANTINED = "quarantined"
 DISABLED_BY_TEST_MANAGEMENT_REASON = "Flaky test is disabled by Datadog"
 INCOMPATIBLE_PLUGINS = ("flaky", "rerunfailures")
@@ -165,16 +163,6 @@ def _handle_itr_xdist_skipped_suite(item, suite_id) -> bool:
     if suite_id in skipped_suites:
         log.debug("Suite is already skipped")
         return False
-
-    ## These checks are already performed upstream
-    # if not InternalTestSession.is_test_skipping_enabled():
-    #     log.debug("Test skipping not enabled")
-    #     return False
-
-    # ci_visibility_service = require_ci_visibility_service()
-    # is_suite_skipping_mode = ci_visibility_service._suite_skipping_mode
-    # if not is_suite_skipping_mode:
-    #     return False
 
     if hasattr(item.config, "workeroutput"):
         if "itr_skipped_count" not in item.config.workeroutput:
