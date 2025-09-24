@@ -4,6 +4,7 @@ from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enab
 from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._logs import iast_propagation_sink_point_debug_log
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
+from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec._iast._span_metrics import increment_iast_span_metric
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast._taint_tracking import get_ranges
@@ -28,6 +29,9 @@ _FUNC_TO_URL_ARGUMENT = {
 }
 
 
+IS_REPORTED_INTRUMENTED_SINK_METRIC = False
+
+
 def _iast_report_ssrf(func_name: str, module_name, *args, **kwargs):
     """
     Check and report potential SSRF (Server-Side Request Forgery) vulnerabilities in function calls.
@@ -37,6 +41,11 @@ def _iast_report_ssrf(func_name: str, module_name, *args, **kwargs):
     URL fragments (parts after #) are handled specially - if all tainted parts are in the fragment,
     no vulnerability is reported.
     """
+    global IS_REPORTED_INTRUMENTED_SINK_METRIC
+    if not IS_REPORTED_INTRUMENTED_SINK_METRIC:
+        _set_metric_iast_instrumented_sink(VULN_SSRF)
+        IS_REPORTED_INTRUMENTED_SINK_METRIC = True
+
     arg_pos, kwarg_name = _FUNC_TO_URL_ARGUMENT.get(module_name, (None, None))
     if arg_pos is None:
         iast_propagation_sink_point_debug_log(

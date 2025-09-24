@@ -2,6 +2,7 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
+from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec._iast._span_metrics import increment_iast_span_metric
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast.constants import VULN_CMDI
@@ -15,7 +16,15 @@ class CommandInjection(VulnerabilityBase):
     secure_mark = VulnerabilityType.COMMAND_INJECTION
 
 
+IS_REPORTED_INTRUMENTED_SINK_METRIC = False
+
+
 def _iast_report_cmdi(func_name, *args, **kwargs) -> None:
+    global IS_REPORTED_INTRUMENTED_SINK_METRIC
+    if not IS_REPORTED_INTRUMENTED_SINK_METRIC:
+        _set_metric_iast_instrumented_sink(VULN_CMDI)
+        IS_REPORTED_INTRUMENTED_SINK_METRIC = True
+
     report_cmdi = ""
     if len(args) == 0:
         shell_args = kwargs.get("args", [])
