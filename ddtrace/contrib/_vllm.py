@@ -50,4 +50,4 @@ To configure the vLLM integration on a per-instance basis use the
     # For async engines
     engine = vllm.AsyncLLMEngine.from_engine_args(...)
     Pin.override(engine, service="my-vllm-service")
-""" 
+"""

@@ -1,26 +1,28 @@
 from __future__ import annotations
-from typing import Any, Dict, List, Optional
 
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+
+from ddtrace.contrib.internal.vllm.data_extractors import RequestData
 from ddtrace.internal.logger import get_logger
-from ddtrace.llmobs._constants import (
-    INPUT_DOCUMENTS,
-    INPUT_MESSAGES,
-    INPUT_TOKENS_METRIC_KEY,
-    METADATA,
-    METRICS,
-    MODEL_NAME,
-    MODEL_PROVIDER,
-    OUTPUT_MESSAGES,
-    OUTPUT_TOKENS_METRIC_KEY,
-    OUTPUT_VALUE,
-    SPAN_KIND,
-    TOTAL_TOKENS_METRIC_KEY,
-)
+from ddtrace.llmobs._constants import INPUT_DOCUMENTS
+from ddtrace.llmobs._constants import INPUT_MESSAGES
+from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import METADATA
+from ddtrace.llmobs._constants import METRICS
+from ddtrace.llmobs._constants import MODEL_NAME
+from ddtrace.llmobs._constants import MODEL_PROVIDER
+from ddtrace.llmobs._constants import OUTPUT_MESSAGES
+from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import OUTPUT_VALUE
+from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs.utils import Document
 from ddtrace.trace import Span
-from vllm import SamplingParams
-from ddtrace.contrib.internal.vllm.data_extractors import RequestData
+
 
 log = get_logger(__name__)
 
@@ -123,7 +125,11 @@ class VLLMIntegration(BaseLLMIntegration):
         if not isinstance(num_embeddings, int) or num_embeddings <= 0:
             num_embeddings = len(docs) if docs else 1
         dim = data.embedding_dim
-        ctx[OUTPUT_VALUE] = f"[{num_embeddings} embedding(s) returned with size {dim}]" if dim else f"[{num_embeddings} embedding(s) returned]"
+        ctx[OUTPUT_VALUE] = (
+            f"[{num_embeddings} embedding(s) returned with size {dim}]"
+            if dim
+            else f"[{num_embeddings} embedding(s) returned]"
+        )
         return ctx
 
     def _build_completion_context(self, data: RequestData) -> Dict[str, Any]:

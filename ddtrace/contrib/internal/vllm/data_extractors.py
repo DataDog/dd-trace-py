@@ -1,15 +1,22 @@
 """Data extraction helpers isolated from wrapping logic."""
 
 from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Any, Iterable, List, Optional
+from typing import Any
+from typing import Iterable
+from typing import List
+from typing import Optional
 
 import torch
 from vllm import SamplingParams
-from vllm.outputs import CompletionOutput, PoolingRequestOutput, RequestOutput
-from vllm.sequence import Sequence, SequenceGroup, SequenceStatus
-from vllm.lora.request import LoRARequest
 from vllm.inputs import PromptType
+from vllm.lora.request import LoRARequest
+from vllm.outputs import CompletionOutput
+from vllm.outputs import PoolingRequestOutput
+from vllm.outputs import RequestOutput
+from vllm.sequence import SequenceGroup
+from vllm.sequence import SequenceStatus
 
 
 # ---------- data container ---------------------------------------------------
@@ -135,7 +142,7 @@ def extract_v0_data(seq_group: SequenceGroup) -> RequestData:
         if s.output_text:
             out_txt.append(s.output_text)
     data.output_text = "".join(out_txt)
-    
+
     if seq_group.is_finished():
         finished_seqs = seq_group.get_finished_seqs()
         if finished_seqs:
@@ -199,6 +206,7 @@ def extract_offline_pooling_data(request_output: PoolingRequestOutput, prompts=N
         data.input_ = list(prompt_token_ids)
 
     return data
+
 
 def extract_model_name(instance: Any) -> Optional[str]:
     """Extract model name from any vLLM engine instance (LLMEngine, AsyncLLMEngine, MQLLMEngineClient)."""

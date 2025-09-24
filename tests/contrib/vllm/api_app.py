@@ -5,20 +5,18 @@ from typing import List
 
 from fastapi import FastAPI
 from pydantic import BaseModel
-
-import vllm
 import torch
 import torch.nn.functional as F
-from ddtrace._trace.pin import Pin
-
-from ._utils import get_cached_async_engine, get_simple_chat_template
+import vllm
 
 # Optional: use vLLM's OpenAI server engine builder to exercise MQ client
 from vllm.engine.arg_utils import AsyncEngineArgs
-from vllm.entrypoints.openai.api_server import (
-    build_async_engine_client_from_engine_args,
-)
+from vllm.entrypoints.openai.api_server import build_async_engine_client_from_engine_args
 from vllm.usage.usage_lib import UsageContext
+
+from ddtrace._trace.pin import Pin
+
+from ._utils import get_cached_async_engine
 
 
 class RagRequest(BaseModel):
@@ -110,9 +108,7 @@ async def rag(req: RagRequest):
                 gen_args,
                 usage_context=UsageContext.OPENAI_API_SERVER,
             ) as gen_engine:
-                sampling = vllm.SamplingParams(
-                    temperature=0.8, top_p=0.95, max_tokens=64, seed=42
-                )
+                sampling = vllm.SamplingParams(temperature=0.8, top_p=0.95, max_tokens=64, seed=42)
                 prompt = f"Context: {top_doc}\nQuestion: {req.query}\nAnswer:"
                 generated_text = ""
                 last = None
@@ -210,5 +206,3 @@ async def rag(req: RagRequest):
                     generated_text = sample.text
 
     return {"generated_text": generated_text, "retrieved_document": top_doc}
-
-

@@ -1,40 +1,38 @@
 from __future__ import annotations
 
-from typing import Any, Optional
 import time
+from typing import Optional
 
 import vllm
 import vllm.envs as envs
-from vllm.outputs import RequestOutput, PoolingRequestOutput
+from vllm.outputs import PoolingRequestOutput
+from vllm.outputs import RequestOutput
+from vllm.pooling_params import PoolingParams
+from vllm.sequence import RequestMetrics
+from vllm.sequence import SequenceGroup
+
 from ddtrace import config
-from ddtrace.contrib.trace_utils import unwrap, wrap, with_traced_module
+from ddtrace.contrib.trace_utils import unwrap
+from ddtrace.contrib.trace_utils import with_traced_module
+from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations.vllm import VLLMIntegration
 from ddtrace.trace import Pin
-from vllm.sequence import RequestMetrics, SequenceGroup
-from vllm.core.scheduler import SchedulerOutputs
-from vllm.pooling_params import PoolingParams
-from vllm.sampling_params import SamplingParams
-from vllm.entrypoints.score_utils import get_score_prompt
 
-from .data_extractors import (
-    RequestData,
-    extract_lora_name,
-    extract_model_name,
-    extract_offline_data,
-    extract_offline_pooling_data,
-    extract_v0_data,
-    extract_v1_streaming_data,
-    _embedding_dim,
-    _embedding_shape_info,
-    select_prompt_for_span,
-)
-from .span_utils import (
-    cache_headers_for_pooling_params,
-    create_vllm_span,
-    inject_trace_headers,
-    set_latency_metrics,
-)
+from .data_extractors import RequestData
+from .data_extractors import _embedding_shape_info
+from .data_extractors import extract_lora_name
+from .data_extractors import extract_model_name
+from .data_extractors import extract_offline_data
+from .data_extractors import extract_offline_pooling_data
+from .data_extractors import extract_v0_data
+from .data_extractors import extract_v1_streaming_data
+from .data_extractors import select_prompt_for_span
+from .span_utils import cache_headers_for_pooling_params
+from .span_utils import create_vllm_span
+from .span_utils import inject_trace_headers
+from .span_utils import set_latency_metrics
+
 
 log = get_logger(__name__)
 config._add("vllm", {})
@@ -118,13 +116,13 @@ def traced_llmengine_do_tracing(vllm, pin, func, instance, args, kwargs):
         #        data.prompt = tokenizer.decode(seq_group.prompt_token_ids)
         if operation == "embedding":
             data.input_ = seq_group.prompt_token_ids
-        
+
         _tag_if_enabled(integration, span, data, operation=operation)
         set_latency_metrics(span, metrics_obj)
         span.finish()
 
     return res
-"""    
+"""
 
 
 @with_traced_module
@@ -178,6 +176,7 @@ def traced_llmengine_process_model_outputs(vllm, pin, func, instance, args, kwar
 
     return res
 
+
 # ---------- v1: API-SERVER-SIDE tracing -------------------------------------
 @with_traced_module
 def traced_asyncllm_generate(vllm, pin, func, instance, args, kwargs):
@@ -202,19 +201,21 @@ def traced_asyncllm_generate(vllm, pin, func, instance, args, kwargs):
         res = func(*args, **kwargs)
         if hasattr(res, "__await__"):
             res = await res
-
+        log.debug("[VLLM DD] traced_asyncllm_generate: res=%s", res)
         outputs: list[RequestOutput] = []
         async for out in res:
             outputs.append(out)
             if getattr(out, "finished", False):
                 break
-
+        log.debug("[VLLM DD] traced_asyncllm_generate: outputs=%s", outputs)
         data = extract_v1_streaming_data(outputs)
         data.lora_name = extract_lora_name(lora_request)
         data.sampling_params = sampling_params
         data.request_id = request_id
         if not data.prompt:
-            tokenizer = instance.tokenizer.get_lora_tokenizer(lora_request) if getattr(instance, "tokenizer", None) else None
+            tokenizer = (
+                instance.tokenizer.get_lora_tokenizer(lora_request) if getattr(instance, "tokenizer", None) else None
+            )
             text, token_ids, input_tokens = select_prompt_for_span(
                 prompt_arg,
                 is_embedding=False,
@@ -223,13 +224,15 @@ def traced_asyncllm_generate(vllm, pin, func, instance, args, kwargs):
             data.prompt = text
             data.input_tokens = input_tokens
             data.input_ = token_ids
+        log.debug("[VLLM DD] traced_asyncllm_generate: data=%s", data)
         _tag_if_enabled(integration, span, data)
         span.finish()
-
+        log.debug("[VLLM DD] traced_asyncllm_generate: span=%s", span)
         for out in outputs:
             yield out
 
     return execute()
+
 
 """Offline tracing wrappers for vLLM LLM entrypoints (V1 only)."""
 
@@ -251,7 +254,7 @@ def traced_llm_generate(vllm, pin, func, instance, args, kwargs):
 
     if not isinstance(prompt_arg, list):
         prompt_arg = [prompt_arg]
-        
+
     prompts = []
     for prompt in prompt_arg:
         tokenizer = instance.get_tokenizer(lora_request)
@@ -314,7 +317,7 @@ def traced_llm_cross_encoding_score(vllm, pin, func, instance, args, kwargs):
     tracer = pin.tracer
     integration = vllm._datadog_integration
 
-    tokenizer = args[0] if args else kwargs.get("tokenizer")
+    # tokenizer argument is not used here
     data_1 = args[1] if len(args) > 1 else kwargs.get("data_1")
     data_2 = args[2] if len(args) > 2 else kwargs.get("data_2")
 
@@ -346,7 +349,6 @@ def traced_llm_cross_encoding_score(vllm, pin, func, instance, args, kwargs):
     return outputs
 
 
-
 @with_traced_module
 def traced_asyncllm_encode(vllm, pin, func, instance, args, kwargs):
     tracer = pin.tracer
@@ -358,6 +360,7 @@ def traced_asyncllm_encode(vllm, pin, func, instance, args, kwargs):
         integration=integration,
         model_name=extract_model_name(instance),
     )
+
     async def execute():
         res = func(*args, **kwargs)
         if hasattr(res, "__await__"):
@@ -540,10 +543,18 @@ def patch():
     _safe_wrap("vllm.entrypoints.llm", "LLM.encode", traced_llm_encode(vllm))
     _safe_wrap("vllm.entrypoints.llm", "LLM._cross_encoding_score", traced_llm_cross_encoding_score(vllm))
 
-    _safe_wrap("vllm.engine.async_llm_engine", "_AsyncLLMEngine.add_request_async", traced_v0_engine_add_request_async(vllm))
+    _safe_wrap(
+        "vllm.engine.async_llm_engine", "_AsyncLLMEngine.add_request_async", traced_v0_engine_add_request_async(vllm)
+    )
     _safe_wrap("vllm.engine.llm_engine", "LLMEngine.add_request", traced_v0_engine_add_request(vllm))
-    _safe_wrap("vllm.engine.multiprocessing.client", "MQLLMEngineClient._process_request", traced_mq_client_process_request(vllm))
-    _safe_wrap("vllm.engine.llm_engine", "LLMEngine._process_model_outputs", traced_llmengine_process_model_outputs(vllm))
+    _safe_wrap(
+        "vllm.engine.multiprocessing.client",
+        "MQLLMEngineClient._process_request",
+        traced_mq_client_process_request(vllm),
+    )
+    _safe_wrap(
+        "vllm.engine.llm_engine", "LLMEngine._process_model_outputs", traced_llmengine_process_model_outputs(vllm)
+    )
     log.debug("[VLLM DEBUG] patch: wrappers applied")
 
 
@@ -558,7 +569,7 @@ def unpatch():
     _safe_unwrap(vllm.entrypoints.llm.LLM, "generate")
     _safe_unwrap(vllm.entrypoints.llm.LLM, "encode")
     _safe_unwrap(vllm.entrypoints.llm.LLM, "_cross_encoding_score")
-    
+
     _safe_unwrap(vllm.engine.async_llm_engine._AsyncLLMEngine, "add_request_async")
     _safe_unwrap(vllm.engine.llm_engine.LLMEngine, "add_request")
     _safe_unwrap(vllm.engine.multiprocessing.client.MQLLMEngineClient, "_process_request")

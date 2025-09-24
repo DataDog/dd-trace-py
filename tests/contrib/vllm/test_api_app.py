@@ -2,19 +2,23 @@ from __future__ import annotations
 
 import os
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
+
+from ddtrace import tracer as ddtracer
+from ddtrace._trace.pin import Pin
 
 from .api_app import app
 
 
-@pytest.mark.snapshot(ignores=[
-    "metrics.vllm.latency.ttft",
-    "metrics.vllm.latency.queue",
-    "meta._dd.p.llmobs_trace_id"
-])
+@pytest.mark.snapshot(ignores=["metrics.vllm.latency.ttft", "metrics.vllm.latency.queue", "meta._dd.p.llmobs_trace_id"])
 def test_rag_parent_child(vllm, mock_tracer, llmobs_events, vllm_engine_mode):
     os.environ["VLLM_USE_V1"] = vllm_engine_mode
+
+    # Ensure snapshot writer receives traces: use global tracer for vLLM Pin
+    pin = Pin.get_from(vllm)
+    if pin is not None:
+        pin._override(vllm, tracer=ddtracer)
 
     client = TestClient(app)
     payload = {
@@ -28,15 +32,13 @@ def test_rag_parent_child(vllm, mock_tracer, llmobs_events, vllm_engine_mode):
     res = client.post("/rag", json=payload)
     assert res.status_code == 200
 
-    traces = mock_tracer.pop_traces()
-    spans = [s for t in traces for s in t]
 
-
-
-@pytest.mark.snapshot(ignores=[
-    "metrics.vllm.latency.ttft",
-    "metrics.vllm.latency.queue",
-])
+@pytest.mark.snapshot(
+    ignores=[
+        "metrics.vllm.latency.ttft",
+        "metrics.vllm.latency.queue",
+    ]
+)
 def test_rag_mq_concurrency(vllm, mock_tracer, monkeypatch):
     monkeypatch.setenv("VLLM_USE_V1", "0")
     monkeypatch.setenv("VLLM_USE_MQ", "1")
@@ -66,6 +68,3 @@ def test_rag_mq_concurrency(vllm, mock_tracer, monkeypatch):
     print("---SPANS---")
     print(spans)
     print("---END SPANS---")
-
-
-

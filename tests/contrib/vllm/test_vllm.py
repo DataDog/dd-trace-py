@@ -1,11 +1,16 @@
 import pytest
-from ._utils import get_cached_llm, get_cached_async_engine, get_simple_chat_template
 from vllm.sampling_params import RequestOutputKind
+
+from ._utils import get_cached_async_engine
+from ._utils import get_cached_llm
+from ._utils import get_simple_chat_template
+
 
 IGNORE_FIELDS = [
     "metrics.vllm.latency.ttft",
     "metrics.vllm.latency.queue",
-] 
+]
+
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_basic(vllm, vllm_engine_mode):
@@ -24,7 +29,7 @@ def test_basic(vllm, vllm_engine_mode):
         compilation_config=0,
     )
     sampling = vllm.SamplingParams(temperature=0.1, top_p=0.9, max_tokens=8)
-    outputs = llm.generate(prompts, sampling)
+    llm.generate(prompts, sampling)
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
@@ -42,15 +47,12 @@ def test_chat(vllm, vllm_engine_mode):
         {"role": "system", "content": "You are a helpful assistant"},
         {"role": "user", "content": "Hello"},
         {"role": "assistant", "content": "Hello! How can I assist you today?"},
-        {
-            "role": "user", 
-            "content": "Write an essay about the importance of higher education."
-        },
+        {"role": "user", "content": "Write an essay about the importance of higher education."},
     ]
 
     # Transformers >=4.44 requires an explicit chat template for models without one (e.g., OPT)
     simple_chat_template = get_simple_chat_template()
-    outputs = llm.chat(conversation, sampling_params, chat_template=simple_chat_template, use_tqdm=False)
+    llm.chat(conversation, sampling_params, chat_template=simple_chat_template, use_tqdm=False)
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
@@ -70,12 +72,11 @@ def test_classify(vllm, vllm_engine_mode):
         "The capital of France is",
     ]
 
-    outputs = llm.classify(prompts)
+    llm.classify(prompts)
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_embed(vllm, vllm_engine_mode):
-
     llm = get_cached_llm(
         model="intfloat/e5-small",
         runner="pooling",
@@ -91,12 +92,11 @@ def test_embed(vllm, vllm_engine_mode):
         "The capital of France is",
     ]
 
-    outputs = llm.embed(prompts)
+    llm.embed(prompts)
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_reward(vllm, vllm_engine_mode):
-
     llm = get_cached_llm(
         model="BAAI/bge-reranker-v2-m3",
         runner="pooling",
@@ -112,12 +112,11 @@ def test_reward(vllm, vllm_engine_mode):
         "The capital of France is",
     ]
 
-    outputs = llm.reward(prompts)
+    llm.reward(prompts)
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_score(vllm, vllm_engine_mode):
-
     llm = get_cached_llm(
         model="BAAI/bge-reranker-v2-m3",
         runner="pooling",
@@ -134,7 +133,7 @@ def test_score(vllm, vllm_engine_mode):
         "The capital of France is Paris.",
     ]
 
-    outputs = llm.score(text_1, texts_2)
+    llm.score(text_1, texts_2)
 
 
 @pytest.mark.asyncio
@@ -185,6 +184,3 @@ async def test_async_encode_streaming(vllm, vllm_engine_mode):
         ):
             if out.finished:
                 break
-
-
-    

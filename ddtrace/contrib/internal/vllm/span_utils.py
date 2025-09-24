@@ -2,19 +2,26 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any
+from typing import Dict
+from typing import Optional
+
+from vllm.pooling_params import PoolingParams
+from vllm.sequence import RequestMetrics
+from vllm.sequence import SequenceGroup
 
 from ddtrace.constants import _SPAN_MEASURED_KEY
+from ddtrace.contrib.internal.vllm.data_extractors import select_prompt_for_span
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import INTEGRATION
-from ddtrace.propagation.http import HTTPPropagator
-from vllm.sequence import RequestMetrics, SequenceGroup
-from ddtrace.trace import Context, Pin, Span, Tracer
 from ddtrace.llmobs._integrations.vllm import VLLMIntegration
-from vllm.pooling_params import PoolingParams
-from ddtrace.contrib.internal.vllm.data_extractors import select_prompt_for_span
+from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.trace import Context
+from ddtrace.trace import Pin
+from ddtrace.trace import Span
+from ddtrace.trace import Tracer
+
 
 log = get_logger(__name__)
 
@@ -107,9 +114,8 @@ def inject_trace_headers(
     headers = dict(existing_headers)
     if parent:
         HTTPPropagator.inject(parent.context, headers)
-    
+
     # Extract prompt directly from the provided prompt argument
-    prompt_to_inject = None
     if prompt_arg_pos is not None:
         prompt_arg = args[prompt_arg_pos] if len(args) > prompt_arg_pos else kwargs.get("prompt")
         # Determine operation type
@@ -119,19 +125,17 @@ def inject_trace_headers(
             params_obj = args[params_arg_pos] if len(args) > params_arg_pos else kwargs.get("params")
         is_embedding = isinstance(params_obj, PoolingParams)
         # Decode for completion when possible
-        text, token_ids, _ = select_prompt_for_span(prompt_arg,
-                                                    is_embedding=is_embedding,
-                                                    tokenizer=tokenizer)
+        text, token_ids, _ = select_prompt_for_span(prompt_arg, is_embedding=is_embedding, tokenizer=tokenizer)
         if text:
             headers["x-datadog-captured-prompt"] = str(text)
         elif token_ids:
             headers["x-datadog-captured-prompt"] = str(token_ids)
-    
+
     # Add prompt to headers if found (stringify for safety)
     captured = headers.get("x-datadog-captured-prompt")
     if captured is not None:
         log.debug("[VLLM DD] inject_trace_headers: added x-datadog-captured-prompt (type=%s)", type(captured).__name__)
-    
+
     # Update the appropriate location
     if headers_in_args and headers:
         # Modify args tuple

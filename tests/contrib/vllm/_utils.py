@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+
 import vllm
 from vllm.engine.arg_utils import AsyncEngineArgs
 
@@ -93,5 +94,3 @@ def shutdown_cached_llms() -> None:
         except Exception:
             pass
     _LLM_CACHE.clear()
-
-

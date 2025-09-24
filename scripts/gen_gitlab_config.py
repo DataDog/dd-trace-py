@@ -132,6 +132,7 @@ def gen_required_suites() -> None:
     gpu_integrations: t.Set[str] = set()
     try:
         import yaml  # type: ignore
+
         registry_path = ROOT / "ddtrace" / "contrib" / "integration_registry" / "registry.yaml"
         with registry_path.open("r", encoding="utf-8") as f:
             reg = yaml.safe_load(f) or {}

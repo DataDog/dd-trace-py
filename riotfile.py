@@ -3173,7 +3173,6 @@ venv = Venv(
             },
             pys=select_pys(min_version="3.8"),
         ),
-
         Venv(
             name="vllm",
             command="pytest {cmdargs} tests/contrib/vllm",
