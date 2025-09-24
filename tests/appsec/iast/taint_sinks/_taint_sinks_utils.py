@@ -6,7 +6,7 @@ from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source as RangeSource
 from ddtrace.appsec._iast._taint_tracking import TaintRange
 from ddtrace.appsec._iast._taint_tracking import new_pyobject_id
-from ddtrace.appsec._iast._taint_tracking._taint_objects_base import taint_pyobject_with_ranges
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject_with_ranges
 
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))

@@ -1,0 +1,44 @@
+import pytest
+
+from ddtrace.appsec._iast._taint_tracking import origin_to_str
+from ddtrace.appsec._iast._taint_tracking import str_to_origin
+from ddtrace.appsec._iast.constants import VULN_UNTRUSTED_SERIALIZATION
+from ddtrace.appsec._iast.taint_sinks.untrusted_serialization import UntrustedSerialization
+from tests.appsec.iast.iast_utils import _get_iast_data
+from tests.appsec.iast.taint_sinks._taint_sinks_utils import _taint_pyobject_multiranges
+from tests.appsec.iast.taint_sinks._taint_sinks_utils import get_parametrize
+
+
+@pytest.mark.parametrize(
+    "evidence_input, sources_expected, vulnerabilities_expected,element",
+    list(get_parametrize(VULN_UNTRUSTED_SERIALIZATION)),
+)
+def test_unstrusted_serialization_redaction_suite(
+    evidence_input, sources_expected, vulnerabilities_expected, iast_context_defaults, element
+):
+    tainted_object = evidence_input_value = evidence_input.get("value", "")
+    if evidence_input_value:
+        tainted_object = _taint_pyobject_multiranges(
+            evidence_input_value,
+            [
+                (
+                    input_ranges["iinfo"]["parameterName"],
+                    input_ranges["iinfo"]["parameterValue"],
+                    str_to_origin(input_ranges["iinfo"]["type"]),
+                    input_ranges["start"],
+                    input_ranges["end"] - input_ranges["start"],
+                )
+                for input_ranges in evidence_input.get("ranges", {})
+            ],
+        )
+
+    UntrustedSerialization.report(tainted_object)
+
+    data = _get_iast_data()
+    vulnerability = list(data["vulnerabilities"])[0]
+    source = list(data["sources"])[0]
+    source["origin"] = origin_to_str(source["origin"])
+
+    assert vulnerability["type"] == VULN_UNTRUSTED_SERIALIZATION
+    assert vulnerability["evidence"] == vulnerabilities_expected["evidence"]
+    assert source == sources_expected

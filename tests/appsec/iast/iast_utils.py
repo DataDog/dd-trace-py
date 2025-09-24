@@ -30,8 +30,7 @@ from ddtrace.appsec._iast.sampling.vulnerability_detection import _reset_global_
 
 
 # Check if the log contains "iast::" to raise an error if that’s the case BUT, if the logs contains
-# "iast::instrumentation::" or "iast::instrumentation::"
-# are valid
+# "iast::instrumentation::" or "iast::instrumentation::" are valid
 IAST_VALID_LOG = re.compile(r"^iast::(?!instrumentation::|propagation::context::|propagation::sink_point).*$")
 
 
@@ -122,8 +121,10 @@ def iast_hypothesis_test(func):
 
 
 def _get_iast_data():
+    data = {}
     span_report = get_iast_reporter()
-    data = span_report.build_and_scrub_value_parts()
+    if span_report:
+        data = span_report.build_and_scrub_value_parts()
     return data
 
 
@@ -134,7 +135,6 @@ def _start_iast_context_and_oce(span=None):
 
 def _end_iast_context_and_oce(span=None):
     result = _iast_finish_request(span)
-    oce.release_request()
     _reset_global_limit()
     return result
 
