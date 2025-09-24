@@ -209,6 +209,11 @@ class CustomDict(dict):
             True,
         ),
         ({"ref": "@it"}, {}, ValueError),
+        (
+            {"len": {"filter": [{"ref": "collection"}, {"any": [{"ref": "@it"}, {"eq": [{"ref": "@it"}, 1]}]}]}},
+            {"collection": [[1, 2], [3, 4], [5]]},
+            1,
+        ),
     ],
 )
 def test_parse_expressions(ast, _locals, value):
