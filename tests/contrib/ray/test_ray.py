@@ -67,10 +67,15 @@ def submit_ray_job(script_name, timeout=180):
         status_res = subprocess.run(status_cmd, capture_output=True, text=True, timeout=30)
         status_text = (status_res.stdout or "").upper()
         if "SUCCEEDED" in status_text:
-            time.sleep(2)
+            time.sleep(10)
             return result
         if "FAILED" in status_text or "STOPPED" in status_text:
-            time.sleep(2)
+            # Print status output to help diagnose failures
+            if status_res.stdout:
+                print("\n[ray job status stdout]\n" + status_res.stdout)
+            if status_res.stderr:
+                print("\n[ray job status stderr]\n" + status_res.stderr)
+            time.sleep(10)
             raise subprocess.CalledProcessError(1, status_cmd, status_res.stdout, status_res.stderr)
         time.sleep(1)
 
