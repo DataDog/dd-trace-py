@@ -212,6 +212,7 @@ raise Exception('bad_code')
     logs_event = test_agent_session.get_events("logs")
     assert len(logs_event) == 0
 
+
 def test_handled_integration_error(test_agent_session, run_python_code_in_subprocess):
     code = """
 import logging
