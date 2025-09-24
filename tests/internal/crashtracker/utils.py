@@ -112,7 +112,12 @@ class CrashtrackerWrapper:
         return read_files([self.stdout, self.stderr])
 
 
-def wait_for_crash_messages(test_agent_client: TestAgentClient) -> List[TestAgentRequest]:
+def get_all_crash_messages(test_agent_client: TestAgentClient) -> List[TestAgentRequest]:
+    """
+    A test helper to get *all* crash messages is necessary, because crash pings and crash reports
+    are sent through async network requests, so we don't have a guarantee of the order they are received.
+    We differentiate between crash pings and crash reports downstream
+    """
     seen_report_ids = set()
     crash_messages = []
     # 5 iterations * 0.2 second = 1 second total should be enough to get ping + report
@@ -137,7 +142,7 @@ def wait_for_crash_messages(test_agent_client: TestAgentClient) -> List[TestAgen
 
 def get_crash_report(test_agent_client: TestAgentClient) -> TestAgentRequest:
     """Wait for a crash report from the crashtracker listener socket."""
-    crash_messages = wait_for_crash_messages(test_agent_client)
+    crash_messages = get_all_crash_messages(test_agent_client)
     # We want at least the crash report
     assert len(crash_messages) == 2, f"Expected at least 2 messages; got {len(crash_messages)}"
 
@@ -150,6 +155,22 @@ def get_crash_report(test_agent_client: TestAgentClient) -> TestAgentRequest:
 
     assert crash_report is not None, "Could not find crash report with 'is_crash:true' tag"
     return crash_report
+
+
+def get_crash_ping(test_agent_client: TestAgentClient) -> TestAgentRequest:
+    """Wait for a crash report from the crashtracker listener socket."""
+    crash_messages = get_all_crash_messages(test_agent_client)
+    assert len(crash_messages) == 2, f"Expected at least 2 messages; got {len(crash_messages)}"
+
+    # Find the crash ping (the one with "is_crash_ping":"true")
+    crash_ping = None
+    for message in crash_messages:
+        if b"is_crash_ping:true" in message["body"]:
+            crash_ping = message
+            break
+
+    assert crash_ping is not None, "Could not find crash ping with 'is_crash_ping:true' tag"
+    return crash_ping
 
 
 @contextmanager
