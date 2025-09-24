@@ -1,5 +1,5 @@
 ---
 features:
   - |
-    AWS: adds ``aws.partition`` tag onto AWS traces based on the region.
+    AWS: adds ``aws.partition`` tag onto AWS traces based on the region for the boto, botocore, and aiobotocore integrations.
 
