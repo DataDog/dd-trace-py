@@ -864,13 +864,11 @@ class LangChainIntegration(BaseLLMIntegration):
             for m, r in zip(instance.messages, result.messages):
                 # message templates do not have a role: the role is derived from the instance class
                 # instead, we use the resulting message
-                if hasattr(r, "type") and r.type in LANGCHAIN_ROLE_MAPPING:
-                    # a standard message: ai, system, or human
-                    role = LANGCHAIN_ROLE_MAPPING.get(r.type)
-                elif hasattr(r, "role"):
-                    # a chat message
-                    role = r.role
-                role = role if role is not None else "unknown"
+                role = getattr(r, "role", None)
+                if not role:
+                    role = LANGCHAIN_ROLE_MAPPING.get(getattr(r, "type", None))
+                if not role:
+                    role = "unknown"
 
                 if hasattr(m, "content"):
                     # a message in the template that is not a template itself
