@@ -1,7 +1,7 @@
 import time
 
 from ddtrace import config
-from ddtrace.contrib.internal.ray.span_manager import _job_manager
+from ddtrace.contrib.internal.ray.span_manager import _ray_span_manager
 from ddtrace.contrib.internal.ray.span_manager import start_long_running_span
 from ddtrace.contrib.internal.ray.span_manager import stop_long_running_span
 from tests.utils import TracerTestCase
@@ -21,10 +21,10 @@ class TestLongRunningSpan(TracerTestCase):
         config.ray.initial_submit_threshold = 1  # 1s instead of 10s
 
         # Clear any existing spans from the job manager
-        with _job_manager._lock:
-            _job_manager._job_spans.clear()
-            _job_manager._root_spans.clear()
-            _job_manager._timers.clear()
+        with _ray_span_manager._lock:
+            _ray_span_manager._job_spans.clear()
+            _ray_span_manager._root_spans.clear()
+            _ray_span_manager._timers.clear()
 
     def tearDown(self):
         # Restore original values
@@ -32,12 +32,12 @@ class TestLongRunningSpan(TracerTestCase):
         config.ray.initial_submit_threshold = self.original_initial_submit_threshold
 
         # Clean up any remaining timers
-        with _job_manager._lock:
-            for timer in _job_manager._timers.values():
+        with _ray_span_manager._lock:
+            for timer in _ray_span_manager._timers.values():
                 timer.cancel()
-            _job_manager._job_spans.clear()
-            _job_manager._root_spans.clear()
-            _job_manager._timers.clear()
+            _ray_span_manager._job_spans.clear()
+            _ray_span_manager._root_spans.clear()
+            _ray_span_manager._timers.clear()
         super().tearDown()
 
     def test_long_running_span_basic_lifecycle(self):
@@ -49,9 +49,9 @@ class TestLongRunningSpan(TracerTestCase):
         start_long_running_span(span)
 
         submission_id = "test-submission-123"
-        with _job_manager._lock:
-            self.assertIn(submission_id, _job_manager._job_spans)
-            self.assertIn((span.trace_id, span.span_id), _job_manager._job_spans[submission_id])
+        with _ray_span_manager._lock:
+            self.assertIn(submission_id, _ray_span_manager._job_spans)
+            self.assertIn((span.trace_id, span.span_id), _ray_span_manager._job_spans[submission_id])
 
         time.sleep(1.5)
 
@@ -60,8 +60,8 @@ class TestLongRunningSpan(TracerTestCase):
 
         stop_long_running_span(span)
 
-        with _job_manager._lock:
-            job_spans = _job_manager._job_spans.get(submission_id, {})
+        with _ray_span_manager._lock:
+            job_spans = _ray_span_manager._job_spans.get(submission_id, {})
             self.assertNotIn((span.trace_id, span.span_id), job_spans)
 
         self.assertIsNone(span.get_metric("_dd.partial_version"))
@@ -76,17 +76,17 @@ class TestLongRunningSpan(TracerTestCase):
         start_long_running_span(span)
 
         submission_id = "test-submission-123"
-        with _job_manager._lock:
-            self.assertIn(submission_id, _job_manager._job_spans)
-            self.assertIn((span.trace_id, span.span_id), _job_manager._job_spans[submission_id])
+        with _ray_span_manager._lock:
+            self.assertIn(submission_id, _ray_span_manager._job_spans)
+            self.assertIn((span.trace_id, span.span_id), _ray_span_manager._job_spans[submission_id])
 
         self.assertIsNone(span.get_metric("_dd.partial_version"))
         self.assertIsNone(span.get_tag("ray.job.status"))
 
         stop_long_running_span(span)
 
-        with _job_manager._lock:
-            job_spans = _job_manager._job_spans.get(submission_id, {})
+        with _ray_span_manager._lock:
+            job_spans = _ray_span_manager._job_spans.get(submission_id, {})
             self.assertNotIn((span.trace_id, span.span_id), job_spans)
 
         self.assertIsNone(span.get_metric("_dd.partial_version"))
@@ -106,8 +106,8 @@ class TestLongRunningSpan(TracerTestCase):
         start_long_running_span(span1)
         start_long_running_span(span2)
 
-        with _job_manager._lock:
-            job_spans = _job_manager._job_spans[submission_id]
+        with _ray_span_manager._lock:
+            job_spans = _ray_span_manager._job_spans[submission_id]
             self.assertIn((span1.trace_id, span1.span_id), job_spans)
             self.assertIn((span2.trace_id, span2.span_id), job_spans)
 
@@ -152,8 +152,8 @@ class TestLongRunningSpan(TracerTestCase):
         child3.set_tag_str("ray.submission_id", submission_id)
         start_long_running_span(child3)
 
-        with _job_manager._lock:
-            job_spans = _job_manager._job_spans[submission_id]
+        with _ray_span_manager._lock:
+            job_spans = _ray_span_manager._job_spans[submission_id]
             self.assertIn((parent_span.trace_id, parent_span.span_id), job_spans)
             self.assertIn((child3.trace_id, child3.span_id), job_spans)
             self.assertNotIn((child1.trace_id, child1.span_id), job_spans)

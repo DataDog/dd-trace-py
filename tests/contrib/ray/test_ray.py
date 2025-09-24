@@ -1,13 +1,15 @@
 import logging
 import os
+import re
 import subprocess
+import time
 
 import pytest
 
 from tests.utils import TracerTestCase
 
 
-def submit_ray_job(script_name, timeout=120):
+def submit_ray_job(script_name, timeout=180):
     """
     Submit a Ray job
 
@@ -22,7 +24,21 @@ def submit_ray_job(script_name, timeout=120):
     if not os.path.exists(script_path):
         raise FileNotFoundError(f"Script not found: {script_path}")
 
-    cmd = ["ray", "job", "submit", "--", "python", script_path]
+    # Use a minimal working directory to avoid packaging the entire repository when submitting jobs.
+    # Packaging the repo can be extremely slow and cause timeouts in CI.
+    jobs_dir = os.path.dirname(script_path)
+    cmd = [
+        "ray",
+        "job",
+        "submit",
+        "--address=http://127.0.0.1:8265",
+        "--working-dir",
+        jobs_dir,
+        "--no-wait",
+        "--",
+        "python",
+        os.path.basename(script_path),
+    ]
 
     print(f"\n{' '.join(cmd)}\n")
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
@@ -32,7 +48,34 @@ def submit_ray_job(script_name, timeout=120):
         logging.error("Failed to submit Ray job. Error: %s", result.stderr)
         raise subprocess.CalledProcessError(result.returncode, cmd, result.stdout, result.stderr)
 
-    return result
+    # Parse submission id from output, e.g., "Job 'raysubmit_XXXX' submitted successfully"
+    submission_id = None
+    m = re.search(r"Job '([A-Za-z0-9_]+)' submitted successfully", result.stdout)
+    if m:
+        submission_id = m.group(1)
+    else:
+        m = re.search(r"(raysubmit_[A-Za-z0-9]+)", result.stdout)
+        if m:
+            submission_id = m.group(1)
+
+    if not submission_id:
+        raise RuntimeError(f"Could not parse Ray submission id from output: {result.stdout}\n{result.stderr}")
+
+    # Poll for completion within the provided timeout
+    deadline = time.time() + timeout
+    status_cmd = ["ray", "job", "status", "--address=http://127.0.0.1:8265", submission_id]
+    while time.time() < deadline:
+        status_res = subprocess.run(status_cmd, capture_output=True, text=True, timeout=30)
+        status_text = (status_res.stdout or "").upper()
+        if "SUCCEEDED" in status_text:
+            time.sleep(1)
+            return result
+        if "FAILED" in status_text or "STOPPED" in status_text:
+            raise subprocess.CalledProcessError(1, status_cmd, status_res.stdout, status_res.stderr)
+        time.sleep(1)
+
+    # Timed out waiting for job completion
+    raise subprocess.TimeoutExpired(status_cmd, timeout)
 
 
 RAY_SNAPSHOT_IGNORES = [
@@ -58,6 +101,7 @@ RAY_SNAPSHOT_IGNORES = [
     "meta._dd.base_service",
     "meta._dd.hostname",
     "metrics._dd.partial_version",
+    "metrics._dd.was_long_running",
 ]
 
 
@@ -67,14 +111,6 @@ class TestRayIntegration(TracerTestCase):
     @classmethod
     def setUpClass(cls):
         super(TestRayIntegration, cls).setUpClass()
-
-        os.environ["DD_TRACE_RAY_REGISTER_LONG_RUNNING_THRESHOLD"] = "30"
-
-        try:
-            subprocess.run(["ray", "stop", "--force"], capture_output=True, check=False)
-        except FileNotFoundError:
-            pytest.skip("Ray CLI not available")
-
         try:
             # Start the ray cluster once for all tests
             subprocess.run(
@@ -92,12 +128,14 @@ class TestRayIntegration(TracerTestCase):
             )
         except subprocess.CalledProcessError as e:
             pytest.skip(f"Failed to start Ray cluster: {e.stderr}")
+        except Exception as e:
+            pytest.skip(f"Failed to wait for Ray cluster readiness: {e}")
 
     @classmethod
     def tearDownClass(cls):
         try:
             # Stop the ray cluster once after all tests
-            subprocess.run(["ray", "stop"], capture_output=True, check=False)
+            subprocess.run(["ray", "stop", "--force"], capture_output=True, check=False)
         except FileNotFoundError:
             pass
 

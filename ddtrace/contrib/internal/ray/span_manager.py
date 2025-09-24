@@ -183,20 +183,25 @@ class RaySpanManager:
             self._job_spans[submission_id][(span.trace_id, span.span_id)] = span
 
     def stop_long_running_span(self, span_to_stop):
+        self._finish_span(span_to_stop)
+
         submission_id = self._get_submission_id(span_to_stop)
         span_key = (span_to_stop.trace_id, span_to_stop.span_id)
 
         with self._lock:
             job_spans = self._job_spans.get(submission_id)
-            if not job_spans or job_spans.pop(span_key, None):
+            if not job_spans:
                 return
 
+            job_spans.pop(span_key, None)
+            if job_spans:
+                return
+
+            # this code will be executed if job_spans[submission_id] is empty
             timer = self._timers.pop(submission_id, None)
             if timer:
                 timer.cancel()
             self._job_spans.pop(submission_id, None)
-
-        self._finish_span(span_to_stop)
 
     def stop_long_running_job(self, submission_id, job_info):
         with self._lock:

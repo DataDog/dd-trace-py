@@ -3034,7 +3034,6 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/ray",
             pys=select_pys(min_version="3.10"),
             pkgs={
-                "pytest-asyncio": latest,
                 "ray[default]": ["~=2.46.0", latest],
             },
             env={"DD_TRACE_AIOHTTP_ENABLED": "false", "DD_TRACE_REPORT_HOSTNAME": "true"},
