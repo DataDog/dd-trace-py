@@ -59,7 +59,8 @@ class VLLMIntegration(BaseLLMIntegration):
     }
 
     # ----- base tags ---------------------------------------------------------
-    def _set_base_span_tags(self, span: Span, model_name: Optional[str]) -> None:
+    def _set_base_span_tags(self, span: Span, **kwargs: Any) -> None:
+        model_name = kwargs.get("model_name")
         if model_name:
             span.set_tag_str(VLLM_MODEL_NAME, model_name)
             span.set_tag_str(VLLM_MODEL_PROVIDER, "vllm")
