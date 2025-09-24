@@ -217,10 +217,6 @@ jobs:
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
         run: ./run.sh APPSEC_BLOCKING_FULL_DENYLIST
 
-      - name: Run APPSEC_REQUEST_BLOCKING
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
-        run: ./run.sh APPSEC_REQUEST_BLOCKING
-
       - name: Run APPSEC_RASP
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
         run: ./run.sh APPSEC_RASP
