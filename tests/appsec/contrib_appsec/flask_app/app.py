@@ -307,6 +307,9 @@ def login_user_sdk():
         return "OK"
     return "login failure", 401
 
+@app.route("/buggy_endpoint/", methods=None)
+def buggy_endpoint():
+    return ""
 
 @app.before_request
 def service_renaming():
