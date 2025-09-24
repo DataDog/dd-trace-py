@@ -4,6 +4,7 @@ from typing import List
 from typing import TypedDict  # noqa:F401
 from typing import Union
 
+
 class ExportedLLMObsSpan(TypedDict):
     span_id: str
     trace_id: str
@@ -112,4 +113,3 @@ class SpanLink(TypedDict):
     span_id: str
     trace_id: str
     attributes: Dict[str, str]
-

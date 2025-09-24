@@ -11,8 +11,6 @@ from ddtrace.llmobs.types import ToolResult
 from ddtrace.llmobs.types import ToolDefinition
 
 
-
-
 log = get_logger(__name__)
 
 DocumentType = Dict[str, Union[str, int, float]]
