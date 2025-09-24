@@ -6,7 +6,7 @@ from vllm.sampling_params import RequestOutputKind
 
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 
-from ._utils import get_cached_async_engine
+from ._utils import create_async_engine
 from ._utils import get_cached_llm
 
 
@@ -193,7 +193,7 @@ def test_llmobs_classify(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
 async def test_stream_cancel_early_break_v1(vllm, mock_tracer, monkeypatch, llmobs_events):
     monkeypatch.setenv("VLLM_USE_V1", "1")
 
-    engine = get_cached_async_engine(
+    engine = create_async_engine(
         model="facebook/opt-125m",
         engine_mode="1",
         enforce_eager=True,
@@ -507,7 +507,7 @@ def test_llmobs_score(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
 
 @pytest.mark.asyncio
 async def test_llmobs_async_streaming(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
-    engine = get_cached_async_engine(
+    engine = create_async_engine(
         model="facebook/opt-125m",
         engine_mode=vllm_engine_mode,
         enforce_eager=True,
@@ -579,7 +579,7 @@ async def test_llmobs_async_streaming(vllm, llmobs_events, mock_tracer, vllm_eng
 
 @pytest.mark.asyncio
 async def test_llmobs_concurrent_streaming(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
-    engine = get_cached_async_engine(
+    engine = create_async_engine(
         model="facebook/opt-125m",
         engine_mode=vllm_engine_mode,
         enforce_eager=True,

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import os
-
 import vllm
 from vllm.engine.arg_utils import AsyncEngineArgs
 
@@ -24,12 +22,11 @@ def _create_llm_autotune(model, **kwargs):
 _LLM_CACHE = {}
 
 
-def get_cached_llm(model: str, *, engine_mode: str | None = None, **kwargs):
+def get_cached_llm(model: str, *, engine_mode: str = "0", **kwargs):
     # Avoid passing runner=None to vLLM; default runner is 'generate'
     runner = kwargs.get("runner")
     key_runner = runner or "generate"
-    mode_key = engine_mode if engine_mode is not None else os.environ.get("VLLM_USE_V1", "0")
-    key = (model, key_runner, mode_key)
+    key = (model, key_runner, engine_mode)
     llm = _LLM_CACHE.get(key)
     if llm is not None:
         return llm
@@ -41,13 +38,7 @@ def get_cached_llm(model: str, *, engine_mode: str | None = None, **kwargs):
     return llm
 
 
-def get_cached_async_engine(model: str, *, engine_mode: str | None = None, **kwargs):
-    mode_key = engine_mode if engine_mode is not None else os.environ.get("VLLM_USE_V1", "0")
-    key = (model, "async", mode_key)
-    cached = _LLM_CACHE.get(key)
-    if cached is not None:
-        return cached
-
+def create_async_engine(model: str, *, engine_mode: str = "0", **kwargs):
     # Respect explicit gpu_memory_utilization if provided
     explicit_util = kwargs.pop("gpu_memory_utilization", None)
     util_candidates = kwargs.pop(
@@ -60,12 +51,11 @@ def get_cached_async_engine(model: str, *, engine_mode: str | None = None, **kwa
     for util in util_candidates:
         try:
             args = AsyncEngineArgs(model=model, gpu_memory_utilization=util, **kwargs)
-            if mode_key == "1":
+            if engine_mode == "1":
                 from vllm.v1.engine.async_llm import AsyncLLM as _Async  # type: ignore
             else:
                 from vllm.engine.async_llm_engine import AsyncLLMEngine as _Async  # type: ignore
             engine = _Async.from_engine_args(args)
-            _LLM_CACHE[key] = engine
             return engine
         except Exception as exc:  # pragma: no cover
             last_error = exc

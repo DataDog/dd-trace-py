@@ -16,7 +16,7 @@ from vllm.usage.usage_lib import UsageContext
 
 from ddtrace._trace.pin import Pin
 
-from ._utils import get_cached_async_engine
+from ._utils import create_async_engine
 
 
 class RagRequest(BaseModel):
@@ -128,7 +128,7 @@ async def rag(req: RagRequest):
         else:
             # Exercise in-process async engines (V1 AsyncLLM or V0 AsyncLLMEngine)
             # 1) Embed candidate documents
-            embed_engine = get_cached_async_engine(
+            embed_engine = create_async_engine(
                 model="intfloat/e5-small-v2",
                 engine_mode=engine_mode,
                 enforce_eager=True,
@@ -182,7 +182,7 @@ async def rag(req: RagRequest):
                 pass
 
             # 2) Generate an answer using the query and the first document as context
-            gen_engine = get_cached_async_engine(
+            gen_engine = create_async_engine(
                 model="facebook/opt-125m",
                 engine_mode=engine_mode,
                 enforce_eager=True,

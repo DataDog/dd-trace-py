@@ -1,7 +1,7 @@
 import pytest
 from vllm.sampling_params import RequestOutputKind
 
-from ._utils import get_cached_async_engine
+from ._utils import create_async_engine
 from ._utils import get_cached_llm
 from ._utils import get_simple_chat_template
 
@@ -139,7 +139,7 @@ def test_score(vllm, vllm_engine_mode):
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 async def test_async_streaming(vllm, vllm_engine_mode):
-    engine = get_cached_async_engine(
+    engine = create_async_engine(
         model="facebook/opt-125m",
         engine_mode=vllm_engine_mode,
         enforce_eager=True,
@@ -165,7 +165,7 @@ async def test_async_streaming(vllm, vllm_engine_mode):
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 async def test_async_encode_streaming(vllm, vllm_engine_mode):
-    engine = get_cached_async_engine(
+    engine = create_async_engine(
         model="intfloat/e5-small",
         engine_mode=vllm_engine_mode,
         enforce_eager=True,
