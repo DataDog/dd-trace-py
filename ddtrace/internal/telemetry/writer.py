@@ -797,7 +797,8 @@ class TelemetryWriter(PeriodicService):
             lineno = traceback.tb_frame.f_code.co_firstlineno
             filename = traceback.tb_frame.f_code.co_filename
 
-            self.add_error_log("Unhandled exception from ddtrace code", (tp, None, root_traceback))
+            if "ddtrace/" in filename:
+                self.add_error_log("Unhandled exception from ddtrace code", (tp, None, root_traceback))
 
             dir_parts = filename.split(os.path.sep)
             # Check if exception was raised in the  `ddtrace.contrib` package
