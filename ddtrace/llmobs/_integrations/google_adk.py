@@ -8,22 +8,16 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import AGENT_MANIFEST
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
-from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
-from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import NAME
-from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
-from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
-from ddtrace.llmobs._integrations.google_utils import extract_generation_metrics_google_genai
 from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_google_genai
 from ddtrace.llmobs._integrations.google_utils import extract_messages_from_adk_events
-from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.trace import Span
 
@@ -78,13 +72,11 @@ class GoogleAdkIntegration(BaseLLMIntegration):
             message += extract_message_from_part_google_genai(part, new_message_role).get("content", "")
         result = extract_messages_from_adk_events(response)
 
-        metrics = self.extract_usage_metrics(response, kwargs)
         span._set_ctx_items(
             {
                 NAME: agent_name or "Google ADK Agent",
                 INPUT_VALUE: message,
                 OUTPUT_VALUE: result,
-                METRICS: metrics,
             }
         )
 
@@ -163,19 +155,3 @@ class GoogleAdkIntegration(BaseLLMIntegration):
         if not tools or not isinstance(tools, list):
             return []
         return [{"name": tool.name, "description": tool.description} for tool in tools]
-
-    def extract_usage_metrics(self, response: Any, kwargs: Dict[str, Any]) -> Dict[str, Any]:
-        prompt_tokens = 0
-        completion_tokens = 0
-        total_tokens = 0
-        for event in response:
-            usage = extract_generation_metrics_google_genai(event)
-
-            prompt_tokens += int(_get_attr(usage, INPUT_TOKENS_METRIC_KEY, 0) or 0)
-            completion_tokens += int(_get_attr(usage, OUTPUT_TOKENS_METRIC_KEY, 0) or 0)
-            total_tokens += int(_get_attr(usage, TOTAL_TOKENS_METRIC_KEY, 0) or 0)
-        return {
-            INPUT_TOKENS_METRIC_KEY: prompt_tokens,
-            OUTPUT_TOKENS_METRIC_KEY: completion_tokens,
-            TOTAL_TOKENS_METRIC_KEY: total_tokens or (prompt_tokens + completion_tokens),
-        }

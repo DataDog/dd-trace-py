@@ -140,7 +140,7 @@ def expected_llmobs_tool_span_events_agent_run(
             }
         },
         output_value=mock.ANY,
-        token_metrics={"input_tokens": mock.ANY, "output_tokens": mock.ANY, "total_tokens": mock.ANY},
+        token_metrics={},
     )
 
 
@@ -185,7 +185,7 @@ def expected_llmobs_agent_span_event_with_tools(llmobs_event, agent_span, tool_s
             }
         },
         output_value=mock.ANY,
-        token_metrics={"input_tokens": mock.ANY, "output_tokens": mock.ANY, "total_tokens": mock.ANY},
+        token_metrics={},
     )
 
 
