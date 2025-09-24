@@ -120,6 +120,7 @@ class TestRayIntegration(TracerTestCase):
             # Start the ray cluster once for all tests
             subprocess.run(
                 [
+                    "RAY_memory_monitor_refresh_ms=0",
                     "ray",
                     "start",
                     "--head",
