@@ -22,7 +22,6 @@ from .constants import DD_TRACE_CTX
 from .constants import RAY_ACTOR_ID
 from .constants import RAY_JOB_ID
 from .constants import RAY_NODE_ID
-from .constants import RAY_PID
 from .constants import RAY_SUBMISSION_ID
 from .constants import RAY_SUBMISSION_ID_TAG
 from .constants import RAY_TASK_ID
@@ -91,7 +90,6 @@ def _inject_ray_span_tags_and_metrics(span):
 
         span.set_tag_str(RAY_JOB_ID, runtime_context.get_job_id())
         span.set_tag_str(RAY_NODE_ID, runtime_context.get_node_id())
-        span.set_tag_str(RAY_PID, str(os.getpid()))
 
         worker_id = runtime_context.get_worker_id()
         if worker_id is not None:

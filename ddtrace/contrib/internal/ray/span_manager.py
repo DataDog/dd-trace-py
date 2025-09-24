@@ -32,7 +32,7 @@ def long_running_ray_span(span_name, service, span_type, child_of=None, activate
             stop_long_running_span(span)
 
 
-class LongRunningJobManager:
+class RaySpanManager:
     def __init__(self):
         self._timers = {}
         # {submission_id: {(trace_id, span_id): Span}}
@@ -59,11 +59,8 @@ class LongRunningJobManager:
 
             # Check if we have any spans to flush before exiting
             spans_to_close = []
-            try:
-                for spans_dict in self._job_spans.values():
-                    spans_to_close.extend(list(spans_dict.values()))
-            except Exception:
-                spans_to_close = []
+            for spans_dict in self._job_spans.values():
+                spans_to_close.extend(list(spans_dict.values()))
 
             self._timers.clear()
             self._job_spans.clear()
@@ -150,10 +147,9 @@ class LongRunningJobManager:
             return
 
         with self._lock:
-            self._create_resubmit_timer(submission_id, float(config.ray.resubmit_interval))
             if submission_id not in self._job_spans:
                 return
-
+            self._create_resubmit_timer(submission_id, float(config.ray.resubmit_interval))
             job_spans = list(self._job_spans[submission_id].values())
 
         for span in job_spans:
@@ -191,8 +187,14 @@ class LongRunningJobManager:
         span_key = (span_to_stop.trace_id, span_to_stop.span_id)
 
         with self._lock:
-            job_spans = self._job_spans.get(submission_id, {})
-            job_spans.pop(span_key, None)
+            job_spans = self._job_spans.get(submission_id)
+            if not job_spans or job_spans.pop(span_key, None):
+                return
+
+            timer = self._timers.pop(submission_id, None)
+            if timer:
+                timer.cancel()
+            self._job_spans.pop(submission_id, None)
 
         self._finish_span(span_to_stop)
 
@@ -210,25 +212,25 @@ class LongRunningJobManager:
         self._finish_span(job_span, job_info=job_info)
 
 
-_job_manager = LongRunningJobManager()
+_ray_span_manager = RaySpanManager()
 
 
 def start_long_running_job(job_span):
-    submission_id = _job_manager._get_submission_id(job_span)
+    submission_id = _ray_span_manager._get_submission_id(job_span)
 
-    with _job_manager._lock:
-        _job_manager._root_spans[submission_id] = job_span
+    with _ray_span_manager._lock:
+        _ray_span_manager._root_spans[submission_id] = job_span
 
     start_long_running_span(job_span)
 
 
 def stop_long_running_job(submission_id, job_info):
-    _job_manager.stop_long_running_job(submission_id, job_info)
+    _ray_span_manager.stop_long_running_job(submission_id, job_info)
 
 
 def start_long_running_span(span):
-    _job_manager.add_span(span)
+    _ray_span_manager.add_span(span)
 
 
 def stop_long_running_span(span):
-    _job_manager.stop_long_running_span(span)
+    _ray_span_manager.stop_long_running_span(span)

@@ -30,15 +30,16 @@ The Ray integration can be configured using environment variables:
     spans (default: ``120.0`` seconds)
 
 Ray service name can be configured by:
-- specifiying in submission-id using job:your-job-name during job submission
-  For instance:
-  `ray job submit --submission-id="job:my_model,run:39" -- python entrypoint.py`
 
-- specifying in metadata during job sumission
-  For instance:
-  `ray job submit --metadata-json='{"job_name": "my_model"}' -- python entrypoint.py`
+- specifying in submission ID using ``job:your-job-name`` during job submission::
 
-- specifying DD_SERVICE when initializing your ray cluster.
+    ray job submit --submission-id="job:my_model,run:39" -- python entrypoint.py
+
+- specifying in metadata during job submission::
+
+    ray job submit --metadata-json='{"job_name": "my_model"}' -- python entrypoint.py
+
+- specifying ``DD_SERVICE`` when initializing your Ray cluster.
 
 By default, the service name will be the name of your entrypoint
 
@@ -46,6 +47,5 @@ Notes
 ~~~~~
 
 - The integration disables Ray's built-in OpenTelemetry tracing to avoid duplicate telemetry.
-- The integration filters out non-Ray dashboard spans to reduce noise.
 - Actor methods like ``ping`` and ``_polling`` are excluded from tracing to reduce noise.
 """

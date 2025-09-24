@@ -7,7 +7,6 @@ RAY_JOB_NAME = "_RAY_JOB_NAME"
 # Span tags pertaining to Ray
 RAY_JOB_ID = "ray.job_id"
 RAY_NODE_ID = "ray.node_id"
-RAY_PID = "ray.pid"
 RAY_WORKER_ID = "ray.worker_id"
 RAY_TASK_ID = "ray.task_id"
 RAY_ACTOR_ID = "ray.actor_id"
