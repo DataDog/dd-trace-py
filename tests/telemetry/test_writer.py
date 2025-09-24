@@ -271,6 +271,7 @@ import ddtrace.settings.exception_replay
     env["DD_TAGS"] = "team:apm,component:web"
     env["DD_INSTRUMENTATION_CONFIG_ID"] = "abcedf123"
     env["DD_LOGS_OTEL_ENABLED"] = "True"
+    env["DD_METRICS_OTEL_ENABLED"] = "True"
     env["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://localhost:4317"
 
     file = tmpdir.join("moon_ears.json")
@@ -429,7 +430,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_LLMOBS_SAMPLE_RATE", "origin": "default", "value": 1.0},
         {"name": "DD_LOGS_INJECTION", "origin": "env_var", "value": True},
         {"name": "DD_LOGS_OTEL_ENABLED", "origin": "env_var", "value": True},
-        {"name": "DD_METRICS_OTEL_ENABLED", "origin": "default", "value": False},
+        {"name": "DD_METRICS_OTEL_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_PROFILING_AGENTLESS", "origin": "default", "value": False},
         {"name": "DD_PROFILING_API_TIMEOUT", "origin": "default", "value": 10.0},
         {"name": "DD_PROFILING_CAPTURE_PCT", "origin": "env_var", "value": 5.0},
@@ -565,6 +566,26 @@ import ddtrace.settings.exception_replay
         },
         {
             "name": "OTEL_EXPORTER_OTLP_LOGS_TIMEOUT",
+            "origin": "default",
+            "value": 10000,
+        },
+        {
+            "name": "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT",
+            "origin": "env_var",
+            "value": "http://localhost:4317",
+        },
+        {
+            "name": "OTEL_EXPORTER_OTLP_METRICS_HEADERS",
+            "origin": "default",
+            "value": "",
+        },
+        {
+            "name": "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL",
+            "origin": "default",
+            "value": "grpc",
+        },
+        {
+            "name": "OTEL_EXPORTER_OTLP_METRICS_TIMEOUT",
             "origin": "default",
             "value": 10000,
         },
@@ -1035,6 +1056,7 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
     env["OTEL_TRACES_SAMPLER"] = "always_on"
     env["OTEL_TRACES_EXPORTER"] = "none"
     env["OTEL_LOGS_EXPORTER"] = "otlp"
+    env["OTEL_METRICS_EXPORTER"] = "otlp"
     env["OTEL_RESOURCE_ATTRIBUTES"] = "team=apm,component=web"
     env["OTEL_SDK_DISABLED"] = "true"
     env["OTEL_UNSUPPORTED_CONFIG"] = "value"
