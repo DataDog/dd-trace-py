@@ -7,7 +7,6 @@ import sys
 from langchain_core.messages import AIMessage
 from langchain_core.messages import HumanMessage
 import mock
-import pinecone as pinecone_
 import pytest
 
 from ddtrace import patch
@@ -22,9 +21,6 @@ from tests.llmobs._utils import iterate_stream
 from tests.llmobs._utils import next_stream
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
-
-
-PINECONE_VERSION = parse_version(pinecone_.__version__)
 
 
 def _expected_langchain_llmobs_llm_span(
@@ -396,42 +392,6 @@ def test_llmobs_anthropic_chat_model(langchain_anthropic, llmobs_events, tracer,
     )
 
 
-def test_llmobs_embedding_query(langchain_openai, llmobs_events, tracer, openai_url):
-    if langchain_openai is None:
-        pytest.skip("langchain_openai not installed which is required for this test.")
-    embedding_model = langchain_openai.embeddings.OpenAIEmbeddings(base_url=openai_url)
-    embedding_model.embed_query("hello world")
-    trace = tracer.pop_traces()[0]
-    assert len(llmobs_events) == 1
-    assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-        trace[0],
-        span_kind="embedding",
-        model_name=embedding_model.model,
-        model_provider="openai",
-        input_documents=[{"text": "hello world"}],
-        output_value="[1 embedding(s) returned with size 1536]",
-        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
-    )
-
-
-def test_llmobs_embedding_documents(langchain_community, llmobs_events, tracer):
-    embedding_model = langchain_community.embeddings.FakeEmbeddings(size=1536)
-    embedding_model.embed_documents(["hello world", "goodbye world"])
-
-    trace = tracer.pop_traces()[0]
-    span = trace[0] if isinstance(trace, list) else trace
-    assert len(llmobs_events) == 1
-    assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-        span,
-        span_kind="embedding",
-        model_name="",
-        model_provider="fake",
-        input_documents=[{"text": "hello world"}, {"text": "goodbye world"}],
-        output_value="[2 embedding(s) returned with size 1536]",
-        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
-    )
-
-
 @pytest.mark.skip("llmobs needs to support in-memory vectorstores")
 def test_llmobs_vectorstore_similarity_search(langchain_in_memory_vectorstore, llmobs_events, tracer):
     vectorstore = langchain_in_memory_vectorstore
@@ -722,27 +682,6 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
         self._call_openai_llm(OpenAI)
         self._assert_trace_structure_from_writer_call_args(["llm"])
-
-    @run_in_subprocess(env_overrides=openai_env_config)
-    def test_llmobs_langchain_with_embedding_model_openai_enabled(self):
-        import langchain_community  # noqa: F401
-        from langchain_openai import OpenAIEmbeddings
-
-        patch(langchain=True, openai=True, langchain_community=True)
-
-        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
-        self._call_openai_embedding(OpenAIEmbeddings)
-        self._assert_trace_structure_from_writer_call_args(["workflow", "embedding"])
-
-    @run_in_subprocess(env_overrides=openai_env_config)
-    def test_llmobs_langchain_with_embedding_model_openai_disabled(self):
-        import langchain_community  # noqa: F401
-        from langchain_openai import OpenAIEmbeddings
-
-        patch(langchain=True, langchain_community=True)
-        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
-        self._call_openai_embedding(OpenAIEmbeddings)
-        self._assert_trace_structure_from_writer_call_args(["embedding"])
 
     @run_in_subprocess(env_overrides=anthropic_env_config)
     def test_llmobs_with_anthropic_enabled(self):

@@ -2847,22 +2847,17 @@ venv = Venv(
                 Venv(
                     pkgs={
                         "langchain-core": "~=0.1.0",
-                        "langchain-community": "==0.0.38",
                         "langchain-openai": "~=0.1.0",
-                        "langchain-pinecone": "~=0.1.0",
                         "langchain-anthropic": "~=0.1.0",
                         "langchain-aws": "~=0.1.0",
                         "langchain-cohere": "~=0.1.0",
-                        "faiss-cpu": "==1.8.0",
                     },
                     pys=select_pys(min_version="3.9", max_version="3.12"),
                 ),
                 Venv(
                     pkgs={
                         "langchain-core": "~=0.3.0",
-                        "langchain-community": "~=0.3.0",
                         "langchain-openai": "~=0.3.0",
-                        "langchain-pinecone": "~=0.2.0",
                         "langchain-anthropic": "~=0.3.0",
                         "langchain-aws": "~=0.2.0",
                         "langchain-cohere": "~=0.3.0",
@@ -2872,12 +2867,34 @@ venv = Venv(
                 Venv(
                     pkgs={
                         "langchain-core": latest,
-                        "langchain-community": latest,
                         "langchain-openai": latest,
-                        "langchain-pinecone": latest,
                         "langchain-anthropic": latest,
                         "langchain-aws": latest,
                         "langchain-cohere": latest,
+                    },
+                    pys=select_pys(min_version="3.9", max_version="3.12"),
+                ),
+            ],
+        ),
+        Venv(
+            name="langchain_community",
+            command="pytest -v {cmdargs} tests/contrib/langchain_community",
+            venvs=[
+                Venv(
+                    pkgs={
+                        "langchain_community": "==0.0.38",
+                        "langchain_openai": "~=0.1.0",
+                        "langchain_pinecone": "~=0.1.0",
+                        "faiss-cpu": "==1.8.0",
+                    },
+                    pys=select_pys(min_version="3.9", max_version="3.12"),
+                ),
+                Venv(
+                    pkgs={
+                        "langchain_community": latest,
+                        "langchain_openai": latest,
+                        "langchain_pinecone": latest,
+                        "faiss-cpu": latest,
                     },
                     pys=select_pys(min_version="3.9", max_version="3.12"),
                 ),

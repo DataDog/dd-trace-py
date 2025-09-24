@@ -1,5 +1,3 @@
-# from ddtrace.contrib.internal.langchain_community.constants import text_embedding_models
-# from ddtrace.contrib.internal.langchain_community.constants import vectorstore_classes
 from ddtrace.contrib.internal.langchain.patch import get_version
 from ddtrace.contrib.internal.langchain.patch import patch
 from ddtrace.contrib.internal.langchain.patch import unpatch

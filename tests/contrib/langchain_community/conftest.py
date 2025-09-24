@@ -4,8 +4,8 @@ import os
 import pytest
 
 from ddtrace._trace.pin import Pin
-from ddtrace.contrib.internal.langchain.patch import patch as langchain_core_patch
-from ddtrace.contrib.internal.langchain.patch import unpatch as langchain_core_unpatch
+from ddtrace.contrib.internal.langchain_community.patch import patch as langchain_community_patch
+from ddtrace.contrib.internal.langchain_community.patch import unpatch as langchain_community_unpatch
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs as llmobs_service
 from tests.llmobs._utils import TestLLMObsSpanWriter
@@ -28,11 +28,11 @@ def llmobs_span_writer():
 
 
 @pytest.fixture
-def tracer(langchain_core):
+def tracer(langchain_community):
     tracer = DummyTracer()
 
-    pin = Pin.get_from(langchain_core)
-    pin._override(langchain_core, tracer=tracer)
+    pin = Pin.get_from(langchain_community)
+    pin._override(langchain_community, tracer=tracer)
 
     yield tracer
 
@@ -57,22 +57,22 @@ def llmobs_events(llmobs, llmobs_span_writer):
 
 
 @pytest.fixture
-def langchain_core():
+def langchain_community():
     with override_env(
         dict(
             OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"),
             ANTHROPIC_API_KEY=os.getenv("ANTHROPIC_API_KEY", "<not-a-real-key>"),
         )
     ):
-        langchain_core_patch()
-        import langchain_core
+        langchain_community_patch()
+        import langchain_community
 
-        yield langchain_core
-        langchain_core_unpatch()
+        yield langchain_community
+        langchain_community_unpatch()
 
 
 @pytest.fixture
-def langchain_openai(langchain_core):
+def langchain_openai(langchain_community):
     try:
         import langchain_openai
 
@@ -90,31 +90,18 @@ def openai_url() -> str:
 
 
 @pytest.fixture
-def anthropic_url() -> str:
-    """
-    Use the request recording endpoint of the testagent to capture the requests to Anthropic
-    """
-    return "http://localhost:9126/vcr/anthropic"
+def langchain_pinecone(langchain_community):
+    with override_env(
+        dict(
+            PINECONE_API_KEY=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
+        )
+    ):
+        try:
+            import langchain_pinecone
 
-
-@pytest.fixture
-def langchain_cohere(langchain_core):
-    try:
-        import langchain_cohere
-
-        yield langchain_cohere
-    except ImportError:
-        yield
-
-
-@pytest.fixture
-def langchain_anthropic(langchain_core):
-    try:
-        import langchain_anthropic
-
-        yield langchain_anthropic
-    except ImportError:
-        yield
+            yield langchain_pinecone
+        except ImportError:
+            yield
 
 
 @pytest.fixture
