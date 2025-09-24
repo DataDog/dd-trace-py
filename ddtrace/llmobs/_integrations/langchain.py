@@ -847,6 +847,7 @@ class LangChainIntegration(BaseLLMIntegration):
         chat_template, template, variables = None, None, None
         if hasattr(instance, "template") and isinstance(instance.template, str):
             template = instance.template
+
         if (
             isinstance(getattr(instance, "messages", None), list)
             and result is not None
@@ -881,11 +882,16 @@ class LangChainIntegration(BaseLLMIntegration):
                     log.debug("Failed to parse template messages")
                     break
             chat_template = messages if messages else None
+
         variables = get_argument_value(args, kwargs, 0, "input", optional=True)
-        if isinstance(variables, str) and hasattr(instance, "input_variables"):
+        if (
+            isinstance(variables, str)
+            and hasattr(instance, "input_variables")
+            and isinstance(instance.input_variables, list)
+            and len(instance.input_variables) == 1
+        ):
             # variables should be passed in as a dict, but a string is allowed if there is only one input variable
-            if len(instance.input_variables) == 1:
-                variables = {instance.input_variables[0]: variables}
+            variables = {instance.input_variables[0]: variables}
 
         if (not template and not chat_template) or not variables or not isinstance(variables, dict):
             return

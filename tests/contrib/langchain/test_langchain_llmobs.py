@@ -262,7 +262,6 @@ def test_llmobs_string_prompt_template_invoke_chat_model(
 def test_llmobs_string_prompt_template_single_variable_string_input(
     langchain_core, langchain_openai, openai_url, llmobs_events, tracer
 ):
-    """Test StringPromptTemplate with single variable using string input (not dict)."""
     template_string = "Write a creative story about {topic}."
     single_variable_template = langchain_core.prompts.PromptTemplate(
         input_variables=["topic"], template=template_string
@@ -286,7 +285,6 @@ def test_llmobs_string_prompt_template_single_variable_string_input(
 def test_llmobs_multi_message_prompt_template_sync_chain(
     langchain_core, langchain_openai, openai_url, llmobs_events, tracer
 ):
-    """Test multi-message ChatPromptTemplate with mixed input types (sync + chain)."""
     multi_message_template = _create_multi_message_prompt_template(langchain_core)
     llm = langchain_openai.ChatOpenAI(base_url=openai_url)
     chain = multi_message_template | llm
@@ -316,10 +314,9 @@ def test_llmobs_multi_message_prompt_template_sync_chain(
     assert actual_prompt["chat_template"] == PROMPT_TEMPLATE_EXPECTED_CHAT_TEMPLATE
 
 
-def test_llmobs_multi_message_prompt_template_sync_direct(
+def test_llmobs_multi_message_prompt_template_sync_direct_invoke(
     langchain_core, langchain_openai, openai_url, llmobs_events, tracer
 ):
-    """Test multi-message ChatPromptTemplate with mixed input types (sync + direct)."""
     multi_message_template = _create_multi_message_prompt_template(langchain_core)
     llm = langchain_openai.ChatOpenAI(base_url=openai_url)
 
@@ -349,10 +346,9 @@ def test_llmobs_multi_message_prompt_template_sync_direct(
 
 
 @pytest.mark.asyncio
-async def test_llmobs_multi_message_prompt_template_async_direct(
+async def test_llmobs_multi_message_prompt_template_async_direct_invoke(
     langchain_core, langchain_openai, openai_url, llmobs_events, tracer
 ):
-    """Test multi-message ChatPromptTemplate with mixed input types (async + direct)."""
     multi_message_template = _create_multi_message_prompt_template(langchain_core)
     llm = langchain_openai.ChatOpenAI(base_url=openai_url)
 
