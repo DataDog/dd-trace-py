@@ -126,6 +126,7 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
     "openai": "openai",
     "langchain": "langchain",
     "langchain_community": "langchain_community",
+    "google_adk": "google_adk",
     "google_generativeai": "google_generativeai",
     "google_genai": "google_genai",
     "vertexai": "vertexai",

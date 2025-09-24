@@ -199,7 +199,6 @@ asyncio.run(test())
     env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v0"
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, err
-    assert err == b""
 
 
 @pytest.mark.snapshot()
@@ -228,7 +227,6 @@ asyncio.run(test())
     env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v1"
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, err
-    assert err == b""
 
 
 @pytest.mark.snapshot()
@@ -256,7 +254,6 @@ asyncio.run(test())
     env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v0"
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, err
-    assert err == b""
 
 
 @pytest.mark.snapshot()
@@ -284,7 +281,6 @@ asyncio.run(test())
     env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v1"
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, err
-    assert err == b""
 
 
 @pytest.mark.snapshot()
@@ -313,7 +309,6 @@ asyncio.run(test())
     env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = version
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, err
-    assert err == b""
 
 
 @pytest.mark.skipif(

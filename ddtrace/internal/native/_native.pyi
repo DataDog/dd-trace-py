@@ -232,6 +232,12 @@ class TraceExporterBuilder:
         :param version: The version string of the application.
         """
         ...
+    def set_service(self, service: str) -> TraceExporterBuilder:
+        """
+        Set the service name of the TraceExporter.
+        :param version: The version string of the application.
+        """
+        ...
     def set_git_commit_sha(self, git_commit_sha: str) -> TraceExporterBuilder:
         """
         Set the git commit sha of the TraceExporter.
@@ -315,6 +321,11 @@ class TraceExporterBuilder:
         Emit telemetry in the TraceExporter
         :param heartbeat: The flush interval for telemetry metrics in milliseconds.
         :param runtime_id: The runtime id to use for telemetry.
+        """
+        ...
+    def enable_health_metrics(self) -> TraceExporterBuilder:
+        """
+        Enable health metrics in the TraceExporter
         """
         ...
     def build(self) -> TraceExporter:

@@ -47,7 +47,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '4bece37901d6241526eb788bdac6f2887251cdcd'
+          ref: '0eadeeae3a7c2fddb61ed55b692580ad6cd852f9'
 
       - name: Download wheels to binaries directory
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
@@ -94,7 +94,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '4bece37901d6241526eb788bdac6f2887251cdcd'
+          ref: '0eadeeae3a7c2fddb61ed55b692580ad6cd852f9'
 
       - name: Build runner
         uses: ./.github/actions/install_runner
@@ -217,10 +217,6 @@ jobs:
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
         run: ./run.sh APPSEC_BLOCKING_FULL_DENYLIST
 
-      - name: Run APPSEC_REQUEST_BLOCKING
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
-        run: ./run.sh APPSEC_REQUEST_BLOCKING
-
       - name: Run APPSEC_RASP
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
         run: ./run.sh APPSEC_RASP
@@ -283,7 +279,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '4bece37901d6241526eb788bdac6f2887251cdcd'
+          ref: '0eadeeae3a7c2fddb61ed55b692580ad6cd852f9'
       - name: Download wheels to binaries directory
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:

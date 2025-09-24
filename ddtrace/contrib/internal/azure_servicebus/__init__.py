@@ -30,4 +30,15 @@ Global Configuration
    environment variable.
 
    Default: ``True``
+
+.. py:data:: ddtrace.config.azure_servicebus['batch_links']
+
+   Add create spans and span links for service bus messages added to and sent in a batch.
+
+   This option can also be set with the ``DD_TRACE_AZURE_SERVICEBUS_BATCH_LINKS_ENABLED``
+   environment variable.
+
+   Distributed tracing must also be enabled for span links to be added.
+
+   Default: ``True``
 """
