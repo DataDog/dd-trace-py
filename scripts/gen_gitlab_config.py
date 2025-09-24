@@ -141,6 +141,7 @@ def gen_required_suites() -> None:
                     if entry.get("gpu") is True:
                         name = str(entry.get("integration_name", "")).strip()
                         if name:
+                            print(f"Adding GPU integration: {name}")
                             gpu_integrations.add(name)
                 except Exception:
                     continue
