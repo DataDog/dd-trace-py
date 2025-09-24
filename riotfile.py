@@ -3182,7 +3182,7 @@ venv = Venv(
                 "torch": latest,
                 "vllm": "==0.10.1",
             },
-            pys=select_pys(min_version="3.10"),
+            pys=select_pys(min_version="3.10", max_version="3.12"),
         ),
         Venv(
             name="valkey",
