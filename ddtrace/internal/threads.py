@@ -40,6 +40,8 @@ _threads_to_start_after_fork: t.List[t.Callable[[], None]] = []
 class PeriodicThread(_PeriodicThread):
     """A fork-safe periodic thread."""
 
+    __autorestart__ = True
+
     def start(self) -> None:
         with _forking_lock:
             # We cannot start a new thread while we are forking, because we are
@@ -135,6 +137,8 @@ def _after_fork_child():
     # Restart the threads immediately. It is unlikely that there will be another
     # call to fork here.
     for thread in _threads_to_restart_after_fork:
+        if isinstance(thread, PeriodicThread) and not thread.__autorestart__:
+            continue
         thread._after_fork()
     _threads_to_restart_after_fork.clear()
 
