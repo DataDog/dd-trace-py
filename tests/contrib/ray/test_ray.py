@@ -31,7 +31,6 @@ def submit_ray_job(script_name, timeout=180):
         "ray",
         "job",
         "submit",
-        "--address=http://127.0.0.1:8265",
         "--working-dir",
         jobs_dir,
         "--no-wait",
@@ -63,14 +62,15 @@ def submit_ray_job(script_name, timeout=180):
 
     # Poll for completion within the provided timeout
     deadline = time.time() + timeout
-    status_cmd = ["ray", "job", "status", "--address=http://127.0.0.1:8265", submission_id]
+    status_cmd = ["ray", "job", "status", submission_id]
     while time.time() < deadline:
         status_res = subprocess.run(status_cmd, capture_output=True, text=True, timeout=30)
         status_text = (status_res.stdout or "").upper()
         if "SUCCEEDED" in status_text:
-            time.sleep(1)
+            time.sleep(2)
             return result
         if "FAILED" in status_text or "STOPPED" in status_text:
+            time.sleep(2)
             raise subprocess.CalledProcessError(1, status_cmd, status_res.stdout, status_res.stderr)
         time.sleep(1)
 
