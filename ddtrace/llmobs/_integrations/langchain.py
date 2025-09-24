@@ -848,11 +848,9 @@ class LangChainIntegration(BaseLLMIntegration):
         if hasattr(instance, "template") and isinstance(instance.template, str):
             template = instance.template
         if (
-            hasattr(instance, "messages")
-            and isinstance(instance.messages, list)
+            isinstance(getattr(instance, "messages", None), list)
             and result is not None
-            and hasattr(result, "messages")
-            and isinstance(result.messages, list)
+            and isinstance(getattr(result, "messages", None), list)
         ):
             messages = []
             if len(instance.messages) != len(result.messages):
