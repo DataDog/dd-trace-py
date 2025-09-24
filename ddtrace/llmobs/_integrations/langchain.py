@@ -866,8 +866,8 @@ class LangChainIntegration(BaseLLMIntegration):
                 # message templates do not have a role: the role is derived from the instance class
                 # instead, we use the resulting message
                 role = getattr(r, "role", None)
-                if not role:
-                    role = LANGCHAIN_ROLE_MAPPING.get(getattr(r, "type", None))
+                if not role and hasattr(r, "type"):
+                    role = LANGCHAIN_ROLE_MAPPING.get(r.type)
                 if not role:
                     role = "unknown"
 

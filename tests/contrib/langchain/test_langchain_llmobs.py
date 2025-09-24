@@ -308,9 +308,7 @@ def test_llmobs_multi_message_prompt_template_sync_chain(
     actual_prompt = llmobs_events[1]["meta"]["input"]["prompt"]
     assert actual_prompt["id"] == "test_langchain_llmobs.multi_message_template"
     assert actual_prompt["variables"] == variable_dict
-    assert (
-        "template" not in actual_prompt or actual_prompt["template"] is None
-    )  # Should be None for multi-message templates
+    assert "template" not in actual_prompt or actual_prompt["template"] is None
     assert actual_prompt["chat_template"] == PROMPT_TEMPLATE_EXPECTED_CHAT_TEMPLATE
 
 
