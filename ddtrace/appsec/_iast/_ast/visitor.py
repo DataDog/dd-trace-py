@@ -195,6 +195,7 @@ class AstVisitor(ast.NodeTransformer):
         self._taint_sink_replace_disabled = _ASPECTS_SPEC["taint_sinks"]["disabled"]
 
         self.update_location(filename, module_name)
+        self.allowed_replacements = {CODE_TYPE_FIRST_PARTY, CODE_TYPE_SITE_PACKAGES}
 
     def update_location(self, filename: str = "", module_name: str = ""):
         self.filename = filename
@@ -609,7 +610,7 @@ class AstVisitor(ast.NodeTransformer):
                         call_node.func = self._attr_node(call_node, SOURCES_FUNCTION_REPLACEMENT)
                         self.ast_modified = call_modified = True
 
-        if self.codetype == CODE_TYPE_FIRST_PARTY:
+        if self.codetype in self.allowed_replacements:
             # Function replacement case
             if isinstance(call_node.func, ast.Name):
                 aspect = self._should_replace_with_taint_sink(call_node, True)
