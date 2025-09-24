@@ -118,9 +118,10 @@ class TestRayIntegration(TracerTestCase):
         super(TestRayIntegration, cls).setUpClass()
         try:
             # Start the ray cluster once for all tests
+            env = os.environ.copy()
+            env["RAY_memory_monitor_refresh_ms"] = "0"
             subprocess.run(
                 [
-                    "RAY_memory_monitor_refresh_ms=0",
                     "ray",
                     "start",
                     "--head",
@@ -131,6 +132,7 @@ class TestRayIntegration(TracerTestCase):
                 capture_output=True,
                 text=True,
                 check=True,
+                env=env,
             )
         except subprocess.CalledProcessError as e:
             pytest.skip(f"Failed to start Ray cluster: {e.stderr}")
