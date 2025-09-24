@@ -164,6 +164,7 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("aws.agent") == "botocore"
         assert span.get_tag("aws.region") == "us-west-2"
         assert span.get_tag("region") == "us-west-2"
+        assert span.get_tag("aws.partition") == "aws"
         assert span.get_tag("aws.operation") == "DescribeInstances"
         assert span.get_tag("aws.requestid") == "fdcdcab1-ae5c-489e-9c33-4637c5dda355"
         assert span.get_tag("component") == "botocore"
@@ -718,6 +719,7 @@ class BotocoreTest(TracerTestCase):
         assert len(spans) == 1
         assert span.get_tag("aws.region") == "us-east-1"
         assert span.get_tag("region") == "us-east-1"
+        assert span.get_tag("aws.partition") == "aws"
         assert span.get_tag("aws.operation") == "CreateQueue"
         assert span.get_tag("component") == "botocore"
         assert_is_measured(span)
@@ -771,6 +773,7 @@ class BotocoreTest(TracerTestCase):
             assert len(spans) == 1
             assert span.get_tag("aws.region") == "us-east-1"
             assert span.get_tag("region") == "us-east-1"
+            assert span.get_tag("aws.partition") == "aws"
             assert span.get_tag("aws.operation") == "SendMessage"
             assert span.get_tag("params.MessageBody") is None
             assert span.get_tag("component") == "botocore"
