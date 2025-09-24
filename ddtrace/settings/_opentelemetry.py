@@ -9,7 +9,7 @@ from ddtrace.settings._core import DDConfig
 def _derive_endpoint(config: "ExporterConfig"):
     if config.PROTOCOL.lower() in ("http/json", "http/protobuf"):
         default_endpoint = (
-            f"http://{get_agent_hostname()}:{ExporterConfig.HTTP_PORT}{ExporterConfig.HTTP_LOGS_ENDPOINT}"
+            f"http://{get_agent_hostname()}:{ExporterConfig.HTTP_PORT}"
         )
     else:
         default_endpoint = f"http://{get_agent_hostname()}:{ExporterConfig.GRPC_PORT}"
