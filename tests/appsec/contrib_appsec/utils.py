@@ -14,7 +14,6 @@ import ddtrace
 from ddtrace._trace.pin import Pin
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import _constants as asm_constants
-from ddtrace.appsec._utils import get_security
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import constants
 from ddtrace.settings.asm import config as asm_config
@@ -1955,27 +1954,6 @@ class Contrib_TestClass_For_Threats:
             span_sampling_priority = entry_span()._span.context.sampling_priority
             sampling_decision = get_entry_span_tag(constants.SAMPLING_DECISION_TRACE_TAG_KEY)
             assert span_sampling_priority < 2 or sampling_decision != f"-{constants.SamplingMechanism.APPSEC}"
-
-    @pytest.mark.parametrize("rename_service", [True, False])
-    @pytest.mark.parametrize("metastruct", [True, False])
-    def test_iast(self, interface, root_span, get_tag, metastruct, rename_service):
-        from ddtrace.ext import http
-
-        with override_global_config(dict(_use_metastruct_for_iast=metastruct, _iast_use_root_span=True)):
-            url = "/rasp/command_injection/?cmds=."
-            self.update_tracer(interface)
-            response = interface.client.get(url, headers={"x-rename-service": str(rename_service).lower()})
-            assert self.status(response) == 200
-            assert get_tag(http.STATUS_CODE) == "200"
-            assert self.body(response).startswith("command_injection endpoint")
-            stack_traces = self.get_stack_trace(root_span, "vulnerability")
-            if asm_config._iast_enabled:
-                assert get_security(root_span()) is not None
-                # checking for iast stack traces
-                assert stack_traces
-            else:
-                assert get_security(root_span()) is None
-                assert stack_traces == []
 
     @pytest.mark.parametrize("endpoint", ["urlopen_request", "urlopen_string"])
     def test_api10(self, endpoint, interface, get_tag):

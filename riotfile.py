@@ -3604,7 +3604,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_flask",
-            command="pytest tests/appsec/contrib_appsec/test_flask.py {cmdargs}",
+            command="pytest -vv tests/appsec/contrib_appsec/test_flask.py {cmdargs}",
             pkgs={
                 "pytest": latest,
                 "pytest-cov": latest,
