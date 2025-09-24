@@ -39,7 +39,7 @@ def _derive_logs_timeout(config: "ExporterConfig"):
 
 
 def _derive_metrics_endpoint(config: "ExporterConfig"):
-    if config.LOGS_PROTOCOL.lower() in ("http/json", "http/protobuf"):
+    if config.METRICS_PROTOCOL.lower() in ("http/json", "http/protobuf"):
         default_endpoint = (
             f"http://{get_agent_hostname()}:{ExporterConfig.HTTP_PORT}{ExporterConfig.HTTP_METRICS_ENDPOINT}"
         )
