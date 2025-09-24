@@ -1,5 +1,4 @@
 import os
-import re
 
 import pytest
 
@@ -173,16 +172,13 @@ telemetry_writer._app_started()
 
     app_started_events = [event for event in events if event["request_type"] == "app-started"]
     assert len(app_started_events) == 1
-    assert app_started_events[0]["payload"]["error"]["code"] == 1
-    assert (
-        "error applying processor <__main__.FailingFilture object at"
-        not in app_started_events[0]["payload"]["error"]["message"]
-    )
-    assert "error applying processor %r" in app_started_events[0]["payload"]["error"]["message"]
-    pattern = re.compile(".*ddtrace/_trace/processor/__init__.py/__init__.py:[0-9]+: " "error applying processor %r")
-    assert pattern.match(app_started_events[0]["payload"]["error"]["message"]), app_started_events[0]["payload"][
-        "error"
-    ]["message"]
+
+    logs_event = test_agent_session.get_events("logs", subprocess=True)
+    error_log = logs_event[0]["payload"]["logs"][0]
+    assert error_log["message"] == "error applying processor %r to trace %d"
+    assert error_log["level"] == "ERROR"
+    assert "in on_span_finish" in error_log["stack_trace"]
+    assert "spans = tp.process_trace(spans) or []" in error_log["stack_trace"]
 
 
 def test_register_telemetry_excepthook_after_another_hook(test_agent_session, run_python_code_in_subprocess):
@@ -211,11 +207,10 @@ raise Exception('bad_code')
 
     app_starteds = test_agent_session.get_events("app-started", subprocess=True)
     assert len(app_starteds) == 1
-    # app-started captures unhandled exceptions raised in application code
-    assert app_starteds[0]["payload"]["error"]["code"] == 1
-    assert re.search(r"test\.py:\d+:\sbad_code$", app_starteds[0]["payload"]["error"]["message"]), app_starteds[0][
-        "payload"
-    ]["error"]["message"]
+
+    # the tracer does not capture non ddtrace related errors
+    logs_event = test_agent_session.get_events("logs", subprocess=True)
+    assert len(logs_event) == 0
 
 
 def test_handled_integration_error(test_agent_session, run_python_code_in_subprocess):
@@ -271,9 +266,12 @@ f.wsgi_app()
 
     app_started_event = test_agent_session.get_events("app-started", subprocess=True)
     assert len(app_started_event) == 1
-    assert app_started_event[0]["payload"]["error"]["code"] == 1
-    assert "ddtrace/contrib/internal/flask/patch.py" in app_started_event[0]["payload"]["error"]["message"]
-    assert "not enough values to unpack (expected 2, got 0)" in app_started_event[0]["payload"]["error"]["message"]
+
+    logs_event = test_agent_session.get_events("logs", subprocess=True)
+    error_log = logs_event[0]["payload"]["logs"][0]
+    assert error_log["message"] == "Unhandled exception from ddtrace code"
+    assert error_log["level"] == "ERROR"
+    assert "patched_wsgi_app" in error_log["stack_trace"]
 
     integration_events = test_agent_session.get_events("app-integrations-change", subprocess=True)
     integrations = integration_events[0]["payload"]["integrations"]

@@ -1,3 +1,4 @@
+from importlib.metadata import version
 import os
 import re
 import signal
@@ -170,3 +171,48 @@ def test_uwsgi_threads_processes_no_primary_lazy_apps(uwsgi, tmp_path, monkeypat
         profile = pprof_utils.parse_newest_profile("%s.%d" % (filename, pid))
         samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
         assert len(samples) > 0
+
+
+@pytest.mark.parametrize("lazy_flag", ["--lazy-apps", "--lazy"])
+@pytest.mark.skipif(
+    tuple(int(x) for x in version("uwsgi").split(".")) >= (2, 0, 30),
+    reason="uwsgi>=2.0.30 does not require --skip-atexit",
+)
+def test_uwsgi_require_skip_atexit_when_lazy_with_master(uwsgi, lazy_flag):
+    expected_warning = b"ddtrace.internal.uwsgi.uWSGIConfigDeprecationWarning: skip-atexit option must be set"
+
+    proc = uwsgi("--enable-threads", "--master", "--processes", "2", lazy_flag)
+    time.sleep(1)
+    proc.terminate()
+    stdout, _ = proc.communicate()
+    assert expected_warning in stdout
+
+
+@pytest.mark.parametrize("lazy_flag", ["--lazy-apps", "--lazy"])
+@pytest.mark.skipif(
+    tuple(int(x) for x in version("uwsgi").split(".")) >= (2, 0, 30),
+    reason="uwsgi>=2.0.30 does not require --skip-atexit",
+)
+def test_uwsgi_require_skip_atexit_when_lazy_without_master(uwsgi, lazy_flag):
+    expected_warning = b"ddtrace.internal.uwsgi.uWSGIConfigDeprecationWarning: skip-atexit option must be set"
+    num_workers = 2
+    proc = uwsgi("--enable-threads", "--processes", str(num_workers), lazy_flag)
+
+    worker_pids = []
+    logged_warning = 0
+    while True:
+        line = proc.stdout.readline()
+        if line == b"":
+            break
+        if expected_warning in line:
+            logged_warning += 1
+        else:
+            m = re.match(r"^spawned uWSGI worker \d+ .*\(pid: (\d+),", line.decode())
+            if m:
+                worker_pids.append(int(m.group(1)))
+
+        if logged_warning == num_workers:
+            break
+
+    for pid in worker_pids:
+        os.kill(pid, signal.SIGTERM)

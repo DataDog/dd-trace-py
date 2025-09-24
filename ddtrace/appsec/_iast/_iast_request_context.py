@@ -1,9 +1,7 @@
-from typing import TYPE_CHECKING  # noqa:F401
-from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import Literal  # noqa:F401
+from typing import Any
+from typing import Dict
 from typing import Optional
-from typing import Union  # noqa:F401
+from typing import Union
 
 from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
@@ -11,7 +9,6 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._iast_env import _get_iast_env
 import ddtrace.appsec._iast._iast_request_context_base as base
 from ddtrace.appsec._iast._metrics import _set_metric_iast_request_tainted
-from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._span_metrics import _set_span_tag_iast_executed_sink
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
@@ -24,8 +21,6 @@ from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
-
-# Stopgap module for providing ASM context for the blocking features wrapping some contextvars.
 
 
 def set_iast_reporter(iast_reporter: IastSpanReporter) -> None:
@@ -66,13 +61,10 @@ def _create_and_attach_iast_report_to_span(
     base._set_span_tag_iast_request_tainted(req_span)
     _set_span_tag_iast_executed_sink(req_span)
 
-    base.set_iast_request_enabled(False)
-    base.end_iast_context(req_span)
+    base._iast_finish_request(req_span)
 
     if req_span.get_tag(_ORIGIN_KEY) is None:
         req_span.set_tag_str(_ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
-
-    oce.release_request()
 
 
 def _iast_end_request(ctx=None, span=None, *args, **kwargs):
@@ -88,14 +80,14 @@ def _iast_end_request(ctx=None, span=None, *args, **kwargs):
         if req_span is None:
             log.debug("iast::propagation::context::Error finishing IAST context. There isn't a SPAN")
             return
+
         if asm_config._iast_enabled:
             existing_data = req_span.get_tag(IAST.JSON) or req_span.get_struct_tag(IAST.STRUCT)
             if existing_data is None:
                 if req_span.get_metric(IAST.ENABLED) is None:
                     if not base.is_iast_request_enabled():
                         req_span.set_metric(IAST.ENABLED, 0.0)
-                        base.end_iast_context(req_span)
-                        oce.release_request()
+                        base._iast_finish_request(req_span)
                         return
 
                     req_span.set_metric(IAST.ENABLED, 1.0)
@@ -106,5 +98,6 @@ def _iast_end_request(ctx=None, span=None, *args, **kwargs):
                 _create_and_attach_iast_report_to_span(req_span, existing_data, merge=True)
 
             reset_request_vulnerabilities()
+            base.clear_hash_object_tracking()
     except Exception:
         log.debug("iast::propagation::context::Error finishing IAST context", exc_info=True)
