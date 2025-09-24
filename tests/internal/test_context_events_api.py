@@ -185,45 +185,14 @@ class TestContextEventsApi(unittest.TestCase):
         for listener in listeners:
             assert listener.calls == 1
 
-    def test_core_dispatch_all_listeners(self):
-        class Listener:
-            calls: List[tuple]
-
-            def __init__(self):
-                self.calls = []
-
-            def __call__(self, event_id: str, args: tuple) -> None:
-                self.calls.append((event_id, args))
-
-        l1 = Listener()
-
-        core.event_hub.on_all(l1)
-
-        core.dispatch("event.1", (1, 2))
-        core.dispatch("event.2", ())
-
-        with core.context_with_data("my.cool.context") as ctx:
-            pass
-
-        assert l1.calls == [
-            ("event.1", (1, 2)),
-            ("event.2", ()),
-            ("context.started.my.cool.context", (ctx,)),
-            ("context.ended.my.cool.context", (ctx, (None, None, None))),
-        ]
-
     @with_config_raise_value(raise_value=False)
     def test_core_dispatch_exceptions_no_raise(self):
         def on_exception(*_):
             raise RuntimeError("OH NO!")
 
-        def on_all_exception(*_):
-            raise TypeError("OH NO!")
-
         core.on("my.cool.event", on_exception, "res")
         core.on("context.started.my.cool.context", on_exception)
         core.on("context.ended.my.cool.context", on_exception)
-        core.event_hub.on_all(on_all_exception)
 
         # Dispatch does not raise any exceptions, and returns nothing
         assert core.dispatch("my.cool.event", (1, 2, 3)) is None
@@ -241,81 +210,29 @@ class TestContextEventsApi(unittest.TestCase):
     # The default raise value for tests is True, but let's be explicit to be safe
     @with_config_raise_value(raise_value=True)
     def test_core_dispatch_exceptions_all_raise(self):
-        def on_exception(*_):
+        def on_runtime_error(*_):
             raise RuntimeError("OH NO!")
 
-        def on_all_exception(*_):
+        def on_type_error(*_):
             raise TypeError("OH NO!")
 
-        core.on("my.cool.event", on_exception)
-        core.on("context.started.my.cool.context", on_exception)
-        core.on("context.ended.my.cool.context", on_exception)
-        core.event_hub.on_all(on_all_exception)
-
-        # We stop after the first exception is raised, on_all listeners get called first
-        with pytest.raises(TypeError):
-            core.dispatch("my.cool.event", (1, 2, 3))
-
-        # We stop after the first exception is raised, on_all listeners get called first
-        with pytest.raises(TypeError):
-            core.dispatch_with_results("my.cool.event", (1, 2, 3))
-
-        # We stop after the first exception is raised, on_all listeners get called first
-        with pytest.raises(TypeError):
-            with core.context_with_data("my.cool.context"):
-                pass
-
-    # The default raise value for tests is True, but let's be explicit to be safe
-    @with_config_raise_value(raise_value=True)
-    def test_core_dispatch_exceptions_raise(self):
-        def on_exception(*_):
-            raise RuntimeError("OH NO!")
-
-        def noop(*_):
-            pass
-
-        core.on("my.cool.event", on_exception)
-        core.on("context.started.my.cool.context", noop)
-        core.on("context.ended.my.cool.context", on_exception)
-        core.event_hub.on_all(noop)
+        core.on("my.cool.event", on_runtime_error)
+        core.on("context.started.my.cool.context", on_type_error)
+        core.on("context.started.my.cool.context", on_runtime_error)
+        core.on("context.ended.my.cool.context", on_runtime_error)
+        core.on("context.ended.my.cool.context", on_type_error)
 
         with pytest.raises(RuntimeError):
             core.dispatch("my.cool.event", (1, 2, 3))
 
-        with pytest.raises(RuntimeError):
+        # We stop after the first exception is raised, on_type_error listeners get called first
+        with pytest.raises(TypeError):
             core.dispatch_with_results("my.cool.event", (1, 2, 3))
 
+        # We stop after the first exception is raised, on_runtime_error listeners get called first
         with pytest.raises(RuntimeError):
             with core.context_with_data("my.cool.context"):
                 pass
-
-    def test_core_dispatch_with_results_all_listeners(self):
-        class Listener:
-            calls: List[tuple]
-
-            def __init__(self):
-                self.calls = []
-
-            def __call__(self, event_id: str, args: tuple) -> None:
-                self.calls.append((event_id, args))
-
-        l1 = Listener()
-
-        core.event_hub.on_all(l1)
-
-        # The results/exceptions from all listeners don't get reported
-        assert core.dispatch_with_results("event.1", (1, 2)) is core.event_hub._MissingEventDict
-        assert core.dispatch_with_results("event.2", ()) is core.event_hub._MissingEventDict
-
-        with core.context_with_data("my.cool.context") as ctx:
-            pass
-
-        assert l1.calls == [
-            ("event.1", (1, 2)),
-            ("event.2", ()),
-            ("context.started.my.cool.context", (ctx,)),
-            ("context.ended.my.cool.context", (ctx, (None, None, None))),
-        ]
 
     def test_core_dispatch_context_ended(self):
         context_id = "my.cool.context"
