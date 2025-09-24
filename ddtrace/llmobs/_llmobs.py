@@ -116,8 +116,8 @@ from ddtrace.llmobs.types import MetaIO
 from ddtrace.llmobs.types import Prompt
 from ddtrace.llmobs.types import SpanField
 from ddtrace.llmobs.utils import Documents
-from ddtrace.llmobs.utils import extract_tool_definitions
 from ddtrace.llmobs.utils import Messages
+from ddtrace.llmobs.utils import extract_tool_definitions
 from ddtrace.propagation.http import HTTPPropagator
 
 

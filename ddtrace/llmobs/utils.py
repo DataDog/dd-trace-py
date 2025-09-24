@@ -7,8 +7,8 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall
-from ddtrace.llmobs.types import ToolResult
 from ddtrace.llmobs.types import ToolDefinition
+from ddtrace.llmobs.types import ToolResult
 
 
 log = get_logger(__name__)
