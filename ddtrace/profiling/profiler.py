@@ -45,7 +45,7 @@ class Profiler(object):
     def start(self):
         """Start the profiler."""
         try:
-            uwsgi.check_uwsgi(self._restart_on_fork, atexit=self.stop)
+            uwsgi.check_uwsgi(atexit=self.stop)
         except uwsgi.uWSGIMasterProcess:
             # Do nothing, the start() method will be called in each worker subprocess
             return
@@ -74,17 +74,6 @@ class Profiler(object):
         except service.ServiceStatusError:
             # Not a best practice, but for backward API compatibility that allowed to call `stop` multiple times.
             pass
-
-    def _restart_on_fork(self):
-        # Be sure to stop the parent first, since it might have to e.g. unpatch functions
-        # Do not flush data as we don't want to have multiple copies of the parent profile exported.
-        try:
-            self._profiler.stop(flush=False, join=False)
-        except service.ServiceStatusError:
-            # This can happen in uWSGI mode: the children won't have the _profiler started from the master process
-            pass
-        self._profiler = self._profiler.copy()
-        self._profiler.start()
 
     def __getattr__(
         self,
@@ -301,6 +290,7 @@ class _ProfilerInstance(service.Service):
 
         :param flush: Flush a last profile.
         """
+        LOG.debug("Stopping profiler")
         # Prevent doing more initialisation now that we are shutting down.
         if self._lock_collector_enabled:
             for module, hook in self._collectors_on_import:

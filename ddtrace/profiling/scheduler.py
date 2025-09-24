@@ -1,5 +1,4 @@
 # -*- encoding: utf-8 -*-
-import logging
 import time
 from typing import Any  # noqa F401
 from typing import Callable
@@ -8,11 +7,12 @@ from typing import Optional
 import ddtrace
 from ddtrace.internal import periodic
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.logger import get_logger
 from ddtrace.settings.profiling import config
 from ddtrace.trace import Tracer
 
 
-LOG = logging.getLogger(__name__)
+LOG = get_logger(__name__)
 
 
 class Scheduler(periodic.PeriodicService):

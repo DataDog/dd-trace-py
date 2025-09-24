@@ -5,7 +5,10 @@ import typing as t
 from ddtrace.internal import forksafe
 from ddtrace.internal._threads import PeriodicThread as _PeriodicThread
 from ddtrace.internal._threads import periodic_threads
+from ddtrace.internal.logger import get_logger
 
+
+log = get_logger(__name__)
 
 try:
     from _thread import allocate_lock as Lock
@@ -32,9 +35,16 @@ _forking = False
 _forking_lock = Lock()
 
 
+class BoundMethod(t.Protocol):
+    __self__: t.Any
+
+    def __call__(self) -> None:
+        ...
+
+
 # List of threads that have requested to be started while forking. These will
 # be started after the fork is complete.
-_threads_to_start_after_fork: t.List[t.Callable[[], None]] = []
+_threads_to_start_after_fork: t.List[BoundMethod] = []
 
 
 class PeriodicThread(_PeriodicThread):
@@ -50,7 +60,7 @@ class PeriodicThread(_PeriodicThread):
             if not _forking:
                 super().start()
             else:
-                _threads_to_start_after_fork.append(super().start)
+                _threads_to_start_after_fork.append(t.cast(BoundMethod, super().start))
 
 
 # List of running periodic threads that need to be restarted after a fork.
@@ -98,10 +108,12 @@ class ThreadRestartTimer(PeriodicThread):
                     if thread is self:
                         # This has already been restarted by the after-fork hook.
                         continue
+                    log.debug("Restarting thread %s after fork", thread.name)
                     thread._after_fork()
                 _threads_to_restart_after_fork.clear()
 
                 for thread_start in _threads_to_start_after_fork:
+                    log.debug("Starting thread %s after fork", thread_start.__self__.name)
                     thread_start()
                 _threads_to_start_after_fork.clear()
 
@@ -139,10 +151,12 @@ def _after_fork_child():
     for thread in _threads_to_restart_after_fork:
         if isinstance(thread, PeriodicThread) and not thread.__autorestart__:
             continue
+        log.debug("Restarting thread %s after fork in child", thread.name)
         thread._after_fork()
     _threads_to_restart_after_fork.clear()
 
     for thread_start in _threads_to_start_after_fork:
+        log.debug("Starting thread %s after fork in child", thread_start.__self__.name)
         thread_start()
     _threads_to_start_after_fork.clear()
 
@@ -174,8 +188,10 @@ def _before_fork() -> None:
     # the shutdown methods, if any. This ensures that we can stop the threads
     # more promptly.
     for thread in _threads_to_restart_after_fork:
+        log.debug("Stopping thread %s before fork", thread.name)
         thread._before_fork()
 
     # Join all the threads to ensure they are stopped before the fork.
     for thread in _threads_to_restart_after_fork:
+        log.debug("Joining thread %s before fork", thread.name)
         thread.join()
