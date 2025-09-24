@@ -96,6 +96,7 @@ def test_uds_wrong_socket_path():
                 1,
                 "unix:///tmp/ddagent/nosockethere/{}/traces".format(encoding if encoding else "v0.5"),
                 "client error (Connect)",
+                extra={"send_to_telemetry": False},
             )
         ]
     else:
@@ -369,6 +370,7 @@ def test_trace_generates_error_logs_when_trace_agent_url_invalid():
                 1,
                 "http://localhost:8125/{}/traces".format(encoding if encoding else "v0.5"),
                 "client error (Connect)",
+                extra={"send_to_telemetry": False},
             )
         ]
     else:
@@ -528,6 +530,7 @@ def test_trace_with_invalid_payload_generates_error_log():
                     "http://localhost:8126/v0.5/traces",
                     400,
                     "Bad Request",
+                    extra={"send_to_telemetry": False},
                 )
             ]
         )
@@ -563,6 +566,7 @@ def test_trace_with_invalid_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
                     400,
                     "Bad Request",
                     "6261645f7061796c6f6164",
+                    extra={"send_to_telemetry": False},
                 )
             ]
         )
@@ -593,6 +597,7 @@ def test_trace_with_non_bytes_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
                 400,
                 "Bad Request",
                 "bad_payload",
+                extra={"send_to_telemetry": False},
             )
         ]
     )
