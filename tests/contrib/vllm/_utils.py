@@ -47,10 +47,14 @@ def get_cached_async_engine(model: str, *, engine_mode: str | None = None, **kwa
     if cached is not None:
         return cached
 
+    # Respect explicit gpu_memory_utilization if provided
+    explicit_util = kwargs.pop("gpu_memory_utilization", None)
     util_candidates = kwargs.pop(
         "gpu_util_candidates",
         [0.05, 0.1, 0.2, 0.3, 0.5, 0.7, 0.8, 0.9, 0.95],
     )
+    if explicit_util is not None:
+        util_candidates = [explicit_util]
     last_error = None
     for util in util_candidates:
         try:

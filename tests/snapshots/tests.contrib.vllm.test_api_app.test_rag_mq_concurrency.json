@@ -1,0 +1,234 @@
+[[
+  {
+    "name": "api.rag",
+    "service": "tests.contrib.vllm",
+    "resource": "api.rag",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68d3b29400000000",
+      "language": "python",
+      "runtime-id": "45d5218b0eb7451d8de3319b9f1bb10e"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 2029
+    },
+    "duration": 29698763510,
+    "start": 1758704276288530829
+  },
+     {
+       "name": "vllm.request",
+       "service": "tests.contrib.vllm",
+       "resource": "vllm.request",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "llm",
+       "error": 0,
+       "meta": {
+         "_dd.p.tid": "68d3b29400000000",
+         "runtime-id": "45d5218b0eb7451d8de3319b9f1bb10e",
+         "vllm.request.model": "intfloat/e5-small-v2",
+         "vllm.request.provider": "vllm"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "_dd.top_level": 1,
+         "process_id": 2029
+       },
+       "duration": 554670830,
+       "start": 1758704286509265542
+     },
+     {
+       "name": "vllm.request",
+       "service": "tests.contrib.vllm",
+       "resource": "vllm.request",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "llm",
+       "error": 0,
+       "meta": {
+         "_dd.p.tid": "68d3b29400000000",
+         "runtime-id": "45d5218b0eb7451d8de3319b9f1bb10e",
+         "vllm.request.model": "intfloat/e5-small-v2",
+         "vllm.request.provider": "vllm"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "_dd.top_level": 1,
+         "process_id": 2029
+       },
+       "duration": 9799708,
+       "start": 1758704287065272229
+     },
+     {
+       "name": "vllm.request",
+       "service": "tests.contrib.vllm",
+       "resource": "vllm.request",
+       "trace_id": 0,
+       "span_id": 4,
+       "parent_id": 1,
+       "type": "llm",
+       "error": 0,
+       "meta": {
+         "_dd.p.tid": "68d3b29400000000",
+         "runtime-id": "45d5218b0eb7451d8de3319b9f1bb10e",
+         "vllm.request.model": "intfloat/e5-small-v2",
+         "vllm.request.provider": "vllm"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "_dd.top_level": 1,
+         "process_id": 2029
+       },
+       "duration": 8389194,
+       "start": 1758704287076140206
+     },
+     {
+       "name": "vllm.request",
+       "service": "tests.contrib.vllm",
+       "resource": "vllm.request",
+       "trace_id": 0,
+       "span_id": 5,
+       "parent_id": 1,
+       "type": "llm",
+       "error": 0,
+       "meta": {
+         "_dd.p.tid": "68d3b29400000000",
+         "runtime-id": "45d5218b0eb7451d8de3319b9f1bb10e",
+         "vllm.request.model": "facebook/opt-125m",
+         "vllm.request.provider": "vllm"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "_dd.top_level": 1,
+         "process_id": 2029
+       },
+       "duration": 365784547,
+       "start": 1758704302744513859
+     }],
+[
+  {
+    "name": "api.rag",
+    "service": "tests.contrib.vllm",
+    "resource": "api.rag",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68d3b27600000000",
+      "language": "python",
+      "runtime-id": "45d5218b0eb7451d8de3319b9f1bb10e"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 2029
+    },
+    "duration": 29929902055,
+    "start": 1758704246351354362
+  },
+     {
+       "name": "vllm.request",
+       "service": "tests.contrib.vllm",
+       "resource": "vllm.request",
+       "trace_id": 1,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "llm",
+       "error": 0,
+       "meta": {
+         "_dd.p.tid": "68d3b27600000000",
+         "runtime-id": "45d5218b0eb7451d8de3319b9f1bb10e",
+         "vllm.request.model": "intfloat/e5-small-v2",
+         "vllm.request.provider": "vllm"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "_dd.top_level": 1,
+         "process_id": 2029
+       },
+       "duration": 556589543,
+       "start": 1758704256524421137
+     },
+     {
+       "name": "vllm.request",
+       "service": "tests.contrib.vllm",
+       "resource": "vllm.request",
+       "trace_id": 1,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "llm",
+       "error": 0,
+       "meta": {
+         "_dd.p.tid": "68d3b27600000000",
+         "runtime-id": "45d5218b0eb7451d8de3319b9f1bb10e",
+         "vllm.request.model": "intfloat/e5-small-v2",
+         "vllm.request.provider": "vllm"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "_dd.top_level": 1,
+         "process_id": 2029
+       },
+       "duration": 9809933,
+       "start": 1758704257082331227
+     },
+     {
+       "name": "vllm.request",
+       "service": "tests.contrib.vllm",
+       "resource": "vllm.request",
+       "trace_id": 1,
+       "span_id": 4,
+       "parent_id": 1,
+       "type": "llm",
+       "error": 0,
+       "meta": {
+         "_dd.p.tid": "68d3b27600000000",
+         "runtime-id": "45d5218b0eb7451d8de3319b9f1bb10e",
+         "vllm.request.model": "intfloat/e5-small-v2",
+         "vllm.request.provider": "vllm"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "_dd.top_level": 1,
+         "process_id": 2029
+       },
+       "duration": 8267299,
+       "start": 1758704257093126442
+     },
+     {
+       "name": "vllm.request",
+       "service": "tests.contrib.vllm",
+       "resource": "vllm.request",
+       "trace_id": 1,
+       "span_id": 5,
+       "parent_id": 1,
+       "type": "llm",
+       "error": 0,
+       "meta": {
+         "_dd.p.tid": "68d3b27600000000",
+         "runtime-id": "45d5218b0eb7451d8de3319b9f1bb10e",
+         "vllm.request.model": "facebook/opt-125m",
+         "vllm.request.provider": "vllm"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "_dd.top_level": 1,
+         "process_id": 2029
+       },
+       "duration": 436600148,
+       "start": 1758704272953332449
+     }]]

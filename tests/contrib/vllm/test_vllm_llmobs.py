@@ -1,5 +1,6 @@
 import mock
 import asyncio
+import json
 import pytest
 import vllm
 
@@ -7,6 +8,10 @@ from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from ._utils import get_cached_llm, get_cached_async_engine
 from vllm.sampling_params import RequestOutputKind
 
+IGNORE_FIELDS = [
+    "metrics.vllm.latency.ttft",
+    "metrics.vllm.latency.queue",
+] 
 
 def test_llmobs_basic(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
     llm = get_cached_llm(
@@ -173,6 +178,137 @@ def test_llmobs_classify(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
         )
         assert event == expected
 
+
+@pytest.mark.asyncio
+async def test_stream_cancel_early_break_v1(vllm, mock_tracer, monkeypatch, llmobs_events):
+    monkeypatch.setenv("VLLM_USE_V1", "1")
+
+    engine = get_cached_async_engine(
+        model="facebook/opt-125m",
+        engine_mode="1",
+        enforce_eager=True,
+    )
+
+    sampling_params = vllm.SamplingParams(
+        max_tokens=128,
+        temperature=0.8,
+        top_p=0.95,
+        seed=42,
+        output_kind=RequestOutputKind.DELTA,
+    )
+
+    i = 0
+    saw_finished = False
+    async for out in engine.generate(
+        request_id="cancel-v1",
+        prompt="What is the capital of France?",
+        sampling_params=sampling_params,
+    ):
+        i += 1
+        if getattr(out, "finished", False):
+            saw_finished = True
+        if i >= 2:
+            break
+
+    span = mock_tracer.pop_traces()[0][0]
+    print("---SPANS---")
+    print(span)
+    print("---END SPANS---")
+    print("---LLMOBS EVENTS---")
+    print(llmobs_events)
+    print("---END LLMOBS EVENTS---")
+    assert not saw_finished
+    assert span.resource == "vllm.request"
+
+    assert len(llmobs_events) == 1
+    expected = _expected_llmobs_llm_span_event(
+            span,
+            model_name="facebook/opt-125m",
+            model_provider="vllm",
+            input_messages=[{"content": "What is the capital of France?", "role": ""}],
+            output_messages=[{"content": "\nI think it's a city in the middle of the Greek Pacific Ocean, though. I'm not sure, since I don't have the map.", "role": ""}],
+            metadata={
+                "temperature": 0.8,
+                "top_p": 0.95,
+                "top_k": 0,
+                "presence_penalty": 0.0,
+                "repetition_penalty": 1.0,
+                "max_tokens": 128,
+                "n": 1,
+                "frequency_penalty": 0.0,
+                "seed": 42,
+                "num_cached_tokens": 0,
+                "finish_reason": "stop",
+            },
+            token_metrics={"input_tokens": 8, "output_tokens": 32, "total_tokens": 40},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm"},
+        )
+    assert llmobs_events[0] == expected
+
+
+@pytest.mark.asyncio
+async def test_stream_cancel_early_break_v0_mq(vllm, mock_tracer, monkeypatch, llmobs_events):
+    monkeypatch.setenv("VLLM_USE_V1", "0")
+
+    from vllm.engine.arg_utils import AsyncEngineArgs
+    from vllm.entrypoints.openai.api_server import (
+        build_async_engine_client_from_engine_args,
+    )
+    from vllm.usage.usage_lib import UsageContext
+
+    args = AsyncEngineArgs(
+        model="facebook/opt-125m",
+        enforce_eager=True,
+        disable_log_stats=True,
+        gpu_memory_utilization=0.2,
+    )
+    async with build_async_engine_client_from_engine_args(
+        args,
+        usage_context=UsageContext.OPENAI_API_SERVER,
+    ) as engine:
+        sampling_params = vllm.SamplingParams(
+            max_tokens=128,
+            temperature=0.8,
+            top_p=0.95,
+            seed=42,
+            output_kind=RequestOutputKind.DELTA,
+        )
+
+        i = 0
+        saw_finished = False
+        async for out in engine.generate(
+            request_id="cancel-mq",
+            prompt="What is the capital of the United States?",
+            sampling_params=sampling_params,
+        ):
+            i += 1
+            if getattr(out, "finished", False):
+                saw_finished = True
+            if i >= 2:
+                break
+
+    span = mock_tracer.pop_traces()[0][0]
+    print("---LLMOBS EVENTS---")
+    print(llmobs_events)
+    print("---END LLMOBS EVENTS---")
+    print("---SPANS---")
+    print(span)
+    print("---END SPANS---")
+    assert not saw_finished
+    assert span.resource == "vllm.request"
+
+    assert len(llmobs_events) == 1
+    expected = _expected_llmobs_llm_span_event(
+            span,
+            model_name="facebook/opt-125m",
+            model_provider="vllm",
+            input_messages=[{"content": "What is the capital of the United States?", "role": ""}],
+            output_messages=[{"content": "\nI think you mean Commonwealth of Virginia.\nWell, I'm not sure that's how it works.  *\nI'm talking about New York City.\nYes I'm aware.", "role": ""}],
+            metadata={"num_cached_tokens": 0, "finish_reason": "stop"},
+            token_metrics={"input_tokens": 10, "output_tokens": 40, "total_tokens": 50},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm"},
+        )
+    assert llmobs_events[0] == expected
 
 def test_llmobs_embed(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
     llm = get_cached_llm(

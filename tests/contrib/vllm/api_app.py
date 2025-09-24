@@ -7,6 +7,8 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 
 import vllm
+import torch
+import torch.nn.functional as F
 from ddtrace._trace.pin import Pin
 
 from ._utils import get_cached_async_engine, get_simple_chat_template
@@ -43,26 +45,66 @@ async def rag(req: RagRequest):
                 enforce_eager=True,
                 disable_log_stats=True,
                 trust_remote_code=True,
+                gpu_memory_utilization=float(os.environ.get("VLLM_GPU_UTIL", "0.2")),
             )
             async with build_async_engine_client_from_engine_args(
                 embed_args,
                 usage_context=UsageContext.OPENAI_API_SERVER,
             ) as embed_engine:
                 pooling_params = vllm.PoolingParams(task="encode")
+                doc_vecs: List[torch.Tensor] = []
                 for i, doc in enumerate(req.documents):
-                    # Stream just to exercise the async path; break after first
-                    async for _ in embed_engine.encode(
+                    last = None
+                    async for out in embed_engine.encode(
                         prompt=doc,
                         pooling_params=pooling_params,
                         request_id=f"embed-{i}",
                     ):
+                        last = out
+                        if out.finished:
+                            break
+                    if last and last.outputs is not None and hasattr(last.outputs, "data"):
+                        emb = last.outputs.data
+                        if emb.dim() > 1:
+                            emb = emb.mean(dim=0)
+                        emb = emb.detach().to("cpu", copy=True).float()
+                        doc_vecs.append(emb)
+
+                # Embed query
+                q_last = None
+                async for out in embed_engine.encode(
+                    prompt=req.query,
+                    pooling_params=pooling_params,
+                    request_id="embed-query",
+                ):
+                    q_last = out
+                    if out.finished:
                         break
+                query_vec = None
+                if q_last and q_last.outputs is not None and hasattr(q_last.outputs, "data"):
+                    q = q_last.outputs.data
+                    if q.dim() > 1:
+                        q = q.mean(dim=0)
+                    query_vec = q.detach().to("cpu", copy=True).float()
+
+                # Select top document
+                top_doc = req.documents[0]
+                if query_vec is not None and doc_vecs:
+                    sims = [F.cosine_similarity(query_vec.unsqueeze(0), d.unsqueeze(0)).item() for d in doc_vecs]
+                    top_idx = int(max(range(len(sims)), key=lambda i: sims[i]))
+                    top_doc = req.documents[top_idx]
+                # Free allocator cache before next engine
+                try:
+                    torch.cuda.empty_cache()
+                except Exception:
+                    pass
 
             # 2) Generate
             gen_args = AsyncEngineArgs(
                 model="facebook/opt-125m",
                 enforce_eager=True,
                 disable_log_stats=True,
+                gpu_memory_utilization=float(os.environ.get("VLLM_GPU_UTIL", "0.2")),
             )
             async with build_async_engine_client_from_engine_args(
                 gen_args,
@@ -71,14 +113,22 @@ async def rag(req: RagRequest):
                 sampling = vllm.SamplingParams(
                     temperature=0.8, top_p=0.95, max_tokens=64, seed=42
                 )
-                prompt = f"Context: {req.documents[0]}\nQuestion: {req.query}\nAnswer:"
-                print("Engine class: ", gen_engine.__class__)
-                async for _ in gen_engine.generate(
+                prompt = f"Context: {top_doc}\nQuestion: {req.query}\nAnswer:"
+                generated_text = ""
+                last = None
+                async for out in gen_engine.generate(
                     prompt=prompt,
                     sampling_params=sampling,
                     request_id="gen-0",
                 ):
-                    break
+                    last = out
+                    if out.finished:
+                        break
+                if last and last.outputs:
+                    sample = last.outputs[0] if isinstance(last.outputs, list) and last.outputs else None
+                    if sample and hasattr(sample, "text") and sample.text:
+                        generated_text = sample.text
+                return {"generated_text": generated_text, "retrieved_document": top_doc}
         else:
             # Exercise in-process async engines (V1 AsyncLLM or V0 AsyncLLMEngine)
             # 1) Embed candidate documents
@@ -87,32 +137,78 @@ async def rag(req: RagRequest):
                 engine_mode=engine_mode,
                 enforce_eager=True,
                 runner="pooling",
+                gpu_memory_utilization=float(os.environ.get("VLLM_GPU_UTIL", "0.2")),
             )
             pooling_params = vllm.PoolingParams(task="encode")
+            doc_vecs: List[torch.Tensor] = []
             for i, doc in enumerate(req.documents):
-                async for _ in embed_engine.encode(
+                last = None
+                async for out in embed_engine.encode(
                     prompt=doc,
                     pooling_params=pooling_params,
                     request_id=f"embed-{i}",
                 ):
+                    last = out
+                    if out.finished:
+                        break
+                if last and last.outputs is not None and hasattr(last.outputs, "data"):
+                    emb = last.outputs.data
+                    if emb.dim() > 1:
+                        emb = emb.mean(dim=0)
+                    emb = emb.detach().to("cpu", copy=True).float()
+                    doc_vecs.append(emb)
+
+            # Embed query
+            q_last = None
+            async for out in embed_engine.encode(
+                prompt=req.query,
+                pooling_params=pooling_params,
+                request_id="embed-query",
+            ):
+                q_last = out
+                if out.finished:
                     break
+            query_vec = None
+            if q_last and q_last.outputs is not None and hasattr(q_last.outputs, "data"):
+                q = q_last.outputs.data
+                if q.dim() > 1:
+                    q = q.mean(dim=0)
+                query_vec = q.detach().to("cpu", copy=True).float()
+
+            top_doc = req.documents[0]
+            if query_vec is not None and doc_vecs:
+                sims = [F.cosine_similarity(query_vec.unsqueeze(0), d.unsqueeze(0)).item() for d in doc_vecs]
+                top_idx = int(max(range(len(sims)), key=lambda i: sims[i]))
+                top_doc = req.documents[top_idx]
+            try:
+                torch.cuda.empty_cache()
+            except Exception:
+                pass
 
             # 2) Generate an answer using the query and the first document as context
             gen_engine = get_cached_async_engine(
                 model="facebook/opt-125m",
                 engine_mode=engine_mode,
                 enforce_eager=True,
+                gpu_memory_utilization=float(os.environ.get("VLLM_GPU_UTIL", "0.2")),
             )
             sampling = vllm.SamplingParams(temperature=0.8, top_p=0.95, max_tokens=64, seed=42)
-            prompt = f"Context: {req.documents[0]}\nQuestion: {req.query}\nAnswer:"
-            print("[1] Engine class: ", gen_engine.__class__)
-            async for _ in gen_engine.generate(
+            prompt = f"Context: {top_doc}\nQuestion: {req.query}\nAnswer:"
+            generated_text = ""
+            last = None
+            async for out in gen_engine.generate(
                 prompt=prompt,
                 sampling_params=sampling,
                 request_id="gen-0",
             ):
-                break
+                last = out
+                if out.finished:
+                    break
+            if last and last.outputs:
+                sample = last.outputs[0] if isinstance(last.outputs, list) and last.outputs else None
+                if sample and hasattr(sample, "text") and sample.text:
+                    generated_text = sample.text
 
-    return {"status": "ok"}
+    return {"generated_text": generated_text, "retrieved_document": top_doc}
 
 

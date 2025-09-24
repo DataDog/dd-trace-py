@@ -71,8 +71,10 @@ def _tag_if_enabled(integration, span, data: RequestData, *, operation: Optional
 
 
 # ---------- v0: ENGINE-SIDE tracing -----------------------------------------
+"""
 @with_traced_module
 def traced_llmengine_do_tracing(vllm, pin, func, instance, args, kwargs):
+    log.debug("[VLLM DD] traced_llmengine_do_tracing: args=%s kwargs=%s", args, kwargs)
     res = func(*args, **kwargs)
 
     tracer = pin.tracer
@@ -122,7 +124,59 @@ def traced_llmengine_do_tracing(vllm, pin, func, instance, args, kwargs):
         span.finish()
 
     return res
+"""    
 
+
+@with_traced_module
+def traced_llmengine_process_model_outputs(vllm, pin, func, instance, args, kwargs):
+    log.debug("[VLLM DD] traced_llmengine_process_model_outputs: args=%s kwargs=%s", args, kwargs)
+    res = func(*args, **kwargs)
+
+    tracer = pin.tracer
+    integration = vllm._datadog_integration
+
+    # ctx holds scheduler_outputs and request_outputs for this iteration
+    ctx = args[0] if args else kwargs.get("ctx")
+    scheduler_outputs = getattr(ctx, "scheduler_outputs", None)
+    if not scheduler_outputs:
+        return res
+
+    # Ensure we only trace each finished request once
+    traced_ids = getattr(instance, "_dd_traced_request_ids", None)
+    if traced_ids is None:
+        traced_ids = set()
+        setattr(instance, "_dd_traced_request_ids", traced_ids)
+
+    for scheduled in scheduler_outputs.scheduled_seq_groups or []:
+        seq_group: SequenceGroup = scheduled.seq_group
+        if not seq_group.is_finished():
+            continue
+        req_id = getattr(seq_group, "request_id", None)
+        if req_id in traced_ids:
+            continue
+
+        metrics_obj: RequestMetrics = seq_group.metrics
+
+        span = create_vllm_span(
+            tracer=tracer,
+            integration=integration,
+            model_name=extract_model_name(instance),
+            seq_group=seq_group,
+            arrival_time=metrics_obj.arrival_time,
+        )
+
+        data = extract_v0_data(seq_group)
+        operation = "embedding" if data.embedding_dim is not None else "completion"
+        if operation == "embedding":
+            data.input_ = seq_group.prompt_token_ids
+
+        _tag_if_enabled(integration, span, data, operation=operation)
+        set_latency_metrics(span, metrics_obj)
+        span.finish()
+
+        traced_ids.add(req_id)
+
+    return res
 
 # ---------- v1: API-SERVER-SIDE tracing -------------------------------------
 @with_traced_module
@@ -398,6 +452,7 @@ def traced_v0_engine_add_request(vllm, pin, func, instance, args, kwargs):
 
 @with_traced_module
 async def traced_mq_client_process_request(vllm, pin, func, instance, args, kwargs):
+    log.debug("[VLLM DD] traced_mq_client_process_request: args=%s kwargs=%s", args, kwargs)
     lora_request = args[3] if len(args) > 3 else kwargs.get("lora_request")
     tokenizer = await instance.get_tokenizer(lora_request)
 
@@ -415,11 +470,55 @@ async def traced_mq_client_process_request(vllm, pin, func, instance, args, kwar
     if modified_args is not None:
         args = modified_args
 
-    hdrs = args[4] if len(args) > 4 else kwargs.get("trace_headers")
-    log.debug("[VLLM DD] MQ._process_request inject: keys=%s", list(hdrs.keys()) if hdrs else [])
+    tracer = pin.tracer
+    integration = vllm._datadog_integration
+
+    prompt_arg = args[0] if args else kwargs.get("prompt")
+    params = args[1] if len(args) > 1 else kwargs.get("params")
+    request_id = args[2] if len(args) > 2 else kwargs.get("request_id")
+
+    span = create_vllm_span(
+        tracer=tracer,
+        integration=integration,
+        model_name=extract_model_name(instance),
+    )
 
     res = func(*args, **kwargs)
+
+    # Drain until finished, tag and finish span, then yield buffered outputs
+    outputs: list[RequestOutput] = []
     async for out in res:
+        outputs.append(out)
+        if getattr(out, "finished", False):
+            break
+
+    if isinstance(params, PoolingParams):
+        data = RequestData()
+        if outputs:
+            data.input_tokens = len(outputs[-1].prompt_token_ids)
+            data.input_ = outputs[-1].prompt_token_ids
+            num_emb, emb_dim = _embedding_shape_info(getattr(outputs[-1].outputs, "data", None))
+            data.embedding_dim = emb_dim
+            data.num_embeddings = num_emb or 1
+        _tag_if_enabled(integration, span, data, operation="embedding")
+    else:
+        data = extract_v1_streaming_data(outputs)
+        data.lora_name = extract_lora_name(lora_request)
+        data.request_id = request_id
+        if not data.prompt:
+            text, token_ids, input_tokens = select_prompt_for_span(
+                prompt_arg,
+                is_embedding=False,
+                tokenizer=tokenizer,
+            )
+            data.prompt = text
+            data.input_tokens = input_tokens
+            data.input_ = token_ids
+        _tag_if_enabled(integration, span, data)
+
+    span.finish()
+
+    for out in outputs:
         yield out
 
 
@@ -444,7 +543,7 @@ def patch():
     _safe_wrap("vllm.engine.async_llm_engine", "_AsyncLLMEngine.add_request_async", traced_v0_engine_add_request_async(vllm))
     _safe_wrap("vllm.engine.llm_engine", "LLMEngine.add_request", traced_v0_engine_add_request(vllm))
     _safe_wrap("vllm.engine.multiprocessing.client", "MQLLMEngineClient._process_request", traced_mq_client_process_request(vllm))
-    _safe_wrap("vllm.engine.llm_engine", "LLMEngine.do_tracing", traced_llmengine_do_tracing(vllm))
+    _safe_wrap("vllm.engine.llm_engine", "LLMEngine._process_model_outputs", traced_llmengine_process_model_outputs(vllm))
     log.debug("[VLLM DEBUG] patch: wrappers applied")
 
 
@@ -463,6 +562,6 @@ def unpatch():
     _safe_unwrap(vllm.engine.async_llm_engine._AsyncLLMEngine, "add_request_async")
     _safe_unwrap(vllm.engine.llm_engine.LLMEngine, "add_request")
     _safe_unwrap(vllm.engine.multiprocessing.client.MQLLMEngineClient, "_process_request")
-    _safe_unwrap(vllm.engine.llm_engine.LLMEngine, "do_tracing")
+    _safe_unwrap(vllm.engine.llm_engine.LLMEngine, "_process_model_outputs")
 
     delattr(vllm, "_datadog_integration")
