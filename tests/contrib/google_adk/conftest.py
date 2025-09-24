@@ -65,8 +65,6 @@ def request_vcr():
 async def test_runner(adk, mock_tracer):
     """Set up a test runner with agent."""
     runner = await setup_test_agent()
-    # Ensure the mock tracer is attached to the runner
-    Pin()._override(runner, tracer=mock_tracer)
     return runner
 
 

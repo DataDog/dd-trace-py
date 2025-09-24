@@ -139,16 +139,6 @@ def expected_llmobs_tool_span_events_agent_run(
                 ],
             }
         },
-        # output_value= '[{"role": "assistant", "tool_calls": [{"name": "search_docs", '
-        #     '"arguments": {"query": "test"}, "tool_id": ' + mock.ANY + ', "type": '
-        #     '"function_call"}]}, {"role": "assistant", "tool_calls": [{"name": '
-        #     '"multiply", "arguments": {"b": 3, "a": 5}, "tool_id": ' + mock.ANY + ', "type": '
-        #     '"function_call"}]}, {"role": "user", "tool_results": [{"name": '
-        #     '"search_docs", "result": "{\\"results\\": [\\"Found reference for: '
-        #     'test\\"]}", "tool_id": ' + mock.ANY + ', '
-        #     '"type": "function_response"}]}, {"role": "user", "tool_results": '
-        #     '[{"name": "multiply", "result": "{\\"product\\": 15}", "tool_id": '
-        #     + mock.ANY + ', "type": "function_response"}]}]',
         output_value=mock.ANY,
         token_metrics={"input_tokens": mock.ANY, "output_tokens": mock.ANY, "total_tokens": mock.ANY},
     )

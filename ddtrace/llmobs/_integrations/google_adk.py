@@ -2,9 +2,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
-from typing import Tuple
 
-from ddtrace._trace.pin import Pin
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils import get_argument_value
@@ -33,24 +31,14 @@ from ddtrace.trace import Span
 class GoogleAdkIntegration(BaseLLMIntegration):
     _integration_name = "google_adk"
 
-    def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
-        span = super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
-        # always set the component tag
-        span.set_tag_str(COMPONENT, self._integration_name)
-        return span
-
     def _set_base_span_tags(
         self, span: Span, model: Optional[Any] = None, provider: Optional[Any] = None, **kwargs
     ) -> None:
+        span.set_tag_str(COMPONENT, self._integration_name)
         if model:
             span.set_tag("google_adk.request.model", model)
         if provider:
             span.set_tag("google_adk.request.provider", provider)
-
-    def _get_model_and_provider(self, model: Optional[Any]) -> Tuple[str, str]:
-        model_name = getattr(model, "model_name", "")
-        model_provider = getattr(model, "system", "")
-        return model_name, model_provider
 
     def _llmobs_set_tags(
         self,
@@ -82,18 +70,19 @@ class GoogleAdkIntegration(BaseLLMIntegration):
         agent_name = getattr(agent_instance, "name", None)
 
         self._tag_agent_manifest(span, kwargs, agent_instance)
-        user_prompt_parts = get_argument_value(args, kwargs, 0, "new_message") or []
-        user_prompt_parts = list(getattr(user_prompt_parts, "parts", user_prompt_parts))
-        user_prompt = ""
-        for part in user_prompt_parts:
-            user_prompt += extract_message_from_part_google_genai(part, "user").get("content", "")
+        new_message = get_argument_value(args, kwargs, 0, "new_message", optional=True) or []
+        new_message_parts: list = getattr(new_message, "parts", [])
+        new_message_role: str = getattr(new_message, "role", "")
+        message = ""
+        for part in new_message_parts:
+            message += extract_message_from_part_google_genai(part, new_message_role).get("content", "")
         result = extract_messages_from_adk_events(response)
 
         metrics = self.extract_usage_metrics(response, kwargs)
         span._set_ctx_items(
             {
                 NAME: agent_name or "Google ADK Agent",
-                INPUT_VALUE: user_prompt,
+                INPUT_VALUE: message,
                 OUTPUT_VALUE: result,
                 METRICS: metrics,
             }
