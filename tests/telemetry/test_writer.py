@@ -590,6 +590,11 @@ import ddtrace.settings.exception_replay
             "value": 10000,
         },
         {
+            "name": "OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE",
+            "origin": "default",
+            "value": "delta",
+        },
+        {
             "name": "OTEL_EXPORTER_OTLP_PROTOCOL",
             "origin": "default",
             "value": "grpc",

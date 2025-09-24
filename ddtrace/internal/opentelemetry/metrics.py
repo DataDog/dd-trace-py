@@ -153,6 +153,7 @@ def _initialize_metrics(exporter_class, protocol, resource):
         # Ensure metrics exporter is configured to send payloads to a Datadog Agent.
         # The default endpoint is resolved using the hostname from DD_AGENT.. and DD_TRACE_AGENT_... configs
         os.environ["OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"] = otel_config.exporter.METRICS_ENDPOINT
+        os.environ["OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE"] = otel_config.exporter.METRICS_TEMPORALITY_PREFERENCE
         _init_metrics({protocol: exporter_class}, resource=resource)
         return True
     except ImportError as e:
