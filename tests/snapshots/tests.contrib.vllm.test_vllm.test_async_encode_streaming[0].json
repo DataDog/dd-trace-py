@@ -1,0 +1,58 @@
+[[
+  {
+    "name": "vllm.request",
+    "service": "tests.contrib.vllm",
+    "resource": "vllm.request",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "llm",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68d269b000000000",
+      "language": "python",
+      "runtime-id": "04ba83300e39431fa7fde00c375b7814",
+      "vllm.request.model": "intfloat/e5-small",
+      "vllm.request.provider": "vllm"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 16611,
+      "vllm.latency.queue": 0.001127481460571289
+    },
+    "duration": 462847641,
+    "start": 1758620079910002176
+  }],
+[
+  {
+    "name": "vllm.request",
+    "service": "tests.contrib.vllm",
+    "resource": "vllm.request",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "llm",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68d269b000000000",
+      "language": "python",
+      "runtime-id": "04ba83300e39431fa7fde00c375b7814",
+      "vllm.request.model": "intfloat/e5-small",
+      "vllm.request.provider": "vllm"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 16611,
+      "vllm.latency.queue": 0.0011241436004638672
+    },
+    "duration": 9836064,
+    "start": 1758620080373666816
+  }]]

@@ -68,6 +68,18 @@ def get_cached_async_engine(model: str, *, engine_mode: str | None = None, **kwa
     raise last_error
 
 
+def get_simple_chat_template() -> str:
+    return (
+        "{% for message in messages %}"
+        "{% if message['role'] == 'system' %}{{ message['content'] }}\n"
+        "{% elif message['role'] == 'user' %}User: {{ message['content'] }}\n"
+        "{% elif message['role'] == 'assistant' %}Assistant: {{ message['content'] }}\n"
+        "{% endif %}"
+        "{% endfor %}"
+        "Assistant:"
+    )
+
+
 def shutdown_cached_llms() -> None:
     for llm in list(_LLM_CACHE.values()):
         try:

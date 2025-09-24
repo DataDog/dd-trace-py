@@ -1,4 +1,5 @@
 import mock
+import asyncio
 import pytest
 import vllm
 
@@ -397,3 +398,146 @@ async def test_llmobs_async_streaming(vllm, llmobs_events, mock_tracer, vllm_eng
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm"},
     )
     assert llmobs_events[0] == expected
+
+
+@pytest.mark.asyncio
+async def test_llmobs_concurrent_streaming(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
+    engine = get_cached_async_engine(
+        model="facebook/opt-125m",
+        engine_mode=vllm_engine_mode,
+        enforce_eager=True,
+    )
+
+    sampling_params = vllm.SamplingParams(
+        max_tokens=64,
+        temperature=0.8,
+        top_p=0.95,
+        seed=42,
+        output_kind=RequestOutputKind.DELTA,
+    )
+
+    async def _run(req_id: str, prompt: str):
+        async for out in engine.generate(
+            request_id=req_id,
+            prompt=prompt,
+            sampling_params=sampling_params,
+        ):
+            if out.finished:
+                break
+
+    await asyncio.gather(
+        _run("stream-conc-1", "The future of AI is"),
+        _run("stream-conc-2", "In a galaxy far, far away"),
+    )
+
+    traces = mock_tracer.pop_traces()
+    spans = [s for t in traces for s in t]
+    print("---LLMOBS EVENTS---")
+    print(llmobs_events)
+    print("---END LLMOBS EVENTS---")
+    print("---SPANS---")
+    print(spans)
+    print("---END SPANS---")
+
+    # Expect two events, one per prompt
+    assert len(llmobs_events) == 2
+    span_by_id = {s.span_id: s for s in spans}
+
+    # Build expectations keyed by input content
+    expected_by_input = {
+        "The future of AI is": {
+            "token_metrics": {"input_tokens": 6, "output_tokens": 64, "total_tokens": 70},
+            "output_text": " in the minds of scientists\nThe future of AI is in the minds of scientists, and I believe that's because the tools are being used to drive what's happening in artificial intelligence. One of the main challenges for AI is how to do something like that. In order to make that possible, we need to start to",
+        },
+        "In a galaxy far, far away": {
+            "token_metrics": {"input_tokens": 8, "output_tokens": 64, "total_tokens": 72},
+            "output_text": ", there's a new TV show called ‘The Young and the Restless’ which has been adapted into a movie. It’s called ‘The Young and the Restless’!\n\n‘The Young and the Restless’ was created by Russell Crowe. The show started",
+        },
+    }
+
+    for event in llmobs_events:
+        span = span_by_id[int(event["span_id"])]
+        # Determine which prompt this event corresponds to
+        input_msg = event["meta"]["input"]["messages"][0]["content"]
+        exp = expected_by_input[input_msg]
+
+        expected = _expected_llmobs_llm_span_event(
+            span,
+            model_name="facebook/opt-125m",
+            model_provider="vllm",
+            input_messages=[{"content": input_msg, "role": ""}],
+            output_messages=[{"content": exp["output_text"], "role": ""}],
+            metadata={
+                "frequency_penalty": 0.0,
+                "repetition_penalty": 1.0,
+                "presence_penalty": 0.0,
+                "max_tokens": 64,
+                "top_p": 0.95,
+                "n": 1,
+                "temperature": 0.8,
+                "top_k": 0,
+                "seed": 42,
+                "finish_reason": "length",
+            } | ({"num_cached_tokens": 0} if vllm_engine_mode == "1" else {}),
+            token_metrics=exp["token_metrics"],
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm"},
+        )
+        assert event == expected
+
+
+@pytest.mark.asyncio
+async def test_llmobs_async_encode_streaming(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
+    engine = get_cached_async_engine(
+        model="intfloat/e5-small",
+        engine_mode=vllm_engine_mode,
+        enforce_eager=True,
+        trust_remote_code=True,
+    )
+
+    params = vllm.PoolingParams(task="encode")
+    prompts = ["Hello, my name is", "The capital of France is"]
+
+    for p in prompts:
+        async for out in engine.encode(
+            request_id=f"encode-{hash(p) & 0xffff}",
+            prompt=p,
+            pooling_params=params,
+        ):
+            if out.finished:
+                break
+
+    traces = mock_tracer.pop_traces()
+    spans = [s for t in traces for s in t]
+    print("---LLMOBS EVENTS---")
+    print(llmobs_events)
+    print("---END LLMOBS EVENTS---")
+    print("---SPANS---")
+    print(spans)
+    print("---END SPANS---")
+
+    # Expect one event per input prompt
+    assert len(llmobs_events) == len(prompts)
+    span_by_id = {s.span_id: s for s in spans}
+
+    expected_token_metrics_by_text = {
+        "[101, 7592, 1010, 2026, 2171, 2003, 102]": {"input_tokens": 7, "output_tokens": 0, "total_tokens": 7},
+        "[101, 1996, 3007, 1997, 2605, 2003, 102]": {"input_tokens": 7, "output_tokens": 0, "total_tokens": 7},
+    }
+
+    for event in llmobs_events:
+        span = span_by_id[int(event["span_id"])]
+
+        token_text = event["meta"]["input"]["documents"][0]["text"]
+        expected = _expected_llmobs_llm_span_event(
+            span,
+            span_kind="embedding",
+            model_name="intfloat/e5-small",
+            model_provider="vllm",
+            input_documents=[{"text": token_text}],
+            output_value="[7 embedding(s) returned with size 384]",
+            metadata={"embedding_dim": 384},
+            token_metrics=expected_token_metrics_by_text[token_text],
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm"},
+        )
+            
+        assert event == expected

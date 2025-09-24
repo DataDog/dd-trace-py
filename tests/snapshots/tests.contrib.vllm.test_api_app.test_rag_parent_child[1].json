@@ -1,0 +1,94 @@
+[[
+  {
+    "name": "api.rag",
+    "service": "tests.contrib.vllm",
+    "resource": "api.rag",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68d2c05300000000",
+      "language": "python",
+      "runtime-id": "eb4b019d861d47289c043349c3c070d4"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 16420
+    },
+    "duration": 29044638944,
+    "start": 1758642259619502138
+  },
+     {
+       "name": "vllm.request",
+       "service": "tests.contrib.vllm",
+       "resource": "vllm.request",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "llm",
+       "error": 0,
+       "meta": {
+         "runtime-id": "eb4b019d861d47289c043349c3c070d4",
+         "vllm.request.model": "intfloat/e5-small-v2",
+         "vllm.request.provider": "vllm"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "_dd.top_level": 1,
+         "process_id": 16420,
+         "vllm.latency.ttft": 0.014843225479125977
+       },
+       "duration": 15796362,
+       "start": 1758642273799650571
+     },
+     {
+       "name": "vllm.request",
+       "service": "tests.contrib.vllm",
+       "resource": "vllm.request",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "llm",
+       "error": 0,
+       "meta": {
+         "runtime-id": "eb4b019d861d47289c043349c3c070d4",
+         "vllm.request.model": "intfloat/e5-small-v2",
+         "vllm.request.provider": "vllm"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "_dd.top_level": 1,
+         "process_id": 16420,
+         "vllm.latency.ttft": 0.008391141891479492
+       },
+       "duration": 8857672,
+       "start": 1758642273816439876
+     },
+     {
+       "name": "vllm.request",
+       "service": "tests.contrib.vllm",
+       "resource": "vllm.request",
+       "trace_id": 0,
+       "span_id": 4,
+       "parent_id": 1,
+       "type": "llm",
+       "error": 0,
+       "meta": {
+         "runtime-id": "eb4b019d861d47289c043349c3c070d4",
+         "vllm.request.model": "facebook/opt-125m",
+         "vllm.request.provider": "vllm"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "_dd.top_level": 1,
+         "process_id": 16420,
+         "vllm.latency.ttft": 0.06408023834228516
+       },
+       "duration": 204430118,
+       "start": 1758642288458694970
+     }]]

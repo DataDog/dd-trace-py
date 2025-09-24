@@ -1,5 +1,5 @@
 import pytest
-from ._utils import get_cached_llm, get_cached_async_engine
+from ._utils import get_cached_llm, get_cached_async_engine, get_simple_chat_template
 from vllm.sampling_params import RequestOutputKind
 
 IGNORE_FIELDS = [
@@ -48,16 +48,8 @@ def test_chat(vllm, vllm_engine_mode):
         },
     ]
 
-    # Transformers >=4.44 requires an explicit chat template if the tokenizer doesn't define one (e.g., OPT)
-    simple_chat_template = (
-        "{% for message in messages %}"
-        "{% if message['role'] == 'system' %}{{ message['content'] }}\n"
-        "{% elif message['role'] == 'user' %}User: {{ message['content'] }}\n"
-        "{% elif message['role'] == 'assistant' %}Assistant: {{ message['content'] }}\n"
-        "{% endif %}"
-        "{% endfor %}"
-        "Assistant:"
-    )
+    # Transformers >=4.44 requires an explicit chat template for models without one (e.g., OPT)
+    simple_chat_template = get_simple_chat_template()
     outputs = llm.chat(conversation, sampling_params, chat_template=simple_chat_template, use_tqdm=False)
 
 
@@ -169,3 +161,30 @@ async def test_async_streaming(vllm, vllm_engine_mode):
     ):
         if out.finished:
             break
+
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+async def test_async_encode_streaming(vllm, vllm_engine_mode):
+    engine = get_cached_async_engine(
+        model="intfloat/e5-small",
+        engine_mode=vllm_engine_mode,
+        enforce_eager=True,
+        runner="pooling",
+        trust_remote_code=True,
+    )
+
+    params = vllm.PoolingParams(task="encode")
+    prompts = ["Hello, my name is", "The capital of France is"]
+
+    for p in prompts:
+        async for out in engine.encode(
+            request_id=f"encode-{hash(p) & 0xffff}",
+            prompt=p,
+            pooling_params=params,
+        ):
+            if out.finished:
+                break
+
+
+    

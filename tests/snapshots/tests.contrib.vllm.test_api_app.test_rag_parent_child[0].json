@@ -1,0 +1,82 @@
+[[
+  {
+    "name": "api.rag",
+    "service": "tests.contrib.vllm",
+    "resource": "api.rag",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.llmobs_ml_app": "<ml-app-name>",
+      "_dd.p.llmobs_parent_id": "undefined",
+      "_dd.p.llmobs_trace_id": "139333767553363026010345165801864778267",
+      "_dd.p.tid": "68d2b50500000000",
+      "language": "python",
+      "runtime-id": "4070026600a34a7f83a2fb0bd64e459d"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 7933
+    },
+    "duration": 26954241637,
+    "start": 1758639365294163116
+  },
+     {
+       "name": "vllm.request",
+       "service": "tests.contrib.vllm",
+       "resource": "vllm.request",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "llm",
+       "error": 0,
+       "meta": {
+         "_dd.p.llmobs_ml_app": "<ml-app-name>",
+         "_dd.p.llmobs_parent_id": "undefined",
+         "_dd.p.llmobs_trace_id": "139333766364940588280774218227243357955",
+         "_dd.p.tid": "68d2b50500000000",
+         "runtime-id": "4070026600a34a7f83a2fb0bd64e459d",
+         "vllm.request.model": "intfloat/e5-small-v2",
+         "vllm.request.provider": "vllm"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "_dd.top_level": 1,
+         "process_id": 7933,
+         "vllm.latency.queue": 0.004244089126586914
+       },
+       "duration": 460434157,
+       "start": 1758639377749321984
+     },
+     {
+       "name": "vllm.request",
+       "service": "tests.contrib.vllm",
+       "resource": "vllm.request",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "llm",
+       "error": 0,
+       "meta": {
+         "_dd.p.llmobs_ml_app": "<ml-app-name>",
+         "_dd.p.llmobs_parent_id": "undefined",
+         "_dd.p.llmobs_trace_id": "139333766444168750801071067220018849976",
+         "_dd.p.tid": "68d2b50500000000",
+         "runtime-id": "4070026600a34a7f83a2fb0bd64e459d",
+         "vllm.request.model": "intfloat/e5-small-v2",
+         "vllm.request.provider": "vllm"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "_dd.top_level": 1,
+         "process_id": 7933,
+         "vllm.latency.queue": 0.0016171932220458984
+       },
+       "duration": 11613230,
+       "start": 1758639378210417920
+     }]]

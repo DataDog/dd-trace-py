@@ -5,7 +5,7 @@ import time
 
 import vllm
 import vllm.envs as envs
-from vllm.outputs import RequestOutput
+from vllm.outputs import RequestOutput, PoolingRequestOutput
 from ddtrace import config
 from ddtrace.contrib.trace_utils import unwrap, wrap, with_traced_module
 from ddtrace.internal.logger import get_logger
@@ -131,6 +131,7 @@ def traced_asyncllm_generate(vllm, pin, func, instance, args, kwargs):
     sampling_params = args[1] if len(args) > 1 else kwargs.get("sampling_params")
     request_id = args[2] if len(args) > 2 else kwargs.get("request_id")
     lora_request = args[3] if len(args) > 3 else kwargs.get("lora_request")
+    log.debug("[VLLM DD] traced_asyncllm_generate: args=%s kwargs=%s", args, kwargs)
 
     tracer = pin.tracer
     integration = vllm._datadog_integration
@@ -140,20 +141,26 @@ def traced_asyncllm_generate(vllm, pin, func, instance, args, kwargs):
         integration=integration,
         model_name=extract_model_name(instance),
     )
+    log.debug("[VLLM DD] traced_asyncllm_generate: span=%s", span)
 
-    outputs: list[RequestOutput] = []
-    finalized = False
+    async def execute():
+        log.debug("[VLLM DD] traced_asyncllm_generate: executing (drain-until-finished)")
+        res = func(*args, **kwargs)
+        if hasattr(res, "__await__"):
+            res = await res
 
-    def _finalize_span():
-        nonlocal finalized
-        if finalized:
-            return
+        outputs: list[RequestOutput] = []
+        async for out in res:
+            outputs.append(out)
+            if getattr(out, "finished", False):
+                break
+
         data = extract_v1_streaming_data(outputs)
         data.lora_name = extract_lora_name(lora_request)
         data.sampling_params = sampling_params
         data.request_id = request_id
         if not data.prompt:
-            tokenizer = instance.tokenizer.get_lora_tokenizer(lora_request) if instance.tokenizer else None
+            tokenizer = instance.tokenizer.get_lora_tokenizer(lora_request) if getattr(instance, "tokenizer", None) else None
             text, token_ids, input_tokens = select_prompt_for_span(
                 prompt_arg,
                 is_embedding=False,
@@ -164,21 +171,9 @@ def traced_asyncllm_generate(vllm, pin, func, instance, args, kwargs):
             data.input_ = token_ids
         _tag_if_enabled(integration, span, data)
         span.finish()
-        finalized = True
 
-    async def execute():
-        res = func(*args, **kwargs)
-        if hasattr(res, "__await__"):
-            res = await res
-
-        async for out in res:
-            outputs.append(out)
-            if out.finished:
-                _finalize_span()
+        for out in outputs:
             yield out
-
-        # Safety net in case we never observed a finished output
-        _finalize_span()
 
     return execute()
 
@@ -302,40 +297,36 @@ def traced_llm_cross_encoding_score(vllm, pin, func, instance, args, kwargs):
 def traced_asyncllm_encode(vllm, pin, func, instance, args, kwargs):
     tracer = pin.tracer
     integration = vllm._datadog_integration
+    log.debug("[VLLM DD] traced_asyncllm_encode: args=%s kwargs=%s", args, kwargs)
 
     span = create_vllm_span(
         tracer=tracer,
         integration=integration,
         model_name=extract_model_name(instance),
     )
-
-    outputs: list[PoolingRequestOutput] = []
-
-    prompt_arg = args[0] if args else kwargs.get("prompt")
-    _, token_ids, input_tokens = select_prompt_for_span(
-        prompt_arg,
-        is_embedding=True,
-        tokenizer=None,
-    )
-
     async def execute():
         res = func(*args, **kwargs)
         if hasattr(res, "__await__"):
             res = await res
 
+        outputs: list[PoolingRequestOutput] = []
         async for out in res:
             outputs.append(out)
-            yield out
+            if getattr(out, "finished", False):
+                break
 
         data = RequestData()
-        data.input_tokens = input_tokens
-        data.input_ = token_ids
-        num_emb, emb_dim = _embedding_shape_info(out.outputs.data)
-        data.embedding_dim = emb_dim
-        data.num_embeddings = num_emb or 1
-
+        if outputs:
+            data.input_tokens = len(outputs[-1].prompt_token_ids)
+            data.input_ = outputs[-1].prompt_token_ids
+            num_emb, emb_dim = _embedding_shape_info(outputs[-1].outputs.data if outputs else None)
+            data.embedding_dim = emb_dim
+            data.num_embeddings = num_emb or 1
         _tag_if_enabled(integration, span, data, operation="embedding")
         span.finish()
+
+        for out in outputs:
+            yield out
 
     return execute()
 
