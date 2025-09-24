@@ -2,68 +2,15 @@ import asyncio
 import threading
 from urllib import request
 
-import pytest_asyncio
-
 from ddtrace import config
 from ddtrace.contrib.internal.aiohttp.middlewares import trace_app
-from ddtrace.internal.utils.version import parse_version
 from tests.utils import assert_is_measured
 from tests.utils import override_global_config
 
 from .app.web import setup_app
 
 
-PYTEST_ASYNCIO_VERSION = parse_version(pytest_asyncio.__version__)
-
-
-if PYTEST_ASYNCIO_VERSION < (1, 0):
-
-    async def test_full_request_w_mem_leak_prevention_flag(patched_app_tracer, aiohttp_client, loop):
-        return _test_full_request_w_mem_leak_prevention_flag(patched_app_tracer, aiohttp_client, loop=loop)
-
-    async def test_full_request(patched_app_tracer, aiohttp_client, loop):
-        return _test_full_request(patched_app_tracer, aiohttp_client, loop=loop)
-
-    async def test_stream_request(patched_app_tracer, aiohttp_client, loop):
-        return _test_stream_request(patched_app_tracer, aiohttp_client, loop=loop)
-
-    async def test_multiple_full_request(patched_app_tracer, aiohttp_client, loop):
-        return _test_multiple_full_request(patched_app_tracer, aiohttp_client, loop=loop)
-
-    async def test_user_specified_service(tracer, aiohttp_client, loop):
-        return _test_user_specified_service(tracer, aiohttp_client, loop=loop)
-
-    async def test_http_request_header_tracing(patched_app_tracer, aiohttp_client, loop):
-        return _test_http_request_header_tracing(patched_app_tracer, aiohttp_client, loop=loop)
-
-    async def test_http_response_header_tracing(patched_app_tracer, aiohttp_client, loop):
-        return _test_http_response_header_tracing(patched_app_tracer, aiohttp_client, loop=loop)
-
-else:
-
-    async def test_full_request_w_mem_leak_prevention_flag(patched_app_tracer, aiohttp_client):
-        return _test_full_request_w_mem_leak_prevention_flag(patched_app_tracer, aiohttp_client)
-
-    async def test_full_request(patched_app_tracer, aiohttp_client):
-        return _test_full_request(patched_app_tracer, aiohttp_client)
-
-    async def test_stream_request(patched_app_tracer, aiohttp_client):
-        return _test_stream_request(patched_app_tracer, aiohttp_client)
-
-    async def test_multiple_full_request(patched_app_tracer, aiohttp_client):
-        return _test_multiple_full_request(patched_app_tracer, aiohttp_client)
-
-    async def test_user_specified_service(tracer, aiohttp_client):
-        return _test_user_specified_service(tracer, aiohttp_client)
-
-    async def test_http_request_header_tracing(patched_app_tracer, aiohttp_client):
-        return _test_http_request_header_tracing(patched_app_tracer, aiohttp_client)
-
-    async def test_http_response_header_tracing(patched_app_tracer, aiohttp_client):
-        return _test_http_response_header_tracing(patched_app_tracer, aiohttp_client)
-
-
-async def _test_full_request(patched_app_tracer, aiohttp_client, loop=None):
+async def test_full_request(patched_app_tracer, aiohttp_client):
     app, tracer = patched_app_tracer
     client = await aiohttp_client(app)
     # it should create a root span when there is a handler hit
@@ -84,7 +31,7 @@ async def _test_full_request(patched_app_tracer, aiohttp_client, loop=None):
     assert "GET /" == request_span.resource
 
 
-async def _test_full_request_w_mem_leak_prevention_flag(patched_app_tracer, aiohttp_client, loop=None):
+async def test_full_request_w_mem_leak_prevention_flag(patched_app_tracer, aiohttp_client):
     config.aiohttp.disable_stream_timing_for_mem_leak = True
     try:
         app, tracer = patched_app_tracer
@@ -111,7 +58,7 @@ async def _test_full_request_w_mem_leak_prevention_flag(patched_app_tracer, aioh
         config.aiohttp.disable_stream_timing_for_mem_leak = False
 
 
-async def _test_stream_request(patched_app_tracer, aiohttp_client, loop=None):
+async def test_stream_request(patched_app_tracer, aiohttp_client):
     app, tracer = patched_app_tracer
     async with await aiohttp_client(app) as client:
         response = await client.request("GET", "/stream/")
@@ -121,7 +68,7 @@ async def _test_stream_request(patched_app_tracer, aiohttp_client, loop=None):
     assert abs(0.5 - request_span.duration) < 0.05
 
 
-async def _test_multiple_full_request(patched_app_tracer, aiohttp_client, loop=None):
+async def test_multiple_full_request(patched_app_tracer, aiohttp_client):
     app, tracer = patched_app_tracer
     client = await aiohttp_client(app)
 
@@ -149,7 +96,7 @@ async def _test_multiple_full_request(patched_app_tracer, aiohttp_client, loop=N
     assert 1 == len(traces[0])
 
 
-async def _test_user_specified_service(tracer, aiohttp_client, loop=None):
+async def test_user_specified_service(tracer, aiohttp_client):
     """
     When a service name is specified by the user
         The aiohttp integration should use it as the service name
@@ -167,7 +114,7 @@ async def _test_user_specified_service(tracer, aiohttp_client, loop=None):
         assert request_span.service == "mysvc"
 
 
-async def _test_http_request_header_tracing(patched_app_tracer, aiohttp_client, loop=None):
+async def test_http_request_header_tracing(patched_app_tracer, aiohttp_client):
     app, tracer = patched_app_tracer
     client = await aiohttp_client(app)
 
@@ -186,7 +133,7 @@ async def _test_http_request_header_tracing(patched_app_tracer, aiohttp_client, 
     assert request_span.get_tag("span.kind") == "server"
 
 
-async def _test_http_response_header_tracing(patched_app_tracer, aiohttp_client, loop=None):
+async def test_http_response_header_tracing(patched_app_tracer, aiohttp_client):
     app, tracer = patched_app_tracer
     client = await aiohttp_client(app)
 
