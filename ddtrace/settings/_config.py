@@ -429,7 +429,7 @@ class Config(object):
 
     def __init__(self):
         # Must validate Otel configurations before creating the config object.
-        validate_otel_envs()
+        metrics_exporter_enabled = validate_otel_envs()
 
         # Must come before _integration_configs due to __setattr__
         self._from_endpoint = ENDPOINT_FETCHED_CONFIG
@@ -629,7 +629,7 @@ class Config(object):
             "DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", True, asbool
         )
         self._otel_trace_enabled = _get_config("DD_TRACE_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
-        self._otel_metrics_enabled = _get_config("DD_METRICS_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
+        self._otel_metrics_enabled = _get_config("DD_METRICS_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED") and metrics_exporter_enabled
         self._otel_logs_enabled = _get_config("DD_LOGS_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
         if self._otel_trace_enabled or self._otel_logs_enabled or self._otel_metrics_enabled:
             # Replaces the default otel api runtime context with DDRuntimeContext
