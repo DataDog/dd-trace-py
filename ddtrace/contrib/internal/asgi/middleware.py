@@ -210,7 +210,7 @@ class TraceMiddleware:
             operation_name = schematize_url_operation(operation_name, direction=SpanDirection.INBOUND, protocol="http")
 
         with core.context_with_data(
-            "asgi.__call__",
+            "asgi.request",
             remote_addr=scope.get("REMOTE_ADDR"),
             headers=headers,
             headers_case_sensitive=True,
@@ -221,11 +221,10 @@ class TraceMiddleware:
             span_type=SpanTypes.WEB,
             service=trace_utils.int_service(None, self.integration_config),
             distributed_headers=headers,
-            integration_config=config.asgi,
             activate_distributed_headers=True,
+            scope=scope,
+            integration_config=self.integration_config,
         ) as ctx, ctx.span as span:
-            # TODO: move into trace handlers
-            core.dispatch("asgi.__call__", (ctx, scope, self.integration_config))
             # span.set_tag_str(COMPONENT, self.integration_config.integration_name)
             # ctx.set_item("req_span", span)
 

@@ -1110,8 +1110,13 @@ def _on_asgi_websocket_disconnect_message(ctx, scope, message, integration_confi
         _copy_trace_level_tags(span, ctx.parent.span)
 
 
-def _on_asgi_call(ctx, scope, integration_config):
-    span = ctx.span
+def _on_asgi_request(ctx: core.ExecutionContext) -> None:
+    """Handler for ASGI request context started event."""
+    span = _start_span(ctx)
+
+    scope = ctx.get_item("scope")
+    integration_config = ctx.get_item("integration_config")
+
     span.set_tag_str(COMPONENT, integration_config.integration_name)
     ctx.set_item("req_span", span)
 
@@ -1183,7 +1188,7 @@ def listen():
     core.on("asgi.websocket.send.message", _on_asgi_websocket_send_message)
     core.on("asgi.websocket.disconnect.message", _on_asgi_websocket_disconnect_message)
     core.on("asgi.websocket.close.message", _on_asgi_websocket_close_message)
-    core.on("asgi.__call__", _on_asgi_call)
+    core.on("context.started.asgi.request", _on_asgi_request)
     core.on("azure.servicebus.message_modifier", _on_azure_servicebus_message_modifier)
 
     # web frameworks general handlers
@@ -1217,7 +1222,6 @@ def listen():
         "flask.call",
         "flask.jsonify",
         "flask.render_template",
-        "asgi.__call__",
         "asgi.websocket.close.message",
         "asgi.websocket.disconnect.message",
         "asgi.websocket.receive.message",
