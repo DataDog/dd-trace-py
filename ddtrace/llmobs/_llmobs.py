@@ -270,7 +270,7 @@ class LLMObs(Service):
             "apm_trace_id": format_trace_id(span.trace_id),
         }
 
-        meta: _Meta = {"span": _SpanField(kind=span_kind), "input": _MetaIO(), "output": _MetaIO()}
+        meta = _Meta(span=_SpanField(kind=span_kind), input=_MetaIO(), output=_MetaIO())
         if span_kind in ("llm", "embedding") and span._get_ctx_item(MODEL_NAME) is not None:
             meta["model_name"] = span._get_ctx_item(MODEL_NAME) or ""
             meta["model_provider"] = (span._get_ctx_item(MODEL_PROVIDER) or "custom").lower()
