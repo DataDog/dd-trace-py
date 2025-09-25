@@ -1,0 +1,144 @@
+[[
+  {
+    "name": "TestRayIntegration.test_simple_actor.<locals>.Counter.increment_get_and_double.remote()",
+    "service": "tests.contrib.ray",
+    "resource": "TestRayIntegration.test_simple_actor.<locals>.Counter.increment_get_and_double.remote()",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "ray",
+    "error": 0,
+    "meta": {
+      "_dd.hostname": "docker-desktop",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68d548d900000000",
+      "component": "ray",
+      "language": "python",
+      "ray.actor_method.args": "[]",
+      "ray.actor_method.kwargs": "{}",
+      "ray.job_id": "01000000",
+      "ray.node_id": "d4cfb20c4a8f95f7d621e3cde01955047f85879ca60549731aa94d16",
+      "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
+      "runtime-id": "a712d2c035f6414692bf0f6d463d32fe",
+      "span.kind": "producer"
+    },
+    "metrics": {
+      "_dd.djm.enabled": 1,
+      "_dd.filter.kept": 1,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 2,
+      "process_id": 543
+    },
+    "duration": 1631625,
+    "start": 1758808281354705882
+  },
+     {
+       "name": "Counter.increment_get_and_double",
+       "service": "tests.contrib.ray",
+       "resource": "Counter.increment_get_and_double",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "ray",
+       "error": 0,
+       "meta": {
+         "component": "ray",
+         "ray.actor_method.args": "()",
+         "ray.actor_method.kwargs": "{}",
+         "ray.job_id": "01000000",
+         "ray.node_id": "d4cfb20c4a8f95f7d621e3cde01955047f85879ca60549731aa94d16",
+         "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
+         "span.kind": "consumer"
+       },
+       "metrics": {
+         "_dd.djm.enabled": 1,
+         "_dd.filter.kept": 1,
+         "_dd.measured": 1,
+         "_sampling_priority_v1": 2
+       },
+       "duration": 662667,
+       "start": 1758808281355490632
+     },
+        {
+          "name": "Counter.increment_and_get",
+          "service": "tests.contrib.ray",
+          "resource": "Counter.increment_and_get",
+          "trace_id": 0,
+          "span_id": 3,
+          "parent_id": 2,
+          "type": "ray",
+          "error": 0,
+          "meta": {
+            "component": "ray",
+            "ray.actor_method.args": "()",
+            "ray.actor_method.kwargs": "{}",
+            "ray.job_id": "01000000",
+            "ray.node_id": "d4cfb20c4a8f95f7d621e3cde01955047f85879ca60549731aa94d16",
+            "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
+            "span.kind": "consumer"
+          },
+          "metrics": {
+            "_dd.djm.enabled": 1,
+            "_dd.filter.kept": 1,
+            "_dd.measured": 1,
+            "_sampling_priority_v1": 2
+          },
+          "duration": 283500,
+          "start": 1758808281355851382
+        },
+           {
+             "name": "Counter.increment",
+             "service": "tests.contrib.ray",
+             "resource": "Counter.increment",
+             "trace_id": 0,
+             "span_id": 4,
+             "parent_id": 3,
+             "type": "ray",
+             "error": 0,
+             "meta": {
+               "component": "ray",
+               "ray.actor_method.args": "()",
+               "ray.actor_method.kwargs": "{}",
+               "ray.job_id": "01000000",
+               "ray.node_id": "d4cfb20c4a8f95f7d621e3cde01955047f85879ca60549731aa94d16",
+               "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
+               "span.kind": "consumer"
+             },
+             "metrics": {
+               "_dd.djm.enabled": 1,
+               "_dd.filter.kept": 1,
+               "_dd.measured": 1,
+               "_sampling_priority_v1": 2
+             },
+             "duration": 61042,
+             "start": 1758808281355948924
+           },
+           {
+             "name": "Counter.get_value",
+             "service": "tests.contrib.ray",
+             "resource": "Counter.get_value",
+             "trace_id": 0,
+             "span_id": 5,
+             "parent_id": 3,
+             "type": "ray",
+             "error": 0,
+             "meta": {
+               "component": "ray",
+               "ray.actor_method.args": "()",
+               "ray.actor_method.kwargs": "{}",
+               "ray.job_id": "01000000",
+               "ray.node_id": "d4cfb20c4a8f95f7d621e3cde01955047f85879ca60549731aa94d16",
+               "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
+               "span.kind": "consumer"
+             },
+             "metrics": {
+               "_dd.djm.enabled": 1,
+               "_dd.filter.kept": 1,
+               "_dd.measured": 1,
+               "_sampling_priority_v1": 2
+             },
+             "duration": 53000,
+             "start": 1758808281356060757
+           }]]
