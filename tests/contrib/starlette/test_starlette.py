@@ -602,6 +602,7 @@ if __name__ == "__main__":
     env["DD_TRACE_REQUESTS_ENABLED"] = "false"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (err.decode(), out.decode())
+    assert err == b"", err.decode()
 
 
 def test_inferred_spans_api_gateway(client, test_spans):

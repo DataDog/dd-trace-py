@@ -55,7 +55,6 @@ def global_config():
     ddtrace_run=True,
     parametrize=dict(DD_LOGS_INJECTION=["True", None]),
     env=dict(DD_SERVICE="moon", DD_ENV="global-env", DD_VERSION="global-version"),
-    err=lambda _: True,
 )
 def test_log_injection_enabled():
     import structlog
@@ -78,7 +77,7 @@ def test_log_injection_enabled():
     _test_logging(output, span, config.env, config.service, config.version)
 
 
-@pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_LOGS_INJECTION="False"), err=lambda _: True)
+@pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_LOGS_INJECTION="False"))
 def test_log_injection_disabled():
     import json
 

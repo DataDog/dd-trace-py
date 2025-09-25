@@ -42,3 +42,4 @@ if __name__ == "__main__":
     stdout, stderr, status, _ = run_python_code_in_subprocess(code=code)
     assert status == 0, (stdout, stderr)
     assert stdout == b"", stderr
+    assert stderr == b"", stdout

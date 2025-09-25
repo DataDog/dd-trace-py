@@ -40,7 +40,7 @@ def test_tracer_tags():
     )
 
 
-@pytest.mark.subprocess(err=lambda _: True)
+@pytest.mark.subprocess()
 def test_tracer_tags_config():
     """Ensure we collect the expected tags for the TracerTagCollector"""
     import ddtrace

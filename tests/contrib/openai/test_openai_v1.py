@@ -866,6 +866,7 @@ with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
     )
     assert status == 0, err
     assert out == b""
+    assert err == b""
 
 
 @pytest.mark.snapshot(
@@ -909,6 +910,7 @@ asyncio.run(task())
     )
     assert status == 0, err
     assert out == b""
+    assert err == b""
 
 
 @pytest.mark.parametrize("ddtrace_config_openai", [dict(span_prompt_completion_sample_rate=0)])
@@ -1106,6 +1108,7 @@ with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
         )
         assert status == 0, err
         assert out == b""
+        assert err == b""
 
 
 async def test_openai_asyncio_cancellation(openai):

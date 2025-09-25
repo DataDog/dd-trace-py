@@ -934,6 +934,7 @@ if __name__ == "__main__":
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (err.decode(), out.decode())
+    assert err == b"", err.decode()
 
 
 class StreamInterceptor(grpc.aio.UnaryStreamClientInterceptor):
