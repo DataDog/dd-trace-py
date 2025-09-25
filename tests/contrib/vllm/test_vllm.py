@@ -143,6 +143,10 @@ async def test_async_streaming(vllm, vllm_engine_mode):
         model="facebook/opt-125m",
         engine_mode=vllm_engine_mode,
         enforce_eager=True,
+        enforce_eager=True,
+        max_model_len=512,
+        compilation_config=0,
+        trust_remote_code=True,
     )
 
     sampling_params = vllm.SamplingParams(
@@ -171,6 +175,8 @@ async def test_async_encode_streaming(vllm, vllm_engine_mode):
         enforce_eager=True,
         runner="pooling",
         trust_remote_code=True,
+        max_model_len=512,
+        compilation_config=0,
     )
 
     params = vllm.PoolingParams(task="encode")

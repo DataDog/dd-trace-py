@@ -277,6 +277,9 @@ async def test_stream_cancel_early_break_v0_mq(vllm, mock_tracer, monkeypatch, l
         model="facebook/opt-125m",
         enforce_eager=True,
         disable_log_stats=True,
+        max_model_len=512,
+        compilation_config=0,
+        trust_remote_code=True,
     )
     async with build_async_engine_client_from_engine_args(
         args,
@@ -511,6 +514,9 @@ async def test_llmobs_async_streaming(vllm, llmobs_events, mock_tracer, vllm_eng
         model="facebook/opt-125m",
         engine_mode=vllm_engine_mode,
         enforce_eager=True,
+        max_model_len=512,
+        compilation_config=0,
+        trust_remote_code=True,
     )
 
     sampling_params = vllm.SamplingParams(
@@ -583,6 +589,9 @@ async def test_llmobs_concurrent_streaming(vllm, llmobs_events, mock_tracer, vll
         model="facebook/opt-125m",
         engine_mode=vllm_engine_mode,
         enforce_eager=True,
+        max_model_len=512,
+        compilation_config=0,
+        trust_remote_code=True,
     )
 
     sampling_params = vllm.SamplingParams(

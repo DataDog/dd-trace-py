@@ -41,8 +41,10 @@ async def rag(req: RagRequest):
             embed_args = AsyncEngineArgs(
                 model="intfloat/e5-small-v2",
                 enforce_eager=True,
-                disable_log_stats=True,
+                max_model_len=512,
+                compilation_config=0,
                 trust_remote_code=True,
+                disable_log_stats=True,
                 gpu_memory_utilization=float(os.environ.get("VLLM_GPU_UTIL", "0.2")),
             )
             async with build_async_engine_client_from_engine_args(
@@ -101,6 +103,9 @@ async def rag(req: RagRequest):
             gen_args = AsyncEngineArgs(
                 model="facebook/opt-125m",
                 enforce_eager=True,
+                max_model_len=512,
+                compilation_config=0,
+                trust_remote_code=True,
                 disable_log_stats=True,
                 gpu_memory_utilization=float(os.environ.get("VLLM_GPU_UTIL", "0.2")),
             )
@@ -133,6 +138,9 @@ async def rag(req: RagRequest):
                 engine_mode=engine_mode,
                 enforce_eager=True,
                 runner="pooling",
+                max_model_len=512,
+                compilation_config=0,
+                trust_remote_code=True,
                 gpu_memory_utilization=float(os.environ.get("VLLM_GPU_UTIL", "0.2")),
             )
             pooling_params = vllm.PoolingParams(task="encode")
@@ -186,6 +194,9 @@ async def rag(req: RagRequest):
                 model="facebook/opt-125m",
                 engine_mode=engine_mode,
                 enforce_eager=True,
+                max_model_len=512,
+                compilation_config=0,
+                trust_remote_code=True,
                 gpu_memory_utilization=float(os.environ.get("VLLM_GPU_UTIL", "0.2")),
             )
             sampling = vllm.SamplingParams(temperature=0.8, top_p=0.95, max_tokens=64, seed=42)
