@@ -36,17 +36,19 @@ def _iast_report_cmdi(func_name, *args, **kwargs) -> None:
         if is_iast_request_enabled():
             if CommandInjection.has_quota():
                 from .._taint_tracking.aspects import join_aspect
+                from .._taint_tracking.aspects import str_aspect
 
                 if "spawn" in func_name:
                     shell_args = list(shell_args[1:])
                     if isinstance(shell_args[1], (list, tuple)):
-                        shell_args[1] = join_aspect(" ".join, 1, " ", shell_args[1])
+                        shell_args[1] = join_aspect(
+                            " ".join, 1, " ", [str_aspect(str, 1, arg) for arg in shell_args[1]]
+                        )
                 if isinstance(shell_args, (list, tuple)):
                     for arg in shell_args:
                         if CommandInjection.is_tainted_pyobject(arg):
-                            report_cmdi = join_aspect(
-                                " ".join, 1, " ", shell_args
-                            )  # [str_aspect(str, arg) for arg in shell_args]
+                            str_shell_args = [str_aspect(str, 1, arg) for arg in shell_args]
+                            report_cmdi = join_aspect(" ".join, 1, " ", str_shell_args)
                             break
                 elif CommandInjection.is_tainted_pyobject(shell_args):
                     report_cmdi = shell_args
