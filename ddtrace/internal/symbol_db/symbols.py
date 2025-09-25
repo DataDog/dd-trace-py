@@ -97,7 +97,8 @@ def get_fields(cls: type) -> t.Set[str]:
         return {
             code.co_names[b.arg]
             for a, b in zip(*(islice(t, i, None) for i, t in enumerate(tee(dis.get_instructions(code), 2))))
-            if a.opname == "LOAD_FAST" and a.arg == 0 and b.opname == "STORE_ATTR"
+            # Python 3.14 changed this to LOAD_FAST_BORROW
+            if a.opname.startswith("LOAD_FAST") and a.arg & 15 == 0 and b.opname == "STORE_ATTR"
         }
     except AttributeError:
         return set()

@@ -1,6 +1,7 @@
 import itertools
 import math
 import os
+import sys
 import typing as t
 
 from ddtrace.ext.git import COMMIT_SHA
@@ -64,6 +65,9 @@ def _check_for_stack_v2_available():
 
 
 def _parse_profiling_enabled(raw: str) -> bool:
+    if sys.version_info >= (3, 14):
+        return False
+
     # Try to derive whether we're enabled via DD_INJECTION_ENABLED
     # - Are we injected (DD_INJECTION_ENABLED set)
     # - Is profiling enabled ("profiler" in the list)
@@ -257,7 +261,8 @@ class ProfilingConfigStack(DDConfig):
     _v2_enabled = DDConfig.v(
         bool,
         "v2_enabled",
-        default=True,
+        # Not yet supported on 3.14
+        default=sys.version_info < (3, 14),
         help_type="Boolean",
         help="Whether to enable the v2 stack profiler. Also enables the libdatadog collector.",
     )
@@ -370,12 +375,14 @@ ddup_failure_msg, ddup_is_available = _check_for_ddup_available()
 
 # We need to check if ddup is available, and turn off profiling if it is not.
 if not ddup_is_available:
-    msg = ddup_failure_msg or "libdd not available"
-    logger.warning("Failed to load ddup module (%s), disabling profiling", msg)
-    telemetry_writer.add_log(
-        TELEMETRY_LOG_LEVEL.ERROR,
-        "Failed to load ddup module (%s), disabling profiling" % ddup_failure_msg,
-    )
+    # We know it is not supported on 3.14, so don't report the error, but still disable
+    if sys.version_info < (3, 14):
+        msg = ddup_failure_msg or "libdd not available"
+        logger.warning("Failed to load ddup module (%s), disabling profiling", msg)
+        telemetry_writer.add_log(
+            TELEMETRY_LOG_LEVEL.ERROR,
+            "Failed to load ddup module (%s), disabling profiling" % ddup_failure_msg,
+        )
     config.enabled = False
 
 # We also need to check if stack_v2 module is available, and turn if off
