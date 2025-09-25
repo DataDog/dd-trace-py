@@ -32,12 +32,12 @@ def get_cached_llm(model: str, *, engine_mode: str = "0", **kwargs):
     key = (model, key_runner, engine_mode)
 
     # Skip caching on CI - create fresh LLM instances
-    is_ci = os.environ.get("CI") == "true"
-    if is_ci:
-        llm_kwargs = dict(kwargs)
-        if runner is None and "runner" in llm_kwargs:
-            llm_kwargs.pop("runner", None)
-        return _create_llm_autotune(model=model, **llm_kwargs)
+    #is_ci = os.environ.get("CI") == "true"
+    #if is_ci:
+    #    llm_kwargs = dict(kwargs)
+    #    if runner is None and "runner" in llm_kwargs:
+    #        llm_kwargs.pop("runner", None)
+    #    return _create_llm_autotune(model=model, **llm_kwargs)
 
     # Use caching for local development
     llm = _LLM_CACHE.get(key)
