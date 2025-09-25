@@ -1,7 +1,7 @@
 from typing import Any
 from typing import Dict
 from typing import List
-from typing import TypedDict  # noqa:F401
+from typing import TypedDict
 from typing import Union
 
 
@@ -46,11 +46,11 @@ class Message(TypedDict, total=False):
     tool_id: str
 
 
-class SpanField(TypedDict):
+class _SpanField(TypedDict):
     kind: str
 
 
-class ErrorField(TypedDict, total=False):
+class _ErrorField(TypedDict, total=False):
     message: str
     stack: str
     type: str
@@ -83,7 +83,7 @@ class Prompt(TypedDict, total=False):
     rag_query_variables: List[str]
 
 
-class MetaIO(TypedDict, total=False):
+class _MetaIO(TypedDict, total=False):
     parameters: Dict[str, Any]
     value: str
     messages: List[Message]
@@ -91,20 +91,20 @@ class MetaIO(TypedDict, total=False):
     documents: List[Document]
 
 
-class Meta(TypedDict, total=False):
+class _Meta(TypedDict, total=False):
     model_name: str
     model_provider: str
-    span: SpanField
-    error: ErrorField
+    span: _SpanField
+    error: _ErrorField
     metadata: Dict[str, Any]
-    input: MetaIO
-    output: MetaIO
-    expected_output: MetaIO
+    input: _MetaIO
+    output: _MetaIO
+    expected_output: _MetaIO
     evaluations: Any
     tool_definitions: List[ToolDefinition]
 
 
-class SpanLink(TypedDict):
+class _SpanLink(TypedDict):
     span_id: str
     trace_id: str
     attributes: Dict[str, str]

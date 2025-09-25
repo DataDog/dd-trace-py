@@ -108,13 +108,13 @@ from ddtrace.llmobs._writer import LLMObsExperimentsClient
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs._writer import should_use_agentless
-from ddtrace.llmobs.types import ErrorField
+from ddtrace.llmobs.types import _ErrorField
 from ddtrace.llmobs.types import ExportedLLMObsSpan
 from ddtrace.llmobs.types import Message
-from ddtrace.llmobs.types import Meta
-from ddtrace.llmobs.types import MetaIO
+from ddtrace.llmobs.types import _Meta
+from ddtrace.llmobs.types import _MetaIO
 from ddtrace.llmobs.types import Prompt
-from ddtrace.llmobs.types import SpanField
+from ddtrace.llmobs.types import _SpanField
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import Messages
 from ddtrace.llmobs.utils import extract_tool_definitions
@@ -270,7 +270,7 @@ class LLMObs(Service):
             "apm_trace_id": format_trace_id(span.trace_id),
         }
 
-        meta: Meta = {"span": SpanField(kind=span_kind), "input": MetaIO(), "output": MetaIO()}
+        meta: _Meta = {"span": _SpanField(kind=span_kind), "input": _MetaIO(), "output": _MetaIO()}
         if span_kind in ("llm", "embedding") and span._get_ctx_item(MODEL_NAME) is not None:
             meta["model_name"] = span._get_ctx_item(MODEL_NAME) or ""
             meta["model_provider"] = (span._get_ctx_item(MODEL_PROVIDER) or "custom").lower()
@@ -342,7 +342,7 @@ class LLMObs(Service):
         if span._get_ctx_item(TOOL_DEFINITIONS) is not None:
             meta["tool_definitions"] = span._get_ctx_item(TOOL_DEFINITIONS) or []
         if span.error:
-            meta["error"] = ErrorField(
+            meta["error"] = _ErrorField(
                 message=span.get_tag(ERROR_MSG) or "",
                 stack=span.get_tag(ERROR_STACK) or "",
                 type=span.get_tag(ERROR_TYPE) or "",

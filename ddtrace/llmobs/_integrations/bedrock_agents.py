@@ -18,11 +18,11 @@ from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._writer import LLMObsSpanEvent
-from ddtrace.llmobs.types import ErrorField
+from ddtrace.llmobs.types import _ErrorField
 from ddtrace.llmobs.types import Message
-from ddtrace.llmobs.types import Meta
-from ddtrace.llmobs.types import MetaIO
-from ddtrace.llmobs.types import SpanField
+from ddtrace.llmobs.types import _Meta
+from ddtrace.llmobs.types import _MetaIO
+from ddtrace.llmobs.types import _SpanField
 
 
 log = get_logger(__name__)
@@ -76,12 +76,12 @@ def _build_span_event(
         "start_ns": int(start_ns or root_span.start_ns),
         "duration": int(duration_ns or DEFAULT_SPAN_DURATION),
         "status": "error" if error else "ok",
-        "meta": Meta(
-            span=SpanField(kind=span_kind),
+        "meta": _Meta(
+            span=_SpanField(kind=span_kind),
             metadata={},
-            input=MetaIO(),
-            output=MetaIO(),
-            error=ErrorField(),
+            input=_MetaIO(),
+            output=_MetaIO(),
+            error=_ErrorField(),
         ),
         "metrics": {},
         "_dd": {

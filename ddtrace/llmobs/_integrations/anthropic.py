@@ -94,7 +94,7 @@ class AnthropicIntegration(BaseLLMIntegration):
         update_proxy_workflow_input_output_value(span, span_kind)
 
     def _extract_input_message(
-        self, messages, system_prompt: Optional[Union[str, List[Dict[str, Any]]]] = None
+        self, messages: Iterable[Dict[str, Any]], system_prompt: Optional[Union[str, List[Dict[str, Any]]]] = None
     ) -> List[Message]:
         """Extract input messages from the stored prompt.
         Anthropic allows for messages and multiple texts in a message, which requires some special casing.
@@ -186,20 +186,19 @@ class AnthropicIntegration(BaseLLMIntegration):
                 text = _get_attr(completion, "text", None)
                 if isinstance(text, str):
                     output_messages.append(Message(content=text, role=str(role)))
-                else:
-                    if _get_attr(completion, "type", None) == "tool_use":
-                        input_data = _get_attr(completion, "input", "")
-                        if isinstance(input_data, str):
-                            input_data = json.loads(input_data)
-                        tool_call_info = ToolCall(
-                            name=str(_get_attr(completion, "name", "")),
-                            arguments=input_data,
-                            tool_id=str(_get_attr(completion, "id", "")),
-                            type=str(_get_attr(completion, "type", "")),
-                        )
-                        if text is None:
-                            text = ""
-                        output_messages.append(Message(content=str(text), role=str(role), tool_calls=[tool_call_info]))
+                elif _get_attr(completion, "type", None) == "tool_use":
+                    input_data = _get_attr(completion, "input", "")
+                    if isinstance(input_data, str):
+                        input_data = json.loads(input_data)
+                    tool_call_info = ToolCall(
+                        name=str(_get_attr(completion, "name", "")),
+                        arguments=input_data,
+                        tool_id=str(_get_attr(completion, "id", "")),
+                        type=str(_get_attr(completion, "type", "")),
+                    )
+                    if text is None:
+                        text = ""
+                    output_messages.append(Message(content=str(text), role=str(role), tool_calls=[tool_call_info]))
         return output_messages
 
     def _extract_usage(self, span: Span, usage: Dict[str, Any]):

@@ -44,7 +44,7 @@ from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import Message
-from ddtrace.llmobs.types import SpanLink
+from ddtrace.llmobs.types import _SpanLink
 from ddtrace.llmobs.types import ToolCall
 from ddtrace.trace import Span
 
@@ -301,7 +301,7 @@ class LangChainIntegration(BaseLLMIntegration):
         This is done by removing span links of previous steps in the chain from the parent span (if it is a chain).
         We add output->output span links at every step.
         """
-        parent_links: List[SpanLink] = parent_span._get_ctx_item(SPAN_LINKS) or []
+        parent_links: List[_SpanLink] = parent_span._get_ctx_item(SPAN_LINKS) or []
         pop_indices = self._get_popped_span_link_indices(parent_span, parent_links, invoker_spans, from_output)
 
         self._set_span_links(
@@ -313,7 +313,7 @@ class LangChainIntegration(BaseLLMIntegration):
         )
 
     def _get_popped_span_link_indices(
-        self, parent_span: Span, parent_links: List[SpanLink], invoker_spans: List[Span], from_output: bool
+        self, parent_span: Span, parent_links: List[_SpanLink], invoker_spans: List[Span], from_output: bool
     ) -> List[int]:
         """
         Returns a list of indices to pop from the parent span links list
@@ -343,13 +343,13 @@ class LangChainIntegration(BaseLLMIntegration):
         popped_span_link_indices: Optional[List[int]] = None,
     ) -> None:
         """Sets the span links on the given span along with the existing links."""
-        existing_links: List[SpanLink] = span._get_ctx_item(SPAN_LINKS) or []
+        existing_links: List[_SpanLink] = span._get_ctx_item(SPAN_LINKS) or []
 
         if popped_span_link_indices:
             existing_links = [link for i, link in enumerate(existing_links) if i not in popped_span_link_indices]
 
-        links: List[SpanLink] = [
-            SpanLink(
+        links: List[_SpanLink] = [
+            _SpanLink(
                 trace_id=format_trace_id(from_span.trace_id),
                 span_id=str(from_span.span_id),
                 attributes={"from": link_from, "to": link_to},

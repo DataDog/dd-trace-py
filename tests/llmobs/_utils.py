@@ -2,9 +2,9 @@ import os
 
 import mock
 
-from ddtrace.llmobs.types import ErrorField
-from ddtrace.llmobs.types import Meta
-from ddtrace.llmobs.types import SpanField
+from ddtrace.llmobs.types import _ErrorField
+from ddtrace.llmobs.types import _Meta
+from ddtrace.llmobs.types import _SpanField
 
 
 try:
@@ -230,7 +230,7 @@ def _llmobs_base_span_event(
         "start_ns": span.start_ns,
         "duration": span.duration_ns,
         "status": "error" if error else "ok",
-        "meta": Meta(span=SpanField(kind=span_kind)),
+        "meta": _Meta(span=_SpanField(kind=span_kind)),
         "metrics": {},
         "tags": _expected_llmobs_tags(span, tags=tags, error=error, session_id=session_id),
         "_dd": {
@@ -242,7 +242,7 @@ def _llmobs_base_span_event(
     if session_id:
         span_event["session_id"] = session_id
     if error:
-        span_event["meta"]["error"] = ErrorField(type=error, message=error_message or "", stack=error_stack or "")
+        span_event["meta"]["error"] = _ErrorField(type=error, message=error_message or "", stack=error_stack or "")
     if span_links:
         span_event["span_links"] = mock.ANY
     return span_event
