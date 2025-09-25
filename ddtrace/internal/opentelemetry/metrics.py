@@ -105,6 +105,55 @@ def _build_resource() -> Optional[Any]:
         return None
 
 
+def _dd_metrics_exporter(otel_exporter: Type[Any], protocol: str, encoding: str) -> Type[Any]:
+    """Create a custom OpenTelemetry Metrics exporter that adds telemetry metrics and debug logs."""
+
+    class DDMetricsExporter(otel_exporter):
+        """A custom OpenTelemetry Metrics exporter that adds telemetry metrics and debug logs."""
+
+        def export(self, metrics_data: Any, timeout_millis: Any, *args: Any, **kwargs: Any) -> Any:
+            """Export metrics and queues telemetry metrics."""
+            telemetry_writer.add_count_metric(
+                TELEMETRY_NAMESPACE.TRACERS,
+                "otel.metrics_export_attempts",
+                1,
+                (
+                    ("protocol", protocol),
+                    ("encoding", encoding),
+                ),
+            )
+            # TODO: Count the number of unique metrics streams in this export
+            log.debug(
+                "Exporting OpenTelemetry Metrics with %s protocol and %s encoding", protocol, encoding
+            )
+            result = super().export(metrics_data, timeout_millis, *args, **kwargs)
+
+            if result.value == 0:
+                telemetry_writer.add_count_metric(
+                    TELEMETRY_NAMESPACE.TRACERS,
+                    "otel.metrics_export_successes",
+                    1,
+                    (
+                        ("protocol", protocol),
+                        ("encoding", encoding),
+                    ),
+                )
+            elif result.value == 1:
+                telemetry_writer.add_count_metric(
+                    TELEMETRY_NAMESPACE.TRACERS,
+                    "otel.metrics_export_failures",
+                    1,
+                    (
+                        ("protocol", protocol),
+                        ("encoding", encoding),
+                    ),
+                )
+
+            return result
+
+    return DDMetricsExporter
+
+
 def _import_exporter(protocol):
     """Import the appropriate OpenTelemetry Metrics exporter based on the set protocol"""
     try:
@@ -131,8 +180,7 @@ def _import_exporter(protocol):
             )
             return None
 
-        # TODO return _dd_metrics_exporter(OTLPMetricExporter, protocol, "protobuf")
-        return OTLPMetricExporter
+        return _dd_metrics_exporter(OTLPMetricExporter, protocol, "protobuf")
 
     except ImportError as e:
         log.warning(
