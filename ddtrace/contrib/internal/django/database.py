@@ -11,8 +11,8 @@ from typing import cast
 import wrapt
 
 import ddtrace
-from ddtrace._trace.pin import Pin
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib import dbapi
 from ddtrace.contrib.internal.trace_utils import _convert_to_string
 from ddtrace.ext import db
