@@ -4,6 +4,7 @@ import os
 import mock
 import pytest
 
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.trace import tracer
 from tests.integration.utils import AGENT_VERSION
 from tests.utils import override_global_config
@@ -127,6 +128,10 @@ def test_synchronous_writer(writer_class):
             pass
 
 
+@pytest.mark.skipif(
+    PYTHON_VERSION_INFO >= (3, 14),
+    reason="The default multiprocessing start_method 'forkserver' causes this test to fail",
+)
 @snapshot(async_mode=False)
 @pytest.mark.subprocess(ddtrace_run=True)
 def test_tracer_trace_across_popen():
@@ -157,6 +162,10 @@ def test_tracer_trace_across_popen():
     tracer.flush()
 
 
+@pytest.mark.skipif(
+    PYTHON_VERSION_INFO >= (3, 14),
+    reason="The default multiprocessing start_method 'forkserver' causes this test to fail",
+)
 @snapshot(async_mode=False)
 @pytest.mark.subprocess(ddtrace_run=True)
 def test_tracer_trace_across_multiple_popens():
