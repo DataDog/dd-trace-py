@@ -65,6 +65,7 @@ include:
     - !reference [.testrunner_gpu, before_script]
     # GPU diagnostics
     - nvidia-smi || true
+    - free -h || true
     - |
       python - <<'PY'
       import sys
@@ -168,6 +169,7 @@ include:
     - !reference [.testrunner_gpu, before_script]
     # GPU diagnostics
     - nvidia-smi || true
+    - free -h || true
     - |
       python - <<'PY'
       import sys
@@ -188,6 +190,9 @@ include:
     - unset DD_TAGS
     - unset DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED
     - export PYTEST_ADDOPTS="${PYTEST_ADDOPTS} -vv -s -rA"
+    - export VLLM_GPU_MEMORY_UTILIZATION="${VLLM_GPU_MEMORY_UTILIZATION:-0.1}"
+    - export TOKENIZERS_PARALLELISM="false"
+    - export VLLM_HOST_IP="127.0.0.1"
   script:
     - |
       hashes=( $(.gitlab/scripts/get-riot-hashes.sh "${SUITE_NAME}") )

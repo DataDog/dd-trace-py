@@ -5,9 +5,10 @@ from vllm.engine.arg_utils import AsyncEngineArgs
 
 
 def _create_llm_autotune(model, **kwargs):
+    # Prefer smaller GPU budgets first to reduce OOM risk on CI
     util_candidates = kwargs.pop(
         "gpu_util_candidates",
-        [0.1, 0.2, 0.3, 0.5, 0.7, 0.85, 0.9, 0.95],
+        [0.05, 0.1, 0.15, 0.2, 0.3, 0.5, 0.7, 0.85, 0.9],
     )
     last_error = None
     for util in util_candidates:
@@ -56,6 +57,21 @@ def create_async_engine(model: str, *, engine_mode: str = "0", **kwargs):
             else:
                 from vllm.engine.async_llm_engine import AsyncLLMEngine as _Async  # type: ignore
             engine = _Async.from_engine_args(args)
+            # Ensure clean shutdown even if tests break early
+            try:
+                import weakref  # type: ignore
+
+                def _safe_shutdown(obj):
+                    try:
+                        shutdown = getattr(obj, "shutdown", None)
+                        if callable(shutdown):
+                            shutdown()
+                    except Exception:
+                        pass
+
+                weakref.finalize(engine, _safe_shutdown, engine)
+            except Exception:
+                pass
             return engine
         except Exception as exc:  # pragma: no cover
             last_error = exc
