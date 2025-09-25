@@ -2,6 +2,8 @@
 components:
   anthropic:
     - ddtrace/contrib/internal/anthropic/*
+  google_adk:
+    - ddtrace/contrib/internal/google_adk/*
   google_generativeai:
     - ddtrace/contrib/internal/google_generativeai/*
   google_genai:
@@ -41,17 +43,29 @@ suites:
       - tests/snapshots/tests.contrib.anthropic.*
     runner: riot
     snapshot: true
+  google_adk:
+    parallelism: 3
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@google_adk'
+      - '@llmobs'
+      - tests/contrib/google_adk/*
+    runner: riot
+    snapshot: true
   google_generativeai:
     parallelism: 1
     paths:
-    - '@bootstrap'
-    - '@core'
-    - '@tracing'
-    - '@contrib'
-    - '@google_generativeai'
-    - '@llmobs'
-    - tests/contrib/google_generativeai/*
-    - tests/snapshots/tests.contrib.google_generativeai.*
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@google_generativeai'
+      - '@llmobs'
+      - tests/contrib/google_generativeai/*
+      - tests/snapshots/tests.contrib.google_generativeai.*
     runner: riot
     snapshot: true
   google_genai:

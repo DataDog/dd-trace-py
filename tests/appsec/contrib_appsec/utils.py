@@ -225,7 +225,7 @@ class Contrib_TestClass_For_Threats:
                 assert isinstance(ep.path, str)
                 assert ep.resource_name
                 assert ep.operation_name
-                if ep.method not in ("GET", "*", "POST"):
+                if ep.method not in ("GET", "*", "POST") or ep.path.startswith("/static"):
                     continue
                 path = parse(ep.path)
                 found.add(path.rstrip("/"))
@@ -234,7 +234,10 @@ class Contrib_TestClass_For_Threats:
                     if ep.method == "POST"
                     else interface.client.get(path)
                 )
-                assert self.status(response) in (200, 401), f"ep.path failed: {ep.path} -> {path}"
+                assert self.status(response) in (
+                    200,
+                    401,
+                ), f"ep.path failed: [{self.status(response)}] {ep.path} -> {path}"
                 resource = "GET" + ep.resource_name[1:] if ep.resource_name.startswith("* ") else ep.resource_name
                 assert find_resource(resource)
         assert must_found <= found

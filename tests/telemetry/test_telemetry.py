@@ -208,10 +208,9 @@ raise Exception('bad_code')
     app_starteds = test_agent_session.get_events("app-started", subprocess=True)
     assert len(app_starteds) == 1
 
-    # the tracer should not capture logs from non ddtrace code
-    # i will not test further as it will be removed in next PR
+    # the tracer does not capture non ddtrace related errors
     logs_event = test_agent_session.get_events("logs", subprocess=True)
-    assert len(logs_event) == 1
+    assert len(logs_event) == 0
 
 
 def test_handled_integration_error(test_agent_session, run_python_code_in_subprocess):
