@@ -42,6 +42,7 @@ def test_rag_parent_child(vllm, mock_tracer, llmobs_events, vllm_engine_mode):
 def test_rag_mq_concurrency(vllm, mock_tracer, monkeypatch):
     monkeypatch.setenv("VLLM_USE_V1", "0")
     monkeypatch.setenv("VLLM_USE_MQ", "1")
+    monkeypatch.delenv("PROMETHEUS_MULTIPROC_DIR", raising=False)
 
     client = TestClient(app)
     payload = {
