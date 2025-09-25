@@ -11,16 +11,16 @@
     "meta": {
       "_dd.hostname": "docker-desktop",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68d548d000000000",
+      "_dd.p.tid": "68d5531d00000000",
       "component": "ray",
       "language": "python",
       "ray.job_id": "01000000",
-      "ray.node_id": "ef3a734291432274d68461f0761ebcd5c2f2746a77da4a2308f0f8c8",
+      "ray.node_id": "a24a276c5f818dca3ea67d7c5a439cfb632dd1c51ae45bc52ccd77ac",
       "ray.task.args": "()",
       "ray.task.kwargs": "{}",
       "ray.task.submit_status": "success",
       "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
-      "runtime-id": "a712d2c035f6414692bf0f6d463d32fe",
+      "runtime-id": "6d9e83781d9c4afda5ad4d3aa5d5f806",
       "span.kind": "producer"
     },
     "metrics": {
@@ -32,8 +32,8 @@
       "_sampling_priority_v1": 2,
       "process_id": 543
     },
-    "duration": 42411667,
-    "start": 1758808272511494711
+    "duration": 34296875,
+    "start": 1758810909802472001
   },
      {
        "name": "tests.contrib.ray.test_ray.TestRayIntegration.test_actor_interactions.<locals>.run_test",
@@ -47,12 +47,12 @@
        "meta": {
          "component": "ray",
          "ray.job_id": "01000000",
-         "ray.node_id": "ef3a734291432274d68461f0761ebcd5c2f2746a77da4a2308f0f8c8",
+         "ray.node_id": "a24a276c5f818dca3ea67d7c5a439cfb632dd1c51ae45bc52ccd77ac",
          "ray.task.args": "()",
          "ray.task.kwargs": "{}",
          "ray.task.status": "success",
          "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
-         "runtime-id": "a712d2c035f6414692bf0f6d463d32fe",
+         "runtime-id": "6d9e83781d9c4afda5ad4d3aa5d5f806",
          "span.kind": "consumer"
        },
        "metrics": {
@@ -63,8 +63,8 @@
          "_sampling_priority_v1": 2,
          "process_id": 543
        },
-       "duration": 30692750,
-       "start": 1758808272522974003
+       "duration": 26046625,
+       "start": 1758810909810358543
      },
         {
           "name": "Sender.__init__",
@@ -80,7 +80,7 @@
             "ray.actor_method.args": "()",
             "ray.actor_method.kwargs": "{}",
             "ray.job_id": "01000000",
-            "ray.node_id": "ef3a734291432274d68461f0761ebcd5c2f2746a77da4a2308f0f8c8",
+            "ray.node_id": "a24a276c5f818dca3ea67d7c5a439cfb632dd1c51ae45bc52ccd77ac",
             "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
             "span.kind": "consumer"
           },
@@ -90,8 +90,8 @@
             "_dd.measured": 1,
             "_sampling_priority_v1": 2
           },
-          "duration": 110459,
-          "start": 1758808272535114836
+          "duration": 130875,
+          "start": 1758810909822290251
         },
         {
           "name": "Receiver.__init__",
@@ -107,7 +107,7 @@
             "ray.actor_method.args": "()",
             "ray.actor_method.kwargs": "{}",
             "ray.job_id": "01000000",
-            "ray.node_id": "ef3a734291432274d68461f0761ebcd5c2f2746a77da4a2308f0f8c8",
+            "ray.node_id": "a24a276c5f818dca3ea67d7c5a439cfb632dd1c51ae45bc52ccd77ac",
             "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
             "span.kind": "consumer"
           },
@@ -117,8 +117,8 @@
             "_dd.measured": 1,
             "_sampling_priority_v1": 2
           },
-          "duration": 89041,
-          "start": 1758808272546573920
+          "duration": 116333,
+          "start": 1758810909833850793
         },
         {
           "name": "TestRayIntegration.test_actor_interactions.<locals>.Sender.send_message.remote()",
@@ -131,10 +131,10 @@
           "error": 0,
           "meta": {
             "component": "ray",
-            "ray.actor_method.args": "(Actor(TestRayIntegration.test_actor_interactions.<locals>.Receiver, 2015363b978c8a5ed5e4ed0401000000), 'hello')",
+            "ray.actor_method.args": "(Actor(TestRayIntegration.test_actor_interactions.<locals>.Receiver, d219827ff08418475d8eda3901000000), 'hello')",
             "ray.actor_method.kwargs": "{}",
             "ray.job_id": "01000000",
-            "ray.node_id": "ef3a734291432274d68461f0761ebcd5c2f2746a77da4a2308f0f8c8",
+            "ray.node_id": "a24a276c5f818dca3ea67d7c5a439cfb632dd1c51ae45bc52ccd77ac",
             "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
             "span.kind": "producer"
           },
@@ -144,8 +144,8 @@
             "_dd.measured": 1,
             "_sampling_priority_v1": 2
           },
-          "duration": 5714208,
-          "start": 1758808272546833420
+          "duration": 1412334,
+          "start": 1758810909834088001
         },
            {
              "name": "Sender.send_message",
@@ -158,10 +158,10 @@
              "error": 0,
              "meta": {
                "component": "ray",
-               "ray.actor_method.args": "(Actor(TestRayIntegration.test_actor_interactions.<locals>.Receiver, 2015363b978c8a5ed5e4ed0401000000), 'hello')",
+               "ray.actor_method.args": "(Actor(TestRayIntegration.test_actor_interactions.<locals>.Receiver, d219827ff08418475d8eda3901000000), 'hello')",
                "ray.actor_method.kwargs": "{}",
                "ray.job_id": "01000000",
-               "ray.node_id": "ef3a734291432274d68461f0761ebcd5c2f2746a77da4a2308f0f8c8",
+               "ray.node_id": "a24a276c5f818dca3ea67d7c5a439cfb632dd1c51ae45bc52ccd77ac",
                "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
                "span.kind": "consumer"
              },
@@ -171,8 +171,8 @@
                "_dd.measured": 1,
                "_sampling_priority_v1": 2
              },
-             "duration": 869375,
-             "start": 1758808272551612711
+             "duration": 644542,
+             "start": 1758810909834783751
            },
               {
                 "name": "TestRayIntegration.test_actor_interactions.<locals>.Receiver.receive_message.remote()",
@@ -188,7 +188,7 @@
                   "ray.actor_method.args": "('hello',)",
                   "ray.actor_method.kwargs": "{}",
                   "ray.job_id": "01000000",
-                  "ray.node_id": "ef3a734291432274d68461f0761ebcd5c2f2746a77da4a2308f0f8c8",
+                  "ray.node_id": "a24a276c5f818dca3ea67d7c5a439cfb632dd1c51ae45bc52ccd77ac",
                   "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
                   "span.kind": "producer"
                 },
@@ -198,8 +198,8 @@
                   "_dd.measured": 1,
                   "_sampling_priority_v1": 2
                 },
-                "duration": 647584,
-                "start": 1758808272551758461
+                "duration": 457208,
+                "start": 1758810909834891835
               },
                  {
                    "name": "Receiver.receive_message",
@@ -215,7 +215,7 @@
                      "ray.actor_method.args": "('hello',)",
                      "ray.actor_method.kwargs": "{}",
                      "ray.job_id": "01000000",
-                     "ray.node_id": "ef3a734291432274d68461f0761ebcd5c2f2746a77da4a2308f0f8c8",
+                     "ray.node_id": "a24a276c5f818dca3ea67d7c5a439cfb632dd1c51ae45bc52ccd77ac",
                      "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
                      "span.kind": "consumer"
                    },
@@ -225,8 +225,8 @@
                      "_dd.measured": 1,
                      "_sampling_priority_v1": 2
                    },
-                   "duration": 75833,
-                   "start": 1758808272552253920
+                   "duration": 60458,
+                   "start": 1758810909835218918
                  },
         {
           "name": "TestRayIntegration.test_actor_interactions.<locals>.Sender.get_sent_count.remote()",
@@ -239,10 +239,10 @@
           "error": 0,
           "meta": {
             "component": "ray",
-            "ray.actor_method.args": "[]",
+            "ray.actor_method.args": "()",
             "ray.actor_method.kwargs": "{}",
             "ray.job_id": "01000000",
-            "ray.node_id": "ef3a734291432274d68461f0761ebcd5c2f2746a77da4a2308f0f8c8",
+            "ray.node_id": "a24a276c5f818dca3ea67d7c5a439cfb632dd1c51ae45bc52ccd77ac",
             "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
             "span.kind": "producer"
           },
@@ -252,8 +252,8 @@
             "_dd.measured": 1,
             "_sampling_priority_v1": 2
           },
-          "duration": 439625,
-          "start": 1758808272552633711
+          "duration": 336542,
+          "start": 1758810909835576668
         },
            {
              "name": "Sender.get_sent_count",
@@ -269,7 +269,7 @@
                "ray.actor_method.args": "()",
                "ray.actor_method.kwargs": "{}",
                "ray.job_id": "01000000",
-               "ray.node_id": "ef3a734291432274d68461f0761ebcd5c2f2746a77da4a2308f0f8c8",
+               "ray.node_id": "a24a276c5f818dca3ea67d7c5a439cfb632dd1c51ae45bc52ccd77ac",
                "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
                "span.kind": "consumer"
              },
@@ -279,8 +279,8 @@
                "_dd.measured": 1,
                "_sampling_priority_v1": 2
              },
-             "duration": 61209,
-             "start": 1758808272552959711
+             "duration": 55667,
+             "start": 1758810909835802418
            },
         {
           "name": "TestRayIntegration.test_actor_interactions.<locals>.Receiver.get_messages.remote()",
@@ -293,10 +293,10 @@
           "error": 0,
           "meta": {
             "component": "ray",
-            "ray.actor_method.args": "[]",
+            "ray.actor_method.args": "()",
             "ray.actor_method.kwargs": "{}",
             "ray.job_id": "01000000",
-            "ray.node_id": "ef3a734291432274d68461f0761ebcd5c2f2746a77da4a2308f0f8c8",
+            "ray.node_id": "a24a276c5f818dca3ea67d7c5a439cfb632dd1c51ae45bc52ccd77ac",
             "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
             "span.kind": "producer"
           },
@@ -306,8 +306,8 @@
             "_dd.measured": 1,
             "_sampling_priority_v1": 2
           },
-          "duration": 321000,
-          "start": 1758808272553148753
+          "duration": 300583,
+          "start": 1758810909835983085
         },
            {
              "name": "Receiver.get_messages",
@@ -323,7 +323,7 @@
                "ray.actor_method.args": "()",
                "ray.actor_method.kwargs": "{}",
                "ray.job_id": "01000000",
-               "ray.node_id": "ef3a734291432274d68461f0761ebcd5c2f2746a77da4a2308f0f8c8",
+               "ray.node_id": "a24a276c5f818dca3ea67d7c5a439cfb632dd1c51ae45bc52ccd77ac",
                "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
                "span.kind": "consumer"
              },
@@ -333,6 +333,6 @@
                "_dd.measured": 1,
                "_sampling_priority_v1": 2
              },
-             "duration": 55500,
-             "start": 1758808272553365628
+             "duration": 55167,
+             "start": 1758810909836174168
            }]]

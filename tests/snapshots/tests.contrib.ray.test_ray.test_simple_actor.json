@@ -11,15 +11,15 @@
     "meta": {
       "_dd.hostname": "docker-desktop",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68d548d900000000",
+      "_dd.p.tid": "68d5531d00000000",
       "component": "ray",
       "language": "python",
-      "ray.actor_method.args": "[]",
+      "ray.actor_method.args": "()",
       "ray.actor_method.kwargs": "{}",
       "ray.job_id": "01000000",
-      "ray.node_id": "d4cfb20c4a8f95f7d621e3cde01955047f85879ca60549731aa94d16",
+      "ray.node_id": "a24a276c5f818dca3ea67d7c5a439cfb632dd1c51ae45bc52ccd77ac",
       "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
-      "runtime-id": "a712d2c035f6414692bf0f6d463d32fe",
+      "runtime-id": "6d9e83781d9c4afda5ad4d3aa5d5f806",
       "span.kind": "producer"
     },
     "metrics": {
@@ -31,8 +31,8 @@
       "_sampling_priority_v1": 2,
       "process_id": 543
     },
-    "duration": 1631625,
-    "start": 1758808281354705882
+    "duration": 1777458,
+    "start": 1758810909884315085
   },
      {
        "name": "Counter.increment_get_and_double",
@@ -48,7 +48,7 @@
          "ray.actor_method.args": "()",
          "ray.actor_method.kwargs": "{}",
          "ray.job_id": "01000000",
-         "ray.node_id": "d4cfb20c4a8f95f7d621e3cde01955047f85879ca60549731aa94d16",
+         "ray.node_id": "a24a276c5f818dca3ea67d7c5a439cfb632dd1c51ae45bc52ccd77ac",
          "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
          "span.kind": "consumer"
        },
@@ -58,8 +58,8 @@
          "_dd.measured": 1,
          "_sampling_priority_v1": 2
        },
-       "duration": 662667,
-       "start": 1758808281355490632
+       "duration": 802250,
+       "start": 1758810909884997002
      },
         {
           "name": "Counter.increment_and_get",
@@ -75,7 +75,7 @@
             "ray.actor_method.args": "()",
             "ray.actor_method.kwargs": "{}",
             "ray.job_id": "01000000",
-            "ray.node_id": "d4cfb20c4a8f95f7d621e3cde01955047f85879ca60549731aa94d16",
+            "ray.node_id": "a24a276c5f818dca3ea67d7c5a439cfb632dd1c51ae45bc52ccd77ac",
             "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
             "span.kind": "consumer"
           },
@@ -85,8 +85,8 @@
             "_dd.measured": 1,
             "_sampling_priority_v1": 2
           },
-          "duration": 283500,
-          "start": 1758808281355851382
+          "duration": 395250,
+          "start": 1758810909885371627
         },
            {
              "name": "Counter.increment",
@@ -102,7 +102,7 @@
                "ray.actor_method.args": "()",
                "ray.actor_method.kwargs": "{}",
                "ray.job_id": "01000000",
-               "ray.node_id": "d4cfb20c4a8f95f7d621e3cde01955047f85879ca60549731aa94d16",
+               "ray.node_id": "a24a276c5f818dca3ea67d7c5a439cfb632dd1c51ae45bc52ccd77ac",
                "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
                "span.kind": "consumer"
              },
@@ -112,8 +112,8 @@
                "_dd.measured": 1,
                "_sampling_priority_v1": 2
              },
-             "duration": 61042,
-             "start": 1758808281355948924
+             "duration": 73792,
+             "start": 1758810909885479585
            },
            {
              "name": "Counter.get_value",
@@ -129,7 +129,7 @@
                "ray.actor_method.args": "()",
                "ray.actor_method.kwargs": "{}",
                "ray.job_id": "01000000",
-               "ray.node_id": "d4cfb20c4a8f95f7d621e3cde01955047f85879ca60549731aa94d16",
+               "ray.node_id": "a24a276c5f818dca3ea67d7c5a439cfb632dd1c51ae45bc52ccd77ac",
                "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
                "span.kind": "consumer"
              },
@@ -139,6 +139,6 @@
                "_dd.measured": 1,
                "_sampling_priority_v1": 2
              },
-             "duration": 53000,
-             "start": 1758808281356060757
+             "duration": 69000,
+             "start": 1758810909885604335
            }]]
