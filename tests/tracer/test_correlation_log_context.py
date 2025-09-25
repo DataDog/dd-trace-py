@@ -2,9 +2,7 @@ import pytest
 
 
 @pytest.mark.subprocess(
-    ddtrace_run=True,
-    env={"DD_VERSION": "test-version", "DD_ENV": "test-env", "DD_SERVICE": "test-service"},
-    err=lambda _: True,
+    ddtrace_run=True, env={"DD_VERSION": "test-version", "DD_ENV": "test-env", "DD_SERVICE": "test-service"}
 )
 def test_get_log_correlation_ust():
     """Ensure expected DDLogRecord service is generated via get_correlation_log_record."""
@@ -37,9 +35,7 @@ def test_get_log_correlation_ust():
 
 
 @pytest.mark.subprocess(
-    ddtrace_run=True,
-    env={"DD_VERSION": "test-version", "DD_ENV": "test-env", "DD_SERVICE": "test-service"},
-    err=lambda _: True,
+    ddtrace_run=True, env={"DD_VERSION": "test-version", "DD_ENV": "test-env", "DD_SERVICE": "test-service"}
 )
 def test_get_log_correlation_trace_context():
     """Ensure expected DDLogRecord is generated via get_correlation_log_record."""
@@ -63,9 +59,7 @@ def test_get_log_correlation_trace_context():
 
 
 @pytest.mark.subprocess(
-    ddtrace_run=True,
-    env={"DD_VERSION": "test-version", "DD_ENV": "test-env", "DD_SERVICE": "test-service"},
-    err=lambda _: True,
+    ddtrace_run=True, env={"DD_VERSION": "test-version", "DD_ENV": "test-env", "DD_SERVICE": "test-service"}
 )
 def test_get_log_correlation_context_opentracer():
     """Ensure expected DDLogRecord generated via get_correlation_log_record with an opentracing Tracer."""
@@ -116,7 +110,7 @@ def test_get_log_correlation_context_disabled_tracer():
     }, dd_log_record
 
 
-@pytest.mark.subprocess(ddtrace_run=True, err=lambda _: True)
+@pytest.mark.subprocess(ddtrace_run=True)
 def test_structured_logging_injection():
     """Ensure the structured loggers automatically injects trace attributes into the
     log records when ddtrace_run is used.
@@ -151,9 +145,7 @@ def test_structured_logging_injection():
 
 
 @pytest.mark.subprocess(
-    ddtrace_run=True,
-    env={"DD_VERSION": "global-version", "DD_ENV": "global-env", "DD_SERVICE": "global-service"},
-    err=lambda _: True,
+    ddtrace_run=True, env={"DD_VERSION": "global-version", "DD_ENV": "global-env", "DD_SERVICE": "global-service"}
 )
 def test_structured_logging_injection_no_span():
     """Ensure the structured loggers automatically injects global config attributes into the log records."""
@@ -177,9 +169,7 @@ def test_structured_logging_injection_no_span():
 
 
 @pytest.mark.subprocess(
-    ddtrace_run=True,
-    env={"DD_LOGS_INJECTION": None, "DD_VERSION": None, "DD_ENV": None, "DD_SERVICE": None},
-    err=lambda _: True,
+    ddtrace_run=True, env={"DD_LOGS_INJECTION": None, "DD_VERSION": None, "DD_ENV": None, "DD_SERVICE": None}
 )
 def test_structured_logging_injection_default_configs():
     """Ensure the structured loggers automatically injects default trace attributes into the log records."""

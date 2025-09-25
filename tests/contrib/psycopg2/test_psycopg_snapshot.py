@@ -67,3 +67,4 @@ assert conn
     out, err, status, pid = run_python_code_in_subprocess(code, env=env)
     assert status == 0, err
     assert out == b"", err
+    assert err == b""

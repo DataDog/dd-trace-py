@@ -16,3 +16,4 @@ def hello_world():
     env = os.environ.copy()
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (out, err)
+    assert err == b"", (out, err)
