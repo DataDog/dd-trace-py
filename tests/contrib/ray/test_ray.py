@@ -1,15 +1,13 @@
 import logging
 import os
-import re
 import subprocess
-import time
 
 import pytest
 
 from tests.utils import TracerTestCase
 
 
-def submit_ray_job(script_name, timeout=180):
+def submit_ray_job(script_name, timeout=120):
     """
     Submit a Ray job
 
@@ -24,20 +22,7 @@ def submit_ray_job(script_name, timeout=180):
     if not os.path.exists(script_path):
         raise FileNotFoundError(f"Script not found: {script_path}")
 
-    # Use a minimal working directory to avoid packaging the entire repository when submitting jobs.
-    # Packaging the repo can be extremely slow and cause timeouts in CI.
-    jobs_dir = os.path.dirname(script_path)
-    cmd = [
-        "ray",
-        "job",
-        "submit",
-        "--working-dir",
-        jobs_dir,
-        "--no-wait",
-        "--",
-        "python",
-        os.path.basename(script_path),
-    ]
+    cmd = ["ray", "job", "submit", "--", "python", script_path]
 
     print(f"\n{' '.join(cmd)}\n")
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
@@ -47,40 +32,7 @@ def submit_ray_job(script_name, timeout=180):
         logging.error("Failed to submit Ray job. Error: %s", result.stderr)
         raise subprocess.CalledProcessError(result.returncode, cmd, result.stdout, result.stderr)
 
-    # Parse submission id from output, e.g., "Job 'raysubmit_XXXX' submitted successfully"
-    submission_id = None
-    m = re.search(r"Job '([A-Za-z0-9_]+)' submitted successfully", result.stdout)
-    if m:
-        submission_id = m.group(1)
-    else:
-        m = re.search(r"(raysubmit_[A-Za-z0-9]+)", result.stdout)
-        if m:
-            submission_id = m.group(1)
-
-    if not submission_id:
-        raise RuntimeError(f"Could not parse Ray submission id from output: {result.stdout}\n{result.stderr}")
-
-    # Poll for completion within the provided timeout
-    deadline = time.time() + timeout
-    status_cmd = ["ray", "job", "status", submission_id]
-    while time.time() < deadline:
-        status_res = subprocess.run(status_cmd, capture_output=True, text=True, timeout=30)
-        status_text = (status_res.stdout or "").upper()
-        if "SUCCEEDED" in status_text:
-            time.sleep(10)
-            return result
-        if "FAILED" in status_text or "STOPPED" in status_text:
-            # Print status output to help diagnose failures
-            if status_res.stdout:
-                print("\n[ray job status stdout]\n" + status_res.stdout)
-            if status_res.stderr:
-                print("\n[ray job status stderr]\n" + status_res.stderr)
-            time.sleep(10)
-            raise subprocess.CalledProcessError(1, status_cmd, status_res.stdout, status_res.stderr)
-        time.sleep(1)
-
-    # Timed out waiting for job completion
-    raise subprocess.TimeoutExpired(status_cmd, timeout)
+    return result
 
 
 RAY_SNAPSHOT_IGNORES = [
@@ -149,31 +101,11 @@ class TestRayIntegration(TracerTestCase):
 
         super(TestRayIntegration, cls).tearDownClass()
 
-    @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_simple_task", ignores=RAY_SNAPSHOT_IGNORES)
-    def test_simple_task(self):
-        submit_ray_job("jobs/simple_task.py")
-
-    @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_nested_tasks", ignores=RAY_SNAPSHOT_IGNORES)
-    def test_nested_tasks(self):
-        submit_ray_job("jobs/nested_tasks.py")
-
-    @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_simple_actor", ignores=RAY_SNAPSHOT_IGNORES)
-    def test_simple_actor(self):
-        submit_ray_job("jobs/simple_actor.py")
-
-    @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_actor_and_task", ignores=RAY_SNAPSHOT_IGNORES)
-    def test_actor_and_task(self):
-        submit_ray_job("jobs/actor_and_task.py")
-
-    @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_actor_interactions", ignores=RAY_SNAPSHOT_IGNORES)
-    def test_actor_interactions(self):
-        submit_ray_job("jobs/actor_interactions.py")
+    @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_combined_job", ignores=RAY_SNAPSHOT_IGNORES)
+    def test_combined_job(self):
+        submit_ray_job("jobs/combined_job.py")
 
     @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.error_in_task", ignores=RAY_SNAPSHOT_IGNORES)
     def test_error_in_task(self):
         with pytest.raises(subprocess.CalledProcessError):
             submit_ray_job("jobs/error_in_task.py")
-
-    @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_simple_wait", ignores=RAY_SNAPSHOT_IGNORES)
-    def test_simple_wait(self):
-        submit_ray_job("jobs/simple_wait.py")
