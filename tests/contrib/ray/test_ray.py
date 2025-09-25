@@ -1,39 +1,7 @@
-import logging
-import os
 import subprocess
-
 import pytest
-
+import ray
 from tests.utils import TracerTestCase
-
-
-def submit_ray_job(script_name, timeout=120):
-    """
-    Submit a Ray job
-
-    Args:
-        script_name (str): Name of the script file (without path)
-        timeout (int): Timeout for job submission in seconds
-    Returns:
-        subprocess.CompletedProcess: Result of the job submission command
-    """
-    script_path = os.path.join(os.path.dirname(__file__), script_name)
-
-    if not os.path.exists(script_path):
-        raise FileNotFoundError(f"Script not found: {script_path}")
-
-    cmd = ["ray", "job", "submit", "--", "python", script_path]
-
-    print(f"\n{' '.join(cmd)}\n")
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-    print(result.stdout)
-
-    if result.returncode != 0:
-        logging.error("Failed to submit Ray job. Error: %s", result.stderr)
-        raise subprocess.CalledProcessError(result.returncode, cmd, result.stdout, result.stderr)
-
-    return result
-
 
 RAY_SNAPSHOT_IGNORES = [
     # Ray-specific dynamic values that change between runs
@@ -65,47 +33,186 @@ RAY_SNAPSHOT_IGNORES = [
 class TestRayIntegration(TracerTestCase):
     """Test Ray integration with actual cluster setup and job submission"""
 
-    @classmethod
-    def setUpClass(cls):
-        super(TestRayIntegration, cls).setUpClass()
-        try:
-            # Start the ray cluster once for all tests
-            env = os.environ.copy()
-            env["RAY_memory_monitor_refresh_ms"] = "0"
-            subprocess.run(
-                [
-                    "ray",
-                    "start",
-                    "--head",
-                    "--dashboard-host=127.0.0.1",
-                    "--port=0",
-                    "--tracing-startup-hook=ddtrace.contrib.ray:setup_tracing",
-                ],
-                capture_output=True,
-                text=True,
-                check=True,
-                env=env,
-            )
-        except subprocess.CalledProcessError as e:
-            pytest.skip(f"Failed to start Ray cluster: {e.stderr}")
-        except Exception as e:
-            pytest.skip(f"Failed to wait for Ray cluster readiness: {e}")
+    @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_simple_task", ignores=RAY_SNAPSHOT_IGNORES)
+    def test_simple_task(self):
+        ray.init(_tracing_startup_hook="ddtrace.contrib.ray:setup_tracing", local_mode=True)
 
-    @classmethod
-    def tearDownClass(cls):
-        try:
-            # Stop the ray cluster once after all tests
-            subprocess.run(["ray", "stop", "--force"], capture_output=True, check=False)
-        except FileNotFoundError:
-            pass
+        @ray.remote
+        def add_one(x):
+            return x + 1
 
-        super(TestRayIntegration, cls).tearDownClass()
 
-    @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_combined_job", ignores=RAY_SNAPSHOT_IGNORES)
-    def test_combined_job(self):
-        submit_ray_job("jobs/combined_job.py")
+        futures = [add_one.remote(i) for i in range(4)]
+        results = ray.get(futures)
+        assert results == [1, 2, 3, 4], f"Unexpected results: {results}"
 
-    @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.error_in_task", ignores=RAY_SNAPSHOT_IGNORES)
-    def test_error_in_task(self):
-        with pytest.raises(subprocess.CalledProcessError):
-            submit_ray_job("jobs/error_in_task.py")
+        ray.shutdown()
+
+    @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_simple_actor", ignores=RAY_SNAPSHOT_IGNORES)
+    def test_simple_actor(self):
+        ray.init(_tracing_startup_hook="ddtrace.contrib.ray:setup_tracing", local_mode=True)
+        @ray.remote
+        class Counter:
+            def __init__(self):
+                self.value = 0
+
+            def increment(self):
+                self.value += 1
+                return self.value
+
+            def get_value(self):
+                return self.value
+
+            def increment_and_get(self):
+                self.increment()
+                return self.get_value()
+
+            def increment_get_and_double(self):
+                value = self.increment_and_get()
+                return value * 2
+
+
+        counter_actor = Counter.remote()
+        current_value = ray.get(counter_actor.increment_get_and_double.remote())
+
+        assert current_value == 2, f"Unexpected result: {current_value}"
+        ray.shutdown()
+
+    @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_nested_tasks", ignores=RAY_SNAPSHOT_IGNORES)
+    def test_nested_tasks(self):
+        ray.init(_tracing_startup_hook="ddtrace.contrib.ray:setup_tracing", local_mode=True)
+
+        @ray.remote
+        def add_one(x):
+            return x + 1
+
+        @ray.remote
+        def submit_addition_task(x):
+            futures = add_one.remote(x+1)
+            return ray.get(futures)
+
+        future = submit_addition_task.remote(2)
+        results = ray.get(future)
+        assert results == 3, f"Unexpected results: {results}"
+
+        ray.shutdown()
+
+    @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_actor_and_task", ignores=RAY_SNAPSHOT_IGNORES)
+    def test_actor_and_task(self):
+        ray.init(_tracing_startup_hook="ddtrace.contrib.ray:setup_tracing", local_mode=True)
+
+        @ray.remote
+        def compute_value(x):
+            return x + 1
+
+        @ray.remote
+        def batch_compute(values):
+            futures = [compute_value.remote(val) for val in values]
+            return ray.get(futures)
+
+        @ray.remote
+        class ComputationManager:
+            def __init__(self):
+                self.computation_count = 0
+                self.results = []
+
+            def increment_count(self):
+                self.computation_count += 1
+                return self.computation_count
+
+            def get_count(self):
+                return self.computation_count
+
+            def add_result(self, result):
+                self.results.append(result)
+                return len(self.results)
+
+            def get_results(self):
+                return self.results
+
+            def compute_and_store(self, values):
+                self.increment_count()
+
+                future = batch_compute.remote(values)
+                results = ray.get(future)
+
+                for result in results:
+                    self.add_result(result)
+
+                return {"computation_count": self.get_count(), "results": set(results), "total_stored": len(self.get_results())}
+
+
+        manager = ComputationManager.remote()
+        result = ray.get(manager.compute_and_store.remote([2, 3, 4]))
+        assert result == {
+            "computation_count": 1,
+            "results": {3, 4, 5},
+            "total_stored": 3,
+        }, f"Unexpected results: {result['results']}"
+
+
+        ray.shutdown()
+
+
+    @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_actor_interactions", ignores=RAY_SNAPSHOT_IGNORES)
+    def test_actor_interactions(self):
+        ray.init(_tracing_startup_hook="ddtrace.contrib.ray:setup_tracing", local_mode=True)
+        @ray.remote
+        class Sender:
+            def __init__(self):
+                self.sent_count = 0
+
+            def send_message(self, receiver, message):
+                self.sent_count += 1
+                future = receiver.receive_message.remote(message)
+                return ray.get(future)
+
+            def get_sent_count(self):
+                return self.sent_count
+
+
+        @ray.remote
+        class Receiver:
+            def __init__(self):
+                self.received_messages = []
+
+            def receive_message(self, message):
+                self.received_messages.append(message)
+                return f"received: {message}"
+
+            def get_messages(self):
+                return self.received_messages
+
+
+        @ray.remote
+        def run_test():
+            sender = Sender.remote()
+            receiver = Receiver.remote()
+
+            result = ray.get(sender.send_message.remote(receiver, "hello"))
+            sent_count = ray.get(sender.get_sent_count.remote())
+            messages = ray.get(receiver.get_messages.remote())
+            return result, sent_count, messages
+
+        result, sent_count, messages = ray.get(run_test.remote())
+
+        assert result == "received: hello"
+        assert sent_count == 1
+        assert messages == ["hello"]
+
+        ray.shutdown()
+
+    @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_simple_wait", ignores=RAY_SNAPSHOT_IGNORES)
+    def test_simple_wait(self):
+        ray.init(_tracing_startup_hook="ddtrace.contrib.ray:setup_tracing", local_mode=True)
+
+        @ray.remote
+        def add_one(x):
+            return x + 1
+
+        done, running = ray.wait([add_one.remote(42)], num_returns=1, timeout=60)
+        assert running == [], f"Expected no running tasks, got {len(running)}"
+        assert ray.get(done) == [43], f"Expected done to be [43], got {done}"
+
+        ray.shutdown()
+
