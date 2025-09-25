@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+
 import vllm
 from vllm.engine.arg_utils import AsyncEngineArgs
 
@@ -34,6 +35,7 @@ def get_cached_llm(model: str, *, engine_mode: str = "0", **kwargs):
       - unset/empty: default behavior (enabled locally, disabled on CI)
       - "1"/"true"/"True": disable cache
     """
+
     def _cache_enabled() -> bool:
         flag = os.getenv("DD_VLLM_DISABLE_CACHE")
         if flag is not None:
