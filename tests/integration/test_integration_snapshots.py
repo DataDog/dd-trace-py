@@ -143,10 +143,6 @@ def test_tracer_trace_across_popen():
 
     from ddtrace import tracer
 
-    # fork is no longer the default in Python 3.14
-    # the new default, forkserver, causes this test to fail
-    multiprocessing.set_start_method("fork")
-
     def task(tracer):
         import ddtrace.auto  # noqa
 
@@ -176,10 +172,6 @@ def test_tracer_trace_across_multiple_popens():
     import multiprocessing
 
     from ddtrace.trace import tracer
-
-    # fork is no longer the default in Python 3.14
-    # the new default, forkserver, causes this test to fail
-    multiprocessing.set_start_method("fork")
 
     def task(tracer):
         import ddtrace.auto  # noqa
