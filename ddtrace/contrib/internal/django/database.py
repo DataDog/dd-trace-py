@@ -11,6 +11,7 @@ from typing import cast
 import wrapt
 
 import ddtrace
+from ddtrace._trace.pin import Pin
 from ddtrace import config
 from ddtrace.contrib import dbapi
 from ddtrace.contrib.internal.trace_utils import _convert_to_string
@@ -24,7 +25,6 @@ from ddtrace.internal.wrapping import is_wrapped_with
 from ddtrace.internal.wrapping import wrap
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.settings.integration import IntegrationConfig
-from ddtrace.trace import Pin
 
 
 log = get_logger(__name__)
