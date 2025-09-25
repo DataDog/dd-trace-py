@@ -38,6 +38,7 @@ from ddtrace.internal.utils.http import FormData
 from ddtrace.internal.utils.http import connector
 from ddtrace.internal.utils.http import multipart
 from ddtrace.internal.utils.inspection import linenos
+from ddtrace.internal.utils.inspection import resolved_code_origin
 from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings.symbol_db import config as symdb_config
@@ -324,7 +325,7 @@ class Scope:
             return None
         data.seen.add(code_id)
 
-        if Path(code.co_filename).resolve() != data.origin:
+        if (code_origin := resolved_code_origin(code)) != data.origin:
             # Comes from another module.
             return None
 
@@ -338,7 +339,7 @@ class Scope:
         return Scope(
             scope_type=ScopeType.CLOSURE,  # DEV: Not in the sense of a Python closure.
             name=code.co_name,
-            source_file=str(Path(code.co_filename).resolve()),
+            source_file=str(code_origin),
             start_line=start_line,
             end_line=end_line,
             symbols=Symbol.from_code(code),
