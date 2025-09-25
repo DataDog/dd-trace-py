@@ -44,4 +44,4 @@ def check_and_report_path_traversal(*args: Any, **kwargs: Any) -> None:
             # Report Telemetry Metrics
             _set_metric_iast_executed_sink(PathTraversal.vulnerability_type)
     except Exception as e:
-        iast_error(f"propagation::sink_point::Error in check_and_report_path_traversal. {e}")
+        iast_error("propagation::sink_point::Error in check_and_report_path_traversal", e)
