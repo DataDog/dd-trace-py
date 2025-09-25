@@ -39,7 +39,7 @@ class TestRayIntegration(TracerTestCase):
     def ray_cluster(self):
         # Configure Ray with minimal resource usage for CI
         ray.init(
-            _tracing_startup_hook="ddtrace.contrib.ray:setup_tracing", 
+            _tracing_startup_hook="ddtrace.contrib.ray:setup_tracing",
             local_mode=True,
             # Limit resources to reduce CI load
             num_cpus=1,
