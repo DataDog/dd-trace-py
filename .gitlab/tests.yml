@@ -124,6 +124,7 @@ include:
     - unset DD_ENV
     - unset DD_TAGS
     - unset DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED
+    - export PYTEST_ADDOPTS="${PYTEST_ADDOPTS} -vv -s -rA"
   script:
     - |
       hashes=( $(.gitlab/scripts/get-riot-hashes.sh "${SUITE_NAME}") )
@@ -186,6 +187,8 @@ include:
     - unset DD_ENV
     - unset DD_TAGS
     - unset DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED
+    - export PYTEST_ADDOPTS="${PYTEST_ADDOPTS} -vv -s -rA"
+    - export VLLM_GPU_MEMORY_UTILIZATION="${VLLM_GPU_MEMORY_UTILIZATION:-0.2}"
   script:
     - |
       hashes=( $(.gitlab/scripts/get-riot-hashes.sh "${SUITE_NAME}") )
