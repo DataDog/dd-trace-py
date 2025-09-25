@@ -393,6 +393,16 @@ integrations:
       min: 20.12.1
       max: 25.5.1
 
+- integration_name: google_adk
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - google-adk
+  tested_versions_by_dependency:
+    google-adk:
+      min: 1.0.0
+      max: 1.14.1
+
 - integration_name: google_genai
   is_external_package: true
   is_tested: true
