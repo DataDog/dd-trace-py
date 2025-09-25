@@ -37,17 +37,12 @@ class ToolDefinition(TypedDict, total=False):
     schema: Dict[str, Any]
 
 
-class MessagePromptTemplate(TypedDict):
-    template: str
-
-
 class Message(TypedDict, total=False):
     id: str
     role: str
     content: str
     tool_calls: List[ToolCall]
     tool_results: List[ToolResult]
-    prompt: MessagePromptTemplate
     tool_id: str
 
 
