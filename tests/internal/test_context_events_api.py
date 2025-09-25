@@ -226,11 +226,11 @@ class TestContextEventsApi(unittest.TestCase):
 
         # We stop after the first exception is raised, on_type_error listeners get called first
         with pytest.raises(TypeError):
-            core.dispatch_with_results("my.cool.event", (1, 2, 3))
+            core.dispatch_with_results("context.started.my.cool.context", (1, 2, 3))
 
         # We stop after the first exception is raised, on_runtime_error listeners get called first
         with pytest.raises(RuntimeError):
-            with core.context_with_data("my.cool.context"):
+            with core.context_with_data("context.ended.my.cool.context"):
                 pass
 
     def test_core_dispatch_context_ended(self):
