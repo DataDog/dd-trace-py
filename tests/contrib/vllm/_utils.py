@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+
 import vllm
 from vllm.engine.arg_utils import AsyncEngineArgs
 
@@ -29,7 +30,7 @@ def get_cached_llm(model: str, *, engine_mode: str = "0", **kwargs):
     runner = kwargs.get("runner")
     key_runner = runner or "generate"
     key = (model, key_runner, engine_mode)
-    
+
     # Skip caching on CI - create fresh LLM instances
     is_ci = os.environ.get("CI") == "true"
     if is_ci:
@@ -37,7 +38,7 @@ def get_cached_llm(model: str, *, engine_mode: str = "0", **kwargs):
         if runner is None and "runner" in llm_kwargs:
             llm_kwargs.pop("runner", None)
         return _create_llm_autotune(model=model, **llm_kwargs)
-    
+
     # Use caching for local development
     llm = _LLM_CACHE.get(key)
     if llm is not None:
