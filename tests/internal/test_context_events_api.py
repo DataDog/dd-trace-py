@@ -215,22 +215,24 @@ class TestContextEventsApi(unittest.TestCase):
         def on_type_error(*_):
             raise TypeError("OH NO!")
 
+        # Register 2 listeners for 1 event, the first one gets called first
         core.on("my.cool.event", on_runtime_error)
+        core.on("my.cool.event", on_type_error)
+
         core.on("context.started.my.cool.context", on_type_error)
-        core.on("context.started.my.cool.context", on_runtime_error)
         core.on("context.ended.my.cool.context", on_runtime_error)
-        core.on("context.ended.my.cool.context", on_type_error)
-
-        with pytest.raises(RuntimeError):
-            core.dispatch("my.cool.event", (1, 2, 3))
-
-        # We stop after the first exception is raised, on_type_error listeners get called first
-        with pytest.raises(TypeError):
-            core.dispatch_with_results("context.started.my.cool.context", (1, 2, 3))
 
         # We stop after the first exception is raised, on_runtime_error listeners get called first
         with pytest.raises(RuntimeError):
-            with core.context_with_data("context.ended.my.cool.context"):
+            core.dispatch("my.cool.event", (1, 2, 3))
+
+        # We stop after the first exception is raised, on_runtime_error listeners get called first
+        with pytest.raises(RuntimeError):
+            core.dispatch_with_results("my.cool.event", (1, 2, 3))
+
+        # We stop after the first exception raised, which is the context started event
+        with pytest.raises(TypeError):
+            with core.context_with_data("my.cool.context"):
                 pass
 
     def test_core_dispatch_context_ended(self):
