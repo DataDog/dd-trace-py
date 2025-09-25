@@ -108,12 +108,12 @@ from ddtrace.llmobs._writer import LLMObsExperimentsClient
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs._writer import should_use_agentless
-from ddtrace.llmobs.types import _ErrorField
 from ddtrace.llmobs.types import ExportedLLMObsSpan
 from ddtrace.llmobs.types import Message
+from ddtrace.llmobs.types import Prompt
+from ddtrace.llmobs.types import _ErrorField
 from ddtrace.llmobs.types import _Meta
 from ddtrace.llmobs.types import _MetaIO
-from ddtrace.llmobs.types import Prompt
 from ddtrace.llmobs.types import _SpanField
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import Messages

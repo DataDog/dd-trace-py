@@ -18,8 +18,8 @@ from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._writer import LLMObsSpanEvent
-from ddtrace.llmobs.types import _ErrorField
 from ddtrace.llmobs.types import Message
+from ddtrace.llmobs.types import _ErrorField
 from ddtrace.llmobs.types import _Meta
 from ddtrace.llmobs.types import _MetaIO
 from ddtrace.llmobs.types import _SpanField

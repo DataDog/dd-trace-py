@@ -44,8 +44,8 @@ from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import Message
-from ddtrace.llmobs.types import _SpanLink
 from ddtrace.llmobs.types import ToolCall
+from ddtrace.llmobs.types import _SpanLink
 from ddtrace.trace import Span
 
 
