@@ -41,7 +41,6 @@ include:
     CMAKE_BUILD_PARALLEL_LEVEL = "12"
     CARGO_BUILD_JOBS = "12"
     DD_FAST_BUILD = "1"
-    # Ensure CUDA-enabled Torch wheels resolve on GPU runners (CUDA 12.4)
     PIP_EXTRA_INDEX_URL: "https://download.pytorch.org/whl/cu124"
 
 
@@ -100,7 +99,6 @@ include:
     CMAKE_BUILD_PARALLEL_LEVEL = "12"
     CARGO_BUILD_JOBS = "12"
     DD_FAST_BUILD = "1"
-    # Ensure CUDA-enabled Torch wheels resolve on GPU runners (CUDA 12.4)
     PIP_EXTRA_INDEX_URL: "https://download.pytorch.org/whl/cu124"
 
 .test_base_hatch_gpu_snapshot:
