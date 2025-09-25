@@ -1,4 +1,3 @@
-import asyncio
 import io
 import json
 from typing import Any
@@ -171,6 +170,8 @@ def _on_lambda_parse_body(
 
 async def _on_asgi_request_parse_body(receive, headers):
     if asm_config._asm_enabled:
+        # This must not be imported globally due to 3rd party patching timeline
+        import asyncio
         more_body = True
         body_parts = []
         try:

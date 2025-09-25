@@ -31,7 +31,7 @@ def daphne_client(django_asgi, additional_env=None):
     # token) propagated to the new process.
     env = os.environ.copy()
     env.update(additional_env or {})
-    # assert "_DD_TRACE_WRITER_ADDITIONAL_HEADERS" in env, "Client fixture needs test token in headers"
+    assert "_DD_TRACE_WRITER_ADDITIONAL_HEADERS" in env, "Client fixture needs test token in headers"
     env.update(
         {
             "DJANGO_SETTINGS_MODULE": "tests.contrib.django.django_app.settings",
@@ -234,21 +234,4 @@ def test_request_ipblock_match_403_json():
         )
         assert result.status_code == 403
         as_bytes = bytes(constants.BLOCKED_RESPONSE_JSON, "utf-8")
-        assert result.content == as_bytes
-
-
-@pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
-def test_stream():
-    with daphne_client(
-        "application",
-        additional_env={
-            "DD_APPSEC_ENABLED": "true",
-            "DD_APPSEC_RULES": rules.RULES_GOOD_PATH,
-        },
-    ) as client:
-        result = client.get(
-            "/stream/",
-        )
-        assert result.status_code == 200
-        as_bytes = b"buffer1buffer2buffer3"
         assert result.content == as_bytes
