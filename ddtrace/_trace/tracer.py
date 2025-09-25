@@ -20,6 +20,7 @@ from ddtrace._trace.processor import SpanAggregator
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.processor import TopLevelSpanProcessor
 from ddtrace._trace.processor import TraceProcessor
+from ddtrace._trace.processor.resource_renaming import ResourceRenamingProcessor
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace._trace.span import Span
@@ -73,6 +74,9 @@ def _default_span_processors_factory(
     """Construct the default list of span processors to use."""
     span_processors: List[SpanProcessor] = []
     span_processors += [TopLevelSpanProcessor()]
+
+    if config._trace_resource_renaming_enabled:
+        span_processors.append(ResourceRenamingProcessor())
 
     # When using the NativeWriter stats are computed by the native code.
     if config._trace_compute_stats and not config._trace_writer_native:

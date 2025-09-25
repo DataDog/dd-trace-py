@@ -3,7 +3,7 @@ from typing import Text
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
-from ddtrace.appsec._iast._logs import iast_error
+from ddtrace.appsec._iast._logs import iast_propagation_sink_point_debug_log
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec._iast._patch_modules import WrapFunctonsForIAST
@@ -106,4 +106,4 @@ def _iast_report_xss(code_string: Text):
             # Report Telemetry Metrics
             _set_metric_iast_executed_sink(XSS.vulnerability_type)
     except Exception as e:
-        iast_error(f"propagation::sink_point::Error in _iast_report_xss. {e}")
+        iast_propagation_sink_point_debug_log(f"propagation::sink_point::Error in _iast_report_xss. {e}")

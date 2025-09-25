@@ -103,4 +103,4 @@ def _iast_report_unvalidated_redirect(headers):
             # Report Telemetry Metrics
             _set_metric_iast_executed_sink(UnvalidatedRedirect.vulnerability_type)
         except Exception as e:
-            iast_error(f"propagation::sink_point::Error in _iast_report_unvalidated_redirect. {e}")
+            iast_error("propagation::sink_point::Error in _iast_report_unvalidated_redirect", e)
