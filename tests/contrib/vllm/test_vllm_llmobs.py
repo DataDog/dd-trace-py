@@ -268,7 +268,7 @@ async def test_stream_cancel_early_break_v1(vllm, mock_tracer, monkeypatch, llmo
 async def test_stream_cancel_early_break_v0_mq(vllm, mock_tracer, monkeypatch, llmobs_events):
     monkeypatch.setenv("VLLM_USE_V1", "0")
     monkeypatch.delenv("PROMETHEUS_MULTIPROC_DIR", raising=False)
-    
+
     from vllm.engine.arg_utils import AsyncEngineArgs
     from vllm.entrypoints.openai.api_server import build_async_engine_client_from_engine_args
     from vllm.usage.usage_lib import UsageContext
