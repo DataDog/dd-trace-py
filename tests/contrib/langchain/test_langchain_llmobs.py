@@ -706,9 +706,9 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
 
     @run_in_subprocess(env_overrides=openai_env_config)
     def test_llmobs_langchain_with_embedding_model_openai_enabled(self):
-        from langchain_openai import OpenAIEmbeddings
-
         patch(openai=True, langchain=True)
+
+        from langchain_openai import OpenAIEmbeddings
 
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
         self._call_openai_embedding(OpenAIEmbeddings)
@@ -716,9 +716,10 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
 
     @run_in_subprocess(env_overrides=openai_env_config)
     def test_llmobs_langchain_with_embedding_model_openai_disabled(self):
+        patch(langchain=True)
+
         from langchain_openai import OpenAIEmbeddings
 
-        patch(langchain=True)
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
         self._call_openai_embedding(OpenAIEmbeddings)
         self._assert_trace_structure_from_writer_call_args(["embedding"])

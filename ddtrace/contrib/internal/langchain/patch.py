@@ -581,32 +581,36 @@ def traced_similarity_search(langchain_core, pin, func, instance, args, kwargs):
     return documents
 
 
-@with_traced_module
-def patched_embeddings_init_subclass(langchain_core, pin, func, instance, args, kwargs):
+def patched_embeddings_init_subclass(func, instance, args, kwargs):
     try:
         func(*args, **kwargs)
     finally:
         cls = func.__self__
 
-        embed_documents = getattr(cls, "embed_documents", None)
-        if embed_documents and not isinstance(embed_documents, wrapt.ObjectProxy):
-            wrap(cls, "embed_documents", traced_embedding(langchain_core))
+        classes_to_patch = [cls] if cls != langchain_core.embeddings.Embeddings else cls.__subclasses__()
 
-        embed_query = getattr(cls, "embed_query", None)
-        if embed_query and not isinstance(embed_query, wrapt.ObjectProxy):
-            wrap(cls, "embed_query", traced_embedding(langchain_core))
+        for target_cls in classes_to_patch:
+            embed_documents = getattr(target_cls, "embed_documents", None)
+            if embed_documents and not isinstance(embed_documents, wrapt.ObjectProxy):
+                wrap(target_cls, "embed_documents", traced_embedding(langchain_core))
+
+            embed_query = getattr(target_cls, "embed_query", None)
+            if embed_query and not isinstance(embed_query, wrapt.ObjectProxy):
+                wrap(target_cls, "embed_query", traced_embedding(langchain_core))
 
 
-@with_traced_module
-def patched_vectorstore_init_subclass(langchain_core, pin, func, instance, args, kwargs):
+def patched_vectorstore_init_subclass(func, instance, args, kwargs):
     try:
         func(*args, **kwargs)
     finally:
         cls = func.__self__
 
-        similarity_search = getattr(cls, "similarity_search", None)
-        if similarity_search and not isinstance(similarity_search, wrapt.ObjectProxy):
-            wrap(cls, "similarity_search", traced_similarity_search(langchain_core))
+        classes_to_patch = [cls] if cls != langchain_core.vectorstores.base.VectorStore else cls.__subclasses__()
+
+        for target_cls in classes_to_patch:
+            method = getattr(target_cls, "similarity_search", None)
+            if method and not isinstance(method, wrapt.ObjectProxy):
+                wrap(target_cls, "similarity_search", traced_similarity_search(langchain_core))
 
 
 def patch():
@@ -654,8 +658,8 @@ def patch():
     wrap(BaseTool, "invoke", traced_base_tool_invoke(langchain_core))
     wrap(BaseTool, "ainvoke", traced_base_tool_ainvoke(langchain_core))
 
-    wrap(Embeddings, "__init_subclass__", patched_embeddings_init_subclass(langchain_core))
-    wrap(VectorStore, "__init_subclass__", patched_vectorstore_init_subclass(langchain_core))
+    wrap(Embeddings, "__init_subclass__", patched_embeddings_init_subclass)
+    wrap(VectorStore, "__init_subclass__", patched_vectorstore_init_subclass)
 
     core.dispatch("langchain.patch", tuple())
 
