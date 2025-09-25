@@ -1,7 +1,6 @@
 import threading
 from time import sleep
 from typing import Any
-from typing import List
 import unittest
 
 import mock
