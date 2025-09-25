@@ -35,7 +35,7 @@ RAY_SNAPSHOT_IGNORES = [
 class TestRayIntegration(TracerTestCase):
     """Test Ray integration with actual cluster setup and job submission"""
 
-    @pytest.fixture(autouse=True)
+    @pytest.fixture(autouse=True, scope="class")
     def ray_cluster(self):
         ray.init(_tracing_startup_hook="ddtrace.contrib.ray:setup_tracing", local_mode=True)
         tracing_helper._global_is_tracing_enabled = False
