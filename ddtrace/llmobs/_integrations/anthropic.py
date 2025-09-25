@@ -70,7 +70,7 @@ class AnthropicIntegration(BaseLLMIntegration):
             span._set_ctx_item(TOOL_DEFINITIONS, tools)
         messages = kwargs.get("messages")
         system_prompt = kwargs.get("system")
-        input_messages = self._extract_input_message(messages, system_prompt)
+        input_messages = self._extract_input_message(list(messages) if messages else [], system_prompt)
 
         output_messages: List[Message] = [Message(content="")]
         if not span.error and response is not None:
@@ -94,7 +94,7 @@ class AnthropicIntegration(BaseLLMIntegration):
         update_proxy_workflow_input_output_value(span, span_kind)
 
     def _extract_input_message(
-        self, messages: Iterable[Dict[str, Any]], system_prompt: Optional[Union[str, List[Dict[str, Any]]]] = None
+        self, messages: List[Dict[str, Any]], system_prompt: Optional[Union[str, List[Dict[str, Any]]]] = None
     ) -> List[Message]:
         """Extract input messages from the stored prompt.
         Anthropic allows for messages and multiple texts in a message, which requires some special casing.

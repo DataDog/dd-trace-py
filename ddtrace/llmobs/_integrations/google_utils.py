@@ -324,7 +324,7 @@ def get_system_instructions_gemini_vertexai(model_instance):
     return system_instructions
 
 
-def extract_messages_from_adk_events(events) -> List[Dict[str, Any]]:
+def extract_messages_from_adk_events(events) -> List[Message]:
     """
     Extract messages from Google ADK Event objects.
 
