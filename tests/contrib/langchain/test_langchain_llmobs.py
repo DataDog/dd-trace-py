@@ -11,6 +11,7 @@ from ddtrace import patch
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs
 from ddtrace.trace import Span
+
 # from tests.contrib.langchain.utils import mock_langchain_chat_generate_response
 # from tests.contrib.langchain.utils import mock_langchain_llm_generate_response
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
@@ -115,7 +116,9 @@ def test_llmobs_openai_chat_model_no_usage(langchain_core, langchain_openai, llm
         pytest.skip("langchain-openai <0.2.0 does not support stream_usage=False")
     chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url=openai_url, stream_usage=False)
 
-    response = chat_model.stream([langchain_core.messages.HumanMessage(content="When do you use 'who' instead of 'whom'?")])
+    response = chat_model.stream(
+        [langchain_core.messages.HumanMessage(content="When do you use 'who' instead of 'whom'?")]
+    )
     for _ in response:
         pass
 

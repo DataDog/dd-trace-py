@@ -1,7 +1,6 @@
 import importlib
 from operator import itemgetter
 
-import mock
 import pytest
 
 from ddtrace.internal.utils.version import parse_version
@@ -300,7 +299,7 @@ def test_lcel_with_tools_openai(langchain_core, langchain_openai, openai_url):
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_lcel_with_tools_anthropic(langchain_core, langchain_anthropic, anthropic_url):
     if parse_version(importlib.metadata.version("langchain_anthropic")) < (0, 2, 0):
-        pytest.skip("langchain-anthropic <0.2.0 does not support tools outside of a beta function")\
+        pytest.skip("langchain-anthropic <0.2.0 does not support tools outside of a beta function")
 
     @langchain_core.tools.tool
     def add(a: int, b: int) -> int:
@@ -497,7 +496,6 @@ async def test_base_tool_ainvoke(langchain_core):
         pytest.skip("langchain-core not installed which is required for this test.")
 
     from math import pi
-
 
     def circumference_tool(radius: float) -> float:
         return float(radius) * 2.0 * pi
