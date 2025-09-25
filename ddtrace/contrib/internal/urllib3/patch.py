@@ -1,11 +1,10 @@
 import os
+import sys
 from typing import Dict
-from urllib import parse
 
-import urllib3
 from wrapt import wrap_function_wrapper as _w
 
-from ddtrace import config
+from ddtrace import config as global_config
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -28,44 +27,41 @@ from ddtrace.settings.asm import config as asm_config
 DROP_PORTS = (80, 443)
 
 # Initialize the default config vars
-config._add(
-    "urllib3",
-    {
-        "_default_service": schematize_service_name("urllib3"),
-        "distributed_tracing": asbool(os.getenv("DD_URLLIB3_DISTRIBUTED_TRACING", default=True)),
-        "default_http_tag_query_string": config._http_client_tag_query_string,
-        "split_by_domain": asbool(os.getenv("DD_URLLIB3_SPLIT_BY_DOMAIN", default=False)),
-    },
-)
+__config__ = {
+    "_default_service": schematize_service_name("urllib3"),
+    "distributed_tracing": asbool(os.getenv("DD_URLLIB3_DISTRIBUTED_TRACING", default=True)),
+    "default_http_tag_query_string": global_config._http_client_tag_query_string,
+    "split_by_domain": asbool(os.getenv("DD_URLLIB3_SPLIT_BY_DOMAIN", default=False)),
+}
 
 
-def get_version():
-    # type: () -> str
-    return getattr(urllib3, "__version__", "")
+def get_version() -> str:
+    try:
+        return getattr(sys.modules["urllib3"], "__version__", "")
+    except KeyError:
+        return ""
 
 
 def _supported_versions() -> Dict[str, str]:
     return {"urllib3": ">=1.25.0"}
 
 
-def patch():
-    """Enable tracing for all urllib3 requests"""
-    if getattr(urllib3, "__datadog_patch", False):
-        return
-    urllib3.__datadog_patch = True
+def patch_connectionpool(module):
+    _w(module, "HTTPConnectionPool.urlopen", _wrap_urlopen)
 
-    _w("urllib3", "connectionpool.HTTPConnectionPool.urlopen", _wrap_urlopen)
     if asm_config._load_modules:
-        from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_request
         from ddtrace.appsec._common_module_patches import wrapped_urllib3_make_request as _make_request
 
-        _w("urllib3.connectionpool", "HTTPConnectionPool._make_request", _make_request)
-        if hasattr(urllib3, "_request_methods"):
-            _w("urllib3._request_methods", "RequestMethods.request", _wrap_request)
-        else:
-            # Old version before https://github.com/urllib3/urllib3/pull/2398
-            _w("urllib3.request", "RequestMethods.request", _wrap_request)
-    Pin().onto(urllib3.connectionpool.HTTPConnectionPool)
+        _w(module, "HTTPConnectionPool._make_request", _make_request)
+
+    Pin().onto(module.HTTPConnectionPool)
+
+
+def patch_request(module):
+    if asm_config._load_modules:
+        from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_request
+
+        _w(module, "RequestMethods.request", _wrap_request)
 
     if asm_config._iast_enabled:
         from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
@@ -74,12 +70,31 @@ def patch():
         _set_metric_iast_instrumented_sink(VULN_SSRF)
 
 
+def patch_request_methods(module):
+    if asm_config._load_modules:
+        from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_request
+
+        _w(module, "RequestMethods.request", _wrap_request)
+
+    if asm_config._iast_enabled:
+        from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
+        from ddtrace.appsec._iast.constants import VULN_SSRF
+
+        _set_metric_iast_instrumented_sink(VULN_SSRF)
+
+
+__targets__ = {
+    "urllib3.connectionpool": patch_connectionpool,
+    "urllib3._request_methods": patch_request_methods,
+    "urllib3.request": patch_request,  # Old version before https://github.com/urllib3/urllib3/pull/2398
+}
+__requires__ = []
+
+
 def unpatch():
     """Disable trace for all urllib3 requests"""
-    if getattr(urllib3, "__datadog_patch", False):
-        urllib3.__datadog_patch = False
-
-        _u(urllib3.connectionpool.HTTPConnectionPool, "urlopen")
+    if (module := sys.modules.get("urllib3.connectionpool")) is not None:
+        _u(module.HTTPConnectionPool, "urlopen")
 
 
 def _wrap_urlopen(func, instance, args, kwargs):
@@ -92,6 +107,8 @@ def _wrap_urlopen(func, instance, args, kwargs):
     :param kwargs: Keyword arguments from the target function
     :return: The ``HTTPResponse`` from the target function
     """
+    from urllib import parse
+
     request_method = get_argument_value(args, kwargs, 0, "method")
     request_url = get_argument_value(args, kwargs, 1, "url")
     try:
@@ -104,7 +121,7 @@ def _wrap_urlopen(func, instance, args, kwargs):
         request_retries = None
 
     # HTTPConnectionPool allows relative path requests; convert the request_url to an absolute url
-    if request_url.startswith("/"):
+    if isinstance(request_url, str) and request_url.startswith("/"):
         request_url = parse.urlunparse(
             (
                 instance.scheme,
@@ -127,25 +144,25 @@ def _wrap_urlopen(func, instance, args, kwargs):
 
     with pin.tracer.trace(
         schematize_url_operation("urllib3.request", protocol="http", direction=SpanDirection.OUTBOUND),
-        service=trace_utils.ext_service(pin, config.urllib3),
+        service=trace_utils.ext_service(pin, global_config.urllib3),
         span_type=SpanTypes.HTTP,
     ) as span:
-        span.set_tag_str(COMPONENT, config.urllib3.integration_name)
+        span.set_tag_str(COMPONENT, global_config.urllib3.integration_name)
 
         # set span.kind to the type of operation being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-        if config.urllib3.split_by_domain:
+        if global_config.urllib3.split_by_domain:
             span.service = hostname
 
         # If distributed tracing is enabled, propagate the tracing headers to downstream services
-        if config.urllib3.distributed_tracing:
+        if global_config.urllib3.distributed_tracing:
             if request_headers is None:
                 request_headers = {}
                 kwargs["headers"] = request_headers
             HTTPPropagator.inject(span.context, request_headers)
 
-        retries = request_retries.total if isinstance(request_retries, urllib3.util.retry.Retry) else None
+        retries = getattr(request_retries, "total", None)
 
         # Call the target function
         response = None
@@ -154,7 +171,7 @@ def _wrap_urlopen(func, instance, args, kwargs):
         finally:
             trace_utils.set_http_meta(
                 span,
-                integration_config=config.urllib3,
+                integration_config=global_config.urllib3,
                 method=request_method,
                 url=request_url,
                 target_host=instance.host,

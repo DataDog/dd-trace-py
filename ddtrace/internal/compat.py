@@ -1,7 +1,10 @@
+from importlib.metadata import EntryPoint
+from importlib.metadata import entry_points as _entry_points
 import ipaddress
 import sys
 from types import TracebackType
 from typing import Any
+from typing import List
 from typing import Optional  # noqa:F401
 from typing import Text  # noqa:F401
 from typing import Tuple  # noqa:F401
@@ -126,3 +129,14 @@ def __getattr__(name: str) -> Any:
         return globals()[name]
     except KeyError:
         raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+
+
+if PYTHON_VERSION_INFO >= (3, 10):
+
+    def entry_points(group: str) -> List[EntryPoint]:
+        return list(_entry_points(group=group))
+
+else:
+
+    def entry_points(group: str) -> List[EntryPoint]:
+        return [ep for _, eps in _entry_points().items() for ep in eps if ep.group == group]

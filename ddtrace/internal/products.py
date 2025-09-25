@@ -1,13 +1,12 @@
 import atexit
 from collections import defaultdict
 from collections import deque
-from importlib.metadata import entry_points
 from itertools import chain
-import sys
 import typing as t
 from typing import Protocol  # noqa:F401
 
 from ddtrace.internal import forksafe
+from ddtrace.internal.compat import entry_points
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry import report_configuration
 from ddtrace.internal.telemetry import telemetry_writer
@@ -19,17 +18,6 @@ from ddtrace.settings._core import DDConfig
 
 
 log = get_logger(__name__)
-
-
-if sys.version_info >= (3, 10):
-
-    def get_product_entry_points() -> t.List[t.Any]:
-        return list(entry_points(group="ddtrace.products"))
-
-else:
-
-    def get_product_entry_points() -> t.List[t.Any]:
-        return [ep for _, eps in entry_points().items() for ep in eps if ep.group == "ddtrace.products"]
 
 
 class Product(Protocol):
@@ -59,7 +47,7 @@ class ProductManager:
         self._failed: t.Set[str] = set()
 
     def _load_products(self) -> None:
-        for product_plugin in get_product_entry_points():
+        for product_plugin in entry_points("ddtrace.products"):
             name = product_plugin.name
             log.debug("Discovered product plugin '%s'", name)
 

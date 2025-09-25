@@ -2,13 +2,21 @@ import importlib
 import os
 from types import ModuleType
 from typing import TYPE_CHECKING  # noqa:F401
+from typing import Any
+from typing import Callable
+from typing import Dict  # noqa:F401
+from typing import List
+from typing import Protocol  # noqa:F401
 from typing import Set
 from typing import Union
+from typing import cast  # noqa:F401
 
 from wrapt.importer import when_imported
 
 from ddtrace.appsec._listeners import load_common_appsec_modules
 from ddtrace.internal.compat import Path
+from ddtrace.internal.compat import entry_points
+from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.settings._config import config
 from ddtrace.vendor.debtcollector import deprecate
@@ -82,7 +90,6 @@ PATCH_MODULES = {
     "aiopg": True,
     "aiobotocore": False,
     "httplib": False,
-    "urllib3": False,
     "vertexai": True,
     "vertica": True,
     "molten": True,
@@ -342,6 +349,13 @@ def patch_all(**patch_modules: bool) -> None:
     _patch_all(**patch_modules)
 
 
+class IntegrationModule(Protocol):
+    __targets__: Dict[str, Callable[[ModuleType], None]]
+    __requires__: List[str]
+    __config__: Dict[str, Any]
+    unpatch: Callable[[], None]
+
+
 def _patch_all(**patch_modules: bool) -> None:
     modules = PATCH_MODULES.copy()
 
@@ -362,6 +376,30 @@ def _patch_all(**patch_modules: bool) -> None:
     patch(raise_errors=False, **modules)
 
     load_common_appsec_modules()
+
+    for group, enabled in (
+        ("ddtrace.contrib", True),  # Opt-out integrations
+        ("ddtrace.contrib.extra", False),  # Opt-in integrations
+    ):
+        for contrib_entry_point in entry_points(group):
+            contrib_name = contrib_entry_point.name
+            env_var = f"DD_TRACE_{contrib_name.upper()}_ENABLED"
+
+            if env_var in os.environ:
+                enabled = formats.asbool(os.environ[env_var])
+
+            if not enabled:
+                continue
+
+            # Load the integration module
+            contrib_plugin = cast(IntegrationModule, contrib_entry_point.load())
+
+            # Augment the configuration
+            config._add(contrib_name, contrib_plugin.__config__)
+
+            # Register patch import hooks
+            for m, h in contrib_plugin.__targets__.items():
+                ModuleWatchdog.after_module_imported(m)(h)
 
 
 def patch(raise_errors=True, **patch_modules):
