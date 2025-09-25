@@ -11,33 +11,24 @@ from flask import Flask  # noqa: E402
 from flask import request  # noqa: E402
 import requests  # noqa: E402 F401
 
+import ddtrace.internal.telemetry.writer  # noqa: E402
 from ddtrace.settings.asm import config as asm_config  # noqa: E402
 from ddtrace.version import get_version  # noqa: E402
 
 
 app = Flask(__name__)
 _TELEMETRY_DEPENDENCIES = []
-
-# intercept telemetry events
-from ddtrace.internal.telemetry.writer import TelemetryWriter  # noqa: E402
+update_imported_dependencies = ddtrace.internal.telemetry.writer.update_imported_dependencies
 
 
-_flush_events = TelemetryWriter._flush_events_queue
-
-
-def _flush_events_wrapper(self):
+def wrap_update_imported_dependencies(imported_dependencies, newly_imported_deps):
     global _TELEMETRY_DEPENDENCIES
-    res = _flush_events(self)
-    if res:
-        dependencies = [v.get("payload", {}).get("dependencies", {}) for v in res]
-        dependencies = [d for d in dependencies if d]
-        for lst in dependencies:
-            _TELEMETRY_DEPENDENCIES.extend(lst)
-        print(f"flushed events {dependencies}", flush=True)
-    return res
+    dependencies = update_imported_dependencies(imported_dependencies, newly_imported_deps)
+    _TELEMETRY_DEPENDENCIES.extend(dependencies)
+    return dependencies
 
 
-TelemetryWriter._flush_events_queue = _flush_events_wrapper
+ddtrace.internal.telemetry.writer.update_imported_dependencies = wrap_update_imported_dependencies
 
 
 @app.route("/")
