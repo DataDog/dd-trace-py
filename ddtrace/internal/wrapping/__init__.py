@@ -254,7 +254,6 @@ def wrap(f, wrapper):
     nargs += bool(code.flags & bc.CompilerFlags.VARARGS) + bool(code.flags & bc.CompilerFlags.VARKEYWORDS)
     code.argnames = f.__code__.co_varnames[:nargs]
 
-    breakpoint()
     f.__code__ = code.to_code()
 
     # DEV: Multiple wrapping is implemented as a singly-linked list via the
