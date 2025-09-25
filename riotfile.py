@@ -88,6 +88,18 @@ def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYT
     return [version_to_str(version) for version in SUPPORTED_PYTHON_VERSIONS if min_version <= version <= max_version]
 
 
+# Common package configuration for profiling v2 tests
+_profile_v2_pkgs = {
+    "gunicorn": latest,
+    "jsonschema": latest,
+    "lz4": latest,
+    "pytest-cpp": latest,
+    "pytest-benchmark": latest,
+    "py-cpuinfo": "~=8.0.0",
+    "pytest-asyncio": "==0.21.1",
+    "pytest-randomly": latest,
+}
+
 # Common venv configurations for appsec threats testing
 _appsec_threats_iast_variants = [
     Venv(
@@ -3475,19 +3487,7 @@ venv = Venv(
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
                 "CPUCOUNT": "12",
             },
-            pkgs={
-                "gunicorn": latest,
-                "jsonschema": latest,
-                "lz4": latest,
-                "pytest-cpp": latest,
-                #
-                # pytest-benchmark depends on cpuinfo which dropped support for Python<=3.6 in 9.0
-                # See https://github.com/workhorsy/py-cpuinfo/issues/177
-                "pytest-benchmark": latest,
-                "py-cpuinfo": "~=8.0.0",
-                "pytest-asyncio": "==0.21.1",
-                "pytest-randomly": latest,
-            },
+            pkgs=_profile_v2_pkgs,
             venvs=[
                 Venv(
                     command="python -m pytest {cmdargs} tests/profiling_v2/test_uwsgi.py",
@@ -3564,6 +3564,43 @@ venv = Venv(
                                 "DD_PROFILE_TEST_GEVENT": "1",
                             },
                             pkgs={"gunicorn[gevent]": latest, "gevent": latest},
+                        ),
+                    ],
+                ),
+                Venv(
+                    name="profile-v2-memalloc",
+                    command="python -m pytest {cmdargs} tests/profiling_v2/test_memalloc.py",
+                    pys=select_pys(),
+                    pkgs=_profile_v2_pkgs,
+                    venvs=[
+                        Venv(
+                            name="pymalloc",
+                            env={
+                                "PYTHONMALLOC": "pymalloc",
+                            },
+                        ),
+                        Venv(
+                            name="malloc",
+                            env={
+                                "PYTHONMALLOC": "malloc",
+                            },
+                        ),
+                        Venv(
+                            name="malloc_debug",
+                            env={"PYTHONMALLOC": "malloc_debug"},
+                        ),
+                        Venv(
+                            name="pymalloc_debug",
+                            env={
+                                "PYTHONMALLOC": "pymalloc_debug",
+                            },
+                        ),
+                        Venv(
+                            name="jemalloc",
+                            env={
+                                "PYTHONMALLOC": "malloc",
+                                "LD_PRELOAD": "libjemalloc.so.2",
+                            },
                         ),
                     ],
                 ),
