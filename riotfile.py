@@ -2842,6 +2842,7 @@ venv = Venv(
                 "numexpr": "==2.8.5",
                 "greenlet": "==3.0.3",
                 "respx": latest,
+                "numpy": latest,
             },
             venvs=[
                 Venv(
@@ -2871,30 +2872,6 @@ venv = Venv(
                         "langchain-anthropic": latest,
                         "langchain-aws": latest,
                         "langchain-cohere": latest,
-                    },
-                    pys=select_pys(min_version="3.9", max_version="3.12"),
-                ),
-            ],
-        ),
-        Venv(
-            name="langchain_community",
-            command="pytest -v {cmdargs} tests/contrib/langchain_community",
-            venvs=[
-                Venv(
-                    pkgs={
-                        "langchain_community": "==0.0.38",
-                        "langchain_openai": "~=0.1.0",
-                        "langchain_pinecone": "~=0.1.0",
-                        "faiss-cpu": "==1.8.0",
-                    },
-                    pys=select_pys(min_version="3.9", max_version="3.12"),
-                ),
-                Venv(
-                    pkgs={
-                        "langchain_community": latest,
-                        "langchain_openai": latest,
-                        "langchain_pinecone": latest,
-                        "faiss-cpu": latest,
                     },
                     pys=select_pys(min_version="3.9", max_version="3.12"),
                 ),

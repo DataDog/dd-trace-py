@@ -130,7 +130,6 @@ INTEGRATION_CONFIGS = frozenset(
         "sqlalchemy",
         "langchain",
         "langchain_core",
-        "langchain_community",
         "pymysql",
         "psycopg",
         "graphql",

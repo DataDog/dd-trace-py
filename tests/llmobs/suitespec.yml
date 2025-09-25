@@ -10,8 +10,6 @@ components:
     - ddtrace/contrib/internal/vertexai/*
   langchain:
     - ddtrace/contrib/internal/langchain/*
-  langchain_community:
-    - ddtrace/contrib/internal/langchain_community/*
   litellm:
     - ddtrace/contrib/internal/litellm/*
   llmobs:
@@ -94,20 +92,6 @@ suites:
       - '@llmobs'
       - tests/contrib/langchain/*
       - tests/snapshots/tests.contrib.langchain.*
-    runner: riot
-    snapshot: true
-  langchain_community:
-    parallelism: 6
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
-      - '@langchain_community'
-      - '@requests'
-      - '@llmobs'
-      - tests/contrib/langchain_community/*
-      - tests/snapshots/tests.contrib.langchain_community.*
     runner: riot
     snapshot: true
   litellm:

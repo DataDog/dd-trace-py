@@ -497,16 +497,6 @@ integrations:
       min: 0.1.53
       max: 0.3.76
 
-- integration_name: langchain_community
-  is_external_package: true
-  is_tested: true
-  dependency_names:
-  - langchain-community
-  tested_versions_by_dependency:
-    langchain-community:
-      min: 0.0.38
-      max: 0.3.29
-
 - integration_name: langgraph
   is_external_package: true
   is_tested: true

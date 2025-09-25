@@ -109,7 +109,6 @@ PATCH_MODULES = {
     "tornado": False,
     "openai": True,
     "langchain": True,
-    "langchain_community": True,
     "anthropic": True,
     "crewai": True,
     "pydantic_ai": True,

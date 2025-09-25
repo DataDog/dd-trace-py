@@ -5,6 +5,7 @@ from typing import Optional
 from typing import Tuple
 
 import langchain_core
+import wrapt
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
@@ -522,6 +523,92 @@ async def patched_language_model_ainvoke(langchain_core, pin, func, instance, ar
     return response
 
 
+@with_traced_module
+def traced_embedding(langchain_core, pin, func, instance, args, kwargs):
+    provider = instance.__class__.__name__.split("Embeddings")[0].lower()
+    if provider == "openai" and func.__name__ == "embed_query":
+        return func(*args, **kwargs)  # we previously did not trace OpenAIEmbeddings.embed_query
+
+    integration: LangChainIntegration = langchain_core._datadog_integration
+    span = integration.trace(
+        pin,
+        "%s.%s" % (instance.__module__, instance.__class__.__name__),
+        submit_to_llmobs=True,
+        interface_type="embedding",
+        provider=provider,
+        model=_extract_model_name(instance),
+        instance=instance,
+    )
+
+    integration.record_instance(instance, span)
+
+    embeddings = None
+    try:
+        embeddings = func(*args, **kwargs)
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        raise
+    finally:
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=embeddings, operation="embedding")
+        span.finish()
+    return embeddings
+
+
+@with_traced_module
+def traced_similarity_search(langchain_core, pin, func, instance, args, kwargs):
+    integration: LangChainIntegration = langchain_core._datadog_integration
+    provider = instance.__class__.__name__.lower()
+    span = integration.trace(
+        pin,
+        "%s.%s" % (instance.__module__, instance.__class__.__name__),
+        submit_to_llmobs=True,
+        interface_type="similarity_search",
+        provider=provider,
+        instance=instance,
+    )
+
+    integration.record_instance(instance, span)
+
+    documents = []
+    try:
+        documents = func(*args, **kwargs)
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        raise
+    finally:
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=documents, operation="retrieval")
+        span.finish()
+    return documents
+
+
+@with_traced_module
+def patched_embeddings_init_subclass(langchain_core, pin, func, instance, args, kwargs):
+    try:
+        func(*args, **kwargs)
+    finally:
+        cls = func.__self__
+
+        embed_documents = getattr(cls, "embed_documents", None)
+        if embed_documents and not isinstance(embed_documents, wrapt.ObjectProxy):
+            wrap(cls, "embed_documents", traced_embedding(langchain_core))
+
+        embed_query = getattr(cls, "embed_query", None)
+        if embed_query and not isinstance(embed_query, wrapt.ObjectProxy):
+            wrap(cls, "embed_query", traced_embedding(langchain_core))
+
+
+@with_traced_module
+def patched_vectorstore_init_subclass(langchain_core, pin, func, instance, args, kwargs):
+    try:
+        func(*args, **kwargs)
+    finally:
+        cls = func.__self__
+
+        similarity_search = getattr(cls, "similarity_search", None)
+        if similarity_search and not isinstance(similarity_search, wrapt.ObjectProxy):
+            wrap(cls, "similarity_search", traced_similarity_search(langchain_core))
+
+
 def patch():
     if getattr(langchain_core, "_datadog_patch", False):
         return
@@ -532,11 +619,13 @@ def patch():
 
     Pin().onto(langchain_core)
 
+    from langchain_core.embeddings import Embeddings
     from langchain_core.language_models.chat_models import BaseChatModel
     from langchain_core.language_models.llms import BaseLLM
     from langchain_core.prompts.base import BasePromptTemplate
     from langchain_core.runnables.base import RunnableSequence
     from langchain_core.tools import BaseTool
+    from langchain_core.vectorstores import VectorStore
 
     wrap(BaseLLM, "generate", traced_llm_generate(langchain_core))
     wrap(BaseLLM, "agenerate", traced_llm_agenerate(langchain_core))
@@ -564,6 +653,9 @@ def patch():
 
     wrap(BaseTool, "invoke", traced_base_tool_invoke(langchain_core))
     wrap(BaseTool, "ainvoke", traced_base_tool_ainvoke(langchain_core))
+
+    wrap(Embeddings, "__init_subclass__", patched_embeddings_init_subclass(langchain_core))
+    wrap(VectorStore, "__init_subclass__", patched_vectorstore_init_subclass(langchain_core))
 
     core.dispatch("langchain.patch", tuple())
 
@@ -596,3 +688,5 @@ def unpatch():
     unwrap(langchain_core.tools.BaseTool, "ainvoke")
     unwrap(langchain_core.prompts.base.BasePromptTemplate, "invoke")
     unwrap(langchain_core.prompts.base.BasePromptTemplate, "ainvoke")
+    unwrap(langchain_core.embeddings.Embeddings, "__init_subclass__")
+    unwrap(langchain_core.vectorstores.VectorStore, "__init_subclass__")

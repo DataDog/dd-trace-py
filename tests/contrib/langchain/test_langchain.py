@@ -1,13 +1,11 @@
 import importlib
 from operator import itemgetter
 
-import langchain_core
+import mock
 import pytest
 
 from ddtrace.internal.utils.version import parse_version
 
-
-LANGCHAIN_CORE_VERSION = parse_version(langchain_core.__version__)
 
 IGNORE_FIELDS = [
     "resources",
@@ -75,9 +73,10 @@ async def test_openai_chat_model_sync_call_langchain_openai_async(langchain_core
 
 
 # TODO: come back and clean this one up... seems like we tag 4 responses
-@pytest.mark.skipif(LANGCHAIN_CORE_VERSION < (0, 3), reason="Requires at least LangChain 0.3")
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_openai_chat_model_sync_generate(langchain_core, langchain_openai, openai_url):
+    if parse_version(langchain_core.__version__) < (0, 3, 0):
+        pytest.skip("langchain-core <0.3.0 does not support stream_usage=False")
     chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url=openai_url)
     chat.generate(
         [
@@ -122,9 +121,6 @@ def test_openai_chat_model_vision_generate(langchain_core, langchain_openai, ope
     )
 
 
-@pytest.mark.skipif(
-    LANGCHAIN_CORE_VERSION < (0, 3), reason="Bug in langchain: https://github.com/langchain-ai/langgraph/issues/136"
-)
 @pytest.mark.asyncio
 @pytest.mark.snapshot(
     ignores=IGNORE_FIELDS
@@ -135,6 +131,8 @@ def test_openai_chat_model_vision_generate(langchain_core, langchain_openai, ope
     ]
 )
 async def test_openai_chat_model_async_generate(langchain_core, langchain_openai, openai_url):
+    if parse_version(langchain_core.__version__) < (0, 3, 0):
+        pytest.skip("Bug in langchain: https://github.com/langchain-ai/langgraph/issues/136")
     chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url=openai_url)
     await chat.agenerate(
         [
@@ -152,7 +150,18 @@ async def test_openai_chat_model_async_generate(langchain_core, langchain_openai
     )
 
 
-@pytest.mark.skip("llmobs needs to support in-memory vectorstores")
+@pytest.mark.snapshot
+def test_openai_embedding_query(langchain_openai, openai_url):
+    embeddings = langchain_openai.embeddings.OpenAIEmbeddings(base_url=openai_url)
+    embeddings.embed_query(text="foo")
+
+
+@pytest.mark.snapshot
+def test_openai_embedding_document(langchain_openai, openai_url):
+    embeddings = langchain_openai.embeddings.OpenAIEmbeddings(base_url=openai_url)
+    embeddings.embed_documents(texts=["foo", "bar"])
+
+
 @pytest.mark.snapshot
 def test_vectorstore_similarity_search(langchain_in_memory_vectorstore):
     vectorstore = langchain_in_memory_vectorstore
@@ -273,8 +282,6 @@ def test_lcel_chain_non_dict_input(langchain_core):
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_lcel_with_tools_openai(langchain_core, langchain_openai, openai_url):
-    import langchain_core.tools
-
     @langchain_core.tools.tool
     def add(a: int, b: int) -> int:
         """Adds a and b.
@@ -293,8 +300,7 @@ def test_lcel_with_tools_openai(langchain_core, langchain_openai, openai_url):
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_lcel_with_tools_anthropic(langchain_core, langchain_anthropic, anthropic_url):
     if parse_version(importlib.metadata.version("langchain_anthropic")) < (0, 2, 0):
-        pytest.skip("langchain-anthropic <0.2.0 does not support tools outside of a beta function")
-    import langchain_core.tools
+        pytest.skip("langchain-anthropic <0.2.0 does not support tools outside of a beta function")\
 
     @langchain_core.tools.tool
     def add(a: int, b: int) -> int:
@@ -461,12 +467,10 @@ def test_base_tool_invoke(langchain_core):
 
     from math import pi
 
-    from langchain_core.tools import StructuredTool
-
     def circumference_tool(radius: float) -> float:
         return float(radius) * 2.0 * pi
 
-    calculator = StructuredTool.from_function(
+    calculator = langchain_core.tools.StructuredTool.from_function(
         func=circumference_tool,
         name="Circumference calculator",
         description="Use this tool when you need to calculate a circumference using the radius of a circle",
@@ -494,12 +498,11 @@ async def test_base_tool_ainvoke(langchain_core):
 
     from math import pi
 
-    from langchain_core.tools import StructuredTool
 
     def circumference_tool(radius: float) -> float:
         return float(radius) * 2.0 * pi
 
-    calculator = StructuredTool.from_function(
+    calculator = langchain_core.tools.StructuredTool.from_function(
         func=circumference_tool,
         name="Circumference calculator",
         description="Use this tool when you need to calculate a circumference using the radius of a circle",
@@ -526,12 +529,10 @@ def test_base_tool_invoke_non_json_serializable_config(langchain_core):
 
     from math import pi
 
-    from langchain_core.tools import StructuredTool
-
     def circumference_tool(radius: float) -> float:
         return float(radius) * 2.0 * pi
 
-    calculator = StructuredTool.from_function(
+    calculator = langchain_core.tools.StructuredTool.from_function(
         func=circumference_tool,
         name="Circumference calculator",
         description="Use this tool when you need to calculate a circumference using the radius of a circle",
