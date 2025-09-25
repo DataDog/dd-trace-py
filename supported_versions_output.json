@@ -316,6 +316,13 @@
         "auto-instrumented": true
     },
     {
+        "dependency": "google-adk",
+        "integration": "google_adk",
+        "minimum_tracer_supported": "1.0.0",
+        "max_tracer_supported": "1.14.1",
+        "auto-instrumented": true
+    },
+    {
         "dependency": "google-genai",
         "integration": "google_genai",
         "minimum_tracer_supported": "1.21.1",
