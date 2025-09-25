@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-
 import vllm
 from vllm.engine.arg_utils import AsyncEngineArgs
 
@@ -26,46 +25,34 @@ _LLM_CACHE = {}
 
 
 def get_cached_llm(model: str, *, engine_mode: str = "0", **kwargs):
-    """Return an LLM instance, optionally using a per-process cache.
-
-    Defaults to using cache for faster tests locally. In CI we disable caching
-    by default to reduce cross-test memory pressure and intermittent OOM kills.
-
-    Override behavior explicitly with DD_VLLM_DISABLE_CACHE:
-      - unset/empty: default behavior (enabled locally, disabled on CI)
-      - "1"/"true"/"True": disable cache
-    """
-
-    def _cache_enabled() -> bool:
-        flag = os.getenv("DD_VLLM_DISABLE_CACHE")
-        if flag is not None:
-            disabled = str(flag).strip().lower() in {"1", "true", "True"}
-            return not disabled
-        # No explicit override: disable caching on CI, enable locally
-        if os.getenv("GITLAB_CI") or os.getenv("CI"):
-            return False
-        return True
-
     # Avoid passing runner=None to vLLM; default runner is 'generate'
     runner = kwargs.get("runner")
     key_runner = runner or "generate"
     key = (model, key_runner, engine_mode)
-    if _cache_enabled():
-        llm = _LLM_CACHE.get(key)
-        if llm is not None:
-            return llm
+    
+    # Skip caching on CI - create fresh LLM instances
+    is_ci = os.environ.get("CI") == "true"
+    if is_ci:
+        llm_kwargs = dict(kwargs)
+        if runner is None and "runner" in llm_kwargs:
+            llm_kwargs.pop("runner", None)
+        return _create_llm_autotune(model=model, **llm_kwargs)
+    
+    # Use caching for local development
+    llm = _LLM_CACHE.get(key)
+    if llm is not None:
+        return llm
     llm_kwargs = dict(kwargs)
     if runner is None and "runner" in llm_kwargs:
         llm_kwargs.pop("runner", None)
     llm = _create_llm_autotune(model=model, **llm_kwargs)
-    if _cache_enabled():
-        _LLM_CACHE[key] = llm
+    _LLM_CACHE[key] = llm
     return llm
 
 
 def create_async_engine(model: str, *, engine_mode: str = "0", **kwargs):
     # Reduce default KV cache footprint in CI unless caller overrides
-    kwargs.setdefault("max_model_len", 1024)
+    kwargs.setdefault("max_model_len", 512)
     # Respect explicit gpu_memory_utilization if provided
     explicit_util = kwargs.pop("gpu_memory_utilization", None)
     util_candidates = kwargs.pop(
