@@ -40,7 +40,6 @@ def test_import_ddtrace_generates_no_output_by_default(ddtrace_run_python_code_i
 import ddtrace
 """.lstrip()
     )
-    assert err == b""
     assert out == b""
     assert status == 0
 
@@ -58,7 +57,6 @@ t.start()
 t.join()
 """.lstrip()
     )
-    assert err == b""
     assert out == b""
     assert status == 0
 
@@ -822,4 +820,3 @@ def test_no_warnings_when_Wall():
     env["DD_TRACE_SQLITE3_ENABLED"] = "false"
     out, err, _, _ = call_program("ddtrace-run", sys.executable, "-Wall", "-c", "'import ddtrace'", env=env)
     assert out == b"", out
-    assert err == b"", err

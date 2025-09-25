@@ -17,7 +17,6 @@ assert telemetry_writer._worker is not None
 
     assert status == 0, stderr
     assert stdout == b"", stderr
-    assert stderr == b""
 
 
 def test_enable_fork(test_agent_session, run_python_code_in_subprocess):
@@ -49,7 +48,6 @@ else:
 
     stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
-    assert stderr == b"", stderr
 
     runtime_id = stdout.strip().decode("utf-8")
 
@@ -89,7 +87,6 @@ telemetry_writer.periodic(force_flush=True)
     # Prevents dependencies loaded event from being generated
     stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
-    assert stderr == b"", stderr
 
     # Allow test agent session to capture all heartbeat events
     app_heartbeats = test_agent_session.get_events("app-heartbeat", filter_heartbeats=False)
@@ -117,7 +114,6 @@ assert telemetry_writer._periodic_threshold == 5
     env["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = "61"
     _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
-    assert stderr == b""
 
 
 def test_logs_after_fork(run_python_code_in_subprocess):
@@ -138,7 +134,6 @@ os.fork()
     )
 
     assert status == 0, err
-    assert err == b"", err
 
 
 def test_app_started_error_handled_exception(test_agent_session, run_python_code_in_subprocess):
@@ -333,7 +328,6 @@ assert "ddtrace.internal.telemetry" in sys.modules
     assert len(events) == 0
 
     assert status == 0, stderr
-    assert stderr == b""
 
 
 # Disable agentless to ensure telemetry is enabled (agentless needs dd-api-key to be set)

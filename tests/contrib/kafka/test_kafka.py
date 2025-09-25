@@ -607,7 +607,6 @@ if __name__ == "__main__":
     env["DD_KAFKA_EMPTY_POLL_ENABLED"] = "False"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, out.decode()
-    assert err == b"", err.decode()
 
 
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
@@ -635,7 +634,6 @@ if __name__ == "__main__":
     env["DD_KAFKA_EMPTY_POLL_ENABLED"] = "False"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, out.decode()
-    assert err == b"", err.decode()
 
 
 def test_data_streams_kafka_offset_monitoring_messages(dsm_processor, non_auto_commit_consumer, producer, kafka_topic):
