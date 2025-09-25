@@ -886,14 +886,18 @@ class LangChainIntegration(BaseLLMIntegration):
         variables = get_argument_value(args, kwargs, 0, "input", optional=True)
         if (
             isinstance(variables, str)
-            and hasattr(instance, "input_variables")
-            and isinstance(instance.input_variables, list)
+            and isinstance(getattr(instance, "input_variables", None), list)
             and len(instance.input_variables) == 1
         ):
             # variables should be passed in as a dict, but a string is allowed if there is only one input variable
             variables = {instance.input_variables[0]: variables}
 
-        if (not template and not chat_template) or not variables or not isinstance(variables, dict):
+        if (
+            (not template and not chat_template)
+            or (template and chat_template)
+            or not variables
+            or not isinstance(variables, dict)
+        ):
             return
 
         prompt_id = self._get_prompt_variable_name(instance)

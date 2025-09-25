@@ -55,7 +55,7 @@ def _create_multi_message_prompt_template(langchain_core):
 
     return langchain_core.prompts.ChatPromptTemplate.from_messages(
         [
-            SystemMessage(content="You are a {role} assistant."),
+            SystemMessage(content="You are a {role} assistant."),  # while this has handlebars, it is not a template
             ("system", "Your expertise is in {domain}."),
             SystemMessagePromptTemplate.from_template("Additional context: {context}"),
             HumanMessage(content="I'm a user seeking help."),
@@ -308,7 +308,7 @@ def test_llmobs_multi_message_prompt_template_sync_chain(
     actual_prompt = llmobs_events[1]["meta"]["input"]["prompt"]
     assert actual_prompt["id"] == "test_langchain_llmobs.multi_message_template"
     assert actual_prompt["variables"] == variable_dict
-    assert "template" not in actual_prompt or actual_prompt["template"] is None
+    assert actual_prompt.get("template") is None
     assert actual_prompt["chat_template"] == PROMPT_TEMPLATE_EXPECTED_CHAT_TEMPLATE
 
 
@@ -339,7 +339,7 @@ def test_llmobs_multi_message_prompt_template_sync_direct_invoke(
     actual_prompt = llmobs_events[0]["meta"]["input"]["prompt"]
     assert actual_prompt["id"] == "test_langchain_llmobs.multi_message_template"
     assert actual_prompt["variables"] == variable_dict
-    assert "template" not in actual_prompt or actual_prompt["template"] is None
+    assert actual_prompt.get("template") is None
     assert actual_prompt["chat_template"] == PROMPT_TEMPLATE_EXPECTED_CHAT_TEMPLATE
 
 
@@ -371,7 +371,7 @@ async def test_llmobs_multi_message_prompt_template_async_direct_invoke(
     actual_prompt = llmobs_events[0]["meta"]["input"]["prompt"]
     assert actual_prompt["id"] == "test_langchain_llmobs.multi_message_template"
     assert actual_prompt["variables"] == variable_dict
-    assert "template" not in actual_prompt or actual_prompt["template"] is None
+    assert actual_prompt.get("template") is None
     assert actual_prompt["chat_template"] == PROMPT_TEMPLATE_EXPECTED_CHAT_TEMPLATE
 
 
