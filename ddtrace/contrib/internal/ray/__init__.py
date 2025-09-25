@@ -7,18 +7,16 @@ The ray integration traces:
 Enabling
 ~~~~~~~~
 
-The Ray integration is enabled automatically when you use
-:ref:`ddtrace-run<ddtracerun>` or :ref:`import ddtrace.auto<ddtraceauto>`.
-
-Or use :func:`patch() <ddtrace.patch>` to manually enable the Ray integration::
-
-    from ddtrace import patch
-    patch(ray=True)
-
 The recommended way to instrument Ray, is to instrument the Ray cluster.
 You can do it by starting the Ray head with a tracing startup hook::
 
     ray start --head --tracing-startup-hook=ddtrace.contrib.ray:setup_tracing
+
+Otherwise, you can specify the tracing hook in `ray.init()` using::
+
+    ray.init(_tracing_startup_hook="ddtrace.contrib.ray:setup_tracing")
+
+Note that this method does not provide full tracing capabilities.
 
 
 Configuration
@@ -26,7 +24,7 @@ Configuration
 
 The Ray integration can be configured using environment variables:
 
-- ``DD_TRACE_RAY_RESUBMIT_LONG_RUNNING_INTERVAL``: Interval for resubmitting long-running
+- ``DD_TRACE_LONG_RUNNING_SPAN_SUBMISSION_INTERVAL``: Interval for resubmitting long-running
     spans (default: ``120.0`` seconds)
 
 Ray service name can be configured by:

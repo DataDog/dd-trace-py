@@ -670,6 +670,12 @@ class Config(object):
             "DD_TRACE_RESOURCE_RENAMING_ALWAYS_SIMPLIFIED_ENDPOINT", default=False, modifier=asbool
         )
 
+        # Long-running span submission interval (generic configuration)
+        # Only supported for Ray spans for now
+        self._long_running_span_submission_interval = _get_config(
+            "DD_TRACE_LONG_RUNNING_SPAN_SUBMISSION_INTERVAL", default=120.0, modifier=float
+        )
+
     def __getattr__(self, name) -> Any:
         if name in self._config:
             return self._config[name].value()

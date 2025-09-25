@@ -13,11 +13,13 @@ class TestLongRunningSpan(TracerTestCase):
     def setUp(self):
         super().setUp()
         # Override timing values to make tests run quickly
-        self.original_resubmit_interval = getattr(config.ray, "resubmit_interval", 120.0)
+        self.original_long_running_span_submission_interval = getattr(
+            config, "_long_running_span_submission_interval", 120.0
+        )
         self.original_initial_submit_threshold = getattr(config.ray, "initial_submit_threshold", 10.0)
 
         # Set fast timing for testing
-        config.ray.resubmit_interval = 2  # 2s instead of 120s
+        config._long_running_span_submission_interval = 2.0  # 2s instead of 120s
         config.ray.initial_submit_threshold = 1  # 1s instead of 10s
 
         # Clear any existing spans from the job manager
@@ -28,7 +30,7 @@ class TestLongRunningSpan(TracerTestCase):
 
     def tearDown(self):
         # Restore original values
-        config.ray.resubmit_interval = self.original_resubmit_interval
+        config._long_running_span_submission_interval = self.original_long_running_span_submission_interval
         config.ray.initial_submit_threshold = self.original_initial_submit_threshold
 
         # Clean up any remaining timers

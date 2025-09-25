@@ -10,14 +10,24 @@ from ddtrace._trace.span import Span
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
 
+from .constants import DD_PARTIAL_VERSION
+from .constants import DD_WAS_LONG_RUNNING
+from .constants import ERROR_MESSAGE
+from .constants import RAY_COMPONENT
+from .constants import RAY_JOB_MESSAGE
+from .constants import RAY_JOB_STATUS
+from .constants import RAY_STATUS_FAILED
+from .constants import RAY_STATUS_FINISHED
+from .constants import RAY_STATUS_RUNNING
+from .constants import RAY_SUBMISSION_ID_TAG
 from .utils import _inject_ray_span_tags_and_metrics
 
 
 @contextmanager
-def long_running_ray_span(span_name, service, span_type, child_of=None, activate=True):
+def long_running_ray_span(span_name, service, span_type, resource=None, child_of=None, activate=True):
     """Context manager that handles Ray span creation and long-running span lifecycle"""
     with tracer.start_span(
-        name=span_name, service=service, span_type=span_type, child_of=child_of, activate=activate
+        name=span_name, service=service, resource=resource, span_type=span_type, child_of=child_of, activate=activate
     ) as span:
         span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
         _inject_ray_span_tags_and_metrics(span)
@@ -26,8 +36,7 @@ def long_running_ray_span(span_name, service, span_type, child_of=None, activate
         try:
             yield span
         except BaseException as e:
-            span.set_exc_info(type(e), e, e.__traceback__)
-            raise
+            raise e
         finally:
             stop_long_running_span(span)
 
@@ -46,8 +55,7 @@ class RaySpanManager:
         atexit.register(self.cleanup_on_exit)
 
     def _get_submission_id(self, span):
-        submission_id = span.get_tag("ray.submission_id")
-        return submission_id if submission_id else None
+        return span.get_tag(RAY_SUBMISSION_ID_TAG)
 
     def cleanup_on_exit(self):
         """Clean up all resources when the process exits."""
@@ -71,13 +79,13 @@ class RaySpanManager:
 
     def _emit_partial_span(self, span):
         partial_version = time.time_ns()
-        if span.get_metric("_dd.partial_version") is None:
-            span.set_metric("_dd.partial_version", partial_version)
-            span.set_tag_str("ray.job.status", "RUNNING")
+        if span.get_metric(DD_PARTIAL_VERSION) is None:
+            span.set_metric(DD_PARTIAL_VERSION, partial_version)
+            span.set_tag_str(RAY_JOB_STATUS, RAY_STATUS_RUNNING)
 
         partial_span = self._recreate_job_span(span)
-        partial_span.set_tag_str("ray.job.status", "RUNNING")
-        partial_span.set_metric("_dd.partial_version", partial_version)
+        partial_span.set_tag_str(RAY_JOB_STATUS, RAY_STATUS_RUNNING)
+        partial_span.set_metric(DD_PARTIAL_VERSION, partial_version)
         partial_span.finish()
 
         # Sending spans which are waiting for long running spans to finish
@@ -135,7 +143,7 @@ class RaySpanManager:
             parent_id=job_span.parent_id,
             context=job_span.context,
         )
-        new_span.set_tag_str("component", "ray")
+        new_span.set_tag_str("component", RAY_COMPONENT)
         new_span.start_ns = job_span.start_ns
         new_span._meta = job_span._meta.copy()
         new_span._metrics = job_span._metrics.copy()
@@ -149,7 +157,7 @@ class RaySpanManager:
         with self._lock:
             if submission_id not in self._job_spans:
                 return
-            self._create_resubmit_timer(submission_id, float(config.ray.resubmit_interval))
+            self._create_resubmit_timer(submission_id, float(config._long_running_span_submission_interval))
             job_spans = list(self._job_spans[submission_id].values())
 
         for span in job_spans:
@@ -157,19 +165,19 @@ class RaySpanManager:
 
     def _finish_span(self, span, job_info=None):
         # only if span was long running
-        if span.get_metric("_dd.partial_version") is not None:
-            del span._metrics["_dd.partial_version"]
+        if span.get_metric(DD_PARTIAL_VERSION) is not None:
+            del span._metrics[DD_PARTIAL_VERSION]
 
-            span.set_metric("_dd.was_long_running", 1)
-            span.set_tag_str("ray.job.status", "FINISHED")
+            span.set_metric(DD_WAS_LONG_RUNNING, 1)
+            span.set_tag_str(RAY_JOB_STATUS, RAY_STATUS_FINISHED)
 
         if job_info:
-            span.set_tag_str("ray.job.status", job_info.status)
-            span.set_tag_str("ray.job.message", job_info.message)
+            span.set_tag_str(RAY_JOB_STATUS, job_info.status)
+            span.set_tag_str(RAY_JOB_MESSAGE, job_info.message)
 
-            if str(job_info.status) == "FAILED":
+            if str(job_info.status) == RAY_STATUS_FAILED:
                 span.error = 1
-                span.set_tag_str("error.message", job_info.message)
+                span.set_tag_str(ERROR_MESSAGE, job_info.message)
         span.finish()
 
     def add_span(self, span):
