@@ -71,6 +71,9 @@ include:
     - export PYTORCH_CUDA_ALLOC_CONF="max_split_size_mb:64,expandable_segments:True"
     - export VLLM_DISABLE_FLASH_ATTENTION="1"
     - export VLLM_LOGGING_LEVEL="DEBUG"
+    - export OMP_NUM_THREADS="1"
+    - export MKL_NUM_THREADS="1"
+    - export NUMEXPR_NUM_THREADS="1"
     - |
       python - <<'PY'
       import sys
@@ -200,6 +203,9 @@ include:
     - export PYTORCH_CUDA_ALLOC_CONF="max_split_size_mb:64,expandable_segments:True"
     - export VLLM_DISABLE_FLASH_ATTENTION="1"
     - export VLLM_LOGGING_LEVEL="DEBUG"
+    - export OMP_NUM_THREADS="1"
+    - export MKL_NUM_THREADS="1"
+    - export NUMEXPR_NUM_THREADS="1"
     - export VLLM_GPU_MEMORY_UTILIZATION="${VLLM_GPU_MEMORY_UTILIZATION:-0.1}"
     - export TOKENIZERS_PARALLELISM="false"
     - export VLLM_HOST_IP="127.0.0.1"

@@ -189,6 +189,39 @@ def log_vllm_diagnostics(label: str) -> None:
         except Exception:
             pass
 
+        # cgroup (container) memory limits and usage (v2 and v1)
+        try:
+            cg_base = "/sys/fs/cgroup"
+            # cgroup v2
+            v2_current = os.path.join(cg_base, "memory.current")
+            v2_max = os.path.join(cg_base, "memory.max")
+            if os.path.exists(v2_current) and os.path.exists(v2_max):
+                with open(v2_current, "r", encoding="utf-8", errors="ignore") as f:
+                    cur = f.read().strip()
+                with open(v2_max, "r", encoding="utf-8", errors="ignore") as f:
+                    mx = f.read().strip()
+                print(f"CGROUPv2 memory.current={cur} memory.max={mx}")
+            # cgroup v1
+            v1_dir = os.path.join(cg_base, "memory")
+            v1_cur = os.path.join(v1_dir, "memory.usage_in_bytes")
+            v1_lim = os.path.join(v1_dir, "memory.limit_in_bytes")
+            if os.path.exists(v1_cur) and os.path.exists(v1_lim):
+                with open(v1_cur, "r", encoding="utf-8", errors="ignore") as f:
+                    cur = f.read().strip()
+                with open(v1_lim, "r", encoding="utf-8", errors="ignore") as f:
+                    lim = f.read().strip()
+                print(f"CGROUPv1 memory.usage_in_bytes={cur} memory.limit_in_bytes={lim}")
+            # Show which cgroups we're in
+            try:
+                with open("/proc/self/cgroup", "r", encoding="utf-8", errors="ignore") as f:
+                    lines = f.read().strip().splitlines()
+                for line in lines[:10]:
+                    print(f"CGROUP {line}")
+            except Exception:
+                pass
+        except Exception:
+            pass
+
         # GPU info via torch
         try:
             import torch  # type: ignore
@@ -249,6 +282,21 @@ def log_vllm_diagnostics(label: str) -> None:
                 print(f"PROM_DIR files={len(files)} -> {files[:10]}")
             except Exception:
                 pass
+
+        # Top processes by RSS inside the container
+        try:
+            import subprocess  # type: ignore
+
+            out = subprocess.run(
+                ["bash", "-lc", "ps -eo pid,comm,rss,vsz,%mem --sort=-rss | head -n 12"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if out.returncode == 0 and out.stdout:
+                print("PS TOP RSS:\n" + out.stdout.rstrip())
+        except Exception:
+            pass
 
         print(f"---DIAG END: {label}---")
     except Exception:

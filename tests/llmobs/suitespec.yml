@@ -197,7 +197,7 @@ suites:
     runner: riot
     snapshot: true
   vllm:
-    parallelism: 4
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'
