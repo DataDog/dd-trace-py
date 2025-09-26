@@ -60,20 +60,27 @@ class TestAPIClientCaching:
 
         method = "POST"
         endpoint = "/api/v2/libraries/tests/services/setting"
-        payload = '{"data": {"test": "value"}}'
+        payload = {"data": {"id": "some-uuid", "type": "test", "attributes": {"test": "value"}}}
 
-        # Generate cache key
-        cache_key1 = client._get_cache_key(method, endpoint, payload)
-        cache_key2 = client._get_cache_key(method, endpoint, payload)
+        # Generate cache key using normalized method (ignores UUID)
+        cache_key1 = client._get_normalized_cache_key(method, endpoint, payload)
+        cache_key2 = client._get_normalized_cache_key(method, endpoint, payload)
 
         # Same parameters should generate same cache key
         assert cache_key1 == cache_key2
         assert len(cache_key1) == 64  # SHA256 hex digest length
 
-        # Different payload should generate different cache key
-        different_payload = '{"data": {"test": "different_value"}}'
-        cache_key3 = client._get_cache_key(method, endpoint, different_payload)
-        assert cache_key1 != cache_key3
+        # Different UUID should generate SAME cache key (normalization working)
+        payload_different_uuid = {"data": {"id": "different-uuid", "type": "test", "attributes": {"test": "value"}}}
+        cache_key3 = client._get_normalized_cache_key(method, endpoint, payload_different_uuid)
+        assert cache_key1 == cache_key3  # Should be same due to normalization
+
+        # Different attributes should generate different cache key
+        payload_different_attrs = {
+            "data": {"id": "some-uuid", "type": "test", "attributes": {"test": "different_value"}}
+        }
+        cache_key4 = client._get_normalized_cache_key(method, endpoint, payload_different_attrs)
+        assert cache_key1 != cache_key4
 
     def test_cache_key_includes_all_parameters(self):
         """Test that cache key changes when any parameter changes"""
@@ -81,20 +88,21 @@ class TestAPIClientCaching:
 
         base_method = "POST"
         base_endpoint = "/api/v2/libraries/tests/services/setting"
-        base_payload = '{"data": {"test": "value"}}'
+        base_payload = {"data": {"id": "uuid", "type": "test", "attributes": {"test": "value"}}}
 
-        base_key = client._get_cache_key(base_method, base_endpoint, base_payload)
+        base_key = client._get_normalized_cache_key(base_method, base_endpoint, base_payload)
 
         # Different method
-        method_key = client._get_cache_key("GET", base_endpoint, base_payload)
+        method_key = client._get_normalized_cache_key("GET", base_endpoint, base_payload)
         assert base_key != method_key
 
         # Different endpoint
-        endpoint_key = client._get_cache_key(base_method, "/different/endpoint", base_payload)
+        endpoint_key = client._get_normalized_cache_key(base_method, "/different/endpoint", base_payload)
         assert base_key != endpoint_key
 
-        # Different payload
-        payload_key = client._get_cache_key(base_method, base_endpoint, '{"different": "payload"}')
+        # Different payload attributes (meaningful change)
+        different_payload = {"data": {"id": "uuid", "type": "different_type", "attributes": {"test": "value"}}}
+        payload_key = client._get_normalized_cache_key(base_method, base_endpoint, different_payload)
         assert base_key != payload_key
 
     def test_cache_file_path_generation(self):
@@ -126,14 +134,14 @@ class TestAPIClientCaching:
 
         assert cached_data == test_data
 
-    def test_cache_miss_returns_none(self):
-        """Test that cache miss returns None"""
+    def test_cache_miss_returns_empty_dict(self):
+        """Test that cache miss returns empty dict"""
         client = self._get_test_client()
 
         non_existent_key = "this_key_does_not_exist"
         cached_data = client._read_from_cache(non_existent_key)
 
-        assert cached_data is None
+        assert cached_data == {}
 
     def test_first_request_makes_http_call_and_caches_response(self):
         """Test that the first request makes an HTTP call and caches the response"""
@@ -152,17 +160,30 @@ class TestAPIClientCaching:
 
             method = "POST"
             endpoint = "/api/v2/libraries/tests/services/setting"
-            payload = '{"data": {"test": "payload"}}'
+            # Use realistic dict payload with UUID (like real API calls)
+            payload = {
+                "data": {
+                    "id": "some-uuid-1234",
+                    "type": "ci_app_test_service_libraries_settings",
+                    "attributes": {
+                        "service": "test_service",
+                        "env": "test_env",
+                        "repository_url": "git@github.com:test/repo.git",
+                        "sha": "abc123",
+                        "configurations": {"os": "linux"},
+                    },
+                }
+            }
 
             # First request should make HTTP call
             result = client._do_request_with_telemetry(method, endpoint, payload, metric_names)
 
-            # Verify HTTP call was made
-            mock_do_request.assert_called_once_with(method, endpoint, payload, timeout=None)
+            # Verify HTTP call was made with JSON string
+            mock_do_request.assert_called_once_with(method, endpoint, json.dumps(payload), timeout=None)
             assert result == expected_parsed_response
 
-            # Verify response was cached
-            cache_key = client._get_cache_key(method, endpoint, payload)
+            # Verify response was cached using normalized key
+            cache_key = client._get_normalized_cache_key(method, endpoint, payload)
             cached_data = client._read_from_cache(cache_key)
             assert cached_data == expected_parsed_response
 
@@ -183,19 +204,46 @@ class TestAPIClientCaching:
 
             method = "POST"
             endpoint = "/api/v2/libraries/tests/services/setting"
-            payload = '{"data": {"test": "payload"}}'
+            # Use realistic payload that would normally have different UUIDs
+            payload1 = {
+                "data": {
+                    "id": "uuid-first-request",
+                    "type": "ci_app_test_service_libraries_settings",
+                    "attributes": {
+                        "service": "test_service",
+                        "env": "test_env",
+                        "repository_url": "git@github.com:test/repo.git",
+                        "sha": "abc123",
+                        "configurations": {"os": "linux"},
+                    },
+                }
+            }
+
+            payload2 = {
+                "data": {
+                    "id": "uuid-second-request",  # Different UUID!
+                    "type": "ci_app_test_service_libraries_settings",
+                    "attributes": {
+                        "service": "test_service",
+                        "env": "test_env",
+                        "repository_url": "git@github.com:test/repo.git",
+                        "sha": "abc123",
+                        "configurations": {"os": "linux"},
+                    },
+                }
+            }
 
             # First request
-            result1 = client._do_request_with_telemetry(method, endpoint, payload, metric_names)
+            result1 = client._do_request_with_telemetry(method, endpoint, payload1, metric_names)
             assert result1 == expected_parsed_response
 
             # Reset mock to track second call
             mock_do_request.reset_mock()
 
-            # Second identical request
-            result2 = client._do_request_with_telemetry(method, endpoint, payload, metric_names)
+            # Second request with different UUID but same attributes should use cache
+            result2 = client._do_request_with_telemetry(method, endpoint, payload2, metric_names)
 
-            # Verify no HTTP call was made for second request
+            # Verify no HTTP call was made for second request (cache hit due to normalization)
             mock_do_request.assert_not_called()
 
             # Verify same result
@@ -222,8 +270,8 @@ class TestAPIClientCaching:
 
             method = "POST"
             endpoint = "/api/v2/libraries/tests/services/setting"
-            payload1 = '{"data": {"test": "payload1"}}'
-            payload2 = '{"data": {"test": "payload2"}}'
+            payload1 = {"data": {"attributes": "payload1"}}
+            payload2 = {"data": {"attributes": "payload2"}}
 
             # First request
             result1 = client._do_request_with_telemetry(method, endpoint, payload1, metric_names)
@@ -237,8 +285,8 @@ class TestAPIClientCaching:
             assert mock_do_request.call_count == 2
 
             # Verify both are cached separately
-            cache_key1 = client._get_cache_key(method, endpoint, payload1)
-            cache_key2 = client._get_cache_key(method, endpoint, payload2)
+            cache_key1 = client._get_normalized_cache_key(method, endpoint, payload1)
+            cache_key2 = client._get_normalized_cache_key(method, endpoint, payload2)
 
             assert client._read_from_cache(cache_key1) == expected_parsed_response1
             assert client._read_from_cache(cache_key2) == expected_parsed_response2
@@ -256,7 +304,7 @@ class TestAPIClientCaching:
 
         # Reading should return None and not raise exception
         result = client._read_from_cache(cache_key)
-        assert result is None
+        assert result == {}
 
     def test_cache_directory_creation(self):
         """Test that cache directory is created if it doesn't exist"""
@@ -289,7 +337,7 @@ class TestAPIClientCaching:
 
         method = "POST"
         endpoint = "/api/v2/libraries/tests/services/setting"
-        payload = '{"data": {"test": "payload"}}'
+        payload = {"data": {"type": "type", "attributes": "payload"}}
 
         # First client makes request
         client1 = self._get_test_client()
@@ -318,9 +366,68 @@ class TestAPIClientCaching:
 
         method = "POST"
         endpoint = "/api/v2/test/endpoint"
-        payload = '{"same": "payload"}'
+        payload = {"data": {"id": "some-uuid", "type": "test", "attributes": {"same": "payload"}}}
 
-        key1 = client1._get_cache_key(method, endpoint, payload)
-        key2 = client2._get_cache_key(method, endpoint, payload)
+        key1 = client1._get_normalized_cache_key(method, endpoint, payload)
+        key2 = client2._get_normalized_cache_key(method, endpoint, payload)
 
         assert key1 == key2
+
+    def test_uuid_normalization_enables_caching(self):
+        """Test that requests with different UUIDs but same attributes are cached together"""
+        client = self._get_test_client()
+
+        method = "POST"
+        endpoint = "/api/v2/libraries/tests/services/setting"
+
+        # Two payloads with different UUIDs but same attributes
+        payload1 = {
+            "data": {
+                "id": "uuid-1111-1111-1111",
+                "type": "ci_app_test_service_libraries_settings",
+                "attributes": {
+                    "service": "test_service",
+                    "env": "test_env",
+                    "repository_url": "git@github.com:test/repo.git",
+                    "sha": "abc123",
+                    "configurations": {"os": "linux"},
+                },
+            }
+        }
+
+        payload2 = {
+            "data": {
+                "id": "uuid-2222-2222-2222",  # Different UUID!
+                "type": "ci_app_test_service_libraries_settings",
+                "attributes": {
+                    "service": "test_service",
+                    "env": "test_env",
+                    "repository_url": "git@github.com:test/repo.git",
+                    "sha": "abc123",
+                    "configurations": {"os": "linux"},
+                },
+            }
+        }
+
+        # Both should generate the same cache key despite different UUIDs
+        cache_key1 = client._get_normalized_cache_key(method, endpoint, payload1)
+        cache_key2 = client._get_normalized_cache_key(method, endpoint, payload2)
+        assert cache_key1 == cache_key2, "UUID normalization should make these cache keys identical"
+
+        # But different meaningful attributes should generate different keys
+        payload3 = {
+            "data": {
+                "id": "uuid-3333-3333-3333",
+                "type": "ci_app_test_service_libraries_settings",
+                "attributes": {
+                    "service": "different_service",  # Different attribute
+                    "env": "test_env",
+                    "repository_url": "git@github.com:test/repo.git",
+                    "sha": "abc123",
+                    "configurations": {"os": "linux"},
+                },
+            }
+        }
+
+        cache_key3 = client._get_normalized_cache_key(method, endpoint, payload3)
+        assert cache_key1 != cache_key3, "Different attributes should generate different cache keys"

@@ -269,11 +269,16 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         headers.update(self._get_headers())
         return headers
 
-    def _get_cache_key(self, method: str, endpoint: str, payload: str) -> str:
-        """Generate a cache key based on request parameters"""
-        # Create a hash from method + endpoint + payload
-        cache_data = f"{method}:{endpoint}:{payload}"
-        return hashlib.sha256(cache_data.encode()).hexdigest()
+    def _get_normalized_cache_key(self, method: str, endpoint: str, payload: t.Dict[str, t.Any]) -> str:
+        """Generate a cache key by normalizing payload to remove dynamic UUID"""
+        # Extract meaningful data for cache key generation (avoid copy.deepcopy)
+        # Use only the attributes (meaningful data) for cache key
+        # This avoids the dynamic UUID in payload.data.id
+        cache_data_dict = {"type": payload["data"].get("type"), "attributes": payload["data"]["attributes"]}
+        # Convert to JSON string with sorted keys for consistent hashing
+        normalized_payload = json.dumps(cache_data_dict, sort_keys=True)
+        cache_key_data = f"{method}:{endpoint}:{normalized_payload}"
+        return hashlib.sha256(cache_key_data.encode()).hexdigest()
 
     def _get_cache_file_path(self, cache_key: str) -> str:
         """Get the full path to the cache file"""
@@ -281,28 +286,33 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         os.makedirs(cache_dir, exist_ok=True)
         return os.path.join(cache_dir, f"{cache_key}.json")
 
-    def _read_from_cache(self, cache_key: str) -> t.Optional[t.Any]:
+    def _read_from_cache(self, cache_key: str) -> t.Dict:
         """Read cached response if it exists"""
+        if not cache_key:
+            return {}
+
         cache_file = self._get_cache_file_path(cache_key)
         try:
             if os.path.exists(cache_file):
                 with open(cache_file, "r", encoding="utf-8") as f:
                     cached_data = json.load(f)
-                    log.debug("Cache hit for key: %s", cache_key)
+                    log.debug("REQ CACHE: Hit for key: %s", cache_key)
                     return cached_data
         except Exception:  # noqa: E722
             log.debug("Failed to read from cache for key: %s", cache_key, exc_info=True)
-        return None
+        return {}
 
     def _write_to_cache(self, cache_key: str, data: t.Any) -> None:
         """Write successful response to cache"""
+        if not cache_key:
+            return
         cache_file = self._get_cache_file_path(cache_key)
         try:
             with open(cache_file, "w", encoding="utf-8") as f:
                 json.dump(data, f)
-                log.debug("Cached response for key: %s", cache_key)
+                log.debug("REQ CACHEd response for key: %s", cache_key)
         except Exception:  # noqa: E722
-            log.debug("Failed to write to cache for key: %s", cache_key, exc_info=True)
+            log.debug("REQ CACHE: Failed to write to cache for key: %s", cache_key, exc_info=True)
 
     def _do_request(self, method: str, endpoint: str, payload: str, timeout: t.Optional[float] = None) -> Response:
         timeout = timeout if timeout is not None else self._timeout
@@ -337,17 +347,22 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         self,
         method: str,
         endpoint: str,
-        payload: str,
+        payload: t.Dict,
         metric_names: APIRequestMetricNames,
         timeout: t.Optional[float] = None,
     ) -> t.Any:
         """Performs a request with telemetry submitted according to given names"""
         # Check cache first
-        cache_key = self._get_cache_key(method, endpoint, payload)
-        cached_response = self._read_from_cache(cache_key)
-        if cached_response is not None:
-            # Return cached response (no telemetry recorded for cache hits)
-            return cached_response
+        str_payload = json.dumps(payload)
+        # Generate cache key using payload without the dynamic UUID
+        cache_key = ""
+        if "data" in payload and "attributes" in payload["data"]:
+            cache_key = self._get_normalized_cache_key(method, endpoint, payload)
+            cached_response = self._read_from_cache(cache_key)
+            if cached_response:
+                log.debug("Using cached response with key: %s", cache_key)
+                # Return cached response (no telemetry recorded for cache hits)
+                return cached_response
 
         sw = StopWatch()
         sw.start()
@@ -355,7 +370,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         response_bytes: t.Optional[int] = None
         try:
             try:
-                response = self._do_request(method, endpoint, payload, timeout=timeout)
+                response = self._do_request(method, endpoint, str_payload, timeout=timeout)
             except _NETWORK_ERRORS:
                 error_type = ERROR_TYPES.TIMEOUT
                 raise
@@ -412,7 +427,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         }
 
         parsed_response = self._do_request_with_telemetry(
-            "POST", SETTING_ENDPOINT, json.dumps(payload), metric_names, timeout=self._timeout
+            "POST", SETTING_ENDPOINT, payload, metric_names, timeout=self._timeout
         )
 
         if "errors" in parsed_response:
@@ -519,7 +534,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
 
         try:
             skippable_response: _SkippableResponse = self._do_request_with_telemetry(
-                "POST", SKIPPABLE_ENDPOINT, json.dumps(payload), metric_names, timeout
+                "POST", SKIPPABLE_ENDPOINT, payload, metric_names, timeout
             )
         except Exception:  # noqa: E722
             return None
@@ -586,9 +601,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         }
 
         try:
-            parsed_response = self._do_request_with_telemetry(
-                "POST", KNOWN_TESTS_ENDPOINT, json.dumps(payload), metric_names
-            )
+            parsed_response = self._do_request_with_telemetry("POST", KNOWN_TESTS_ENDPOINT, payload, metric_names)
         except Exception:  # noqa: E722
             return None
 
@@ -642,7 +655,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
 
         try:
             parsed_response = self._do_request_with_telemetry(
-                "POST", TEST_MANAGEMENT_TESTS_ENDPOINT, json.dumps(payload), metric_names
+                "POST", TEST_MANAGEMENT_TESTS_ENDPOINT, payload, metric_names
             )
         except Exception:  # noqa: E722
             return None
