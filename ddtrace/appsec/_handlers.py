@@ -1,4 +1,3 @@
-import asyncio
 import io
 import json
 from typing import Any
@@ -171,6 +170,9 @@ def _on_lambda_parse_body(
 
 async def _on_asgi_request_parse_body(receive, headers):
     if asm_config._asm_enabled:
+        # This must not be imported globally due to 3rd party patching timeline
+        import asyncio
+
         more_body = True
         body_parts = []
         try:
@@ -427,8 +429,9 @@ def listen():
     core.on("aws_lambda.start_response", _on_lambda_start_response)
     core.on("aws_lambda.parse_body", _on_lambda_parse_body)
 
-    core.on("grpc.server.response.message", _on_grpc_server_response)
-    core.on("grpc.server.data", _on_grpc_server_data)
+    # disabling threats grpc listeners.
+    # core.on("grpc.server.response.message", _on_grpc_server_response)
+    # core.on("grpc.server.data", _on_grpc_server_data)
 
     core.on("wsgi.block.started", _wsgi_make_block_content, "status_headers_content")
     core.on("asgi.block.started", _asgi_make_block_content, "status_headers_content")

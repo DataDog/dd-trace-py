@@ -235,8 +235,9 @@ def test_batch_json_encoder():
         for _ in range(2 * n_snapshots):
             queue.put(s)
 
-    count = queue.count
-    payload = queue.flush()
+    data = queue.flush()
+    assert data is not None
+    payload, count = data
     decoded = json.loads(payload.decode())
     assert len(decoded) == count
     assert n_snapshots <= count + 1  # Allow for rounding errors
@@ -261,13 +262,19 @@ def test_batch_flush_reencode():
     queue = SignalQueue(LogSignalJsonEncoder(None))
 
     snapshot_total_size = sum(queue.put(s) for _ in range(2))
-    assert queue.count == 2
-    assert len(queue.flush()) == snapshot_total_size + 3
+    data = queue.flush()
+    assert data is not None
+    payload, count = data
+    assert count == 2
+    assert len(payload) == snapshot_total_size + 3
 
     a, b = queue.put(s), queue.put(s)
     assert abs(a - b) < 1024
-    assert queue.count == 2
-    assert len(queue.flush()) == a + b + 3
+    data = queue.flush()
+    assert data is not None
+    payload, count = data
+    assert count == 2
+    assert len(payload) == a + b + 3
 
 
 # ---- Side effects ----

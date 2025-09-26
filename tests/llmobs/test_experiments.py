@@ -50,6 +50,18 @@ def faulty_evaluator(input_data, output_data, expected_output):
     raise ValueError("This is a test error in evaluator")
 
 
+def faulty_summary_evaluator(inputs, outputs, expected_outputs, evaluators_results):
+    raise ValueError("This is a test error in a summary evaluator")
+
+
+def dummy_summary_evaluator(inputs, outputs, expected_outputs, evaluators_results):
+    return len(inputs) + len(outputs) + len(expected_outputs) + len(evaluators_results["dummy_evaluator"])
+
+
+def dummy_summary_evaluator_using_missing_eval_results(inputs, outputs, expected_outputs, evaluators_results):
+    return len(inputs) + len(outputs) + len(expected_outputs) + len(evaluators_results["non_existent_evaluator"])
+
+
 @pytest.fixture
 def test_dataset_records() -> List[DatasetRecord]:
     return []
@@ -1191,6 +1203,27 @@ def test_experiment_run_evaluators(llmobs, test_dataset_one_record):
     assert eval_results[0] == {"idx": 0, "evaluations": {"dummy_evaluator": {"value": False, "error": None}}}
 
 
+def test_experiment_run_summary_evaluators(llmobs, test_dataset_one_record):
+    exp = llmobs.experiment(
+        "test_experiment",
+        dummy_task,
+        test_dataset_one_record,
+        [dummy_evaluator],
+        summary_evaluators=[dummy_summary_evaluator],
+    )
+    task_results = exp._run_task(1, raise_errors=False)
+    assert len(task_results) == 1
+    eval_results = exp._run_evaluators(task_results, raise_errors=False)
+    assert len(eval_results) == 1
+    assert eval_results[0] == {"idx": 0, "evaluations": {"dummy_evaluator": {"value": False, "error": None}}}
+    summary_eval_results = exp._run_summary_evaluators(task_results, eval_results, raise_errors=False)
+    assert len(summary_eval_results) == 1
+    assert summary_eval_results[0] == {
+        "idx": 0,
+        "evaluations": {"dummy_summary_evaluator": {"value": 4, "error": None}},
+    }
+
+
 def test_experiment_run_evaluators_error(llmobs, test_dataset_one_record):
     exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [faulty_evaluator])
     task_results = exp._run_task(1, raise_errors=False)
@@ -1204,6 +1237,54 @@ def test_experiment_run_evaluators_error(llmobs, test_dataset_one_record):
     assert err["stack"] is not None
 
 
+def test_experiment_run_summary_evaluators_error(llmobs, test_dataset_one_record):
+    exp = llmobs.experiment(
+        "test_experiment",
+        dummy_task,
+        test_dataset_one_record,
+        [dummy_evaluator],
+        summary_evaluators=[faulty_summary_evaluator],
+    )
+    task_results = exp._run_task(1, raise_errors=False)
+    assert len(task_results) == 1
+    eval_results = exp._run_evaluators(task_results, raise_errors=False)
+    assert len(eval_results) == 1
+    assert eval_results[0] == {"idx": 0, "evaluations": {"dummy_evaluator": {"value": False, "error": None}}}
+    summary_eval_results = exp._run_summary_evaluators(task_results, eval_results, raise_errors=False)
+    assert summary_eval_results[0] == {
+        "idx": 0,
+        "evaluations": {"faulty_summary_evaluator": {"value": None, "error": mock.ANY}},
+    }
+    err = summary_eval_results[0]["evaluations"]["faulty_summary_evaluator"]["error"]
+    assert err["message"] == "This is a test error in a summary evaluator"
+    assert err["type"] == "ValueError"
+    assert err["stack"] is not None
+
+
+def test_experiment_summary_evaluators_missing_eval_error(llmobs, test_dataset_one_record):
+    exp = llmobs.experiment(
+        "test_experiment",
+        dummy_task,
+        test_dataset_one_record,
+        [dummy_evaluator],
+        summary_evaluators=[dummy_summary_evaluator_using_missing_eval_results],
+    )
+    task_results = exp._run_task(1, raise_errors=False)
+    assert len(task_results) == 1
+    eval_results = exp._run_evaluators(task_results, raise_errors=False)
+    assert len(eval_results) == 1
+    assert eval_results[0] == {"idx": 0, "evaluations": {"dummy_evaluator": {"value": False, "error": None}}}
+    summary_eval_results = exp._run_summary_evaluators(task_results, eval_results, raise_errors=False)
+    assert summary_eval_results[0] == {
+        "idx": 0,
+        "evaluations": {"dummy_summary_evaluator_using_missing_eval_results": {"value": None, "error": mock.ANY}},
+    }
+    err = summary_eval_results[0]["evaluations"]["dummy_summary_evaluator_using_missing_eval_results"]["error"]
+    assert err["message"] == "'non_existent_evaluator'"
+    assert err["type"] == "KeyError"
+    assert err["stack"] is not None
+
+
 def test_experiment_run_evaluators_error_raises(llmobs, test_dataset_one_record):
     exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [faulty_evaluator])
     task_results = exp._run_task(1, raise_errors=False)
@@ -1212,14 +1293,46 @@ def test_experiment_run_evaluators_error_raises(llmobs, test_dataset_one_record)
         exp._run_evaluators(task_results, raise_errors=True)
 
 
+def test_experiment_run_summary_evaluators_error_raises(llmobs, test_dataset_one_record):
+    exp = llmobs.experiment(
+        "test_experiment",
+        dummy_task,
+        test_dataset_one_record,
+        [dummy_evaluator],
+        summary_evaluators=[faulty_summary_evaluator],
+    )
+    task_results = exp._run_task(1, raise_errors=False)
+    assert len(task_results) == 1
+    eval_results = exp._run_evaluators(task_results, raise_errors=False)
+    with pytest.raises(RuntimeError, match="Summary evaluator faulty_summary_evaluator failed"):
+        exp._run_summary_evaluators(task_results, eval_results, raise_errors=True)
+
+
+def test_experiment_summary_eval_missing_results_raises(llmobs, test_dataset_one_record):
+    exp = llmobs.experiment(
+        "test_experiment",
+        dummy_task,
+        test_dataset_one_record,
+        [dummy_evaluator],
+        summary_evaluators=[dummy_summary_evaluator_using_missing_eval_results],
+    )
+    task_results = exp._run_task(1, raise_errors=False)
+    assert len(task_results) == 1
+    eval_results = exp._run_evaluators(task_results, raise_errors=False)
+    with pytest.raises(
+        RuntimeError, match="Summary evaluator dummy_summary_evaluator_using_missing_eval_results failed"
+    ):
+        exp._run_summary_evaluators(task_results, eval_results, raise_errors=True)
+
+
 def test_experiment_merge_results(llmobs, test_dataset_one_record):
     exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
     task_results = exp._run_task(1, raise_errors=False)
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
-    merged_results = exp._merge_results(task_results, eval_results)
+    merged_results = exp._merge_results(task_results, eval_results, None)
 
-    assert len(merged_results) == 1
-    exp_result = merged_results[0]
+    assert len(merged_results["rows"]) == 1
+    exp_result = merged_results["rows"][0]
     assert exp_result["idx"] == 0
     assert exp_result["record_id"] != ""
     assert exp_result["input"] == {"prompt": "What is the capital of France?"}
@@ -1243,10 +1356,10 @@ def test_experiment_merge_err_results(llmobs, test_dataset_one_record):
     exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [faulty_evaluator])
     task_results = exp._run_task(1, raise_errors=False)
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
-    merged_results = exp._merge_results(task_results, eval_results)
+    merged_results = exp._merge_results(task_results, eval_results, None)
 
-    assert len(merged_results) == 1
-    exp_result = merged_results[0]
+    assert len(merged_results["rows"]) == 1
+    exp_result = merged_results["rows"][0]
     assert exp_result["idx"] == 0
     assert exp_result["record_id"] != ""
     assert exp_result["input"] == {"prompt": "What is the capital of France?"}
@@ -1290,8 +1403,49 @@ def test_experiment_run(llmobs, test_dataset_one_record):
         exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
         exp._tags = {"ddtrace.version": "1.2.3"}  # FIXME: this is a hack to set the tags for the experiment
         exp_results = exp.run()
-    assert len(exp_results) == 1
-    exp_result = exp_results[0]
+
+    assert len(exp_results["summary_evaluations"]) == 0
+    assert len(exp_results["rows"]) == 1
+    exp_result = exp_results["rows"][0]
+    assert exp_result["idx"] == 0
+    assert exp_result["input"] == {"prompt": "What is the capital of France?"}
+    assert exp_result["output"] == {"prompt": "What is the capital of France?"}
+    assert exp_result["expected_output"] == {"answer": "Paris"}
+    assert exp.url == f"https://app.datadoghq.com/llm/experiments/{exp._id}"
+
+
+def test_experiment_run_w_summary(llmobs, test_dataset_one_record):
+    with mock.patch("ddtrace.llmobs._experiment.Experiment._process_record") as mock_process_record:
+        # This is to ensure that the eval event post request contains the same span/trace IDs and timestamp.
+        mock_process_record.return_value = {
+            "idx": 0,
+            "span_id": "123",
+            "trace_id": "456",
+            "timestamp": 1234567890,
+            "output": {"prompt": "What is the capital of France?"},
+            "metadata": {
+                "dataset_record_index": 0,
+                "experiment_name": "test_experiment",
+                "dataset_name": "test-dataset-123",
+            },
+            "error": {"message": None, "type": None, "stack": None},
+        }
+        exp = llmobs.experiment(
+            "test_experiment",
+            dummy_task,
+            test_dataset_one_record,
+            [dummy_evaluator],
+            summary_evaluators=[dummy_summary_evaluator],
+        )
+        exp._tags = {"ddtrace.version": "1.2.3"}  # FIXME: this is a hack to set the tags for the experiment
+        exp_results = exp.run()
+
+    assert len(exp_results["summary_evaluations"]) == 1
+    summary_eval = exp_results["summary_evaluations"]["dummy_summary_evaluator"]
+    assert summary_eval["value"] == 4
+    assert summary_eval["error"] is None
+    assert len(exp_results["rows"]) == 1
+    exp_result = exp_results["rows"][0]
     assert exp_result["idx"] == 0
     assert exp_result["input"] == {"prompt": "What is the capital of France?"}
     assert exp_result["output"] == {"prompt": "What is the capital of France?"}

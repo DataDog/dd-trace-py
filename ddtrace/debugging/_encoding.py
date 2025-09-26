@@ -13,6 +13,7 @@ from typing import Dict
 from typing import Iterator
 from typing import List
 from typing import Optional
+from typing import Tuple
 from typing import Union
 
 from ddtrace.debugging._config import di_config
@@ -74,7 +75,7 @@ class BufferedEncoder(abc.ABC):
         """Enqueue the given item and returns its encoded size."""
 
     @abc.abstractmethod
-    def flush(self) -> Optional[Union[bytes, bytearray]]:
+    def flush(self) -> Optional[Tuple[Union[bytes, bytearray], int]]:
         """Flush the buffer and return the encoded data."""
 
 
@@ -341,7 +342,7 @@ class SignalQueue(BufferedEncoder):
                     self._on_full(item, encoded)
                 raise
 
-    def flush(self) -> Optional[Union[bytes, bytearray]]:
+    def flush(self) -> Optional[Tuple[Union[bytes, bytearray], int]]:
         with self._lock:
             if self.count == 0:
                 # Reclaim memory
@@ -349,9 +350,10 @@ class SignalQueue(BufferedEncoder):
                 return None
 
             encoded = self._buffer.flush()
+            count = self.count
             self.count = 0
             self._full = False
-            return encoded
+            return encoded, count
 
     def is_full(self) -> bool:
         with self._lock:

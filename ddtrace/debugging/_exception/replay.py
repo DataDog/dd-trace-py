@@ -12,7 +12,7 @@ from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.debugging._session import Session
 from ddtrace.debugging._signal.snapshot import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._signal.snapshot import Snapshot
-from ddtrace.debugging._uploader import LogsIntakeUploaderV1
+from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.debugging._uploader import UploaderProduct
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
@@ -189,7 +189,7 @@ class SpanExceptionProbe(LogLineProbe):
 
 @dataclass
 class SpanExceptionSnapshot(Snapshot):
-    __type__ = "er_snapshot"
+    __type__ = "snapshot"
 
     exc_id: t.Optional[uuid.UUID] = None
 
@@ -242,7 +242,7 @@ def get_snapshot_count(span: Span) -> int:
 
 
 class SpanExceptionHandler:
-    __uploader__ = LogsIntakeUploaderV1
+    __uploader__ = SignalUploader
 
     _instance: t.Optional["SpanExceptionHandler"] = None
 
