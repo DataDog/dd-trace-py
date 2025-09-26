@@ -270,13 +270,7 @@ class ProfilingConfigStack(DDConfig):
     # V2 can't be enabled if stack collection is disabled or if pre-requisites are not met
     v2_enabled = DDConfig.d(bool, lambda c: c._v2_enabled and c.enabled)
 
-    v2_adaptive_sampling = DDConfig.v(
-        bool,
-        "v2.adaptive_sampling.enabled",
-        default=True,
-        help_type="Boolean",
-        private=True,
-    )
+    v2_adaptive_sampling = False
 
 
 class ProfilingConfigLock(DDConfig):
