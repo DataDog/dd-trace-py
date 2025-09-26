@@ -11,15 +11,15 @@ from ddtrace import patch
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs
 from ddtrace.trace import Span
-
-# from tests.contrib.langchain.utils import mock_langchain_chat_generate_response
-# from tests.contrib.langchain.utils import mock_langchain_llm_generate_response
+from tests.contrib.langchain.utils import mock_langchain_chat_generate_response
+from tests.contrib.langchain.utils import mock_langchain_llm_generate_response
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 from tests.llmobs._utils import iterate_stream
 from tests.llmobs._utils import next_stream
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
+
 
 # Multi-message prompt template test constants
 
@@ -118,25 +118,25 @@ def test_llmobs_openai_llm(langchain_openai, llmobs_events, tracer, openai_url):
     )
 
 
-# @mock.patch("langchain_core.language_models.llms.BaseLLM._generate_helper")
-# def test_llmobs_openai_llm_proxy(mock_generate, langchain_openai, llmobs_events, tracer):
-#     mock_generate.return_value = mock_langchain_llm_generate_response
-#     llm = langchain_openai.OpenAI(base_url="http://localhost:4000", model="gpt-3.5-turbo")
-#     llm.invoke("What is the capital of France?")
+@mock.patch("langchain_core.language_models.llms.BaseLLM._generate_helper")
+def test_llmobs_openai_llm_proxy(mock_generate, langchain_openai, llmobs_events, tracer):
+    mock_generate.return_value = mock_langchain_llm_generate_response
+    llm = langchain_openai.OpenAI(base_url="http://localhost:4000", model="gpt-3.5-turbo")
+    llm.invoke("What is the capital of France?")
 
-#     span = tracer.pop_traces()[0][0]
-#     assert len(llmobs_events) == 1
-#     assert llmobs_events[0] == _expected_langchain_llmobs_chain_span(
-#         span,
-#         input_value=json.dumps([{"content": "What is the capital of France?"}]),
-#     )
+    span = tracer.pop_traces()[0][0]
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0] == _expected_langchain_llmobs_chain_span(
+        span,
+        input_value=json.dumps([{"content": "What is the capital of France?"}]),
+    )
 
-#     # span created from request with non-proxy URL should result in an LLM span
-#     llm = langchain_openai.OpenAI(base_url="http://localhost:8000", model="gpt-3.5-turbo")
-#     llm.invoke("What is the capital of France?")
-#     span = tracer.pop_traces()[0][0]
-#     assert len(llmobs_events) == 2
-#     assert llmobs_events[1]["meta"]["span.kind"] == "llm"
+    # span created from request with non-proxy URL should result in an LLM span
+    llm = langchain_openai.OpenAI(base_url="http://localhost:8000", model="gpt-3.5-turbo")
+    llm.invoke("What is the capital of France?")
+    span = tracer.pop_traces()[0][0]
+    assert len(llmobs_events) == 2
+    assert llmobs_events[1]["meta"]["span"]["kind"] == "llm"
 
 
 def test_llmobs_openai_chat_model(langchain_core, langchain_openai, llmobs_events, tracer, openai_url):
@@ -170,26 +170,26 @@ def test_llmobs_openai_chat_model_no_usage(langchain_core, langchain_openai, llm
     assert llmobs_events[0]["metrics"].get("total_tokens") is None
 
 
-# @mock.patch("langchain_core.language_models.chat_models.BaseChatModel._generate_with_cache")
-# def test_llmobs_openai_chat_model_proxy(mock_generate, langchain_core, langchain_openai, llmobs_events, tracer):
-#     mock_generate.return_value = mock_langchain_chat_generate_response
-#     chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url="http://localhost:4000")
-#     chat_model.invoke([langchain_core.messages.HumanMessage(content="What is the capital of France?")])
+@mock.patch("langchain_core.language_models.chat_models.BaseChatModel._generate_with_cache")
+def test_llmobs_openai_chat_model_proxy(mock_generate, langchain_core, langchain_openai, llmobs_events, tracer):
+    mock_generate.return_value = mock_langchain_chat_generate_response
+    chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url="http://localhost:4000")
+    chat_model.invoke([langchain_core.messages.HumanMessage(content="What is the capital of France?")])
 
-#     span = tracer.pop_traces()[0][0]
-#     assert len(llmobs_events) == 1
-#     assert llmobs_events[0] == _expected_langchain_llmobs_chain_span(
-#         span,
-#         input_value=json.dumps([{"content": "What is the capital of France?", "role": "user"}]),
-#         metadata={"temperature": 0.0, "max_tokens": 256},
-#     )
+    span = tracer.pop_traces()[0][0]
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0] == _expected_langchain_llmobs_chain_span(
+        span,
+        input_value=json.dumps([{"content": "What is the capital of France?", "role": "user"}]),
+        metadata={"temperature": 0.0, "max_tokens": 256},
+    )
 
-#     # span created from request with non-proxy URL should result in an LLM span
-#     chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url="http://localhost:8000")
-#     chat_model.invoke([langchain_core.messages.HumanMessage(content="What is the capital of France?")])
-#     span = tracer.pop_traces()[0][0]
-#     assert len(llmobs_events) == 2
-#     assert llmobs_events[1]["meta"]["span.kind"] == "llm"
+    # span created from request with non-proxy URL should result in an LLM span
+    chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url="http://localhost:8000")
+    chat_model.invoke([langchain_core.messages.HumanMessage(content="What is the capital of France?")])
+    span = tracer.pop_traces()[0][0]
+    assert len(llmobs_events) == 2
+    assert llmobs_events[1]["meta"]["span"]["kind"] == "llm"
 
 
 def test_llmobs_string_prompt_template_invoke(langchain_core, langchain_openai, openai_url, llmobs_events, tracer):

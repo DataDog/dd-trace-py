@@ -588,6 +588,7 @@ def patched_embeddings_init_subclass(func, instance, args, kwargs):
         cls = func.__self__
 
         classes_to_patch = [cls] if cls != langchain_core.embeddings.Embeddings else cls.__subclasses__()
+        # classes_to_patch = [cls]
 
         for target_cls in classes_to_patch:
             embed_documents = getattr(target_cls, "embed_documents", None)
@@ -606,6 +607,7 @@ def patched_vectorstore_init_subclass(func, instance, args, kwargs):
         cls = func.__self__
 
         classes_to_patch = [cls] if cls != langchain_core.vectorstores.base.VectorStore else cls.__subclasses__()
+        # classes_to_patch = [cls]
 
         for target_cls in classes_to_patch:
             method = getattr(target_cls, "similarity_search", None)
