@@ -614,11 +614,10 @@ def test_llmobs_embedding_documents(langchain_openai, llmobs_events, tracer, ope
     embedding_model = langchain_openai.embeddings.OpenAIEmbeddings(base_url=openai_url)
     embedding_model.embed_documents(["hello world", "goodbye world"])
 
-    trace = tracer.pop_traces()[0]
-    span = trace[0] if isinstance(trace, list) else trace
+    trace = tracer.pop_traces()[0]  
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-        span,
+        trace[0],
         span_kind="embedding",
         model_name="text-embedding-ada-002",
         model_provider="openai",
