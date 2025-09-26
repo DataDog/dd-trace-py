@@ -2999,6 +2999,17 @@ venv = Venv(
             },
         ),
         Venv(
+            name="google_adk",
+            command="pytest {cmdargs} tests/contrib/google_adk",
+            pys=select_pys(min_version="3.9", max_version="3.13"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "google-adk": ["~=1.0.0", latest],
+                "vcrpy": latest,
+                "deprecated": latest,
+            },
+        ),
+        Venv(
             name="google_genai",
             command="pytest {cmdargs} tests/contrib/google_genai",
             pys=select_pys(min_version="3.9", max_version="3.13"),
@@ -3604,7 +3615,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_flask",
-            command="pytest tests/appsec/contrib_appsec/test_flask.py {cmdargs}",
+            command="pytest -vv tests/appsec/contrib_appsec/test_flask.py {cmdargs}",
             pkgs={
                 "pytest": latest,
                 "pytest-cov": latest,
