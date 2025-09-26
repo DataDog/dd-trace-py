@@ -672,8 +672,8 @@ class Config(object):
 
         # Long-running span submission interval (generic configuration)
         # Only supported for Ray spans for now
-        self._long_running_span_submission_interval = _get_config(
-            "DD_TRACE_LONG_RUNNING_SPAN_SUBMISSION_INTERVAL", default=120.0, modifier=float
+        self._long_running_flush_interval = _get_config(
+            "DD_TRACE_EXPERIMENTAL_LONG_RUNNING_FLUSH_INTERVAL", default=120.0, modifier=float
         )
 
     def __getattr__(self, name) -> Any:

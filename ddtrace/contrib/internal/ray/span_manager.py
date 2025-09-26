@@ -157,7 +157,7 @@ class RaySpanManager:
         with self._lock:
             if submission_id not in self._job_spans:
                 return
-            self._create_resubmit_timer(submission_id, float(config._long_running_span_submission_interval))
+            self._create_resubmit_timer(submission_id, float(config._long_running_flush_interval))
             job_spans = list(self._job_spans[submission_id].values())
 
         for span in job_spans:
