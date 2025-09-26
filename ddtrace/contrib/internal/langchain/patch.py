@@ -612,7 +612,7 @@ def patch():
         return
 
     langchain_core._datadog_patch = True
-    integration = LangChainIntegration(integration_config=config.langchain_core)
+    integration = LangChainIntegration(integration_config=config.langchain)
     langchain_core._datadog_integration = integration
 
     Pin().onto(langchain_core)
