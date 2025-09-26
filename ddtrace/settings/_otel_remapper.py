@@ -71,7 +71,7 @@ def _remap_traces_exporter(otel_value: str) -> Optional[str]:
 
 def _remap_metrics_exporter(otel_value: str) -> Optional[str]:
     """Remaps the otel metrics exporter to ddtrace metrics exporter"""
-    if otel_value == "none" or otel_value == "otlp":
+    if otel_value == "none":
         return "False"
     return None
 
