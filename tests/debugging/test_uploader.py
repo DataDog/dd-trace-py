@@ -5,7 +5,7 @@ import pytest
 
 from ddtrace.debugging._encoding import BufferFull
 from ddtrace.debugging._encoding import SignalQueue
-from ddtrace.debugging._uploader import LogsIntakeUploaderV1
+from ddtrace.debugging._uploader import SignalUploader
 
 
 # DEV: Using float('inf') with lock wait intervals may cause an OverflowError
@@ -13,10 +13,11 @@ from ddtrace.debugging._uploader import LogsIntakeUploaderV1
 LONG_INTERVAL = 2147483647.0
 
 
-class MockLogsIntakeUploaderV1(LogsIntakeUploaderV1):
+class MockSignalUploader(SignalUploader):
     def __init__(self, *args, **kwargs):
-        super(MockLogsIntakeUploaderV1, self).__init__(*args, **kwargs)
+        super(MockSignalUploader, self).__init__(*args, **kwargs)
         self.queue = Queue()
+        self._state = self._online
 
     def _write(self, payload, endpoint):
         self.queue.put(payload.decode())
@@ -26,7 +27,7 @@ class MockLogsIntakeUploaderV1(LogsIntakeUploaderV1):
         return [json.loads(data) for data in self.queue]
 
 
-class ActiveBatchJsonEncoder(MockLogsIntakeUploaderV1):
+class ActiveBatchJsonEncoder(MockSignalUploader):
     def __init__(self, size=1 << 10, interval=1):
         super(ActiveBatchJsonEncoder, self).__init__(interval)
 

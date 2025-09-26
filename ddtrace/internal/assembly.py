@@ -46,7 +46,7 @@ def transform_instruction(opcode: str, arg: t.Any) -> t.Tuple[str, t.Any]:
             opcode = "LOAD_ATTR"
             arg = (True, arg)
         elif opcode.upper() == "LOAD_ATTR" and not isinstance(arg, tuple):
-            arg = (False, arg)
+            arg = (sys.version_info >= (3, 14), arg)
 
     return opcode, arg
 
@@ -157,6 +157,11 @@ class Assembly:
 
     def parse_opcode(self, text: str) -> str:
         opcode = text.upper()
+
+        # `dis` doesn't include `LOAD_METHOD` in 3.14.0rc1
+        if sys.version_info >= (3, 14) and opcode == "LOAD_METHOD":
+            return opcode
+
         if opcode not in dis.opmap:
             raise ValueError("unknown opcode %s" % opcode)
 

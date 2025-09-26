@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    tracing: Added support for resource renaming, an experimental feature that lets the Datadog platform adjust the resource field on web request spans when the endpoint cannot be correctly deduced. Enable the feature by setting ``DD_TRACE_RESOURCE_RENAMING_ENABLED="true"``

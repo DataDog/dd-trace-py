@@ -14,9 +14,8 @@ from ddtrace.appsec._iast._patches.json_tainting import patch as json_patch
 from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_free_slots_number
 from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_size
 from ddtrace.appsec._iast.taint_sinks.code_injection import patch as code_injection_patch
-from ddtrace.appsec._iast.taint_sinks.command_injection import patch as cmdi_patch
-from ddtrace.appsec._iast.taint_sinks.command_injection import unpatch as cmdi_unpatch
 from ddtrace.appsec._iast.taint_sinks.header_injection import patch as header_injection_patch
+from ddtrace.appsec._iast.taint_sinks.untrusted_serialization import patch as unstrusted_serialization_patch
 from ddtrace.appsec._iast.taint_sinks.weak_cipher import patch as weak_cipher_patch
 from ddtrace.appsec._iast.taint_sinks.weak_hash import patch as weak_hash_patch
 from ddtrace.appsec._iast.taint_sinks.weak_hash import unpatch_iast as weak_hash_unpatch
@@ -66,8 +65,8 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
         _start_iast_context_and_oce(span)
         weak_hash_patch()
         weak_cipher_patch()
+        unstrusted_serialization_patch()
         json_patch()
-        cmdi_patch()
         header_injection_patch()
         code_injection_patch()
         patch_common_modules()
@@ -75,7 +74,6 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
             yield
         finally:
             unpatch_common_modules()
-            cmdi_unpatch()
             weak_hash_unpatch()
             _testing_unpatch_iast()
             _end_iast_context_and_oce(span)

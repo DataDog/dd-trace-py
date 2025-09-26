@@ -1,9 +1,13 @@
 import asyncio
+import hashlib
 import subprocess
 
 from fastapi import FastAPI
 from fastapi import Form
+from fastapi import Request
+from fastapi.responses import JSONResponse
 from fastapi.responses import Response
+import urllib3
 import uvicorn
 
 from ddtrace import tracer
@@ -76,6 +80,29 @@ def get_app():
         subp.communicate()
         subp.wait()
         return Response(content="OK")
+
+    @app.get("/returnheaders")
+    def return_headers(request: Request):
+        headers = {}
+        for key, value in request.headers.items():
+            headers[key] = value
+        return JSONResponse(headers)
+
+    @app.get("/vulnerablerequestdownstream")
+    def vulnerable_request_downstream(port: int = 8050):
+        """Trigger a weak-hash vulnerability, then call downstream return-headers endpoint.
+
+        Mirrors Flask/Django behavior to validate header propagation and IAST instrumentation.
+        """
+        # Trigger weak hash for IAST
+        m = hashlib.md5()
+        m.update(b"Nobody inspects")
+        m.update(b" the spammish repetition")
+        _ = m.digest()
+        http_ = urllib3.PoolManager()
+        # Sending a GET request and getting back response as HTTPResponse object.
+        response = http_.request("GET", f"http://0.0.0.0:{port}/returnheaders")
+        return response.data
 
     return app
 

@@ -1,10 +1,14 @@
 from typing import Any
 from typing import Dict
 from typing import List
-from typing import TypedDict  # noqa:F401
 from typing import Union
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs.types import Document
+from ddtrace.llmobs.types import Message
+from ddtrace.llmobs.types import ToolCall
+from ddtrace.llmobs.types import ToolDefinition
+from ddtrace.llmobs.types import ToolResult
 
 
 log = get_logger(__name__)
@@ -66,58 +70,6 @@ def _extract_tool_result(tool_result: Dict[str, Any]) -> "ToolResult":
         formatted_tool_result["type"] = tool_type
 
     return formatted_tool_result
-
-
-ExportedLLMObsSpan = TypedDict("ExportedLLMObsSpan", {"span_id": str, "trace_id": str})
-Document = TypedDict("Document", {"name": str, "id": str, "text": str, "score": float}, total=False)
-Message = TypedDict(
-    "Message",
-    {"content": str, "role": str, "tool_calls": List["ToolCall"], "tool_results": List["ToolResult"]},
-    total=False,
-)
-Prompt = TypedDict(
-    "Prompt",
-    {
-        "variables": Dict[str, str],
-        "template": str,
-        "id": str,
-        "version": str,
-        "rag_context_variables": List[
-            str
-        ],  # a list of variable key names that contain ground truth context information
-        "rag_query_variables": List[str],  # a list of variable key names that contains query information
-    },
-    total=False,
-)
-ToolCall = TypedDict(
-    "ToolCall",
-    {
-        "name": str,
-        "arguments": Dict[str, Any],
-        "tool_id": str,
-        "type": str,
-    },
-    total=False,
-)
-ToolResult = TypedDict(
-    "ToolResult",
-    {
-        "name": str,
-        "result": str,
-        "tool_id": str,
-        "type": str,
-    },
-    total=False,
-)
-ToolDefinition = TypedDict(
-    "ToolDefinition",
-    {
-        "name": str,
-        "description": str,
-        "schema": Dict[str, Any],
-    },
-    total=False,
-)
 
 
 def extract_tool_definitions(tool_definitions: List[Dict[str, Any]]) -> List[ToolDefinition]:

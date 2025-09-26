@@ -72,7 +72,7 @@ def get_tainted_ranges(pyobject: Any) -> Tuple:
     try:
         return get_ranges(pyobject)
     except ValueError as e:
-        iast_propagation_error_log(f"get_tainted_ranges error (pyobject type {type(pyobject)}): {e}")
+        iast_propagation_error_log(f"get_tainted_ranges error (pyobject type {type(pyobject)})", exc=e)
     return tuple()
 
 
@@ -83,5 +83,5 @@ def is_pyobject_tainted(pyobject: Any) -> bool:
     try:
         return is_in_taint_map(pyobject)
     except ValueError as e:
-        iast_propagation_error_log(f"Checking tainted object error: {e}")
+        iast_propagation_error_log("Checking tainted object error", exc=e)
     return False

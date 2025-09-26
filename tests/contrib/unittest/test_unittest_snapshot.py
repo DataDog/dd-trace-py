@@ -401,6 +401,9 @@ class UnittestSnapshotTestCase(TracerTestCase):
             return False
         """
         self.testdir.makepyfile(ret_false=ret_false)
+        # work around apparent issue with the coverage library in which it
+        # doesn't track repeated imports under python 3.14
+        self.testdir.makepyfile(ret_false2=ret_false)
         lib_fn = """
         def lib_fn():
             return True
@@ -447,7 +450,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
                     from ret_false import ret_false
                     assert not ret_false()
                 def test_third(self):
-                    from ret_false import ret_false
+                    from ret_false2 import ret_false
                     assert not ret_false()
         """
         )

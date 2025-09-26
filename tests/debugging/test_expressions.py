@@ -1,4 +1,5 @@
 from dis import dis
+import re
 
 import pytest
 
@@ -129,15 +130,98 @@ class CustomDict(dict):
             {"bar": CustomObject("foo")},
             True,
         ),
+        # Direct predicates
+        ({"not": True}, {}, False),
+        ({"not": False}, {}, True),
+        ({"isEmpty": {"ref": "empty_str"}}, {"empty_str": ""}, True),
+        ({"isEmpty": {"ref": "s"}}, {"s": "foo"}, False),
+        ({"isEmpty": {"ref": "empty_list"}}, {"empty_list": []}, True),
+        ({"isEmpty": {"ref": "l"}}, {"l": [1]}, False),
+        ({"isEmpty": {"ref": "empty_dict"}}, {"empty_dict": {}}, True),
+        ({"isEmpty": {"ref": "d"}}, {"d": {"a": 1}}, False),
+        # Arg predicates
+        ({"ne": [1, 2]}, {}, True),
+        ({"ne": [1, 1]}, {}, False),
+        ({"gt": [2, 1]}, {}, True),
+        ({"gt": [1, 2]}, {}, False),
+        ({"ge": [2, 1]}, {}, True),
+        ({"ge": [1, 1]}, {}, True),
+        ({"ge": [1, 2]}, {}, False),
+        ({"lt": [1, 2]}, {}, True),
+        ({"lt": [2, 1]}, {}, False),
+        ({"le": [1, 2]}, {}, True),
+        ({"le": [1, 1]}, {}, True),
+        ({"le": [2, 1]}, {}, False),
+        ({"all": [{"ref": "collection"}, {"not": {"isEmpty": {"ref": "@it"}}}]}, {"collection": ["foo", "bar"]}, True),
+        (
+            {"all": [{"ref": "collection"}, {"not": {"isEmpty": {"ref": "@it"}}}]},
+            {"collection": ["foo", "bar", ""]},
+            False,
+        ),
+        ({"endsWith": [{"ref": "local_string"}, "world!"]}, {"local_string": "hello world!"}, True),
+        ({"endsWith": [{"ref": "local_string"}, "hello"]}, {"local_string": "hello world!"}, False),
+        # Nested expressions
+        (
+            {"len": {"filter": [{"ref": "collection"}, {"gt": [{"ref": "@it"}, 1]}]}},
+            {"collection": [1, 2, 3]},
+            2,
+        ),
+        (
+            {"getmember": [{"getmember": [{"getmember": [{"ref": "self"}, "field1"]}, "field2"]}, "name"]},
+            {"self": CustomObject("test-me")},
+            "field2",
+        ),
+        (
+            {
+                "any": [
+                    {"getmember": [{"ref": "self"}, "collectionField"]},
+                    {"startsWith": [{"getmember": [{"ref": "@it"}, "name"]}, "foo"]},
+                ]
+            },
+            {"self": CustomObject("test-me")},
+            True,
+        ),
+        (
+            {"and": [{"eq": [{"ref": "hits"}, 42]}, {"gt": [{"len": {"ref": "payload"}}, 5]}]},
+            {"hits": 42, "payload": "hello world"},
+            True,
+        ),
+        (
+            {"and": [{"eq": [{"ref": "hits"}, 42]}, {"gt": [{"len": {"ref": "payload"}}, 20]}]},
+            {"hits": 42, "payload": "hello world"},
+            False,
+        ),
+        (
+            {"index": [{"filter": [{"ref": "collection"}, {"gt": [{"ref": "@it"}, 2]}]}, 0]},
+            {"collection": [1, 2, 3, 4]},
+            3,
+        ),
+        # Edge cases
+        ({"any": [{"ref": "empty_list"}, {"ref": "@it"}]}, {"empty_list": []}, False),
+        ({"all": [{"ref": "empty_list"}, {"ref": "@it"}]}, {"empty_list": []}, True),
+        ({"count": {"ref": "payload"}}, {"payload": "hello"}, 5),
+        ({"substring": [{"ref": "s"}, -5, -1]}, {"s": "hello world"}, "worl"),  # codespell:ignore worl
+        ({"substring": [{"ref": "s"}, 0, 100]}, {"s": "hello"}, "hello"),
+        ({"matches": [{"ref": "s"}, "["]}, {"s": "a"}, re.error),
+        (
+            {"or": [True, {"ref": "side_effect"}]},
+            {"side_effect": SideEffect("or should short-circuit")},
+            True,
+        ),
+        ({"ref": "@it"}, {}, ValueError),
+        (
+            {"len": {"filter": [{"ref": "collection"}, {"any": [{"ref": "@it"}, {"eq": [{"ref": "@it"}, 1]}]}]}},
+            {"collection": [[1, 2], [3, 4], [5]]},
+            1,
+        ),
     ],
 )
 def test_parse_expressions(ast, _locals, value):
-    compiled = dd_compile(ast)
-
     if isinstance(value, type) and issubclass(value, Exception):
         with pytest.raises(value):
-            compiled(_locals)
+            dd_compile(ast)(_locals)
     else:
+        compiled = dd_compile(ast)
         assert compiled(_locals) == value, dis(compiled)
 
 

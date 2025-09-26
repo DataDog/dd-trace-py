@@ -92,6 +92,7 @@ def set_botocore_patched_api_call_span_tags(span: Span, instance, args, params, 
     if region_name is not None:
         span.set_tag_str("aws.region", region_name)
         span.set_tag_str("region", region_name)
+        span.set_tag_str("aws.partition", aws.get_aws_partition(region_name))
 
         # Derive peer hostname only in serverless environments to avoid
         # unnecessary tag noise in traditional hosts/containers.

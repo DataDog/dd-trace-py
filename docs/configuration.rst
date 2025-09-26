@@ -461,8 +461,8 @@ Metrics
      version_added:
        v3.11.0:
 
-AppSec
-------
+Application & API Security
+--------------------------
 
 .. ddtrace-configuration-options::
 
@@ -527,6 +527,29 @@ AppSec
      type: Boolean
      default: True
      description: Whether to enable stack traces in reports for ASM. Currently used for exploit prevention reports.
+
+   DD_APPSEC_WAF_TIMEOUT:
+     type: Float
+     default: 5.0 (unit:milliseconds)
+     description: |
+       Each time the WAF is run to analyze a possible threat, this timeout duration is used to limit the WAF analysis.
+       You can increase this value if you're expecting large request payloads to be analyzed.
+       Please note that the WAF can be queried multiple times in a single trace.
+
+   DD_API_SECURITY_MAX_DOWNSTREAM_REQUEST_BODY_ANALYSIS:
+     type: Integer
+     default: 1
+     description: Maximum number of downstream requests per request whose (request and response) bodies will be analyzed by the WAF
+
+   DD_API_SECURITY_DOWNSTREAM_REQUEST_BODY_ANALYSIS_SAMPLE_RATE:
+     type: Float
+     default: 0.5 (between 0. and 1.)
+     description: sampling rate for body analysis of downstream requests. Default value is 50%.
+
+Code Security
+-------------
+
+.. ddtrace-configuration-options::
 
    DD_IAST_ENABLED:
      type: Boolean

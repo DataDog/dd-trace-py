@@ -1,4 +1,3 @@
-# This module must not import other modules unconditionally that require iast
 import ctypes
 import io
 import json
@@ -195,9 +194,6 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
     """
     wrapper for open url function
     """
-    if asm_config._iast_enabled:
-        # TODO: IAST SSRF sink to be added
-        pass
     if _get_rasp_capability("ssrf"):
         try:
             from ddtrace.appsec._asm_request_context import _get_asm_context
@@ -290,14 +286,6 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
     wrapper for third party requests.request function
     https://requests.readthedocs.io
     """
-    if asm_config._iast_enabled:
-        from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
-
-        if is_iast_request_enabled():
-            from ddtrace.appsec._iast.taint_sinks.ssrf import _iast_report_ssrf
-
-            _iast_report_ssrf(original_request_callable, *args, **kwargs)
-
     if _get_rasp_capability("ssrf"):
         try:
             from ddtrace.appsec._asm_request_context import _get_asm_context

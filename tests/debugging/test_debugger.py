@@ -553,6 +553,8 @@ def test_debugger_multiple_function_probes_on_same_lazy_module():
         for i in range(3)
     ]
 
+    sys.modules.pop("tests.submod.stuff", None)
+
     with debugger() as d:
         d.add_probes(*probes)
 
@@ -560,6 +562,7 @@ def test_debugger_multiple_function_probes_on_same_lazy_module():
 
         assert len(d._probe_registry) == len(probes)
         assert all(_.error_type is None for _ in d._probe_registry.values())
+        assert len(d._probe_registry._pending) == 0
 
 
 # DEV: The following tests are to ensure compatibility with the tracer

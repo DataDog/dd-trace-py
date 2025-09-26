@@ -126,4 +126,4 @@ def iast_check_stacktrace_leak(content: str) -> None:
         else:
             set_report_stacktrace_later(evidence)
     except Exception as e:
-        iast_error(f"propagation::sink_point::Error in iast_check_stacktrace_leak. {e}")
+        iast_error("propagation::sink_point::Error in iast_check_stacktrace_leak", e)

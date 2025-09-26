@@ -27,7 +27,7 @@ from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_complet
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_response
 from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
 from ddtrace.llmobs._utils import _get_attr
-from ddtrace.llmobs.utils import Document
+from ddtrace.llmobs.types import Document
 from ddtrace.trace import Span
 
 
@@ -132,7 +132,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         embedding_inputs = kwargs.get("input", "")
         if isinstance(embedding_inputs, str) or isinstance(embedding_inputs[0], int):
             embedding_inputs = [embedding_inputs]
-        input_documents = []
+        input_documents: List[Document] = []
         for doc in embedding_inputs:
             input_documents.append(Document(text=str(doc)))
         span._set_ctx_items({METADATA: metadata, INPUT_DOCUMENTS: input_documents})

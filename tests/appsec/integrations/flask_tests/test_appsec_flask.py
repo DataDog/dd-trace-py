@@ -90,20 +90,24 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
 
 @pytest.mark.parametrize(
+    "function",
+    ["open", "os_system"],
+)
+@pytest.mark.parametrize(
     "iast_enabled",
     ["true", "false"],
 )
 @pytest.mark.parametrize("appsec_enabled", ["true", "false"])
-def test_flask_common_modules_patch_read(iast_enabled, appsec_enabled):
+def test_flask_common_modules_patch(function, iast_enabled, appsec_enabled):
     with flask_server(
-        appsec_enabled=iast_enabled, iast_enabled=appsec_enabled, token=None, port=_PORT, assert_debug=False
+        appsec_enabled=appsec_enabled, iast_enabled=iast_enabled, token=None, port=_PORT, assert_debug=False
     ) as context:
         _, flask_client, pid = context
 
-        response = flask_client.get("/common-modules-patch-read")
+        response = flask_client.get(f"/common-modules-patch?function={function}")
 
         assert response.status_code == 200
-        if iast_enabled == appsec_enabled == "false":
+        if appsec_enabled == "false":
             assert response.content == b"OK: False"
         else:
             assert response.content == b"OK: True"

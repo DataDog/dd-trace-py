@@ -24,6 +24,7 @@ from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs.types import _SpanLink
 from ddtrace.trace import Span
 
 
@@ -123,11 +124,11 @@ class CrewAIIntegration(BaseLLMIntegration):
         task_span_ids = self._crews_to_task_span_ids.get(crew_id, [])
         if task_span_ids:
             last_task_span_id = task_span_ids[-1]
-            span_link = {
-                "span_id": last_task_span_id,
-                "trace_id": format_trace_id(span.trace_id),
-                "attributes": {"from": "output", "to": "output"},
-            }
+            span_link = _SpanLink(
+                span_id=last_task_span_id,
+                trace_id=format_trace_id(span.trace_id),
+                attributes={"from": "output", "to": "output"},
+            )
             curr_span_links = span._get_ctx_item(SPAN_LINKS) or []
             span._set_ctx_item(SPAN_LINKS, curr_span_links + [span_link])
         metadata = {
@@ -160,11 +161,11 @@ class CrewAIIntegration(BaseLLMIntegration):
             span_links = self._crews_to_tasks[crew_id].get(str(task_id), {}).get("span_links", [])
             if self._is_planning_task(span):
                 parent_span = _get_nearest_llmobs_ancestor(span)
-                span_link = {
-                    "span_id": str(parent_span.span_id),
-                    "trace_id": format_trace_id(span.trace_id),
-                    "attributes": {"from": "input", "to": "input"},
-                }
+                span_link = _SpanLink(
+                    span_id=str(parent_span.span_id),
+                    trace_id=format_trace_id(span.trace_id),
+                    attributes={"from": "input", "to": "input"},
+                )
                 span_links.append(span_link)
             curr_span_links = span._get_ctx_item(SPAN_LINKS) or []
             span._set_ctx_item(SPAN_LINKS, curr_span_links + span_links)
@@ -186,18 +187,18 @@ class CrewAIIntegration(BaseLLMIntegration):
         context = get_argument_value(args, kwargs, 1, "context", optional=True) or ""
 
         parent_span = _get_nearest_llmobs_ancestor(span)
-        parent_span_link = {
-            "span_id": str(span.span_id),
-            "trace_id": format_trace_id(span.trace_id),
-            "attributes": {"from": "output", "to": "output"},
-        }
+        parent_span_link = _SpanLink(
+            span_id=str(span.span_id),
+            trace_id=format_trace_id(span.trace_id),
+            attributes={"from": "output", "to": "output"},
+        )
         curr_span_links = parent_span._get_ctx_item(SPAN_LINKS) or []
         parent_span._set_ctx_item(SPAN_LINKS, curr_span_links + [parent_span_link])
-        span_link = {
-            "span_id": str(parent_span.span_id),
-            "trace_id": format_trace_id(span.trace_id),
-            "attributes": {"from": "input", "to": "input"},
-        }
+        span_link = _SpanLink(
+            span_id=str(parent_span.span_id),
+            trace_id=format_trace_id(span.trace_id),
+            attributes={"from": "input", "to": "input"},
+        )
         curr_span_links = span._get_ctx_item(SPAN_LINKS) or []
         span._set_ctx_items(
             {
@@ -306,11 +307,11 @@ class CrewAIIntegration(BaseLLMIntegration):
         )
         if span.name in getattr(flow_instance, "_start_methods", []) and span._parent is not None:
             span_links.append(
-                {
-                    "span_id": str(span._parent.span_id),
-                    "trace_id": format_trace_id(span.trace_id),
-                    "attributes": {"from": "input", "to": "input"},
-                }
+                _SpanLink(
+                    span_id=str(span._parent.span_id),
+                    trace_id=format_trace_id(span.trace_id),
+                    attributes={"from": "input", "to": "input"},
+                )
             )
 
         if span.name in getattr(flow_instance, "_routers", []):
@@ -368,11 +369,11 @@ class CrewAIIntegration(BaseLLMIntegration):
             if condition_type != "AND":
                 triggered = True
                 span_links.append(
-                    {
-                        "span_id": str(trigger_span_dict["span_id"]),
-                        "trace_id": format_trace_id(flow_span.trace_id),
-                        "attributes": {"from": "output", "to": "input"},
-                    }
+                    _SpanLink(
+                        span_id=str(trigger_span_dict["span_id"]),
+                        trace_id=format_trace_id(flow_span.trace_id),
+                        attributes={"from": "output", "to": "input"},
+                    )
                 )
                 continue
             if any(
@@ -384,11 +385,11 @@ class CrewAIIntegration(BaseLLMIntegration):
             for method in listener_triggers:
                 method_span_dict = flow_methods_to_spans.get(method, {})
                 span_links.append(
-                    {
-                        "span_id": str(method_span_dict["span_id"]),
-                        "trace_id": format_trace_id(flow_span.trace_id),
-                        "attributes": {"from": "output", "to": "input"},
-                    }
+                    _SpanLink(
+                        span_id=str(method_span_dict["span_id"]),
+                        trace_id=format_trace_id(flow_span.trace_id),
+                        attributes={"from": "output", "to": "input"},
+                    )
                 )
                 flow_span_span_links = flow_span._get_ctx_item(SPAN_LINKS) or []
                 # Remove temporary output->output link since the AND has been triggered
@@ -400,11 +401,11 @@ class CrewAIIntegration(BaseLLMIntegration):
         if triggered is False:
             flow_span_span_links = flow_span._get_ctx_item(SPAN_LINKS) or []
             flow_span_span_links.append(
-                {
-                    "span_id": str(trigger_span_dict["span_id"]),
-                    "trace_id": format_trace_id(flow_span.trace_id),
-                    "attributes": {"from": "output", "to": "output"},
-                }
+                _SpanLink(
+                    span_id=str(trigger_span_dict["span_id"]),
+                    trace_id=format_trace_id(flow_span.trace_id),
+                    attributes={"from": "output", "to": "output"},
+                )
             )
             flow_span._set_ctx_item(SPAN_LINKS, flow_span_span_links)
         return
@@ -434,7 +435,7 @@ class CrewAIIntegration(BaseLLMIntegration):
         crew_id = _get_crew_id(span, "crew")
         is_planning_crew_instance = crew_id in self._planning_crew_ids
         queued_task_node = self._crews_to_tasks.get(crew_id, {}).setdefault(str(queued_task_id), {})
-        span_links = []
+        span_links: List[_SpanLink] = []
 
         if isinstance(getattr(queued_task, "context", None), Iterable):
             for finished_task in queued_task.context:
@@ -442,31 +443,31 @@ class CrewAIIntegration(BaseLLMIntegration):
                 finished_task_node = self._crews_to_tasks.get(crew_id, {}).get(str(finished_task_id), {})
                 finished_task_span_id = finished_task_node.get("span_id")
                 span_links.append(
-                    {
-                        "span_id": finished_task_span_id,
-                        "trace_id": format_trace_id(span.trace_id),
-                        "attributes": {"from": "output", "to": "input"},
-                    }
+                    _SpanLink(
+                        span_id=finished_task_span_id,
+                        trace_id=format_trace_id(span.trace_id),
+                        attributes={"from": "output", "to": "input"},
+                    )
                 )
             queued_task_node["span_links"] = span_links
             return
         if not finished_task_outputs and not is_planning_crew_instance:
             queued_task_node["span_links"] = [
-                {
-                    "span_id": str(span.span_id) if span else ROOT_PARENT_ID,
-                    "trace_id": format_trace_id(span.trace_id),
-                    "attributes": {"from": "input", "to": "input"},
-                }
+                _SpanLink(
+                    span_id=str(span.span_id) if span else ROOT_PARENT_ID,
+                    trace_id=format_trace_id(span.trace_id),
+                    attributes={"from": "input", "to": "input"},
+                )
             ]
             return
         if is_planning_crew_instance and self._crews_to_task_span_ids.get(crew_id, []):
             planning_task_span_id = self._crews_to_task_span_ids[crew_id][-1]
             queued_task_node["span_links"] = [
-                {
-                    "span_id": planning_task_span_id if span else ROOT_PARENT_ID,
-                    "trace_id": format_trace_id(span.trace_id),
-                    "attributes": {"from": "output", "to": "input"},
-                }
+                _SpanLink(
+                    span_id=planning_task_span_id if span else ROOT_PARENT_ID,
+                    trace_id=format_trace_id(span.trace_id),
+                    attributes={"from": "output", "to": "input"},
+                )
             ]
             return
 
@@ -475,11 +476,11 @@ class CrewAIIntegration(BaseLLMIntegration):
         for i in range(1, num_tasks_to_link + 1):  # Iterate backwards through last n finished tasks
             finished_task_span_id = finished_task_spans[-i]
             span_links.append(
-                {
-                    "span_id": finished_task_span_id,
-                    "trace_id": format_trace_id(span.trace_id),
-                    "attributes": {"from": "output", "to": "input"},
-                }
+                _SpanLink(
+                    span_id=finished_task_span_id,
+                    trace_id=format_trace_id(span.trace_id),
+                    attributes={"from": "output", "to": "input"},
+                )
             )
         queued_task_node["span_links"] = span_links
         return

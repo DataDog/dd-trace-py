@@ -218,7 +218,7 @@ class TestLLMObsPydanticAI:
 
         assert len(llmobs_events) == 1
         assert llmobs_events[0]["status"] == "error"
-        assert llmobs_events[0]["meta"]["error.message"] == "test error"
+        assert llmobs_events[0]["meta"]["error"]["message"] == "test error"
 
     @pytest.mark.skipif(PYDANTIC_AI_VERSION < (0, 4, 4), reason="pydantic-ai < 0.4.4 does not support toolsets")
     async def test_agent_run_with_toolset(self, pydantic_ai, request_vcr, llmobs_events, mock_tracer):

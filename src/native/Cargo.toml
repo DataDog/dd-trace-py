@@ -21,12 +21,16 @@ datadog-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "488d3
 datadog-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "488d39573f008957784aa4ef726fadb4bee5a302" }
 data-pipeline = { git = "https://github.com/DataDog/libdatadog", rev = "488d39573f008957784aa4ef726fadb4bee5a302" }
 datadog-profiling-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "488d39573f008957784aa4ef726fadb4bee5a302", optional = true, features = [
+datadog-log = { git = "https://github.com/DataDog/libdatadog", rev = "488d39573f008957784aa4ef726fadb4bee5a302" }
+data-pipeline = { git = "https://github.com/DataDog/libdatadog", rev = "v21.0.0" }
+datadog-profiling-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "v21.0.0", optional = true, features = [
     "cbindgen",
 ] }
 ddcommon = { git = "https://github.com/DataDog/libdatadog", rev = "488d39573f008957784aa4ef726fadb4bee5a302" }
 pyo3 = { version = "0.25", features = ["extension-module", "anyhow"] }
 pyo3-ffi = "0.25"
-
+tracing = { version = "0.1", default-features = false }
+1`
 [build-dependencies]
 pyo3-build-config = "0.25"
 cc = "1.0"

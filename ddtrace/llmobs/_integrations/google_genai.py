@@ -22,8 +22,9 @@ from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_
 from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model_name
 from ddtrace.llmobs._integrations.google_utils import normalize_contents_google_genai
 from ddtrace.llmobs._utils import _get_attr
-from ddtrace.llmobs.utils import Document
-from ddtrace.llmobs.utils import ToolDefinition
+from ddtrace.llmobs.types import Document
+from ddtrace.llmobs.types import Message
+from ddtrace.llmobs.types import ToolDefinition
 
 
 # https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/content-generation-parameters
@@ -110,8 +111,8 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             }
         )
 
-    def _extract_input_messages(self, args: List[Any], kwargs: Dict[str, Any], config) -> List[Dict[str, Any]]:
-        messages = []
+    def _extract_input_messages(self, args: List[Any], kwargs: Dict[str, Any], config) -> List[Message]:
+        messages: List[Message] = []
 
         system_instruction = _get_attr(config, "system_instruction", None)
         if system_instruction is not None:
@@ -122,17 +123,17 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
 
         return messages
 
-    def _extract_messages_from_contents(self, contents, default_role: str) -> List[Dict[str, Any]]:
-        messages = []
+    def _extract_messages_from_contents(self, contents, default_role: str) -> List[Message]:
+        messages: List[Message] = []
         for content in normalize_contents_google_genai(contents):
             role = content.get("role") or default_role
             for part in content.get("parts", []):
                 messages.append(extract_message_from_part_google_genai(part, role))
         return messages
 
-    def _extract_output_messages(self, response) -> List[Dict[str, Any]]:
+    def _extract_output_messages(self, response) -> List[Message]:
         if not response:
-            return [{"content": "", "role": GOOGLE_GENAI_DEFAULT_MODEL_ROLE}]
+            return [Message(content="", role=GOOGLE_GENAI_DEFAULT_MODEL_ROLE)]
         messages = []
         candidates = _get_attr(response, "candidates", [])
         for candidate in candidates:
@@ -156,7 +157,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
     def _extract_embedding_input_documents(self, args, kwargs, config) -> List[Document]:
         contents = kwargs.get("contents")
         messages = self._extract_messages_from_contents(contents, "user")
-        documents = [Document(text=str(message["content"])) for message in messages]
+        documents = [Document(text=str(message.get("content", ""))) for message in messages]
         return documents
 
     def _extract_metadata(self, config, params) -> Dict[str, Any]:
@@ -175,8 +176,8 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             schema = {"value": repr(schema)}
 
         return ToolDefinition(
-            name=_get_attr(function_declaration, "name", "") or "",
-            description=_get_attr(function_declaration, "description", "") or "",
+            name=str(_get_attr(function_declaration, "name", "") or ""),
+            description=str(_get_attr(function_declaration, "description", "") or ""),
             schema=schema,
         )
 

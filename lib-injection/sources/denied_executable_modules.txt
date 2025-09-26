@@ -1,0 +1,8 @@
+# Python modules run from the interpreter that should be denied
+# These are module names (without -m prefix) that will be checked
+# when Python interpreters are executed with the -m flag
+py_compile
+
+# Additional modules can be added here in the future
+# For example:
+# some_other_problematic_module

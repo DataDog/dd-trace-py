@@ -27,9 +27,50 @@ from tests.subprocesstest import run_in_subprocess
 
 PINECONE_VERSION = parse_version(pinecone_.__version__)
 
+# Multi-message prompt template test constants
+
+PROMPT_TEMPLATE_EXPECTED_CHAT_TEMPLATE = [
+    {"role": "system", "content": "You are a {role} assistant."},
+    {"role": "system", "content": "Your expertise is in {domain}."},
+    {"role": "system", "content": "Additional context: {context}"},
+    {"role": "user", "content": "I'm a user seeking help."},
+    {"role": "user", "content": "Please help with {task}"},
+    {"role": "user", "content": "Specifically, I need {specific_help}"},
+    {"role": "assistant", "content": "I understand your request."},
+    {"role": "assistant", "content": "I'll help you with {task}."},
+    {"role": "assistant", "content": "Let me provide {output_type}"},
+    {"role": "developer", "content": "Make it {style} and under {limit} words"},
+]
+
+
+def _create_multi_message_prompt_template(langchain_core):
+    """Helper function to create multi-message ChatPromptTemplate with mixed input types."""
+    from langchain_core.messages import AIMessage
+    from langchain_core.messages import HumanMessage
+    from langchain_core.messages import SystemMessage
+    from langchain_core.prompts import AIMessagePromptTemplate
+    from langchain_core.prompts import ChatMessagePromptTemplate
+    from langchain_core.prompts import HumanMessagePromptTemplate
+    from langchain_core.prompts import SystemMessagePromptTemplate
+
+    return langchain_core.prompts.ChatPromptTemplate.from_messages(
+        [
+            SystemMessage(content="You are a {role} assistant."),  # while this has handlebars, it is not a template
+            ("system", "Your expertise is in {domain}."),
+            SystemMessagePromptTemplate.from_template("Additional context: {context}"),
+            HumanMessage(content="I'm a user seeking help."),
+            ("human", "Please help with {task}"),
+            HumanMessagePromptTemplate.from_template("Specifically, I need {specific_help}"),
+            AIMessage(content="I understand your request."),
+            ("ai", "I'll help you with {task}."),
+            AIMessagePromptTemplate.from_template("Let me provide {output_type}"),
+            ChatMessagePromptTemplate.from_template("Make it {style} and under {limit} words", role="developer"),
+        ]
+    )
+
 
 def _expected_langchain_llmobs_llm_span(
-    span, input_role=None, mock_io=False, mock_token_metrics=False, span_links=False, metadata=None
+    span, input_role=None, mock_io=False, mock_token_metrics=False, span_links=False, metadata=None, prompt=None
 ):
     provider = span.get_tag("langchain.request.provider")
 
@@ -55,6 +96,7 @@ def _expected_langchain_llmobs_llm_span(
         token_metrics=metrics,
         tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
         span_links=span_links,
+        prompt=prompt,
     )
 
 
@@ -100,7 +142,7 @@ def test_llmobs_openai_llm_proxy(mock_generate, langchain_openai, llmobs_events,
     llm.invoke("What is the capital of France?")
     span = tracer.pop_traces()[0][0]
     assert len(llmobs_events) == 2
-    assert llmobs_events[1]["meta"]["span.kind"] == "llm"
+    assert llmobs_events[1]["meta"]["span"]["kind"] == "llm"
 
 
 def test_llmobs_openai_chat_model(langchain_openai, llmobs_events, tracer, openai_url):
@@ -151,7 +193,7 @@ def test_llmobs_openai_chat_model_proxy(mock_generate, langchain_openai, llmobs_
     chat_model.invoke([HumanMessage(content="What is the capital of France?")])
     span = tracer.pop_traces()[0][0]
     assert len(llmobs_events) == 2
-    assert llmobs_events[1]["meta"]["span.kind"] == "llm"
+    assert llmobs_events[1]["meta"]["span"]["kind"] == "llm"
 
 
 def test_llmobs_string_prompt_template_invoke(langchain_core, langchain_openai, openai_url, llmobs_events, tracer):
@@ -217,6 +259,122 @@ def test_llmobs_string_prompt_template_invoke_chat_model(
     assert actual_prompt["variables"] == variable_dict
 
 
+def test_llmobs_string_prompt_template_single_variable_string_input(
+    langchain_core, langchain_openai, openai_url, llmobs_events, tracer
+):
+    template_string = "Write a creative story about {topic}."
+    single_variable_template = langchain_core.prompts.PromptTemplate(
+        input_variables=["topic"], template=template_string
+    )
+    llm = langchain_openai.OpenAI(base_url=openai_url)
+    chain = single_variable_template | llm
+
+    # Pass string input directly instead of dict for single variable template
+    string_input = "time travel"
+    chain.invoke(string_input)
+
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+    assert len(llmobs_events) == 2
+    actual_prompt = llmobs_events[1]["meta"]["input"]["prompt"]
+    assert actual_prompt["id"] == "test_langchain_llmobs.single_variable_template"
+    assert actual_prompt["template"] == template_string
+    # Should convert string input to dict format with single variable
+    assert actual_prompt["variables"] == {"topic": "time travel"}
+
+
+def test_llmobs_multi_message_prompt_template_sync_chain(
+    langchain_core, langchain_openai, openai_url, llmobs_events, tracer
+):
+    multi_message_template = _create_multi_message_prompt_template(langchain_core)
+    llm = langchain_openai.ChatOpenAI(base_url=openai_url)
+    chain = multi_message_template | llm
+
+    variable_dict = {
+        "domain": "creative writing",
+        "context": "focus on storytelling",
+        "task": "writing a short story",
+        "specific_help": "character development",
+        "output_type": "guidance",
+        "style": "engaging",
+        "limit": "100",
+    }
+
+    chain.invoke(variable_dict)
+
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+    assert len(llmobs_events) == 2
+
+    # Verify the prompt structure in the LLM span
+    actual_prompt = llmobs_events[1]["meta"]["input"]["prompt"]
+    assert actual_prompt["id"] == "test_langchain_llmobs.multi_message_template"
+    assert actual_prompt["variables"] == variable_dict
+    assert actual_prompt.get("template") is None
+    assert actual_prompt["chat_template"] == PROMPT_TEMPLATE_EXPECTED_CHAT_TEMPLATE
+
+
+def test_llmobs_multi_message_prompt_template_sync_direct_invoke(
+    langchain_core, langchain_openai, openai_url, llmobs_events, tracer
+):
+    multi_message_template = _create_multi_message_prompt_template(langchain_core)
+    llm = langchain_openai.ChatOpenAI(base_url=openai_url)
+
+    variable_dict = {
+        "domain": "data analysis",
+        "context": "focus on accuracy",
+        "task": "analyzing datasets",
+        "specific_help": "statistical methods",
+        "output_type": "insights",
+        "style": "detailed",
+        "limit": "150",
+    }
+
+    # Test direct invoke on template then LLM (no chain)
+    prompt_value = multi_message_template.invoke(variable_dict)
+    llm.invoke(prompt_value)
+
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+    assert len(llmobs_events) == 1  # Only LLM span for direct invoke
+
+    # Verify the prompt structure
+    actual_prompt = llmobs_events[0]["meta"]["input"]["prompt"]
+    assert actual_prompt["id"] == "test_langchain_llmobs.multi_message_template"
+    assert actual_prompt["variables"] == variable_dict
+    assert actual_prompt.get("template") is None
+    assert actual_prompt["chat_template"] == PROMPT_TEMPLATE_EXPECTED_CHAT_TEMPLATE
+
+
+@pytest.mark.asyncio
+async def test_llmobs_multi_message_prompt_template_async_direct_invoke(
+    langchain_core, langchain_openai, openai_url, llmobs_events, tracer
+):
+    multi_message_template = _create_multi_message_prompt_template(langchain_core)
+    llm = langchain_openai.ChatOpenAI(base_url=openai_url)
+
+    variable_dict = {
+        "domain": "software engineering",
+        "context": "focus on best practices",
+        "task": "code review",
+        "specific_help": "performance optimization",
+        "output_type": "recommendations",
+        "style": "thorough",
+        "limit": "200",
+    }
+
+    # Test direct async invoke on template then LLM
+    prompt_value = await multi_message_template.ainvoke(variable_dict)
+    await llm.ainvoke(prompt_value)
+
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+    assert len(llmobs_events) == 1  # Only LLM span for direct invoke
+
+    # Verify the prompt structure
+    actual_prompt = llmobs_events[0]["meta"]["input"]["prompt"]
+    assert actual_prompt["id"] == "test_langchain_llmobs.multi_message_template"
+    assert actual_prompt["variables"] == variable_dict
+    assert actual_prompt.get("template") is None
+    assert actual_prompt["chat_template"] == PROMPT_TEMPLATE_EXPECTED_CHAT_TEMPLATE
+
+
 def test_llmobs_chain(langchain_core, langchain_openai, openai_url, llmobs_events, tracer):
     prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
         [("system", "You are world class technical documentation writer."), ("user", "{input}")]
@@ -237,6 +395,17 @@ def test_llmobs_chain(langchain_core, langchain_openai, openai_url, llmobs_event
         mock_token_metrics=True,
         span_links=True,
         metadata={"max_tokens": 256, "temperature": 0.7},
+        prompt={
+            "id": "test_langchain_llmobs.prompt",
+            "chat_template": [
+                {"content": "You are world class technical documentation writer.", "role": "system"},
+                {"content": "{input}", "role": "user"},
+            ],
+            "variables": {"input": "Can you explain what an LLM chain is?"},
+            "version": "0.0.0",
+            "_dd_context_variable_keys": ["context"],
+            "_dd_query_variable_keys": ["question"],
+        },
     )
 
 
@@ -271,11 +440,27 @@ def test_llmobs_chain_nested(langchain_core, langchain_openai, openai_url, llmob
         trace[2],
         mock_token_metrics=True,
         span_links=True,
+        prompt={
+            "id": "langchain.unknown_prompt_template",
+            "chat_template": [{"content": "what is the city {person} is from?", "role": "user"}],
+            "variables": {"person": "Spongebob Squarepants", "language": "Spanish"},
+            "version": "0.0.0",
+            "_dd_context_variable_keys": ["context"],
+            "_dd_query_variable_keys": ["question"],
+        },
     )
     assert llmobs_events[3] == _expected_langchain_llmobs_llm_span(
         trace[3],
         mock_token_metrics=True,
         span_links=True,
+        prompt={
+            "id": "test_langchain_llmobs.prompt2",
+            "chat_template": [{"content": "what country is the city {city} in? respond in {language}", "role": "user"}],
+            "variables": {"city": mock.ANY, "language": "Spanish"},
+            "version": "0.0.0",
+            "_dd_context_variable_keys": ["context"],
+            "_dd_query_variable_keys": ["question"],
+        },
     )
 
 
@@ -304,12 +489,28 @@ def test_llmobs_chain_batch(langchain_core, langchain_openai, llmobs_events, tra
             input_role="user",
             mock_token_metrics=True,
             span_links=True,
+            prompt={
+                "id": "langchain.unknown_prompt_template",
+                "chat_template": [{"content": "Tell me a short joke about {topic}", "role": "user"}],
+                "variables": {"topic": "chickens"},
+                "version": "0.0.0",
+                "_dd_context_variable_keys": ["context"],
+                "_dd_query_variable_keys": ["question"],
+            },
         )
         assert llmobs_events[2] == _expected_langchain_llmobs_llm_span(
             trace[2],
             input_role="user",
             mock_token_metrics=True,
             span_links=True,
+            prompt={
+                "id": "langchain.unknown_prompt_template",
+                "chat_template": [{"content": "Tell me a short joke about {topic}", "role": "user"}],
+                "variables": {"topic": "pigs"},
+                "version": "0.0.0",
+                "_dd_context_variable_keys": ["context"],
+                "_dd_query_variable_keys": ["question"],
+            },
         )
     except AssertionError:
         assert llmobs_events[1] == _expected_langchain_llmobs_llm_span(
@@ -317,12 +518,28 @@ def test_llmobs_chain_batch(langchain_core, langchain_openai, llmobs_events, tra
             input_role="user",
             mock_token_metrics=True,
             span_links=True,
+            prompt={
+                "id": "langchain.unknown_prompt_template",
+                "chat_template": [{"content": "Tell me a short joke about {topic}", "role": "user"}],
+                "variables": {"topic": "chickens"},
+                "version": "0.0.0",
+                "_dd_context_variable_keys": ["context"],
+                "_dd_query_variable_keys": ["question"],
+            },
         )
         assert llmobs_events[2] == _expected_langchain_llmobs_llm_span(
             trace[1],
             input_role="user",
             mock_token_metrics=True,
             span_links=True,
+            prompt={
+                "id": "langchain.unknown_prompt_template",
+                "chat_template": [{"content": "Tell me a short joke about {topic}", "role": "user"}],
+                "variables": {"topic": "pigs"},
+                "version": "0.0.0",
+                "_dd_context_variable_keys": ["context"],
+                "_dd_query_variable_keys": ["question"],
+            },
         )
 
 
@@ -654,8 +871,8 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
             call_args = call.args[0]
 
             assert (
-                call_args["meta"]["span.kind"] == span_kind
-            ), f"Span kind is {call_args['meta']['span.kind']} but expected {span_kind}"
+                call_args["meta"]["span"]["kind"] == span_kind
+            ), f"Span kind is {call_args['meta']['span']['kind']} but expected {span_kind}"
             if span_kind == "workflow":
                 assert len(call_args["meta"]["input"]["value"]) > 0
                 assert len(call_args["meta"]["output"]["value"]) > 0

@@ -16,6 +16,7 @@ Suite 2 adds coverage at the end of the suite. Suite 3 mixes the two. Suite 4 ha
 
 Comment lines in the test start/finish lines are there for visual distinction.
 """
+
 import json
 from multiprocessing import freeze_support
 from pathlib import Path
@@ -427,8 +428,19 @@ def main():
 if __name__ == "__main__":
     freeze_support()
     # NOTE: this is only safe because these tests are run in a subprocess
-    import os
 
-    os.environ["_DD_CIVISIBILITY_ITR_SUITE_MODE"] = "1"
-    with mock.patch("ddtrace.internal.ci_visibility.CIVisibility.is_itr_enabled", return_value=True):
-        main()
+    from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
+
+    itr_settings = TestVisibilityAPISettings(
+        coverage_enabled=False,
+        skipping_enabled=True,
+        require_git=False,
+        itr_enabled=True,
+        flaky_test_retries_enabled=False,
+    )
+
+    mock.patch(
+        "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=itr_settings
+    ).start()
+
+    main()

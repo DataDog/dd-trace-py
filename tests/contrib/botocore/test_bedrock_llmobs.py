@@ -721,7 +721,7 @@ class TestLLMObsBedrockProxy:
         else:
             span = mock_tracer.pop_traces()[0][0]
             assert len(llmobs_events) == 1
-            assert llmobs_events[0]["meta"]["span.kind"] == "llm"
+            assert llmobs_events[0]["meta"]["span"]["kind"] == "llm"
 
         LLMObs.disable()
 
@@ -769,7 +769,7 @@ class TestLLMObsBedrockProxy:
         else:
             span = mock_tracer.pop_traces()[0][0]
             assert len(llmobs_events) == 1
-            assert llmobs_events[0]["meta"]["span.kind"] == "llm"
+            assert llmobs_events[0]["meta"]["span"]["kind"] == "llm"
 
         LLMObs.disable()
 

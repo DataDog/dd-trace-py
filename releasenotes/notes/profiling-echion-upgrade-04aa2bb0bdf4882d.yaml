@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Upgrades echion to resolve segmentation faults that can happen
+    on services with a lot of ``asyncio.Task``s.

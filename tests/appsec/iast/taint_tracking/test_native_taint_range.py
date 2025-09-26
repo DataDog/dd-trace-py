@@ -591,7 +591,9 @@ def test_contexts_in_threads(caplog, telemetry_writer):
         if IAST_VALID_LOG.search(message):
             pytest.fail(message)
 
-    list_metrics_logs = list(telemetry_writer._logs)
+    list_metrics_logs = [
+        log for log in telemetry_writer._logs if not log["message"].startswith("failed to send, dropping")
+    ]
     assert len(list_metrics_logs) == 0
 
 
@@ -621,7 +623,9 @@ async def test_context_race_conditions_async(caplog, telemetry_writer):
     assert results.count(True) == 7
     log_messages = [record.message for record in caplog.get_records("call")]
     assert len([message for message in log_messages if IAST_VALID_LOG.search(message)]) == 0
-    list_metrics_logs = list(telemetry_writer._logs)
+    list_metrics_logs = [
+        log for log in telemetry_writer._logs if not log["message"].startswith("failed to send, dropping")
+    ]
     assert len(list_metrics_logs) == 0
 
 

@@ -10,7 +10,7 @@
         "dependency": "aiohttp",
         "integration": "aiohttp",
         "minimum_tracer_supported": "3.7.4.post0",
-        "max_tracer_supported": "3.12.11",
+        "max_tracer_supported": "3.12.15",
         "auto-instrumented": true
     },
     {
@@ -68,7 +68,7 @@
         "dependency": "pytest-asyncio",
         "integration": "asyncio",
         "minimum_tracer_supported": "0.21.1",
-        "max_tracer_supported": "0.21.1",
+        "max_tracer_supported": "1.2.0",
         "pinned": "true",
         "auto-instrumented": true
     },
@@ -316,6 +316,13 @@
         "auto-instrumented": true
     },
     {
+        "dependency": "google-adk",
+        "integration": "google_adk",
+        "minimum_tracer_supported": "1.0.0",
+        "max_tracer_supported": "1.14.1",
+        "auto-instrumented": true
+    },
+    {
         "dependency": "google-genai",
         "integration": "google_genai",
         "minimum_tracer_supported": "1.21.1",
@@ -432,7 +439,7 @@
         "dependency": "mariadb",
         "integration": "mariadb",
         "minimum_tracer_supported": "1.0.11",
-        "max_tracer_supported": "1.1.12",
+        "max_tracer_supported": "1.1.13",
         "auto-instrumented": true
     },
     {

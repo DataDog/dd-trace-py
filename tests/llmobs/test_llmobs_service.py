@@ -31,7 +31,7 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._llmobs import SUPPORTED_LLMOBS_INTEGRATIONS
-from ddtrace.llmobs.utils import Prompt
+from ddtrace.llmobs.types import Prompt
 from ddtrace.trace import Context
 from tests.llmobs._utils import _expected_llmobs_eval_metric_event
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
@@ -839,11 +839,15 @@ def test_annotate_prompt_wrong_type(llmobs, mock_llmobs_logs):
     with llmobs.llm(model_name="test_model") as span:
         llmobs.annotate(span=span, prompt="prompt")
         assert span._get_ctx_item(INPUT_PROMPT) is None
-        mock_llmobs_logs.warning.assert_called_once_with("Failed to validate prompt with error: ", exc_info=True)
+        mock_llmobs_logs.warning.assert_called_once_with(
+            "Failed to validate prompt with error:", "Prompt must be a dictionary, received str.", exc_info=True
+        )
         mock_llmobs_logs.reset_mock()
 
         llmobs.annotate(span=span, prompt={"template": 1})
-        mock_llmobs_logs.warning.assert_called_once_with("Failed to validate prompt with error: ", exc_info=True)
+        mock_llmobs_logs.warning.assert_called_once_with(
+            "Failed to validate prompt with error:", "template: 1 must be a string, received int", exc_info=True
+        )
         mock_llmobs_logs.reset_mock()
 
 
@@ -1717,9 +1721,11 @@ def test_annotation_context_can_update_session_id(llmobs):
 
 
 def test_annotation_context_modifies_prompt(llmobs):
-    with llmobs.annotation_context(prompt={"template": "test_template"}):
+    prompt = {"template": "test_template"}
+    with llmobs.annotation_context(prompt=prompt):
         with llmobs.llm(name="test_agent", model_name="test") as span:
             assert span._get_ctx_item(INPUT_PROMPT) == {
+                "id": "unnamed-ml-app_unnamed-prompt",
                 "template": "test_template",
                 "_dd_context_variable_keys": ["context"],
                 "_dd_query_variable_keys": ["question"],
@@ -1862,9 +1868,11 @@ async def test_annotation_context_async_modifies_span_tags(llmobs):
 
 
 async def test_annotation_context_async_modifies_prompt(llmobs):
-    async with llmobs.annotation_context(prompt={"template": "test_template"}):
+    prompt = {"template": "test_template"}
+    async with llmobs.annotation_context(prompt=prompt):
         with llmobs.llm(name="test_agent", model_name="test") as span:
             assert span._get_ctx_item(INPUT_PROMPT) == {
+                "id": "unnamed-ml-app_unnamed-prompt",
                 "template": "test_template",
                 "_dd_context_variable_keys": ["context"],
                 "_dd_query_variable_keys": ["question"],

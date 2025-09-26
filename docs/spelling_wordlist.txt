@@ -1,5 +1,6 @@
 
 AArch
+adk
 agentless
 aiobotocore
 aiohttp
@@ -122,6 +123,7 @@ genai
 generativeai
 gevent
 Gitlab
+google-adk
 GPU
 graphene
 graphql

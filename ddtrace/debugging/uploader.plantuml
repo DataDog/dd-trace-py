@@ -1,0 +1,34 @@
+@startuml
+title Signal Uploader State Machine
+
+state "Agent Check" as AgentCheck
+
+[*] -u-> AgentCheck
+
+AgentCheck : check available\nendpoints
+
+state Online {
+    state "v2/input" as InputV2
+    state "v1/diagnostics" as DiagnosticsV1
+    state "No Snapshots" as NoSnapshots
+
+    InputV2 : use the v2/input\nendpoint
+    DiagnosticsV1 : fallback to v1/diagnostics\nendpoint
+    NoSnapshots : agent does not support\nredacted snapshots
+}
+
+AgentCheck --> AgentCheck : no info
+AgentCheck --> InputV2 : v2/input
+AgentCheck --> DiagnosticsV1 : v1/diagnostics
+AgentCheck --> NoSnapshots : unsupported
+
+InputV2 --> AgentCheck : error
+DiagnosticsV1 --> AgentCheck : error
+NoSnapshots --> AgentCheck : error
+
+NoSnapshots --> AgentCheck : periodically
+
+InputV2 --> InputV2 : periodically
+DiagnosticsV1 --> DiagnosticsV1 : periodically
+
+@enduml

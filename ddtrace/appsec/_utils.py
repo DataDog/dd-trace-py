@@ -14,7 +14,6 @@ import uuid
 
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
-from ddtrace.appsec._constants import IAST
 from ddtrace.contrib.internal.trace_utils_base import _get_header_value_case_insensitive
 from ddtrace.internal._unpatched import unpatched_json_loads
 from ddtrace.internal.logger import get_logger
@@ -341,18 +340,6 @@ def get_triggers(span) -> Any:
             return json.loads(json_payload).get("triggers", None)
         except Exception:
             log.debug("Failed to parse triggers", exc_info=True)
-    return None
-
-
-def get_security(span) -> Any:
-    if asm_config._use_metastruct_for_iast:
-        return span.get_struct_tag(IAST.STRUCT)
-    json_payload = span.get_tag(IAST.JSON)
-    if json_payload:
-        try:
-            return json.loads(json_payload)
-        except Exception:
-            log.debug("Failed to parse security", exc_info=True)
     return None
 
 

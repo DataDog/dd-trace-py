@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    dynamic instrumentation/exception replay/code origin for spans: added
+    support for the latest Datadog agent intake for snapshots. This requires a
+    minimum agent version of 7.49.0.

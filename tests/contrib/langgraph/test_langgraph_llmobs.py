@@ -435,9 +435,9 @@ class TestLangGraphLLMObs:
         tool_span = llmobs_events[4]
         second_llm_span = llmobs_events[6]
 
-        assert first_llm_span["meta"]["span.kind"] == "llm"
-        assert tool_span["meta"]["span.kind"] == "tool"
-        assert second_llm_span["meta"]["span.kind"] == "llm"
+        assert first_llm_span["meta"]["span"]["kind"] == "llm"
+        assert tool_span["meta"]["span"]["kind"] == "tool"
+        assert second_llm_span["meta"]["span"]["kind"] == "llm"
 
         # assert llm -> tool span link
         assert tool_span["span_links"][1]["span_id"] == first_llm_span["span_id"]

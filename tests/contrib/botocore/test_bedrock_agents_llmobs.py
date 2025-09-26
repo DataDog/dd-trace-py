@@ -52,7 +52,7 @@ def _assert_agent_span(agent_span, resp_str):
     assert agent_span["meta"]["output"]["value"] == resp_str
     assert agent_span["meta"]["metadata"]["agent_alias_id"] == AGENT_ALIAS_ID
     assert agent_span["meta"]["metadata"]["agent_id"] == AGENT_ID
-    assert agent_span["meta"]["span.kind"] == "agent"
+    assert agent_span["meta"]["span"]["kind"] == "agent"
     assert "session_id:{}".format(SESSION_ID) in agent_span["tags"]
 
 
@@ -64,26 +64,23 @@ def _assert_trace_step_spans(trace_step_spans):
     assert trace_step_spans[3]["name"].startswith("orchestrationTrace Step")
     assert trace_step_spans[4]["name"].startswith("orchestrationTrace Step")
     assert trace_step_spans[5]["name"].startswith("guardrailTrace Step")
-    assert all(span["meta"]["span.kind"] == "workflow" for span in trace_step_spans)
+    assert all(span["meta"]["span"]["kind"] == "workflow" for span in trace_step_spans)
     assert all(span["meta"]["metadata"]["bedrock_trace_id"] == span["span_id"] for span in trace_step_spans)
 
 
 def _assert_inner_span(span):
     assert span["name"] in ["guardrail", "modelInvocation", "reasoning", "location_suggestion"]
-    if span["name"] == "guardrail":
-        assert span["meta"]["span.kind"] == "task"
+    if span["name"] == "guardrail" or span["name"] == "reasoning":
+        assert span["meta"]["span"]["kind"] == "task"
         assert span["meta"]["output"].get("value") is not None
     elif span["name"] == "modelInvocation":
-        assert span["meta"]["span.kind"] == "llm"
+        assert span["meta"]["span"]["kind"] == "llm"
         assert span["meta"]["metadata"]["model_name"] == MODEL_NAME
         assert span["meta"]["metadata"]["model_provider"] == MODEL_PROVIDER
         assert span["metrics"].get("input_tokens") is not None
         assert span["metrics"].get("output_tokens") is not None
-    elif span["name"] == "reasoning":
-        assert span["meta"]["span.kind"] == "task"
-        assert span["meta"]["output"].get("value") is not None
     elif span["name"] == "location_suggestion":
-        assert span["meta"]["span.kind"] == "tool"
+        assert span["meta"]["span"]["kind"] == "tool"
         assert span["meta"]["output"].get("value") is not None
 
 

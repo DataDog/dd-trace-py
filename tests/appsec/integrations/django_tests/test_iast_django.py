@@ -268,6 +268,131 @@ def test_django_sqli_http_request_parameter(client, iast_span, tracer):
     assert loaded["vulnerabilities"][0]["hash"] == hash_value
 
 
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_untrusted_serialization_yaml(client, iast_span, tracer):
+    root_span, response = _aux_appsec_get_root_span(
+        client,
+        iast_span,
+        tracer,
+        url="/iast/untrusted/yaml/?input=a: 1",
+    )
+
+    vuln_type = "UNTRUSTED_SERIALIZATION"
+
+    assert response.status_code == 200
+
+    loaded = load_iast_report(root_span)
+
+    line, hash_value = get_line_and_hash("untrusted_serialization_yaml_view", vuln_type, filename=TEST_FILE)
+
+    assert loaded["sources"] == [
+        {
+            "name": "input",
+            "origin": "http.request.parameter",
+            "value": "a: 1",
+        }
+    ]
+
+    assert loaded["vulnerabilities"][0]["type"] == vuln_type
+    assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
+    assert loaded["vulnerabilities"][0]["location"]["line"] == line
+    assert loaded["vulnerabilities"][0]["hash"] == hash_value
+
+
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_untrusted_serialization_yaml_load(client, iast_span, tracer):
+    root_span, response = _aux_appsec_get_root_span(
+        client,
+        iast_span,
+        tracer,
+        url="/iast/untrusted/yaml/load/?input=a: 1",
+    )
+
+    vuln_type = "UNTRUSTED_SERIALIZATION"
+
+    assert response.status_code == 200
+
+    loaded = load_iast_report(root_span)
+
+    line, hash_value = get_line_and_hash("untrusted_serialization_yaml_load", vuln_type, filename=TEST_FILE)
+
+    assert loaded["sources"] == [
+        {
+            "name": "input",
+            "origin": "http.request.parameter",
+            "value": "a: 1",
+        }
+    ]
+
+    assert loaded["vulnerabilities"][0]["type"] == vuln_type
+    assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
+    assert loaded["vulnerabilities"][0]["location"]["line"] == line
+    assert loaded["vulnerabilities"][0]["hash"] == hash_value
+
+
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_untrusted_serialization_yaml_safe_load(client, iast_span, tracer):
+    root_span, response = _aux_appsec_get_root_span(
+        client,
+        iast_span,
+        tracer,
+        url="/iast/untrusted/yaml/safe_load/?input=a: 1",
+    )
+
+    assert response.status_code == 200
+
+    loaded = load_iast_report(root_span)
+    # safe_load should not be reported as untrusted serialization
+    assert loaded is None
+
+
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_untrusted_serialization_pickle_smoke(client, iast_span, tracer):
+    root_span, response = _aux_appsec_get_root_span(
+        client,
+        iast_span,
+        tracer,
+        url="/iast/untrusted/pickle/?input=AQID",
+    )
+
+    vuln_type = "UNTRUSTED_SERIALIZATION"
+
+    assert response.status_code == 200
+    loaded = load_iast_report(root_span)
+
+    line, hash_value = get_line_and_hash("untrusted_serialization_pickle", vuln_type, filename=TEST_FILE)
+    assert loaded["sources"] == []
+
+    assert loaded["vulnerabilities"][0]["type"] == vuln_type
+    assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
+    assert loaded["vulnerabilities"][0]["location"]["line"] == line
+    assert loaded["vulnerabilities"][0]["hash"] == hash_value
+
+
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_untrusted_serialization_dill_smoke(client, iast_span, tracer):
+    root_span, response = _aux_appsec_get_root_span(
+        client,
+        iast_span,
+        tracer,
+        url="/iast/untrusted/dill/?input=AQID",
+    )
+
+    vuln_type = "UNTRUSTED_SERIALIZATION"
+
+    assert response.status_code == 200
+
+    loaded = load_iast_report(root_span)
+
+    line, hash_value = get_line_and_hash("untrusted_serialization_dill", vuln_type, filename=TEST_FILE)
+    assert loaded["sources"] == []
+
+    assert loaded["vulnerabilities"][0]["type"] == vuln_type
+    assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
+    assert loaded["vulnerabilities"][0]["location"]["line"] == line
+    assert loaded["vulnerabilities"][0]["hash"] == hash_value
+
+
 @pytest.mark.django_db()
 @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_sqli_http_request_parameter_name_get_and_stacktrace(client, iast_span, tracer):

@@ -412,7 +412,7 @@ def test_should_not_iast_patch_if_stdlib(module_name):
 
 
 def test_module_path_none(caplog):
-    with caplog.at_level(logging.DEBUG), mock.patch("ddtrace.internal.module.Path.resolve", side_effect=AttributeError):
+    with caplog.at_level(logging.DEBUG), mock.patch("ddtrace.appsec._iast._ast.ast_patching.origin", return_value=None):
         assert ("", None) == astpatch_module(__import__("tests.appsec.iast.fixtures.ast.str.class_str", fromlist=["*"]))
         assert (
             "iast::instrumentation::ast_patching::compiling::"

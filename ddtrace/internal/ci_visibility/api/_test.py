@@ -260,7 +260,8 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
 
     def finish_itr_skipped(self) -> None:
         log.debug("Finishing Test Visibility test %s with ITR skipped", self)
-        self.count_itr_skipped()
+        if self._session_settings.itr_test_skipping_level == ITR_SKIPPING_LEVEL.TEST:
+            self.count_itr_skipped()
         self.mark_itr_skipped()
         self.finish_test(TestStatus.SKIP)
 

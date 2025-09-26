@@ -35,7 +35,8 @@ from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_outpu
 from ddtrace.llmobs._telemetry import record_bedrock_agent_span_event_created
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._writer import LLMObsSpanEvent
-from ddtrace.llmobs.utils import ToolDefinition
+from ddtrace.llmobs.types import Message
+from ddtrace.llmobs.types import ToolDefinition
 from ddtrace.trace import Span
 
 
@@ -110,7 +111,7 @@ class BedrockIntegration(BaseLLMIntegration):
             self._extract_input_message_for_converse(prompt) if is_converse else self._extract_input_message(prompt)
         )
 
-        output_messages = [{"content": ""}]
+        output_messages: List[Message] = [Message(content="")]
         if not span.error and response is not None:
             if ctx["resource"] == "Converse":
                 output_messages = self._extract_output_message_for_converse(response)
@@ -191,7 +192,7 @@ class BedrockIntegration(BaseLLMIntegration):
         self._active_span_by_step_id.clear()
 
     @staticmethod
-    def _extract_input_message_for_converse(prompt: List[Dict[str, Any]]):
+    def _extract_input_message_for_converse(prompt: List[Dict[str, Any]]) -> List[Message]:
         """Extract input messages from the stored prompt for converse
 
         `prompt` is an array of `message` objects. Each `message` has a role and content field.
@@ -203,8 +204,8 @@ class BedrockIntegration(BaseLLMIntegration):
         """
         if not isinstance(prompt, list):
             log.warning("Bedrock input is not a list of messages or a string.")
-            return [{"content": ""}]
-        input_messages = []
+            return [Message(content="")]
+        input_messages: List[Message] = []
         for message in prompt:
             if not isinstance(message, dict):
                 continue
@@ -226,7 +227,7 @@ class BedrockIntegration(BaseLLMIntegration):
         For more info, see bedrock converse response syntax:
         https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_Converse.html#API_runtime_Converse_ResponseSyntax
         """
-        default_content = [{"content": ""}]
+        default_content: List[Message] = [Message(content="")]
         message = response.get("output", {}).get("message", {})
         if not message:
             return default_content
@@ -241,7 +242,7 @@ class BedrockIntegration(BaseLLMIntegration):
         Generator[
             None,
             Dict[str, Any],
-            Tuple[List[Dict[str, Any]], Dict[str, str], Dict[str, int]],
+            Tuple[List[Message], Dict[str, str], Dict[str, int]],
         ]
     ):
         """
@@ -259,7 +260,7 @@ class BedrockIntegration(BaseLLMIntegration):
         """
         usage_metrics: Dict[str, int] = {}
         metadata: Dict[str, str] = {}
-        messages: List[Dict[str, Any]] = []
+        messages: List[Message] = []
 
         text_content_blocks: Dict[int, str] = {}
         tool_content_blocks: Dict[int, Dict[str, Any]] = {}
@@ -336,47 +337,48 @@ class BedrockIntegration(BaseLLMIntegration):
             )
 
         if not messages:
-            messages.append({"role": "assistant", "content": ""})
+            messages.append(Message(content="", role="assistant"))
 
         normalize_input_tokens(usage_metrics)
         return messages, metadata, usage_metrics
 
     @staticmethod
-    def _extract_input_message(prompt):
+    def _extract_input_message(prompt) -> List[Message]:
         """Extract input messages from the stored prompt.
         Anthropic allows for messages and multiple texts in a message, which requires some special casing.
         """
         if isinstance(prompt, str):
-            return [{"content": prompt}]
+            return [Message(content=prompt)]
         if not isinstance(prompt, list):
             log.warning("Bedrock input is not a list of messages or a string.")
-            return [{"content": ""}]
-        input_messages = []
+            return [Message(content="")]
+        input_messages: List[Message] = []
         for p in prompt:
             content = p.get("content", "")
             if isinstance(content, list) and isinstance(content[0], dict):
                 for entry in content:
                     if entry.get("type") == "text":
-                        input_messages.append({"content": entry.get("text", ""), "role": str(p.get("role", ""))})
+                        input_messages.append(Message(content=entry.get("text", ""), role=str(p.get("role", ""))))
                     elif entry.get("type") == "image":
                         # Store a placeholder for potentially enormous binary image data.
-                        input_messages.append({"content": "([IMAGE DETECTED])", "role": str(p.get("role", ""))})
+                        input_messages.append(Message(content="([IMAGE DETECTED])", role=str(p.get("role", ""))))
             else:
-                input_messages.append({"content": content, "role": str(p.get("role", ""))})
+                input_messages.append(Message(content=str(content), role=str(p.get("role", ""))))
         return input_messages
 
     @staticmethod
-    def _extract_output_message(response):
+    def _extract_output_message(response) -> List[Message]:
         """Extract output messages from the stored response.
         Anthropic allows for chat messages, which requires some special casing.
         """
         if isinstance(response["text"], str):
-            return [{"content": response["text"]}]
+            return [Message(content=response["text"])]
         if isinstance(response["text"], list):
             if isinstance(response["text"][0], str):
-                return [{"content": str(content)} for content in response["text"]]
+                return [Message(content=str(content)) for content in response["text"]]
             if isinstance(response["text"][0], dict):
-                return [{"content": response["text"][0].get("text", "")}]
+                return [Message(content=response["text"][0].get("text", ""))]
+        return []
 
     def _get_base_url(self, **kwargs: Dict[str, Any]) -> Optional[str]:
         instance = kwargs.get("instance")
@@ -396,8 +398,8 @@ class BedrockIntegration(BaseLLMIntegration):
         for tool in tools:
             tool_spec = _get_attr(tool, "toolSpec", {})
             tool_definition_info = ToolDefinition(
-                name=_get_attr(tool_spec, "name", ""),
-                description=_get_attr(tool_spec, "description", ""),
+                name=str(_get_attr(tool_spec, "name", "")),
+                description=str(_get_attr(tool_spec, "description", "")),
                 schema=_get_attr(tool_spec, "inputSchema", {}),
             )
             tool_definitions.append(tool_definition_info)

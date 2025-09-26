@@ -141,5 +141,5 @@ def _iast_response_cookies(wrapped, instance, args, kwargs):
                     cookie_key, kwargs.get("secure") is not True, kwargs.get("httponly") is not True, report_samesite
                 )
     except Exception as e:
-        iast_error(f"propagation::sink_point::Error in _iast_response_cookies. {e}")
+        iast_error("propagation::sink_point::Error in _iast_response_cookies", e)
     return wrapped(*args, **kwargs)

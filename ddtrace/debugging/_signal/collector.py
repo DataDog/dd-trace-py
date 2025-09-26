@@ -37,7 +37,10 @@ class SignalCollector(object):
     def _enqueue(self, log_signal: LogSignal) -> None:
         try:
             log.debug(
-                "[%s][P: %s] SignalCollector enqueu signal on track %s", os.getpid(), os.getppid(), log_signal.__track__
+                "[%s][P: %s] SignalCollector enqueue signal on track %s",
+                os.getpid(),
+                os.getppid(),
+                log_signal.__track__,
             )
             self._tracks[log_signal.__track__].put(log_signal)
         except BufferFull:

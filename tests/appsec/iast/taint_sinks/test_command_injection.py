@@ -10,19 +10,18 @@ from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
-from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast.constants import VULN_CMDI
 from ddtrace.appsec._iast.secure_marks import cmdi_sanitizer
 from ddtrace.appsec._iast.taint_sinks.command_injection import _iast_report_cmdi
-from ddtrace.appsec._iast.taint_sinks.command_injection import patch
 from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
 from tests.appsec.iast.iast_utils import _get_iast_data
+from tests.appsec.iast.iast_utils import _iast_patched_module
 from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.appsec.iast.taint_sinks._taint_sinks_utils import NON_TEXT_TYPES_TEST_DATA
 
 
-FIXTURES_PATH = "tests/appsec/iast/taint_sinks/test_command_injection.py"
+FIXTURES_PATH = "tests/appsec/iast/fixtures/taint_sinks/command_injection.py"
 
 _PARAMS = ["/bin/ls", "-l"]
 
@@ -62,127 +61,101 @@ def _assert_vulnerability(label, value_parts=None, source_name="", check_value=F
 
 
 def test_ossystem(iast_context_defaults):
-    source_name = "test_ossystem"
+    source_name = "pt_os_system"
     _BAD_DIR = taint_pyobject(
         pyobject=_BAD_DIR_DEFAULT,
         source_name=source_name,
         source_value=_BAD_DIR_DEFAULT,
     )
     assert is_pyobject_tainted(_BAD_DIR)
-    # label test_ossystem
-    os.system(add_aspect("dir -l ", _BAD_DIR))
-    _assert_vulnerability("test_ossystem", source_name=source_name)
+    mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.command_injection")
+    mod.pt_os_system("dir -l ", _BAD_DIR)
+    _assert_vulnerability("pt_os_system", source_name=source_name)
 
 
-def test_communicate(iast_context_defaults):
-    source_name = "test_communicate"
+def test_subprocess_popen(iast_context_defaults):
+    source_name = "pt_subprocess_popen"
     _BAD_DIR = taint_pyobject(
         pyobject=_BAD_DIR_DEFAULT,
         source_name=source_name,
         source_value=_BAD_DIR_DEFAULT,
         source_origin=OriginType.PARAMETER,
     )
-    # label test_communicate
-    subp = subprocess.Popen(args=["dir", "-l", _BAD_DIR])
-    subp.communicate()
-    subp.wait()
-    _assert_vulnerability("test_communicate", source_name=source_name)
+    mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.command_injection")
+    mod.pt_subprocess_popen(["dir", "-l", _BAD_DIR])
+    _assert_vulnerability("pt_subprocess_popen", source_name=source_name)
 
 
 def test_run(iast_context_defaults):
-    source_name = "test_run"
+    source_name = "pt_subprocess_run"
     _BAD_DIR = taint_pyobject(
         pyobject=_BAD_DIR_DEFAULT,
         source_name=source_name,
         source_value=_BAD_DIR_DEFAULT,
         source_origin=OriginType.PARAMETER,
     )
-    # label test_run
-    subprocess.run(["dir", "-l", _BAD_DIR])
-    _assert_vulnerability("test_run", source_name=source_name)
-
-
-def test_popen_wait(iast_context_defaults):
-    source_name = "test_popen_wait"
-    _BAD_DIR = taint_pyobject(
-        pyobject=_BAD_DIR_DEFAULT,
-        source_name=source_name,
-        source_value=_BAD_DIR_DEFAULT,
-        source_origin=OriginType.PARAMETER,
-    )
-    # label test_popen_wait
-    subp = subprocess.Popen(args=["dir", "-l", _BAD_DIR])
-    subp.wait()
-
-    _assert_vulnerability("test_popen_wait", source_name=source_name)
+    mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.command_injection")
+    mod.pt_subprocess_run(["dir", "-l", _BAD_DIR])
+    _assert_vulnerability("pt_subprocess_run", source_name=source_name)
 
 
 def test_popen_wait_shell_true(iast_context_defaults):
-    source_name = "test_popen_wait_shell_true"
+    source_name = "pt_subprocess_popen_shell"
     _BAD_DIR = taint_pyobject(
         pyobject=_BAD_DIR_DEFAULT,
         source_name=source_name,
         source_value=_BAD_DIR_DEFAULT,
         source_origin=OriginType.PARAMETER,
     )
-    # label test_popen_wait_shell_true
-    subp = subprocess.Popen(args=["dir", "-l", _BAD_DIR], shell=True)
-    subp.wait()
+    # label pt_subprocess_popen_shell
+    mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.command_injection")
+    mod.pt_subprocess_popen_shell(["dir", "-l", _BAD_DIR])
 
-    _assert_vulnerability("test_popen_wait_shell_true", source_name=source_name)
+    _assert_vulnerability("pt_subprocess_popen_shell", source_name=source_name)
 
 
 @pytest.mark.skipif(sys.platform not in ["linux", "darwin"], reason="Only for Unix")
 @pytest.mark.parametrize(
     "function,mode,arguments,tag",
     [
-        (os.spawnl, os.P_WAIT, _PARAMS, "test_osspawn_variants1"),
-        (os.spawnl, os.P_NOWAIT, _PARAMS, "test_osspawn_variants1"),
-        (os.spawnlp, os.P_WAIT, _PARAMS, "test_osspawn_variants1"),
-        (os.spawnlp, os.P_NOWAIT, _PARAMS, "test_osspawn_variants1"),
-        (os.spawnv, os.P_WAIT, _PARAMS, "test_osspawn_variants2"),
-        (os.spawnv, os.P_NOWAIT, _PARAMS, "test_osspawn_variants2"),
-        (os.spawnvp, os.P_WAIT, _PARAMS, "test_osspawn_variants2"),
-        (os.spawnvp, os.P_NOWAIT, _PARAMS, "test_osspawn_variants2"),
+        ("spawnl", os.P_WAIT, _PARAMS, "test_osspawn_variants1"),
+        ("spawnl", os.P_NOWAIT, _PARAMS, "test_osspawn_variants1"),
+        ("spawnlp", os.P_WAIT, _PARAMS, "test_osspawn_variants1"),
+        ("spawnlp", os.P_NOWAIT, _PARAMS, "test_osspawn_variants1"),
+        ("spawnv", os.P_WAIT, _PARAMS, "test_osspawn_variants2"),
+        ("spawnv", os.P_NOWAIT, _PARAMS, "test_osspawn_variants2"),
+        ("spawnvp", os.P_WAIT, _PARAMS, "test_osspawn_variants2"),
+        ("spawnvp", os.P_NOWAIT, _PARAMS, "test_osspawn_variants2"),
     ],
 )
 def test_osspawn_variants(iast_context_defaults, function, mode, arguments, tag):
-    source_name = "test_osspawn_variants"
+    func_name = "pt_" + function
     _BAD_DIR = taint_pyobject(
         pyobject=_BAD_DIR_DEFAULT,
-        source_name=source_name,
+        source_name=func_name,
         source_value=_BAD_DIR_DEFAULT,
         source_origin=OriginType.PARAMETER,
     )
     copied_args = copy(arguments)
     copied_args.append(_BAD_DIR)
-
-    if "_" in function.__name__:
-        # wrapt changes function names when debugging
-        cleaned_name = function.__name__.split("_")[-1]
+    mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.command_injection")
+    if "spawnv" in func_name:
+        getattr(mod, func_name)(mode, copied_args[0], copied_args[1:])
     else:
-        cleaned_name = function.__name__
-
-    if "spawnv" in cleaned_name:
-        # label test_osspawn_variants2
-        function(mode, copied_args[0], copied_args[1:])
-        label = "test_osspawn_variants2"
-    else:
-        # label test_osspawn_variants1
-        function(mode, copied_args[0], *copied_args[1:])
-        label = "test_osspawn_variants1"
+        getattr(mod, func_name)(mode, copied_args[0], *copied_args[1:])
 
     _assert_vulnerability(
-        label,
+        func_name,
         value_parts=[{"value": "/bin/ls -l "}, {"source": 0, "value": _BAD_DIR}],
-        source_name=source_name,
+        source_name=func_name,
         check_value=True,
-        function="test_osspawn_variants",
+        function=func_name,
     )
 
 
 @pytest.mark.skipif(sys.platform not in ["linux", "darwin"], reason="Only for Unix")
 def test_multiple_cmdi(iast_context_defaults):
+    mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.command_injection")
     _BAD_DIR = taint_pyobject(
         pyobject=_BAD_DIR_DEFAULT,
         source_name="test_run",
@@ -195,8 +168,8 @@ def test_multiple_cmdi(iast_context_defaults):
         source_value="qwerty/",
         source_origin=OriginType.PARAMETER,
     )
-    subprocess.run(["dir", "-l", _BAD_DIR])
-    subprocess.run(["dir", "-l", dir_2])
+    mod.pt_subprocess_run(["dir", "-l", _BAD_DIR])
+    mod.pt_subprocess_run(["dir", "-l", dir_2])
 
     data = _get_iast_data()
 
@@ -205,16 +178,21 @@ def test_multiple_cmdi(iast_context_defaults):
 
 @pytest.mark.skipif(sys.platform not in ["linux", "darwin"], reason="Only for Unix")
 def test_string_cmdi(iast_context_defaults):
-    cmd = taint_pyobject(
+    source_name = "pt_subprocess_popen"
+    tainted_cmd = taint_pyobject(
         pyobject="dir -l .",
-        source_name="test_run",
+        source_name=source_name,
         source_value="dir -l .",
         source_origin=OriginType.PARAMETER,
     )
-    subprocess.run(cmd, shell=True, check=True)
+    mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.command_injection")
+    with pytest.raises(FileNotFoundError):
+        subprocess.Popen(tainted_cmd)
+
+    with pytest.raises(FileNotFoundError):
+        mod.pt_subprocess_popen(tainted_cmd)
 
     data = _get_iast_data()
-
     assert len(list(data["vulnerabilities"])) == 1
 
 
@@ -233,7 +211,10 @@ def test_string_cmdi_secure_mark(iast_context_defaults):
     # Apply the sanitizer
     result = cmdi_sanitizer(cmd_function, None, [cmd], {})
 
-    subprocess.run(result, shell=True, check=True)
+    mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.command_injection")
+
+    with pytest.raises(FileNotFoundError):
+        mod.pt_subprocess_popen(result)
 
     # Verify the result is marked as secure
     span_report = get_iast_reporter()
@@ -241,8 +222,9 @@ def test_string_cmdi_secure_mark(iast_context_defaults):
 
 
 def test_cmdi_deduplication(iast_context_deduplication_enabled):
-    patch()
     _end_iast_context_and_oce()
+    mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.command_injection")
+
     for num_vuln_expected in [1, 0, 0]:
         _start_iast_context_and_oce()
         _BAD_DIR = "forbidden_dir/"
@@ -255,7 +237,8 @@ def test_cmdi_deduplication(iast_context_deduplication_enabled):
         assert is_pyobject_tainted(_BAD_DIR)
         for _ in range(0, 5):
             # label test_ossystem
-            os.system(add_aspect("dir -l ", _BAD_DIR))
+
+            mod.pt_os_system("dir -l ", _BAD_DIR)
 
         span_report = get_iast_reporter()
 
@@ -280,7 +263,7 @@ def test_cmdi_non_text_types_no_vulnerability(non_text_obj, obj_type, iast_conte
     )
 
     # Call the command injection reporting function directly
-    _iast_report_cmdi(tainted_obj)
+    _iast_report_cmdi("func_name", tainted_obj)
 
     # Assert no vulnerability was reported
     span_report = get_iast_reporter()
@@ -304,7 +287,7 @@ def test_cmdi_list_with_non_text_types_no_vulnerability(iast_context_defaults):
         tainted_list.append(tainted_item)
 
     # Call the command injection reporting function
-    _iast_report_cmdi(tainted_list)
+    _iast_report_cmdi("func_name", tainted_list)
 
     # Assert no vulnerability was reported
     span_report = get_iast_reporter()
