@@ -210,8 +210,10 @@ def traced_submit_job(wrapped, instance, args, kwargs):
         if entrypoint_script:
             job_span.set_tag_str(RAY_ENTRYPOINT_SCRIPT, entrypoint_script)
     metadata = kwargs.get("metadata", {})
-    for k, v in metadata_to_dot_pairs(metadata):
-        set_tag_or_truncate(job_span, k, v)
+    dot_pairs = metadata_to_dot_pairs(metadata)
+    if isinstance(dot_pairs, dict):
+        for k, v in dot_pairs.items():
+            set_tag_or_truncate(job_span, k, v)
 
     tracer.context_provider.activate(job_span)
     start_long_running_job(job_span)
