@@ -585,6 +585,7 @@ def test_public_modules_in_ddtrace_contrib():
         "ddtrace.contrib.cherrypy",
         "ddtrace.contrib.requests",
         "ddtrace.contrib.pyramid",
+        "ddtrace.contrib.ray",
     }
 
 
