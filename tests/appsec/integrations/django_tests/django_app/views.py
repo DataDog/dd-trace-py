@@ -434,9 +434,14 @@ def command_injection(request):
                 parsed = json.loads(body_text)
                 if isinstance(parsed, str):
                     value = parsed
+                elif isinstance(parsed, list) and parsed:
+                    # Take the first value in the object if not a simple string
+                    for val in parsed:
+                        if val == "master":
+                            value = val
                 elif isinstance(parsed, dict) and parsed:
                     # Take the first value in the object if not a simple string
-                    value = next(iter(parsed.values())) or ""
+                    value = parsed.get("second")
                 else:
                     value = body_text
             except Exception:

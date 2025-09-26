@@ -13,6 +13,8 @@ from tests.appsec.appsec_utils import django_server
 from tests.appsec.appsec_utils import gunicorn_django_server
 from tests.appsec.iast.iast_utils import load_iast_report
 from tests.appsec.integrations.utils_testagent import _get_span
+from tests.appsec.integrations.utils_testagent import clear_session
+from tests.appsec.integrations.utils_testagent import start_trace
 
 
 log = get_logger(__name__)
@@ -32,14 +34,24 @@ log = get_logger(__name__)
     ],
 )
 @pytest.mark.parametrize("server", (gunicorn_django_server, django_server))
-def test_iast_cmdi_bodies(body, content_type, server, iast_test_token):
+def test_iast_cmdi_bodies(body, content_type, server):
     """This test parametrizes body encodings to validate that IAST taints http.request.body
     across different content types and still reports CMDI on the vulnerable sink in
     tests/appsec/integrations/django_tests/django_app/views.py:command_injection
+    NOTES: We use a direct call to start_trace instead of iast_test_token due to a problem with the requests.request
+    wrapper witch creates many error traces, and we can't retrieve the IAST span later. this an example:
+    name': 'requests.request', 'resource': 'GET /', 'meta': {'runtime-id': 'ae33e5f0844148159de930d1dd45849b',
+     'component': 'requests', 'span.kind': 'client', 'http.method': 'GET', 'http.url': 'http://0.0.0.0:8000/',
+      'out.host': '0.0.0.0', 'http.useragent': 'python-requests/2.32.5',
+      'error.type': 'requests.exceptions.ConnectionError',
+      'error.message': "HTTPConnectionPool(host='0.0.0.0', port=8000): Max retries exceeded with url: /
     """
+    token = "test_iast_cmdi_bodies"
+    start_trace(token)
     with server(
         iast_enabled="true",
-        token=iast_test_token,
+        appsec_enabled="false",
+        token=token,
         env={
             "DD_TRACE_DEBUG": "true",
             "_DD_IAST_DEBUG": "true",
@@ -60,11 +72,15 @@ def test_iast_cmdi_bodies(body, content_type, server, iast_test_token):
 
         assert response.status_code == 200
 
-    response_tracer = _get_span(iast_test_token)
+    response_tracer = _get_span(token)
     spans_with_iast = []
     vulnerabilities = []
+    print(f"response_tracer: {response_tracer}")
+    clear_session(token)
     for trace in response_tracer:
+        print(f"trace: {trace}")
         for span in trace:
+            print(f"span: {span}")
             if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
                 spans_with_iast.append(span)
             iast_data = load_iast_report(span)

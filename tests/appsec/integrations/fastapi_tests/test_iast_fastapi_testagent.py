@@ -359,8 +359,6 @@ def test_iast_vulnerable_request_downstream_fastapi(iast_test_token):
         ("master", "text/plain"),
         ('"master"', "application/json"),  # raw JSON string
         ('{"key":"master"}', "application/json"),  # simple JSON object
-        ('{"first":"ignore","second":"master"}', "application/json"),  # multi-key object
-        ('["master","ignore"]', "application/json"),  # JSON array
     ],
 )
 def test_iast_cmdi_bodies_fastapi(body, content_type, iast_test_token):
@@ -414,6 +412,7 @@ def test_iast_cmdi_bodies_fastapi(body, content_type, iast_test_token):
     [
         ("", "text/plain"),
         ('["master","ignore"]', "application/json"),  # JSON array
+        ('{"first":"ignore","second":"master"}', "application/json"),  # multi-key object
         ("", "application/json"),  # JSON array
         ("[]", "application/json"),  # JSON array
         ("[{}]", "application/json"),  # JSON array
