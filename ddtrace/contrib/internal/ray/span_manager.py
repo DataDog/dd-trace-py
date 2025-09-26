@@ -187,7 +187,7 @@ class RaySpanManager:
             if submission_id not in self._job_spans:
                 self._job_spans[submission_id] = {}
                 # the first timer will be only 10 seconds to have a well formed trace
-                self._create_resubmit_timer(submission_id, float(config.ray.initial_submit_threshold))
+                self._create_resubmit_timer(submission_id, float(config._long_running_initial_flush_interval))
             self._job_spans[submission_id][(span.trace_id, span.span_id)] = span
 
     def stop_long_running_span(self, span_to_stop):
