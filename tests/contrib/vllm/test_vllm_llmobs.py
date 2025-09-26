@@ -7,7 +7,7 @@ from vllm.sampling_params import RequestOutputKind
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 
 from ._utils import create_async_engine
-from ._utils import get_cached_llm
+from ._utils import get_llm
 
 
 IGNORE_FIELDS = [
@@ -17,7 +17,7 @@ IGNORE_FIELDS = [
 
 
 def test_llmobs_basic(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
-    llm = get_cached_llm(
+    llm = get_llm(
         model="facebook/opt-125m",
         engine_mode=vllm_engine_mode,
         max_model_len=256,
@@ -60,7 +60,7 @@ def test_llmobs_basic(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
 
 
 def test_llmobs_chat(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
-    llm = get_cached_llm(
+    llm = get_llm(
         model="facebook/opt-125m",
         engine_mode=vllm_engine_mode,
         max_model_len=256,
@@ -138,7 +138,7 @@ def test_llmobs_chat(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
 
 
 def test_llmobs_classify(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
-    llm = get_cached_llm(
+    llm = get_llm(
         model="BAAI/bge-reranker-v2-m3",
         runner="pooling",
         engine_mode=vllm_engine_mode,
@@ -339,7 +339,7 @@ async def test_stream_cancel_early_break_v0_mq(vllm, mock_tracer, monkeypatch, l
 
 
 def test_llmobs_embed(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
-    llm = get_cached_llm(
+    llm = get_llm(
         model="intfloat/e5-small",
         runner="pooling",
         engine_mode=vllm_engine_mode,
@@ -391,7 +391,7 @@ def test_llmobs_embed(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
 
 
 def test_llmobs_reward(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
-    llm = get_cached_llm(
+    llm = get_llm(
         model="BAAI/bge-reranker-v2-m3",
         runner="pooling",
         engine_mode=vllm_engine_mode,
@@ -448,7 +448,7 @@ def test_llmobs_reward(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
 
 
 def test_llmobs_score(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
-    llm = get_cached_llm(
+    llm = get_llm(
         model="BAAI/bge-reranker-v2-m3",
         runner="pooling",
         engine_mode=vllm_engine_mode,

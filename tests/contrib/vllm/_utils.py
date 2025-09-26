@@ -22,27 +22,9 @@ def _create_llm_autotune(model, **kwargs):
     raise last_error
 
 
-_LLM_CACHE = {}
-
-
-def get_cached_llm(model: str, *, engine_mode: str = "0", **kwargs):
+def get_llm(model: str, *, engine_mode: str = "0", **kwargs):
     # Avoid passing runner=None to vLLM; default runner is 'generate'
     runner = kwargs.get("runner")
-    key_runner = runner or "generate"
-    key = (model, key_runner, engine_mode)
-
-    # Skip caching on CI - create fresh LLM instances
-    # is_ci = os.environ.get("CI") == "true"
-    # if is_ci:
-    #    llm_kwargs = dict(kwargs)
-    #    if runner is None and "runner" in llm_kwargs:
-    #        llm_kwargs.pop("runner", None)
-    #    return _create_llm_autotune(model=model, **llm_kwargs)
-
-    # Use caching for local development
-    llm = _LLM_CACHE.get(key)
-    if llm is not None:
-        return llm
     should_diag = os.environ.get("DD_VLLM_TEST_DIAG") == "1"
     llm_kwargs = dict(kwargs)
     if runner is None and "runner" in llm_kwargs:
@@ -58,7 +40,6 @@ def get_cached_llm(model: str, *, engine_mode: str = "0", **kwargs):
             log_vllm_diagnostics("after-create-llm")
         except Exception:
             pass
-    _LLM_CACHE[key] = llm
     return llm
 
 
@@ -88,21 +69,6 @@ def create_async_engine(model: str, *, engine_mode: str = "0", **kwargs):
             else:
                 from vllm.engine.async_llm_engine import AsyncLLMEngine as _Async  # type: ignore
             engine = _Async.from_engine_args(args)
-            # Ensure clean shutdown even if tests break early
-            try:
-                import weakref  # type: ignore
-
-                def _safe_shutdown(obj):
-                    try:
-                        shutdown = getattr(obj, "shutdown", None)
-                        if callable(shutdown):
-                            shutdown()
-                    except Exception:
-                        pass
-
-                weakref.finalize(engine, _safe_shutdown, engine)
-            except Exception:
-                pass
             if should_diag:
                 try:
                     log_vllm_diagnostics("after-create-async-engine")
@@ -128,14 +94,20 @@ def get_simple_chat_template() -> str:
 
 
 def shutdown_cached_llms() -> None:
-    for llm in list(_LLM_CACHE.values()):
-        try:
-            shutdown = getattr(llm, "shutdown", None)
-            if callable(shutdown):
-                shutdown()
-        except Exception:
-            pass
-    _LLM_CACHE.clear()
+    # Retained for backwards compatibility; no-op since caching is disabled
+    try:
+        import gc  # type: ignore
+
+        gc.collect()
+    except Exception:
+        pass
+    try:
+        import torch  # type: ignore
+
+        if hasattr(torch, "cuda"):
+            torch.cuda.empty_cache()
+    except Exception:
+        pass
 
 
 def log_vllm_diagnostics(label: str) -> None:

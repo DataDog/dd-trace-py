@@ -21,6 +21,30 @@ def _shutdown_cached_llms_session():
     shutdown_cached_llms()
 
 
+@pytest.fixture(autouse=True)
+def _per_test_llm_cleanup():
+    # After each test, try to free CUDA memory and check for strays
+    yield
+    try:
+        import gc  # type: ignore
+
+        gc.collect()
+    except Exception:
+        pass
+    try:
+        import torch  # type: ignore
+
+        if hasattr(torch, "cuda"):
+            torch.cuda.empty_cache()
+    except Exception:
+        pass
+    if log_vllm_diagnostics is not None:
+        try:
+            log_vllm_diagnostics("after-per-test-cleanup")
+        except Exception:
+            pass
+
+
 def pytest_runtest_makereport(item, call):  # type: ignore
     # When diagnostics enabled, log environment and memory on failures
     should_diag = item.config.getoption("-s", default=False) or item.config.getoption("--capture", default=None) in (

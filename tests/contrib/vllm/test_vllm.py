@@ -24,7 +24,7 @@ def test_basic(vllm, vllm_engine_mode):
     llm = get_cached_llm(
         model="facebook/opt-125m",
         engine_mode=vllm_engine_mode,
-        max_model_len=512,
+        max_model_len=256,
         enforce_eager=True,
         compilation_config=0,
     )
@@ -37,7 +37,7 @@ def test_chat(vllm, vllm_engine_mode):
     llm = get_cached_llm(
         model="facebook/opt-125m",
         engine_mode=vllm_engine_mode,
-        max_model_len=512,
+        max_model_len=256,
         enforce_eager=True,
         compilation_config=0,
     )
@@ -61,7 +61,7 @@ def test_classify(vllm, vllm_engine_mode):
         model="BAAI/bge-reranker-v2-m3",
         runner="pooling",
         engine_mode=vllm_engine_mode,
-        max_model_len=512,
+        max_model_len=256,
         enforce_eager=True,
         compilation_config=0,
         trust_remote_code=True,
@@ -83,7 +83,7 @@ def test_embed(vllm, vllm_engine_mode):
         engine_mode=vllm_engine_mode,
         enforce_eager=True,
         compilation_config=0,
-        max_model_len=512,
+        max_model_len=256,
         trust_remote_code=True,
     )
 
@@ -103,7 +103,7 @@ def test_reward(vllm, vllm_engine_mode):
         engine_mode=vllm_engine_mode,
         enforce_eager=True,
         compilation_config=0,
-        max_model_len=512,
+        max_model_len=256,
         trust_remote_code=True,
     )
 
@@ -122,7 +122,7 @@ def test_score(vllm, vllm_engine_mode):
         runner="pooling",
         engine_mode=vllm_engine_mode,
         enforce_eager=True,
-        max_model_len=512,
+        max_model_len=256,
         compilation_config=0,
         trust_remote_code=True,
     )
@@ -143,7 +143,7 @@ async def test_async_streaming(vllm, vllm_engine_mode):
         model="facebook/opt-125m",
         engine_mode=vllm_engine_mode,
         enforce_eager=True,
-        max_model_len=512,
+        max_model_len=256,
         compilation_config=0,
         trust_remote_code=True,
     )
@@ -174,7 +174,7 @@ async def test_async_encode_streaming(vllm, vllm_engine_mode):
         enforce_eager=True,
         runner="pooling",
         trust_remote_code=True,
-        max_model_len=512,
+        max_model_len=256,
         compilation_config=0,
     )
 
