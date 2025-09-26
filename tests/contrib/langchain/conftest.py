@@ -130,7 +130,6 @@ def langchain_in_memory_vectorstore(langchain_core, langchain_openai, openai_url
         pytest.skip("langchain_core <0.3.0 does not support in-memory vectorstores")
 
     embedding = langchain_openai.OpenAIEmbeddings(base_url=openai_url)
-    breakpoint()
     vectorstore = langchain_core.vectorstores.in_memory.InMemoryVectorStore(embedding=embedding)
 
     vectorstore.add_documents(
