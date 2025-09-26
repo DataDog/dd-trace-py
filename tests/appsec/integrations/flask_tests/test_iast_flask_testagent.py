@@ -225,7 +225,7 @@ def test_iast_concurrent_requests_limit_flask(server):
 def test_iast_cmdi(server):
     token = "test_iast_cmdi"
     _ = start_trace(token)
-    with server(iast_enabled="true", token=token, port=8050, use_ddtrace_cmd=False) as context:
+    with server(iast_enabled="true", token=token, port=8050) as context:
         _, flask_client, pid = context
 
         response = flask_client.get("/iast-cmdi-vulnerability?filename=path_traversal_test_file.txt")
@@ -261,7 +261,7 @@ def test_iast_cmdi(server):
 def test_iast_cmdi_secure(server):
     token = "test_iast_cmdi_secure"
     _ = start_trace(token)
-    with server(iast_enabled="true", token=token, port=8050, use_ddtrace_cmd=False) as context:
+    with server(iast_enabled="true", token=token, port=8050) as context:
         _, flask_client, pid = context
 
         response = flask_client.get("/iast-cmdi-vulnerability-secure?filename=path_traversal_test_file.txt")
@@ -332,7 +332,7 @@ def test_iast_header_injection_secure(server):
     """
     token = "test_iast_header_injection"
     _ = start_trace(token)
-    with server(iast_enabled="true", token=token, port=8050, use_ddtrace_cmd=False) as context:
+    with server(iast_enabled="true", token=token, port=8050) as context:
         _, flask_client, pid = context
 
         response = flask_client.get(

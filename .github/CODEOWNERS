@@ -41,7 +41,7 @@ ddtrace/internal/_file_queue.py     @DataDog/python-guild
 ddtrace/internal/_unpatched.py      @DataDog/python-guild
 ddtrace/internal/compat.py          @DataDog/python-guild  @DataDog/apm-core-python
 ddtrace/internal/endpoints.py       @DataDog/python-guild  @DataDog/asm-python
-ddtrace/settings/config.py          @DataDog/python-guild  @DataDog/apm-sdk-api-python
+ddtrace/settings/config.py          @DataDog/python-guild  @DataDog/apm-sdk-capabilities-python
 docs/                               @DataDog/python-guild
 tests/utils.py                      @DataDog/python-guild
 tests/suitespec.yml                 @DataDog/python-guild  @DataDog/apm-core-python
@@ -196,29 +196,29 @@ ddtrace/internal/remoteconfig       @DataDog/remote-config @DataDog/apm-core-pyt
 tests/internal/remoteconfig         @DataDog/remote-config @DataDog/apm-core-python
 
 # API SDK
-ddtrace/trace/                                     @DataDog/apm-sdk-api-python
-ddtrace/_trace/                                    @DataDog/apm-sdk-api-python
+ddtrace/trace/                                     @DataDog/apm-sdk-capabilities-python
+ddtrace/_trace/                                    @DataDog/apm-sdk-capabilities-python
 # File commonly updated for integrations, widen ownership to help with PR review
-ddtrace/_trace/trace_handlers.py                   @DataDog/apm-sdk-api-python @DataDog/apm-core-python @DataDog/apm-idm-python
-ddtrace/opentelemetry/                             @DataDog/apm-sdk-api-python
-ddtrace/internal/opentelemetry                     @DataDog/apm-sdk-api-python
-ddtrace/opentracer/                                @DataDog/apm-sdk-api-python
-ddtrace/propagation/                               @DataDog/apm-sdk-api-python
+ddtrace/_trace/trace_handlers.py                   @DataDog/apm-sdk-capabilities-python @DataDog/apm-core-python @DataDog/apm-idm-python
+ddtrace/opentelemetry/                             @DataDog/apm-sdk-capabilities-python
+ddtrace/internal/opentelemetry                     @DataDog/apm-sdk-capabilities-python
+ddtrace/opentracer/                                @DataDog/apm-sdk-capabilities-python
+ddtrace/propagation/                               @DataDog/apm-sdk-capabilities-python
 
-ddtrace/internal/sampling.py                       @DataDog/apm-sdk-api-python
-ddtrace/internal/tracemethods.py                   @DataDog/apm-sdk-api-python
-ddtrace/internal/metrics.py                        @DataDog/apm-sdk-api-python
-ddtrace/internal/rate_limiter.py                   @DataDog/apm-sdk-api-python
-ddtrace/runtime/                                   @DataDog/apm-sdk-api-python
-ddtrace/internal/runtime/                          @DataDog/apm-sdk-api-python
-ddtrace/settings/_otel_remapper.py                 @DataDog/apm-sdk-api-python
-tests/integration/test_priority_sampling.py        @DataDog/apm-sdk-api-python
-tests/integration/test_propagation.py              @DataDog/apm-sdk-api-python
-tests/runtime/                                     @DataDog/apm-sdk-api-python
-tests/test_sampling.py                             @DataDog/apm-sdk-api-python
-tests/test_tracemethods.py                         @DataDog/apm-sdk-api-python
-tests/opentelemetry/                               @DataDog/apm-sdk-api-python
-tests/tracer/                                      @DataDog/apm-sdk-api-python
+ddtrace/internal/sampling.py                       @DataDog/apm-sdk-capabilities-python
+ddtrace/internal/tracemethods.py                   @DataDog/apm-sdk-capabilities-python
+ddtrace/internal/metrics.py                        @DataDog/apm-sdk-capabilities-python
+ddtrace/internal/rate_limiter.py                   @DataDog/apm-sdk-capabilities-python
+ddtrace/runtime/                                   @DataDog/apm-sdk-capabilities-python
+ddtrace/internal/runtime/                          @DataDog/apm-sdk-capabilities-python
+ddtrace/settings/_otel_remapper.py                 @DataDog/apm-sdk-capabilities-python
+tests/integration/test_priority_sampling.py        @DataDog/apm-sdk-capabilities-python
+tests/integration/test_propagation.py              @DataDog/apm-sdk-capabilities-python
+tests/runtime/                                     @DataDog/apm-sdk-capabilities-python
+tests/test_sampling.py                             @DataDog/apm-sdk-capabilities-python
+tests/test_tracemethods.py                         @DataDog/apm-sdk-capabilities-python
+tests/opentelemetry/                               @DataDog/apm-sdk-capabilities-python
+tests/tracer/                                      @DataDog/apm-sdk-capabilities-python
 # Override because order matters
 tests/tracer/test_ci.py                            @DataDog/ci-app-libraries
 

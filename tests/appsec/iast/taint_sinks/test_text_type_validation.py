@@ -39,7 +39,7 @@ def test_text_types_still_trigger_vulnerabilities(iast_context_defaults):
         )
 
         # Test command injection - should report vulnerability
-        _iast_report_cmdi(tainted_obj)
+        _iast_report_cmdi("open", tainted_obj)
         span_report = get_iast_reporter()
         assert span_report is not None, f"No vulnerability reported for {text_type.__name__}"
         assert len(span_report.vulnerabilities) > 0, f"No vulnerabilities found for {text_type.__name__}"
