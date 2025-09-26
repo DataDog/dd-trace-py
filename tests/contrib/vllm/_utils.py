@@ -46,6 +46,10 @@ def get_llm(model: str, *, engine_mode: str = "0", **kwargs):
 def create_async_engine(model: str, *, engine_mode: str = "0", **kwargs):
     # Reduce default KV cache footprint in CI unless caller overrides
     kwargs.setdefault("max_model_len", 256)
+    # Constrain scheduler concurrency on CI to reduce memory pressure
+    if os.environ.get("CI") == "true":
+        kwargs.setdefault("max_num_batched_tokens", 256)
+        kwargs.setdefault("max_num_seqs", 1)
     # Respect explicit gpu_memory_utilization if provided
     explicit_util = kwargs.pop("gpu_memory_utilization", None)
     util_candidates = kwargs.pop(
