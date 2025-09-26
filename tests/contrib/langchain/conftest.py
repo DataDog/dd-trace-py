@@ -56,6 +56,13 @@ def llmobs_events(llmobs, llmobs_span_writer):
     yield llmobs_span_writer.events
 
 
+# scoping this fixture to "module" overcomes issues with patching ABC embeddings/vectorstore classes
+# if scoped to each test/function, we will sometimes not patch those classes on __init_subclass__, likely
+# due to how and when __init_subclass__ is called, and/or if the subclass being used in tests is cached in
+# `sys.modules`. Additionally, changing to "session" will fail snapshot tests.
+# Setting this to "module" seems to work the best.
+# Additionally, this likely isn't an indication of a bug in our code, but how patching happens during tests.
+# In userland, patching will really only happen once, and unpatching almost never.
 @pytest.fixture(scope="module")
 def langchain_core():
     with override_env(
@@ -123,6 +130,7 @@ def langchain_in_memory_vectorstore(langchain_core, langchain_openai, openai_url
         pytest.skip("langchain_core <0.3.0 does not support in-memory vectorstores")
 
     embedding = langchain_openai.OpenAIEmbeddings(base_url=openai_url)
+    breakpoint()
     vectorstore = langchain_core.vectorstores.in_memory.InMemoryVectorStore(embedding=embedding)
 
     vectorstore.add_documents(
