@@ -32,6 +32,8 @@ from .constants import DD_RAY_TRACE_CTX
 from .constants import DEFAULT_JOB_NAME
 from .constants import RAY_ACTOR_METHOD_ARGS
 from .constants import RAY_ACTOR_METHOD_KWARGS
+from .constants import RAY_ENTRYPOINT
+from .constants import RAY_ENTRYPOINT_SCRIPT
 from .constants import RAY_JOB_NAME
 from .constants import RAY_JOB_STATUS
 from .constants import RAY_JOB_SUBMIT_STATUS
@@ -59,6 +61,7 @@ from .utils import _inject_ray_span_tags_and_metrics
 from .utils import extract_signature
 from .utils import get_dd_job_name_from_entrypoint
 from .utils import get_dd_job_name_from_submission_id
+from .utils import metadata_to_dot_pairs
 from .utils import set_tag_or_truncate
 
 
@@ -190,17 +193,27 @@ def traced_submit_job(wrapped, instance, args, kwargs):
     submission_id = kwargs.get("submission_id") or generate_job_id()
     kwargs["submission_id"] = submission_id
     entrypoint = kwargs.get("entrypoint", "")
-    job_name = (
-        config.service
-        or kwargs.get("metadata", {}).get("job_name", "")
-        or get_dd_job_name_from_submission_id(submission_id)
-        or get_dd_job_name_from_entrypoint(entrypoint)
-    )
+    job_name = config.service or kwargs.get("metadata", {}).get("job_name", "")
+
+    if not job_name:
+        if os.environ.get("DD_RAY_USE_ENTRYPOINT_AS_JOB_NAME", "false").lower() in ("true", "1"):
+            job_name = get_dd_job_name_from_entrypoint(entrypoint) or DEFAULT_JOB_NAME
+        else:
+            job_name = DEFAULT_JOB_NAME
 
     # Root span creation
     job_span = tracer.start_span("ray.job", service=job_name or DEFAULT_JOB_NAME, span_type=SpanTypes.RAY)
     _inject_ray_span_tags_and_metrics(job_span)
     job_span.set_tag_str(RAY_SUBMISSION_ID_TAG, submission_id)
+    if entrypoint:
+        job_span.set_tag_str(RAY_ENTRYPOINT, entrypoint)
+        entrypoint_script = get_dd_job_name_from_entrypoint(entrypoint)
+        if entrypoint_script:
+            job_span.set_tag_str(RAY_ENTRYPOINT_SCRIPT, entrypoint_script)
+    metadata = kwargs.get("metadata", {})
+    for k, v in metadata_to_dot_pairs(metadata):
+        set_tag_or_truncate(job_span, k, v)
+
     tracer.context_provider.activate(job_span)
     start_long_running_job(job_span)
 

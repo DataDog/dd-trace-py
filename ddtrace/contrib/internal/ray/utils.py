@@ -1,6 +1,7 @@
 import inspect
 from inspect import Parameter
 from inspect import Signature
+import json
 import os
 import re
 import socket
@@ -24,6 +25,7 @@ from .constants import RAY_ACTOR_ID
 from .constants import RAY_COMPONENT
 from .constants import RAY_HOSTNAME
 from .constants import RAY_JOB_ID
+from .constants import RAY_METADATA_PREFIX
 from .constants import RAY_NODE_ID
 from .constants import RAY_SUBMISSION_ID
 from .constants import RAY_SUBMISSION_ID_TAG
@@ -121,18 +123,6 @@ def set_tag_or_truncate(span, tag_name, tag_value):
         span.set_tag(tag_name, tag_value)
 
 
-def get_dd_job_name_from_submission_id(submission_id: str):
-    """
-    Get the job name from the submission id.
-    If the submission id is set but not in a job:test,run:3 format, return the default job name.
-    If the submission id is not set, return None.
-    """
-    match = JOB_NAME_REGEX.match(submission_id)
-    if match:
-        return match.group(1)
-    return None
-
-
 def get_dd_job_name_from_entrypoint(entrypoint: str):
     """
     Get the job name from the entrypoint.
@@ -142,6 +132,57 @@ def get_dd_job_name_from_entrypoint(entrypoint: str):
         return match.group(1)
     return None
 
+
+def json_to_dot_notation(data):
+    """
+    Converts a JSON (or Python dictionary) structure into a dict mapping
+    dot-notation paths to leaf values.
+
+    - Assumes the top-level is a dictionary. If a list is encountered anywhere,
+      it is stringified with json.dumps and treated as a leaf (no recursion into list elements).
+    - Leaf values (str, int, float, bool, None) are returned as-is as the dict values.
+    - If the top-level value is a simple primitive (str, int, float, bool, None),
+      it is returned unchanged. If the top-level is a list, it is stringified.
+    """
+    # If top-level is a primitive, return it directly
+    if not isinstance(data, (dict, list)):
+        return data
+
+    # If top-level is a list, stringify and return
+    if isinstance(data, list):
+        try:
+            return json.dumps(data, ensure_ascii=False)
+        except Exception:
+            return "[]"
+
+    result = {}
+
+    def _recurse(node, path):
+        if isinstance(node, dict):
+            for key, value in node.items():
+                new_path = f"{path}.{key}" if path else key
+                _recurse(value, new_path)
+        elif isinstance(node, list):
+            # Treat any list as a leaf by stringifying it
+            try:
+                list_dump = json.dumps(node, ensure_ascii=False)
+            except Exception:
+                list_dump = "[]"
+            # path should always be non-empty for list encountered in a dict traversal
+            result[path] = list_dump
+        else:
+            # leaf node: store the accumulated path -> value
+            result[path] = node
+
+    _recurse(data, "")
+    return result
+
+
+def metadata_to_dot_pairs(metadata):
+    if isinstance(metadata, dict):
+        for k, v in json_to_dot_notation(metadata).items():
+            yield f"{RAY_METADATA_PREFIX}.{k}", v
+            
 
 # -------------------------------------------------------------------------------------------
 # This is extracted from ray code
