@@ -123,9 +123,7 @@ def _dd_metrics_exporter(otel_exporter: Type[Any], protocol: str, encoding: str)
                 ),
             )
             # TODO: Count the number of unique metrics streams in this export
-            log.debug(
-                "Exporting OpenTelemetry Metrics with %s protocol and %s encoding", protocol, encoding
-            )
+            log.debug("Exporting OpenTelemetry Metrics with %s protocol and %s encoding", protocol, encoding)
             result = super().export(metrics_data, timeout_millis, *args, **kwargs)
 
             if result.value == 0:
@@ -201,7 +199,9 @@ def _initialize_metrics(exporter_class, protocol, resource):
         # Ensure metrics exporter is configured to send payloads to a Datadog Agent.
         # The default endpoint is resolved using the hostname from DD_AGENT.. and DD_TRACE_AGENT_... configs
         os.environ["OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"] = otel_config.exporter.METRICS_ENDPOINT
-        os.environ["OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE"] = otel_config.exporter.METRICS_TEMPORALITY_PREFERENCE
+        os.environ[
+            "OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE"
+        ] = otel_config.exporter.METRICS_TEMPORALITY_PREFERENCE
         os.environ["OTEL_METRIC_EXPORT_INTERVAL"] = str(otel_config.exporter.METRICS_METRIC_READER_EXPORT_INTERVAL)
         os.environ["OTEL_METRIC_EXPORT_TIMEOUT"] = str(otel_config.exporter.METRICS_METRIC_READER_EXPORT_TIMEOUT)
         _init_metrics({protocol: exporter_class}, resource=resource)

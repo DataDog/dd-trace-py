@@ -178,7 +178,7 @@ def validate_otel_envs():
                 _invalid_otel_config(otel_env)
             # TODO: Separate from validation
             telemetry_writer.add_configuration(otel_env, otel_value, "env_var")
-    
+
     return metrics_exporter_enabled
 
 

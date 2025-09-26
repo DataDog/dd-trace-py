@@ -8,9 +8,7 @@ from ddtrace.settings._core import DDConfig
 
 def _derive_endpoint(config: "ExporterConfig"):
     if config.PROTOCOL.lower() in ("http/json", "http/protobuf"):
-        default_endpoint = (
-            f"http://{get_agent_hostname()}:{ExporterConfig.HTTP_PORT}"
-        )
+        default_endpoint = f"http://{get_agent_hostname()}:{ExporterConfig.HTTP_PORT}"
     else:
         default_endpoint = f"http://{get_agent_hostname()}:{ExporterConfig.GRPC_PORT}"
     return get_config("OTEL_EXPORTER_OTLP_ENDPOINT", default_endpoint)
@@ -61,7 +59,9 @@ def _derive_metrics_timeout(config: "ExporterConfig"):
 
 
 def _derive_metrics_temporality_preference(config: "ExporterConfig"):
-    return get_config("OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE", config.DEFAULT_METRICS_TEMPORALITY_PREFERENCE)
+    return get_config(
+        "OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE", config.DEFAULT_METRICS_TEMPORALITY_PREFERENCE
+    )
 
 
 def _derive_metrics_metric_reader_export_interval(config: "ExporterConfig"):
