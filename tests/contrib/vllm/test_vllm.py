@@ -2,7 +2,7 @@ import pytest
 from vllm.sampling_params import RequestOutputKind
 
 from ._utils import create_async_engine
-from ._utils import get_cached_llm
+from ._utils import get_llm
 from ._utils import get_simple_chat_template
 
 
@@ -21,7 +21,7 @@ def test_basic(vllm, vllm_engine_mode):
         "The future of AI is",
     ]
 
-    llm = get_cached_llm(
+    llm = get_llm(
         model="facebook/opt-125m",
         engine_mode=vllm_engine_mode,
         max_model_len=256,
@@ -34,7 +34,7 @@ def test_basic(vllm, vllm_engine_mode):
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_chat(vllm, vllm_engine_mode):
-    llm = get_cached_llm(
+    llm = get_llm(
         model="facebook/opt-125m",
         engine_mode=vllm_engine_mode,
         max_model_len=256,
@@ -57,7 +57,7 @@ def test_chat(vllm, vllm_engine_mode):
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_classify(vllm, vllm_engine_mode):
-    llm = get_cached_llm(
+    llm = get_llm(
         model="BAAI/bge-reranker-v2-m3",
         runner="pooling",
         engine_mode=vllm_engine_mode,
@@ -77,7 +77,7 @@ def test_classify(vllm, vllm_engine_mode):
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_embed(vllm, vllm_engine_mode):
-    llm = get_cached_llm(
+    llm = get_llm(
         model="intfloat/e5-small",
         runner="pooling",
         engine_mode=vllm_engine_mode,
@@ -97,7 +97,7 @@ def test_embed(vllm, vllm_engine_mode):
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_reward(vllm, vllm_engine_mode):
-    llm = get_cached_llm(
+    llm = get_llm(
         model="BAAI/bge-reranker-v2-m3",
         runner="pooling",
         engine_mode=vllm_engine_mode,
@@ -117,7 +117,7 @@ def test_reward(vllm, vllm_engine_mode):
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_score(vllm, vllm_engine_mode):
-    llm = get_cached_llm(
+    llm = get_llm(
         model="BAAI/bge-reranker-v2-m3",
         runner="pooling",
         engine_mode=vllm_engine_mode,
