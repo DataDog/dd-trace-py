@@ -56,7 +56,7 @@ def llmobs_events(llmobs, llmobs_span_writer):
     yield llmobs_span_writer.events
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def langchain_core():
     with override_env(
         dict(
