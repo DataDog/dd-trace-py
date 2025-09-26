@@ -1,14 +1,10 @@
+import importlib
 from operator import itemgetter
 
-import langchain
-import langchain.prompts  # noqa: F401
-import mock
 import pytest
 
 from ddtrace.internal.utils.version import parse_version
 
-
-LANGCHAIN_VERSION = parse_version(langchain.__version__)
 
 IGNORE_FIELDS = [
     "resources",
@@ -53,7 +49,7 @@ async def test_openai_llm_async(langchain_openai, openai_url):
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_openai_llm_error(langchain, langchain_openai, openai_url):
+def test_openai_llm_error(langchain_openai, openai_url):
     import openai  # Imported here because the os env OPENAI_API_KEY needs to be set via langchain fixture before import
 
     llm = langchain_openai.OpenAI(base_url=openai_url)
@@ -63,45 +59,41 @@ def test_openai_llm_error(langchain, langchain_openai, openai_url):
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_openai_chat_model_sync_call_langchain_openai(langchain_openai, openai_url):
+def test_openai_chat_model_sync_call_langchain_openai(langchain_core, langchain_openai, openai_url):
     chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, n=1, base_url=openai_url)
-    chat.invoke(input=[langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
+    chat.invoke(input=[langchain_core.messages.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
 
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-async def test_openai_chat_model_sync_call_langchain_openai_async(langchain_openai, openai_url):
+async def test_openai_chat_model_sync_call_langchain_openai_async(langchain_core, langchain_openai, openai_url):
     chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, n=1, base_url=openai_url)
-    await chat.ainvoke(input=[langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
+    await chat.ainvoke(input=[langchain_core.messages.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
 
 
 # TODO: come back and clean this one up... seems like we tag 4 responses
-@pytest.mark.skipif(LANGCHAIN_VERSION < (0, 3), reason="Requires at least LangChain 0.3")
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_openai_chat_model_sync_generate(langchain_openai, openai_url):
+def test_openai_chat_model_sync_generate(langchain_core, langchain_openai, openai_url):
+    if parse_version(langchain_core.__version__) < (0, 3, 0):
+        pytest.skip("langchain-core <0.3.0 does not support stream_usage=False")
     chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url=openai_url)
     chat.generate(
         [
             [
-                langchain.schema.SystemMessage(content="Respond like a frat boy."),
-                langchain.schema.HumanMessage(content="Where's the nearest equinox gym from Hudson Yards manhattan?"),
+                langchain_core.messages.SystemMessage(content="Respond like a frat boy."),
+                langchain_core.messages.HumanMessage(
+                    content="Where's the nearest equinox gym from Hudson Yards manhattan?"
+                ),
             ],
             [
-                langchain.schema.SystemMessage(content="Respond with a pirate accent."),
-                langchain.schema.HumanMessage(content="How does one get to Bikini Bottom from New York?"),
+                langchain_core.messages.SystemMessage(content="Respond with a pirate accent."),
+                langchain_core.messages.HumanMessage(content="How does one get to Bikini Bottom from New York?"),
             ],
         ]
     )
 
 
-@pytest.mark.snapshot(
-    ignores=IGNORE_FIELDS,
-    variants={
-        "0_2": LANGCHAIN_VERSION < (0, 3),
-        "latest": LANGCHAIN_VERSION >= (0, 3),
-    },
-)
-def test_openai_chat_model_vision_generate(langchain_openai, openai_url):
+def test_openai_chat_model_vision_generate(langchain_core, langchain_openai, openai_url):
     """
     Test that input messages with nested contents are still tagged without error
     Regression test for https://github.com/DataDog/dd-trace-py/issues/8149.
@@ -114,7 +106,7 @@ def test_openai_chat_model_vision_generate(langchain_openai, openai_url):
     chat.generate(
         [
             [
-                langchain.schema.HumanMessage(
+                langchain_core.messages.HumanMessage(
                     content=[
                         {"type": "text", "text": "What’s in this image?"},
                         {
@@ -128,9 +120,6 @@ def test_openai_chat_model_vision_generate(langchain_openai, openai_url):
     )
 
 
-@pytest.mark.skipif(
-    LANGCHAIN_VERSION < (0, 3), reason="Bug in langchain: https://github.com/langchain-ai/langgraph/issues/136"
-)
 @pytest.mark.asyncio
 @pytest.mark.snapshot(
     ignores=IGNORE_FIELDS
@@ -140,17 +129,21 @@ def test_openai_chat_model_vision_generate(langchain_openai, openai_url):
         "meta.langchain.response.completions.1.0.content",
     ]
 )
-async def test_openai_chat_model_async_generate(langchain_openai, openai_url):
+async def test_openai_chat_model_async_generate(langchain_core, langchain_openai, openai_url):
+    if parse_version(langchain_core.__version__) < (0, 3, 0):
+        pytest.skip("Bug in langchain: https://github.com/langchain-ai/langgraph/issues/136")
     chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url=openai_url)
     await chat.agenerate(
         [
             [
-                langchain.schema.SystemMessage(content="Respond like a frat boy."),
-                langchain.schema.HumanMessage(content="Where's the nearest equinox gym from Hudson Yards manhattan?"),
+                langchain_core.messages.SystemMessage(content="Respond like a frat boy."),
+                langchain_core.messages.HumanMessage(
+                    content="Where's the nearest equinox gym from Hudson Yards manhattan?"
+                ),
             ],
             [
-                langchain.schema.SystemMessage(content="Respond with a pirate accent."),
-                langchain.schema.HumanMessage(content="How does one get to Bikini Bottom from New York?"),
+                langchain_core.messages.SystemMessage(content="Respond with a pirate accent."),
+                langchain_core.messages.HumanMessage(content="How does one get to Bikini Bottom from New York?"),
             ],
         ]
     )
@@ -158,28 +151,16 @@ async def test_openai_chat_model_async_generate(langchain_openai, openai_url):
 
 @pytest.mark.snapshot
 def test_openai_embedding_query(langchain_openai, openai_url):
-    with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536):
-        embeddings = langchain_openai.OpenAIEmbeddings(base_url=openai_url)
-        embeddings.embed_query("this is a test query.")
-
-
-@pytest.mark.snapshot
-def test_fake_embedding_query(langchain_community):
-    if langchain_community is None:
-        pytest.skip("langchain-community not installed which is required for this test.")
-    embeddings = langchain_community.embeddings.FakeEmbeddings(size=99)
+    embeddings = langchain_openai.embeddings.OpenAIEmbeddings(base_url=openai_url)
     embeddings.embed_query(text="foo")
 
 
 @pytest.mark.snapshot
-def test_fake_embedding_document(langchain_community):
-    if langchain_community is None:
-        pytest.skip("langchain-community not installed which is required for this test.")
-    embeddings = langchain_community.embeddings.FakeEmbeddings(size=99)
+def test_openai_embedding_document(langchain_openai, openai_url):
+    embeddings = langchain_openai.embeddings.OpenAIEmbeddings(base_url=openai_url)
     embeddings.embed_documents(texts=["foo", "bar"])
 
 
-@pytest.mark.skip("llmobs needs to support in-memory vectorstores")
 @pytest.mark.snapshot
 def test_vectorstore_similarity_search(langchain_in_memory_vectorstore):
     vectorstore = langchain_in_memory_vectorstore
@@ -251,13 +232,6 @@ def test_lcel_chain_batch(langchain_core, langchain_openai, openai_url):
     chain.batch(inputs=["chickens"])
 
 
-@pytest.mark.snapshot(
-    ignores=IGNORE_FIELDS,
-    variants={
-        "0_2": LANGCHAIN_VERSION < (0, 3),
-        "latest": LANGCHAIN_VERSION >= (0, 3),
-    },
-)
 def test_lcel_chain_nested(langchain_core, langchain_openai, openai_url):
     """
     Test that invoking a nested chain will result in a 4-span trace with a root
@@ -307,8 +281,6 @@ def test_lcel_chain_non_dict_input(langchain_core):
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_lcel_with_tools_openai(langchain_core, langchain_openai, openai_url):
-    import langchain_core.tools
-
     @langchain_core.tools.tool
     def add(a: int, b: int) -> int:
         """Adds a and b.
@@ -326,7 +298,8 @@ def test_lcel_with_tools_openai(langchain_core, langchain_openai, openai_url):
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_lcel_with_tools_anthropic(langchain_core, langchain_anthropic, anthropic_url):
-    import langchain_core.tools
+    if parse_version(importlib.metadata.version("langchain_anthropic")) < (0, 2, 0):
+        pytest.skip("langchain-anthropic <0.2.0 does not support tools outside of a beta function")
 
     @langchain_core.tools.tool
     def add(a: int, b: int) -> int:
@@ -351,20 +324,6 @@ def test_lcel_with_tools_anthropic(langchain_core, langchain_anthropic, anthropi
     llm = langchain_anthropic.ChatAnthropic(**kwargs)
     llm_with_tools = llm.bind_tools([add])
     llm_with_tools.invoke("What is the sum of 1 and 2?")
-
-
-@pytest.mark.snapshot
-def test_faiss_vectorstore_retrieval(langchain_community, langchain_openai, openai_url):
-    if langchain_community is None:
-        pytest.skip("langchain-community not installed which is required for this test.")
-    pytest.importorskip("faiss", reason="faiss required for this test.")
-    with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[[0.0] * 1536]):
-        faiss = langchain_community.vectorstores.faiss.FAISS.from_texts(
-            ["this is a test query."],
-            embedding=langchain_openai.OpenAIEmbeddings(base_url=openai_url),
-        )
-        retriever = faiss.as_retriever()
-        retriever.invoke("What was the message of the last test query?")
 
 
 @pytest.mark.snapshot(
@@ -460,7 +419,7 @@ async def test_astreamed_llm(langchain_openai, openai_url):
         ]
     )
 )
-def test_streamed_json_output_parser(langchain, langchain_core, langchain_openai, openai_url):
+def test_streamed_json_output_parser(langchain_core, langchain_openai, openai_url):
     model = langchain_openai.ChatOpenAI(model="gpt-4o", max_tokens=50, base_url=openai_url, n=1, temperature=0.7)
     parser = langchain_core.output_parsers.JsonOutputParser()
 
@@ -472,8 +431,8 @@ def test_streamed_json_output_parser(langchain, langchain_core, langchain_openai
     )
 
     messages = [
-        langchain.schema.SystemMessage(content="You know everything about the world."),
-        langchain.schema.HumanMessage(content=inp),
+        langchain_core.messages.SystemMessage(content="You know everything about the world."),
+        langchain_core.messages.HumanMessage(content=inp),
     ]
 
     for _ in chain.stream(input=messages):
@@ -507,12 +466,10 @@ def test_base_tool_invoke(langchain_core):
 
     from math import pi
 
-    from langchain_core.tools import StructuredTool
-
     def circumference_tool(radius: float) -> float:
         return float(radius) * 2.0 * pi
 
-    calculator = StructuredTool.from_function(
+    calculator = langchain_core.tools.StructuredTool.from_function(
         func=circumference_tool,
         name="Circumference calculator",
         description="Use this tool when you need to calculate a circumference using the radius of a circle",
@@ -540,12 +497,10 @@ async def test_base_tool_ainvoke(langchain_core):
 
     from math import pi
 
-    from langchain_core.tools import StructuredTool
-
     def circumference_tool(radius: float) -> float:
         return float(radius) * 2.0 * pi
 
-    calculator = StructuredTool.from_function(
+    calculator = langchain_core.tools.StructuredTool.from_function(
         func=circumference_tool,
         name="Circumference calculator",
         description="Use this tool when you need to calculate a circumference using the radius of a circle",
@@ -572,12 +527,10 @@ def test_base_tool_invoke_non_json_serializable_config(langchain_core):
 
     from math import pi
 
-    from langchain_core.tools import StructuredTool
-
     def circumference_tool(radius: float) -> float:
         return float(radius) * 2.0 * pi
 
-    calculator = StructuredTool.from_function(
+    calculator = langchain_core.tools.StructuredTool.from_function(
         func=circumference_tool,
         name="Circumference calculator",
         description="Use this tool when you need to calculate a circumference using the radius of a circle",

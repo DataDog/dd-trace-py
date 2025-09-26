@@ -4,11 +4,7 @@ from operator import itemgetter
 import os
 import sys
 
-import langchain
-from langchain_core.messages import AIMessage
-from langchain_core.messages import HumanMessage
 import mock
-import pinecone as pinecone_
 import pytest
 
 from ddtrace import patch
@@ -24,8 +20,6 @@ from tests.llmobs._utils import next_stream
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
 
-
-PINECONE_VERSION = parse_version(pinecone_.__version__)
 
 # Multi-message prompt template test constants
 
@@ -145,9 +139,9 @@ def test_llmobs_openai_llm_proxy(mock_generate, langchain_openai, llmobs_events,
     assert llmobs_events[1]["meta"]["span"]["kind"] == "llm"
 
 
-def test_llmobs_openai_chat_model(langchain_openai, llmobs_events, tracer, openai_url):
+def test_llmobs_openai_chat_model(langchain_core, langchain_openai, llmobs_events, tracer, openai_url):
     chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url=openai_url)
-    chat_model.invoke([HumanMessage(content="When do you use 'who' instead of 'whom'?")])
+    chat_model.invoke([langchain_core.messages.HumanMessage(content="When do you use 'who' instead of 'whom'?")])
 
     span = tracer.pop_traces()[0][0]
     assert len(llmobs_events) == 1
@@ -159,12 +153,14 @@ def test_llmobs_openai_chat_model(langchain_openai, llmobs_events, tracer, opena
     )
 
 
-def test_llmobs_openai_chat_model_no_usage(langchain_openai, llmobs_events, openai_url):
+def test_llmobs_openai_chat_model_no_usage(langchain_core, langchain_openai, llmobs_events, openai_url):
     if parse_version(importlib.metadata.version("langchain_openai")) < (0, 2, 0):
         pytest.skip("langchain-openai <0.2.0 does not support stream_usage=False")
     chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url=openai_url, stream_usage=False)
 
-    response = chat_model.stream([HumanMessage(content="When do you use 'who' instead of 'whom'?")])
+    response = chat_model.stream(
+        [langchain_core.messages.HumanMessage(content="When do you use 'who' instead of 'whom'?")]
+    )
     for _ in response:
         pass
 
@@ -175,10 +171,10 @@ def test_llmobs_openai_chat_model_no_usage(langchain_openai, llmobs_events, open
 
 
 @mock.patch("langchain_core.language_models.chat_models.BaseChatModel._generate_with_cache")
-def test_llmobs_openai_chat_model_proxy(mock_generate, langchain_openai, llmobs_events, tracer):
+def test_llmobs_openai_chat_model_proxy(mock_generate, langchain_core, langchain_openai, llmobs_events, tracer):
     mock_generate.return_value = mock_langchain_chat_generate_response
     chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url="http://localhost:4000")
-    chat_model.invoke([HumanMessage(content="What is the capital of France?")])
+    chat_model.invoke([langchain_core.messages.HumanMessage(content="What is the capital of France?")])
 
     span = tracer.pop_traces()[0][0]
     assert len(llmobs_events) == 1
@@ -190,7 +186,7 @@ def test_llmobs_openai_chat_model_proxy(mock_generate, langchain_openai, llmobs_
 
     # span created from request with non-proxy URL should result in an LLM span
     chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url="http://localhost:8000")
-    chat_model.invoke([HumanMessage(content="What is the capital of France?")])
+    chat_model.invoke([langchain_core.messages.HumanMessage(content="What is the capital of France?")])
     span = tracer.pop_traces()[0][0]
     assert len(llmobs_events) == 2
     assert llmobs_events[1]["meta"]["span"]["kind"] == "llm"
@@ -557,8 +553,8 @@ def test_llmobs_chain_schema_io(langchain_core, langchain_openai, openai_url, ll
         {
             "ability": "world capitals",
             "history": [
-                HumanMessage(content="Can you be my science teacher instead?"),
-                AIMessage(content="Yes"),
+                langchain_core.messages.HumanMessage(content="Can you be my science teacher instead?"),
+                langchain_core.messages.AIMessage(content="Yes"),
             ],
             "input": "What's the powerhouse of the cell?",
         }
@@ -614,11 +610,27 @@ def test_llmobs_anthropic_chat_model(langchain_anthropic, llmobs_events, tracer,
     )
 
 
+def test_llmobs_embedding_documents(langchain_openai, llmobs_events, tracer, openai_url):
+    embedding_model = langchain_openai.embeddings.OpenAIEmbeddings(base_url=openai_url)
+    embedding_model.embed_documents(["hello world", "goodbye world"])
+
+    trace = tracer.pop_traces()[0]
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0] == _expected_llmobs_llm_span_event(
+        trace[0],
+        span_kind="embedding",
+        model_name="text-embedding-ada-002",
+        model_provider="openai",
+        input_documents=[{"text": "hello world"}, {"text": "goodbye world"}],
+        output_value="[2 embedding(s) returned with size 1536]",
+        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
+    )
+
+
 def test_llmobs_embedding_query(langchain_openai, llmobs_events, tracer, openai_url):
-    if langchain_openai is None:
-        pytest.skip("langchain_openai not installed which is required for this test.")
     embedding_model = langchain_openai.embeddings.OpenAIEmbeddings(base_url=openai_url)
     embedding_model.embed_query("hello world")
+
     trace = tracer.pop_traces()[0]
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
@@ -632,27 +644,6 @@ def test_llmobs_embedding_query(langchain_openai, llmobs_events, tracer, openai_
     )
 
 
-def test_llmobs_embedding_documents(langchain_community, llmobs_events, tracer):
-    if langchain_community is None:
-        pytest.skip("langchain-community not installed which is required for this test.")
-    embedding_model = langchain_community.embeddings.FakeEmbeddings(size=1536)
-    embedding_model.embed_documents(["hello world", "goodbye world"])
-
-    trace = tracer.pop_traces()[0]
-    span = trace[0] if isinstance(trace, list) else trace
-    assert len(llmobs_events) == 1
-    assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-        span,
-        span_kind="embedding",
-        model_name="",
-        model_provider="fake",
-        input_documents=[{"text": "hello world"}, {"text": "goodbye world"}],
-        output_value="[2 embedding(s) returned with size 1536]",
-        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
-    )
-
-
-@pytest.mark.skip("llmobs needs to support in-memory vectorstores")
 def test_llmobs_vectorstore_similarity_search(langchain_in_memory_vectorstore, llmobs_events, tracer):
     vectorstore = langchain_in_memory_vectorstore
     vectorstore.similarity_search("France", k=1)
@@ -672,9 +663,7 @@ def test_llmobs_vectorstore_similarity_search(langchain_in_memory_vectorstore, l
     assert llmobs_events[0] == expected_span
 
 
-def test_llmobs_chat_model_tool_calls(langchain_openai, llmobs_events, tracer, openai_url):
-    import langchain_core.tools
-
+def test_llmobs_chat_model_tool_calls(langchain_core, langchain_openai, llmobs_events, tracer, openai_url):
     @langchain_core.tools.tool
     def add(a: int, b: int) -> int:
         """Adds a and b.
@@ -686,7 +675,7 @@ def test_llmobs_chat_model_tool_calls(langchain_openai, llmobs_events, tracer, o
 
     llm = langchain_openai.ChatOpenAI(model="gpt-3.5-turbo-0125", temperature=0.7, base_url=openai_url)
     llm_with_tools = llm.bind_tools([add])
-    llm_with_tools.invoke([HumanMessage(content="What is the sum of 1 and 2?")])
+    llm_with_tools.invoke([langchain_core.messages.HumanMessage(content="What is the sum of 1 and 2?")])
 
     span = tracer.pop_traces()[0][0]
     assert len(llmobs_events) == 1
@@ -714,15 +703,13 @@ def test_llmobs_chat_model_tool_calls(langchain_openai, llmobs_events, tracer, o
     )
 
 
-def test_llmobs_base_tool_invoke(llmobs_events, tracer):
+def test_llmobs_base_tool_invoke(langchain_core, llmobs_events, tracer):
     from math import pi
-
-    from langchain_core.tools import StructuredTool
 
     def circumference_tool(radius: float) -> float:
         return float(radius) * 2.0 * pi
 
-    calculator = StructuredTool.from_function(
+    calculator = langchain_core.tools.StructuredTool.from_function(
         func=circumference_tool,
         name="Circumference calculator",
         description="Use this tool when you need to calculate a circumference using the radius of a circle",
@@ -817,8 +804,8 @@ def test_llmobs_non_ascii_completion(langchain_openai, openai_url, llmobs_events
     assert actual_llmobs_span_event["meta"]["input"]["messages"][0]["content"] == "안녕,\n 지금 몇 시야?"
 
 
-def test_llmobs_set_tags_with_none_response(langchain_openai, llmobs_events, tracer):
-    integration = langchain._datadog_integration
+def test_llmobs_set_tags_with_none_response(langchain_core):
+    integration = langchain_core._datadog_integration
     integration._llmobs_set_tags(
         span=Span("test_span", service="test_service"),
         args=[],
@@ -934,6 +921,26 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         assert langchain_span["meta"]["input"]["value"] == '[{"content": "안녕,\\n 지금 몇 시야?"}]'
 
     @run_in_subprocess(env_overrides=openai_env_config)
+    def test_llmobs_langchain_with_embedding_model_openai_enabled(self):
+        patch(openai=True, langchain=True)
+
+        from langchain_openai import OpenAIEmbeddings
+
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        self._call_openai_embedding(OpenAIEmbeddings)
+        self._assert_trace_structure_from_writer_call_args(["workflow", "embedding"])
+
+    @run_in_subprocess(env_overrides=openai_env_config)
+    def test_llmobs_langchain_with_embedding_model_openai_disabled(self):
+        patch(langchain=True)
+
+        from langchain_openai import OpenAIEmbeddings
+
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        self._call_openai_embedding(OpenAIEmbeddings)
+        self._assert_trace_structure_from_writer_call_args(["embedding"])
+
+    @run_in_subprocess(env_overrides=openai_env_config)
     def test_llmobs_with_openai_disabled(self):
         from langchain_openai import OpenAI
 
@@ -942,27 +949,6 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
         self._call_openai_llm(OpenAI)
         self._assert_trace_structure_from_writer_call_args(["llm"])
-
-    @run_in_subprocess(env_overrides=openai_env_config)
-    def test_llmobs_langchain_with_embedding_model_openai_enabled(self):
-        import langchain  # noqa: F401
-        from langchain_openai import OpenAIEmbeddings
-
-        patch(langchain=True, openai=True)
-
-        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
-        self._call_openai_embedding(OpenAIEmbeddings)
-        self._assert_trace_structure_from_writer_call_args(["workflow", "embedding"])
-
-    @run_in_subprocess(env_overrides=openai_env_config)
-    def test_llmobs_langchain_with_embedding_model_openai_disabled(self):
-        import langchain  # noqa: F401
-        from langchain_openai import OpenAIEmbeddings
-
-        patch(langchain=True)
-        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
-        self._call_openai_embedding(OpenAIEmbeddings)
-        self._assert_trace_structure_from_writer_call_args(["embedding"])
 
     @run_in_subprocess(env_overrides=anthropic_env_config)
     def test_llmobs_with_anthropic_enabled(self):

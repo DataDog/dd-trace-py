@@ -55,11 +55,11 @@ def openai(monkeypatch, mock_tracer):
 @pytest.fixture
 def langchain(mock_tracer):
     patch_langchain()
-    import langchain
+    import langchain_core
 
-    pin = Pin.get_from(langchain)
-    pin._override(langchain, tracer=mock_tracer)
-    yield langchain
+    pin = Pin.get_from(langchain_core)
+    pin._override(langchain_core, tracer=mock_tracer)
+    yield langchain_core
     unpatch_langchain()
 
 
