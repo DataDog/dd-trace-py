@@ -1,6 +1,7 @@
 import abc
 from base64 import b64decode
 import dataclasses
+import hashlib
 from http.client import RemoteDisconnected
 import json
 from json import JSONDecodeError
@@ -268,6 +269,41 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         headers.update(self._get_headers())
         return headers
 
+    def _get_cache_key(self, method: str, endpoint: str, payload: str) -> str:
+        """Generate a cache key based on request parameters"""
+        # Create a hash from method + endpoint + payload
+        cache_data = f"{method}:{endpoint}:{payload}"
+        return hashlib.sha256(cache_data.encode()).hexdigest()
+
+    def _get_cache_file_path(self, cache_key: str) -> str:
+        """Get the full path to the cache file"""
+        cache_dir = os.path.join(os.getcwd(), ".ddtrace_api_cache")
+        os.makedirs(cache_dir, exist_ok=True)
+        return os.path.join(cache_dir, f"{cache_key}.json")
+
+    def _read_from_cache(self, cache_key: str) -> t.Optional[t.Any]:
+        """Read cached response if it exists"""
+        cache_file = self._get_cache_file_path(cache_key)
+        try:
+            if os.path.exists(cache_file):
+                with open(cache_file, "r", encoding="utf-8") as f:
+                    cached_data = json.load(f)
+                    log.debug("Cache hit for key: %s", cache_key)
+                    return cached_data
+        except Exception:  # noqa: E722
+            log.debug("Failed to read from cache for key: %s", cache_key, exc_info=True)
+        return None
+
+    def _write_to_cache(self, cache_key: str, data: t.Any) -> None:
+        """Write successful response to cache"""
+        cache_file = self._get_cache_file_path(cache_key)
+        try:
+            with open(cache_file, "w", encoding="utf-8") as f:
+                json.dump(data, f)
+                log.debug("Cached response for key: %s", cache_key)
+        except Exception:  # noqa: E722
+            log.debug("Failed to write to cache for key: %s", cache_key, exc_info=True)
+
     def _do_request(self, method: str, endpoint: str, payload: str, timeout: t.Optional[float] = None) -> Response:
         timeout = timeout if timeout is not None else self._timeout
         headers = self._get_final_headers()
@@ -306,6 +342,13 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         timeout: t.Optional[float] = None,
     ) -> t.Any:
         """Performs a request with telemetry submitted according to given names"""
+        # Check cache first
+        cache_key = self._get_cache_key(method, endpoint, payload)
+        cached_response = self._read_from_cache(cache_key)
+        if cached_response is not None:
+            # Return cached response (no telemetry recorded for cache hits)
+            return cached_response
+
         sw = StopWatch()
         sw.start()
         error_type: t.Optional[ERROR_TYPES] = None
@@ -323,9 +366,16 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                 raise ValueError("API response status code: %d", response.status)
             try:
                 sw.stop()  # Stop the timer before parsing the response
-                response_bytes = len(response.body)
-                parsed = json.loads(response.body)
-                return parsed
+                response_body = response.body
+                if response_body is not None:
+                    response_bytes = len(response_body)
+                    parsed = json.loads(response_body)
+                    # Cache successful response
+                    self._write_to_cache(cache_key, parsed)
+                    return parsed
+                else:
+                    error_type = ERROR_TYPES.BAD_JSON
+                    raise ValueError("Response body is None")
             except JSONDecodeError:
                 error_type = ERROR_TYPES.BAD_JSON
                 raise
