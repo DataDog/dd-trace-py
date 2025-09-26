@@ -12,6 +12,11 @@ def _create_llm_autotune(model, **kwargs):
         "gpu_util_candidates",
         [0.05, 0.1, 0.15, 0.2, 0.3, 0.5, 0.7, 0.85, 0.9],
     )
+    # Normalize compilation_config to a dict for vLLM >=0.10
+    comp_cfg = kwargs.get("compilation_config", None)
+    if comp_cfg is not None and not isinstance(comp_cfg, dict):
+        kwargs["compilation_config"] = {"use_inductor": False}
+
     # On CI, set a conservative SchedulerConfig (v1) if available
     if os.environ.get("CI") == "true" and "scheduler_config" not in kwargs:
         try:
