@@ -60,7 +60,6 @@ from .utils import _inject_dd_trace_ctx_kwarg
 from .utils import _inject_ray_span_tags_and_metrics
 from .utils import extract_signature
 from .utils import get_dd_job_name_from_entrypoint
-from .utils import get_dd_job_name_from_submission_id
 from .utils import metadata_to_dot_pairs
 from .utils import set_tag_or_truncate
 
