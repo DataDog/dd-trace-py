@@ -118,6 +118,12 @@ mock.patch(
     return_value=itr_settings
 ).start()
 
+# Mock fetch_skippable_items to return our test data
+mock.patch(
+    "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_skippable_items",
+    return_value=itr_data
+).start()
+
 # Set ITR data when CIVisibility is enabled
 import ddtrace.internal.ci_visibility.recorder
 CIVisibility = ddtrace.internal.ci_visibility.recorder.CIVisibility
@@ -173,6 +179,129 @@ CIVisibility.enable = classmethod(patched_enable)
         # Verify number of skipped tests in session
         assert session_span.get_metric("test.itr.tests_skipping.count") == 2
 
+    def test_xdist_suite_mode_skipped_suites(self):
+        """Test that suite-level ITR skipping works correctly in xdist and counts suites, not individual tests."""
+
+        itr_skipping_sitecustomize = """
+# sitecustomize.py - ITR setup for xdist worker nodes
+from unittest import mock
+
+# Import required modules
+from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
+from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
+from ddtrace.internal.ci_visibility._api_client import TestManagementSettings
+from ddtrace.internal.ci_visibility._api_client import ITRData
+from ddtrace.ext.test_visibility._test_visibility_base import TestSuiteId, TestModuleId, TestId
+
+# Create ITR settings and data
+itr_settings = TestVisibilityAPISettings(
+    coverage_enabled=False, skipping_enabled=True, require_git=False, itr_enabled=True,
+    flaky_test_retries_enabled=False, known_tests_enabled=False,
+    early_flake_detection=EarlyFlakeDetectionSettings(), test_management=TestManagementSettings()
+)
+
+# Create skippable suites for suite-level skipping
+skippable_suites = {
+    TestSuiteId(TestModuleId(""), "test_scope1.py"),
+    TestSuiteId(TestModuleId(""), "test_scope2.py")
+}
+itr_data = ITRData(correlation_id="12345678-1234-1234-1234-123456789012", skippable_items=skippable_suites)
+
+# Mock API calls to return our settings
+mock.patch(
+    "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_settings",
+    return_value=itr_settings
+).start()
+
+mock.patch(
+    "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+    return_value=itr_settings
+).start()
+
+# Mock fetch_skippable_items to return our test data
+mock.patch(
+    "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_skippable_items",
+    return_value=itr_data
+).start()
+
+# Set ITR data when CIVisibility is enabled
+import ddtrace.internal.ci_visibility.recorder
+CIVisibility = ddtrace.internal.ci_visibility.recorder.CIVisibility
+original_enable = CIVisibility.enable
+
+def patched_enable(cls, *args, **kwargs):
+    result = original_enable(*args, **kwargs)
+    if cls._instance:
+        cls._instance._itr_data = itr_data
+    return result
+
+CIVisibility.enable = classmethod(patched_enable)
+"""
+
+        # Create test files
+        self.testdir.makepyfile(sitecustomize=itr_skipping_sitecustomize)
+        self.testdir.makepyfile(
+            test_scope1="""
+import pytest
+
+class TestScope1:
+    def test_scope1_method1(self):
+        assert True
+
+    def test_scope1_method2(self):
+        assert True
+""",
+            test_scope2="""
+import pytest
+
+class TestScope2:
+    def test_scope2_method1(self):
+        assert True
+""",
+        )
+        self.testdir.chdir()
+
+        itr_settings = TestVisibilityAPISettings(
+            coverage_enabled=False,
+            skipping_enabled=True,
+            require_git=False,
+            itr_enabled=True,
+            flaky_test_retries_enabled=False,
+            known_tests_enabled=False,
+            early_flake_detection=EarlyFlakeDetectionSettings(),
+            test_management=TestManagementSettings(),
+        )
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=itr_settings
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
+            return_value=True,
+        ):
+            # Run with xdist using loadscope mode (suite-level skipping)
+            rec = self.inline_run(
+                "--ddtrace",
+                "-n",
+                "2",
+                "--dist=loadscope",
+                "-s",
+                "-vvv",
+                extra_env={
+                    "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
+                    "DD_API_KEY": "foobar.baz",
+                    "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
+                },
+            )
+            assert rec.ret == 0  # All tests skipped, so exit code is 0
+
+        # Assert on session span metrics - key assertion for suite-level skipping
+        spans = self.pop_spans()
+        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
+        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
+        assert session_span.get_tag("test.itr.tests_skipping.type") == "suite"  # loadscope uses suite-level skipping
+        # Verify number of skipped SUITES in session (should be 2 suites, not 3 tests)
+        assert session_span.get_metric("test.itr.tests_skipping.count") == 2
+
     def test_pytest_xdist_itr_skips_tests_at_test_level_without_loadscope(self):
         """Test that ITR tags are correctly aggregated from xdist workers."""
         # Create a simplified sitecustomize with just the essential ITR setup
@@ -208,6 +337,12 @@ itr_data = ITRData(correlation_id="12345678-1234-1234-1234-123456789012", skippa
 mock.patch(
     "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
     return_value=itr_settings
+).start()
+
+# Mock fetch_skippable_items to return our test data
+mock.patch(
+    "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_skippable_items",
+    return_value=itr_data
 ).start()
 
 # Set ITR data when CIVisibility is enabled
@@ -298,6 +433,12 @@ itr_data = ITRData(correlation_id="12345678-1234-1234-1234-123456789012", skippa
 mock.patch(
     "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
     return_value=itr_settings
+).start()
+
+# Mock fetch_skippable_items to return our test data
+mock.patch(
+    "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_skippable_items",
+    return_value=itr_data
 ).start()
 
 # Set ITR data when CIVisibility is enabled
@@ -460,16 +601,16 @@ class TestXdistHooksUnit:
         test_id = TestId(TestSuiteId(TestModuleId("test_module"), "test_suite"), "test_name")
 
         mock_service = mock.MagicMock()
-        mock_service._suite_skipping_mode = True
+        mock_service._suite_skipping_mode = False  # Use test-level skipping for worker count tests
 
         with mock.patch(
             "ddtrace.internal.test_visibility.api.InternalTestSession.is_test_skipping_enabled", return_value=True
         ), mock.patch(
-            "ddtrace.internal.test_visibility.api.InternalTestSuite.is_itr_unskippable", return_value=False
+            "ddtrace.internal.test_visibility.api.InternalTest.is_itr_unskippable", return_value=False
         ), mock.patch(
             "ddtrace.internal.test_visibility.api.InternalTest.is_attempt_to_fix", return_value=False
         ), mock.patch(
-            "ddtrace.internal.test_visibility.api.InternalTestSuite.is_itr_skippable", return_value=True
+            "ddtrace.internal.test_visibility.api.InternalTest.is_itr_skippable", return_value=True
         ), mock.patch(
             "ddtrace.internal.test_visibility.api.InternalTest.mark_itr_skipped"
         ), mock.patch(
@@ -491,16 +632,16 @@ class TestXdistHooksUnit:
         test_id = TestId(TestSuiteId(TestModuleId("test_module"), "test_suite"), "test_name")
 
         mock_service = mock.MagicMock()
-        mock_service._suite_skipping_mode = True
+        mock_service._suite_skipping_mode = False  # Use test-level skipping for worker count tests
 
         with mock.patch(
             "ddtrace.internal.test_visibility.api.InternalTestSession.is_test_skipping_enabled", return_value=True
         ), mock.patch(
-            "ddtrace.internal.test_visibility.api.InternalTestSuite.is_itr_unskippable", return_value=False
+            "ddtrace.internal.test_visibility.api.InternalTest.is_itr_unskippable", return_value=False
         ), mock.patch(
             "ddtrace.internal.test_visibility.api.InternalTest.is_attempt_to_fix", return_value=False
         ), mock.patch(
-            "ddtrace.internal.test_visibility.api.InternalTestSuite.is_itr_skippable", return_value=True
+            "ddtrace.internal.test_visibility.api.InternalTest.is_itr_skippable", return_value=True
         ), mock.patch(
             "ddtrace.internal.test_visibility.api.InternalTest.mark_itr_skipped"
         ), mock.patch(
@@ -1690,6 +1831,11 @@ def test_func2():
 
         # The ITR skipping type should be suite due to explicit env var override
         assert session_span.get_tag("test.itr.tests_skipping.type") == "suite"
+        expected_suite_count = 0  # No suites skipped
+        actual_count = session_span.get_metric("test.itr.tests_skipping.count")
+        assert (
+            actual_count == expected_suite_count
+        ), f"Expected {expected_suite_count} suites skipped but got {actual_count}"
 
     def test_explicit_env_var_overrides_xdist_test_mode(self):
         """Test that explicit _DD_CIVISIBILITY_ITR_SUITE_MODE=False overrides xdist suite-level detection."""
@@ -1740,6 +1886,12 @@ mock.patch(
 mock.patch(
      "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
     return_value=itr_settings
+).start()
+
+# Mock fetch_skippable_items to return our test data
+mock.patch(
+    "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_skippable_items",
+    return_value=itr_data
 ).start()
 
 CIVisibility.enable = classmethod(patched_enable)

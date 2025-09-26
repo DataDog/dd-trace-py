@@ -1,10 +1,14 @@
 from typing import Any
 from typing import Dict
 from typing import List
-from typing import TypedDict  # noqa:F401
 from typing import Union
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs.types import Document
+from ddtrace.llmobs.types import Message
+from ddtrace.llmobs.types import ToolCall
+from ddtrace.llmobs.types import ToolDefinition
+from ddtrace.llmobs.types import ToolResult
 
 
 log = get_logger(__name__)
@@ -68,44 +72,6 @@ def _extract_tool_result(tool_result: Dict[str, Any]) -> "ToolResult":
     return formatted_tool_result
 
 
-ExportedLLMObsSpan = TypedDict("ExportedLLMObsSpan", {"span_id": str, "trace_id": str})
-Document = TypedDict("Document", {"name": str, "id": str, "text": str, "score": float}, total=False)
-Message = TypedDict(
-    "Message",
-    {"content": str, "role": str, "tool_calls": List["ToolCall"], "tool_results": List["ToolResult"]},
-    total=False,
-)
-ToolCall = TypedDict(
-    "ToolCall",
-    {
-        "name": str,
-        "arguments": Dict[str, Any],
-        "tool_id": str,
-        "type": str,
-    },
-    total=False,
-)
-ToolResult = TypedDict(
-    "ToolResult",
-    {
-        "name": str,
-        "result": str,
-        "tool_id": str,
-        "type": str,
-    },
-    total=False,
-)
-ToolDefinition = TypedDict(
-    "ToolDefinition",
-    {
-        "name": str,
-        "description": str,
-        "schema": Dict[str, Any],
-    },
-    total=False,
-)
-
-
 def extract_tool_definitions(tool_definitions: List[Dict[str, Any]]) -> List[ToolDefinition]:
     """Return a list of validated tool definitions."""
     if not isinstance(tool_definitions, list):
@@ -147,33 +113,6 @@ def extract_tool_definitions(tool_definitions: List[Dict[str, Any]]) -> List[Too
         validated_tool_definitions.append(validated_tool_def)
 
     return validated_tool_definitions
-
-
-class Prompt(TypedDict, total=False):
-    """
-    A Prompt object that contains the information needed to render a prompt.
-        id: str - the id of the prompt set by the user. Should be unique per ml_app.
-        version: str - user tag for the version of the prompt.
-        variables: Dict[str, str] - a dictionary of variables that will be used to render the prompt
-        chat_template: Optional[Union[List[Dict[str, str]], List[Message]]]
-            - A list of dicts of (role,template)
-            where role is the role of the prompt and template is the template string
-        template: Optional[str]
-            - It also accepts a string that represents the template for the prompt. Will default to "user" for a role
-        tags: Optional[Dict[str, str]]
-            - List of tags to add to the prompt run.
-        rag_context_variables: List[str] - a list of variable key names that contain ground truth context information
-        rag_query_variables: List[str] - a list of variable key names that contains query information
-    """
-
-    version: str
-    id: str
-    template: str
-    chat_template: Union[List[Dict[str, str]], List[Message]]
-    variables: Dict[str, str]
-    tags: Dict[str, str]
-    rag_context_variables: List[str]
-    rag_query_variables: List[str]
 
 
 class Messages:

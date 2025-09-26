@@ -12,7 +12,7 @@ from ddtrace.llmobs import _constants as const
 from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._utils import _get_session_id
-from ddtrace.llmobs.utils import Prompt
+from ddtrace.llmobs.types import Prompt
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 
 
@@ -365,9 +365,9 @@ def test_error_is_set(tracer, llmobs_events):
             llm_span._set_ctx_item(const.SPAN_KIND, "llm")
             raise ValueError("error")
     span_event = llmobs_events[0]
-    assert span_event["meta"]["error.message"] == "error"
-    assert "ValueError" in span_event["meta"]["error.type"]
-    assert 'raise ValueError("error")' in span_event["meta"]["error.stack"]
+    assert span_event["meta"]["error"]["message"] == "error"
+    assert "ValueError" in span_event["meta"]["error"]["type"]
+    assert 'raise ValueError("error")' in span_event["meta"]["error"]["stack"]
 
 
 def test_model_provider_defaults_to_custom(tracer, llmobs_events):
@@ -656,3 +656,27 @@ def test_trace_id_propagation_with_non_llm_parent(llmobs, llmobs_events):
     # LLMObs trace IDs should be different from APM trace ID
     assert first_child_event["trace_id"] != first_child_event["_dd"]["apm_trace_id"]
     assert second_child_event["trace_id"] != second_child_event["_dd"]["apm_trace_id"]
+
+
+@pytest.mark.parametrize("llmobs_env", [{"DD_APM_TRACING_ENABLED": "false"}])
+def test_apm_traces_dropped_when_disabled(llmobs, llmobs_events, tracer, llmobs_env):
+    from tests.utils import DummyWriter
+
+    dummy_writer = DummyWriter()
+    tracer._span_aggregator.writer = dummy_writer
+
+    with tracer.trace("apm_span") as apm_span:
+        apm_span.set_tag("operation", "test")
+
+    # Create an LLMObs span (should be sent to LLMObs but not APM)
+    with llmobs.llm(model_name="test-model") as llm_span:
+        llmobs.annotate(llm_span, input_data="test input", output_data="test output")
+
+    # Check that no APM traces were sent to the writer
+    assert len(dummy_writer.traces) == 0, "APM traces should be dropped when DD_APM_TRACING_ENABLED=false"
+
+    # But LLMObs events should still be sent
+    assert len(llmobs_events) == 1
+    llm_event = llmobs_events[0]
+    assert llm_event["meta"]["span.kind"] == "llm"
+    assert llm_event["meta"]["model_name"] == "test-model"
