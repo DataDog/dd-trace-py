@@ -21,17 +21,18 @@ class PathTraversal(VulnerabilityBase):
     secure_mark = VulnerabilityType.PATH_TRAVERSAL
 
 
-IS_REPORTED_INTRUMENTED_SINK = False
+IS_REPORTED_INTRUMENTED_SINK_METRIC = False
 
 
 def check_and_report_path_traversal(*args: Any, **kwargs: Any) -> None:
-    global IS_REPORTED_INTRUMENTED_SINK
-    if not IS_REPORTED_INTRUMENTED_SINK:
+    global IS_REPORTED_INTRUMENTED_SINK_METRIC
+    if not IS_REPORTED_INTRUMENTED_SINK_METRIC:
         _set_metric_iast_instrumented_sink(VULN_PATH_TRAVERSAL)
-        IS_REPORTED_INTRUMENTED_SINK = True
+        IS_REPORTED_INTRUMENTED_SINK_METRIC = True
+
     try:
         if is_iast_request_enabled():
-            filename_arg = args[0] if args else kwargs.get("file", None)
+            filename_arg = args[0] if len(args) > 0 else kwargs.get("file", None)
             if (
                 isinstance(filename_arg, IAST.TEXT_TYPES)
                 and PathTraversal.has_quota()
