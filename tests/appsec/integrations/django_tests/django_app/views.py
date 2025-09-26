@@ -408,7 +408,46 @@ def view_insecure_cookies_insecure_special_chars(request):
 
 @csrf_exempt
 def command_injection(request):
-    value = request.body.decode()
+    # Extract value from multiple body formats to exercise taint from different sources
+    # Prefer form fields, then JSON scalar, then raw body text.
+    try:
+        # Django >= 3 has request.headers
+        if hasattr(request, "headers"):
+            content_type = request.headers.get("Content-Type", "")
+        else:
+            content_type = request.META.get("CONTENT_TYPE", "")
+
+        value = ""
+        # Form-encoded bodies
+        if content_type.startswith("application/x-www-form-urlencoded") or request.POST:
+            # Use a known key if present, otherwise take the first value
+            if "master_key" in request.POST:
+                value = request.POST.get("master_key", "")
+            elif request.POST:
+                # Grab the first field's value
+                first_key = next(iter(request.POST.keys()))
+                value = request.POST.get(first_key, "")
+        # JSON bodies
+        if not value and content_type.startswith("application/json"):
+            try:
+                body_text = request.body.decode(errors="ignore")
+                parsed = json.loads(body_text)
+                if isinstance(parsed, str):
+                    value = parsed
+                elif isinstance(parsed, dict) and parsed:
+                    # Take the first value in the object if not a simple string
+                    value = next(iter(parsed.values())) or ""
+                else:
+                    value = body_text
+            except Exception:
+                value = request.body.decode(errors="ignore")
+        # Raw bodies (text/plain or anything else)
+        if not value:
+            value = request.body.decode(errors="ignore")
+
+    except Exception:
+        value = request.body.decode(errors="ignore")
+
     # label iast_command_injection
     os.system("dir -l " + value)
 

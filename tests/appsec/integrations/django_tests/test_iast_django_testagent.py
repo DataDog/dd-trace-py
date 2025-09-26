@@ -1,5 +1,6 @@
 import concurrent.futures
 
+from mock import ANY
 import pytest
 
 from ddtrace.appsec._iast.constants import VULN_CMDI
@@ -19,10 +20,28 @@ from tests.appsec.integrations.utils_testagent import start_trace
 log = get_logger(__name__)
 
 
-def test_iast_cmdi():
-    token = "test_iast_header_injection"
+@pytest.mark.parametrize(
+    "body, content_type",
+    [
+        ("master", "text/plain"),
+        # application/json variants
+        ('"master"', "application/json"),  # raw JSON string
+        ('{"key":"master"}', "application/json"),  # simple JSON object
+        ('{"first":"ignore","second":"master"}', "application/json"),  # multi-key object
+        ('["master","ignore"]', "application/json"),  # JSON array
+        # form-encoded
+        ("master_key=master", "application/x-www-form-urlencoded"),
+    ],
+)
+@pytest.mark.parametrize("server", (gunicorn_django_server, django_server))
+def test_iast_cmdi_bodies(body, content_type, server):
+    """This test parametrizes body encodings to validate that IAST taints http.request.body
+    across different content types and still reports CMDI on the vulnerable sink in
+    tests/appsec/integrations/django_tests/django_app/views.py:command_injection
+    """
+    token = f"test_iast_cmdi_bodies_{content_type.replace('/', '_')}"
     _ = start_trace(token)
-    with django_server(
+    with server(
         iast_enabled="true",
         token=token,
         env={
@@ -35,7 +54,13 @@ def test_iast_cmdi():
     ) as context:
         _, django_client, pid = context
 
-        response = django_client.post("/appsec/command-injection/", data="master")
+        response = django_client.post(
+            "/appsec/command-injection/",
+            data=body,
+            headers={
+                "Content-Type": content_type,
+            },
+        )
 
         assert response.status_code == 200
 
@@ -58,7 +83,11 @@ def test_iast_cmdi():
     vulnerability = vulnerabilities[0][0]
     assert vulnerability["type"] == VULN_CMDI
     assert vulnerability["evidence"] == {
-        "valueParts": [{"value": "dir "}, {"redacted": True}, {"redacted": True, "source": 0, "pattern": "abcdef"}]
+        "valueParts": [
+            {"value": "dir "},
+            {"redacted": True},
+            {"redacted": True, "source": 0, "pattern": ANY},
+        ]
     }
     assert vulnerability["location"]["spanId"]
     assert not vulnerability["location"]["path"].startswith("werkzeug")
@@ -66,10 +95,11 @@ def test_iast_cmdi():
     assert vulnerability["hash"]
 
 
-def test_iast_untrusted_serialization_yaml():
+@pytest.mark.parametrize("server", (gunicorn_django_server, django_server))
+def test_iast_untrusted_serialization_yaml(server):
     token = "test_iast_untrusted_serialization_yaml"
     _ = start_trace(token)
-    with django_server(
+    with server(
         iast_enabled="true",
         token=token,
         env={
@@ -306,7 +336,7 @@ def test_iast_concurrent_requests_limit_django():
     assert false_count <= rejected_requests, f"{len(results)} requests. Expected {rejected_requests}, got {false_count}"
 
 
-def test_iast_header_injection():
+def test_iast_header_injection(server):
     token = "test_iast_header_injection"
     _ = start_trace(token)
     with django_server(

@@ -1,6 +1,7 @@
 import concurrent.futures
 import json
 
+from mock import ANY
 import pytest
 from requests.exceptions import ConnectionError  # noqa: A004
 
@@ -129,6 +130,106 @@ def test_iast_cmdi_uvicorn():
         {"redacted": True},
         {"pattern": "abcdefghijklmnopqrstuvwxyzAB", "redacted": True, "source": 0},
     ]
+    assert vulnerability["hash"]
+
+
+def test_iast_cmdi_form_request_fastapi():
+    """Validate IAST CMDI detection when FastAPI parses forms via request.form().
+
+    Targets the endpoint /iast-cmdi-vulnerability-form-request which reads the form from the
+    Request object rather than using Form(...) in the signature.
+    """
+    token = "test_iast_cmdi_form_request_fastapi"
+    _ = start_trace(token)
+    env = {
+        "DD_TRACE_DEBUG": "true",
+        "_DD_IAST_DEBUG": "true",
+        "_DD_IAST_PATCH_MODULES": ("benchmarks.," "tests.appsec.," "tests.appsec.integrations.fastapi_tests.app."),
+    }
+    with uvicorn_server(iast_enabled="true", token=token, port=8050, env=env) as context:
+        _, fastapi_client, pid = context
+
+        response = fastapi_client.post(
+            "/iast-cmdi-vulnerability-form-request",
+            data={"command": "ls path_traversal_test_file.txt"},
+        )
+        assert response.status_code == 200
+
+    response_tracer = _get_span(token)
+    spans_with_iast = []
+    vulnerabilities = []
+    for trace in response_tracer:
+        for span in trace:
+            if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
+                spans_with_iast.append(span)
+            iast_data = load_iast_report(span)
+            if iast_data:
+                vulnerabilities.append(iast_data.get("vulnerabilities"))
+    clear_session(token)
+
+    assert len(spans_with_iast) == 2, f"Invalid number of spans ({len(spans_with_iast)}):\n{spans_with_iast}"
+    assert len(vulnerabilities) == 1, f"Invalid number of vulnerabilities ({len(vulnerabilities)}):\n{vulnerabilities}"
+    assert len(vulnerabilities[0]) == 1
+
+    vulnerability = vulnerabilities[0][0]
+    assert vulnerability["type"] == VULN_CMDI
+    assert vulnerability["evidence"] == {
+        "valueParts": [
+            {"value": "ls "},
+            {"redacted": True, "source": 0, "pattern": ANY},
+        ]
+    }
+    assert vulnerability["hash"]
+
+
+def test_iast_cmdi_form_multiple_fastapi():
+    """Validate IAST CMDI detection with multiple Form parameters in FastAPI.
+
+    Targets the endpoint /iast-cmdi-vulnerability-form-multiple which declares two Form parameters
+    (command and flag). The vulnerable value is "command".
+    """
+    token = "test_iast_cmdi_form_multiple_fastapi"
+    _ = start_trace(token)
+    env = {
+        "DD_TRACE_DEBUG": "true",
+        "_DD_IAST_DEBUG": "true",
+        "_DD_IAST_PATCH_MODULES": ("benchmarks.," "tests.appsec.," "tests.appsec.integrations.fastapi_tests.app."),
+    }
+    with uvicorn_server(iast_enabled="true", token=token, port=8050, env=env) as context:
+        _, fastapi_client, pid = context
+
+        response = fastapi_client.post(
+            "/iast-cmdi-vulnerability-form-multiple",
+            data={"command": "path_traversal_test_file.txt", "flag": "-la"},
+        )
+        assert response.status_code == 200
+
+    response_tracer = _get_span(token)
+    spans_with_iast = []
+    vulnerabilities = []
+    for trace in response_tracer:
+        for span in trace:
+            if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
+                spans_with_iast.append(span)
+            iast_data = load_iast_report(span)
+            if iast_data:
+                vulnerabilities.append(iast_data.get("vulnerabilities"))
+    clear_session(token)
+
+    assert len(spans_with_iast) == 2, f"Invalid number of spans ({len(spans_with_iast)}):\n{spans_with_iast}"
+    assert len(vulnerabilities) == 1, f"Invalid number of vulnerabilities ({len(vulnerabilities)}):\n{vulnerabilities}"
+    assert len(vulnerabilities[0]) == 1
+
+    vulnerability = vulnerabilities[0][0]
+    assert vulnerability["type"] == VULN_CMDI
+    assert vulnerability["evidence"] == {
+        "valueParts": [
+            {"value": "ls "},
+            {"redacted": True, "source": 0, "pattern": ANY},
+            {"redacted": True},
+            {"redacted": True, "source": 1, "pattern": ANY},
+        ]
+    }
     assert vulnerability["hash"]
 
 
@@ -269,3 +370,62 @@ def test_iast_vulnerable_request_downstream_fastapi():
     for vulnerability in vulnerabilities[0]:
         assert vulnerability["type"] in {VULN_INSECURE_HASHING_TYPE, VULN_SSRF}
         assert vulnerability["hash"]
+
+
+@pytest.mark.parametrize(
+    "body, content_type",
+    [
+        ("master", "text/plain"),
+        ('"master"', "application/json"),  # raw JSON string
+        ('{"key":"master"}', "application/json"),  # simple JSON object
+        ('{"first":"ignore","second":"master"}', "application/json"),  # multi-key object
+        ('["master","ignore"]', "application/json"),  # JSON array
+    ],
+)
+def test_iast_cmdi_bodies_fastapi(body, content_type):
+    """Parametrized body encodings to validate that IAST taints http.request.body in FastAPI
+    and still reports CMDI on the vulnerable sink in tests/appsec/integrations/fastapi_tests/app.py:cmdi_body
+    """
+    token = f"test_iast_cmdi_bodies_fastapi_{content_type.replace('/', '_')}"
+    _ = start_trace(token)
+    env = {
+        "DD_TRACE_DEBUG": "true",
+        "_DD_IAST_DEBUG": "true",
+        "_DD_IAST_PATCH_MODULES": ("benchmarks.," "tests.appsec.," "tests.appsec.integrations.fastapi_tests.app."),
+    }
+    with uvicorn_server(iast_enabled="true", token=token, port=8050, env=env) as context:
+        _, fastapi_client, pid = context
+
+        response = fastapi_client.post(
+            "/iast-cmdi-vulnerability-body",
+            data=body,
+            headers={"Content-Type": content_type},
+        )
+
+        assert response.status_code == 200
+
+    response_tracer = _get_span(token)
+    spans_with_iast = []
+    vulnerabilities = []
+    for trace in response_tracer:
+        for span in trace:
+            if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
+                spans_with_iast.append(span)
+            iast_data = load_iast_report(span)
+            if iast_data:
+                vulnerabilities.append(iast_data.get("vulnerabilities"))
+    clear_session(token)
+
+    assert len(spans_with_iast) == 2, f"Invalid number of spans ({len(spans_with_iast)}):\n{spans_with_iast}"
+    assert len(vulnerabilities) == 1, f"Invalid number of vulnerabilities ({len(vulnerabilities)}):\n{vulnerabilities}"
+    assert len(vulnerabilities[0]) == 1
+
+    vulnerability = vulnerabilities[0][0]
+    assert vulnerability["type"] == VULN_CMDI
+    assert vulnerability["evidence"] == {
+        "valueParts": [
+            {"value": "ls "},
+            {"redacted": True, "source": 0, "pattern": ANY},
+        ]
+    }
+    assert vulnerability["hash"]
