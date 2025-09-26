@@ -39,7 +39,6 @@ def set_otel_meter_provider():
     if not _initialize_metrics(exporter_class, protocol, resource):
         return
 
-    # telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.TRACERS, "metrics_provider_configured", 1, (("type", "dd"),))
     global DD_METRICS_PROVIDER_CONFIGURED
     DD_METRICS_PROVIDER_CONFIGURED = True
 
@@ -63,9 +62,7 @@ def _should_configure_metrics_exporter() -> bool:
         from opentelemetry.metrics._internal import _METER_PROVIDER as meter_provider
 
         if meter_provider is not None:
-            log.warning(
-                "OpenTelemetry Metrics provider was configured before ddtrace instrumentation was applied, skipping setup."
-            )
+            log.warning("OpenTelemetry Metrics provider was configured before ddtrace setup, skipping setup.")
             return False
     except ImportError as e:
         log.warning(
