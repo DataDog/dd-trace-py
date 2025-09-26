@@ -66,6 +66,10 @@ def create_async_engine(model: str, *, engine_mode: str = "0", **kwargs):
     if os.environ.get("CI") == "true":
         kwargs.setdefault("max_num_batched_tokens", 256)
         kwargs.setdefault("max_num_seqs", 1)
+    # Normalize compilation_config to dict to satisfy pydantic
+    comp_cfg = kwargs.get("compilation_config", None)
+    if comp_cfg is not None and not isinstance(comp_cfg, dict):
+        kwargs["compilation_config"] = {"use_inductor": False}
     # Respect explicit gpu_memory_utilization if provided
     explicit_util = kwargs.pop("gpu_memory_utilization", None)
     util_candidates = kwargs.pop(
