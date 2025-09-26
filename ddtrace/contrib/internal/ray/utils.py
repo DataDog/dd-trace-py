@@ -182,7 +182,7 @@ def metadata_to_dot_pairs(metadata):
     if isinstance(metadata, dict):
         for k, v in json_to_dot_notation(metadata).items():
             yield f"{RAY_METADATA_PREFIX}.{k}", v
-            
+
 
 # -------------------------------------------------------------------------------------------
 # This is extracted from ray code
