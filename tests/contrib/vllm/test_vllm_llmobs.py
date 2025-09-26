@@ -262,6 +262,13 @@ async def test_stream_cancel_early_break_v1(vllm, mock_tracer, monkeypatch, llmo
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm"},
     )
     assert llmobs_events[0] == expected
+    # Ensure engine is torn down promptly
+    try:
+        shutdown = getattr(engine, "shutdown", None)
+        if callable(shutdown):
+            shutdown()
+    except Exception:
+        pass
 
 
 @pytest.mark.asyncio
@@ -278,6 +285,8 @@ async def test_stream_cancel_early_break_v0_mq(vllm, mock_tracer, monkeypatch, l
         enforce_eager=True,
         disable_log_stats=True,
         max_model_len=256,
+        max_num_batched_tokens=256,
+        max_num_seqs=1,
         compilation_config=0,
         trust_remote_code=True,
     )
@@ -306,6 +315,14 @@ async def test_stream_cancel_early_break_v0_mq(vllm, mock_tracer, monkeypatch, l
             if i >= 2:
                 break
 
+    # Encourage CUDA allocator to release memory between retries
+    try:
+        import torch  # type: ignore
+
+        if hasattr(torch, "cuda"):
+            torch.cuda.empty_cache()
+    except Exception:
+        pass
     span = mock_tracer.pop_traces()[0][0]
     print("---LLMOBS EVENTS---")
     print(llmobs_events)
@@ -581,6 +598,13 @@ async def test_llmobs_async_streaming(vllm, llmobs_events, mock_tracer, vllm_eng
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm"},
     )
     assert llmobs_events[0] == expected
+    # Ensure engine is torn down promptly
+    try:
+        shutdown = getattr(engine, "shutdown", None)
+        if callable(shutdown):
+            shutdown()
+    except Exception:
+        pass
 
 
 @pytest.mark.asyncio
@@ -679,3 +703,10 @@ async def test_llmobs_concurrent_streaming(vllm, llmobs_events, mock_tracer, vll
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm"},
         )
         assert event == expected
+    # Ensure engine is torn down promptly
+    try:
+        shutdown = getattr(engine, "shutdown", None)
+        if callable(shutdown):
+            shutdown()
+    except Exception:
+        pass
