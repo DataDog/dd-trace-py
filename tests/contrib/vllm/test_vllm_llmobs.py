@@ -22,7 +22,7 @@ def test_llmobs_basic(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
         engine_mode=vllm_engine_mode,
         max_model_len=256,
         enforce_eager=True,
-        compilation_config=0,
+        compilation_config={"use_inductor": False},
     )
     sampling = vllm.SamplingParams(temperature=0.1, top_p=0.9, max_tokens=8, seed=42)
     llm.generate("The future of AI is", sampling)
@@ -65,7 +65,7 @@ def test_llmobs_chat(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
         engine_mode=vllm_engine_mode,
         max_model_len=256,
         enforce_eager=True,
-        compilation_config=0,
+        compilation_config={"use_inductor": False},
     )
     sampling_params = vllm.SamplingParams(seed=42)
 
@@ -144,7 +144,7 @@ def test_llmobs_classify(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
         engine_mode=vllm_engine_mode,
         max_model_len=256,
         enforce_eager=True,
-        compilation_config=0,
+        compilation_config={"use_inductor": False},
         trust_remote_code=True,
     )
 
@@ -287,7 +287,7 @@ async def test_stream_cancel_early_break_v0_mq(vllm, mock_tracer, monkeypatch, l
         max_model_len=256,
         max_num_batched_tokens=256,
         max_num_seqs=1,
-        compilation_config=0,
+        compilation_config={"use_inductor": False},
         trust_remote_code=True,
     )
     async with build_async_engine_client_from_engine_args(
@@ -361,7 +361,7 @@ def test_llmobs_embed(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
         runner="pooling",
         engine_mode=vllm_engine_mode,
         enforce_eager=True,
-        compilation_config=0,
+        compilation_config={"use_inductor": False},
         max_model_len=256,
         trust_remote_code=True,
     )
@@ -413,7 +413,7 @@ def test_llmobs_reward(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
         runner="pooling",
         engine_mode=vllm_engine_mode,
         enforce_eager=True,
-        compilation_config=0,
+        compilation_config={"use_inductor": False},
         max_model_len=256,
         trust_remote_code=True,
     )
@@ -471,7 +471,7 @@ def test_llmobs_score(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
         engine_mode=vllm_engine_mode,
         enforce_eager=True,
         max_model_len=256,
-        compilation_config=0,
+        compilation_config={"use_inductor": False},
         trust_remote_code=True,
     )
 
@@ -532,7 +532,7 @@ async def test_llmobs_async_streaming(vllm, llmobs_events, mock_tracer, vllm_eng
         engine_mode=vllm_engine_mode,
         enforce_eager=True,
         max_model_len=256,
-        compilation_config=0,
+        compilation_config={"use_inductor": False},
         trust_remote_code=True,
     )
 
@@ -614,7 +614,7 @@ async def test_llmobs_concurrent_streaming(vllm, llmobs_events, mock_tracer, vll
         engine_mode=vllm_engine_mode,
         enforce_eager=True,
         max_model_len=256,
-        compilation_config=0,
+        compilation_config={"use_inductor": False},
         trust_remote_code=True,
     )
 
