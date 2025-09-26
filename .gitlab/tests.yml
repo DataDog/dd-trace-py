@@ -61,6 +61,12 @@ include:
   stage: hatch
   needs: [ prechecks ]
   parallel: 2
+  variables:
+    # Request==Limit to achieve Guaranteed QoS; requires Kubernetes executor support
+    KUBERNETES_MEMORY_REQUEST: "10Gi"
+    KUBERNETES_MEMORY_LIMIT: "10Gi"
+    KUBERNETES_CPU_REQUEST: "2"
+    KUBERNETES_CPU_LIMIT: "2"
   before_script:
     - !reference [.testrunner_gpu, before_script]
     # GPU diagnostics
@@ -171,6 +177,11 @@ include:
   stage: riot
   needs: [ build_base_venvs, prechecks ]
   parallel: 2
+  variables:
+    KUBERNETES_MEMORY_REQUEST: "10Gi"
+    KUBERNETES_MEMORY_LIMIT: "10Gi"
+    KUBERNETES_CPU_REQUEST: "2"
+    KUBERNETES_CPU_LIMIT: "2"
   services:
     - !reference [.services, ddagent]
   before_script:

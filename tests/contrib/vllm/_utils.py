@@ -64,7 +64,7 @@ def get_cached_llm(model: str, *, engine_mode: str = "0", **kwargs):
 
 def create_async_engine(model: str, *, engine_mode: str = "0", **kwargs):
     # Reduce default KV cache footprint in CI unless caller overrides
-    kwargs.setdefault("max_model_len", 512)
+    kwargs.setdefault("max_model_len", 256)
     # Respect explicit gpu_memory_utilization if provided
     explicit_util = kwargs.pop("gpu_memory_utilization", None)
     util_candidates = kwargs.pop(

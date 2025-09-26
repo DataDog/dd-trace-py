@@ -20,7 +20,7 @@ def test_llmobs_basic(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
     llm = get_cached_llm(
         model="facebook/opt-125m",
         engine_mode=vllm_engine_mode,
-        max_model_len=512,
+        max_model_len=256,
         enforce_eager=True,
         compilation_config=0,
     )
@@ -63,7 +63,7 @@ def test_llmobs_chat(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
     llm = get_cached_llm(
         model="facebook/opt-125m",
         engine_mode=vllm_engine_mode,
-        max_model_len=512,
+        max_model_len=256,
         enforce_eager=True,
         compilation_config=0,
     )
@@ -142,7 +142,7 @@ def test_llmobs_classify(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
         model="BAAI/bge-reranker-v2-m3",
         runner="pooling",
         engine_mode=vllm_engine_mode,
-        max_model_len=512,
+        max_model_len=256,
         enforce_eager=True,
         compilation_config=0,
         trust_remote_code=True,
@@ -277,7 +277,7 @@ async def test_stream_cancel_early_break_v0_mq(vllm, mock_tracer, monkeypatch, l
         model="facebook/opt-125m",
         enforce_eager=True,
         disable_log_stats=True,
-        max_model_len=512,
+        max_model_len=256,
         compilation_config=0,
         trust_remote_code=True,
     )
@@ -345,7 +345,7 @@ def test_llmobs_embed(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
         engine_mode=vllm_engine_mode,
         enforce_eager=True,
         compilation_config=0,
-        max_model_len=512,
+        max_model_len=256,
         trust_remote_code=True,
     )
 
@@ -397,7 +397,7 @@ def test_llmobs_reward(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
         engine_mode=vllm_engine_mode,
         enforce_eager=True,
         compilation_config=0,
-        max_model_len=512,
+        max_model_len=256,
         trust_remote_code=True,
     )
 
@@ -453,7 +453,7 @@ def test_llmobs_score(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
         runner="pooling",
         engine_mode=vllm_engine_mode,
         enforce_eager=True,
-        max_model_len=512,
+        max_model_len=256,
         compilation_config=0,
         trust_remote_code=True,
     )
@@ -514,7 +514,7 @@ async def test_llmobs_async_streaming(vllm, llmobs_events, mock_tracer, vllm_eng
         model="facebook/opt-125m",
         engine_mode=vllm_engine_mode,
         enforce_eager=True,
-        max_model_len=512,
+        max_model_len=256,
         compilation_config=0,
         trust_remote_code=True,
     )
@@ -589,7 +589,7 @@ async def test_llmobs_concurrent_streaming(vllm, llmobs_events, mock_tracer, vll
         model="facebook/opt-125m",
         engine_mode=vllm_engine_mode,
         enforce_eager=True,
-        max_model_len=512,
+        max_model_len=256,
         compilation_config=0,
         trust_remote_code=True,
     )
