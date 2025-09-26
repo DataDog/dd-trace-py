@@ -32,8 +32,8 @@ def get_cached_llm(model: str, *, engine_mode: str = "0", **kwargs):
     key = (model, key_runner, engine_mode)
 
     # Skip caching on CI - create fresh LLM instances
-    #is_ci = os.environ.get("CI") == "true"
-    #if is_ci:
+    # is_ci = os.environ.get("CI") == "true"
+    # if is_ci:
     #    llm_kwargs = dict(kwargs)
     #    if runner is None and "runner" in llm_kwargs:
     #        llm_kwargs.pop("runner", None)
@@ -43,10 +43,21 @@ def get_cached_llm(model: str, *, engine_mode: str = "0", **kwargs):
     llm = _LLM_CACHE.get(key)
     if llm is not None:
         return llm
+    should_diag = os.environ.get("DD_VLLM_TEST_DIAG") == "1"
     llm_kwargs = dict(kwargs)
     if runner is None and "runner" in llm_kwargs:
         llm_kwargs.pop("runner", None)
+    if should_diag:
+        try:
+            log_vllm_diagnostics("before-create-llm")
+        except Exception:
+            pass
     llm = _create_llm_autotune(model=model, **llm_kwargs)
+    if should_diag:
+        try:
+            log_vllm_diagnostics("after-create-llm")
+        except Exception:
+            pass
     _LLM_CACHE[key] = llm
     return llm
 
@@ -63,6 +74,12 @@ def create_async_engine(model: str, *, engine_mode: str = "0", **kwargs):
     if explicit_util is not None:
         util_candidates = [explicit_util]
     last_error = None
+    should_diag = os.environ.get("DD_VLLM_TEST_DIAG") == "1"
+    if should_diag:
+        try:
+            log_vllm_diagnostics("before-create-async-engine")
+        except Exception:
+            pass
     for util in util_candidates:
         try:
             args = AsyncEngineArgs(model=model, gpu_memory_utilization=util, **kwargs)
@@ -86,6 +103,11 @@ def create_async_engine(model: str, *, engine_mode: str = "0", **kwargs):
                 weakref.finalize(engine, _safe_shutdown, engine)
             except Exception:
                 pass
+            if should_diag:
+                try:
+                    log_vllm_diagnostics("after-create-async-engine")
+                except Exception:
+                    pass
             return engine
         except Exception as exc:  # pragma: no cover
             last_error = exc
@@ -114,3 +136,120 @@ def shutdown_cached_llms() -> None:
         except Exception:
             pass
     _LLM_CACHE.clear()
+
+
+def log_vllm_diagnostics(label: str) -> None:
+    """Print CPU/GPU and environment diagnostics to stdout when debugging.
+
+    Safe to call on hosts without GPUs or nvidia-smi.
+    """
+    try:
+        print(f"---DIAG START: {label}---")
+        # Environment snapshot
+        for k in [
+            "CI",
+            "VLLM_USE_V1",
+            "VLLM_USE_MQ",
+            "VLLM_GPU_UTIL",
+            "PROMETHEUS_MULTIPROC_DIR",
+            "PYTEST_CURRENT_TEST",
+        ]:
+            v = os.environ.get(k)
+            if v is not None:
+                print(f"ENV {k}={v}")
+
+        # Process limits and usage
+        try:
+            import resource  # type: ignore
+
+            nofile = resource.getrlimit(resource.RLIMIT_NOFILE)
+            print(f"RLIMIT_NOFILE={nofile}")
+        except Exception:
+            pass
+        try:
+            fd_count = len(os.listdir(f"/proc/{os.getpid()}/fd"))
+            print(f"FD_COUNT={fd_count}")
+        except Exception:
+            pass
+        try:
+            with open("/proc/self/status", "r", encoding="utf-8", errors="ignore") as f:
+                status = f.read()
+            for line in status.splitlines():
+                if line.startswith(("VmRSS:", "Threads:", "FDSize:")):
+                    print(f"PROC {line}")
+        except Exception:
+            pass
+
+        # System memory snapshot
+        try:
+            with open("/proc/meminfo", "r", encoding="utf-8", errors="ignore") as f:
+                meminfo = f.read().splitlines()
+            for line in meminfo[:10]:
+                print(f"MEMINFO {line}")
+        except Exception:
+            pass
+
+        # GPU info via torch
+        try:
+            import torch  # type: ignore
+
+            if hasattr(torch, "cuda") and torch.cuda.is_available():
+                num = torch.cuda.device_count()
+                for i in range(num):
+                    free, total = torch.cuda.mem_get_info(i)
+                    used = total - free
+                    print(f"CUDA dev{i} total={total//(1024**2)}MB used={used//(1024**2)}MB free={free//(1024**2)}MB")
+                try:
+                    summ = torch.cuda.memory_summary(device=None, abbreviated=True)
+                    head = "\n".join(summ.splitlines()[:50])
+                    print(head)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        # GPU info via nvidia-smi
+        try:
+            import subprocess  # type: ignore
+
+            out = subprocess.run(
+                [
+                    "nvidia-smi",
+                    "--query-gpu=index,name,memory.total,memory.used,memory.free",
+                    "--format=csv,noheader,nounits",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if out.returncode == 0 and out.stdout:
+                for line in out.stdout.strip().splitlines():
+                    print(f"NVSMI GPU {line}")
+            procs = subprocess.run(
+                [
+                    "nvidia-smi",
+                    "--query-compute-apps=pid,process_name,used_memory",
+                    "--format=csv,noheader,nounits",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if procs.returncode == 0 and procs.stdout:
+                for line in procs.stdout.strip().splitlines():
+                    print(f"NVSMI PROC {line}")
+        except Exception:
+            pass
+
+        # Prometheus multiprocess dir
+        pdir = os.environ.get("PROMETHEUS_MULTIPROC_DIR")
+        if pdir and os.path.isdir(pdir):
+            try:
+                files = os.listdir(pdir)
+                print(f"PROM_DIR files={len(files)} -> {files[:10]}")
+            except Exception:
+                pass
+
+        print(f"---DIAG END: {label}---")
+    except Exception:
+        pass

@@ -141,7 +141,6 @@ def gen_required_suites() -> None:
                     if entry.get("gpu") is True:
                         name = str(entry.get("integration_name", "")).strip()
                         if name:
-                            print(f"Adding GPU integration: {name}")
                             gpu_integrations.add(name)
                 except Exception:
                     continue
@@ -168,7 +167,6 @@ def gen_required_suites() -> None:
     # Collect stages from suite configurations
     stages = {"setup"}  # setup is always needed
     for suite_name, suite_config in suites.items():
-        print(f"suite_name: {suite_name}")
         # Extract stage from suite name prefix if present
         if "::" in suite_name:
             stage, _, clean_name = suite_name.partition("::")
@@ -191,7 +189,6 @@ def gen_required_suites() -> None:
                 suite_config["gpu"] = True
         except Exception:
             pass
-        print(f"suite_config: {suite_config}")
 
     # Sort stages: setup first, then alphabetically
     sorted_stages = ["setup"] + sorted(stages - {"setup"})

@@ -66,6 +66,11 @@ include:
     # GPU diagnostics
     - nvidia-smi || true
     - free -h || true
+    - export DD_VLLM_TEST_DIAG="1"
+    - export MALLOC_ARENA_MAX="2"
+    - export PYTORCH_CUDA_ALLOC_CONF="max_split_size_mb:64,expandable_segments:True"
+    - export VLLM_DISABLE_FLASH_ATTENTION="1"
+    - export VLLM_LOGGING_LEVEL="DEBUG"
     - |
       python - <<'PY'
       import sys
@@ -190,6 +195,11 @@ include:
     - unset DD_TAGS
     - unset DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED
     - export PYTEST_ADDOPTS="${PYTEST_ADDOPTS} -vv -s -rA"
+    - export DD_VLLM_TEST_DIAG="1"
+    - export MALLOC_ARENA_MAX="2"
+    - export PYTORCH_CUDA_ALLOC_CONF="max_split_size_mb:64,expandable_segments:True"
+    - export VLLM_DISABLE_FLASH_ATTENTION="1"
+    - export VLLM_LOGGING_LEVEL="DEBUG"
     - export VLLM_GPU_MEMORY_UTILIZATION="${VLLM_GPU_MEMORY_UTILIZATION:-0.1}"
     - export TOKENIZERS_PARALLELISM="false"
     - export VLLM_HOST_IP="127.0.0.1"

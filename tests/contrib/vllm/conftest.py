@@ -11,6 +11,7 @@ from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import override_global_config
 
+from ._utils import log_vllm_diagnostics
 from ._utils import shutdown_cached_llms
 
 
@@ -18,6 +19,23 @@ from ._utils import shutdown_cached_llms
 def _shutdown_cached_llms_session():
     yield
     shutdown_cached_llms()
+
+
+def pytest_runtest_makereport(item, call):  # type: ignore
+    # When diagnostics enabled, log environment and memory on failures
+    should_diag = item.config.getoption("-s", default=False) or item.config.getoption("--capture", default=None) in (
+        "no",
+        None,
+    )
+    # Also enable via env var to print regardless of -s
+    import os as _os
+
+    env_diag = _os.environ.get("DD_VLLM_TEST_DIAG") == "1"
+    if call.when == "call" and (call.excinfo is not None) and (should_diag or env_diag):
+        try:
+            log_vllm_diagnostics(f"test-failure:{item.nodeid}")
+        except Exception:
+            pass
 
 
 @pytest.fixture(autouse=True, scope="session")
