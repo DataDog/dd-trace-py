@@ -3,12 +3,12 @@ import json
 import sys
 from typing import Any
 from typing import Dict
+from typing import List
+from typing import Literal
 from typing import Optional
 from typing import Tuple
 
 from ddtrace._trace.span import Span
-from ddtrace.constants import ERROR_MSG
-from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal._rand import rand128bits
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
@@ -17,6 +17,12 @@ from ddtrace.llmobs._integrations.bedrock_utils import parse_model_id
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs._writer import LLMObsSpanEvent
+from ddtrace.llmobs.types import Message
+from ddtrace.llmobs.types import _ErrorField
+from ddtrace.llmobs.types import _Meta
+from ddtrace.llmobs.types import _MetaIO
+from ddtrace.llmobs.types import _SpanField
 
 
 log = get_logger(__name__)
@@ -51,7 +57,7 @@ def _build_span_event(
     metadata=None,
     input_val=None,
     output_val=None,
-):
+) -> LLMObsSpanEvent:
     if span_id is None:
         span_id = rand128bits()
     apm_trace_id = format_trace_id(root_span.trace_id)
@@ -61,7 +67,7 @@ def _build_span_event(
     session_id = _get_session_id(root_span)
     ml_app = _get_ml_app(root_span)
     tags = [f"ml_app:{ml_app}", f"session_id:{session_id}", "integration:bedrock_agents"]
-    span_event = {
+    span_event: LLMObsSpanEvent = {
         "name": span_name,
         "span_id": str(span_id),
         "trace_id": format_trace_id(llmobs_trace_id),
@@ -70,12 +76,13 @@ def _build_span_event(
         "start_ns": int(start_ns or root_span.start_ns),
         "duration": int(duration_ns or DEFAULT_SPAN_DURATION),
         "status": "error" if error else "ok",
-        "meta": {
-            "span.kind": str(span_kind),
-            "metadata": {},
-            "input": {},
-            "output": {},
-        },
+        "meta": _Meta(
+            span=_SpanField(kind=span_kind),
+            metadata={},
+            input=_MetaIO(),
+            output=_MetaIO(),
+            error=_ErrorField(),
+        ),
         "metrics": {},
         "_dd": {
             "span_id": str(span_id),
@@ -85,15 +92,15 @@ def _build_span_event(
     }
     if metadata is not None:
         span_event["meta"]["metadata"] = metadata
-    io_key = "messages" if span_kind == "llm" else "value"
-    if input_val is not None:
+    io_key: Literal["messages", "value"] = "messages" if span_kind == "llm" else "value"
+    if input_val is not None and "input" in span_event["meta"]:
         span_event["meta"]["input"][io_key] = input_val
-    if output_val is not None:
+    if output_val is not None and "output" in span_event["meta"]:
         span_event["meta"]["output"][io_key] = output_val
-    if error_msg is not None:
-        span_event["meta"][ERROR_MSG] = error_msg
-    if error_type is not None:
-        span_event["meta"][ERROR_TYPE] = error_type
+    if error_msg is not None and "error" in span_event["meta"]:
+        span_event["meta"]["error"]["message"] = error_msg
+    if error_type is not None and "error" in span_event["meta"]:
+        span_event["meta"]["error"]["type"] = error_type
     return span_event
 
 
@@ -176,7 +183,7 @@ def _create_or_update_bedrock_trace_step_span(trace, trace_step_id, inner_span_e
 
 def _translate_custom_orchestration_trace(
     trace: Dict[str, Any], root_span: Span, current_active_span: Optional[Dict[str, Any]], trace_step_id: str
-) -> Tuple[Optional[Dict[str, Any]], bool]:
+) -> Tuple[Optional[LLMObsSpanEvent], bool]:
     """Translates a custom orchestration bedrock trace into a LLMObs span event.
     Returns the translated span event and a boolean indicating if the trace is finished.
     """
@@ -197,8 +204,8 @@ def _translate_custom_orchestration_trace(
 
 
 def _translate_orchestration_trace(
-    trace: Dict[str, Any], root_span: Span, current_active_span: Optional[Dict[str, Any]], trace_step_id: str
-) -> Tuple[Optional[Dict[str, Any]], bool]:
+    trace: Dict[str, Any], root_span: Span, current_active_span: Optional[LLMObsSpanEvent], trace_step_id: str
+) -> Tuple[Optional[LLMObsSpanEvent], bool]:
     """Translates an orchestration bedrock trace into a LLMObs span event.
     Returns the translated span event and a boolean indicating if the trace is finished.
     """
@@ -224,7 +231,7 @@ def _translate_orchestration_trace(
 
 def _translate_failure_trace(
     trace: Dict[str, Any], root_span: Span, current_active_span: Optional[Dict[str, Any]], trace_step_id: str
-) -> Tuple[Optional[Dict[str, Any]], bool]:
+) -> Tuple[Optional[LLMObsSpanEvent], bool]:
     """Translates a failure bedrock trace into a LLMObs span event.
     Returns the translated span event and a boolean indicating that the span is finished.
     """
@@ -253,7 +260,7 @@ def _translate_failure_trace(
 
 def _translate_guardrail_trace(
     trace: Dict[str, Any], root_span: Span, current_active_span: Optional[Dict[str, Any]], trace_step_id: str
-) -> Tuple[Optional[Dict[str, Any]], bool]:
+) -> Tuple[Optional[LLMObsSpanEvent], bool]:
     """Translates a guardrail bedrock trace into a LLMObs span event.
     Returns the translated span event and a boolean indicating that the span is finished.
     """
@@ -288,8 +295,8 @@ def _translate_guardrail_trace(
 
 
 def _translate_post_processing_trace(
-    trace: Dict[str, Any], root_span: Span, current_active_span: Optional[Dict[str, Any]], trace_step_id: str
-) -> Tuple[Optional[Dict[str, Any]], bool]:
+    trace: Dict[str, Any], root_span: Span, current_active_span: Optional[LLMObsSpanEvent], trace_step_id: str
+) -> Tuple[Optional[LLMObsSpanEvent], bool]:
     """Translates a postprocessing bedrock trace into a LLMObs span event.
     Returns the translated span event and a boolean indicating if the span is finished.
     """
@@ -305,8 +312,8 @@ def _translate_post_processing_trace(
 
 
 def _translate_pre_processing_trace(
-    trace: Dict[str, Any], root_span: Span, current_active_span: Optional[Dict[str, Any]], trace_step_id: str
-) -> Tuple[Optional[Dict[str, Any]], bool]:
+    trace: Dict[str, Any], root_span: Span, current_active_span: Optional[LLMObsSpanEvent], trace_step_id: str
+) -> Tuple[Optional[LLMObsSpanEvent], bool]:
     """Translates a preprocessing bedrock trace into a LLMObs span event.
     Returns the translated span event and a boolean indicating if the span is finished.
     """
@@ -322,8 +329,8 @@ def _translate_pre_processing_trace(
 
 
 def _translate_routing_classifier_trace(
-    trace: Dict[str, Any], root_span: Span, current_active_span: Optional[Dict[str, Any]], trace_step_id: str
-) -> Tuple[Optional[Dict[str, Any]], bool]:
+    trace: Dict[str, Any], root_span: Span, current_active_span: Optional[LLMObsSpanEvent], trace_step_id: str
+) -> Tuple[Optional[LLMObsSpanEvent], bool]:
     """Translates a routing classifier bedrock trace into a LLMObs span event.
     Returns the translated span event and a boolean indicating if the span is finished.
     """
@@ -346,7 +353,7 @@ def _translate_routing_classifier_trace(
 
 def _model_invocation_input_span(
     model_input: Dict[str, Any], trace_step_id: str, start_ns: int, root_span: Span
-) -> Optional[Dict[str, Any]]:
+) -> Optional[LLMObsSpanEvent]:
     """Translates a Bedrock model invocation input trace into a LLMObs span event."""
     model_id = model_input.get("foundationModel", "")
     model_provider, model_name = parse_model_id(model_id)
@@ -355,9 +362,9 @@ def _model_invocation_input_span(
     except (json.JSONDecodeError, UnicodeDecodeError):
         log.warning("Failed to decode model input text.")
         text = {}
-    input_messages = [{"content": text.get("system", ""), "role": "system"}]
+    input_messages: List[Message] = [Message(content=text.get("system", ""), role="system")]
     for message in text.get("messages", []):
-        input_messages.append({"content": message.get("content", ""), "role": message.get("role", "")})
+        input_messages.append(Message(content=message.get("content", ""), role=message.get("role", "")))
     span_event = _build_span_event(
         "modelInvocation",
         root_span,
@@ -371,39 +378,40 @@ def _model_invocation_input_span(
 
 
 def _model_invocation_output_span(
-    model_output: Dict[str, Any], current_active_span: Optional[Dict[str, Any]], root_span: Span
-) -> Optional[Dict[str, Any]]:
+    model_output: Dict[str, Any], current_active_span: Optional[LLMObsSpanEvent], root_span: Span
+) -> Optional[LLMObsSpanEvent]:
     """Translates a Bedrock model invocation output trace into a LLMObs span event."""
     if not current_active_span:
         log.warning("Error in processing modelInvocationOutput.")
         return None
     bedrock_metadata = model_output.get("metadata", {})
     start_ns, duration_ns = _extract_start_and_duration_from_metadata(bedrock_metadata, root_span)
-    output_messages = []
+    output_messages: List[Message] = []
     parsed_response = model_output.get("parsedResponse", {})
     if parsed_response:
-        output_messages.append({"content": safe_json(parsed_response), "role": "assistant"})
+        output_messages.append(Message(content=safe_json(parsed_response) or "", role="assistant"))
     else:
         raw_response = model_output.get("rawResponse", {}).get("content", "")
-        output_messages.append({"content": raw_response, "role": "assistant"})
+        output_messages.append(Message(content=raw_response, role="assistant"))
 
     reasoning_text = model_output.get("reasoningContent", {}).get("reasoningText", {})
-    if reasoning_text:
-        current_active_span["metadata"]["reasoningText"] = str(reasoning_text.get("text", ""))
+    if reasoning_text and "metadata" in current_active_span["meta"]:
+        current_active_span["meta"]["metadata"]["reasoningText"] = str(reasoning_text.get("text", ""))
     token_metrics = {
         "input_tokens": bedrock_metadata.get("usage", {}).get("inputTokens", 0),
         "output_tokens": bedrock_metadata.get("usage", {}).get("outputTokens", 0),
     }
     current_active_span["start_ns"] = int(start_ns)
     current_active_span["duration"] = int(duration_ns)
-    current_active_span["meta"]["output"]["messages"] = output_messages
+    if "output" in current_active_span["meta"]:
+        current_active_span["meta"]["output"]["messages"] = output_messages
     current_active_span["metrics"] = token_metrics
     return current_active_span
 
 
 def _rationale_span(
     rationale: Dict[str, Any], trace_step_id: str, start_ns: int, root_span: Span
-) -> Optional[Dict[str, Any]]:
+) -> Optional[LLMObsSpanEvent]:
     """Translates a Bedrock rationale trace into a LLMObs span event."""
     span_event = _build_span_event(
         "reasoning", root_span, trace_step_id, "task", start_ns=start_ns, output_val=rationale.get("text", "")
@@ -413,7 +421,7 @@ def _rationale_span(
 
 def _invocation_input_span(
     invocation_input: Dict[str, Any], trace_step_id: str, start_ns: int, root_span: Span
-) -> Optional[Dict[str, Any]]:
+) -> Optional[LLMObsSpanEvent]:
     """Translates a Bedrock invocation input trace into a LLMObs span event."""
     span_name = ""
     tool_metadata = {}
@@ -447,8 +455,8 @@ def _invocation_input_span(
 
 
 def _observation_span(
-    observation: Dict[str, Any], root_span: Span, current_active_span: Optional[Dict[str, Any]]
-) -> Optional[Dict[str, Any]]:
+    observation: Dict[str, Any], root_span: Span, current_active_span: Optional[LLMObsSpanEvent]
+) -> Optional[LLMObsSpanEvent]:
     """Translates a Bedrock observation trace into a LLMObs span event."""
     observation_type = observation.get("type", "")
     if observation_type in ("FINISH", "REPROMPT"):
@@ -479,7 +487,8 @@ def _observation_span(
     start_ns, duration_ns = _extract_start_and_duration_from_metadata(bedrock_metadata, root_span)
     current_active_span["start_ns"] = int(start_ns)
     current_active_span["duration"] = int(duration_ns)
-    current_active_span["meta"]["output"]["value"] = output_value
+    if "output" in current_active_span["meta"]:
+        current_active_span["meta"]["output"]["value"] = output_value
     return current_active_span
 
 
