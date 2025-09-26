@@ -238,7 +238,10 @@ class ModuleCodeCollector(ModuleWatchdog):
                 ctx_coverage_enabled.set(False)
 
         def get_covered_lines(self) -> t.Dict[str, CoverageLines]:
-            return ctx_covered.get()[-1]
+            covered_lines = ctx_covered.get()[-1]
+            if global_instance := ModuleCodeCollector._instance:
+                global_instance._add_import_time_lines(covered_lines)
+            return covered_lines
 
     @classmethod
     def start_coverage(cls):
