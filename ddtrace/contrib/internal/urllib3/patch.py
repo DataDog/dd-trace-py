@@ -67,12 +67,6 @@ def patch():
             _w("urllib3.request", "RequestMethods.request", _wrap_request)
     Pin().onto(urllib3.connectionpool.HTTPConnectionPool)
 
-    if asm_config._iast_enabled:
-        from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
-        from ddtrace.appsec._iast.constants import VULN_SSRF
-
-        _set_metric_iast_instrumented_sink(VULN_SSRF)
-
 
 def unpatch():
     """Disable trace for all urllib3 requests"""
