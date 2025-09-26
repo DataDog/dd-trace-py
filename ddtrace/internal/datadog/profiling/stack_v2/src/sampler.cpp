@@ -153,7 +153,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
         // Perform the sample
         for_each_interp([&](InterpreterInfo& interp) -> void {
             for_each_thread(interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
-                thread.sample(interp.id, tstate, wall_time_us);
+                (void)thread.sample(interp.id, tstate, wall_time_us);
             });
         });
 
