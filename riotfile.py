@@ -1078,7 +1078,7 @@ venv = Venv(
                     pkgs={"dramatiq": "~=1.10.0", "pytest": latest, "redis": latest, "pika": latest},
                 ),
                 Venv(
-                    pys=select_pys(max_version="3.13"),
+                    pys=select_pys(),
                     pkgs={"dramatiq": latest, "pytest": latest, "redis": latest},
                 ),
             ],
@@ -1306,7 +1306,7 @@ venv = Venv(
                         Venv(
                             pys=select_pys(min_version="3.8", max_version="3.11"),
                         ),
-                        Venv(pys=select_pys(min_version="3.12", max_version="3.13"), pkgs={"redis": latest}),
+                        Venv(pys=select_pys(min_version="3.12"), pkgs={"redis": latest}),
                     ],
                 ),
             ],
@@ -1359,7 +1359,7 @@ venv = Venv(
                     pkgs={"psycopg2-binary": "~=2.8.0"},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.8", max_version="3.12"),
+                    pys=select_pys(min_version="3.8"),
                     # psycopg2-binary added support for Python 3.9/3.10 in 2.9.1
                     # psycopg2-binary added support for Python 3.11 in 2.9.2
                     pkgs={"psycopg2-binary": ["~=2.9.2", latest]},
@@ -1390,10 +1390,17 @@ venv = Venv(
                             },
                         ),
                         Venv(
-                            pys=select_pys(min_version="3.12", max_version="3.12"),
+                            pys=["3.12"],
                             pkgs={
                                 "psycopg": latest,
                                 "pytest-asyncio": "==0.23.7",
+                            },
+                        ),
+                        Venv(
+                            pys=select_pys(min_version="3.13"),
+                            pkgs={
+                                "psycopg": latest,
+                                "pytest-asyncio": ">=1.0",
                             },
                         ),
                     ],
@@ -1492,7 +1499,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/starlette",
             pkgs={
                 "pytest-asyncio": "==0.21.1",
-                "greenlet": "==3.0.3",
+                "greenlet": "~=3.0",
                 "requests": latest,
                 "aiofiles": latest,
                 "sqlalchemy": "<2.0",
@@ -1524,7 +1531,7 @@ venv = Venv(
                     pkgs={"starlette": ["~=0.21.0", "~=0.33.0"], "httpx": "~=0.22.0"},
                 ),
                 Venv(
-                    pys="3.12",
+                    pys=select_pys(min_version="3.12"),
                     pkgs={"starlette": latest, "httpx": "~=0.27.0"},
                 ),
                 Venv(
@@ -1754,6 +1761,14 @@ venv = Venv(
                         ],
                     },
                 ),
+                Venv(
+                    pys=select_pys(min_version="3.13"),
+                    pkgs={
+                        "pymysql": [
+                            latest,
+                        ],
+                    },
+                ),
             ],
         ),
         Venv(
@@ -1909,9 +1924,21 @@ venv = Venv(
                     },
                 ),
                 Venv(
+                    pys=select_pys(min_version="3.13"),
+                    pkgs={
+                        "pytest": [
+                            latest,
+                        ],
+                        "msgpack": latest,
+                        "asynctest": "==0.13.0",
+                        "more_itertools": "<8.11.0",
+                        "httpx": "<0.28.0",
+                    },
+                ),
+                Venv(
                     name="pytest_plugin_v2",
                     command="pytest -c /dev/null --no-ddtrace --no-cov tests/contrib/pytest {cmdargs}",
-                    pys=["3.9", "3.10", "3.12"],
+                    pys=select_pys(min_version="3.9", max_version="3.12"),
                     pkgs={
                         "httpx": "<0.28.0",
                         "msgpack": latest,
@@ -2001,7 +2028,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.10", max_version="3.12"),
+                    pys=select_pys(min_version="3.10"),
                     pkgs={
                         "pytest-bdd": [
                             # FIXME: add support for v6.1
@@ -2013,7 +2040,7 @@ venv = Venv(
         ),
         Venv(
             name="pytest_benchmark",
-            pys=select_pys(min_version="3.8", max_version="3.12"),
+            pys=select_pys(min_version="3.8"),
             command="pytest {cmdargs} --no-ddtrace --no-cov tests/contrib/pytest_benchmark/",
             pkgs={
                 "msgpack": latest,
@@ -2031,7 +2058,7 @@ venv = Venv(
         ),
         Venv(
             name="pytest:flaky",
-            pys=select_pys(min_version="3.8", max_version="3.12"),
+            pys=select_pys(min_version="3.8"),
             command="pytest {cmdargs} --no-ddtrace --no-cov -p no:flaky tests/contrib/pytest_flaky/",
             pkgs={
                 "flaky": latest,
@@ -2119,13 +2146,26 @@ venv = Venv(
         Venv(
             name="graphql:graphene",
             command="pytest {cmdargs} tests/contrib/graphene",
-            pys=select_pys(min_version="3.8", max_version="3.13"),
             pkgs={
-                "graphene": ["~=3.0.0", latest],
-                "pytest-asyncio": "==0.21.1",
                 "graphql-relay": latest,
                 "pytest-randomly": latest,
             },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.8", max_version="3.13"),
+                    pkgs={
+                        "graphene": ["~=3.0.0", latest],
+                        "pytest-asyncio": "==0.21.1",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.14"),
+                    pkgs={
+                        "graphene": latest,
+                        "pytest-asyncio": ">=1.0",
+                    },
+                ),
+            ],
         ),
         Venv(
             name="graphql",
@@ -2412,6 +2452,14 @@ venv = Venv(
                         "pytest-asyncio": "==0.23.7",
                     },
                 ),
+                Venv(
+                    pys=select_pys(min_version="3.14"),
+                    command="pytest {cmdargs} tests/contrib/redis",
+                    pkgs={
+                        "redis": latest,
+                        "pytest-asyncio": latest,
+                    },
+                ),
             ],
         ),
         Venv(
@@ -2465,7 +2513,6 @@ venv = Venv(
             name="sanic",
             command="pytest {cmdargs} tests/contrib/sanic",
             pkgs={
-                "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
                 "requests": latest,
                 "websockets": "<11.0",
@@ -2477,6 +2524,7 @@ venv = Venv(
                     pkgs={
                         "sanic": "~=20.12",
                         "pytest-sanic": "~=1.6.2",
+                        "pytest-asyncio": "==0.21.1",
                     },
                 ),
                 Venv(
@@ -2486,6 +2534,7 @@ venv = Venv(
                             "~=21.3",
                             "~=21.12",
                         ],
+                        "pytest-asyncio": "==0.21.1",
                         "sanic-testing": "~=0.8.3",
                     },
                 ),
@@ -2495,6 +2544,7 @@ venv = Venv(
                     pkgs={
                         "sanic": "~=21.12.0",
                         "sanic-testing": "~=0.8.3",
+                        "pytest-asyncio": "==0.21.1",
                     },
                 ),
                 Venv(
@@ -2502,6 +2552,7 @@ venv = Venv(
                     pkgs={
                         "sanic": ["~=22.3", "~=22.12"],
                         "sanic-testing": "~=22.3.0",
+                        "pytest-asyncio": "==0.21.1",
                     },
                 ),
                 Venv(
@@ -2510,13 +2561,15 @@ venv = Venv(
                     pkgs={
                         "sanic": ["~=22.12.0", latest],
                         "sanic-testing": "~=22.3.0",
+                        "pytest-asyncio": "==0.21.1",
                     },
                 ),
                 Venv(
-                    pys="3.12",
+                    pys=select_pys(min_version="3.12"),
                     pkgs={
                         "sanic": [latest],
                         "sanic-testing": "~=22.3.0",
+                        "pytest-asyncio": latest,
                     },
                 ),
             ],
@@ -2677,8 +2730,8 @@ venv = Venv(
         ),
         Venv(
             name="consul",
-            pys=select_pys(max_version="3.12"),
-            command="pytest {cmdargs} tests/contrib/consul",
+            pys=select_pys(),
+            command="pytest --no-cov {cmdargs} tests/contrib/consul",
             pkgs={
                 "python-consul": [
                     ">=1.1,<1.2",
@@ -2831,6 +2884,10 @@ venv = Venv(
                             pys="3.12",
                             pkgs={"gevent": "~=23.9.0"},
                         ),
+                        Venv(
+                            pys=select_pys(min_version="3.13"),
+                            pkgs={"gevent": latest},
+                        ),
                     ],
                 ),
             ],
@@ -2943,13 +3000,17 @@ venv = Venv(
         Venv(
             name="openai_agents",
             command="pytest {cmdargs} tests/contrib/openai_agents",
-            pys=select_pys(min_version="3.9", max_version="3.13"),
-            pkgs={
-                "vcrpy": latest,
-                "pytest-asyncio": latest,
-                "openai": latest,
-                "openai-agents": ["~=0.0.0", latest],
-            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.13"),
+                    pkgs={
+                        "vcrpy": latest,
+                        "pytest-asyncio": latest,
+                        "openai": latest,
+                        "openai-agents": ["~=0.0.0", latest],
+                    },
+                )
+            ],
         ),
         Venv(
             name="langchain",
@@ -3064,7 +3125,6 @@ venv = Venv(
         Venv(
             name="anthropic",
             command="pytest {cmdargs} tests/contrib/anthropic",
-            pys=select_pys(min_version="3.8", max_version="3.12"),
             pkgs={
                 "pytest-asyncio": latest,
                 "vcrpy": latest,
@@ -3075,15 +3135,23 @@ venv = Venv(
                     pkgs={"anthropic": "~=0.28.0", "httpx": "~=0.27.0"},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.8", max_version="3.12"),
+                    pys=select_pys(min_version="3.8", max_version="3.13"),
                     pkgs={"anthropic": latest, "httpx": "<0.28.0"},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.14"),
+                    pkgs={
+                        "anthropic": latest,
+                        "httpx": "<0.28.0",
+                        "pydantic": "==2.12.0a1",
+                    },
                 ),
             ],
         ),
         Venv(
             name="google_generativeai",
             command="pytest {cmdargs} tests/contrib/google_generativeai",
-            pys=select_pys(min_version="3.9", max_version="3.12"),
+            pys=select_pys(min_version="3.9"),
             pkgs={
                 "pytest-asyncio": latest,
                 "google-generativeai": ["~=0.7.0", latest],
@@ -3105,22 +3173,42 @@ venv = Venv(
         Venv(
             name="google_adk",
             command="pytest {cmdargs} tests/contrib/google_adk",
-            pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
                 "pytest-asyncio": latest,
                 "google-adk": ["~=1.0.0", latest],
                 "vcrpy": latest,
                 "deprecated": latest,
             },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.13"),
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.14"),
+                    pkgs={
+                        "pydantic": "==2.12.0a1",
+                    },
+                ),
+            ],
         ),
         Venv(
             name="google_genai",
             command="pytest {cmdargs} tests/contrib/google_genai",
-            pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
                 "pytest-asyncio": latest,
                 "google-genai": latest,
             },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.13"),
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.14"),
+                    pkgs={
+                        "pydantic": "==2.12.0a1",
+                    },
+                ),
+            ],
         ),
         Venv(
             name="crewai",
@@ -3252,11 +3340,22 @@ venv = Venv(
         Venv(
             name="azure_servicebus",
             command="pytest {cmdargs} tests/contrib/azure_servicebus",
-            pys=select_pys(min_version="3.8", max_version="3.13"),
-            pkgs={
-                "azure.servicebus": ["~=7.14.0", latest],
-                "pytest-asyncio": "==0.23.7",
-            },
+            venvs=[
+                Venv(
+                    pys=select_pys(max_version="3.13"),
+                    pkgs={
+                        "azure.servicebus": ["~=7.14.0", latest],
+                        "pytest-asyncio": "==0.23.7",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.14"),
+                    pkgs={
+                        "azure.servicebus": latest,
+                        "pytest-asyncio": latest,
+                    },
+                ),
+            ],
         ),
         Venv(
             name="sourcecode",
@@ -3289,7 +3388,7 @@ venv = Venv(
                 ),
                 # Python 3.9-3.12
                 Venv(
-                    pys=select_pys(min_version="3.9", max_version="3.12"),
+                    pys=select_pys(min_version="3.9"),
                 ),
             ],
         ),
@@ -3324,7 +3423,7 @@ venv = Venv(
                 "langchain": latest,
                 "pandas": latest,
             },
-            pys=select_pys(min_version="3.8", max_version="3.13"),
+            pys=select_pys(min_version="3.8"),
         ),
         Venv(
             name="valkey",
