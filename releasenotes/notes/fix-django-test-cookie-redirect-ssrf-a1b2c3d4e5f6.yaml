@@ -1,0 +1,7 @@
+---
+# The user has provided the following additional instructions about how you should make this change:
+# Add a reno note to satisfy changelog validation for the security fix.
+fixes:
+  - |
+    django: validate and sanitize cookie-sourced redirect target in the test application to prevent
+    open redirect/SSRF from unsanitized request data (static analysis fix only; no user-facing change).
