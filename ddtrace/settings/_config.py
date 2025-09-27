@@ -198,6 +198,7 @@ INTEGRATION_CONFIGS = frozenset(
         "yaaredis",
         "openai_agents",
         "mcp",
+        "ray",
     }
 )
 

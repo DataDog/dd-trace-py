@@ -492,6 +492,13 @@ psycopg
 .. automodule:: ddtrace.contrib.internal.psycopg
 
 
+.. _ray:
+
+Ray
+^^^
+.. automodule:: ddtrace.contrib.internal.ray
+
+
 .. _redis:
 
 redis
