@@ -1,0 +1,5 @@
+features:
+  - |
+    azure_eventhubs: Add support for Azure Event Hubs producers.
+  - |
+    azure_functions: Add support for Event Hubs triggers.
