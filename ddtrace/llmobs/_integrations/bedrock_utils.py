@@ -40,7 +40,7 @@ def parse_model_id(model_id: str):
         if identifier not in model_id:
             continue
         model_id = model_id.rsplit(identifier, 1)[-1]
-        if identifier in ("foundation-model/", "custom-model/"):
+        if identifier in ("foundation-model/", "custom-model/", "inference-profile/"):
             model_meta = model_id.split(".")
             if len(model_meta) < 2:
                 return "custom", model_id
