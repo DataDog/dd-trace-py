@@ -589,7 +589,7 @@
         "dependency": "redis",
         "integration": "redis",
         "minimum_tracer_supported": "4.6.0",
-        "max_tracer_supported": "5.2.0",
+        "max_tracer_supported": "6.4.0",
         "auto-instrumented": true
     },
     {

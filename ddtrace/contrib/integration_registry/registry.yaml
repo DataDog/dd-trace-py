@@ -793,7 +793,7 @@ integrations:
   tested_versions_by_dependency:
     redis:
       min: 4.6.0
-      max: 5.2.0
+      max: 6.4.0
 
 - integration_name: rediscluster
   is_external_package: true
