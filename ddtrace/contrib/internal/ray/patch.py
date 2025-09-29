@@ -63,6 +63,7 @@ from .utils import set_tag_or_truncate
 
 log = get_logger(__name__)
 
+RAY_SERVICE_NAME = os.environ.get(RAY_JOB_NAME)
 
 # Ray modules that should be excluded from tracing
 RAY_MODULE_DENYLIST = {
@@ -111,7 +112,7 @@ def _wrap_task_execution(wrapped, *args, **kwargs):
     with long_running_ray_span(
         "task.execute",
         resource=f"{wrapped.__module__}.{wrapped.__qualname__}",
-        service=os.environ.get(RAY_JOB_NAME),
+        service=RAY_SERVICE_NAME,
         span_type=SpanTypes.RAY,
         child_of=extracted_context,
         activate=True,
@@ -152,7 +153,7 @@ def traced_submit_task(wrapped, instance, args, kwargs):
     with tracer.trace(
         "task.submit",
         resource=f"{instance._function_name}.remote",
-        service=os.environ.get(RAY_JOB_NAME),
+        service=RAY_SERVICE_NAME,
         span_type=SpanTypes.RAY,
     ) as span:
         span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
@@ -253,7 +254,7 @@ def traced_actor_method_call(wrapped, instance, args, kwargs):
 
     with tracer.trace(
         "actor_method.submit",
-        service=os.environ.get(RAY_JOB_NAME),
+        service=RAY_SERVICE_NAME,
         span_type=SpanTypes.RAY,
         resource=f"{actor_name}.{method_name}.remote",
     ) as span:
@@ -276,7 +277,7 @@ def traced_wait(wrapped, instance, args, kwargs):
 
     with long_running_ray_span(
         "ray.wait",
-        service=os.environ.get(RAY_JOB_NAME),
+        service=RAY_SERVICE_NAME,
         span_type=SpanTypes.RAY,
         child_of=tracer.context_provider.active(),
         activate=True,
@@ -306,7 +307,7 @@ def _job_supervisor_run_wrapper(method: Callable[..., Any]) -> Any:
         with long_running_ray_span(
             "actor_method.execute",
             resource=f"{self.__class__.__name__}.{method.__name__}",
-            service=os.environ.get(RAY_JOB_NAME),
+            service=RAY_SERVICE_NAME,
             span_type=SpanTypes.RAY,
             child_of=context,
             activate=True,
@@ -344,7 +345,7 @@ def _exec_entrypoint_wrapper(method: Callable[..., Any]) -> Any:
         with tracer.trace(
             "exec entrypoint",
             resource=f"exec {entrypoint_name}",
-            service=os.environ.get(RAY_JOB_NAME),
+            service=RAY_SERVICE_NAME,
             span_type=SpanTypes.RAY,
         ) as span:
             span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
@@ -364,7 +365,7 @@ def _trace_actor_method(self: Any, method: Callable[..., Any], dd_trace_ctx, *ar
     with long_running_ray_span(
         "actor_method.execute",
         resource=f"{self.__class__.__name__}.{method.__name__}",
-        service=os.environ.get(RAY_JOB_NAME),
+        service=RAY_SERVICE_NAME,
         span_type=SpanTypes.RAY,
         child_of=context,
         activate=True,

@@ -113,7 +113,7 @@ class TestLongRunningSpan(TracerTestCase):
             self.assertIn((span1.trace_id, span1.span_id), job_spans)
             self.assertIn((span2.trace_id, span2.span_id), job_spans)
 
-        time.sleep(1.5)
+        time.sleep(2)
 
         self.assertGreater(span1.get_metric("_dd.partial_version"), 0)
         self.assertEqual(span1.get_tag("ray.job.status"), "RUNNING")

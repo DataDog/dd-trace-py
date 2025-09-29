@@ -7,12 +7,12 @@ import time
 from ddtrace import config
 from ddtrace import tracer
 from ddtrace._trace.span import Span
+from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
 
 from .constants import DD_PARTIAL_VERSION
 from .constants import DD_WAS_LONG_RUNNING
-from .constants import ERROR_MESSAGE
 from .constants import RAY_COMPONENT
 from .constants import RAY_JOB_MESSAGE
 from .constants import RAY_JOB_STATUS
@@ -177,7 +177,7 @@ class RaySpanManager:
 
             if str(job_info.status) == RAY_STATUS_FAILED:
                 span.error = 1
-                span.set_tag_str(ERROR_MESSAGE, job_info.message)
+                span.set_tag_str(ERROR_MSG, job_info.message)
         span.finish()
 
     def add_span(self, span):

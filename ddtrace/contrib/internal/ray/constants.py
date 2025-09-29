@@ -40,9 +40,6 @@ RAY_WAIT_TIMEOUT = "ray.wait.timeout_s"
 RAY_WAIT_NUM_RETURNS = "ray.wait.num_returns"
 RAY_WAIT_FETCH_LOCAL = "ray.wait.fetch_local"
 
-# Error tag names
-ERROR_MESSAGE = "error.message"
-
 # Long-running span metric names
 DD_PARTIAL_VERSION = "_dd.partial_version"
 DD_WAS_LONG_RUNNING = "_dd.was_long_running"

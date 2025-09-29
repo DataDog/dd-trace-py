@@ -7,6 +7,9 @@ The ray integration traces:
 Enabling
 ~~~~~~~~
 
+Ray instrumentation is experimental. It is deactivated by default. To enable it,
+you have to follow one of the two methods below:
+
 The recommended way to instrument Ray, is to instrument the Ray cluster.
 You can do it by starting the Ray head with a tracing startup hook::
 
