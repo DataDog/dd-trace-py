@@ -3,16 +3,6 @@ from functools import wraps
 import logging
 import sys
 
-
-try:
-    import pytest_asyncio
-
-    from ddtrace.internal.utils.version import parse_version
-
-    PYTEST_ASYNCIO_VERSION = parse_version(pytest_asyncio.__version__)
-except (ModuleNotFoundError, ImportError):
-    PYTEST_ASYNCIO_VERSION = None
-
 from tests.utils import TracerTestCase
 
 
