@@ -2020,6 +2020,61 @@ class PytestTestCase(PytestTestCaseBase):
         assert second_tag_data["/test_ret_false.py"] == [(1, 2)]
         assert second_tag_data["/test_cov.py"] == [(1, 1), (3, 3), (9, 11)]
 
+    @pytest.mark.skipif(
+        not _PYTEST_SUPPORTS_ITR,
+        reason=f"pytest version {get_version()} does not support ITR coverage reporting",
+    )
+    def test_pytest_will_report_coverage_of_import_level_constants(self):
+        self.testdir.makepyfile(
+            lib_constant="""
+        ANSWER = 42
+        """
+        )
+        py_cov_file = self.testdir.makepyfile(
+            test_cov="""
+        import pytest
+
+        from lib_constant import ANSWER
+
+        def test_cov():
+            assert ANSWER == 42
+        """
+        )
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+            return_value=True,
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=TestVisibilityAPISettings(True, False, False, True),
+        ):
+            self.inline_run(
+                "--ddtrace",
+                os.path.basename(py_cov_file.strpath),
+                extra_env={
+                    "_DD_CIVISIBILITY_ITR_SUITE_MODE": "False",
+                },
+            )
+        spans = self.pop_spans()
+
+        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
+        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "false"
+        assert session_span.get_tag("test.code_coverage.enabled") == "true"
+
+        module_span = [span for span in spans if span.get_tag("type") == "test_module_end"][0]
+        assert module_span.get_tag("test.itr.tests_skipping.enabled") == "false"
+        assert module_span.get_tag("test.code_coverage.enabled") == "true"
+
+        test_span = spans[0]
+        assert test_span.get_tag("test.name") == "test_cov"
+        assert test_span.get_tag("type") == "test"
+
+        tag_data = _get_span_coverage_data(test_span, True)
+        assert len(tag_data) == 2
+        assert sorted(tag_data.keys()) == ["/lib_constant.py", "/test_cov.py"]
+        assert tag_data["/lib_constant.py"] == [(1, 1)]
+        assert tag_data["/test_cov.py"] == [(1, 1), (3, 3), (5, 6)]
+
     def test_pytest_will_report_git_metadata(self):
         py_file = self.testdir.makepyfile(
             """
