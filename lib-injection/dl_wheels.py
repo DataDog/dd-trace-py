@@ -42,7 +42,7 @@ if pip_version < MIN_PIP_VERSION:
     )
 
 # Supported Python versions lists all python versions that can install at least one version of the ddtrace library.
-supported_versions = ["2.7", "3.6", "3.7", "3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+supported_versions = ["2.7", "3.6", "3.7", "3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 supported_arches = ["aarch64", "x86_64", "i686"]
 supported_platforms = ["musllinux_1_2", "manylinux2014"]
 
@@ -88,9 +88,7 @@ for python_version, platform in itertools.product(args.python_version, args.plat
             ddtrace_specifier = "ddtrace==%s" % args.ddtrace_version
         elif args.local_ddtrace:
             wheel_files = [
-                f
-                for f in os.listdir(".")
-                if f.endswith(".whl") and f"{abi}-{abi}-" in f and platform in f and arch in f
+                f for f in os.listdir(".") if f.endswith(".whl") and abi in f and platform in f and arch in f
             ]
 
             if len(wheel_files) > 1:
