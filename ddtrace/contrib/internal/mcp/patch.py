@@ -4,13 +4,11 @@ from typing import Any
 from typing import Dict
 from typing import Optional
 
-import wrapt
-
-from ddtrace._trace.span import Span
 import mcp
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
+from ddtrace._trace.span import Span
 from ddtrace.contrib.internal.trace_utils import activate_distributed_headers
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
@@ -202,11 +200,11 @@ async def traced_base_session_aenter(mcp, pin: Pin, func, instance, args: tuple,
         span.finish()
         raise
 
+
 @with_traced_module
 async def traced_base_session_aexit(mcp, pin: Pin, func, instance, args: tuple, kwargs: dict):
     integration: MCPIntegration = mcp._datadog_integration
     span: Optional[Span] = getattr(instance, "_dd_span", None)
-    
 
     try:
         return await func(*args, **kwargs)
@@ -216,7 +214,16 @@ async def traced_base_session_aexit(mcp, pin: Pin, func, instance, args: tuple, 
         raise
     finally:
         if span:
-            integration.llmobs_set_tags(span, args=[], kwargs=dict(read_stream=_get_attr(instance, "_read_stream", None), write_stream=_get_attr(instance, "_write_stream", None)), response=None, operation="session")
+            integration.llmobs_set_tags(
+                span,
+                args=[],
+                kwargs=dict(
+                    read_stream=_get_attr(instance, "_read_stream", None),
+                    write_stream=_get_attr(instance, "_write_stream", None),
+                ),
+                response=None,
+                operation="session",
+            )
             span.finish()
 
 
@@ -232,9 +239,8 @@ def patch():
     from mcp.server.fastmcp.tools.tool_manager import ToolManager
     from mcp.shared.session import BaseSession
 
-    # wrap(BaseSession, "__init__", traced_base_session_init(mcp))
-    wrap(BaseSession, "__aenter__", traced_base_session_aenter(mcp))
-    wrap(BaseSession, "__aexit__", traced_base_session_aexit(mcp))
+    wrap(ClientSession, "__aenter__", traced_base_session_aenter(mcp))
+    wrap(ClientSession, "__aexit__", traced_base_session_aexit(mcp))
     wrap(BaseSession, "send_request", traced_send_request(mcp))
     wrap(ClientSession, "call_tool", traced_call_tool(mcp))
     wrap(ClientSession, "list_tools", traced_client_session_list_tools(mcp))
@@ -252,7 +258,8 @@ def unpatch():
     from mcp.server.fastmcp.tools.tool_manager import ToolManager
     from mcp.shared.session import BaseSession
 
-    unwrap(BaseSession, "__init__")
+    unwrap(ClientSession, "__aenter__")
+    unwrap(ClientSession, "__aexit__")
     unwrap(BaseSession, "send_request")
     unwrap(ClientSession, "call_tool")
     unwrap(ClientSession, "list_tools")

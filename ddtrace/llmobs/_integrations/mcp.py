@@ -107,32 +107,28 @@ class MCPIntegration(BaseLLMIntegration):
         span._set_ctx_item(OUTPUT_VALUE, output_value)
 
     def _llmobs_set_tags_initialize(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any) -> None:
-        span._set_ctx_items({
-            NAME: "MCP Client Initialize",
-            SPAN_KIND: "task",
-            OUTPUT_VALUE: safe_json(response)
-        })
+        span._set_ctx_items({NAME: "MCP Client Initialize", SPAN_KIND: "task", OUTPUT_VALUE: safe_json(response)})
 
     def _llmobs_set_tags_list_tools(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any) -> None:
         cursor = get_argument_value(args, kwargs, 0, "cursor", optional=True)
 
-        span._set_ctx_items({
-            NAME: "MCP Client List Tools",
-            SPAN_KIND: "task",
-            INPUT_VALUE: safe_json({"cursor": cursor}),
-            OUTPUT_VALUE: safe_json(response),
-        })
+        span._set_ctx_items(
+            {
+                NAME: "MCP Client List Tools",
+                SPAN_KIND: "task",
+                INPUT_VALUE: safe_json({"cursor": cursor}),
+                OUTPUT_VALUE: safe_json(response),
+            }
+        )
 
     def _llmobs_set_tags_session(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any) -> None:
-
         read_stream = kwargs.get("read_stream", None)
         write_stream = kwargs.get("write_stream", None)
 
-        span._set_ctx_items({
-            NAME: "MCP Client Session",
-            SPAN_KIND: "workflow",
-            INPUT_VALUE: safe_json({
-                "read_stream": read_stream, 
-                "write_stream": write_stream
-            }),
-        })
+        span._set_ctx_items(
+            {
+                NAME: "MCP Client Session",
+                SPAN_KIND: "workflow",
+                INPUT_VALUE: safe_json({"read_stream": read_stream, "write_stream": write_stream}),
+            }
+        )
