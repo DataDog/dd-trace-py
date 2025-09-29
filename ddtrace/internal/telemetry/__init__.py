@@ -153,7 +153,6 @@ def _unsupported_otel_config(otel_env):
 
 
 def validate_otel_envs():
-    metrics_exporter_enabled = True
     user_envs = {key.upper(): value for key, value in os.environ.items()}
     for otel_env, _ in user_envs.items():
         if (
@@ -169,15 +168,20 @@ def validate_otel_envs():
                 _invalid_otel_config(otel_env)
             # TODO: Separate from validation
             telemetry_writer.add_configuration(otel_env, otel_value, "env_var")
-        elif otel_env == "OTEL_METRICS_EXPORTER":
-            # check for invalid values
-            otel_value = os.environ.get(otel_env, "otlp").lower()
-            if otel_value == "none":
-                metrics_exporter_enabled = False
-            elif otel_value != "otlp":
-                _invalid_otel_config(otel_env)
-            # TODO: Separate from validation
-            telemetry_writer.add_configuration(otel_env, otel_value, "env_var")
+
+
+def validate_and_report_otel_metrics_exporter_enabled():
+    metrics_exporter_enabled = True
+    user_envs = {key.upper(): value for key, value in os.environ.items()}
+    if "OTEL_METRICS_EXPORTER" in user_envs:
+        otel_value = os.environ.get("OTEL_METRICS_EXPORTER", "otlp").lower()
+        if otel_value == "none":
+            metrics_exporter_enabled = False
+        elif otel_value != "otlp":
+            _invalid_otel_config(otel_env)
+
+        # Report to configuration telemetry
+        telemetry_writer.add_configuration("OTEL_METRICS_EXPORTER", otel_value, "env_var")
 
     return metrics_exporter_enabled
 

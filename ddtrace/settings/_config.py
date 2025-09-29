@@ -15,6 +15,7 @@ from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry import validate_otel_envs
+from ddtrace.internal.telemetry import validate_and_report_otel_metrics_exporter_enabled
 from ddtrace.internal.utils.cache import cachedmethod
 
 from .._logger import get_log_injection_state
@@ -429,7 +430,7 @@ class Config(object):
 
     def __init__(self):
         # Must validate Otel configurations before creating the config object.
-        metrics_exporter_enabled = validate_otel_envs()
+        validate_otel_envs()
 
         # Must come before _integration_configs due to __setattr__
         self._from_endpoint = ENDPOINT_FETCHED_CONFIG
@@ -630,7 +631,8 @@ class Config(object):
         )
         self._otel_trace_enabled = _get_config("DD_TRACE_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
         self._otel_metrics_enabled = (
-            _get_config("DD_METRICS_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED") and metrics_exporter_enabled
+            _get_config("DD_METRICS_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
+            and validate_and_report_otel_metrics_exporter_enabled()
         )
         self._otel_logs_enabled = _get_config("DD_LOGS_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
         if self._otel_trace_enabled or self._otel_logs_enabled or self._otel_metrics_enabled:
