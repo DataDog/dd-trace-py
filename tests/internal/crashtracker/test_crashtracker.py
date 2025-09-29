@@ -487,6 +487,7 @@ def test_crashtracker_user_tags_envvar(run_python_code_in_subprocess):
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.skipif(sys.version_info >= (3, 14), reason="Stack v2 not supported on 3.14")
 def test_crashtracker_set_tag_profiler_config(snapshot_context, run_python_code_in_subprocess):
     with utils.with_test_agent() as client:
         env = os.environ.copy()
@@ -509,6 +510,7 @@ def test_crashtracker_set_tag_profiler_config(snapshot_context, run_python_code_
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.skipif(sys.version_info >= (3, 14), reason="Stack v2 not supported on 3.14")
 @pytest.mark.subprocess()
 def test_crashtracker_user_tags_profiling():
     # Tests tag ingestion in the backend API (which is currently out of profiling)

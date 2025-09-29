@@ -1,6 +1,5 @@
 from collections import defaultdict
 from collections import deque
-from pathlib import Path
 from types import CodeType
 from types import FunctionType
 from types import ModuleType
@@ -24,6 +23,7 @@ from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.utils.inspection import collect_code_objects
 from ddtrace.internal.utils.inspection import functions_for_code
 from ddtrace.internal.utils.inspection import linenos
+from ddtrace.internal.utils.inspection import resolved_code_origin
 from ddtrace.internal.utils.inspection import undecorated
 
 
@@ -209,7 +209,7 @@ def _collect_functions(module: ModuleType) -> Dict[str, _FunctionCodePair]:
 
                 for name in (k, local_name) if isinstance(k, str) and k != local_name else (local_name,):
                     fullname = ".".join((c.__fullname__, name)) if c.__fullname__ else name
-                    if fullname not in functions or Path(code.co_filename).resolve() == path:
+                    if fullname not in functions or resolved_code_origin(code) == path:
                         # Give precedence to code objects from the module and
                         # try to retrieve any potentially decorated function so
                         # that we don't end up returning the decorator function
@@ -285,7 +285,7 @@ class FunctionDiscovery(defaultdict):
 
                 if (
                     function not in seen_functions
-                    and Path(cast(FunctionType, function).__code__.co_filename).resolve() == module_path
+                    and resolved_code_origin(cast(FunctionType, function).__code__) == module_path
                 ):
                     # We only map line numbers for functions that actually belong to
                     # the module.
@@ -342,7 +342,7 @@ class FunctionDiscovery(defaultdict):
 
             code = pair.code
             assert code is not None  # nosec
-            f = undecorated(cast(FunctionType, target), cast(str, part), Path(code.co_filename).resolve())
+            f = undecorated(cast(FunctionType, target), cast(str, part), resolved_code_origin(code))
             if not (isinstance(f, FunctionType) and f.__code__ is code):
                 raise e
 

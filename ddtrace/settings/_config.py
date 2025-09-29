@@ -101,6 +101,7 @@ INTEGRATION_CONFIGS = frozenset(
         "flask",
         "google_generativeai",
         "google_genai",
+        "google_adk",
         "urllib3",
         "subprocess",
         "kafka",
