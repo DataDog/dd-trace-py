@@ -36,9 +36,7 @@ def _traced_agent_run_async(adk, pin, wrapped, instance, args, kwargs):
     integration: GoogleAdkIntegration = adk._datadog_integration
     agent = getattr(instance, "agent", None)
     model = getattr(agent, "model", None)
-    provider_name, model_name = extract_provider_and_model_name(
-        instance=model, model_name_attr="model"
-    )
+    provider_name, model_name = extract_provider_and_model_name(instance=model, model_name_attr="model")
 
     span = integration.trace(
         pin,
