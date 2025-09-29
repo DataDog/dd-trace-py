@@ -1104,6 +1104,9 @@ def listen():
         "redis.execute_pipeline",
         "redis.command",
         "psycopg.patched_connect",
+        "azure.eventhub.patched_producer_batch",
+        "azure.eventhub.patched_producer_send",
+        "azure.eventhub.patched_producer_send_batch",
     ):
         core.on(f"context.ended.{name}", _finish_span)
 
