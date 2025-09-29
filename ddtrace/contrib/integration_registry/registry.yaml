@@ -944,7 +944,6 @@ integrations:
 - integration_name: vllm
   is_external_package: true
   is_tested: true
-  gpu: true
   dependency_names:
   - vllm
   tested_versions_by_dependency:

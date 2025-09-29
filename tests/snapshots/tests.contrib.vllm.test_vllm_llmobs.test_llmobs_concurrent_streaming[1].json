@@ -10,10 +10,10 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68d1622b00000000",
+      "_dd.p.tid": "68da353c00000000",
       "language": "python",
-      "runtime-id": "5863fe8d5a434fdab8196400df43c1b6",
-      "vllm.request.model": "BAAI/bge-reranker-v2-m3",
+      "runtime-id": "9f5c00eb75a04525966b2579901b1e3c",
+      "vllm.request.model": "facebook/opt-125m",
       "vllm.request.provider": "vllm"
     },
     "metrics": {
@@ -21,11 +21,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25984,
-      "vllm.latency.queue": 0.0011088848114013672
+      "process_id": 513
     },
-    "duration": 20419627,
-    "start": 1758552619887127296
+    "duration": 487521320,
+    "start": 1759130940598171472
   }],
 [
   {
@@ -39,10 +38,10 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68d1622b00000000",
+      "_dd.p.tid": "68da353c00000000",
       "language": "python",
-      "runtime-id": "5863fe8d5a434fdab8196400df43c1b6",
-      "vllm.request.model": "BAAI/bge-reranker-v2-m3",
+      "runtime-id": "9f5c00eb75a04525966b2579901b1e3c",
+      "vllm.request.model": "facebook/opt-125m",
       "vllm.request.provider": "vllm"
     },
     "metrics": {
@@ -50,9 +49,8 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25984,
-      "vllm.latency.queue": 0.0008597373962402344
+      "process_id": 513
     },
-    "duration": 20495327,
-    "start": 1758552619887376640
+    "duration": 491590787,
+    "start": 1759130940600287797
   }]]

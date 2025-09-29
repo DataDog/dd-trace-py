@@ -10,9 +10,9 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68d1650700000000",
+      "_dd.p.tid": "68da35b000000000",
       "language": "python",
-      "runtime-id": "31503b82efc842989ce09f05e0c1acd6",
+      "runtime-id": "9f5c00eb75a04525966b2579901b1e3c",
       "vllm.request.model": "BAAI/bge-reranker-v2-m3",
       "vllm.request.provider": "vllm"
     },
@@ -21,11 +21,11 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 31474,
-      "vllm.latency.queue": 0.0016317367553710938
+      "process_id": 513,
+      "vllm.latency.queue": 0.0022089481353759766
     },
-    "duration": 20926875,
-    "start": 1758553351521965056
+    "duration": 26383480,
+    "start": 1759131056859658240
   }],
 [
   {
@@ -39,9 +39,9 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68d1650700000000",
+      "_dd.p.tid": "68da35b000000000",
       "language": "python",
-      "runtime-id": "31503b82efc842989ce09f05e0c1acd6",
+      "runtime-id": "9f5c00eb75a04525966b2579901b1e3c",
       "vllm.request.model": "BAAI/bge-reranker-v2-m3",
       "vllm.request.provider": "vllm"
     },
@@ -50,9 +50,9 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 31474,
-      "vllm.latency.queue": 0.001024484634399414
+      "process_id": 513,
+      "vllm.latency.queue": 0.0012269020080566406
     },
-    "duration": 20612324,
-    "start": 1758553351522572288
+    "duration": 27107119,
+    "start": 1759131056860640256
   }]]

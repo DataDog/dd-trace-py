@@ -10,10 +10,10 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68d269b000000000",
+      "_dd.p.tid": "68da358400000000",
       "language": "python",
-      "runtime-id": "04ba83300e39431fa7fde00c375b7814",
-      "vllm.request.model": "intfloat/e5-small",
+      "runtime-id": "9f5c00eb75a04525966b2579901b1e3c",
+      "vllm.request.model": "BAAI/bge-reranker-v2-m3",
       "vllm.request.provider": "vllm"
     },
     "metrics": {
@@ -21,11 +21,11 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 16611,
-      "vllm.latency.queue": 0.001127481460571289
+      "process_id": 513,
+      "vllm.latency.queue": 0.0019385814666748047
     },
-    "duration": 462847641,
-    "start": 1758620079910002176
+    "duration": 82311209,
+    "start": 1759131012828303616
   }],
 [
   {
@@ -39,10 +39,10 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68d269b000000000",
+      "_dd.p.tid": "68da358400000000",
       "language": "python",
-      "runtime-id": "04ba83300e39431fa7fde00c375b7814",
-      "vllm.request.model": "intfloat/e5-small",
+      "runtime-id": "9f5c00eb75a04525966b2579901b1e3c",
+      "vllm.request.model": "BAAI/bge-reranker-v2-m3",
       "vllm.request.provider": "vllm"
     },
     "metrics": {
@@ -50,9 +50,9 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 16611,
-      "vllm.latency.queue": 0.0011241436004638672
+      "process_id": 513,
+      "vllm.latency.queue": 0.0010113716125488281
     },
-    "duration": 9836064,
-    "start": 1758620080373666816
+    "duration": 83105733,
+    "start": 1759131012829230848
   }]]
