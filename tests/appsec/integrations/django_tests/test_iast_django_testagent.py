@@ -49,6 +49,7 @@ def test_iast_cmdi_bodies(body, content_type, server):
     token = "test_iast_cmdi_bodies"
     start_trace(token)
     with server(
+        use_ddtrace_cmd=False,
         iast_enabled="true",
         appsec_enabled="false",
         token=token,
@@ -107,6 +108,7 @@ def test_iast_cmdi_bodies(body, content_type, server):
 @pytest.mark.parametrize("server", (gunicorn_django_server, django_server))
 def test_iast_untrusted_serialization_yaml(server, iast_test_token):
     with server(
+        use_ddtrace_cmd=False,
         iast_enabled="true",
         token=iast_test_token,
         env={
