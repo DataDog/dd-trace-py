@@ -7,6 +7,7 @@ import pytest
 
 from ddtrace import tracer as ddtracer
 from ddtrace._trace.pin import Pin
+from ddtrace.propagation.http import HTTPPropagator
 
 from .api_app import app
 
@@ -36,5 +37,9 @@ def test_rag_parent_child(vllm, mock_tracer, llmobs_events, vllm_engine_mode):
         ],
     }
 
-    res = client.post("/rag", json=payload)
+    # Create the parent span on the client, inject headers, and call the server
+    headers = {}
+    with ddtracer.trace("api.rag", service="tests.contrib.vllm"):
+        HTTPPropagator.inject(ddtracer.current_span().context, headers)
+        res = client.post("/rag", json=payload, headers=headers)
     assert res.status_code == 200

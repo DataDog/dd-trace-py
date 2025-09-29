@@ -1,0 +1,58 @@
+[[
+  {
+    "name": "vllm.request",
+    "service": "tests.contrib.vllm",
+    "resource": "vllm.request",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "llm",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68da490f00000000",
+      "language": "python",
+      "runtime-id": "8d7831f8171c467db59d85b7ab2b9f22",
+      "vllm.request.model": "BAAI/bge-reranker-v2-m3",
+      "vllm.request.provider": "vllm"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 22012,
+      "vllm.latency.queue": 0.0024013519287109375
+    },
+    "duration": 40840576,
+    "start": 1759136015189784064
+  }],
+[
+  {
+    "name": "vllm.request",
+    "service": "tests.contrib.vllm",
+    "resource": "vllm.request",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "llm",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68da490f00000000",
+      "language": "python",
+      "runtime-id": "8d7831f8171c467db59d85b7ab2b9f22",
+      "vllm.request.model": "BAAI/bge-reranker-v2-m3",
+      "vllm.request.provider": "vllm"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 22012,
+      "vllm.latency.queue": 0.0012371540069580078
+    },
+    "duration": 41487421,
+    "start": 1759136015190948352
+  }]]

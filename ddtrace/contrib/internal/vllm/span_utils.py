@@ -100,7 +100,8 @@ def inject_trace_headers(
     if not pin or not pin.tracer:
         return
 
-    parent = pin.tracer.current_span()
+    # parent = pin.tracer.current_span()
+    parent = pin.tracer.context_provider.active()
 
     # Determine if we're working with args or kwargs for trace_headers
     headers_in_args = trace_headers_arg_pos is not None and len(args) > trace_headers_arg_pos
@@ -112,8 +113,14 @@ def inject_trace_headers(
 
     # Start with existing headers
     headers = dict(existing_headers)
-    if parent:
+    if isinstance(parent, Span):
+        log.debug("[VLLM DD] inject_trace_headers: parent is a Span")
         HTTPPropagator.inject(parent.context, headers)
+    elif isinstance(parent, Context):
+        log.debug("[VLLM DD] inject_trace_headers: parent is a Context")
+        HTTPPropagator.inject(parent, headers)
+    else:
+        log.debug("[VLLM DD] inject_trace_headers: parent is not a Span or Context")
 
     # Extract prompt directly from the provided prompt argument
     if prompt_arg_pos is not None:

@@ -111,9 +111,13 @@ def llmobs_events(vllm_llmobs, llmobs_span_writer):
     return llmobs_span_writer.events
 
 
-@pytest.fixture(params=["0", "1"])
-def vllm_engine_mode(request, monkeypatch):
-    # Parametrize tests to run under both V0 and V1 engines
-    monkeypatch.setenv("VLLM_USE_V1", request.param)
+@pytest.fixture
+def vllm_engine_mode(monkeypatch):
+    # Derive engine mode from environment for CI job split (default v1)
+    mode = (importlib.import_module("os").environ.get("VLLM_USE_V1", "1")).strip()
+    if mode not in {"0", "1"}:
+        mode = "1"
+    print(f"VLLM_USE_V1: {mode}")
+    monkeypatch.setenv("VLLM_USE_V1", mode)
     monkeypatch.setenv("DD_TRACE_DEBUG", "1")
-    return request.param
+    return mode

@@ -15,6 +15,7 @@ IGNORE_FIELDS = [
     "metrics.vllm.latency.queue",
 ]
 
+
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_llmobs_basic(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
     llm = get_llm(
@@ -193,13 +194,16 @@ def test_llmobs_classify(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-async def test_stream_cancel_early_break_v1(vllm, mock_tracer, monkeypatch, llmobs_events):
-    monkeypatch.setenv("VLLM_USE_V1", "1")
+async def test_stream_cancel_early_break_v1(vllm, mock_tracer, monkeypatch, llmobs_events, vllm_engine_mode):
+    if vllm_engine_mode != "1":
+        pytest.skip("V1 engine mode is required")
 
     engine = create_async_engine(
         model="facebook/opt-125m",
-        engine_mode="1",
         enforce_eager=True,
+        max_model_len=256,
+        compilation_config={"use_inductor": False},
+        trust_remote_code=True,
     )
 
     sampling_params = vllm.SamplingParams(
@@ -276,8 +280,9 @@ async def test_stream_cancel_early_break_v1(vllm, mock_tracer, monkeypatch, llmo
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-async def test_stream_cancel_early_break_v0_mq(vllm, mock_tracer, monkeypatch, llmobs_events):
-    monkeypatch.setenv("VLLM_USE_V1", "0")
+async def test_stream_cancel_early_break_v0_mq(vllm, mock_tracer, monkeypatch, llmobs_events, vllm_engine_mode):
+    if vllm_engine_mode != "0":
+        pytest.skip("V0 engine mode is required")
     monkeypatch.delenv("PROMETHEUS_MULTIPROC_DIR", raising=False)
 
     from vllm.engine.arg_utils import AsyncEngineArgs
