@@ -155,7 +155,6 @@ def get_app():
                     value = data[0]
         elif "application/x-www-form-urlencoded" in content_type:
             form = parse_qs(text)
-            print(f"form! {form}")
             # Prefer specific key, otherwise take any first value
             if "master_key" in form and form["master_key"]:
                 value = form["master_key"][0]
