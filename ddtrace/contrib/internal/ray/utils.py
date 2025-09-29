@@ -145,9 +145,6 @@ def json_to_dot_paths(data):
       it is returned unchanged. If the top-level is a list, it is stringified.
     - Returned dict keys are prefixed once with RAY_METADATA_PREFIX.
     """
-    # If top-level is a primitive, return it directly
-    if not isinstance(data, (dict, list)):
-        return data
 
     # If top-level is a list, stringify and return
     if isinstance(data, list):
