@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    llmobs: Resolves an issue where inference profiles were not being parsed correctly from the model ID in the bedrock integration. 
