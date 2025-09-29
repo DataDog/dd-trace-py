@@ -3577,6 +3577,13 @@ venv = Venv(
                                 "PYTHONMALLOC": ["pymalloc", "malloc", "malloc_debug", "pymalloc_debug"],
                             },
                         ),
+                        # jemalloc allocator
+                        Venv(
+                            env={
+                                "PYTHONMALLOC": "malloc",
+                                "LD_PRELOAD": "libjemalloc.so.2",
+                            },
+                        ),
                     ],
                 ),
             ],
