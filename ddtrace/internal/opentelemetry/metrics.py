@@ -123,20 +123,10 @@ def _dd_metrics_exporter(otel_exporter: Type[Any], protocol: str, encoding: str)
             log.debug("Exporting OpenTelemetry Metrics with %s protocol and %s encoding", protocol, encoding)
             result = super().export(metrics_data, timeout_millis, *args, **kwargs)
 
-            if result.value == 0:
+            if result.value == 0 or result.value == 1:
                 telemetry_writer.add_count_metric(
                     TELEMETRY_NAMESPACE.TRACERS,
-                    "otel.metrics_export_successes",
-                    1,
-                    (
-                        ("protocol", protocol),
-                        ("encoding", encoding),
-                    ),
-                )
-            elif result.value == 1:
-                telemetry_writer.add_count_metric(
-                    TELEMETRY_NAMESPACE.TRACERS,
-                    "otel.metrics_export_failures",
+                    "otel.metrics_export_successes" if result.value == 0 else "otel.metrics_export_failures",
                     1,
                     (
                         ("protocol", protocol),
