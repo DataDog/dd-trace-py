@@ -62,7 +62,6 @@ def llmobs_events(llmobs, llmobs_span_writer):
 # `sys.modules`. Additionally, changing to "session" will fail snapshot tests.
 # Setting this to "module" seems to work the best.
 # Additionally, this likely isn't an indication of a bug in our code, but how patching happens during tests.
-# In userland, patching will really only happen once, and unpatching almost never.
 @pytest.fixture(scope="module")
 def langchain_core():
     with override_env(

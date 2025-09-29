@@ -582,11 +582,10 @@ def traced_similarity_search(langchain_core, pin, func, instance, args, kwargs):
 
 
 def patched_embeddings_init_subclass(func, instance, args, kwargs):
-    try:
-        func(*args, **kwargs)
-    finally:
-        cls = func.__self__
+    func(*args, **kwargs)
+    cls = func.__self__
 
+    try:
         embed_documents = getattr(cls, "embed_documents", None)
         if embed_documents and not isinstance(embed_documents, wrapt.ObjectProxy):
             wrap(cls, "embed_documents", traced_embedding(langchain_core))
@@ -594,17 +593,20 @@ def patched_embeddings_init_subclass(func, instance, args, kwargs):
         embed_query = getattr(cls, "embed_query", None)
         if embed_query and not isinstance(embed_query, wrapt.ObjectProxy):
             wrap(cls, "embed_query", traced_embedding(langchain_core))
+    except Exception:
+        log.warning("Unable to patch LangChain Embeddings class %s", str(cls))
 
 
 def patched_vectorstore_init_subclass(func, instance, args, kwargs):
-    try:
-        func(*args, **kwargs)
-    finally:
-        cls = func.__self__
+    func(*args, **kwargs)
+    cls = func.__self__
 
+    try:
         method = getattr(cls, "similarity_search", None)
         if method and not isinstance(method, wrapt.ObjectProxy):
             wrap(cls, "similarity_search", traced_similarity_search(langchain_core))
+    except Exception:
+        log.warning("Unable to patch LangChain VectorStore class %s", str(cls))
 
 
 def patch():
