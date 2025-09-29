@@ -6,13 +6,15 @@ import os.path
 import sys
 import time
 import types
-from typing import Any
-from typing import Callable
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Tuple
-from typing import Type
+from typing import (  # noqa: I001
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Type,
+)
 
 import wrapt
 
@@ -27,7 +29,7 @@ from ddtrace.trace import Tracer
 
 
 def _current_thread() -> Tuple[int, str]:
-    thread_id = _thread.get_ident()
+    thread_id: int = _thread.get_ident()
     return thread_id, _threading.get_thread_name(thread_id)
 
 
@@ -47,6 +49,14 @@ else:
 
 
 class _ProfiledLock(wrapt.ObjectProxy):
+    _self_tracer: Optional[Tracer]
+    _self_max_nframes: int
+    _self_capture_sampler: collector.CaptureSampler
+    _self_endpoint_collection_enabled: bool
+    _self_init_loc: str
+    _self_name: Optional[str]
+    _self_acquired_at: int  # monotonic_ns timestamp
+
     def __init__(
         self,
         wrapped: Any,
@@ -63,9 +73,9 @@ class _ProfiledLock(wrapt.ObjectProxy):
         frame: FrameType = sys._getframe(2 if WRAPT_C_EXT else 3)
         code: CodeType = frame.f_code
         self._self_init_loc: str = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
-        self._self_name: Optional[str] = None
         
         # TODO: or 0?
+        # self._self_name: Optional[str] = None
         # self._self_acquired_at: Optional[int] = None
 
     def __aenter__(self, *args: Any, **kwargs: Any) -> Any:
@@ -78,17 +88,26 @@ class _ProfiledLock(wrapt.ObjectProxy):
         if not self._self_capture_sampler.capture():
             return inner_func(*args, **kwargs)
 
-        start = time.monotonic_ns()
+        start: int = time.monotonic_ns()
         try:
             return inner_func(*args, **kwargs)
         finally:
             try:
-                end = self._self_acquired_at = time.monotonic_ns()
+                end: int = time.monotonic_ns()
+                self._self_acquired_at = end
+                thread_id: int
+                thread_name: str
                 thread_id, thread_name = _current_thread()
+                task_id: Optional[int]
+                task_name: Optional[str]
+                task_frame: Optional[types.FrameType]
                 task_id, task_name, task_frame = _task.get_task(thread_id)
                 self._maybe_update_self_name()
-                lock_name = "%s:%s" % (self._self_init_loc, self._self_name) if self._self_name else self._self_init_loc
+                lock_name: str = (
+                    "%s:%s" % (self._self_init_loc, self._self_name) if self._self_name else self._self_init_loc
+                )
 
+                frame: types.FrameType
                 if task_frame is None:
                     # If we can't get the task frame, we use the caller frame. We expect acquire/release or
                     # __enter__/__exit__ to be on the stack, so we go back 2 frames.
@@ -99,9 +118,9 @@ class _ProfiledLock(wrapt.ObjectProxy):
                 frames: List[DDFrame]
                 frames, _ = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
 
-                thread_native_id = _threading.get_thread_native_id(thread_id)
+                thread_native_id: int = _threading.get_thread_native_id(thread_id)
 
-                handle = ddup.SampleHandle()
+                handle: ddup.SampleHandle = ddup.SampleHandle()
                 handle.push_monotonic_ns(end)
                 handle.push_lock_name(lock_name)
                 handle.push_acquire(end - start, 1)  # AFAICT, capture_pct does not adjust anything here
@@ -111,6 +130,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
                 if self._self_tracer is not None:
                     handle.push_span(self._self_tracer.current_span())
+                ddframe: DDFrame
                 for ddframe in frames:
                     handle.push_frame(ddframe.function_name, ddframe.file_name, 0, ddframe.lineno)
                 handle.flush_sample()
@@ -126,7 +146,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
         # self.__dict__.pop("_self_acquired_at", None) to remove the attribute.
         # Instead, we need to use the following workaround to retrieve and
         # remove the attribute.
-        start = getattr(self, "_self_acquired_at", None)
+        start: Optional[int] = getattr(self, "_self_acquired_at", None)
         try:
             # Though it should generally be avoided to call release() from
             # multiple threads, it is possible to do so. In that scenario, the
@@ -142,11 +162,19 @@ class _ProfiledLock(wrapt.ObjectProxy):
             return inner_func(*args, **kwargs)
         finally:
             if start is not None:
-                end = time.monotonic_ns()
+                end: int = time.monotonic_ns()
+                thread_id: int
+                thread_name: str
                 thread_id, thread_name = _current_thread()
+                task_id: Optional[int]
+                task_name: Optional[str]
+                task_frame: Optional[types.FrameType]
                 task_id, task_name, task_frame = _task.get_task(thread_id)
-                lock_name = "%s:%s" % (self._self_init_loc, self._self_name) if self._self_name else self._self_init_loc
+                lock_name: str = (
+                    "%s:%s" % (self._self_init_loc, self._self_name) if self._self_name else self._self_init_loc
+                )
 
+                frame: types.FrameType
                 if task_frame is None:
                     # See the comments in _acquire
                     frame = sys._getframe(2)
@@ -156,9 +184,9 @@ class _ProfiledLock(wrapt.ObjectProxy):
                 frames: List[DDFrame]
                 frames, _ = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
 
-                thread_native_id = _threading.get_thread_native_id(thread_id)
+                thread_native_id: int = _threading.get_thread_native_id(thread_id)
 
-                handle = ddup.SampleHandle()
+                handle: ddup.SampleHandle = ddup.SampleHandle()
                 handle.push_monotonic_ns(end)
                 handle.push_lock_name(lock_name)
                 handle.push_release(end - start, 1)  # AFAICT, capture_pct does not adjust anything here
@@ -168,6 +196,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
                 if self._self_tracer is not None:
                     handle.push_span(self._self_tracer.current_span())
+                ddframe: DDFrame
                 for ddframe in frames:
                     handle.push_frame(ddframe.function_name, ddframe.file_name, 0, ddframe.lineno)
                 handle.flush_sample()
@@ -184,12 +213,15 @@ class _ProfiledLock(wrapt.ObjectProxy):
         self._release(self.__wrapped__.__exit__, *args, **kwargs)
 
     def _find_self_name(self, var_dict: Dict[str, Any]) -> Optional[str]:
+        name: str
+        value: Any
         for name, value in var_dict.items():
             if name.startswith("__") or isinstance(value, types.ModuleType):
                 continue
             if value is self:
                 return name
             if config.lock.name_inspect_dir:
+                attribute: str
                 for attribute in dir(value):
                     if not attribute.startswith("__") and getattr(value, attribute) is self:
                         self._self_name = attribute
@@ -207,7 +239,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
         # 2: acquire/release (or __enter__/__exit__)
         # 3: caller frame
         if config.enable_asserts:
-            frame = sys._getframe(1)
+            frame: types.FrameType = sys._getframe(1)
             if frame.f_code.co_name not in {"_acquire", "_release"}:
                 raise AssertionError("Unexpected frame %s" % frame.f_code.co_name)
             frame = sys._getframe(2)
@@ -281,7 +313,7 @@ class LockCollector(collector.CaptureSamplerCollector):
         self._original = self._get_patch_target()
 
         def _allocate_lock(wrapped: Any, instance: Any, args: Any, kwargs: Any) -> _ProfiledLock:
-            lock = wrapped(*args, **kwargs)
+            lock: Any = wrapped(*args, **kwargs)
             return self.PROFILED_LOCK_CLASS(  # type: ignore[attr-defined]
                 lock,
                 self.tracer,
