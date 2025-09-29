@@ -135,8 +135,6 @@ def test_iast_cmdi_form_request_fastapi(iast_test_token):
     """
 
     env = {
-        "DD_TRACE_DEBUG": "true",
-        "_DD_IAST_DEBUG": "true",
         "_DD_IAST_PATCH_MODULES": ("benchmarks.," "tests.appsec.," "tests.appsec.integrations.fastapi_tests.app."),
     }
     with uvicorn_server(iast_enabled="true", token=iast_test_token, port=8050, env=env) as context:
@@ -182,8 +180,6 @@ def test_iast_cmdi_form_multiple_fastapi(iast_test_token):
     """
 
     env = {
-        "DD_TRACE_DEBUG": "true",
-        "_DD_IAST_DEBUG": "true",
         "_DD_IAST_PATCH_MODULES": ("benchmarks.," "tests.appsec.," "tests.appsec.integrations.fastapi_tests.app."),
     }
     with uvicorn_server(iast_enabled="true", token=iast_test_token, port=8050, env=env) as context:
@@ -366,8 +362,6 @@ def test_iast_cmdi_bodies_fastapi(body, content_type, iast_test_token):
     and still reports CMDI on the vulnerable sink in tests/appsec/integrations/fastapi_tests/app.py:cmdi_body
     """
     env = {
-        "DD_TRACE_DEBUG": "true",
-        "_DD_IAST_DEBUG": "true",
         "_DD_IAST_PATCH_MODULES": ("benchmarks.," "tests.appsec.," "tests.appsec.integrations.fastapi_tests.app."),
     }
     with uvicorn_server(iast_enabled="true", token=iast_test_token, port=8050, env=env) as context:
