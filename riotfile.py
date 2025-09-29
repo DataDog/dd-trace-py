@@ -3586,6 +3586,7 @@ venv = Venv(
                                     "pymalloc",
                                     "malloc_debug",
                                     "pymalloc_debug",
+                                    "jemalloc",
                                 ],
                             },
                         ),
