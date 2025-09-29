@@ -57,7 +57,7 @@ async def rag(req: RagRequest, request: Request):
             compilation_config={"use_inductor": False},
             trust_remote_code=True,
             disable_log_stats=True,
-            gpu_memory_utilization=float(os.environ.get("VLLM_GPU_UTIL", "0.2")),
+            gpu_memory_utilization=0.1,
         )
         async with build_async_engine_client_from_engine_args(
             embed_args,
@@ -119,7 +119,7 @@ async def rag(req: RagRequest, request: Request):
             compilation_config={"use_inductor": False},
             trust_remote_code=True,
             disable_log_stats=True,
-            gpu_memory_utilization=float(os.environ.get("VLLM_GPU_UTIL", "0.2")),
+            gpu_memory_utilization=0.1,
         )
         async with build_async_engine_client_from_engine_args(
             gen_args,
@@ -153,7 +153,7 @@ async def rag(req: RagRequest, request: Request):
             max_model_len=256,
             compilation_config={"use_inductor": False},
             trust_remote_code=True,
-            gpu_memory_utilization=float(os.environ.get("VLLM_GPU_UTIL", "0.2")),
+            gpu_memory_utilization=0.1,
         )
         pooling_params = vllm.PoolingParams(task="encode")
         doc_vecs: List[torch.Tensor] = []
@@ -209,7 +209,7 @@ async def rag(req: RagRequest, request: Request):
             max_model_len=256,
             compilation_config={"use_inductor": False},
             trust_remote_code=True,
-            gpu_memory_utilization=float(os.environ.get("VLLM_GPU_UTIL", "0.2")),
+            gpu_memory_utilization=0.1,
         )
         sampling = vllm.SamplingParams(temperature=0.8, top_p=0.95, max_tokens=64, seed=42)
         prompt = f"Context: {top_doc}\nQuestion: {req.query}\nAnswer:"

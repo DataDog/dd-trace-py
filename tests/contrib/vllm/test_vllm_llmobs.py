@@ -296,6 +296,7 @@ async def test_stream_cancel_early_break_v0_mq(vllm, mock_tracer, monkeypatch, l
         max_model_len=256,
         max_num_batched_tokens=256,
         max_num_seqs=1,
+        gpu_memory_utilization=0.1,
         compilation_config={"use_inductor": False},
         trust_remote_code=True,
     )
