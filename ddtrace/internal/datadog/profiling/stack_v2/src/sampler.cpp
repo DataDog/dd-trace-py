@@ -2,6 +2,7 @@
 
 #include "thread_span_links.hpp"
 
+#include "echion/errors.h"
 #include "echion/greenlets.h"
 #include "echion/interp.h"
 #include "echion/tasks.h"
@@ -153,7 +154,18 @@ Sampler::sampling_thread(const uint64_t seq_num)
         // Perform the sample
         for_each_interp([&](InterpreterInfo& interp) -> void {
             for_each_thread(interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
-                (void)thread.sample(interp.id, tstate, wall_time_us);
+                static size_t error_count = 0;
+                static size_t cpu_time_error_count = 0;
+
+                auto result = thread.sample(interp.id, tstate, wall_time_us);
+                if (!result) {
+                    error_count++;
+                    if (result.error_value() == ErrorKind::CpuTimeError) {
+                        cpu_time_error_count++;
+                    }
+
+                    printf("total error count: %zu, cputimeerrors: %zu\n", error_count, cpu_time_error_count);
+                }
             });
         });
 
