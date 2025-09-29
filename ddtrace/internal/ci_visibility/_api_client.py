@@ -1,4 +1,5 @@
 import abc
+import atexit
 from base64 import b64decode
 import dataclasses
 import hashlib
@@ -6,6 +7,7 @@ from http.client import RemoteDisconnected
 import json
 from json import JSONDecodeError
 import os
+import shutil
 import socket
 import typing as t
 from typing import TypedDict  # noqa:F401
@@ -67,6 +69,14 @@ _CONFIGURATIONS_TYPE = t.Dict[str, t.Union[str, t.Dict[str, str]]]
 _KNOWN_TESTS_TYPE = t.Set[TestId]
 
 _NETWORK_ERRORS = (TimeoutError, socket.timeout, RemoteDisconnected)
+
+
+_API_RESPONSE_CACHE_DIR = os.path.join(os.getcwd(), ".ddtrace_api_cache")
+
+
+@atexit.register
+def _clean_api_response_cache_dir():
+    shutil.rmtree(_API_RESPONSE_CACHE_DIR)
 
 
 class TestVisibilitySettingsError(Exception):
@@ -282,14 +292,13 @@ class _TestVisibilityAPIClientBase(abc.ABC):
 
     def _get_cache_file_path(self, cache_key: str) -> str:
         """Get the full path to the cache file"""
-        cache_dir = os.path.join(os.getcwd(), ".ddtrace_api_cache")
-        os.makedirs(cache_dir, exist_ok=True)
-        return os.path.join(cache_dir, f"{cache_key}.json")
+        os.makedirs(_API_RESPONSE_CACHE_DIR, exist_ok=True)
+        return os.path.join(_API_RESPONSE_CACHE_DIR, f"{cache_key}.json")
 
-    def _read_from_cache(self, cache_key: str) -> t.Dict:
+    def _read_from_cache(self, cache_key: str) -> t.Optional[t.Dict]:
         """Read cached response if it exists"""
         if not cache_key:
-            return {}
+            return None
 
         cache_file = self._get_cache_file_path(cache_key)
         try:
@@ -300,7 +309,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                     return cached_data
         except Exception:  # noqa: E722
             log.debug("Failed to read from cache for key: %s", cache_key, exc_info=True)
-        return {}
+        return None
 
     def _write_to_cache(self, cache_key: str, data: t.Any) -> None:
         """Write successful response to cache"""
@@ -350,16 +359,20 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         payload: t.Dict,
         metric_names: APIRequestMetricNames,
         timeout: t.Optional[float] = None,
+        read_from_cache: bool = True,
     ) -> t.Any:
         """Performs a request with telemetry submitted according to given names"""
         # Check cache first
         str_payload = json.dumps(payload)
-        # Generate cache key using payload without the dynamic UUID
+
         cache_key = ""
+        # Generate cache key using payload without the dynamic UUID
         if "data" in payload and "attributes" in payload["data"]:
             cache_key = self._get_normalized_cache_key(method, endpoint, payload)
+
+        if read_from_cache:
             cached_response = self._read_from_cache(cache_key)
-            if cached_response:
+            if cached_response is not None:
                 log.debug("Using cached response with key: %s", cache_key)
                 # Return cached response (no telemetry recorded for cache hits)
                 return cached_response
@@ -397,7 +410,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         finally:
             record_api_request(metric_names, sw.elapsed() * 1000, response_bytes=response_bytes, error=error_type)
 
-    def fetch_settings(self) -> TestVisibilityAPISettings:
+    def fetch_settings(self, read_from_cache: bool = True) -> TestVisibilityAPISettings:
         """Fetches settings from the test visibility API endpoint
 
         This raises encountered exceptions because fetch_settings may be used multiple times during a session.
@@ -427,7 +440,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         }
 
         parsed_response = self._do_request_with_telemetry(
-            "POST", SETTING_ENDPOINT, payload, metric_names, timeout=self._timeout
+            "POST", SETTING_ENDPOINT, payload, metric_names, timeout=self._timeout, read_from_cache=read_from_cache
         )
 
         if "errors" in parsed_response:
