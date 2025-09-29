@@ -1755,7 +1755,12 @@ class PytestTestCase(PytestTestCaseBase):
         assert sorted(second_tag_data.keys()) == ["/lib_fn.py", "/ret_false.py", "/test_cov.py"]
         assert second_tag_data["/ret_false.py"] == [(1, 2)]
         assert second_tag_data["/test_cov.py"] == [(1, 1), (3, 3), (7, 9)]
-        assert second_tag_data["/lib_fn.py"] == [(1, 1)]  # :(
+        # DEV: Due to the way we register import coverage, when the first test imports lib_fn, it gets recorded as an
+        # import dependency of the test module as a whole, so every test in the module that runs afterwards will have
+        # lib_fn as a dependency as well. This is suboptimal, but it's better to overcollect import coverage (which
+        # may lead to tests being run when they could be skipped) than to undercollect it (which might lead to tests
+        # being skipped when they shouldn't).
+        assert second_tag_data["/lib_fn.py"] == [(1, 1)]
 
     @pytest.mark.skipif(
         not _PYTEST_SUPPORTS_ITR,
