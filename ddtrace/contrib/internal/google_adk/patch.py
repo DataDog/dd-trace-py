@@ -34,7 +34,9 @@ def get_version() -> str:
 def _traced_agent_run_async(adk, pin, wrapped, instance, args, kwargs):
     """Trace the main execution of an agent (async generator)."""
     integration: GoogleAdkIntegration = adk._datadog_integration
-    provider_name, model_name = extract_provider_and_model_name(instance=instance.agent.model, model_name_attr="model")
+    provider_name, model_name = extract_provider_and_model_name(
+        instance=getattr(getattr(instance, "agent", {}), "model", {}), model_name_attr="model"
+    )
 
     span = integration.trace(
         pin,
@@ -79,7 +81,7 @@ async def _traced_functions_call_tool_async(adk, pin, wrapped, instance, args, k
         logger.warning("Unable to trace google adk live tool call, could not extract agent from tool context.")
         return wrapped(*args, **kwargs)
 
-    provider_name, model_name = extract_provider_and_model_name(instance=agent.model, model_name_attr="model")
+    provider_name, model_name = extract_provider_and_model_name(instance=getattr(agent, "model", {}), model_name_attr="model")
     instance = instance or args[0]
 
     with integration.trace(
@@ -117,7 +119,7 @@ async def _traced_functions_call_tool_live(adk, pin, wrapped, instance, args, kw
         async for item in agen:
             yield item
 
-    provider_name, model_name = extract_provider_and_model_name(instance=agent.model, model_name_attr="model")
+    provider_name, model_name = extract_provider_and_model_name(instance=getattr(agent, "model", {}), model_name_attr="model")
 
     with integration.trace(
         pin,
