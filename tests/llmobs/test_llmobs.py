@@ -678,5 +678,5 @@ def test_apm_traces_dropped_when_disabled(llmobs, llmobs_events, tracer, llmobs_
     # But LLMObs events should still be sent
     assert len(llmobs_events) == 1
     llm_event = llmobs_events[0]
-    assert llm_event["meta"]["span.kind"] == "llm"
+    assert llm_event["meta"]["span"]["kind"] == "llm"
     assert llm_event["meta"]["model_name"] == "test-model"
