@@ -40,7 +40,7 @@ def parse_model_id(model_id: str):
     If model provider cannot be inferred from the model_id formatting, then default to "custom"
     """
     original_model_id = model_id
-    
+
     if not model_id.startswith("arn:aws"):
         model_meta = model_id.split(".")
         if len(model_meta) < 2:
