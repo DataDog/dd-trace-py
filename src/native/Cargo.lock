@@ -196,9 +196,9 @@ checksum = "a1d084b0137aaa901caf9f1e8b21daa6aa24d41cd806e111335541eff9683bd6"
 
 [[package]]
 name = "blazesym"
-version = "0.2.0-rc.4"
+version = "0.2.0-rc.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "29a810b7e5f883ad3c711208237841f051061bf59b6ee698ac4dc1fe12a3a5db"
+checksum = "95824d1dd4f20b4a4dfa63b72954e81914a718357231468180b30314e85057fa"
 dependencies = [
  "cpp_demangle",
  "gimli 0.32.0",
@@ -219,8 +219,8 @@ dependencies = [
 
 [[package]]
 name = "build_common"
-version = "20.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v20.0.0#9052563dd0a6e9d9ea28b32708b01921b43a1efc"
+version = "21.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v21.0.0#4e1d7bb865885b48b4671fabc6643f0b5386f832"
 dependencies = [
  "cbindgen",
  "serde",
@@ -282,6 +282,15 @@ dependencies = [
  "jobserver",
  "libc",
  "shlex",
+]
+
+[[package]]
+name = "cc_utils"
+version = "0.1.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v21.0.0#4e1d7bb865885b48b4671fabc6643f0b5386f832"
+dependencies = [
+ "anyhow",
+ "cc",
 ]
 
 [[package]]
@@ -479,8 +488,8 @@ dependencies = [
 
 [[package]]
 name = "data-pipeline"
-version = "20.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v20.0.0#9052563dd0a6e9d9ea28b32708b01921b43a1efc"
+version = "21.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v21.0.0#4e1d7bb865885b48b4671fabc6643f0b5386f832"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -509,8 +518,8 @@ dependencies = [
 
 [[package]]
 name = "datadog-alloc"
-version = "20.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v20.0.0#9052563dd0a6e9d9ea28b32708b01921b43a1efc"
+version = "21.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v21.0.0#4e1d7bb865885b48b4671fabc6643f0b5386f832"
 dependencies = [
  "allocator-api2",
  "libc",
@@ -519,13 +528,14 @@ dependencies = [
 
 [[package]]
 name = "datadog-crashtracker"
-version = "20.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v20.0.0#9052563dd0a6e9d9ea28b32708b01921b43a1efc"
+version = "21.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v21.0.0#4e1d7bb865885b48b4671fabc6643f0b5386f832"
 dependencies = [
  "anyhow",
  "backtrace",
  "blazesym",
  "cc",
+ "cc_utils",
  "chrono",
  "ddcommon",
  "ddtelemetry",
@@ -551,8 +561,8 @@ dependencies = [
 
 [[package]]
 name = "datadog-ddsketch"
-version = "20.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v20.0.0#9052563dd0a6e9d9ea28b32708b01921b43a1efc"
+version = "21.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v21.0.0#4e1d7bb865885b48b4671fabc6643f0b5386f832"
 dependencies = [
  "prost",
 ]
@@ -560,7 +570,7 @@ dependencies = [
 [[package]]
 name = "datadog-library-config"
 version = "0.0.2"
-source = "git+https://github.com/DataDog/libdatadog?rev=v20.0.0#9052563dd0a6e9d9ea28b32708b01921b43a1efc"
+source = "git+https://github.com/DataDog/libdatadog?rev=v21.0.0#4e1d7bb865885b48b4671fabc6643f0b5386f832"
 dependencies = [
  "anyhow",
  "memfd",
@@ -572,9 +582,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "datadog-log"
+version = "21.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v21.0.0#4e1d7bb865885b48b4671fabc6643f0b5386f832"
+dependencies = [
+ "chrono",
+ "ddcommon-ffi",
+ "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "datadog-profiling"
-version = "20.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v20.0.0#9052563dd0a6e9d9ea28b32708b01921b43a1efc"
+version = "21.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v21.0.0#4e1d7bb865885b48b4671fabc6643f0b5386f832"
 dependencies = [
  "anyhow",
  "bitmaps",
@@ -603,8 +625,8 @@ dependencies = [
 
 [[package]]
 name = "datadog-profiling-ffi"
-version = "20.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v20.0.0#9052563dd0a6e9d9ea28b32708b01921b43a1efc"
+version = "21.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v21.0.0#4e1d7bb865885b48b4671fabc6643f0b5386f832"
 dependencies = [
  "anyhow",
  "build_common",
@@ -622,16 +644,16 @@ dependencies = [
 
 [[package]]
 name = "datadog-profiling-protobuf"
-version = "20.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v20.0.0#9052563dd0a6e9d9ea28b32708b01921b43a1efc"
+version = "21.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v21.0.0#4e1d7bb865885b48b4671fabc6643f0b5386f832"
 dependencies = [
  "prost",
 ]
 
 [[package]]
 name = "datadog-trace-normalization"
-version = "20.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v20.0.0#9052563dd0a6e9d9ea28b32708b01921b43a1efc"
+version = "21.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v21.0.0#4e1d7bb865885b48b4671fabc6643f0b5386f832"
 dependencies = [
  "anyhow",
  "datadog-trace-protobuf",
@@ -639,8 +661,8 @@ dependencies = [
 
 [[package]]
 name = "datadog-trace-protobuf"
-version = "20.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v20.0.0#9052563dd0a6e9d9ea28b32708b01921b43a1efc"
+version = "21.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v21.0.0#4e1d7bb865885b48b4671fabc6643f0b5386f832"
 dependencies = [
  "prost",
  "serde",
@@ -649,8 +671,8 @@ dependencies = [
 
 [[package]]
 name = "datadog-trace-utils"
-version = "20.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v20.0.0#9052563dd0a6e9d9ea28b32708b01921b43a1efc"
+version = "21.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v21.0.0#4e1d7bb865885b48b4671fabc6643f0b5386f832"
 dependencies = [
  "anyhow",
  "bytes",
@@ -674,8 +696,8 @@ dependencies = [
 
 [[package]]
 name = "ddcommon"
-version = "20.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v20.0.0#9052563dd0a6e9d9ea28b32708b01921b43a1efc"
+version = "21.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v21.0.0#4e1d7bb865885b48b4671fabc6643f0b5386f832"
 dependencies = [
  "anyhow",
  "cc",
@@ -707,8 +729,8 @@ dependencies = [
 
 [[package]]
 name = "ddcommon-ffi"
-version = "20.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v20.0.0#9052563dd0a6e9d9ea28b32708b01921b43a1efc"
+version = "21.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v21.0.0#4e1d7bb865885b48b4671fabc6643f0b5386f832"
 dependencies = [
  "anyhow",
  "build_common",
@@ -721,8 +743,8 @@ dependencies = [
 
 [[package]]
 name = "ddtelemetry"
-version = "20.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v20.0.0#9052563dd0a6e9d9ea28b32708b01921b43a1efc"
+version = "21.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v21.0.0#4e1d7bb865885b48b4671fabc6643f0b5386f832"
 dependencies = [
  "anyhow",
  "base64",
@@ -753,10 +775,12 @@ dependencies = [
  "datadog-crashtracker",
  "datadog-ddsketch",
  "datadog-library-config",
+ "datadog-log",
  "datadog-profiling-ffi",
  "ddcommon",
  "pyo3",
  "pyo3-build-config",
+ "tracing",
 ]
 
 [[package]]
@@ -789,8 +813,8 @@ dependencies = [
 
 [[package]]
 name = "dogstatsd-client"
-version = "20.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v20.0.0#9052563dd0a6e9d9ea28b32708b01921b43a1efc"
+version = "21.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v21.0.0#4e1d7bb865885b48b4671fabc6643f0b5386f832"
 dependencies = [
  "anyhow",
  "cadence",
@@ -1323,6 +1347,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "matchers"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8263075bb86c5a1b1427b5ae862e8889656f126e9f77c484496e8b47cf5c5558"
+dependencies = [
+ "regex-automata 0.1.10",
+]
+
+[[package]]
 name = "memchr"
 version = "2.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1747,8 +1780,17 @@ checksum = "b544ef1b4eac5dc2db33ea63606ae9ffcfac26c1416a2806ae0bf5f56b201191"
 dependencies = [
  "aho-corasick",
  "memchr",
- "regex-automata",
- "regex-syntax",
+ "regex-automata 0.4.9",
+ "regex-syntax 0.8.5",
+]
+
+[[package]]
+name = "regex-automata"
+version = "0.1.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c230d73fb8d8c1b9c0b3135c5142a8acee3a0558fb8db5cf1cb65f8d7862132"
+dependencies = [
+ "regex-syntax 0.6.29",
 ]
 
 [[package]]
@@ -1759,8 +1801,14 @@ checksum = "809e8dc61f6de73b46c85f4c96486310fe304c434cfa43669d7b40f711150908"
 dependencies = [
  "aho-corasick",
  "memchr",
- "regex-syntax",
+ "regex-syntax 0.8.5",
 ]
+
+[[package]]
+name = "regex-syntax"
+version = "0.6.29"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f162c6dd7b008981e4d40210aca20b4bd0f9b60ca9271061b07f78537722f2e1"
 
 [[package]]
 name = "regex-syntax"
@@ -2054,6 +2102,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "sharded-slab"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f40ca3c46823713e0d4209592e8d6e826aa57e928f09752619fc696c499637f6"
+dependencies = [
+ "lazy_static",
+]
+
+[[package]]
 name = "shlex"
 version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2202,6 +2259,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "thread_local"
+version = "1.1.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f60246a4944f24f6e018aa17cdeffb7818b76356965d03b07d6a9886e8962185"
+dependencies = [
+ "cfg-if",
+]
+
+[[package]]
 name = "time"
 version = "0.3.41"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2234,8 +2300,8 @@ dependencies = [
 
 [[package]]
 name = "tinybytes"
-version = "20.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v20.0.0#9052563dd0a6e9d9ea28b32708b01921b43a1efc"
+version = "21.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v21.0.0#4e1d7bb865885b48b4671fabc6643f0b5386f832"
 dependencies = [
  "serde",
 ]
@@ -2350,12 +2416,53 @@ dependencies = [
 ]
 
 [[package]]
+name = "tracing-appender"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3566e8ce28cc0a3fe42519fc80e6b4c943cc4c8cef275620eb8dac2d3d4e06cf"
+dependencies = [
+ "crossbeam-channel",
+ "thiserror",
+ "time",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "tracing-core"
 version = "0.1.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b9d12581f227e93f094d3af2ae690a574abb8a2b9b7a96e7cfe9647b2b617678"
 dependencies = [
  "once_cell",
+ "valuable",
+]
+
+[[package]]
+name = "tracing-serde"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "704b1aeb7be0d0a84fc9828cae51dab5970fee5088f83d1dd7ee6f6246fc6ff1"
+dependencies = [
+ "serde",
+ "tracing-core",
+]
+
+[[package]]
+name = "tracing-subscriber"
+version = "0.3.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e8189decb5ac0fa7bc8b96b7cb9b2701d60d48805aca84a238004d665fcc4008"
+dependencies = [
+ "matchers",
+ "once_cell",
+ "regex",
+ "serde",
+ "serde_json",
+ "sharded-slab",
+ "thread_local",
+ "tracing",
+ "tracing-core",
+ "tracing-serde",
 ]
 
 [[package]]
@@ -2433,6 +2540,12 @@ dependencies = [
  "serde",
  "wasm-bindgen",
 ]
+
+[[package]]
+name = "valuable"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ba73ea9cf16a25df0c8caa16c51acb937d5712a8429db78a3ee29d5dcacd3a65"
 
 [[package]]
 name = "version_check"

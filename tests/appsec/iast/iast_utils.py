@@ -122,8 +122,10 @@ def iast_hypothesis_test(func):
 
 
 def _get_iast_data():
+    data = {}
     span_report = get_iast_reporter()
-    data = span_report.build_and_scrub_value_parts()
+    if span_report:
+        data = span_report.build_and_scrub_value_parts()
     return data
 
 
@@ -134,7 +136,6 @@ def _start_iast_context_and_oce(span=None):
 
 def _end_iast_context_and_oce(span=None):
     result = _iast_finish_request(span)
-    oce.release_request()
     _reset_global_limit()
     return result
 

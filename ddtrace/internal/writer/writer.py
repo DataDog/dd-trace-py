@@ -15,7 +15,8 @@ from typing import TextIO
 
 import ddtrace
 from ddtrace import config
-from ddtrace.contrib.internal.ray import in_ray_job
+from ddtrace.internal.dist_computing.utils import in_ray_job
+from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native
 from ddtrace.internal.runtime import get_runtime_id
 import ddtrace.internal.utils.http
@@ -330,7 +331,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 else:
                     log_args += (payload,)
 
-            log.error(msg, *log_args)
+            log.error(msg, *log_args, extra={"send_to_telemetry": False})
             self._metrics_dist("http.dropped.bytes", len(payload))
             self._metrics_dist("http.dropped.traces", count)
         return response
@@ -797,6 +798,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         builder = (
             native.TraceExporterBuilder()
             .set_url(self.intake_url)
+            .set_hostname(get_hostname())
             .set_language("python")
             .set_language_version(compat.PYTHON_VERSION)
             .set_language_interpreter(compat.PYTHON_INTERPRETER)
@@ -806,6 +808,12 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             .set_input_format(self._api_version)
             .set_output_format(self._api_version)
         )
+        if config.service:
+            builder.set_service(config.service)
+        if config.env:
+            builder.set_env(config.env)
+        if config.version:
+            builder.set_app_version(config.version)
         if self._test_session_token is not None:
             builder.set_test_session_token(self._test_session_token)
         if self._stats_opt_out:
@@ -821,6 +829,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 config._telemetry_heartbeat_interval * 1000
             )  # Convert DD_TELEMETRY_HEARTBEAT_INTERVAL to milliseconds
             builder.enable_telemetry(heartbeat_ms, get_runtime_id())
+        if config._health_metrics_enabled:
+            builder.enable_health_metrics()
 
         return builder.build()
 
@@ -1043,7 +1053,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 msg += ", payload %s"
                 log_args += (binascii.hexlify(encoded).decode(),)  # type: ignore
 
-            log.error(msg, *log_args)
+            log.error(msg, *log_args, extra={"send_to_telemetry": False})
 
     def periodic(self):
         self.flush_queue(raise_exc=False)

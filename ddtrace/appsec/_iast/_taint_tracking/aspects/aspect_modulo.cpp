@@ -59,7 +59,8 @@ api_modulo_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
         return candidate_result;
     };
 
-    const auto tx_map = Initializer::get_tainting_map();
+    const auto tx_map =
+      taint_engine_context->get_tainted_object_map_from_list_of_pyobjects({ candidate_text, candidate_tuple });
     if (!tx_map || tx_map->empty()) {
         return return_candidate_result();
     }
@@ -76,7 +77,7 @@ api_modulo_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
     const py::tuple parameters =
       py::isinstance<py::tuple>(py_candidate_tuple) ? py_candidate_tuple : py::make_tuple(py_candidate_tuple);
 
-    auto [ranges_orig, candidate_text_ranges] = are_all_text_all_ranges(candidate_text, parameters);
+    auto [ranges_orig, candidate_text_ranges] = are_all_text_all_ranges(candidate_text, parameters, tx_map);
 
     if (ranges_orig.empty()) {
         return return_candidate_result();

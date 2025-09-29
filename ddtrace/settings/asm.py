@@ -15,7 +15,6 @@ from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.appsec._constants import TELEMETRY_INFORMATION_NAME
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.ext import SpanTypes
-from ddtrace.internal import core
 from ddtrace.internal.constants import AI_GUARD_ENABLED
 from ddtrace.internal.constants import AI_GUARD_ENDPOINT
 from ddtrace.internal.constants import AI_GUARD_MAX_CONTENT_SIZE
@@ -295,9 +294,12 @@ class ASMConfig(DDConfig):
 
     @property
     def asm_enabled_origin(self):
-        if APPSEC_ENV in os.environ:
+        if self._asm_enabled:
+            if self._asm_enabled_origin == APPSEC.ENABLED_ORIGIN_RC:
+                return APPSEC.ENABLED_ORIGIN_RC
             if tracer_config._lib_was_injected is True:
                 return APPSEC.ENABLED_ORIGIN_SSI
+        if APPSEC_ENV in os.environ:
             return APPSEC.ENABLED_ORIGIN_ENV
         return self._asm_enabled_origin
 
@@ -329,13 +331,6 @@ class ASMConfig(DDConfig):
                 return self._auto_user_instrumentation_rc_mode
             return self._auto_user_instrumentation_local_mode
         return LOGIN_EVENTS_MODE.DISABLED
-
-    @property
-    def is_iast_request_enabled(self) -> bool:
-        env = core.find_item(IAST.REQUEST_CONTEXT_KEY)
-        if env:
-            return env.request_enabled
-        return False
 
 
 config = ASMConfig()

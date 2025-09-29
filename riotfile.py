@@ -219,6 +219,8 @@ venv = Venv(
             pkgs={
                 "requests": latest,
                 "pylibmc": latest,
+                "PyYAML": latest,
+                "dill": latest,
                 "bcrypt": "==4.2.1",
                 "pytest-django[testing]": "==3.10.0",
             },
@@ -319,7 +321,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_iast_default",
-            command="pytest {cmdargs} tests/appsec/iast/",
+            command="pytest -v {cmdargs} tests/appsec/iast/",
             pys=select_pys(),
             pkgs={
                 "requests": latest,
@@ -336,6 +338,7 @@ venv = Venv(
                 "DD_IAST_REQUEST_SAMPLING": "100",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
+                "PYTHONFAULTHANDLER": "1",
             },
         ),
         Venv(
@@ -513,7 +516,7 @@ venv = Venv(
         ),
         Venv(
             name="lib_injection",
-            command="pytest {cmdargs} tests/lib_injection/test_guardrails.py",
+            command="pytest {cmdargs} tests/lib_injection/",
             venvs=[
                 Venv(
                     pys=select_pys(),
@@ -675,11 +678,15 @@ venv = Venv(
             create=True,
             skip_dev_install=True,
             pkgs={
+                "azure-data-tables": latest,
+                "azure-storage-blob": latest,
+                "azure-storage-queue": latest,
                 "cassandra-driver": latest,
                 "psycopg2-binary": latest,
                 "mysql-connector-python": "!=8.0.18",
                 "vertica-python": ">=0.6.0,<0.7.0",
                 "kombu": ">=4.2.0,<4.3.0",
+                "pymssql": latest,
                 "pytest-randomly": latest,
                 "requests": latest,
             },
@@ -2998,6 +3005,7 @@ venv = Venv(
                 "pytest-asyncio": latest,
                 "pydantic-ai": ["==0.3.0", "==0.4.4", latest],
                 "vcrpy": "==7.0.0",
+                "typing_extensions": latest,
             },
         ),
         Venv(
@@ -3089,8 +3097,16 @@ venv = Venv(
             pys=select_pys(min_version="3.8", max_version="3.11"),
             pkgs={
                 "azure.functions": ["~=1.10.1", latest],
-                "azure.servicebus": latest,
                 "requests": latest,
+            },
+        ),
+        Venv(
+            name="azure_functions:servicebus",
+            command="pytest {cmdargs} tests/contrib/azure_functions_servicebus",
+            pys=select_pys(min_version="3.8", max_version="3.11"),
+            pkgs={
+                "azure.functions": ["~=1.10.1", latest],
+                "azure.servicebus": latest,
             },
         ),
         Venv(
@@ -3099,7 +3115,7 @@ venv = Venv(
             pys=select_pys(min_version="3.8", max_version="3.13"),
             pkgs={
                 "azure.servicebus": ["~=7.14.0", latest],
-                "pytest-asyncio": "==0.24.0",
+                "pytest-asyncio": "==0.23.7",
             },
         ),
         Venv(
@@ -3298,6 +3314,11 @@ venv = Venv(
                 "pytest-randomly": latest,
             },
             venvs=[
+                Venv(
+                    command="python -m pytest {cmdargs} tests/profiling_v2/test_uwsgi.py",
+                    pys=select_pys(),
+                    pkgs={"uwsgi": "<2.0.30"},
+                ),
                 # Python 3.8 + 3.9
                 Venv(
                     pys=["3.8", "3.9"],
