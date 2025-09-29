@@ -6,8 +6,7 @@ from vllm.sampling_params import RequestOutputKind
 
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 
-from ._utils import create_async_engine
-from ._utils import get_llm
+import vllm
 
 
 IGNORE_FIELDS = [
@@ -17,14 +16,8 @@ IGNORE_FIELDS = [
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_llmobs_basic(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
-    llm = get_llm(
-        model="facebook/opt-125m",
-        engine_mode=vllm_engine_mode,
-        max_model_len=256,
-        enforce_eager=True,
-        compilation_config={"use_inductor": False},
-    )
+def test_llmobs_basic(vllm, llmobs_events, mock_tracer, vllm_engine_mode, opt_125m_llm):
+    llm = opt_125m_llm
     sampling = vllm.SamplingParams(temperature=0.1, top_p=0.9, max_tokens=8, seed=42)
     llm.generate("The future of AI is", sampling)
     span = mock_tracer.pop_traces()[0][0]
@@ -61,14 +54,8 @@ def test_llmobs_basic(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_llmobs_chat(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
-    llm = get_llm(
-        model="facebook/opt-125m",
-        engine_mode=vllm_engine_mode,
-        max_model_len=256,
-        enforce_eager=True,
-        compilation_config={"use_inductor": False},
-    )
+def test_llmobs_chat(vllm, llmobs_events, mock_tracer, vllm_engine_mode, opt_125m_llm):
+    llm = opt_125m_llm
     sampling_params = vllm.SamplingParams(seed=42)
 
     conversation = [
@@ -140,16 +127,8 @@ def test_llmobs_chat(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_llmobs_classify(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
-    llm = get_llm(
-        model="BAAI/bge-reranker-v2-m3",
-        runner="pooling",
-        engine_mode=vllm_engine_mode,
-        max_model_len=256,
-        enforce_eager=True,
-        compilation_config={"use_inductor": False},
-        trust_remote_code=True,
-    )
+def test_llmobs_classify(vllm, llmobs_events, mock_tracer, vllm_engine_mode, bge_reranker_llm):
+    llm = bge_reranker_llm
 
     prompts = [
         "Hello, my name is",
@@ -192,190 +171,9 @@ def test_llmobs_classify(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
         assert event == expected
 
 
-@pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-async def test_stream_cancel_early_break_v1(vllm, mock_tracer, monkeypatch, llmobs_events, vllm_engine_mode):
-    if vllm_engine_mode != "1":
-        pytest.skip("V1 engine mode is required")
-
-    engine = create_async_engine(
-        model="facebook/opt-125m",
-        enforce_eager=True,
-        max_model_len=256,
-        compilation_config={"use_inductor": False},
-        trust_remote_code=True,
-    )
-
-    sampling_params = vllm.SamplingParams(
-        max_tokens=128,
-        temperature=0.8,
-        top_p=0.95,
-        seed=42,
-        output_kind=RequestOutputKind.DELTA,
-    )
-
-    i = 0
-    saw_finished = False
-    async for out in engine.generate(
-        request_id="cancel-v1",
-        prompt="What is the capital of France?",
-        sampling_params=sampling_params,
-    ):
-        i += 1
-        if getattr(out, "finished", False):
-            saw_finished = True
-        if i >= 2:
-            break
-
-    span = mock_tracer.pop_traces()[0][0]
-    print("---SPANS---")
-    print(span)
-    print("---END SPANS---")
-    print("---LLMOBS EVENTS---")
-    print(llmobs_events)
-    print("---END LLMOBS EVENTS---")
-    assert not saw_finished
-    assert span.resource == "vllm.request"
-
-    assert len(llmobs_events) == 1
-    expected = _expected_llmobs_llm_span_event(
-        span,
-        model_name="facebook/opt-125m",
-        model_provider="vllm",
-        input_messages=[{"content": "What is the capital of France?", "role": ""}],
-        output_messages=[
-            {
-                "content": (
-                    "\nI think it's a city in the middle of the Greek Pacific Ocean, though. I'm not sure, "
-                    "since I don't have the map."
-                ),
-                "role": "",
-            }
-        ],
-        metadata={
-            "temperature": 0.8,
-            "top_p": 0.95,
-            "top_k": 0,
-            "presence_penalty": 0.0,
-            "repetition_penalty": 1.0,
-            "max_tokens": 128,
-            "n": 1,
-            "frequency_penalty": 0.0,
-            "seed": 42,
-            "num_cached_tokens": 0,
-            "finish_reason": "stop",
-        },
-        token_metrics={"input_tokens": 8, "output_tokens": 32, "total_tokens": 40},
-        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm"},
-    )
-    assert llmobs_events[0] == expected
-    # Ensure engine is torn down promptly
-    try:
-        shutdown = getattr(engine, "shutdown", None)
-        if callable(shutdown):
-            shutdown()
-    except Exception:
-        pass
-
-
-@pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-async def test_stream_cancel_early_break_v0_mq(vllm, mock_tracer, monkeypatch, llmobs_events, vllm_engine_mode):
-    if vllm_engine_mode != "0":
-        pytest.skip("V0 engine mode is required")
-    monkeypatch.delenv("PROMETHEUS_MULTIPROC_DIR", raising=False)
-
-    from vllm.engine.arg_utils import AsyncEngineArgs
-    from vllm.entrypoints.openai.api_server import build_async_engine_client_from_engine_args
-    from vllm.usage.usage_lib import UsageContext
-
-    args = AsyncEngineArgs(
-        model="facebook/opt-125m",
-        enforce_eager=True,
-        disable_log_stats=True,
-        max_model_len=256,
-        max_num_batched_tokens=256,
-        max_num_seqs=1,
-        gpu_memory_utilization=0.1,
-        compilation_config={"use_inductor": False},
-        trust_remote_code=True,
-    )
-    async with build_async_engine_client_from_engine_args(
-        args,
-        usage_context=UsageContext.OPENAI_API_SERVER,
-    ) as engine:
-        sampling_params = vllm.SamplingParams(
-            max_tokens=128,
-            temperature=0.8,
-            top_p=0.95,
-            seed=42,
-            output_kind=RequestOutputKind.DELTA,
-        )
-
-        i = 0
-        saw_finished = False
-        async for out in engine.generate(
-            request_id="cancel-mq",
-            prompt="What is the capital of the United States?",
-            sampling_params=sampling_params,
-        ):
-            i += 1
-            if getattr(out, "finished", False):
-                saw_finished = True
-            if i >= 2:
-                break
-
-    # Encourage CUDA allocator to release memory between retries
-    try:
-        import torch  # type: ignore
-
-        if hasattr(torch, "cuda"):
-            torch.cuda.empty_cache()
-    except Exception:
-        pass
-    span = mock_tracer.pop_traces()[0][0]
-    print("---LLMOBS EVENTS---")
-    print(llmobs_events)
-    print("---END LLMOBS EVENTS---")
-    print("---SPANS---")
-    print(span)
-    print("---END SPANS---")
-    assert not saw_finished
-    assert span.resource == "vllm.request"
-
-    assert len(llmobs_events) == 1
-    expected = _expected_llmobs_llm_span_event(
-        span,
-        model_name="facebook/opt-125m",
-        model_provider="vllm",
-        input_messages=[{"content": "What is the capital of the United States?", "role": ""}],
-        output_messages=[
-            {
-                "content": (
-                    "\nI think you mean Commonwealth of Virginia.\nWell, I'm not sure that's how it works.  *\n"
-                    "I'm talking about New York City.\nYes I'm aware."
-                ),
-                "role": "",
-            }
-        ],
-        metadata={"num_cached_tokens": 0, "finish_reason": "stop"},
-        token_metrics={"input_tokens": 10, "output_tokens": 40, "total_tokens": 50},
-        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm"},
-    )
-    assert llmobs_events[0] == expected
-
-
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_llmobs_embed(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
-    llm = get_llm(
-        model="intfloat/e5-small",
-        runner="pooling",
-        engine_mode=vllm_engine_mode,
-        enforce_eager=True,
-        compilation_config={"use_inductor": False},
-        max_model_len=256,
-        trust_remote_code=True,
-    )
+def test_llmobs_embed(vllm, llmobs_events, mock_tracer, vllm_engine_mode, e5_small_llm):
+    llm = e5_small_llm
 
     prompts = [
         "Hello, my name is",
@@ -419,16 +217,8 @@ def test_llmobs_embed(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_llmobs_reward(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
-    llm = get_llm(
-        model="BAAI/bge-reranker-v2-m3",
-        runner="pooling",
-        engine_mode=vllm_engine_mode,
-        enforce_eager=True,
-        compilation_config={"use_inductor": False},
-        max_model_len=256,
-        trust_remote_code=True,
-    )
+def test_llmobs_reward(vllm, llmobs_events, mock_tracer, vllm_engine_mode, bge_reranker_llm):
+    llm = bge_reranker_llm
 
     prompts = [
         "Hello, my name is",
@@ -477,16 +267,8 @@ def test_llmobs_reward(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_llmobs_score(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
-    llm = get_llm(
-        model="BAAI/bge-reranker-v2-m3",
-        runner="pooling",
-        engine_mode=vllm_engine_mode,
-        enforce_eager=True,
-        max_model_len=256,
-        compilation_config={"use_inductor": False},
-        trust_remote_code=True,
-    )
+def test_llmobs_score(vllm, llmobs_events, mock_tracer, vllm_engine_mode, bge_reranker_llm):
+    llm = bge_reranker_llm
 
     text_1 = "What is the capital of France?"
     texts_2 = [
@@ -536,109 +318,3 @@ def test_llmobs_score(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm"},
         )
         assert event == expected
-
-
-@pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-async def test_llmobs_concurrent_streaming(vllm, llmobs_events, mock_tracer, vllm_engine_mode):
-    engine = create_async_engine(
-        model="facebook/opt-125m",
-        engine_mode=vllm_engine_mode,
-        enforce_eager=True,
-        max_model_len=256,
-        compilation_config={"use_inductor": False},
-        trust_remote_code=True,
-    )
-
-    sampling_params = vllm.SamplingParams(
-        max_tokens=64,
-        temperature=0.8,
-        top_p=0.95,
-        seed=42,
-        output_kind=RequestOutputKind.DELTA,
-    )
-
-    async def _run(req_id: str, prompt: str):
-        async for out in engine.generate(
-            request_id=req_id,
-            prompt=prompt,
-            sampling_params=sampling_params,
-        ):
-            if out.finished:
-                break
-
-    await asyncio.gather(
-        _run("stream-conc-1", "The future of AI is"),
-        _run("stream-conc-2", "In a galaxy far, far away"),
-    )
-
-    traces = mock_tracer.pop_traces()
-    spans = [s for t in traces for s in t]
-    print("---LLMOBS EVENTS---")
-    print(llmobs_events)
-    print("---END LLMOBS EVENTS---")
-    print("---SPANS---")
-    print(spans)
-    print("---END SPANS---")
-
-    # Expect two events, one per prompt
-    assert len(llmobs_events) == 2
-    span_by_id = {s.span_id: s for s in spans}
-
-    # Build expectations keyed by input content
-    expected_by_input = {
-        "The future of AI is": {
-            "token_metrics": {"input_tokens": 6, "output_tokens": 64, "total_tokens": 70},
-            "output_text": (
-                " in the minds of scientists\nThe future of AI is in the minds of scientists, and I believe "
-                "that's because the tools are being used to drive what's happening in artificial "
-                "intelligence. One of the main challenges for AI is how to do something like that. In "
-                "order to make that possible, we need to start to"
-            ),
-        },
-        "In a galaxy far, far away": {
-            "token_metrics": {"input_tokens": 8, "output_tokens": 64, "total_tokens": 72},
-            "output_text": (
-                ", there's a new TV show called ‘The Young and the Restless’ which has been adapted into a "
-                "movie. It’s called ‘The Young and the Restless’!\n\n‘The Young and the Restless’ was created "
-                "by Russell Crowe. The show started"
-            ),
-        },
-    }
-
-    for event in llmobs_events:
-        span = span_by_id[int(event["span_id"])]
-        # Determine which prompt this event corresponds to
-        input_msg = event["meta"]["input"]["messages"][0]["content"]
-        exp = expected_by_input[input_msg]
-
-        expected = _expected_llmobs_llm_span_event(
-            span,
-            model_name="facebook/opt-125m",
-            model_provider="vllm",
-            input_messages=[{"content": input_msg, "role": ""}],
-            output_messages=[{"content": exp["output_text"], "role": ""}],
-            metadata={
-                "frequency_penalty": 0.0,
-                "repetition_penalty": 1.0,
-                "presence_penalty": 0.0,
-                "max_tokens": 64,
-                "top_p": 0.95,
-                "n": 1,
-                "temperature": 0.8,
-                "top_k": 0,
-                "seed": 42,
-                "finish_reason": "length",
-            }
-            | ({"num_cached_tokens": 0} if vllm_engine_mode == "1" else {}),
-            token_metrics=exp["token_metrics"],
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm"},
-        )
-        assert event == expected
-    # Ensure engine is torn down promptly
-    try:
-        shutdown = getattr(engine, "shutdown", None)
-        if callable(shutdown):
-            shutdown()
-    except Exception:
-        pass

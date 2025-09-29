@@ -1,4 +1,6 @@
 import importlib
+import os
+import weakref
 
 import pytest
 
@@ -111,13 +113,69 @@ def llmobs_events(vllm_llmobs, llmobs_span_writer):
     return llmobs_span_writer.events
 
 
-@pytest.fixture
-def vllm_engine_mode(monkeypatch):
+@pytest.fixture(scope="module")
+def vllm_engine_mode():
     # Derive engine mode from environment for CI job split (default v1)
-    mode = (importlib.import_module("os").environ.get("VLLM_USE_V1", "1")).strip()
+    mode = os.environ.get("VLLM_USE_V1", "1").strip()
     if mode not in {"0", "1"}:
         mode = "1"
     print(f"VLLM_USE_V1: {mode}")
-    monkeypatch.setenv("VLLM_USE_V1", mode)
-    monkeypatch.setenv("DD_TRACE_DEBUG", "1")
+    os.environ["VLLM_USE_V1"] = mode
+    os.environ["DD_TRACE_DEBUG"] = "1"
     return mode
+
+# Cached fixtures following vLLM's test patterns
+
+@pytest.fixture(scope="module")
+def opt_125m_llm(vllm_engine_mode):
+    """Cached facebook/opt-125m LLM for text generation tests."""
+    import vllm
+    from vllm.distributed import cleanup_dist_env_and_memory
+    llm = vllm.LLM(
+        model="facebook/opt-125m",
+        max_model_len=256,
+        enforce_eager=True,
+        compilation_config={"use_inductor": False},
+        gpu_memory_utilization=0.1,
+    )
+    yield weakref.proxy(llm)
+    del llm
+    cleanup_dist_env_and_memory()
+
+
+@pytest.fixture(scope="module") 
+def e5_small_llm(vllm_engine_mode):
+    """Cached intfloat/e5-small LLM for embedding tests."""
+    import vllm
+    from vllm.distributed import cleanup_dist_env_and_memory
+    llm = vllm.LLM(
+        model="intfloat/e5-small",
+        runner="pooling",
+        max_model_len=256,
+        enforce_eager=True,
+        compilation_config={"use_inductor": False},
+        trust_remote_code=True,
+        gpu_memory_utilization=0.1,
+    )
+    yield weakref.proxy(llm)
+    del llm
+    cleanup_dist_env_and_memory()
+
+
+@pytest.fixture(scope="module")
+def bge_reranker_llm(vllm_engine_mode):
+    """Cached BAAI/bge-reranker-v2-m3 LLM for classification/ranking tests."""
+    import vllm
+    from vllm.distributed import cleanup_dist_env_and_memory
+    llm = vllm.LLM(
+        model="BAAI/bge-reranker-v2-m3",
+        runner="pooling",
+        max_model_len=256,
+        enforce_eager=True,
+        compilation_config={"use_inductor": False},
+        trust_remote_code=True,
+        gpu_memory_utilization=0.1,
+    )
+    yield weakref.proxy(llm)
+    del llm
+    cleanup_dist_env_and_memory()
