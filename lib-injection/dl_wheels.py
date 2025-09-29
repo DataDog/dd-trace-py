@@ -88,7 +88,7 @@ for python_version, platform in itertools.product(args.python_version, args.plat
             ddtrace_specifier = "ddtrace==%s" % args.ddtrace_version
         elif args.local_ddtrace:
             wheel_files = [
-                f for f in os.listdir(".") if f.endswith(".whl") and abi in f and platform in f and arch in f
+                f for f in os.listdir(".") if f.endswith(".whl") and f"{abi}-" in f and platform in f and arch in f
             ]
 
             if len(wheel_files) > 1:
