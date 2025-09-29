@@ -1,7 +1,7 @@
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
-
+from ddtrace.contrib.internal.botocore.services.bedrock import _MODEL_PROVIDERS
 
 _MODEL_TYPE_IDENTIFIERS = (
     "foundation-model/",
@@ -13,6 +13,14 @@ _MODEL_TYPE_IDENTIFIERS = (
     "inference-profile/",
     "default-prompt-router/",
 )
+
+
+def _fallback_provider(original_model_id: str) -> str:
+    """If the original model ID contains a known model provider, return it, otherwise fallback to custom."""
+    for provider in _MODEL_PROVIDERS:
+        if provider in original_model_id:
+            return provider
+    return "custom"
 
 
 def parse_model_id(model_id: str):
@@ -31,10 +39,12 @@ def parse_model_id(model_id: str):
         h. Default prompt router: ARN prefix + "default-prompt-router/{prompt-id}"
     If model provider cannot be inferred from the model_id formatting, then default to "custom"
     """
+    original_model_id = model_id
+    
     if not model_id.startswith("arn:aws"):
         model_meta = model_id.split(".")
         if len(model_meta) < 2:
-            return "custom", model_meta[0]
+            return _fallback_provider(original_model_id), model_meta[0]
         return model_meta[-2], model_meta[-1]
     for identifier in _MODEL_TYPE_IDENTIFIERS:
         if identifier not in model_id:
@@ -43,10 +53,11 @@ def parse_model_id(model_id: str):
         if identifier in ("foundation-model/", "custom-model/", "inference-profile/"):
             model_meta = model_id.split(".")
             if len(model_meta) < 2:
-                return "custom", model_id
+                return _fallback_provider(original_model_id), model_id
             return model_meta[-2], model_meta[-1]
-        return "custom", model_id
-    return "custom", "custom"
+        return _fallback_provider(original_model_id), model_id
+
+    return _fallback_provider(original_model_id), "custom"
 
 
 def normalize_input_tokens(usage_metrics: dict) -> None:

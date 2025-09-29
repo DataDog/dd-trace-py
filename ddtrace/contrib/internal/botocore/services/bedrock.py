@@ -27,6 +27,7 @@ _ANTHROPIC = "anthropic"
 _COHERE = "cohere"
 _META = "meta"
 _STABILITY = "stability"
+_MODEL_PROVIDERS = (_AI21, _AMAZON, _ANTHROPIC, _COHERE, _META, _STABILITY)
 
 
 def traced_stream_read(traced_stream, original_read, amt=None):
