@@ -74,12 +74,9 @@ def test_iast_cmdi_bodies(body, content_type, server):
     response_tracer = _get_span(token)
     spans_with_iast = []
     vulnerabilities = []
-    print(f"response_tracer: {response_tracer}")
     clear_session(token)
     for trace in response_tracer:
-        print(f"trace: {trace}")
         for span in trace:
-            print(f"span: {span}")
             if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
                 spans_with_iast.append(span)
             iast_data = load_iast_report(span)
