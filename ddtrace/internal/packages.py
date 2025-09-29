@@ -99,6 +99,21 @@ def _effective_root(rel_path: Path, parent: Path) -> str:
     return base if root.is_dir() and (root / "__init__.py").exists() else "/".join(rel_path.parts[:2])
 
 
+# DEV: Since we can't lock on sys.path, these operations can be racy.
+_SYS_PATH_HASH: t.Optional[int] = None
+_RESOLVED_SYS_PATH: t.List[Path] = []
+
+
+def resolve_sys_path() -> t.List[Path]:
+    global _SYS_PATH_HASH, _RESOLVED_SYS_PATH
+
+    if (h := hash(tuple(sys.path))) != _SYS_PATH_HASH:
+        _SYS_PATH_HASH = h
+        _RESOLVED_SYS_PATH = [Path(_).resolve() for _ in sys.path]
+
+    return _RESOLVED_SYS_PATH
+
+
 def _root_module(path: Path) -> str:
     # Try the most likely prefixes first
     for parent_path in (purelib_path, platlib_path):
@@ -112,7 +127,7 @@ def _root_module(path: Path) -> str:
     # Try to resolve the root module using sys.path. We keep the shortest
     # relative path as the one more likely to give us the root module.
     min_relative_path = max_parent_path = None
-    for parent_path in (Path(_).resolve() for _ in sys.path):
+    for parent_path in resolve_sys_path():
         try:
             relative = path.relative_to(parent_path)
             if min_relative_path is None or len(relative.parents) < len(min_relative_path.parents):
@@ -240,7 +255,9 @@ platlib_path = Path(sysconfig.get_path("platlib")).resolve()
 
 @cached(maxsize=256)
 def is_stdlib(path: Path) -> bool:
-    rpath = path.resolve()
+    rpath = path
+    if not rpath.is_absolute() or rpath.is_symlink():
+        rpath = rpath.resolve()
 
     return (rpath.is_relative_to(stdlib_path) or rpath.is_relative_to(platstdlib_path)) and not (
         rpath.is_relative_to(purelib_path) or rpath.is_relative_to(platlib_path)

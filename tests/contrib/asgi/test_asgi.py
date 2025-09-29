@@ -237,6 +237,7 @@ if __name__ == "__main__":
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (err, out)
+    assert err == b"", f"STDOUT\n{out.decode()}\nSTDERR\n{err.decode()}"
 
 
 @pytest.mark.parametrize(
@@ -297,6 +298,7 @@ if __name__ == "__main__":
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (err, out)
+    assert err == b""
 
 
 @pytest.mark.asyncio

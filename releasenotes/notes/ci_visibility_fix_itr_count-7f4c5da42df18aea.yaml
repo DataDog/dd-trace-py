@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    CI Visibility: This fix solves an issue where the ITR skip count metric was aggregating skipped tests even when skipping level was set to suite. It will now count appropriately (skipped suites or skipped tests) depending on ITR skip level.
