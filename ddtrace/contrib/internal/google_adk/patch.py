@@ -34,8 +34,10 @@ def get_version() -> str:
 def _traced_agent_run_async(adk, pin, wrapped, instance, args, kwargs):
     """Trace the main execution of an agent (async generator)."""
     integration: GoogleAdkIntegration = adk._datadog_integration
+    agent = getattr(instance, "agent", None)
+    model = getattr(agent, "model", None)
     provider_name, model_name = extract_provider_and_model_name(
-        instance=getattr(getattr(instance, "agent", {}), "model", {}), model_name_attr="model"
+        instance=model, model_name_attr="model"
     )
 
     span = integration.trace(
