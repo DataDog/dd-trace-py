@@ -124,13 +124,16 @@ def vllm_engine_mode():
     os.environ["DD_TRACE_DEBUG"] = "1"
     return mode
 
+
 # Cached fixtures following vLLM's test patterns
+
 
 @pytest.fixture(scope="module")
 def opt_125m_llm(vllm_engine_mode):
     """Cached facebook/opt-125m LLM for text generation tests."""
     import vllm
     from vllm.distributed import cleanup_dist_env_and_memory
+
     llm = vllm.LLM(
         model="facebook/opt-125m",
         max_model_len=256,
@@ -143,11 +146,12 @@ def opt_125m_llm(vllm_engine_mode):
     cleanup_dist_env_and_memory()
 
 
-@pytest.fixture(scope="module") 
+@pytest.fixture(scope="module")
 def e5_small_llm(vllm_engine_mode):
     """Cached intfloat/e5-small LLM for embedding tests."""
     import vllm
     from vllm.distributed import cleanup_dist_env_and_memory
+
     llm = vllm.LLM(
         model="intfloat/e5-small",
         runner="pooling",
@@ -167,6 +171,7 @@ def bge_reranker_llm(vllm_engine_mode):
     """Cached BAAI/bge-reranker-v2-m3 LLM for classification/ranking tests."""
     import vllm
     from vllm.distributed import cleanup_dist_env_and_memory
+
     llm = vllm.LLM(
         model="BAAI/bge-reranker-v2-m3",
         runner="pooling",

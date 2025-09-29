@@ -1,12 +1,7 @@
-import asyncio
-
 import mock
 import pytest
-from vllm.sampling_params import RequestOutputKind
 
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
-
-import vllm
 
 
 IGNORE_FIELDS = [
@@ -16,9 +11,11 @@ IGNORE_FIELDS = [
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_llmobs_basic(vllm, llmobs_events, mock_tracer, vllm_engine_mode, opt_125m_llm):
+def test_llmobs_basic(llmobs_events, mock_tracer, vllm_engine_mode, opt_125m_llm):
+    from vllm import SamplingParams
+
     llm = opt_125m_llm
-    sampling = vllm.SamplingParams(temperature=0.1, top_p=0.9, max_tokens=8, seed=42)
+    sampling = SamplingParams(temperature=0.1, top_p=0.9, max_tokens=8, seed=42)
     llm.generate("The future of AI is", sampling)
     span = mock_tracer.pop_traces()[0][0]
     print("---LLMOBS EVENTS---")
@@ -54,9 +51,11 @@ def test_llmobs_basic(vllm, llmobs_events, mock_tracer, vllm_engine_mode, opt_12
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_llmobs_chat(vllm, llmobs_events, mock_tracer, vllm_engine_mode, opt_125m_llm):
+def test_llmobs_chat(llmobs_events, mock_tracer, vllm_engine_mode, opt_125m_llm):
+    from vllm import SamplingParams
+
     llm = opt_125m_llm
-    sampling_params = vllm.SamplingParams(seed=42)
+    sampling_params = SamplingParams(seed=42)
 
     conversation = [
         {"role": "system", "content": "You are a helpful assistant"},
@@ -127,7 +126,7 @@ def test_llmobs_chat(vllm, llmobs_events, mock_tracer, vllm_engine_mode, opt_125
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_llmobs_classify(vllm, llmobs_events, mock_tracer, vllm_engine_mode, bge_reranker_llm):
+def test_llmobs_classify(llmobs_events, mock_tracer, vllm_engine_mode, bge_reranker_llm):
     llm = bge_reranker_llm
 
     prompts = [
@@ -172,7 +171,7 @@ def test_llmobs_classify(vllm, llmobs_events, mock_tracer, vllm_engine_mode, bge
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_llmobs_embed(vllm, llmobs_events, mock_tracer, vllm_engine_mode, e5_small_llm):
+def test_llmobs_embed(llmobs_events, mock_tracer, vllm_engine_mode, e5_small_llm):
     llm = e5_small_llm
 
     prompts = [
@@ -217,7 +216,7 @@ def test_llmobs_embed(vllm, llmobs_events, mock_tracer, vllm_engine_mode, e5_sma
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_llmobs_reward(vllm, llmobs_events, mock_tracer, vllm_engine_mode, bge_reranker_llm):
+def test_llmobs_reward(llmobs_events, mock_tracer, vllm_engine_mode, bge_reranker_llm):
     llm = bge_reranker_llm
 
     prompts = [
@@ -267,7 +266,7 @@ def test_llmobs_reward(vllm, llmobs_events, mock_tracer, vllm_engine_mode, bge_r
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_llmobs_score(vllm, llmobs_events, mock_tracer, vllm_engine_mode, bge_reranker_llm):
+def test_llmobs_score(llmobs_events, mock_tracer, vllm_engine_mode, bge_reranker_llm):
     llm = bge_reranker_llm
 
     text_1 = "What is the capital of France?"
