@@ -19,7 +19,7 @@ def test_json_to_dot_paths():
         f"{RAY_METADATA_PREFIX}.c": 2,
     }
     assert json_to_dot_paths({"a": {"b": {"c": 1, "d": [1, 2]}}}) == {
-        f"{RAY_METADATA_PREFIX}.a.b.c": 1, 
+        f"{RAY_METADATA_PREFIX}.a.b.c": 1,
         f"{RAY_METADATA_PREFIX}.a.b.d": "[1, 2]",
     }
-    assert json_to_dot_paths(1) == {f"{RAY_METADATA_PREFIX}":1}
+    assert json_to_dot_paths(1) == {f"{RAY_METADATA_PREFIX}": 1}
