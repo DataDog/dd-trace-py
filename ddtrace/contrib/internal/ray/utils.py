@@ -133,16 +133,17 @@ def get_dd_job_name_from_entrypoint(entrypoint: str):
     return None
 
 
-def json_to_dot_notation(data):
+def json_to_dot_paths(data):
     """
     Converts a JSON (or Python dictionary) structure into a dict mapping
-    dot-notation paths to leaf values.
+    dot-notation paths to leaf values, with keys prefixed once by RAY_METADATA_PREFIX.
 
     - Assumes the top-level is a dictionary. If a list is encountered anywhere,
       it is stringified with json.dumps and treated as a leaf (no recursion into list elements).
     - Leaf values (str, int, float, bool, None) are returned as-is as the dict values.
     - If the top-level value is a simple primitive (str, int, float, bool, None),
       it is returned unchanged. If the top-level is a list, it is stringified.
+    - Returned dict keys are prefixed once with RAY_METADATA_PREFIX.
     """
     # If top-level is a primitive, return it directly
     if not isinstance(data, (dict, list)):
@@ -155,7 +156,7 @@ def json_to_dot_notation(data):
         except Exception:
             return "[]"
 
-    result = {}
+    flat = {}
 
     def _recurse(node, path):
         if isinstance(node, dict):
@@ -168,20 +169,23 @@ def json_to_dot_notation(data):
                 list_dump = json.dumps(node, ensure_ascii=False)
             except Exception:
                 list_dump = "[]"
-            # path should always be non-empty for list encountered in a dict traversal
-            result[path] = list_dump
+            flat[path] = list_dump
         else:
             # leaf node: store the accumulated path -> value
-            result[path] = node
+            flat[path] = node
 
     _recurse(data, "")
+
+    # Prefix keys once with RAY_METADATA_PREFIX
+    result = {}
+    for k, v in flat.items():
+        if k:
+            result[f"{RAY_METADATA_PREFIX}.{k}"] = v
+        else:
+            # If an empty key (top-level primitive under a dict), attach prefix alone
+            result[RAY_METADATA_PREFIX] = v
+
     return result
-
-
-def metadata_to_dot_pairs(metadata):
-    if isinstance(metadata, dict):
-        for k, v in json_to_dot_notation(metadata).items():
-            yield f"{RAY_METADATA_PREFIX}.{k}", v
 
 
 # -------------------------------------------------------------------------------------------

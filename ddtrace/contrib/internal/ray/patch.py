@@ -60,7 +60,7 @@ from .utils import _inject_dd_trace_ctx_kwarg
 from .utils import _inject_ray_span_tags_and_metrics
 from .utils import extract_signature
 from .utils import get_dd_job_name_from_entrypoint
-from .utils import metadata_to_dot_pairs
+from .utils import json_to_dot_notation
 from .utils import set_tag_or_truncate
 
 
@@ -210,10 +210,9 @@ def traced_submit_job(wrapped, instance, args, kwargs):
         if entrypoint_script:
             job_span.set_tag_str(RAY_ENTRYPOINT_SCRIPT, entrypoint_script)
     metadata = kwargs.get("metadata", {})
-    dot_pairs = metadata_to_dot_pairs(metadata)
-    if isinstance(dot_pairs, dict):
-        for k, v in dot_pairs.items():
-            set_tag_or_truncate(job_span, k, v)
+    dot_pairs = json_to_dot_notation(metadata)
+    for k, v in dot_pairs.items():
+        set_tag_or_truncate(job_span, k, v)
 
     tracer.context_provider.activate(job_span)
     start_long_running_job(job_span)
