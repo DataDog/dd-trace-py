@@ -7,18 +7,19 @@ The ray integration traces:
 Enabling
 ~~~~~~~~
 
-The Ray integration is enabled automatically when you use
-:ref:`ddtrace-run<ddtracerun>` or :ref:`import ddtrace.auto<ddtraceauto>`.
+Ray instrumentation is experimental. It is deactivated by default. To enable it,
+you have to follow one of the two methods below:
 
-Or use :func:`patch() <ddtrace.patch>` to manually enable the Ray integration::
-
-    from ddtrace import patch
-    patch(ray=True)
-
-The recommended way to instrument ray, is to instrument the ray cluster.
+The recommended way to instrument Ray, is to instrument the Ray cluster.
 You can do it by starting the Ray head with a tracing startup hook::
 
-    ray start --head --tracing-startup-hook=ddtrace.contrib.internal.ray.hook:setup_tracing
+    ray start --head --tracing-startup-hook=ddtrace.contrib.ray:setup_tracing
+
+Otherwise, you can specify the tracing hook in `ray.init()` using::
+
+    ray.init(_tracing_startup_hook="ddtrace.contrib.ray:setup_tracing")
+
+Note that this method does not provide full tracing capabilities.
 
 
 Configuration
@@ -26,26 +27,26 @@ Configuration
 
 The Ray integration can be configured using environment variables:
 
-- ``DD_TRACE_RAY_RESUBMIT_LONG_RUNNING_INTERVAL``: Interval for resubmitting long-running
-    spans (default: ``10.0`` seconds)
-- ``DD_TRACE_RAY_WATCH_LONG_RUNNING_DELAY``: Maxime delay before a long-running span
-    is sent (default: ``10.0`` seconds)
+- ``DD_TRACE_EXPERIMENTAL_LONG_RUNNING_FLUSH_INTERVAL``: Interval for resubmitting long-running
+    spans (default: ``120.0`` seconds)
+
+Ray service name can be configured by:
+
+- specifying in submission ID using ``job:your-job-name`` during job submission::
+
+    ray job submit --submission-id="job:my_model,run:39" -- python entrypoint.py
+
+- specifying in metadata during job submission::
+
+    ray job submit --metadata-json='{"job_name": "my_model"}' -- python entrypoint.py
+
+- specifying ``DD_SERVICE`` when initializing your Ray cluster.
+
+By default, the service name will be the name of your entrypoint
 
 Notes
 ~~~~~
 
 - The integration disables Ray's built-in OpenTelemetry tracing to avoid duplicate telemetry.
-- The integration filters out non-Ray dashboard spans to reduce noise.
 - Actor methods like ``ping`` and ``_polling`` are excluded from tracing to reduce noise.
 """
-
-import os
-
-
-def in_ray_job():
-    # type: () -> bool
-    """Returns whether we are in a ray environemt.
-    This is accomplished by checking if the _RAY_SUBMISSION_ID environment variable is defined
-    which means a job has been submitted and is traced
-    """
-    return bool(os.environ.get("_RAY_SUBMISSION_ID", False))

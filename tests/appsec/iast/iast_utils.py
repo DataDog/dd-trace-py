@@ -30,8 +30,7 @@ from ddtrace.appsec._iast.sampling.vulnerability_detection import _reset_global_
 
 
 # Check if the log contains "iast::" to raise an error if that’s the case BUT, if the logs contains
-# "iast::instrumentation::" or "iast::instrumentation::"
-# are valid
+# "iast::instrumentation::" or "iast::instrumentation::" are valid
 IAST_VALID_LOG = re.compile(r"^iast::(?!instrumentation::|propagation::context::|propagation::sink_point).*$")
 
 

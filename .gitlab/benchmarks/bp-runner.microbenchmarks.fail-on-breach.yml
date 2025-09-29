@@ -15,10 +15,6 @@ experiments:
             thresholds:
               - execution_time < 0.01 ms
               - max_rss_usage < 33.50 MB
-          - name: coreapiscenario-context_with_data_only_all_listeners
-            thresholds:
-              - execution_time < 0.02 ms
-              - max_rss_usage < 33.50 MB
           - name: coreapiscenario-get_item_exists
             thresholds:
               - execution_time < 0.01 ms
@@ -89,6 +85,10 @@ experiments:
             thresholds:
               - execution_time < 22.00 ms
               - max_rss_usage < 67.00 MB
+          - name: djangosimple-resource-renaming
+            thresholds:
+              - execution_time < 21.75 ms
+              - max_rss_usage < 67.00 MB
 
           # errortrackingdjangosimple
           - name: errortrackingdjangosimple-errortracking-enabled-all
@@ -152,6 +152,10 @@ experiments:
             thresholds:
               - execution_time < 4.75 ms
               - max_rss_usage < 65.00 MB
+          - name: flasksimple-resource-renaming
+            thresholds:
+              - execution_time < 3.65 ms
+              - max_rss_usage < 53.50 MB
 
           # flasksqli
           - name: flasksqli-appsec-enabled
