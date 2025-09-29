@@ -198,6 +198,7 @@ suites:
     snapshot: true
   vllm:v0:
     parallelism: 1
+    pattern: ^vllm$
     paths:
       - '@bootstrap'
       - '@core'
@@ -214,6 +215,7 @@ suites:
     snapshot: true
   vllm:v1:
     parallelism: 1
+    pattern: ^vllm$
     paths:
       - '@bootstrap'
       - '@core'
