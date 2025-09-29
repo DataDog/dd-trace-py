@@ -1,0 +1,147 @@
+# Lock Profiler Stress Test Configurations
+# Tests various scenarios to stress the lock profiling system
+
+# High contention - many threads competing for few locks
+high-contention-10-threads: &high_contention_base
+  scenario_type: "high_contention"
+  num_threads: 10
+  num_locks: 2
+  operations_per_thread: 1000
+  hold_time_ms: 5
+  think_time_ms: 1
+
+high-contention-50-threads:
+  <<: *high_contention_base
+  num_threads: 50
+
+high-contention-100-threads:
+  <<: *high_contention_base
+  num_threads: 100
+
+# Lock hierarchy - nested lock scenarios
+lock-hierarchy-simple: &hierarchy_base
+  scenario_type: "lock_hierarchy"
+  num_threads: 20
+  hierarchy_depth: 3
+  operations_per_thread: 500
+  hold_time_ms: 2
+
+lock-hierarchy-deep:
+  <<: *hierarchy_base
+  hierarchy_depth: 5
+  num_threads: 30
+
+lock-hierarchy-complex:
+  <<: *hierarchy_base
+  hierarchy_depth: 7
+  num_threads: 40
+
+# High frequency - rapid acquire/release cycles
+high-frequency-baseline: &frequency_base
+  scenario_type: "high_frequency"
+  num_threads: 20
+  num_locks: 10
+  operations_per_thread: 5000
+  hold_time_ms: 0
+  think_time_ms: 0
+
+high-frequency-intense:
+  <<: *frequency_base
+  operations_per_thread: 10000
+  num_threads: 30
+
+high-frequency-extreme:
+  <<: *frequency_base
+  operations_per_thread: 20000
+  num_threads: 50
+
+# Mixed synchronization primitives
+mixed-primitives: &mixed_base
+  scenario_type: "mixed_primitives"
+  num_threads: 25
+  operations_per_thread: 1000
+  use_rlock: true
+  use_condition: true
+  use_semaphore: true
+  use_event: true
+
+mixed-primitives-heavy:
+  <<: *mixed_base
+  num_threads: 50
+  operations_per_thread: 2000
+
+# Long-held locks - simulating slow operations
+long-held-locks: &long_held_base
+  scenario_type: "long_held_locks"
+  num_threads: 10
+  num_locks: 5
+  operations_per_thread: 100
+  hold_time_ms: 100
+  variance_ms: 50
+
+long-held-locks-extreme:
+  <<: *long_held_base
+  num_threads: 20
+  hold_time_ms: 500
+  variance_ms: 200
+
+# Producer-consumer pattern stress
+producer-consumer: &producer_consumer_base
+  scenario_type: "producer_consumer"
+  num_producers: 10
+  num_consumers: 10
+  queue_size: 100
+  items_per_producer: 1000
+  processing_time_ms: 1
+
+producer-consumer-heavy:
+  <<: *producer_consumer_base
+  num_producers: 25
+  num_consumers: 25
+  items_per_producer: 2000
+
+# Reader-writer lock simulation
+reader-writer: &reader_writer_base
+  scenario_type: "reader_writer"
+  num_readers: 30
+  num_writers: 5
+  operations_per_thread: 500
+  read_time_ms: 10
+  write_time_ms: 50
+
+reader-writer-heavy:
+  <<: *reader_writer_base
+  num_readers: 100
+  num_writers: 10
+  operations_per_thread: 1000
+
+# Memory pressure + locks
+memory-pressure: &memory_pressure_base
+  scenario_type: "memory_pressure"
+  num_threads: 20
+  num_locks: 10
+  operations_per_thread: 1000
+  allocate_mb_per_op: 1
+  hold_time_ms: 10
+
+memory-pressure-heavy:
+  <<: *memory_pressure_base
+  num_threads: 40
+  allocate_mb_per_op: 5
+
+# Deadlock-prone scenarios (should not actually deadlock)
+deadlock-prone: &deadlock_prone_base
+  scenario_type: "deadlock_prone"
+  num_threads: 20
+  num_locks: 5
+  operations_per_thread: 500
+  randomize_order: true
+  timeout_ms: 100
+
+# Async/await stress (if applicable)
+async-stress:
+  scenario_type: "async_stress"
+  num_tasks: 100
+  num_locks: 10
+  operations_per_task: 500
+  async_sleep_ms: 1
