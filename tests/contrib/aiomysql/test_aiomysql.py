@@ -135,6 +135,7 @@ asyncio.run(test())""",
         env=env,
     )
     assert status == 0, err
+    assert out == err == b""
 
 
 @pytest.mark.asyncio
@@ -163,6 +164,7 @@ asyncio.run(test())""",
         env=env,
     )
     assert status == 0, err
+    assert out == err == b""
 
 
 @pytest.mark.asyncio
@@ -189,6 +191,7 @@ asyncio.run(test())""",
         env=env,
     )
     assert status == 0, err
+    assert out == err == b""
 
 
 @pytest.mark.asyncio
@@ -215,6 +218,7 @@ asyncio.run(test())""",
         env=env,
     )
     assert status == 0, err
+    assert out == err == b""
 
 
 class AioMySQLTestCase(AsyncioTestCase):
