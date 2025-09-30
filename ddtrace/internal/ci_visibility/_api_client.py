@@ -307,10 +307,10 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             if os.path.exists(cache_file):
                 with open(cache_file, "r", encoding="utf-8") as f:
                     cached_data = json.load(f)
-                    log.debug("REQ CACHE: Hit for key: %s", cache_key)
+                    log.debug("RESPONSE CACHE: Hit for key: %s", cache_key)
                     return cached_data
         except Exception:  # noqa: E722
-            log.debug("Failed to read from cache for key: %s", cache_key, exc_info=True)
+            log.debug("RESPONSE CACHE: Failed to read from cache for key: %s", cache_key, exc_info=True)
         return None
 
     def _write_to_cache(self, cache_key: str, data: t.Any) -> None:
@@ -321,9 +321,9 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         try:
             with open(cache_file, "w", encoding="utf-8") as f:
                 json.dump(data, f)
-                log.debug("REQ CACHEd response for key: %s", cache_key)
+                log.debug("RESPONSE CACHE: Wrote response for key: %s", cache_key)
         except Exception:  # noqa: E722
-            log.debug("REQ CACHE: Failed to write to cache for key: %s", cache_key, exc_info=True)
+            log.debug("RESPONSE CACHE: Failed to write to cache for key: %s", cache_key, exc_info=True)
 
     def _do_request(self, method: str, endpoint: str, payload: str, timeout: t.Optional[float] = None) -> Response:
         timeout = timeout if timeout is not None else self._timeout
@@ -375,7 +375,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         if read_from_cache:
             cached_response = self._read_from_cache(cache_key)
             if cached_response is not None:
-                log.debug("Using cached response with key: %s", cache_key)
+                log.debug("RESPONSE CACHE: Using cached response with key: %s", cache_key)
                 # Return cached response (no telemetry recorded for cache hits)
                 return cached_response
 
