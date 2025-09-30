@@ -16,19 +16,21 @@ profiling = ["dep:datadog-profiling-ffi"]
 
 [dependencies]
 anyhow = { version = "1.0", optional = true }
-datadog-crashtracker = { git = "https://github.com/DataDog/libdatadog", rev = "v20.0.0", optional = true }
-datadog-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "v20.0.0" }
-datadog-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "v20.0.0" }
-data-pipeline = { git = "https://github.com/DataDog/libdatadog", rev = "v20.0.0" }
-datadog-profiling-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "v20.0.0", optional = true, features = [
+datadog-crashtracker = { git = "https://github.com/DataDog/libdatadog", rev = "v21.0.0", optional = true }
+datadog-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "v21.0.0" }
+datadog-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "v21.0.0" }
+datadog-log = { git = "https://github.com/DataDog/libdatadog", rev = "v21.0.0" }
+data-pipeline = { git = "https://github.com/DataDog/libdatadog", rev = "v21.0.0" }
+datadog-profiling-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "v21.0.0", optional = true, features = [
     "cbindgen",
 ] }
-ddcommon = { git = "https://github.com/DataDog/libdatadog", rev = "v20.0.0" }
+ddcommon = { git = "https://github.com/DataDog/libdatadog", rev = "v21.0.0" }
 pyo3 = { version = "0.25", features = ["extension-module", "anyhow"] }
+tracing = { version = "0.1", default-features = false }
 
 [build-dependencies]
 pyo3-build-config = "0.25"
-build_common = { git = "https://github.com/DataDog/libdatadog", rev = "v20.0.0", features = [
+build_common = { git = "https://github.com/DataDog/libdatadog", rev = "v21.0.0", features = [
     "cbindgen",
 ] }
 

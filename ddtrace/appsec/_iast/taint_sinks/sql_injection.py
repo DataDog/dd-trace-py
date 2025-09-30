@@ -51,7 +51,7 @@ def _on_report_sqli(*args, **kwargs) -> bool:
                     # Report Telemetry Metrics
                     _set_metric_iast_executed_sink(SqlInjection.vulnerability_type)
     except Exception as e:
-        iast_error(f"propagation::sink_point::Error in check_and_report_sqli. {e}")
+        iast_error("propagation::sink_point::Error in check_and_report_sqli", e)
     return reported
 
 

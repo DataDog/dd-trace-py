@@ -3,8 +3,10 @@ import json
 import os
 import sqlite3
 import subprocess
+from typing import AsyncGenerator
 from typing import Optional
 
+from fastapi import Depends
 from fastapi import FastAPI
 from fastapi import Request
 from fastapi.responses import HTMLResponse
@@ -40,6 +42,17 @@ class User(BaseModel):
 def get_app():
     app = FastAPI()
 
+    async def get_db() -> AsyncGenerator[sqlite3.Connection, None]:
+        db = sqlite3.connect(":memory:")
+        db.execute("CREATE TABLE users (id TEXT PRIMARY KEY, name TEXT)")
+        db.execute("INSERT INTO users (id, name) VALUES ('1_secret_id', 'Alice')")
+        db.execute("INSERT INTO users (id, name) VALUES ('2_secret_id', 'Bob')")
+        db.execute("INSERT INTO users (id, name) VALUES ('3_secret_id', 'Christophe')")
+        try:
+            yield db
+        finally:
+            db.close()
+
     @app.middleware("http")
     async def passthrough_middleware(request: Request, call_next):
         """Middleware to test BlockingException nesting in ExceptionGroups (or BaseExceptionGroups)
@@ -47,7 +60,7 @@ def get_app():
         With middlewares, the BlockingException can become nested multiple levels deep inside
         an ExceptionGroup (or BaseExceptionGroup). The nesting depends the version of FastAPI
         and AnyIO used, as well as the version of python.
-        By adding this empty middleware, we ensure that the BlockingException is catched
+        By adding this empty middleware, we ensure that the BlockingException is caught
         no matter how deep the ExceptionGroup is nested or else the contrib tests fail.
         """
         return await call_next(request)
@@ -144,12 +157,7 @@ def get_app():
     @app.get("/rasp/{endpoint:str}/")
     @app.post("/rasp/{endpoint:str}/")
     @app.options("/rasp/{endpoint:str}/")
-    async def rasp(endpoint: str, request: Request):
-        DB = sqlite3.connect(":memory:")
-        DB.execute("CREATE TABLE users (id TEXT PRIMARY KEY, name TEXT)")
-        DB.execute("INSERT INTO users (id, name) VALUES ('1_secret_id', 'Alice')")
-        DB.execute("INSERT INTO users (id, name) VALUES ('2_secret_id', 'Bob')")
-        DB.execute("INSERT INTO users (id, name) VALUES ('3_secret_id', 'Christophe')")
+    async def rasp(endpoint: str, request: Request, db: sqlite3.Connection = Depends(get_db)):
         query_params = request.query_params
         if endpoint == "lfi":
             res = ["lfi endpoint"]
@@ -199,7 +207,7 @@ def get_app():
                     user_id = query_params[param]
                 try:
                     if param.startswith("user_id"):
-                        cursor = DB.execute(f"SELECT * FROM users WHERE id = {user_id}")
+                        cursor = db.execute(f"SELECT * FROM users WHERE id = {user_id}")
                         res.append(f"Url: {list(cursor)}")
                 except Exception as e:
                     res.append(f"Error: {e}")

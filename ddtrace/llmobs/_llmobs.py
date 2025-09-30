@@ -13,13 +13,13 @@ from typing import Literal
 from typing import Optional
 from typing import Set
 from typing import Tuple
-from typing import TypedDict
 from typing import Union
 from typing import cast
 
 import ddtrace
 from ddtrace import config
 from ddtrace import patch
+from ddtrace._trace.apm_filter import APMTracingEnabledFilter
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace._trace.tracer import Tracer
@@ -100,17 +100,23 @@ from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.llmobs._utils import _is_evaluation_span
+from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import enforce_message_role
 from ddtrace.llmobs._utils import safe_json
-from ddtrace.llmobs._utils import validate_prompt
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 from ddtrace.llmobs._writer import LLMObsExperimentsClient
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs._writer import should_use_agentless
+from ddtrace.llmobs.types import ExportedLLMObsSpan
+from ddtrace.llmobs.types import Message
+from ddtrace.llmobs.types import Prompt
+from ddtrace.llmobs.types import _ErrorField
+from ddtrace.llmobs.types import _Meta
+from ddtrace.llmobs.types import _MetaIO
+from ddtrace.llmobs.types import _SpanField
 from ddtrace.llmobs.utils import Documents
-from ddtrace.llmobs.utils import ExportedLLMObsSpan
 from ddtrace.llmobs.utils import Messages
 from ddtrace.llmobs.utils import extract_tool_definitions
 from ddtrace.propagation.http import HTTPPropagator
@@ -124,6 +130,7 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
     "bedrock": "botocore",
     "openai": "openai",
     "langchain": "langchain",
+    "google_adk": "google_adk",
     "google_generativeai": "google_generativeai",
     "google_genai": "google_genai",
     "vertexai": "vertexai",
@@ -160,10 +167,6 @@ class LLMObsSpan:
                 span.input = []
             return span
     """
-
-    class Message(TypedDict):
-        content: str
-        role: str
 
     input: List[Message] = field(default_factory=list)
     output: List[Message] = field(default_factory=list)
@@ -268,9 +271,9 @@ class LLMObs(Service):
             "apm_trace_id": format_trace_id(span.trace_id),
         }
 
-        meta: Dict[str, Any] = {"span.kind": span_kind, "input": {}, "output": {}}
+        meta = _Meta(span=_SpanField(kind=span_kind), input=_MetaIO(), output=_MetaIO())
         if span_kind in ("llm", "embedding") and span._get_ctx_item(MODEL_NAME) is not None:
-            meta["model_name"] = span._get_ctx_item(MODEL_NAME)
+            meta["model_name"] = span._get_ctx_item(MODEL_NAME) or ""
             meta["model_provider"] = (span._get_ctx_item(MODEL_PROVIDER) or "custom").lower()
         metadata = span._get_ctx_item(METADATA) or {}
         if span_kind == "agent" and span._get_ctx_item(AGENT_MANIFEST) is not None:
@@ -282,7 +285,7 @@ class LLMObs(Service):
         if span._get_ctx_item(INPUT_VALUE) is not None:
             input_type = "value"
             llmobs_span.input = [
-                {"content": safe_json(span._get_ctx_item(INPUT_VALUE), ensure_ascii=False), "role": ""}
+                Message(content=safe_json(span._get_ctx_item(INPUT_VALUE), ensure_ascii=False) or "", role="")
             ]
 
         if span.context.get_baggage_item(EXPERIMENT_ID_KEY):
@@ -303,23 +306,23 @@ class LLMObs(Service):
         input_messages = span._get_ctx_item(INPUT_MESSAGES)
         if span_kind == "llm" and input_messages is not None:
             input_type = "messages"
-            llmobs_span.input = cast(List[LLMObsSpan.Message], enforce_message_role(input_messages))
+            llmobs_span.input = cast(List[Message], enforce_message_role(input_messages))
 
         if span._get_ctx_item(OUTPUT_VALUE) is not None:
             output_type = "value"
             llmobs_span.output = [
-                {"content": safe_json(span._get_ctx_item(OUTPUT_VALUE), ensure_ascii=False), "role": ""}
+                Message(content=safe_json(span._get_ctx_item(OUTPUT_VALUE), ensure_ascii=False) or "", role="")
             ]
 
         output_messages = span._get_ctx_item(OUTPUT_MESSAGES)
         if span_kind == "llm" and output_messages is not None:
             output_type = "messages"
-            llmobs_span.output = cast(List[LLMObsSpan.Message], enforce_message_role(output_messages))
+            llmobs_span.output = cast(List[Message], enforce_message_role(output_messages))
 
         if span_kind == "embedding" and span._get_ctx_item(INPUT_DOCUMENTS) is not None:
-            meta["input"]["documents"] = span._get_ctx_item(INPUT_DOCUMENTS)
+            meta["input"]["documents"] = span._get_ctx_item(INPUT_DOCUMENTS) or []
         if span_kind == "retrieval" and span._get_ctx_item(OUTPUT_DOCUMENTS) is not None:
-            meta["output"]["documents"] = span._get_ctx_item(OUTPUT_DOCUMENTS)
+            meta["output"]["documents"] = span._get_ctx_item(OUTPUT_DOCUMENTS) or []
 
         if span._get_ctx_item(INPUT_PROMPT) is not None:
             prompt_json_str = span._get_ctx_item(INPUT_PROMPT)
@@ -328,7 +331,8 @@ class LLMObs(Service):
                     "Dropping prompt on non-LLM span kind, annotating prompts is only supported for LLM span kinds."
                 )
             else:
-                meta["input"]["prompt"] = prompt_json_str
+                prompt_dict = cast(Prompt, prompt_json_str)
+                meta["input"]["prompt"] = prompt_dict
         elif span_kind == "llm":
             parent_span = _get_nearest_llmobs_ancestor(span)
             if parent_span is not None:
@@ -337,14 +341,12 @@ class LLMObs(Service):
                     meta["input"]["prompt"] = parent_prompt
 
         if span._get_ctx_item(TOOL_DEFINITIONS) is not None:
-            meta["tool_definitions"] = span._get_ctx_item(TOOL_DEFINITIONS)
+            meta["tool_definitions"] = span._get_ctx_item(TOOL_DEFINITIONS) or []
         if span.error:
-            meta.update(
-                {
-                    ERROR_MSG: span.get_tag(ERROR_MSG),
-                    ERROR_STACK: span.get_tag(ERROR_STACK),
-                    ERROR_TYPE: span.get_tag(ERROR_TYPE),
-                }
+            meta["error"] = _ErrorField(
+                message=span.get_tag(ERROR_MSG) or "",
+                stack=span.get_tag(ERROR_STACK) or "",
+                type=span.get_tag(ERROR_TYPE) or "",
             )
 
         if self._user_span_processor:
@@ -369,12 +371,12 @@ class LLMObs(Service):
             if input_type == "messages":
                 meta["input"]["messages"] = llmobs_span.input
             elif input_type == "value":
-                meta["input"]["value"] = llmobs_span.input[0]["content"]
+                meta["input"]["value"] = llmobs_span.input[0].get("content", "")
         if llmobs_span.output is not None:
             if output_type == "messages":
                 meta["output"]["messages"] = llmobs_span.output
             elif output_type == "value":
-                meta["output"]["value"] = llmobs_span.output[0]["content"]
+                meta["output"]["value"] = llmobs_span.output[0].get("content", "")
 
         if not meta["input"]:
             meta.pop("input")
@@ -603,6 +605,11 @@ class LLMObs(Service):
 
             # override the default _instance with a new tracer
             cls._instance = cls(tracer=_tracer, span_processor=span_processor)
+
+            # Add APM trace filter to drop all APM traces when DD_APM_TRACING_ENABLED is falsy
+            apm_filter = APMTracingEnabledFilter()
+            cls._instance.tracer._span_aggregator.dd_processors.append(apm_filter)
+
             cls.enabled = True
             cls._instance.start()
 
@@ -751,6 +758,13 @@ class LLMObs(Service):
         description: str = "",
         tags: Optional[Dict[str, str]] = None,
         config: Optional[ExperimentConfigType] = None,
+        summary_evaluators: Optional[
+            List[
+                Callable[
+                    [List[DatasetRecordInputType], List[JSONType], List[JSONType], Dict[str, List[JSONType]]], JSONType
+                ]
+            ]
+        ] = None,
     ) -> Experiment:
         """Initializes an Experiment to run a task on a Dataset and evaluators.
 
@@ -776,9 +790,21 @@ class LLMObs(Service):
         for evaluator in evaluators:
             sig = inspect.signature(evaluator)
             params = sig.parameters
-            required_params = ("input_data", "output_data", "expected_output")
-            if not all(param in params for param in required_params):
-                raise TypeError("Evaluator function must have parameters {}.".format(required_params))
+            evaluator_required_params = ("input_data", "output_data", "expected_output")
+            if not all(param in params for param in evaluator_required_params):
+                raise TypeError("Evaluator function must have parameters {}.".format(evaluator_required_params))
+
+        if summary_evaluators and not all(callable(summary_evaluator) for summary_evaluator in summary_evaluators):
+            raise TypeError("Summary evaluators must be a list of callable functions.")
+        if summary_evaluators:
+            for summary_evaluator in summary_evaluators:
+                sig = inspect.signature(summary_evaluator)
+                params = sig.parameters
+                summary_evaluator_required_params = ("inputs", "outputs", "expected_outputs", "evaluators_results")
+                if not all(param in params for param in summary_evaluator_required_params):
+                    raise TypeError(
+                        "Summary evaluator function must have parameters {}.".format(summary_evaluator_required_params)
+                    )
         return Experiment(
             name,
             task,
@@ -789,6 +815,7 @@ class LLMObs(Service):
             description=description,
             config=config,
             _llmobs_instance=cls._instance,
+            summary_evaluators=summary_evaluators,
         )
 
     @classmethod
@@ -841,7 +868,10 @@ class LLMObs(Service):
 
     @classmethod
     def annotation_context(
-        cls, tags: Optional[Dict[str, Any]] = None, prompt: Optional[dict] = None, name: Optional[str] = None
+        cls,
+        tags: Optional[Dict[str, Any]] = None,
+        prompt: Optional[Union[dict, Prompt]] = None,
+        name: Optional[str] = None,
     ) -> AnnotationContext:
         """
         Sets specified attributes on all LLMObs spans created while the returned AnnotationContext is active.
@@ -850,10 +880,16 @@ class LLMObs(Service):
         :param tags: Dictionary of JSON serializable key-value tag pairs to set or update on the LLMObs span
                      regarding the span's context.
         :param prompt: A dictionary that represents the prompt used for an LLM call in the following form:
-                        `{"template": "...", "id": "...", "version": "...", "variables": {"variable_1": "...", ...}}`.
+                        `{
+                            "id": "...",
+                            "version": "...",
+                            "chat_template": [{"content": "...", "role": "..."}, ...],
+                            "variables": {"variable_1": "...", ...}}`.
+                            "tags": {"key1": "value1", "key2": "value2"},
+                        }`
                         Can also be set using the `ddtrace.llmobs.utils.Prompt` constructor class.
                         - This argument is only applicable to LLM spans.
-                        - The dictionary may contain two optional keys relevant to RAG applications:
+                        - The dictionary may contain optional keys relevant to Templates and RAG applications:
                             `rag_context_variables` - a list of variable key names that contain ground
                                                         truth context information
                             `rag_query_variables` - a list of variable key names that contains query
@@ -1289,7 +1325,14 @@ class LLMObs(Service):
         :param Span span: Span to annotate. If no span is provided, the current active span will be used.
                           Must be an LLMObs-type span, i.e. generated by the LLMObs SDK.
         :param prompt: A dictionary that represents the prompt used for an LLM call in the following form:
-                        `{"template": "...", "id": "...", "version": "...", "variables": {"variable_1": "...", ...}}`.
+                        `{
+                            "id": "...",
+                            "template": "...",
+                            "chat_template": [{"content": "...", "role": "..."}, ...])
+                            "version": "...",
+                            "variables": {"variable_1": "...", ...},
+                            tags": {"tag_1": "...", ...},
+                        }`.
                         Can also be set using the `ddtrace.llmobs.utils.Prompt` constructor class.
                         - This argument is only applicable to LLM spans.
                         - The dictionary may contain two optional keys relevant to RAG applications:
@@ -1373,11 +1416,11 @@ class LLMObs(Service):
                 span.name = _name
             if prompt is not None:
                 try:
-                    validated_prompt = validate_prompt(prompt)
+                    validated_prompt = _validate_prompt(prompt, strict_validation=False)
                     cls._set_dict_attribute(span, INPUT_PROMPT, validated_prompt)
-                except TypeError:
+                except (ValueError, TypeError) as e:
                     error = "invalid_prompt"
-                    log.warning("Failed to validate prompt with error: ", exc_info=True)
+                    log.warning("Failed to validate prompt with error:", str(e), exc_info=True)
             if not span_kind:
                 log.debug("Span kind not specified, skipping annotation for input/output data")
                 return
