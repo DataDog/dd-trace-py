@@ -10,6 +10,7 @@ from vllm.pooling_params import PoolingParams
 from vllm.sequence import RequestMetrics
 from vllm.sequence import SequenceGroup
 
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib.internal.vllm.data_extractors import select_prompt_for_span
 from ddtrace.ext import SpanTypes
@@ -17,7 +18,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.llmobs._integrations.vllm import VLLMIntegration
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace._trace.pin import Pin
 from ddtrace.trace import Context
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
