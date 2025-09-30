@@ -312,7 +312,7 @@ class LockCollector(collector.CaptureSamplerCollector):
 
         def _allocate_lock(wrapped: Any, instance: Any, args: Any, kwargs: Any) -> _ProfiledLock:
             lock: Any = wrapped(*args, **kwargs)
-            return self.PROFILED_LOCK_CLASS(  # type: ignore[attr-defined]
+            return self.PROFILED_LOCK_CLASS(
                 lock,
                 self.tracer,
                 self.nframes,
