@@ -357,7 +357,7 @@ def test_ci_visibility_service_enable_with_itr_enabled(_do_request):
     ), _dummy_noop_git_client(), mock.patch(
         "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"
     ), mock.patch(
-        "ddtrace.internal.ci_visibility._api_client._is_response_cache_enabled", return_value=False
+        "ddtrace.internal.ci_visibility._api_responses_cache._is_response_cache_enabled", return_value=False
     ), mock.patch(
         "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
     ):
@@ -409,7 +409,7 @@ def test_ci_visibility_service_enable_with_itr_disabled_in_env(_do_request, agen
             DD_CIVISIBILITY_ITR_ENABLED="0",
         )
     ), mock.patch(
-        "ddtrace.internal.ci_visibility._api_client._is_response_cache_enabled", return_value=False
+        "ddtrace.internal.ci_visibility._api_responses_cache._is_response_cache_enabled", return_value=False
     ), _dummy_noop_git_client(), mock.patch(
         "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
     ):
@@ -959,7 +959,7 @@ class TestUploadGitMetadata:
         with mock.patch.object(
             CIVisibilityGitClient, "_get_latest_commits", mock.Mock(side_effect=[["latest1", "latest2"]])
         ), mock.patch(
-            "ddtrace.internal.ci_visibility._api_client._is_response_cache_enabled", return_value=False
+            "ddtrace.internal.ci_visibility._api_responses_cache._is_response_cache_enabled", return_value=False
         ), mock.patch.object(
             CIVisibilityGitClient, "_search_commits", mock.Mock(side_effect=[["latest1", "latest2"]])
         ):
@@ -1158,7 +1158,7 @@ def test_fetch_tests_to_skip_custom_configurations(dd_ci_visibility_agentless_ur
     ), mock.patch(
         "ddtrace.internal.ci_visibility._api_client.uuid4", return_value="checkoutmyuuid4"
     ), mock.patch(
-        "ddtrace.internal.ci_visibility._api_client._is_response_cache_enabled", return_value=False
+        "ddtrace.internal.ci_visibility._api_responses_cache._is_response_cache_enabled", return_value=False
     ):
         mock_build_packfiles.return_value.__enter__.return_value = "myprefix", _GitSubprocessDetails("", "", 10, 0)
         CIVisibility.enable(service="test-service")

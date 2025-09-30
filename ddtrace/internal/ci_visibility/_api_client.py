@@ -1,13 +1,10 @@
 import abc
-import atexit
 from base64 import b64decode
 import dataclasses
-import hashlib
 from http.client import RemoteDisconnected
 import json
 from json import JSONDecodeError
 import os
-import shutil
 import socket
 import typing as t
 from typing import TypedDict  # noqa:F401
@@ -17,6 +14,9 @@ from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.ext.test_visibility._test_visibility_base import TestId
 from ddtrace.ext.test_visibility._test_visibility_base import TestModuleId
 from ddtrace.ext.test_visibility._test_visibility_base import TestSuiteId
+from ddtrace.internal.ci_visibility._api_responses_cache import _get_normalized_cache_key
+from ddtrace.internal.ci_visibility._api_responses_cache import _read_from_cache
+from ddtrace.internal.ci_visibility._api_responses_cache import _write_to_cache
 from ddtrace.internal.ci_visibility.constants import AGENTLESS_API_KEY_HEADER_NAME
 from ddtrace.internal.ci_visibility.constants import AGENTLESS_DEFAULT_SITE
 from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_BASE_PATH
@@ -69,19 +69,6 @@ _CONFIGURATIONS_TYPE = t.Dict[str, t.Union[str, t.Dict[str, str]]]
 _KNOWN_TESTS_TYPE = t.Set[TestId]
 
 _NETWORK_ERRORS = (TimeoutError, socket.timeout, RemoteDisconnected)
-
-
-_API_RESPONSE_CACHE_DIR = os.path.join(os.getcwd(), ".ddtrace_api_cache")
-
-
-@atexit.register
-def _clean_api_response_cache_dir():
-    if os.path.exists(_API_RESPONSE_CACHE_DIR):
-        shutil.rmtree(_API_RESPONSE_CACHE_DIR)
-
-
-def _is_response_cache_enabled():
-    return asbool(os.getenv("_DD_CIVISIBILITY_RESPONSE_CACHE_ENABLED", "true").lower())
 
 
 class TestVisibilitySettingsError(Exception):
@@ -284,47 +271,6 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         headers.update(self._get_headers())
         return headers
 
-    def _get_normalized_cache_key(self, method: str, endpoint: str, payload: t.Dict[str, t.Any]) -> str:
-        """Generate a cache key by normalizing payload to remove dynamic UUID"""
-        cache_data_dict = {"type": payload["data"].get("type"), "attributes": payload["data"]["attributes"]}
-        # Convert to JSON string with sorted keys for consistent hashing
-        normalized_payload = json.dumps(cache_data_dict, sort_keys=True)
-        cache_key_data = f"{method}:{endpoint}:{normalized_payload}"
-        return hashlib.sha256(cache_key_data.encode()).hexdigest()
-
-    def _get_cache_file_path(self, cache_key: str) -> str:
-        """Get the full path to the cache file"""
-        os.makedirs(_API_RESPONSE_CACHE_DIR, exist_ok=True)
-        return os.path.join(_API_RESPONSE_CACHE_DIR, f"{cache_key}.json")
-
-    def _read_from_cache(self, cache_key: str) -> t.Optional[t.Dict]:
-        """Read cached response if it exists"""
-        if not cache_key or not _is_response_cache_enabled():
-            return None
-
-        cache_file = self._get_cache_file_path(cache_key)
-        try:
-            if os.path.exists(cache_file):
-                with open(cache_file, "r", encoding="utf-8") as f:
-                    cached_data = json.load(f)
-                    log.debug("RESPONSE CACHE: Hit for key: %s", cache_key)
-                    return cached_data
-        except Exception:  # noqa: E722
-            log.debug("RESPONSE CACHE: Failed to read from cache for key: %s", cache_key, exc_info=True)
-        return None
-
-    def _write_to_cache(self, cache_key: str, data: t.Any) -> None:
-        """Write successful response to cache"""
-        if not cache_key or not _is_response_cache_enabled():
-            return
-        cache_file = self._get_cache_file_path(cache_key)
-        try:
-            with open(cache_file, "w", encoding="utf-8") as f:
-                json.dump(data, f)
-                log.debug("RESPONSE CACHE: Wrote response for key: %s", cache_key)
-        except Exception:  # noqa: E722
-            log.debug("RESPONSE CACHE: Failed to write to cache for key: %s", cache_key, exc_info=True)
-
     def _do_request(self, method: str, endpoint: str, payload: str, timeout: t.Optional[float] = None) -> Response:
         timeout = timeout if timeout is not None else self._timeout
         headers = self._get_final_headers()
@@ -363,17 +309,20 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         timeout: t.Optional[float] = None,
         read_from_cache: bool = True,
     ) -> t.Any:
-        """Performs a request with telemetry submitted according to given names"""
-        # Check cache first
+        """
+        Performs a request with telemetry submitted according to given names.
+        Also uses the api responses cache layer.
+        """
         str_payload = json.dumps(payload)
 
+        # Check cache first
         cache_key = ""
         # Generate cache key using payload without the dynamic UUID
         if "data" in payload and "attributes" in payload["data"]:
-            cache_key = self._get_normalized_cache_key(method, endpoint, payload)
+            cache_key = _get_normalized_cache_key(method, endpoint, payload)
 
         if read_from_cache:
-            cached_response = self._read_from_cache(cache_key)
+            cached_response = _read_from_cache(cache_key)
             if cached_response is not None:
                 log.debug("RESPONSE CACHE: Using cached response with key: %s", cache_key)
                 # Return cached response (no telemetry recorded for cache hits)
@@ -401,7 +350,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                     response_bytes = len(response_body)
                     parsed = json.loads(response_body)
                     # Cache successful response
-                    self._write_to_cache(cache_key, parsed)
+                    _write_to_cache(cache_key, parsed)
                     return parsed
                 else:
                     error_type = ERROR_TYPES.BAD_JSON
