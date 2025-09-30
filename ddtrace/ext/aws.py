@@ -82,7 +82,19 @@ def _add_api_param_span_tags(span, endpoint_name, params):
         span.set_tag_str("statemachinearn", state_machine_arn)
 
 
+def get_aws_partition(region_name):
+    # type: (str) -> str
+    """Determine AWS partition from region name."""
+    if region_name.startswith("cn-"):
+        return "aws-cn"
+    elif region_name.startswith("us-gov-"):
+        return "aws-us-gov"
+
+    return "aws"
+
+
 AWSREGION = "aws.region"
 REGION = "region"
+PARTITION = "aws.partition"
 AGENT = "aws.agent"
 OPERATION = "aws.operation"

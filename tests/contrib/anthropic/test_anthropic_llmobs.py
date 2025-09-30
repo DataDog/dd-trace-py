@@ -121,7 +121,7 @@ class TestLLMObsAnthropic:
         )
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
-        assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span.kind"] == "llm"
+        assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span"]["kind"] == "llm"
 
     def test_completion(self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr):
         """Ensure llmobs records are emitted for completion endpoints when configured.
@@ -665,7 +665,12 @@ class TestLLMObsAnthropic:
                 + " the location is fully specified. We can proceed with calling the get_weather tool.\n</thinking>",
                 "type": "text",
             },
-            {"text": WEATHER_OUTPUT_MESSAGE_2_TOOL_CALL, "type": "text"},
+            {
+                "name": "get_weather",
+                "input": {"location": "San Francisco, CA"},
+                "id": "toolu_01DYJo37oETVsCdLTTcCWcdq",
+                "type": "tool_use",
+            },
         ]
 
         traces = mock_tracer.pop_traces()
@@ -733,7 +738,7 @@ class TestLLMObsAnthropic:
                 input_messages=[
                     {"content": WEATHER_PROMPT, "role": "user"},
                     {"content": message[0]["text"], "role": "assistant"},
-                    {"content": message[1]["text"], "role": "assistant"},
+                    {"content": "", "role": "assistant", "tool_calls": WEATHER_OUTPUT_MESSAGE_2_TOOL_CALL},
                     {"content": "", "role": "user", "tool_results": WEATHER_TOOL_RESULT},
                 ],
                 output_messages=[

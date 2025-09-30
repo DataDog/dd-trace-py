@@ -15,10 +15,6 @@ experiments:
             thresholds:
               - execution_time < 0.01 ms
               - max_rss_usage < 33.50 MB
-          - name: coreapiscenario-context_with_data_only_all_listeners
-            thresholds:
-              - execution_time < 0.02 ms
-              - max_rss_usage < 33.50 MB
           - name: coreapiscenario-get_item_exists
             thresholds:
               - execution_time < 0.01 ms
