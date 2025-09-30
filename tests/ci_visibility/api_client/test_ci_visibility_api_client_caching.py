@@ -7,6 +7,7 @@ from unittest.mock import patch
 import pytest
 
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
+from ddtrace.internal.ci_visibility._api_client import _API_RESPONSE_CACHE_DIR
 from ddtrace.internal.ci_visibility._api_client import _CONFIGURATIONS_TYPE
 from ddtrace.internal.ci_visibility._api_client import AgentlessTestVisibilityAPIClient
 from ddtrace.internal.ci_visibility.git_data import GitData
@@ -107,12 +108,13 @@ class TestAPIClientCaching:
 
     def test_cache_file_path_generation(self):
         """Test that cache file paths are generated correctly"""
+
         client = self._get_test_client()
 
         cache_key = "abc123def456"
         cache_path = client._get_cache_file_path(cache_key)
 
-        expected_dir = os.path.join(self.test_cwd, ".ddtrace_api_cache")
+        expected_dir = _API_RESPONSE_CACHE_DIR
         expected_path = os.path.join(expected_dir, f"{cache_key}.json")
 
         assert cache_path == expected_path
@@ -134,14 +136,14 @@ class TestAPIClientCaching:
 
         assert cached_data == test_data
 
-    def test_cache_miss_returns_empty_dict(self):
+    def test_cache_miss_returns_none(self):
         """Test that cache miss returns empty dict"""
         client = self._get_test_client()
 
         non_existent_key = "this_key_does_not_exist"
         cached_data = client._read_from_cache(non_existent_key)
 
-        assert cached_data == {}
+        assert cached_data is None
 
     def test_first_request_makes_http_call_and_caches_response(self):
         """Test that the first request makes an HTTP call and caches the response"""
@@ -176,7 +178,7 @@ class TestAPIClientCaching:
             }
 
             # First request should make HTTP call
-            result = client._do_request_with_telemetry(method, endpoint, payload, metric_names)
+            result = client._do_request_with_telemetry(method, endpoint, payload, metric_names, read_from_cache=False)
 
             # Verify HTTP call was made with JSON string
             mock_do_request.assert_called_once_with(method, endpoint, json.dumps(payload), timeout=None)
@@ -234,7 +236,7 @@ class TestAPIClientCaching:
             }
 
             # First request
-            result1 = client._do_request_with_telemetry(method, endpoint, payload1, metric_names)
+            result1 = client._do_request_with_telemetry(method, endpoint, payload1, metric_names, read_from_cache=False)
             assert result1 == expected_parsed_response
 
             # Reset mock to track second call
@@ -274,7 +276,7 @@ class TestAPIClientCaching:
             payload2 = {"data": {"attributes": "payload2"}}
 
             # First request
-            result1 = client._do_request_with_telemetry(method, endpoint, payload1, metric_names)
+            result1 = client._do_request_with_telemetry(method, endpoint, payload1, metric_names, read_from_cache=False)
             assert result1 == expected_parsed_response1
 
             # Second request with different payload should make HTTP call
@@ -304,25 +306,23 @@ class TestAPIClientCaching:
 
         # Reading should return None and not raise exception
         result = client._read_from_cache(cache_key)
-        assert result == {}
+        assert result is None
 
     def test_cache_directory_creation(self):
         """Test that cache directory is created if it doesn't exist"""
-        client = self._get_test_client()
-
-        cache_dir = os.path.join(self.test_cwd, ".ddtrace_api_cache")
 
         # Remove directory if it exists
-        if os.path.exists(cache_dir):
-            shutil.rmtree(cache_dir)
+        if os.path.exists(_API_RESPONSE_CACHE_DIR):
+            shutil.rmtree(_API_RESPONSE_CACHE_DIR)
 
-        assert not os.path.exists(cache_dir)
+        assert not os.path.exists(_API_RESPONSE_CACHE_DIR)
 
+        client = self._get_test_client()
         # Calling _get_cache_file_path should create the directory
         client._get_cache_file_path("test_key")
 
-        assert os.path.exists(cache_dir)
-        assert os.path.isdir(cache_dir)
+        assert os.path.exists(_API_RESPONSE_CACHE_DIR)
+        assert os.path.isdir(_API_RESPONSE_CACHE_DIR)
 
     def test_cache_works_across_multiple_client_instances(self):
         """Test that cache is shared across different client instances in same directory"""

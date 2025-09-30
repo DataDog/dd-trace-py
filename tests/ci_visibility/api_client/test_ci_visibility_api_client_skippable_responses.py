@@ -43,7 +43,7 @@ class TestTestVisibilityAPIClientSkippableResponses(TestTestVisibilityAPIClientB
         """Tests that the client reports errors correctly based on the API response"""
         client = self._get_test_client()
         with mock.patch.object(client, "_do_request", return_value=skippable_response):
-            actual_skippable_items = client.fetch_skippable_items()
+            actual_skippable_items = client.fetch_skippable_items(read_from_cache=False)
             assert actual_skippable_items == expected_skippable_items
 
     @pytest.mark.parametrize(
@@ -197,7 +197,7 @@ class TestTestVisibilityAPIClientSkippableResponses(TestTestVisibilityAPIClientB
         """Tests that the client reports errors correctly based on the API response"""
         client = self._get_test_client()
         with mock.patch.object(client, "_do_request", return_value=skippable_response):
-            actual_skippable_items = client.fetch_skippable_items()
+            actual_skippable_items = client.fetch_skippable_items(read_from_cache=False)
             assert actual_skippable_items == expected_skippable_items
 
     @pytest.mark.parametrize(
@@ -348,7 +348,7 @@ class TestTestVisibilityAPIClientSkippableResponses(TestTestVisibilityAPIClientB
         """Tests that the client reports errors correctly based on the API response"""
         client = self._get_test_client()
         with mock.patch.object(client, "_do_request", return_value=skippable_response):
-            actual_skippable_items = client.fetch_skippable_items(ignore_test_parameters=True)
+            actual_skippable_items = client.fetch_skippable_items(ignore_test_parameters=True, read_from_cache=False)
             assert actual_skippable_items == expected_skippable_items
 
     @pytest.mark.parametrize(
@@ -479,7 +479,7 @@ class TestTestVisibilityAPIClientSkippableResponses(TestTestVisibilityAPIClientB
         """Tests that the client reports errors correctly based on the API response"""
         client = self._get_test_client(itr_skipping_level=ITR_SKIPPING_LEVEL.SUITE)
         with mock.patch.object(client, "_do_request", return_value=skippable_response):
-            actual_skippable_items = client.fetch_skippable_items()
+            actual_skippable_items = client.fetch_skippable_items(read_from_cache=False)
             assert actual_skippable_items == expected_skippable_items
 
     @pytest.mark.parametrize(
@@ -558,7 +558,7 @@ class TestTestVisibilityAPIClientSkippableResponses(TestTestVisibilityAPIClientB
         """Tests that the client correctly parses covered files, and does not raise exceptions when it cannot"""
         client = self._get_test_client()
         with mock.patch.object(client, "_do_request", return_value=skippable_response):
-            actual_skippable_items = client.fetch_skippable_items()
+            actual_skippable_items = client.fetch_skippable_items(read_from_cache=False)
             assert actual_skippable_items == expected_skippable_items
 
     @pytest.mark.parametrize(
@@ -578,5 +578,5 @@ class TestTestVisibilityAPIClientSkippableResponses(TestTestVisibilityAPIClientB
         """Tests that the client reports errors correctly gives a None item without crashing"""
         client = self._get_test_client()
         with mock.patch.object(client, "_do_request", side_effect=[do_request_side_effect]):
-            skippable_items = client.fetch_skippable_items()
+            skippable_items = client.fetch_skippable_items(read_from_cache=False)
             assert skippable_items is None
