@@ -181,14 +181,6 @@ def gen_required_suites() -> None:
         # Mark GPU requirement if the clean suite name matches a GPU integration
         if clean_name in gpu_integrations:
             suite_config["gpu"] = True
-        # Additionally, mark GPU if the suite paths explicitly include the vLLM component tag
-        # This covers suites like 'llmobs' that include '@vllm' tests under a broader suite name
-        try:
-            paths = set(suite_config.get("paths") or [])
-            if "@vllm" in paths:
-                suite_config["gpu"] = True
-        except Exception:
-            pass
 
     # Sort stages: setup first, then alphabetically
     sorted_stages = ["setup"] + sorted(stages - {"setup"})
