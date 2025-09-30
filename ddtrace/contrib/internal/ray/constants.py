@@ -39,6 +39,8 @@ RAY_JOB_MESSAGE = "ray.job.message"
 RAY_WAIT_TIMEOUT = "ray.wait.timeout_s"
 RAY_WAIT_NUM_RETURNS = "ray.wait.num_returns"
 RAY_WAIT_FETCH_LOCAL = "ray.wait.fetch_local"
+RAY_PUT_VALUE_TYPE = "ray.put.value_type"
+RAY_PUT_VALUE_SIZE_BYTES = "ray.put.value_size_bytes"
 
 # Long-running span metric names
 DD_PARTIAL_VERSION = "_dd.partial_version"

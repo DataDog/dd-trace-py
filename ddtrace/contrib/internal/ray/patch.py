@@ -2,6 +2,7 @@ from contextlib import contextmanager
 from functools import wraps
 import inspect
 import os
+import sys
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -46,6 +47,8 @@ from .constants import RAY_TASK_SUBMIT_STATUS
 from .constants import RAY_WAIT_FETCH_LOCAL
 from .constants import RAY_WAIT_NUM_RETURNS
 from .constants import RAY_WAIT_TIMEOUT
+from .constants import RAY_PUT_VALUE_TYPE
+from .constants import RAY_PUT_VALUE_SIZE_BYTES
 from .span_manager import long_running_ray_span
 from .span_manager import start_long_running_job
 from .span_manager import stop_long_running_job
@@ -277,18 +280,14 @@ def traced_put(wrapped, instance, args, kwargs):
     if tracer.current_span() is None:
         tracer.context_provider.activate(_extract_tracing_context_from_env())
 
-    with tracer.trace("ray.put", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.RAY) as span:
+    with tracer.trace("ray.put", service=RAY_SERVICE_NAME or DEFAULT_JOB_NAME, span_type=SpanTypes.RAY) as span:
         span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
-        _inject_ray_span_tags(span)
-        if "value" in kwargs:
-            put_value = kwargs.get("value")
-        elif args:
-            put_value = args[0]
-        else:
-            put_value = None
-        if put_value is not None:
-            span.set_tag_str("ray.put.value_type", str(type(put_value).__name__))
-            span.set_tag_str("ray.put.value_size_bytes", str(sys.getsizeof(put_value)))
+        _inject_ray_span_tags_and_metrics(span)
+
+        put_value = get_argument_value(args, kwargs, 0, "value")
+        span.set_tag_str(RAY_PUT_VALUE_TYPE, str(type(put_value).__name__))
+        span.set_tag_str(RAY_PUT_VALUE_SIZE_BYTES, str(sys.getsizeof(put_value)))
+
         return wrapped(*args, **kwargs)
 
 

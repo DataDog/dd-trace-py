@@ -206,7 +206,15 @@ class TestRayIntegration(TracerTestCase):
 
     @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_simple_put", ignores=RAY_SNAPSHOT_IGNORES)
     def test_simple_put(self):
-        submit_ray_job("jobs/simple_put.py")
+        @ray.remote
+        def add_one(x):
+            return x + 1
+
+        answer = 42
+        object_ref = ray.put(answer)
+        futures = [add_one.remote(object_ref)]
+        results = ray.get(futures)
+        assert results == [43], f"Unexpected results: {results}"
 
     @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_simple_wait", ignores=RAY_SNAPSHOT_IGNORES)
     def test_simple_wait(self):
