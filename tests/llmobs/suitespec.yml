@@ -210,9 +210,7 @@ suites:
       - tests/snapshots/tests.contrib.vllm.*
     env:
       VLLM_USE_V1: '0'
-      DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED: 'false'
     runner: riot
-    retry: 0
     snapshot: true
   vllm:v1:
     parallelism: 1
@@ -228,8 +226,6 @@ suites:
       - tests/snapshots/tests.contrib.vllm.*
     env:
       VLLM_USE_V1: '1'
-      DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED: 'false'
     runner: riot
-    retry: 0
     snapshot: true
 

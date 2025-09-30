@@ -32,9 +32,12 @@ def _parent_ctx(tracer: Tracer, seq_group: Optional[SequenceGroup]) -> Optional[
         log.debug("[VLLM DD] create_vllm_span: found trace_headers")
         return HTTPPropagator.extract(seq_group.trace_headers)
 
-    # Fall back to the tracer's current span if any
-    cur = tracer.current_span()
-    return cur.context if cur else None
+    active = tracer.context_provider.active()
+    if isinstance(active, Span):
+        return active.context
+    elif isinstance(active, Context):
+        return active
+    return None
 
 
 def create_vllm_span(
