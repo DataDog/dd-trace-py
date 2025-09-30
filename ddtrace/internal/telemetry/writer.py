@@ -202,7 +202,7 @@ class TelemetryWriter(PeriodicService):
             # This will occur when the agent writer starts.
             self.enable()
             # Force app started for unit tests
-            if config.FORCE_START and (app_started := self._app_started_payload()):
+            if config.FORCE_START and (app_started := self._report_app_started()):
                 self._events_queue.append({"payload": app_started, "request_type": TELEMETRY_EVENT_TYPE.STARTED})
             get_logger("ddtrace").addHandler(DDTelemetryErrorHandler(self))
 
@@ -294,7 +294,7 @@ class TelemetryWriter(PeriodicService):
                 self._integrations_queue[integration_name]["compatible"] = error_msg == ""
                 self._integrations_queue[integration_name]["error"] = error_msg
 
-    def _app_started_payload(self, register_app_shutdown: bool = True) -> Optional[Dict[str, Any]]:
+    def _report_app_started(self, register_app_shutdown: bool = True) -> Optional[Dict[str, Any]]:
         """Sent when TelemetryWriter is enabled or forks"""
         if self._forked or self.started:
             # app-started events should only be sent by the main process
@@ -307,8 +307,8 @@ class TelemetryWriter(PeriodicService):
         self.add_configurations(get_python_config_vars())
 
         payload = {
-            "configuration": self._report_configuration_queue(),
-            "products": self._report_app_products(),
+            "configuration": self._report_configurations(),
+            "products": self._report_products(),
         }  # type: Dict[str, Union[Dict[str, Any], List[Any]]]
         # Add time to value telemetry metrics for single step instrumentation
         if config.INSTALL_ID or config.INSTALL_TYPE or config.INSTALL_TIME:
@@ -319,7 +319,7 @@ class TelemetryWriter(PeriodicService):
             }
         return payload
 
-    def _app_heartbeat_payload(self):
+    def _report_heartbeat(self):
         # type: () -> Dict[str, Any]
         if config.DEPENDENCY_COLLECTION and time.monotonic() - self._extended_time > self._extended_heartbeat_interval:
             self._extended_time += self._extended_heartbeat_interval
@@ -338,7 +338,7 @@ class TelemetryWriter(PeriodicService):
             self._integrations_queue = dict()
         return integrations
 
-    def _report_configuration_queue(self):
+    def _report_configurations(self):
         # type: () -> List[Dict]
         """Flushes and returns a list of all queued configurations"""
         with self._service_lock:
@@ -346,7 +346,7 @@ class TelemetryWriter(PeriodicService):
             self._configuration_queue = []
         return configurations
 
-    def _report_app_dependencies(self):
+    def _report_dependencies(self):
         # type: () -> Optional[Dict[str, Any]]
         """Adds events to report imports done since the last periodic run"""
         if not config.DEPENDENCY_COLLECTION or not self._enabled:
@@ -358,7 +358,7 @@ class TelemetryWriter(PeriodicService):
                 return {}
             return update_imported_dependencies(self._imported_dependencies, newly_imported_deps)
 
-    def _report_app_endpoints(self):
+    def _report_endpoints(self):
         """Adds a Telemetry event which sends the list of HTTP endpoints found at startup to the agent"""
         import ddtrace.settings.asm as asm_config_module
 
@@ -371,7 +371,7 @@ class TelemetryWriter(PeriodicService):
         with self._service_lock:
             return endpoint_collection.flush(asm_config_module.config._api_security_endpoint_collection_limit)
 
-    def _report_app_products(self):
+    def _report_products(self):
         # type: () -> Dict[str, Any]
         """Adds a Telemetry event which reports the enablement of an APM product"""
         with self._service_lock:
@@ -622,20 +622,20 @@ class TelemetryWriter(PeriodicService):
             self._periodic_count = 0
 
         # At heartbeat interval, collect and send all telemetry data
-        if app_started_payload := self._app_started_payload():
+        if app_started_payload := self._report_app_started():
             # app-started should be the first event in the batch
             events = [{"payload": app_started_payload, "request_type": TELEMETRY_EVENT_TYPE.STARTED}] + events
 
-        if products := self._report_app_products():
+        if products := self._report_products():
             events.append({"payload": {"products": products}, "request_type": TELEMETRY_EVENT_TYPE.PRODUCT_CHANGE})
 
         if ints := self._report_integrations():
             events.append({"payload": {"integrations": ints}, "request_type": TELEMETRY_EVENT_TYPE.INTEGRATIONS_CHANGE})
 
-        if endpoints := self._report_app_endpoints():
+        if endpoints := self._report_endpoints():
             events.append({"payload": endpoints, "request_type": TELEMETRY_EVENT_TYPE.ENDPOINTS})
 
-        if configs := self._report_configuration_queue():
+        if configs := self._report_configurations():
             events.append(
                 {
                     "payload": {"configuration": configs},
@@ -643,7 +643,7 @@ class TelemetryWriter(PeriodicService):
                 }
             )
 
-        if deps := self._report_app_dependencies():
+        if deps := self._report_dependencies():
             events.append({"payload": {"dependencies": deps}, "request_type": TELEMETRY_EVENT_TYPE.DEPENDENCIES_LOADED})
 
         if shutting_down and not self._forked:
@@ -652,14 +652,14 @@ class TelemetryWriter(PeriodicService):
         # Always include a heartbeat to keep RC connections alive
         # Extended heartbeat should be queued after app-dependencies-loaded event. This
         # ensures that that imported dependencies are accurately reported.
-        if heartbeat_payload := self._app_heartbeat_payload():
+        if heartbeat_payload := self._report_heartbeat():
             # Extended heartbeat report dependencies while regular heartbeats report empty payloads
             events.append({"payload": heartbeat_payload, "request_type": TELEMETRY_EVENT_TYPE.EXTENDED_HEARTBEAT})
         else:
             events.append({"payload": {}, "request_type": TELEMETRY_EVENT_TYPE.HEARTBEAT})
 
         # Get any queued events and combine with current batch
-        if queued_events := self._flush_events_queue():
+        if queued_events := self._report_events():
             events.extend(queued_events)
 
         # Create comma-separated list of event types for logging
@@ -692,7 +692,7 @@ class TelemetryWriter(PeriodicService):
         self._imported_dependencies = {}
         self._configuration_queue = []
 
-    def _flush_events_queue(self):
+    def _report_events(self):
         # type: () -> List[Dict]
         """Flushes and returns a list of all telemtery event"""
         with self._service_lock:
@@ -761,7 +761,7 @@ class TelemetryWriter(PeriodicService):
                     error_msg = "{}:{} {}".format(filename, lineno, str(value))
                     self.add_integration(integration_name, True, error_msg=error_msg)
 
-            if app_started := self._app_started_payload(False):
+            if app_started := self._report_app_started(False):
                 self._events_queue.append({"payload": app_started, "request_type": TELEMETRY_EVENT_TYPE.STARTED})
 
             self.app_shutdown()

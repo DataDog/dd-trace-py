@@ -300,7 +300,7 @@ def test_appsec_enabled_metric(
     # Restore defaults and enabling telemetry appsec service
     with override_global_config({"_asm_enabled": True, "_lib_was_injected": False}):
         tracer.configure(appsec_enabled=appsec_enabled, appsec_enabled_origin=APPSEC.ENABLED_ORIGIN_UNKNOWN)
-    telemetry_writer._report_configuration_queue()
+    telemetry_writer._report_configurations()
 
     # Start the test
     with override_env(environment), override_global_config(
@@ -312,7 +312,7 @@ def test_appsec_enabled_metric(
 
         telemetry_writer._dispatch()
 
-        metrics_result = telemetry_writer._report_configuration_queue()
+        metrics_result = telemetry_writer._report_configurations()
         assert metrics_result == [
             {"name": "DD_APPSEC_ENABLED", "origin": expected_origin, "seq_id": ANY, "value": expected_result}
         ]
