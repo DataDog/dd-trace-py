@@ -5,11 +5,6 @@
 using namespace std;
 using namespace pybind11::literals;
 
-struct ThreadContextCache_
-{
-    TaintRangeMapTypePtr tx_map = nullptr;
-} ThreadContextCache;
-
 Initializer::Initializer()
 {
     // Fill the taintedobjects stack
@@ -21,84 +16,6 @@ Initializer::Initializer()
     for (int i = 0; i < TAINTRANGES_STACK_SIZE; i++) {
         available_ranges_stack.push(make_shared<TaintRange>());
     }
-}
-
-TaintRangeMapTypePtr
-Initializer::create_tainting_map()
-{
-    auto map_ptr = make_shared<TaintRangeMapType>();
-    active_map_addreses[map_ptr.get()] = map_ptr;
-    return map_ptr;
-}
-
-void
-Initializer::clear_tainting_map(const TaintRangeMapTypePtr& tx_map)
-{
-    if (tx_map == nullptr) {
-        return;
-    }
-    if (const auto it = active_map_addreses.find(tx_map.get()); it == active_map_addreses.end()) {
-        return;
-    }
-    std::lock_guard<std::mutex> lock(active_map_addreses_mutex);
-    tx_map->clear();
-    active_map_addreses.erase(tx_map.get());
-}
-
-void
-Initializer::clear_tainting_maps()
-{
-    // Need to copy because free_tainting_map changes the set inside the iteration
-    auto copy_active_map_addreses(initializer->active_map_addreses);
-    for (auto& [fst, snd] : copy_active_map_addreses) {
-        if (copy_active_map_addreses.empty()) {
-            break;
-        }
-        clear_tainting_map(snd);
-        snd = nullptr;
-    }
-    std::lock_guard<std::mutex> lock(active_map_addreses_mutex);
-    active_map_addreses.clear();
-}
-
-// User must check for nullptr return
-TaintRangeMapTypePtr
-Initializer::get_tainting_map()
-{
-    return ThreadContextCache.tx_map;
-}
-
-int
-Initializer::num_objects_tainted()
-{
-    if (const auto ctx_map = get_tainting_map()) {
-        return static_cast<int>(ctx_map->size());
-    }
-    return 0;
-}
-
-string
-Initializer::debug_taint_map()
-{
-    const auto ctx_map = get_tainting_map();
-    if (!ctx_map) {
-        return ("[]");
-    }
-
-    std::stringstream output;
-    output << "[";
-    for (const auto& [fst, snd] : *ctx_map) {
-        output << "{ 'Id-Key': " << fst << ",";
-        output << "'Value': { 'Hash': " << snd.first << ", 'TaintedObject': '" << snd.second->toString() << "'}},";
-    }
-    output << "]";
-    return output.str();
-}
-
-int
-Initializer::active_map_addreses_size() const
-{
-    return static_cast<int>(active_map_addreses.size());
 }
 
 TaintedObjectPtr
@@ -175,70 +92,5 @@ Initializer::release_taint_range(TaintRangePtr rangeptr)
     }
 }
 
-void
-Initializer::create_context()
-{
-    auto tx_map = get_tainting_map();
-    if (tx_map != nullptr) {
-        reset_context(tx_map);
-    }
-    // Create a new taint_map
-    auto map_ptr = create_tainting_map();
-    ThreadContextCache.tx_map = map_ptr;
-}
-
-void
-Initializer::reset_context(const TaintRangeMapTypePtr& tx_map)
-{
-    if (tx_map == nullptr) {
-        return;
-    }
-    clear_tainting_map(tx_map);
-}
-
-void
-Initializer::reset_context()
-{
-    reset_context(ThreadContextCache.tx_map);
-    ThreadContextCache.tx_map = nullptr;
-}
-
-void
-Initializer::reset_contexts()
-{
-    if (active_map_addreses_size() <= 0) {
-        return;
-    }
-
-    clear_tainting_maps();
-
-    if (ThreadContextCache.tx_map != nullptr) {
-        ThreadContextCache.tx_map = nullptr;
-    }
-}
-
 // Created in the PYBIND11_MODULE in _native.cpp
 unique_ptr<Initializer> initializer;
-
-void
-pyexport_initializer(py::module& m)
-{
-    m.def("clear_tainting_maps", [] { initializer->clear_tainting_maps(); });
-    m.def("debug_taint_map", [] { return Initializer::debug_taint_map(); });
-
-    m.def("num_objects_tainted", [] { return Initializer::num_objects_tainted(); });
-    m.def("active_map_addreses_size", [] { return initializer->active_map_addreses_size(); });
-
-    m.def("create_context", []() { return initializer->create_context(); }, py::return_value_policy::reference);
-    m.def("reset_context", [] { initializer->reset_context(); });
-    m.def("reset_contexts", [] { initializer->reset_contexts(); });
-
-    // Benchmark helpers (no type exposure required)
-    m.def("create_tainting_map_bench", [] { (void)initializer->create_tainting_map(); });
-    m.def("get_tainting_map_bench", [] { (void)Initializer::get_tainting_map(); });
-    // Return the raw pointer value of the current initializer map (0 if none)
-    m.def("get_tainting_map_addr", []() -> unsigned long long {
-        auto map_ptr = Initializer::get_tainting_map();
-        return map_ptr ? static_cast<unsigned long long>(reinterpret_cast<uintptr_t>(map_ptr.get())) : 0ULL;
-    });
-}

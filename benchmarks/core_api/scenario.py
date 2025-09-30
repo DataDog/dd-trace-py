@@ -11,7 +11,6 @@ if not hasattr(core, "dispatch_with_results"):
 
 class CoreAPIScenario(bm.Scenario):
     listeners: int
-    all_listeners: int
     set_item_count: int
     get_item_exists: bool
 
@@ -25,24 +24,6 @@ class CoreAPIScenario(bm.Scenario):
             core.on(CUSTOM_EVENT_NAME, listener)
             core.on("context.started.with_data", listener)
             core.on("context.ended.with_data", listener)
-
-        for _ in range(self.all_listeners):
-            if hasattr(core, "on_all"):
-
-                def all_listener(event_id, args):
-                    pass
-
-                core.on_all(all_listener)
-            else:
-
-                def listener(*_):
-                    pass
-
-                # If we don't support "core.on_all", just double up the registered listeners to try
-                # and make the comparison semi-equal
-                core.on(CUSTOM_EVENT_NAME, listener)
-                core.on("context.started.with_data", listener)
-                core.on("context.ended.with_data", listener)
 
         if self.get_item_exists:
             core.set_item("key", "value")

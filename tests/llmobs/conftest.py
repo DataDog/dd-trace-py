@@ -254,6 +254,11 @@ def llmobs_enable_opts():
 
 
 @pytest.fixture
+def llmobs_api_proxy_url():
+    return "http://localhost:9126/vcr/datadog"
+
+
+@pytest.fixture
 def llmobs(
     ddtrace_global_config,
     monkeypatch,
@@ -261,6 +266,7 @@ def llmobs(
     llmobs_enable_opts,
     llmobs_env,
     llmobs_span_writer,
+    llmobs_api_proxy_url,
     mock_llmobs_eval_metric_writer,
     mock_llmobs_evaluator_runner,
 ):
@@ -274,7 +280,7 @@ def llmobs(
         llmobs_service.enable(_tracer=tracer, **llmobs_enable_opts)
         llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
         llmobs_service._instance._llmobs_span_writer.start()
-        llmobs_service._instance._dne_client._intake = "http://localhost:9126/vcr/datadog"
+        llmobs_service._instance._dne_client._intake = llmobs_api_proxy_url
         yield llmobs_service
     tracer.shutdown()
     llmobs_service.disable()
@@ -283,6 +289,14 @@ def llmobs(
 @pytest.fixture
 def llmobs_no_ml_app(tracer):
     with override_global_config(dict(_llmobs_ml_app=None)):
+        llmobs_service.enable(_tracer=tracer)
+        yield llmobs_service
+        llmobs_service.disable()
+
+
+@pytest.fixture
+def llmobs_empty_ml_app(tracer):
+    with override_global_config(dict(_llmobs_ml_app="")):
         llmobs_service.enable(_tracer=tracer)
         yield llmobs_service
         llmobs_service.disable()

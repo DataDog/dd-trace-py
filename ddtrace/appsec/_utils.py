@@ -14,7 +14,6 @@ import uuid
 
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
-from ddtrace.appsec._constants import IAST
 from ddtrace.contrib.internal.trace_utils_base import _get_header_value_case_insensitive
 from ddtrace.internal._unpatched import unpatched_json_loads
 from ddtrace.internal.logger import get_logger
@@ -344,18 +343,6 @@ def get_triggers(span) -> Any:
     return None
 
 
-def get_security(span) -> Any:
-    if asm_config._use_metastruct_for_iast:
-        return span.get_struct_tag(IAST.STRUCT)
-    json_payload = span.get_tag(IAST.JSON)
-    if json_payload:
-        try:
-            return json.loads(json_payload)
-        except Exception:
-            log.debug("Failed to parse security", exc_info=True)
-    return None
-
-
 def add_context_log(logger: logging.Logger, msg: str, offset: int = 0) -> str:
     filename, line_number, function_name, _stack_info = logger.findCaller(False, 3 + offset)
     return f"{msg}[{filename}, line {line_number}, in {function_name}]"
@@ -367,10 +354,14 @@ def unpatching_popen():
     Context manager to temporarily unpatch `subprocess.Popen` for testing purposes.
     This is useful to ensure that the original `Popen` behavior is restored after the context.
     """
+    import os
     import subprocess  # nosec B404
 
+    from ddtrace.internal._unpatched import unpatched_close
     from ddtrace.internal._unpatched import unpatched_Popen
 
+    original_os_close = os.close
+    os.close = unpatched_close
     original_popen = subprocess.Popen
     subprocess.Popen = unpatched_Popen
     asm_config._bypass_instrumentation_for_waf = True
@@ -378,4 +369,5 @@ def unpatching_popen():
         yield
     finally:
         subprocess.Popen = original_popen
+        os.close = original_os_close
         asm_config._bypass_instrumentation_for_waf = False

@@ -237,6 +237,13 @@ gevent
 .. automodule:: ddtrace.contrib.internal.gevent
 
 
+.. _google_adk:
+
+google-adk
+^^^^^^^^^^^^
+.. automodule:: ddtrace.contrib.internal.google_adk
+
+
 .. _google_genai:
 
 google-genai

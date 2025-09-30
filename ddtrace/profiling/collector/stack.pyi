@@ -1,7 +1,7 @@
 import typing
 
-import ddtrace
+from ddtrace.trace import Tracer
 from ddtrace.profiling import collector
 
 class StackCollector(collector.PeriodicCollector):
-    tracer: typing.Optional[ddtrace.trace.Tracer]
+    tracer: typing.Optional[Tracer]

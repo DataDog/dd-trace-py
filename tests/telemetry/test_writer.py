@@ -4,12 +4,14 @@ import sysconfig
 import time
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
+from typing import Optional  # noqa:F401
 
 import httpretty
 import mock
 import pytest
 
 from ddtrace import config
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 import ddtrace.internal.telemetry
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
@@ -18,7 +20,6 @@ from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.writer import TelemetryWriter
 from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
-from ddtrace.settings._config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
 from ddtrace.settings._telemetry import config as telemetry_config
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.utils import call_program
@@ -34,15 +35,18 @@ def test_add_event(telemetry_writer, test_agent_session, mock_time):
     # send request to the agent
     telemetry_writer.periodic(force_flush=True)
 
-    requests = test_agent_session.get_requests(payload_type)
+    requests = test_agent_session.get_requests()
     assert len(requests) == 1
     assert requests[0]["headers"]["Content-Type"] == "application/json"
     assert requests[0]["headers"]["DD-Client-Library-Language"] == "python"
     assert requests[0]["headers"]["DD-Client-Library-Version"] == _pep440_to_semver()
-    assert requests[0]["headers"]["DD-Telemetry-Request-Type"] == payload_type
+    assert requests[0]["headers"]["DD-Telemetry-Request-Type"] == "message-batch"
     assert requests[0]["headers"]["DD-Telemetry-API-Version"] == "v2"
     assert requests[0]["headers"]["DD-Telemetry-Debug-Enabled"] == "False"
-    assert requests[0]["body"] == _get_request_body(payload, payload_type)
+
+    events = test_agent_session.get_events(payload_type)
+    assert len(events) == 1
+    validate_request_body(events[0], payload, payload_type)
 
 
 def test_add_event_disabled_writer(telemetry_writer, test_agent_session):
@@ -54,7 +58,7 @@ def test_add_event_disabled_writer(telemetry_writer, test_agent_session):
 
     # ensure no request were sent
     telemetry_writer.periodic(force_flush=True)
-    assert len(test_agent_session.get_requests(payload_type)) == 1
+    assert len(test_agent_session.get_events(payload_type)) == 1
 
 
 @pytest.mark.parametrize(
@@ -88,129 +92,21 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
     """asserts that app_started() queues a valid telemetry request which is then sent by periodic()"""
     with override_global_config(dict(_telemetry_dependency_collection=False)):
         # queue an app started event
-        telemetry_writer._app_started()
+        event = telemetry_writer._app_started()
+        assert event is not None, "app_started() did not return an event"
+        telemetry_writer.add_event(event["payload"], "app-started")
         # force a flush
         telemetry_writer.periodic(force_flush=True)
 
-        requests = test_agent_session.get_requests("app-started")
+        requests = test_agent_session.get_requests()
         assert len(requests) == 1
-        assert requests[0]["headers"]["DD-Telemetry-Request-Type"] == "app-started"
-
-        payload = {
-            "configuration": sorted(
-                [
-                    {"name": "DD_AGENT_HOST", "origin": "unknown", "value": None},
-                    {"name": "DD_AGENT_PORT", "origin": "unknown", "value": None},
-                    {"name": "DD_DOGSTATSD_PORT", "origin": "unknown", "value": None},
-                    {"name": "DD_DOGSTATSD_URL", "origin": "unknown", "value": None},
-                    {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": False},
-                    {"name": "DD_EXCEPTION_REPLAY_ENABLED", "origin": "unknown", "value": False},
-                    {"name": "DD_FASTAPI_ASYNC_BODY_TIMEOUT_SECONDS", "origin": "default", "value": 0.1},
-                    {"name": "DD_INSTRUMENTATION_TELEMETRY_ENABLED", "origin": "unknown", "value": True},
-                    {"name": "DD_PROFILING_STACK_ENABLED", "origin": "unknown", "value": True},
-                    {"name": "DD_PROFILING_MEMORY_ENABLED", "origin": "unknown", "value": True},
-                    {"name": "DD_PROFILING_HEAP_ENABLED", "origin": "unknown", "value": True},
-                    {"name": "DD_PROFILING_LOCK_ENABLED", "origin": "unknown", "value": True},
-                    {"name": "DD_PROFILING_CAPTURE_PCT", "origin": "unknown", "value": 1.0},
-                    {"name": "DD_PROFILING_UPLOAD_INTERVAL", "origin": "unknown", "value": 60.0},
-                    {"name": "DD_PROFILING_MAX_FRAMES", "origin": "unknown", "value": 64},
-                    {"name": "DD_REMOTE_CONFIGURATION_ENABLED", "origin": "unknown", "value": False},
-                    {"name": "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "origin": "unknown", "value": 5.0},
-                    {"name": "DD_RUNTIME_METRICS_ENABLED", "origin": "unknown", "value": True},
-                    {"name": "DD_SERVICE_MAPPING", "origin": "unknown", "value": ""},
-                    {"name": "DD_SPAN_SAMPLING_RULES", "origin": "unknown", "value": None},
-                    {"name": "DD_SPAN_SAMPLING_RULES_FILE", "origin": "unknown", "value": None},
-                    {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "unknown", "value": True},
-                    {"name": "DD_TRACE_AGENT_HOSTNAME", "origin": "default", "value": None},
-                    {"name": "DD_TRACE_AGENT_PORT", "origin": "default", "value": None},
-                    {"name": "DD_TRACE_AGENT_TIMEOUT_SECONDS", "origin": "unknown", "value": 2.0},
-                    {"name": "DD_TRACE_API_VERSION", "origin": "unknown", "value": None},
-                    {"name": "DD_TRACE_CLIENT_IP_ENABLED", "origin": "unknown", "value": None},
-                    {"name": "DD_TRACE_COMPUTE_STATS", "origin": "unknown", "value": False},
-                    {"name": "DD_TRACE_DEBUG", "origin": "unknown", "value": False},
-                    {"name": "DD_TRACE_HEALTH_METRICS_ENABLED", "origin": "unknown", "value": False},
-                    {
-                        "name": "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP",
-                        "origin": "unknown",
-                        "value": DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT,
-                    },
-                    {"name": "DD_TRACE_OTEL_ENABLED", "origin": "unknown", "value": False},
-                    {"name": "DD_TRACE_PARTIAL_FLUSH_ENABLED", "origin": "unknown", "value": True},
-                    {"name": "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", "origin": "unknown", "value": 300},
-                    {
-                        "name": "DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED",
-                        "origin": "default",
-                        "value": False,
-                    },
-                    {
-                        "name": "DD_TRACE_PEER_SERVICE_MAPPING",
-                        "origin": "env_var",
-                        "value": "default_service:remapped_service",
-                    },
-                    {"name": "DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED", "origin": "unknown", "value": False},
-                    {"name": "DD_TRACE_PEER_SERVICE_MAPPING", "origin": "unknown", "value": ""},
-                    {
-                        "name": "DD_TRACE_PROPAGATION_STYLE_EXTRACT",
-                        "origin": "unknown",
-                        "value": "datadog,tracecontext",
-                    },
-                    {"name": "DD_TRACE_PROPAGATION_STYLE_INJECT", "origin": "unknown", "value": "datadog,tracecontext"},
-                    {"name": "DD_TRACE_RATE_LIMIT", "origin": "unknown", "value": 100},
-                    {"name": "DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED", "origin": "unknown", "value": False},
-                    {"name": "DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", "origin": "unknown", "value": "v0"},
-                    {"name": "DD_TRACE_STARTUP_LOGS", "origin": "unknown", "value": False},
-                    {"name": "DD_TRACE_WRITER_BUFFER_SIZE_BYTES", "origin": "unknown", "value": 20 << 20},
-                    {"name": "DD_TRACE_WRITER_INTERVAL_SECONDS", "origin": "unknown", "value": 1.0},
-                    {"name": "DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", "origin": "unknown", "value": 20 << 20},
-                    {"name": "DD_TRACE_WRITER_REUSE_CONNECTIONS", "origin": "unknown", "value": False},
-                    {"name": "instrumentation_source", "origin": "code", "value": "manual"},
-                    {"name": "profiling_enabled", "origin": "default", "value": "false"},
-                    {"name": "data_streams_enabled", "origin": "default", "value": "false"},
-                    {"name": "appsec_enabled", "origin": "default", "value": "false"},
-                    {"name": "crashtracking_create_alt_stack", "origin": "unknown", "value": True},
-                    {"name": "crashtracking_use_alt_stack", "origin": "unknown", "value": True},
-                    {"name": "crashtracking_available", "origin": "unknown", "value": sys.platform == "linux"},
-                    {"name": "crashtracking_debug_url", "origin": "unknown", "value": None},
-                    {"name": "crashtracking_enabled", "origin": "unknown", "value": sys.platform == "linux"},
-                    {"name": "crashtracking_stacktrace_resolver", "origin": "unknown", "value": "full"},
-                    {"name": "crashtracking_started", "origin": "unknown", "value": False},
-                    {"name": "crashtracking_stderr_filename", "origin": "unknown", "value": None},
-                    {"name": "crashtracking_stdout_filename", "origin": "unknown", "value": None},
-                    {
-                        "name": "python_build_gnu_type",
-                        "origin": "unknown",
-                        "value": sysconfig.get_config_var("BUILD_GNU_TYPE"),
-                    },
-                    {
-                        "name": "python_host_gnu_type",
-                        "origin": "unknown",
-                        "value": sysconfig.get_config_var("HOST_GNU_TYPE"),
-                    },
-                    {"name": "python_soabi", "origin": "unknown", "value": sysconfig.get_config_var("SOABI")},
-                    {"name": "trace_sample_rate", "origin": "default", "value": "1.0"},
-                    {"name": "trace_sampling_rules", "origin": "default", "value": ""},
-                    {"name": "trace_header_tags", "origin": "default", "value": ""},
-                    {"name": "logs_injection_enabled", "origin": "default", "value": True},
-                    {"name": "trace_tags", "origin": "default", "value": ""},
-                    {"name": "trace_enabled", "origin": "default", "value": "true"},
-                    {"name": "instrumentation_config_id", "origin": "default", "value": ""},
-                    {"name": "DD_INJECT_FORCE", "origin": "unknown", "value": True},
-                    {"name": "DD_LIB_INJECTED", "origin": "unknown", "value": False},
-                    {"name": "DD_LIB_INJECTION_ATTEMPTED", "origin": "unknown", "value": False},
-                ],
-                key=lambda x: x["name"],
-            ),
-            "error": {
-                "code": 0,
-                "message": "",
-            },
-        }
-        requests[0]["body"]["payload"]["configuration"].sort(key=lambda c: c["name"])
-        result = _get_request_body(payload, "app-started")
-        result["payload"]["configuration"] = [
-            a for a in result["payload"]["configuration"] if a["name"] != "DD_TRACE_AGENT_URL"
-        ]
-        assert payload == result["payload"]
+        assert requests[0]["headers"]["DD-Telemetry-Request-Type"] == "message-batch"
+        app_started_events = test_agent_session.get_events("app-started")
+        assert len(app_started_events) == 1
+        validate_request_body(app_started_events[0], None, "app-started")
+        assert len(app_started_events[0]["payload"]) == 2
+        assert app_started_events[0]["payload"].get("configuration")
+        assert app_started_events[0]["payload"].get("products")
 
 
 def test_app_started_event_configuration_override(test_agent_session, run_python_code_in_subprocess, tmpdir):
@@ -288,9 +184,8 @@ import ddtrace.settings.exception_replay
     env["DD_INJECT_FORCE"] = "true"
     env["DD_INJECTION_ENABLED"] = "tracer"
 
-    # By default telemetry collection is enabled after 10 seconds, so we either need to
-    # to sleep for 10 seconds or manually call _app_started() to generate the app started event.
-    # This delay allows us to collect start up errors and dynamic configurations
+    # Ensures app-started event is queued immediately after ddtrace is imported
+    # instead of waiting for 10 seconds.
     env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
     _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
@@ -307,9 +202,11 @@ import ddtrace.settings.exception_replay
     expected = [
         {"name": "DD_AGENT_HOST", "origin": "default", "value": None},
         {"name": "DD_API_KEY", "origin": "default", "value": None},
+        {"name": "DD_API_SECURITY_DOWNSTREAM_REQUEST_BODY_ANALYSIS_SAMPLE_RATE", "origin": "default", "value": 0.5},
         {"name": "DD_API_SECURITY_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_API_SECURITY_ENDPOINT_COLLECTION_ENABLED", "origin": "default", "value": True},
         {"name": "DD_API_SECURITY_ENDPOINT_COLLECTION_MESSAGE_LIMIT", "origin": "default", "value": 300},
+        {"name": "DD_API_SECURITY_MAX_DOWNSTREAM_REQUEST_BODY_ANALYSIS", "origin": "default", "value": 1},
         {"name": "DD_API_SECURITY_PARSE_RESPONSE_BODY", "origin": "default", "value": True},
         {"name": "DD_API_SECURITY_SAMPLE_DELAY", "origin": "default", "value": 30.0},
         {"name": "DD_APM_TRACING_ENABLED", "origin": "default", "value": True},
@@ -431,7 +328,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_PROFILING_AGENTLESS", "origin": "default", "value": False},
         {"name": "DD_PROFILING_API_TIMEOUT", "origin": "default", "value": 10.0},
         {"name": "DD_PROFILING_CAPTURE_PCT", "origin": "env_var", "value": 5.0},
-        {"name": "DD_PROFILING_ENABLED", "origin": "env_var", "value": True},
+        {"name": "DD_PROFILING_ENABLED", "origin": "env_var", "value": PYTHON_VERSION_INFO < (3, 14)},
         {"name": "DD_PROFILING_ENABLE_ASSERTS", "origin": "default", "value": False},
         {"name": "DD_PROFILING_ENABLE_CODE_PROVENANCE", "origin": "default", "value": True},
         {"name": "DD_PROFILING_ENDPOINT_COLLECTION_ENABLED", "origin": "default", "value": True},
@@ -449,7 +346,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_PROFILING_PYTORCH_EVENTS_LIMIT", "origin": "default", "value": 1000000},
         {"name": "DD_PROFILING_SAMPLE_POOL_CAPACITY", "origin": "default", "value": 4},
         {"name": "DD_PROFILING_STACK_ENABLED", "origin": "env_var", "value": False},
-        {"name": "DD_PROFILING_STACK_V2_ENABLED", "origin": "default", "value": True},
+        {"name": "DD_PROFILING_STACK_V2_ENABLED", "origin": "default", "value": PYTHON_VERSION_INFO < (3, 14)},
         {"name": "DD_PROFILING_TAGS", "origin": "default", "value": ""},
         {"name": "DD_PROFILING_TIMELINE_ENABLED", "origin": "default", "value": True},
         {"name": "DD_PROFILING_UPLOAD_INTERVAL", "origin": "env_var", "value": 10.0},
@@ -517,6 +414,8 @@ import ddtrace.settings.exception_replay
         {"name": "DD_TRACE_PROPAGATION_STYLE_INJECT", "origin": "env_var", "value": "tracecontext"},
         {"name": "DD_TRACE_RATE_LIMIT", "origin": "env_var", "value": 50},
         {"name": "DD_TRACE_REPORT_HOSTNAME", "origin": "default", "value": False},
+        {"name": "DD_TRACE_RESOURCE_RENAMING_ALWAYS_SIMPLIFIED_ENDPOINT", "origin": "default", "value": False},
+        {"name": "DD_TRACE_RESOURCE_RENAMING_ENABLED", "origin": "default", "value": False},
         {"name": "DD_TRACE_SAFE_INSTRUMENTATION_ENABLED", "origin": "default", "value": False},
         {
             "name": "DD_TRACE_SAMPLING_RULES",
@@ -704,7 +603,7 @@ def test_update_dependencies_event_when_disabled(test_agent_session, ddtrace_run
     # Import httppretty after ddtrace is imported, this ensures that the module is sent in a dependencies event
     # Imports httpretty twice and ensures only one dependency entry is sent
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess("import xmltodict", env=env)
-    events = test_agent_session.get_events("app-dependencies-loaded", subprocess=True)
+    events = test_agent_session.get_events("app-dependencies-loaded")
     assert len(events) == 0, events
 
 
@@ -732,17 +631,17 @@ import httpretty
 
 def test_app_closing_event(telemetry_writer, test_agent_session, mock_time):
     """asserts that app_shutdown() queues and sends an app-closing telemetry request"""
-    # app started event must be queued before any other telemetry event
-    telemetry_writer._app_started(register_app_shutdown=False)
-    assert telemetry_writer.started
+    # Telemetry writer must start before app-closing event is queued
+    telemetry_writer.started = True
     # send app closed event
     telemetry_writer.app_shutdown()
 
-    requests = test_agent_session.get_requests("app-closing")
-    assert len(requests) == 1
+    num_requests = len(test_agent_session.get_requests())
+    assert num_requests == 1
     # ensure a valid request body was sent
-    totel_events = len(test_agent_session.get_events())
-    assert requests[0]["body"] == _get_request_body({}, "app-closing", totel_events)
+    events = test_agent_session.get_events("app-closing")
+    assert len(events) == 1
+    validate_request_body(events[0], {}, "app-closing", num_requests)
 
 
 def test_add_integration(telemetry_writer, test_agent_session, mock_time):
@@ -754,12 +653,11 @@ def test_add_integration(telemetry_writer, test_agent_session, mock_time):
         # send integrations to the agent
         telemetry_writer.periodic(force_flush=True)
 
-        requests = test_agent_session.get_requests("app-integrations-change")
+        events = test_agent_session.get_events("app-integrations-change")
         # assert integration change telemetry request was sent
-        assert len(requests) == 1
-
+        assert len(events) == 1
         # assert that the request had a valid request body
-        requests[0]["body"]["payload"]["integrations"].sort(key=lambda x: x["name"])
+        events[0]["payload"]["integrations"].sort(key=lambda x: x["name"])
         expected_payload = {
             "integrations": [
                 {
@@ -780,7 +678,7 @@ def test_add_integration(telemetry_writer, test_agent_session, mock_time):
                 },
             ]
         }
-        assert requests[0]["body"] == _get_request_body(expected_payload, "app-integrations-change", seq_id=2)
+        validate_request_body(events[0], expected_payload, "app-integrations-change")
 
 
 def test_app_client_configuration_changed_event(telemetry_writer, test_agent_session, mock_time):
@@ -820,7 +718,7 @@ def test_add_integration_disabled_writer(telemetry_writer, test_agent_session):
 
     telemetry_writer.add_integration("integration-name", True, False, "")
     telemetry_writer.periodic(force_flush=True)
-    assert len(test_agent_session.get_requests("app-integrations-change")) == 0
+    assert len(test_agent_session.get_events("app-integrations-change")) == 0
 
 
 @pytest.mark.parametrize("mock_status", [300, 400, 401, 403, 500])
@@ -837,7 +735,7 @@ def test_send_failing_request(mock_status, telemetry_writer):
                 telemetry_writer.periodic(force_flush=True)
                 # asserts unsuccessful status code was logged
                 log.debug.assert_called_with(
-                    "Failed to send Instrumentation Telemetry to %s. response: %s",
+                    "Failed to send Instrumentation Telemetry to %s. Response: %s",
                     telemetry_writer._client.url,
                     mock_status,
                 )
@@ -886,7 +784,7 @@ def test_app_product_change_event(mock_time, telemetry_writer, test_agent_sessio
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, True)
     assert all(telemetry_writer._product_enablement.values())
 
-    telemetry_writer._app_started()
+    telemetry_writer.periodic(force_flush=True)
 
     # Assert that there's only an app_started event (since product activation happened before the app started)
     events = test_agent_session.get_events("app-product-change")
@@ -918,20 +816,21 @@ def test_app_product_change_event(mock_time, telemetry_writer, test_agent_sessio
     }
 
 
-def _get_request_body(payload, payload_type, seq_id=1):
-    # type: (Dict, str, int) -> Dict
+def validate_request_body(received_body, payload, payload_type, seq_id=None):
+    # type: (Dict, Dict, str, Optional[int]) -> Dict
     """used to test the body of requests received by the testagent"""
-    return {
-        "tracer_time": time.time(),
-        "runtime_id": get_runtime_id(),
-        "api_version": "v2",
-        "debug": False,
-        "seq_id": seq_id,
-        "application": get_application(config.service, config.version, config.env),
-        "host": get_host_info(),
-        "payload": payload,
-        "request_type": payload_type,
-    }
+    assert len(received_body) == 9
+    assert received_body["tracer_time"] == time.time()
+    assert received_body["runtime_id"] == get_runtime_id()
+    assert received_body["api_version"] == "v2"
+    assert received_body["debug"] is False
+    if seq_id is not None:
+        assert received_body["seq_id"] == seq_id
+    assert received_body["application"] == get_application(config.service, config.version, config.env)
+    assert received_body["host"] == get_host_info()
+    if payload is not None:
+        assert received_body["payload"] == payload
+    assert received_body["request_type"] == payload_type
 
 
 def test_telemetry_writer_agent_setup():
@@ -1087,12 +986,14 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
     assert tags == [["config_opentelemetry:otel_logs_exporter"]]
 
 
-def test_add_integration_error_log(mock_time, telemetry_writer, test_agent_session):
+def test_add_error_log(mock_time, telemetry_writer, test_agent_session):
     """Test add_integration_error_log functionality with real stack trace"""
     try:
-        raise ValueError("Test exception")
-    except ValueError as e:
-        telemetry_writer.add_integration_error_log("Test error message", e)
+        import json
+
+        json.loads("{invalid: json,}")
+    except Exception as e:
+        telemetry_writer.add_error_log("Test error message", e)
         telemetry_writer.periodic(force_flush=True)
 
         log_events = test_agent_session.get_events("logs")
@@ -1108,9 +1009,14 @@ def test_add_integration_error_log(mock_time, telemetry_writer, test_agent_sessi
         stack_trace = log_entry["stack_trace"]
         expected_lines = [
             "Traceback (most recent call last):",
-            "  <REDACTED>",
-            "    <REDACTED>",
-            "builtins.ValueError: Test exception",
+            "<REDACTED>",  # User code gets redacted
+            '  File "json/__init__.py',
+            "    return _default_decoder.decode(s)",
+            '  File "json/decoder.py"',
+            "    obj, end = self.raw_decode(s, idx=_w(s, 0).end())",
+            '  File "json/decoder.py"',
+            "    obj, end = self.scan_once(s, idx)",
+            "json.decoder.JSONDecodeError: <REDACTED>",
         ]
         for expected_line in expected_lines:
             assert expected_line in stack_trace
@@ -1125,27 +1031,32 @@ def test_add_integration_error_log_with_log_collection_disabled(mock_time, telem
         try:
             raise ValueError("Test exception")
         except ValueError as e:
-            telemetry_writer.add_integration_error_log("Test error message", e)
+            telemetry_writer.add_error_log("Test error message", e)
             telemetry_writer.periodic(force_flush=True)
 
-            log_events = test_agent_session.get_events("logs", subprocess=True)
+            log_events = test_agent_session.get_events("logs")
             assert len(log_events) == 0
     finally:
         telemetry_config.LOG_COLLECTION_ENABLED = original_value
 
 
 @pytest.mark.parametrize(
-    "filename, is_redacted",
+    "filename, result",
     [
-        ("/path/to/file.py", True),
-        ("/path/to/ddtrace/contrib/flask/file.py", False),
-        ("/path/to/dd-trace-something/file.py", True),
+        ("/path/to/file.py", "<REDACTED>"),
+        ("/path/to/ddtrace/contrib/flask/file.py", "<REDACTED>"),
+        ("/path/to/lib/python3.13/site-packages/ddtrace/_trace/tracer.py", "ddtrace/_trace/tracer.py"),
+        ("/path/to/lib/python3.13/site-packages/requests/api.py", "requests/api.py"),
+        (
+            "/path/to/python@3.13/3.13.1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/__init__.py",
+            "json/__init__.py",
+        ),
     ],
 )
-def test_redact_filename(filename, is_redacted):
+def test_redact_filename(filename, result):
     """Test file redaction logic"""
     writer = TelemetryWriter(is_periodic=False)
-    assert writer._should_redact(filename) == is_redacted
+    assert writer._format_file_path(filename) == result
 
 
 def test_telemetry_writer_multiple_sources_config(telemetry_writer, test_agent_session):

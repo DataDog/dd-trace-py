@@ -11,10 +11,11 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._patch_modules import _testing_unpatch_iast
 from ddtrace.appsec._iast._patches.json_tainting import patch as json_patch
+from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_free_slots_number
+from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_size
 from ddtrace.appsec._iast.taint_sinks.code_injection import patch as code_injection_patch
-from ddtrace.appsec._iast.taint_sinks.command_injection import patch as cmdi_patch
-from ddtrace.appsec._iast.taint_sinks.command_injection import unpatch as cmdi_unpatch
 from ddtrace.appsec._iast.taint_sinks.header_injection import patch as header_injection_patch
+from ddtrace.appsec._iast.taint_sinks.untrusted_serialization import patch as unstrusted_serialization_patch
 from ddtrace.appsec._iast.taint_sinks.weak_cipher import patch as weak_cipher_patch
 from ddtrace.appsec._iast.taint_sinks.weak_hash import patch as weak_hash_patch
 from ddtrace.appsec._iast.taint_sinks.weak_hash import unpatch_iast as weak_hash_unpatch
@@ -47,6 +48,7 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
         _trace_id_64bits = 17577308072598193742
 
     env.update({"DD_IAST_DEDUPLICATION_ENABLED": str(deduplication)})
+    # env.update({"DD_IAST_MAX_CONCURRENT_REQUESTS": "100"})
     with override_global_config(
         dict(
             _asm_enabled=asm_enabled,
@@ -57,12 +59,14 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
             _iast_request_sampling=request_sampling,
         )
     ), override_env(env):
+        assert debug_context_array_size() == 2
+        assert debug_context_array_free_slots_number() > 0
         span = MockSpan()
         _start_iast_context_and_oce(span)
         weak_hash_patch()
         weak_cipher_patch()
+        unstrusted_serialization_patch()
         json_patch()
-        cmdi_patch()
         header_injection_patch()
         code_injection_patch()
         patch_common_modules()
@@ -70,7 +74,6 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
             yield
         finally:
             unpatch_common_modules()
-            cmdi_unpatch()
             weak_hash_unpatch()
             _testing_unpatch_iast()
             _end_iast_context_and_oce(span)
@@ -120,9 +123,6 @@ def check_native_code_exception_in_each_python_aspect_test(request, caplog):
 
                 formatted_trace = "".join(traceback.format_exception(*record.exc_info))
                 pytest.fail(f"{record.message}:\n{formatted_trace}")
-        # TODO(avara1986): iast tests throw a timeout in gitlab
-        #   list_metrics_logs = list(telemetry_writer._logs)
-        #   assert len(list_metrics_logs) == 0
 
 
 @pytest.fixture(scope="session")

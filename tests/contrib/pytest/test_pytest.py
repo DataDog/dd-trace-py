@@ -48,7 +48,7 @@ _PYTEST_SUPPORTS_ITR = _pytest_version_supports_itr()
 def _get_spans_from_list(
     spans: t.List[ddtrace.trace.Span],
     span_type: str,
-    name: str = None,
+    name: t.Optional[str] = None,
     status: t.Optional[str] = None,
 ) -> t.List[ddtrace.trace.Span]:
     _names_map = {
@@ -2583,15 +2583,15 @@ class PytestTestCase(PytestTestCaseBase):
         for skipped_test_span in skipped_test_spans:
             assert skipped_test_span.get_tag("test.skipped_by_itr") == "true"
 
-    def test_pytest_suite_level_skipping_counts_tests_not_suites(self):
+    def test_pytest_suite_level_skipping_counts_suites(self):
         """
         Regression test for suite level skipping count bug.
 
         When ITR is enabled at suite level and suites are skipped, the `itr.tests_skipping.count` tag
-        should count the number of tests that were skipped (contained within those suites).
+        should count the number of suites that were skipped (instead of the number of tests).
 
         This test creates 2 suites with multiple tests each (4 tests total), expects all suites to be
-        skipped, and verifies that the count reflects the number of tests (4), not suites (2).
+        skipped, and verifies that the count reflects the number of suites (2), not tests (4).
         """
         package_outer_dir = self.testdir.mkpydir("test_outer_package")
         os.chdir(str(package_outer_dir))
@@ -2651,12 +2651,12 @@ class PytestTestCase(PytestTestCaseBase):
         assert session_span.get_tag("_dd.ci.itr.tests_skipped") == "true"
         assert session_span.get_tag("test.itr.tests_skipping.type") == "suite"
 
-        # This is the regression test: should count tests (4), not suites (2)
-        expected_test_count = 4  # 4 individual tests were skipped
+        # This is the regression test: should count suites (2), not tests (4)
+        expected_suite_count = 2  # 4 individual tests were skipped
         actual_count = session_span.get_metric("test.itr.tests_skipping.count")
         assert (
-            actual_count == expected_test_count
-        ), f"Expected {expected_test_count} tests skipped but got {actual_count}"
+            actual_count == expected_suite_count
+        ), f"Expected {expected_suite_count} suites skipped but got {actual_count}"
 
         # Verify all test spans were skipped by ITR
         skipped_test_spans = [x for x in spans if x.get_tag("test.status") == "skip" and x.get_tag("type") == "test"]
