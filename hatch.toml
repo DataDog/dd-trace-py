@@ -56,6 +56,7 @@ checks = [
     "security",
     "test",
     "suitespec-check",
+    "error-log-check",
     "sg",
     "sg-test",
 ]
@@ -77,6 +78,9 @@ riot = [
 suitespec-check = [
     "python scripts/check_suitespec_coverage.py"
 ]
+error-log-check = [
+    "python scripts/check_constant_log_message.py"
+]
 sg = [
     "ast-grep scan {args:.}",
 ]
@@ -91,7 +95,6 @@ python = "3.10"
 features = ["opentracing"]
 dependencies = [  # copied from library dependencies
     "protobuf>=3",
-    "typing_extensions",
     "xmltodict>=0.12",
     "envier==0.6.1",
     "opentelemetry-api>=1",

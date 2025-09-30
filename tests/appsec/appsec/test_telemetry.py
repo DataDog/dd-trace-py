@@ -281,14 +281,16 @@ def test_log_metric_error_ddwaf_update_deduplication_timelapse(telemetry_writer)
         ({}, False, True, 1, False, APPSEC.ENABLED_ORIGIN_RC),
         ({"_DD_PY_SSI_INJECT": "true"}, False, True, 1, True, APPSEC.ENABLED_ORIGIN_RC),
         ({APPSEC_ENV: "true"}, True, True, 1, False, APPSEC.ENABLED_ORIGIN_ENV),
-        (
-            {APPSEC_ENV: "true"},
-            False,
-            True,
-            0,
-            False,
-            APPSEC.ENABLED_ORIGIN_ENV,
-        ),  # 0 because RC should not change the value if env var is set
+        # 0 because RC should not change the value if env var is set
+        ({APPSEC_ENV: "true"}, False, True, 0, False, APPSEC.ENABLED_ORIGIN_ENV),
+        # SSI set but AppSec disabled and no RC: origin remains UNKNOWN and value 0
+        ({"_DD_PY_SSI_INJECT": "1"}, False, False, 0, True, APPSEC.ENABLED_ORIGIN_UNKNOWN),
+        # APPSEC_ENV present with value "false" still counts as ENV origin by implementation
+        ({APPSEC_ENV: "false"}, True, False, 1, False, APPSEC.ENABLED_ORIGIN_ENV),
+        # APPSEC_ENV present with empty value still counts as ENV origin by implementation
+        ({APPSEC_ENV: ""}, True, False, 1, False, APPSEC.ENABLED_ORIGIN_ENV),
+        # APPSEC_ENV present and SSI set but AppSec disabled: not enabled => origin ENV and value 0
+        ({APPSEC_ENV: "true", "_DD_PY_SSI_INJECT": "1"}, False, False, 0, True, APPSEC.ENABLED_ORIGIN_ENV),
     ),
 )
 def test_appsec_enabled_metric(

@@ -11,9 +11,9 @@ class TELEMETRY_NAMESPACE(Enum):
     PROFILER = "profiler"
 
 
-class TELEMETRY_EVENT_TYPE(Enum):
+class TELEMETRY_EVENT_TYPE(object):
     STARTED = "app-started"
-    SHUTDOWN = "app-shutdown"
+    SHUTDOWN = "app-closing"
     HEARTBEAT = "app-heartbeat"
     EXTENDED_HEARTBEAT = "app-extended-heartbeat"
     DEPENDENCIES_LOADED = "app-dependencies-loaded"

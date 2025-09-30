@@ -20,7 +20,7 @@ from ddtrace.debugging._probe.model import ProbeEvalTiming
 from ddtrace.debugging._session import Session
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.snapshot import Snapshot
-from ddtrace.debugging._uploader import LogsIntakeUploaderV1
+from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.debugging._uploader import UploaderProduct
 from ddtrace.ext import EXIT_SPAN_TYPES
 from ddtrace.internal import core
@@ -102,7 +102,7 @@ class ExitSpanProbe(LogLineProbe):
             ExitSpanProbe,
             cls.build(
                 name=code.co_qualname if sys.version_info >= (3, 11) else code.co_name,  # type: ignore[attr-defined]
-                filename=str(Path(code.co_filename).resolve()),
+                filename=str(Path(code.co_filename)),
                 line=frame.f_lineno,
             ),
         )
@@ -197,7 +197,7 @@ class EntrySpanWrappingContext(WrappingContext):
 
 @dataclass
 class SpanCodeOriginProcessorEntry:
-    __uploader__ = LogsIntakeUploaderV1
+    __uploader__ = SignalUploader
 
     _instance: t.Optional["SpanCodeOriginProcessorEntry"] = None
     _handler: t.Optional[t.Callable] = None
@@ -232,7 +232,7 @@ class SpanCodeOriginProcessorEntry:
 
 @dataclass
 class SpanCodeOriginProcessorExit(SpanProcessor):
-    __uploader__ = LogsIntakeUploaderV1
+    __uploader__ = SignalUploader
 
     _instance: t.Optional["SpanCodeOriginProcessorExit"] = None
 

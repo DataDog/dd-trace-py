@@ -11,6 +11,7 @@ import mock
 import pytest
 
 from ddtrace import config
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 import ddtrace.internal.telemetry
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
@@ -91,9 +92,9 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
     """asserts that app_started() queues a valid telemetry request which is then sent by periodic()"""
     with override_global_config(dict(_telemetry_dependency_collection=False)):
         # queue an app started event
-        app_started_payload = telemetry_writer._app_started_payload()
-        assert app_started_payload is not None, "app_started() did not return an event"
-        telemetry_writer.add_event(app_started_payload, "app-started")
+        payload = telemetry_writer._app_started_payload()
+        assert payload is not None, "app_started() did not return an event"
+        telemetry_writer.add_event(payload, "app-started")
         # force a flush
         telemetry_writer.periodic(force_flush=True)
 
@@ -103,10 +104,9 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
         app_started_events = test_agent_session.get_events("app-started")
         assert len(app_started_events) == 1
         validate_request_body(app_started_events[0], None, "app-started")
-        assert len(app_started_events[0]["payload"]) == 3
+        assert len(app_started_events[0]["payload"]) == 2
         assert app_started_events[0]["payload"].get("configuration")
         assert app_started_events[0]["payload"].get("products")
-        assert app_started_events[0]["payload"].get("error") == {"code": 0, "message": ""}
 
 
 def test_app_started_event_configuration_override(test_agent_session, run_python_code_in_subprocess, tmpdir):
@@ -328,7 +328,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_PROFILING_AGENTLESS", "origin": "default", "value": False},
         {"name": "DD_PROFILING_API_TIMEOUT", "origin": "default", "value": 10.0},
         {"name": "DD_PROFILING_CAPTURE_PCT", "origin": "env_var", "value": 5.0},
-        {"name": "DD_PROFILING_ENABLED", "origin": "env_var", "value": True},
+        {"name": "DD_PROFILING_ENABLED", "origin": "env_var", "value": PYTHON_VERSION_INFO < (3, 14)},
         {"name": "DD_PROFILING_ENABLE_ASSERTS", "origin": "default", "value": False},
         {"name": "DD_PROFILING_ENABLE_CODE_PROVENANCE", "origin": "default", "value": True},
         {"name": "DD_PROFILING_ENDPOINT_COLLECTION_ENABLED", "origin": "default", "value": True},
@@ -346,7 +346,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_PROFILING_PYTORCH_EVENTS_LIMIT", "origin": "default", "value": 1000000},
         {"name": "DD_PROFILING_SAMPLE_POOL_CAPACITY", "origin": "default", "value": 4},
         {"name": "DD_PROFILING_STACK_ENABLED", "origin": "env_var", "value": False},
-        {"name": "DD_PROFILING_STACK_V2_ENABLED", "origin": "default", "value": True},
+        {"name": "DD_PROFILING_STACK_V2_ENABLED", "origin": "default", "value": PYTHON_VERSION_INFO < (3, 14)},
         {"name": "DD_PROFILING_TAGS", "origin": "default", "value": ""},
         {"name": "DD_PROFILING_TIMELINE_ENABLED", "origin": "default", "value": True},
         {"name": "DD_PROFILING_UPLOAD_INTERVAL", "origin": "env_var", "value": 10.0},
@@ -414,6 +414,8 @@ import ddtrace.settings.exception_replay
         {"name": "DD_TRACE_PROPAGATION_STYLE_INJECT", "origin": "env_var", "value": "tracecontext"},
         {"name": "DD_TRACE_RATE_LIMIT", "origin": "env_var", "value": 50},
         {"name": "DD_TRACE_REPORT_HOSTNAME", "origin": "default", "value": False},
+        {"name": "DD_TRACE_RESOURCE_RENAMING_ALWAYS_SIMPLIFIED_ENDPOINT", "origin": "default", "value": False},
+        {"name": "DD_TRACE_RESOURCE_RENAMING_ENABLED", "origin": "default", "value": False},
         {"name": "DD_TRACE_SAFE_INSTRUMENTATION_ENABLED", "origin": "default", "value": False},
         {
             "name": "DD_TRACE_SAMPLING_RULES",
@@ -601,7 +603,7 @@ def test_update_dependencies_event_when_disabled(test_agent_session, ddtrace_run
     # Import httppretty after ddtrace is imported, this ensures that the module is sent in a dependencies event
     # Imports httpretty twice and ensures only one dependency entry is sent
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess("import xmltodict", env=env)
-    events = test_agent_session.get_events("app-dependencies-loaded", subprocess=True)
+    events = test_agent_session.get_events("app-dependencies-loaded")
     assert len(events) == 0, events
 
 
@@ -633,13 +635,10 @@ def test_app_closing_event(telemetry_writer, test_agent_session, mock_time):
     telemetry_writer.started = True
     # send app closed event
     telemetry_writer.app_shutdown()
-
-    num_requests = len(test_agent_session.get_requests())
-    assert num_requests == 1
     # ensure a valid request body was sent
     events = test_agent_session.get_events("app-closing")
     assert len(events) == 1
-    validate_request_body(events[0], {}, "app-closing", num_requests)
+    validate_request_body(events[0], {}, "app-closing", 1)
 
 
 def test_add_integration(telemetry_writer, test_agent_session, mock_time):
@@ -733,9 +732,8 @@ def test_send_failing_request(mock_status, telemetry_writer):
                 telemetry_writer.periodic(force_flush=True)
                 # asserts unsuccessful status code was logged
                 log.debug.assert_called_with(
-                    "Failed to send Instrumentation Telemetry to %s. Event(s): %s. Response: %s",
+                    "Failed to send Instrumentation Telemetry to %s. Response: %s",
                     telemetry_writer._client.url,
-                    mock.ANY,
                     mock_status,
                 )
 
@@ -781,18 +779,11 @@ def test_app_product_change_event(mock_time, telemetry_writer, test_agent_sessio
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION, True)
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, True)
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, True)
+    assert all(telemetry_writer._product_enablement.values())
+
     telemetry_writer.periodic(force_flush=True)
-    events = test_agent_session.get_events("app-started")
-    assert len(events) == 1
-    products = events[0]["payload"]["products"]
-    version = _pep440_to_semver()
-    assert products == {
-        TELEMETRY_APM_PRODUCT.APPSEC.value: {"enabled": True, "version": version},
-        TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION.value: {"enabled": True, "version": version},
-        TELEMETRY_APM_PRODUCT.LLMOBS.value: {"enabled": True, "version": version},
-        TELEMETRY_APM_PRODUCT.PROFILER.value: {"enabled": True, "version": version},
-    }
-    # Assert that product change event is not sent, products should be first reported in app-started
+
+    # Assert that there's only an app_started event (since product activation happened before the app started)
     events = test_agent_session.get_events("app-product-change")
     telemetry_writer.periodic(force_flush=True)
     assert not len(events)
@@ -986,12 +977,14 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
     assert tags == [["config_opentelemetry:otel_logs_exporter"]]
 
 
-def test_add_integration_error_log(mock_time, telemetry_writer, test_agent_session):
+def test_add_error_log(mock_time, telemetry_writer, test_agent_session):
     """Test add_integration_error_log functionality with real stack trace"""
     try:
-        raise ValueError("Test exception")
-    except ValueError as e:
-        telemetry_writer.add_integration_error_log("Test error message", e)
+        import json
+
+        json.loads("{invalid: json,}")
+    except Exception as e:
+        telemetry_writer.add_error_log("Test error message", e)
         telemetry_writer.periodic(force_flush=True)
 
         log_events = test_agent_session.get_events("logs")
@@ -1007,9 +1000,14 @@ def test_add_integration_error_log(mock_time, telemetry_writer, test_agent_sessi
         stack_trace = log_entry["stack_trace"]
         expected_lines = [
             "Traceback (most recent call last):",
-            "  <REDACTED>",
-            "    <REDACTED>",
-            "builtins.ValueError: Test exception",
+            "<REDACTED>",  # User code gets redacted
+            '  File "json/__init__.py',
+            "    return _default_decoder.decode(s)",
+            '  File "json/decoder.py"',
+            "    obj, end = self.raw_decode(s, idx=_w(s, 0).end())",
+            '  File "json/decoder.py"',
+            "    obj, end = self.scan_once(s, idx)",
+            "json.decoder.JSONDecodeError: <REDACTED>",
         ]
         for expected_line in expected_lines:
             assert expected_line in stack_trace
@@ -1024,27 +1022,32 @@ def test_add_integration_error_log_with_log_collection_disabled(mock_time, telem
         try:
             raise ValueError("Test exception")
         except ValueError as e:
-            telemetry_writer.add_integration_error_log("Test error message", e)
+            telemetry_writer.add_error_log("Test error message", e)
             telemetry_writer.periodic(force_flush=True)
 
-            log_events = test_agent_session.get_events("logs", subprocess=True)
+            log_events = test_agent_session.get_events("logs")
             assert len(log_events) == 0
     finally:
         telemetry_config.LOG_COLLECTION_ENABLED = original_value
 
 
 @pytest.mark.parametrize(
-    "filename, is_redacted",
+    "filename, result",
     [
-        ("/path/to/file.py", True),
-        ("/path/to/ddtrace/contrib/flask/file.py", False),
-        ("/path/to/dd-trace-something/file.py", True),
+        ("/path/to/file.py", "<REDACTED>"),
+        ("/path/to/ddtrace/contrib/flask/file.py", "<REDACTED>"),
+        ("/path/to/lib/python3.13/site-packages/ddtrace/_trace/tracer.py", "ddtrace/_trace/tracer.py"),
+        ("/path/to/lib/python3.13/site-packages/requests/api.py", "requests/api.py"),
+        (
+            "/path/to/python@3.13/3.13.1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/__init__.py",
+            "json/__init__.py",
+        ),
     ],
 )
-def test_redact_filename(filename, is_redacted):
+def test_redact_filename(filename, result):
     """Test file redaction logic"""
     writer = TelemetryWriter(is_periodic=False)
-    assert writer._should_redact(filename) == is_redacted
+    assert writer._format_file_path(filename) == result
 
 
 def test_telemetry_writer_multiple_sources_config(telemetry_writer, test_agent_session):

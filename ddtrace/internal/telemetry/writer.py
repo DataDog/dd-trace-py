@@ -17,6 +17,7 @@ import urllib.parse as parse
 
 from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.utils.http import get_connection
 from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings._telemetry import config
@@ -105,19 +106,9 @@ class _TelemetryClient:
                     resp.status,
                 )
             else:
-                log.debug(
-                    "Failed to send Instrumentation Telemetry to %s. Event(s): %s. Response: %s",
-                    self.url,
-                    payload_type,
-                    resp.status,
-                )
-        except Exception:
-            log.debug(
-                "Failed to send Instrumentation Telemetry to %s. Event(s): %s",
-                self.url,
-                payload_type,
-                exc_info=True,
-            )
+                log.debug("Failed to send Instrumentation Telemetry to %s. Response: %s", self.url, resp.status)
+        except Exception as e:
+            log.debug("Failed to send Instrumentation Telemetry to %s. Error: %s", self.url, str(e))
         finally:
             if conn is not None:
                 conn.close()
@@ -170,10 +161,6 @@ class TelemetryWriter(PeriodicService):
         self._periodic_count = 0
         self._is_periodic = is_periodic
         self._integrations_queue = dict()  # type: Dict[str, Dict]
-        # Currently telemetry only supports reporting a single error.
-        # If we'd like to report multiple errors in the future
-        # we could hack it in by xor-ing error codes and concatenating strings
-        self._error = (0, "")  # type: Tuple[int, str]
         self._namespace = MetricNamespace()
         self._logs = set()  # type: Set[Dict[str, Any]]
         self._forked = False  # type: bool
@@ -271,8 +258,7 @@ class TelemetryWriter(PeriodicService):
             Payload types accepted by telemetry/proxy v2: app-started, app-closing, app-integrations-change
         """
         if self.enable():
-            with self._service_lock:
-                self._events_queue.append({"payload": payload, "request_type": payload_type})
+            self._events_queue.append({"payload": payload, "request_type": payload_type})
 
     def add_events(self, events):
         # type: (List[Dict[str, Any]]) -> None
@@ -280,8 +266,7 @@ class TelemetryWriter(PeriodicService):
         Adds a list of Telemetry events to the TelemetryWriter event buffer
         """
         if self.enable():
-            with self._service_lock:
-                self._events_queue.extend(events)
+            self._events_queue.extend(events)
 
     def add_integration(self, integration_name, patched, auto_patched=None, error_msg=None, version=""):
         # type: (str, bool, Optional[bool], Optional[str], Optional[str]) -> None
@@ -309,21 +294,11 @@ class TelemetryWriter(PeriodicService):
                 self._integrations_queue[integration_name]["compatible"] = error_msg == ""
                 self._integrations_queue[integration_name]["error"] = error_msg
 
-    def add_error(self, code, msg, filename, line_number):
-        # type: (int, str, Optional[str], Optional[int]) -> None
-        """Add an error to be submitted with an event.
-        Note that this overwrites any previously set errors.
-        """
-        if filename and line_number is not None:
-            msg = "%s:%s: %s" % (filename, line_number, msg)
-        self._error = (code, msg)
-
-    def _app_started_payload(self, register_app_shutdown=True):
-        # type: (bool) -> Dict[str, Any]
+    def _app_started_payload(self, register_app_shutdown: bool = True) -> Optional[Dict[str, Any]]:
         """Sent when TelemetryWriter is enabled or forks"""
         if self._forked or self.started:
             # app-started events should only be sent by the main process
-            return {}
+            return None
         #  List of configurations to be collected
 
         self.started = True
@@ -333,10 +308,6 @@ class TelemetryWriter(PeriodicService):
 
         payload = {
             "configuration": self._report_configuration_queue(),
-            "error": {
-                "code": self._error[0],
-                "message": self._error[1],
-            },
             "products": self._report_app_products(),
         }  # type: Dict[str, Union[Dict[str, Any], List[Any]]]
         # Add time to value telemetry metrics for single step instrumentation
@@ -346,9 +317,6 @@ class TelemetryWriter(PeriodicService):
                 "install_type": config.INSTALL_TYPE,
                 "install_time": config.INSTALL_TIME,
             }
-
-        # Reset the error after it has been reported.
-        self._error = (0, "")
         return payload
 
     def _app_heartbeat_payload(self):
@@ -386,11 +354,8 @@ class TelemetryWriter(PeriodicService):
 
         with self._service_lock:
             newly_imported_deps = modules.get_newly_imported_modules(self._modules_already_imported)
-
-        if not newly_imported_deps:
-            return {}
-
-        with self._service_lock:
+            if not newly_imported_deps:
+                return {}
             return update_imported_dependencies(self._imported_dependencies, newly_imported_deps)
 
     def _report_app_endpoints(self):
@@ -483,42 +448,52 @@ class TelemetryWriter(PeriodicService):
             # Logs are hashed using the message, level, tags, and stack_trace. This should prevent duplicatation.
             self._logs.add(data)
 
-    def add_integration_error_log(self, msg: str, exc: BaseException) -> None:
+    def add_error_log(self, msg: str, exc: Union[BaseException, tuple, None]) -> None:
         if config.LOG_COLLECTION_ENABLED:
-            stack_trace = self._format_stack_trace(exc)
+            stack_trace = None if exc is None else self._format_stack_trace(exc)
+
             self.add_log(
                 TELEMETRY_LOG_LEVEL.ERROR,
                 msg,
                 stack_trace=stack_trace if stack_trace is not None else "",
             )
 
-    def _format_stack_trace(self, exc: BaseException) -> Optional[str]:
-        exc_type, exc_value, exc_traceback = type(exc), exc, exc.__traceback__
-        if exc_traceback:
-            tb = traceback.extract_tb(exc_traceback)
-            formatted_tb = ["Traceback (most recent call last):"]
-            for filename, lineno, funcname, srcline in tb:
-                if self._should_redact(filename):
-                    formatted_tb.append("  <REDACTED>")
-                    formatted_tb.append("    <REDACTED>")
-                else:
-                    relative_filename = self._format_file_path(filename)
-                    formatted_line = f'  File "{relative_filename}", line {lineno}, in {funcname}\n    {srcline}'
-                    formatted_tb.append(formatted_line)
-            if exc_type:
-                formatted_tb.append(f"{exc_type.__module__}.{exc_type.__name__}: {exc_value}")
-            return "\n".join(formatted_tb)
+    def _format_stack_trace(self, exc: Union[BaseException, tuple]) -> Optional[str]:
+        if isinstance(exc, tuple) and len(exc) == 3:
+            exc_type, _, exc_traceback = exc
+        else:
+            exc_type, _, exc_traceback = type(exc), exc, getattr(exc, "__traceback__", None)
 
-        return None
+        if not exc_traceback:
+            return None
 
-    def _should_redact(self, filename: str) -> bool:
-        return "ddtrace" not in filename
+        tb = traceback.extract_tb(exc_traceback)
+        formatted_tb = ["Traceback (most recent call last):"]
+        for filename, lineno, funcname, srcline in tb:
+            if is_user_code(filename):
+                formatted_tb.append("  <REDACTED>")
+                formatted_tb.append("    <REDACTED>")
+            else:
+                relative_filename = self._format_file_path(filename)
+                formatted_line = f'  File "{relative_filename}", line {lineno}, in {funcname}\n    {srcline}'
+                formatted_tb.append(formatted_line)
+        if exc_type:
+            formatted_tb.append(f"{exc_type.__module__}.{exc_type.__name__}: <REDACTED>")
+        return "\n".join(formatted_tb)
 
     def _format_file_path(self, filename: str) -> str:
         try:
-            return os.path.relpath(filename, start=self.CWD)
+            if "site-packages" in filename:
+                return filename.split("site-packages", 1)[1].lstrip("/")
+            elif "lib/python" in filename:
+                return (
+                    filename.split("lib/python", 1)[1].split("/", 1)[1]
+                    if "/" in filename.split("lib/python", 1)[1]
+                    else "python_stdlib"
+                )
+            return "<REDACTED>"
         except ValueError:
-            return filename
+            return "<REDACTED>"
 
     def add_gauge_metric(
         self, namespace: TELEMETRY_NAMESPACE, name: str, value: float, tags: Optional[MetricTagType] = None
@@ -638,7 +613,7 @@ class TelemetryWriter(PeriodicService):
             events.append({"payload": {"logs": list(logs)}, "request_type": TELEMETRY_EVENT_TYPE.LOGS})
 
         # Queue metrics if not at heartbeat interval
-        if self._is_periodic and force_flush is False:
+        if self._is_periodic and not force_flush:
             if self._periodic_count < self._periodic_threshold:
                 self._periodic_count += 1
                 if events:
@@ -689,7 +664,6 @@ class TelemetryWriter(PeriodicService):
 
         # Create comma-separated list of event types for logging
         payload_types = ", ".join([event["request_type"] for event in events])
-
         # Prepare and send the final batch
         batch_event = {
             "tracer_time": int(time.time()),
@@ -760,7 +734,9 @@ class TelemetryWriter(PeriodicService):
 
             lineno = traceback.tb_frame.f_code.co_firstlineno
             filename = traceback.tb_frame.f_code.co_filename
-            self.add_error(1, str(value), filename, lineno)
+
+            if "ddtrace/" in filename:
+                self.add_error_log("Unhandled exception from ddtrace code", (tp, None, root_traceback))
 
             dir_parts = filename.split(os.path.sep)
             # Check if exception was raised in the  `ddtrace.contrib` package

@@ -37,7 +37,6 @@ asbool(const char* value)
 void
 iast_taint_log_error(const std::string& msg)
 {
-    safe_import("ddtrace.appsec._iast._metrics", "_set_iast_error_metric")("iast::propagation::native::error::" + msg);
     try {
         if (!is_iast_debug_enabled()) {
             return;
@@ -46,7 +45,6 @@ iast_taint_log_error(const std::string& msg)
         // If we don't clear the error, stack() and other functions won't work, so we save it first for restoring
         // it later if needed
         PythonErrorGuard error_guard;
-
         try {
             const py::list stack = safe_import("inspect", "stack")();
 

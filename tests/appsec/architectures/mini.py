@@ -11,35 +11,24 @@ from flask import Flask  # noqa: E402
 from flask import request  # noqa: E402
 import requests  # noqa: E402 F401
 
+import ddtrace.internal.telemetry.writer  # noqa: E402
 from ddtrace.settings.asm import config as asm_config  # noqa: E402
 from ddtrace.version import get_version  # noqa: E402
 
 
 app = Flask(__name__)
 _TELEMETRY_DEPENDENCIES = []
-
-# intercept telemetry events
-from ddtrace.internal.telemetry.writer import _TelemetryClient  # noqa: E402
+update_imported_dependencies = ddtrace.internal.telemetry.writer.update_imported_dependencies
 
 
-_send_event = _TelemetryClient.send_event
-
-
-def _send_event_wrapper(self, event, payload_type):
+def wrap_update_imported_dependencies(imported_dependencies, newly_imported_deps):
     global _TELEMETRY_DEPENDENCIES
-    print(f"Captured telemetry event: {event}", flush=True)
-    if event:
-        if event.get("request_type") == "message-batch":
-            dependencies = [v.get("payload", {}).get("dependencies", []) for v in event.get("payload", [])]
-        else:
-            dependencies = event.get("payload", {}).get("dependencies", [])
-        for lst in dependencies:
-            _TELEMETRY_DEPENDENCIES.extend(lst)
-        print(f"Captured dependencies: {dependencies}", flush=True)
-    return _send_event(self, event, payload_type)
+    dependencies = update_imported_dependencies(imported_dependencies, newly_imported_deps)
+    _TELEMETRY_DEPENDENCIES.extend(dependencies)
+    return dependencies
 
 
-_TelemetryClient.send_event = _send_event_wrapper
+ddtrace.internal.telemetry.writer.update_imported_dependencies = wrap_update_imported_dependencies
 
 
 @app.route("/")
