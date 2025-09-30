@@ -192,7 +192,7 @@ async def traced_client_session_list_tools(mcp, pin: Pin, func, instance, args: 
 
 
 @with_traced_module
-async def traced_base_session_aenter(mcp, pin: Pin, func, instance, args: tuple, kwargs: dict):
+async def traced_client_session_aenter(mcp, pin: Pin, func, instance, args: tuple, kwargs: dict):
     integration: MCPIntegration = mcp._datadog_integration
     span = integration.trace(pin, "%s.%s" % (instance.__module__, instance.__class__.__name__), submit_to_llmobs=True)
 
@@ -206,7 +206,7 @@ async def traced_base_session_aenter(mcp, pin: Pin, func, instance, args: tuple,
 
 
 @with_traced_module
-async def traced_base_session_aexit(mcp, pin: Pin, func, instance, args: tuple, kwargs: dict):
+async def traced_client_session_aexit(mcp, pin: Pin, func, instance, args: tuple, kwargs: dict):
     integration: MCPIntegration = mcp._datadog_integration
     span: Optional[Span] = getattr(instance, "_dd_span", None)
 
@@ -243,8 +243,8 @@ def patch():
     from mcp.server.fastmcp.tools.tool_manager import ToolManager
     from mcp.shared.session import BaseSession
 
-    wrap(ClientSession, "__aenter__", traced_base_session_aenter(mcp))
-    wrap(ClientSession, "__aexit__", traced_base_session_aexit(mcp))
+    wrap(ClientSession, "__aenter__", traced_client_session_aenter(mcp))
+    wrap(ClientSession, "__aexit__", traced_client_session_aexit(mcp))
     wrap(BaseSession, "send_request", traced_send_request(mcp))
     wrap(ClientSession, "call_tool", traced_call_tool(mcp))
     wrap(ClientSession, "list_tools", traced_client_session_list_tools(mcp))
