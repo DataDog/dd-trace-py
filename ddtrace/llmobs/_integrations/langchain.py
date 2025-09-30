@@ -887,7 +887,7 @@ class LangChainIntegration(BaseLLMIntegration):
             chat_template = messages if messages else None
 
         tags = {}
-        if (isinstance(getattr(instance, "metadata", None), dict));
+        if isinstance(getattr(instance, "metadata", None), dict):
             metadata = instance.metadata
             tags = {key: value for key, value in metadata.items() if isinstance(key, str) and isinstance(value, str)}
 

@@ -54,7 +54,7 @@ def _create_multi_message_prompt_template(langchain_core, metadata=None):
     from langchain_core.prompts import SystemMessagePromptTemplate
 
     messages = [
-        SystemMessage(content="You are a {role} assistant."), # while this has handlebars, it is not a template
+        SystemMessage(content="You are a {role} assistant."),  # while this has handlebars, it is not a template
         ("system", "Your expertise is in {domain}."),
         SystemMessagePromptTemplate.from_template("Additional context: {context}"),
         HumanMessage(content="I'm a user seeking help."),
@@ -204,7 +204,7 @@ def test_llmobs_string_prompt_template_invoke(langchain_core, langchain_openai, 
     prompt_template = langchain_core.prompts.PromptTemplate(
         input_variables=list(variable_dict.keys()),
         template=template_string,
-        metadata={"test_type": "basic_invoke", "author": "test_suite"}
+        metadata={"test_type": "basic_invoke", "author": "test_suite"},
     )
     llm = langchain_openai.OpenAI(base_url=openai_url)
     chain = prompt_template | llm
@@ -230,7 +230,7 @@ def test_llmobs_string_prompt_template_direct_invoke(
     greeting_template = langchain_core.prompts.PromptTemplate(
         input_variables=list(variable_dict.keys()),
         template=template_string,
-        metadata={"test_type": "direct_invoke", "interaction": "greeting", "not_string_1": True, "not_string_2": 10}
+        metadata={"test_type": "direct_invoke", "interaction": "greeting", "not_string_1": True, "not_string_2": 10},
     )
     llm = langchain_openai.OpenAI(base_url=openai_url)
 
@@ -294,15 +294,10 @@ def test_llmobs_string_prompt_template_single_variable_string_input(
     assert actual_prompt["variables"] == {"topic": "time travel"}
 
 
-
 def test_llmobs_multi_message_prompt_template_sync_chain(
     langchain_core, langchain_openai, openai_url, llmobs_events, tracer
 ):
-    test_metadata = {
-        "template_type": "multi_message",
-        "test_scenario": "sync_chain",
-        "message_count": 10
-    }
+    test_metadata = {"template_type": "multi_message", "test_scenario": "sync_chain", "message_count": 10}
     multi_message_template = _create_multi_message_prompt_template(langchain_core, metadata=test_metadata)
     llm = langchain_openai.ChatOpenAI(base_url=openai_url)
     chain = multi_message_template | llm
