@@ -15,13 +15,13 @@ from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
-from ddtrace.llmobs._integrations.bedrock_utils import parse_model_id
 from ddtrace.llmobs._integrations.bedrock_utils import _AI21
 from ddtrace.llmobs._integrations.bedrock_utils import _AMAZON
 from ddtrace.llmobs._integrations.bedrock_utils import _ANTHROPIC
 from ddtrace.llmobs._integrations.bedrock_utils import _COHERE
 from ddtrace.llmobs._integrations.bedrock_utils import _META
 from ddtrace.llmobs._integrations.bedrock_utils import _STABILITY
+from ddtrace.llmobs._integrations.bedrock_utils import parse_model_id
 
 
 log = get_logger(__name__)
