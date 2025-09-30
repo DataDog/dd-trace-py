@@ -288,28 +288,20 @@ venv = Venv(
                     pkgs={"fastapi": "~=0.114.2"},
                 ),
                 Venv(
-                    pys=["3.10"],
+                    pys=select_pys(min_version="3.9"),
                     pkgs={"fastapi": "==0.86.0", "anyio": "==3.7.1"},
                 ),
                 Venv(
-                    pys=["3.10"],
+                    pys=select_pys(min_version="3.9"),
                     pkgs={"fastapi": "==0.94.1"},
                 ),
                 Venv(
-                    pys=["3.10"],
+                    pys=select_pys(min_version="3.9"),
                     pkgs={"fastapi": "~=0.114.2"},
                 ),
                 Venv(
-                    pys=["3.13"],
-                    pkgs={"fastapi": "==0.86.0", "anyio": "==3.7.1"},
-                ),
-                Venv(
-                    pys=["3.13"],
-                    pkgs={"fastapi": "==0.94.1"},
-                ),
-                Venv(
-                    pys=["3.13"],
-                    pkgs={"fastapi": "~=0.114.2"},
+                    pys=select_pys(min_version="3.9"),
+                    pkgs={"fastapi": latest},
                 ),
             ],
         ),
@@ -3615,7 +3607,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_flask",
-            command="pytest tests/appsec/contrib_appsec/test_flask.py {cmdargs}",
+            command="pytest -vv tests/appsec/contrib_appsec/test_flask.py {cmdargs}",
             pkgs={
                 "pytest": latest,
                 "pytest-cov": latest,
