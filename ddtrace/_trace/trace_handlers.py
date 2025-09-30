@@ -1079,7 +1079,7 @@ def _on_asgi_websocket_close_message(ctx, scope, message, integration_config):
             attributes={SPAN_LINK_KIND: SpanLinkKind.RESUMING},
         )
 
-        _copy_trace_level_tags(span, ctx.parent.span)  # TODO: check if this should be here
+        _copy_trace_level_tags(span, ctx.parent.span)
 
 
 def _on_asgi_websocket_disconnect_message(ctx, scope, message, integration_config):
@@ -1112,15 +1112,13 @@ def _on_asgi_websocket_disconnect_message(ctx, scope, message, integration_confi
 
 def _on_asgi_request(ctx: core.ExecutionContext) -> None:
     """Handler for ASGI request context started event."""
-    span = _start_span(ctx)
-
     scope = ctx.get_item("scope")
     integration_config = ctx.get_item("integration_config")
 
-    span.set_tag_str(COMPONENT, integration_config.integration_name)
-    ctx.set_item("req_span", span)
+    ctx.set_item("tags", {COMPONENT: integration_config.integration_name, SPAN_KIND: SpanKind.SERVER})
 
-    span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
+    span = _start_span(ctx)
+    ctx.set_item("req_span", span)
 
     if scope["type"] == "websocket":
         span.set_tag_str("http.upgraded", "websocket")
