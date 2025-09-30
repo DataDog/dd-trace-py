@@ -1,18 +1,17 @@
 # -*- coding: utf-8 -*-
-import http.client as httplib  # noqa: E402
+import http.client as httplib
 import itertools
 import os
 import sys
 import time
 import traceback
-from typing import TYPE_CHECKING  # noqa:F401
-from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import List  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Set  # noqa:F401
-from typing import Tuple  # noqa:F401
-from typing import Union  # noqa:F401
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Set
+from typing import Tuple
+from typing import Union
 import urllib.parse as parse
 
 from ddtrace.internal.endpoints import endpoint_collection
@@ -49,10 +48,10 @@ log = get_logger(__name__)
 
 
 class LogData(dict):
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash((self["message"], self["level"], self.get("tags"), self.get("stack_trace")))
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         return (
             self["message"] == other["message"]
             and self["level"] == other["level"]
@@ -65,8 +64,7 @@ class _TelemetryClient:
     AGENT_ENDPOINT = "telemetry/proxy/api/v2/apmtelemetry"
     AGENTLESS_ENDPOINT_V2 = "api/v2/apmtelemetry"
 
-    def __init__(self, agentless):
-        # type: (bool) -> None
+    def __init__(self, agentless: bool) -> None:
         self._telemetry_url = self.get_host(config.SITE, agentless)
         self._endpoint = self.get_endpoint(agentless)
         self._encoder = JSONEncoderV2()
@@ -82,7 +80,7 @@ class _TelemetryClient:
             self._headers["dd-api-key"] = config.API_KEY
 
     @property
-    def url(self):
+    def url(self) -> str:
         return parse.urljoin(self._telemetry_url, self._endpoint)
 
     def send_event(self, request: Dict, payload_type: str) -> Optional[httplib.HTTPResponse]:
@@ -114,8 +112,7 @@ class _TelemetryClient:
                 conn.close()
         return resp
 
-    def get_headers(self, request):
-        # type: (Dict) -> Dict
+    def get_headers(self, request: Dict) -> Dict:
         """Get all telemetry api v2 request headers"""
         headers = self._headers.copy()
         headers["DD-Telemetry-Debug-Enabled"] = request["debug"]
@@ -150,8 +147,7 @@ class TelemetryWriter(PeriodicService):
     _ORIGINAL_EXCEPTHOOK = staticmethod(sys.excepthook)
     CWD = os.getcwd()
 
-    def __init__(self, is_periodic=True, agentless=None):
-        # type: (bool, Optional[bool]) -> None
+    def __init__(self, is_periodic: bool = True, agentless: Optional[bool] = None) -> None:
         super(TelemetryWriter, self).__init__(interval=min(config.HEARTBEAT_INTERVAL, 10))
 
         # Decouples the aggregation and sending of the telemetry events
@@ -160,12 +156,12 @@ class TelemetryWriter(PeriodicService):
         self._periodic_threshold = int(config.HEARTBEAT_INTERVAL // self.interval) - 1
         self._periodic_count = 0
         self._is_periodic = is_periodic
-        self._integrations_queue = dict()  # type: Dict[str, Dict]
+        self._integrations_queue: Dict[str, Dict] = dict()
         self._namespace = MetricNamespace()
-        self._logs = set()  # type: Set[Dict[str, Any]]
-        self._forked = False  # type: bool
-        self._events_queue = []  # type: List[Dict]
-        self._configuration_queue = []  # type: List[Dict]
+        self._logs: Set[Dict[str, Any]] = set()
+        self._forked: bool = False
+        self._events_queue: List[Dict] = []
+        self._configuration_queue: List[Dict] = []
         self._imported_dependencies: Dict[str, str] = dict()
         self._modules_already_imported: Set[str] = set()
         self._product_enablement = {product.value: False for product in TELEMETRY_APM_PRODUCT}
@@ -206,8 +202,7 @@ class TelemetryWriter(PeriodicService):
                 self._events_queue.append({"payload": app_started, "request_type": TELEMETRY_EVENT_TYPE.STARTED})
             get_logger("ddtrace").addHandler(DDTelemetryErrorHandler(self))
 
-    def enable(self):
-        # type: () -> bool
+    def enable(self) -> bool:
         """
         Enable the instrumentation telemetry collection service. If the service has already been
         activated before, this method does nothing. Use ``disable`` to turn off the telemetry collection service.
@@ -226,8 +221,7 @@ class TelemetryWriter(PeriodicService):
         self.status = ServiceStatus.RUNNING
         return True
 
-    def disable(self):
-        # type: () -> None
+    def disable(self) -> None:
         """
         Disable the telemetry collection service and drop the existing integrations and events
         Once disabled, telemetry collection can not be re-enabled.
@@ -235,21 +229,17 @@ class TelemetryWriter(PeriodicService):
         self._enabled = False
         self.reset_queues()
 
-    def enable_agentless_client(self, enabled=True):
-        # type: (bool) -> None
-
+    def enable_agentless_client(self, enabled: bool = True) -> None:
         if self._client._agentless == enabled:
             return
 
         self._client = _TelemetryClient(enabled)
 
-    def _is_running(self):
-        # type: () -> bool
+    def _is_running(self) -> bool:
         """Returns True when the telemetry writer worker thread is running"""
         return self._is_periodic and self._worker is not None and self.status is ServiceStatus.RUNNING
 
-    def add_event(self, payload, payload_type):
-        # type: (Union[Dict[str, Any], List[Any]], str) -> None
+    def add_event(self, payload: Union[Dict[str, Any], List[Any]], payload_type: str) -> None:
         """
         Adds a Telemetry event to the TelemetryWriter event buffer
 
@@ -260,16 +250,21 @@ class TelemetryWriter(PeriodicService):
         if self.enable():
             self._events_queue.append({"payload": payload, "request_type": payload_type})
 
-    def add_events(self, events):
-        # type: (List[Dict[str, Any]]) -> None
+    def add_events(self, events: List[Dict[str, Any]]) -> None:
         """
         Adds a list of Telemetry events to the TelemetryWriter event buffer
         """
         if self.enable():
             self._events_queue.extend(events)
 
-    def add_integration(self, integration_name, patched, auto_patched=None, error_msg=None, version=""):
-        # type: (str, bool, Optional[bool], Optional[str], Optional[str]) -> None
+    def add_integration(
+        self,
+        integration_name: str,
+        patched: bool,
+        auto_patched: Optional[bool] = None,
+        error_msg: Optional[str] = None,
+        version: str = "",
+    ) -> None:
         """
         Creates and queues the names and settings of a patched module
 
@@ -309,7 +304,7 @@ class TelemetryWriter(PeriodicService):
         payload = {
             "configuration": self._report_configurations(),
             "products": self._report_products(),
-        }  # type: Dict[str, Union[Dict[str, Any], List[Any]]]
+        }
         # Add time to value telemetry metrics for single step instrumentation
         if config.INSTALL_ID or config.INSTALL_TYPE or config.INSTALL_TIME:
             payload["install_signature"] = {
@@ -319,8 +314,7 @@ class TelemetryWriter(PeriodicService):
             }
         return payload
 
-    def _report_heartbeat(self):
-        # type: () -> Dict[str, Any]
+    def _report_heartbeat(self) -> Optional[Dict[str, Any]]:
         if config.DEPENDENCY_COLLECTION and time.monotonic() - self._extended_time > self._extended_heartbeat_interval:
             self._extended_time += self._extended_heartbeat_interval
             return {
@@ -328,51 +322,47 @@ class TelemetryWriter(PeriodicService):
                     {"name": name, "version": version} for name, version in self._imported_dependencies.items()
                 ]
             }
-        return {}
+        return None
 
-    def _report_integrations(self):
-        # type: () -> List[Dict]
+    def _report_integrations(self) -> List[Dict]:
         """Flushes and returns a list of all queued integrations"""
         with self._service_lock:
             integrations = list(self._integrations_queue.values())
             self._integrations_queue = dict()
         return integrations
 
-    def _report_configurations(self):
-        # type: () -> List[Dict]
+    def _report_configurations(self) -> List[Dict]:
         """Flushes and returns a list of all queued configurations"""
         with self._service_lock:
             configurations = self._configuration_queue
             self._configuration_queue = []
         return configurations
 
-    def _report_dependencies(self):
-        # type: () -> Optional[Dict[str, Any]]
+    def _report_dependencies(self) -> Optional[Dict[str, Any]]:
         """Adds events to report imports done since the last periodic run"""
         if not config.DEPENDENCY_COLLECTION or not self._enabled:
-            return {}
+            return None
 
         with self._service_lock:
             newly_imported_deps = modules.get_newly_imported_modules(self._modules_already_imported)
             if not newly_imported_deps:
-                return {}
+                return None
             return update_imported_dependencies(self._imported_dependencies, newly_imported_deps)
 
-    def _report_endpoints(self):
+    def _report_endpoints(self) -> Optional[Dict[str, Any]]:
         """Adds a Telemetry event which sends the list of HTTP endpoints found at startup to the agent"""
         import ddtrace.settings.asm as asm_config_module
 
         if not asm_config_module.config._api_security_endpoint_collection or not self._enabled:
-            return {}
+            return None
 
         if not endpoint_collection.endpoints:
-            return {}
+            return None
 
         with self._service_lock:
             return endpoint_collection.flush(asm_config_module.config._api_security_endpoint_collection_limit)
 
-    def _report_products(self):
-        # type: () -> Dict[str, Any]
+    def _report_products(self) -> Dict[str, Any]:
         """Adds a Telemetry event which reports the enablement of an APM product"""
         with self._service_lock:
             products = self._product_enablement.items()
@@ -381,16 +371,20 @@ class TelemetryWriter(PeriodicService):
             self._product_enablement = {}
             return {product: {"version": tracer_version, "enabled": status} for product, status in products}
 
-    def product_activated(self, product, status):
-        # type: (str, bool) -> None
+    def product_activated(self, product: str, status: bool) -> None:
         """Updates the product enablement dict"""
         with self._service_lock:
             # Only send product change event if the product status has changed
             if self._previous_product_enablement.get(product) != status:
                 self._product_enablement[product] = status
 
-    def add_configuration(self, configuration_name, configuration_value, origin="unknown", config_id=None):
-        # type: (str, Any, str, Optional[str]) -> None
+    def add_configuration(
+        self,
+        configuration_name: str,
+        configuration_value: Any,
+        origin: str = "unknown",
+        config_id: Optional[str] = None,
+    ) -> None:
         """Creates and queues the name, origin, value of a configuration"""
         if isinstance(configuration_value, dict):
             configuration_value = ",".join(":".join((k, str(v))) for k, v in configuration_value.items())
@@ -412,7 +406,7 @@ class TelemetryWriter(PeriodicService):
             config["seq_id"] = next(self._sequence_configurations)
             self._configuration_queue.append(config)
 
-    def add_configurations(self, configuration_list: List[Tuple[str, str, str]]):
+    def add_configurations(self, configuration_list: List[Tuple[str, str, str]]) -> None:
         """Creates and queues a list of configurations"""
         with self._service_lock:
             for name, value, origin in configuration_list:
@@ -425,7 +419,7 @@ class TelemetryWriter(PeriodicService):
                     }
                 )
 
-    def add_log(self, level, message, stack_trace="", tags=None):
+    def add_log(self, level, message: str, stack_trace: str = "", tags: Optional[Dict] = None) -> None:
         """
         Queues log. This event is meant to send library logs to Datadog's backend through the Telemetry intake.
         This will make support cycles easier and ensure we know about potentially silent issues in libraries.
@@ -497,7 +491,7 @@ class TelemetryWriter(PeriodicService):
 
     def add_gauge_metric(
         self, namespace: TELEMETRY_NAMESPACE, name: str, value: float, tags: Optional[MetricTagType] = None
-    ):
+    ) -> None:
         """
         Queues gauge metric
         """
@@ -512,7 +506,7 @@ class TelemetryWriter(PeriodicService):
 
     def add_rate_metric(
         self, namespace: TELEMETRY_NAMESPACE, name: str, value: float, tags: Optional[MetricTagType] = None
-    ):
+    ) -> None:
         """
         Queues rate metric
         """
@@ -527,7 +521,7 @@ class TelemetryWriter(PeriodicService):
 
     def add_count_metric(
         self, namespace: TELEMETRY_NAMESPACE, name: str, value: int = 1, tags: Optional[MetricTagType] = None
-    ):
+    ) -> None:
         """
         Queues count metric
         """
@@ -542,7 +536,7 @@ class TelemetryWriter(PeriodicService):
 
     def add_distribution_metric(
         self, namespace: TELEMETRY_NAMESPACE, name: str, value: float, tags: Optional[MetricTagType] = None
-    ):
+    ) -> None:
         """
         Queues distributions metric
         """
@@ -555,20 +549,19 @@ class TelemetryWriter(PeriodicService):
                 tags,
             )
 
-    def _report_logs(self):
-        # type () -> Set[Metric]
+    def _report_logs(self) -> Set[Dict[str, Any]]:
         with self._service_lock:
             logs = self._logs
             self._logs = set()
         return logs
 
-    def _dispatch(self):
+    def _dispatch(self) -> None:
         # moved core here to avoid circular import
         from ddtrace.internal import core
 
         core.dispatch("telemetry.periodic")
 
-    def periodic(self, force_flush=False, shutting_down=False):
+    def periodic(self, force_flush: bool = False, shutting_down: bool = False) -> None:
         """Process and send telemetry events in batches.
 
         This method handles the periodic collection and sending of telemetry data with two main timing intervals:
@@ -678,13 +671,12 @@ class TelemetryWriter(PeriodicService):
         }
         self._client.send_event(batch_event, payload_types)
 
-    def app_shutdown(self):
+    def app_shutdown(self) -> None:
         if self.started:
             self.periodic(force_flush=True, shutting_down=True)
         self.disable()
 
-    def reset_queues(self):
-        # type: () -> None
+    def reset_queues(self) -> None:
         self._events_queue = []
         self._integrations_queue = dict()
         self._namespace.flush()
@@ -692,16 +684,14 @@ class TelemetryWriter(PeriodicService):
         self._imported_dependencies = {}
         self._configuration_queue = []
 
-    def _report_events(self):
-        # type: () -> List[Dict]
+    def _report_events(self) -> List[Dict]:
         """Flushes and returns a list of all telemtery event"""
         with self._service_lock:
             events = self._events_queue
             self._events_queue = []
         return events
 
-    def _fork_writer(self):
-        # type: () -> None
+    def _fork_writer(self) -> None:
         self._forked = True
         # Avoid sending duplicate events.
         # Queued events should be sent in the main process.
@@ -715,17 +705,16 @@ class TelemetryWriter(PeriodicService):
         # error in Python 3.12
         self.enable()
 
-    def _restart_sequence(self):
+    def _restart_sequence(self) -> None:
         self._sequence_payloads = itertools.count(1)
         self._sequence_configurations = itertools.count(1)
 
-    def _stop_service(self, join=True, *args, **kwargs):
-        # type: (...) -> None
+    def _stop_service(self, join: bool = True, *args, **kwargs) -> None:
         super(TelemetryWriter, self)._stop_service(*args, **kwargs)
         if join:
             self.join(timeout=2)
 
-    def _telemetry_excepthook(self, tp, value, root_traceback):
+    def _telemetry_excepthook(self, tp, value, root_traceback) -> None:
         if root_traceback is not None:
             # Get the frame which raised the exception
             traceback = root_traceback
@@ -768,10 +757,10 @@ class TelemetryWriter(PeriodicService):
 
         return TelemetryWriter._ORIGINAL_EXCEPTHOOK(tp, value, root_traceback)
 
-    def install_excepthook(self):
+    def install_excepthook(self) -> None:
         """Install a hook that intercepts unhandled exception and send metrics about them."""
         sys.excepthook = self._telemetry_excepthook
 
-    def uninstall_excepthook(self):
+    def uninstall_excepthook(self) -> None:
         """Uninstall the global tracer except hook."""
         sys.excepthook = TelemetryWriter._ORIGINAL_EXCEPTHOOK
