@@ -157,7 +157,9 @@ async def traced_tool_manager_call_tool(mcp, pin: Pin, func, instance, args: tup
 async def traced_client_session_initialize(mcp, pin: Pin, func, instance, args: tuple, kwargs: dict):
     integration: MCPIntegration = mcp._datadog_integration
 
-    span = integration.trace(pin, "mcp.client.session.initialize", submit_to_llmobs=True)
+    span = integration.trace(
+        pin, "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, func.__name__), submit_to_llmobs=True
+    )
 
     try:
         result = await func(*args, **kwargs)
@@ -174,7 +176,9 @@ async def traced_client_session_initialize(mcp, pin: Pin, func, instance, args: 
 @with_traced_module
 async def traced_client_session_list_tools(mcp, pin: Pin, func, instance, args: tuple, kwargs: dict):
     integration: MCPIntegration = mcp._datadog_integration
-    span = integration.trace(pin, "mcp.client.session.list_tools", submit_to_llmobs=True)
+    span = integration.trace(
+        pin, "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, func.__name__), submit_to_llmobs=True
+    )
     try:
         result = await func(*args, **kwargs)
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="list_tools")
@@ -190,7 +194,7 @@ async def traced_client_session_list_tools(mcp, pin: Pin, func, instance, args: 
 @with_traced_module
 async def traced_base_session_aenter(mcp, pin: Pin, func, instance, args: tuple, kwargs: dict):
     integration: MCPIntegration = mcp._datadog_integration
-    span = integration.trace(pin, "mcp.session", submit_to_llmobs=True)
+    span = integration.trace(pin, "%s.%s" % (instance.__module__, instance.__class__.__name__), submit_to_llmobs=True)
 
     setattr(instance, "_dd_span", span)
     try:
