@@ -31,11 +31,17 @@ VLLM_MODEL_PROVIDER = "vllm.request.provider"
 
 
 class VLLMIntegration(BaseLLMIntegration):
+    """LLMObs integration for vLLM library.
+
+    Handles both V0 (engine-side) and V1 (client-side) tracing modes,
+    supporting completion, embedding, and cross-encoding operations.
+    """
+
     _integration_name = "vllm"
 
-    # Cache for captured prompts keyed by request_id
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # Cache for captured prompts keyed by request_id
         self._dd_captured_prompts: Dict[str, str] = {}
 
     _METADATA_FIELDS = {
@@ -58,24 +64,22 @@ class VLLMIntegration(BaseLLMIntegration):
         "lora_name",
     }
 
-    # ----- base tags ---------------------------------------------------------
     def _set_base_span_tags(self, span: Span, **kwargs: Any) -> None:
+        """Set base tags (model name, provider) on vLLM spans."""
         model_name = kwargs.get("model_name")
         if model_name:
             span.set_tag_str(VLLM_MODEL_NAME, model_name)
             span.set_tag_str(VLLM_MODEL_PROVIDER, "vllm")
 
-    # ----- prompt management -------------------------------------------------
     def capture_prompt(self, request_id: str, prompt: str) -> None:
-        """Store a captured prompt for later retrieval."""
+        """Store a captured prompt for later retrieval (used in V0 pooling requests)."""
         if request_id and prompt:
             self._dd_captured_prompts[str(request_id)] = prompt
 
     def get_captured_prompt(self, request_id: str) -> Optional[str]:
-        """Retrieve a previously captured prompt."""
+        """Retrieve a previously captured prompt (used in V0 pooling requests)."""
         return self._dd_captured_prompts.get(str(request_id)) if request_id else None
 
-    # ----- helpers -----------------------------------------------------------
     def _build_metadata(self, data: RequestData) -> Dict[str, Any]:
         md: Dict[str, Any] = {}
         if data.sampling_params:
@@ -101,8 +105,8 @@ class VLLMIntegration(BaseLLMIntegration):
             TOTAL_TOKENS_METRIC_KEY: it + ot,
         }
 
-    # ----- embedding/completion contexts ------------------------------------
     def _build_embedding_context(self, data: RequestData) -> Dict[str, Any]:
+        """Build LLMObs context for embedding operations."""
         ctx: Dict[str, Any] = {
             SPAN_KIND: "embedding",
             METADATA: self._build_metadata(data),
@@ -134,6 +138,7 @@ class VLLMIntegration(BaseLLMIntegration):
         return ctx
 
     def _build_completion_context(self, data: RequestData) -> Dict[str, Any]:
+        """Build LLMObs context for completion operations."""
         ctx: Dict[str, Any] = {
             SPAN_KIND: "llm",
             METADATA: self._build_metadata(data),

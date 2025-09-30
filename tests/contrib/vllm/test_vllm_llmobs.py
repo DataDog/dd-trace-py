@@ -18,12 +18,7 @@ def test_llmobs_basic(llmobs_events, mock_tracer, vllm_engine_mode, opt_125m_llm
     sampling = SamplingParams(temperature=0.1, top_p=0.9, max_tokens=8, seed=42)
     llm.generate("The future of AI is", sampling)
     span = mock_tracer.pop_traces()[0][0]
-    print("---LLMOBS EVENTS---")
-    print(llmobs_events)
-    print("---END LLMOBS EVENTS---")
-    print("---SPAN---")
-    print(span)
-    print("---END SPAN---")
+
     assert len(llmobs_events) == 1
     expected = _expected_llmobs_llm_span_event(
         span,
@@ -76,12 +71,6 @@ def test_llmobs_chat(llmobs_events, mock_tracer, vllm_engine_mode, opt_125m_llm)
 
     llm.chat(conversation, sampling_params, chat_template=simple_chat_template, use_tqdm=False)
     span = mock_tracer.pop_traces()[0][0]
-    print("---LLMOBS EVENTS---")
-    print(llmobs_events)
-    print("---END LLMOBS EVENTS---")
-    print("---SPAN---")
-    print(span)
-    print("---END SPAN---")
 
     assert len(llmobs_events) == 1
     expected = _expected_llmobs_llm_span_event(
@@ -137,12 +126,6 @@ def test_llmobs_classify(llmobs_events, mock_tracer, vllm_engine_mode, bge_reran
     llm.classify(prompts)
     traces = mock_tracer.pop_traces()
     spans = [s for t in traces for s in t]
-    print("---LLMOBS EVENTS---")
-    print(llmobs_events)
-    print("---END LLMOBS EVENTS---")
-    print("---SPANS---")
-    print(spans)
-    print("---END SPANS---")
 
     # Expect one event per input prompt
     assert len(llmobs_events) == len(prompts) == len(spans)
@@ -182,12 +165,6 @@ def test_llmobs_embed(llmobs_events, mock_tracer, vllm_engine_mode, e5_small_llm
     llm.embed(prompts)
     traces = mock_tracer.pop_traces()
     spans = [s for t in traces for s in t]
-    print("---LLMOBS EVENTS---")
-    print(llmobs_events)
-    print("---END LLMOBS EVENTS---")
-    print("---SPANS---")
-    print(spans)
-    print("---END SPANS---")
 
     # Expect one event per input prompt
     assert len(llmobs_events) == len(prompts) == len(spans)
@@ -224,20 +201,9 @@ def test_llmobs_reward(llmobs_events, mock_tracer, vllm_engine_mode, bge_reranke
         "The capital of France is",
     ]
 
-    res = llm.reward(prompts)
-    print("---RES---")
-    print(res)
-    print("Number of embeddings:", len(res))
-    print("Size of each embedding:", len(res[0].outputs.data))
-    print("Shape of each embedding:", res[0].outputs.data.shape)
+    llm.reward(prompts)
     traces = mock_tracer.pop_traces()
     spans = [s for t in traces for s in t]
-    print("---LLMOBS EVENTS---")
-    print(llmobs_events)
-    print("---END LLMOBS EVENTS---")
-    print("---SPANS---")
-    print(spans)
-    print("---END SPANS---")
 
     # Expect one event per input prompt
     assert len(llmobs_events) == len(prompts) == len(spans)
@@ -278,12 +244,6 @@ def test_llmobs_score(llmobs_events, mock_tracer, vllm_engine_mode, bge_reranker
     llm.score(text_1, texts_2)
     traces = mock_tracer.pop_traces()
     spans = [s for t in traces for s in t]
-    print("---LLMOBS EVENTS---")
-    print(llmobs_events)
-    print("---END LLMOBS EVENTS---")
-    print("---SPANS---")
-    print(spans)
-    print("---END SPANS---")
 
     # Expect one event per candidate document
     assert len(llmobs_events) == len(texts_2) == len(spans)

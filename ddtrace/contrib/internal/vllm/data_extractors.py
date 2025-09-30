@@ -22,6 +22,12 @@ from vllm.sequence import SequenceStatus
 # ---------- data container ---------------------------------------------------
 @dataclass
 class RequestData:
+    """Container for vLLM request data extracted from various engine types.
+
+    Used to pass data between tracing wrappers and LLMObs integration.
+    Supports both completion and embedding operations.
+    """
+
     prompt: Optional[str] = None
     input_tokens: int = 0
     output_tokens: int = 0
@@ -32,7 +38,7 @@ class RequestData:
     num_cached_tokens: Optional[int] = None
     lora_name: Optional[str] = None
     sampling_params: Optional[SamplingParams] = None
-    input_: Optional[Any] = None
+    input_: Optional[Any] = None  # Raw input (token IDs or text) for embeddings
     num_embeddings: Optional[int] = None
     seed: Optional[int] = None
 
@@ -121,6 +127,7 @@ def _accumulate_completion_outputs(
 
 # ---------- extractors -------------------------------------------------------
 def extract_v0_data(seq_group: SequenceGroup) -> RequestData:
+    """Extract request data from V0 engine SequenceGroup (used in _process_model_outputs)."""
     data = RequestData(
         prompt=(seq_group.trace_headers or {}).get("x-datadog-captured-prompt") or seq_group.prompt,
         input_tokens=len(seq_group.prompt_token_ids),
@@ -152,6 +159,7 @@ def extract_v0_data(seq_group: SequenceGroup) -> RequestData:
 
 
 def extract_v1_streaming_data(outputs: List[RequestOutput]) -> RequestData:
+    """Extract request data from V1 streaming outputs (AsyncLLM.generate)."""
     data = RequestData()
 
     for out in outputs:
@@ -169,6 +177,7 @@ def extract_v1_streaming_data(outputs: List[RequestOutput]) -> RequestData:
 
 
 def extract_offline_data(request_output: RequestOutput, prompts=None) -> RequestData:
+    """Extract request data from V1 offline LLM.generate output."""
     data = RequestData(
         prompt=_first_non_empty(request_output.prompt, prompts if isinstance(prompts, str) else None),
         num_cached_tokens=request_output.num_cached_tokens,
@@ -180,8 +189,8 @@ def extract_offline_data(request_output: RequestOutput, prompts=None) -> Request
     return data
 
 
-# New: offline pooling extractor (V1 LLM.encode and friends)
 def extract_offline_pooling_data(request_output: PoolingRequestOutput, prompts=None) -> RequestData:
+    """Extract request data from V1 offline LLM.encode output."""
     data = RequestData(
         prompt=_first_non_empty(getattr(request_output, "prompt", None), prompts if isinstance(prompts, str) else None),
         input_tokens=_len_or_zero(getattr(request_output, "prompt_token_ids", None)),
@@ -225,6 +234,11 @@ def select_prompt_for_span(
     is_embedding: bool = False,
     tokenizer: Optional[Any] = None,
 ) -> tuple[Optional[str], Optional[List[int]], Optional[int]]:
+    """Extract text, token IDs, and token count from vLLM PromptType.
+
+    Returns:
+        (text, token_ids, input_token_count)
+    """
     text: Optional[str] = None
     token_ids: Optional[List[int]] = None
 

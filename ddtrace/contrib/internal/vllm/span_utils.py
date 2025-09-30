@@ -27,9 +27,12 @@ log = get_logger(__name__)
 
 
 def _parent_ctx(tracer: Tracer, seq_group: Optional[SequenceGroup]) -> Optional[Context]:
-    # Prefer injected trace headers from seq_group if present (e.g., MQ or v0 engine header propagation)
+    """Determine parent context for a vLLM span.
+
+    Prefers injected trace headers from seq_group (for v0 engine propagation),
+    falls back to active context from tracer (for v1 async scenarios).
+    """
     if seq_group and seq_group.trace_headers:
-        log.debug("[VLLM DD] create_vllm_span: found trace_headers")
         return HTTPPropagator.extract(seq_group.trace_headers)
 
     active = tracer.context_provider.active()
@@ -63,8 +66,6 @@ def create_vllm_span(
         span.start_ns = int(arrival_time * 1e9)
 
     integration._set_base_span_tags(span, model_name=model_name)
-    log.debug("[VLLM DD] create_vllm_span: tagged model_name=%s", model_name)
-
     return span
 
 
@@ -103,7 +104,6 @@ def inject_trace_headers(
     if not pin or not pin.tracer:
         return
 
-    # parent = pin.tracer.current_span()
     parent = pin.tracer.context_provider.active()
 
     # Determine if we're working with args or kwargs for trace_headers
@@ -114,16 +114,12 @@ def inject_trace_headers(
     else:
         existing_headers = kwargs.get("trace_headers") or {}
 
-    # Start with existing headers
+    # Start with existing headers and inject parent context
     headers = dict(existing_headers)
     if isinstance(parent, Span):
-        log.debug("[VLLM DD] inject_trace_headers: parent is a Span")
         HTTPPropagator.inject(parent.context, headers)
     elif isinstance(parent, Context):
-        log.debug("[VLLM DD] inject_trace_headers: parent is a Context")
         HTTPPropagator.inject(parent, headers)
-    else:
-        log.debug("[VLLM DD] inject_trace_headers: parent is not a Span or Context")
 
     # Extract prompt directly from the provided prompt argument
     if prompt_arg_pos is not None:
@@ -141,17 +137,10 @@ def inject_trace_headers(
         elif token_ids:
             headers["x-datadog-captured-prompt"] = str(token_ids)
 
-    # Add prompt to headers if found (stringify for safety)
-    captured = headers.get("x-datadog-captured-prompt")
-    if captured is not None:
-        log.debug("[VLLM DD] inject_trace_headers: added x-datadog-captured-prompt (type=%s)", type(captured).__name__)
-
     # Update the appropriate location
     if headers_in_args and headers:
-        # Modify args tuple
         args_list = list(args)
         args_list[trace_headers_arg_pos] = headers
-        # Return modified args for caller to use
         return tuple(args_list)
     elif headers:
         kwargs["trace_headers"] = headers

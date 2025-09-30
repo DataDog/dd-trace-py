@@ -39,24 +39,6 @@ config._add("vllm", {})
 
 
 # ---------- integration / tracer plumbing -----------------------------------
-def _safe_wrap(mod: str, name: str, wrapper) -> bool:
-    try:
-        wrap(mod, name, wrapper)
-        return True
-    except Exception as e:
-        log.debug("[VLLM DD] safe_wrap: skip %s.%s (%s)", mod, name, e)
-        return False
-
-
-def _safe_unwrap(mod, name: str) -> bool:
-    try:
-        unwrap(mod, name)
-        return True
-    except Exception as e:
-        log.debug("[VLLM DD] safe_unwrap: skip %s.%s (%s)", mod, name, e)
-        return False
-
-
 def is_v1() -> bool:
     return envs.VLLM_USE_V1
 
@@ -69,65 +51,9 @@ def _tag_if_enabled(integration, span, data: RequestData, *, operation: Optional
 
 
 # ---------- v0: ENGINE-SIDE tracing -----------------------------------------
-"""
-@with_traced_module
-def traced_llmengine_do_tracing(vllm, pin, func, instance, args, kwargs):
-    log.debug("[VLLM DD] traced_llmengine_do_tracing: args=%s kwargs=%s", args, kwargs)
-    res = func(*args, **kwargs)
-
-    tracer = pin.tracer
-    integration = vllm._datadog_integration
-
-    scheduler_outputs: SchedulerOutputs = args[0] if args else kwargs.get("scheduler_outputs")
-    finished_before = set(args[1] if len(args) > 1 else (kwargs.get("finished_before") or []))
-    groups = scheduler_outputs.scheduled_seq_groups or []
-    log.debug("[VLLM DD] do_tracing: groups=%d finished_before=%d", len(groups), len(finished_before))
-
-    for idx, scheduled in enumerate(groups):
-        if finished_before and idx in finished_before:
-            continue
-
-        seq_group: SequenceGroup = scheduled.seq_group
-        if seq_group.trace_headers is None and hasattr(instance, "_dd_pending_trace_headers"):
-            req_id = seq_group.request_id
-            if req_id and str(req_id) in instance._dd_pending_trace_headers:
-                seq_group.trace_headers = instance._dd_pending_trace_headers.pop(str(req_id))
-
-        if not seq_group.is_finished():
-            continue
-
-        metrics_obj: RequestMetrics = seq_group.metrics
-
-        span = create_vllm_span(
-            tracer=tracer,
-            integration=integration,
-            model_name=extract_model_name(instance),
-            seq_group=seq_group,
-            arrival_time=metrics_obj.arrival_time,
-        )
-
-        data = extract_v0_data(seq_group)
-
-        operation = "embedding" if data.embedding_dim is not None else "completion"
-        # For decoder-only/completion requests with token-only prompts, decode to text
-        #if operation == "completion" and not data.prompt:
-        #    tokenizer = instance.get_tokenizer(seq_group.lora_request)
-        #    if seq_group.prompt_token_ids:
-        #        data.prompt = tokenizer.decode(seq_group.prompt_token_ids)
-        if operation == "embedding":
-            data.input_ = seq_group.prompt_token_ids
-
-        _tag_if_enabled(integration, span, data, operation=operation)
-        set_latency_metrics(span, metrics_obj)
-        span.finish()
-
-    return res
-"""
-
-
 @with_traced_module
 def traced_llmengine_process_model_outputs(vllm, pin, func, instance, args, kwargs):
-    log.debug("[VLLM DD] traced_llmengine_process_model_outputs: args=%s kwargs=%s", args, kwargs)
+    """Trace LLMEngine._process_model_outputs calls (V0 engine)."""
     res = func(*args, **kwargs)
 
     tracer = pin.tracer
@@ -180,11 +106,11 @@ def traced_llmengine_process_model_outputs(vllm, pin, func, instance, args, kwar
 # ---------- v1: API-SERVER-SIDE tracing -------------------------------------
 @with_traced_module
 def traced_asyncllm_generate(vllm, pin, func, instance, args, kwargs):
+    """Trace AsyncLLM.generate calls (V1 engine)."""
     prompt_arg = args[0] if args else kwargs.get("prompt")
     sampling_params = args[1] if len(args) > 1 else kwargs.get("sampling_params")
     request_id = args[2] if len(args) > 2 else kwargs.get("request_id")
     lora_request = args[3] if len(args) > 3 else kwargs.get("lora_request")
-    log.debug("[VLLM DD] traced_asyncllm_generate: args=%s kwargs=%s", args, kwargs)
 
     tracer = pin.tracer
     integration = vllm._datadog_integration
@@ -194,20 +120,20 @@ def traced_asyncllm_generate(vllm, pin, func, instance, args, kwargs):
         integration=integration,
         model_name=extract_model_name(instance),
     )
-    log.debug("[VLLM DD] traced_asyncllm_generate: span=%s", span)
 
     async def execute():
-        log.debug("[VLLM DD] traced_asyncllm_generate: executing (drain-until-finished)")
         res = func(*args, **kwargs)
         if hasattr(res, "__await__"):
             res = await res
-        log.debug("[VLLM DD] traced_asyncllm_generate: res=%s", res)
+
+        # Consume generator until finished to collect all outputs
         outputs: list[RequestOutput] = []
         async for out in res:
             outputs.append(out)
             if getattr(out, "finished", False):
                 break
-        log.debug("[VLLM DD] traced_asyncllm_generate: outputs=%s", outputs)
+
+        # Extract data and tag span
         data = extract_v1_streaming_data(outputs)
         data.lora_name = extract_lora_name(lora_request)
         data.sampling_params = sampling_params
@@ -224,24 +150,21 @@ def traced_asyncllm_generate(vllm, pin, func, instance, args, kwargs):
             data.prompt = text
             data.input_tokens = input_tokens
             data.input_ = token_ids
-        log.debug("[VLLM DD] traced_asyncllm_generate: data=%s", data)
+
         _tag_if_enabled(integration, span, data)
         span.finish()
-        log.debug("[VLLM DD] traced_asyncllm_generate: span=%s", span)
+
+        # Yield buffered outputs
         for out in outputs:
             yield out
 
     return execute()
 
 
-"""Offline tracing wrappers for vLLM LLM entrypoints (V1 only)."""
-
-
+# ---------- OFFLINE tracing (V1 LLM.* methods) ------------------------------
 @with_traced_module
 def traced_llm_generate(vllm, pin, func, instance, args, kwargs):
-    if not is_v1():
-        return func(*args, **kwargs)
-
+    """Trace LLM.generate calls (V1 offline mode)."""
     tracer = pin.tracer
     integration = vllm._datadog_integration
 
@@ -283,9 +206,7 @@ def traced_llm_generate(vllm, pin, func, instance, args, kwargs):
 
 @with_traced_module
 def traced_llm_encode(vllm, pin, func, instance, args, kwargs):
-    if not is_v1():
-        return func(*args, **kwargs)
-
+    """Trace LLM.encode calls (V1 offline mode)."""
     tracer = pin.tracer
     integration = vllm._datadog_integration
 
@@ -311,9 +232,7 @@ def traced_llm_encode(vllm, pin, func, instance, args, kwargs):
 
 @with_traced_module
 def traced_llm_cross_encoding_score(vllm, pin, func, instance, args, kwargs):
-    if not is_v1():
-        return func(*args, **kwargs)
-
+    """Trace LLM._cross_encoding_score calls (V1 offline mode)."""
     tracer = pin.tracer
     integration = vllm._datadog_integration
 
@@ -351,9 +270,9 @@ def traced_llm_cross_encoding_score(vllm, pin, func, instance, args, kwargs):
 
 @with_traced_module
 def traced_asyncllm_encode(vllm, pin, func, instance, args, kwargs):
+    """Trace AsyncLLM.encode calls (V1 engine)."""
     tracer = pin.tracer
     integration = vllm._datadog_integration
-    log.debug("[VLLM DD] traced_asyncllm_encode: args=%s kwargs=%s", args, kwargs)
 
     span = create_vllm_span(
         tracer=tracer,
@@ -366,12 +285,14 @@ def traced_asyncllm_encode(vllm, pin, func, instance, args, kwargs):
         if hasattr(res, "__await__"):
             res = await res
 
+        # Consume generator until finished to collect all outputs
         outputs: list[PoolingRequestOutput] = []
         async for out in res:
             outputs.append(out)
             if getattr(out, "finished", False):
                 break
 
+        # Extract embedding data and tag span
         data = RequestData()
         if outputs:
             data.input_tokens = len(outputs[-1].prompt_token_ids)
@@ -382,19 +303,17 @@ def traced_asyncllm_encode(vllm, pin, func, instance, args, kwargs):
         _tag_if_enabled(integration, span, data, operation="embedding")
         span.finish()
 
+        # Yield buffered outputs
         for out in outputs:
             yield out
 
     return execute()
 
 
-# ---------- v0 request injection (single/multiprocess) ----------------------
+# ---------- v0: TRACE HEADER INJECTION --------------------------------------
 @with_traced_module
 async def traced_v0_engine_add_request_async(vllm, pin, func, instance, args, kwargs):
-    # trace headers injection is not supported for V1 engines
-    if is_v1():
-        return await func(*args, **kwargs)
-
+    """Inject trace headers into V0 AsyncLLMEngine.add_request_async calls."""
     lora_request = args[3] if len(args) > 3 else kwargs.get("lora_request")
     tokenizer = await instance.get_tokenizer_async(lora_request)
 
@@ -413,20 +332,12 @@ async def traced_v0_engine_add_request_async(vllm, pin, func, instance, args, kw
         args = modified_args
 
     cache_headers_for_pooling_params(instance, args, kwargs)
-
-    log.debug(
-        "[VLLM DD] add_request_async(v0): request_id=%s",
-        kwargs.get("request_id"),
-    )
     return await func(*args, **kwargs)
 
 
 @with_traced_module
 def traced_v0_engine_add_request(vllm, pin, func, instance, args, kwargs):
-    # trace headers injection is not supported for V1 engines
-    if is_v1():
-        return func(*args, **kwargs)
-
+    """Inject trace headers into V0 LLMEngine.add_request calls."""
     lora_request = args[3] if len(args) > 3 else kwargs.get("lora_request")
     tokenizer = instance.get_tokenizer(lora_request)
 
@@ -445,17 +356,12 @@ def traced_v0_engine_add_request(vllm, pin, func, instance, args, kwargs):
         args = modified_args
 
     cache_headers_for_pooling_params(instance, args, kwargs)
-
-    log.debug(
-        "[VLLM DD] add_request(sync)(v0): request_id=%s",
-        kwargs.get("request_id"),
-    )
     return func(*args, **kwargs)
 
 
 @with_traced_module
 async def traced_mq_client_process_request(vllm, pin, func, instance, args, kwargs):
-    log.debug("[VLLM DD] traced_mq_client_process_request: args=%s kwargs=%s", args, kwargs)
+    """Trace MQLLMEngineClient._process_request calls (V0 multiprocess mode)."""
     lora_request = args[3] if len(args) > 3 else kwargs.get("lora_request")
     tokenizer = await instance.get_tokenizer(lora_request)
 
@@ -488,7 +394,7 @@ async def traced_mq_client_process_request(vllm, pin, func, instance, args, kwar
 
     res = func(*args, **kwargs)
 
-    # Drain until finished, tag and finish span, then yield buffered outputs
+    # Consume generator until finished to collect all outputs
     outputs: list[RequestOutput] = []
     async for out in res:
         outputs.append(out)
@@ -521,6 +427,7 @@ async def traced_mq_client_process_request(vllm, pin, func, instance, args, kwar
 
     span.finish()
 
+    # Yield buffered outputs
     for out in outputs:
         yield out
 
@@ -536,43 +443,49 @@ def patch():
     integration = VLLMIntegration(integration_config=config.vllm)
     vllm._datadog_integration = integration
 
-    log.debug("[VLLM DEBUG] patch: applying wrappers")
-    _safe_wrap("vllm.v1.engine.async_llm", "AsyncLLM.generate", traced_asyncllm_generate(vllm))
-    _safe_wrap("vllm.v1.engine.async_llm", "AsyncLLM.encode", traced_asyncllm_encode(vllm))
-    _safe_wrap("vllm.entrypoints.llm", "LLM.generate", traced_llm_generate(vllm))
-    _safe_wrap("vllm.entrypoints.llm", "LLM.encode", traced_llm_encode(vllm))
-    _safe_wrap("vllm.entrypoints.llm", "LLM._cross_encoding_score", traced_llm_cross_encoding_score(vllm))
-
-    _safe_wrap(
-        "vllm.engine.async_llm_engine", "_AsyncLLMEngine.add_request_async", traced_v0_engine_add_request_async(vllm)
-    )
-    _safe_wrap("vllm.engine.llm_engine", "LLMEngine.add_request", traced_v0_engine_add_request(vllm))
-    _safe_wrap(
-        "vllm.engine.multiprocessing.client",
-        "MQLLMEngineClient._process_request",
-        traced_mq_client_process_request(vllm),
-    )
-    _safe_wrap(
-        "vllm.engine.llm_engine", "LLMEngine._process_model_outputs", traced_llmengine_process_model_outputs(vllm)
-    )
-    log.debug("[VLLM DEBUG] patch: wrappers applied")
+    if is_v1():
+        # Async API (AsyncLLM)
+        wrap("vllm.v1.engine.async_llm", "AsyncLLM.generate", traced_asyncllm_generate(vllm))
+        wrap("vllm.v1.engine.async_llm", "AsyncLLM.encode", traced_asyncllm_encode(vllm))
+        # Offline API (LLM)
+        wrap("vllm.entrypoints.llm", "LLM.generate", traced_llm_generate(vllm))
+        wrap("vllm.entrypoints.llm", "LLM.encode", traced_llm_encode(vllm))
+        wrap("vllm.entrypoints.llm", "LLM._cross_encoding_score", traced_llm_cross_encoding_score(vllm))
+    else:
+        wrap(
+            "vllm.engine.async_llm_engine",
+            "_AsyncLLMEngine.add_request_async",
+            traced_v0_engine_add_request_async(vllm),
+        )
+        wrap("vllm.engine.llm_engine", "LLMEngine.add_request", traced_v0_engine_add_request(vllm))
+        wrap("vllm.engine.llm_engine", "LLMEngine._process_model_outputs", traced_llmengine_process_model_outputs(vllm))
+        wrap(
+            "vllm.engine.multiprocessing.client",
+            "MQLLMEngineClient._process_request",
+            traced_mq_client_process_request(vllm),
+        )
 
 
 def unpatch():
+    """Remove Datadog tracing from vLLM library."""
     if not getattr(vllm, "_datadog_patch", False):
         return
 
     vllm._datadog_patch = False
 
-    _safe_unwrap(vllm.v1.engine.async_llm.AsyncLLM, "generate")
-    _safe_unwrap(vllm.v1.engine.async_llm.AsyncLLM, "encode")
-    _safe_unwrap(vllm.entrypoints.llm.LLM, "generate")
-    _safe_unwrap(vllm.entrypoints.llm.LLM, "encode")
-    _safe_unwrap(vllm.entrypoints.llm.LLM, "_cross_encoding_score")
-
-    _safe_unwrap(vllm.engine.async_llm_engine._AsyncLLMEngine, "add_request_async")
-    _safe_unwrap(vllm.engine.llm_engine.LLMEngine, "add_request")
-    _safe_unwrap(vllm.engine.multiprocessing.client.MQLLMEngineClient, "_process_request")
-    _safe_unwrap(vllm.engine.llm_engine.LLMEngine, "_process_model_outputs")
+    if is_v1():
+        # Async API (AsyncLLM)
+        unwrap(vllm.v1.engine.async_llm.AsyncLLM, "generate")
+        unwrap(vllm.v1.engine.async_llm.AsyncLLM, "encode")
+        # Offline API (LLM)
+        unwrap(vllm.entrypoints.llm.LLM, "generate")
+        unwrap(vllm.entrypoints.llm.LLM, "encode")
+        unwrap(vllm.entrypoints.llm.LLM, "_cross_encoding_score")
+    else:
+        unwrap(vllm.engine.async_llm_engine._AsyncLLMEngine, "add_request_async")
+        unwrap(vllm.engine.llm_engine.LLMEngine, "add_request")
+        unwrap(vllm.engine.llm_engine.LLMEngine, "_process_model_outputs")
+        # V0 multiprocessing client
+        unwrap(vllm.engine.multiprocessing.client.MQLLMEngineClient, "_process_request")
 
     delattr(vllm, "_datadog_integration")

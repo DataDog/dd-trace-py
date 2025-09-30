@@ -9,8 +9,6 @@ from pydantic import BaseModel
 import torch
 import torch.nn.functional as F
 import vllm
-
-# Optional: use vLLM's OpenAI server engine builder to exercise MQ client
 from vllm.engine.arg_utils import AsyncEngineArgs
 from vllm.entrypoints.openai.api_server import build_async_engine_client_from_engine_args
 from vllm.usage.usage_lib import UsageContext
