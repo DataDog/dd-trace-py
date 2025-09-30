@@ -1004,12 +1004,10 @@ def _on_asgi_websocket_receive_message(ctx, scope, message, integration_config):
     """
     span = ctx.span
 
-    # Set standard component and span kind tags
     span.set_tag_str(COMPONENT, integration_config.integration_name)
     span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
     span.set_tag_str(websocket.RECEIVE_DURATION_TYPE, "blocking")
 
-    # Set message-specific tags
     _set_websocket_message_tags_on_span(span, message)
 
     span.set_metric(websocket.MESSAGE_FRAMES, 1)
@@ -1036,7 +1034,6 @@ def _on_asgi_websocket_send_message(ctx, scope, message, integration_config):
     """
     span = ctx.span
 
-    # Set standard component and span kind tags
     span.set_tag_str(COMPONENT, integration_config.integration_name)
     span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
     _set_client_ip_tags(scope, span)
@@ -1044,7 +1041,6 @@ def _on_asgi_websocket_send_message(ctx, scope, message, integration_config):
 
     span.set_metric(websocket.MESSAGE_FRAMES, 1)
 
-    # Set links to parent span if available
     if hasattr(ctx, "parent") and ctx.parent.span:
         span.set_link(
             trace_id=ctx.parent.span.trace_id,
@@ -1062,7 +1058,6 @@ def _on_asgi_websocket_close_message(ctx, scope, message, integration_config):
     """
     span = ctx.span
 
-    # Set standard component and span kind tags
     span.set_tag_str(COMPONENT, integration_config.integration_name)
     span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
 
@@ -1096,7 +1091,6 @@ def _on_asgi_websocket_disconnect_message(ctx, scope, message, integration_confi
 
     _set_websocket_close_tags(span, message)
 
-    # Set links to parent span if available
     if hasattr(ctx, "parent") and ctx.parent.span:
         span.set_link(
             trace_id=ctx.parent_span.trace_id,

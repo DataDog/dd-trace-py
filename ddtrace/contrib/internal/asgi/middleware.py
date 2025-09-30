@@ -562,7 +562,6 @@ class TraceMiddleware:
     ):
         _cleanup_previous_receive(scope)
 
-        # TODO: check can we use the core.dispatch instead?
         # Create the span when the handler is invoked (when receive() is called)
         with core.context_with_data(
             "asgi.websocket.disconnect.message",
