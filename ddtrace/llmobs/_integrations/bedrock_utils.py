@@ -1,4 +1,3 @@
-from ddtrace.contrib.internal.botocore.services.bedrock import _MODEL_PROVIDERS
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
@@ -14,6 +13,14 @@ _MODEL_TYPE_IDENTIFIERS = (
     "inference-profile/",
     "default-prompt-router/",
 )
+
+_AI21 = "ai21"
+_AMAZON = "amazon"
+_ANTHROPIC = "anthropic"
+_COHERE = "cohere"
+_META = "meta"
+_STABILITY = "stability"
+_MODEL_PROVIDERS = (_AI21, _AMAZON, _ANTHROPIC, _COHERE, _META, _STABILITY)
 
 
 def _fallback_provider(original_model_id: str) -> str:
