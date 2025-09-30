@@ -286,9 +286,6 @@ class _TestVisibilityAPIClientBase(abc.ABC):
 
     def _get_normalized_cache_key(self, method: str, endpoint: str, payload: t.Dict[str, t.Any]) -> str:
         """Generate a cache key by normalizing payload to remove dynamic UUID"""
-        # Extract meaningful data for cache key generation (avoid copy.deepcopy)
-        # Use only the attributes (meaningful data) for cache key
-        # This avoids the dynamic UUID in payload.data.id
         cache_data_dict = {"type": payload["data"].get("type"), "attributes": payload["data"]["attributes"]}
         # Convert to JSON string with sorted keys for consistent hashing
         normalized_payload = json.dumps(cache_data_dict, sort_keys=True)
