@@ -17,8 +17,8 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.llmobs._integrations.vllm import VLLMIntegration
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace._trace.pin import Pin
 from ddtrace.trace import Context
-from ddtrace.trace import Pin
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
 

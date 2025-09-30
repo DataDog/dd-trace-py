@@ -17,7 +17,7 @@ from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations.vllm import VLLMIntegration
-from ddtrace.trace import Pin
+from ddtrace._trace.pin import Pin
 
 from .data_extractors import RequestData
 from .data_extractors import _embedding_shape_info
