@@ -1078,7 +1078,7 @@ venv = Venv(
                     pkgs={"dramatiq": "~=1.10.0", "pytest": latest, "redis": latest, "pika": latest},
                 ),
                 Venv(
-                    pys=select_pys(),
+                    pys=select_pys(max_version="3.13"),
                     pkgs={"dramatiq": latest, "pytest": latest, "redis": latest},
                 ),
             ],
@@ -2513,6 +2513,7 @@ venv = Venv(
             name="sanic",
             command="pytest {cmdargs} tests/contrib/sanic",
             pkgs={
+                "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
                 "requests": latest,
                 "websockets": "<11.0",
@@ -2524,7 +2525,6 @@ venv = Venv(
                     pkgs={
                         "sanic": "~=20.12",
                         "pytest-sanic": "~=1.6.2",
-                        "pytest-asyncio": "==0.21.1",
                     },
                 ),
                 Venv(
@@ -2534,7 +2534,6 @@ venv = Venv(
                             "~=21.3",
                             "~=21.12",
                         ],
-                        "pytest-asyncio": "==0.21.1",
                         "sanic-testing": "~=0.8.3",
                     },
                 ),
@@ -2544,7 +2543,6 @@ venv = Venv(
                     pkgs={
                         "sanic": "~=21.12.0",
                         "sanic-testing": "~=0.8.3",
-                        "pytest-asyncio": "==0.21.1",
                     },
                 ),
                 Venv(
@@ -2552,7 +2550,6 @@ venv = Venv(
                     pkgs={
                         "sanic": ["~=22.3", "~=22.12"],
                         "sanic-testing": "~=22.3.0",
-                        "pytest-asyncio": "==0.21.1",
                     },
                 ),
                 Venv(
@@ -2561,15 +2558,13 @@ venv = Venv(
                     pkgs={
                         "sanic": ["~=22.12.0", latest],
                         "sanic-testing": "~=22.3.0",
-                        "pytest-asyncio": "==0.21.1",
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.12"),
+                    pys="3.12",
                     pkgs={
                         "sanic": [latest],
                         "sanic-testing": "~=22.3.0",
-                        "pytest-asyncio": latest,
                     },
                 ),
             ],
@@ -3151,14 +3146,18 @@ venv = Venv(
         Venv(
             name="google_generativeai",
             command="pytest {cmdargs} tests/contrib/google_generativeai",
-            pys=select_pys(min_version="3.9"),
-            pkgs={
-                "pytest-asyncio": latest,
-                "google-generativeai": ["~=0.7.0", latest],
-                "pillow": latest,
-                "google-ai-generativelanguage": [latest],
-                "vertexai": [latest],
-            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.13"),
+                    pkgs={
+                        "pytest-asyncio": latest,
+                        "google-generativeai": ["~=0.7.0", latest],
+                        "pillow": latest,
+                        "google-ai-generativelanguage": [latest],
+                        "vertexai": [latest],
+                    },
+                )
+            ],
         ),
         Venv(
             name="vertexai",
@@ -3388,7 +3387,7 @@ venv = Venv(
                 ),
                 # Python 3.9-3.12
                 Venv(
-                    pys=select_pys(min_version="3.9"),
+                    pys=select_pys(min_version="3.9", max_version="3.13"),
                 ),
             ],
         ),
@@ -3423,7 +3422,7 @@ venv = Venv(
                 "langchain": latest,
                 "pandas": latest,
             },
-            pys=select_pys(min_version="3.8"),
+            pys=select_pys(min_version="3.8", max_version="3.13"),
         ),
         Venv(
             name="valkey",
