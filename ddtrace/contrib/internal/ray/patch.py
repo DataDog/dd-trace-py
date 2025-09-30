@@ -35,6 +35,8 @@ from .constants import RAY_ACTOR_METHOD_KWARGS
 from .constants import RAY_JOB_NAME
 from .constants import RAY_JOB_STATUS
 from .constants import RAY_JOB_SUBMIT_STATUS
+from .constants import RAY_PUT_VALUE_SIZE_BYTES
+from .constants import RAY_PUT_VALUE_TYPE
 from .constants import RAY_STATUS_ERROR
 from .constants import RAY_STATUS_FAILED
 from .constants import RAY_STATUS_SUCCESS
@@ -47,8 +49,6 @@ from .constants import RAY_TASK_SUBMIT_STATUS
 from .constants import RAY_WAIT_FETCH_LOCAL
 from .constants import RAY_WAIT_NUM_RETURNS
 from .constants import RAY_WAIT_TIMEOUT
-from .constants import RAY_PUT_VALUE_TYPE
-from .constants import RAY_PUT_VALUE_SIZE_BYTES
 from .span_manager import long_running_ray_span
 from .span_manager import start_long_running_job
 from .span_manager import stop_long_running_job
