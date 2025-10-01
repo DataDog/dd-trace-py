@@ -308,7 +308,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.14"),
                     pkgs={
-                        "fastapi": ["~=0.114.2", latest],
+                        "fastapi": latest,
                         "pydantic": "==2.12.0a1",
                     },
                 ),
