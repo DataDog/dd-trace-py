@@ -147,7 +147,7 @@ class TraceSamplingProcessor(TraceProcessor):
             chunk_root = trace[0]
 
             log.debug(
-                "TraceSamplingProcessor processing trace: trace_id=%s " "current_sampling_priority=%s",
+                "TraceSamplingProcessor processing trace: trace_id=%s current_sampling_priority=%s",
                 chunk_root.trace_id,
                 chunk_root.context.sampling_priority,
             )
