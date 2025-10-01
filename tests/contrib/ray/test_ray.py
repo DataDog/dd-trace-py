@@ -3,6 +3,7 @@ import ray
 from ray.util.tracing import tracing_helper
 
 from tests.utils import TracerTestCase
+from tests.utils import override_config
 
 
 RAY_SNAPSHOT_IGNORES = [
@@ -40,12 +41,12 @@ class TestRayIntegration(TracerTestCase):
     def ray_cluster(self):
         # Configure Ray with minimal resource usage for CI
         ray.init(
-            _tracing_startup_hook="ddtrace.contrib.ray:setup_tracing",
+            _tracing_startup_hook="tests.contrib.ray:setup_test_tracing",
             local_mode=True,
             # Limit resources to reduce CI load
             num_cpus=1,
             num_gpus=0,
-            object_store_memory=78643200,  # 50MB
+            object_store_memory=78643200,
             # Disable dashboard to save memory
             include_dashboard=False,
             # Set log level to reduce I/O
@@ -213,3 +214,30 @@ class TestRayIntegration(TracerTestCase):
         done, running = ray.wait([add_one.remote(42)], num_returns=1, timeout=60)  # Reduced timeout from 60s to 10s
         assert running == [], f"Expected no running tasks, got {len(running)}"
         assert ray.get(done) == [43], f"Expected done to be [43], got {done}"
+
+    @pytest.mark.snapshot(
+        token="tests.contrib.ray.test_ray.test_args_kwargs", ignores=RAY_SNAPSHOT_IGNORES, wait_for_num_traces=2
+    )
+    def test_args_kwargs(self):
+        with override_config("ray", dict(trace_args_kwargs=True)):
+
+            @ray.remote
+            def add_one(x, y=1):
+                return x + y
+
+            results = ray.get(add_one.remote(1, y=2))
+            assert results == 3, f"Unexpected results: {results}"
+
+            @ray.remote
+            class Counter:
+                def __init__(self, **kwargs):
+                    self.value = 0
+
+                def increment(self, x, y=1):
+                    self.value += x + y
+                    return self.value
+
+            counter_actor = Counter.remote()
+            current_value = ray.get(counter_actor.increment.remote(1, y=2))
+
+            assert current_value == 3, f"Unexpected result: {current_value}"
