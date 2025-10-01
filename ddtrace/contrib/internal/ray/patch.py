@@ -7,14 +7,8 @@ from typing import Callable
 from typing import Dict
 
 import ray
-from ray._private.inspect_util import is_class_method
-from ray._private.inspect_util import is_function_or_method
-from ray._private.inspect_util import is_static_method
-import ray.actor
-import ray.dashboard.modules.job.job_manager
-from ray.dashboard.modules.job.job_manager import generate_job_id
-import ray.exceptions
 from wrapt import wrap_function_wrapper as _w
+from wrapt.importer import when_imported
 
 from ddtrace import config
 from ddtrace import tracer
@@ -181,6 +175,7 @@ def traced_submit_job(wrapped, instance, args, kwargs):
     in the env variable as some spans will not have access to them
     trough ray_ctx
     """
+    from ray.dashboard.modules.job.job_manager import generate_job_id
 
     # Three ways of specifying the job name, in order of precedence:
     # 1. Metadata JSON: ray job submit --metadata_json '{"job_name": "train.cool.model"}' train.py
@@ -299,6 +294,8 @@ def traced_wait(wrapped, instance, args, kwargs):
 
 def _job_supervisor_run_wrapper(method: Callable[..., Any]) -> Any:
     async def _traced_run_method(self: Any, *args: Any, _dd_ray_trace_ctx, **kwargs: Any) -> Any:
+        import ray.exceptions
+
         from ddtrace.ext import SpanTypes
 
         context = _TraceContext._extract(_dd_ray_trace_ctx)
@@ -403,6 +400,10 @@ def _inject_tracing_async_actor_method(method: Callable[..., Any]) -> Any:
 
 
 def inject_tracing_into_actor_class(wrapped, instance, args, kwargs):
+    from ray._private.inspect_util import is_class_method
+    from ray._private.inspect_util import is_function_or_method
+    from ray._private.inspect_util import is_static_method
+
     cls = wrapped(*args, **kwargs)
     module_name = str(cls.__module__)
     class_name = str(cls.__name__)
@@ -464,17 +465,26 @@ def patch():
 
     ray._datadog_patch = True
 
-    _w(ray.remote_function.RemoteFunction, "_remote", traced_submit_task)
+    @when_imported("ray.actor")
+    def _(m):
+        _w(ray.actor.ActorHandle, "_actor_method_call", traced_actor_method_call)
+        _w(ray.actor, "_modify_class", inject_tracing_into_actor_class)
 
-    _w(ray.dashboard.modules.job.job_manager.JobManager, "submit_job", traced_submit_job)
-    _w(ray.dashboard.modules.job.job_manager.JobManager, "_monitor_job_internal", traced_end_job)
+    @when_imported("ray.dashboard.modules.job.job_manager")
+    def _(m):
+        _w(ray.dashboard.modules.job.job_manager.JobManager, "submit_job", traced_submit_job)
+        _w(ray.dashboard.modules.job.job_manager.JobManager, "_monitor_job_internal", traced_end_job)
 
-    _w(ray.actor, "_modify_class", inject_tracing_into_actor_class)
-    _w(ray.actor.ActorHandle, "_actor_method_call", traced_actor_method_call)
+    @when_imported("ray.remote_function")
+    def _(m):
+        _w(ray.remote_function.RemoteFunction, "_remote", traced_submit_task)
+
     _w(ray, "wait", traced_wait)
 
 
 def unpatch():
+    import ray
+
     if not getattr(ray, "_datadog_patch", False):
         return
 
