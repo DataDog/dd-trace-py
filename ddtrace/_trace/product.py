@@ -190,7 +190,7 @@ def _apply_config_change(config_name, config_value, dd_config):
         )
     elif config_name == "tags":
         tracer._tags = (config_value or {}).copy()
-        log.debug("Updated tracer tags via remote_config: %s", tracer._tags)
+        log.debug("Updated tracer tags via remote_config: %s on PID: %s", tracer._tags, os.getpid())
     elif config_name == "_tracing_enabled":
         if tracer.enabled and config_value is False:
             tracer.enabled = False
