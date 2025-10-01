@@ -4,7 +4,7 @@ build_base_venvs:
   needs: []
   parallel:
     matrix:
-      - PYTHON_VERSION: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+      - PYTHON_VERSION: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: '12'
     PIP_VERBOSE: '0'
@@ -24,8 +24,6 @@ build_base_venvs:
   artifacts:
     name: venv_$PYTHON_VERSION
     paths:
-      - scripts/restore-ext-cache.sh
-      - scripts/save-ext-cache.sh
       - .riot/venv_*
       - ddtrace/_version.py
       - ddtrace/**/*.so*

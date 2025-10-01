@@ -34,6 +34,7 @@ RUN apt-get update \
       libbz2-dev \
       libenchant-2-dev \
       libffi-dev \
+      libjemalloc2 \
       liblzma-dev \
       libmariadb-dev \
       libmariadb-dev-compat \

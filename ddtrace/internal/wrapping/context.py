@@ -7,12 +7,7 @@ from types import FrameType
 from types import FunctionType
 from types import TracebackType
 import typing as t
-
-
-try:
-    from typing import Protocol  # noqa:F401
-except ImportError:
-    from typing_extensions import Protocol  # type: ignore[assignment]
+from typing import Protocol  # noqa:F401
 
 import bytecode
 from bytecode import Bytecode
@@ -72,8 +67,8 @@ CONTEXT_HEAD = Assembly()
 CONTEXT_RETURN = Assembly()
 CONTEXT_FOOT = Assembly()
 
-if sys.version_info >= (3, 14):
-    raise NotImplementedError("Python >= 3.14 is not supported yet")
+if sys.version_info >= (3, 15):
+    raise NotImplementedError("Python >= 3.15 is not supported yet")
 elif sys.version_info >= (3, 13):
     CONTEXT_HEAD.parse(
         r"""

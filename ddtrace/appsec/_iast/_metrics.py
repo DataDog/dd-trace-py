@@ -1,19 +1,17 @@
-import sys
-import traceback
 from typing import Dict
 from typing import Text
+from typing import Union
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import TELEMETRY_INFORMATION_VERBOSITY
 from ddtrace.appsec._constants import TELEMETRY_MANDATORY_VERBOSITY
 from ddtrace.appsec._deduplications import deduplication
+from ddtrace.appsec._iast._iast_request_context_base import _num_objects_tainted_in_request
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._utils import _is_iast_debug_enabled
-from ddtrace.appsec._iast._utils import _num_objects_tainted_in_request
 from ddtrace.internal import telemetry
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.settings.asm import config as asm_config
 
@@ -46,27 +44,13 @@ def metric_verbosity(lvl):
 
 @metric_verbosity(TELEMETRY_MANDATORY_VERBOSITY)
 @deduplication
-def _set_iast_error_metric(msg: Text) -> None:
+def _set_iast_error_metric(msg: Text, exc: Union[BaseException, tuple, None] = None) -> None:
     """This was originally implemented to analyze which services were triggering this issue, and we used that insight
     to refactor how IAST creates and destroys context. However, after that refactor, this information no longer
     provides value and only adds noise. So now, those telemetry metrics are only emitted if IAST is in debug mode
     """
-    try:
-        if _is_iast_debug_enabled():
-            exception_type, exception_instance, _traceback_list = sys.exc_info()
-            res = []
-            # first 10 frames are this function, the exception in aspects and the error line
-            res.extend(traceback.format_stack(limit=20))
-
-            # get the frame with the error and the error message
-            result = traceback.format_exception(exception_type, exception_instance, _traceback_list)
-            res.extend(result[1:])
-
-            stack_trace = "".join(res)
-
-            telemetry.telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.ERROR, msg, stack_trace=stack_trace)
-    except Exception:
-        log.warning("iast::metrics::error::_set_iast_error_metric", exc_info=True)
+    if _is_iast_debug_enabled():
+        telemetry.telemetry_writer.add_error_log(msg, exc=exc)
 
 
 @metric_verbosity(TELEMETRY_MANDATORY_VERBOSITY)

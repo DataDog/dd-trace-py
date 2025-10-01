@@ -3,25 +3,25 @@ from collections import defaultdict
 from itertools import chain
 import logging
 from threading import RLock
-from typing import Any
 from typing import DefaultDict
 from typing import Dict
 from typing import List
 from typing import Optional
-from typing import Union
 
 from ddtrace._trace.sampler import DatadogSampler
-from ddtrace._trace.sampler import RateSampler
 from ddtrace._trace.span import Span
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.constants import _APM_ENABLED_METRIC_KEY as MK_APM_ENABLED
+from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.internal import gitmetadata
 from ddtrace.internal import telemetry
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
 from ddtrace.internal.constants import MAX_UINT_64BITS
+from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
 from ddtrace.internal.service import ServiceStatusError
@@ -119,28 +119,30 @@ class TraceSamplingProcessor(TraceProcessor):
         compute_stats_enabled: bool,
         single_span_rules: List[SpanSamplingRule],
         apm_opt_out: bool,
-        agent_based_samplers: Optional[dict] = None,
     ):
         super(TraceSamplingProcessor, self).__init__()
         self._compute_stats_enabled = compute_stats_enabled
         self.single_span_rules = single_span_rules
+        self.sampler = DatadogSampler()
         self.apm_opt_out = apm_opt_out
 
+    @property
+    def apm_opt_out(self):
+        return self._apm_opt_out
+
+    @apm_opt_out.setter
+    def apm_opt_out(self, value):
         # If ASM is enabled but tracing is disabled,
         # we need to set the rate limiting to 1 trace per minute
         # for the backend to consider the service as alive.
-        sampler_kwargs: Dict[str, Any] = {
-            "agent_based_samplers": agent_based_samplers,
-        }
-        if self.apm_opt_out:
-            sampler_kwargs.update(
-                {
-                    "rate_limit": 1,
-                    "rate_limit_window": 60e9,
-                    "rate_limit_always_on": True,
-                }
-            )
-        self.sampler: Union[DatadogSampler, RateSampler] = DatadogSampler(**sampler_kwargs)
+        if value:
+            self.sampler.limiter = RateLimiter(rate_limit=1, time_window=60e9)
+            self.sampler._rate_limit_always_on = True
+            log.debug("Enabling apm opt out on DatadogSampler: %s", self.sampler)
+        else:
+            self.sampler.limiter = RateLimiter(rate_limit=int(config._trace_rate_limit), time_window=1e9)
+            self.sampler._rate_limit_always_on = False
+        self._apm_opt_out = value
 
     def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         if trace:
@@ -237,18 +239,31 @@ class TraceTagsProcessor(TraceProcessor):
         if not trace:
             return trace
 
-        chunk_root = trace[0]
-        chunk_root._update_tags_from_context()
-        self._set_git_metadata(chunk_root)
-        chunk_root.set_tag_str("language", "python")
-        # for 128 bit trace ids
-        if chunk_root.trace_id > MAX_UINT_64BITS:
-            trace_id_hob = _get_64_highest_order_bits_as_hex(chunk_root.trace_id)
-            chunk_root.set_tag_str(HIGHER_ORDER_TRACE_ID_BITS, trace_id_hob)
+        spans_to_tag = [trace[0]]
 
-        if LAST_DD_PARENT_ID_KEY in chunk_root._meta and chunk_root._parent is not None:
-            # we should only set the last parent id on local root spans
-            del chunk_root._meta[LAST_DD_PARENT_ID_KEY]
+        # When using the native writer and CSS, TraceTagsProcessor runs before dropping spans.
+        # Thus trace tags are applied to a root span which may be dropped by sampling, even though
+        # some spans of the chunk are sampled. We prevent it by adding trace tags to the first
+        # single-sampled span of the chunk.
+        if config._trace_compute_stats and config._trace_writer_native:
+            for span in trace:
+                if span.get_metric(_SINGLE_SPAN_SAMPLING_MECHANISM) == SamplingMechanism.SPAN_SAMPLING_RULE:
+                    spans_to_tag.append(span)
+                    break
+
+        for span in spans_to_tag:
+            span._update_tags_from_context()
+            self._set_git_metadata(span)
+            span.set_tag_str("language", "python")
+            # for 128 bit trace ids
+            if span.trace_id > MAX_UINT_64BITS:
+                trace_id_hob = _get_64_highest_order_bits_as_hex(span.trace_id)
+                span.set_tag_str(HIGHER_ORDER_TRACE_ID_BITS, trace_id_hob)
+
+            if LAST_DD_PARENT_ID_KEY in span._meta and span._parent is not None:
+                # we should only set the last parent id on local root spans
+                del span._meta[LAST_DD_PARENT_ID_KEY]
+
         return trace
 
 
@@ -476,22 +491,12 @@ class SpanAggregator(SpanProcessor):
         # Re-create the writer to ensure it is consistent with updated configurations (ex: api_version)
         self.writer = self.writer.recreate(appsec_enabled=appsec_enabled)
 
-        # Recreate the sampling processor using new or existing config values.
-        # If an argument is None, the current value is preserved.
-        if compute_stats is None:
-            compute_stats = self.sampling_processor._compute_stats_enabled
-        if apm_opt_out is None:
-            apm_opt_out = self.sampling_processor.apm_opt_out
-        self.sampling_processor = TraceSamplingProcessor(
-            compute_stats,
-            get_span_sampling_rules(),
-            apm_opt_out,
-            self.sampling_processor.sampler._agent_based_samplers
-            if isinstance(self.sampling_processor.sampler, DatadogSampler)
-            else None,
-        )
+        if compute_stats is not None:
+            self.sampling_processor._compute_stats_enabled = compute_stats
 
-        # Update user processors if provided.
+        if apm_opt_out is not None:
+            self.sampling_processor.apm_opt_out = apm_opt_out
+
         if user_processors is not None:
             self.user_processors = user_processors
 

@@ -27,8 +27,8 @@ class TestTracedCursor(TracerTestCase):
             )
         ):
             _start_iast_context_and_oce()
-        self.cursor = mock.Mock()
-        self.cursor.execute.__name__ = "execute"
+            self.cursor = mock.Mock()
+            self.cursor.execute.__name__ = "execute"
 
     def tearDown(self):
         with override_global_config(

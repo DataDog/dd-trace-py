@@ -14,7 +14,6 @@ import ddtrace
 from ddtrace._trace.pin import Pin
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import _constants as asm_constants
-from ddtrace.appsec._utils import get_security
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import constants
 from ddtrace.settings.asm import config as asm_config
@@ -226,7 +225,7 @@ class Contrib_TestClass_For_Threats:
                 assert isinstance(ep.path, str)
                 assert ep.resource_name
                 assert ep.operation_name
-                if ep.method not in ("GET", "*", "POST"):
+                if ep.method not in ("GET", "*", "POST") or ep.path.startswith("/static"):
                     continue
                 path = parse(ep.path)
                 found.add(path.rstrip("/"))
@@ -235,7 +234,10 @@ class Contrib_TestClass_For_Threats:
                     if ep.method == "POST"
                     else interface.client.get(path)
                 )
-                assert self.status(response) in (200, 401), f"ep.path failed: {ep.path} -> {path}"
+                assert self.status(response) in (
+                    200,
+                    401,
+                ), f"ep.path failed: [{self.status(response)}] {ep.path} -> {path}"
                 resource = "GET" + ep.resource_name[1:] if ep.resource_name.startswith("* ") else ep.resource_name
                 assert find_resource(resource)
         assert must_found <= found
@@ -1956,27 +1958,6 @@ class Contrib_TestClass_For_Threats:
             sampling_decision = get_entry_span_tag(constants.SAMPLING_DECISION_TRACE_TAG_KEY)
             assert span_sampling_priority < 2 or sampling_decision != f"-{constants.SamplingMechanism.APPSEC}"
 
-    @pytest.mark.parametrize("rename_service", [True, False])
-    @pytest.mark.parametrize("metastruct", [True, False])
-    def test_iast(self, interface, root_span, get_tag, metastruct, rename_service):
-        from ddtrace.ext import http
-
-        with override_global_config(dict(_use_metastruct_for_iast=metastruct, _iast_use_root_span=True)):
-            url = "/rasp/command_injection/?cmds=."
-            self.update_tracer(interface)
-            response = interface.client.get(url, headers={"x-rename-service": str(rename_service).lower()})
-            assert self.status(response) == 200
-            assert get_tag(http.STATUS_CODE) == "200"
-            assert self.body(response).startswith("command_injection endpoint")
-            stack_traces = self.get_stack_trace(root_span, "vulnerability")
-            if asm_config._iast_enabled:
-                assert get_security(root_span()) is not None
-                # checking for iast stack traces
-                assert stack_traces
-            else:
-                assert get_security(root_span()) is None
-                assert stack_traces == []
-
     @pytest.mark.parametrize("endpoint", ["urlopen_request", "urlopen_string"])
     def test_api10(self, endpoint, interface, get_tag):
         """test api10 on downstream request headers on rasp endpoint"""
@@ -2000,11 +1981,12 @@ class Contrib_TestClass_For_Threats:
     @pytest.mark.parametrize(
         ("endpoint", "data", "tag"),
         [
-            ("www.datadog.com", None, "TAG_API10_HEADER"),
+            ("www.datadoghq.com", None, "TAG_API10_HEADER"),
             ("www.google.com", {"payload": "qw2jedrkjerbgol23ewpfirj2qw3or"}, "TAG_API10_BODY"),
         ],
     )
-    def test_api10_addresses(self, endpoint, data, tag, interface, get_tag):
+    @pytest.mark.parametrize("integration", ["", "_requests"])
+    def test_api10_addresses(self, integration, endpoint, data, tag, interface, get_tag):
         """test api10 on downstream request headers and body"""
         from urllib.parse import quote
 
@@ -2018,14 +2000,14 @@ class Contrib_TestClass_For_Threats:
             )
         ):
             self.update_tracer(interface)
-            url = f"/redirect/{quote(endpoint, safe='')}/"
+            url = f"/redirect{integration}/{quote(endpoint, safe='')}/"
             if data:
                 response = interface.client.post(url, data=json.dumps(data), content_type="application/json")
             else:
                 response = interface.client.get(url)
             assert self.status(response) == 200, f"{self.status(response)} is not 200"
             c_tag = get_tag("_dd.appsec.trace.mark")
-            assert c_tag == tag, f"[{c_tag}] is not [{tag}] {response.text}"
+            assert c_tag == tag, f"[{c_tag}] is not [{tag}] {response.text[:50]}"
 
 
 @contextmanager

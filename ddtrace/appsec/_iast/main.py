@@ -34,9 +34,9 @@ from ddtrace.appsec._iast.secure_marks.validators import header_injection_valida
 from ddtrace.appsec._iast.secure_marks.validators import ssrf_validator
 from ddtrace.appsec._iast.secure_marks.validators import unvalidated_redirect_validator
 from ddtrace.appsec._iast.taint_sinks.code_injection import patch as code_injection_patch
-from ddtrace.appsec._iast.taint_sinks.command_injection import patch as command_injection_patch
 from ddtrace.appsec._iast.taint_sinks.header_injection import patch as header_injection_patch
 from ddtrace.appsec._iast.taint_sinks.insecure_cookie import patch as insecure_cookie_patch
+from ddtrace.appsec._iast.taint_sinks.untrusted_serialization import patch as unstrusted_serialization_patch
 from ddtrace.appsec._iast.taint_sinks.unvalidated_redirect import patch as unvalidated_redirect_patch
 from ddtrace.appsec._iast.taint_sinks.weak_cipher import patch as weak_cipher_patch
 from ddtrace.appsec._iast.taint_sinks.weak_hash import patch as weak_hash_patch
@@ -66,9 +66,9 @@ def patch_iast():
     # sink points
     if asm_config._iast_sink_points_enabled:
         code_injection_patch()
-        command_injection_patch()
         header_injection_patch()
         insecure_cookie_patch()
+        unstrusted_serialization_patch()
         unvalidated_redirect_patch()
         weak_cipher_patch()
         weak_hash_patch()

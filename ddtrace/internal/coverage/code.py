@@ -20,6 +20,7 @@ from ddtrace.internal.packages import platstdlib_path
 from ddtrace.internal.packages import purelib_path
 from ddtrace.internal.packages import stdlib_path
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+from ddtrace.internal.utils.inspection import resolved_code_origin
 
 
 log = get_logger(__name__)
@@ -317,7 +318,7 @@ class ModuleCodeCollector(ModuleWatchdog):
         if _module is None:
             return code
 
-        code_path = Path(code.co_filename).resolve()
+        code_path = resolved_code_origin(code)
 
         if not any(code_path.is_relative_to(include_path) for include_path in self._include_paths):
             # Not a code object we want to instrument

@@ -2,6 +2,7 @@ from typing import Text
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
+from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._logs import iast_propagation_sink_point_debug_log
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
@@ -109,7 +110,7 @@ def _iast_coi(wrapped, instance, args, kwargs):
 def _iast_report_code_injection(code_string: Text):
     reported = False
     try:
-        if asm_config.is_iast_request_enabled:
+        if is_iast_request_enabled():
             if code_string and isinstance(code_string, IAST.TEXT_TYPES) and CodeInjection.has_quota():
                 if CodeInjection.is_tainted_pyobject(code_string):
                     CodeInjection.report(evidence_value=code_string)
@@ -119,5 +120,5 @@ def _iast_report_code_injection(code_string: Text):
             # Report Telemetry Metrics
             _set_metric_iast_executed_sink(CodeInjection.vulnerability_type)
     except Exception as e:
-        iast_error(f"propagation::sink_point::Error in _iast_report_code_injection. {e}")
+        iast_error("propagation::sink_point::Error in _iast_report_code_injection", e)
     return reported
