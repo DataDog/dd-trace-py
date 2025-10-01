@@ -54,7 +54,11 @@
         "dependency": "anthropic",
         "integration": "anthropic",
         "minimum_tracer_supported": "0.28.1",
+<<<<<<< HEAD
         "max_tracer_supported": "0.68.1",
+=======
+        "max_tracer_supported": "0.67.0",
+>>>>>>> main
         "auto-instrumented": true
     },
     {
@@ -645,7 +649,11 @@
         "dependency": "starlette",
         "integration": "starlette",
         "minimum_tracer_supported": "0.14.2",
+<<<<<<< HEAD
         "max_tracer_supported": "0.48.0",
+=======
+        "max_tracer_supported": "0.47.3",
+>>>>>>> main
         "auto-instrumented": true
     },
     {

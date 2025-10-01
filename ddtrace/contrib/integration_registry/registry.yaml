@@ -77,7 +77,11 @@ integrations:
   tested_versions_by_dependency:
     anthropic:
       min: 0.28.1
+<<<<<<< HEAD
       max: 0.68.1
+=======
+      max: 0.67.0
+>>>>>>> main
 
 - integration_name: aredis
   is_external_package: true
@@ -873,7 +877,11 @@ integrations:
   tested_versions_by_dependency:
     starlette:
       min: 0.14.2
+<<<<<<< HEAD
       max: 0.48.0
+=======
+      max: 0.47.3
+>>>>>>> main
 
 - integration_name: structlog
   is_external_package: true

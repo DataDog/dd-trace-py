@@ -1290,7 +1290,7 @@ venv = Venv(
                         Venv(
                             pys=select_pys(min_version="3.8", max_version="3.11"),
                         ),
-                        Venv(pys=select_pys(min_version="3.12"), pkgs={"redis": latest}),
+                        Venv(pys=select_pys(min_version="3.12", max_version="3.13"), pkgs={"redis": latest}),
                     ],
                 ),
             ],
