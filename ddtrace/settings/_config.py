@@ -14,8 +14,8 @@ from typing import Union  # noqa:F401
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.internal.telemetry import validate_otel_envs
 from ddtrace.internal.telemetry import validate_and_report_otel_metrics_exporter_enabled
+from ddtrace.internal.telemetry import validate_otel_envs
 from ddtrace.internal.utils.cache import cachedmethod
 
 from .._logger import get_log_injection_state
