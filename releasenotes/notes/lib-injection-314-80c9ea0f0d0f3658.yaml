@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    This change updates library injection logic to work under Python 3.14.
