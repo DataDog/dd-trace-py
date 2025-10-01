@@ -183,9 +183,9 @@ def _apply_config_change(config_name, config_value, dd_config):
     if config_name == "_trace_sampling_rules":
         tracer._sampler.set_sampling_rules(config_value)
         log.debug(
-            "Updated tracer sampler (object: %s, id: %s) sampling rules via remote_config: %s.",
-            tracer._sampler,
+            "Updated tracer sampler (id: %s, rules: %s) sampling rules via remote_config: %s.",
             id(tracer._sampler),
+            tracer._sampler.rules,
             config_value,
         )
     elif config_name == "tags":

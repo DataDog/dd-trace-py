@@ -198,7 +198,7 @@ class DatadogSampler:
             sampling_mechanism,
             matched_rule,
             agent_sampler is not None,
-            self,
+            self.rules,
             id(self),
         )
         return sampled
