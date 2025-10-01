@@ -10,6 +10,7 @@ from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
+from ddtrace.internal.logger import get_logger
 
 from .constants import DD_PARTIAL_VERSION
 from .constants import DD_WAS_LONG_RUNNING
@@ -21,6 +22,9 @@ from .constants import RAY_STATUS_FINISHED
 from .constants import RAY_STATUS_RUNNING
 from .constants import RAY_SUBMISSION_ID_TAG
 from .utils import _inject_ray_span_tags_and_metrics
+
+
+log = get_logger(__name__)
 
 
 @contextmanager
@@ -52,7 +56,11 @@ class RaySpanManager:
         self._is_shutting_down = False
 
         # Register cleanup on process exit
-        atexit.register(self.cleanup_on_exit)
+        try:
+            atexit.register(self.cleanup_on_exit)
+        except BaseException:
+            log.debug("SpanManager initializing during shutdown", exc_info=True)
+            pass
 
     def _get_submission_id(self, span):
         return span.get_tag(RAY_SUBMISSION_ID_TAG)
