@@ -13,14 +13,14 @@ class TestLongRunningSpan(TracerTestCase):
     def setUp(self):
         super().setUp()
         # Override timing values to make tests run quickly
-        self.original_long_running_span_submission_interval = getattr(
-            config, "_long_running_span_submission_interval", 120.0
+        self.original_long_running_flush_interval = getattr(config, "_long_running_span_submission_interval", 120.0)
+        self.original_long_running_initial_flush_interval = getattr(
+            config, "_long_running_initial_flush_interval", 10.0
         )
-        self.original_initial_submit_threshold = getattr(config.ray, "initial_submit_threshold", 10.0)
 
         # Set fast timing for testing
-        config._long_running_span_submission_interval = 2.0  # 2s instead of 120s
-        config.ray.initial_submit_threshold = 1  # 1s instead of 10s
+        config._long_running_flush_interval = 2.0  # 2s instead of 120s
+        config._long_running_initial_flush_interval = 1  # 1s instead of 10s
 
         # Clear any existing spans from the job manager
         with _ray_span_manager._lock:
@@ -30,8 +30,8 @@ class TestLongRunningSpan(TracerTestCase):
 
     def tearDown(self):
         # Restore original values
-        config._long_running_span_submission_interval = self.original_long_running_span_submission_interval
-        config.ray.initial_submit_threshold = self.original_initial_submit_threshold
+        config._long_running_flush_interval = self.original_long_running_flush_interval
+        config._long_running_initial_flush_interval = self.original_long_running_initial_flush_interval
 
         # Clean up any remaining timers
         with _ray_span_manager._lock:
@@ -113,7 +113,7 @@ class TestLongRunningSpan(TracerTestCase):
             self.assertIn((span1.trace_id, span1.span_id), job_spans)
             self.assertIn((span2.trace_id, span2.span_id), job_spans)
 
-        time.sleep(1.5)
+        time.sleep(2)
 
         self.assertGreater(span1.get_metric("_dd.partial_version"), 0)
         self.assertEqual(span1.get_tag("ray.job.status"), "RUNNING")

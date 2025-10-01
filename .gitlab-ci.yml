@@ -14,7 +14,7 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "0eadeeae3a7c2fddb61ed55b692580ad6cd852f9"
+  SYSTEM_TESTS_REF: "6be22a6418b86c3be4920790dfa121149aed2903"
 
 default:
   interruptible: true
@@ -75,12 +75,20 @@ run-tests-trigger:
    strategy: depend
 
 # Validate the ast-grep rule's test suite in .sg/tests
-"test ast-grep rules":
+"ast-grep rules":
   extends: .testrunner
   stage: tests
   needs: []
   script:
-    - hatch run lint:sg-test
+  script:
+    - |
+      echo -e "\e[0Ksection_start:`date +%s`:sg_test[collapsed=true]\r\e[0KValidate ast-grep rules"
+      hatch run lint:sg-test
+      echo -e "\e[0Ksection_end:`date +%s`:sg_test\r\e[0K"
+    - |
+      echo -e "\e[0Ksection_start:`date +%s`:sg_scan[collapsed=true]\r\e[0Kast-grep scan"
+      hatch run lint:sg
+      echo -e "\e[0Ksection_end:`date +%s`:sg_scan\r\e[0K"
 
 microbenchmarks:
   stage: benchmarks

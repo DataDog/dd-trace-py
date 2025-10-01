@@ -7,6 +7,9 @@ The ray integration traces:
 Enabling
 ~~~~~~~~
 
+Ray instrumentation is experimental. It is deactivated by default. To enable it,
+you have to follow one of the two methods below:
+
 The recommended way to instrument Ray, is to instrument the Ray cluster.
 You can do it by starting the Ray head with a tracing startup hook::
 
@@ -24,7 +27,7 @@ Configuration
 
 The Ray integration can be configured using environment variables:
 
-- ``DD_TRACE_LONG_RUNNING_SPAN_SUBMISSION_INTERVAL``: Interval for resubmitting long-running
+- ``DD_TRACE_EXPERIMENTAL_LONG_RUNNING_FLUSH_INTERVAL``: Interval for resubmitting long-running
     spans (default: ``120.0`` seconds)
 
 Ray service name can be configured by:

@@ -8,12 +8,16 @@ import socket
 import sys
 from typing import Any
 from typing import Callable
+from typing import Dict
 from typing import List
+from typing import Optional
 
 import ray
 from ray.runtime_context import get_runtime_context
 
 from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
+from ddtrace._trace.context import Context
+from ddtrace._trace.span import Span
 from ddtrace.constants import _DJM_ENABLED_KEY
 from ddtrace.constants import _FILTER_KEPT_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
@@ -56,7 +60,7 @@ def _inject_dd_trace_ctx_kwarg(method: Callable) -> Signature:
     return old_sig.replace(parameters=sorted_params)
 
 
-def _inject_context_in_kwargs(context, kwargs):
+def _inject_context_in_kwargs(context: Context, kwargs: Dict[str, Any]) -> None:
     headers = {}
     _TraceContext._inject(context, headers)
     if "kwargs" not in kwargs or kwargs["kwargs"] is None:
@@ -64,14 +68,14 @@ def _inject_context_in_kwargs(context, kwargs):
     kwargs["kwargs"][DD_RAY_TRACE_CTX] = headers
 
 
-def _inject_context_in_env(context):
+def _inject_context_in_env(context: Context) -> None:
     headers = {}
     _TraceContext._inject(context, headers)
     os.environ["traceparent"] = headers.get("traceparent", "")
     os.environ["tracestate"] = headers.get("tracestate", "")
 
 
-def _extract_tracing_context_from_env():
+def _extract_tracing_context_from_env() -> Optional[Context]:
     if os.environ.get("traceparent") is not None and os.environ.get("tracestate") is not None:
         return _TraceContext._extract(
             {
@@ -82,7 +86,7 @@ def _extract_tracing_context_from_env():
     return None
 
 
-def _inject_ray_span_tags_and_metrics(span):
+def _inject_ray_span_tags_and_metrics(span: Span) -> None:
     span.set_tag_str("component", RAY_COMPONENT)
     span.set_tag_str(RAY_HOSTNAME, socket.gethostname())
     span.set_metric(_DJM_ENABLED_KEY, 1)
@@ -114,7 +118,7 @@ def _inject_ray_span_tags_and_metrics(span):
             span.set_tag_str(RAY_ACTOR_ID, actor_id)
 
 
-def set_tag_or_truncate(span, tag_name, tag_value):
+def set_tag_or_truncate(span: Span, tag_name: str, tag_value: Any = None) -> None:
     """We want to add args/kwargs values as tag when we execute a task/actor method.
     However they might be really big. In that case we dont way to serialize them AT ALL
     and we do not want to rely on _encoding.pyx.

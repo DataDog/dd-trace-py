@@ -1,10 +1,8 @@
 import aiohttp_jinja2
 import pytest
-import pytest_asyncio
 
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import ERROR_MSG
-from ddtrace.internal.utils.version import parse_version
 from ddtrace.trace import tracer
 from tests.contrib.aiohttp.app.web import set_filesystem_loader
 from tests.contrib.aiohttp.app.web import set_package_loader
@@ -12,7 +10,6 @@ import tests.contrib.aiohttp.conftest  # noqa:F401
 
 
 VERSION = tuple(map(int, aiohttp_jinja2.__version__.split(".")))
-PYTEST_ASYNCIO_VERSION = parse_version(pytest_asyncio.__version__)
 
 
 async def test_template_rendering(untraced_app_tracer_jinja, aiohttp_client):
@@ -63,18 +60,7 @@ async def test_template_rendering_snapshot_patched_server(
         assert 200 == request.status
 
 
-if PYTEST_ASYNCIO_VERSION < (1, 0):
-
-    async def test_template_rendering_filesystem(untraced_app_tracer_jinja, aiohttp_client, loop):
-        return _test_template_rendering_filesystem(untraced_app_tracer_jinja, aiohttp_client, loop=loop)
-
-else:
-
-    async def test_template_rendering_filesystem(untraced_app_tracer_jinja, aiohttp_client):
-        return _test_template_rendering_filesystem(untraced_app_tracer_jinja, aiohttp_client)
-
-
-async def _test_template_rendering_filesystem(untraced_app_tracer_jinja, aiohttp_client, loop=None):
+async def test_template_rendering_filesystem(untraced_app_tracer_jinja, aiohttp_client):
     app, tracer = untraced_app_tracer_jinja
     client = await aiohttp_client(app)
     # it should trace a template rendering with a FileSystemLoader
@@ -96,19 +82,8 @@ async def _test_template_rendering_filesystem(untraced_app_tracer_jinja, aiohttp
     assert 0 == span.error
 
 
-if PYTEST_ASYNCIO_VERSION < (1, 0):
-
-    async def test_template_rendering_package(untraced_app_tracer_jinja, aiohttp_client, loop):
-        return _test_template_rendering_package(untraced_app_tracer_jinja, aiohttp_client, loop=loop)
-
-else:
-
-    async def test_template_rendering_package(untraced_app_tracer_jinja, aiohttp_client):
-        return _test_template_rendering_package(untraced_app_tracer_jinja, aiohttp_client)
-
-
 @pytest.mark.skipif(VERSION < (1, 5, 0), reason="Package loader doesn't work in older versions")
-async def _test_template_rendering_package(untraced_app_tracer_jinja, aiohttp_client, loop=None):
+async def test_template_rendering_package(untraced_app_tracer_jinja, aiohttp_client):
     app, tracer = untraced_app_tracer_jinja
     client = await aiohttp_client(app)
     # it should trace a template rendering with a PackageLoader
@@ -130,18 +105,7 @@ async def _test_template_rendering_package(untraced_app_tracer_jinja, aiohttp_cl
     assert 0 == span.error
 
 
-if PYTEST_ASYNCIO_VERSION < (1, 0):
-
-    async def test_template_decorator(untraced_app_tracer_jinja, aiohttp_client, loop):
-        return _test_template_decorator(untraced_app_tracer_jinja, aiohttp_client, loop=loop)
-
-else:
-
-    async def test_template_decorator(untraced_app_tracer_jinja, aiohttp_client):
-        return _test_template_decorator(untraced_app_tracer_jinja, aiohttp_client)
-
-
-async def _test_template_decorator(untraced_app_tracer_jinja, aiohttp_client, loop=None):
+async def test_template_decorator(untraced_app_tracer_jinja, aiohttp_client, loop=None):
     app, tracer = untraced_app_tracer_jinja
     client = await aiohttp_client(app)
     # it should trace a template rendering
@@ -162,18 +126,7 @@ async def _test_template_decorator(untraced_app_tracer_jinja, aiohttp_client, lo
     assert 0 == span.error
 
 
-if PYTEST_ASYNCIO_VERSION < (1, 0):
-
-    async def test_template_error(untraced_app_tracer_jinja, aiohttp_client, loop):
-        return _test_template_error(untraced_app_tracer_jinja, aiohttp_client, loop=loop)
-
-else:
-
-    async def test_template_error(untraced_app_tracer_jinja, aiohttp_client):
-        return _test_template_error(untraced_app_tracer_jinja, aiohttp_client)
-
-
-async def _test_template_error(untraced_app_tracer_jinja, aiohttp_client, loop=None):
+async def test_template_error(untraced_app_tracer_jinja, aiohttp_client):
     app, tracer = untraced_app_tracer_jinja
     client = await aiohttp_client(app)
     # it should trace a template rendering

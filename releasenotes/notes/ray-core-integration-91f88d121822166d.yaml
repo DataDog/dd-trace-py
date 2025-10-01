@@ -5,5 +5,5 @@ features:
     tasks, and actor method calls. Supported for Ray >= 2.46.0.
 
     To enable tracing, start the Ray head with
-    `--tracing-startup-hook=ddtrace.contrib.ray:setup_tracing`,
+    ``--tracing-startup-hook=ddtrace.contrib.ray:setup_tracing``
     then submit jobs as usual.
