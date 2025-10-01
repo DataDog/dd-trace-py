@@ -18,7 +18,7 @@ hypothesis==6.45.0
 idna==3.10
 iniconfig==2.1.0
 jinja2==3.1.6
-markupsafe==3.0.2
+markupsafe==3.0.3
 mock==5.2.0
 opentracing==2.4.0
 packaging==25.0
