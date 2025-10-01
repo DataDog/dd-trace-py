@@ -494,7 +494,7 @@ class TraceMiddleware:
             activate=True,
             tags={COMPONENT: self.integration_config.integration_name, SPAN_KIND: SpanKind.PRODUCER},
         ) as ctx:  # noqa: F841
-            core.dispatch("asgi.websocket.send.message", (ctx, scope, message, self.integration_config))
+            core.dispatch("asgi.websocket.send.message", (ctx, scope, message))
 
     def _handle_websocket_close_message(self, scope: Mapping[str, Any], message: Mapping[str, Any], request_span: Span):
         current_receive_span = scope.get("datadog", {}).get("current_receive_span")
@@ -517,7 +517,7 @@ class TraceMiddleware:
             activate=True,
             tags={COMPONENT: self.integration_config.integration_name, SPAN_KIND: SpanKind.PRODUCER},
         ) as ctx:  # noqa: F841
-            core.dispatch("asgi.websocket.close.message", (ctx, scope, message, self.integration_config))
+            core.dispatch("asgi.websocket.close.message", (ctx, scope, message))
 
         _cleanup_previous_receive(scope)
 
@@ -553,7 +553,7 @@ class TraceMiddleware:
         request_span: Span,
     ):
         _cleanup_previous_receive(scope)
-        core.dispatch("asgi.websocket.receive.message", (ctx, scope, message, self.integration_config))
+        core.dispatch("asgi.websocket.receive.message", (ctx, scope, message))
 
         scope["datadog"]["current_receive_span"] = recv_span
 
@@ -576,7 +576,7 @@ class TraceMiddleware:
             activate=True,
             tags={COMPONENT: self.integration_config.integration_name, SPAN_KIND: SpanKind.CONSUMER},
         ) as ctx:
-            core.dispatch("asgi.websocket.disconnect.message", (ctx, scope, message, self.integration_config))
+            core.dispatch("asgi.websocket.disconnect.message", (ctx, scope, message))
 
         if request_span and request_span.error == 0:
             request_span.finish()

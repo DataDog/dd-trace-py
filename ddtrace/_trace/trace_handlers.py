@@ -140,7 +140,7 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
 
     if config._inferred_proxy_services_enabled:
         # dispatch event for checking headers and possibly making an inferred proxy span
-        core.dispatch("inferred_proxy.start", (ctx, tracer, span_kwargs, call_trace, integration_config))
+        core.dispatch("inferred_proxy.start", (ctx, tracer, span_kwargs, call_trace))
         # re-get span_kwargs in case an inferred span was created and we have a new span_kwargs.child_of field
         span_kwargs = ctx.get_item("span_kwargs", span_kwargs)
 
@@ -246,7 +246,7 @@ def _set_inferred_proxy_tags(span, status_code):
                 inferred_span.set_tag(ERROR_STACK, span.get_tag(ERROR_STACK))
 
 
-def _on_inferred_proxy_start(ctx, tracer, span_kwargs, call_trace, integration_config):
+def _on_inferred_proxy_start(ctx, tracer, span_kwargs, call_trace):
     # Skip creating another inferred span if one has already been created for this request
     if ctx.get_item("inferred_proxy_span"):
         return
@@ -254,6 +254,7 @@ def _on_inferred_proxy_start(ctx, tracer, span_kwargs, call_trace, integration_c
     # some integrations like Flask / WSGI store headers from environ in 'distributed_headers'
     # and normalized headers in 'headers'
     headers = ctx.get_item("headers", ctx.get_item("distributed_headers", None))
+    integration_config = ctx.get_item("integration_config")
 
     # Inferred Proxy Spans
     if integration_config and headers is not None:
@@ -995,7 +996,7 @@ def _set_client_ip_tags(scope: Mapping[str, Any], span: Span):
             log.debug("Could not validate client IP address for websocket send message: %s", str(e))
 
 
-def _on_asgi_websocket_receive_message(ctx, scope, message, integration_config):
+def _on_asgi_websocket_receive_message(ctx, scope, message):
     """
     Handle websocket receive message events.
 
@@ -1003,6 +1004,7 @@ def _on_asgi_websocket_receive_message(ctx, scope, message, integration_config):
     It sets up the span with appropriate tags, metrics, and links.
     """
     span = ctx.span
+    integration_config = ctx.get_item("integration_config")
 
     span.set_tag_str(COMPONENT, integration_config.integration_name)
     span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
@@ -1025,7 +1027,7 @@ def _on_asgi_websocket_receive_message(ctx, scope, message, integration_config):
         _copy_trace_level_tags(span, ctx.parent.span)
 
 
-def _on_asgi_websocket_send_message(ctx, scope, message, integration_config):
+def _on_asgi_websocket_send_message(ctx, scope, message):
     """
     Handle websocket send message events.
 
@@ -1033,6 +1035,7 @@ def _on_asgi_websocket_send_message(ctx, scope, message, integration_config):
     It sets up the span with appropriate tags, metrics, and links.
     """
     span = ctx.span
+    integration_config = ctx.get_item("integration_config")
 
     span.set_tag_str(COMPONENT, integration_config.integration_name)
     span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
@@ -1049,7 +1052,7 @@ def _on_asgi_websocket_send_message(ctx, scope, message, integration_config):
         )
 
 
-def _on_asgi_websocket_close_message(ctx, scope, message, integration_config):
+def _on_asgi_websocket_close_message(ctx, scope, message):
     """
     Handle websocket close message events.
 
@@ -1057,6 +1060,7 @@ def _on_asgi_websocket_close_message(ctx, scope, message, integration_config):
     It sets up the span with appropriate tags, metrics, and links.
     """
     span = ctx.span
+    integration_config = ctx.get_item("integration_config")
 
     span.set_tag_str(COMPONENT, integration_config.integration_name)
     span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
@@ -1077,7 +1081,7 @@ def _on_asgi_websocket_close_message(ctx, scope, message, integration_config):
         _copy_trace_level_tags(span, ctx.parent.span)
 
 
-def _on_asgi_websocket_disconnect_message(ctx, scope, message, integration_config):
+def _on_asgi_websocket_disconnect_message(ctx, scope, message):
     """
     Handle websocket disconnect message events.
 
@@ -1085,6 +1089,7 @@ def _on_asgi_websocket_disconnect_message(ctx, scope, message, integration_confi
     It sets up the span with appropriate tags, metrics, and links.
     """
     span = ctx.span
+    integration_config = ctx.get_item("integration_config")
 
     span.set_tag_str(COMPONENT, integration_config.integration_name)
     span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
