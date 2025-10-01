@@ -501,11 +501,11 @@ integrations:
   is_external_package: true
   is_tested: true
   dependency_names:
-  - langchain
+  - langchain-core
   tested_versions_by_dependency:
-    langchain:
-      min: 0.1.20
-      max: 0.3.18
+    langchain-core:
+      min: 0.1.53
+      max: 0.3.76
 
 - integration_name: langgraph
   is_external_package: true
