@@ -10,17 +10,13 @@ from ddtrace.internal import core
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import AGENT_MANIFEST
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
-from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
-from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import NAME
-from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
-from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
@@ -105,13 +101,11 @@ class PydanticAIIntegration(BaseLLMIntegration):
                     result += part.content
                 elif hasattr(part, "args_as_json_str"):
                     result += part.args_as_json_str()
-        metrics = self.extract_usage_metrics(response, kwargs)
         span._set_ctx_items(
             {
                 NAME: agent_name or "PydanticAI Agent",
                 INPUT_VALUE: user_prompt,
                 OUTPUT_VALUE: result,
-                METRICS: metrics,
             }
         )
 
@@ -222,27 +216,6 @@ class PydanticAIIntegration(BaseLLMIntegration):
             tool_dict["parameters"] = parameters
             formatted_tools.append(tool_dict)
         return formatted_tools
-
-    def extract_usage_metrics(self, response: Any, kwargs: Dict[str, Any]) -> Dict[str, Any]:
-        response = kwargs.get("streamed_run_result", None) or response
-        usage = None
-        try:
-            usage = response.usage()
-        except Exception:
-            return {}
-        if usage is None:
-            return {}
-
-        prompt_tokens = _get_attr(usage, "request_tokens", 0) or 0
-        completion_tokens = _get_attr(usage, "response_tokens", 0) or 0
-        total_tokens = _get_attr(usage, "total_tokens", 0) or 0
-        if not prompt_tokens and not completion_tokens and not total_tokens:
-            return {}
-        return {
-            INPUT_TOKENS_METRIC_KEY: prompt_tokens,
-            OUTPUT_TOKENS_METRIC_KEY: completion_tokens,
-            TOTAL_TOKENS_METRIC_KEY: total_tokens or (prompt_tokens + completion_tokens),
-        }
 
     def _register_span(self, span: Span, kind: Any) -> None:
         if kind == "agent":
