@@ -146,6 +146,12 @@ class TraceSamplingProcessor(TraceProcessor):
         if trace:
             chunk_root = trace[0]
 
+            log.debug(
+                "TraceSamplingProcessor processing trace: trace_id=%s " "current_sampling_priority=%s",
+                chunk_root.trace_id,
+                chunk_root.context.sampling_priority,
+            )
+
             if self.apm_opt_out:
                 for span in trace:
                     if span._local_root_value is None:
@@ -325,7 +331,7 @@ class SpanAggregator(SpanProcessor):
         log.debug(self.SPAN_START_DEBUG_MESSAGE, span, len(trace.spans))
 
     def on_span_finish(self, span: Span) -> None:
-        # Aqcuire lock to get finished and update trace.spans
+        # Acquire lock to get finished and update trace.spans
         with self._lock:
             integration_name = span._meta.get(COMPONENT, span._span_api)
             self._span_metrics["spans_finished"][integration_name] += 1
