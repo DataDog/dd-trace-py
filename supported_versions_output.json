@@ -54,11 +54,7 @@
         "dependency": "anthropic",
         "integration": "anthropic",
         "minimum_tracer_supported": "0.28.1",
-<<<<<<< HEAD
         "max_tracer_supported": "0.68.1",
-=======
-        "max_tracer_supported": "0.67.0",
->>>>>>> main
         "auto-instrumented": true
     },
     {
@@ -210,7 +206,7 @@
         "dependency": "dramatiq",
         "integration": "dramatiq",
         "minimum_tracer_supported": "1.10.0",
-        "max_tracer_supported": "1.18.0",
+        "max_tracer_supported": "1.17.0",
         "auto-instrumented": true
     },
     {
@@ -301,7 +297,7 @@
         "dependency": "flask-caching",
         "integration": "flask_cache",
         "minimum_tracer_supported": "1.10.1",
-        "max_tracer_supported": "2.3.1",
+        "max_tracer_supported": "2.3.0",
         "auto-instrumented": false
     },
     {
@@ -383,10 +379,10 @@
         "auto-instrumented": false
     },
     {
-        "dependency": "langchain",
+        "dependency": "langchain-core",
         "integration": "langchain",
-        "minimum_tracer_supported": "0.1.20",
-        "max_tracer_supported": "0.3.18",
+        "minimum_tracer_supported": "0.1.53",
+        "max_tracer_supported": "0.3.76",
         "auto-instrumented": true
     },
     {
@@ -649,11 +645,7 @@
         "dependency": "starlette",
         "integration": "starlette",
         "minimum_tracer_supported": "0.14.2",
-<<<<<<< HEAD
         "max_tracer_supported": "0.48.0",
-=======
-        "max_tracer_supported": "0.47.3",
->>>>>>> main
         "auto-instrumented": true
     },
     {
