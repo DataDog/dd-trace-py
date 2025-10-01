@@ -1,6 +1,6 @@
 dependency,integration,minimum_tracer_supported,max_tracer_supported,auto-instrumented
 aiobotocore,aiobotocore,1.0.7,2.24.1,False
-aiohttp,aiohttp,3.7.4.post0,3.12.11,True
+aiohttp,aiohttp,3.7.4.post0,3.12.15,True
 aiohttp-jinja2,aiohttp_jinja2,1.5.1,1.6,True
 aiohttp_jinja2,aiohttp_jinja2,1.5.1,1.6,True
 aiomysql,aiomysql,0.1.1,0.2.0,True
@@ -52,7 +52,7 @@ httpx,httpx,0.17.1,0.28.1,True
 jinja2,jinja2,2.10.3,3.1.6,True
 confluent-kafka,kafka,1.9.2,2.6.2,True
 kombu,kombu,4.6.11,5.5.4,False
-langchain,langchain,0.1.20,0.3.18,True
+langchain-core,langchain,0.1.53,0.3.76,True
 langgraph,langgraph,0.2.23,0.6.5,True
 langgraph-checkpoint,langgraph,1.0.12,2.1.1,True
 langgraph-prebuilt,langgraph,0.1.8,0.6.4,True
