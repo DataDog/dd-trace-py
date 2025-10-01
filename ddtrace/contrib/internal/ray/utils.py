@@ -42,6 +42,8 @@ JOB_NAME_REGEX = re.compile(r"^job\:([A-Za-z0-9_\.\-]+),run:([A-Za-z0-9_\.\-]+)$
 # then the job name will be woof
 ENTRY_POINT_REGEX = re.compile(r"([^\s\/\\]+)\.py")
 
+REDACTED_PATH = "<redacted/path/to>"
+
 
 def _inject_dd_trace_ctx_kwarg(method: Callable) -> Signature:
     old_sig = inspect.signature(method)
@@ -133,6 +135,53 @@ def get_dd_job_name_from_entrypoint(entrypoint: str):
     return None
 
 
+def redact_paths(s):
+    """
+    Redact path-like substrings from an entry-point string.
+    Uses os.sep (and os.altsep if present) to detect paths; preserves spacing.
+    """
+
+    def _redact_pathlike(s):
+        """
+        If s contains a path separator, replace the directory part with REDACTION,
+        preserving the final component (basename). Trailing separators are ignored.
+        Detects both os.sep and os.altsep if present.
+        """
+
+        # Pick the actual separator used in this token (prefer os.sep if both appear)
+        used_sep = os.sep if (os.sep in s) else (os.altsep if (os.altsep and os.altsep in s) else None)
+        if not used_sep:
+            return s
+
+        core = s.rstrip(used_sep)
+        if not core:
+            return REDACTED_PATH
+
+        basename = core.split(used_sep)[-1]
+        return f"{REDACTED_PATH}{used_sep}{basename}"
+
+    def _redact_token(tok) -> str:
+        # key=value (value may be quoted)
+        if "=" in tok:
+            key, val = tok.split("=", 1)
+            if len(val) >= 2 and val[0] == val[-1] and val[0] in {"'", '"'}:
+                q = val[0]
+                inner = val[1:-1]
+                return f"{key}={q}{_redact_pathlike(inner)}{q}"
+            return f"{key}={_redact_pathlike(val)}"
+
+        # Whole token may be quoted
+        if len(tok) >= 2 and tok[0] == tok[-1] and tok[0] in {"'", '"'}:
+            q = tok[0]
+            inner = tok[1:-1]
+            return f"{q}{_redact_pathlike(inner)}{q}"
+
+        return _redact_pathlike(tok)
+
+    parts = re.split(r"(\s+)", s)  # keep whitespace
+    return "".join(part if part.strip() == "" else _redact_token(part) for part in parts)
+
+
 def json_to_dot_paths(data):
     """
     Converts a JSON (or Python dictionary) structure into a dict mapping
@@ -146,14 +195,10 @@ def json_to_dot_paths(data):
     - Returned dict keys are prefixed once with RAY_METADATA_PREFIX.
     """
 
-    # If top-level is a list, stringify and return
-    if isinstance(data, list):
-        try:
-            return json.dumps(data, ensure_ascii=False)
-        except Exception:
-            return "[]"
+    if not isinstance(data, dict):
+        return {}
 
-    flat = {}
+    result = {}
 
     def _recurse(node, path):
         if isinstance(node, dict):
@@ -166,21 +211,12 @@ def json_to_dot_paths(data):
                 list_dump = json.dumps(node, ensure_ascii=False)
             except Exception:
                 list_dump = "[]"
-            flat[path] = list_dump
+            result[path] = list_dump
         else:
             # leaf node: store the accumulated path -> value
-            flat[path] = node
+            result[path] = node
 
-    _recurse(data, "")
-
-    # Prefix keys once with RAY_METADATA_PREFIX
-    result = {}
-    for k, v in flat.items():
-        if k:
-            result[f"{RAY_METADATA_PREFIX}.{k}"] = v
-        else:
-            # If an empty key (top-level primitive under a dict), attach prefix alone
-            result[RAY_METADATA_PREFIX] = v
+    _recurse(data, RAY_METADATA_PREFIX)
 
     return result
 

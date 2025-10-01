@@ -33,7 +33,6 @@ from .constants import DEFAULT_JOB_NAME
 from .constants import RAY_ACTOR_METHOD_ARGS
 from .constants import RAY_ACTOR_METHOD_KWARGS
 from .constants import RAY_ENTRYPOINT
-from .constants import RAY_ENTRYPOINT_SCRIPT
 from .constants import RAY_JOB_NAME
 from .constants import RAY_JOB_STATUS
 from .constants import RAY_JOB_SUBMIT_STATUS
@@ -61,6 +60,7 @@ from .utils import _inject_ray_span_tags_and_metrics
 from .utils import extract_signature
 from .utils import get_dd_job_name_from_entrypoint
 from .utils import json_to_dot_paths
+from .utils import redact_paths
 from .utils import set_tag_or_truncate
 
 
@@ -79,6 +79,8 @@ config._add(
     dict(
         _default_service=schematize_service_name("ray"),
         initial_submit_threshold=_get_config("_DD_TRACE_RAY_INITIAL_SUBMIT_THRESHOLD", default=10.0, modifier=float),
+        use_entrypoint_as_job_name=_get_config("DD_RAY_USE_ENTRYPOINT_AS_JOB_NAME", default=False, modifier=bool),
+        redact_entrypoint_paths=_get_config("DD_RAY_REDACT_ENTRYPOINT_PATHS", default=True, modifier=bool),
     ),
 )
 
@@ -192,10 +194,12 @@ def traced_submit_job(wrapped, instance, args, kwargs):
     submission_id = kwargs.get("submission_id") or generate_job_id()
     kwargs["submission_id"] = submission_id
     entrypoint = kwargs.get("entrypoint", "")
+    if entrypoint and config.ray.redact_entrypoint_paths:
+        entrypoint = redact_paths(entrypoint)
     job_name = config.service or kwargs.get("metadata", {}).get("job_name", "")
 
     if not job_name:
-        if os.environ.get("DD_RAY_USE_ENTRYPOINT_AS_JOB_NAME", "false").lower() in ("true", "1"):
+        if config.ray.use_entrypoint_as_job_name:
             job_name = get_dd_job_name_from_entrypoint(entrypoint) or DEFAULT_JOB_NAME
         else:
             job_name = DEFAULT_JOB_NAME
@@ -206,12 +210,10 @@ def traced_submit_job(wrapped, instance, args, kwargs):
     job_span.set_tag_str(RAY_SUBMISSION_ID_TAG, submission_id)
     if entrypoint:
         job_span.set_tag_str(RAY_ENTRYPOINT, entrypoint)
-        entrypoint_script = get_dd_job_name_from_entrypoint(entrypoint)
-        if entrypoint_script:
-            job_span.set_tag_str(RAY_ENTRYPOINT_SCRIPT, entrypoint_script)
+
     metadata = kwargs.get("metadata", {})
-    dot_pairs = json_to_dot_paths(metadata)
-    for k, v in dot_pairs.items():
+    dot_paths = json_to_dot_paths(metadata)
+    for k, v in dot_paths.items():
         set_tag_or_truncate(job_span, k, v)
 
     tracer.context_provider.activate(job_span)

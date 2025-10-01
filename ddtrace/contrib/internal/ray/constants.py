@@ -13,7 +13,6 @@ RAY_ACTOR_ID = "ray.actor_id"
 RAY_SUBMISSION_ID_TAG = "ray.submission_id"
 RAY_HOSTNAME = "ray.hostname"
 RAY_ENTRYPOINT = "ray.entrypoint"
-RAY_ENTRYPOINT_SCRIPT = "ray.entrypoint_script"
 
 # Default job name if not set by the user
 DEFAULT_JOB_NAME = "unnamed.ray.job"
