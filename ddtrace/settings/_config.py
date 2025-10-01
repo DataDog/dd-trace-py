@@ -536,8 +536,9 @@ class Config(object):
         self._telemetry_heartbeat_interval = _get_config("DD_TELEMETRY_HEARTBEAT_INTERVAL", 60, float)
         self._telemetry_dependency_collection = _get_config("DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED", True, asbool)
 
-        self._runtime_metrics_enabled = _get_config(
-            "DD_RUNTIME_METRICS_ENABLED", False, asbool, "OTEL_METRICS_EXPORTER"
+        self._runtime_metrics_enabled = (
+            _get_config("DD_RUNTIME_METRICS_ENABLED", False, asbool)
+            and validate_and_report_otel_metrics_exporter_enabled()
         )
         self._runtime_metrics_runtime_id_enabled = _get_config(
             ["DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED", "DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED"], False, asbool
