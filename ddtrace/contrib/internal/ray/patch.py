@@ -8,7 +8,6 @@ from typing import Dict
 
 import ray
 from wrapt import wrap_function_wrapper as _w
-from wrapt.importer import when_imported
 
 from ddtrace import config
 from ddtrace import tracer
@@ -17,6 +16,7 @@ from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.propagation.http import _TraceContext
@@ -465,26 +465,24 @@ def patch():
 
     ray._datadog_patch = True
 
-    @when_imported("ray.actor")
+    @ModuleWatchdog.after_module_imported("ray.actor")
     def _(m):
-        _w(ray.actor.ActorHandle, "_actor_method_call", traced_actor_method_call)
-        _w(ray.actor, "_modify_class", inject_tracing_into_actor_class)
+        _w(m.ActorHandle, "_actor_method_call", traced_actor_method_call)
+        _w(m, "_modify_class", inject_tracing_into_actor_class)
 
-    @when_imported("ray.dashboard.modules.job.job_manager")
+    @ModuleWatchdog.after_module_imported("ray.dashboard.modules.job.job_manager")
     def _(m):
-        _w(ray.dashboard.modules.job.job_manager.JobManager, "submit_job", traced_submit_job)
-        _w(ray.dashboard.modules.job.job_manager.JobManager, "_monitor_job_internal", traced_end_job)
+        _w(m.JobManager, "submit_job", traced_submit_job)
+        _w(m.JobManager, "_monitor_job_internal", traced_end_job)
 
-    @when_imported("ray.remote_function")
+    @ModuleWatchdog.after_module_imported("ray.remote_function")
     def _(m):
-        _w(ray.remote_function.RemoteFunction, "_remote", traced_submit_task)
+        _w(m.RemoteFunction, "_remote", traced_submit_task)
 
     _w(ray, "wait", traced_wait)
 
 
 def unpatch():
-    import ray
-
     if not getattr(ray, "_datadog_patch", False):
         return
 
