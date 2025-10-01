@@ -68,10 +68,5 @@ def _clean_api_response_cache_dir():
         shutil.rmtree(_API_RESPONSE_CACHE_DIR)
 
 
-# Same as
-# from ddtrace.contrib.internal.pytest._xdist import PYTEST_XDIST_WORKER_VALUE
-# but we get import loop
-PYTEST_XDIST_WORKER_VALUE = os.environ.get("PYTEST_XDIST_WORKER")
-
-if PYTEST_XDIST_WORKER_VALUE is None:  # Not an xdist worker
+if os.environ.get("PYTEST_XDIST_WORKER") is None:  # Not an xdist worker
     atexit.register(_clean_api_response_cache_dir)
