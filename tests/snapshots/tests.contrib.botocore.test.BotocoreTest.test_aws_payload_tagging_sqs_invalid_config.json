@@ -11,17 +11,18 @@
     "meta": {
       "_dd.base_service": "tests.contrib.botocore",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "686be1a100000000",
+      "_dd.p.tid": "68dd8a4000000000",
       "aws.agent": "botocore",
       "aws.operation": "ListQueues",
+      "aws.partition": "aws",
       "aws.region": "us-east-1",
-      "aws.requestid": "0VVK8P7HYGMWNR72ZOMDKVN5YWBEMTQB06KZ8UIJFXZCTWB8EOE7",
+      "aws.requestid": "5JJXRQW6OHVKDW3601221IXGR8F1ALLVG4FDD6YMRENYMTLFU6CR",
       "aws_service": "sqs",
       "component": "botocore",
       "http.status_code": "200",
       "language": "python",
       "region": "us-east-1",
-      "runtime-id": "7455813a717c4f2db67e4941325daca2",
+      "runtime-id": "170e664d16b94fb488fd3b267c5814eb",
       "span.kind": "client"
     },
     "metrics": {
@@ -29,11 +30,11 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 46598,
+      "process_id": 11556,
       "retry_attempts": 0
     },
-    "duration": 13548000,
-    "start": 1751900577380009000
+    "duration": 3675500,
+    "start": 1759349312201901844
   }],
 [
   {
@@ -48,11 +49,12 @@
     "meta": {
       "_dd.base_service": "tests.contrib.botocore",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "686be1a100000000",
+      "_dd.p.tid": "68dd8a4000000000",
       "aws.agent": "botocore",
       "aws.operation": "CreateQueue",
+      "aws.partition": "aws",
       "aws.region": "us-east-1",
-      "aws.requestid": "K4YVEQB22VBV7J7O70UXR6OJ2UJIOHP75492EF9JZ2TWGB8B7YRX",
+      "aws.requestid": "JV198VJWKRC4WZ4VAOLB6R4ITBEQLDROZOEAD0Z7EGRW7ZFBLF9B",
       "aws.sqs.queue_name": "Test",
       "aws_service": "sqs",
       "component": "botocore",
@@ -60,7 +62,7 @@
       "language": "python",
       "queuename": "Test",
       "region": "us-east-1",
-      "runtime-id": "7455813a717c4f2db67e4941325daca2",
+      "runtime-id": "170e664d16b94fb488fd3b267c5814eb",
       "span.kind": "client"
     },
     "metrics": {
@@ -68,11 +70,11 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 46598,
+      "process_id": 11556,
       "retry_attempts": 0
     },
-    "duration": 5525000,
-    "start": 1751900577393879000
+    "duration": 3296541,
+    "start": 1759349312205775761
   }],
 [
   {
@@ -87,11 +89,12 @@
     "meta": {
       "_dd.base_service": "tests.contrib.botocore",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "686be1a100000000",
+      "_dd.p.tid": "68dd8a4000000000",
       "aws.agent": "botocore",
       "aws.operation": "SendMessage",
+      "aws.partition": "aws",
       "aws.region": "us-east-1",
-      "aws.requestid": "IJFLTU6W4ECLHWB7LW92UT17VYSEKQ08GBSJD7N5U6TQ1AD9Q22Y",
+      "aws.requestid": "OHTGED9PC9JY5C8ZJIPOWJUYNVCXU4QA5Y1DJ7N05AXRRB1ZOEOL",
       "aws.sqs.queue_name": "Test",
       "aws_account": "000000000000",
       "aws_service": "sqs",
@@ -100,7 +103,7 @@
       "language": "python",
       "queuename": "Test",
       "region": "us-east-1",
-      "runtime-id": "7455813a717c4f2db67e4941325daca2",
+      "runtime-id": "170e664d16b94fb488fd3b267c5814eb",
       "span.kind": "client"
     },
     "metrics": {
@@ -108,11 +111,11 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 46598,
+      "process_id": 11556,
       "retry_attempts": 0
     },
-    "duration": 15291000,
-    "start": 1751900577404725000
+    "duration": 11393000,
+    "start": 1759349312213523927
   }],
 [
   {
@@ -127,11 +130,12 @@
     "meta": {
       "_dd.base_service": "tests.contrib.botocore",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "686be1a100000000",
+      "_dd.p.tid": "68dd8a4000000000",
       "aws.agent": "botocore",
       "aws.operation": "ReceiveMessage",
+      "aws.partition": "aws",
       "aws.region": "us-east-1",
-      "aws.requestid": "KU9VQAAZ4ZJP5SEV02OTOAUX89HMHSP63ND7QTFBG7EMDCA28W0D",
+      "aws.requestid": "QRK192IFIDNBIKNLR949299LEWE2T9G4AE8NKEPWLUCTSEMVYPI9",
       "aws.sqs.queue_name": "Test",
       "aws_account": "000000000000",
       "aws_service": "sqs",
@@ -140,7 +144,7 @@
       "language": "python",
       "queuename": "Test",
       "region": "us-east-1",
-      "runtime-id": "7455813a717c4f2db67e4941325daca2",
+      "runtime-id": "170e664d16b94fb488fd3b267c5814eb",
       "span.kind": "client"
     },
     "metrics": {
@@ -148,9 +152,9 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 46598,
+      "process_id": 11556,
       "retry_attempts": 0
     },
-    "duration": 103000,
-    "start": 1751900577427944000
+    "duration": 164500,
+    "start": 1759349312232757761
   }]]
