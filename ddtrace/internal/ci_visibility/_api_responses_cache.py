@@ -15,7 +15,7 @@ _API_RESPONSE_CACHE_DIR = os.path.join(os.getcwd(), ".ddtrace_api_cache")
 
 
 def _is_response_cache_enabled():
-    return asbool(os.getenv("_DD_CIVISIBILITY_RESPONSE_CACHE_ENABLED", "true").lower())
+    return asbool(os.getenv("_DD_CIVISIBILITY_RESPONSE_CACHE_ENABLED", "false").lower())
 
 
 def _get_cache_file_path(cache_key: str) -> str:

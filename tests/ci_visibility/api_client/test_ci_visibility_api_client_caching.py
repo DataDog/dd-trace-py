@@ -61,8 +61,6 @@ class TestAPIClientCaching:
 
     def test_cache_key_generation(self):
         """Test that cache keys are generated correctly and consistently"""
-        # client = self._get_test_client()
-
         method = "POST"
         endpoint = "/api/v2/libraries/tests/services/setting"
         payload = {"data": {"id": "some-uuid", "type": "test", "attributes": {"test": "value"}}}
@@ -89,8 +87,6 @@ class TestAPIClientCaching:
 
     def test_cache_key_includes_all_parameters(self):
         """Test that cache key changes when any parameter changes"""
-        # client = self._get_test_client()
-
         base_method = "POST"
         base_endpoint = "/api/v2/libraries/tests/services/setting"
         base_payload = {"data": {"id": "uuid", "type": "test", "attributes": {"test": "value"}}}
@@ -113,8 +109,6 @@ class TestAPIClientCaching:
     def test_cache_file_path_generation(self):
         """Test that cache file paths are generated correctly"""
 
-        # client = self._get_test_client()
-
         cache_key = "abc123def456"
         cache_path = _get_cache_file_path(cache_key)
 
@@ -127,23 +121,20 @@ class TestAPIClientCaching:
 
     def test_cache_write_and_read(self):
         """Test that data can be written to and read from cache"""
-        # client = self._get_test_client()
-
         cache_key = "test_cache_key"
         test_data = {"result": "cached_response", "status": "success"}
 
-        # Write to cache
-        _write_to_cache(cache_key, test_data)
+        with patch("ddtrace.internal.ci_visibility._api_responses_cache._is_response_cache_enabled", return_value=True):
+            # Write to cache
+            _write_to_cache(cache_key, test_data)
 
-        # Read from cache
-        cached_data = _read_from_cache(cache_key)
+            # Read from cache
+            cached_data = _read_from_cache(cache_key)
 
-        assert cached_data == test_data
+            assert cached_data == test_data
 
     def test_cache_miss_returns_none(self):
         """Test that cache miss returns empty dict"""
-        # client = self._get_test_client()
-
         non_existent_key = "this_key_does_not_exist"
         cached_data = _read_from_cache(non_existent_key)
 
@@ -159,7 +150,9 @@ class TestAPIClientCaching:
         expected_parsed_response = json.loads(api_response.body)
 
         # Mock _do_request to return the response without making actual HTTP call
-        with patch.object(client, "_do_request", return_value=api_response) as mock_do_request:
+        with patch(
+            "ddtrace.internal.ci_visibility._api_responses_cache._is_response_cache_enabled", return_value=True
+        ), patch.object(client, "_do_request", return_value=api_response) as mock_do_request:
             metric_names = APIRequestMetricNames(
                 count="test.count", duration="test.duration", response_bytes=None, error="test.error"
             )
@@ -203,7 +196,9 @@ class TestAPIClientCaching:
         expected_parsed_response = json.loads(api_response.body)
 
         # Mock _do_request to return the response without making actual HTTP call
-        with patch.object(client, "_do_request", return_value=api_response) as mock_do_request:
+        with patch(
+            "ddtrace.internal.ci_visibility._api_responses_cache._is_response_cache_enabled", return_value=True
+        ), patch.object(client, "_do_request", return_value=api_response) as mock_do_request:
             metric_names = APIRequestMetricNames(
                 count="test.count", duration="test.duration", response_bytes=None, error="test.error"
             )
@@ -269,7 +264,9 @@ class TestAPIClientCaching:
         expected_parsed_response2 = json.loads(response2.body)
 
         # Mock _do_request to return different responses based on payload
-        with patch.object(client, "_do_request", side_effect=[response1, response2]) as mock_do_request:
+        with patch(
+            "ddtrace.internal.ci_visibility._api_responses_cache._is_response_cache_enabled", return_value=True
+        ), patch.object(client, "_do_request", side_effect=[response1, response2]) as mock_do_request:
             metric_names = APIRequestMetricNames(
                 count="test.count", duration="test.duration", response_bytes=None, error="test.error"
             )
@@ -299,8 +296,6 @@ class TestAPIClientCaching:
 
     def test_cache_handles_invalid_json_gracefully(self):
         """Test that cache operations handle invalid JSON gracefully"""
-        # client = self._get_test_client()
-
         cache_key = "test_invalid_json"
         cache_file = _get_cache_file_path(cache_key)
 
@@ -343,25 +338,26 @@ class TestAPIClientCaching:
         endpoint = "/api/v2/libraries/tests/services/setting"
         payload = {"data": {"type": "type", "attributes": "payload"}}
 
-        # First client makes request
-        client1 = self._get_test_client()
-        with patch.object(client1, "_do_request", return_value=api_response) as mock_do_request1:
-            result1 = client1._do_request_with_telemetry(method, endpoint, payload, metric_names)
-            assert result1 == expected_parsed_response
-            # Verify HTTP call was made by first client
-            mock_do_request1.assert_called_once()
+        with patch("ddtrace.internal.ci_visibility._api_responses_cache._is_response_cache_enabled", return_value=True):
+            # First client makes request
+            client1 = self._get_test_client()
+            with patch.object(client1, "_do_request", return_value=api_response) as mock_do_request1:
+                result1 = client1._do_request_with_telemetry(method, endpoint, payload, metric_names)
+                assert result1 == expected_parsed_response
+                # Verify HTTP call was made by first client
+                mock_do_request1.assert_called_once()
 
-        # Second client instance should use cached data
-        client2 = self._get_test_client()
-        with patch.object(client2, "_do_request", return_value=api_response) as mock_do_request2:
-            result2 = client2._do_request_with_telemetry(method, endpoint, payload, metric_names)
+            # Second client instance should use cached data
+            client2 = self._get_test_client()
+            with patch.object(client2, "_do_request", return_value=api_response) as mock_do_request2:
+                result2 = client2._do_request_with_telemetry(method, endpoint, payload, metric_names)
 
-            # No HTTP call should be made by second client (uses cache)
-            mock_do_request2.assert_not_called()
+                # No HTTP call should be made by second client (uses cache)
+                mock_do_request2.assert_not_called()
 
-            # Results should be identical
-            assert result2 == expected_parsed_response
-            assert result1 == result2
+                # Results should be identical
+                assert result2 == expected_parsed_response
+                assert result1 == result2
 
     def test_cache_key_deterministic_across_instances(self):
         """Test that cache keys are deterministic across different client instances"""
