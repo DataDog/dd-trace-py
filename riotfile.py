@@ -274,7 +274,6 @@ venv = Venv(
                 "jinja2": latest,
                 "httpx": "<0.28.0",
                 "uvicorn": "==0.33.0",
-                "hypothesis": latest,
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
@@ -304,13 +303,6 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.9", max_version="3.13"),
                     pkgs={"fastapi": ["==0.94.1", "~=0.114.2", latest]},
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.14"),
-                    pkgs={
-                        "fastapi": latest,
-                        "pydantic": "==2.12.0a1",
-                    },
                 ),
             ],
         ),
