@@ -34,6 +34,7 @@ except ImportError:
     from moto import mock_kinesis as mock_firehose
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
@@ -46,7 +47,6 @@ from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
-from ddtrace.trace import Pin
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -164,6 +164,7 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("aws.agent") == "botocore"
         assert span.get_tag("aws.region") == "us-west-2"
         assert span.get_tag("region") == "us-west-2"
+        assert span.get_tag("aws.partition") == "aws"
         assert span.get_tag("aws.operation") == "DescribeInstances"
         assert span.get_tag("aws.requestid") == "fdcdcab1-ae5c-489e-9c33-4637c5dda355"
         assert span.get_tag("component") == "botocore"
@@ -718,6 +719,7 @@ class BotocoreTest(TracerTestCase):
         assert len(spans) == 1
         assert span.get_tag("aws.region") == "us-east-1"
         assert span.get_tag("region") == "us-east-1"
+        assert span.get_tag("aws.partition") == "aws"
         assert span.get_tag("aws.operation") == "CreateQueue"
         assert span.get_tag("component") == "botocore"
         assert_is_measured(span)
@@ -771,6 +773,7 @@ class BotocoreTest(TracerTestCase):
             assert len(spans) == 1
             assert span.get_tag("aws.region") == "us-east-1"
             assert span.get_tag("region") == "us-east-1"
+            assert span.get_tag("aws.partition") == "aws"
             assert span.get_tag("aws.operation") == "SendMessage"
             assert span.get_tag("params.MessageBody") is None
             assert span.get_tag("component") == "botocore"

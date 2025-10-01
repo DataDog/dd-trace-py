@@ -4,6 +4,7 @@ import os
 import mock
 import pytest
 
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.trace import tracer
 from tests.integration.utils import AGENT_VERSION
 from tests.utils import override_global_config
@@ -26,6 +27,29 @@ def test_single_trace_single_span(tracer):
     s.set_metric("int_metric", 4321)
     s.finish()
     tracer.flush()
+
+
+@pytest.mark.subprocess()
+@pytest.mark.snapshot()
+def test_flush_spans_before_writer_recreate():
+    """
+    Test that spans are flushed before the writer is recreated.
+    This is to ensure that spans are not lost when the writer is recreated.
+    """
+    from ddtrace.trace import tracer
+
+    # Create a span that will be queued by the writer before the writer is recreated
+    with tracer.trace("operation", service="my-svc"):
+        pass
+    # Create a long running span that will be finished after the writer is recreated
+    long_running_span = tracer.trace("long_running_operation")
+
+    writer = tracer._span_aggregator.writer
+    # Enable appsec to trigger the recreation of the agent writer
+    tracer.configure(appsec_enabled=True)
+    assert tracer._span_aggregator.writer is not writer, "Writer should be recreated"
+    # Finish the long running span after the writer has been recreated
+    long_running_span.finish()
 
 
 @snapshot(include_tracer=True)
@@ -104,6 +128,10 @@ def test_synchronous_writer(writer_class):
             pass
 
 
+@pytest.mark.skipif(
+    PYTHON_VERSION_INFO >= (3, 14),
+    reason="The default multiprocessing start_method 'forkserver' causes this test to fail",
+)
 @snapshot(async_mode=False)
 @pytest.mark.subprocess(ddtrace_run=True)
 def test_tracer_trace_across_popen():
@@ -130,6 +158,10 @@ def test_tracer_trace_across_popen():
     tracer.flush()
 
 
+@pytest.mark.skipif(
+    PYTHON_VERSION_INFO >= (3, 14),
+    reason="The default multiprocessing start_method 'forkserver' causes this test to fail",
+)
 @snapshot(async_mode=False)
 @pytest.mark.subprocess(ddtrace_run=True)
 def test_tracer_trace_across_multiple_popens():

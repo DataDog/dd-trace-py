@@ -5,6 +5,7 @@ import aiobotocore.client
 import wrapt
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace._trace.utils_botocore.span_tags import _derive_peer_hostname
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
@@ -23,7 +24,6 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.trace import Pin
 
 
 aiobotocore_version_str = getattr(aiobotocore, "__version__", "")
@@ -160,6 +160,10 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
             "aws.region": region_name,
             "region": region_name,
         }
+
+        if region_name:
+            meta["aws.partition"] = aws.get_aws_partition(region_name)
+
         span.set_tags(meta)
 
         result = await original_func(*args, **kwargs)

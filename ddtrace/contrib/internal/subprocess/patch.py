@@ -85,15 +85,14 @@ def del_lst_callback(name: str):
 
 
 def should_trace_subprocess():
-    return not asm_config._bypass_instrumentation_for_waf and (asm_config._asm_enabled or asm_config._iast_enabled)
+    return not asm_config._bypass_instrumentation_for_waf and asm_config._asm_enabled
 
 
 def patch() -> List[str]:
     """Patch subprocess and os functions to enable security monitoring.
 
     This function instruments various subprocess and os functions to provide
-    security monitoring capabilities for AAP (Application Attack Protection)
-    and IAST (Interactive Application Security Testing).
+    security monitoring capabilities for AAP (Application Attack Protection).
 
     Note:
         Patching always occurs because AAP can be enabled dynamically via remote config.
@@ -470,7 +469,7 @@ def _traced_ossystem(module, pin, wrapped, instance, args, kwargs):
     """Traced wrapper for os.system function.
 
     Note:
-        Only instruments when AAP or IAST is enabled and WAF bypass is not active.
+        Only instruments when AAP is enabled and WAF bypass is not active.
         Creates spans with shell command details, exit codes, and component tags.
     """
     if should_trace_subprocess():
@@ -500,11 +499,11 @@ def _traced_fork(module, pin, wrapped, instance, args, kwargs):
     """Traced wrapper for os.fork function.
 
     Note:
-        Only instruments when AAP or IAST is enabled.
+        Only instruments when AAP is enabled.
         Creates spans with fork operation details.
     """
 
-    if not (asm_config._asm_enabled or asm_config._iast_enabled):
+    if not asm_config._asm_enabled:
         return wrapped(*args, **kwargs)
 
     with pin.tracer.trace(COMMANDS.SPAN_NAME, resource="fork", span_type=SpanTypes.SYSTEM) as span:
@@ -518,10 +517,10 @@ def _traced_osspawn(module, pin, wrapped, instance, args, kwargs):
     """Traced wrapper for os._spawnvef function (used by all os.spawn* variants).
 
     Note:
-        Only instruments when AAP or IAST is enabled.
+        Only instruments when AAP is enabled.
         Creates spans with spawn operation details and exit codes for P_WAIT mode.
     """
-    if not (asm_config._asm_enabled or asm_config._iast_enabled):
+    if not asm_config._asm_enabled:
         return wrapped(*args, **kwargs)
 
     try:
@@ -552,7 +551,7 @@ def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
     """Traced wrapper for subprocess.Popen.__init__ method.
 
     Note:
-        Only instruments when AAP or IAST is enabled and WAF bypass is not active.
+        Only instruments when AAP is enabled and WAF bypass is not active.
         Stores command details in context for later use by _traced_subprocess_wait.
         Creates a span that will be completed by the wait() method.
     """
@@ -594,20 +593,20 @@ def _traced_subprocess_wait(module, pin, wrapped, instance, args, kwargs):
     """Traced wrapper for subprocess.Popen.wait method.
 
     Note:
-        Only instruments when AAP or IAST is enabled and WAF bypass is not active.
+        Only instruments when AAP is enabled and WAF bypass is not active.
         Retrieves command details stored by _traced_subprocess_init and completes
         the span with execution results and exit code.
     """
     if should_trace_subprocess():
-        binary = core.get_item("subprocess_popen_binary")
+        binary = core.find_item("subprocess_popen_binary")
 
         with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=binary, span_type=SpanTypes.SYSTEM) as span:
-            if core.get_item(COMMANDS.CTX_SUBP_IS_SHELL):
-                span.set_tag_str(COMMANDS.SHELL, core.get_item(COMMANDS.CTX_SUBP_LINE))
+            if core.find_item(COMMANDS.CTX_SUBP_IS_SHELL):
+                span.set_tag_str(COMMANDS.SHELL, core.find_item(COMMANDS.CTX_SUBP_LINE))
             else:
-                span.set_tag(COMMANDS.EXEC, core.get_item(COMMANDS.CTX_SUBP_LINE))
+                span.set_tag(COMMANDS.EXEC, core.find_item(COMMANDS.CTX_SUBP_LINE))
 
-            truncated = core.get_item(COMMANDS.CTX_SUBP_TRUNCATED)
+            truncated = core.find_item(COMMANDS.CTX_SUBP_TRUNCATED)
             if truncated:
                 span.set_tag_str(COMMANDS.TRUNCATED, "yes")
             span.set_tag_str(COMMANDS.COMPONENT, "subprocess")

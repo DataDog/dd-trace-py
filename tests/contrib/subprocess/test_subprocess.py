@@ -5,25 +5,22 @@ import sys
 
 import pytest
 
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.subprocess.constants import COMMANDS
 from ddtrace.contrib.internal.subprocess.patch import SubprocessCmdLine
 from ddtrace.contrib.internal.subprocess.patch import patch
 from ddtrace.contrib.internal.subprocess.patch import unpatch
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.trace import Pin
 from tests.utils import override_config
 from tests.utils import override_global_config
 
 
 PATCH_ENABLED_CONFIGURATIONS = (
     dict(_asm_enabled=True),
-    dict(_iast_enabled=True),
     dict(_asm_enabled=True, _iast_enabled=True),
     dict(_asm_enabled=True, _iast_enabled=False),
-    dict(_asm_enabled=False, _iast_enabled=True),
     dict(_bypass_instrumentation_for_waf=False, _asm_enabled=True, _iast_enabled=True),
-    dict(_bypass_instrumentation_for_waf=False, _asm_enabled=False, _iast_enabled=True),
     dict(_bypass_instrumentation_for_waf=False, _asm_enabled=True, _iast_enabled=False),
 )
 
@@ -32,14 +29,18 @@ PATCH_SPECIALS = (dict(_remote_config_enabled=True),)
 PATCH_DISABLED_CONFIGURATIONS = (
     dict(),
     dict(_asm_enabled=False),
+    dict(_iast_enabled=True),
     dict(_iast_enabled=False),
+    dict(_asm_enabled=False, _iast_enabled=True),
     dict(_remote_config_enabled=False),
+    dict(_remote_config_enabled=False, _iast_enabled=True),
     dict(_asm_enabled=False, _iast_enabled=False),
     dict(_bypass_instrumentation_for_waf=True, _asm_enabled=False, _iast_enabled=False),
     dict(_bypass_instrumentation_for_waf=True),
     dict(_bypass_instrumentation_for_waf=False, _asm_enabled=False, _iast_enabled=False),
     dict(_bypass_instrumentation_for_waf=True, _asm_enabled=True, _iast_enabled=False),
     dict(_bypass_instrumentation_for_waf=True, _asm_enabled=False, _iast_enabled=True),
+    dict(_bypass_instrumentation_for_waf=False, _asm_enabled=False, _iast_enabled=True),
 )
 
 CONFIGURATIONS = PATCH_ENABLED_CONFIGURATIONS + PATCH_DISABLED_CONFIGURATIONS
@@ -410,17 +411,10 @@ def test_osspawn_variants(tracer, function, mode, arguments):
                     ret = function(mode, arguments[0], arguments)
             else:
                 ret = function(mode, arguments[0], *arguments)
-            # TODO(APPSEC-57964): Gitlab raises at some point
-            #  Traceback (most recent call last):
-            #    File "/3.10.16/lib/python3.10/multiprocessing/util.py", line 357, in _exit_function
-            #      p.join()
-            #    File "/root/.pyenv/versions/3.10.16/lib/python3.10/multiprocessing/process.py", line 147, in join
-            #      assert self._parent_pid == os.getpid(), 'can only join a child process'
-            #  AssertionError: can only join a child process
-            # if mode == os.P_WAIT:
-            #     assert ret == 0
-            # else:
-            #     assert ret > 0  # for P_NOWAIT returned value is the pid
+            if mode == os.P_WAIT:
+                assert ret == 0
+            else:
+                assert ret > 0  # for P_NOWAIT returned value is the pid
 
         spans = tracer.pop()
         assert spans
@@ -485,9 +479,9 @@ def test_subprocess_wait_shell_false(tracer, config):
             subp = subprocess.Popen(args=args, shell=False)
             subp.wait()
 
-            assert not core.get_item(COMMANDS.CTX_SUBP_IS_SHELL)
-            assert not core.get_item(COMMANDS.CTX_SUBP_TRUNCATED)
-            assert core.get_item(COMMANDS.CTX_SUBP_LINE) == args
+            assert not core.find_item(COMMANDS.CTX_SUBP_IS_SHELL)
+            assert not core.find_item(COMMANDS.CTX_SUBP_TRUNCATED)
+            assert core.find_item(COMMANDS.CTX_SUBP_LINE) == args
 
 
 @pytest.mark.parametrize("config", PATCH_ENABLED_CONFIGURATIONS)
@@ -499,7 +493,7 @@ def test_subprocess_wait_shell_true(tracer, config):
             subp = subprocess.Popen(args=["dir", "-li", "/"], shell=True)
             subp.wait()
 
-            assert core.get_item(COMMANDS.CTX_SUBP_IS_SHELL)
+            assert core.find_item(COMMANDS.CTX_SUBP_IS_SHELL)
 
 
 @pytest.mark.parametrize("config", PATCH_ENABLED_CONFIGURATIONS)

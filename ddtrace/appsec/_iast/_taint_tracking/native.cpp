@@ -17,7 +17,7 @@
 #include "aspects/aspect_str.h"
 #include "aspects/aspects_exports.h"
 #include "constants.h"
-#include "initializer/_initializer.h"
+#include "context/_taint_engine_context.h"
 #include "taint_tracking/taint_tracking.h"
 #include "tainted_ops/tainted_ops.h"
 #include "utils/generic_utils.h"
@@ -41,23 +41,25 @@ static PyMethodDef AspectsMethods[] = {
     { nullptr, nullptr, 0, nullptr }
 };
 
-static struct PyModuleDef aspects = { PyModuleDef_HEAD_INIT,
-                                      .m_name = PY_MODULE_NAME_ASPECTS,
-                                      .m_doc = "Taint tracking Aspects",
-                                      .m_size = -1,
-                                      .m_methods = AspectsMethods };
+// Mark the module as used to prevent it from being stripped.
+static struct PyModuleDef aspects __attribute__((used)) = { PyModuleDef_HEAD_INIT,
+                                                            .m_name = PY_MODULE_NAME_ASPECTS,
+                                                            .m_doc = "Taint tracking Aspects",
+                                                            .m_size = -1,
+                                                            .m_methods = AspectsMethods };
 
 static PyMethodDef OpsMethods[] = {
     { "new_pyobject_id", (PyCFunction)api_new_pyobject_id, METH_FASTCALL, "new pyobject id" },
-    { "set_ranges_from_values", ((PyCFunction)api_set_ranges_from_values), METH_FASTCALL, "set_ranges_from_values" },
+    { "taint_pyobject", ((PyCFunction)api_taint_pyobject), METH_FASTCALL, "api_taint_pyobject" },
     { nullptr, nullptr, 0, nullptr }
 };
 
-static struct PyModuleDef ops = { PyModuleDef_HEAD_INIT,
-                                  .m_name = PY_MODULE_NAME_ASPECTS,
-                                  .m_doc = "Taint tracking operations",
-                                  .m_size = -1,
-                                  .m_methods = OpsMethods };
+// Mark the module as used to prevent it from being stripped.
+static struct PyModuleDef ops __attribute__((used)) = { PyModuleDef_HEAD_INIT,
+                                                        .m_name = PY_MODULE_NAME_ASPECTS,
+                                                        .m_doc = "Taint tracking operations",
+                                                        .m_size = -1,
+                                                        .m_methods = OpsMethods };
 
 /**
  * This function initializes the native module.
@@ -65,17 +67,39 @@ static struct PyModuleDef ops = { PyModuleDef_HEAD_INIT,
 PYBIND11_MODULE(_native, m)
 {
     initializer = make_unique<Initializer>();
+    taint_engine_context = make_unique<TaintEngineContext>();
 
     // Create a atexit callback to cleanup the Initializer before the interpreter finishes
     auto atexit_register = safe_import("atexit", "register");
     atexit_register(py::cpp_function([]() {
-        initializer->reset_contexts();
+        // During interpreter shutdown (esp. with gevent), heavy cleanup can
+        // trigger refcounting or Python API calls without a valid runtime.
+        // If gevent monkey-patching is active, skip setting the shutdown flag
+        // because it interferes with greenlet scheduling at exit.
+
+        bool gevent_active = false;
+        try {
+            auto is_patched = safe_import("gevent.monkey", "is_module_patched");
+            gevent_active =
+              asbool(is_patched("threading")) || asbool(is_patched("socket")) || asbool(is_patched("ssl"));
+        } catch (const py::error_already_set&) {
+            PyErr_Clear();
+        }
+
+        if (!gevent_active) {
+            py::gil_scoped_acquire gil; // safe to touch Python-adjacent state
+            TaintEngineContext::set_shutting_down(true);
+        }
+
         initializer.reset();
+        if (taint_engine_context) {
+            taint_engine_context->clear_all_request_context_slots();
+            taint_engine_context.reset();
+        }
     }));
 
     m.doc() = "Native Python module";
-
-    py::module m_initializer = pyexport_m_initializer(m);
+    py::module m_appctx = pyexport_m_taint_engine_context(m);
     pyexport_m_taint_tracking(m);
 
     pyexport_m_aspect_helpers(m);

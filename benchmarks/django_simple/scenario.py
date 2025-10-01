@@ -14,14 +14,27 @@ class DjangoSimple(bm.Scenario):
     django_instrument_middleware: bool
     django_instrument_caches: bool
     django_instrument_databases: bool
+    always_create_database_spans: bool
     django_instrument_templates: bool
+    native_writer: bool
+    django_minimal: bool
+    resource_renaming_enabled: bool
 
     def run(self):
         os.environ["DJANGO_SETTINGS_MODULE"] = "app"
         os.environ["DD_DJANGO_INSTRUMENT_MIDDLEWARE"] = "1" if self.django_instrument_middleware else "0"
         os.environ["DD_DJANGO_INSTRUMENT_CACHES"] = "1" if self.django_instrument_caches else "0"
         os.environ["DD_DJANGO_INSTRUMENT_DATABASES"] = "1" if self.django_instrument_databases else "0"
+        os.environ["DD_DJANGO_ALWAYS_CREATE_DATABASE_SPANS"] = "1" if self.always_create_database_spans else "0"
         os.environ["DD_DJANGO_INSTRUMENT_TEMPLATES"] = "1" if self.django_instrument_templates else "0"
+
+        # Use only the minimal setting and the defaults for everything else (mostly based on the value of "minimal")
+        if self.django_minimal:
+            os.environ["DD_DJANGO_TRACING_MINIMAL"] = "1"
+            del os.environ["DD_DJANGO_INSTRUMENT_CACHES"]
+            del os.environ["DD_DJANGO_INSTRUMENT_DATABASES"]
+            del os.environ["DD_DJANGO_ALWAYS_CREATE_DATABASE_SPANS"]
+            del os.environ["DD_DJANGO_INSTRUMENT_TEMPLATES"]
 
         if self.profiler_enabled:
             os.environ.update(
@@ -35,6 +48,10 @@ class DjangoSimple(bm.Scenario):
             os.environ.update({"DD_CODE_ORIGIN_FOR_SPANS_ENABLED": "1"})
         if self.exception_replay_enabled:
             os.environ.update({"DD_EXCEPTION_REPLAY_ENABLED": "1"})
+        if self.native_writer:
+            os.environ.update({"_DD_TRACE_WRITER_NATIVE": "1"})
+        if self.resource_renaming_enabled:
+            os.environ.update({"DD_TRACE_RESOURCE_RENAMING_ENABLED": "1"})
 
         # This will not work with gevent workers as the gevent hub has not been
         # initialized when this hook is called.
@@ -56,3 +73,42 @@ class DjangoSimple(bm.Scenario):
                 client.get(self.path)
 
         yield _
+
+        # Try to clear any caches
+        # DEV: Some of these methods/caches only exist in some versions of the library
+        if self.django_instrument_databases:
+            try:
+                from ddtrace.contrib.internal.django import database
+
+                try:
+                    database.get_conn_config.cache_clear()
+                except Exception:
+                    pass
+
+                try:
+                    database.get_service_name.cache_clear()
+                except Exception:
+                    pass
+
+                try:
+                    database.get_conn_service_name.cache_clear()
+                except Exception:
+                    pass
+            except Exception:
+                pass
+
+        if self.django_instrument_caches:
+            try:
+                from ddtrace.contrib.internal.django import cache
+
+                try:
+                    cache.get_service_name.cache_clear()
+                except Exception:
+                    pass
+
+                try:
+                    cache.func_cache_operation.cache_clear()
+                except Exception:
+                    pass
+            except Exception:
+                pass

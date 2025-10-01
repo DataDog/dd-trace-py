@@ -416,3 +416,35 @@ class TestLangGraphLLMObs:
         agent_span = _find_span_by_name(llmobs_events, "agent")
 
         assert agent_span["meta"]["metadata"]["agent_manifest"]["max_iterations"] == 100
+
+    @pytest.mark.skipif(LANGGRAPH_VERSION < (0, 3, 22), reason="Agent names are only supported in LangGraph 0.3.22+")
+    def test_agent_with_tool_calls_integrations_enabled(
+        self, llmobs_events, agent_from_create_react_agent_integrations_enabled
+    ):
+        """
+        Test that invoking an agent with tool calls while other integrations are enabled results in
+        llm -> tool -> llm span links.
+        """
+        agent_from_create_react_agent_integrations_enabled.invoke(
+            {"messages": [{"role": "user", "content": "What is 2 + 2?"}]}
+        )
+
+        assert len(llmobs_events) == 11
+
+        first_llm_span = llmobs_events[0]
+        tool_span = llmobs_events[4]
+        second_llm_span = llmobs_events[6]
+
+        assert first_llm_span["meta"]["span"]["kind"] == "llm"
+        assert tool_span["meta"]["span"]["kind"] == "tool"
+        assert second_llm_span["meta"]["span"]["kind"] == "llm"
+
+        # assert llm -> tool span link
+        assert tool_span["span_links"][1]["span_id"] == first_llm_span["span_id"]
+        assert tool_span["span_links"][1]["attributes"]["from"] == "output"
+        assert tool_span["span_links"][1]["attributes"]["to"] == "input"
+
+        # assert tool -> llm span link
+        assert second_llm_span["span_links"][0]["span_id"] == tool_span["span_id"]
+        assert second_llm_span["span_links"][0]["attributes"]["from"] == "output"
+        assert second_llm_span["span_links"][0]["attributes"]["to"] == "input"

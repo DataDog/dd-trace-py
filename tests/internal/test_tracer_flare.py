@@ -6,12 +6,16 @@ import os
 import pathlib
 import re
 import shutil
+from typing import Dict
 from typing import Optional
+from typing import Union
+from typing import cast
 from unittest import mock
 
 from pyfakefs.fake_filesystem_unittest import TestCase
 import pytest
 
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.flare._subscribers import TracerFlareSubscriber
 from ddtrace.internal.flare.flare import TRACER_FLARE_FILE_HANDLER_NAME
 from ddtrace.internal.flare.flare import Flare
@@ -126,6 +130,86 @@ class TracerFlareTests(TestCase):
         with open(self.flare_file_path, "r") as file:
             for line in file:
                 assert app_log_line not in line, f"File {self.flare_file_path} contains excluded line: {app_log_line}"
+
+        self.flare.clean_up_files()
+        self.flare.revert_configs()
+
+    def test_json_logs(self):
+        """
+        Validate that logs produced are in JSON format
+
+        We validate that logs are written as JSON in a specific format
+        """
+        self.flare.prepare("DEBUG")
+        self.prepare_called = True
+
+        ddlogger = get_logger("ddtrace.flare.test.module")
+        ddlogger.debug("this is a test log")
+        ddlogger.info("this is another test log with a number: %d", 1234)
+        ddlogger.warning("this is a warning with a float: %.2f", 12.34)
+        try:
+            1 / 0
+        except ZeroDivisionError:
+            ddlogger.exception("this is an exception log")
+
+        assert os.path.exists(self.flare_file_path)
+
+        logs = []
+        with open(self.flare_file_path, "r") as file:
+            for line in file:
+                data = json.loads(line)
+                assert isinstance(data, dict), f"Log line is not a JSON object: {line}"
+                for key, value in data.items():
+                    assert isinstance(key, str), f"Log line has non-string key: {key} in line: {line}"
+                    assert value is None or isinstance(
+                        value, (str, int, float)
+                    ), f"Log line has non-string/int/float/None value: {value} in line: {line}"
+
+                data = cast(Dict[str, Union[str, int, float, None]], data)
+
+                required_keys = {
+                    "filename",
+                    "funcName",
+                    "level",
+                    "lineno",
+                    "logger",
+                    "message",
+                    "module",
+                    "process",
+                    "processName",
+                    "thread",
+                    "threadName",
+                    "timestamp",
+                }
+                log_keys = set(data.keys())
+                assert required_keys.issubset(
+                    log_keys
+                ), f"Log line is missing required keys: {required_keys - log_keys}"
+                logs.append(data)
+
+        assert len(logs) == 5, f"Expected 4 log lines, got {len(logs)}"
+
+        assert logs[0]["logger"] == "ddtrace"
+        assert logs[0]["level"] == "DEBUG"
+        assert logs[0]["message"].startswith("ddtrace logs will be routed to")
+
+        assert logs[1]["logger"] == "ddtrace.flare.test.module"
+        assert logs[1]["level"] == "DEBUG"
+        assert logs[1]["message"] == "this is a test log"
+
+        assert logs[2]["logger"] == "ddtrace.flare.test.module"
+        assert logs[2]["level"] == "INFO"
+        assert logs[2]["message"] == "this is another test log with a number: 1234"
+
+        assert logs[3]["logger"] == "ddtrace.flare.test.module"
+        assert logs[3]["level"] == "WARNING"
+        assert logs[3]["message"] == "this is a warning with a float: 12.34"
+
+        assert logs[4]["logger"] == "ddtrace.flare.test.module"
+        assert logs[4]["level"] == "ERROR"
+        assert logs[4]["message"] == "this is an exception log"
+        assert logs[4]["exception"].startswith("Traceback (most recent call last):")
+        assert "ZeroDivisionError" in logs[4]["exception"]
 
         self.flare.clean_up_files()
         self.flare.revert_configs()
@@ -545,6 +629,9 @@ class TracerFlareTests(TestCase):
         self.flare.revert_configs()
 
 
+@pytest.mark.skipif(
+    PYTHON_VERSION_INFO >= (3, 14), reason="pyfakefs seems not to fully work with multiprocessing under Python 3.14"
+)
 class TracerFlareMultiprocessTests(TestCase):
     def setUp(self):
         self.setUpPyfakefs()

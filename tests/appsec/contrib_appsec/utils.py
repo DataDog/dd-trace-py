@@ -11,9 +11,9 @@ from urllib.parse import urlencode
 import pytest
 
 import ddtrace
+from ddtrace._trace.pin import Pin
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import _constants as asm_constants
-from ddtrace.appsec._utils import get_security
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import constants
 from ddtrace.settings.asm import config as asm_config
@@ -113,6 +113,11 @@ class Contrib_TestClass_For_Threats:
     def update_tracer(self, interface):
         interface.tracer._span_aggregator.writer._api_version = "v0.4"
         interface.tracer._recreate()
+        # update sampling rate for api10
+        from ddtrace.appsec._asm_request_context import UINT64_MAX
+        from ddtrace.appsec._asm_request_context import DownstreamRequests
+
+        DownstreamRequests.sampling_rate = int(asm_config._dr_sample_rate * UINT64_MAX)
         assert asm_config._asm_libddwaf_available
         # Only for tests diagnostics
 
@@ -184,22 +189,30 @@ class Contrib_TestClass_For_Threats:
 
         Also ensure the resource name is set correctly.
         """
-        if interface.name != "django":
-            pytest.skip("API endpoint discovery is only supported in Django")
-        from ddtrace.settings.asm import endpoint_collection
+        from ddtrace.internal.endpoints import endpoint_collection
 
         def parse(path: str) -> str:
             import re
 
-            # django substitutions to make a url path from route
+            # substitutions to make a url path from route
             if re.match(r"^\^.*\$$", path):
                 path = path[1:-1]
-            path = re.sub(r"<int:param_int>", "123", path)
-            path = re.sub(r"<str:param_str>", "abc", path)
+            path = re.sub(r"<int:param_int>|\{[a-z_]+:int\}", "123", path)
+            path = re.sub(r"<(str|string):[a-z_]+>|\{[a-z_]+:str\}", "abczx", path)
             if path.endswith("/?"):
                 path = path[:-2]
-            return "/" + path
+            return path if path.startswith("/") else ("/" + path)
 
+        must_found: set[str] = {
+            "",
+            "/asm/123/abczx",
+            "/asm",
+            "/new_service/abczx",
+            "/login",
+            "/login_sdk",
+            "/rasp/abczx",
+        }
+        found: set[str] = set()
         with override_global_config(dict(_asm_enabled=True)):
             self.update_tracer(interface)
             # required to load the endpoints
@@ -212,17 +225,22 @@ class Contrib_TestClass_For_Threats:
                 assert isinstance(ep.path, str)
                 assert ep.resource_name
                 assert ep.operation_name
-                if ep.method not in ("GET", "*", "POST"):
+                if ep.method not in ("GET", "*", "POST") or ep.path.startswith("/static"):
                     continue
                 path = parse(ep.path)
+                found.add(path.rstrip("/"))
                 response = (
-                    interface.client.post(path, {"data": "content"})
+                    interface.client.post(path, data=json.dumps({"data": "content"}), content_type="application/json")
                     if ep.method == "POST"
                     else interface.client.get(path)
                 )
-                assert self.status(response) in (200, 401), f"ep.path failed: {ep.path} -> {path}"
+                assert self.status(response) in (
+                    200,
+                    401,
+                ), f"ep.path failed: [{self.status(response)}] {ep.path} -> {path}"
                 resource = "GET" + ep.resource_name[1:] if ep.resource_name.startswith("* ") else ep.resource_name
                 assert find_resource(resource)
+        assert must_found <= found
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize(
@@ -318,7 +336,7 @@ class Contrib_TestClass_For_Threats:
                         ("request_blocked", "false"),
                         ("waf_timeout", "false"),
                         ("input_truncated", "true"),
-                        ("waf_error", "0"),
+                        ("waf_error", "false"),
                         ("rate_limited", "false"),
                     ),
                 ),
@@ -1940,26 +1958,56 @@ class Contrib_TestClass_For_Threats:
             sampling_decision = get_entry_span_tag(constants.SAMPLING_DECISION_TRACE_TAG_KEY)
             assert span_sampling_priority < 2 or sampling_decision != f"-{constants.SamplingMechanism.APPSEC}"
 
-    @pytest.mark.parametrize("rename_service", [True, False])
-    @pytest.mark.parametrize("metastruct", [True, False])
-    def test_iast(self, interface, root_span, get_tag, metastruct, rename_service):
-        from ddtrace.ext import http
-
-        with override_global_config(dict(_use_metastruct_for_iast=metastruct, _iast_use_root_span=True)):
-            url = "/rasp/command_injection/?cmds=."
+    @pytest.mark.parametrize("endpoint", ["urlopen_request", "urlopen_string"])
+    def test_api10(self, endpoint, interface, get_tag):
+        """test api10 on downstream request headers on rasp endpoint"""
+        TAG_AGENT: str = "TAG_API10_HEADER"
+        with override_global_config(
+            dict(
+                _asm_enabled=True,
+                _api_security_enabled=True,
+                _ep_enabled=True,
+                _asm_static_rule_file=rules.RULES_EXPLOIT_PREVENTION,
+            )
+        ):
             self.update_tracer(interface)
-            response = interface.client.get(url, headers={"x-rename-service": str(rename_service).lower()})
-            assert self.status(response) == 200
-            assert get_tag(http.STATUS_CODE) == "200"
-            assert self.body(response).startswith("command_injection endpoint")
-            stack_traces = self.get_stack_trace(root_span, "vulnerability")
-            if asm_config._iast_enabled:
-                assert get_security(root_span()) is not None
-                # checking for iast stack traces
-                assert stack_traces
+            response = interface.client.get(
+                f"/rasp/ssrf/?url_{endpoint}=https%3A%2F%2Fwww.datadoghq.com%2Ftest%3Fx%3D1",
+            )
+            assert self.status(response) == 200, f"{self.status(response)} is not 200"
+            tag = get_tag("_dd.appsec.trace.mark")
+            assert tag == TAG_AGENT, f"[{tag}] is not [{TAG_AGENT}]"
+
+    @pytest.mark.parametrize(
+        ("endpoint", "data", "tag"),
+        [
+            ("www.datadoghq.com", None, "TAG_API10_HEADER"),
+            ("www.google.com", {"payload": "qw2jedrkjerbgol23ewpfirj2qw3or"}, "TAG_API10_BODY"),
+        ],
+    )
+    @pytest.mark.parametrize("integration", ["", "_requests"])
+    def test_api10_addresses(self, integration, endpoint, data, tag, interface, get_tag):
+        """test api10 on downstream request headers and body"""
+        from urllib.parse import quote
+
+        with override_global_config(
+            dict(
+                _asm_enabled=True,
+                _api_security_enabled=True,
+                _ep_enabled=True,
+                _asm_static_rule_file=rules.RULES_EXPLOIT_PREVENTION,
+                _dr_sample_rate=1.0,
+            )
+        ):
+            self.update_tracer(interface)
+            url = f"/redirect{integration}/{quote(endpoint, safe='')}/"
+            if data:
+                response = interface.client.post(url, data=json.dumps(data), content_type="application/json")
             else:
-                assert get_security(root_span()) is None
-                assert stack_traces == []
+                response = interface.client.get(url)
+            assert self.status(response) == 200, f"{self.status(response)} is not 200"
+            c_tag = get_tag("_dd.appsec.trace.mark")
+            assert c_tag == tag, f"[{c_tag}] is not [{tag}] {response.text[:50]}"
 
 
 @contextmanager
@@ -1980,8 +2028,8 @@ def test_tracer():
 
 @contextmanager
 def post_tracer(interface):
-    original_tracer = getattr(ddtrace.trace.Pin.get_from(interface.framework), "tracer", None)
-    ddtrace.trace.Pin._override(interface.framework, tracer=interface.tracer)
+    original_tracer = getattr(Pin.get_from(interface.framework), "tracer", None)
+    Pin._override(interface.framework, tracer=interface.tracer)
     yield
     if original_tracer is not None:
-        ddtrace.trace.Pin._override(interface.framework, tracer=original_tracer)
+        Pin._override(interface.framework, tracer=original_tracer)

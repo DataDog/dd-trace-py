@@ -2,6 +2,7 @@
 import itertools
 import os
 import subprocess
+import types
 
 import django
 from django.core.signals import request_started
@@ -15,7 +16,6 @@ from django.utils.functional import SimpleLazyObject
 from django.views.generic import TemplateView
 import mock
 import pytest
-import wrapt
 
 from ddtrace import config
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
@@ -23,12 +23,12 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import USER_KEEP
-from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.django.patch import instrument_view
-from ddtrace.contrib.internal.django.patch import traced_get_response
+from ddtrace.contrib.internal.django.response import traced_get_response
 from ddtrace.contrib.internal.django.utils import get_request_uri
 from ddtrace.ext import http
 from ddtrace.ext import user
+from ddtrace.internal import wrapping
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.propagation._utils import get_wsgi_header
@@ -2443,9 +2443,9 @@ def test_connections_patched():
 
     assert len(connections.all())
     for conn in connections.all():
-        assert isinstance(conn.cursor, wrapt.ObjectProxy)
+        assert wrapping.is_wrapped(conn.cursor)
 
-    assert isinstance(connection.cursor, wrapt.ObjectProxy)
+    assert wrapping.is_wrapped(connection.cursor)
 
 
 def test_django_get_user(client, test_spans):
@@ -2470,12 +2470,20 @@ def test_django_base_handler_failure(client, test_spans):
     django.core.handler.base.BaseHandler.get_response.  We expect to populate the resource
     with "GET <resource>" instead of what we did before this test "GET"
     """
-    trace_utils.unwrap(client.handler, "get_response")
-    with mock.patch.object(client.handler, "get_response", side_effect=Exception("test")):
-        trace_utils.wrap(client.handler, "get_response", traced_get_response(django))
+
+    def get_response(self, *args, **kwargs):
+        raise Exception("test")
+
+    original = client.handler.get_response
+    wrapping.wrap(get_response, traced_get_response)
+    client.handler.get_response = types.MethodType(get_response, client.handler)
+
+    try:
         try:
             client.get("/")
         except Exception:
             pass  # We expect an error
         root = test_spans.get_root_span()
         assert root.resource == "GET ^$"
+    finally:
+        client.handler.get_response = original

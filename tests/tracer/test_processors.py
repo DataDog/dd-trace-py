@@ -107,7 +107,7 @@ def test_aggregator_user_processors():
 
 def test_aggregator_reset_default_args():
     """
-    Test that on reset, the aggregator recreates the sampling processor and trace writer.
+    Test that on reset, the aggregator recreates trace writer but not the sampling processor (by default).
     Processors and trace buffers should be reset not reset.
     """
     dd_proc = DummyProcessor()
@@ -134,9 +134,44 @@ def test_aggregator_reset_default_args():
     assert dd_proc in aggr.dd_processors
     assert user_proc in aggr.user_processors
     assert aggr.writer is not dm_writer
-    assert sampling_proc is not aggr.sampling_processor
+    assert sampling_proc is aggr.sampling_processor
     assert not aggr._traces
     assert len(aggr._span_metrics["spans_created"]) == 0
+
+
+def test_aggregator_reset_apm_opt_out_preserves_sampling():
+    """
+    Test that calling aggr.reset(apm_opt_out=True) updates the apm_opt_out setting
+    but preserves the sampling rules on the TraceSamplingProcessor.
+    """
+    sampling_rule = SpanSamplingRule(service="test_service", name="test_name", sample_rate=0.5, max_per_second=10)
+
+    dd_proc = DummyProcessor()
+    user_proc = DummyProcessor()
+    aggr = SpanAggregator(
+        partial_flush_enabled=False,
+        partial_flush_min_spans=1,
+        dd_processors=[dd_proc],
+        user_processors=[user_proc],
+    )
+
+    sampling_proc = aggr.sampling_processor
+    original_apm_opt_out = sampling_proc.apm_opt_out
+
+    sampling_proc.sampler.rules = [TraceSamplingRule(sample_rate=0.1)]
+    rule = sampling_proc.sampler.rules[0]
+    sampling_proc.single_span_rules = [sampling_rule]
+
+    assert sampling_proc.single_span_rules == [sampling_rule]
+    assert sampling_proc.apm_opt_out == original_apm_opt_out
+
+    aggr.reset(apm_opt_out=True)
+
+    # Assert that sampling rules are preserved after reset
+    assert sampling_proc.apm_opt_out is True
+    assert sampling_proc.single_span_rules == [sampling_rule]
+    assert sampling_proc.sampler.rules[0] == rule
+    assert sampling_proc is aggr.sampling_processor
 
 
 @pytest.mark.parametrize("writer_class", (AgentWriter, NativeWriter))
@@ -644,18 +679,17 @@ def test_single_span_sampling_processor_no_rules():
 
 
 def test_single_span_sampling_processor_w_stats_computation():
-    """Test that span processor changes _sampling_priority_v1 to 2 when stats computation is enabled"""
+    """Test that span processor does not modify the sampling priority when stats computation is enabled"""
     rule_1 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=1.0, max_per_second=-1)
     rules = [rule_1]
-    processor = TraceSamplingProcessor(False, rules, False)
+    processor = TraceSamplingProcessor(True, rules, False)
     processor.sampler.rules = [TraceSamplingRule(sample_rate=0.0)]
-    with override_global_config(dict(_trace_compute_stats=True)):
-        tracer = DummyTracer()
-        switch_out_trace_sampling_processor(tracer, processor)
+    tracer = DummyTracer()
+    switch_out_trace_sampling_processor(tracer, processor)
 
-        span = traced_function(tracer)
+    span = traced_function(tracer)
 
-    assert_span_sampling_decision_tags(span, trace_sampling_priority=USER_KEEP)
+    assert_span_sampling_decision_tags(span, trace_sampling_priority=AUTO_REJECT)
 
 
 def traced_function(tracer, name="test_name", service="test_service", trace_sampling_priority=0):

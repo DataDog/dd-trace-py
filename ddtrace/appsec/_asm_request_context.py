@@ -105,14 +105,15 @@ class ASM_Environment:
         self.finalized: bool = False
         self.api_security_reported: int = 0
         self.rc_products: str = rc_products
+        self.downstream_requests: int = 0
 
 
 def _get_asm_context() -> Optional[ASM_Environment]:
-    return core.get_item(_ASM_CONTEXT)
+    return core.find_item(_ASM_CONTEXT)
 
 
 def in_asm_context() -> bool:
-    return core.get_item(_ASM_CONTEXT) is not None
+    return core.find_item(_ASM_CONTEXT) is not None
 
 
 def is_blocked() -> bool:
@@ -138,6 +139,25 @@ def get_entry_span() -> Optional[Span]:
         else:
             return core.get_root_span()
     return env.entry_span
+
+
+KNUTH_FACTOR: int = 11400714819323199488
+UINT64_MAX: int = (1 << 64) - 1
+
+
+class DownstreamRequests:
+    counter: int = 0
+    sampling_rate: int = int(asm_config._dr_sample_rate * UINT64_MAX)
+
+
+def should_analyze_body_response(env) -> bool:
+    """Must be called only after should_analyze_downstream returned True."""
+    DownstreamRequests.counter += 1
+    env.downstream_requests += 1
+    return (
+        env.downstream_requests <= asm_config._dr_body_limit_per_request
+        and (DownstreamRequests.counter * KNUTH_FACTOR) % UINT64_MAX <= DownstreamRequests.sampling_rate
+    )
 
 
 def get_framework() -> str:
@@ -530,10 +550,10 @@ def start_context(span: Span, rc_products: str):
         # it should only be called at start of a core context, when ASM_Env is not set yet
         core.set_item(_ASM_CONTEXT, ASM_Environment(span=span, rc_products=rc_products))
         asm_request_context_set(
-            core.get_local_item("remote_addr"),
-            core.get_local_item("headers"),
-            core.get_local_item("headers_case_sensitive"),
-            core.get_local_item("block_request_callable"),
+            core.get_item("remote_addr"),
+            core.get_item("headers"),
+            core.get_item("headers_case_sensitive"),
+            core.get_item("block_request_callable"),
         )
 
 
@@ -544,7 +564,7 @@ def end_context(span: Span):
 
 
 def _on_context_ended(ctx, _exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]]):
-    env = ctx.get_local_item(_ASM_CONTEXT)
+    env = ctx.get_item(_ASM_CONTEXT)
     if env is not None:
         finalize_asm_env(env)
 

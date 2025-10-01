@@ -9,12 +9,13 @@ on:
     paths:
     - ddtrace/internal/datadog/profiling/**
     - ddtrace/profiling/**
+    - .github/workflows/profiling-native.yml
   workflow_dispatch: {}
 
 jobs:
   test:
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 7
+    timeout-minutes: 9
     strategy:
       fail-fast: false
       matrix:
@@ -32,16 +33,15 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install llvm 19
-        run: |
-          # Ubuntu-24.04 GH actions image has llvm-18, but we use 19 as it's
-          # the latest one available.
-          wget https://apt.llvm.org/llvm.sh
-          chmod +x llvm.sh
-          sudo ./llvm.sh 19
+      - uses: KyleMayes/install-llvm-action@a7a1a882e2d06ebe05d5bb97c3e1f8c984ae96fc # v2.0.7
+        with:
+          version: "19"
+          cached: true
 
       - name: Install Valgrind
+        if: ${{ matrix.sanitizer == 'valgrind' }}
         run: |
+          sudo apt update
           sudo apt-get install -y valgrind
 
       - name: Run tests with sanitizers

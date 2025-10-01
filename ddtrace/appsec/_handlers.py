@@ -1,4 +1,3 @@
-import asyncio
 import io
 import json
 from typing import Any
@@ -171,6 +170,9 @@ def _on_lambda_parse_body(
 
 async def _on_asgi_request_parse_body(receive, headers):
     if asm_config._asm_enabled:
+        # This must not be imported globally due to 3rd party patching timeline
+        import asyncio
+
         more_body = True
         body_parts = []
         try:
@@ -375,13 +377,13 @@ def _asgi_make_block_content(ctx, url):
 
 def _on_flask_blocked_request(span):
     span.set_tag_str(http.STATUS_CODE, "403")
-    request = core.get_item("flask_request")
+    request = core.find_item("flask_request")
     try:
         base_url = getattr(request, "base_url", None)
         query_string = getattr(request, "query_string", None)
         if base_url and query_string:
-            _set_url_tag(core.get_item("flask_config"), span, base_url, query_string)
-        if query_string and core.get_item("flask_config").trace_query_string:
+            _set_url_tag(core.find_item("flask_config"), span, base_url, query_string)
+        if query_string and core.find_item("flask_config").trace_query_string:
             span.set_tag_str(http.QUERY_STRING, query_string)
         if request.method is not None:
             span.set_tag_str(http.METHOD, request.method)
@@ -427,8 +429,9 @@ def listen():
     core.on("aws_lambda.start_response", _on_lambda_start_response)
     core.on("aws_lambda.parse_body", _on_lambda_parse_body)
 
-    core.on("grpc.server.response.message", _on_grpc_server_response)
-    core.on("grpc.server.data", _on_grpc_server_data)
+    # disabling threats grpc listeners.
+    # core.on("grpc.server.response.message", _on_grpc_server_response)
+    # core.on("grpc.server.data", _on_grpc_server_data)
 
     core.on("wsgi.block.started", _wsgi_make_block_content, "status_headers_content")
     core.on("asgi.block.started", _asgi_make_block_content, "status_headers_content")

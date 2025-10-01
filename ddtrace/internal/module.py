@@ -111,21 +111,34 @@ def unregister_post_run_module_hook(hook: ModuleHookType) -> None:
 def origin(module: ModuleType) -> t.Optional[Path]:
     """Get the origin source file of the module."""
     try:
-        # DEV: Use object.__getattribute__ to avoid potential side-effects.
-        orig = Path(object.__getattribute__(module, "__file__")).resolve()
-    except (AttributeError, TypeError):
-        # Module is probably only partially initialised, so we look at its
-        # spec instead
+        # Do not access __dd_origin__ directly to avoid force-loading lazy
+        # modules.
+        return object.__getattribute__(module, "__dd_origin__")
+    except AttributeError:
         try:
             # DEV: Use object.__getattribute__ to avoid potential side-effects.
-            orig = Path(object.__getattribute__(module, "__spec__").origin).resolve()
-        except (AttributeError, ValueError, TypeError):
-            orig = None
+            orig = Path(object.__getattribute__(module, "__file__")).resolve()
+        except (AttributeError, TypeError):
+            # Module is probably only partially initialised, so we look at its
+            # spec instead
+            try:
+                # DEV: Use object.__getattribute__ to avoid potential side-effects.
+                orig = Path(object.__getattribute__(module, "__spec__").origin).resolve()
+            except (AttributeError, ValueError, TypeError):
+                orig = None
 
-    if orig is not None and orig.is_file():
-        return orig.with_suffix(".py") if orig.suffix == ".pyc" else orig
+        if orig is not None and orig.suffix == "pyc":
+            orig = orig.with_suffix(".py")
 
-    return None
+        if orig is not None:
+            # If we failed to find a valid origin we don't cache the value and
+            # try again the next time.
+            try:
+                module.__dd_origin__ = orig  # type: ignore[attr-defined]
+            except AttributeError:
+                pass
+
+        return orig
 
 
 def _resolve(path: Path) -> t.Optional[Path]:
@@ -331,7 +344,23 @@ class BaseModuleWatchdog(abc.ABC):
         # NotImplementedError: Can't perform this operation for unregistered
         pkg_resources = sys.modules.get("pkg_resources")
         if pkg_resources is not None:
-            pkg_resources.register_loader_type(_ImportHookChainedLoader, pkg_resources.DefaultProvider)
+            for _ in range(5):
+                # The package might be in the process of being imported by
+                # another thread by the time this module watchdog is created. If
+                # we fail to find the method we try again after a short wait.
+                # This is likely to happen when a module watchdog is installed
+                # lazily after boot, e.g. as a response to a RC enablement
+                # record. This means that we are unlikely to add delays to the
+                # main or any other use threads.
+                try:
+                    pkg_resources.register_loader_type(_ImportHookChainedLoader, pkg_resources.DefaultProvider)
+                    break
+                except AttributeError:
+                    from time import sleep
+
+                    sleep(0.1)
+            else:
+                log.warning("Cannot ensure correct support with pkg_resources")
 
     def _add_to_meta_path(self) -> None:
         sys.meta_path.insert(0, self)  # type: ignore[arg-type]

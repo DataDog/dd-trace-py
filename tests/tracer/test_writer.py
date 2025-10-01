@@ -1144,3 +1144,51 @@ def test_trace_with_128bit_trace_ids():
     chunk_root = spans[0]
     assert chunk_root.trace_id >= 2**64
     assert chunk_root._meta[HIGHER_ORDER_TRACE_ID_BITS] == "{:016x}".format(parent.trace_id >> 64)
+
+
+@pytest.mark.parametrize(
+    "platform,config_value,expected_enabled",
+    [
+        ("linux", True, True),
+        ("linux", False, False),
+        # Only supported on Linux for now
+        ("darwin", True, False),
+        ("darwin", False, False),
+        ("win32", True, False),
+        ("win32", False, False),
+    ],
+)
+@mock.patch("ddtrace.internal.native.TraceExporterBuilder")
+def test_writer_telemetry_enabled_on_linux(
+    mock_builder_class, platform: str, config_value: bool, expected_enabled: bool
+):
+    """Test that telemetry is enabled for native writer on Linux platforms."""
+
+    mock_builder = mock.Mock()
+    mock_builder_class.return_value = mock_builder
+    mock_exporter = mock.Mock()
+    mock_builder.build.return_value = mock_exporter
+
+    for method_name in [
+        "set_url",
+        "set_hostname",
+        "set_language",
+        "set_language_version",
+        "set_language_interpreter",
+        "set_tracer_version",
+        "set_git_commit_sha",
+        "set_client_computed_top_level",
+        "set_input_format",
+        "set_output_format",
+        "enable_telemetry",
+    ]:
+        getattr(mock_builder, method_name).return_value = mock_builder
+
+    with mock_sys_platform(platform):
+        with override_global_config(dict(_telemetry_enabled=config_value)):
+            _writer = NativeWriter("http://localhost:8126/v0.5/traces", sync_mode=True)
+
+            if expected_enabled:
+                mock_builder.enable_telemetry.assert_called_once_with(60000, get_runtime_id())
+            else:
+                mock_builder.enable_telemetry.assert_not_called()

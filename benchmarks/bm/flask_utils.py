@@ -92,6 +92,7 @@ class FlaskScenarioMixin:
                 "DD_APPSEC_ENABLED": str(self.appsec_enabled),
                 "DD_IAST_ENABLED": str(self.iast_enabled),
                 "DD_TELEMETRY_METRICS_ENABLED": str(self.telemetry_metrics_enabled),
+                "DD_TRACE_RESOURCE_RENAMING_ENABLED": str(self.resource_renaming_enabled),
             }
         )
 
@@ -104,6 +105,9 @@ class FlaskScenarioMixin:
             )
             if not self.tracer_enabled:
                 import ddtrace.profiling.auto  # noqa:F401
+
+        if self.native_writer:
+            os.environ.update({"_DD_TRACE_WRITER_NATIVE": "1"})
 
         if self.tracer_enabled:
             import ddtrace.bootstrap.sitecustomize  # noqa:F401

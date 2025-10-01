@@ -6,7 +6,7 @@ dependencies = [
     "click==8.1.7",
     "cython-lint==0.15.0",
     "codespell==2.4.1",
-    "bandit==1.7.5",
+    "bandit==1.8.2",
     "mypy==1.15.0",
     "coverage==7.3.0",
     "envier==0.6.1",
@@ -22,6 +22,7 @@ dependencies = [
     "clang-format==18.1.5",
     "cmake-format==0.6.13",
     "ruamel.yaml==0.18.6",
+    "ast-grep-cli==0.39.4",
 ]
 
 [envs.lint.scripts]
@@ -55,6 +56,9 @@ checks = [
     "security",
     "test",
     "suitespec-check",
+    "error-log-check",
+    "sg",
+    "sg-test",
 ]
 spelling = [
     "codespell -I docs/spelling_wordlist.txt --skip='ddwaf.h,*cassettes*,tests/tracer/fixtures/urls.txt,tests/appsec/iast/fixtures/*' {args:ddtrace/ tests/ releasenotes/ docs/}",
@@ -74,6 +78,15 @@ riot = [
 suitespec-check = [
     "python scripts/check_suitespec_coverage.py"
 ]
+error-log-check = [
+    "python scripts/check_constant_log_message.py"
+]
+sg = [
+    "ast-grep scan {args:.}",
+]
+sg-test = [
+    "ast-grep test {args}",
+]
 
 [envs.docs]
 template = "docs"
@@ -82,7 +95,6 @@ python = "3.10"
 features = ["opentracing"]
 dependencies = [  # copied from library dependencies
     "protobuf>=3",
-    "typing_extensions",
     "xmltodict>=0.12",
     "envier==0.6.1",
     "opentelemetry-api>=1",

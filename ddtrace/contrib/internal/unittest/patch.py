@@ -1,6 +1,7 @@
 import inspect
 import os
 from typing import Dict
+from typing import Optional
 from typing import Union
 import unittest
 
@@ -464,7 +465,7 @@ def unpatch():
     _CIVisibility.disable()
 
 
-def _set_test_span_status(test_item, status: str, exc_info: str = None, skip_reason: str = None):
+def _set_test_span_status(test_item, status: str, exc_info: Optional[str] = None, skip_reason: Optional[str] = None):
     span = _extract_span(test_item)
     if not span:
         log.debug("Tried setting test result for test but could not find span for %s", test_item)

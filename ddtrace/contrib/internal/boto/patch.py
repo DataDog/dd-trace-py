@@ -7,6 +7,7 @@ import boto.connection
 import wrapt
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace._trace.utils_botocore.span_tags import _derive_peer_hostname
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
@@ -21,7 +22,6 @@ from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap
-from ddtrace.trace import Pin
 
 
 # Original boto client class
@@ -124,6 +124,7 @@ def patched_query_request(original_func, instance, args, kwargs):
         if region_name:
             meta[aws.REGION] = region_name
             meta[aws.AWSREGION] = region_name
+            meta[aws.PARTITION] = aws.get_aws_partition(region_name)
 
             if in_aws_lambda():
                 # Derive the peer hostname now that we have both service and region.
@@ -192,6 +193,7 @@ def patched_auth_request(original_func, instance, args, kwargs):
         if region_name:
             meta[aws.REGION] = region_name
             meta[aws.AWSREGION] = region_name
+            meta[aws.PARTITION] = aws.get_aws_partition(region_name)
 
             if in_aws_lambda():
                 # Derive the peer hostname

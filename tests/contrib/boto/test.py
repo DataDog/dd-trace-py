@@ -14,13 +14,12 @@ from moto import mock_lambda
 from moto import mock_s3
 from moto import mock_sts
 
+# project
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.boto.patch import patch
 from ddtrace.contrib.internal.boto.patch import unpatch
 from ddtrace.ext import http
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-
-# project
-from ddtrace.trace import Pin
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -53,6 +52,7 @@ class BotoTest(TracerTestCase):
         self.assertEqual(span.get_tag(http.METHOD), "POST")
         self.assertEqual(span.get_tag("aws.region"), "us-west-2")
         self.assertEqual(span.get_tag("region"), "us-west-2")
+        self.assertEqual(span.get_tag("aws.partition"), "aws")
         self.assertEqual(span.get_tag("component"), "boto")
         self.assertEqual(span.get_tag("span.kind"), "client")
 
@@ -68,6 +68,7 @@ class BotoTest(TracerTestCase):
         self.assertEqual(span.get_tag(http.METHOD), "POST")
         self.assertEqual(span.get_tag("aws.region"), "us-west-2")
         self.assertEqual(span.get_tag("region"), "us-west-2")
+        self.assertEqual(span.get_tag("aws.partition"), "aws")
         self.assertEqual(span.get_tag("component"), "boto")
         self.assertEqual(span.get_tag("span.kind"), "client")
         self.assertEqual(span.service, "test-boto-tracing.ec2")
@@ -496,6 +497,7 @@ class BotoTest(TracerTestCase):
         self.assertEqual(span.get_tag(http.METHOD), "GET")
         self.assertEqual(span.get_tag("aws.region"), "us-east-2")
         self.assertEqual(span.get_tag("region"), "us-east-2")
+        self.assertEqual(span.get_tag("aws.partition"), "aws")
         self.assertEqual(span.get_tag("aws.operation"), "list_functions")
         self.assertEqual(span.get_tag("component"), "boto")
         self.assertEqual(span.get_tag("span.kind"), "client")
@@ -613,6 +615,7 @@ class BotoTest(TracerTestCase):
         assert_is_measured(span)
         self.assertEqual(span.get_tag("aws.region"), "us-west-2")
         self.assertEqual(span.get_tag("region"), "us-west-2")
+        self.assertEqual(span.get_tag("aws.partition"), "aws")
         self.assertEqual(span.get_tag("aws.operation"), "GetFederationToken")
         self.assertEqual(span.get_tag("component"), "boto")
         self.assertEqual(span.get_tag("span.kind"), "client")
@@ -751,6 +754,7 @@ class BotoTest(TracerTestCase):
         span = spans[0]
         self.assertEqual(span.get_tag("aws.region"), "us-west-2")
         self.assertEqual(span.get_tag("region"), "us-west-2")
+        self.assertEqual(span.get_tag("aws.partition"), "aws")
         self.assertEqual(span.get_tag("component"), "boto")
         self.assertEqual(span.get_tag("span.kind"), "client")
         self.assertEqual(span.service, "test-boto-tracing.elasticache")
@@ -784,6 +788,7 @@ class BotoTest(TracerTestCase):
         self.assertEqual(dd_span.get_tag(http.METHOD), "POST")
         self.assertEqual(dd_span.get_tag("aws.region"), "us-west-2")
         self.assertEqual(dd_span.get_tag("region"), "us-west-2")
+        self.assertEqual(dd_span.get_tag("aws.partition"), "aws")
 
         with ot_tracer.start_active_span("ot_span"):
             ec2.run_instances(21)
@@ -801,6 +806,7 @@ class BotoTest(TracerTestCase):
         self.assertEqual(dd_span.get_tag(http.METHOD), "POST")
         self.assertEqual(dd_span.get_tag("aws.region"), "us-west-2")
         self.assertEqual(dd_span.get_tag("region"), "us-west-2")
+        self.assertEqual(dd_span.get_tag("aws.partition"), "aws")
         self.assertEqual(dd_span.get_tag("component"), "boto")
         self.assertEqual(dd_span.get_tag("span.kind"), "client")
         self.assertEqual(dd_span.service, "test-boto-tracing.ec2")

@@ -100,6 +100,7 @@ INTEGRATION_CONFIGS = frozenset(
         "flask",
         "google_generativeai",
         "google_genai",
+        "google_adk",
         "urllib3",
         "subprocess",
         "kafka",
@@ -411,7 +412,7 @@ class Config(object):
             self._error_statuses = value
             self._error_ranges = get_error_ranges(value)
             # Mypy can't catch cached method's invalidate()
-            self.is_error_code.invalidate()  # type: ignore[attr-defined]
+            self.is_error_code.cache_clear()  # type: ignore[attr-defined]
 
         @property
         def error_ranges(self):
@@ -628,12 +629,14 @@ class Config(object):
         self._test_visibility_early_flake_detection_enabled = _get_config(
             "DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", True, asbool
         )
-        self._otel_enabled = _get_config("DD_TRACE_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
+        self._otel_trace_enabled = _get_config("DD_TRACE_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
         self._otel_metrics_enabled = _get_config("DD_METRICS_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
-        if self._otel_enabled:
+        self._otel_logs_enabled = _get_config("DD_LOGS_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
+        if self._otel_trace_enabled or self._otel_logs_enabled or self._otel_metrics_enabled:
             # Replaces the default otel api runtime context with DDRuntimeContext
             # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
             os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
+        self._otel_enabled = self._otel_trace_enabled or self._otel_metrics_enabled or self._otel_logs_enabled
 
         self._trace_methods = _get_config("DD_TRACE_METHODS")
 
@@ -658,6 +661,14 @@ class Config(object):
         self._inject_enabled = _get_config("DD_INJECTION_ENABLED")
         self._inferred_proxy_services_enabled = _get_config("DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", False, asbool)
         self._trace_safe_instrumentation_enabled = _get_config("DD_TRACE_SAFE_INSTRUMENTATION_ENABLED", False, asbool)
+
+        # Resource renaming
+        self._trace_resource_renaming_enabled = _get_config(
+            "DD_TRACE_RESOURCE_RENAMING_ENABLED", default=False, modifier=asbool
+        )
+        self._trace_resource_renaming_always_simplified_endpoint = _get_config(
+            "DD_TRACE_RESOURCE_RENAMING_ALWAYS_SIMPLIFIED_ENDPOINT", default=False, modifier=asbool
+        )
 
     def __getattr__(self, name) -> Any:
         if name in self._config:

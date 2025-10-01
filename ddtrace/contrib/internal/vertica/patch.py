@@ -4,6 +4,7 @@ from typing import Dict
 import wrapt
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils

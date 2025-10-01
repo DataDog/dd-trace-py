@@ -3,7 +3,6 @@ import enum
 from typing import Any
 from typing import Callable
 from typing import Dict
-from typing import List
 from typing import Optional
 from typing import Tuple
 
@@ -11,7 +10,6 @@ from ddtrace.settings._config import config
 
 
 _listeners: Dict[str, Dict[Any, Callable[..., Any]]] = {}
-_all_listeners: List[Callable[[str, Tuple[Any, ...]], None]] = []
 
 
 class ResultType(enum.Enum):
@@ -61,44 +59,25 @@ def on(event_id: str, callback: Callable[..., Any], name: Any = None) -> None:
     _listeners[event_id][name] = callback
 
 
-def on_all(callback: Callable[..., Any]) -> None:
-    """Register a listener for all events emitted"""
-    global _all_listeners
-    if callback not in _all_listeners:
-        _all_listeners.insert(0, callback)
-
-
 def reset(event_id: Optional[str] = None, callback: Optional[Callable[..., Any]] = None) -> None:
     """Remove all registered listeners. If an event_id is provided, only clear those
     event listeners. If a callback is provided, then only the listeners for that callback are removed.
     """
     global _listeners
-    global _all_listeners
 
     if callback:
-        if not event_id:
-            _all_listeners = [cb for cb in _all_listeners if cb != callback]
-        elif event_id in _listeners:
+        if event_id in _listeners:
             _listeners[event_id] = {name: cb for name, cb in _listeners[event_id].items() if cb != callback}
     else:
         if not event_id:
             _listeners.clear()
-            _all_listeners.clear()
         elif event_id in _listeners:
             del _listeners[event_id]
 
 
 def dispatch(event_id: str, args: Tuple[Any, ...] = ()) -> None:
     """Call all hooks for the provided event_id with the provided args"""
-    global _all_listeners
     global _listeners
-
-    for hook in _all_listeners:
-        try:
-            hook(event_id, args)
-        except Exception:
-            if config._raise:
-                raise
 
     if event_id not in _listeners:
         return
@@ -116,14 +95,6 @@ def dispatch_with_results(event_id: str, args: Tuple[Any, ...] = ()) -> EventRes
     returning the results and exceptions from the called hooks
     """
     global _listeners
-    global _all_listeners
-
-    for hook in _all_listeners:
-        try:
-            hook(event_id, args)
-        except Exception:
-            if config._raise:
-                raise
 
     if event_id not in _listeners:
         return _MissingEventDict
