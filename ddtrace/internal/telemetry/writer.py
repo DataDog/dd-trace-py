@@ -160,7 +160,7 @@ class TelemetryWriter(PeriodicService):
         self._namespace = MetricNamespace()
         self._logs: Set[Dict[str, Any]] = set()
         self._forked: bool = False
-        self._events_queue: List[Dict] = []
+        self._events_queue: List[Dict[str, Any]] = []
         self._configuration_queue: List[Dict] = []
         self._imported_dependencies: Dict[str, str] = dict()
         self._modules_already_imported: Set[str] = set()
@@ -199,7 +199,7 @@ class TelemetryWriter(PeriodicService):
             self.enable()
             # Force app started for unit tests
             if config.FORCE_START and (app_started := self._report_app_started()):
-                self._events_queue.append({"payload": app_started, "request_type": TELEMETRY_EVENT_TYPE.STARTED})
+                self._events_queue.append(self._get_event(app_started, TELEMETRY_EVENT_TYPE.STARTED))
             get_logger("ddtrace").addHandler(DDTelemetryErrorHandler(self))
 
     def enable(self) -> bool:
@@ -221,6 +221,11 @@ class TelemetryWriter(PeriodicService):
         self.status = ServiceStatus.RUNNING
         return True
 
+    def _get_event(
+        self, payload: Union[Dict[str, Any], List[Any]], payload_type: TELEMETRY_EVENT_TYPE
+    ) -> Dict[str, Any]:
+        return {"payload": payload, "request_type": payload_type.value}
+
     def disable(self) -> None:
         """
         Disable the telemetry collection service and drop the existing integrations and events
@@ -238,24 +243,6 @@ class TelemetryWriter(PeriodicService):
     def _is_running(self) -> bool:
         """Returns True when the telemetry writer worker thread is running"""
         return self._is_periodic and self._worker is not None and self.status is ServiceStatus.RUNNING
-
-    def add_event(self, payload: Union[Dict[str, Any], List[Any]], payload_type: str) -> None:
-        """
-        Adds a Telemetry event to the TelemetryWriter event buffer
-
-        :param Dict payload: stores a formatted telemetry event
-        :param str payload_type: The payload_type denotes the type of telemetry request.
-            Payload types accepted by telemetry/proxy v2: app-started, app-closing, app-integrations-change
-        """
-        if self.enable():
-            self._events_queue.append({"payload": payload, "request_type": payload_type})
-
-    def add_events(self, events: List[Dict[str, Any]]) -> None:
-        """
-        Adds a list of Telemetry events to the TelemetryWriter event buffer
-        """
-        if self.enable():
-            self._events_queue.extend(events)
 
     def add_integration(
         self,
@@ -598,60 +585,54 @@ class TelemetryWriter(PeriodicService):
             for payload_type, namespaces in namespace_metrics.items():
                 for namespace, metrics in namespaces.items():
                     if metrics:
-                        events.append(
-                            {"payload": {"namespace": namespace, "series": metrics}, "request_type": payload_type}
-                        )
+                        events.append(self._get_event({"namespace": namespace, "series": metrics}, payload_type))
 
         if logs := self._report_logs():
-            events.append({"payload": {"logs": list(logs)}, "request_type": TELEMETRY_EVENT_TYPE.LOGS})
+            events.append(self._get_event({"logs": list(logs)}, TELEMETRY_EVENT_TYPE.LOGS))
 
         # Queue metrics if not at heartbeat interval
         if self._is_periodic and not force_flush:
             if self._periodic_count < self._periodic_threshold:
                 self._periodic_count += 1
                 if events:
-                    self.add_events(events)
+                    # list.extend() is an atomic operation in CPython, we don't need to lock the queue
+                    self._events_queue.extend(events)
                 return
             self._periodic_count = 0
 
         # At heartbeat interval, collect and send all telemetry data
         if app_started_payload := self._report_app_started():
             # app-started should be the first event in the batch
-            events = [{"payload": app_started_payload, "request_type": TELEMETRY_EVENT_TYPE.STARTED}] + events
+            events = [self._get_event(app_started_payload, TELEMETRY_EVENT_TYPE.STARTED)] + events
 
         if products := self._report_products():
-            events.append({"payload": {"products": products}, "request_type": TELEMETRY_EVENT_TYPE.PRODUCT_CHANGE})
+            events.append(self._get_event({"products": products}, TELEMETRY_EVENT_TYPE.PRODUCT_CHANGE))
 
         if ints := self._report_integrations():
-            events.append({"payload": {"integrations": ints}, "request_type": TELEMETRY_EVENT_TYPE.INTEGRATIONS_CHANGE})
+            events.append(self._get_event({"integrations": ints}, TELEMETRY_EVENT_TYPE.INTEGRATIONS_CHANGE))
 
         if endpoints := self._report_endpoints():
-            events.append({"payload": endpoints, "request_type": TELEMETRY_EVENT_TYPE.ENDPOINTS})
+            events.append(self._get_event(endpoints, TELEMETRY_EVENT_TYPE.ENDPOINTS))
 
         if configs := self._report_configurations():
-            events.append(
-                {
-                    "payload": {"configuration": configs},
-                    "request_type": TELEMETRY_EVENT_TYPE.CLIENT_CONFIGURATION_CHANGE,
-                }
-            )
+            events.append(self._get_event({"configuration": configs}, TELEMETRY_EVENT_TYPE.CLIENT_CONFIGURATION_CHANGE))
 
         if deps := self._report_dependencies():
-            events.append({"payload": {"dependencies": deps}, "request_type": TELEMETRY_EVENT_TYPE.DEPENDENCIES_LOADED})
+            events.append(self._get_event({"dependencies": deps}, TELEMETRY_EVENT_TYPE.DEPENDENCIES_LOADED))
 
         if shutting_down and not self._forked:
-            events.append({"payload": {}, "request_type": TELEMETRY_EVENT_TYPE.SHUTDOWN})
+            events.append(self._get_event({}, TELEMETRY_EVENT_TYPE.SHUTDOWN))
 
         # Always include a heartbeat to keep RC connections alive
         # Extended heartbeat should be queued after app-dependencies-loaded event. This
         # ensures that that imported dependencies are accurately reported.
         if heartbeat_payload := self._report_heartbeat():
             # Extended heartbeat report dependencies while regular heartbeats report empty payloads
-            events.append({"payload": heartbeat_payload, "request_type": TELEMETRY_EVENT_TYPE.EXTENDED_HEARTBEAT})
+            events.append(self._get_event(heartbeat_payload, TELEMETRY_EVENT_TYPE.EXTENDED_HEARTBEAT))
         else:
-            events.append({"payload": {}, "request_type": TELEMETRY_EVENT_TYPE.HEARTBEAT})
+            events.append(self._get_event({}, TELEMETRY_EVENT_TYPE.HEARTBEAT))
 
-        # Get any queued events and combine with current batch
+        # Get any queued events (ie metrics and logs from previous periodic calls) and combine with current batch
         if queued_events := self._report_events():
             events.extend(queued_events)
 
@@ -667,7 +648,7 @@ class TelemetryWriter(PeriodicService):
             "application": get_application(config.SERVICE, config.VERSION, config.ENV),
             "host": get_host_info(),
             "payload": events,
-            "request_type": "message-batch",
+            "request_type": TELEMETRY_EVENT_TYPE.MESSAGE_BATCH.value,
         }
         self._client.send_event(batch_event, payload_types)
 
@@ -751,7 +732,7 @@ class TelemetryWriter(PeriodicService):
                     self.add_integration(integration_name, True, error_msg=error_msg)
 
             if app_started := self._report_app_started(False):
-                self._events_queue.append({"payload": app_started, "request_type": TELEMETRY_EVENT_TYPE.STARTED})
+                self._events_queue.append(self._get_event(app_started, TELEMETRY_EVENT_TYPE.STARTED))
 
             self.app_shutdown()
 

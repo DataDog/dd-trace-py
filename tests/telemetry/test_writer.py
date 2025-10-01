@@ -26,41 +26,6 @@ from tests.utils import call_program
 from tests.utils import override_global_config
 
 
-def test_add_event(telemetry_writer, test_agent_session, mock_time):
-    """asserts that add_event queues a telemetry request with valid headers and payload"""
-    payload = {"test": "123"}
-    payload_type = "test-event"
-    # add event to the queue
-    telemetry_writer.add_event(payload, payload_type)
-    # send request to the agent
-    telemetry_writer.periodic(force_flush=True)
-
-    requests = test_agent_session.get_requests()
-    assert len(requests) == 1
-    assert requests[0]["headers"]["Content-Type"] == "application/json"
-    assert requests[0]["headers"]["DD-Client-Library-Language"] == "python"
-    assert requests[0]["headers"]["DD-Client-Library-Version"] == _pep440_to_semver()
-    assert requests[0]["headers"]["DD-Telemetry-Request-Type"] == "message-batch"
-    assert requests[0]["headers"]["DD-Telemetry-API-Version"] == "v2"
-    assert requests[0]["headers"]["DD-Telemetry-Debug-Enabled"] == "False"
-
-    events = test_agent_session.get_events(payload_type)
-    assert len(events) == 1
-    validate_request_body(events[0], payload, payload_type)
-
-
-def test_add_event_disabled_writer(telemetry_writer, test_agent_session):
-    """asserts that add_event() does not create a telemetry request when telemetry writer is disabled"""
-    payload = {"test": "123"}
-    payload_type = "test-event"
-    # ensure events are not queued when telemetry is disabled
-    telemetry_writer.add_event(payload, payload_type)
-
-    # ensure no request were sent
-    telemetry_writer.periodic(force_flush=True)
-    assert len(test_agent_session.get_events(payload_type)) == 1
-
-
 @pytest.mark.parametrize(
     "env_var,value,expected_value",
     [
@@ -91,13 +56,8 @@ def test_app_started_event_configuration_override_asm(
 def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
     """asserts that app_started() queues a valid telemetry request which is then sent by periodic()"""
     with override_global_config(dict(_telemetry_dependency_collection=False)):
-        # queue an app started event
-        payload = telemetry_writer._report_app_started()
-        assert payload is not None, "app_started() did not return an event"
-        telemetry_writer.add_event(payload, "app-started")
-        # force a flush
+        # App started should be queued by the first periodic call
         telemetry_writer.periodic(force_flush=True)
-
         requests = test_agent_session.get_requests()
         assert len(requests) == 1
         assert requests[0]["headers"]["DD-Telemetry-Request-Type"] == "message-batch"
