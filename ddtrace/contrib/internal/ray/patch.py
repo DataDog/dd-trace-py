@@ -25,6 +25,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation.http import _TraceContext
 
 from .constants import DD_RAY_TRACE_CTX
@@ -78,9 +79,8 @@ config._add(
     "ray",
     dict(
         _default_service=schematize_service_name("ray"),
-        initial_submit_threshold=_get_config("_DD_TRACE_RAY_INITIAL_SUBMIT_THRESHOLD", default=10.0, modifier=float),
-        use_entrypoint_as_job_name=_get_config("DD_RAY_USE_ENTRYPOINT_AS_JOB_NAME", default=False, modifier=bool),
-        redact_entrypoint_paths=_get_config("DD_RAY_REDACT_ENTRYPOINT_PATHS", default=True, modifier=bool),
+        use_entrypoint_as_job_name=asbool(os.getenv("DD_RAY_USE_ENTRYPOINT_AS_JOB_NAME", default=False)),
+        redact_entrypoint_paths=asbool(os.getenv("DD_RAY_REDACT_ENTRYPOINT_PATHS", default=True)),
     ),
 )
 
