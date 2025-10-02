@@ -3194,14 +3194,11 @@ venv = Venv(
         Venv(
             name="ray",
             command="pytest {cmdargs} tests/contrib/ray",
-            env={
-                "DD_TRACE_OTEL_ENABLED": "true",
-            },
-            pys=select_pys(min_version="3.9", max_version="3.13"),
+            pys=select_pys(min_version="3.11", max_version="3.13"),
             pkgs={
-                "pytest-asyncio": latest,
-                "ray": ["~=2.48.0", latest],
+                "ray[default]": ["~=2.46.0", latest],
             },
+            env={"DD_TRACE_AIOHTTP_ENABLED": "false", "DD_TRACE_REPORT_HOSTNAME": "true"},
         ),
         Venv(
             name="logbook",
