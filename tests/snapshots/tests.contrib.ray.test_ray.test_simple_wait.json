@@ -11,17 +11,15 @@
     "meta": {
       "_dd.hostname": "docker-desktop",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68d57eef00000000",
+      "_dd.p.tid": "68dd410c00000000",
       "component": "ray",
       "language": "python",
       "ray.hostname": "docker-desktop",
       "ray.job_id": "01000000",
-      "ray.node_id": "5d8e28ce24c45f5ea6c436328166b1b8b188f18a32fca9feb10956d1",
-      "ray.task.args": "(42,)",
-      "ray.task.kwargs": "{}",
+      "ray.node_id": "53c13c58eb47ac2803bc79a5dc776959895f9f822320fdf1ab6a4f41",
       "ray.task.submit_status": "success",
       "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
-      "runtime-id": "8def9fd563244a47b1509fd9b8463d04",
+      "runtime-id": "7fb280a5458e4eecaeae186719e61896",
       "span.kind": "producer"
     },
     "metrics": {
@@ -33,8 +31,8 @@
       "_sampling_priority_v1": 2,
       "process_id": 543
     },
-    "duration": 2676958,
-    "start": 1758822127055921805
+    "duration": 3002916,
+    "start": 1759330572760058212
   },
      {
        "name": "task.execute",
@@ -49,12 +47,10 @@
          "component": "ray",
          "ray.hostname": "docker-desktop",
          "ray.job_id": "01000000",
-         "ray.node_id": "5d8e28ce24c45f5ea6c436328166b1b8b188f18a32fca9feb10956d1",
-         "ray.task.args": "(42,)",
-         "ray.task.kwargs": "{}",
+         "ray.node_id": "53c13c58eb47ac2803bc79a5dc776959895f9f822320fdf1ab6a4f41",
          "ray.task.status": "success",
          "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
-         "runtime-id": "8def9fd563244a47b1509fd9b8463d04",
+         "runtime-id": "7fb280a5458e4eecaeae186719e61896",
          "span.kind": "consumer"
        },
        "metrics": {
@@ -65,8 +61,8 @@
          "_sampling_priority_v1": 2,
          "process_id": 543
        },
-       "duration": 300458,
-       "start": 1758822127058126972
+       "duration": 291083,
+       "start": 1759330572762500212
      }],
 [
   {
@@ -81,16 +77,16 @@
     "meta": {
       "_dd.hostname": "docker-desktop",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68d57eef00000000",
+      "_dd.p.tid": "68dd410c00000000",
       "component": "ray",
       "language": "python",
       "ray.hostname": "docker-desktop",
       "ray.job_id": "01000000",
-      "ray.node_id": "5d8e28ce24c45f5ea6c436328166b1b8b188f18a32fca9feb10956d1",
+      "ray.node_id": "53c13c58eb47ac2803bc79a5dc776959895f9f822320fdf1ab6a4f41",
       "ray.wait.num_returns": "1",
       "ray.wait.timeout_s": "60",
       "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
-      "runtime-id": "8def9fd563244a47b1509fd9b8463d04",
+      "runtime-id": "7fb280a5458e4eecaeae186719e61896",
       "span.kind": "producer"
     },
     "metrics": {
@@ -102,6 +98,6 @@
       "_sampling_priority_v1": 2,
       "process_id": 543
     },
-    "duration": 307375,
-    "start": 1758822127058761805
+    "duration": 414292,
+    "start": 1759330572763224920
   }]]

@@ -7,6 +7,8 @@ from tests.contrib.patch import PatchTestCase
 
 
 class TestRayPatch(PatchTestCase.Base):
+    """Test Ray patching with default configuration (trace_core_api=False)"""
+
     __integration_name__ = "ray"
     __module_name__ = "ray"
     __patch_func__ = patch
