@@ -45,7 +45,6 @@ JOB_NAME_REGEX = re.compile(r"^job\:([A-Za-z0-9_\.\-]+),run:([A-Za-z0-9_\.\-]+)$
 # for example, if the entrypoint is python3 woof.py --breed mutt
 # then the job name will be woof
 ENTRY_POINT_REGEX = re.compile(r"([^\s\/\\]+)\.py")
-
 REDACTED_PATH = "<redacted/path/to>"
 
 
