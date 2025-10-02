@@ -199,6 +199,7 @@ INTEGRATION_CONFIGS = frozenset(
         "yaaredis",
         "openai_agents",
         "mcp",
+        "ray",
     }
 )
 
@@ -673,6 +674,15 @@ class Config(object):
         )
         self._trace_resource_renaming_always_simplified_endpoint = _get_config(
             "DD_TRACE_RESOURCE_RENAMING_ALWAYS_SIMPLIFIED_ENDPOINT", default=False, modifier=asbool
+        )
+
+        # Long-running span interval configurations
+        # Only supported for Ray spans for now
+        self._long_running_flush_interval = _get_config(
+            "DD_TRACE_EXPERIMENTAL_LONG_RUNNING_FLUSH_INTERVAL", default=120.0, modifier=float
+        )
+        self._long_running_initial_flush_interval = _get_config(
+            "DD_TRACE_EXPERIMENTAL_LONG_RUNNING_INITIAL_FLUSH_INTERVAL", default=10.0, modifier=float
         )
 
     def __getattr__(self, name) -> Any:
