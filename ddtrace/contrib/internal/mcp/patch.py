@@ -157,44 +157,30 @@ async def traced_tool_manager_call_tool(mcp, pin: Pin, func, instance, args: tup
 async def traced_client_session_initialize(mcp, pin: Pin, func, instance, args: tuple, kwargs: dict):
     integration: MCPIntegration = mcp._datadog_integration
 
-    span = integration.trace(
-        pin, "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, func.__name__), submit_to_llmobs=True
-    )
-
-    try:
-        result = await func(*args, **kwargs)
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="initialize")
-        return result
-    except Exception:
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None, operation="initialize")
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        span.finish()
+    with integration.trace(pin, "%s.%s" % (instance.__class__.__name__, func.__name__), submit_to_llmobs=True) as span:
+        response = None
+        try:
+            response = await func(*args, **kwargs)
+        finally:
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=response, operation="initialize")
 
 
 @with_traced_module
 async def traced_client_session_list_tools(mcp, pin: Pin, func, instance, args: tuple, kwargs: dict):
     integration: MCPIntegration = mcp._datadog_integration
-    span = integration.trace(
-        pin, "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, func.__name__), submit_to_llmobs=True
-    )
-    try:
-        result = await func(*args, **kwargs)
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="list_tools")
-        return result
-    except Exception:
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None, operation="list_tools")
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        span.finish()
+
+    with integration.trace(pin, "%s.%s" % (instance.__class__.__name__, func.__name__), submit_to_llmobs=True) as span:
+        response = None
+        try:
+            response = await func(*args, **kwargs)
+        finally:
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=response, operation="list_tools")
 
 
 @with_traced_module
 async def traced_client_session_aenter(mcp, pin: Pin, func, instance, args: tuple, kwargs: dict):
     integration: MCPIntegration = mcp._datadog_integration
-    span = integration.trace(pin, "%s.%s" % (instance.__module__, instance.__class__.__name__), submit_to_llmobs=True)
+    span = integration.trace(pin, instance.__class__.__name__, submit_to_llmobs=True)
 
     setattr(instance, "_dd_span", span)
     try:
@@ -217,18 +203,20 @@ async def traced_client_session_aexit(mcp, pin: Pin, func, instance, args: tuple
             span.set_exc_info(*sys.exc_info())
         raise
     finally:
-        if span:
-            integration.llmobs_set_tags(
-                span,
-                args=[],
-                kwargs=dict(
-                    read_stream=_get_attr(instance, "_read_stream", None),
-                    write_stream=_get_attr(instance, "_write_stream", None),
-                ),
-                response=None,
-                operation="session",
-            )
-            span.finish()
+        if not span:
+            return
+
+        integration.llmobs_set_tags(
+            span,
+            args=[],
+            kwargs=dict(
+                read_stream=_get_attr(instance, "_read_stream", None),
+                write_stream=_get_attr(instance, "_write_stream", None),
+            ),
+            response=None,
+            operation="session",
+        )
+        span.finish()
 
 
 def patch():

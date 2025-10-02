@@ -1,6 +1,4 @@
 ---
 features:
   - |
-    mcp: adds auto-instrumentation for ``ClientSession`` contexts, ``ClientSession.initialize``, and ``ClientSession.list_tools``.
-  - |
-    LLM Observability: MCP submits LLM Observability spans for ``ClientSession`` contexts, ``ClientSession.initialize``, and ``ClientSession.list_tools``.
+    LLM Observability: MCP integration also traces ``ClientSession`` contexts, ``ClientSession.initialize``, and ``ClientSession.list_tools``.
