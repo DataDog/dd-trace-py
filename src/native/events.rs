@@ -1,8 +1,38 @@
 /*!
-# Event System Macros
+# Event Hub Module
 
-Implementation details for the event hub system. This module contains all the
-macro definitions and supporting types that make the event system work.
+A high-performance event system for registering and calling listeners from both Python and Rust code.
+Provides minimal-overhead event firing with automatic Python/Rust interoperability.
+
+## Usage Examples
+
+```rust
+use crate::events::trace_span_started;
+
+// Register a listener
+let handle = trace_span_started::on(|span| {
+    println!("Span started: {:?}", span);
+});
+
+// Fire event (only if listeners exist for performance)
+if trace_span_started::has_listeners() {
+    trace_span_started::dispatch(span_pyobject);
+}
+
+// Remove listener
+trace_span_started::remove(handle);
+```
+
+```python
+from ddtrace.internal.events import trace_span_started
+
+def my_span_handler(span):
+    print(f"Span started: {span}")
+
+handle = trace_span_started.on(my_span_handler)
+trace_span_started.dispatch(some_span)
+trace_span_started.remove(handle)
+```
 */
 
 use pyo3::prelude::*;
@@ -15,8 +45,8 @@ use std::sync::{
 };
 
 /// Unique identifier for event listeners
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[pyclass]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ListenerHandle {
     pub id: u64,
     pub event_id: String,
@@ -46,16 +76,17 @@ pub fn register_python_event(registration_fn: PythonRegistrationFn) {
     PYTHON_REGISTRATIONS.lock().unwrap().push(registration_fn);
 }
 
-/// Create the events submodule for PyO3
-#[pymodule(name = "events")]
-pub fn events(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<ListenerHandle>()?;
+/// Create and register the events submodule with the parent module
+pub fn register_events_module(parent_module: &Bound<'_, PyModule>) -> PyResult<()> {
+    let events_module = PyModule::new(parent_module.py(), "events")?;
+    events_module.add_class::<ListenerHandle>()?;
 
     // Register all events collected via ctor
     for registration_fn in PYTHON_REGISTRATIONS.lock().unwrap().iter() {
-        registration_fn(m)?;
+        registration_fn(&events_module)?;
     }
 
+    parent_module.add_submodule(&events_module)?;
     Ok(())
 }
 
@@ -77,9 +108,9 @@ macro_rules! define_event_core {
 
         /// Generic function to add a listener
         #[allow(dead_code)]
-        fn add_listener_internal(listener: $listener_entry_type) -> $crate::events::macros::ListenerHandle {
+        fn add_listener_internal(listener: $listener_entry_type) -> $crate::events::ListenerHandle {
             let id = NEXT_ID.fetch_add(1, Ordering::SeqCst);
-            let handle = $crate::events::macros::ListenerHandle {
+            let handle = $crate::events::ListenerHandle {
                 id,
                 event_id: stringify!($event_name).to_string(),
             };
@@ -94,7 +125,7 @@ macro_rules! define_event_core {
 
         /// Remove a listener by handle
         #[allow(dead_code)]
-        pub fn remove(handle: $crate::events::macros::ListenerHandle) -> bool {
+        pub fn remove(handle: $crate::events::ListenerHandle) -> bool {
             let mut listeners = LISTENERS.write().unwrap();
             if let Some(pos) = listeners.iter().position(|(id, _)| *id == handle.id) {
                 listeners.remove(pos);
@@ -167,7 +198,7 @@ macro_rules! define_event {
 
             /// Register a Rust listener
             #[allow(dead_code)]
-            pub fn on<F>(callback: F) -> $crate::events::macros::ListenerHandle
+            pub fn on<F>(callback: F) -> $crate::events::ListenerHandle
             where
                 F: Fn($(&$param_type),*) + Send + Sync + 'static,
             {
@@ -189,13 +220,13 @@ macro_rules! define_event {
 
                 /// Python wrapper for on (register listener)
                 #[pyfunction]
-                pub fn on_py(callback: PyObject) -> $crate::events::macros::ListenerHandle {
+                pub fn on_py(callback: PyObject) -> $crate::events::ListenerHandle {
                     super::add_listener_internal(ListenerEntry::Python(callback))
                 }
 
                 /// Python wrapper for remove
                 #[pyfunction]
-                pub fn remove_py(handle: $crate::events::macros::ListenerHandle) -> bool {
+                pub fn remove_py(handle: $crate::events::ListenerHandle) -> bool {
                     super::remove(handle)
                 }
 
@@ -211,7 +242,7 @@ macro_rules! define_event {
             #[ctor::ctor]
             fn register_python_object() {
                 use python_integration::*;
-                let registration_fn: $crate::events::macros::PythonRegistrationFn = Box::new(|m: &Bound<'_, PyModule>| {
+                let registration_fn: $crate::events::PythonRegistrationFn = Box::new(|m: &Bound<'_, PyModule>| {
                     use pyo3::types::PyDict;
 
                     let py = m.py();
@@ -227,13 +258,14 @@ macro_rules! define_event {
                     event_dict.set_item("remove", wrap_pyfunction!(remove_py, m)?)?;
                     event_dict.set_item("has_listeners", wrap_pyfunction!(has_listeners_py, m)?)?;
 
-                    let event_obj = simple_namespace.call1((event_dict,))?;
+                    // Call SimpleNamespace with kwargs (compatible with Python <3.13)
+                    let event_obj = simple_namespace.call((), Some(&event_dict))?;
                     m.add(event_name, event_obj)?;
 
                     Ok(())
                 });
 
-                $crate::events::macros::register_python_event(registration_fn);
+                $crate::events::register_python_event(registration_fn);
             }
         }
     };
@@ -269,7 +301,7 @@ macro_rules! define_native_event {
 
             /// Register a Rust listener
             #[allow(dead_code)]
-            pub fn on<F>(callback: F) -> $crate::events::macros::ListenerHandle
+            pub fn on<F>(callback: F) -> $crate::events::ListenerHandle
             where
                 F: Fn($(&$param_type),*) + Send + Sync + 'static,
             {

@@ -43,7 +43,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_wrapped(logger_module)?;
 
     // Add events submodule
-    m.add_wrapped(wrap_pymodule!(events::events))?;
+    events::register_events_module(m)?;
 
     Ok(())
 }
