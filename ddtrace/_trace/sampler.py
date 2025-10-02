@@ -82,7 +82,7 @@ class DatadogSampler:
 
     SAMPLE_DEBUG_MESSAGE = (
         "Sampling decision applied to %s: sampled=%s sample_rate=%s sampling_mechanism=%s "
-        "matched_trace_sampling_rule=%s agent_sampled=%s"
+        "matched_trace_sampling_rule=%s agent_sampled=%s rules=%s sampler_id=%s"
     )
 
     def __init__(
@@ -198,7 +198,7 @@ class DatadogSampler:
             sampling_mechanism,
             matched_rule,
             agent_sampler is not None,
-            str(self.rules) if self.rules else "None",
+            str(self.rules) if self.rules is not None else "None",
             id(self),
         )
         return sampled
