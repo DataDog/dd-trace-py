@@ -10,7 +10,7 @@ from urllib import request
 from tests.utils import assert_is_measured
 
 
-async def test_full_request(patched_app_tracer, aiohttp_client, loop):
+async def test_full_request(patched_app_tracer, aiohttp_client):
     app, tracer = patched_app_tracer
     client = await aiohttp_client(app)
     # it should create a root span when there is a handler hit
@@ -31,7 +31,7 @@ async def test_full_request(patched_app_tracer, aiohttp_client, loop):
     assert request_span.get_tag("span.kind") == "server"
 
 
-async def test_multiple_full_request(patched_app_tracer, aiohttp_client, loop):
+async def test_multiple_full_request(patched_app_tracer, aiohttp_client):
     NUMBER_REQUESTS = 10
     responses = []
 

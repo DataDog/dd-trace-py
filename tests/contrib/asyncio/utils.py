@@ -1,8 +1,12 @@
 import asyncio
 from functools import wraps
+import logging
 import sys
 
 from tests.utils import TracerTestCase
+
+
+log = logging.getLogger(__name__)
 
 
 class AsyncioTestCase(TracerTestCase):
@@ -14,16 +18,21 @@ class AsyncioTestCase(TracerTestCase):
 
     def setUp(self):
         super(AsyncioTestCase, self).setUp()
-        # each test must have its own event loop
-        self._main_loop = asyncio.get_event_loop()
+        try:
+            # each test must have its own event loop
+            self._main_loop = asyncio.get_event_loop()
+        except RuntimeError:
+            log.info("Couldn't find existing event loop")
+            self._main_loop = None
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
 
     def tearDown(self):
         super(AsyncioTestCase, self).tearDown()
 
-        # restore the main loop
-        asyncio.set_event_loop(self._main_loop)
+        if self._main_loop is not None:
+            # restore the main loop
+            asyncio.set_event_loop(self._main_loop)
         self.loop = None
         self._main_loop = None
 

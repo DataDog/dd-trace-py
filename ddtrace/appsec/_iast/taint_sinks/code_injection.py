@@ -120,5 +120,5 @@ def _iast_report_code_injection(code_string: Text):
             # Report Telemetry Metrics
             _set_metric_iast_executed_sink(CodeInjection.vulnerability_type)
     except Exception as e:
-        iast_error(f"propagation::sink_point::Error in _iast_report_code_injection. {e}")
+        iast_error("propagation::sink_point::Error in _iast_report_code_injection", e)
     return reported

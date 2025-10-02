@@ -17,7 +17,7 @@ integrations:
   tested_versions_by_dependency:
     aiohttp:
       min: 3.7.4.post0
-      max: 3.12.11
+      max: 3.12.15
 
 - integration_name: aiohttp_jinja2
   is_external_package: true
@@ -393,6 +393,16 @@ integrations:
       min: 20.12.1
       max: 24.11.1
 
+- integration_name: google_adk
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - google-adk
+  tested_versions_by_dependency:
+    google-adk:
+      min: 1.0.0
+      max: 1.14.1
+
 - integration_name: google_genai
   is_external_package: true
   is_tested: true
@@ -567,7 +577,7 @@ integrations:
   tested_versions_by_dependency:
     mariadb:
       min: 1.0.11
-      max: 1.1.12
+      max: 1.1.13
 
 - integration_name: mcp
   is_external_package: true

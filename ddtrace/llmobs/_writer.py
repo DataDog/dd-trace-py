@@ -45,6 +45,8 @@ from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._experiment import UpdatableDatasetRecord
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs.types import _Meta
+from ddtrace.llmobs.types import _SpanLink
 from ddtrace.settings._agent import config as agent_config
 
 
@@ -56,7 +58,7 @@ class _LLMObsSpanEventOptional(TypedDict, total=False):
     service: str
     status_message: str
     collection_errors: List[str]
-    span_links: List[Dict[str, str]]
+    span_links: List[_SpanLink]
 
 
 class LLMObsSpanEvent(_LLMObsSpanEventOptional):
@@ -68,7 +70,7 @@ class LLMObsSpanEvent(_LLMObsSpanEventOptional):
     start_ns: int
     duration: int
     status: str
-    meta: Dict[str, Any]
+    meta: _Meta
     metrics: Dict[str, Any]
     _dd: Dict[str, str]
 
@@ -87,6 +89,7 @@ class LLMObsEvaluationMetricEvent(TypedDict, total=False):
 
 
 class LLMObsExperimentEvalMetricEvent(TypedDict, total=False):
+    metric_source: str
     span_id: str
     trace_id: str
     timestamp_ms: int
@@ -309,7 +312,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
     EVP_SUBDOMAIN_HEADER_VALUE = EXP_SUBDOMAIN_NAME
     AGENTLESS_BASE_URL = AGENTLESS_EXP_BASE_URL
     ENDPOINT = ""
-    TIMEOUT = 5.0
+    TIMEOUT = 10.0
     BULK_UPLOAD_TIMEOUT = 60.0
     LIST_RECORDS_TIMEOUT = 20
     SUPPORTED_UPLOAD_EXTS = {"csv"}
