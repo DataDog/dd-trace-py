@@ -193,8 +193,6 @@ def flatten_metadata_dict(data: dict) -> Dict[str, Any]:
     - Assumes the top-level is a dictionary. If a list is encountered anywhere,
       it is stringified with json.dumps and treated as a leaf (no recursion into list elements).
     - Leaf values (str, int, float, bool, None) are returned as-is as the dict values.
-    - If the top-level value is a simple primitive (str, int, float, bool, None),
-      it is returned unchanged. If the top-level is a list, it is stringified.
     - Returned dict keys are prefixed once with RAY_METADATA_PREFIX.
     """
 
