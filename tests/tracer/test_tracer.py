@@ -63,6 +63,9 @@ class TracerTestCases(TracerTestCase):
         span.assert_matches(name="a", resource="a", span_type=None)
         span.finish()
 
+    def test_assertion_failure(self):
+        assert 1 == 0
+
     def test_tracer(self):
         def _mix():
             with self.trace("cake.mix"):
