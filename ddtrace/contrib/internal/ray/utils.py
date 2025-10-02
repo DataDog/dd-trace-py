@@ -35,6 +35,7 @@ from .constants import RAY_SUBMISSION_ID
 from .constants import RAY_SUBMISSION_ID_TAG
 from .constants import RAY_TASK_ID
 from .constants import RAY_WORKER_ID
+from .constants import REDACTED_PATH
 from .constants import REDACTED_VALUE
 
 
@@ -45,8 +46,6 @@ JOB_NAME_REGEX = re.compile(r"^job\:([A-Za-z0-9_\.\-]+),run:([A-Za-z0-9_\.\-]+)$
 # for example, if the entrypoint is python3 woof.py --breed mutt
 # then the job name will be woof
 ENTRY_POINT_REGEX = re.compile(r"([^\s\/\\]+)\.py")
-
-REDACTED_PATH = "<redacted/path/to>"
 
 
 def _inject_dd_trace_ctx_kwarg(method: Callable) -> Signature:
@@ -139,7 +138,7 @@ def get_dd_job_name_from_entrypoint(entrypoint: str):
     return None
 
 
-def redact_paths(s):
+def redact_paths(s: str) -> str:
     """
     Redact path-like substrings from an entry-point string.
     Uses os.sep (and os.altsep if present) to detect paths; preserves spacing.
@@ -186,7 +185,7 @@ def redact_paths(s):
     return "".join(part if part.strip() == "" else _redact_token(part) for part in parts)
 
 
-def json_to_dot_paths(data):
+def flatten_metadata_dict(data: dict) -> Dict[str, Any]:
     """
     Converts a JSON (or Python dictionary) structure into a dict mapping
     dot-notation paths to leaf values, with keys prefixed once by RAY_METADATA_PREFIX.

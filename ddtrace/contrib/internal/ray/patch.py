@@ -58,8 +58,8 @@ from .utils import _inject_context_in_kwargs
 from .utils import _inject_dd_trace_ctx_kwarg
 from .utils import _inject_ray_span_tags_and_metrics
 from .utils import extract_signature
+from .utils import flatten_metadata_dict
 from .utils import get_dd_job_name_from_entrypoint
-from .utils import json_to_dot_paths
 from .utils import redact_paths
 from .utils import set_tag_or_truncate
 
@@ -79,8 +79,8 @@ config._add(
     "ray",
     dict(
         _default_service=schematize_service_name("ray"),
-        use_entrypoint_as_job_name=asbool(os.getenv("DD_RAY_USE_ENTRYPOINT_AS_JOB_NAME", default=False)),
-        redact_entrypoint_paths=asbool(os.getenv("DD_RAY_REDACT_ENTRYPOINT_PATHS", default=True)),
+        use_entrypoint_as_service_name=asbool(os.getenv("DD_TRACE_RAY_USE_ENTRYPOINT_AS_SERVICE_NAME", default=False)),
+        redact_entrypoint_paths=asbool(os.getenv("DD_TRACE_RAY_REDACT_ENTRYPOINT_PATHS", default=True)),
     ),
 )
 
@@ -199,7 +199,7 @@ def traced_submit_job(wrapped, instance, args, kwargs):
     job_name = config.service or kwargs.get("metadata", {}).get("job_name", "")
 
     if not job_name:
-        if config.ray.use_entrypoint_as_job_name:
+        if config.ray.use_entrypoint_as_service_name:
             job_name = get_dd_job_name_from_entrypoint(entrypoint) or DEFAULT_JOB_NAME
         else:
             job_name = DEFAULT_JOB_NAME
@@ -212,7 +212,7 @@ def traced_submit_job(wrapped, instance, args, kwargs):
         job_span.set_tag_str(RAY_ENTRYPOINT, entrypoint)
 
     metadata = kwargs.get("metadata", {})
-    dot_paths = json_to_dot_paths(metadata)
+    dot_paths = flatten_metadata_dict(metadata)
     for k, v in dot_paths.items():
         set_tag_or_truncate(job_span, k, v)
 

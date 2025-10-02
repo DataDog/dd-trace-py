@@ -48,3 +48,4 @@ DD_WAS_LONG_RUNNING = "_dd.was_long_running"
 
 # Special values
 REDACTED_VALUE = "<redacted>"
+REDACTED_PATH = "<redacted/path/to>"
