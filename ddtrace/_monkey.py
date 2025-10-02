@@ -119,6 +119,7 @@ PATCH_MODULES = {
     "selenium": True,
     "valkey": True,
     "openai_agents": True,
+    "ray": False,
     "protobuf": config._data_streams_enabled,
 }
 
@@ -167,6 +168,7 @@ _MODULES_FOR_CONTRIB = {
     "google_adk": ("google.adk",),
     "google_generativeai": ("google.generativeai",),
     "google_genai": ("google.genai",),
+    "langchain": ("langchain_core",),
     "langgraph": (
         "langgraph",
         "langgraph.graph",
