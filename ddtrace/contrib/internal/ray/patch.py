@@ -25,7 +25,9 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation.http import _TraceContext
 
 from .constants import DD_RAY_TRACE_CTX
@@ -79,6 +81,8 @@ config._add(
     "ray",
     dict(
         _default_service=schematize_service_name("ray"),
+        trace_core_api=_get_config("DD_TRACE_RAY_CORE_API", default=False, modifier=asbool),
+        trace_args_kwargs=_get_config("DD_TRACE_RAY_ARGS_KWARGS", default=False, modifier=asbool),
     ),
 )
 
@@ -121,8 +125,9 @@ def _wrap_task_execution(wrapped, *args, **kwargs):
         activate=True,
     ) as task_execute_span:
         try:
-            set_tag_or_truncate(task_execute_span, RAY_TASK_ARGS, args)
-            set_tag_or_truncate(task_execute_span, RAY_TASK_KWARGS, kwargs)
+            if config.ray.trace_args_kwargs:
+                set_tag_or_truncate(task_execute_span, RAY_TASK_ARGS, args)
+                set_tag_or_truncate(task_execute_span, RAY_TASK_KWARGS, kwargs)
 
             result = wrapped(*args, **kwargs)
 
@@ -163,8 +168,9 @@ def traced_submit_task(wrapped, instance, args, kwargs):
         _inject_ray_span_tags_and_metrics(span)
 
         try:
-            set_tag_or_truncate(span, RAY_TASK_ARGS, kwargs.get("args", {}))
-            set_tag_or_truncate(span, RAY_TASK_KWARGS, kwargs.get("kwargs", {}))
+            if config.ray.trace_args_kwargs:
+                set_tag_or_truncate(span, RAY_TASK_ARGS, kwargs.get("args", {}))
+                set_tag_or_truncate(span, RAY_TASK_KWARGS, kwargs.get("kwargs", {}))
             _inject_context_in_kwargs(span.context, kwargs)
 
             resp = wrapped(*args, **kwargs)
@@ -262,8 +268,9 @@ def traced_actor_method_call(wrapped, instance, args, kwargs):
         resource=f"{actor_name}.{method_name}.remote",
     ) as span:
         span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
-        set_tag_or_truncate(span, RAY_ACTOR_METHOD_ARGS, get_argument_value(args, kwargs, 0, "args"))
-        set_tag_or_truncate(span, RAY_ACTOR_METHOD_KWARGS, get_argument_value(args, kwargs, 1, "kwargs"))
+        if config.ray.trace_args_kwargs:
+            set_tag_or_truncate(span, RAY_ACTOR_METHOD_ARGS, get_argument_value(args, kwargs, 0, "args"))
+            set_tag_or_truncate(span, RAY_ACTOR_METHOD_KWARGS, get_argument_value(args, kwargs, 1, "kwargs"))
         _inject_ray_span_tags_and_metrics(span)
 
         _inject_context_in_kwargs(span.context, kwargs)
@@ -331,7 +338,7 @@ def _job_supervisor_run_wrapper(method: Callable[..., Any]) -> Any:
         with long_running_ray_span(
             "actor_method.execute",
             resource=f"{self.__class__.__name__}.{method.__name__}",
-            service=RAY_SERVICE_NAME,
+            service=os.environ.get(RAY_JOB_NAME, DEFAULT_JOB_NAME),
             span_type=SpanTypes.RAY,
             child_of=context,
             activate=True,
@@ -369,7 +376,7 @@ def _exec_entrypoint_wrapper(method: Callable[..., Any]) -> Any:
         with tracer.trace(
             "exec entrypoint",
             resource=f"exec {entrypoint_name}",
-            service=RAY_SERVICE_NAME,
+            service=os.environ.get(RAY_JOB_NAME, DEFAULT_JOB_NAME),
             span_type=SpanTypes.RAY,
         ) as span:
             span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
@@ -394,8 +401,9 @@ def _trace_actor_method(self: Any, method: Callable[..., Any], dd_trace_ctx, *ar
         child_of=context,
         activate=True,
     ) as actor_execute_span:
-        set_tag_or_truncate(actor_execute_span, RAY_ACTOR_METHOD_ARGS, args)
-        set_tag_or_truncate(actor_execute_span, RAY_ACTOR_METHOD_KWARGS, kwargs)
+        if config.ray.trace_args_kwargs:
+            set_tag_or_truncate(actor_execute_span, RAY_ACTOR_METHOD_ARGS, args)
+            set_tag_or_truncate(actor_execute_span, RAY_ACTOR_METHOD_KWARGS, kwargs)
 
         yield actor_execute_span
 
@@ -495,15 +503,15 @@ def patch():
 
     _w(ray.actor, "_modify_class", inject_tracing_into_actor_class)
     _w(ray.actor.ActorHandle, "_actor_method_call", traced_actor_method_call)
-    _w(ray, "put", traced_put)
-    _w(ray, "wait", traced_wait)
+
+    if config.ray.trace_core_api:
+        _w(ray, "wait", traced_wait)
+        _w(ray, "put", traced_put)
 
 
 def unpatch():
     if not getattr(ray, "_datadog_patch", False):
         return
-
-    ray._datadog_patch = False
 
     _u(ray.remote_function.RemoteFunction, "_remote")
 
@@ -512,5 +520,9 @@ def unpatch():
 
     _u(ray.actor, "_modify_class")
     _u(ray.actor.ActorHandle, "_actor_method_call")
-    _u(ray, "put")
-    _u(ray, "wait")
+
+    if config.ray.trace_core_api:
+        _u(ray, "wait")
+        _u(ray, "put")
+
+    ray._datadog_patch = False
