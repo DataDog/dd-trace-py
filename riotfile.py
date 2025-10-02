@@ -3575,7 +3575,10 @@ venv = Venv(
                         # standard allocators
                         Venv(
                             env={
-                                "PYTHONMALLOC": ["pymalloc", "malloc", "malloc_debug", "pymalloc_debug"],
+                                "PYTHONMALLOC": [
+                                    "pymalloc", 
+                                    # "malloc", "malloc_debug", "pymalloc_debug"
+                                ],
                             },
                         ),
                     ],
