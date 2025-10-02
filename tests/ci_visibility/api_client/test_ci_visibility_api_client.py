@@ -176,7 +176,7 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
         with mock.patch(
             "ddtrace.internal.ci_visibility._api_client.get_connection", return_value=mock_connection
         ) as mock_get_connection:
-            settings = client.fetch_settings()
+            settings = client.fetch_settings(read_from_cache=False)
             assert settings == TestVisibilityAPISettings()
             mock_get_connection.assert_called_once_with(
                 requests_mode_settings["expected_urls"]["setting"],
@@ -212,7 +212,7 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
             git_data=git_data,
         )
         with mock.patch.object(client, "_do_request", return_value=_get_setting_api_response()) as mock_do_request:
-            settings = client.fetch_settings()
+            settings = client.fetch_settings(read_from_cache=False)
             assert settings == TestVisibilityAPISettings()
 
             assert mock_do_request.call_count == 1
@@ -248,7 +248,7 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
         with mock.patch(
             "ddtrace.internal.ci_visibility._api_client.get_connection", return_value=mock_connection
         ) as mock_get_connection:
-            skippable_items = client.fetch_skippable_items(timeout=request_timeout)
+            skippable_items = client.fetch_skippable_items(timeout=request_timeout, read_from_cache=False)
             assert skippable_items == ITRData(correlation_id="1234ideclareacorrelationid")
             mock_get_connection.assert_called_once_with(
                 requests_mode_settings["expected_urls"]["skippable"],
@@ -290,7 +290,7 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
         with mock.patch(
             "ddtrace.internal.ci_visibility._api_client.get_connection", return_value=mock_connection
         ) as mock_get_connection:
-            known_tests = client.fetch_known_tests()
+            known_tests = client.fetch_known_tests(read_from_cache=False)
             assert known_tests == set()
             mock_get_connection.assert_called_once_with(
                 requests_mode_settings["expected_urls"]["tests"],
