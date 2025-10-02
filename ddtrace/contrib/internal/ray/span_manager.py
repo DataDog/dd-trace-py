@@ -67,7 +67,10 @@ class RaySpanManager:
         self._is_shutting_down: bool = False
 
         # Register cleanup on process exit
-        atexit.register(self.cleanup_on_exit)
+        try:
+            atexit.register(self.cleanup_on_exit)
+        except:
+            pass
 
     def _get_submission_id(self, span: Span) -> Optional[str]:
         return span.get_tag(RAY_SUBMISSION_ID_TAG)
