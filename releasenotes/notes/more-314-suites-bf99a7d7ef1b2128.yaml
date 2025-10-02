@@ -42,3 +42,4 @@ upgrade:
     * llmobs - ragas doesn't yet work with Python 3.14
     * ai_guard_langchain - tiktoken doesn't yet work with Python 3.14
     * appsec_integrations_fastapi
+    * sanic - untested since Python 3.12
