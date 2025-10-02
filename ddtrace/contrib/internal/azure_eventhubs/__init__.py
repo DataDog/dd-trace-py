@@ -1,5 +1,5 @@
 """
-The azure_eventhubs integration traces all events sent by the event hubs client.
+The azure_eventhubs integration traces all events sent by the Azure Event Hubs client.
 
 Enabling
 ~~~~~~~~
