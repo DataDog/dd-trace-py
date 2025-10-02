@@ -1,3 +1,5 @@
+import ray.dashboard.modules.job.job_manager  # noqa: F401
+
 from ddtrace.contrib.internal.ray.patch import get_version
 from ddtrace.contrib.internal.ray.patch import patch
 from ddtrace.contrib.internal.ray.patch import unpatch
