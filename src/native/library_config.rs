@@ -125,8 +125,13 @@ pub fn store_metadata(data: &PyTracerMetadata) -> PyResult<PyAnonymousFileHandle
         service_name: data.service_name.clone(),
         service_env: data.service_env.clone(),
         service_version: data.service_version.clone(),
+<<<<<<< HEAD
         process_tags: data.process_tags.clone(),
         container_id: data.container_id.clone(),
+=======
+        container_id: None,
+        process_tags: None,
+>>>>>>> c21cdc9e2 (First commit)
     };
 
     let res = store_tracer_metadata(&metadata);
