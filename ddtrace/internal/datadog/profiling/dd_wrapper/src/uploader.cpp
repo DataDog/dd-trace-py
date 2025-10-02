@@ -65,10 +65,11 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
     }
     ddog_prof_EncodedProfile* encoded = &serialize_result.ok; // NOLINT (cppcoreguidelines-pro-type-union-access)
 
+    // Export to file if output_filename is specified
+    bool file_export_success = true;
     if (!output_filename.empty()) {
-        bool ret = export_to_file(encoded);
-        ddog_prof_EncodedProfile_drop(encoded);
-        return ret;
+        file_export_success = export_to_file(encoded);
+        // Continue with network upload even if file export was requested
     }
 
     std::vector<ddog_prof_Exporter_File> to_compress_files;
@@ -135,7 +136,8 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
         ddog_CancellationToken_drop(&cancel_for_request);
     }
 
-    return ret;
+    // Return success only if both operations succeeded (or file export wasn't requested)
+    return ret && file_export_success;
 }
 
 void
