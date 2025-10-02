@@ -218,16 +218,23 @@ dependencies = [
 name = "build_common"
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 version = "24.0.0"
 source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
 =======
 =======
 >>>>>>> 29189767b5 (For testing with test tracer in staging)
 <<<<<<< HEAD
+=======
+<<<<<<< HEAD
+=======
+>>>>>>> c504f6a0ae (First commit)
+>>>>>>> 84fe6f9ff2 (First commit)
 version = "23.0.0"
 source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
 =======
 version = "21.0.0"
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
@@ -258,7 +265,14 @@ source = "git+https://github.com/DataDog/libdatadog?rev=538a7f1c236f9c70ab91de62
 version = "23.0.0"
 source = "git+https://github.com/DataDog/libdatadog?branch=main#c9a8858072b4cda335b987a4dba9147a9141165e"
 >>>>>>> a9f39cbc4 (For testing with test tracer in staging)
+<<<<<<< HEAD
 >>>>>>> 29189767b5 (For testing with test tracer in staging)
+=======
+=======
+source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
+>>>>>>> c21cdc9e2 (First commit)
+>>>>>>> c504f6a0ae (First commit)
+>>>>>>> 84fe6f9ff2 (First commit)
 dependencies = [
  "cbindgen",
  "serde",
@@ -315,6 +329,9 @@ dependencies = [
 name = "cc"
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> c504f6a0ae (First commit)
 version = "1.2.41"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac9fe6cdbb24b6ade63616c0a0688e45bb56732262c158df3c0c4bea4ca47cb7"
@@ -323,11 +340,14 @@ version = "1.2.39"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e1354349954c6fc9cb0deab020f27f783cf0b604e8bb754dc4658ecf0d29c35f"
 >>>>>>> c21cdc9e2 (First commit)
+<<<<<<< HEAD
 =======
 version = "1.2.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "35900b6c8d709fb1d854671ae27aeaa9eec2f8b01b364e1619a40da3e6fe2afe"
 >>>>>>> a9f39cbc4 (For testing with test tracer in staging)
+=======
+>>>>>>> c504f6a0ae (First commit)
 dependencies = [
  "find-msvc-tools",
  "jobserver",
@@ -338,10 +358,17 @@ dependencies = [
 [[package]]
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 name = "cc_utils"
 version = "0.1.0"
 source = "git+https://github.com/DataDog/libdatadog?rev=538a7f1c236f9c70ab91de6230b716807c721349#538a7f1c236f9c70ab91de6230b716807c721349"
+=======
+=======
+name = "cc_utils"
+version = "0.1.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
+>>>>>>> c504f6a0ae (First commit)
 dependencies = [
  "anyhow",
  "cc",
@@ -349,8 +376,11 @@ dependencies = [
 
 [[package]]
 >>>>>>> c21cdc9e2 (First commit)
+<<<<<<< HEAD
 =======
 >>>>>>> a9f39cbc4 (For testing with test tracer in staging)
+=======
+>>>>>>> c504f6a0ae (First commit)
 name = "cexpr"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -569,6 +599,7 @@ version = "21.0.0"
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
 >>>>>>> c21cdc9e2 (First commit)
 =======
@@ -580,6 +611,10 @@ source = "git+https://github.com/DataDog/libdatadog?rev=e99acfe76f5f3e9823d093ee
 =======
 source = "git+https://github.com/DataDog/libdatadog?rev=538a7f1c236f9c70ab91de6230b716807c721349#538a7f1c236f9c70ab91de6230b716807c721349"
 >>>>>>> 8baf78b87 (Remove class and module name in runtime frame def)
+=======
+source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
+>>>>>>> c21cdc9e2 (First commit)
+>>>>>>> c504f6a0ae (First commit)
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -617,6 +652,7 @@ version = "21.0.0"
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
 >>>>>>> c21cdc9e2 (First commit)
 =======
@@ -628,6 +664,10 @@ source = "git+https://github.com/DataDog/libdatadog?rev=e99acfe76f5f3e9823d093ee
 =======
 source = "git+https://github.com/DataDog/libdatadog?rev=538a7f1c236f9c70ab91de6230b716807c721349#538a7f1c236f9c70ab91de6230b716807c721349"
 >>>>>>> 8baf78b87 (Remove class and module name in runtime frame def)
+=======
+source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
+>>>>>>> c21cdc9e2 (First commit)
+>>>>>>> c504f6a0ae (First commit)
 dependencies = [
  "allocator-api2",
  "libc",
@@ -641,6 +681,7 @@ version = "23.0.0"
 source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
 =======
 version = "21.0.0"
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
@@ -660,6 +701,10 @@ name = "datadog-crashtracker"
 version = "23.0.0"
 source = "git+https://github.com/DataDog/libdatadog?branch=main#c9a8858072b4cda335b987a4dba9147a9141165e"
 >>>>>>> a9f39cbc4 (For testing with test tracer in staging)
+=======
+source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
+>>>>>>> c21cdc9e2 (First commit)
+>>>>>>> c504f6a0ae (First commit)
 dependencies = [
  "anyhow",
  "backtrace",
@@ -699,6 +744,7 @@ version = "21.0.0"
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
 >>>>>>> c21cdc9e2 (First commit)
 =======
@@ -710,6 +756,10 @@ source = "git+https://github.com/DataDog/libdatadog?rev=e99acfe76f5f3e9823d093ee
 =======
 source = "git+https://github.com/DataDog/libdatadog?rev=538a7f1c236f9c70ab91de6230b716807c721349#538a7f1c236f9c70ab91de6230b716807c721349"
 >>>>>>> 8baf78b87 (Remove class and module name in runtime frame def)
+=======
+source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
+>>>>>>> c21cdc9e2 (First commit)
+>>>>>>> c504f6a0ae (First commit)
 dependencies = [
  "prost",
 ]
@@ -721,10 +771,14 @@ version = "0.0.2"
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> c504f6a0ae (First commit)
 source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
 =======
 source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
 >>>>>>> c21cdc9e2 (First commit)
+<<<<<<< HEAD
 =======
 source = "git+https://github.com/DataDog/libdatadog?rev=5fad559ba9d3a60cdc5699418fa93d38beda8bb0#5fad559ba9d3a60cdc5699418fa93d38beda8bb0"
 >>>>>>> 637f39e5e (Dont send runtime id)
@@ -734,6 +788,8 @@ source = "git+https://github.com/DataDog/libdatadog?rev=e99acfe76f5f3e9823d093ee
 =======
 source = "git+https://github.com/DataDog/libdatadog?rev=538a7f1c236f9c70ab91de6230b716807c721349#538a7f1c236f9c70ab91de6230b716807c721349"
 >>>>>>> 8baf78b87 (Remove class and module name in runtime frame def)
+=======
+>>>>>>> c504f6a0ae (First commit)
 dependencies = [
  "anyhow",
  "memfd",
@@ -754,6 +810,7 @@ version = "21.0.0"
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
 >>>>>>> c21cdc9e2 (First commit)
 =======
@@ -765,6 +822,10 @@ source = "git+https://github.com/DataDog/libdatadog?rev=e99acfe76f5f3e9823d093ee
 =======
 source = "git+https://github.com/DataDog/libdatadog?rev=538a7f1c236f9c70ab91de6230b716807c721349#538a7f1c236f9c70ab91de6230b716807c721349"
 >>>>>>> 8baf78b87 (Remove class and module name in runtime frame def)
+=======
+source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
+>>>>>>> c21cdc9e2 (First commit)
+>>>>>>> c504f6a0ae (First commit)
 dependencies = [
  "chrono",
  "tracing",
@@ -778,10 +839,14 @@ dependencies = [
 name = "datadog-profiling"
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> c504f6a0ae (First commit)
 version = "23.0.0"
 source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
 =======
 version = "21.0.0"
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
@@ -800,6 +865,10 @@ source = "git+https://github.com/DataDog/libdatadog?rev=538a7f1c236f9c70ab91de62
 version = "23.0.0"
 source = "git+https://github.com/DataDog/libdatadog?branch=main#c9a8858072b4cda335b987a4dba9147a9141165e"
 >>>>>>> a9f39cbc4 (For testing with test tracer in staging)
+=======
+source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
+>>>>>>> c21cdc9e2 (First commit)
+>>>>>>> c504f6a0ae (First commit)
 dependencies = [
  "anyhow",
  "bitmaps",
@@ -834,10 +903,14 @@ dependencies = [
 name = "datadog-profiling-ffi"
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> c504f6a0ae (First commit)
 version = "23.0.0"
 source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
 =======
 version = "21.0.0"
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
@@ -856,6 +929,10 @@ source = "git+https://github.com/DataDog/libdatadog?rev=538a7f1c236f9c70ab91de62
 version = "23.0.0"
 source = "git+https://github.com/DataDog/libdatadog?branch=main#c9a8858072b4cda335b987a4dba9147a9141165e"
 >>>>>>> a9f39cbc4 (For testing with test tracer in staging)
+=======
+source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
+>>>>>>> c21cdc9e2 (First commit)
+>>>>>>> c504f6a0ae (First commit)
 dependencies = [
  "anyhow",
  "build_common",
@@ -882,6 +959,7 @@ version = "21.0.0"
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
 >>>>>>> c21cdc9e2 (First commit)
 =======
@@ -893,6 +971,10 @@ source = "git+https://github.com/DataDog/libdatadog?rev=e99acfe76f5f3e9823d093ee
 =======
 source = "git+https://github.com/DataDog/libdatadog?rev=538a7f1c236f9c70ab91de6230b716807c721349#538a7f1c236f9c70ab91de6230b716807c721349"
 >>>>>>> 8baf78b87 (Remove class and module name in runtime frame def)
+=======
+source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
+>>>>>>> c21cdc9e2 (First commit)
+>>>>>>> c504f6a0ae (First commit)
 dependencies = [
  "prost",
 ]
@@ -907,6 +989,7 @@ version = "21.0.0"
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
 >>>>>>> c21cdc9e2 (First commit)
 =======
@@ -918,6 +1001,10 @@ source = "git+https://github.com/DataDog/libdatadog?rev=e99acfe76f5f3e9823d093ee
 =======
 source = "git+https://github.com/DataDog/libdatadog?rev=538a7f1c236f9c70ab91de6230b716807c721349#538a7f1c236f9c70ab91de6230b716807c721349"
 >>>>>>> 8baf78b87 (Remove class and module name in runtime frame def)
+=======
+source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
+>>>>>>> c21cdc9e2 (First commit)
+>>>>>>> c504f6a0ae (First commit)
 dependencies = [
  "anyhow",
  "datadog-trace-protobuf",
@@ -933,6 +1020,7 @@ version = "21.0.0"
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
 >>>>>>> c21cdc9e2 (First commit)
 =======
@@ -944,6 +1032,10 @@ source = "git+https://github.com/DataDog/libdatadog?rev=e99acfe76f5f3e9823d093ee
 =======
 source = "git+https://github.com/DataDog/libdatadog?rev=538a7f1c236f9c70ab91de6230b716807c721349#538a7f1c236f9c70ab91de6230b716807c721349"
 >>>>>>> 8baf78b87 (Remove class and module name in runtime frame def)
+=======
+source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
+>>>>>>> c21cdc9e2 (First commit)
+>>>>>>> c504f6a0ae (First commit)
 dependencies = [
  "prost",
  "serde",
@@ -971,6 +1063,7 @@ version = "21.0.0"
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
 >>>>>>> c21cdc9e2 (First commit)
 =======
@@ -982,6 +1075,10 @@ source = "git+https://github.com/DataDog/libdatadog?rev=e99acfe76f5f3e9823d093ee
 =======
 source = "git+https://github.com/DataDog/libdatadog?rev=538a7f1c236f9c70ab91de6230b716807c721349#538a7f1c236f9c70ab91de6230b716807c721349"
 >>>>>>> 8baf78b87 (Remove class and module name in runtime frame def)
+=======
+source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
+>>>>>>> c21cdc9e2 (First commit)
+>>>>>>> c504f6a0ae (First commit)
 dependencies = [
  "anyhow",
  "bytes",
@@ -1013,6 +1110,7 @@ version = "21.0.0"
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
 >>>>>>> c21cdc9e2 (First commit)
 =======
@@ -1024,6 +1122,10 @@ source = "git+https://github.com/DataDog/libdatadog?rev=e99acfe76f5f3e9823d093ee
 =======
 source = "git+https://github.com/DataDog/libdatadog?rev=538a7f1c236f9c70ab91de6230b716807c721349#538a7f1c236f9c70ab91de6230b716807c721349"
 >>>>>>> 8baf78b87 (Remove class and module name in runtime frame def)
+=======
+source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
+>>>>>>> c21cdc9e2 (First commit)
+>>>>>>> c504f6a0ae (First commit)
 dependencies = [
  "anyhow",
  "cc",
@@ -1063,6 +1165,7 @@ version = "21.0.0"
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
 >>>>>>> c21cdc9e2 (First commit)
 =======
@@ -1074,6 +1177,10 @@ source = "git+https://github.com/DataDog/libdatadog?rev=e99acfe76f5f3e9823d093ee
 =======
 source = "git+https://github.com/DataDog/libdatadog?rev=538a7f1c236f9c70ab91de6230b716807c721349#538a7f1c236f9c70ab91de6230b716807c721349"
 >>>>>>> 8baf78b87 (Remove class and module name in runtime frame def)
+=======
+source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
+>>>>>>> c21cdc9e2 (First commit)
+>>>>>>> c504f6a0ae (First commit)
 dependencies = [
  "anyhow",
  "build_common",
@@ -1094,6 +1201,7 @@ version = "21.0.0"
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
 >>>>>>> c21cdc9e2 (First commit)
 =======
@@ -1105,6 +1213,10 @@ source = "git+https://github.com/DataDog/libdatadog?rev=e99acfe76f5f3e9823d093ee
 =======
 source = "git+https://github.com/DataDog/libdatadog?rev=538a7f1c236f9c70ab91de6230b716807c721349#538a7f1c236f9c70ab91de6230b716807c721349"
 >>>>>>> 8baf78b87 (Remove class and module name in runtime frame def)
+=======
+source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
+>>>>>>> c21cdc9e2 (First commit)
+>>>>>>> c504f6a0ae (First commit)
 dependencies = [
  "anyhow",
  "base64",
@@ -1149,6 +1261,10 @@ dependencies = [
  "libdd-profiling-ffi",
 =======
  "cc",
+<<<<<<< HEAD
+=======
+ "data-pipeline",
+>>>>>>> c504f6a0ae (First commit)
  "datadog-crashtracker",
  "datadog-profiling-ffi",
 <<<<<<< HEAD
@@ -1218,6 +1334,7 @@ version = "21.0.0"
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
 >>>>>>> c21cdc9e2 (First commit)
 =======
@@ -1229,6 +1346,10 @@ source = "git+https://github.com/DataDog/libdatadog?rev=e99acfe76f5f3e9823d093ee
 =======
 source = "git+https://github.com/DataDog/libdatadog?rev=538a7f1c236f9c70ab91de6230b716807c721349#538a7f1c236f9c70ab91de6230b716807c721349"
 >>>>>>> 8baf78b87 (Remove class and module name in runtime frame def)
+=======
+source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
+>>>>>>> c21cdc9e2 (First commit)
+>>>>>>> c504f6a0ae (First commit)
 dependencies = [
  "anyhow",
  "cadence",
@@ -1294,6 +1415,9 @@ checksum = "37909eebbb50d72f9059c3b6d82c0463f2ff062c9e95845c43a6c9c0355411be"
 name = "find-msvc-tools"
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> c504f6a0ae (First commit)
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "52051878f80a721bb68ebfbc930e07b65ba72f2da88968ea5c06fd6ca3d3a127"
@@ -1302,11 +1426,14 @@ version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ced73b1dacfc750a6db6c0a0c3a3853c8b41997e2e2c563dc90804ae6867959"
 >>>>>>> c21cdc9e2 (First commit)
+<<<<<<< HEAD
 =======
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "52051878f80a721bb68ebfbc930e07b65ba72f2da88968ea5c06fd6ca3d3a127"
 >>>>>>> a9f39cbc4 (For testing with test tracer in staging)
+=======
+>>>>>>> c504f6a0ae (First commit)
 
 [[package]]
 name = "fnv"
@@ -3323,6 +3450,7 @@ version = "21.0.0"
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
 >>>>>>> c21cdc9e2 (First commit)
 =======
@@ -3334,6 +3462,10 @@ source = "git+https://github.com/DataDog/libdatadog?rev=e99acfe76f5f3e9823d093ee
 =======
 source = "git+https://github.com/DataDog/libdatadog?rev=538a7f1c236f9c70ab91de6230b716807c721349#538a7f1c236f9c70ab91de6230b716807c721349"
 >>>>>>> 8baf78b87 (Remove class and module name in runtime frame def)
+=======
+source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
+>>>>>>> c21cdc9e2 (First commit)
+>>>>>>> c504f6a0ae (First commit)
 dependencies = [
  "serde",
 ]
