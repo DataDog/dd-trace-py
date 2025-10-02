@@ -69,7 +69,7 @@ class RaySpanManager:
         # Register cleanup on process exit
         try:
             atexit.register(self.cleanup_on_exit)
-        except:
+        except BaseException:
             pass
 
     def _get_submission_id(self, span: Span) -> Optional[str]:
