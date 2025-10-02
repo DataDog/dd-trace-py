@@ -161,6 +161,7 @@ async def traced_client_session_initialize(mcp, pin: Pin, func, instance, args: 
         response = None
         try:
             response = await func(*args, **kwargs)
+            return response
         finally:
             integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=response, operation="initialize")
 
@@ -173,6 +174,7 @@ async def traced_client_session_list_tools(mcp, pin: Pin, func, instance, args: 
         response = None
         try:
             response = await func(*args, **kwargs)
+            return response
         finally:
             integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=response, operation="list_tools")
 
