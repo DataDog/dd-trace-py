@@ -11,7 +11,7 @@
     "meta": {
       "_dd.base_service": "tests.contrib.botocore",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68dd8a3f00000000",
+      "_dd.p.tid": "672522b300000000",
       "aws.agent": "botocore",
       "aws.operation": "ReceiveMessage",
       "aws.partition": "aws",
@@ -19,7 +19,7 @@
       "aws.request.body.MessageAttributeNames.0": "_datadog",
       "aws.request.body.QueueUrl": "http://localhost:4566/000000000000/Test",
       "aws.request.body.WaitTimeSeconds": "2",
-      "aws.requestid": "8VPDOOAWG8W4ARL4G1T283DY99ZL0DOIQS9G1MHWI1GUA6FW547W",
+      "aws.requestid": "WJ6C1QMRXCMYSO918PTT0Y8488VH2RZHPKHZZXQZ1E3L079PE2PE",
       "aws.response.body.HTTPHeaders.access-control-allow-headers": "authorization,cache-control,content-length,content-md5,content-type,etag,location,x-amz-acl,x-amz-content-sha256,x-amz-date,x-amz-request-id,x-amz-security-token,x-amz-tagging,x-amz-target,x-amz-user-agent,x-amz-version-id,x-amzn-requestid,x-localstack-target,amz-sdk-invocation-id,amz-sdk-request",
       "aws.response.body.HTTPHeaders.access-control-allow-methods": "HEAD,GET,PUT,POST,DELETE,OPTIONS,PATCH",
       "aws.response.body.HTTPHeaders.access-control-allow-origin": "*",
@@ -27,10 +27,10 @@
       "aws.response.body.HTTPHeaders.connection": "close",
       "aws.response.body.HTTPHeaders.content-length": "654",
       "aws.response.body.HTTPHeaders.content-type": "text/xml",
-      "aws.response.body.HTTPHeaders.date": "Wed, 01 Oct 2025 20:08:31 GMT",
+      "aws.response.body.HTTPHeaders.date": "Fri, 01 Nov 2024 18:49:24 GMT",
       "aws.response.body.HTTPHeaders.server": "hypercorn-h11",
       "aws.response.body.HTTPStatusCode": "200",
-      "aws.response.body.RequestId": "8VPDOOAWG8W4ARL4G1T283DY99ZL0DOIQS9G1MHWI1GUA6FW547W",
+      "aws.response.body.RequestId": "WJ6C1QMRXCMYSO918PTT0Y8488VH2RZHPKHZZXQZ1E3L079PE2PE",
       "aws.response.body.RetryAttempts": "0",
       "aws.sqs.queue_name": "Test",
       "aws_account": "000000000000",
@@ -40,7 +40,7 @@
       "language": "python",
       "queuename": "Test",
       "region": "us-east-1",
-      "runtime-id": "170e664d16b94fb488fd3b267c5814eb",
+      "runtime-id": "e45a6c451bfb47bfbb0f4f36bd0803a3",
       "span.kind": "client"
     },
     "metrics": {
@@ -48,11 +48,11 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 11556,
+      "process_id": 9691,
       "retry_attempts": 0
     },
-    "duration": 524059792,
-    "start": 1759349311493738094
+    "duration": 895390012,
+    "start": 1730486964009311666
   }],
 [
   {
@@ -67,18 +67,18 @@
     "meta": {
       "_dd.base_service": "tests.contrib.botocore",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68dd8a3e00000000",
+      "_dd.p.tid": "672522b200000000",
       "aws.agent": "botocore",
       "aws.operation": "ListQueues",
       "aws.partition": "aws",
       "aws.region": "us-east-1",
-      "aws.requestid": "65DY1SPVWE5T2R2DI5C475TPZEU6Y6ZH9HVRKYKYMYZ8AOYO0KMQ",
+      "aws.requestid": "GCXA1QNSIT8ZCO2ER8SPI6U6QPTINWZKK1J0QLJE4FV89SOAG7VY",
       "aws_service": "sqs",
       "component": "botocore",
       "http.status_code": "200",
       "language": "python",
       "region": "us-east-1",
-      "runtime-id": "170e664d16b94fb488fd3b267c5814eb",
+      "runtime-id": "e45a6c451bfb47bfbb0f4f36bd0803a3",
       "span.kind": "client"
     },
     "metrics": {
@@ -86,11 +86,11 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 11556,
+      "process_id": 9691,
       "retry_attempts": 0
     },
-    "duration": 6641833,
-    "start": 1759349310906322260
+    "duration": 9492759,
+    "start": 1730486963003404555
   }],
 [
   {
@@ -105,12 +105,12 @@
     "meta": {
       "_dd.base_service": "tests.contrib.botocore",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68dd8a3e00000000",
+      "_dd.p.tid": "672522b300000000",
       "aws.agent": "botocore",
       "aws.operation": "CreateQueue",
       "aws.partition": "aws",
       "aws.region": "us-east-1",
-      "aws.requestid": "M280N1BC88ZVKHMCP1ZZHLGVKNK090V5NS2KED6AABK36BXPCJYK",
+      "aws.requestid": "A3R2CT5ZWO1XH9GEAT7L232IPRFJSCTBRRGO9LCSBEUX0T8KHC1O",
       "aws.sqs.queue_name": "Test",
       "aws_service": "sqs",
       "component": "botocore",
@@ -118,7 +118,7 @@
       "language": "python",
       "queuename": "Test",
       "region": "us-east-1",
-      "runtime-id": "170e664d16b94fb488fd3b267c5814eb",
+      "runtime-id": "e45a6c451bfb47bfbb0f4f36bd0803a3",
       "span.kind": "client"
     },
     "metrics": {
@@ -126,11 +126,11 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 11556,
+      "process_id": 9691,
       "retry_attempts": 0
     },
-    "duration": 2763666,
-    "start": 1759349310913350427
+    "duration": 7553649,
+    "start": 1730486963013740697
   }],
 [
   {
@@ -145,7 +145,7 @@
     "meta": {
       "_dd.base_service": "tests.contrib.botocore",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68dd8a3e00000000",
+      "_dd.p.tid": "672522b300000000",
       "aws.agent": "botocore",
       "aws.operation": "SendMessage",
       "aws.partition": "aws",
@@ -172,7 +172,7 @@
       "aws.request.body.MessageAttributes.two.StringValue": "two",
       "aws.request.body.MessageBody": "world",
       "aws.request.body.QueueUrl": "http://localhost:4566/000000000000/Test",
-      "aws.requestid": "AI70E7GOW9XMKWH0O86YWVEFMLUMMHDVOOCANB6IPBAZEAO86IPO",
+      "aws.requestid": "NLK4TDG9YGTYRAMQ6QHN6NWC6QKRSSIZ8IBF0DS4RTY2Y3YWA7XC",
       "aws.response.body.HTTPHeaders.access-control-allow-headers": "authorization,cache-control,content-length,content-md5,content-type,etag,location,x-amz-acl,x-amz-content-sha256,x-amz-date,x-amz-request-id,x-amz-security-token,x-amz-tagging,x-amz-target,x-amz-user-agent,x-amz-version-id,x-amzn-requestid,x-localstack-target,amz-sdk-invocation-id,amz-sdk-request",
       "aws.response.body.HTTPHeaders.access-control-allow-methods": "HEAD,GET,PUT,POST,DELETE,OPTIONS,PATCH",
       "aws.response.body.HTTPHeaders.access-control-allow-origin": "*",
@@ -180,10 +180,10 @@
       "aws.response.body.HTTPHeaders.connection": "close",
       "aws.response.body.HTTPHeaders.content-length": "493",
       "aws.response.body.HTTPHeaders.content-type": "text/xml",
-      "aws.response.body.HTTPHeaders.date": "Wed, 01 Oct 2025 20:08:31 GMT",
+      "aws.response.body.HTTPHeaders.date": "Fri, 01 Nov 2024 18:49:23 GMT",
       "aws.response.body.HTTPHeaders.server": "hypercorn-h11",
       "aws.response.body.HTTPStatusCode": "200",
-      "aws.response.body.RequestId": "AI70E7GOW9XMKWH0O86YWVEFMLUMMHDVOOCANB6IPBAZEAO86IPO",
+      "aws.response.body.RequestId": "NLK4TDG9YGTYRAMQ6QHN6NWC6QKRSSIZ8IBF0DS4RTY2Y3YWA7XC",
       "aws.response.body.RetryAttempts": "0",
       "aws.sqs.queue_name": "Test",
       "aws_account": "000000000000",
@@ -193,7 +193,7 @@
       "language": "python",
       "queuename": "Test",
       "region": "us-east-1",
-      "runtime-id": "170e664d16b94fb488fd3b267c5814eb",
+      "runtime-id": "e45a6c451bfb47bfbb0f4f36bd0803a3",
       "span.kind": "client"
     },
     "metrics": {
@@ -201,9 +201,9 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 11556,
+      "process_id": 9691,
       "retry_attempts": 0
     },
-    "duration": 565989959,
-    "start": 1759349310920822593
+    "duration": 964509306,
+    "start": 1730486963031752521
   }]]
