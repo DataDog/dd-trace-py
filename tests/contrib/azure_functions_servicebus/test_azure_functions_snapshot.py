@@ -48,6 +48,7 @@ def azure_functions_client(request):
 
     port = 7071
     env["AZURE_FUNCTIONS_TEST_PORT"] = str(port)
+    env["DD_TRACE_STATS_COMPUTATION_ENABLED"] = "False"  # disable stats computation to avoid potential flakes in tests
 
     # webservers might exec or fork into another process, so we need to os.setsid() to create a process group
     # (all of which will listen to signals sent to the parent) so that we can kill the whole application.

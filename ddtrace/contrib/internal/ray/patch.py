@@ -320,7 +320,7 @@ def _job_supervisor_run_wrapper(method: Callable[..., Any]) -> Any:
         with long_running_ray_span(
             "actor_method.execute",
             resource=f"{self.__class__.__name__}.{method.__name__}",
-            service=RAY_SERVICE_NAME,
+            service=os.environ.get(RAY_JOB_NAME, DEFAULT_JOB_NAME),
             span_type=SpanTypes.RAY,
             child_of=context,
             activate=True,
@@ -358,7 +358,7 @@ def _exec_entrypoint_wrapper(method: Callable[..., Any]) -> Any:
         with tracer.trace(
             "exec entrypoint",
             resource=f"exec {entrypoint_name}",
-            service=RAY_SERVICE_NAME,
+            service=os.environ.get(RAY_JOB_NAME, DEFAULT_JOB_NAME),
             span_type=SpanTypes.RAY,
         ) as span:
             span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
