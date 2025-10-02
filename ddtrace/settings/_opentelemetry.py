@@ -1,4 +1,5 @@
 import typing as t
+from urllib.parse import urljoin
 
 from ddtrace.internal.telemetry import get_config
 from ddtrace.internal.telemetry import report_configuration
@@ -10,9 +11,7 @@ def _append_metrics_path(value):
     if value is None:
         return None
 
-    if value.endswith("/"):
-        return value + ExporterConfig.HTTP_METRICS_ENDPOINT
-    return value + f"/{ExporterConfig.HTTP_METRICS_ENDPOINT}"
+    return urljoin(value, ExporterConfig.HTTP_METRICS_ENDPOINT)
 
 
 def _derive_endpoint(config: "ExporterConfig"):
@@ -92,7 +91,7 @@ class ExporterConfig(DDConfig):
     GRPC_PORT: int = 4317
     HTTP_PORT: int = 4318
     HTTP_LOGS_ENDPOINT: str = "/v1/logs"
-    HTTP_METRICS_ENDPOINT: str = "v1/metrics"
+    HTTP_METRICS_ENDPOINT: str = "/v1/metrics"
     DEFAULT_HEADERS: str = ""
     DEFAULT_TIMEOUT: int = 10000
     DEFAULT_METRICS_TEMPORALITY_PREFERENCE: str = "delta"
