@@ -16,6 +16,8 @@ from typing import Union
 from typing import cast
 
 from ddtrace._trace.context import Context
+from ddtrace._trace.events import tracer_span_finished
+from ddtrace._trace.events import tracer_span_started
 from ddtrace._trace.processor import SpanAggregator
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.processor import TopLevelSpanProcessor
@@ -30,7 +32,6 @@ from ddtrace.constants import ENV_KEY
 from ddtrace.constants import PID
 from ddtrace.constants import VERSION_KEY
 from ddtrace.internal import atexit
-from ddtrace.internal import core
 from ddtrace.internal import debug
 from ddtrace.internal import forksafe
 from ddtrace.internal import hostname
@@ -205,7 +206,8 @@ class Tracer(object):
         :param func: The function to call when starting a span.
                      The started span will be passed as argument.
         """
-        core.on("trace.span_start", callback=func)
+        handler = tracer_span_started.on(func)
+        setattr(func, "_tracer_span_started_handler", handler)
         return func
 
     def deregister_on_start_span(self, func: Callable[[Span], None]) -> Callable[[Span], None]:
@@ -215,7 +217,9 @@ class Tracer(object):
 
         :param func: The function to stop calling when starting a span.
         """
-        core.reset_listeners("trace.span_start", callback=func)
+        handler = getattr(func, "_tracer_span_started_handler", None)
+        if handler:
+            tracer_span_started.remove(handler)
         return func
 
     def sample(self, span):
@@ -566,7 +570,7 @@ class Tracer(object):
             for p in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
                 if p:
                     p.on_span_start(span)
-        core.dispatch("trace.span_start", (span,))
+        tracer_span_started.dispatch(span)
         return span
 
     start_span = _start_span
@@ -584,7 +588,7 @@ class Tracer(object):
                 if p:
                     p.on_span_finish(span)
 
-        core.dispatch("trace.span_finish", (span,))
+        tracer_span_finished.dispatch(span)
         log.debug("finishing span - %r (enabled:%s)", span, self.enabled)
 
     def _log_compat(self, level, msg):

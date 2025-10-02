@@ -4,10 +4,13 @@ mod crashtracker;
 pub use datadog_profiling_ffi::*;
 mod data_pipeline;
 mod ddsketch;
+mod events;
 mod library_config;
 mod log;
+mod tracing;
 
 use pyo3::prelude::*;
+use pyo3::wrap_pymodule;
 
 /// Dummy function to check if imported lib is generated on windows builds.
 #[no_mangle]
@@ -38,6 +41,9 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Add logger submodule
     let logger_module = pyo3::wrap_pymodule!(log::logger);
     m.add_wrapped(logger_module)?;
+
+    // Add events submodule
+    m.add_wrapped(wrap_pymodule!(events::events))?;
 
     Ok(())
 }

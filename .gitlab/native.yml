@@ -21,3 +21,8 @@ include:
       echo -e "\e[0Ksection_start:`date +%s`:cargo_test[collapsed=true]\r\e[0Kcargo test"
       cargo test --no-fail-fast --locked
       echo -e "\e[0Ksection_end:`date +%s`:cargo_test\r\e[0K"
+    - |
+      echo -e "\e[0Ksection_start:`date +%s`:check_events_pyi[collapsed=true]\r\e[0Kcheck events.pyi"
+      cargo build
+      git diff --exit-code ../../ddtrace/internal/events.pyi || (echo "Error: events.pyi is out of date. Run 'cargo build' in src/native/ and commit the changes." && exit 1)
+      echo -e "\e[0Ksection_end:`date +%s`:check_events_pyi\r\e[0K"
