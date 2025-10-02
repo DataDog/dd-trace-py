@@ -503,7 +503,6 @@ from tests.contrib.sanic.test_sanic import _response_status
 
 from ddtrace.propagation import http as http_propagation
 
-@pytest.mark.asyncio
 async def test(client, integration_config, integration_http_config, test_spans):
     response = await client.get("/hello", params=[("foo", "bar")])
     assert _response_status(response) == 200
