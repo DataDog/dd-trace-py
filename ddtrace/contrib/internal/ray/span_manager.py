@@ -3,14 +3,21 @@ from contextlib import contextmanager
 from itertools import chain
 import threading
 import time
+from typing import Dict
+from typing import Optional
+from typing import Tuple
+from typing import Union
+
+from ray.dashboard.modules.job.common import JobInfo
 
 from ddtrace import config
 from ddtrace import tracer
+from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.forksafe import Lock
 
 from .constants import DD_PARTIAL_VERSION
 from .constants import DD_WAS_LONG_RUNNING
@@ -24,11 +31,15 @@ from .constants import RAY_SUBMISSION_ID_TAG
 from .utils import _inject_ray_span_tags_and_metrics
 
 
-log = get_logger(__name__)
-
-
 @contextmanager
-def long_running_ray_span(span_name, service, span_type, resource=None, child_of=None, activate=True):
+def long_running_ray_span(
+    span_name: str,
+    service: str,
+    span_type: str,
+    resource: Optional[str] = None,
+    child_of: Optional[Union[Span, Context]] = None,
+    activate: bool = True,
+):
     """Context manager that handles Ray span creation and long-running span lifecycle"""
     with tracer.start_span(
         name=span_name, service=service, resource=resource, span_type=span_type, child_of=child_of, activate=activate
@@ -46,22 +57,22 @@ def long_running_ray_span(span_name, service, span_type, resource=None, child_of
 
 
 class RaySpanManager:
-    def __init__(self):
-        self._timers = {}
+    def __init__(self) -> None:
+        self._timers: Dict[str, threading.Timer] = {}
         # {submission_id: {(trace_id, span_id): Span}}
-        self._job_spans = {}
+        self._job_spans: Dict[str, Dict[Tuple[int, int], Span]] = {}
         # {submission_id: (Span)}
-        self._root_spans = {}
-        self._lock = threading.Lock()
-        self._is_shutting_down = False
+        self._root_spans: Dict[str, Span] = {}
+        self._lock = Lock()
+        self._is_shutting_down: bool = False
 
         # Register cleanup on process exit
         atexit.register(self.cleanup_on_exit)
 
-    def _get_submission_id(self, span):
+    def _get_submission_id(self, span: Span) -> Optional[str]:
         return span.get_tag(RAY_SUBMISSION_ID_TAG)
 
-    def cleanup_on_exit(self):
+    def cleanup_on_exit(self) -> None:
         """Clean up all resources when the process exits."""
         with self._lock:
             self._is_shutting_down = True
@@ -81,7 +92,7 @@ class RaySpanManager:
         for span in spans_to_close:
             self._finish_span(span)
 
-    def _emit_partial_span(self, span):
+    def _emit_partial_span(self, span: Span) -> None:
         partial_version = time.time_ns()
         if span.get_metric(DD_PARTIAL_VERSION) is None:
             span.set_metric(DD_PARTIAL_VERSION, partial_version)
@@ -124,7 +135,7 @@ class RaySpanManager:
             spans = spans_to_write
         aggregator.writer.write(spans)
 
-    def _create_resubmit_timer(self, submission_id, time):
+    def _create_resubmit_timer(self, submission_id: str, time: float) -> None:
         """This function should be called under a lock"""
         if self._is_shutting_down:
             return
@@ -137,7 +148,7 @@ class RaySpanManager:
         except Exception:
             self._timers.pop(submission_id, None)
 
-    def _recreate_job_span(self, job_span):
+    def _recreate_job_span(self, job_span: Span) -> Span:
         new_span = Span(
             name=job_span.name,
             service=job_span.service,
@@ -154,7 +165,7 @@ class RaySpanManager:
 
         return new_span
 
-    def _resubmit_long_running_spans(self, submission_id):
+    def _resubmit_long_running_spans(self, submission_id: str) -> None:
         if self._is_shutting_down:
             return
 
@@ -167,7 +178,7 @@ class RaySpanManager:
         for span in job_spans:
             self._emit_partial_span(span)
 
-    def _finish_span(self, span, job_info=None):
+    def _finish_span(self, span: Span, job_info: Optional[JobInfo] = None) -> None:
         # only if span was long running
         if span.get_metric(DD_PARTIAL_VERSION) is not None:
             del span._metrics[DD_PARTIAL_VERSION]
@@ -177,14 +188,14 @@ class RaySpanManager:
 
         if job_info:
             span.set_tag_str(RAY_JOB_STATUS, job_info.status)
-            span.set_tag_str(RAY_JOB_MESSAGE, job_info.message)
+            span.set_tag(RAY_JOB_MESSAGE, job_info.message)
 
             if str(job_info.status) == RAY_STATUS_FAILED:
                 span.error = 1
-                span.set_tag_str(ERROR_MSG, job_info.message)
+                span.set_tag(ERROR_MSG, job_info.message)
         span.finish()
 
-    def add_span(self, span):
+    def add_span(self, span: Span) -> None:
         submission_id = self._get_submission_id(span)
 
         with self._lock:
@@ -194,7 +205,7 @@ class RaySpanManager:
                 self._create_resubmit_timer(submission_id, float(config._long_running_initial_flush_interval))
             self._job_spans[submission_id][(span.trace_id, span.span_id)] = span
 
-    def stop_long_running_span(self, span_to_stop):
+    def stop_long_running_span(self, span_to_stop: Span) -> None:
         self._finish_span(span_to_stop)
 
         submission_id = self._get_submission_id(span_to_stop)
@@ -215,7 +226,7 @@ class RaySpanManager:
                 timer.cancel()
             self._job_spans.pop(submission_id, None)
 
-    def stop_long_running_job(self, submission_id, job_info):
+    def stop_long_running_job(self, submission_id: str, job_info: Optional[JobInfo]) -> None:
         with self._lock:
             job_span = self._root_spans[submission_id]
 
@@ -232,7 +243,7 @@ class RaySpanManager:
 _ray_span_manager = RaySpanManager()
 
 
-def start_long_running_job(job_span):
+def start_long_running_job(job_span: Span) -> None:
     submission_id = _ray_span_manager._get_submission_id(job_span)
 
     with _ray_span_manager._lock:
@@ -241,13 +252,13 @@ def start_long_running_job(job_span):
     start_long_running_span(job_span)
 
 
-def stop_long_running_job(submission_id, job_info):
+def stop_long_running_job(submission_id: str, job_info: Optional[JobInfo]) -> None:
     _ray_span_manager.stop_long_running_job(submission_id, job_info)
 
 
-def start_long_running_span(span):
+def start_long_running_span(span: Span) -> None:
     _ray_span_manager.add_span(span)
 
 
-def stop_long_running_span(span):
+def stop_long_running_span(span: Span) -> None:
     _ray_span_manager.stop_long_running_span(span)
