@@ -41,7 +41,7 @@ class TestRayIntegration(TracerTestCase):
     def ray_cluster(self):
         # Configure Ray with minimal resource usage for CI
         ray.init(
-            _tracing_startup_hook="tests.contrib.ray:setup_test_tracing",
+            _tracing_startup_hook="ddtrace.contrib.ray:setup_tracing",
             local_mode=True,
             # Limit resources to reduce CI load
             num_cpus=1,
@@ -205,15 +205,27 @@ class TestRayIntegration(TracerTestCase):
         assert sent_count == 1
         assert messages == ["hello"]
 
-    @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_simple_wait", ignores=RAY_SNAPSHOT_IGNORES)
-    def test_simple_wait(self):
+    @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_core_api_deactivated", ignores=RAY_SNAPSHOT_IGNORES)
+    def test_core_api_deactivated(self):
         @ray.remote
         def add_one(x):
             return x + 1
 
-        done, running = ray.wait([add_one.remote(42)], num_returns=1, timeout=60)  # Reduced timeout from 60s to 10s
+        done, running = ray.wait([add_one.remote(42)], num_returns=1, timeout=60)
         assert running == [], f"Expected no running tasks, got {len(running)}"
         assert ray.get(done) == [43], f"Expected done to be [43], got {done}"
+
+    @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_simple_wait", ignores=RAY_SNAPSHOT_IGNORES)
+    def test_simple_wait(self):
+        with override_config("ray", dict(trace_core_api=True)):
+
+            @ray.remote
+            def add_one(x):
+                return x + 1
+
+            done, running = ray.wait([add_one.remote(42)], num_returns=1, timeout=60)
+            assert running == [], f"Expected no running tasks, got {len(running)}"
+            assert ray.get(done) == [43], f"Expected done to be [43], got {done}"
 
     @pytest.mark.snapshot(
         token="tests.contrib.ray.test_ray.test_args_kwargs", ignores=RAY_SNAPSHOT_IGNORES, wait_for_num_traces=2

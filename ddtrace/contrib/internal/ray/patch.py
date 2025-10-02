@@ -273,6 +273,9 @@ def traced_wait(wrapped, instance, args, kwargs):
     """
     Trace the calls of ray.wait
     """
+    if not config.ray.trace_core_api:
+        return wrapped(*args, **kwargs)
+
     if tracer.current_span() is None:
         log.debug("No active span found in ray.wait(), activating trace context from environment")
         tracer.context_provider.activate(_extract_tracing_context_from_env())
@@ -487,8 +490,7 @@ def patch():
     def _(m):
         _w(m.RemoteFunction, "_remote", traced_submit_task)
 
-    if config.ray.trace_core_api:
-        _w(ray, "wait", traced_wait)
+    _w(ray, "wait", traced_wait)
 
 
 def unpatch():
@@ -503,7 +505,6 @@ def unpatch():
     _u(ray.actor, "_modify_class")
     _u(ray.actor.ActorHandle, "_actor_method_call")
 
-    if config.ray.trace_core_api:
-        _u(ray, "wait")
+    _u(ray, "wait")
 
     ray._datadog_patch = False
