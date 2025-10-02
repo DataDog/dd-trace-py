@@ -5,6 +5,7 @@ import sys
 
 import django
 import pytest
+from requests.exceptions import ConnectionError as RequestConnectionError
 
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import FINGERPRINTING
@@ -54,7 +55,7 @@ def daphne_client(django_asgi, additional_env=None):
         try:
             resp = client.get_ignored("/shutdown-tracer")
             assert resp.status_code == 200
-        except ConnectionRefusedError:
+        except (ConnectionRefusedError, RequestConnectionError):
             # current mitigation for python 3.8
             if sys.version_info[:2] == (3, 8):
                 pass
