@@ -10,7 +10,6 @@ mod log;
 mod tracing;
 
 use pyo3::prelude::*;
-use pyo3::wrap_pymodule;
 
 /// Dummy function to check if imported lib is generated on windows builds.
 #[no_mangle]

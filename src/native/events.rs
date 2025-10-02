@@ -209,7 +209,6 @@ macro_rules! define_event {
             #[cfg(not(test))]
             mod python_integration {
                 use super::*;
-                use pyo3::prelude::*;
 
                 /// Python wrapper for dispatch - receives owned values from Python
                 #[pyfunction]
