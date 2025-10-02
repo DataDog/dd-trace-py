@@ -3576,8 +3576,10 @@ venv = Venv(
                         Venv(
                             env={
                                 "PYTHONMALLOC": [
-                                    "pymalloc", 
-                                    # "malloc", "malloc_debug", "pymalloc_debug"
+                                    "malloc",
+                                    "pymalloc",
+                                    "malloc_debug",
+                                    "pymalloc_debug",
                                 ],
                             },
                         ),
