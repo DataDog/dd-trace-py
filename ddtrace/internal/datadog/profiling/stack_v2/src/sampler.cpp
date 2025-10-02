@@ -166,10 +166,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
             for_each_thread_calls++;
             for_each_thread(interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
                 thread_sample_calls++;
-                auto result = thread.sample(interp.id, tstate, wall_time_us);
-                if (!result) {
-                    std::cout << "[ddtrace] Thread::sample error" << std::endl;
-                }
+                thread.sample(interp.id, tstate, wall_time_us);
             });
         });
 
