@@ -8,7 +8,7 @@ upgrade:
     * IAST
     * datastreams
     * dd_coverage
-    * lib_injection - https://github.com/DataDog/dd-trace-py/pull/14729
+    * ci_visibility
     * vertica - hasn't been supported by ddtracepy since Python 3.9
     * bottle - hasn't been supported by ddtracepy since Python 3.10
     * django - django version 6.1, which will be compatible with Python 3.14, is not yet released
