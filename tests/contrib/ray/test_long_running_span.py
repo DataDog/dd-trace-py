@@ -1,10 +1,13 @@
 import time
 
 from ddtrace import config
-from ddtrace.contrib.internal.ray.span_manager import _ray_span_manager
+from ddtrace.contrib.internal.ray.span_manager import get_span_manager
 from ddtrace.contrib.internal.ray.span_manager import start_long_running_span
 from ddtrace.contrib.internal.ray.span_manager import stop_long_running_span
 from tests.utils import TracerTestCase
+
+
+_ray_span_manager = get_span_manager()
 
 
 class TestLongRunningSpan(TracerTestCase):
