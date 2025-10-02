@@ -1743,18 +1743,24 @@ class PytestTestCase(PytestTestCaseBase):
         first_tag_data = _get_span_coverage_data(first_test_span, True)
         assert len(first_tag_data) == 2
         assert sorted(first_tag_data.keys()) == ["/lib_fn.py", "/test_cov.py"]
-        assert first_tag_data["/lib_fn.py"] == [(2, 2)]
-        assert first_tag_data["/test_cov.py"] == [(4, 5)]
+        assert first_tag_data["/lib_fn.py"] == [(1, 2)]
+        assert first_tag_data["/test_cov.py"] == [(1, 1), (3, 5), (7, 7)]
 
         second_test_span = spans[1]
         assert second_test_span.get_tag("type") == "test"
         assert second_test_span.get_tag("test.name") == "test_second"
 
         second_tag_data = _get_span_coverage_data(second_test_span, True)
-        assert len(second_tag_data) == 2
-        assert sorted(second_tag_data.keys()) == ["/ret_false.py", "/test_cov.py"]
-        assert second_tag_data["/ret_false.py"] == [(2, 2)]
-        assert second_tag_data["/test_cov.py"] == [(8, 9)]
+        assert len(second_tag_data) == 3
+        assert sorted(second_tag_data.keys()) == ["/lib_fn.py", "/ret_false.py", "/test_cov.py"]
+        assert second_tag_data["/ret_false.py"] == [(1, 2)]
+        assert second_tag_data["/test_cov.py"] == [(1, 1), (3, 3), (7, 9)]
+        # DEV: Due to the way we register import coverage, when the first test imports lib_fn, it gets recorded as an
+        # import dependency of the test module as a whole, so every test in the module that runs afterwards will have
+        # lib_fn as a dependency as well. This is suboptimal, but it's better to overcollect import coverage (which
+        # may lead to tests being run when they could be skipped) than to undercollect it (which might lead to tests
+        # being skipped when they shouldn't).
+        assert second_tag_data["/lib_fn.py"] == [(1, 1)]
 
     @pytest.mark.skipif(
         not _PYTEST_SUPPORTS_ITR,
@@ -1833,8 +1839,8 @@ class PytestTestCase(PytestTestCaseBase):
         second_tag_data = _get_span_coverage_data(second_test_span, True)
         assert len(second_tag_data) == 2
         assert sorted(second_tag_data.keys()) == ["/test_cov.py", "/test_ret_false.py"]
-        assert second_tag_data["/test_ret_false.py"] == [(2, 2)]
-        assert second_tag_data["/test_cov.py"] == [(8, 9)]
+        assert second_tag_data["/test_ret_false.py"] == [(1, 2)]
+        assert second_tag_data["/test_cov.py"] == [(1, 1), (3, 3), (7, 9)]
 
     @pytest.mark.skipif(
         not _PYTEST_SUPPORTS_ITR,
@@ -1922,8 +1928,8 @@ class PytestTestCase(PytestTestCaseBase):
         second_tag_data = _get_span_coverage_data(second_test_span, True)
         assert len(second_tag_data) == 2
         assert sorted(second_tag_data.keys()) == ["/test_cov.py", "/test_ret_false.py"]
-        assert second_tag_data["/test_ret_false.py"] == [(2, 2)]
-        assert second_tag_data["/test_cov.py"] == [(9, 10)]
+        assert second_tag_data["/test_ret_false.py"] == [(1, 2)]
+        assert second_tag_data["/test_cov.py"] == [(1, 1), (3, 4), (8, 10), (12, 15), (17, 18), (22, 25), (27, 28)]
 
         third_test_span = spans[2]
         assert third_test_span.get_tag("test.name") == "test_skipif_mark_false"
@@ -1931,8 +1937,8 @@ class PytestTestCase(PytestTestCaseBase):
         third_tag_data = _get_span_coverage_data(third_test_span, True)
         assert len(third_tag_data) == 2
         assert sorted(third_tag_data.keys()) == ["/test_cov.py", "/test_ret_false.py"]
-        assert third_tag_data["/test_cov.py"] == [(19, 20)]
-        assert third_tag_data["/test_ret_false.py"] == [(2, 2)]
+        assert third_tag_data["/test_cov.py"] == [(1, 1), (3, 4), (8, 8), (12, 15), (17, 20), (22, 25), (27, 28)]
+        assert third_tag_data["/test_ret_false.py"] == [(1, 2)]
 
         fourth_test_span = spans[3]
         assert fourth_test_span.get_tag("test.name") == "test_skipif_mark_true"
@@ -2002,7 +2008,7 @@ class PytestTestCase(PytestTestCaseBase):
         first_tag_data = _get_span_coverage_data(first_test_span, True)
         assert len(first_tag_data) == 1
         assert sorted(first_tag_data.keys()) == ["/test_cov.py"]
-        assert first_tag_data["/test_cov.py"] == [(4, 5)]
+        assert first_tag_data["/test_cov.py"] == [(1, 1), (3, 5), (9, 9)]
 
         second_test_span = spans[1]
         assert second_test_span.get_tag("type") == "test"
@@ -2011,8 +2017,63 @@ class PytestTestCase(PytestTestCaseBase):
         second_tag_data = _get_span_coverage_data(second_test_span, True)
         assert len(second_tag_data) == 2
         assert sorted(second_tag_data.keys()) == ["/test_cov.py", "/test_ret_false.py"]
-        assert second_tag_data["/test_ret_false.py"] == [(2, 2)]
-        assert second_tag_data["/test_cov.py"] == [(10, 11)]
+        assert second_tag_data["/test_ret_false.py"] == [(1, 2)]
+        assert second_tag_data["/test_cov.py"] == [(1, 1), (3, 3), (9, 11)]
+
+    @pytest.mark.skipif(
+        not _PYTEST_SUPPORTS_ITR,
+        reason=f"pytest version {get_version()} does not support ITR coverage reporting",
+    )
+    def test_pytest_will_report_coverage_of_import_level_constants(self):
+        self.testdir.makepyfile(
+            lib_constant="""
+        ANSWER = 42
+        """
+        )
+        py_cov_file = self.testdir.makepyfile(
+            test_cov="""
+        import pytest
+
+        from lib_constant import ANSWER
+
+        def test_cov():
+            assert ANSWER == 42
+        """
+        )
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+            return_value=True,
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=TestVisibilityAPISettings(True, False, False, True),
+        ):
+            self.inline_run(
+                "--ddtrace",
+                os.path.basename(py_cov_file.strpath),
+                extra_env={
+                    "_DD_CIVISIBILITY_ITR_SUITE_MODE": "False",
+                },
+            )
+        spans = self.pop_spans()
+
+        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
+        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "false"
+        assert session_span.get_tag("test.code_coverage.enabled") == "true"
+
+        module_span = [span for span in spans if span.get_tag("type") == "test_module_end"][0]
+        assert module_span.get_tag("test.itr.tests_skipping.enabled") == "false"
+        assert module_span.get_tag("test.code_coverage.enabled") == "true"
+
+        test_span = spans[0]
+        assert test_span.get_tag("test.name") == "test_cov"
+        assert test_span.get_tag("type") == "test"
+
+        tag_data = _get_span_coverage_data(test_span, True)
+        assert len(tag_data) == 2
+        assert sorted(tag_data.keys()) == ["/lib_constant.py", "/test_cov.py"]
+        assert tag_data["/lib_constant.py"] == [(1, 1)]
+        assert tag_data["/test_cov.py"] == [(1, 1), (3, 3), (5, 6)]
 
     def test_pytest_will_report_git_metadata(self):
         py_file = self.testdir.makepyfile(

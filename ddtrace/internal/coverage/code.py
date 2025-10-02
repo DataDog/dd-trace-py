@@ -32,7 +32,12 @@ ctx_coverage_enabled = ContextVar("ctx_coverage_enabled", default=False)
 
 
 def _get_ctx_covered_lines() -> t.DefaultDict[str, CoverageLines]:
-    return ctx_covered.get()[-1] if ctx_coverage_enabled.get() else defaultdict(CoverageLines)
+    if ctx_coverage_enabled.get():
+        if context_stack := ctx_covered.get():
+            return context_stack[-1]
+        log.debug("_get_ctx_covered_lines() called but ctx_covered stack is empty")
+
+    return defaultdict(CoverageLines)
 
 
 class ModuleCodeCollector(ModuleWatchdog):
@@ -237,7 +242,10 @@ class ModuleCodeCollector(ModuleWatchdog):
                 ctx_coverage_enabled.set(False)
 
         def get_covered_lines(self) -> t.Dict[str, CoverageLines]:
-            return ctx_covered.get()[-1]
+            covered_lines = _get_ctx_covered_lines()
+            if global_instance := ModuleCodeCollector._instance:
+                global_instance._add_import_time_lines(covered_lines)
+            return covered_lines
 
     @classmethod
     def start_coverage(cls):
