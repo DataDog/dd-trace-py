@@ -1,33 +1,111 @@
 [[
   {
+    "name": "sqs.command",
+    "service": "aws.sqs",
+    "resource": "sqs.listqueues",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.botocore",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68de892500000000",
+      "aws.agent": "botocore",
+      "aws.operation": "ListQueues",
+      "aws.partition": "aws",
+      "aws.region": "us-east-1",
+      "aws.requestid": "IR3234ZYOOF1DFHNT8H9YQXC78QGBCFQU51RB8F3AEE4N837G8U5",
+      "aws_service": "sqs",
+      "component": "botocore",
+      "http.status_code": "200",
+      "language": "python",
+      "region": "us-east-1",
+      "runtime-id": "f795542e43d84bd79cb4a0cf99ce39e6",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 6095,
+      "retry_attempts": 0
+    },
+    "duration": 8281333,
+    "start": 1759414565471842878
+  }],
+[
+  {
+    "name": "sqs.command",
+    "service": "aws.sqs",
+    "resource": "sqs.createqueue",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.botocore",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68de892500000000",
+      "aws.agent": "botocore",
+      "aws.operation": "CreateQueue",
+      "aws.partition": "aws",
+      "aws.region": "us-east-1",
+      "aws.requestid": "X58C8175FJY6ZELLS52I7XMZY3IG21O8DAD8YUQT88C7TB02P7R3",
+      "aws.sqs.queue_name": "Test",
+      "aws_service": "sqs",
+      "component": "botocore",
+      "http.status_code": "200",
+      "language": "python",
+      "queuename": "Test",
+      "region": "us-east-1",
+      "runtime-id": "f795542e43d84bd79cb4a0cf99ce39e6",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 6095,
+      "retry_attempts": 0
+    },
+    "duration": 3228834,
+    "start": 1759414565480654711
+  }],
+[
+  {
     "name": "kinesis.manual_span",
     "service": "tests.contrib.botocore",
     "resource": "kinesis.manual_span",
-    "trace_id": 0,
+    "trace_id": 2,
     "span_id": 1,
     "parent_id": 0,
     "type": "",
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6725212f00000000",
+      "_dd.p.tid": "68de892500000000",
       "language": "python",
-      "runtime-id": "2139211528f64010b06b4e04ea9d4202"
+      "runtime-id": "f795542e43d84bd79cb4a0cf99ce39e6"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 4315
+      "process_id": 6095
     },
-    "duration": 2128653547,
-    "start": 1730486575665558320
+    "duration": 923629834,
+    "start": 1759414565496029378
   },
      {
        "name": "kinesis.command",
        "service": "aws.kinesis",
        "resource": "kinesis.createstream",
-       "trace_id": 0,
+       "trace_id": 2,
        "span_id": 2,
        "parent_id": 1,
        "type": "http",
@@ -37,10 +115,11 @@
          "aws.agent": "botocore",
          "aws.kinesis.stream_name": "test",
          "aws.operation": "CreateStream",
+         "aws.partition": "aws",
          "aws.region": "us-east-1",
          "aws.request.body.ShardCount": "1",
          "aws.request.body.StreamName": "test",
-         "aws.response.body.HTTPHeaders.date": "Fri, 01 Nov 2024 18:42:56 GMT",
+         "aws.response.body.HTTPHeaders.date": "Thu, 02 Oct 2025 14:16:05 GMT",
          "aws.response.body.HTTPHeaders.server": "amazon.com",
          "aws.response.body.HTTPStatusCode": "200",
          "aws.response.body.RetryAttempts": "0",
@@ -56,14 +135,14 @@
          "_dd.top_level": 1,
          "retry_attempts": 0
        },
-       "duration": 1222098056,
-       "start": 1730486575665790837
+       "duration": 500066709,
+       "start": 1759414565496158253
      },
      {
        "name": "kinesis.command",
        "service": "aws.kinesis",
        "resource": "kinesis.putrecords",
-       "trace_id": 0,
+       "trace_id": 2,
        "span_id": 3,
        "parent_id": 1,
        "type": "http",
@@ -73,13 +152,14 @@
          "aws.agent": "botocore",
          "aws.kinesis.stream_name": "test",
          "aws.operation": "PutRecords",
+         "aws.partition": "aws",
          "aws.region": "us-east-1",
          "aws.request.body.Records.0.Data.Hello": "World",
          "aws.request.body.Records.0.PartitionKey": "1234",
          "aws.request.body.Records.1.Data.foo": "bar",
          "aws.request.body.Records.1.PartitionKey": "1234",
          "aws.request.body.StreamName": "test",
-         "aws.response.body.HTTPHeaders.date": "Fri, 01 Nov 2024 18:42:57 GMT",
+         "aws.response.body.HTTPHeaders.date": "Thu, 02 Oct 2025 14:16:06 GMT",
          "aws.response.body.HTTPHeaders.server": "amazon.com",
          "aws.response.body.HTTPStatusCode": "200",
          "aws.response.body.RetryAttempts": "0",
@@ -95,82 +175,6 @@
          "_dd.top_level": 1,
          "retry_attempts": 0
        },
-       "duration": 905954737,
-       "start": 1730486576888145627
-     }],
-[
-  {
-    "name": "sqs.command",
-    "service": "aws.sqs",
-    "resource": "sqs.listqueues",
-    "trace_id": 1,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "http",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "tests.contrib.botocore",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "6725212f00000000",
-      "aws.agent": "botocore",
-      "aws.operation": "ListQueues",
-      "aws.region": "us-east-1",
-      "aws.requestid": "S0Y391B6GM02XQHP7AAXP8BV0IZ0PTOUQY82NR7SHN651ERF2H8W",
-      "aws_service": "sqs",
-      "component": "botocore",
-      "http.status_code": "200",
-      "language": "python",
-      "region": "us-east-1",
-      "runtime-id": "2139211528f64010b06b4e04ea9d4202",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 4315,
-      "retry_attempts": 0
-    },
-    "duration": 9310053,
-    "start": 1730486575625781470
-  }],
-[
-  {
-    "name": "sqs.command",
-    "service": "aws.sqs",
-    "resource": "sqs.createqueue",
-    "trace_id": 2,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "http",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "tests.contrib.botocore",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "6725212f00000000",
-      "aws.agent": "botocore",
-      "aws.operation": "CreateQueue",
-      "aws.region": "us-east-1",
-      "aws.requestid": "HZLL7XGXSPWJD740TO4PBM4MN8CCVOL1UJRHUSV05ANLZCC0OEHN",
-      "aws.sqs.queue_name": "Test",
-      "aws_service": "sqs",
-      "component": "botocore",
-      "http.status_code": "200",
-      "language": "python",
-      "queuename": "Test",
-      "region": "us-east-1",
-      "runtime-id": "2139211528f64010b06b4e04ea9d4202",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 4315,
-      "retry_attempts": 0
-    },
-    "duration": 6980220,
-    "start": 1730486575636068298
-  }]]
+       "duration": 423236959,
+       "start": 1759414565996373378
+     }]]
