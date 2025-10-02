@@ -24,7 +24,7 @@ Global Configuration
 
 .. py:data:: ddtrace.config.azure_eventhubs['distributed_tracing']
 
-   Include distributed tracing headers in event hubs events sent from the azure event hubs client.
+ Include distributed tracing headers in event hubs events sent from the Azure Event Hubs client.
 
    This option can also be set with the ``DD_AZURE_EVENTHUBS_DISTRIBUTED_TRACING``
    environment variable.
