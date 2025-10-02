@@ -1,3 +1,5 @@
+"""LLMObs integration for vLLM V1 library."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -5,7 +7,7 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
-from ddtrace.contrib.internal.vllm.data_extractors import RequestData
+from ddtrace.contrib.internal.vllm.extractors import RequestData
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
@@ -23,62 +25,42 @@ from ddtrace.llmobs.utils import Document
 from ddtrace.trace import Span
 
 
-VLLM_MODEL_NAME = "vllm.request.model"
-VLLM_MODEL_PROVIDER = "vllm.request.provider"
-
-
 class VLLMIntegration(BaseLLMIntegration):
-    """LLMObs integration for vLLM library.
-
-    Handles both V0 (engine-side) and V1 (client-side) tracing modes,
-    supporting completion, embedding, and cross-encoding operations.
-    """
+    """LLMObs integration for vLLM V1 library."""
 
     _integration_name = "vllm"
 
     _METADATA_FIELDS = {
-        # SamplingParams
         "temperature",
         "max_tokens",
         "top_p",
-        "top_k",
         "n",
-        "presence_penalty",
-        "frequency_penalty",
-        "repetition_penalty",
-        "seed",
-        # Misc.
         "num_cached_tokens",
         "embedding_dim",
-        "encoding_format",
         "finish_reason",
-        "stop_reason",
         "lora_name",
     }
 
     def _set_base_span_tags(self, span: Span, **kwargs: Any) -> None:
-        """Set base tags (model name, provider) on vLLM spans."""
+        """Set base tags on vLLM spans."""
         model_name = kwargs.get("model_name")
         if model_name:
-            span.set_tag_str(VLLM_MODEL_NAME, model_name)
-            span.set_tag_str(VLLM_MODEL_PROVIDER, "vllm")
+            span.set_tag_str("vllm.request.model", model_name)
+            span.set_tag_str("vllm.request.provider", "vllm")
 
     def _build_metadata(self, data: RequestData) -> Dict[str, Any]:
+        """Extract metadata from request data."""
         md: Dict[str, Any] = {}
-        if data.sampling_params:
-            for key in self._METADATA_FIELDS:
-                val = getattr(data.sampling_params, key, None)
-                if val is not None:
-                    md[key] = val
 
         for key in self._METADATA_FIELDS:
-            if hasattr(data, key):
-                val = getattr(data, key, None)
-                if val is not None:
-                    md[key] = val
+            val = getattr(data, key, None)
+            if val is not None:
+                md[key] = val
+
         return md
 
     def _build_metrics(self, data: RequestData) -> Dict[str, Any]:
+        """Build token metrics from request data."""
         it = int(data.input_tokens or 0)
         ot = int(data.output_tokens or 0)
         return {
@@ -96,27 +78,20 @@ class VLLMIntegration(BaseLLMIntegration):
         }
 
         docs: List[Document] = []
-        inputs = data.input_
-        if inputs is not None:
-            if isinstance(inputs, str) or (isinstance(inputs, list) and (not inputs or isinstance(inputs[0], int))):
-                inputs = [inputs]
-            if isinstance(inputs, list):
-                docs = [Document(text=str(d)) for d in inputs]
-        elif data.prompt:
-            docs = [Document(text=str(data.prompt))]
+        if data.prompt:
+            docs = [Document(text=data.prompt)]
+        elif data.input_:
+            docs = [Document(text=str(data.input_))]
 
         if docs:
             ctx[INPUT_DOCUMENTS] = docs
 
-        num_embeddings = data.num_embeddings
-        if not isinstance(num_embeddings, int) or num_embeddings <= 0:
-            num_embeddings = len(docs) if docs else 1
+        num_emb = data.num_embeddings
         dim = data.embedding_dim
         ctx[OUTPUT_VALUE] = (
-            f"[{num_embeddings} embedding(s) returned with size {dim}]"
-            if dim
-            else f"[{num_embeddings} embedding(s) returned]"
+            f"[{num_emb} embedding(s) returned with size {dim}]" if dim else f"[{num_emb} embedding(s) returned]"
         )
+
         return ctx
 
     def _build_completion_context(self, data: RequestData) -> Dict[str, Any]:
@@ -126,6 +101,7 @@ class VLLMIntegration(BaseLLMIntegration):
             METADATA: self._build_metadata(data),
             METRICS: self._build_metrics(data),
         }
+
         if data.prompt:
             ctx[INPUT_MESSAGES] = [{"content": data.prompt}]
 
@@ -142,11 +118,12 @@ class VLLMIntegration(BaseLLMIntegration):
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
+        """Set LLMObs tags on span."""
         data: Optional[RequestData] = kwargs.get("request_data")
         if data is None:
             return
 
         ctx = self._build_embedding_context(data) if operation == "embedding" else self._build_completion_context(data)
-        ctx[MODEL_NAME] = span.get_tag(VLLM_MODEL_NAME) or ""
-        ctx[MODEL_PROVIDER] = span.get_tag(VLLM_MODEL_PROVIDER) or ""
+        ctx[MODEL_NAME] = span.get_tag("vllm.request.model") or ""
+        ctx[MODEL_PROVIDER] = span.get_tag("vllm.request.provider") or ""
         span._set_ctx_items(ctx)

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from typing import List
 
 from fastapi import FastAPI
@@ -9,9 +8,6 @@ from pydantic import BaseModel
 import torch
 import torch.nn.functional as F
 import vllm
-from vllm.engine.arg_utils import AsyncEngineArgs
-from vllm.entrypoints.openai.api_server import build_async_engine_client_from_engine_args
-from vllm.usage.usage_lib import UsageContext
 
 from ddtrace import tracer as ddtracer
 from ddtrace.propagation.http import HTTPPropagator
@@ -26,15 +22,15 @@ class RagRequest(BaseModel):
 
 app = FastAPI()
 
-# Common engine parameters
+# Common engine parameters (V1 only)
 EMBED_PARAMS = {
     "model": "intfloat/e5-small-v2",
     "enforce_eager": True,
     "max_model_len": 256,
     "compilation_config": {"use_inductor": False},
     "trust_remote_code": True,
-    "disable_log_stats": True,
     "gpu_memory_utilization": 0.1,
+    "runner": "pooling",
 }
 
 GEN_PARAMS = {
@@ -43,7 +39,6 @@ GEN_PARAMS = {
     "max_model_len": 256,
     "compilation_config": {"use_inductor": False},
     "trust_remote_code": True,
-    "disable_log_stats": True,
     "gpu_memory_utilization": 0.1,
 }
 
@@ -95,61 +90,32 @@ async def generate_text(engine, prompt: str, sampling_params: vllm.SamplingParam
 
 @app.post("/rag")
 async def rag(req: RagRequest, request: Request):
-    engine_mode = os.environ.get("VLLM_USE_V1", "0")
-    use_mq = os.environ.get("VLLM_USE_MQ", "0") == "1"
-
+    """RAG endpoint using vLLM V1 for embedding and text generation."""
     # Activate trace context from client headers if provided
     headers = dict(request.headers)
     ctx = HTTPPropagator.extract(headers)
     if ctx:
         ddtracer.context_provider.activate(ctx)
 
-    if use_mq and engine_mode == "0":
-        # MQLLMEngineClient path (V0 with multiprocessing)
-        embed_args = AsyncEngineArgs(**EMBED_PARAMS, runner="pooling")
-        async with build_async_engine_client_from_engine_args(
-            embed_args,
-            usage_context=UsageContext.OPENAI_API_SERVER,
-        ) as embed_engine:
-            doc_vecs = await embed_texts(embed_engine, req.documents, "embed")
-            query_vecs = await embed_texts(embed_engine, [req.query], "embed-query")
-            query_vec = query_vecs[0] if query_vecs else None
+    # Create V1 embedding engine
+    embed_engine = create_async_engine(**EMBED_PARAMS)
+    doc_vecs = await embed_texts(embed_engine, req.documents, "embed")
+    query_vecs = await embed_texts(embed_engine, [req.query], "embed-query")
+    query_vec = query_vecs[0] if query_vecs else None
 
-            top_doc = req.documents[0]
-            if query_vec is not None and doc_vecs:
-                sims = [F.cosine_similarity(query_vec.unsqueeze(0), d.unsqueeze(0)).item() for d in doc_vecs]
-                top_idx = int(max(range(len(sims)), key=lambda i: sims[i]))
-                top_doc = req.documents[top_idx]
+    # Find most similar document
+    top_doc = req.documents[0]
+    if query_vec is not None and doc_vecs:
+        sims = [F.cosine_similarity(query_vec.unsqueeze(0), d.unsqueeze(0)).item() for d in doc_vecs]
+        top_idx = int(max(range(len(sims)), key=lambda i: sims[i]))
+        top_doc = req.documents[top_idx]
 
-            torch.cuda.empty_cache()
+    torch.cuda.empty_cache()
 
-        gen_args = AsyncEngineArgs(**GEN_PARAMS)
-        async with build_async_engine_client_from_engine_args(
-            gen_args,
-            usage_context=UsageContext.OPENAI_API_SERVER,
-        ) as gen_engine:
-            sampling = vllm.SamplingParams(temperature=0.8, top_p=0.95, max_tokens=64, seed=42)
-            prompt = f"Context: {top_doc}\nQuestion: {req.query}\nAnswer:"
-            generated_text = await generate_text(gen_engine, prompt, sampling, "gen-0")
-            return {"generated_text": generated_text, "retrieved_document": top_doc}
-    else:
-        # In-process async engines (V1 AsyncLLM or V0 AsyncLLMEngine)
-        embed_engine = create_async_engine(engine_mode=engine_mode, runner="pooling", **EMBED_PARAMS)
-        doc_vecs = await embed_texts(embed_engine, req.documents, "embed")
-        query_vecs = await embed_texts(embed_engine, [req.query], "embed-query")
-        query_vec = query_vecs[0] if query_vecs else None
-
-        top_doc = req.documents[0]
-        if query_vec is not None and doc_vecs:
-            sims = [F.cosine_similarity(query_vec.unsqueeze(0), d.unsqueeze(0)).item() for d in doc_vecs]
-            top_idx = int(max(range(len(sims)), key=lambda i: sims[i]))
-            top_doc = req.documents[top_idx]
-
-        torch.cuda.empty_cache()
-
-        gen_engine = create_async_engine(engine_mode=engine_mode, **GEN_PARAMS)
-        sampling = vllm.SamplingParams(temperature=0.8, top_p=0.95, max_tokens=64, seed=42)
-        prompt = f"Context: {top_doc}\nQuestion: {req.query}\nAnswer:"
-        generated_text = await generate_text(gen_engine, prompt, sampling, "gen-0")
+    # Create V1 generation engine
+    gen_engine = create_async_engine(**GEN_PARAMS)
+    sampling = vllm.SamplingParams(temperature=0.8, top_p=0.95, max_tokens=64, seed=42)
+    prompt = f"Context: {top_doc}\nQuestion: {req.query}\nAnswer:"
+    generated_text = await generate_text(gen_engine, prompt, sampling, "gen-0")
 
     return {"generated_text": generated_text, "retrieved_document": top_doc}
