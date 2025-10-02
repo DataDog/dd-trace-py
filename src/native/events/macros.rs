@@ -174,34 +174,43 @@ macro_rules! define_event {
                 add_listener_internal(ListenerEntry::Rust(Arc::new(callback)))
             }
 
-            /// Python wrapper for dispatch - receives owned values from Python
-            #[pyfunction]
-            #[pyo3(signature = ($($param),*))]
-            fn dispatch_py($($param: $param_type),*) {
-                dispatch($(&$param),*);
+            // Python integration - only compile when not running tests
+            #[cfg(not(test))]
+            mod python_integration {
+                use super::*;
+                use pyo3::prelude::*;
+
+                /// Python wrapper for dispatch - receives owned values from Python
+                #[pyfunction]
+                #[pyo3(signature = ($($param),*))]
+                pub fn dispatch_py($($param: $param_type),*) {
+                    super::dispatch($(&$param),*);
+                }
+
+                /// Python wrapper for on (register listener)
+                #[pyfunction]
+                pub fn on_py(callback: PyObject) -> $crate::events::macros::ListenerHandle {
+                    super::add_listener_internal(ListenerEntry::Python(callback))
+                }
+
+                /// Python wrapper for remove
+                #[pyfunction]
+                pub fn remove_py(handle: $crate::events::macros::ListenerHandle) -> bool {
+                    super::remove(handle)
+                }
+
+                /// Python wrapper for has_listeners
+                #[pyfunction]
+                pub fn has_listeners_py() -> bool {
+                    super::has_listeners()
+                }
             }
 
-            /// Python wrapper for on (register listener)
-            #[pyfunction]
-            fn on_py(callback: PyObject) -> $crate::events::macros::ListenerHandle {
-                add_listener_internal(ListenerEntry::Python(callback))
-            }
-
-            /// Python wrapper for remove
-            #[pyfunction]
-            fn remove_py(handle: $crate::events::macros::ListenerHandle) -> bool {
-                remove(handle)
-            }
-
-            /// Python wrapper for has_listeners
-            #[pyfunction]
-            fn has_listeners_py() -> bool {
-                has_listeners()
-            }
-
-            // Python integration with ctor
+            // Python integration with ctor - only compile when not running tests
+            #[cfg(not(test))]
             #[ctor::ctor]
             fn register_python_object() {
+                use python_integration::*;
                 let registration_fn: $crate::events::macros::PythonRegistrationFn = Box::new(|m: &Bound<'_, PyModule>| {
                     use pyo3::types::PyDict;
 
