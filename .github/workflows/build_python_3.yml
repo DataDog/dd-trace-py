@@ -60,6 +60,7 @@ jobs:
       - id: set-matrix
         env:
           CIBW_BUILD: ${{ inputs.cibw_build }}
+          CIBW_SKIP: ${{ inputs.cibw_skip }}
         run: |
           MATRIX_INCLUDE=$(
             {
