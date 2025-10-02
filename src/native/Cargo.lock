@@ -216,8 +216,18 @@ dependencies = [
 
 [[package]]
 name = "build_common"
+<<<<<<< HEAD
 version = "24.0.0"
 source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+=======
+<<<<<<< HEAD
+version = "23.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
+=======
+version = "21.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
+>>>>>>> c21cdc9e2 (First commit)
+>>>>>>> 37544fcdb0 (First commit)
 dependencies = [
  "cbindgen",
  "serde",
@@ -272,9 +282,15 @@ dependencies = [
 
 [[package]]
 name = "cc"
+<<<<<<< HEAD
 version = "1.2.41"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac9fe6cdbb24b6ade63616c0a0688e45bb56732262c158df3c0c4bea4ca47cb7"
+=======
+version = "1.2.39"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e1354349954c6fc9cb0deab020f27f783cf0b604e8bb754dc4658ecf0d29c35f"
+>>>>>>> c21cdc9e2 (First commit)
 dependencies = [
  "find-msvc-tools",
  "jobserver",
@@ -283,6 +299,18 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<< HEAD
+=======
+name = "cc_utils"
+version = "0.1.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
+dependencies = [
+ "anyhow",
+ "cc",
+]
+
+[[package]]
+>>>>>>> c21cdc9e2 (First commit)
 name = "cexpr"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -475,11 +503,448 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+name = "darling"
+version = "0.21.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9cdf337090841a411e2a7f3deb9187445851f91b309c0c0a29e05f74a00a48c0"
+dependencies = [
+ "darling_core",
+ "darling_macro",
+]
+
+[[package]]
+name = "darling_core"
+version = "0.21.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1247195ecd7e3c85f83c8d2a366e4210d588e802133e1e355180a9870b517ea4"
+dependencies = [
+ "fnv",
+ "ident_case",
+ "proc-macro2",
+ "quote",
+ "strsim",
+ "syn",
+]
+
+[[package]]
+name = "darling_macro"
+version = "0.21.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d38308df82d1080de0afee5d069fa14b0326a88c14f15c5ccda35b4a6c414c81"
+dependencies = [
+ "darling_core",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "datadog-ffe"
+version = "1.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+dependencies = [
+ "chrono",
+ "derive_more",
+ "faststr",
+ "log",
+ "md5",
+ "pyo3",
+ "regex",
+ "serde",
+ "serde-bool",
+ "serde_json",
+ "serde_with",
+ "thiserror 2.0.17",
+ "url",
+]
+
+[[package]]
+=======
+<<<<<<< HEAD
+=======
+name = "data-pipeline"
+<<<<<<< HEAD
+version = "23.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
+=======
+version = "21.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
+>>>>>>> c21cdc9e2 (First commit)
+dependencies = [
+ "anyhow",
+ "arc-swap",
+ "bytes",
+ "datadog-ddsketch",
+ "datadog-trace-protobuf",
+ "datadog-trace-stats",
+ "datadog-trace-utils",
+ "ddcommon",
+ "ddtelemetry",
+ "dogstatsd-client",
+ "either",
+ "http",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "rmp-serde",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tinybytes",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "datadog-alloc"
+<<<<<<< HEAD
+version = "23.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
+=======
+version = "21.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
+>>>>>>> c21cdc9e2 (First commit)
+dependencies = [
+ "allocator-api2",
+ "libc",
+ "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "datadog-crashtracker"
+<<<<<<< HEAD
+version = "23.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
+=======
+version = "21.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
+>>>>>>> c21cdc9e2 (First commit)
+dependencies = [
+ "anyhow",
+ "backtrace",
+ "blazesym",
+ "cc",
+ "chrono",
+ "ddcommon",
+ "ddtelemetry",
+ "http",
+ "libc",
+ "nix",
+ "num-derive",
+ "num-traits",
+ "os_info",
+ "page_size",
+ "portable-atomic",
+ "rand",
+ "schemars",
+ "serde",
+ "serde_json",
+ "symbolic-common",
+ "symbolic-demangle",
+ "thiserror",
+ "tokio",
+ "uuid",
+ "windows 0.59.0",
+]
+
+[[package]]
+name = "datadog-ddsketch"
+<<<<<<< HEAD
+version = "23.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
+=======
+version = "21.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
+>>>>>>> c21cdc9e2 (First commit)
+dependencies = [
+ "prost",
+]
+
+[[package]]
+name = "datadog-library-config"
+version = "0.0.2"
+<<<<<<< HEAD
+source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
+=======
+source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
+>>>>>>> c21cdc9e2 (First commit)
+dependencies = [
+ "anyhow",
+ "memfd",
+ "rand",
+ "rmp",
+ "rmp-serde",
+ "serde",
+ "serde_yaml",
+]
+
+[[package]]
+name = "datadog-log"
+<<<<<<< HEAD
+version = "23.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
+=======
+version = "21.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
+>>>>>>> c21cdc9e2 (First commit)
+dependencies = [
+ "chrono",
+ "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "datadog-profiling"
+<<<<<<< HEAD
+version = "23.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
+=======
+version = "21.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
+>>>>>>> c21cdc9e2 (First commit)
+dependencies = [
+ "anyhow",
+ "bitmaps",
+ "byteorder",
+ "bytes",
+ "chrono",
+ "datadog-alloc",
+ "datadog-profiling-protobuf",
+ "ddcommon",
+ "futures",
+ "http",
+ "http-body-util",
+ "hyper",
+ "hyper-multipart-rfc7578",
+ "indexmap",
+ "mime",
+ "prost",
+ "rustc-hash 1.1.0",
+ "serde",
+ "serde_json",
+ "target-triple",
+ "tokio",
+ "tokio-util",
+ "zstd",
+]
+
+[[package]]
+name = "datadog-profiling-ffi"
+<<<<<<< HEAD
+version = "23.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
+=======
+version = "21.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
+>>>>>>> c21cdc9e2 (First commit)
+dependencies = [
+ "anyhow",
+ "build_common",
+ "datadog-profiling",
+ "ddcommon",
+ "ddcommon-ffi",
+ "function_name",
+ "futures",
+ "http-body-util",
+ "hyper",
+ "libc",
+ "serde_json",
+ "tokio-util",
+]
+
+[[package]]
+name = "datadog-profiling-protobuf"
+<<<<<<< HEAD
+version = "23.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
+=======
+version = "21.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
+>>>>>>> c21cdc9e2 (First commit)
+dependencies = [
+ "prost",
+]
+
+[[package]]
+name = "datadog-trace-normalization"
+<<<<<<< HEAD
+version = "23.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
+=======
+version = "21.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
+>>>>>>> c21cdc9e2 (First commit)
+dependencies = [
+ "anyhow",
+ "datadog-trace-protobuf",
+]
+
+[[package]]
+name = "datadog-trace-protobuf"
+<<<<<<< HEAD
+version = "23.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
+=======
+version = "21.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
+>>>>>>> c21cdc9e2 (First commit)
+dependencies = [
+ "prost",
+ "serde",
+ "serde_bytes",
+]
+
+[[package]]
+name = "datadog-trace-stats"
+version = "23.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
+dependencies = [
+ "datadog-ddsketch",
+ "datadog-trace-protobuf",
+ "datadog-trace-utils",
+ "hashbrown 0.15.5",
+]
+
+[[package]]
+name = "datadog-trace-utils"
+<<<<<<< HEAD
+version = "23.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
+=======
+version = "21.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
+>>>>>>> c21cdc9e2 (First commit)
+dependencies = [
+ "anyhow",
+ "bytes",
+ "datadog-trace-normalization",
+ "datadog-trace-protobuf",
+ "ddcommon",
+ "futures",
+ "http-body-util",
+ "hyper",
+ "prost",
+ "rand",
+ "rmp",
+ "rmp-serde",
+ "rmpv",
+ "serde",
+ "serde_json",
+ "tinybytes",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "ddcommon"
+<<<<<<< HEAD
+version = "23.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
+=======
+version = "21.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
+>>>>>>> c21cdc9e2 (First commit)
+dependencies = [
+ "anyhow",
+ "cc",
+ "const_format",
+ "futures",
+ "futures-core",
+ "futures-util",
+ "hex",
+ "http",
+ "http-body",
+ "http-body-util",
+ "hyper",
+ "hyper-rustls",
+ "hyper-util",
+ "libc",
+ "nix",
+ "pin-project",
+ "regex",
+ "rustls",
+ "rustls-native-certs",
+ "serde",
+ "static_assertions",
+ "thiserror",
+ "tokio",
+ "tokio-rustls",
+ "tower-service",
+ "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "ddcommon-ffi"
+<<<<<<< HEAD
+version = "23.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
+=======
+version = "21.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
+>>>>>>> c21cdc9e2 (First commit)
+dependencies = [
+ "anyhow",
+ "build_common",
+ "chrono",
+ "crossbeam-queue",
+ "ddcommon",
+ "hyper",
+ "serde",
+]
+
+[[package]]
+name = "ddtelemetry"
+<<<<<<< HEAD
+version = "23.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
+=======
+version = "21.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
+>>>>>>> c21cdc9e2 (First commit)
+dependencies = [
+ "anyhow",
+ "base64",
+ "datadog-ddsketch",
+ "ddcommon",
+ "futures",
+ "hashbrown 0.15.5",
+ "http",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "libc",
+ "serde",
+ "serde_json",
+ "sys-info",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "uuid",
+ "winver",
+]
+
+[[package]]
+>>>>>>> 37544fcdb0 (First commit)
+>>>>>>> 5dbc278ef2 (First commit)
+>>>>>>> 6d6f734e3 (First commit)
 name = "ddtrace-native"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "build_common",
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+ "datadog-ffe",
+=======
+<<<<<<< HEAD
+>>>>>>> 5dbc278ef2 (First commit)
+>>>>>>> 6d6f734e3 (First commit)
  "libdd-common",
  "libdd-crashtracker",
  "libdd-data-pipeline",
@@ -487,8 +952,19 @@ dependencies = [
  "libdd-library-config",
  "libdd-log",
  "libdd-profiling-ffi",
+=======
+ "cc",
+ "data-pipeline",
+ "datadog-crashtracker",
+ "datadog-ddsketch",
+ "datadog-library-config",
+ "datadog-log",
+ "datadog-profiling-ffi",
+ "ddcommon",
+>>>>>>> 37544fcdb0 (First commit)
  "pyo3",
  "pyo3-build-config",
+ "pyo3-ffi",
  "tracing",
 ]
 
@@ -521,6 +997,44 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+name = "displaydoc"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "97369cbbc041bc366949bc74d34658d6cda5621039731c6310521892a3a20ae0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+=======
+<<<<<<< HEAD
+=======
+name = "dogstatsd-client"
+<<<<<<< HEAD
+version = "23.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
+=======
+version = "21.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
+>>>>>>> c21cdc9e2 (First commit)
+dependencies = [
+ "anyhow",
+ "cadence",
+ "ddcommon",
+ "http",
+ "serde",
+ "tracing",
+]
+
+[[package]]
+>>>>>>> 37544fcdb0 (First commit)
+>>>>>>> 5dbc278ef2 (First commit)
+>>>>>>> 6d6f734e3 (First commit)
 name = "dunce"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -568,9 +1082,15 @@ checksum = "37909eebbb50d72f9059c3b6d82c0463f2ff062c9e95845c43a6c9c0355411be"
 
 [[package]]
 name = "find-msvc-tools"
+<<<<<<< HEAD
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "52051878f80a721bb68ebfbc930e07b65ba72f2da88968ea5c06fd6ca3d3a127"
+=======
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1ced73b1dacfc750a6db6c0a0c3a3853c8b41997e2e2c563dc90804ae6867959"
+>>>>>>> c21cdc9e2 (First commit)
 
 [[package]]
 name = "fnv"
@@ -2290,6 +2810,38 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+name = "tinystr"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "42d3e9c45c09de15d06dd8acf5f4e0e399e85927b7f00711024eb7ae10fa4869"
+dependencies = [
+ "displaydoc",
+ "zerovec",
+]
+
+[[package]]
+=======
+<<<<<<< HEAD
+=======
+name = "tinybytes"
+<<<<<<< HEAD
+version = "23.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
+=======
+version = "21.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
+>>>>>>> c21cdc9e2 (First commit)
+dependencies = [
+ "serde",
+]
+
+[[package]]
+>>>>>>> 37544fcdb0 (First commit)
+>>>>>>> 5dbc278ef2 (First commit)
+>>>>>>> 6d6f734e3 (First commit)
 name = "tokio"
 version = "1.48.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
