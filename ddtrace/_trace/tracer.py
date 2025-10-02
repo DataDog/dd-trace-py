@@ -53,12 +53,14 @@ from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounter
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.schema.processor import BaseServiceProcessor
 from ddtrace.internal.utils import _get_metas_to_propagate
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import HTTPWriter
 from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
+from ddtrace.vendor.debtcollector.removals import remove
 from ddtrace.version import get_version
 
 
@@ -197,6 +199,11 @@ class Tracer(object):
         )
         self.shutdown(timeout=self.SHUTDOWN_TIMEOUT)
 
+    @remove(
+        message="on_start_span is being removed with no replacement",
+        removal_version="4.0.0",
+        category=DDTraceDeprecationWarning,
+    )
     def on_start_span(self, func: Callable[[Span], None]) -> Callable[[Span], None]:
         """Register a function to execute when a span start.
 
@@ -208,6 +215,11 @@ class Tracer(object):
         core.on("trace.span_start", callback=func)
         return func
 
+    @remove(
+        message="deregister_on_start_span is being removed with no replacement",
+        removal_version="4.0.0",
+        category=DDTraceDeprecationWarning,
+    )
     def deregister_on_start_span(self, func: Callable[[Span], None]) -> Callable[[Span], None]:
         """Unregister a function registered to execute when a span starts.
 
