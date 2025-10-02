@@ -1506,10 +1506,6 @@ venv = Venv(
                     pkgs={"starlette": ["~=0.15.0", "~=0.20.0", "~=0.33.0", latest], "httpx": "~=0.27.0"},
                 ),
                 Venv(
-                    pys="3.10",
-                    pkgs={"starlette": [latest], "httpx": "<0.28.0"},
-                ),
-                Venv(
                     # starlette added support for Python 3.11 in 0.21
                     pys="3.11",
                     pkgs={"starlette": ["~=0.21.0", "~=0.33.0"], "httpx": "~=0.22.0"},
@@ -1899,18 +1895,6 @@ venv = Venv(
                         "pytest": [
                             "~=6.0",
                             "~=7.0",
-                            latest,
-                        ],
-                        "msgpack": latest,
-                        "asynctest": "==0.13.0",
-                        "more_itertools": "<8.11.0",
-                        "httpx": "<0.28.0",
-                    },
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.13"),
-                    pkgs={
-                        "pytest": [
                             latest,
                         ],
                         "msgpack": latest,
@@ -3194,11 +3178,14 @@ venv = Venv(
         Venv(
             name="ray",
             command="pytest {cmdargs} tests/contrib/ray",
-            pys=select_pys(min_version="3.11", max_version="3.13"),
-            pkgs={
-                "ray[default]": ["~=2.46.0", latest],
+            env={
+                "DD_TRACE_OTEL_ENABLED": "true",
             },
-            env={"DD_TRACE_AIOHTTP_ENABLED": "false", "DD_TRACE_REPORT_HOSTNAME": "true"},
+            pys=select_pys(min_version="3.9", max_version="3.13"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "ray": ["~=2.48.0", latest],
+            },
         ),
         Venv(
             name="logbook",

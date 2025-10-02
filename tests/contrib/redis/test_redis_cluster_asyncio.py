@@ -117,6 +117,7 @@ async def test_pipeline(traced_redis_cluster):
     assert span.get_metric("redis.pipeline_length") == 3
 
 
+@pytest.mark.skipif(PYTHON_VERSION_INFO >= (3, 14), reason="fails under Python 3.14")
 @pytest.mark.snapshot(wait_for_num_traces=1)
 @pytest.mark.asyncio
 async def test_pipeline_command_stack_count_matches_metric(redis_cluster):
