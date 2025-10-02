@@ -889,7 +889,7 @@ class LangChainIntegration(BaseLLMIntegration):
         tags = {}
         if isinstance(getattr(instance, "metadata", None), dict):
             metadata = instance.metadata
-            tags = {key: value for key, value in metadata.items() if isinstance(key, str) and isinstance(value, str)}
+            tags = {key: value for key, value in metadata.items() if isinstance(value, str)}
 
         variables = get_argument_value(args, kwargs, 0, "input", optional=True)
         if (
