@@ -14,6 +14,7 @@ def _append_metrics_path(value):
         return value + ExporterConfig.HTTP_METRICS_ENDPOINT
     return value + f"/{ExporterConfig.HTTP_METRICS_ENDPOINT}"
 
+
 def _derive_endpoint(config: "ExporterConfig"):
     if config.PROTOCOL.lower() in ("http/json", "http/protobuf"):
         default_endpoint = f"http://{get_agent_hostname()}:{ExporterConfig.HTTP_PORT}"
@@ -46,10 +47,10 @@ def _derive_logs_timeout(config: "ExporterConfig"):
 
 def _derive_metrics_endpoint(config: "ExporterConfig"):
     if config.METRICS_PROTOCOL.lower() in ("http/json", "http/protobuf"):
-        default_endpoint = (
-            f"http://{get_agent_hostname()}:{ExporterConfig.HTTP_PORT}"
+        default_endpoint = f"http://{get_agent_hostname()}:{ExporterConfig.HTTP_PORT}"
+        return get_config("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT") or _append_metrics_path(
+            get_config("OTEL_EXPORTER_OTLP_ENDPOINT", default_endpoint)
         )
-        return get_config("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT") or _append_metrics_path(get_config("OTEL_EXPORTER_OTLP_ENDPOINT", default_endpoint))
     else:
         default_endpoint = f"http://{get_agent_hostname()}:{ExporterConfig.GRPC_PORT}"
         return get_config(["OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "OTEL_EXPORTER_OTLP_ENDPOINT"], default_endpoint)
