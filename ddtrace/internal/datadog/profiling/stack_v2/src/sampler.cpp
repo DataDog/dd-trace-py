@@ -138,6 +138,10 @@ Sampler::adapt_sampling_interval()
     sampler_thread_count = new_sampler_thread_count;
 }
 
+static size_t for_each_thread_calls = 0;
+static size_t thread_sample_calls = 0;
+static size_t iterations = 0;
+
 void
 Sampler::sampling_thread(const uint64_t seq_num)
 {
@@ -146,14 +150,26 @@ Sampler::sampling_thread(const uint64_t seq_num)
     auto interval_adjust_time_prev = sample_time_prev;
 
     while (seq_num == thread_seq_num.load()) {
+        iterations++;
+
+        if (iterations % 1000 == 0) {
+            std::cout << "[ddtrace] for_each_thread calls: " << for_each_thread_calls << std::endl;
+            std::cout << "[ddtrace] Thread::sample calls:  " << thread_sample_calls << std::endl;
+        }
+
         auto sample_time_now = steady_clock::now();
         auto wall_time_us = duration_cast<microseconds>(sample_time_now - sample_time_prev).count();
         sample_time_prev = sample_time_now;
 
         // Perform the sample
         for_each_interp([&](InterpreterInfo& interp) -> void {
+            for_each_thread_calls++;
             for_each_thread(interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
-                thread.sample(interp.id, tstate, wall_time_us);
+                thread_sample_calls++;
+                auto result = thread.sample(interp.id, tstate, wall_time_us);
+                if (!result) {
+                    std::cout << "[ddtrace] Thread::sample error" << std::endl;
+                }
             });
         });
 
@@ -163,10 +179,12 @@ Sampler::sampling_thread(const uint64_t seq_num)
                 adapt_sampling_interval();
                 interval_adjust_time_prev = sample_time_now;
             }
+            std::cout << "Adjusting sampling interval to " << sample_interval_us.load() << std::endl;
         }
 
         // Before sleeping, check whether the user has called for this thread to die.
         if (seq_num != thread_seq_num.load()) {
+            std::cerr << "Thread sequence number changed, exiting" << std::endl;
             break;
         }
 
