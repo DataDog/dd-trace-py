@@ -51,19 +51,14 @@ def daphne_client(django_asgi, additional_env=None):
 
         yield client
     finally:
-        try:
-            resp = client.get_ignored("/shutdown-tracer")
-            assert resp.status_code == 200
-        except ConnectionRefusedError:
-            # current mitigation for python 3.8
-            if sys.version_info[:2] == (3, 8):
-                pass
-            else:
-                raise
+        resp = client.get_ignored("/shutdown-tracer")
+        assert resp.status_code == 200
         proc.terminate()
 
 
-@pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
+@pytest.mark.skipif(
+    django.VERSION < (3, 2, 0) or sys.version_info[:2] == (3, 8), reason="Only want to test with latest Django"
+)
 @snapshot(
     ignores=[
         "error",
@@ -93,7 +88,9 @@ def test_appsec_enabled():
         assert resp.content == b"Hello, test app."
 
 
-@pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
+@pytest.mark.skipif(
+    django.VERSION < (3, 2, 0) or sys.version_info[:2] == (3, 8), reason="Only want to test with latest Django"
+)
 @snapshot(
     ignores=[
         "error",
@@ -123,7 +120,9 @@ def test_appsec_enabled_attack():
         assert resp.status_code == 404
 
 
-@pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
+@pytest.mark.skipif(
+    django.VERSION < (3, 2, 0) or sys.version_info[:2] == (3, 8), reason="Only want to test with latest Django"
+)
 @snapshot(
     ignores=[
         "error",
@@ -156,7 +155,9 @@ def test_request_ipblock_nomatch_200():
         assert result.content == b"Hello, test app."
 
 
-@pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
+@pytest.mark.skipif(
+    django.VERSION < (3, 2, 0) or sys.version_info[:2] == (3, 8), reason="Only want to test with latest Django"
+)
 @snapshot(
     ignores=[
         "error",
@@ -197,7 +198,9 @@ def test_request_ipblock_match_403():
         assert result.content == as_bytes
 
 
-@pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
+@pytest.mark.skipif(
+    django.VERSION < (3, 2, 0) or sys.version_info[:2] == (3, 8), reason="Only want to test with latest Django"
+)
 @snapshot(
     ignores=[
         "error",

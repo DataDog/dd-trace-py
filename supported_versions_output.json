@@ -379,10 +379,10 @@
         "auto-instrumented": false
     },
     {
-        "dependency": "langchain",
+        "dependency": "langchain-core",
         "integration": "langchain",
-        "minimum_tracer_supported": "0.1.20",
-        "max_tracer_supported": "0.3.18",
+        "minimum_tracer_supported": "0.1.53",
+        "max_tracer_supported": "0.3.76",
         "auto-instrumented": true
     },
     {
