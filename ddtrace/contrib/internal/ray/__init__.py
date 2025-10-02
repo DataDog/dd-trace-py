@@ -30,6 +30,14 @@ The Ray integration can be configured using environment variables:
 - ``DD_TRACE_EXPERIMENTAL_LONG_RUNNING_FLUSH_INTERVAL``: Interval for resubmitting long-running
     spans (default: ``120.0`` seconds)
 
+- ``DD_RAY_USE_ENTRYPOINT_AS_JOB_NAME``: Whether to use the job entrypoint as the job name
+    (default: ``False``). If ``True``, the entrypoint will be used as the job name fall back when 
+    the job name is not specified in the submission ID or metadata.
+
+- ``DD_RAY_REDACT_ENTRYPOINT_PATHS``: Whether to redact file paths in the job entrypoint
+    (default: ``True``). If ``True``, file paths in the entrypoint will be redacted to avoid 
+    leaking sensitive information.
+
 Ray service name can be configured by:
 
 - specifying in submission ID using ``job:your-job-name`` during job submission::
