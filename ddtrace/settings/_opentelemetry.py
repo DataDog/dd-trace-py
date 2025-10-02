@@ -56,7 +56,7 @@ def _derive_metrics_endpoint(config: "ExporterConfig"):
 
 
 def _derive_metrics_protocol(config: "ExporterConfig"):
-    return get_config("OTEL_EXPORTER_OTLP_METRICS_PROTOCOL", config.PROTOCOL)
+    return get_config(["OTEL_EXPORTER_OTLP_METRICS_PROTOCOL", "OTEL_EXPORTER_OTLP_PROTOCOL"], config.PROTOCOL)
 
 
 def _derive_metrics_headers(config: "ExporterConfig"):
