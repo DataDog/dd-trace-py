@@ -5,7 +5,6 @@ import sys
 
 import django
 import pytest
-from requests.exceptions import ConnectionError as RequestConnectionError
 
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import FINGERPRINTING
