@@ -1,6 +1,8 @@
 import asyncio
 import hashlib
+import json
 import subprocess
+from urllib.parse import parse_qs
 
 from fastapi import FastAPI
 from fastapi import Form
@@ -77,6 +79,93 @@ def get_app():
     async def cmdi_form(command: str = Form(...)):
         """Test endpoint for command injection vulnerability with form data."""
         subp = subprocess.Popen(args=["ls", "-la", command])
+        subp.communicate()
+        subp.wait()
+        return Response(content="OK")
+
+    @app.post("/iast-cmdi-vulnerability-form-request")
+    async def cmdi_form_request(request: Request):
+        """Test endpoint for command injection where form is parsed via request.form().
+
+        This covers the common pattern of accessing form data through the Request object
+        instead of declaring parameters with Form in the signature.
+        """
+        # Exercise Starlette/FastAPI Request.form() code path for IAST tainting
+        form = await request.form()
+        value = None
+        if "command" in form:
+            value = form["command"]
+        elif form:
+            # take the first value if specific key not present
+            value = next(iter(form.values()))
+
+        subp = subprocess.Popen(args=["ls", value])
+        subp.communicate()
+        subp.wait()
+        return Response(content="OK")
+
+    @app.post("/iast-cmdi-vulnerability-form-multiple")
+    async def cmdi_form_multiple(command: str = Form(...), flag: str = Form("-la")):
+        """Test endpoint for command injection with multiple Form parameters.
+
+        Uses multiple form fields declared directly in the function signature. The
+        vulnerable value is "command"; an additional field is accepted to mirror
+        real-world forms with extra parameters.
+        """
+        # Additional form parsing variant using multiple Form(...) params
+        subp = subprocess.Popen(args=["ls", flag, command])
+        subp.communicate()
+        subp.wait()
+        return Response(content="OK")
+
+    @app.post("/iast-cmdi-vulnerability-body")
+    async def cmdi_body(request: Request):
+        """Test endpoint for command injection using raw request body across content types.
+
+        This endpoint is intentionally vulnerable and used by tests to validate that IAST correctly
+        taints `http.request.body` for different encodings and still reports CMDI on the sink.
+        """
+        # This endpoint mirrors Django's body-based CMDI test to exercise tainting of request body.
+        content_type = request.headers.get("content-type", "")
+        raw = await request.body()
+
+        value = None
+        text = raw.decode(errors="ignore") if isinstance(raw, (bytes, bytearray)) else str(raw)
+
+        if "application/json" in content_type:
+            try:
+                data = json.loads(text) if text else None
+            except Exception:
+                data = None
+            if isinstance(data, str):
+                value = data
+            elif isinstance(data, dict):
+                # Prefer common keys used in tests, fallback to first string value
+                for key in ("second", "key"):
+                    if key in data and isinstance(data[key], str):
+                        value = data[key]
+                        break
+                if value is None:
+                    for v in data.values():
+                        if isinstance(v, str):
+                            value = v
+                            break
+            elif isinstance(data, list) and data:
+                if isinstance(data[0], str):
+                    value = data[0]
+        elif "application/x-www-form-urlencoded" in content_type:
+            form = parse_qs(text)
+            # Prefer specific key, otherwise take any first value
+            if "master_key" in form and form["master_key"]:
+                value = form["master_key"][0]
+            elif form:
+                value = next(iter(form.values()))[0]
+        else:
+            # Treat everything else as plain text
+            value = text
+
+        # Use the tainted value in a subprocess to trigger the CMDI sink
+        subp = subprocess.Popen(args=["ls", value])
         subp.communicate()
         subp.wait()
         return Response(content="OK")
