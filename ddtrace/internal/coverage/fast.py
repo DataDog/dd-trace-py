@@ -160,13 +160,16 @@ class FastModuleCodeCollector(ModuleWatchdog):
         return cls._instance is not None and cls._instance._coverage_enabled
 
     @classmethod
-    def report_seen_lines(cls, workspace_path: Path, include_imported: bool = False) -> t.Dict[str, t.List[int]]:
+    def report_seen_lines(
+        cls, workspace_path: Path, include_imported: bool = False
+    ) -> t.List[t.Dict[str, t.List[int]]]:
         """Generate coverage report - matches ModuleCodeCollector interface."""
         if cls._instance is None:
-            return {}
+            return []
 
         coverage_data = cls._instance.get_fast_coverage_data()
 
+        list_results = []
         # Convert to the format expected by existing code
         result = {}
         for file_path, coverage_lines in coverage_data.items():
@@ -182,8 +185,9 @@ class FastModuleCodeCollector(ModuleWatchdog):
             except (OSError, ValueError):
                 # Fallback to original path
                 result[file_path] = coverage_lines.to_sorted_list()
+            list_results.append(result)
 
-        return result
+        return list_results
 
     class CollectInContext:
         """Context manager for coverage collection - matches ModuleCodeCollector interface."""

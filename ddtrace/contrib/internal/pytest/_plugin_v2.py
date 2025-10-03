@@ -596,7 +596,7 @@ def _pytest_runtest_protocol_pre_yield(
     return None
 
 
-def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector) -> None:
+def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
     test_id = _get_test_id_from_item(item)
     suite_id = test_id.parent_id
     module_id = suite_id.parent_id

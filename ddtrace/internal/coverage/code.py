@@ -286,7 +286,7 @@ class ModuleCodeCollector(ModuleWatchdog):
         return cls._instance is not None and ctx_coverage_enabled.get()
 
     @classmethod
-    def report_seen_lines(cls, workspace_path: Path, include_imported: bool = False):
+    def report_seen_lines(cls, workspace_path: Path, include_imported: bool = False) -> t.List[t.Dict[str, t.Any]]:
         """Generate the same data as expected by ddtrace.ci_visibility.coverage.build_payload:
 
         if input_path is provided, filter files to only include that path, and make it relative to said path

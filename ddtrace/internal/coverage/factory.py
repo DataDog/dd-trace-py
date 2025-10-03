@@ -4,6 +4,8 @@ import os
 from pathlib import Path
 import typing as t
 
+from ddtrace.internal.coverage.code import ModuleCodeCollector
+from ddtrace.internal.coverage.fast import FastModuleCodeCollector
 from ddtrace.internal.logger import get_logger
 
 
@@ -31,32 +33,23 @@ def install_coverage_collector(
     """
     if _is_fast_coverage_enabled():
         # Install fast file-level coverage
-        from .fast import FastModuleCodeCollector
-
         FastModuleCodeCollector.install(include_paths, collect_import_time_coverage)
-        log.info("Fast file-level coverage collector installed")
+        log.debug("Fast file-level coverage collector installed")
     else:
         # Install regular line-level coverage
-        from .code import ModuleCodeCollector
-
         ModuleCodeCollector.install(include_paths, collect_import_time_coverage)
-        log.info("Regular line-level coverage collector installed")
+        log.debug("Regular line-level coverage collector installed")
 
 
-def get_coverage_collector() -> t.Any:
+def get_coverage_collector() -> t.Optional[t.Union[ModuleCodeCollector, FastModuleCodeCollector]]:
     """Get the currently installed coverage collector instance.
 
     Returns:
         The active coverage collector instance, or None if none is installed.
     """
     if _is_fast_coverage_enabled():
-        from .fast import FastModuleCodeCollector
-
         return FastModuleCodeCollector._instance
-    else:
-        from .code import ModuleCodeCollector
-
-        return ModuleCodeCollector._instance
+    return ModuleCodeCollector._instance
 
 
 def is_coverage_collector_installed() -> bool:
@@ -68,58 +61,41 @@ def is_coverage_collector_installed() -> bool:
 def start_coverage() -> None:
     """Start coverage collection."""
     if _is_fast_coverage_enabled():
-        from .fast import FastModuleCodeCollector
-
         FastModuleCodeCollector.start_coverage()
-    else:
-        from .code import ModuleCodeCollector
 
-        ModuleCodeCollector.start_coverage()
+    ModuleCodeCollector.start_coverage()
 
 
 def stop_coverage() -> None:
     """Stop coverage collection."""
     if _is_fast_coverage_enabled():
-        from .fast import FastModuleCodeCollector
-
         FastModuleCodeCollector.stop_coverage()
-    else:
-        from .code import ModuleCodeCollector
 
-        ModuleCodeCollector.stop_coverage()
+    ModuleCodeCollector.stop_coverage()
 
 
 def uninstall_coverage_collector() -> None:
     """Uninstall the currently active coverage collector."""
-    if _is_fast_coverage_enabled():
-        from .fast import FastModuleCodeCollector
+    if _is_fast_coverage_enabled() and FastModuleCodeCollector.is_installed():
+        FastModuleCodeCollector.uninstall()
 
-        if FastModuleCodeCollector.is_installed():
-            FastModuleCodeCollector.uninstall()
-    else:
-        from .code import ModuleCodeCollector
-
-        if ModuleCodeCollector.is_installed():
-            ModuleCodeCollector.uninstall()
+    if ModuleCodeCollector.is_installed():
+        ModuleCodeCollector.uninstall()
 
 
-def get_coverage_context() -> t.Any:
+def get_coverage_context() -> t.Union[ModuleCodeCollector.CollectInContext, FastModuleCodeCollector.CollectInContext]:
     """Get a coverage collection context manager.
 
     Returns:
         A context manager for collecting coverage data during execution.
     """
     if _is_fast_coverage_enabled():
-        from .fast import FastModuleCodeCollector
-
         return FastModuleCodeCollector.CollectInContext()
-    else:
-        from .code import ModuleCodeCollector
 
-        return ModuleCodeCollector.CollectInContext()
+    return ModuleCodeCollector.CollectInContext()
 
 
-def report_coverage_data(workspace_path: Path, include_imported: bool = False) -> t.Dict[str, t.Any]:
+def report_coverage_data(workspace_path: Path, include_imported: bool = False) -> t.List[t.Dict[str, t.Any]]:
     """Generate coverage report data.
 
     Args:
@@ -130,10 +106,6 @@ def report_coverage_data(workspace_path: Path, include_imported: bool = False) -
         Coverage data in the format expected by CI Visibility
     """
     if _is_fast_coverage_enabled():
-        from .fast import FastModuleCodeCollector
-
         return FastModuleCodeCollector.report_seen_lines(workspace_path, include_imported)
-    else:
-        from .code import ModuleCodeCollector
 
-        return ModuleCodeCollector.report_seen_lines(workspace_path, include_imported)
+    return ModuleCodeCollector.report_seen_lines(workspace_path, include_imported)
