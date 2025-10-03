@@ -17,7 +17,9 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.wrappers import unwrap
+from ddtrace.vendor.debtcollector import deprecate
 
 
 log = get_logger(__name__)
@@ -131,6 +133,11 @@ def _supported_versions() -> Dict[str, str]:
 
 
 def patch():
+    deprecate(
+        "The vertica integration is deprecated and will be removed in a future version.",
+        category=DDTraceDeprecationWarning,
+        removal_version="5.0.0",
+    )
     global _PATCHED
     if _PATCHED:
         return
