@@ -391,9 +391,10 @@ class SpanAggregator(SpanProcessor):
                 log.error("error applying processor %r to trace %d", tp, span.trace_id, exc_info=True)
 
         if spans:
-            # Get sampling information from the first span (root span)
-            sampling_priority = spans[0].context.sampling_priority
-            sampling_mechanism = spans[0].context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY, "None")
+            # Get sampling information from the root span
+            root_span = spans[0]._local_root
+            sampling_priority = root_span.context.sampling_priority
+            sampling_mechanism = root_span.context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY, "None")
 
             log.debug(
                 self.SPAN_FINISH_DEBUG_MESSAGE,
