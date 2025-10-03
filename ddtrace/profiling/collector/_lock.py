@@ -265,7 +265,7 @@ class FunctionWrapper(wrapt.FunctionWrapper):
 class LockCollector(collector.CaptureSamplerCollector):
     """Record lock usage."""
 
-    PROFILED_LOCK_CLASS: Type[Any]
+
 
     def __init__(
         self,
@@ -303,11 +303,12 @@ class LockCollector(collector.CaptureSamplerCollector):
         """Patch the module for tracking lock allocation."""
         # We only patch the lock from the `threading` module.
         # Nobody should use locks from `_thread`; if they do so, then it's deliberate and we don't profile.
-        self._original = self._get_patch_target()
+        self._original: Any = self._get_patch_target()
 
+        # TODO: instance is not used
         def _allocate_lock(wrapped: Any, instance: Any, args: Any, kwargs: Any) -> _ProfiledLock:
-            lock = wrapped(*args, **kwargs)
-            return self.PROFILED_LOCK_CLASS(  # type: ignore[attr-defined]
+            lock: Any = wrapped(*args, **kwargs)
+            return self.PROFILED_LOCK_CLASS(
                 lock,
                 self.tracer,
                 self.nframes,
