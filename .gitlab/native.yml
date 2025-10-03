@@ -24,5 +24,5 @@ include:
     - |
       echo -e "\e[0Ksection_start:`date +%s`:check_events_pyi[collapsed=true]\r\e[0Kcheck events.pyi"
       cargo build
-      git -C "$CI_PROJECT_DIR" diff --exit-code -- ddtrace/internal/events.pyi || (echo "Error: events.pyi is out of date. Run 'cargo build' in src/native/ and commit the changes." && exit 1)
+      cd "$CI_PROJECT_DIR" && ./scripts/check-diff "ddtrace/internal/events.pyi" "Error: events.pyi is out of date. Run 'cargo build' in src/native/ and commit the changes."
       echo -e "\e[0Ksection_end:`date +%s`:check_events_pyi\r\e[0K"
