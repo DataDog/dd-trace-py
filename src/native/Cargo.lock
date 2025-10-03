@@ -221,8 +221,12 @@ version = "23.0.0"
 source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
 =======
 version = "21.0.0"
+<<<<<<< HEAD
 source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
 >>>>>>> c21cdc9e2 (First commit)
+=======
+source = "git+https://github.com/DataDog/libdatadog?rev=5fad559ba9d3a60cdc5699418fa93d38beda8bb0#5fad559ba9d3a60cdc5699418fa93d38beda8bb0"
+>>>>>>> 637f39e5e (Dont send runtime id)
 dependencies = [
  "cbindgen",
  "serde",
@@ -298,7 +302,7 @@ dependencies = [
 =======
 name = "cc_utils"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
+source = "git+https://github.com/DataDog/libdatadog?rev=5fad559ba9d3a60cdc5699418fa93d38beda8bb0#5fad559ba9d3a60cdc5699418fa93d38beda8bb0"
 dependencies = [
  "anyhow",
  "cc",
@@ -504,8 +508,12 @@ version = "23.0.0"
 source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
 =======
 version = "21.0.0"
+<<<<<<< HEAD
 source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
 >>>>>>> c21cdc9e2 (First commit)
+=======
+source = "git+https://github.com/DataDog/libdatadog?rev=5fad559ba9d3a60cdc5699418fa93d38beda8bb0#5fad559ba9d3a60cdc5699418fa93d38beda8bb0"
+>>>>>>> 637f39e5e (Dont send runtime id)
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -540,8 +548,12 @@ version = "23.0.0"
 source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
 =======
 version = "21.0.0"
+<<<<<<< HEAD
 source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
 >>>>>>> c21cdc9e2 (First commit)
+=======
+source = "git+https://github.com/DataDog/libdatadog?rev=5fad559ba9d3a60cdc5699418fa93d38beda8bb0#5fad559ba9d3a60cdc5699418fa93d38beda8bb0"
+>>>>>>> 637f39e5e (Dont send runtime id)
 dependencies = [
  "allocator-api2",
  "libc",
@@ -555,8 +567,12 @@ version = "23.0.0"
 source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
 =======
 version = "21.0.0"
+<<<<<<< HEAD
 source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
 >>>>>>> c21cdc9e2 (First commit)
+=======
+source = "git+https://github.com/DataDog/libdatadog?rev=5fad559ba9d3a60cdc5699418fa93d38beda8bb0#5fad559ba9d3a60cdc5699418fa93d38beda8bb0"
+>>>>>>> 637f39e5e (Dont send runtime id)
 dependencies = [
  "anyhow",
  "backtrace",
@@ -592,8 +608,12 @@ version = "23.0.0"
 source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
 =======
 version = "21.0.0"
+<<<<<<< HEAD
 source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
 >>>>>>> c21cdc9e2 (First commit)
+=======
+source = "git+https://github.com/DataDog/libdatadog?rev=5fad559ba9d3a60cdc5699418fa93d38beda8bb0#5fad559ba9d3a60cdc5699418fa93d38beda8bb0"
+>>>>>>> 637f39e5e (Dont send runtime id)
 dependencies = [
  "prost",
 ]
@@ -602,10 +622,14 @@ dependencies = [
 name = "datadog-library-config"
 version = "0.0.2"
 <<<<<<< HEAD
+<<<<<<< HEAD
 source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
 =======
 source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
 >>>>>>> c21cdc9e2 (First commit)
+=======
+source = "git+https://github.com/DataDog/libdatadog?rev=5fad559ba9d3a60cdc5699418fa93d38beda8bb0#5fad559ba9d3a60cdc5699418fa93d38beda8bb0"
+>>>>>>> 637f39e5e (Dont send runtime id)
 dependencies = [
  "anyhow",
  "memfd",
@@ -623,8 +647,12 @@ version = "23.0.0"
 source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
 =======
 version = "21.0.0"
+<<<<<<< HEAD
 source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
 >>>>>>> c21cdc9e2 (First commit)
+=======
+source = "git+https://github.com/DataDog/libdatadog?rev=5fad559ba9d3a60cdc5699418fa93d38beda8bb0#5fad559ba9d3a60cdc5699418fa93d38beda8bb0"
+>>>>>>> 637f39e5e (Dont send runtime id)
 dependencies = [
  "chrono",
  "tracing",
@@ -639,8 +667,12 @@ version = "23.0.0"
 source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
 =======
 version = "21.0.0"
+<<<<<<< HEAD
 source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
 >>>>>>> c21cdc9e2 (First commit)
+=======
+source = "git+https://github.com/DataDog/libdatadog?rev=5fad559ba9d3a60cdc5699418fa93d38beda8bb0#5fad559ba9d3a60cdc5699418fa93d38beda8bb0"
+>>>>>>> 637f39e5e (Dont send runtime id)
 dependencies = [
  "anyhow",
  "bitmaps",
@@ -674,8 +706,12 @@ version = "23.0.0"
 source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
 =======
 version = "21.0.0"
+<<<<<<< HEAD
 source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
 >>>>>>> c21cdc9e2 (First commit)
+=======
+source = "git+https://github.com/DataDog/libdatadog?rev=5fad559ba9d3a60cdc5699418fa93d38beda8bb0#5fad559ba9d3a60cdc5699418fa93d38beda8bb0"
+>>>>>>> 637f39e5e (Dont send runtime id)
 dependencies = [
  "anyhow",
  "build_common",
@@ -698,8 +734,12 @@ version = "23.0.0"
 source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
 =======
 version = "21.0.0"
+<<<<<<< HEAD
 source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
 >>>>>>> c21cdc9e2 (First commit)
+=======
+source = "git+https://github.com/DataDog/libdatadog?rev=5fad559ba9d3a60cdc5699418fa93d38beda8bb0#5fad559ba9d3a60cdc5699418fa93d38beda8bb0"
+>>>>>>> 637f39e5e (Dont send runtime id)
 dependencies = [
  "prost",
 ]
@@ -711,8 +751,12 @@ version = "23.0.0"
 source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
 =======
 version = "21.0.0"
+<<<<<<< HEAD
 source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
 >>>>>>> c21cdc9e2 (First commit)
+=======
+source = "git+https://github.com/DataDog/libdatadog?rev=5fad559ba9d3a60cdc5699418fa93d38beda8bb0#5fad559ba9d3a60cdc5699418fa93d38beda8bb0"
+>>>>>>> 637f39e5e (Dont send runtime id)
 dependencies = [
  "anyhow",
  "datadog-trace-protobuf",
@@ -725,8 +769,12 @@ version = "23.0.0"
 source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
 =======
 version = "21.0.0"
+<<<<<<< HEAD
 source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
 >>>>>>> c21cdc9e2 (First commit)
+=======
+source = "git+https://github.com/DataDog/libdatadog?rev=5fad559ba9d3a60cdc5699418fa93d38beda8bb0#5fad559ba9d3a60cdc5699418fa93d38beda8bb0"
+>>>>>>> 637f39e5e (Dont send runtime id)
 dependencies = [
  "prost",
  "serde",
@@ -751,8 +799,12 @@ version = "23.0.0"
 source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
 =======
 version = "21.0.0"
+<<<<<<< HEAD
 source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
 >>>>>>> c21cdc9e2 (First commit)
+=======
+source = "git+https://github.com/DataDog/libdatadog?rev=5fad559ba9d3a60cdc5699418fa93d38beda8bb0#5fad559ba9d3a60cdc5699418fa93d38beda8bb0"
+>>>>>>> 637f39e5e (Dont send runtime id)
 dependencies = [
  "anyhow",
  "bytes",
@@ -781,8 +833,12 @@ version = "23.0.0"
 source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
 =======
 version = "21.0.0"
+<<<<<<< HEAD
 source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
 >>>>>>> c21cdc9e2 (First commit)
+=======
+source = "git+https://github.com/DataDog/libdatadog?rev=5fad559ba9d3a60cdc5699418fa93d38beda8bb0#5fad559ba9d3a60cdc5699418fa93d38beda8bb0"
+>>>>>>> 637f39e5e (Dont send runtime id)
 dependencies = [
  "anyhow",
  "cc",
@@ -819,8 +875,12 @@ version = "23.0.0"
 source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
 =======
 version = "21.0.0"
+<<<<<<< HEAD
 source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
 >>>>>>> c21cdc9e2 (First commit)
+=======
+source = "git+https://github.com/DataDog/libdatadog?rev=5fad559ba9d3a60cdc5699418fa93d38beda8bb0#5fad559ba9d3a60cdc5699418fa93d38beda8bb0"
+>>>>>>> 637f39e5e (Dont send runtime id)
 dependencies = [
  "anyhow",
  "build_common",
@@ -838,8 +898,12 @@ version = "23.0.0"
 source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
 =======
 version = "21.0.0"
+<<<<<<< HEAD
 source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
 >>>>>>> c21cdc9e2 (First commit)
+=======
+source = "git+https://github.com/DataDog/libdatadog?rev=5fad559ba9d3a60cdc5699418fa93d38beda8bb0#5fad559ba9d3a60cdc5699418fa93d38beda8bb0"
+>>>>>>> 637f39e5e (Dont send runtime id)
 dependencies = [
  "anyhow",
  "base64",
@@ -917,8 +981,12 @@ version = "23.0.0"
 source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
 =======
 version = "21.0.0"
+<<<<<<< HEAD
 source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
 >>>>>>> c21cdc9e2 (First commit)
+=======
+source = "git+https://github.com/DataDog/libdatadog?rev=5fad559ba9d3a60cdc5699418fa93d38beda8bb0#5fad559ba9d3a60cdc5699418fa93d38beda8bb0"
+>>>>>>> 637f39e5e (Dont send runtime id)
 dependencies = [
  "anyhow",
  "cadence",
@@ -2387,8 +2455,12 @@ version = "23.0.0"
 source = "git+https://github.com/DataDog/libdatadog?rev=v23.0.0#c4a66e2075084b68174077b8306ba92e76be2240"
 =======
 version = "21.0.0"
+<<<<<<< HEAD
 source = "git+https://github.com/DataDog/libdatadog?rev=6215e873b354cbae42ad914e85f4c7893451f2f5#6215e873b354cbae42ad914e85f4c7893451f2f5"
 >>>>>>> c21cdc9e2 (First commit)
+=======
+source = "git+https://github.com/DataDog/libdatadog?rev=5fad559ba9d3a60cdc5699418fa93d38beda8bb0#5fad559ba9d3a60cdc5699418fa93d38beda8bb0"
+>>>>>>> 637f39e5e (Dont send runtime id)
 dependencies = [
  "serde",
 ]
