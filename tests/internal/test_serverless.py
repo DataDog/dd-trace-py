@@ -1,5 +1,6 @@
-import pytest
 import sys
+
+import pytest
 
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
@@ -132,7 +133,7 @@ import {package}
             "ddtrace.profiling",
             "profiler",
             marks=pytest.mark.xfail(
-                reason="import throws error AttributeError: module 'asyncio.events' has no attribute 'BaseDefaultEventLoopPolicy'",
+                reason="throws AttributeError: module 'asyncio.events' has no attribute 'BaseDefaultEventLoopPolicy'",
                 condition=sys.version_info >= (3, 14),
             ),
         ),
