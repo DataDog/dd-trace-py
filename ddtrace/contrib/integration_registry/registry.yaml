@@ -939,6 +939,14 @@ integrations:
       min: 0.10.2
       max: 0.10.2
 
+- integration_name: webbrowser
+  is_external_package: false
+  is_tested: true
+
+- integration_name: wsgi
+  is_external_package: false
+  is_tested: true
+
 - integration_name: yaaredis
   is_external_package: true
   is_tested: true
