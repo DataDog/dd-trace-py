@@ -48,10 +48,10 @@ log = get_logger(__name__)
 
 
 class LogData(dict):
-    def __hash__(self) -> int:
+    def __hash__(self):
         return hash((self["message"], self["level"], self.get("tags"), self.get("stack_trace")))
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other):
         return (
             self["message"] == other["message"]
             and self["level"] == other["level"]
@@ -164,8 +164,8 @@ class TelemetryWriter(PeriodicService):
         self._configuration_queue: List[Dict] = []
         self._imported_dependencies: Dict[str, str] = dict()
         self._modules_already_imported: Set[str] = set()
-        self._product_enablement = {product.value: False for product in TELEMETRY_APM_PRODUCT}
-        self._previous_product_enablement = {}
+        self._product_enablement: Dict[str, bool] = {product.value: False for product in TELEMETRY_APM_PRODUCT}
+        self._previous_product_enablement: Dict[str, bool] = {}
         self._extended_time = time.monotonic()
         # The extended heartbeat interval is set to 24 hours
         self._extended_heartbeat_interval = 3600 * 24
@@ -325,7 +325,7 @@ class TelemetryWriter(PeriodicService):
             self._configuration_queue = []
         return configurations
 
-    def _report_dependencies(self) -> Optional[Dict[str, Any]]:
+    def _report_dependencies(self) -> Optional[List[Dict[str, Any]]]:
         """Adds events to report imports done since the last periodic run"""
         if not config.DEPENDENCY_COLLECTION or not self._enabled:
             return None
