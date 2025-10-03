@@ -20,9 +20,9 @@ import ddtrace
 from ddtrace import config
 from ddtrace import patch
 from ddtrace._trace.apm_filter import APMTracingEnabledFilter
+from ddtrace._trace.context import Context
 from ddtrace._trace.events import tracer_span_finished
 from ddtrace._trace.events import tracer_span_started
-from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace._trace.tracer import Tracer
 from ddtrace.constants import ERROR_MSG
