@@ -149,6 +149,7 @@ def _report_coverage_to_span(
             record_code_coverage_finished(COVERAGE_LIBRARY.COVERAGEPY, framework)
             coverage_data.__exit__(None, None, None)
 
+
         return
 
     span_id = str(span.trace_id)

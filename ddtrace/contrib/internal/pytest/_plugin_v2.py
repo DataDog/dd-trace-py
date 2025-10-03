@@ -31,6 +31,12 @@ from ddtrace.contrib.internal.pytest._utils import _is_enabled_early
 from ddtrace.contrib.internal.pytest._utils import _is_test_unskippable
 from ddtrace.contrib.internal.pytest._utils import _pytest_marked_to_skip
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_atr
+
+# Fast coverage imports
+from ddtrace.internal.coverage.code import ModuleCodeCollector
+from ddtrace.internal.coverage.fast_collector import FastCoverageCollector
+from ddtrace.contrib.internal.pytest.constants import FRAMEWORK
+from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_attempt_to_fix
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_efd
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_itr
@@ -214,14 +220,55 @@ def _coverage_collector_get_covered_lines(coverage_collector) -> t.Dict[str, Cov
     return coverage_collector.get_covered_lines()
 
 
-def _start_collecting_coverage() -> ModuleCodeCollector.CollectInContext:
+def _start_collecting_coverage() -> t.Union[ModuleCodeCollector.CollectInContext, str]:
+    # Check if fast coverage is active
+    if ModuleCodeCollector.is_fast_coverage_active():
+        # For fast coverage, start coverage collection and return a marker
+        FastCoverageCollector.start_coverage()
+        record_code_coverage_started(COVERAGE_LIBRARY.COVERAGEPY, TEST_FRAMEWORKS.PYTEST)
+        return "fast_coverage_active"
+    
+    # Regular coverage collection
     coverage_collector = ModuleCodeCollector.CollectInContext()
-    # TODO: don't depend on internal for telemetry
     record_code_coverage_started(COVERAGE_LIBRARY.COVERAGEPY, FRAMEWORK)
 
     _coverage_collector_enter(coverage_collector)
 
     return coverage_collector
+
+
+@_catch_and_log_exceptions
+def _handle_fast_coverage(item, test_id) -> None:
+    """Handle fast coverage collection for a test."""
+    # Get coverage data in the same bitmap format as regular coverage
+    coverage_lines_data = FastCoverageCollector.get_coverage_lines_data()
+    
+    record_code_coverage_finished(COVERAGE_LIBRARY.COVERAGEPY, TEST_FRAMEWORKS.PYTEST)
+    
+    if not coverage_lines_data:
+        log.debug("No covered files found for test %s", test_id)
+        record_code_coverage_empty()
+        return
+    
+    # Convert to the format expected by the CI Visibility API
+    coverage_data = {}
+    for file_path, coverage_lines in coverage_lines_data.items():
+        coverage_data[Path(file_path).absolute()] = coverage_lines
+    
+    if not coverage_data:
+        log.debug("No coverage data found for test %s", test_id)
+        return
+    
+    # Add coverage data using the same mechanism as regular coverage
+    ci_visibility_service = require_ci_visibility_service()
+    is_suite_skipping_mode = ci_visibility_service._suite_skipping_mode
+    
+    if is_suite_skipping_mode:
+        InternalTestSuite.add_coverage_data(test_id.parent_id, coverage_data)
+    else:
+        InternalTest.add_coverage_data(test_id, coverage_data)
+    
+    log.debug("Fast coverage added %d covered files for test %s", len(coverage_lines_data), test_id)
 
 
 @_catch_and_log_exceptions
@@ -234,11 +281,17 @@ def _handle_collected_coverage(item, test_id, coverage_collector) -> None:
     if not should_collect_coverage:
         return
 
+    # Handle fast coverage
+    if coverage_collector == "fast_coverage_active":
+        _handle_fast_coverage(item, test_id)
+        return
+
+    # Handle regular coverage
     # TODO: clean up internal coverage API usage
     test_covered_lines = _coverage_collector_get_covered_lines(coverage_collector)
     _coverage_collector_exit(coverage_collector)
 
-    record_code_coverage_finished(COVERAGE_LIBRARY.COVERAGEPY, FRAMEWORK)
+    record_code_coverage_finished(COVERAGE_LIBRARY.COVERAGEPY, TEST_FRAMEWORKS.PYTEST)
 
     if not test_covered_lines:
         log.debug("No covered lines found for test %s", test_id)
@@ -555,7 +608,7 @@ def pytest_collection_finish(session) -> None:
         _disable_ci_visibility()
 
 
-def _pytest_runtest_protocol_pre_yield(item) -> t.Optional[ModuleCodeCollector.CollectInContext]:
+def _pytest_runtest_protocol_pre_yield(item) -> t.Union[ModuleCodeCollector.CollectInContext, str, None]:
     test_id = _get_test_id_from_item(item)
     suite_id = test_id.parent_id
     module_id = suite_id.parent_id
@@ -579,6 +632,10 @@ def _pytest_runtest_protocol_pre_yield(item) -> t.Optional[ModuleCodeCollector.C
     collect_test_coverage = InternalTestSession.should_collect_coverage() and not item_will_skip
 
     if collect_test_coverage:
+        # Start test session for fast coverage if active
+        if ModuleCodeCollector.is_fast_coverage_active():
+            FastCoverageCollector.start_test_session(str(test_id))
+        
         return _start_collecting_coverage()
 
     return None
@@ -594,6 +651,10 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
     # Note: If the test was finished in _pytest_run_one_test, coverage was already handled there
     if coverage_collector is not None and not InternalTest.is_finished(test_id):
         _handle_collected_coverage(item, test_id, coverage_collector)
+        
+        # End test session for fast coverage if active
+        if ModuleCodeCollector.is_fast_coverage_active():
+            FastCoverageCollector.end_test_session()
 
     reports_dict = reports_by_item.pop(item, None)
 
@@ -969,6 +1030,10 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
             # during session finishing, it will use the correct worker-aggregated count
             InternalTestSession.set_itr_skipped_count(skipped_count)
 
+    # Stop fast coverage collection if active
+    if ModuleCodeCollector.is_fast_coverage_active():
+        FastCoverageCollector.stop_coverage()
+    
     InternalTestSession.finish(
         force_finish_children=True,
         override_status=TestStatus.FAIL if session.exitstatus == pytest.ExitCode.TESTS_FAILED else None,
