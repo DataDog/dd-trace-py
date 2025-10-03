@@ -58,7 +58,7 @@ def mock_llmobs_evaluator_runner():
 
 @pytest.fixture
 def mock_llmobs_submit_evaluation():
-    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObs.submit_evaluation")
+    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObs.submit_evaluation_for")
     LLMObsMock = patcher.start()
     m = mock.MagicMock()
     LLMObsMock.return_value = m

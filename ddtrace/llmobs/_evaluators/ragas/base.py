@@ -169,8 +169,8 @@ class BaseRagasEvaluator:
             ),
         )
         if isinstance(score_result_or_failure, float):
-            self.llmobs_service.submit_evaluation(
-                span_context={"trace_id": span_event.get("trace_id"), "span_id": span_event.get("span_id")},
+            self.llmobs_service.submit_evaluation_for(
+                span={"trace_id": span_event.get("trace_id"), "span_id": span_event.get("span_id")},
                 label=self.LABEL,
                 metric_type=self.METRIC_TYPE,
                 value=score_result_or_failure,
