@@ -32,11 +32,6 @@ from ddtrace.contrib.internal.pytest._utils import _is_test_unskippable
 from ddtrace.contrib.internal.pytest._utils import _pytest_marked_to_skip
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_atr
 
-# Fast coverage imports
-from ddtrace.internal.coverage.code import ModuleCodeCollector
-# Fast coverage will be imported dynamically when needed
-from ddtrace.contrib.internal.pytest.constants import FRAMEWORK
-from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_attempt_to_fix
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_efd
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_itr
@@ -67,8 +62,13 @@ from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_covera
 from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_finished
 from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_started
 from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
-from ddtrace.internal.coverage.code import ModuleCodeCollector
-from ddtrace.internal.coverage.installer import install as install_coverage
+from ddtrace.internal.coverage.factory import (
+    install_coverage_collector,
+    is_coverage_collector_installed,
+    uninstall_coverage_collector,
+    get_coverage_context,
+)
+# Removed: using factory function instead
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabilities
 from ddtrace.internal.test_visibility.api import InternalTest
@@ -210,7 +210,7 @@ def _coverage_collector_exit(coverage_collector) -> None:
     """
     Wraps coverage collector __exit__ call for testing purposes
     """
-    coverage_collector.__exit__()
+    coverage_collector.__exit__(None, None, None)
 
 
 def _coverage_collector_get_covered_lines(coverage_collector) -> t.Dict[str, CoverageLines]:
@@ -220,16 +220,9 @@ def _coverage_collector_get_covered_lines(coverage_collector) -> t.Dict[str, Cov
     return coverage_collector.get_covered_lines()
 
 
-def _start_collecting_coverage() -> t.Union[ModuleCodeCollector.CollectInContext, str]:
-    # Check if fast coverage is active
-    if ModuleCodeCollector.is_fast_coverage_active():
-        # For fast coverage, start coverage collection and return a marker
-        ModuleCodeCollector.start_coverage()
-        record_code_coverage_started(COVERAGE_LIBRARY.COVERAGEPY, TEST_FRAMEWORKS.PYTEST)
-        return "fast_coverage_active"
-    
-    # Regular coverage collection
-    coverage_collector = ModuleCodeCollector.CollectInContext()
+def _start_collecting_coverage():
+    coverage_collector = get_coverage_context()
+    # TODO: don't depend on internal for telemetry
     record_code_coverage_started(COVERAGE_LIBRARY.COVERAGEPY, FRAMEWORK)
 
     _coverage_collector_enter(coverage_collector)
@@ -237,43 +230,6 @@ def _start_collecting_coverage() -> t.Union[ModuleCodeCollector.CollectInContext
     return coverage_collector
 
 
-@_catch_and_log_exceptions
-def _handle_fast_coverage(item, test_id) -> None:
-    """Handle fast coverage collection for a test."""
-    # Get coverage data from the fast collector
-    fast_instance = ModuleCodeCollector._fast_instance
-    if not fast_instance:
-        log.debug("No fast coverage instance for test %s", test_id)
-        return
-    
-    coverage_lines_data = fast_instance.get_fast_coverage_data()
-    
-    record_code_coverage_finished(COVERAGE_LIBRARY.COVERAGEPY, TEST_FRAMEWORKS.PYTEST)
-    
-    if not coverage_lines_data:
-        log.debug("No covered files found for test %s", test_id)
-        record_code_coverage_empty()
-        return
-    
-    # Convert to the format expected by the CI Visibility API
-    coverage_data = {}
-    for file_path, coverage_lines in coverage_lines_data.items():
-        coverage_data[Path(file_path).absolute()] = coverage_lines
-    
-    if not coverage_data:
-        log.debug("No coverage data found for test %s", test_id)
-        return
-    
-    # Add coverage data using the same mechanism as regular coverage
-    ci_visibility_service = require_ci_visibility_service()
-    is_suite_skipping_mode = ci_visibility_service._suite_skipping_mode
-    
-    if is_suite_skipping_mode:
-        InternalTestSuite.add_coverage_data(test_id.parent_id, coverage_data)
-    else:
-        InternalTest.add_coverage_data(test_id, coverage_data)
-    
-    log.debug("Fast coverage added %d covered files for test %s", len(coverage_lines_data), test_id)
 
 
 @_catch_and_log_exceptions
@@ -286,17 +242,11 @@ def _handle_collected_coverage(item, test_id, coverage_collector) -> None:
     if not should_collect_coverage:
         return
 
-    # Handle fast coverage
-    if coverage_collector == "fast_coverage_active":
-        _handle_fast_coverage(item, test_id)
-        return
-
-    # Handle regular coverage
     # TODO: clean up internal coverage API usage
     test_covered_lines = _coverage_collector_get_covered_lines(coverage_collector)
     _coverage_collector_exit(coverage_collector)
 
-    record_code_coverage_finished(COVERAGE_LIBRARY.COVERAGEPY, TEST_FRAMEWORKS.PYTEST)
+    record_code_coverage_finished(COVERAGE_LIBRARY.COVERAGEPY, FRAMEWORK)
 
     if not test_covered_lines:
         log.debug("No covered lines found for test %s", test_id)
@@ -324,7 +274,8 @@ def _handle_collected_coverage(item, test_id, coverage_collector) -> None:
 def _handle_coverage_dependencies(suite_id) -> None:
     coverage_data = InternalTestSuite.get_coverage_data(suite_id)
     coverage_paths = coverage_data.keys()
-    import_coverage = ModuleCodeCollector.get_import_coverage_for_paths(coverage_paths)
+    # Import coverage is handled by the coverage collector internally
+    import_coverage = {}
     InternalTestSuite.add_coverage_data(suite_id, import_coverage)
 
 
@@ -397,7 +348,7 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
                 process_type,
                 [workspace_path],
             )
-            install_coverage(include_paths=[workspace_path], collect_import_time_coverage=True)
+            install_coverage_collector(include_paths=[workspace_path], collect_import_time_coverage=True)
             log.debug("EARLY_INIT: %s process - ModuleCodeCollector installation completed", process_type)
         elif using_xdist and not is_worker:
             log.debug(
@@ -613,7 +564,7 @@ def pytest_collection_finish(session) -> None:
         _disable_ci_visibility()
 
 
-def _pytest_runtest_protocol_pre_yield(item) -> t.Union[ModuleCodeCollector.CollectInContext, str, None]:
+def _pytest_runtest_protocol_pre_yield(item):
     test_id = _get_test_id_from_item(item)
     suite_id = test_id.parent_id
     module_id = suite_id.parent_id
@@ -637,10 +588,6 @@ def _pytest_runtest_protocol_pre_yield(item) -> t.Union[ModuleCodeCollector.Coll
     collect_test_coverage = InternalTestSession.should_collect_coverage() and not item_will_skip
 
     if collect_test_coverage:
-        # Start test session for fast coverage if active
-        if ModuleCodeCollector.is_fast_coverage_active():
-            ModuleCodeCollector._fast_instance.start_test_session(str(test_id))
-        
         return _start_collecting_coverage()
 
     return None
@@ -656,10 +603,6 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
     # Note: If the test was finished in _pytest_run_one_test, coverage was already handled there
     if coverage_collector is not None and not InternalTest.is_finished(test_id):
         _handle_collected_coverage(item, test_id, coverage_collector)
-        
-        # End test session for fast coverage if active
-        if ModuleCodeCollector.is_fast_coverage_active():
-            ModuleCodeCollector._fast_instance.end_test_session()
 
     reports_dict = reports_by_item.pop(item, None)
 
@@ -1024,8 +967,8 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
         else:
             InternalTestSession.set_covered_lines_pct(lines_pct_value)
 
-    if ModuleCodeCollector.is_installed():
-        ModuleCodeCollector.uninstall()
+    if is_coverage_collector_installed():
+        uninstall_coverage_collector()
 
     # Count ITR skipped tests from workers if we're in the main process
     if hasattr(pytest, "global_worker_itr_results"):
@@ -1035,9 +978,6 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
             # during session finishing, it will use the correct worker-aggregated count
             InternalTestSession.set_itr_skipped_count(skipped_count)
 
-    # Stop fast coverage collection if active
-    if ModuleCodeCollector.is_fast_coverage_active():
-        ModuleCodeCollector.stop_coverage()
     
     InternalTestSession.finish(
         force_finish_children=True,

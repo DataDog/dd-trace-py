@@ -46,10 +46,11 @@ class FastFileCoverage:
 from ddtrace.internal.module import ModuleWatchdog
 
 class FastModuleCodeCollector(ModuleWatchdog):
-    """Fast coverage collector that inherits from ModuleWatchdog to get instrumentation.
+    """Fast coverage collector that tracks file-level coverage with zero instrumentation.
     
     This inherits from ModuleWatchdog to get the transform() method called
-    during module loading, which enables the bytecode instrumentation.
+    during module loading, which is when we mark files as covered.
+    No bytecode instrumentation is performed for maximum performance.
     """
     
     _instance: t.Optional["FastModuleCodeCollector"] = None
@@ -62,12 +63,6 @@ class FastModuleCodeCollector(ModuleWatchdog):
         self._coverage_enabled: bool = False
         self._fast_coverage = FastFileCoverage()
         self._tracked_files: t.Set[str] = set()
-        
-        # Minimal attributes needed for instrumentation compatibility
-        self.seen: t.Set[t.Tuple[CodeType, str]] = set()
-        from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
-        from collections import defaultdict
-        self.lines: t.DefaultDict[str, CoverageLines] = defaultdict(CoverageLines)
     
     @classmethod
     def install(cls, include_paths: t.Optional[t.List[Path]] = None, collect_import_time_coverage: bool = False):
@@ -91,19 +86,20 @@ class FastModuleCodeCollector(ModuleWatchdog):
         """Check if installed."""
         return cls._instance is not None
     
-    def start_coverage(self):
+    @classmethod
+    def start_coverage(cls):
         """Start coverage collection."""
-        self._coverage_enabled = True
+        if cls._instance is None:
+            return
+        cls._instance._coverage_enabled = True
     
-    def stop_coverage(self):
+    @classmethod
+    def stop_coverage(cls):
         """Stop coverage collection."""
-        self._coverage_enabled = False
+        if cls._instance is None:
+            return
+        cls._instance._coverage_enabled = False
     
-    def hook(self, arg: t.Tuple[int, str, t.Optional[t.Tuple[str, t.Tuple[str, ...]]]]):
-        """Hook method - not used in zero-instrumentation approach but kept for compatibility."""
-        # This method is not called in our zero-instrumentation approach
-        # but we keep it for compatibility with the ModuleCodeCollector interface
-        pass
     
     def transform(self, code: CodeType, module: ModuleType) -> CodeType:
         """Transform code with NO instrumentation - just track at import time."""
@@ -122,7 +118,8 @@ class FastModuleCodeCollector(ModuleWatchdog):
         # FAST COVERAGE: No bytecode instrumentation at all!
         # Just mark the file as covered when the transform is called
         # This happens when the module is loaded and about to be executed
-        if self._coverage_enabled and code.co_filename not in self._tracked_files:
+        if self._coverage_enabled:
+            # Always mark file as covered (FastFileCoverage handles deduplication)
             self._fast_coverage.mark_file_covered(code.co_filename)
             self._tracked_files.add(code.co_filename)
             log.debug(f"Fast coverage: marked file {code.co_filename} as covered (transform-time)")
@@ -130,27 +127,6 @@ class FastModuleCodeCollector(ModuleWatchdog):
         # Return original code unchanged - no instrumentation overhead!
         return code
     
-    def after_import(self, module: ModuleType) -> None:
-        """Called when a module is imported - track import-time coverage."""
-        if not self._coverage_enabled:
-            return
-            
-        if not hasattr(module, '__file__') or not module.__file__:
-            return
-            
-        file_path = module.__file__
-        
-        # Apply same filtering as transform
-        if hasattr(self, '_include_paths'):
-            file_path_obj = Path(file_path).resolve()
-            if not any(file_path_obj.is_relative_to(include_path) for include_path in self._include_paths):
-                return
-        
-        # Mark file as covered at import time
-        if file_path not in self._tracked_files:
-            self._fast_coverage.mark_file_covered(file_path)
-            self._tracked_files.add(file_path)
-            log.debug(f"Fast coverage: marked file {file_path} as covered (import-time)")
     
     def get_fast_coverage_data(self) -> t.Dict[str, CoverageLines]:
         """Get coverage data in CoverageLines format."""
@@ -168,4 +144,79 @@ class FastModuleCodeCollector(ModuleWatchdog):
         """Clear all coverage data."""
         self._fast_coverage.clear()
         self._tracked_files.clear()
+    
+    def _add_import_time_lines(self, covered_lines):
+        """Add import-time coverage lines - matches ModuleCodeCollector interface."""
+        # For fast coverage, we don't need to do anything special with import-time lines
+        # since we already track files at transform time
+        pass
+    
+    # Additional methods to match ModuleCodeCollector interface
+    def get_covered_lines(self) -> t.Dict[str, CoverageLines]:
+        """Get covered lines in the same format as ModuleCodeCollector."""
+        return self.get_fast_coverage_data()
+    
+    @classmethod
+    def coverage_enabled(cls):
+        """Check if coverage is enabled - matches ModuleCodeCollector interface."""
+        return cls._instance is not None and cls._instance._coverage_enabled
+    
+    @classmethod
+    def coverage_enabled_in_context(cls):
+        """Check if coverage is enabled in context - matches ModuleCodeCollector interface."""
+        return cls._instance is not None and cls._instance._coverage_enabled
+    
+    @classmethod
+    def report_seen_lines(cls, workspace_path: Path, include_imported: bool = False):
+        """Generate coverage report - matches ModuleCodeCollector interface."""
+        if cls._instance is None:
+            return {}
+        
+        coverage_data = cls._instance.get_fast_coverage_data()
+        
+        # Convert to the format expected by existing code
+        result = {}
+        for file_path, coverage_lines in coverage_data.items():
+            # Make paths relative to workspace if possible
+            try:
+                abs_path = Path(file_path).resolve()
+                try:
+                    rel_path = abs_path.relative_to(workspace_path.resolve())
+                    result[str(rel_path)] = coverage_lines.to_sorted_list()
+                except ValueError:
+                    # File is outside workspace, use absolute path
+                    result[str(abs_path)] = coverage_lines.to_sorted_list()
+            except (OSError, ValueError):
+                # Fallback to original path
+                result[file_path] = coverage_lines.to_sorted_list()
+        
+        return result
+    
+    class CollectInContext:
+        """Context manager for coverage collection - matches ModuleCodeCollector interface."""
+        
+        def __init__(self):
+            self._collector = FastModuleCodeCollector._instance
+            self._was_enabled = False
+            self._initial_files = set()
+        
+        def __enter__(self):
+            if self._collector:
+                self._was_enabled = self._collector._coverage_enabled
+                self._collector._coverage_enabled = True
+                # Remember files that were already covered before this context
+                self._initial_files = set(self._collector._tracked_files)
+            return self
+        
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            if self._collector:
+                self._collector._coverage_enabled = self._was_enabled
+        
+        def get_covered_lines(self) -> t.Dict[str, CoverageLines]:
+            """Get covered lines - matches ModuleCodeCollector interface."""
+            if self._collector:
+                # Return all covered files (not just the ones from this context)
+                # This matches the behavior of the regular ModuleCodeCollector
+                return self._collector.get_fast_coverage_data()
+            return {}
     

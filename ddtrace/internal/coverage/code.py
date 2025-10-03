@@ -22,13 +22,6 @@ from ddtrace.internal.packages import stdlib_path
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.inspection import resolved_code_origin
 
-# Fast coverage imports - inline config check
-def _is_fast_coverage_enabled() -> bool:
-    """Check if fast file-level coverage is enabled via environment variable."""
-    import os
-    env_value = os.environ.get('_DD_CIVISIBILITY_FAST_COVERAGE', '').lower()
-    return env_value in ('1', 'true', 'yes', 'on')
-
 
 log = get_logger(__name__)
 
@@ -50,7 +43,6 @@ def _get_ctx_covered_lines() -> t.DefaultDict[str, CoverageLines]:
 
 class ModuleCodeCollector(ModuleWatchdog):
     _instance: t.Optional["ModuleCodeCollector"] = None
-    _fast_instance: t.Optional["FastModuleCodeCollector"] = None
 
     def __init__(self) -> None:
         super().__init__()
@@ -87,30 +79,6 @@ class ModuleCodeCollector(ModuleWatchdog):
 
     @classmethod
     def install(cls, include_paths: t.Optional[t.List[Path]] = None, collect_import_time_coverage: bool = False):
-        """Install coverage collector - fast or regular based on config."""
-        
-        # Use fast coverage if enabled
-        if _is_fast_coverage_enabled():
-            from .fast import FastModuleCodeCollector
-            
-            if cls._fast_instance is not None:
-                return
-            
-            FastModuleCodeCollector.install()
-            
-            if FastModuleCodeCollector._instance is None:
-                return
-            
-            cls._fast_instance = FastModuleCodeCollector._instance
-            
-            if include_paths is None:
-                include_paths = [Path(os.getcwd())]
-            
-            cls._fast_instance._include_paths = include_paths
-            log.info("Fast file-level coverage collector installed")
-            return
-        
-        # Original installation logic
         if ModuleCodeCollector.is_installed():
             return
 
@@ -281,29 +249,16 @@ class ModuleCodeCollector(ModuleWatchdog):
             return covered_lines
 
     @classmethod
-    def is_fast_coverage_active(cls) -> bool:
-        """Check if fast coverage is currently active."""
-        return _is_fast_coverage_enabled() and cls._fast_instance is not None
-
-    @classmethod
     def start_coverage(cls):
-        if cls.is_fast_coverage_active():
-            cls._fast_instance._coverage_enabled = True
-            log.info("Fast coverage collection started")
-        else:
-            if cls._instance is None:
-                return
-            cls._instance._coverage_enabled = True
+        if cls._instance is None:
+            return
+        cls._instance._coverage_enabled = True
 
     @classmethod
     def stop_coverage(cls):
-        if cls.is_fast_coverage_active():
-            cls._fast_instance._coverage_enabled = False
-            log.info("Fast coverage collection stopped")
-        else:
-            if cls._instance is None:
-                return
-            cls._instance._coverage_enabled = False
+        if cls._instance is None:
+            return
+        cls._instance._coverage_enabled = False
 
     @classmethod
     def coverage_enabled(cls):
@@ -329,15 +284,6 @@ class ModuleCodeCollector(ModuleWatchdog):
     @classmethod
     def coverage_enabled_in_context(cls):
         return cls._instance is not None and ctx_coverage_enabled.get()
-
-    @classmethod
-    def get_coverage_data_unified(cls) -> t.Dict[str, t.Any]:
-        """Get coverage data from active collector."""
-        if cls.is_fast_coverage_active():
-            return FastCoverageCollector.get_coverage_data()
-        else:
-            # Return regular coverage data in compatible format
-            return cls.report_seen_lines(Path.cwd())
 
     @classmethod
     def report_seen_lines(cls, workspace_path: Path, include_imported: bool = False):
