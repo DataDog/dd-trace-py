@@ -1,4 +1,5 @@
 """NOTE: this lives in its own file simply because some of the test variables are unwieldy"""
+
 from http.client import RemoteDisconnected
 from json import JSONDecodeError
 import socket
@@ -119,7 +120,7 @@ class TestTestVisibilityAPIClientSettingResponses(TestTestVisibilityAPIClientBas
         """Tests that the client reports errors correctly based on the API response"""
         client = self._get_test_client()
         with mock.patch.object(client, "_do_request", return_value=setting_response):
-            assert client.fetch_settings() == expected_settings
+            assert client.fetch_settings(read_from_cache=False) == expected_settings
 
     @pytest.mark.parametrize(
         "do_request_side_effect,expected_exception",
@@ -140,5 +141,5 @@ class TestTestVisibilityAPIClientSettingResponses(TestTestVisibilityAPIClientBas
         with mock.patch.object(client, "_do_request", side_effect=[do_request_side_effect]), pytest.raises(
             expected_exception
         ):
-            settings = client.fetch_settings()
+            settings = client.fetch_settings(read_from_cache=False)
             assert settings is None

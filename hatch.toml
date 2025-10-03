@@ -234,7 +234,7 @@ test = [
 ]
 
 [[envs.multiple_os_tests.matrix]]
-python = ["3.13", "3.12", "3.10", "3.8"]
+python = ["3.14", "3.12", "3.10", "3.8"]
 
 [envs.snapshot_viewer]
 dev-mode = false

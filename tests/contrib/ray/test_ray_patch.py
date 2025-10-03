@@ -1,3 +1,5 @@
+import ray.dashboard.modules.job.job_manager  # noqa: F401
+
 from ddtrace.contrib.internal.ray.patch import get_version
 from ddtrace.contrib.internal.ray.patch import patch
 from ddtrace.contrib.internal.ray.patch import unpatch
@@ -5,6 +7,8 @@ from tests.contrib.patch import PatchTestCase
 
 
 class TestRayPatch(PatchTestCase.Base):
+    """Test Ray patching with default configuration (trace_core_api=False)"""
+
     __integration_name__ = "ray"
     __module_name__ = "ray"
     __patch_func__ = patch
