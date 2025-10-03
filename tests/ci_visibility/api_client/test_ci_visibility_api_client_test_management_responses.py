@@ -85,7 +85,7 @@ class TestTestVisibilityAPIClientTestManagementResponses(TestTestVisibilityAPICl
 
         client = self._get_test_client()
         with mock.patch.object(client, "_do_request", return_value=mock_response):
-            assert client.fetch_test_management_tests() == expected_tests
+            assert client.fetch_test_management_tests(read_from_cache=False) == expected_tests
 
     @pytest.mark.parametrize(
         "do_request_side_effect",
@@ -120,5 +120,5 @@ class TestTestVisibilityAPIClientTestManagementResponses(TestTestVisibilityAPICl
         """Tests that the client correctly handles errors in the Test Management test API response"""
         client = self._get_test_client()
         with mock.patch.object(client, "_do_request", side_effect=[do_request_side_effect]):
-            settings = client.fetch_test_management_tests()
+            settings = client.fetch_test_management_tests(read_from_cache=False)
             assert settings is None
