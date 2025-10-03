@@ -149,12 +149,6 @@ class TraceSamplingProcessor(TraceProcessor):
         if trace:
             chunk_root = trace[0]
 
-            log.debug(
-                "TraceSamplingProcessor processing trace: trace_id=%s current_sampling_priority=%s",
-                chunk_root.trace_id,
-                chunk_root.context.sampling_priority,
-            )
-
             if self.apm_opt_out:
                 for span in trace:
                     if span._local_root_value is None:
