@@ -2,6 +2,7 @@ from contextlib import contextmanager
 from functools import wraps
 import inspect
 import os
+import sys
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -31,6 +32,8 @@ from .constants import RAY_ENTRYPOINT
 from .constants import RAY_JOB_NAME
 from .constants import RAY_JOB_STATUS
 from .constants import RAY_JOB_SUBMIT_STATUS
+from .constants import RAY_PUT_VALUE_SIZE_BYTES
+from .constants import RAY_PUT_VALUE_TYPE
 from .constants import RAY_STATUS_ERROR
 from .constants import RAY_STATUS_FAILED
 from .constants import RAY_STATUS_SUCCESS
@@ -306,6 +309,27 @@ def traced_get(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
 
+def traced_put(wrapped, instance, args, kwargs):
+    """
+    Trace the calls of ray.put
+    """
+    if not config.ray.trace_core_api:
+        return wrapped(*args, **kwargs)
+
+    if tracer.current_span() is None:
+        tracer.context_provider.activate(_extract_tracing_context_from_env())
+
+    with tracer.trace("ray.put", service=RAY_SERVICE_NAME or DEFAULT_JOB_NAME, span_type=SpanTypes.RAY) as span:
+        span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+        _inject_ray_span_tags_and_metrics(span)
+
+        put_value = get_argument_value(args, kwargs, 0, "value")
+        span.set_tag_str(RAY_PUT_VALUE_TYPE, str(type(put_value).__name__))
+        span.set_tag_str(RAY_PUT_VALUE_SIZE_BYTES, str(sys.getsizeof(put_value)))
+
+        return wrapped(*args, **kwargs)
+
+
 def traced_wait(wrapped, instance, args, kwargs):
     """
     Trace the calls of ray.wait
@@ -529,6 +553,7 @@ def patch():
 
     _w(ray, "get", traced_get)
     _w(ray, "wait", traced_wait)
+    _w(ray, "put", traced_put)
 
 
 def unpatch():
@@ -545,5 +570,6 @@ def unpatch():
 
     _u(ray, "get")
     _u(ray, "wait")
+    _u(ray, "put")
 
     ray._datadog_patch = False

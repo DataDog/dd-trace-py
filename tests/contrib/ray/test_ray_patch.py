@@ -23,6 +23,7 @@ class TestRayPatch(PatchTestCase.Base):
         self.assert_wrapped(ray.actor.ActorHandle._actor_method_call)
         self.assert_wrapped(ray.get)
         self.assert_wrapped(ray.wait)
+        self.assert_wrapped(ray.put)
 
     def assert_not_module_patched(self, ray):
         self.assert_not_wrapped(ray.remote_function.RemoteFunction._remote)
@@ -32,6 +33,7 @@ class TestRayPatch(PatchTestCase.Base):
         self.assert_not_wrapped(ray.actor.ActorHandle._actor_method_call)
         self.assert_not_wrapped(ray.get)
         self.assert_not_wrapped(ray.wait)
+        self.assert_not_wrapped(ray.put)
 
     def assert_not_module_double_patched(self, ray):
         self.assert_not_double_wrapped(ray.remote_function.RemoteFunction._remote)
@@ -41,3 +43,4 @@ class TestRayPatch(PatchTestCase.Base):
         self.assert_not_double_wrapped(ray.actor.ActorHandle._actor_method_call)
         self.assert_not_double_wrapped(ray.get)
         self.assert_not_double_wrapped(ray.wait)
+        self.assert_not_double_wrapped(ray.put)

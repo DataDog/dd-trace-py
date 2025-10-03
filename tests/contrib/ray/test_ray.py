@@ -238,6 +238,20 @@ class TestRayIntegration(TracerTestCase):
             assert running == [], f"Expected no running tasks, got {len(running)}"
             assert ray.get(done) == [43], f"Expected done to be [43], got {done}"
 
+    @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_simple_put", ignores=RAY_SNAPSHOT_IGNORES)
+    def test_simple_put(self):
+        with override_config("ray", dict(trace_core_api=True)):
+
+            @ray.remote
+            def add_one(x):
+                return x + 1
+
+            answer = 42
+            object_ref = ray.put(answer)
+            futures = [add_one.remote(object_ref)]
+            results = ray.get(futures)
+            assert results == [43], f"Unexpected results: {results}"
+
     @pytest.mark.snapshot(
         token="tests.contrib.ray.test_ray.test_args_kwargs", ignores=RAY_SNAPSHOT_IGNORES, wait_for_num_traces=2
     )
