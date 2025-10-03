@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    opentelemetry: Fixes the parsing of OTLP metrics exporter configurations
+    and the operation to automatically append the v1/metrics path to HTTP OTLP endpoints.
