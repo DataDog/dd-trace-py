@@ -5,7 +5,9 @@ import abc
 import os.path
 import sys
 import time
-import types
+from types import FrameType
+from types import CodeType
+from types import ModuleType
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -27,7 +29,7 @@ from ddtrace.trace import Tracer
 
 
 def _current_thread() -> Tuple[int, str]:
-    thread_id = _thread.get_ident()
+    thread_id: int = _thread.get_ident()
     return thread_id, _threading.get_thread_name(thread_id)
 
 
@@ -64,9 +66,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
         code: CodeType = frame.f_code
         self._self_init_loc: str = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
         self._self_name: Optional[str] = None
-        
-        # TODO: or 0?
-        # self._self_acquired_at: Optional[int] = None
+        self._self_acquired_at: Optional[int] = None
 
     def __aenter__(self, *args: Any, **kwargs: Any) -> Any:
         return self._acquire(self.__wrapped__.__aenter__, *args, **kwargs)
@@ -78,16 +78,27 @@ class _ProfiledLock(wrapt.ObjectProxy):
         if not self._self_capture_sampler.capture():
             return inner_func(*args, **kwargs)
 
-        start = time.monotonic_ns()
+        start: int = time.monotonic_ns()
         try:
             return inner_func(*args, **kwargs)
         finally:
             try:
+                end: int 
                 end = self._self_acquired_at = time.monotonic_ns()
+
+                thread_id: int
+                thread_name: str
                 thread_id, thread_name = _current_thread()
+
+                task_id: Optional[int]
+                task_name: Optional[str]
+                task_frame: Optional[FrameType]
                 task_id, task_name, task_frame = _task.get_task(thread_id)
+
                 self._maybe_update_self_name()
-                lock_name = "%s:%s" % (self._self_init_loc, self._self_name) if self._self_name else self._self_init_loc
+                lock_name: str = (
+                    "%s:%s" % (self._self_init_loc, self._self_name) if self._self_name else self._self_init_loc
+                )
 
                 if task_frame is None:
                     # If we can't get the task frame, we use the caller frame. We expect acquire/release or
@@ -99,9 +110,9 @@ class _ProfiledLock(wrapt.ObjectProxy):
                 frames: List[DDFrame]
                 frames, _ = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
 
-                thread_native_id = _threading.get_thread_native_id(thread_id)
+                thread_native_id: int = _threading.get_thread_native_id(thread_id)
 
-                handle = ddup.SampleHandle()
+                handle: ddup.SampleHandle = ddup.SampleHandle()
                 handle.push_monotonic_ns(end)
                 handle.push_lock_name(lock_name)
                 handle.push_acquire(end - start, 1)  # AFAICT, capture_pct does not adjust anything here
@@ -185,7 +196,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
     def _find_self_name(self, var_dict: Dict[str, Any]) -> Optional[str]:
         for name, value in var_dict.items():
-            if name.startswith("__") or isinstance(value, types.ModuleType):
+            if name.startswith("__") or isinstance(value, ModuleType):
                 continue
             if value is self:
                 return name
