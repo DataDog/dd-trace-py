@@ -481,7 +481,7 @@ class Config(object):
         self._trace_writer_native = _get_config("_DD_TRACE_WRITER_NATIVE", False, asbool)
 
         # Whether to use the ddtrace/internal/events.py native event system
-        self._trace_native_events = _get_config("_DD_TRACE_NATIVE_EVENTS", True, asbool)
+        self._trace_native_events = _get_config("_DD_TRACE_NATIVE_EVENTS", True, asbool, report_telemetry=False)
 
         # TODO: Remove the configurations below. ddtrace.internal.agent.config should be used instead.
         self._trace_agent_url = _get_config("DD_TRACE_AGENT_URL")
