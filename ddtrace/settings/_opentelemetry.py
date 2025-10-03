@@ -1,9 +1,17 @@
 import typing as t
+from urllib.parse import urljoin
 
 from ddtrace.internal.telemetry import get_config
 from ddtrace.internal.telemetry import report_configuration
 from ddtrace.settings._agent import get_agent_hostname
 from ddtrace.settings._core import DDConfig
+
+
+def _append_metrics_path(value):
+    if value is None:
+        return None
+
+    return urljoin(value, ExporterConfig.HTTP_METRICS_ENDPOINT)
 
 
 def _derive_endpoint(config: "ExporterConfig"):
@@ -38,16 +46,17 @@ def _derive_logs_timeout(config: "ExporterConfig"):
 
 def _derive_metrics_endpoint(config: "ExporterConfig"):
     if config.METRICS_PROTOCOL.lower() in ("http/json", "http/protobuf"):
-        default_endpoint = (
-            f"http://{get_agent_hostname()}:{ExporterConfig.HTTP_PORT}{ExporterConfig.HTTP_METRICS_ENDPOINT}"
+        default_endpoint = f"http://{get_agent_hostname()}:{ExporterConfig.HTTP_PORT}"
+        return get_config("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT") or _append_metrics_path(
+            get_config("OTEL_EXPORTER_OTLP_ENDPOINT", default_endpoint)
         )
     else:
         default_endpoint = f"http://{get_agent_hostname()}:{ExporterConfig.GRPC_PORT}"
-    return get_config(["OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "OTEL_EXPORTER_OTLP_ENDPOINT"], default_endpoint)
+        return get_config(["OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "OTEL_EXPORTER_OTLP_ENDPOINT"], default_endpoint)
 
 
 def _derive_metrics_protocol(config: "ExporterConfig"):
-    return get_config("OTEL_EXPORTER_OTLP_METRICS_PROTOCOL", config.PROTOCOL)
+    return get_config(["OTEL_EXPORTER_OTLP_METRICS_PROTOCOL", "OTEL_EXPORTER_OTLP_PROTOCOL"], config.PROTOCOL)
 
 
 def _derive_metrics_headers(config: "ExporterConfig"):
