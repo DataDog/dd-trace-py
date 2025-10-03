@@ -45,8 +45,7 @@ set(ECHION_COMMIT
     CACHE STRING "Commit hash of echion to use")
 FetchContent_Declare(
     echion
-    GIT_REPOSITORY "https://github.com/kowalskithomas/echion.git"
-    GIT_TAG ${ECHION_COMMIT})
+    SOURCE_DIR "$ENV{HOME}/dd/echion")
 FetchContent_GetProperties(echion)
 
 if(NOT echion_POPULATED)
