@@ -282,6 +282,28 @@ def traced_actor_method_call(wrapped, instance, args, kwargs):
 
         _inject_context_in_kwargs(span.context, kwargs)
         return wrapped(*args, **kwargs)
+    
+
+def traced_get(wrapped, instance, args, kwargs):
+    """
+    Trace the calls of ray.get
+    """
+    if tracer.current_span() is None:
+        tracer.context_provider.activate(_extract_tracing_context_from_env())
+
+    with long_running_ray_span(
+        "ray.get",
+        service=os.environ.get(RAY_SUBMISSION_ID),
+        span_type=SpanTypes.RAY,
+        child_of=tracer.context_provider.active(),
+        activate=True,
+    ) as span:
+        span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+        timeout = kwargs.get("timeout")
+        if timeout is not None:
+            span.set_tag_str("ray.get.timeout_s", str(timeout))
+        _inject_ray_span_tags_and_metrics(span)
+        return wrapped(*args, **kwargs)
 
 
 def traced_wait(wrapped, instance, args, kwargs):
@@ -505,6 +527,7 @@ def patch():
     def _(m):
         _w(m.RemoteFunction, "_remote", traced_submit_task)
 
+    _w(ray, "get", traced_get)
     _w(ray, "wait", traced_wait)
 
 
@@ -520,6 +543,7 @@ def unpatch():
     _u(ray.actor, "_modify_class")
     _u(ray.actor.ActorHandle, "_actor_method_call")
 
+    _u(ray, "get")
     _u(ray, "wait")
 
     ray._datadog_patch = False
