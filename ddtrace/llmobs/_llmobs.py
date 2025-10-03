@@ -20,6 +20,8 @@ import ddtrace
 from ddtrace import config
 from ddtrace import patch
 from ddtrace._trace.apm_filter import APMTracingEnabledFilter
+from ddtrace._trace.events import tracer_span_finished
+from ddtrace._trace.events import tracer_span_started
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace._trace.tracer import Tracer
@@ -33,6 +35,7 @@ from ddtrace.internal import forksafe
 from ddtrace.internal._rand import rand64bits
 from ddtrace.internal._rand import rand128bits
 from ddtrace.internal.compat import ensure_text
+from ddtrace.internal.events import ListenerHandle
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import Service
@@ -225,6 +228,9 @@ class LLMObs(Service):
         self._link_tracker = LinkTracker()
         self._annotations: List[Tuple[str, str, Dict[str, Any]]] = []
         self._annotation_context_lock = forksafe.RLock()
+
+        self._on_span_start_handler: Optional[ListenerHandle] = None
+        self._on_span_finish_handler: Optional[ListenerHandle] = None
 
     def _on_span_start(self, span: Span) -> None:
         if self.enabled and span.span_type == SpanTypes.LLM:
@@ -501,8 +507,10 @@ class LLMObs(Service):
             log.debug("Error stopping LLMObs writers")
 
         # Remove listener hooks for span events
-        core.reset_listeners("trace.span_start", self._on_span_start)
-        core.reset_listeners("trace.span_finish", self._on_span_finish)
+        if self._on_span_start_handler:
+            tracer_span_started.remove(self._on_span_start_handler)
+        if self._on_span_finish_handler:
+            tracer_span_finished.remove(self._on_span_finish_handler)
         core.reset_listeners("http.span_inject", self._inject_llmobs_context)
         core.reset_listeners("http.activate_distributed_headers", self._activate_llmobs_distributed_context)
         core.reset_listeners("threading.submit", self._current_trace_context)
@@ -614,8 +622,10 @@ class LLMObs(Service):
             cls._instance.start()
 
             # Register hooks for span events
-            core.on("trace.span_start", cls._instance._on_span_start)
-            core.on("trace.span_finish", cls._instance._on_span_finish)
+            if not cls._instance._on_span_start_handler:
+                cls._instance._on_span_start_handler = tracer_span_started.on(cls._instance._on_span_start)
+            if not cls._instance._on_span_finish_handler:
+                cls._instance._on_span_finish_handler = tracer_span_finished.on(cls._instance._on_span_finish)
             core.on("http.span_inject", cls._inject_llmobs_context)
             core.on("http.activate_distributed_headers", cls._activate_llmobs_distributed_context)
             core.on("threading.submit", cls._instance._current_trace_context, "llmobs_ctx")
