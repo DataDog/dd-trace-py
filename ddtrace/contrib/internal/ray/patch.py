@@ -276,7 +276,7 @@ def traced_put(wrapped, instance, args, kwargs):
     """
     Trace the calls of ray.put
     """
-    if not tracer:
+    if not config.ray.trace_core_api:
         return wrapped(*args, **kwargs)
 
     if tracer.current_span() is None:
@@ -297,6 +297,9 @@ def traced_wait(wrapped, instance, args, kwargs):
     """
     Trace the calls of ray.wait
     """
+    if not config.ray.trace_core_api:
+        return wrapped(*args, **kwargs)
+
     if tracer.current_span() is None:
         log.debug("No active span found in ray.wait(), activating trace context from environment")
         tracer.context_provider.activate(_extract_tracing_context_from_env())

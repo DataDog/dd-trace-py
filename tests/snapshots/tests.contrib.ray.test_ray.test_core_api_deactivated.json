@@ -1,0 +1,66 @@
+[[
+  {
+    "name": "task.submit",
+    "service": "tests.contrib.ray",
+    "resource": "tests.contrib.ray.test_ray.add_one.remote",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "ray",
+    "error": 0,
+    "meta": {
+      "_dd.hostname": "docker-desktop",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68df98d800000000",
+      "component": "ray",
+      "language": "python",
+      "ray.hostname": "docker-desktop",
+      "ray.job_id": "01000000",
+      "ray.node_id": "4e4cf78a52db72e5d5bead061a8d9d14293f057550bf933a31f418cc",
+      "ray.task.submit_status": "success",
+      "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
+      "runtime-id": "8a0faab372244bf6b103e59e68268c79",
+      "span.kind": "producer"
+    },
+    "metrics": {
+      "_dd.djm.enabled": 1,
+      "_dd.filter.kept": 1,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 2,
+      "process_id": 543
+    },
+    "duration": 3023917,
+    "start": 1759484120307845221
+  },
+     {
+       "name": "task.execute",
+       "service": "tests.contrib.ray",
+       "resource": "tests.contrib.ray.test_ray.TestRayIntegration.test_core_api_deactivated.<locals>.add_one",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "ray",
+       "error": 0,
+       "meta": {
+         "component": "ray",
+         "ray.hostname": "docker-desktop",
+         "ray.job_id": "01000000",
+         "ray.node_id": "4e4cf78a52db72e5d5bead061a8d9d14293f057550bf933a31f418cc",
+         "ray.task.status": "success",
+         "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
+         "runtime-id": "8a0faab372244bf6b103e59e68268c79",
+         "span.kind": "consumer"
+       },
+       "metrics": {
+         "_dd.djm.enabled": 1,
+         "_dd.filter.kept": 1,
+         "_dd.measured": 1,
+         "_dd.top_level": 1,
+         "_sampling_priority_v1": 2,
+         "process_id": 543
+       },
+       "duration": 246000,
+       "start": 1759484120310422180
+     }]]
