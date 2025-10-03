@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+from __future__ import absolute_import, annotations
 
 import _thread
 import abc
@@ -100,6 +100,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                     "%s:%s" % (self._self_init_loc, self._self_name) if self._self_name else self._self_init_loc
                 )
 
+                frame: FrameType
                 if task_frame is None:
                     # If we can't get the task frame, we use the caller frame. We expect acquire/release or
                     # __enter__/__exit__ to be on the stack, so we go back 2 frames.
@@ -137,7 +138,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
         # self.__dict__.pop("_self_acquired_at", None) to remove the attribute.
         # Instead, we need to use the following workaround to retrieve and
         # remove the attribute.
-        start = getattr(self, "_self_acquired_at", None)
+        start: Optional[int] = getattr(self, "_self_acquired_at", None)
         try:
             # Though it should generally be avoided to call release() from
             # multiple threads, it is possible to do so. In that scenario, the
@@ -153,11 +154,22 @@ class _ProfiledLock(wrapt.ObjectProxy):
             return inner_func(*args, **kwargs)
         finally:
             if start is not None:
-                end = time.monotonic_ns()
+                end: int = time.monotonic_ns()
+                
+                thread_id: int
+                thread_name: str
                 thread_id, thread_name = _current_thread()
-                task_id, task_name, task_frame = _task.get_task(thread_id)
-                lock_name = "%s:%s" % (self._self_init_loc, self._self_name) if self._self_name else self._self_init_loc
 
+                task_id: Optional[int]
+                task_name: Optional[str]
+                task_frame: Optional[FrameType]                
+                task_id, task_name, task_frame = _task.get_task(thread_id)
+
+                lock_name: str = (
+                    "%s:%s" % (self._self_init_loc, self._self_name) if self._self_name else self._self_init_loc
+                )
+
+                frame: FrameType
                 if task_frame is None:
                     # See the comments in _acquire
                     frame = sys._getframe(2)
@@ -167,9 +179,9 @@ class _ProfiledLock(wrapt.ObjectProxy):
                 frames: List[DDFrame]
                 frames, _ = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
 
-                thread_native_id = _threading.get_thread_native_id(thread_id)
+                thread_native_id: int = _threading.get_thread_native_id(thread_id)
 
-                handle = ddup.SampleHandle()
+                handle: ddup.SampleHandle = ddup.SampleHandle()
                 handle.push_monotonic_ns(end)
                 handle.push_lock_name(lock_name)
                 handle.push_release(end - start, 1)  # AFAICT, capture_pct does not adjust anything here
@@ -186,7 +198,8 @@ class _ProfiledLock(wrapt.ObjectProxy):
     def release(self, *args: Any, **kwargs: Any) -> Any:
         return self._release(self.__wrapped__.release, *args, **kwargs)
 
-    acquire_lock = acquire
+    # TODO: not used
+    # acquire_lock = acquire
 
     def __enter__(self, *args: Any, **kwargs: Any) -> Any:
         return self._acquire(self.__wrapped__.__enter__, *args, **kwargs)
@@ -218,7 +231,8 @@ class _ProfiledLock(wrapt.ObjectProxy):
         # 2: acquire/release (or __enter__/__exit__)
         # 3: caller frame
         if config.enable_asserts:
-            frame = sys._getframe(1)
+            frame: FrameType = sys._getframe(1)
+            # TODO: replace dict with list
             if frame.f_code.co_name not in {"_acquire", "_release"}:
                 raise AssertionError("Unexpected frame %s" % frame.f_code.co_name)
             frame = sys._getframe(2)
@@ -244,7 +258,7 @@ class FunctionWrapper(wrapt.FunctionWrapper):
     # Override the __get__ method: whatever happens, _allocate_lock is always considered by Python like a "static"
     # method, even when used as a class attribute. Python never tried to "bind" it to a method, because it sees it is a
     # builtin function. Override default wrapt behavior here that tries to detect bound method.
-    def __get__(self, instance: Any, owner: Optional[Type] = None) -> "FunctionWrapper":
+    def __get__(self, instance: Any, owner: Optional[Type] = None) -> FunctionWrapper:
         return self
 
 
