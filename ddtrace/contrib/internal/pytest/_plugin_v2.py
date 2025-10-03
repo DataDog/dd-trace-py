@@ -31,7 +31,6 @@ from ddtrace.contrib.internal.pytest._utils import _is_enabled_early
 from ddtrace.contrib.internal.pytest._utils import _is_test_unskippable
 from ddtrace.contrib.internal.pytest._utils import _pytest_marked_to_skip
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_atr
-
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_attempt_to_fix
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_efd
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_itr
@@ -62,12 +61,13 @@ from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_covera
 from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_finished
 from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_started
 from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
-from ddtrace.internal.coverage.factory import (
-    install_coverage_collector,
-    is_coverage_collector_installed,
-    uninstall_coverage_collector,
-    get_coverage_context,
-)
+from ddtrace.internal.coverage.code import ModuleCodeCollector
+from ddtrace.internal.coverage.factory import get_coverage_context
+from ddtrace.internal.coverage.factory import install_coverage_collector
+from ddtrace.internal.coverage.factory import is_coverage_collector_installed
+from ddtrace.internal.coverage.factory import uninstall_coverage_collector
+from ddtrace.internal.coverage.fast import FastModuleCodeCollector
+
 # Removed: using factory function instead
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabilities
@@ -220,7 +220,9 @@ def _coverage_collector_get_covered_lines(coverage_collector) -> t.Dict[str, Cov
     return coverage_collector.get_covered_lines()
 
 
-def _start_collecting_coverage():
+def _start_collecting_coverage() -> (
+    t.Union[ModuleCodeCollector.CollectInContext, FastModuleCodeCollector.CollectInContext]
+):
     coverage_collector = get_coverage_context()
     # TODO: don't depend on internal for telemetry
     record_code_coverage_started(COVERAGE_LIBRARY.COVERAGEPY, FRAMEWORK)
@@ -228,8 +230,6 @@ def _start_collecting_coverage():
     _coverage_collector_enter(coverage_collector)
 
     return coverage_collector
-
-
 
 
 @_catch_and_log_exceptions
@@ -273,7 +273,8 @@ def _handle_collected_coverage(item, test_id, coverage_collector) -> None:
 
 def _handle_coverage_dependencies(suite_id) -> None:
     coverage_data = InternalTestSuite.get_coverage_data(suite_id)
-    coverage_paths = coverage_data.keys()
+    if coverage_data is not None:
+        coverage_data.keys()
     # Import coverage is handled by the coverage collector internally
     import_coverage = {}
     InternalTestSuite.add_coverage_data(suite_id, import_coverage)
@@ -564,7 +565,9 @@ def pytest_collection_finish(session) -> None:
         _disable_ci_visibility()
 
 
-def _pytest_runtest_protocol_pre_yield(item):
+def _pytest_runtest_protocol_pre_yield(
+    item,
+) -> t.Optional[t.Union[ModuleCodeCollector.CollectInContext, FastModuleCodeCollector.CollectInContext]]:
     test_id = _get_test_id_from_item(item)
     suite_id = test_id.parent_id
     module_id = suite_id.parent_id
@@ -593,7 +596,7 @@ def _pytest_runtest_protocol_pre_yield(item):
     return None
 
 
-def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
+def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector) -> None:
     test_id = _get_test_id_from_item(item)
     suite_id = test_id.parent_id
     module_id = suite_id.parent_id
@@ -978,7 +981,6 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
             # during session finishing, it will use the correct worker-aggregated count
             InternalTestSession.set_itr_skipped_count(skipped_count)
 
-    
     InternalTestSession.finish(
         force_finish_children=True,
         override_status=TestStatus.FAIL if session.exitstatus == pytest.ExitCode.TESTS_FAILED else None,
