@@ -1,14 +1,20 @@
-"""Minimal fast file-level coverage implementation."""
+"""Fast file-level coverage implementation using hybrid approach."""
 
 import logging
+import os
 import typing as t
-from collections import defaultdict
 from pathlib import Path
+from types import CodeType, ModuleType
 
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
-from .code import ModuleCodeCollector
 
 log = logging.getLogger(__name__)
+
+
+def _is_fast_coverage_enabled() -> bool:
+    """Check if fast file-level coverage is enabled via environment variable."""
+    env_value = os.environ.get('_DD_CIVISIBILITY_FAST_COVERAGE', '').lower()
+    return env_value in ('1', 'true', 'yes', 'on')
 
 
 class FastFileCoverage:
@@ -16,28 +22,14 @@ class FastFileCoverage:
     
     def __init__(self):
         self._covered_files: t.Set[str] = set()
-        self._current_test_id: t.Optional[str] = None
 
     def mark_file_covered(self, file_path: str) -> None:
         """Mark a file as covered."""
         self._covered_files.add(file_path)
 
-    def start_test_session(self, test_id: str) -> None:
-        """Start tracking coverage for a specific test."""
-        self._current_test_id = test_id
-
-    def end_test_session(self) -> None:
-        """End current test session."""
-        self._current_test_id = None
-
-    def get_covered_files(self) -> t.Set[str]:
-        """Get all covered files."""
-        return self._covered_files.copy()
-
     def clear(self) -> None:
         """Clear all coverage data."""
         self._covered_files.clear()
-        self._current_test_id = None
 
     def to_coverage_lines_format(self) -> t.Dict[str, CoverageLines]:
         """Convert to CoverageLines format using bitmaps like regular coverage."""
@@ -50,51 +42,115 @@ class FastFileCoverage:
         return result
 
 
-class FastModuleCodeCollector(ModuleCodeCollector):
-    """Fast coverage collector that inherits from ModuleCodeCollector but only tracks files."""
+# Import at module level to enable proper inheritance
+from ddtrace.internal.module import ModuleWatchdog
+
+class FastModuleCodeCollector(ModuleWatchdog):
+    """Fast coverage collector that inherits from ModuleWatchdog to get instrumentation.
+    
+    This inherits from ModuleWatchdog to get the transform() method called
+    during module loading, which enables the bytecode instrumentation.
+    """
+    
+    _instance: t.Optional["FastModuleCodeCollector"] = None
     
     def __init__(self):
+        # Initialize parent class
         super().__init__()
+        
+        # Fast coverage specific attributes
+        self._coverage_enabled: bool = False
         self._fast_coverage = FastFileCoverage()
         self._tracked_files: t.Set[str] = set()
+        
+        # Minimal attributes needed for instrumentation compatibility
+        self.seen: t.Set[t.Tuple[CodeType, str]] = set()
+        from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+        from collections import defaultdict
+        self.lines: t.DefaultDict[str, CoverageLines] = defaultdict(CoverageLines)
     
     @classmethod
     def install(cls, include_paths: t.Optional[t.List[Path]] = None, collect_import_time_coverage: bool = False):
-        """Install the fast coverage collector - override to prevent recursion."""
-        if cls.is_installed():
+        """Install using ModuleWatchdog infrastructure."""
+        if cls._instance is not None:
             return
-
-        # Call the parent's parent install method (ModuleWatchdog.install) to avoid recursion
-        from ddtrace.internal.module import ModuleWatchdog
-        ModuleWatchdog.install.__func__(cls)
-
+        
+        # Use parent's install mechanism
+        super().install()
+        
         if cls._instance is None:
-            # installation failed
             return
-
+        
+        # Store include paths for filtering
         if include_paths is None:
             include_paths = [Path.cwd()]
-
         cls._instance._include_paths = include_paths
-        cls._instance._collect_import_coverage = collect_import_time_coverage
-
-        if collect_import_time_coverage:
-            cls.register_import_exception_hook(
-                lambda x: True, cls._instance._exit_context_on_exception_hook
-            )
+    
+    @classmethod
+    def is_installed(cls) -> bool:
+        """Check if installed."""
+        return cls._instance is not None
+    
+    def start_coverage(self):
+        """Start coverage collection."""
+        self._coverage_enabled = True
+    
+    def stop_coverage(self):
+        """Stop coverage collection."""
+        self._coverage_enabled = False
     
     def hook(self, arg: t.Tuple[int, str, t.Optional[t.Tuple[str, t.Tuple[str, ...]]]]):
-        """Override hook to only track files, not individual lines."""
-        line: int
-        path: str
-        import_name: t.Optional[t.Tuple[str, t.Tuple[str, ...]]]
-        line, path, import_name = arg
+        """Hook method - not used in zero-instrumentation approach but kept for compatibility."""
+        # This method is not called in our zero-instrumentation approach
+        # but we keep it for compatibility with the ModuleCodeCollector interface
+        pass
+    
+    def transform(self, code: CodeType, module: ModuleType) -> CodeType:
+        """Transform code with NO instrumentation - just track at import time."""
+        # Only track user code in our include paths
+        if not hasattr(module, '__file__') or not module.__file__:
+            return code
+            
+        file_path = Path(module.__file__).resolve()
         
-        # Only track each file once
-        if self._coverage_enabled and path not in self._tracked_files:
-            self._fast_coverage.mark_file_covered(path)
-            self._tracked_files.add(path)
-            log.debug(f"Fast coverage: marked file {path} as covered")
+        # Check if this file should be tracked
+        if hasattr(self, '_include_paths'):
+            should_track = any(file_path.is_relative_to(include_path) for include_path in self._include_paths)
+            if not should_track:
+                return code
+        
+        # FAST COVERAGE: No bytecode instrumentation at all!
+        # Just mark the file as covered when the transform is called
+        # This happens when the module is loaded and about to be executed
+        if self._coverage_enabled and code.co_filename not in self._tracked_files:
+            self._fast_coverage.mark_file_covered(code.co_filename)
+            self._tracked_files.add(code.co_filename)
+            log.debug(f"Fast coverage: marked file {code.co_filename} as covered (transform-time)")
+        
+        # Return original code unchanged - no instrumentation overhead!
+        return code
+    
+    def after_import(self, module: ModuleType) -> None:
+        """Called when a module is imported - track import-time coverage."""
+        if not self._coverage_enabled:
+            return
+            
+        if not hasattr(module, '__file__') or not module.__file__:
+            return
+            
+        file_path = module.__file__
+        
+        # Apply same filtering as transform
+        if hasattr(self, '_include_paths'):
+            file_path_obj = Path(file_path).resolve()
+            if not any(file_path_obj.is_relative_to(include_path) for include_path in self._include_paths):
+                return
+        
+        # Mark file as covered at import time
+        if file_path not in self._tracked_files:
+            self._fast_coverage.mark_file_covered(file_path)
+            self._tracked_files.add(file_path)
+            log.debug(f"Fast coverage: marked file {file_path} as covered (import-time)")
     
     def get_fast_coverage_data(self) -> t.Dict[str, CoverageLines]:
         """Get coverage data in CoverageLines format."""
@@ -102,15 +158,14 @@ class FastModuleCodeCollector(ModuleCodeCollector):
     
     def start_test_session(self, test_id: str):
         """Start a test session."""
-        self._fast_coverage.start_test_session(test_id)
-        # Reset per-test file tracking
         self._tracked_files.clear()
     
     def end_test_session(self):
         """End current test session."""
-        self._fast_coverage.end_test_session()
+        pass
     
     def clear_coverage(self):
         """Clear all coverage data."""
         self._fast_coverage.clear()
         self._tracked_files.clear()
+    

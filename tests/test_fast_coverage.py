@@ -5,7 +5,7 @@ import pytest
 from unittest.mock import patch, MagicMock
 from pathlib import Path
 
-from ddtrace.internal.coverage.config import FAST_COVERAGE_CONFIG, FastCoverageConfig, is_fast_coverage_enabled
+# Config functionality is now inlined
 from ddtrace.internal.coverage.fast import FastFileCoverage, FastModuleCodeCollector
 # Fast instrumentation is now handled by inheritance
 from ddtrace.internal.coverage.code import ModuleCodeCollector

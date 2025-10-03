@@ -22,8 +22,12 @@ from ddtrace.internal.packages import stdlib_path
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.inspection import resolved_code_origin
 
-# Fast coverage imports
-from .config import FAST_COVERAGE_CONFIG
+# Fast coverage imports - inline config check
+def _is_fast_coverage_enabled() -> bool:
+    """Check if fast file-level coverage is enabled via environment variable."""
+    import os
+    env_value = os.environ.get('_DD_CIVISIBILITY_FAST_COVERAGE', '').lower()
+    return env_value in ('1', 'true', 'yes', 'on')
 
 
 log = get_logger(__name__)
@@ -86,7 +90,7 @@ class ModuleCodeCollector(ModuleWatchdog):
         """Install coverage collector - fast or regular based on config."""
         
         # Use fast coverage if enabled
-        if FAST_COVERAGE_CONFIG.enabled:
+        if _is_fast_coverage_enabled():
             from .fast import FastModuleCodeCollector
             
             if cls._fast_instance is not None:
@@ -279,7 +283,7 @@ class ModuleCodeCollector(ModuleWatchdog):
     @classmethod
     def is_fast_coverage_active(cls) -> bool:
         """Check if fast coverage is currently active."""
-        return FAST_COVERAGE_CONFIG.enabled and cls._fast_instance is not None
+        return _is_fast_coverage_enabled() and cls._fast_instance is not None
 
     @classmethod
     def start_coverage(cls):
