@@ -32,6 +32,7 @@ from .constants import RAY_ENTRYPOINT
 from .constants import RAY_JOB_NAME
 from .constants import RAY_JOB_STATUS
 from .constants import RAY_JOB_SUBMIT_STATUS
+from .constants import RAY_GET_VALUE_SIZE_BYTES
 from .constants import RAY_PUT_VALUE_SIZE_BYTES
 from .constants import RAY_PUT_VALUE_TYPE
 from .constants import RAY_STATUS_ERROR
@@ -291,12 +292,15 @@ def traced_get(wrapped, instance, args, kwargs):
     """
     Trace the calls of ray.get
     """
+    if not config.ray.trace_core_api:
+        return wrapped(*args, **kwargs)
+
     if tracer.current_span() is None:
         tracer.context_provider.activate(_extract_tracing_context_from_env())
 
     with long_running_ray_span(
         "ray.get",
-        service=os.environ.get(RAY_SUBMISSION_ID),
+        service=RAY_SERVICE_NAME or DEFAULT_JOB_NAME,
         span_type=SpanTypes.RAY,
         child_of=tracer.context_provider.active(),
         activate=True,
@@ -306,6 +310,8 @@ def traced_get(wrapped, instance, args, kwargs):
         if timeout is not None:
             span.set_tag_str("ray.get.timeout_s", str(timeout))
         _inject_ray_span_tags_and_metrics(span)
+        get_value = get_argument_value(args, kwargs, 0, "object_refs")
+        span.set_tag_str(RAY_GET_VALUE_SIZE_BYTES, str(sys.getsizeof(get_value)))
         return wrapped(*args, **kwargs)
 
 

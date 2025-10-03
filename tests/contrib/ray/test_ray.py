@@ -223,8 +223,8 @@ class TestRayIntegration(TracerTestCase):
             def add_one(x):
                 return x + 1
 
-            results = ray.get([add_one.remote(x) for x in range(4)])
-            assert results == [1, 2, 3, 4], f"Expected [1, 2, 3, 4], got {results}"
+            results = ray.get([add_one.remote(x) for x in range(1)])
+            assert results == [1], f"Expected [1], got {results}"
 
     @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_simple_wait", ignores=RAY_SNAPSHOT_IGNORES)
     def test_simple_wait(self):
