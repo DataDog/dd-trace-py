@@ -29,10 +29,10 @@ from .constants import DEFAULT_JOB_NAME
 from .constants import RAY_ACTOR_METHOD_ARGS
 from .constants import RAY_ACTOR_METHOD_KWARGS
 from .constants import RAY_ENTRYPOINT
+from .constants import RAY_GET_VALUE_SIZE_BYTES
 from .constants import RAY_JOB_NAME
 from .constants import RAY_JOB_STATUS
 from .constants import RAY_JOB_SUBMIT_STATUS
-from .constants import RAY_GET_VALUE_SIZE_BYTES
 from .constants import RAY_PUT_VALUE_SIZE_BYTES
 from .constants import RAY_PUT_VALUE_TYPE
 from .constants import RAY_STATUS_ERROR
