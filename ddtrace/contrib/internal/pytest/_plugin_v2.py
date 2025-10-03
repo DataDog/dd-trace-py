@@ -34,7 +34,7 @@ from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_atr
 
 # Fast coverage imports
 from ddtrace.internal.coverage.code import ModuleCodeCollector
-from ddtrace.internal.coverage.fast_collector import FastCoverageCollector
+# Fast coverage will be imported dynamically when needed
 from ddtrace.contrib.internal.pytest.constants import FRAMEWORK
 from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_attempt_to_fix
@@ -224,7 +224,7 @@ def _start_collecting_coverage() -> t.Union[ModuleCodeCollector.CollectInContext
     # Check if fast coverage is active
     if ModuleCodeCollector.is_fast_coverage_active():
         # For fast coverage, start coverage collection and return a marker
-        FastCoverageCollector.start_coverage()
+        ModuleCodeCollector.start_coverage()
         record_code_coverage_started(COVERAGE_LIBRARY.COVERAGEPY, TEST_FRAMEWORKS.PYTEST)
         return "fast_coverage_active"
     
@@ -240,8 +240,13 @@ def _start_collecting_coverage() -> t.Union[ModuleCodeCollector.CollectInContext
 @_catch_and_log_exceptions
 def _handle_fast_coverage(item, test_id) -> None:
     """Handle fast coverage collection for a test."""
-    # Get coverage data in the same bitmap format as regular coverage
-    coverage_lines_data = FastCoverageCollector.get_coverage_lines_data()
+    # Get coverage data from the fast collector
+    fast_instance = ModuleCodeCollector._fast_instance
+    if not fast_instance:
+        log.debug("No fast coverage instance for test %s", test_id)
+        return
+    
+    coverage_lines_data = fast_instance.get_fast_coverage_data()
     
     record_code_coverage_finished(COVERAGE_LIBRARY.COVERAGEPY, TEST_FRAMEWORKS.PYTEST)
     
@@ -634,7 +639,7 @@ def _pytest_runtest_protocol_pre_yield(item) -> t.Union[ModuleCodeCollector.Coll
     if collect_test_coverage:
         # Start test session for fast coverage if active
         if ModuleCodeCollector.is_fast_coverage_active():
-            FastCoverageCollector.start_test_session(str(test_id))
+            ModuleCodeCollector._fast_instance.start_test_session(str(test_id))
         
         return _start_collecting_coverage()
 
@@ -654,7 +659,7 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
         
         # End test session for fast coverage if active
         if ModuleCodeCollector.is_fast_coverage_active():
-            FastCoverageCollector.end_test_session()
+            ModuleCodeCollector._fast_instance.end_test_session()
 
     reports_dict = reports_by_item.pop(item, None)
 
@@ -1032,7 +1037,7 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
 
     # Stop fast coverage collection if active
     if ModuleCodeCollector.is_fast_coverage_active():
-        FastCoverageCollector.stop_coverage()
+        ModuleCodeCollector.stop_coverage()
     
     InternalTestSession.finish(
         force_finish_children=True,
