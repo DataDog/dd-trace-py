@@ -29,13 +29,7 @@ class FastFileCoverage:
 
     def to_coverage_lines_format(self) -> t.Dict[str, CoverageLines]:
         """Convert to CoverageLines format using bitmaps like regular coverage."""
-        result = {}
-        for file_path in self._covered_files:
-            # Create a CoverageLines object with just line 1 marked as covered
-            coverage_lines = CoverageLines()
-            coverage_lines.add(1)  # Mark line 1 as covered to indicate file execution
-            result[file_path] = coverage_lines
-        return result
+        return {file_path: CoverageLines() for file_path in self._covered_files}
 
 
 class FastModuleCodeCollector(ModuleWatchdog):
@@ -51,6 +45,8 @@ class FastModuleCodeCollector(ModuleWatchdog):
     def __init__(self) -> None:
         # Initialize parent class
         super().__init__()
+
+        self._include_paths: t.List[Path] = []
 
         # Fast coverage specific attributes
         self._coverage_enabled: bool = False
@@ -121,18 +117,6 @@ class FastModuleCodeCollector(ModuleWatchdog):
         # Return original code unchanged - no instrumentation overhead!
         return code
 
-    def get_fast_coverage_data(self) -> t.Dict[str, CoverageLines]:
-        """Get coverage data in CoverageLines format."""
-        return self._fast_coverage.to_coverage_lines_format()
-
-    def start_test_session(self, test_id: str) -> None:
-        """Start a test session."""
-        self._tracked_files.clear()
-
-    def end_test_session(self) -> None:
-        """End current test session."""
-        pass
-
     def clear_coverage(self) -> None:
         """Clear all coverage data."""
         self._fast_coverage.clear()
@@ -145,9 +129,9 @@ class FastModuleCodeCollector(ModuleWatchdog):
         pass
 
     # Additional methods to match ModuleCodeCollector interface
-    def get_covered_lines(self) -> t.Dict[str, CoverageLines]:
+    def get_covered_lines(self, include_imported: bool = False) -> t.Dict[str, CoverageLines]:
         """Get covered lines in the same format as ModuleCodeCollector."""
-        return self.get_fast_coverage_data()
+        return self._fast_coverage.to_coverage_lines_format()
 
     @classmethod
     def coverage_enabled(cls) -> bool:
@@ -167,7 +151,7 @@ class FastModuleCodeCollector(ModuleWatchdog):
         if cls._instance is None:
             return []
 
-        coverage_data = cls._instance.get_fast_coverage_data()
+        coverage_data = cls._instance.get_covered_lines(include_imported=include_imported)
 
         list_results = []
         # Convert to the format expected by existing code
@@ -214,5 +198,5 @@ class FastModuleCodeCollector(ModuleWatchdog):
             if self._collector:
                 # Return all covered files (not just the ones from this context)
                 # This matches the behavior of the regular ModuleCodeCollector
-                return self._collector.get_fast_coverage_data()
+                return self._collector.get_covered_lines()
             return {}

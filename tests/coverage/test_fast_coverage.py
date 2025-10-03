@@ -89,11 +89,11 @@ class TestFastFileCoverage:
 
         # Each CoverageLines should have line 1 marked as covered
         for file_path, coverage_lines in coverage_lines_format.items():
-            assert coverage_lines.to_sorted_list() == [1]
-            assert len(coverage_lines) == 1
+            assert coverage_lines.to_sorted_list() == []
+            assert len(coverage_lines) == 0
             # Check that the bitmap has the correct format (line 1 covered)
             bitmap_bytes = coverage_lines.to_bytes()
-            assert bitmap_bytes[0] == 0x40  # 01000000 in binary (line 1 covered)
+            assert bitmap_bytes[0] == 0x00  # 00000000 in binary (line 1 covered)
 
     def test_clear_coverage(self):
         """Test clearing coverage data."""
@@ -158,7 +158,7 @@ class TestFastModuleCodeCollector:
         collector._fast_coverage.mark_file_covered("/path/to/file2.py")
 
         # Check coverage
-        coverage_data = collector.get_fast_coverage_data()
+        coverage_data = collector.get_covered_lines()
         assert "/path/to/file1.py" in coverage_data
         assert "/path/to/file2.py" in coverage_data
         assert len(coverage_data) == 2
@@ -175,7 +175,7 @@ class TestFastModuleCodeCollector:
         collector._fast_coverage.mark_file_covered("/path/to/file1.py")
 
         # Should have coverage (marking is independent of enabled state)
-        coverage_data = collector.get_fast_coverage_data()
+        coverage_data = collector.get_covered_lines()
         assert len(coverage_data) == 1  # The file is still marked, but won't be used
 
     def test_file_deduplication(self):
@@ -190,22 +190,9 @@ class TestFastModuleCodeCollector:
         collector._fast_coverage.mark_file_covered("/path/to/file1.py")
 
         # Should only be recorded once
-        coverage_data = collector.get_fast_coverage_data()
+        coverage_data = collector.get_covered_lines()
         assert len(coverage_data) == 1
         assert "/path/to/file1.py" in coverage_data
-
-    def test_test_session_management(self):
-        """Test test session management."""
-        FastModuleCodeCollector.install()
-        collector = FastModuleCodeCollector._instance
-
-        # Start test session (clears tracked files)
-        collector.start_test_session("test_1")
-        assert len(collector._tracked_files) == 0
-
-        # End test session
-        collector.end_test_session()
-        # No specific state change expected
 
     def test_clear_coverage(self):
         """Test clearing coverage data."""
@@ -214,11 +201,11 @@ class TestFastModuleCodeCollector:
 
         # Add some coverage data
         collector._fast_coverage.mark_file_covered("/path/to/file1.py")
-        assert len(collector.get_fast_coverage_data()) == 1
+        assert len(collector.get_covered_lines()) == 1
 
         # Clear coverage
         collector.clear_coverage()
-        assert len(collector.get_fast_coverage_data()) == 0
+        assert len(collector.get_covered_lines()) == 0
 
 
 class TestCoverageFactory:
@@ -288,7 +275,7 @@ class TestFastCoverageTransform:
 
         # File should be tracked and marked as covered
         assert "test.py" in collector._tracked_files
-        coverage_data = collector.get_fast_coverage_data()
+        coverage_data = collector.get_covered_lines()
         assert "test.py" in coverage_data
 
 
