@@ -32,6 +32,7 @@ from ddtrace.constants import ENV_KEY
 from ddtrace.constants import PID
 from ddtrace.constants import VERSION_KEY
 from ddtrace.internal import atexit
+from ddtrace.internal import core
 from ddtrace.internal import debug
 from ddtrace.internal import forksafe
 from ddtrace.internal import hostname
@@ -206,8 +207,11 @@ class Tracer(object):
         :param func: The function to call when starting a span.
                      The started span will be passed as argument.
         """
-        handler = tracer_span_started.on(func)
-        setattr(func, "_tracer_span_started_handler", handler)
+        if config._trace_native_events:
+            handler = tracer_span_started.on(func)
+            setattr(func, "_tracer_span_started_handler", handler)
+        else:
+            core.on("trace.span_start", func)
         return func
 
     def deregister_on_start_span(self, func: Callable[[Span], None]) -> Callable[[Span], None]:
@@ -217,9 +221,12 @@ class Tracer(object):
 
         :param func: The function to stop calling when starting a span.
         """
-        handler = getattr(func, "_tracer_span_started_handler", None)
-        if handler:
-            tracer_span_started.remove(handler)
+        if config._trace_native_events:
+            handler = getattr(func, "_tracer_span_started_handler", None)
+            if handler:
+                tracer_span_started.remove(handler)
+        else:
+            core.reset_listeners("trace.span_start", func)
         return func
 
     def sample(self, span):
@@ -570,7 +577,11 @@ class Tracer(object):
             for p in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
                 if p:
                     p.on_span_start(span)
-        tracer_span_started.dispatch(span)
+
+        if config._trace_native_events:
+            tracer_span_started.dispatch(span)
+        else:
+            core.dispatch("trace.span_start", (span,))
         return span
 
     start_span = _start_span
@@ -588,7 +599,10 @@ class Tracer(object):
                 if p:
                     p.on_span_finish(span)
 
-        tracer_span_finished.dispatch(span)
+        if config._trace_native_events:
+            tracer_span_finished.dispatch(span)
+        else:
+            core.dispatch("trace.span_finish", (span,))
         log.debug("finishing span - %r (enabled:%s)", span, self.enabled)
 
     def _log_compat(self, level, msg):

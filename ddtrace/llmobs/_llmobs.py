@@ -507,10 +507,14 @@ class LLMObs(Service):
             log.debug("Error stopping LLMObs writers")
 
         # Remove listener hooks for span events
-        if self._on_span_start_handler:
-            tracer_span_started.remove(self._on_span_start_handler)
-        if self._on_span_finish_handler:
-            tracer_span_finished.remove(self._on_span_finish_handler)
+        if config._trace_native_events:
+            if self._on_span_start_handler:
+                tracer_span_started.remove(self._on_span_start_handler)
+            if self._on_span_finish_handler:
+                tracer_span_finished.remove(self._on_span_finish_handler)
+        else:
+            core.reset_listeners("trace.span_start", self._on_span_start)
+            core.reset_listeners("trace.span_finish", self._on_span_finish)
         core.reset_listeners("http.span_inject", self._inject_llmobs_context)
         core.reset_listeners("http.activate_distributed_headers", self._activate_llmobs_distributed_context)
         core.reset_listeners("threading.submit", self._current_trace_context)
@@ -622,10 +626,14 @@ class LLMObs(Service):
             cls._instance.start()
 
             # Register hooks for span events
-            if not cls._instance._on_span_start_handler:
-                cls._instance._on_span_start_handler = tracer_span_started.on(cls._instance._on_span_start)
-            if not cls._instance._on_span_finish_handler:
-                cls._instance._on_span_finish_handler = tracer_span_finished.on(cls._instance._on_span_finish)
+            if config._trace_native_events:
+                if not cls._instance._on_span_start_handler:
+                    cls._instance._on_span_start_handler = tracer_span_started.on(cls._instance._on_span_start)
+                if not cls._instance._on_span_finish_handler:
+                    cls._instance._on_span_finish_handler = tracer_span_finished.on(cls._instance._on_span_finish)
+            else:
+                core.on("trace.span_start", cls._instance._on_span_start)
+                core.on("trace.span_finish", cls._instance._on_span_finish)
             core.on("http.span_inject", cls._inject_llmobs_context)
             core.on("http.activate_distributed_headers", cls._activate_llmobs_distributed_context)
             core.on("threading.submit", cls._instance._current_trace_context, "llmobs_ctx")

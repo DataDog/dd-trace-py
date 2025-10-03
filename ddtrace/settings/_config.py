@@ -480,6 +480,9 @@ class Config(object):
         # Use the NativeWriter instead of the AgentWriter
         self._trace_writer_native = _get_config("_DD_TRACE_WRITER_NATIVE", False, asbool)
 
+        # Whether to use the ddtrace/internal/events.py native event system
+        self._trace_native_events = _get_config("_DD_TRACE_NATIVE_EVENTS", True, asbool)
+
         # TODO: Remove the configurations below. ddtrace.internal.agent.config should be used instead.
         self._trace_agent_url = _get_config("DD_TRACE_AGENT_URL")
         self._agent_timeout_seconds = _get_config("DD_TRACE_AGENT_TIMEOUT_SECONDS", DEFAULT_TIMEOUT, float)
