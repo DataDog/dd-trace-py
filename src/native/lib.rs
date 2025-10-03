@@ -40,10 +40,6 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
             crashtracker::crashtracker_is_runtime_callback_registered,
             m
         )?)?;
-        m.add_function(wrap_pyfunction!(
-            crashtracker::crashtracker_get_registered_runtime_type,
-            m
-        )?)?;
     }
     m.add_class::<library_config::PyTracerMetadata>()?;
     m.add_class::<library_config::PyAnonymousFileHandle>()?;

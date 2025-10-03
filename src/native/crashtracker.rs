@@ -8,9 +8,9 @@ use std::time::Duration;
 
 use libdd_common::Endpoint;
 use libdd_crashtracker::{
-    get_registered_runtime_type_ptr, is_runtime_callback_registered,
-    register_runtime_stack_callback, CallbackError, CallbackType, CrashtrackerConfiguration,
-    CrashtrackerReceiverConfig, Metadata, RuntimeStackFrame, RuntimeType, StacktraceCollection,
+     is_runtime_callback_registered, register_runtime_stack_callback, CallbackError, CallbackType,
+    CrashtrackerConfiguration, CrashtrackerReceiverConfig, Metadata, RuntimeStackFrame,
+    StacktraceCollection,
 };
 use pyo3::prelude::*;
 
@@ -678,12 +678,12 @@ unsafe fn dump_python_traceback_as_string(
 }
 
 unsafe extern "C" fn native_runtime_stack_callback(
-    emit_frame: unsafe extern "C" fn(*mut c_void, *const RuntimeStackFrame),
-    _emit_stacktrace_string: unsafe extern "C" fn(*mut c_void, *const c_char),
+    _emit_frame: unsafe extern "C" fn(*mut c_void, *const RuntimeStackFrame),
+    emit_stacktrace_string: unsafe extern "C" fn(*mut c_void, *const c_char),
     writer_ctx: *mut c_void,
 ) {
-    // dump_python_traceback_as_string(emit_stacktrace_string, writer_ctx);
-    dump_python_traceback_via_cpython_api(emit_frame, writer_ctx);
+    dump_python_traceback_as_string(emit_stacktrace_string, writer_ctx);
+    // dump_python_traceback_via_cpython_api(emit_frame, writer_ctx);
 }
 
 /// Register the native runtime stack collection callback
@@ -698,8 +698,7 @@ unsafe extern "C" fn native_runtime_stack_callback(
 pub fn crashtracker_register_native_runtime_callback() -> CallbackResult {
     match register_runtime_stack_callback(
         native_runtime_stack_callback,
-        RuntimeType::Python,
-        CallbackType::Frame,
+        CallbackType::StacktraceString,
     ) {
         Ok(()) => CallbackResult::Ok,
         Err(e) => e.into(),
@@ -714,22 +713,4 @@ pub fn crashtracker_register_native_runtime_callback() -> CallbackResult {
 #[pyfunction(name = "crashtracker_is_runtime_callback_registered")]
 pub fn crashtracker_is_runtime_callback_registered() -> bool {
     is_runtime_callback_registered()
-}
-
-/// Get the runtime type of the currently registered callback
-///
-/// # Returns
-/// - The runtime type string if a callback is registered
-/// - `None` if no callback is registered
-#[pyfunction(name = "crashtracker_get_registered_runtime_type")]
-pub fn crashtracker_get_registered_runtime_type() -> Option<String> {
-    unsafe {
-        let ptr = get_registered_runtime_type_ptr();
-        if ptr.is_null() {
-            None
-        } else {
-            let c_str = std::ffi::CStr::from_ptr(ptr);
-            c_str.to_str().ok().map(|s| s.to_string())
-        }
-    }
 }
