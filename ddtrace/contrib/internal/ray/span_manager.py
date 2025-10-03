@@ -248,25 +248,33 @@ class RaySpanManager:
         self._finish_span(job_span, job_info=job_info)
 
 
-_ray_span_manager = RaySpanManager()
+_ray_span_manager: Optional[RaySpanManager] = None
+
+
+def get_span_manager() -> RaySpanManager:
+    global _ray_span_manager
+    if _ray_span_manager is None:
+        _ray_span_manager = RaySpanManager()
+    return _ray_span_manager
 
 
 def start_long_running_job(job_span: Span) -> None:
-    submission_id = _ray_span_manager._get_submission_id(job_span)
+    manager = get_span_manager()
+    submission_id = manager._get_submission_id(job_span)
 
-    with _ray_span_manager._lock:
-        _ray_span_manager._root_spans[submission_id] = job_span
+    with manager._lock:
+        manager._root_spans[submission_id] = job_span
 
     start_long_running_span(job_span)
 
 
 def stop_long_running_job(submission_id: str, job_info: Optional[JobInfo]) -> None:
-    _ray_span_manager.stop_long_running_job(submission_id, job_info)
+    get_span_manager().stop_long_running_job(submission_id, job_info)
 
 
 def start_long_running_span(span: Span) -> None:
-    _ray_span_manager.add_span(span)
+    get_span_manager().add_span(span)
 
 
 def stop_long_running_span(span: Span) -> None:
-    _ray_span_manager.stop_long_running_span(span)
+    get_span_manager().stop_long_running_span(span)
