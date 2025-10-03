@@ -1,0 +1,45 @@
+---
+upgrade:
+  - |
+    This change adds support and tests for Python 3.14 to much of the library's functionality. The following products
+    and integrations still **do not** work with Python 3.14:
+
+    * Profiling
+    * IAST
+    * datastreams
+    * dd_coverage
+    * ci_visibility
+    * vertica - hasn't been supported by ddtracepy since Python 3.9
+    * bottle - hasn't been supported by ddtracepy since Python 3.10
+    * django - django version 6.1, which will be compatible with Python 3.14, is not yet released
+    * django_hosts - django version 6.1, which will be compatible with Python 3.14, is not yet released
+    * djangorestframework - django version 6.1, which will be compatible with Python 3.14, is not yet released
+    * django:celery - django version 6.1, which will be compatible with Python 3.14, is not yet released
+    * dramatiq - dramatiq doesn't yet have a release supporting 3.14
+    * pynamodb - tests aren't compatible with Python >= 3.12
+    * pytest
+    * pytest_plugin_v2 - doesn't work with Python >= 3.13
+    * asynctest - untested since Python 3.9
+    * grpc_aio - some tests in the suite don't work with pytest-asyncio >= 1.0
+    * rq
+    * rediscluster - untested since Python 3.11
+    * aredis - untested since Python 3.9
+    * yaaredis - untested since Python 3.10
+    * sqlite3 - pysqlite3-binary doesn't yet support python 3.14
+    * opentelemetry - opentelemetry-exporter-otlp doesn't yet work with Python 3.14
+    * openai - tiktoken doesn't yet work with Python 3.14
+    * openai_agents
+    * langchain
+    * langgraph - tiktoken doesn't yet work with Python 3.14
+    * litellm - tiktoken doesn't yet work with Python 3.14
+    * google_generativeai - protobuf doesn't yet work with Python 3.14
+    * vertexai
+    * crewai - tiktoken doesn't yet work with Python 3.14
+    * ray - ray doesn't yet work with Python 3.14
+    * kafka - confluent-kafka doesn't yet work with Python 3.14
+    * aws_lambda - datadog-lambda doesn't yet work with Python 3.14
+    * azure_functions - untested since Python 3.11
+    * llmobs - ragas doesn't yet work with Python 3.14
+    * ai_guard_langchain - tiktoken doesn't yet work with Python 3.14
+    * appsec_integrations_fastapi
+    * sanic - untested since Python 3.12

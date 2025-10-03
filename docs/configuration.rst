@@ -98,6 +98,26 @@ Traces
       version_added:
          v2.6.0:
 
+   DD_TRACE_RAY_ARGS_KWARGS:
+      type: Boolean
+      default: False
+
+      description: |
+         Enables tracing of function arguments and keyword arguments in Ray remote functions and actor method.
+
+      version_added:
+         v3.16.0:
+
+   DD_TRACE_RAY_CORE_API:
+      type: Boolean
+      default: False
+
+      description: |
+         Enables tracing of Ray core API operations such as ``ray.get()``, ``ray.wait()``, and ``ray.put()``.
+
+      version_added:
+         v3.16.0:
+
    DD_HTTP_SERVER_TAG_QUERY_STRING:
      type: Boolean
      default: True

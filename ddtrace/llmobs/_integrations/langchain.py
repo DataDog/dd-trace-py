@@ -886,6 +886,11 @@ class LangChainIntegration(BaseLLMIntegration):
                     break
             chat_template = messages if messages else None
 
+        tags = {}
+        if isinstance(getattr(instance, "metadata", None), dict):
+            metadata = instance.metadata
+            tags = {key: value for key, value in metadata.items() if isinstance(value, str)}
+
         variables = get_argument_value(args, kwargs, 0, "input", optional=True)
         if (
             isinstance(variables, str)
@@ -913,6 +918,7 @@ class LangChainIntegration(BaseLLMIntegration):
             "version": "0.0.0",
             "rag_context_variables": [],
             "rag_query_variables": [],
+            "tags": tags,
         }
 
         try:

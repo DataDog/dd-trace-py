@@ -2,6 +2,7 @@ from contextlib import contextmanager
 from functools import wraps
 import inspect
 import os
+import sys
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -18,16 +19,22 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation.http import _TraceContext
 
 from .constants import DD_RAY_TRACE_CTX
 from .constants import DEFAULT_JOB_NAME
 from .constants import RAY_ACTOR_METHOD_ARGS
 from .constants import RAY_ACTOR_METHOD_KWARGS
+from .constants import RAY_ENTRYPOINT
+from .constants import RAY_GET_VALUE_SIZE_BYTES
 from .constants import RAY_JOB_NAME
 from .constants import RAY_JOB_STATUS
 from .constants import RAY_JOB_SUBMIT_STATUS
+from .constants import RAY_PUT_VALUE_SIZE_BYTES
+from .constants import RAY_PUT_VALUE_TYPE
 from .constants import RAY_STATUS_ERROR
 from .constants import RAY_STATUS_FAILED
 from .constants import RAY_STATUS_SUCCESS
@@ -50,8 +57,9 @@ from .utils import _inject_context_in_kwargs
 from .utils import _inject_dd_trace_ctx_kwarg
 from .utils import _inject_ray_span_tags_and_metrics
 from .utils import extract_signature
+from .utils import flatten_metadata_dict
 from .utils import get_dd_job_name_from_entrypoint
-from .utils import get_dd_job_name_from_submission_id
+from .utils import redact_paths
 from .utils import set_tag_or_truncate
 
 
@@ -70,6 +78,10 @@ config._add(
     "ray",
     dict(
         _default_service=schematize_service_name("ray"),
+        use_entrypoint_as_service_name=asbool(os.getenv("DD_TRACE_RAY_USE_ENTRYPOINT_AS_SERVICE_NAME", default=False)),
+        redact_entrypoint_paths=asbool(os.getenv("DD_TRACE_RAY_REDACT_ENTRYPOINT_PATHS", default=True)),
+        trace_core_api=_get_config("DD_TRACE_RAY_CORE_API", default=False, modifier=asbool),
+        trace_args_kwargs=_get_config("DD_TRACE_RAY_ARGS_KWARGS", default=False, modifier=asbool),
     ),
 )
 
@@ -112,8 +124,9 @@ def _wrap_task_execution(wrapped, *args, **kwargs):
         activate=True,
     ) as task_execute_span:
         try:
-            set_tag_or_truncate(task_execute_span, RAY_TASK_ARGS, args)
-            set_tag_or_truncate(task_execute_span, RAY_TASK_KWARGS, kwargs)
+            if config.ray.trace_args_kwargs:
+                set_tag_or_truncate(task_execute_span, RAY_TASK_ARGS, args)
+                set_tag_or_truncate(task_execute_span, RAY_TASK_KWARGS, kwargs)
 
             result = wrapped(*args, **kwargs)
 
@@ -154,8 +167,9 @@ def traced_submit_task(wrapped, instance, args, kwargs):
         _inject_ray_span_tags_and_metrics(span)
 
         try:
-            set_tag_or_truncate(span, RAY_TASK_ARGS, kwargs.get("args", {}))
-            set_tag_or_truncate(span, RAY_TASK_KWARGS, kwargs.get("kwargs", {}))
+            if config.ray.trace_args_kwargs:
+                set_tag_or_truncate(span, RAY_TASK_ARGS, kwargs.get("args", {}))
+                set_tag_or_truncate(span, RAY_TASK_KWARGS, kwargs.get("kwargs", {}))
             _inject_context_in_kwargs(span.context, kwargs)
 
             resp = wrapped(*args, **kwargs)
@@ -184,17 +198,28 @@ def traced_submit_job(wrapped, instance, args, kwargs):
     submission_id = kwargs.get("submission_id") or generate_job_id()
     kwargs["submission_id"] = submission_id
     entrypoint = kwargs.get("entrypoint", "")
-    job_name = (
-        config.service
-        or kwargs.get("metadata", {}).get("job_name", "")
-        or get_dd_job_name_from_submission_id(submission_id)
-        or get_dd_job_name_from_entrypoint(entrypoint)
-    )
+    if entrypoint and config.ray.redact_entrypoint_paths:
+        entrypoint = redact_paths(entrypoint)
+    job_name = config.service or kwargs.get("metadata", {}).get("job_name", "")
+
+    if not job_name:
+        if config.ray.use_entrypoint_as_service_name:
+            job_name = get_dd_job_name_from_entrypoint(entrypoint) or DEFAULT_JOB_NAME
+        else:
+            job_name = DEFAULT_JOB_NAME
 
     # Root span creation
     job_span = tracer.start_span("ray.job", service=job_name or DEFAULT_JOB_NAME, span_type=SpanTypes.RAY)
     _inject_ray_span_tags_and_metrics(job_span)
     job_span.set_tag_str(RAY_SUBMISSION_ID_TAG, submission_id)
+    if entrypoint:
+        job_span.set_tag_str(RAY_ENTRYPOINT, entrypoint)
+
+    metadata = kwargs.get("metadata", {})
+    dot_paths = flatten_metadata_dict(metadata)
+    for k, v in dot_paths.items():
+        set_tag_or_truncate(job_span, k, v)
+
     tracer.context_provider.activate(job_span)
     start_long_running_job(job_span)
 
@@ -254,11 +279,60 @@ def traced_actor_method_call(wrapped, instance, args, kwargs):
         resource=f"{actor_name}.{method_name}.remote",
     ) as span:
         span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
-        set_tag_or_truncate(span, RAY_ACTOR_METHOD_ARGS, get_argument_value(args, kwargs, 0, "args"))
-        set_tag_or_truncate(span, RAY_ACTOR_METHOD_KWARGS, get_argument_value(args, kwargs, 1, "kwargs"))
+        if config.ray.trace_args_kwargs:
+            set_tag_or_truncate(span, RAY_ACTOR_METHOD_ARGS, get_argument_value(args, kwargs, 0, "args"))
+            set_tag_or_truncate(span, RAY_ACTOR_METHOD_KWARGS, get_argument_value(args, kwargs, 1, "kwargs"))
         _inject_ray_span_tags_and_metrics(span)
 
         _inject_context_in_kwargs(span.context, kwargs)
+        return wrapped(*args, **kwargs)
+
+
+def traced_get(wrapped, instance, args, kwargs):
+    """
+    Trace the calls of ray.get
+    """
+    if not config.ray.trace_core_api:
+        return wrapped(*args, **kwargs)
+
+    if tracer.current_span() is None:
+        tracer.context_provider.activate(_extract_tracing_context_from_env())
+
+    with long_running_ray_span(
+        "ray.get",
+        service=RAY_SERVICE_NAME or DEFAULT_JOB_NAME,
+        span_type=SpanTypes.RAY,
+        child_of=tracer.context_provider.active(),
+        activate=True,
+    ) as span:
+        span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+        timeout = kwargs.get("timeout")
+        if timeout is not None:
+            span.set_tag_str("ray.get.timeout_s", str(timeout))
+        _inject_ray_span_tags_and_metrics(span)
+        get_value = get_argument_value(args, kwargs, 0, "object_refs")
+        span.set_tag_str(RAY_GET_VALUE_SIZE_BYTES, str(sys.getsizeof(get_value)))
+        return wrapped(*args, **kwargs)
+
+
+def traced_put(wrapped, instance, args, kwargs):
+    """
+    Trace the calls of ray.put
+    """
+    if not config.ray.trace_core_api:
+        return wrapped(*args, **kwargs)
+
+    if tracer.current_span() is None:
+        tracer.context_provider.activate(_extract_tracing_context_from_env())
+
+    with tracer.trace("ray.put", service=RAY_SERVICE_NAME or DEFAULT_JOB_NAME, span_type=SpanTypes.RAY) as span:
+        span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+        _inject_ray_span_tags_and_metrics(span)
+
+        put_value = get_argument_value(args, kwargs, 0, "value")
+        span.set_tag_str(RAY_PUT_VALUE_TYPE, str(type(put_value).__name__))
+        span.set_tag_str(RAY_PUT_VALUE_SIZE_BYTES, str(sys.getsizeof(put_value)))
+
         return wrapped(*args, **kwargs)
 
 
@@ -266,6 +340,9 @@ def traced_wait(wrapped, instance, args, kwargs):
     """
     Trace the calls of ray.wait
     """
+    if not config.ray.trace_core_api:
+        return wrapped(*args, **kwargs)
+
     if tracer.current_span() is None:
         log.debug("No active span found in ray.wait(), activating trace context from environment")
         tracer.context_provider.activate(_extract_tracing_context_from_env())
@@ -367,8 +444,9 @@ def _trace_actor_method(self: Any, method: Callable[..., Any], dd_trace_ctx, *ar
         child_of=context,
         activate=True,
     ) as actor_execute_span:
-        set_tag_or_truncate(actor_execute_span, RAY_ACTOR_METHOD_ARGS, args)
-        set_tag_or_truncate(actor_execute_span, RAY_ACTOR_METHOD_KWARGS, kwargs)
+        if config.ray.trace_args_kwargs:
+            set_tag_or_truncate(actor_execute_span, RAY_ACTOR_METHOD_ARGS, args)
+            set_tag_or_truncate(actor_execute_span, RAY_ACTOR_METHOD_KWARGS, kwargs)
 
         yield actor_execute_span
 
@@ -479,14 +557,14 @@ def patch():
     def _(m):
         _w(m.RemoteFunction, "_remote", traced_submit_task)
 
+    _w(ray, "get", traced_get)
     _w(ray, "wait", traced_wait)
+    _w(ray, "put", traced_put)
 
 
 def unpatch():
     if not getattr(ray, "_datadog_patch", False):
         return
-
-    ray._datadog_patch = False
 
     _u(ray.remote_function.RemoteFunction, "_remote")
 
@@ -495,4 +573,9 @@ def unpatch():
 
     _u(ray.actor, "_modify_class")
     _u(ray.actor.ActorHandle, "_actor_method_call")
+
+    _u(ray, "get")
     _u(ray, "wait")
+    _u(ray, "put")
+
+    ray._datadog_patch = False
