@@ -83,8 +83,8 @@ class _ProfiledLock(wrapt.ObjectProxy):
             return inner_func(*args, **kwargs)
         finally:
             try:
-                end: int 
-                end = self._self_acquired_at = time.monotonic_ns()
+                end: int = time.monotonic_ns()
+                self._self_acquired_at = end
 
                 thread_id: int
                 thread_name: str
@@ -132,7 +132,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
     def acquire(self, *args: Any, **kwargs: Any) -> Any:
         return self._acquire(self.__wrapped__.acquire, *args, **kwargs)
 
-    def _release(self, inner_func: Any, *args: Any, **kwargs: Any) -> None:
+    def _release(self, inner_func: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
         # The underlying threading.Lock class is implemented using C code, and
         # it doesn't have the __dict__ attribute. So we can't do
         # self.__dict__.pop("_self_acquired_at", None) to remove the attribute.
