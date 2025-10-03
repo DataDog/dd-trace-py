@@ -33,6 +33,7 @@ def _current_thread() -> Tuple[int, str]:
 
 # We need to know if wrapt is compiled in C or not. If it's not using the C module, then the wrappers function will
 # appear in the stack trace and we need to hide it.
+WRAPT_C_EXT: bool
 if os.environ.get("WRAPT_DISABLE_EXTENSIONS"):
     WRAPT_C_EXT = False
 else:
@@ -55,14 +56,17 @@ class _ProfiledLock(wrapt.ObjectProxy):
         endpoint_collection_enabled: bool,
     ) -> None:
         wrapt.ObjectProxy.__init__(self, wrapped)
-        self._self_tracer = tracer
-        self._self_max_nframes = max_nframes
-        self._self_capture_sampler = capture_sampler
-        self._self_endpoint_collection_enabled = endpoint_collection_enabled
-        frame = sys._getframe(2 if WRAPT_C_EXT else 3)
-        code = frame.f_code
-        self._self_init_loc = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
+        self._self_tracer: Optional[Tracer] = tracer
+        self._self_max_nframes: int = max_nframes
+        self._self_capture_sampler: collector.CaptureSampler = capture_sampler
+        self._self_endpoint_collection_enabled: bool = endpoint_collection_enabled
+        frame: FrameType = sys._getframe(2 if WRAPT_C_EXT else 3)
+        code: CodeType = frame.f_code
+        self._self_init_loc: str = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
         self._self_name: Optional[str] = None
+        
+        # TODO: or 0?
+        # self._self_acquired_at: Optional[int] = None
 
     def __aenter__(self, *args: Any, **kwargs: Any) -> Any:
         return self._acquire(self.__wrapped__.__aenter__, *args, **kwargs)
