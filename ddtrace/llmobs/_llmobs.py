@@ -1642,6 +1642,15 @@ class LLMObs(Service):
                 log.warning("tags must be a dictionary of string key-value pairs.")
                 tags = {}
 
+            ml_app = ml_app if ml_app else config._llmobs_ml_app
+            if not ml_app:
+                error = "missing_ml_app"
+                log.warning(
+                    "ML App name is required for sending evaluation metrics. Evaluation metric data will not be sent. "
+                    "Ensure this configuration is set before running your application."
+                )
+                return
+
             evaluation_tags = {
                 "ddtrace.version": ddtrace.__version__,
                 "ml_app": ml_app,
@@ -1654,15 +1663,6 @@ class LLMObs(Service):
                     except TypeError:
                         error = "invalid_tags"
                         log.warning("Failed to parse tags. Tags for evaluation metrics must be strings.")
-
-            ml_app = ml_app if ml_app else config._llmobs_ml_app
-            if not ml_app:
-                error = "missing_ml_app"
-                log.warning(
-                    "ML App name is required for sending evaluation metrics. Evaluation metric data will not be sent. "
-                    "Ensure this configuration is set before running your application."
-                )
-                return
 
             evaluation_metric: LLMObsEvaluationMetricEvent = {
                 "join_on": join_on,
