@@ -54,7 +54,7 @@
         "dependency": "anthropic",
         "integration": "anthropic",
         "minimum_tracer_supported": "0.28.1",
-        "max_tracer_supported": "0.67.0",
+        "max_tracer_supported": "0.68.1",
         "auto-instrumented": true
     },
     {
@@ -319,21 +319,21 @@
         "dependency": "google-adk",
         "integration": "google_adk",
         "minimum_tracer_supported": "1.0.0",
-        "max_tracer_supported": "1.14.1",
+        "max_tracer_supported": "1.15.0",
         "auto-instrumented": true
     },
     {
         "dependency": "google-genai",
         "integration": "google_genai",
         "minimum_tracer_supported": "1.21.1",
-        "max_tracer_supported": "1.21.1",
+        "max_tracer_supported": "1.39.0",
         "auto-instrumented": true
     },
     {
         "dependency": "google-generativeai",
         "integration": "google_generativeai",
         "minimum_tracer_supported": "0.7.2",
-        "max_tracer_supported": "0.8.3",
+        "max_tracer_supported": "0.8.5",
         "auto-instrumented": true
     },
     {
@@ -502,7 +502,7 @@
         "dependency": "psycopg",
         "integration": "psycopg",
         "minimum_tracer_supported": "3.0.18",
-        "max_tracer_supported": "3.2.9",
+        "max_tracer_supported": "3.2.10",
         "auto-instrumented": true
     },
     {
@@ -545,7 +545,7 @@
         "dependency": "pymysql",
         "integration": "pymysql",
         "minimum_tracer_supported": "0.10.1",
-        "max_tracer_supported": "1.1.1",
+        "max_tracer_supported": "1.1.2",
         "auto-instrumented": true
     },
     {
@@ -589,7 +589,7 @@
         "dependency": "redis",
         "integration": "redis",
         "minimum_tracer_supported": "4.6.0",
-        "max_tracer_supported": "5.2.0",
+        "max_tracer_supported": "6.4.0",
         "auto-instrumented": true
     },
     {
@@ -617,7 +617,7 @@
         "dependency": "sanic",
         "integration": "sanic",
         "minimum_tracer_supported": "20.12.7",
-        "max_tracer_supported": "24.6.0",
+        "max_tracer_supported": "25.3.0",
         "auto-instrumented": true
     },
     {
@@ -645,7 +645,7 @@
         "dependency": "starlette",
         "integration": "starlette",
         "minimum_tracer_supported": "0.14.2",
-        "max_tracer_supported": "0.47.3",
+        "max_tracer_supported": "0.48.0",
         "auto-instrumented": true
     },
     {

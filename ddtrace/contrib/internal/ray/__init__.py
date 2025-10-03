@@ -27,6 +27,12 @@ Configuration
 
 The Ray integration can be configured using environment variables:
 
+- ``DD_TRACE_RAY_CORE_API``: Enable tracing of Ray's core API functions like ``ray.wait()``
+    (default: ``False``)
+
+- ``DD_TRACE_RAY_ARGS_KWARGS``: Enable tracing of arguments and keyword arguments passed to
+    Ray tasks and actor methods (default: ``False``)
+
 - ``DD_TRACE_EXPERIMENTAL_LONG_RUNNING_FLUSH_INTERVAL``: Interval for resubmitting long-running
     spans (default: ``120.0`` seconds)
 
