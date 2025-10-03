@@ -165,7 +165,8 @@ def _import_exporter(protocol):
             )
             return None
 
-        return _dd_metrics_exporter(OTLPMetricExporter, protocol, "protobuf")
+        protocol_name = "grpc" if protocol == "grpc" else "http"
+        return _dd_metrics_exporter(OTLPMetricExporter, protocol_name, "protobuf")
 
     except ImportError as e:
         log.warning(
