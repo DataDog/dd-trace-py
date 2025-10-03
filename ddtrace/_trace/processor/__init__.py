@@ -19,6 +19,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
 from ddtrace.internal.constants import MAX_UINT_64BITS
+from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.rate_limiter import RateLimiter
@@ -286,7 +287,7 @@ class SpanAggregator(SpanProcessor):
     SPAN_FINISH_DEBUG_MESSAGE = (
         "Encoding %d spans. Spans processed: %d. Spans dropped by trace processors: %d. Unfinished "
         "spans remaining in the span aggregator: %d. (trace_id: %d) (top level span: name=%s) "
-        "(partial flush triggered: %s)"
+        "(sampling_priority: %s) (sampling_mechanism: %s) (partial flush triggered: %s)"
     )
 
     SPAN_START_DEBUG_MESSAGE = "Starting span: %s, trace has %d spans in the span aggregator"
@@ -396,6 +397,10 @@ class SpanAggregator(SpanProcessor):
                 log.error("error applying processor %r to trace %d", tp, span.trace_id, exc_info=True)
 
         if spans:
+            # Get sampling information from the first span (root span)
+            sampling_priority = spans[0].context.sampling_priority
+            sampling_mechanism = spans[0].context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY, "None")
+
             log.debug(
                 self.SPAN_FINISH_DEBUG_MESSAGE,
                 len(spans),
@@ -404,6 +409,8 @@ class SpanAggregator(SpanProcessor):
                 num_buffered - num_finished,
                 spans[0].trace_id,
                 spans[0].name,
+                sampling_priority,
+                sampling_mechanism,
                 should_partial_flush,
             )
             self.writer.write(spans)
