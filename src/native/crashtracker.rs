@@ -7,15 +7,9 @@ use std::sync::Once;
 use std::time::Duration;
 
 use datadog_crashtracker::{
-<<<<<<< HEAD
     is_runtime_callback_registered, register_runtime_frame_callback, register_runtime_stacktrace_string_callback, CallbackError,
     CrashtrackerConfiguration, CrashtrackerReceiverConfig, Metadata, RuntimeStackFrame,
     StacktraceCollection,
-=======
-    get_registered_runtime_type_ptr, is_runtime_callback_registered,
-    register_runtime_stack_callback, CallbackError, CallbackType, CrashtrackerConfiguration,
-    CrashtrackerReceiverConfig, Metadata, RuntimeStackFrame, RuntimeType, StacktraceCollection,
->>>>>>> c504f6a0ae (First commit)
 };
 use libdd_common::Endpoint;
 use pyo3::prelude::*;
