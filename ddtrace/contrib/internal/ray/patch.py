@@ -285,7 +285,7 @@ def traced_actor_method_call(wrapped, instance, args, kwargs):
 
         _inject_context_in_kwargs(span.context, kwargs)
         return wrapped(*args, **kwargs)
-    
+
 
 def traced_get(wrapped, instance, args, kwargs):
     """
