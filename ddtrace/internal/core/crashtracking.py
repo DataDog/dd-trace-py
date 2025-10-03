@@ -28,7 +28,6 @@ try:
     from ddtrace.internal.native._native import crashtracker_status
     from ddtrace.internal.native._native import crashtracker_register_native_runtime_callback
     from ddtrace.internal.native._native import crashtracker_is_runtime_callback_registered
-    from ddtrace.internal.native._native import crashtracker_get_registered_runtime_type
     from ddtrace.internal.native._native import CallbackResult
 except ImportError:
     is_available = False
@@ -221,19 +220,3 @@ def is_runtime_callback_registered() -> bool:
         return crashtracker_is_runtime_callback_registered()
     except Exception:
         return False
-
-
-def get_registered_runtime_type() -> Optional[str]:
-    """
-    Get the runtime type of the currently registered callback.
-
-    Returns:
-        Optional[str]: The runtime type ("python") if registered, None otherwise
-    """
-    if not is_available:
-        return None
-
-    try:
-        return crashtracker_get_registered_runtime_type()
-    except Exception:
-        return None
