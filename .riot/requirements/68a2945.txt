@@ -20,7 +20,7 @@ hypothesis==6.45.0
 idna==3.10
 iniconfig==2.1.0
 jinja2==3.1.6
-markupsafe==3.0.2
+markupsafe==3.0.3
 mock==5.2.0
 opentracing==2.4.0
 packaging==25.0
@@ -38,6 +38,6 @@ sortedcontainers==2.4.0
 starlette==0.38.6
 tomli==2.2.1
 typing-extensions==4.15.0
-typing-inspection==0.4.1
+typing-inspection==0.4.2
 urllib3==2.5.0
 uvicorn==0.33.0

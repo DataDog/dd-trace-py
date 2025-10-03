@@ -302,7 +302,7 @@ class CustomBuildRust(build_rust):
                 has_profiling_feature = True
                 break
 
-        if IS_EDITABLE:
+        if IS_EDITABLE or getattr(self, "inplace", False):
             self.inplace = True
 
         super().run()
@@ -528,6 +528,8 @@ class CustomBuildExt(build_ext):
         build_rust_cmd = CustomBuildRust(self.distribution)
         build_rust_cmd.initialize_options()
         build_rust_cmd.finalize_options()
+        # Propagate the inplace flag to the rust build command
+        build_rust_cmd.inplace = getattr(self, "inplace", False)
         build_rust_cmd.run()
 
         self.suffix = sysconfig.get_config_var("EXT_SUFFIX")
