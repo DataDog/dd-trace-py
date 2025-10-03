@@ -18,3 +18,9 @@ define_event!(
     fn(span: Py<PyAny>),
     "\"ddtrace._trace.span.Span\""
 );
+
+define_event!(
+    tracer_span_sampled,
+    fn(span: Py<PyAny>),
+    "\"ddtrace._trace.span.Span\""
+);
