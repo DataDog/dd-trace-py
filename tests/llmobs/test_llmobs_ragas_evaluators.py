@@ -58,7 +58,7 @@ def test_ragas_faithfulness_returns_none_if_inputs_extraction_fails(ragas, mock_
     rf_evaluator = RagasFaithfulnessEvaluator(llmobs)
     failure_msg, _ = rf_evaluator.evaluate(_llm_span_without_io())
     assert failure_msg == "fail_extract_faithfulness_inputs"
-    assert rf_evaluator.llmobs_service.submit_evaluation.call_count == 0
+    assert rf_evaluator.llmobs_service.submit_evaluation_for.call_count == 0
 
 
 def test_ragas_faithfulness_has_modified_faithfulness_instance(
@@ -106,10 +106,10 @@ def test_ragas_faithfulness_submits_evaluation(ragas, llmobs, mock_llmobs_submit
     rf_evaluator = RagasFaithfulnessEvaluator(llmobs)
     llm_span = _llm_span_with_expected_ragas_inputs_in_prompt()
     rf_evaluator.run_and_submit_evaluation(llm_span)
-    rf_evaluator.llmobs_service.submit_evaluation.assert_has_calls(
+    rf_evaluator.llmobs_service.submit_evaluation_for.assert_has_calls(
         [
             mock.call(
-                span_context={
+                span={
                     "span_id": llm_span.get("span_id"),
                     "trace_id": llm_span.get("trace_id"),
                 },
@@ -134,10 +134,10 @@ def test_ragas_faithfulness_submits_evaluation_on_span_with_question_in_messages
     rf_evaluator = RagasFaithfulnessEvaluator(llmobs)
     llm_span = _llm_span_with_expected_ragas_inputs_in_messages()
     rf_evaluator.run_and_submit_evaluation(llm_span)
-    rf_evaluator.llmobs_service.submit_evaluation.assert_has_calls(
+    rf_evaluator.llmobs_service.submit_evaluation_for.assert_has_calls(
         [
             mock.call(
-                span_context={
+                span={
                     "span_id": llm_span.get("span_id"),
                     "trace_id": llm_span.get("trace_id"),
                 },
@@ -173,10 +173,10 @@ def test_ragas_faithfulness_submits_evaluation_on_span_with_custom_keys(ragas, l
         output_messages=[{"content": "France is indeed part of europe"}],
     )
     rf_evaluator.run_and_submit_evaluation(llm_span)
-    rf_evaluator.llmobs_service.submit_evaluation.assert_has_calls(
+    rf_evaluator.llmobs_service.submit_evaluation_for.assert_has_calls(
         [
             mock.call(
-                span_context={
+                span={
                     "span_id": llm_span.get("span_id"),
                     "trace_id": llm_span.get("trace_id"),
                 },
@@ -241,7 +241,7 @@ def test_ragas_context_precision_returns_none_if_inputs_extraction_fails(ragas, 
     rcp_evaluator = RagasContextPrecisionEvaluator(llmobs)
     failure_msg, _ = rcp_evaluator.evaluate(_llm_span_without_io())
     assert failure_msg == "fail_extract_context_precision_inputs"
-    assert rcp_evaluator.llmobs_service.submit_evaluation.call_count == 0
+    assert rcp_evaluator.llmobs_service.submit_evaluation_for.call_count == 0
 
 
 def test_ragas_context_precision_has_modified_context_precision_instance(
@@ -290,10 +290,10 @@ def test_ragas_context_precision_submits_evaluation(ragas, llmobs, mock_llmobs_s
     llm_span = _llm_span_with_expected_ragas_inputs_in_prompt()
     with ragas_context_precision_single_context_cassette:
         rcp_evaluator.run_and_submit_evaluation(llm_span)
-    rcp_evaluator.llmobs_service.submit_evaluation.assert_has_calls(
+    rcp_evaluator.llmobs_service.submit_evaluation_for.assert_has_calls(
         [
             mock.call(
-                span_context={
+                span={
                     "span_id": llm_span.get("span_id"),
                     "trace_id": llm_span.get("trace_id"),
                 },
@@ -317,10 +317,10 @@ def test_ragas_context_precision_submits_evaluation_on_span_with_question_in_mes
     llm_span = _llm_span_with_expected_ragas_inputs_in_messages()
     with ragas_context_precision_single_context_cassette:
         rcp_evaluator.run_and_submit_evaluation(llm_span)
-    rcp_evaluator.llmobs_service.submit_evaluation.assert_has_calls(
+    rcp_evaluator.llmobs_service.submit_evaluation_for.assert_has_calls(
         [
             mock.call(
-                span_context={
+                span={
                     "span_id": llm_span.get("span_id"),
                     "trace_id": llm_span.get("trace_id"),
                 },
@@ -356,10 +356,10 @@ def test_ragas_context_precision_submits_evaluation_on_span_with_custom_keys(
     )
     with ragas_context_precision_multiple_context_cassette:
         rcp_evaluator.run_and_submit_evaluation(llm_span)
-    rcp_evaluator.llmobs_service.submit_evaluation.assert_has_calls(
+    rcp_evaluator.llmobs_service.submit_evaluation_for.assert_has_calls(
         [
             mock.call(
-                span_context={
+                span={
                     "span_id": llm_span.get("span_id"),
                     "trace_id": llm_span.get("trace_id"),
                 },
@@ -420,7 +420,7 @@ def test_ragas_answer_relevancy_returns_none_if_inputs_extraction_fails(ragas, m
     rar_evaluator = RagasAnswerRelevancyEvaluator(llmobs)
     failure_msg, _ = rar_evaluator.evaluate(_llm_span_without_io())
     assert failure_msg == "fail_extract_answer_relevancy_inputs"
-    assert rar_evaluator.llmobs_service.submit_evaluation.call_count == 0
+    assert rar_evaluator.llmobs_service.submit_evaluation_for.call_count == 0
 
 
 def test_ragas_answer_relevancy_has_modified_answer_relevancy_instance(
@@ -471,10 +471,10 @@ def test_ragas_answer_relevancy_submits_evaluation(
     llm_span = _llm_span_with_expected_ragas_inputs_in_prompt()
     with ragas_answer_relevancy_cassette:
         rar_evaluator.run_and_submit_evaluation(llm_span)
-    rar_evaluator.llmobs_service.submit_evaluation.assert_has_calls(
+    rar_evaluator.llmobs_service.submit_evaluation_for.assert_has_calls(
         [
             mock.call(
-                span_context={
+                span={
                     "span_id": llm_span.get("span_id"),
                     "trace_id": llm_span.get("trace_id"),
                 },
@@ -497,10 +497,10 @@ def test_ragas_answer_relevancy_submits_evaluation_on_span_with_question_in_mess
     llm_span = _llm_span_with_expected_ragas_inputs_in_messages()
     with ragas_answer_relevancy_cassette:
         rar_evaluator.run_and_submit_evaluation(llm_span)
-    rar_evaluator.llmobs_service.submit_evaluation.assert_has_calls(
+    rar_evaluator.llmobs_service.submit_evaluation_for.assert_has_calls(
         [
             mock.call(
-                span_context={
+                span={
                     "span_id": llm_span.get("span_id"),
                     "trace_id": llm_span.get("trace_id"),
                 },
@@ -535,10 +535,10 @@ def test_ragas_answer_relevancy_submits_evaluation_on_span_with_custom_keys(
     )
     with ragas_answer_relevancy_cassette:
         rar_evaluator.run_and_submit_evaluation(llm_span)
-    rar_evaluator.llmobs_service.submit_evaluation.assert_has_calls(
+    rar_evaluator.llmobs_service.submit_evaluation_for.assert_has_calls(
         [
             mock.call(
-                span_context={
+                span={
                     "span_id": llm_span.get("span_id"),
                     "trace_id": llm_span.get("trace_id"),
                 },
