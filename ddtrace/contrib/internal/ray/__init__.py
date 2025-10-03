@@ -56,7 +56,10 @@ Ray service name can be configured by:
 
 - specifying ``DD_SERVICE`` when initializing your Ray cluster.
 
-By default, the service name will be the name of your entrypoint
+- setting ``DD_TRACE_RAY_USE_ENTRYPOINT_AS_SERVICE_NAME=True``. In this case, the service
+name will be the name of your entrypoint script.
+
+By default, the service name will be ``unnamed.ray.job``.
 
 Notes
 ~~~~~
