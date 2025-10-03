@@ -59,6 +59,14 @@ class CrashtrackingConfig(DDConfig):
         "This is generally useful only for dd-trace-py development.",
     )
 
+    secondary_endpoint = DDConfig.v(
+        t.Optional[str],
+        "secondary_endpoint",
+        default=None,
+        help_type="String",
+        help="Secondary endpoint for dual uploads. Crash reports will be sent to both primary and secondary endpoints.",
+    )
+
     stdout_filename = DDConfig.v(
         t.Optional[str],
         "stdout_filename",

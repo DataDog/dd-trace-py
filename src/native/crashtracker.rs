@@ -95,7 +95,7 @@ pub struct CrashtrackerConfigurationPy {
 #[pymethods]
 impl CrashtrackerConfigurationPy {
     #[new]
-    #[pyo3(signature = (additional_files, create_alt_stack, use_alt_stack, timeout_ms, resolve_frames, endpoint=None, unix_socket_path=None))]
+    #[pyo3(signature = (additional_files, create_alt_stack, use_alt_stack, timeout_ms, resolve_frames, endpoint=None, unix_socket_path=None, secondary_endpoint=None))]
     pub fn new(
         additional_files: Vec<String>,
         create_alt_stack: bool,
@@ -104,12 +104,14 @@ impl CrashtrackerConfigurationPy {
         resolve_frames: StacktraceCollectionPy,
         endpoint: Option<&str>,
         unix_socket_path: Option<String>,
+        secondary_endpoint: Option<&str>,
     ) -> anyhow::Result<Self> {
         let resolve_frames: StacktraceCollection = resolve_frames.into();
         let endpoint = endpoint.map(Endpoint::from_slice);
+        let secondary_endpoint = secondary_endpoint.map(Endpoint::from_slice);
 
         Ok(Self {
-            config: Some(CrashtrackerConfiguration::new(
+            config: Some(CrashtrackerConfiguration::new_with_secondary(
                 additional_files,
                 create_alt_stack,
                 use_alt_stack,
@@ -119,6 +121,7 @@ impl CrashtrackerConfigurationPy {
                 Some(Duration::from_millis(timeout_ms)),
                 unix_socket_path,
                 true, /* demangle_names */
+                secondary_endpoint,
             )?),
         })
     }

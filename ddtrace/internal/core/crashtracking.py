@@ -118,6 +118,7 @@ def _get_args(additional_tags: Optional[Dict[str, str]]):
         stacktrace_resolver,
         crashtracker_config.debug_url or agent_config.trace_agent_url,
         None,  # unix_socket_path
+        crashtracker_config.secondary_endpoint,  # secondary_endpoint
     )
 
     # Create crashtracker receiver configuration
