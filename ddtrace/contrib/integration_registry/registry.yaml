@@ -517,7 +517,7 @@ integrations:
   tested_versions_by_dependency:
     langgraph:
       min: 0.2.23
-      max: 0.6.5
+      max: 0.6.8
     langgraph-checkpoint:
       min: 1.0.12
       max: 2.1.1
@@ -784,6 +784,10 @@ integrations:
   is_tested: false
   dependency_names:
   - ray
+  tested_versions_by_dependency:
+    ray:
+      min: 2.46.0
+      max: 2.49.2
 
 - integration_name: redis
   is_external_package: true
@@ -833,7 +837,7 @@ integrations:
   tested_versions_by_dependency:
     sanic:
       min: 20.12.7
-      max: 25.3.0
+      max: 24.6.0
 
 - integration_name: selenium
   is_external_package: true
