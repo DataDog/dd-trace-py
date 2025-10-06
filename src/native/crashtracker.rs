@@ -490,8 +490,7 @@ fn parse_traceback_line(
 // Parse traceback text and emit frames
 unsafe fn parse_and_emit_traceback(
     traceback_text: &str,
-    emit_frame: unsafe extern "C" fn(*mut c_void, *const RuntimeStackFrame),
-    writer_ctx: *mut c_void,
+    emit_frame: unsafe extern "C" fn(*const RuntimeStackFrame),
 ) {
     let lines: Vec<&str> = traceback_text.lines().collect();
     let mut frame_count = 0;
@@ -517,19 +516,18 @@ unsafe fn parse_and_emit_traceback(
                 module_name: ptr::null(),
             };
 
-            emit_frame(writer_ctx, &c_frame);
+            emit_frame(&c_frame);
             frame_count += 1;
         }
     }
 }
 
 unsafe fn dump_python_traceback_via_cpython_api(
-    emit_frame: unsafe extern "C" fn(*mut c_void, *const RuntimeStackFrame),
-    writer_ctx: *mut c_void,
+    emit_frame: unsafe extern "C" fn(*const RuntimeStackFrame),
 ) {
     let mut pipefd: [c_int; 2] = [0, 0];
     if pipe(&mut pipefd as *mut [c_int; 2]) != 0 {
-        emit_fallback_frame(emit_frame, writer_ctx, "<pipe_creation_failed>");
+        emit_fallback_frame(emit_frame, "<pipe_creation_failed>");
         return;
     }
 
@@ -554,9 +552,9 @@ unsafe fn dump_python_traceback_via_cpython_api(
         close(read_fd);
         let error_str = std::ffi::CStr::from_ptr(error_msg);
         if let Ok(error_string) = error_str.to_str() {
-            emit_fallback_frame(emit_frame, writer_ctx, error_string);
+            emit_fallback_frame(emit_frame, error_string);
         } else {
-            emit_fallback_frame(emit_frame, writer_ctx, "<cpython_api_error>");
+            emit_fallback_frame(emit_frame, "<cpython_api_error>");
         }
         return;
     }
@@ -573,19 +571,18 @@ unsafe fn dump_python_traceback_via_cpython_api(
     if bytes_read > 0 {
         buffer.truncate(bytes_read as usize);
         if let Ok(traceback_text) = std::str::from_utf8(&buffer) {
-            parse_and_emit_traceback(traceback_text, emit_frame, writer_ctx);
+            parse_and_emit_traceback(traceback_text, emit_frame);
             return;
         }
     }
 
     // If we get here, something went wrong with reading the output
-    emit_fallback_frame(emit_frame, writer_ctx, "<traceback_read_failed>");
+    emit_fallback_frame(emit_frame, "<traceback_read_failed>");
 }
 
 // Helper function to emit a fallback frame with error information
 unsafe fn emit_fallback_frame(
-    emit_frame: unsafe extern "C" fn(*mut c_void, *const RuntimeStackFrame),
-    writer_ctx: *mut c_void,
+    emit_frame: unsafe extern "C" fn(*const RuntimeStackFrame),
     error_msg: &str,
 ) {
     let mut function_buf = StackBuffer::new();
@@ -602,7 +599,7 @@ unsafe fn emit_fallback_frame(
         module_name: ptr::null(),
     };
 
-    emit_frame(writer_ctx, &fallback_frame);
+    emit_frame(&fallback_frame);
 }
 
 /// Dump Python traceback as a complete string
@@ -611,16 +608,12 @@ unsafe fn emit_fallback_frame(
 /// and emits it as a single string instead of parsing into individual frames.
 /// This is more efficient and preserves the original Python formatting.
 unsafe fn dump_python_traceback_as_string(
-    emit_stacktrace_string: unsafe extern "C" fn(*mut c_void, *const c_char),
-    writer_ctx: *mut c_void,
+    emit_stacktrace_string: unsafe extern "C" fn(*const c_char),
 ) {
     // Create a pipe to capture CPython internal traceback dump
     let mut pipefd: [c_int; 2] = [0, 0];
     if pipe(&mut pipefd as *mut [c_int; 2]) != 0 {
-        emit_stacktrace_string(
-            writer_ctx,
-            "<pipe_creation_failed>\0".as_ptr() as *const c_char,
-        );
+        emit_stacktrace_string("<pipe_creation_failed>\0".as_ptr() as *const c_char);
         return;
     }
 
@@ -646,10 +639,7 @@ unsafe fn dump_python_traceback_as_string(
         close(read_fd);
         // Note: We can't format the error message because we're in a signal context
         // Just emit a generic error message
-        emit_stacktrace_string(
-            writer_ctx,
-            "<cpython_api_error>\0".as_ptr() as *const c_char,
-        );
+        emit_stacktrace_string("<cpython_api_error>\0".as_ptr() as *const c_char);
         return;
     }
 
@@ -666,24 +656,20 @@ unsafe fn dump_python_traceback_as_string(
     if bytes_read > 0 {
         buffer.truncate(bytes_read as usize);
         if let Ok(traceback_text) = std::str::from_utf8(&buffer) {
-            emit_stacktrace_string(writer_ctx, traceback_text.as_ptr() as *const c_char);
+            emit_stacktrace_string(traceback_text.as_ptr() as *const c_char);
             return;
         }
     }
 
-    emit_stacktrace_string(
-        writer_ctx,
-        "<traceback_read_failed>\0".as_ptr() as *const c_char,
-    );
+    emit_stacktrace_string("<traceback_read_failed>\0".as_ptr() as *const c_char);
 }
 
 unsafe extern "C" fn native_runtime_stack_callback(
-    _emit_frame: unsafe extern "C" fn(*mut c_void, *const RuntimeStackFrame),
-    emit_stacktrace_string: unsafe extern "C" fn(*mut c_void, *const c_char),
-    writer_ctx: *mut c_void,
+    _emit_frame: unsafe extern "C" fn(*const RuntimeStackFrame),
+    emit_stacktrace_string: unsafe extern "C" fn(*const c_char),
 ) {
-    dump_python_traceback_as_string(emit_stacktrace_string, writer_ctx);
-    // dump_python_traceback_via_cpython_api(emit_frame, writer_ctx);
+    dump_python_traceback_as_string(emit_stacktrace_string);
+    // dump_python_traceback_via_cpython_api(emit_frame);
 }
 
 /// Register the native runtime stack collection callback
