@@ -1,6 +1,5 @@
 from collections import defaultdict
 from contextvars import ContextVar
-from copy import deepcopy
 from inspect import getmodule
 import os
 from types import CodeType
@@ -8,6 +7,7 @@ from types import ModuleType
 import typing as t
 
 from ddtrace.internal.compat import Path
+from ddtrace.internal.coverage.instrumentation import instrument_file_only
 from ddtrace.internal.coverage.report import gen_json_report
 from ddtrace.internal.coverage.report import print_coverage_report
 from ddtrace.internal.coverage.util import collapse_ranges
@@ -20,7 +20,6 @@ from ddtrace.internal.packages import purelib_path
 from ddtrace.internal.packages import stdlib_path
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.inspection import resolved_code_origin
-
 
 log = get_logger(__name__)
 
@@ -385,9 +384,6 @@ class ModuleCodeCollector(ModuleWatchdog):
         if (code, code.co_filename) in self.seen:
             return code
         self.seen.add((code, code.co_filename))
-
-        # File-level coverage: only instrument module entry point
-        from ddtrace.internal.coverage.instrumentation import instrument_file_only
 
         new_code = instrument_file_only(code, self.hook, code.co_filename, package)
         # Mark this file as having at least one instrumentable line
