@@ -22,6 +22,53 @@ RETURN_CONST = dis.opmap["RETURN_CONST"]
 EMPTY_MODULE_BYTES = bytes([RESUME, 0, RETURN_CONST, 0])
 
 _CODE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str, t.Dict[int, t.Tuple[str, t.Optional[t.Tuple[str]]]]]] = {}
+_FILE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str]] = {}
+
+
+def instrument_file_only(code: CodeType, hook: HookType, path: str, package: str) -> CodeType:
+    """Lightweight instrumentation that only tracks if a file was executed, not which lines.
+    
+    This uses the PY_START event which fires once when a code object starts executing,
+    rather than LINE events which fire for every line.
+    """
+    coverage_tool = sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID)
+    if coverage_tool is not None and coverage_tool != "datadog":
+        log.debug("Coverage tool '%s' already registered, not gathering coverage", coverage_tool)
+        return code
+
+    if coverage_tool is None:
+        log.debug("Registering code coverage tool for file-level tracking")
+        _register_file_monitoring()
+
+    # Only instrument module-level code, not nested functions/classes
+    if code.co_name != "<module>":
+        return code
+
+    # Enable PY_START event for this code object (fires once when module starts)
+    sys.monitoring.set_local_events(sys.monitoring.COVERAGE_ID, code, sys.monitoring.events.PY_START)
+    
+    # Register the hook for this code object
+    _FILE_HOOKS[code] = (hook, path)
+    
+    return code
+
+
+def _file_start_event_handler(code: CodeType, instruction_offset: int) -> t.Any:
+    """Called once when a code object starts executing"""
+    if code in _FILE_HOOKS:
+        hook, path = _FILE_HOOKS[code]
+        return hook(path)
+    return sys.monitoring.DISABLE
+
+
+def _register_file_monitoring():
+    """Register the coverage tool with monitoring for file-level tracking"""
+    sys.monitoring.use_tool_id(sys.monitoring.COVERAGE_ID, "datadog")
+    
+    # Register the PY_START callback (fires once per code object execution)
+    sys.monitoring.register_callback(
+        sys.monitoring.COVERAGE_ID, sys.monitoring.events.PY_START, _file_start_event_handler
+    )
 
 
 def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, CoverageLines]:

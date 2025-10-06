@@ -18,6 +18,12 @@ RETURN_CONST = dis.opmap["RETURN_CONST"]
 EMPTY_MODULE_BYTES = bytes([RESUME, 0, RETURN_CONST, 0])
 
 
+def instrument_file_only(code: CodeType, hook: HookType, path: str, package: str) -> CodeType:
+    """Lightweight instrumentation for file-level tracking (Python 3.13+)"""
+    # No-op for now - would use sys.monitoring like 3.12
+    return code
+
+
 def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, CoverageLines]:
     # No-op
     return code, CoverageLines()

@@ -234,21 +234,42 @@ def _handle_collected_coverage(item, test_id, coverage_collector) -> None:
     if not should_collect_coverage:
         return
 
-    # TODO: clean up internal coverage API usage
-    test_covered_lines = _coverage_collector_get_covered_lines(coverage_collector)
-    _coverage_collector_exit(coverage_collector)
-
-    record_code_coverage_finished(COVERAGE_LIBRARY.COVERAGEPY, FRAMEWORK)
-
-    if not test_covered_lines:
-        log.debug("No covered lines found for test %s", test_id)
-        record_code_coverage_empty()
-        return
+    # Check if we're in file-level mode
+    is_file_level = ModuleCodeCollector._instance and ModuleCodeCollector._instance._file_level_mode
 
     coverage_data: t.Dict[Path, CoverageLines] = {}
 
-    for path_str, covered_lines in test_covered_lines.items():
-        coverage_data[Path(path_str).absolute()] = covered_lines
+    if is_file_level:
+        # File-level mode: get covered files
+        test_covered_files = coverage_collector.get_covered_files()
+        _coverage_collector_exit(coverage_collector)
+
+        record_code_coverage_finished(COVERAGE_LIBRARY.COVERAGEPY, FRAMEWORK)
+
+        if not test_covered_files:
+            log.debug("No covered files found for test %s", test_id)
+            record_code_coverage_empty()
+            return
+
+        # Convert file paths to coverage data with a single "line" marker
+        for path_str in test_covered_files:
+            coverage_lines = CoverageLines()
+            coverage_lines.add(0)  # Mark file as covered with dummy line 0
+            coverage_data[Path(path_str).absolute()] = coverage_lines
+    else:
+        # Line-level mode: get covered lines
+        test_covered_lines = _coverage_collector_get_covered_lines(coverage_collector)
+        _coverage_collector_exit(coverage_collector)
+
+        record_code_coverage_finished(COVERAGE_LIBRARY.COVERAGEPY, FRAMEWORK)
+
+        if not test_covered_lines:
+            log.debug("No covered lines found for test %s", test_id)
+            record_code_coverage_empty()
+            return
+
+        for path_str, covered_lines in test_covered_lines.items():
+            coverage_data[Path(path_str).absolute()] = covered_lines
 
     if not coverage_data:
         log.debug("No coverage data found for test %s", test_id)
@@ -334,12 +355,21 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
             workspace_path = InternalTestSession.get_workspace_path()
             if workspace_path is None:
                 workspace_path = Path.cwd().absolute()
+
+            # Check if file-level mode is requested (default to True for better performance)
+            file_level_mode = asbool(os.getenv("_DD_COVERAGE_FILE_LEVEL", "true"))
+
             log.debug(
-                "EARLY_INIT: %s process - Installing ModuleCodeCollector with include_paths=%s",
+                "EARLY_INIT: %s process - Installing ModuleCodeCollector with include_paths=%s, file_level_mode=%s",
                 process_type,
                 [workspace_path],
+                file_level_mode,
             )
-            install_coverage(include_paths=[workspace_path], collect_import_time_coverage=True)
+            install_coverage(
+                include_paths=[workspace_path],
+                collect_import_time_coverage=True,
+                file_level_mode=file_level_mode,
+            )
             log.debug("EARLY_INIT: %s process - ModuleCodeCollector installation completed", process_type)
         elif using_xdist and not is_worker:
             log.debug(

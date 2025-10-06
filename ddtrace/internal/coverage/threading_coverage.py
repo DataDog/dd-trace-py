@@ -59,12 +59,26 @@ class CoverageCollectingThread(threading.Thread):
             # Ensure coverage data is collected, and context is exited, even if an exception is raised
             if self._should_cover:
                 try:
-                    covered_lines = pickle.dumps({"covered": self._coverage_context.get_covered_lines()})
+                    # Check if we're in file-level mode
+                    is_file_level = ModuleCodeCollector._instance and ModuleCodeCollector._instance._file_level_mode
+                    if is_file_level:
+                        # File-level mode: get covered files and convert to coverage data format
+                        covered_files = self._coverage_context.get_covered_files()
+                        from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+                        covered = {}
+                        for path in covered_files:
+                            coverage_lines = CoverageLines()
+                            coverage_lines.add(0)
+                            covered[path] = coverage_lines
+                        covered_data = pickle.dumps({"covered": covered})
+                    else:
+                        # Line-level mode: get covered lines
+                        covered_data = pickle.dumps({"covered": self._coverage_context.get_covered_lines()})
                 except pickle.PicklingError:
                     log.warning("Could not pickle coverage data, not injecting coverage")
                     return
                 self._coverage_context.__exit__()
-                self._coverage_queue.put(covered_lines)
+                self._coverage_queue.put(covered_data)
 
     def join(self, *args, **kwargs):
         """Absorb coverage data from the thread after it's joined"""

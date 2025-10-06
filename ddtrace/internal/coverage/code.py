@@ -28,6 +28,7 @@ log = get_logger(__name__)
 _original_exec = exec
 
 ctx_covered: ContextVar[t.List[t.DefaultDict[str, CoverageLines]]] = ContextVar("ctx_covered", default=[])
+ctx_covered_files: ContextVar[t.List[t.Set[str]]] = ContextVar("ctx_covered_files", default=[])
 ctx_is_import_coverage = ContextVar("ctx_is_import_coverage", default=False)
 ctx_coverage_enabled = ContextVar("ctx_coverage_enabled", default=False)
 
@@ -41,8 +42,18 @@ def _get_ctx_covered_lines() -> t.DefaultDict[str, CoverageLines]:
     return defaultdict(CoverageLines)
 
 
+def _get_ctx_covered_files() -> t.Set[str]:
+    if ctx_coverage_enabled.get():
+        if context_stack := ctx_covered_files.get():
+            return context_stack[-1]
+        log.debug("_get_ctx_covered_files() called but ctx_covered_files stack is empty")
+
+    return set()
+
+
 class ModuleCodeCollector(ModuleWatchdog):
     _instance: t.Optional["ModuleCodeCollector"] = None
+    _init_file_level_mode: bool = False
 
     def __init__(self) -> None:
         super().__init__()
@@ -57,14 +68,25 @@ class ModuleCodeCollector(ModuleWatchdog):
         self._exclude_paths.append(Path(__file__).resolve().parent)
 
         self._coverage_enabled: bool = False
+        self._file_level_mode: bool = self.__class__._init_file_level_mode
         self.seen: t.Set[t.Tuple[CodeType, str]] = set()
 
         # Data structures for coverage data
-        self.lines: t.DefaultDict[str, CoverageLines] = defaultdict(CoverageLines)
-        self.covered: t.DefaultDict[str, CoverageLines] = defaultdict(CoverageLines)
+        if self._file_level_mode:
+            # File-level mode: just track which files were executed
+            self.covered_files: t.Set[str] = set()
+            # Still need to track lines for knowing what's instrumentable
+            self.lines: t.DefaultDict[str, CoverageLines] = defaultdict(CoverageLines)
+        else:
+            # Line-level mode: track which lines were executed
+            self.lines: t.DefaultDict[str, CoverageLines] = defaultdict(CoverageLines)
+            self.covered: t.DefaultDict[str, CoverageLines] = defaultdict(CoverageLines)
 
         # Import-time coverage data
-        self._import_time_covered: t.DefaultDict[str, CoverageLines] = defaultdict(CoverageLines)
+        if self._file_level_mode:
+            self._import_time_covered_files: t.Set[str] = set()
+        else:
+            self._import_time_covered: t.DefaultDict[str, CoverageLines] = defaultdict(CoverageLines)
         self._import_time_contexts: t.Dict[str, "ModuleCodeCollector.CollectInContext"] = {}
         self._import_time_name_to_path: t.Dict[str, str] = {}
         self._import_names_by_path: t.Dict[str, t.Set[t.Tuple[str, t.Tuple[str, ...]]]] = defaultdict(set)
@@ -78,10 +100,18 @@ class ModuleCodeCollector(ModuleWatchdog):
             pass
 
     @classmethod
-    def install(cls, include_paths: t.Optional[t.List[Path]] = None, collect_import_time_coverage: bool = False):
+    def install(
+        cls,
+        include_paths: t.Optional[t.List[Path]] = None,
+        collect_import_time_coverage: bool = False,
+        file_level_mode: bool = False,
+    ):
         if ModuleCodeCollector.is_installed():
             return
 
+        # Pass file_level_mode to __init__ via a temporary attribute
+        cls._init_file_level_mode = file_level_mode
+        
         super().install()
 
         if cls._instance is None:
@@ -99,24 +129,48 @@ class ModuleCodeCollector(ModuleWatchdog):
                 lambda x: True, cls._instance._exit_context_on_exception_hook
             )
 
-    def hook(self, arg: t.Tuple[int, str, t.Optional[t.Tuple[str, t.Tuple[str, ...]]]]):
-        line: int
-        path: str
-        import_name: t.Optional[t.Tuple[str, t.Tuple[str, ...]]]
-        line, path, import_name = arg
+    def hook(self, arg: t.Union[t.Tuple[int, str, t.Optional[t.Tuple[str, t.Tuple[str, ...]]]], str]):
+        # Detect the argument type to handle both file-level and line-level modes
+        # This is defensive programming in case some code was instrumented before mode was set
+        if isinstance(arg, tuple):
+            # Line-level mode: arg is (line, path, import_name)
+            line: int
+            path: str
+            import_name: t.Optional[t.Tuple[str, t.Tuple[str, ...]]]
+            line, path, import_name = arg  # type: ignore
 
-        if self._coverage_enabled:
-            lines = self.covered[path]
-            lines.add(line)
+            if self._file_level_mode:
+                # We're in file-level mode but got line-level data (shouldn't happen, but handle it)
+                log.warning("File-level mode received line-level hook data for %s", path)
+                if self._coverage_enabled:
+                    self.covered_files.add(path)
+                if ctx_coverage_enabled.get():
+                    ctx_files = _get_ctx_covered_files()
+                    ctx_files.add(path)
+            else:
+                # Normal line-level mode
+                if self._coverage_enabled:
+                    lines = self.covered[path]
+                    lines.add(line)
 
-        if ctx_coverage_enabled.get():
-            # Import-time contexts store their lines in a non-context variable to be aggregated on request when
-            # reporting coverage
-            ctx_lines = _get_ctx_covered_lines()[path]
-            ctx_lines.add(line)
+                if ctx_coverage_enabled.get():
+                    # Import-time contexts store their lines in a non-context variable to be aggregated on request when
+                    # reporting coverage
+                    ctx_lines = _get_ctx_covered_lines()[path]
+                    ctx_lines.add(line)
 
-        if import_name is not None and self._collect_import_coverage:
-            self._import_names_by_path[path].add(import_name)
+                if import_name is not None and self._collect_import_coverage:
+                    self._import_names_by_path[path].add(import_name)
+        else:
+            # File-level mode: arg is just the path string
+            path: str = arg  # type: ignore
+            
+            if self._coverage_enabled:
+                self.covered_files.add(path)
+
+            if ctx_coverage_enabled.get():
+                ctx_files = _get_ctx_covered_files()
+                ctx_files.add(path)
 
     @classmethod
     def inject_coverage(
@@ -224,9 +278,14 @@ class ModuleCodeCollector(ModuleWatchdog):
             self.is_import_coverage = is_import_coverage
             if ctx_covered.get() is None:
                 ctx_covered.set([])
+            if ctx_covered_files.get() is None:
+                ctx_covered_files.set([])
 
         def __enter__(self):
-            ctx_covered.get().append(defaultdict(CoverageLines))
+            if ModuleCodeCollector._instance and ModuleCodeCollector._instance._file_level_mode:
+                ctx_covered_files.get().append(set())
+            else:
+                ctx_covered.get().append(defaultdict(CoverageLines))
             ctx_coverage_enabled.set(True)
 
             if self.is_import_coverage:
@@ -235,18 +294,32 @@ class ModuleCodeCollector(ModuleWatchdog):
             return self
 
         def __exit__(self, *args, **kwargs):
-            covered_lines_stack = ctx_covered.get()
-            covered_lines_stack.pop()
-
-            # Stop coverage if we're exiting the last context
-            if len(covered_lines_stack) == 0:
-                ctx_coverage_enabled.set(False)
+            if ModuleCodeCollector._instance and ModuleCodeCollector._instance._file_level_mode:
+                covered_files_stack = ctx_covered_files.get()
+                covered_files_stack.pop()
+                # Stop coverage if we're exiting the last context
+                if len(covered_files_stack) == 0:
+                    ctx_coverage_enabled.set(False)
+            else:
+                covered_lines_stack = ctx_covered.get()
+                covered_lines_stack.pop()
+                # Stop coverage if we're exiting the last context
+                if len(covered_lines_stack) == 0:
+                    ctx_coverage_enabled.set(False)
 
         def get_covered_lines(self) -> t.Dict[str, CoverageLines]:
             covered_lines = _get_ctx_covered_lines()
             if global_instance := ModuleCodeCollector._instance:
                 global_instance._add_import_time_lines(covered_lines)
             return covered_lines
+        
+        def get_covered_files(self) -> t.Set[str]:
+            """Get covered files in file-level mode"""
+            covered_files = _get_ctx_covered_files()
+            if global_instance := ModuleCodeCollector._instance:
+                if hasattr(global_instance, '_import_time_covered_files'):
+                    covered_files = covered_files.union(global_instance._import_time_covered_files)
+            return covered_files
 
     @classmethod
     def start_coverage(cls):
@@ -352,10 +425,17 @@ class ModuleCodeCollector(ModuleWatchdog):
     def _exit_context_on_exception_hook(self, _, _module: ModuleType) -> None:
         if hasattr(_module, "__file__") and _module.__file__ in self._import_time_contexts:
             collector = self._import_time_contexts[_module.__file__]
-            covered_lines = collector.get_covered_lines()
-            collector.__exit__()
-            if covered_lines[_module.__file__]:
-                self._import_time_covered[_module.__file__].update(covered_lines[_module.__file__])
+            
+            if self._file_level_mode:
+                covered_files = collector.get_covered_files()
+                collector.__exit__()
+                if _module.__file__ in covered_files:
+                    self._import_time_covered_files.add(_module.__file__)
+            else:
+                covered_lines = collector.get_covered_lines()
+                collector.__exit__()
+                if covered_lines[_module.__file__]:
+                    self._import_time_covered[_module.__file__].update(covered_lines[_module.__file__])
 
             del self._import_time_contexts[_module.__file__]
 
@@ -365,10 +445,17 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         if hasattr(_module, "__file__") and _module.__file__ in self._import_time_contexts:
             collector = self._import_time_contexts[_module.__file__]
-            covered_lines = collector.get_covered_lines()
-            collector.__exit__()
-            if covered_lines[_module.__file__]:
-                self._import_time_covered[_module.__file__].update(covered_lines[_module.__file__])
+            
+            if self._file_level_mode:
+                covered_files = collector.get_covered_files()
+                collector.__exit__()
+                if _module.__file__ in covered_files:
+                    self._import_time_covered_files.add(_module.__file__)
+            else:
+                covered_lines = collector.get_covered_lines()
+                collector.__exit__()
+                if covered_lines[_module.__file__]:
+                    self._import_time_covered[_module.__file__].update(covered_lines[_module.__file__])
 
             del self._import_time_contexts[_module.__file__]
 
@@ -378,11 +465,20 @@ class ModuleCodeCollector(ModuleWatchdog):
             return code
         self.seen.add((code, code.co_filename))
 
-        new_code, lines = instrument_all_lines(code, self.hook, code.co_filename, package)
+        if self._file_level_mode:
+            # File-level mode: only instrument module entry point
+            from ddtrace.internal.coverage.instrumentation import instrument_file_only
+            new_code = instrument_file_only(code, self.hook, code.co_filename, package)
+            # Mark this file as having at least one instrumentable line
+            self.lines[code.co_filename].add(0)
+        else:
+            # Line-level mode: instrument all lines
+            new_code, lines = instrument_all_lines(code, self.hook, code.co_filename, package)
+            # Keep note of all the lines that have been instrumented. These will be
+            # the ones that can be covered.
+            self.lines[code.co_filename].update(lines)
+        
         self.seen.add((new_code, code.co_filename))
-        # Keep note of all the lines that have been instrumented. These will be
-        # the ones that can be covered.
-        self.lines[code.co_filename].update(lines)
         return new_code
 
     def _exec(self, _object, _globals=None, _locals=None, **kwargs):
