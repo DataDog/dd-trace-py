@@ -68,7 +68,7 @@ class VLLMIntegration(BaseLLMIntegration):
         """Build token and latency metrics from request data."""
         it = int(data.input_tokens or 0)
         ot = int(data.output_tokens or 0)
-        metrics = {
+        metrics: Dict[str, Any] = {
             INPUT_TOKENS_METRIC_KEY: it,
             OUTPUT_TOKENS_METRIC_KEY: ot,
             TOTAL_TOKENS_METRIC_KEY: it + ot,
@@ -153,7 +153,11 @@ class VLLMIntegration(BaseLLMIntegration):
             return
 
         stats = kwargs.get("stats")
-        ctx = self._build_embedding_context(data, stats) if operation == "embedding" else self._build_completion_context(data, stats)
+        ctx = (
+            self._build_embedding_context(data, stats)
+            if operation == "embedding"
+            else self._build_completion_context(data, stats)
+        )
         ctx[MODEL_NAME] = span.get_tag("vllm.request.model") or ""
         ctx[MODEL_PROVIDER] = span.get_tag("vllm.request.provider") or ""
         span._set_ctx_items(ctx)
