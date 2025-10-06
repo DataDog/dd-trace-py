@@ -16,11 +16,16 @@ def instrument_file_only(code: CodeType, hook: HookType, path: str, package: str
     """Lightweight instrumentation that only tracks if a file was executed, not which lines.
     
     For Python 3.10, we use the injection framework but only inject at the first line.
-    The framework creates (line, path, import_name) tuples, but our defensive hook() 
-    method will detect this and extract just the path for file-level tracking.
+    The framework creates (line, path, import_name) tuples, but our optimized hook() 
+    method now handles this efficiently without logging overhead.
+    
+    The key optimizations are in the hook() method itself:
+    1. No logging when receiving tuple data in file-level mode (expected for Python 3.10)
+    2. Early return if file already seen in current context ("already seen" optimization)
     
     This is safer than manual bytecode manipulation which can cause segfaults if jump
-    offsets aren't updated correctly.
+    offsets aren't updated correctly. With the logging removed, this approach is now
+    performant enough.
     """
     # Only instrument module-level code
     if code.co_name != "<module>":
@@ -35,7 +40,7 @@ def instrument_file_only(code: CodeType, hook: HookType, path: str, package: str
     
     # Use the injection framework with only the first line
     # This creates (line, path, import_name) tuples, but the hook() method
-    # will detect file-level mode and extract just the path
+    # now handles this efficiently without logging overhead
     injection_context = InjectionContext(code, hook, lambda _s: [first_line_offset])
     new_code, _ = inject_invocation(injection_context, path, package)
     

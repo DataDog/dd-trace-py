@@ -140,13 +140,20 @@ class ModuleCodeCollector(ModuleWatchdog):
             line, path, import_name = arg  # type: ignore
 
             if self._file_level_mode:
-                # We're in file-level mode but got line-level data (shouldn't happen, but handle it)
-                log.warning("File-level mode received line-level hook data for %s", path)
-                if self._coverage_enabled:
-                    self.covered_files.add(path)
+                # We're in file-level mode but got line-level data (Python 3.10 uses inject_invocation)
+                # This is expected for Python 3.10, so we silently extract the path without logging
+                
+                # Optimization: Check if already seen in this context to avoid redundant set operations
                 if ctx_coverage_enabled.get():
                     ctx_files = _get_ctx_covered_files()
+                    if path in ctx_files:
+                        return  # Already recorded in this context, skip
                     ctx_files.add(path)
+                
+                if self._coverage_enabled:
+                    if path in self.covered_files:
+                        return  # Already recorded globally, skip
+                    self.covered_files.add(path)
             else:
                 # Normal line-level mode
                 if self._coverage_enabled:
@@ -165,12 +172,17 @@ class ModuleCodeCollector(ModuleWatchdog):
             # File-level mode: arg is just the path string
             path: str = arg  # type: ignore
             
-            if self._coverage_enabled:
-                self.covered_files.add(path)
-
+            # Optimization: Check if already seen in this context to avoid redundant set operations
             if ctx_coverage_enabled.get():
                 ctx_files = _get_ctx_covered_files()
+                if path in ctx_files:
+                    return  # Already recorded in this context, skip
                 ctx_files.add(path)
+            
+            if self._coverage_enabled:
+                if path in self.covered_files:
+                    return  # Already recorded globally, skip
+                self.covered_files.add(path)
 
     @classmethod
     def inject_coverage(
