@@ -45,7 +45,7 @@ def _(asyncio):
         globals()["all_tasks"] = asyncio.Task.all_tasks
 
     if hasattr(asyncio.Task, "get_name"):
-        # `get_name` is only available in Python ≥ 3.8
+        # `get_name` is only available in Python ≥ 3.8
         globals()["_task_get_name"] = lambda task: task.get_name()
 
     if THREAD_LINK is None:
@@ -53,9 +53,11 @@ def _(asyncio):
 
     init_stack_v2 = config.stack.v2_enabled and stack_v2.is_available
 
-    @partial(wrap, sys.modules["asyncio.events"].BaseDefaultEventLoopPolicy.set_event_loop)
+    # Use the stable high-level asyncio.set_event_loop API instead of internal policy classes
+    # This approach is more future-proof as asyncio.set_event_loop should remain available
+    @partial(wrap, sys.modules["asyncio"].set_event_loop)
     def _(f, args, kwargs):
-        loop = get_argument_value(args, kwargs, 1, "loop")
+        loop = get_argument_value(args, kwargs, 0, "loop")
         try:
             if init_stack_v2:
                 stack_v2.track_asyncio_loop(typing.cast(int, ddtrace_threading.current_thread().ident), loop)
