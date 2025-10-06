@@ -34,7 +34,7 @@
 
 "debugging/exploration/botocore":
   extends: ".debugging/exploration"
-  timeout: 60m
+  timeout: 90m
   variables:
     DD_DEBUGGER_EXPL_INCLUDE: "botocore"
     DD_DEBUGGER_EXPL_PROFILER_DELETE_FUNCTION_PROBES: 1
