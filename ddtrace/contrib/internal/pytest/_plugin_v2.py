@@ -234,27 +234,23 @@ def _handle_collected_coverage(item, test_id, coverage_collector) -> None:
     if not should_collect_coverage:
         return
 
-    # Check if we're in file-level mode
+    # File-level mode: get covered files
+    test_covered_files = coverage_collector.get_covered_files()
+    _coverage_collector_exit(coverage_collector)
+
+    record_code_coverage_finished(COVERAGE_LIBRARY.COVERAGEPY, FRAMEWORK)
+
+    if not test_covered_files:
+        log.debug("No covered files found for test %s", test_id)
+        record_code_coverage_empty()
+        return
 
     coverage_data: t.Dict[Path, CoverageLines] = {}
-
-    if ModuleCodeCollector._instance:
-        # File-level mode: get covered files
-        test_covered_files = coverage_collector.get_covered_files()
-        _coverage_collector_exit(coverage_collector)
-
-        record_code_coverage_finished(COVERAGE_LIBRARY.COVERAGEPY, FRAMEWORK)
-
-        if not test_covered_files:
-            log.debug("No covered files found for test %s", test_id)
-            record_code_coverage_empty()
-            return
-
-        # Convert file paths to coverage data with a single "line" marker
-        for path_str in test_covered_files:
-            coverage_lines = CoverageLines()
-            coverage_lines.add(0)  # Mark file as covered with dummy line 0
-            coverage_data[Path(path_str).absolute()] = coverage_lines
+    # Convert file paths to coverage data with a single "line" marker
+    for path_str in test_covered_files:
+        coverage_lines = CoverageLines()
+        coverage_lines.add(0)  # Mark file as covered with dummy line 0
+        coverage_data[Path(path_str).absolute()] = coverage_lines
 
     if not coverage_data:
         log.debug("No coverage data found for test %s", test_id)
@@ -340,16 +336,12 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
             workspace_path = InternalTestSession.get_workspace_path()
             if workspace_path is None:
                 workspace_path = Path.cwd().absolute()
-
             log.debug(
                 "EARLY_INIT: %s process - Installing ModuleCodeCollector with include_paths=%s",
                 process_type,
                 [workspace_path],
             )
-            install_coverage(
-                include_paths=[workspace_path],
-                collect_import_time_coverage=True,
-            )
+            install_coverage(include_paths=[workspace_path], collect_import_time_coverage=True)
             log.debug("EARLY_INIT: %s process - ModuleCodeCollector installation completed", process_type)
         elif using_xdist and not is_worker:
             log.debug(

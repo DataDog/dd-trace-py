@@ -78,11 +78,7 @@ class ModuleCodeCollector(ModuleWatchdog):
             pass
 
     @classmethod
-    def install(
-        cls,
-        include_paths: t.Optional[t.List[Path]] = None,
-        collect_import_time_coverage: bool = False,
-    ):
+    def install(cls, include_paths: t.Optional[t.List[Path]] = None, collect_import_time_coverage: bool = False):
         if ModuleCodeCollector.is_installed():
             return
 
@@ -103,26 +99,24 @@ class ModuleCodeCollector(ModuleWatchdog):
                 lambda x: True, cls._instance._exit_context_on_exception_hook
             )
 
-    def hook(self, arg: t.Union[t.Tuple[int, str, t.Optional[t.Tuple[str, t.Tuple[str, ...]]]], str]):
-        # Handle both tuple (Python 3.10 with inject_invocation) and string arguments
-        if isinstance(arg, tuple):
-            # Python 3.10: arg is (line, path, import_name) - extract just the path
-            path: str = arg[1]  # type: ignore
-        else:
-            # Python 3.12+: arg is just the path string
-            path: str = arg  # type: ignore
-
-        # Optimization: Check if already seen in this context to avoid redundant set operations
-        if ctx_coverage_enabled.get():
-            ctx_files = _get_ctx_covered_files()
-            # if path in ctx_files:
-            #     return  # Already recorded in this context, skip
-            ctx_files.add(path)
+    def hook(self, arg: t.Tuple[str, t.Optional[t.Tuple[str, t.Tuple[str, ...]]]]):
+        # Python 3.10: arg is (line, path, import_name) - extract just the path
+        file_path: str = arg[1]
+        import_name: t.Optional[t.Tuple[str, t.Tuple[str, ...]]] = arg[2]
 
         if self._coverage_enabled:
-            if path in self.covered_files:
+            if file_path in self.covered_files:
                 return  # Already recorded globally, skip
-            self.covered_files.add(path)
+            self.covered_files.add(file_path)
+
+        if ctx_coverage_enabled.get():
+            # Import-time contexts store their lines in a non-context variable to be aggregated on request when
+            # reporting coverage
+            ctx_files = _get_ctx_covered_files()
+            ctx_files.add(file_path)
+
+        if import_name is not None and self._collect_import_coverage:
+            self._import_names_by_path[file_path].add(import_name)
 
     @classmethod
     def inject_coverage(
@@ -228,15 +222,11 @@ class ModuleCodeCollector(ModuleWatchdog):
     class CollectInContext:
         def __init__(self, is_import_coverage: bool = False):
             self.is_import_coverage = is_import_coverage
-            # if ctx_covered.get() is None:
-            #     ctx_covered.set([])
             if ctx_covered_files.get() is None:
                 ctx_covered_files.set([])
 
         def __enter__(self):
-            if ModuleCodeCollector._instance:
-                ctx_covered_files.get().append(set())
-
+            ctx_covered_files.get().append(set())
             ctx_coverage_enabled.set(True)
 
             if self.is_import_coverage:
@@ -245,18 +235,11 @@ class ModuleCodeCollector(ModuleWatchdog):
             return self
 
         def __exit__(self, *args, **kwargs):
-            if ModuleCodeCollector._instance:
-                covered_files_stack = ctx_covered_files.get()
-                covered_files_stack.pop()
-                # Stop coverage if we're exiting the last context
-                if len(covered_files_stack) == 0:
-                    ctx_coverage_enabled.set(False)
-
-        # def get_covered_lines(self) -> t.Dict[str, CoverageLines]:
-        #     covered_lines = _get_ctx_covered_lines()
-        #     if global_instance := ModuleCodeCollector._instance:
-        #         global_instance._add_import_time_lines(covered_lines)
-        #     return covered_lines
+            covered_files_stack = ctx_covered_files.get()
+            covered_files_stack.pop()
+            # Stop coverage if we're exiting the last context
+            if len(covered_files_stack) == 0:
+                ctx_coverage_enabled.set(False)
 
         def get_covered_files(self) -> t.Set[str]:
             """Get covered files in file-level mode"""
@@ -292,10 +275,14 @@ class ModuleCodeCollector(ModuleWatchdog):
         coverages: t.Dict[Path, CoverageLines] = {}
         if cls._instance is None:
             return {}
+
+        cov = CoverageLines()
+        cov.add(0)
+
         for path in paths:
             path_str = str(path)
-            if path_str in cls._instance._import_time_covered:
-                coverages[path] = cls._instance._import_time_covered[path_str]
+            if path_str in cls._instance._import_time_covered_files:
+                coverages[path] = cov
 
         return coverages
 
