@@ -27,7 +27,7 @@ _FILE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str]] = {}
 
 def instrument_file_only(code: CodeType, hook: HookType, path: str, package: str) -> CodeType:
     """Lightweight instrumentation that only tracks if a file was executed, not which lines.
-    
+
     This uses the PY_START event which fires once when a code object starts executing,
     rather than LINE events which fire for every line.
     """
@@ -46,10 +46,10 @@ def instrument_file_only(code: CodeType, hook: HookType, path: str, package: str
 
     # Enable PY_START event for this code object (fires once when module starts)
     sys.monitoring.set_local_events(sys.monitoring.COVERAGE_ID, code, sys.monitoring.events.PY_START)
-    
+
     # Register the hook for this code object
     _FILE_HOOKS[code] = (hook, path)
-    
+
     return code
 
 
@@ -64,7 +64,7 @@ def _file_start_event_handler(code: CodeType, instruction_offset: int) -> t.Any:
 def _register_file_monitoring():
     """Register the coverage tool with monitoring for file-level tracking"""
     sys.monitoring.use_tool_id(sys.monitoring.COVERAGE_ID, "datadog")
-    
+
     # Register the PY_START callback (fires once per code object execution)
     sys.monitoring.register_callback(
         sys.monitoring.COVERAGE_ID, sys.monitoring.events.PY_START, _file_start_event_handler
