@@ -21,6 +21,7 @@ from ddtrace.internal.packages import stdlib_path
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.inspection import resolved_code_origin
 
+
 log = get_logger(__name__)
 
 _original_exec = exec
