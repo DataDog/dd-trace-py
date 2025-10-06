@@ -45,7 +45,7 @@ CACHE_READ_INPUT_TOKENS_METRIC_KEY = "cache_read_input_tokens"
 BILLABLE_CHARACTER_COUNT_METRIC_KEY = "billable_character_count"
 REASONING_OUTPUT_TOKENS_METRIC_KEY = "reasoning_output_tokens"
 
-TIME_TO_FIRST_TOKEN_METRIC_KEY = "time_to_first_token"
+TIME_TO_FIRST_TOKEN_METRIC_KEY = "time_to_first_token"  # nosec B105
 TIME_IN_QUEUE_METRIC_KEY = "time_in_queue"
 TIME_IN_MODEL_PREFILL_METRIC_KEY = "time_in_model_prefill"
 TIME_IN_MODEL_DECODE_METRIC_KEY = "time_in_model_decode"
