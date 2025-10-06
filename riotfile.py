@@ -2067,10 +2067,9 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    # grpcio added support for Python 3.13 in 1.66.2
                     pys=select_pys(min_version="3.13"),
                     pkgs={
-                        "grpcio": ["~=1.66.2", latest],
+                        "grpcio": latest,
                     },
                 ),
             ],
