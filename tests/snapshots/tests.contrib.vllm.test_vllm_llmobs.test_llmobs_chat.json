@@ -21,12 +21,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 5676,
-      "vllm.latency.decode": 0.09951003501191735,
-      "vllm.latency.inference": 0.10793503595050424,
-      "vllm.latency.prefill": 0.00842500093858689,
-      "vllm.latency.queue": 0.0001842339988797903,
-      "vllm.latency.ttft": 0.010640621185302734
+      "process_id": 5676
     },
     "duration": 110508762,
     "start": 1759410376640131328

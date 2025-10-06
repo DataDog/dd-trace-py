@@ -21,11 +21,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 5676,
-      "vllm.latency.inference": 0.021056173951365054,
-      "vllm.latency.prefill": 0.021056173951365054,
-      "vllm.latency.queue": 0.00024107703939080238,
-      "vllm.latency.ttft": 0.023837804794311523
+      "process_id": 5676
     },
     "duration": 24355851,
     "start": 1759410376376144128
@@ -53,11 +49,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 5676,
-      "vllm.latency.inference": 0.021056173951365054,
-      "vllm.latency.prefill": 0.021056173951365054,
-      "vllm.latency.queue": 5.408399738371372e-05,
-      "vllm.latency.ttft": 0.02319478988647461
+      "process_id": 5676
     },
     "duration": 24859074,
     "start": 1759410376376787200

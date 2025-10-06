@@ -14,7 +14,6 @@ from .extractors import extract_request_data
 from .extractors import get_model_name
 from .utils import create_span
 from .utils import inject_trace_context
-from .utils import set_latency_metrics
 
 
 logger = get_logger(__name__)
@@ -120,13 +119,10 @@ def traced_output_processor_process_outputs(vllm, pin, func, instance, args, kwa
         integration.llmobs_set_tags(
             span,
             args=[],
-            kwargs={"request_data": data},
+            kwargs={"request_data": data, "stats": span_info["stats"]},
             response=None,
             operation=operation,
         )
-
-        if span_info["stats"]:
-            set_latency_metrics(span, span_info["stats"])
 
         span.finish()
 

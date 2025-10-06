@@ -47,11 +47,7 @@
        "metrics": {
          "_dd.measured": 1,
          "_dd.top_level": 1,
-         "process_id": 5676,
-         "vllm.latency.inference": 0.15978306904435158,
-         "vllm.latency.prefill": 0.15978306904435158,
-         "vllm.latency.queue": 1.8851947970688343e-05,
-         "vllm.latency.ttft": 0.3274271488189697
+         "process_id": 5676
        },
        "duration": 328518565,
        "start": 1759410315481061632
@@ -77,11 +73,7 @@
        "metrics": {
          "_dd.measured": 1,
          "_dd.top_level": 1,
-         "process_id": 5676,
-         "vllm.latency.inference": 0.007373907952569425,
-         "vllm.latency.prefill": 0.007373907952569425,
-         "vllm.latency.queue": 0.00016414199490100145,
-         "vllm.latency.ttft": 0.009606599807739258
+         "process_id": 5676
        },
        "duration": 10421016,
        "start": 1759410315810782464
@@ -107,11 +99,7 @@
        "metrics": {
          "_dd.measured": 1,
          "_dd.top_level": 1,
-         "process_id": 5676,
-         "vllm.latency.inference": 0.007004529004916549,
-         "vllm.latency.prefill": 0.007004529004916549,
-         "vllm.latency.queue": 0.0001580320531502366,
-         "vllm.latency.ttft": 0.009066581726074219
+         "process_id": 5676
        },
        "duration": 9502380,
        "start": 1759410315821967872
@@ -137,12 +125,7 @@
        "metrics": {
          "_dd.measured": 1,
          "_dd.top_level": 1,
-         "process_id": 5676,
-         "vllm.latency.decode": 0.13968857692088932,
-         "vllm.latency.inference": 0.20357014192268252,
-         "vllm.latency.prefill": 0.0638815650017932,
-         "vllm.latency.queue": 1.562107354402542e-05,
-         "vllm.latency.ttft": 0.17212820053100586
+         "process_id": 5676
        },
        "duration": 312517816,
        "start": 1759410333296862208
