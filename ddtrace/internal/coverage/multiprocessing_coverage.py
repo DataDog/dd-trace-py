@@ -84,7 +84,6 @@ class CoverageCollectingMultiprocess(BaseProcess):
 
             install(
                 include_paths=self._dd_coverage_include_paths,
-                file_level_mode=self._dd_coverage_file_level_mode,
             )
             ModuleCodeCollector.start_coverage()
 
@@ -98,17 +97,13 @@ class CoverageCollectingMultiprocess(BaseProcess):
                 return
 
             try:
-                if instance._file_level_mode:
-                    # File-level mode: convert covered files to coverage data format
-                    covered = {}
-                    for path in instance.covered_files:
-                        coverage_lines = CoverageLines()
-                        coverage_lines.add(0)
-                        covered[path] = coverage_lines
-                    self._child_conn.send(pickle.dumps({"lines": instance.lines, "covered": covered}))
-                else:
-                    # Line-level mode: send covered lines
-                    self._child_conn.send(pickle.dumps({"lines": instance.lines, "covered": instance.covered}))
+                # File-level mode: convert covered files to coverage data format
+                covered = {}
+                for path in instance.covered_files:
+                    coverage_lines = CoverageLines()
+                    coverage_lines.add(0)
+                    covered[path] = coverage_lines
+                self._child_conn.send(pickle.dumps({"lines": instance.lines, "covered": covered}))
             except pickle.PicklingError:
                 log.warning("Failed to pickle coverage data for child process", exc_info=True)
             except Exception:
@@ -119,7 +114,6 @@ class CoverageCollectingMultiprocess(BaseProcess):
     def __init__(self, *posargs, **kwargs) -> None:
         self._dd_coverage_enabled = False
         self._dd_coverage_include_paths: t.List[Path] = []
-        self._dd_coverage_file_level_mode = False
 
         # If coverage is not enabled, the pipe used to communicate coverage data from child to parent is not needed
         self._parent_conn: t.Optional[Connection] = None
@@ -134,7 +128,6 @@ class CoverageCollectingMultiprocess(BaseProcess):
             self._dd_coverage_enabled = True
             if ModuleCodeCollector._instance is not None:
                 self._dd_coverage_include_paths = ModuleCodeCollector._instance._include_paths
-                self._dd_coverage_file_level_mode = ModuleCodeCollector._instance._file_level_mode
 
         base_process_init(self, *posargs, **kwargs)
 
@@ -173,10 +166,8 @@ class Stowaway:
         self,
         include_paths: t.Optional[t.List[Path]] = None,
         dd_coverage_enabled: bool = True,
-        file_level_mode: bool = False,
     ) -> None:
         self.dd_coverage_enabled: bool = dd_coverage_enabled
-        self.file_level_mode: bool = file_level_mode
         self.include_paths_strs: t.List[str] = []
         if include_paths is not None:
             self.include_paths_strs = [str(include_path) for include_path in include_paths]
@@ -185,17 +176,15 @@ class Stowaway:
         return {
             "include_paths_strs": json.dumps(self.include_paths_strs),
             "dd_coverage_enabled": self.dd_coverage_enabled,
-            "file_level_mode": self.file_level_mode,
         }
 
     def __setstate__(self, state: t.Dict[str, t.Any]) -> None:
         include_paths = [Path(include_path_str) for include_path_str in json.loads(state["include_paths_strs"])]
-        file_level_mode = state.get("file_level_mode", False)
 
         if state["dd_coverage_enabled"]:
             from ddtrace.internal.coverage.installer import install
 
-            install(include_paths=include_paths, file_level_mode=file_level_mode)
+            install(include_paths=include_paths)
             _patch_multiprocessing()
 
 
@@ -224,11 +213,9 @@ def _patch_multiprocessing():
             d = original_get_preparation_data(name)
             if ModuleCodeCollector._instance is None:
                 include_paths = []
-                file_level_mode = False
             else:
                 include_paths = ModuleCodeCollector._instance._include_paths
-                file_level_mode = ModuleCodeCollector._instance._file_level_mode
-            d["stowaway"] = Stowaway(include_paths=include_paths, file_level_mode=file_level_mode)
+            d["stowaway"] = Stowaway(include_paths=include_paths)
             return d
 
         spawn.get_preparation_data = get_preparation_data_with_stowaway

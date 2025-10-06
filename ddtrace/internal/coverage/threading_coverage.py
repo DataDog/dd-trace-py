@@ -12,6 +12,7 @@ its include_paths are set.
 Session-level coverage does not need special-casing since the ModuleCodeCollector behavior is process-wide and
 thread-safe.
 """
+
 import pickle  # nosec: B403  -- pickle is only used to serialize coverage data from a spawned thread to the main thread
 from queue import Queue
 import threading
@@ -60,20 +61,17 @@ class CoverageCollectingThread(threading.Thread):
             if self._should_cover:
                 try:
                     # Check if we're in file-level mode
-                    is_file_level = ModuleCodeCollector._instance and ModuleCodeCollector._instance._file_level_mode
-                    if is_file_level:
+                    if ModuleCodeCollector._instance:
                         # File-level mode: get covered files and convert to coverage data format
                         covered_files = self._coverage_context.get_covered_files()
                         from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+
                         covered = {}
                         for path in covered_files:
                             coverage_lines = CoverageLines()
                             coverage_lines.add(0)
                             covered[path] = coverage_lines
                         covered_data = pickle.dumps({"covered": covered})
-                    else:
-                        # Line-level mode: get covered lines
-                        covered_data = pickle.dumps({"covered": self._coverage_context.get_covered_lines()})
                 except pickle.PicklingError:
                     log.warning("Could not pickle coverage data, not injecting coverage")
                     return
