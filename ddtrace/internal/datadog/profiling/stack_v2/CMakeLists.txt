@@ -41,7 +41,7 @@ endif()
 
 # Add echion
 set(ECHION_COMMIT
-    "576ff5353fc4ed91c283a383b1eb1b32110b42cc" # https://github.com/P403n1x87/echion/commit/576ff5353fc4ed91c283a383b1eb1b32110b42cc
+    "bcaddb2747345f1b7a02fab16dcfde30aa560c58" # https://github.com/P403n1x87/echion/commit/bcaddb2747345f1b7a02fab16dcfde30aa560c58
     CACHE STRING "Commit hash of echion to use")
 FetchContent_Declare(
     echion
