@@ -16,15 +16,15 @@ profiling = ["dep:datadog-profiling-ffi"]
 
 [dependencies]
 anyhow = { version = "1.0", optional = true }
-datadog-crashtracker = { git = "https://github.com/DataDog/libdatadog", rev = "5fad559ba9d3a60cdc5699418fa93d38beda8bb0", optional = true }
-datadog-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "5fad559ba9d3a60cdc5699418fa93d38beda8bb0" }
-datadog-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "5fad559ba9d3a60cdc5699418fa93d38beda8bb0" }
-datadog-log = { git = "https://github.com/DataDog/libdatadog", rev = "5fad559ba9d3a60cdc5699418fa93d38beda8bb0" }
-data-pipeline = { git = "https://github.com/DataDog/libdatadog", rev = "5fad559ba9d3a60cdc5699418fa93d38beda8bb0" }
-datadog-profiling-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "5fad559ba9d3a60cdc5699418fa93d38beda8bb0", optional = true, features = [
+datadog-crashtracker = { git = "https://github.com/DataDog/libdatadog", rev = "e99acfe76f5f3e9823d093ee88979c2fdc7dfae4", optional = true }
+datadog-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "e99acfe76f5f3e9823d093ee88979c2fdc7dfae4" }
+datadog-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "e99acfe76f5f3e9823d093ee88979c2fdc7dfae4" }
+datadog-log = { git = "https://github.com/DataDog/libdatadog", rev = "e99acfe76f5f3e9823d093ee88979c2fdc7dfae4" }
+data-pipeline = { git = "https://github.com/DataDog/libdatadog", rev = "e99acfe76f5f3e9823d093ee88979c2fdc7dfae4" }
+datadog-profiling-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "e99acfe76f5f3e9823d093ee88979c2fdc7dfae4", optional = true, features = [
     "cbindgen",
 ] }
-ddcommon = { git = "https://github.com/DataDog/libdatadog", rev = "5fad559ba9d3a60cdc5699418fa93d38beda8bb0" }
+ddcommon = { git = "https://github.com/DataDog/libdatadog", rev = "e99acfe76f5f3e9823d093ee88979c2fdc7dfae4" }
 pyo3 = { version = "0.25", features = ["extension-module", "anyhow"] }
 tracing = { version = "0.1", default-features = false }
 pyo3-ffi = "0.25"
@@ -34,7 +34,7 @@ cc = "1.2.39"
 pyo3-build-config = "0.25"
 pyo3-ffi = "0.25"
 cc = "1.2.39"
-build_common = { git = "https://github.com/DataDog/libdatadog", rev = "5fad559ba9d3a60cdc5699418fa93d38beda8bb0", features = [
+build_common = { git = "https://github.com/DataDog/libdatadog", rev = "e99acfe76f5f3e9823d093ee88979c2fdc7dfae4", features = [
     "cbindgen",
 ] }
 
