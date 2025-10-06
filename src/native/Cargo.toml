@@ -39,4 +39,3 @@ build_common = { git = "https://github.com/DataDog/libdatadog", rev = "v24.0.0",
 
 [lib]
 name = "_native"
-crate-type = ["cdylib"]
