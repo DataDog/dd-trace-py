@@ -132,9 +132,11 @@ import {package}
         pytest.param(
             "ddtrace.profiling",
             "profiler",
+            # when 3.14 is officially supported, this xfail can be removed.
             marks=pytest.mark.xfail(
                 reason="throws AttributeError: module 'asyncio.events' has no attribute 'BaseDefaultEventLoopPolicy'",
                 condition=sys.version_info >= (3, 14),
+                strict=True,
             ),
         ),
         ("ddtrace.propagation.http", "HTTPPropagator"),
