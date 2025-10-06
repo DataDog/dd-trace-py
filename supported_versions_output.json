@@ -389,7 +389,7 @@
         "dependency": "langgraph",
         "integration": "langgraph",
         "minimum_tracer_supported": "0.2.23",
-        "max_tracer_supported": "0.6.5",
+        "max_tracer_supported": "0.6.8",
         "auto-instrumented": true
     },
     {
@@ -586,6 +586,14 @@
         "auto-instrumented": false
     },
     {
+        "dependency": "ray",
+        "integration": "ray",
+        "minimum_tracer_supported": "2.46.0",
+        "max_tracer_supported": "2.49.2",
+        "pinned": "true",
+        "auto-instrumented": false
+    },
+    {
         "dependency": "redis",
         "integration": "redis",
         "minimum_tracer_supported": "4.6.0",
@@ -617,7 +625,7 @@
         "dependency": "sanic",
         "integration": "sanic",
         "minimum_tracer_supported": "20.12.7",
-        "max_tracer_supported": "25.3.0",
+        "max_tracer_supported": "24.6.0",
         "auto-instrumented": true
     },
     {
