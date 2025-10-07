@@ -82,3 +82,20 @@ download_dependency_wheels:
   artifacts:
     paths:
       - "pywheels-dep/"
+
+
+pypi_test:
+  image: registry.ddbuild.io/images/mirror/python:3.12.0
+  stage: package
+  environment:
+    name: sampleEnv
+  id_tokens:
+    PYPI_ID_TOKEN:
+      aud: testpypi
+  script:
+    # Install dependencies
+    - apt update && apt install -y jq
+    - python -m pip install -U twine id
+
+    # Debug token
+    - python -m id PYPI | base64
