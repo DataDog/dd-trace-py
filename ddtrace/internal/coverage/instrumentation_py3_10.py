@@ -13,7 +13,9 @@ assert sys.version_info[:2] == (3, 10)  # nosec
 
 
 def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, CoverageLines]:
-    injection_context = InjectionContext(code, hook, lambda _s: [o for o, _ in dis.findlinestarts(_s.original_code)])
+    injection_context = InjectionContext(
+        code, hook, lambda _s: [min(o for o, _ in dis.findlinestarts(_s.original_code))]
+    )
     new_code, lines = inject_invocation(injection_context, path, package)
 
     coverage_lines = CoverageLines()
