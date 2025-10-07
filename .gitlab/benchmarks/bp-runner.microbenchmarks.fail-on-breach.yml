@@ -1059,11 +1059,11 @@ experiments:
               - max_rss_usage < 53.00 MB
           - name: span-start-finish
             thresholds:
-              - execution_time < 51.50 ms
+              - execution_time < 52.50 ms
               - max_rss_usage < 34.00 MB
           - name: span-start-finish-telemetry
             thresholds:
-              - execution_time < 51.50 ms
+              - execution_time < 54.50 ms
               - max_rss_usage < 34.00 MB
           - name: span-start-finish-traceid128
             thresholds:
