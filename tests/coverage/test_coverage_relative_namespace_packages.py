@@ -344,7 +344,7 @@ def test_coverage_namespace_package_nsa_import_dot_late():
     }
 
     assert (
-        executable.keys() == expected_executable
+        executable.keys() == expected_executable.keys()
     ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
     assert (
         covered.keys() == expected_covered.keys()
