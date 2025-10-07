@@ -194,6 +194,13 @@ class ModuleCodeCollector(ModuleWatchdog):
             imported_module_lines = self._import_time_covered[path]
             covered_lines[path].update(imported_module_lines)
 
+            # Also add the current module's own package (__init__.py) if it exists
+            # For example, if processing /path/to/rpa/module.py, also include /path/to/rpa/__init__.py
+            if path.endswith(".py") and not path.endswith("/__init__.py"):
+                package_init = path.rsplit("/", 1)[0] + "/__init__.py"
+                if package_init in self._import_time_covered and package_init not in visited_paths:
+                    to_visit_paths.add(package_init)
+
             # Queue up dependencies of current path, if they exist, have valid paths, and haven't been visited yet
             for dependencies in self._import_names_by_path.get(path, set()):
                 package, modules = dependencies
@@ -369,6 +376,13 @@ class ModuleCodeCollector(ModuleWatchdog):
             collector.__exit__()
             if covered_lines[_module.__file__]:
                 self._import_time_covered[_module.__file__].update(covered_lines[_module.__file__])
+            else:
+                # For modules with no executed lines (e.g., empty __init__.py),
+                # mark the first line as covered to track that the module was imported
+                if _module.__file__ in self.lines and self.lines[_module.__file__]:
+                    # Get the first line from the executable lines
+                    first_line = min(self.lines[_module.__file__])
+                    self._import_time_covered[_module.__file__].add(first_line)
 
             del self._import_time_contexts[_module.__file__]
 

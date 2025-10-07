@@ -9,24 +9,27 @@ def test_coverage_multiprocessing_without_coverage():
     if __name__ == "__main__":
         import os
         from pathlib import Path
+        from unittest.mock import patch
 
         multiprocessing.set_start_method(os.environ["start_method"], force=True)
 
         from ddtrace.internal.coverage.installer import install
 
         include_paths = [Path("/intentionally/not/valid/path")]
-        install(include_paths=include_paths)
 
-        def _sleeps():
-            import time
+        with patch("ddtrace.internal.coverage.code.is_user_code", return_value=True):
+            install(include_paths=include_paths)
 
-            time.sleep(1)
+            def _sleeps():
+                import time
 
-        process = multiprocessing.Process(target=_sleeps())
-        process.start()
-        process.join()
+                time.sleep(1)
 
-        # This should simply not hang.
+            process = multiprocessing.Process(target=_sleeps())
+            process.start()
+            process.join()
+
+            # This should simply not hang.
 
 
 @pytest.mark.subprocess(parametrize={"start_method": ["fork", "forkserver", "spawn"]})
@@ -37,6 +40,7 @@ def test_coverage_multiprocessing_coverage_started():
     if __name__ == "__main__":
         import os
         from pathlib import Path
+        from unittest.mock import patch
 
         multiprocessing.set_start_method(os.environ["start_method"], force=True)
 
@@ -44,19 +48,21 @@ def test_coverage_multiprocessing_coverage_started():
         from ddtrace.internal.coverage.installer import install
 
         include_paths = [Path("/intentionally/not/valid/path")]
-        install(include_paths=include_paths)
 
-        def _sleeps():
-            import time
+        with patch("ddtrace.internal.coverage.code.is_user_code", return_value=True):
+            install(include_paths=include_paths)
 
-            time.sleep(1)
+            def _sleeps():
+                import time
 
-        process = multiprocessing.Process(target=_sleeps())
-        process.start()
-        ModuleCodeCollector.start_coverage()
-        process.join()
+                time.sleep(1)
 
-        # This should simply not hang.
+            process = multiprocessing.Process(target=_sleeps())
+            process.start()
+            ModuleCodeCollector.start_coverage()
+            process.join()
+
+            # This should simply not hang.
 
 
 @pytest.mark.subprocess(parametrize={"start_method": ["fork", "forkserver", "spawn"]})
@@ -67,6 +73,7 @@ def test_coverage_multiprocessing_coverage_stopped():
     if __name__ == "__main__":
         import os
         from pathlib import Path
+        from unittest.mock import patch
 
         multiprocessing.set_start_method(os.environ["start_method"], force=True)
 
@@ -74,20 +81,22 @@ def test_coverage_multiprocessing_coverage_stopped():
         from ddtrace.internal.coverage.installer import install
 
         include_paths = [Path("/intentionally/not/valid/path")]
-        install(include_paths=include_paths)
 
-        def _sleeps():
-            import time
+        with patch("ddtrace.internal.coverage.code.is_user_code", return_value=True):
+            install(include_paths=include_paths)
 
-            time.sleep(1)
+            def _sleeps():
+                import time
 
-        process = multiprocessing.Process(target=_sleeps())
-        ModuleCodeCollector.start_coverage()
-        process.start()
-        ModuleCodeCollector.stop_coverage()
-        process.join()
+                time.sleep(1)
 
-        # This should simply not hang.
+            process = multiprocessing.Process(target=_sleeps())
+            ModuleCodeCollector.start_coverage()
+            process.start()
+            ModuleCodeCollector.stop_coverage()
+            process.join()
+
+            # This should simply not hang.
 
 
 @pytest.mark.subprocess(parametrize={"start_method": ["fork", "forkserver", "spawn"]})
@@ -97,6 +106,7 @@ def test_coverage_multiprocessing_session():
     if __name__ == "__main__":
         import os
         from pathlib import Path
+        from unittest.mock import patch
 
         multiprocessing.set_start_method(os.environ["start_method"], force=True)
 
@@ -107,27 +117,29 @@ def test_coverage_multiprocessing_session():
         cwd = os.getcwd()
 
         include_paths = [Path(cwd) / "tests/coverage/included_path/"]
-        install(include_paths=include_paths)
 
-        ModuleCodeCollector.start_coverage()
-        from tests.coverage.included_path.callee import called_in_session_main
+        with patch("ddtrace.internal.coverage.code.is_user_code", return_value=True):
+            install(include_paths=include_paths)
 
-        process = multiprocessing.Process(target=called_in_session_main, args=(1, 2))
-        process.start()
-        process.join()
+            ModuleCodeCollector.start_coverage()
+            from tests.coverage.included_path.callee import called_in_session_main
 
-        ModuleCodeCollector.stop_coverage()
+            process = multiprocessing.Process(target=called_in_session_main, args=(1, 2))
+            process.start()
+            process.join()
 
-        covered_lines = _get_relpath_dict(cwd, ModuleCodeCollector._instance._get_covered_lines())
+            ModuleCodeCollector.stop_coverage()
 
-        expected_lines = {
-            "tests/coverage/included_path/callee.py": {1, 2, 3, 5, 6, 9, 17},
-            "tests/coverage/included_path/lib.py": {1, 2, 5},
-        }
+            covered_lines = _get_relpath_dict(cwd, ModuleCodeCollector._instance._get_covered_lines())
 
-        if expected_lines.keys() != covered_lines.keys():
-            print(f"Mismatched lines: {expected_lines} vs  {covered_lines}")
-            assert False
+            expected_lines = {
+                "tests/coverage/included_path/callee.py": {1, 2, 3, 5, 6, 9, 17},
+                "tests/coverage/included_path/lib.py": {1, 2, 5},
+            }
+
+            if expected_lines.keys() != covered_lines.keys():
+                print(f"Mismatched lines: {expected_lines} vs  {covered_lines}")
+                assert False
 
 
 @pytest.mark.subprocess(parametrize={"start_method": ["fork", "forkserver", "spawn"]})
@@ -137,6 +149,7 @@ def test_coverage_multiprocessing_context():
     if __name__ == "__main__":
         import os
         from pathlib import Path
+        from unittest.mock import patch
 
         multiprocessing.set_start_method(os.environ["start_method"], force=True)
 
@@ -147,32 +160,34 @@ def test_coverage_multiprocessing_context():
         cwd = os.getcwd()
 
         include_paths = [Path(cwd) / "tests/coverage/included_path/"]
-        install(include_paths=include_paths)
 
-        from tests.coverage.included_path.callee import called_in_session_main
+        with patch("ddtrace.internal.coverage.code.is_user_code", return_value=True):
+            install(include_paths=include_paths)
 
-        called_in_session_main(1, 2)
+            from tests.coverage.included_path.callee import called_in_session_main
 
-        with ModuleCodeCollector.CollectInContext() as context_collector:
-            from tests.coverage.included_path.callee import called_in_context_main
+            called_in_session_main(1, 2)
 
-            process = multiprocessing.Process(target=called_in_context_main, args=(1, 2))
-            process.start()
-            process.join()
+            with ModuleCodeCollector.CollectInContext() as context_collector:
+                from tests.coverage.included_path.callee import called_in_context_main
 
-            context_covered = _get_relpath_dict(cwd, context_collector.get_covered_lines())
+                process = multiprocessing.Process(target=called_in_context_main, args=(1, 2))
+                process.start()
+                process.join()
 
-        expected_lines = {
-            "tests/coverage/included_path/callee.py": {10, 11, 13, 14},
-            "tests/coverage/included_path/in_context_lib.py": {1, 2, 5},
-        }
+                context_covered = _get_relpath_dict(cwd, context_collector.get_covered_lines())
 
-        assert (
-            expected_lines.keys() == context_covered.keys()
-        ), f"Mismatched lines: {expected_lines} vs  {context_covered}"
+            expected_lines = {
+                "tests/coverage/included_path/callee.py": {10, 11, 13, 14},
+                "tests/coverage/included_path/in_context_lib.py": {1, 2, 5},
+            }
 
-        session_covered = dict(ModuleCodeCollector._instance._get_covered_lines())
-        assert not session_covered, f"Session recorded lines when it should not have: {session_covered}"
+            assert (
+                expected_lines.keys() == context_covered.keys()
+            ), f"Mismatched lines: {expected_lines} vs  {context_covered}"
+
+            session_covered = dict(ModuleCodeCollector._instance._get_covered_lines())
+            assert not session_covered, f"Session recorded lines when it should not have: {session_covered}"
 
 
 @pytest.mark.subprocess(parametrize={"start_method": ["fork", "forkserver", "spawn"]})
@@ -181,6 +196,7 @@ def test_coverage_concurrent_futures_processpool_session():
 
     if __name__ == "__main__":
         import os
+        from unittest.mock import patch
 
         multiprocessing.set_start_method(os.environ["start_method"], force=True)
 
@@ -194,27 +210,29 @@ def test_coverage_concurrent_futures_processpool_session():
         cwd = os.getcwd()
 
         include_paths = [Path(cwd) / "tests/coverage/included_path/"]
-        install(include_paths=include_paths)
 
-        ModuleCodeCollector.start_coverage()
-        from tests.coverage.included_path.callee import called_in_session_main
+        with patch("ddtrace.internal.coverage.code.is_user_code", return_value=True):
+            install(include_paths=include_paths)
 
-        with concurrent.futures.ProcessPoolExecutor() as executor:
-            future = executor.submit(called_in_session_main, 1, 2)
-            future.result()
+            ModuleCodeCollector.start_coverage()
+            from tests.coverage.included_path.callee import called_in_session_main
 
-        ModuleCodeCollector.stop_coverage()
+            with concurrent.futures.ProcessPoolExecutor() as executor:
+                future = executor.submit(called_in_session_main, 1, 2)
+                future.result()
 
-        covered_lines = _get_relpath_dict(cwd, ModuleCodeCollector._instance._get_covered_lines())
+            ModuleCodeCollector.stop_coverage()
 
-        expected_lines = {
-            "tests/coverage/included_path/callee.py": {1, 2, 3, 5, 6, 9, 17},
-            "tests/coverage/included_path/lib.py": {1, 2, 5},
-        }
+            covered_lines = _get_relpath_dict(cwd, ModuleCodeCollector._instance._get_covered_lines())
 
-        if expected_lines.keys() != covered_lines.keys():
-            print(f"Mismatched lines: {expected_lines} vs  {covered_lines}")
-            assert False
+            expected_lines = {
+                "tests/coverage/included_path/callee.py": {1, 2, 3, 5, 6, 9, 17},
+                "tests/coverage/included_path/lib.py": {1, 2, 5},
+            }
+
+            if expected_lines.keys() != covered_lines.keys():
+                print(f"Mismatched lines: {expected_lines} vs  {covered_lines}")
+                assert False
 
 
 @pytest.mark.subprocess(parametrize={"start_method": ["fork", "forkserver", "spawn"]})
@@ -223,6 +241,7 @@ def test_coverage_concurrent_futures_processpool_context():
 
     if __name__ == "__main__":
         import os
+        from unittest.mock import patch
 
         multiprocessing.set_start_method(os.environ["start_method"], force=True)
 
@@ -236,33 +255,35 @@ def test_coverage_concurrent_futures_processpool_context():
         cwd = os.getcwd()
 
         include_paths = [Path(cwd) / "tests/coverage/included_path/"]
-        install(include_paths=include_paths)
 
-        from tests.coverage.included_path.callee import called_in_session_main
+        with patch("ddtrace.internal.coverage.code.is_user_code", return_value=True):
+            install(include_paths=include_paths)
 
-        called_in_session_main(1, 2)
+            from tests.coverage.included_path.callee import called_in_session_main
 
-        with ModuleCodeCollector.CollectInContext() as context_collector:
-            from tests.coverage.included_path.callee import called_in_context_main
+            called_in_session_main(1, 2)
 
-            with concurrent.futures.ProcessPoolExecutor() as executor:
-                future = executor.submit(called_in_context_main, 1, 2)
-                future.result()
+            with ModuleCodeCollector.CollectInContext() as context_collector:
+                from tests.coverage.included_path.callee import called_in_context_main
 
-            context_covered = _get_relpath_dict(cwd, context_collector.get_covered_lines())
+                with concurrent.futures.ProcessPoolExecutor() as executor:
+                    future = executor.submit(called_in_context_main, 1, 2)
+                    future.result()
 
-        expected_lines = {
-            "tests/coverage/included_path/callee.py": {10, 11, 13, 14},
-            "tests/coverage/included_path/in_context_lib.py": {1, 2, 5},
-        }
+                context_covered = _get_relpath_dict(cwd, context_collector.get_covered_lines())
 
-        if os.environ["start_method"] != "fork":
-            # In spawn or forkserver modes, the module is reimported entirely
-            expected_lines["tests/coverage/included_path/callee.py"] = {1, 9, 10, 11, 13, 14, 17}
+            expected_lines = {
+                "tests/coverage/included_path/callee.py": {10, 11, 13, 14},
+                "tests/coverage/included_path/in_context_lib.py": {1, 2, 5},
+            }
 
-        assert (
-            expected_lines.keys() == context_covered.keys()
-        ), f"Mismatched lines: {expected_lines} vs  {context_covered}"
+            if os.environ["start_method"] != "fork":
+                # In spawn or forkserver modes, the module is reimported entirely
+                expected_lines["tests/coverage/included_path/callee.py"] = {1, 9, 10, 11, 13, 14, 17}
 
-        session_covered = dict(ModuleCodeCollector._instance._get_covered_lines())
-        assert not session_covered, f"Session recorded lines when it should not have: {session_covered}"
+            assert (
+                expected_lines.keys() == context_covered.keys()
+            ), f"Mismatched lines: {expected_lines} vs  {context_covered}"
+
+            session_covered = dict(ModuleCodeCollector._instance._get_covered_lines())
+            assert not session_covered, f"Session recorded lines when it should not have: {session_covered}"
