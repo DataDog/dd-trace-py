@@ -297,6 +297,9 @@ class TestThreadingLockCollector:
             assert lock.acquire()
             lock.release()
 
+            # Try this way too
+            Foobar()
+
     # Tests
     def test_lock_events(self):
         # The first argument is the recorder.Recorder which is used for the
