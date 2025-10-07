@@ -66,12 +66,13 @@ def _instrument_all_lines_with_monitoring(
     # For lightweight coverage, we enable monitoring for:
     # 1. The first line (to track module loading)
     # 2. All lines with IMPORT_NAME/IMPORT_FROM (to track import dependencies)
-    line_starts_raw = dis.findlinestarts(code)
-    line_starts_dict = dict(line_starts_raw)
-    try:
-        first_line_start = min(o for o, _ in line_starts_raw)
-    except ValueError:
-        first_line_start = line_starts_raw[0][0]
+    line_starts_list = list(dis.findlinestarts(code))
+    if not line_starts_list:
+        # No line starts, return empty coverage
+        return code, CoverageLines()
+    
+    line_starts_dict = dict(line_starts_list)
+    first_line_start = min(o for o, _ in line_starts_list)
 
     # Find all line start offsets that contain IMPORT_NAME or IMPORT_FROM opcodes
     import_line_offsets = set()

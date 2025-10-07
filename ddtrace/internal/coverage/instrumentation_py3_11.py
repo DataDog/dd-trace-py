@@ -266,16 +266,17 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     jumps: t.Dict[int, Jump] = {}
     traps: t.Dict[int, int] = {}  # DEV: This uses the original offsets
     line_map = {}
-    line_starts_raw = dis.findlinestarts(code)
-    line_starts_dict = dict(line_starts_raw)
+    line_starts_list = list(dis.findlinestarts(code))
+    if not line_starts_list:
+        # No line starts, return empty coverage
+        return code, CoverageLines()
+    
+    line_starts_dict = dict(line_starts_list)
 
     # For lightweight coverage, we instrument:
     # 1. The first line (to track module loading)
     # 2. All lines with IMPORT_NAME/IMPORT_FROM (to track import dependencies)
-    try:
-        first_line_start = min(o for o, _ in line_starts_raw)
-    except ValueError:
-        first_line_start = line_starts_raw[0][0]
+    first_line_start = min(o for o, _ in line_starts_list)
 
     # Find all line start offsets that contain IMPORT_NAME or IMPORT_FROM opcodes
     import_line_offsets = set()
