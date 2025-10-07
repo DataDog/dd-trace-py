@@ -2797,10 +2797,8 @@ venv = Venv(
                     pys=select_pys(min_version="3.8", max_version="3.13"),
                     pkgs={
                         "openai": [latest, "~=1.76.2", "==1.66.0"],
-                        "tiktoken": latest,
                         "pillow": latest,
                     },
-                    env={"TIKTOKEN_AVAILABLE": "True"},
                 ),
             ],
         ),

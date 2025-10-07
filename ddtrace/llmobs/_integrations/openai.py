@@ -184,11 +184,8 @@ class OpenAIIntegration(BaseLLMIntegration):
                 metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cached_tokens
             return metrics
         elif kwargs.get("stream") and resp is not None:
-            model_name = span.get_tag("openai.response.model") or kwargs.get("model", "")
-            _, prompt_tokens = _compute_prompt_tokens(
-                model_name, kwargs.get("prompt", None), kwargs.get("messages", None)
-            )
-            _, completion_tokens = _compute_completion_tokens(resp, model_name)
+            _, prompt_tokens = _compute_prompt_tokens(kwargs.get("prompt", None), kwargs.get("messages", None))
+            _, completion_tokens = _compute_completion_tokens(resp)
             total_tokens = prompt_tokens + completion_tokens
 
             return {

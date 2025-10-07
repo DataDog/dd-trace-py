@@ -35,13 +35,6 @@ from ddtrace.llmobs.types import ToolDefinition
 from ddtrace.llmobs.types import ToolResult
 
 
-try:
-    from tiktoken import encoding_for_model
-
-    tiktoken_available = True
-except ModuleNotFoundError:
-    tiktoken_available = False
-
 logger = get_logger(__name__)
 
 
@@ -1257,76 +1250,45 @@ def get_final_message_converse_stream_message(
 _punc_regex = re.compile(r"[\w']+|[.,!?;~@#$%^&*()+/-]")
 
 
-def _compute_prompt_tokens(model_name, prompts=None, messages=None):
+def _compute_prompt_tokens(prompts=None, messages=None):
     """Compute token span metrics on streamed chat/completion requests.
     Only required if token usage is not provided in the streamed response.
     """
     num_prompt_tokens = 0
-    estimated = False
+    estimated = True
     if messages:
         for m in messages:
-            estimated, prompt_tokens = _compute_token_count(m.get("content", ""), model_name)
+            prompt_tokens = _est_tokens(m.get("content", ""))
             num_prompt_tokens += prompt_tokens
     elif prompts:
         if isinstance(prompts, str) or isinstance(prompts, list) and isinstance(prompts[0], int):
             prompts = [prompts]
         for prompt in prompts:
-            estimated, prompt_tokens = _compute_token_count(prompt, model_name)
+            prompt_tokens = _est_tokens(prompt)
             num_prompt_tokens += prompt_tokens
     return estimated, num_prompt_tokens
 
 
-def _compute_completion_tokens(completions_or_messages, model_name):
+def _compute_completion_tokens(completions_or_messages):
     """Compute/Estimate the completion token count from the streamed response."""
     if not completions_or_messages:
         return False, 0
-    estimated = False
+    estimated = True
     num_completion_tokens = 0
     for choice in completions_or_messages:
         content = choice.get("content", "") or choice.get("text", "")
-        estimated, completion_tokens = _compute_token_count(content, model_name)
+        completion_tokens = _est_tokens(content)
         num_completion_tokens += completion_tokens
     return estimated, num_completion_tokens
 
 
-def _compute_token_count(content, model):
-    # type: (Union[str, List[int]], Optional[str]) -> Tuple[bool, int]
-    """
-    Takes in prompt/response(s) and model pair, and returns a tuple of whether or not the number of prompt
-    tokens was estimated, and the estimated/calculated prompt token count.
-    """
-    num_prompt_tokens = 0
-    estimated = False
-    if model is not None and tiktoken_available is True:
-        try:
-            enc = encoding_for_model(model)
-            if isinstance(content, str):
-                num_prompt_tokens += len(enc.encode(content))
-            elif content and isinstance(content, list) and isinstance(content[0], int):
-                num_prompt_tokens += len(content)
-            return estimated, num_prompt_tokens
-        except KeyError:
-            # tiktoken.encoding_for_model() will raise a KeyError if it doesn't have a tokenizer for the model
-            estimated = True
-    else:
-        estimated = True
-
-    # If model is unavailable or tiktoken is not imported, then provide a very rough estimate of the number of tokens
-    return estimated, _est_tokens(content)
-
-
-def _est_tokens(prompt):
-    # type: (Union[str, List[int]]) -> int
+def _est_tokens(prompt: Union[str, List[int]]) -> int:
     """
     Provide a very rough estimate of the number of tokens in a string prompt.
     Note that if the prompt is passed in as a token array (list of ints), the token count
     is just the length of the token array.
+    Assumes 1) English text, 2) 1 token ~= 4 chars, and 3) 1 token ~= ¾ words
     """
-    # If model is unavailable or tiktoken is not imported, then provide a very rough estimate of the number of tokens
-    # Approximate using the following assumptions:
-    #    * English text
-    #    * 1 token ~= 4 chars
-    #    * 1 token ~= ¾ words
     if not prompt:
         return 0
     est_tokens = 0
