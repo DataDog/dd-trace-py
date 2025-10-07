@@ -1180,6 +1180,36 @@ class TestAgentClient:
             reqs.append(req)
         return reqs
 
+    def errors_intake_messages(self) -> List[TestAgentRequest]:
+        reqs = []
+        for req in self.requests():
+            url = req.get("url", "")
+            if not (url.endswith("/errorsintake") or "/api/v2/errorsintake" in url or "/evp_proxy/v4/api/v2/errorsintake" in url):
+                continue
+
+            # Check for errors intake specific headers
+            headers = req.get("headers", {})
+            content_type = headers.get("content-type", "")
+            if "application/json" not in content_type:
+                continue
+
+            try:
+                if isinstance(req["body"], str):
+                    data = json.loads(req["body"])
+                else:
+                    data = json.loads(base64.b64decode(req["body"]))
+
+                if data.get("ddsource") != "crashtracker":
+                    continue
+
+                if not isinstance(req["body"], str):
+                    req["body"] = base64.b64decode(req["body"])
+
+                reqs.append(req)
+            except Exception:
+                continue
+        return reqs
+
     def clear(self) -> None:
         status, body = self._request("GET", self._url("/test/session/clear"))
         assert status == 200, (
