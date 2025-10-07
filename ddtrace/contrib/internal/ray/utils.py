@@ -89,7 +89,7 @@ def _extract_tracing_context_from_env() -> Optional[Context]:
 def _inject_ray_span_tags_and_metrics(span: Span) -> None:
     span.set_tag_str("component", RAY_COMPONENT)
     span.set_tag_str(RAY_HOSTNAME, socket.gethostname())
-    span.set_tag_str(_AI_OBS_KEY, 1)
+    span.set_metric(_AI_OBS_KEY, 1)
     span.set_metric(_DJM_ENABLED_KEY, 1)
     span.set_metric(_FILTER_KEPT_KEY, 1)
     span.set_metric(_SPAN_MEASURED_KEY, 1)
