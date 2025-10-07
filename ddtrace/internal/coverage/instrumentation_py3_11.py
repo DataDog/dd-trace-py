@@ -270,6 +270,9 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     line_map = {}
     line_starts_raw = dis.findlinestarts(code)
     line_starts_dict = dict(line_starts_raw)
+    if not line_starts_raw:
+        return code, CoverageLines()
+
     first_line_start = min(o for o, _ in line_starts_raw)
     line_starts = {first_line_start: line_starts_dict[first_line_start]}
 

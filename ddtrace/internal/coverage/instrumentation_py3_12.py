@@ -66,7 +66,10 @@ def _instrument_all_lines_with_monitoring(
     # linestarts = dict(dis.findlinestarts(code))
     line_starts_raw = dict(dis.findlinestarts(code))
     line_starts_dict = dict(line_starts_raw)
-    first_line_start = min(o for o, _ in line_starts_raw)
+    if not line_starts_raw:
+        return code, CoverageLines()
+
+    first_line_start = min(o for o in line_starts_raw)
     linestarts = {first_line_start: line_starts_dict[first_line_start]}
 
     lines = CoverageLines()

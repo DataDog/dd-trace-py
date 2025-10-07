@@ -25,10 +25,10 @@ def test_coverage_regular_package_import_normal():
     ModuleCodeCollector.stop_coverage()
 
     executable = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance.lines)
-    covered = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=False))
     covered_with_imports = _get_relpath_dict(
         cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=True)
     )
+    covered = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=False))
 
     # In Python 3.11+, empty __init__.py modules have line 0:
     _empty_init_lineno = 0 if sys.version_info >= (3, 11) else 1
