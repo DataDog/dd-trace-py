@@ -577,6 +577,3 @@ class TraceMiddleware:
             tags={COMPONENT: self.integration_config.integration_name, SPAN_KIND: SpanKind.CONSUMER},
         ) as ctx:
             core.dispatch("asgi.websocket.disconnect.message", (ctx, scope, message))
-
-        if request_span and request_span.error == 0:
-            request_span.finish()

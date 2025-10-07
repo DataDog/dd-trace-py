@@ -1262,6 +1262,7 @@ def listen():
         core.on(f"context.started.{context_name}", _start_span)
 
     for name in (
+        "asgi.request",
         "asgi.websocket.close.message",
         "asgi.websocket.disconnect.message",
         "asgi.websocket.receive.message",
