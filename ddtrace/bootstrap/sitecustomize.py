@@ -58,6 +58,7 @@ def cleanup_loaded_modules():
     # We need to import these modules to make sure they grab references to the
     # right modules before we start unloading stuff.
     import ddtrace.internal.http  # noqa
+    import ddtrace.internal.uds  # noqa
 
     # Unload all the modules that we have imported, except for the ddtrace one.
     # NB: this means that every `import threading` anywhere in `ddtrace/` code
