@@ -1252,9 +1252,9 @@ def listen():
         "rq.worker.perform_job",
         "rq.job.perform",
         "rq.job.fetch_many",
-        "azure.eventhub.patched_producer_batch",
-        "azure.eventhub.patched_producer_send",
-        "azure.eventhub.patched_producer_send_batch",
+        "azure.eventhubs.patched_producer_batch",
+        "azure.eventhubs.patched_producer_send",
+        "azure.eventhubs.patched_producer_send_batch",
         "azure.functions.patched_event_hubs",
         "azure.functions.patched_route_request",
         "azure.functions.patched_service_bus",
@@ -1285,9 +1285,9 @@ def listen():
         "redis.execute_pipeline",
         "redis.command",
         "psycopg.patched_connect",
-        "azure.eventhub.patched_producer_batch",
-        "azure.eventhub.patched_producer_send",
-        "azure.eventhub.patched_producer_send_batch",
+        "azure.eventhubs.patched_producer_batch",
+        "azure.eventhubs.patched_producer_send",
+        "azure.eventhubs.patched_producer_send_batch",
     ):
         core.on(f"context.ended.{name}", _finish_span)
 
