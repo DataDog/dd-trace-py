@@ -13,7 +13,7 @@ def _derive_endpoint(config: "ExporterConfig"):
 
 def _derive_logs_endpoint(config: "ExporterConfig"):
     default_endpoint = ExporterConfig._get_default_endpoint(config.LOGS_PROTOCOL, config.LOGS_PATH)
-    return get_config(["OTEL_EXPORTER_OTLP_LOGS_ENDPOINT", "OTEL_EXPORTER_OTLP_ENDPOINT"], default_endpoint)
+    return get_config("OTEL_EXPORTER_OTLP_LOGS_ENDPOINT", default_endpoint)
 
 
 def _derive_logs_protocol(config: "ExporterConfig"):
@@ -30,7 +30,7 @@ def _derive_logs_timeout(config: "ExporterConfig"):
 
 def _derive_metrics_endpoint(config: "ExporterConfig"):
     default_endpoint = ExporterConfig._get_default_endpoint(config.METRICS_PROTOCOL, config.METRICS_PATH)
-    return get_config(["OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "OTEL_EXPORTER_OTLP_ENDPOINT"], default_endpoint)
+    return get_config("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", default_endpoint)
 
 
 def _derive_metrics_protocol(config: "ExporterConfig"):
