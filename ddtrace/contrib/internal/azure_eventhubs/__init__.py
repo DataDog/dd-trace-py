@@ -4,10 +4,7 @@ The azure_eventhubs integration traces all events sent by the Azure Event Hubs c
 Enabling
 ~~~~~~~~
 
-Use :func:`patch()<ddtrace.patch>` to manually enable the integration::
-
-    from ddtrace import patch
-    patch(azure_eventhubs=True)
+The azure_eventhubs integration is enabled by default when using :ref:`import ddtrace.auto<ddtraceauto>`.
 
 
 Global Configuration

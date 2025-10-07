@@ -4,10 +4,8 @@ from uuid import uuid4
 import azure.eventhub as azure_eventhub
 import azure.functions as func
 
-from ddtrace import patch
+import ddtrace.auto  # noqa: F401
 
-
-patch(azure_eventhubs=True, azure_functions=True, requests=True)
 
 app = func.FunctionApp()
 
