@@ -2794,7 +2794,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.8", max_version="3.13"),
+                    pys=select_pys(min_version="3.8"),
                     pkgs={
                         "openai": [latest, "~=1.76.2", "==1.66.0"],
                         "tiktoken": latest,
@@ -3926,7 +3926,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.9", max_version="3.12"),
+                    pys=select_pys(min_version="3.9", max_version="3.13"),
                     pkgs={
                         "langchain": latest,
                         "langchain-core": latest,
