@@ -1326,6 +1326,59 @@ def test_submit_evaluation_incorrect_boolean_value_type_raises_warning(llmobs, m
     mock_llmobs_logs.warning.assert_called_once_with("value must be a boolean for a boolean metric.")
 
 
+def test_submit_evaluation_with_assessment_reasoning_source_enqueues_metric(llmobs, mock_llmobs_eval_metric_writer):
+    llmobs.submit_evaluation(
+        span_context={"span_id": "123", "trace_id": "456"},
+        label="correctness",
+        metric_type="score",
+        value=0.85,
+        ml_app="dummy",
+        assessment="pass",
+        reasoning="The generated text fully aligns with the reference answer and meets style requirements.",
+        source="AI Guard",
+    )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            span_id="123",
+            trace_id="456",
+            label="correctness",
+            metric_type="score",
+            score_value=0.85,
+            ml_app="dummy",
+            assessment="pass",
+            reasoning="The generated text fully aligns with the reference answer and meets style requirements.",
+            source="AI Guard",
+        )
+    )
+
+
+def test_submit_evaluation_for_with_assessment_reasoning_source_enqueues_metric(llmobs, mock_llmobs_eval_metric_writer):
+    with llmobs.task(name="test_task") as span:
+        llmobs.submit_evaluation_for(
+            span=llmobs.export_span(span),
+            label="correctness",
+            metric_type="score",
+            value=0.95,
+            ml_app="dummy",
+            assessment="pass",
+            reasoning="Excellent response quality with proper tone and accuracy.",
+            source="patronus",
+        )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            span_id=str(span.span_id),
+            trace_id=format_trace_id(span._get_ctx_item(LLMOBS_TRACE_ID)),
+            label="correctness",
+            metric_type="score",
+            score_value=0.95,
+            ml_app="dummy",
+            assessment="pass",
+            reasoning="Excellent response quality with proper tone and accuracy.",
+            source="patronus",
+        )
+    )
+
+
 def test_flush_does_not_call_periodic_when_llmobs_is_disabled(
     llmobs,
     mock_llmobs_eval_metric_writer,

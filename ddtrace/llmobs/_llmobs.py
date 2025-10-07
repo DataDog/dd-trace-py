@@ -1548,6 +1548,9 @@ class LLMObs(Service):
         ml_app: Optional[str] = None,
         timestamp_ms: Optional[int] = None,
         metadata: Optional[Dict[str, object]] = None,
+        assessment: Optional[str] = None,
+        reasoning: Optional[str] = None,
+        source: Optional[str] = None,
     ) -> None:
         """
         Submits a custom evaluation metric for a given span.
@@ -1566,6 +1569,9 @@ class LLMObs(Service):
                                     If not set, the current time will be used.
         :param dict metadata: A JSON serializable dictionary of key-value metadata pairs relevant to the
                                 evaluation metric.
+        :param str assessment: Whether the evaluation meets defined success criteria.
+        :param str reasoning: Structured rationale or explanation from the evaluator.
+        :param str source: Source of evaluation (e.g. "patronus", "AI Guard").
         """
         if cls.enabled is False:
             log.debug(
@@ -1674,6 +1680,15 @@ class LLMObs(Service):
                 "tags": ["{}:{}".format(k, v) for k, v in evaluation_tags.items()],
             }
 
+            if assessment is not None:
+                evaluation_metric["assessment"] = str(assessment)
+
+            if reasoning is not None:
+                evaluation_metric["reasoning"] = str(reasoning)
+
+            if source is not None:
+                evaluation_metric["source"] = str(source)
+
             if metadata:
                 if not isinstance(metadata, dict):
                     error = "invalid_metadata"
@@ -1698,6 +1713,9 @@ class LLMObs(Service):
         ml_app: Optional[str] = None,
         timestamp_ms: Optional[int] = None,
         metadata: Optional[Dict[str, object]] = None,
+        assessment: Optional[str] = None,
+        reasoning: Optional[str] = None,
+        source: Optional[str] = None,
     ) -> None:
         """
         Submits a custom evaluation metric for a given span ID and trace ID.
@@ -1712,6 +1730,9 @@ class LLMObs(Service):
         :param int timestamp_ms: The timestamp in milliseconds when the evaluation metric result was generated.
         :param dict metadata: A JSON serializable dictionary of key-value metadata pairs relevant to the
                                 evaluation metric.
+        :param str assessment: Whether the evaluation meets defined success criteria.
+        :param str reasoning: Structured rationale or explanation from the evaluator.
+        :param str source: Source of evaluation (e.g. "patronus", "AI Guard").
         """
         if cls.enabled is False:
             log.debug(
@@ -1811,6 +1832,15 @@ class LLMObs(Service):
                 "ml_app": ml_app,
                 "tags": ["{}:{}".format(k, v) for k, v in evaluation_tags.items()],
             }
+
+            if assessment is not None:
+                evaluation_metric["assessment"] = str(assessment)
+
+            if reasoning is not None:
+                evaluation_metric["reasoning"] = str(reasoning)
+
+            if source is not None:
+                evaluation_metric["source"] = str(source)
 
             if metadata:
                 if not isinstance(metadata, dict):

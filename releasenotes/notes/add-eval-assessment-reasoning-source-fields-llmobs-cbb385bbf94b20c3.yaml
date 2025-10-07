@@ -1,0 +1,13 @@
+---
+features:
+  - |
+    LLM Observability: This adds support for ``assessment``, ``reasoning``, and ``source`` fields in
+    ``submit_evaluation()`` and ``submit_evaluation_for()`` methods. These fields enable richer
+    evaluation metadata submission:
+    
+    - ``assessment``: Indicates whether the evaluation meets defined success criteria (e.g., "pass", "fail")
+    - ``reasoning``: Provides structured rationale or explanation from the evaluator (e.g., LLM-as-a-judge reasoning)
+    - ``source``: Specifies the evaluation source (e.g., "patronus", "AI Guard", custom evaluator names)
+    
+    This helps customers more consistently interpret evaluation results across all evaluation types
+    (custom LLM judge, externally submitted evals, OOTB managed evals) with a single mental model.

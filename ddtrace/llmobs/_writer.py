@@ -83,9 +83,13 @@ class LLMObsEvaluationMetricEvent(TypedDict, total=False):
     numerical_value: float
     score_value: float
     boolean_value: bool
+    assessment: str
+    reasoning: str
+    source: str
     ml_app: str
     timestamp_ms: int
     tags: List[str]
+    metadata: Dict[str, Any]
 
 
 class LLMObsExperimentEvalMetricEvent(TypedDict, total=False):
@@ -98,8 +102,11 @@ class LLMObsExperimentEvalMetricEvent(TypedDict, total=False):
     categorical_value: str
     score_value: float
     boolean_value: bool
+    assessment: str
+    reasoning: str
     error: Optional[Dict[str, str]]
     tags: List[str]
+    metadata: Dict[str, Any]
     experiment_id: str
 
 
