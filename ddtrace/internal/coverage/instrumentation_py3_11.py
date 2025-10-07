@@ -268,7 +268,7 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     line_map = {}
     line_starts_raw = dis.findlinestarts(code)
     line_starts_dict = dict(line_starts_raw)
-    
+
     # For lightweight coverage, we instrument:
     # 1. The first line (to track module loading)
     # 2. All lines with IMPORT_NAME/IMPORT_FROM (to track import dependencies)
@@ -276,25 +276,25 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
         first_line_start = min(o for o, _ in line_starts_raw)
     except ValueError:
         first_line_start = line_starts_raw[0][0]
-    
+
     # Find all line start offsets that contain IMPORT_NAME or IMPORT_FROM opcodes
     import_line_offsets = set()
     current_line_offset = None
-    
+
     for i in range(0, len(code.co_code), 2):
         # Update current line if we hit a line start
         if i in line_starts_dict:
             current_line_offset = i
-        
+
         # Check if this opcode is an import
         opcode = code.co_code[i]
         if opcode in (IMPORT_NAME, IMPORT_FROM) and current_line_offset is not None:
             import_line_offsets.add(current_line_offset)
-    
+
     # Combine first offset with import line offsets
     offsets_to_instrument = {first_line_start} | import_line_offsets
     line_starts = {offset: line_starts_dict[offset] for offset in offsets_to_instrument}
-    
+
     # Track ALL executable lines for coverage reporting
     all_executable_lines = CoverageLines()
     for _, line in line_starts_dict.items():
