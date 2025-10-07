@@ -341,11 +341,10 @@ def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
     value = wrapped(*args, **kwargs)
     if is_iast_request_enabled():
         try:
-            if not is_pyobject_tainted(value):
-                name = str(args[0]) if len(args) else "http.request.body"
-                if origin == OriginType.HEADER and name.lower() in ["cookie", "cookies"]:
-                    origin = OriginType.COOKIE
-                return taint_pyobject(pyobject=value, source_name=name, source_value=value, source_origin=origin)
+            name = str(args[0]) if len(args) else "http.request.body"
+            if origin == OriginType.HEADER and name.lower() in ["cookie", "cookies"]:
+                origin = OriginType.COOKIE
+            return taint_pyobject(pyobject=value, source_name=name, source_value=value, source_origin=origin)
         except Exception:
             iast_propagation_listener_log_log("Unexpected exception while tainting pyobject", exc_info=True)
     return value
