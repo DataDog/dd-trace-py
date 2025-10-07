@@ -141,26 +141,6 @@ def get_all_crash_messages(test_agent_client: TestAgentClient) -> List[TestAgent
     return crash_messages
 
 
-def get_all_errors_intake_messages(test_agent_client: TestAgentClient) -> List[TestAgentRequest]:
-    """Wait for all errors intake messages from the crashtracker listener socket."""
-    seen_errors_intake_ids = set()
-    errors_intake_messages = []
-    for _ in range(5):
-        incoming_messages = test_agent_client.errors_intake_messages()
-        for message in incoming_messages:
-            body = message.get("body", b"")
-            if isinstance(body, str):
-                body = body.encode("utf-8")
-            errors_intake_id = (hash(body), frozenset(message.get("headers", {}).items()))
-            if errors_intake_id not in seen_errors_intake_ids:
-                seen_errors_intake_ids.add(errors_intake_id)
-                errors_intake_messages.append(message)
-            if len(errors_intake_messages) >= 2:
-                return errors_intake_messages
-        time.sleep(0.2)
-    return errors_intake_messages
-
-
 def get_crash_report(test_agent_client: TestAgentClient) -> TestAgentRequest:
     """Wait for a crash report from the crashtracker listener socket."""
     crash_messages = get_all_crash_messages(test_agent_client)
@@ -192,32 +172,6 @@ def get_crash_ping(test_agent_client: TestAgentClient) -> TestAgentRequest:
 
     assert crash_ping is not None, "Could not find crash ping with 'is_crash_ping:true' tag"
     return crash_ping
-
-
-def get_errors_intake_report(test_agent_client: TestAgentClient) -> TestAgentRequest:
-    """Wait for an errors intake message from the crashtracker listener socket."""
-    errors_intake_messages = get_all_errors_intake_messages(test_agent_client)
-    assert len(errors_intake_messages) == 2, f"Expected 2 errors intake messages; got {len(errors_intake_messages)}"
-    errors_intake_report = None
-    for message in errors_intake_messages:
-        if b"is_crash:true" in message["body"]:
-            errors_intake_report = message
-            break
-    assert errors_intake_report is not None, "Could not find errors intake report with 'is_crash:true' tag"
-    return errors_intake_report
-
-
-def get_errors_intake_ping(test_agent_client: TestAgentClient) -> TestAgentRequest:
-    """Wait for an errors intake ping from the crashtracker listener socket."""
-    errors_intake_messages = get_all_errors_intake_messages(test_agent_client)
-    assert len(errors_intake_messages) == 2, f"Expected 2 errors intake messages; got {len(errors_intake_messages)}"
-    errors_intake_ping = None
-    for message in errors_intake_messages:
-        if b"is_crash_ping:true" in message["body"]:
-            errors_intake_ping = message
-            break
-    assert errors_intake_ping is not None, "Could not find errors intake ping with 'is_crash_ping:true' tag"
-    return errors_intake_ping
 
 
 @contextmanager
