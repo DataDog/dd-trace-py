@@ -347,7 +347,7 @@
         "dependency": "grpcio",
         "integration": "grpc",
         "minimum_tracer_supported": "1.34.1",
-        "max_tracer_supported": "1.74.0",
+        "max_tracer_supported": "1.75.1",
         "auto-instrumented": true
     },
     {
