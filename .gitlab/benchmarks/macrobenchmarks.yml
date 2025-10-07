@@ -22,7 +22,9 @@ candidate:
       job: download_ddtrace_artifacts
   script: |
     cp pywheels/*-cp39-cp39-manylinux*_x86_64*.whl ./
-    echo "CANDIDATE_WHL=$(ls *.whl | head -n 1)" | tee candidate.env
+    cp pywheels/*-cp312-cp312-manylinux*_x86_64*.whl ./
+    echo "CANDIDATE_39_WHL=$(ls *-cp39-cp39-manylinux*_x86_64*.whl | head -n 1)" | tee candidate.env
+    echo "CANDIDATE_312_WHL=$(ls *-cp312-cp312-manylinux*_x86_64*.whl | head -n 1)" | tee candidate.env
   artifacts:
     reports:
       dotenv: candidate.env
@@ -65,7 +67,7 @@ candidate:
       - platform/artifacts/
     expire_in: 3 months
   variables:
-    DDTRACE_INSTALL_VERSION: "${CI_PROJECT_DIR}/${CANDIDATE_WHL}"
+    DDTRACE_INSTALL_VERSION: "${CI_PROJECT_DIR}/${CANDIDATE_39_WHL}"
 
     # Benchmark's env variables. Modify to tweak benchmark parameters.
     DD_TRACE_DEBUG: "false"
@@ -111,6 +113,7 @@ baseline:
 django-baseline:
   extends: .macrobenchmarks
   variables:
+    DDTRACE_INSTALL_VERSION: "${CI_PROJECT_DIR}/${CANDIDATE_312_WHL}"
     DD_BENCHMARKS_CONFIGURATION: baseline
     BP_PYTHON_SCENARIO_DIR: django-realworld
     BP_ENDPOINT: http://0.0.0.0:8000/api/articles
@@ -177,6 +180,7 @@ tracing-rc-enabled-telemetry-enabled:
 django-tracing-rc-enabled-telemetry-enabled:
   extends: .macrobenchmarks
   variables:
+    DDTRACE_INSTALL_VERSION: "${CI_PROJECT_DIR}/${CANDIDATE_312_WHL}"
     DD_BENCHMARKS_CONFIGURATION: only-tracing
     BP_PYTHON_SCENARIO_DIR: django-realworld
     BP_ENDPOINT: http://0.0.0.0:8000/api/articles
