@@ -69,11 +69,23 @@ class _ProfiledLock(wrapt.ObjectProxy):
         self._self_acquired_at: int = 0
         self._self_name: Optional[str] = None
 
+    def acquire(self, *args: Any, **kwargs: Any) -> Any:
+        return self._acquire(self.__wrapped__.acquire, *args, **kwargs)
+
+    def release(self, *args: Any, **kwargs: Any) -> Any:
+        return self._release(self.__wrapped__.release, *args, **kwargs)
+    
     def __aenter__(self, *args: Any, **kwargs: Any) -> Any:
         return self._acquire(self.__wrapped__.__aenter__, *args, **kwargs)
 
     def __aexit__(self, *args: Any, **kwargs: Any) -> Any:
         return self._release(self.__wrapped__.__aexit__, *args, **kwargs)
+
+    def __enter__(self, *args: Any, **kwargs: Any) -> Any:
+        return self._acquire(self.__wrapped__.__enter__, *args, **kwargs)
+
+    def __exit__(self, *args: Any, **kwargs: Any) -> None:
+        self._release(self.__wrapped__.__exit__, *args, **kwargs)
 
     def _acquire(self, inner_func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         if not self._self_capture_sampler.capture():
@@ -130,9 +142,6 @@ class _ProfiledLock(wrapt.ObjectProxy):
             except Exception:
                 pass  # nosec
 
-    def acquire(self, *args: Any, **kwargs: Any) -> Any:
-        return self._acquire(self.__wrapped__.acquire, *args, **kwargs)
-
     def _release(self, inner_func: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
         # The underlying threading.Lock class is implemented using C code, and
         # it doesn't have the __dict__ attribute. So we can't do
@@ -151,6 +160,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
         except AttributeError:
             # We just ignore the error, if the attribute is not found.
             pass
+
         try:
             return inner_func(*args, **kwargs)
         finally:
@@ -195,15 +205,6 @@ class _ProfiledLock(wrapt.ObjectProxy):
                 for ddframe in frames:
                     handle.push_frame(ddframe.function_name, ddframe.file_name, 0, ddframe.lineno)
                 handle.flush_sample()
-
-    def release(self, *args: Any, **kwargs: Any) -> Any:
-        return self._release(self.__wrapped__.release, *args, **kwargs)
-
-    def __enter__(self, *args: Any, **kwargs: Any) -> Any:
-        return self._acquire(self.__wrapped__.__enter__, *args, **kwargs)
-
-    def __exit__(self, *args: Any, **kwargs: Any) -> None:
-        self._release(self.__wrapped__.__exit__, *args, **kwargs)
 
     def _find_self_name(self, var_dict: Dict[str, Any]) -> Optional[str]:
         for name, value in var_dict.items():
