@@ -3573,23 +3573,24 @@ venv = Venv(
                     ],
                 ),
                 Venv(
-                    # skipping v3.14 for now due to an unstable `lz4 ` lib issue: https://gitlab.ddbuild.io/DataDog/apm-reliability/dd-trace-py/-/jobs/1163312347
                     name="profile-v2-memalloc",
                     command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling_v2/collector/test_memalloc.py",  # noqa: E501
-                    pys=select_pys(max_version="3.13"),
+                    pys=select_pys(
+                        max_version="3.13"
+                    ),  # skipping v3.14 for now due to an unstable `lz4 ` lib issue: https://gitlab.ddbuild.io/DataDog/apm-reliability/dd-trace-py/-/jobs/1163312347
                     venvs=[
                         # standard allocators
-                        # Venv(
-                        #     env={
-                        #         "PYTHONMALLOC": [
-                        #             "malloc",
-                        #             "pymalloc",
-                        #             "malloc_debug",
-                        #             "pymalloc_debug",
-                        #             "jemalloc",
-                        #         ],
-                        #     },
-                        # ),
+                        Venv(
+                            env={
+                                "PYTHONMALLOC": [
+                                    "malloc",
+                                    "pymalloc",
+                                    "malloc_debug",
+                                    "pymalloc_debug",
+                                ],
+                            },
+                        ),
+                        # jemalloc
                         Venv(
                             env={
                                 "PYTHONMALLOC": "malloc",
