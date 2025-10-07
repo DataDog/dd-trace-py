@@ -268,7 +268,7 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     jumps: t.Dict[int, Jump] = {}
     traps: t.Dict[int, int] = {}  # DEV: This uses the original offsets
     line_map = {}
-    line_starts_raw = dict(dis.findlinestarts(code))
+    line_starts_raw = dis.findlinestarts(code)
     line_starts_dict = dict(line_starts_raw)
     first_line_start = min(o for o, _ in line_starts_raw)
     line_starts = {first_line_start: line_starts_dict[first_line_start]}
