@@ -381,8 +381,10 @@ class ModuleCodeCollector(ModuleWatchdog):
                 # mark the first line as covered to track that the module was imported
                 if _module.__file__ in self.lines and self.lines[_module.__file__]:
                     # Get the first line from the executable lines
-                    first_line = min(self.lines[_module.__file__])
-                    self._import_time_covered[_module.__file__].add(first_line)
+                    lines_list = self.lines[_module.__file__].to_sorted_list()
+                    if lines_list:
+                        first_line = lines_list[0]
+                        self._import_time_covered[_module.__file__].add(first_line)
 
             del self._import_time_contexts[_module.__file__]
 
