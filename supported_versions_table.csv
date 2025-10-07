@@ -54,7 +54,7 @@ confluent-kafka,kafka,1.9.2,2.6.2,True
 kombu,kombu,4.6.11,5.5.4,False
 langchain-core,langchain,0.1.53,0.3.76,True
 langgraph,langgraph,0.2.23,0.6.8,True
-langgraph-checkpoint,langgraph,1.0.12,2.1.1,True
+langgraph-checkpoint,langgraph,1.0.12,2.1.2,True
 langgraph-prebuilt,langgraph,0.1.8,0.6.4,True
 litellm,litellm *,1.65.4,1.65.4,True
 logbook,logbook,1.0.0,1.8.2,True
@@ -66,7 +66,7 @@ molten,molten,1.0.2,1.0.2,True
 mongoengine,mongoengine,0.23.1,0.29.1,True
 mysql-connector-python,mysql,8.0.5,9.4.0,True
 mysqlclient,mysqldb,2.2.1,2.2.6,True
-openai,openai,1.0.0,1.91.0,True
+openai,openai,1.0.0,2.2.0,True
 openai-agents,openai_agents,0.0.8,0.0.16,True
 protobuf,protobuf,5.29.3,6.32.0,False
 psycopg,psycopg,3.0.18,3.2.10,True
