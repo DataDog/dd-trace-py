@@ -64,7 +64,7 @@ def _instrument_all_lines_with_monitoring(
     # Collect all the line numbers in the code object
     #
     # linestarts = dict(dis.findlinestarts(code))
-    line_starts_raw = dict(dis.findlinestarts(code))
+    line_starts_raw = dis.findlinestarts(code)
     line_starts_dict = dict(line_starts_raw)
     if not line_starts_raw:
         return code, CoverageLines()

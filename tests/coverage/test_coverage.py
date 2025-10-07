@@ -89,10 +89,10 @@ def test_coverage_import_time_function():
     ModuleCodeCollector.stop_coverage()
 
     lines = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance.lines)
-    covered = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=False))
     covered_with_imports = _get_relpath_dict(
         cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=True)
     )
+    covered = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=False))
 
     expected_lines = {
         "tests/coverage/included_path/imported_in_function_lib.py": {1, 2, 3, 4, 7},
