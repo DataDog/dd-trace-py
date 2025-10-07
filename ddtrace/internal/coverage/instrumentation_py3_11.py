@@ -273,7 +273,10 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     if not line_starts_raw:
         return code, CoverageLines()
 
-    first_line_start = min(o for o, _ in line_starts_raw)
+    try:
+        first_line_start = min(o for o, _ in line_starts_raw)
+    except ValueError:
+        first_line_start = line_starts_raw[0][0]
     line_starts = {first_line_start: line_starts_dict[first_line_start]}
 
     # Find the offset of the RESUME opcode. We should not add any instrumentation before this point.
