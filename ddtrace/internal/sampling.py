@@ -16,6 +16,9 @@ from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
 from ddtrace.internal.constants import _KEEP_PRIORITY_INDEX
 from ddtrace.internal.constants import _REJECT_PRIORITY_INDEX
 from ddtrace.internal.constants import MAX_UINT_64BITS
+from ddtrace.internal.constants import SAMPLING_DECISION_MAKER_INHERITED
+from ddtrace.internal.constants import SAMPLING_DECISION_MAKER_RESOURCE
+from ddtrace.internal.constants import SAMPLING_DECISION_MAKER_SERVICE
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SAMPLING_HASH_MODULO
 from ddtrace.internal.constants import SAMPLING_KNUTH_FACTOR
@@ -255,6 +258,13 @@ def _set_sampling_tags(span: Span, sampled: bool, sample_rate: float, mechanism:
     priority_index = _KEEP_PRIORITY_INDEX if sampled else _REJECT_PRIORITY_INDEX
 
     span.context.sampling_priority = priorities[priority_index]
+
+
+def _inherit_sampling_tags(target: Span, source: Span):
+    """Set sampling tags from source span on target span."""
+    target.set_metric(SAMPLING_DECISION_MAKER_INHERITED, 1)
+    target.set_tag_str(SAMPLING_DECISION_MAKER_SERVICE, source.service)  # type: ignore[arg-type]
+    target.set_tag_str(SAMPLING_DECISION_MAKER_RESOURCE, source.resource)
 
 
 def _get_highest_precedence_rule_matching(span: Span, rules: List[SamplingRule]) -> Optional[SamplingRule]:
