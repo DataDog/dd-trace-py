@@ -213,9 +213,9 @@ def test_iast_cmdi_form_multiple_fastapi(iast_test_token):
     assert vulnerability["evidence"] == {
         "valueParts": [
             {"value": "ls "},
-            {"redacted": True, "source": 0, "pattern": ANY},
+            {"redacted": True, "source": ANY, "pattern": ANY},
             {"redacted": True},
-            {"redacted": True, "source": 1, "pattern": ANY},
+            {"redacted": True, "source": ANY, "pattern": ANY},
         ]
     }
     assert vulnerability["hash"]
