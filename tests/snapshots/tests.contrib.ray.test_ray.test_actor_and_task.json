@@ -23,6 +23,7 @@
       "span.kind": "producer"
     },
     "metrics": {
+      "_dd.ai_obs.enabled": 1,
       "_dd.djm.enabled": 1,
       "_dd.filter.kept": 1,
       "_dd.measured": 1,
@@ -54,6 +55,7 @@
          "span.kind": "consumer"
        },
        "metrics": {
+         "_dd.ai_obs.enabled": 1,
          "_dd.djm.enabled": 1,
          "_dd.filter.kept": 1,
          "_dd.measured": 1,
@@ -89,6 +91,7 @@
       "span.kind": "producer"
     },
     "metrics": {
+      "_dd.ai_obs.enabled": 1,
       "_dd.djm.enabled": 1,
       "_dd.filter.kept": 1,
       "_dd.measured": 1,
@@ -120,6 +123,7 @@
          "span.kind": "consumer"
        },
        "metrics": {
+         "_dd.ai_obs.enabled": 1,
          "_dd.djm.enabled": 1,
          "_dd.filter.kept": 1,
          "_dd.measured": 1,
@@ -154,6 +158,7 @@
       "span.kind": "producer"
     },
     "metrics": {
+      "_dd.ai_obs.enabled": 1,
       "_dd.djm.enabled": 1,
       "_dd.filter.kept": 1,
       "_dd.measured": 1,
@@ -183,6 +188,7 @@
          "span.kind": "consumer"
        },
        "metrics": {
+         "_dd.ai_obs.enabled": 1,
          "_dd.djm.enabled": 1,
          "_dd.filter.kept": 1,
          "_dd.measured": 1,
@@ -209,6 +215,7 @@
             "span.kind": "consumer"
           },
           "metrics": {
+            "_dd.ai_obs.enabled": 1,
             "_dd.djm.enabled": 1,
             "_dd.filter.kept": 1,
             "_dd.measured": 1,
@@ -236,6 +243,7 @@
             "span.kind": "producer"
           },
           "metrics": {
+            "_dd.ai_obs.enabled": 1,
             "_dd.djm.enabled": 1,
             "_dd.filter.kept": 1,
             "_dd.measured": 1,
@@ -264,6 +272,7 @@
                "span.kind": "consumer"
              },
              "metrics": {
+               "_dd.ai_obs.enabled": 1,
                "_dd.djm.enabled": 1,
                "_dd.filter.kept": 1,
                "_dd.measured": 1,
@@ -293,6 +302,7 @@
                   "span.kind": "producer"
                 },
                 "metrics": {
+                  "_dd.ai_obs.enabled": 1,
                   "_dd.djm.enabled": 1,
                   "_dd.filter.kept": 1,
                   "_dd.measured": 1,
@@ -321,6 +331,7 @@
                      "span.kind": "consumer"
                    },
                    "metrics": {
+                     "_dd.ai_obs.enabled": 1,
                      "_dd.djm.enabled": 1,
                      "_dd.filter.kept": 1,
                      "_dd.measured": 1,
