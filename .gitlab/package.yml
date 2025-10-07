@@ -86,6 +86,7 @@ download_dependency_wheels:
 
 pypi_test:
   image: registry.ddbuild.io/images/mirror/python:3.12.0
+  tags: [ "arch:amd64" ]
   stage: package
   environment:
     name: sampleEnv
@@ -94,8 +95,7 @@ pypi_test:
       aud: testpypi
   script:
     # Install dependencies
-    - apt update && apt install -y jq
-    - python -m pip install -U twine id
+    - python -m pip install -U id
 
     # Debug token
     - python -m id PYPI | base64
