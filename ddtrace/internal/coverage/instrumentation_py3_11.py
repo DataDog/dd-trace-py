@@ -258,8 +258,6 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     trap_index = len(new_consts)
     new_consts.append(trap_func)
 
-    seen_lines = CoverageLines()
-
     exc_table = list(parse_exception_table(code))
     exc_table_offsets = {_ for e in exc_table for _ in (e.start, e.end, e.target)}
     offset_map = {}
@@ -270,14 +268,18 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     line_map = {}
     line_starts_raw = dis.findlinestarts(code)
     line_starts_dict = dict(line_starts_raw)
-    if not line_starts_raw:
-        return code, CoverageLines()
-
+    
+    # For lightweight coverage, we only instrument the first line to reduce overhead
     try:
         first_line_start = min(o for o, _ in line_starts_raw)
     except ValueError:
         first_line_start = line_starts_raw[0][0]
     line_starts = {first_line_start: line_starts_dict[first_line_start]}
+    
+    # However, we still need to track ALL executable lines for coverage reporting
+    all_executable_lines = CoverageLines()
+    for _, line in line_starts_dict.items():
+        all_executable_lines.add(line)
 
     # Find the offset of the RESUME opcode. We should not add any instrumentation before this point.
     resume_offset = NO_OFFSET
@@ -328,8 +330,6 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
                     new_consts.append((line, trap_arg, package_dep))
 
                     line_map[original_offset] = trap_instructions[0]
-
-                seen_lines.add(line)
 
             _, arg = next(code_iter)
 
@@ -469,7 +469,7 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     for original_offset, nested_code in enumerate(code.co_consts):
         if isinstance(nested_code, CodeType):
             new_consts[original_offset], nested_lines = instrument_all_lines(nested_code, trap_func, trap_arg, package)
-            seen_lines.update(nested_lines)
+            all_executable_lines.update(nested_lines)
 
     return (
         code.replace(
@@ -479,5 +479,5 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
             co_linetable=update_location_data(code, traps, [(instr.offset, s) for instr, s in exts]),
             co_exceptiontable=compile_exception_table(exc_table),
         ),
-        seen_lines,
+        all_executable_lines,
     )
