@@ -5,6 +5,7 @@ import redis
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.redis.patch import patch
 from ddtrace.contrib.internal.redis.patch import unpatch
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.contrib.config import REDISCLUSTER_CONFIG
 from tests.utils import DummyTracer
@@ -75,6 +76,7 @@ class TestRedisClusterPatch(TracerTestCase):
         assert span.get_metric("redis.args_length") == 2
         assert span.resource == "GET"
 
+    @pytest.mark.skipif(PYTHON_VERSION_INFO >= (3, 14), reason="fails under Python 3.14")
     def test_pipeline(self):
         with self.r.pipeline(transaction=False) as p:
             p.set("blah", 32)

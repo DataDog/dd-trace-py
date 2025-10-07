@@ -320,7 +320,7 @@ class TestLLMObsLiteLLM:
         router_event = llmobs_events[1]
         llm_event = llmobs_events[0]
 
-        assert llm_event["meta"]["span.kind"] == "llm"
+        assert llm_event["meta"]["span"]["kind"] == "llm"
         assert llm_event["name"] == "completion"
         assert router_event == _expected_llmobs_non_llm_span_event(
             router_span,
@@ -362,7 +362,7 @@ class TestLLMObsLiteLLM:
         router_event = llmobs_events[1]
         llm_event = llmobs_events[0]
 
-        assert llm_event["meta"]["span.kind"] == "llm"
+        assert llm_event["meta"]["span"]["kind"] == "llm"
         assert llm_event["name"] == "acompletion"
         assert router_event == _expected_llmobs_non_llm_span_event(
             router_span,
@@ -404,7 +404,7 @@ class TestLLMObsLiteLLM:
         router_event = llmobs_events[1]
         llm_event = llmobs_events[0]
 
-        assert llm_event["meta"]["span.kind"] == "llm"
+        assert llm_event["meta"]["span"]["kind"] == "llm"
         assert llm_event["name"] == "text_completion"
         assert router_event == _expected_llmobs_non_llm_span_event(
             router_span,
@@ -446,7 +446,7 @@ class TestLLMObsLiteLLM:
         router_event = llmobs_events[1]
         llm_event = llmobs_events[0]
 
-        assert llm_event["meta"]["span.kind"] == "llm"
+        assert llm_event["meta"]["span"]["kind"] == "llm"
         assert llm_event["name"] == "atext_completion"
         assert router_event == _expected_llmobs_non_llm_span_event(
             router_span,

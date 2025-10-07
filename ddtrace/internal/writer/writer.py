@@ -15,6 +15,7 @@ from typing import TextIO
 
 import ddtrace
 from ddtrace import config
+from ddtrace.internal.dist_computing.utils import in_ray_job
 from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native
 from ddtrace.internal.runtime import get_runtime_id
@@ -330,7 +331,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 else:
                     log_args += (payload,)
 
-            log.error(msg, *log_args)
+            log.error(msg, *log_args, extra={"send_to_telemetry": False})
             self._metrics_dist("http.dropped.bytes", len(payload))
             self._metrics_dist("http.dropped.traces", count)
         return response
@@ -1052,7 +1053,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 msg += ", payload %s"
                 log_args += (binascii.hexlify(encoded).decode(),)  # type: ignore
 
-            log.error(msg, *log_args)
+            log.error(msg, *log_args, extra={"send_to_telemetry": False})
 
     def periodic(self):
         self.flush_queue(raise_exc=False)
@@ -1102,15 +1103,22 @@ def _use_sync_mode() -> bool:
     """Returns, if an `AgentWriter` is to be used, whether it should be run
      in synchronous mode by default.
 
-    There are only two cases in which this is desirable:
+    There are only three cases in which this is desirable:
 
     - AWS Lambdas can have the Datadog agent installed via an extension.
       When it's available traces must be sent synchronously to ensure all
       are received before the Lambda terminates.
     - Google Cloud Functions and Azure Functions have a mini-agent spun up by the tracer.
       Similarly to AWS Lambdas, sync mode should be used to avoid data loss.
+    - Ray Job run different processes that can be killed at any time. Traces must be sent
+      synchronously to ensure all are received before an actor/a worker is killed
     """
-    return (in_aws_lambda() and has_aws_lambda_agent_extension()) or in_gcp_function() or in_azure_function()
+    return (
+        (in_aws_lambda() and has_aws_lambda_agent_extension())
+        or in_gcp_function()
+        or in_azure_function()
+        or in_ray_job()
+    )
 
 
 def create_trace_writer(response_callback: Optional[Callable[[AgentResponse], None]] = None) -> TraceWriter:

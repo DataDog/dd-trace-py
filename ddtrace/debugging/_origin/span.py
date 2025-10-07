@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from functools import partial
 from itertools import count
-from pathlib import Path
 import sys
 from threading import current_thread
 from time import monotonic_ns
@@ -24,6 +23,7 @@ from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.debugging._uploader import UploaderProduct
 from ddtrace.ext import EXIT_SPAN_TYPES
 from ddtrace.internal import core
+from ddtrace.internal.compat import Path
 from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.wrapping.context import WrappingContext
@@ -102,7 +102,7 @@ class ExitSpanProbe(LogLineProbe):
             ExitSpanProbe,
             cls.build(
                 name=code.co_qualname if sys.version_info >= (3, 11) else code.co_name,  # type: ignore[attr-defined]
-                filename=str(Path(code.co_filename).resolve()),
+                filename=str(Path(code.co_filename)),
                 line=frame.f_lineno,
             ),
         )

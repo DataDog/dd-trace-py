@@ -114,4 +114,4 @@ def _iast_report_untrusted_serializastion(code_string: Text):
             # Report Telemetry Metrics
             _set_metric_iast_executed_sink(UntrustedSerialization.vulnerability_type)
     except Exception as e:
-        iast_error(f"propagation::sink_point::Error in _iast_report_untrusted_serializastion. {e}")
+        iast_error("propagation::sink_point::Error in _iast_report_untrusted_serializastion", e)

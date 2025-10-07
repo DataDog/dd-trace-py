@@ -50,7 +50,7 @@ def test_dd_otel_mixed_env_configuration():
     assert config._propagation_style_extract == ["b3"], config._propagation_style_extract
     assert _global_sampling_rule().sample_rate == 0.1
     assert config._tracing_enabled is True, config._tracing_enabled
-    assert config._runtime_metrics_enabled is True, config._runtime_metrics_enabled
+    assert config._runtime_metrics_enabled is False, config._runtime_metrics_enabled
     assert config._otel_trace_enabled is True, config._otel_trace_enabled
     assert config.tags == {
         "env": "staging",
@@ -210,14 +210,14 @@ def test_otel_traces_exporter_configuration_unsupported_exporter():
     assert config._tracing_enabled is True, config._tracing_enabled
 
 
-@pytest.mark.subprocess(env={"OTEL_METRICS_EXPORTER": "none"})
+@pytest.mark.subprocess(env={"DD_METRICS_OTEL_ENABLED": "True", "OTEL_METRICS_EXPORTER": "none"})
 def test_otel_metrics_exporter_configuration_none():
     from ddtrace import config
 
     assert config._runtime_metrics_enabled is False, config._runtime_metrics_enabled
 
 
-@pytest.mark.subprocess(env={"OTEL_METRICS_EXPORTER": "otlp"})
+@pytest.mark.subprocess(env={"DD_METRICS_OTEL_ENABLED": "True", "OTEL_METRICS_EXPORTER": "otlp"})
 def test_otel_metrics_exporter_configuration_otlp():
     from ddtrace import config
 
@@ -225,7 +225,7 @@ def test_otel_metrics_exporter_configuration_otlp():
 
 
 @pytest.mark.subprocess(
-    env={"OTEL_METRICS_EXPORTER": "true"},
+    env={"DD_METRICS_OTEL_ENABLED": "True", "OTEL_METRICS_EXPORTER": "true"},
     err=b"Setting OTEL_METRICS_EXPORTER to true is not supported by ddtrace, this configuration will be ignored.\n",
 )
 def test_otel_metrics_exporter_configuration_unsupported_exporter():

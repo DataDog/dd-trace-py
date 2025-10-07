@@ -26,6 +26,7 @@ from django.utils.safestring import mark_safe
 from django.views.decorators.csrf import csrf_exempt
 import requests
 from requests.exceptions import ConnectionError  # noqa: A004
+import urllib3
 import yaml
 
 from ddtrace.appsec import _asm_request_context
@@ -407,7 +408,51 @@ def view_insecure_cookies_insecure_special_chars(request):
 
 @csrf_exempt
 def command_injection(request):
-    value = request.body.decode()
+    # Extract value from multiple body formats to exercise taint from different sources
+    # Prefer form fields, then JSON scalar, then raw body text.
+    try:
+        # Django >= 3 has request.headers
+        if hasattr(request, "headers"):
+            content_type = request.headers.get("Content-Type", "")
+        else:
+            content_type = request.META.get("CONTENT_TYPE", "")
+
+        value = ""
+        # Form-encoded bodies
+        if content_type.startswith("application/x-www-form-urlencoded") or request.POST:
+            # Use a known key if present, otherwise take the first value
+            if "master_key" in request.POST:
+                value = request.POST.get("master_key", "")
+            elif request.POST:
+                # Grab the first field's value
+                first_key = next(iter(request.POST.keys()))
+                value = request.POST.get(first_key, "")
+        # JSON bodies
+        if not value and content_type.startswith("application/json"):
+            try:
+                body_text = request.body.decode(errors="ignore")
+                parsed = json.loads(body_text)
+                if isinstance(parsed, str):
+                    value = parsed
+                elif isinstance(parsed, list) and parsed:
+                    # Take the first value in the object if not a simple string
+                    for val in parsed:
+                        if val == "master":
+                            value = val
+                elif isinstance(parsed, dict) and parsed:
+                    # Take the first value in the object if not a simple string
+                    value = parsed.get("second")
+                else:
+                    value = body_text
+            except Exception:
+                value = request.body.decode(errors="ignore")
+        # Raw bodies (text/plain or anything else)
+        if not value:
+            value = request.body.decode(errors="ignore")
+
+    except Exception:
+        value = request.body.decode(errors="ignore")
+
     # label iast_command_injection
     os.system("dir -l " + value)
 
@@ -421,6 +466,48 @@ def command_injection_subprocess(request):
     subp = subprocess.Popen(args=[cmd, "-la", filename], shell=True)
     subp.communicate()
     return HttpResponse("OK", status=200)
+
+
+def return_headers(request):
+    """Return all incoming request headers as JSON.
+
+    Uses request.headers where available (Django >= 2.2), otherwise falls back to META.
+    """
+    headers = {}
+    if hasattr(request, "headers"):
+        for key, value in request.headers.items():
+            headers[key] = value
+    else:
+        # Django < 2.2 compatibility: reconstruct headers from META
+        for key, value in request.META.items():
+            if key.startswith("HTTP_"):
+                name = key[5:].replace("_", "-").title()
+                headers[name] = value
+            elif key in ("CONTENT_TYPE", "CONTENT_LENGTH"):
+                name = key.replace("_", "-").title()
+                headers[name] = value
+    return JsonResponse(headers)
+
+
+def vulnerable_request_downstream(request):
+    """Trigger a weak-hash vulnerability, then call downstream return-headers endpoint.
+
+    Mirrors Flask's /vulnerablerequestdownstream behavior to validate header propagation
+    and IAST instrumentation under Django.
+    """
+    # Trigger weak hash for IAST
+    m = hashlib.md5()
+    m.update(b"Nobody inspects")
+    m.update(b" the spammish repetition")
+    _ = m.digest()
+
+    port = request.GET.get("port", "8050")
+    http_poolmanager = urllib3.PoolManager(num_pools=1)
+    # Sending a GET request and getting back response as HTTPResponse object.
+    response = http_poolmanager.request("GET", f"http://localhost:{port}/appsec/returnheaders")
+    http_poolmanager.clear()
+
+    return HttpResponse(response.data, status=200, content_type="application/json")
 
 
 def untrusted_serialization_yaml_view(request):

@@ -1,0 +1,154 @@
+interactions:
+- request:
+    body: '{"contents": [{"parts": [{"text": "Can you search for information about
+      recurring revenue?"}], "role": "user"}], "systemInstruction": {"parts": [{"text":
+      "You are a test agent. When needed: (1) plan, (2) search, (3) write short Python
+      to compute or transform results. Be concise.\n\nYou are an agent. Your internal
+      name is \"test_agent\".\n\n The description about you is \"Test agent for ADK
+      integration testing\""}], "role": "user"}, "tools": [{"functionDeclarations":
+      [{"description": "A tiny search tool stub.", "name": "search_docs", "parameters":
+      {"properties": {"query": {"type": "STRING"}}, "type": "OBJECT"}}, {"description":
+      "Simple arithmetic tool.", "name": "multiply", "parameters": {"properties":
+      {"a": {"type": "INTEGER"}, "b": {"type": "INTEGER"}}, "type": "OBJECT"}}]}],
+      "generationConfig": {}}'
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '811'
+      content-type:
+      - application/json
+      host:
+      - generativelanguage.googleapis.com
+      user-agent:
+      - google-genai-sdk/1.36.0 gl-python/3.12.11 google-adk/1.0.0 gl-python/3.12.11
+      x-goog-api-client:
+      - google-genai-sdk/1.36.0 gl-python/3.12.11 google-adk/1.0.0 gl-python/3.12.11
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAC/21UXY+qSBR891cYX713FRkFN7kPCqiMIB8KApvNpoEWUGigm0ZxMv99GedL7y4P
+        HThVp8+hkqqXTrfbCwAKkxBUkPT+7P7VVrrdl9v5huWogqhqgc9SWywArr6578/L3XtLOVAUVEmO
+        BJCmD80fOAIZbOs9AgEO4n/CPCC9H7+TAI7I/zS3SEkhbt76MQwoxgmKuhjWEFHY+438+vD9+jij
+        V8U5jeJqm0QIVBTfVhKwJc3CVZVkU7suzrakqdJWCmaSSebAaI6l52sepLnEzSVTKxXOT8dp0GfG
+        arx/Yhc7JVXmT36RNcRk9FPDyKpgKdgpTuLAJ3MXsQdr00xK6I73EQNUZWLVT84xtx0Dsbyu0CCR
+        8TLhC5kntSsqZwPH0+FI3kG9HBtByIkHQ1dRJSRMn3K4z8crpxS082S050m756GPyF5djuQUr+a6
+        AqxIFw5clF8aBT17h8TSOX9o+bP5hQUlqZT4chSPGj9QF1iv6mBQeQvPysGAYQsdWW7KJOUlwaUq
+        GtvoKc3c1Eu87ZTy4NyYJp14A3M3Nqe6pFFpIs1NdhNZ9tVhfEcPyZDFts1fa5lXCv4s2Nw1pBDK
+        e0WfJlZ/wlsgkPFCwcMLpBvDOdhZM2/wWeqvNW1S8gYo9qeAkmezVMaU1nm+rkvpGEeQE2ezCWPv
+        XQe7dNtfVkhBepYMJf9sD+VAas/jYo3YWajmQz+0lrsKK9Ntv5K2QgiKk1EWA63fAGU8EBROSkcl
+        pdMTAJQsRUZu6mvWZ5uDuJCP89hRtoNt5l+uGlcQcmTP/fW85Iu1WgA7nrOJZ7h7JlTdgGyyOi52
+        +QVpgwsJfQdT4k5OcbynZ5drNtxRTgTv2UGsqDVqnLCjmVjXq+v5KF4H61hxabThz35G/Dy4VmSB
+        ntmozGXb2xwULYrUVAnE5VUEmiaWp2FwGXk506wM2zCxaXgmMx+OVgvbYGomOvlEHdOY8InTP66n
+        2dORFfBKmk63rdS15AqKtiAXyDPZwCj3TV0Zv37dO+fbNX9/O6aH8/TmkCwPYfpJ/7JU75CghMQm
+        BCRHb7TtTtO/TN1LUAgvbXnY+Rxwu7pHCYigCivQJhD4cnuvwHlWVLv8BJGQ01sCMdzw/ba7xHok
+        TD7wKq9A+gCxDP/jPxcTsR2bpPdRdpdy7V+CNKluMbOTnN1dPrUDHvf61KJzJ9lnuPy2IzvqfIj2
+        rqMNMUneBYtg1kr4c/TH+Ge75W1eG3CkyBGBcvjGGMvcM1AP41VQRox60odFto+MqNd57fwLFTcD
+        cMsFAAA=
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Tue, 16 Sep 2025 16:23:00 GMT
+      Server:
+      - scaffolding on HTTPServer2
+      Server-Timing:
+      - gfet4t7; dur=2859
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Origin
+      - X-Origin
+      - Referer
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - '0'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"contents": [{"parts": [{"text": "Can you search for information about
+      recurring revenue?"}], "role": "user"}, {"parts": [{"thoughtSignature": "CrUEAdHtim9VvpwVEOMESEcAERsBaQyjqZbOZeuoE7BEROqL7bl5lc-15MhW43FTLlLB4bpmysR1Pky1IMCULrXpkD_bsBYn3fUNy6qeY5Wg1aML6Uv4XjoVXQn38PLuciIrGi8pI8svYDLwQrh902ITePq5Qcd7DfQPMntCi1-u7r-8hHXqCOw62W8sSEcf-nsWMG2IlrHBPLaUgPCf7goxyLnJZfiUP7b0UbABx3aqstLhxjDjO8_MFrPtvc_tZFZUoa_13pPnUYl1iqxirqMDQSg4lmYlZiZS9u8awyRRu6Z_RT5R9PEOuE6EBR3NgUVzX1bXPds03rVV8zvI8Lp8wCV7zdueeIWLP9iU-68UacIrFLr0xeuNQXfVmyByrwE-KOO6q8QapWkcusJRqL5uuvooKvqEjhge7DAA61VWYXrYuS-GtnLnPmi0EbwV0IcEwV0jFKn3AdMo0bdUGTtrL9S-tESCdapkQqp_O-yaL5_CL7El2quu9kaausGD1Iyvzm-3yfDFIjBhXLS_SmbxzO7pssj3w-KBq8pKMpaVhB3iZQYW1dMYcsNmvhpToxnO_xsdbXrusY6khhWuwY7yN7jIiCZJXn3DOyMhi32ADvvHzwjDz_KhLYugN8wbmsbocztsFnJ3gqoIVZNfLOggMlLcDGzDaOODqk0cx2Zo1yHQVQRrRQZR1B02HFVQ1v1gkbsM5uhs8iX-jK9m4j3CrHE99S0xevEYCLOFsxe81m_QqWyvtQ==",
+      "functionCall": {"args": {"query": "recurring revenue"}, "name": "search_docs"}}],
+      "role": "model"}, {"parts": [{"functionResponse": {"name": "search_docs", "response":
+      {"results": ["Found reference for: recurring revenue"]}}}], "role": "user"}],
+      "systemInstruction": {"parts": [{"text": "You are a test agent. When needed:
+      (1) plan, (2) search, (3) write short Python to compute or transform results.
+      Be concise.\n\nYou are an agent. Your internal name is \"test_agent\".\n\n The
+      description about you is \"Test agent for ADK integration testing\""}], "role":
+      "user"}, "tools": [{"functionDeclarations": [{"description": "A tiny search
+      tool stub.", "name": "search_docs", "parameters": {"properties": {"query": {"type":
+      "STRING"}}, "type": "OBJECT"}}, {"description": "Simple arithmetic tool.", "name":
+      "multiply", "parameters": {"properties": {"a": {"type": "INTEGER"}, "b": {"type":
+      "INTEGER"}}, "type": "OBJECT"}}]}], "generationConfig": {}}'
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '1853'
+      content-type:
+      - application/json
+      host:
+      - generativelanguage.googleapis.com
+      user-agent:
+      - google-genai-sdk/1.36.0 gl-python/3.12.11 google-adk/1.0.0 gl-python/3.12.11
+      x-goog-api-client:
+      - google-genai-sdk/1.36.0 gl-python/3.12.11 google-adk/1.0.0 gl-python/3.12.11
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAC/12Ry27CMBBF9/mKkdcFUSSE1E1VtV3QiodK1FYqLAyeBCvGE9mTAkL8e52EQIoX
+        tjX3eh7HxwhArKVVWklGLx7gJ0QAjtVeamQZLQehCYVgLh1fvfU6tu7BwrgvH4npexdGkFBhFUhw
+        mKBDu8YQcbAQDteFc9qmQflFW+BCdOFrIxl2VBgFByrA6AyBCTJLO5ArKhg0P8LCilbF0+W+vLv2
+        6chg2cSWFJrGfmoMItFW+80HSk+2tM3j6UxcVG0V7kO4FzUFqtSi8DLFMbIMxOSFi8gdbXOOKUP7
+        HKYth+/3hnW2FuEbw1lnYmn+S/3mbSuxfwlltWmjb/1KmFIazYdylPj1OxYtEnzTV8OiOpfRmUoN
+        6hOd1zWRFLeBUaffHXRCG1XC8Gc+J+txpErHgIZvcrKaTXju78fZLFXJuPPUE9Ep+gPnn1oDXAIA
+        AA==
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Tue, 16 Sep 2025 16:23:02 GMT
+      Server:
+      - scaffolding on HTTPServer2
+      Server-Timing:
+      - gfet4t7; dur=2370
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Origin
+      - X-Origin
+      - Referer
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - '0'
+    status:
+      code: 200
+      message: OK
+version: 1

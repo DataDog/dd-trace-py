@@ -56,6 +56,7 @@ checks = [
     "security",
     "test",
     "suitespec-check",
+    "error-log-check",
     "sg",
     "sg-test",
 ]
@@ -76,6 +77,9 @@ riot = [
 ]
 suitespec-check = [
     "python scripts/check_suitespec_coverage.py"
+]
+error-log-check = [
+    "python scripts/check_constant_log_message.py"
 ]
 sg = [
     "ast-grep scan {args:.}",
@@ -230,7 +234,7 @@ test = [
 ]
 
 [[envs.multiple_os_tests.matrix]]
-python = ["3.13", "3.12", "3.10", "3.8"]
+python = ["3.14", "3.12", "3.10", "3.8"]
 
 [envs.snapshot_viewer]
 dev-mode = false

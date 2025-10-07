@@ -20,6 +20,7 @@ from ddtrace.internal.packages import platstdlib_path
 from ddtrace.internal.packages import purelib_path
 from ddtrace.internal.packages import stdlib_path
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+from ddtrace.internal.utils.inspection import resolved_code_origin
 
 
 log = get_logger(__name__)
@@ -32,7 +33,12 @@ ctx_coverage_enabled = ContextVar("ctx_coverage_enabled", default=False)
 
 
 def _get_ctx_covered_lines() -> t.DefaultDict[str, CoverageLines]:
-    return ctx_covered.get()[-1] if ctx_coverage_enabled.get() else defaultdict(CoverageLines)
+    if ctx_coverage_enabled.get():
+        if context_stack := ctx_covered.get():
+            return context_stack[-1]
+        log.debug("_get_ctx_covered_lines() called but ctx_covered stack is empty")
+
+    return defaultdict(CoverageLines)
 
 
 class ModuleCodeCollector(ModuleWatchdog):
@@ -237,7 +243,10 @@ class ModuleCodeCollector(ModuleWatchdog):
                 ctx_coverage_enabled.set(False)
 
         def get_covered_lines(self) -> t.Dict[str, CoverageLines]:
-            return ctx_covered.get()[-1]
+            covered_lines = _get_ctx_covered_lines()
+            if global_instance := ModuleCodeCollector._instance:
+                global_instance._add_import_time_lines(covered_lines)
+            return covered_lines
 
     @classmethod
     def start_coverage(cls):
@@ -317,7 +326,7 @@ class ModuleCodeCollector(ModuleWatchdog):
         if _module is None:
             return code
 
-        code_path = Path(code.co_filename).resolve()
+        code_path = resolved_code_origin(code)
 
         if not any(code_path.is_relative_to(include_path) for include_path in self._include_paths):
             # Not a code object we want to instrument
