@@ -33,6 +33,7 @@ class SpanProbeTestCase(TracerTestCase):
         self.backup_tracer = ddtrace.tracer
         ddtrace.tracer = self.tracer
 
+        MockSpanCodeOriginProcessorEntry.init()
         MockSpanCodeOriginProcessorEntry.enable()
         MockSpanCodeOriginProcessor.enable()
 
