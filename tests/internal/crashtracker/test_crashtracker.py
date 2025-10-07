@@ -730,3 +730,40 @@ def test_crashtracker_no_zombies():
                 break
             except Exception as e:
                 pytest.fail("Unexpected exception: %s" % e)
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess()
+def test_crashtracker_upload_errors_intake():
+    """Test specifically for errors intake message structure and content."""
+    import ctypes
+    import json
+    import os
+    import sys
+    import base64
+
+    import tests.internal.crashtracker.utils as utils
+
+    with utils.with_test_agent() as client:
+        pid = os.fork()
+        if pid == 0:
+            ct = utils.CrashtrackerWrapper(base_name="errors_verification")
+            assert ct.start()
+            stdout_msg, stderr_msg = ct.logs()
+            assert not stdout_msg
+            assert not stderr_msg
+
+            ctypes.string_at(0)
+            sys.exit(-1)
+
+        all_requests = client.requests()
+        errors_intake_messages = utils.get_all_errors_intake_messages(client)
+        assert len(errors_intake_messages) == 2, "Should have 2 errors intake messages"
+        assert len(all_requests) == 4, "Should have 4 total requests (2 telemetry, 2 errors intake)"
+
+        errors_intake_report = utils.get_errors_intake_report(client)
+        errors_intake_ping = utils.get_errors_intake_ping(client)
+        assert errors_intake_report is not None, "Should have an errors intake report"
+        assert errors_intake_ping is not None, "Should have an errors intake ping"
+
+        
