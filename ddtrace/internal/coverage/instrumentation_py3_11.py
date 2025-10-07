@@ -276,7 +276,22 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     # For lightweight coverage, we instrument:
     # 1. The first line (to track module loading)
     # 2. All lines with IMPORT_NAME/IMPORT_FROM (to track import dependencies)
+
+    # Find the offset of the RESUME opcode first (if it exists)
+    resume_offset_temp = NO_OFFSET
+    for i in range(0, len(code.co_code), 2):
+        if code.co_code[i] == RESUME:
+            resume_offset_temp = i
+            break
+
+    # For the first line, skip RESUME if it's at the first offset
+    # This is important for functions where RESUME is at offset 0
     first_line_start = min(o for o, _ in line_starts_list)
+    if first_line_start == resume_offset_temp and resume_offset_temp != NO_OFFSET:
+        # Find the next line start after RESUME
+        remaining_starts = [o for o, _ in line_starts_list if o > resume_offset_temp]
+        if remaining_starts:
+            first_line_start = min(remaining_starts)
 
     # Find all line start offsets that contain IMPORT_NAME or IMPORT_FROM opcodes
     import_line_offsets = set()
@@ -330,7 +345,7 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
             if original_offset in exc_table_offsets:
                 offset_map[original_offset] = len(instructions) << 1
 
-            if original_offset in line_starts and original_offset > resume_offset:
+            if original_offset in line_starts and original_offset >= resume_offset:
                 line = line_starts[original_offset]
                 if code.co_code[original_offset] not in SKIP_LINES:
                     # Inject trap call at the beginning of the line. Keep
