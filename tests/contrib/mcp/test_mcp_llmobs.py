@@ -32,11 +32,12 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, mock_tracer, llmobs_events, m
     """Test that LLMObs records are emitted for both client and server MCP operations."""
     asyncio.run(mcp_call_tool("calculator", {"operation": "add", "a": 20, "b": 22}))
 
+    llmobs_events.sort(key=lambda event: event["start_ns"])
     all_spans, client_events, server_events, client_spans, server_spans = _assert_distributed_trace(
         mock_tracer, llmobs_events, "calculator"
     )
 
-    assert len(all_spans) == 2
+    assert len(all_spans) == 5  # session, initialize, client list tools, client tool call, server tool call
     client_span = client_spans[0]
     server_span = server_spans[0]
 
@@ -63,6 +64,23 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, mock_tracer, llmobs_events, m
         tags={"service": "mcptest", "ml_app": "<ml-app-name>"},
     )
 
+    # asserting the remaining spans
+    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
+        all_spans[0], span_kind="workflow", input_value=mock.ANY, tags={"service": "mcptest", "ml_app": "<ml-app-name>"}
+    )
+
+    assert llmobs_events[1] == _expected_llmobs_non_llm_span_event(
+        all_spans[1], span_kind="task", output_value=mock.ANY, tags={"service": "mcptest", "ml_app": "<ml-app-name>"}
+    )
+
+    assert llmobs_events[4] == _expected_llmobs_non_llm_span_event(
+        all_spans[4],
+        span_kind="task",
+        input_value=mock.ANY,
+        output_value=mock.ANY,
+        tags={"service": "mcptest", "ml_app": "<ml-app-name>"},
+    )
+
 
 def test_llmobs_client_server_tool_error(mcp_setup, mock_tracer, llmobs_events, mcp_call_tool):
     """Test error handling in both client and server MCP operations."""
@@ -72,7 +90,7 @@ def test_llmobs_client_server_tool_error(mcp_setup, mock_tracer, llmobs_events, 
         mock_tracer, llmobs_events, "failing_tool"
     )
 
-    assert len(all_spans) == 2
+    assert len(all_spans) == 4  # no list tools call for failed tool
     client_span = client_spans[0]
     server_span = server_spans[0]
 
@@ -145,7 +163,6 @@ def test_mcp_distributed_tracing_disabled_env(ddtrace_run_python_code_in_subproc
 
         async def test():
             async with create_connected_server_and_client_session(mcp._mcp_server) as client:
-                await client.initialize()
                 await client.call_tool("get_weather", {"location": "San Francisco"})
 
         asyncio.run(test())
@@ -157,7 +174,7 @@ def test_mcp_distributed_tracing_disabled_env(ddtrace_run_python_code_in_subproc
     assert status == 0, err
     events = llmobs_backend.wait_for_num_events(num=1)
     traces = events[0]
-    assert len(traces) == 2
+    assert len(traces) == 5
 
     client_trace = next((t for t in traces if "Client Tool Call" in t["spans"][0]["name"]), None)
     server_trace = next((t for t in traces if "Server Tool Execute" in t["spans"][0]["name"]), None)
