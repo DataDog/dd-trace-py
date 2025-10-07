@@ -270,7 +270,7 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     if not line_starts_list:
         # No line starts, return empty coverage
         return code, CoverageLines()
-    
+
     line_starts_dict = dict(line_starts_list)
 
     # For lightweight coverage, we instrument:

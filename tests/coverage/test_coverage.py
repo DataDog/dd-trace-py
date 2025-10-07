@@ -8,6 +8,7 @@ time rather than at code execution time.
 """
 
 import sys
+
 import pytest
 
 
@@ -15,24 +16,24 @@ import pytest
 def cleanup_coverage_modules():
     """Clean up coverage collector and imported test modules between tests."""
     from ddtrace.internal.coverage.code import ModuleCodeCollector
-    
+
     # Store modules to remove after test
-    modules_to_remove = [key for key in sys.modules.keys() if key.startswith('tests.coverage.included_path')]
-    
+    modules_to_remove = [key for key in sys.modules.keys() if key.startswith("tests.coverage.included_path")]
+
     yield
-    
+
     # Clean up after test
     if ModuleCodeCollector._instance:
         ModuleCodeCollector._instance.uninstall()
         ModuleCodeCollector._instance = None
-    
+
     # Remove imported test modules so they can be re-imported fresh in the next test
     for module_name in modules_to_remove:
         sys.modules.pop(module_name, None)
-    
+
     # Also remove any modules that were imported during the test
     for key in list(sys.modules.keys()):
-        if key.startswith('tests.coverage.included_path'):
+        if key.startswith("tests.coverage.included_path"):
             sys.modules.pop(key, None)
 
 

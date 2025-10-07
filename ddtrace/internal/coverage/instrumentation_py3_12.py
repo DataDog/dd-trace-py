@@ -70,7 +70,7 @@ def _instrument_all_lines_with_monitoring(
     if not line_starts_list:
         # No line starts, return empty coverage
         return code, CoverageLines()
-    
+
     line_starts_dict = dict(line_starts_list)
     first_line_start = min(o for o, _ in line_starts_list)
 
