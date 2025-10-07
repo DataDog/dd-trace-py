@@ -1,9 +1,12 @@
 from contextlib import contextmanager
+import multiprocessing
 import os
 from pathlib import Path
 import signal
+import socket
 import subprocess
 import sys
+import time
 import typing as _t
 
 from requests.exceptions import ConnectionError  # noqa: A004
@@ -207,6 +210,7 @@ def uvicorn_server(
     port=8000,
     assert_debug=False,
     manual_propagation_debug=False,
+    use_multiprocess=False,
 ):
     """
     Context manager that runs a FastAPI test server in a subprocess using Uvicorn.
@@ -238,6 +242,7 @@ def uvicorn_server(
         env=env,
         assert_debug=assert_debug,
         manual_propagation_debug=manual_propagation_debug,
+        use_multiprocess=use_multiprocess,
     )
 
 
@@ -253,6 +258,7 @@ def appsec_application_server(
     port=8000,
     assert_debug=False,
     manual_propagation_debug=False,
+    use_multiprocess=False,
 ):
     """Start an application server subprocess for AppSec/IAST tests.
 
@@ -307,30 +313,82 @@ def appsec_application_server(
         if preexec is not None:
             subprocess_kwargs["preexec_fn"] = preexec  # type: ignore[assignment]
 
-    server_process = subprocess.Popen(cmd, **subprocess_kwargs)
+    if use_multiprocess:
+        # Run the server command by replacing the child Python process with the target binary (exec),
+        # ensuring signals/termination behave like the subprocess.Popen path.
+        def _mp_target(_cmd: _t.List[str], _env: dict) -> None:
+            """Child process entrypoint that prepares the session and execs the server command.
+
+            This makes the child PID equal to the server PID, so signals from the parent terminate the server cleanly.
+            """
+            try:
+                # Mirror start_new_session behavior
+                if os.name == "posix":
+                    try:
+                        os.setsid()
+                    except Exception:
+                        pass
+                # Apply optional resource/affinity limits
+                preexec = _make_preexec()
+                if preexec is not None:
+                    try:
+                        preexec()
+                    except Exception:
+                        pass
+                # Replace the process image with the target command
+                os.execvpe(_cmd[0], _cmd, _env)
+            except Exception:
+                # If exec fails for any reason, exit non-zero
+                os._exit(1)
+
+        # Build the environment for the child exec
+        mp_env = dict(subprocess_kwargs["env"]) if "env" in subprocess_kwargs else os.environ.copy()
+        server_process: _t.Union[subprocess.Popen, multiprocessing.Process]
+        server_process = multiprocessing.Process(target=_mp_target, args=(cmd, mp_env), daemon=True)
+        server_process.start()
+    else:
+        server_process = subprocess.Popen(cmd, **subprocess_kwargs)
     try:
         client = Client("http://0.0.0.0:%s" % port)
 
         try:
             print("Waiting for server to start")
-            client.wait(max_tries=120, delay=0.1, initial_wait=1.0)
-            print("Server started")
+            if use_multiprocess:
+                # Socket-based readiness check similar to the provided fixture snippet
+                max_attempts = 120
+                attempt = 0
+                while attempt < max_attempts:
+                    try:
+                        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                            s.settimeout(0.2)
+                            s.connect(("0.0.0.0", int(port)))
+                            break
+                    except (ConnectionRefusedError, OSError):
+                        time.sleep(0.1)
+                        attempt += 1
+                else:
+                    raise RetryError("Server failed to accept connections in time")
+                print("Server started")
+            else:
+                client.wait(max_tries=120, delay=0.1, initial_wait=1.0)
+                print("Server started")
         except RetryError:
             raise AssertionError(
                 "Server failed to start, see stdout and stderr logs"
                 "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
                 "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
-                % (server_process.stdout, server_process.stderr)
+                % (getattr(server_process, "stdout", None), getattr(server_process, "stderr", None))
             )
         except Exception:
             raise AssertionError(
                 "Server FAILED, see stdout and stderr logs"
                 "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
                 "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
-                % (server_process.stdout, server_process.stderr)
+                % (getattr(server_process, "stdout", None), getattr(server_process, "stderr", None))
             )
 
         # If we run a Gunicorn application, we want to get the child's pid, see test_flask_remoteconfig.py
+        # Obtain child PID tree for gunicorn when possible
         parent = psutil.Process(server_process.pid)
         children = parent.children(recursive=True)
 
@@ -343,17 +401,36 @@ def appsec_application_server(
             raise AssertionError(
                 "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
                 "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
-                % (server_process.stdout, server_process.stderr)
+                % (getattr(server_process, "stdout", None), getattr(server_process, "stderr", None))
             )
     finally:
-        os.killpg(os.getpgid(server_process.pid), signal.SIGTERM)
-        server_process.terminate()
-        server_process.wait()
-        if (assert_debug and PYTHON_VERSION_INFO >= (3, 10)) and (iast_enabled is not None and iast_enabled != "false"):
-            process_output = server_process.stderr.read()
-            assert "Return from " in process_output
-            assert "Return value is tainted" in process_output
-            assert "Tainted arguments:" in process_output
+        try:
+            if use_multiprocess:
+                # server_process is a multiprocessing.Process that exec'd the server.
+                # Send SIGTERM to the process group if possible, then ensure the process is stopped.
+                try:
+                    if os.name == "posix":
+                        os.killpg(os.getpgid(server_process.pid), signal.SIGTERM)
+                except Exception:
+                    pass
+                try:
+                    server_process.kill()
+                except Exception:
+                    pass
+                server_process.join(timeout=5)
+            else:
+                os.killpg(os.getpgid(server_process.pid), signal.SIGTERM)
+                server_process.terminate()
+                server_process.wait()
+                if (assert_debug and PYTHON_VERSION_INFO >= (3, 10)) and (
+                    iast_enabled is not None and iast_enabled != "false"
+                ):
+                    process_output = server_process.stderr.read()
+                    assert "Return from " in process_output
+                    assert "Return value is tainted" in process_output
+                    assert "Tainted arguments:" in process_output
+        finally:
+            pass
 
 
 def _make_preexec() -> _t.Optional[_t.Callable[[], None]]:

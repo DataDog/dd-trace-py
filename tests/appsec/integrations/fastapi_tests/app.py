@@ -1,7 +1,9 @@
 import asyncio
 import hashlib
 import json
+import logging
 import subprocess
+import time
 from urllib.parse import parse_qs
 
 from fastapi import FastAPI
@@ -9,6 +11,8 @@ from fastapi import Form
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from fastapi.responses import Response
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.base import RequestResponseEndpoint
 import urllib3
 import uvicorn
 
@@ -16,8 +20,39 @@ from ddtrace import tracer
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 
 
+logger = logging.getLogger()
+
+
+class RequestLogMiddleware(BaseHTTPMiddleware):
+    """
+    A Starlette middleware that logs all HTTP requests.
+    """
+
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        t1 = time.time()
+        response = await call_next(request)
+        logattrs = {
+            "http.method": request.method,
+            "http.referer": request.headers.get("Referer", ""),
+            "http.useragent": request.headers.get("User-Agent", ""),
+            "http.version": f"HTTP/{request.scope['http_version']}",
+            "http.url_details.scheme": request.url.scheme,
+            "http.url_details.host": (request.client.host if request.client is not None else None),
+            "http.url_details.path": request.url.path,
+            "http.status_code": response.status_code,
+            "http.duration": time.time() - t1,
+            "http.client_cert_san": request.headers.get("dd-downstream-uri-san", "_VALUE_MISSING_"),
+        }
+        msg = "http request complete"
+
+        logger.warning(msg, extra=logattrs)
+
+        return response
+
+
 def get_app():
     app = FastAPI()
+    app.add_middleware(RequestLogMiddleware)
 
     @app.get("/")
     async def index():
