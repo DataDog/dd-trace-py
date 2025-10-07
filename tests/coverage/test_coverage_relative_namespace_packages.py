@@ -83,7 +83,8 @@ def test_coverage_namespace_package_import_normal():
         ), f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
         assert (
             covered_with_imports.keys() == expected_covered_with_imports.keys()
-        ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+        ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports}"
+        " vs actual={covered_with_imports}"
 
 
 def test_coverage_namespace_package_import_late():
@@ -155,7 +156,8 @@ def test_coverage_namespace_package_import_late():
         ), f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
         assert (
             covered_with_imports.keys() == expected_covered_with_imports.keys()
-        ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+        ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports}"
+        " vs actual={covered_with_imports}"
 
 
 def test_coverage_namespace_package_nsa_import_parent_normal():
@@ -206,7 +208,8 @@ def test_coverage_namespace_package_nsa_import_parent_normal():
         ), f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
         assert (
             covered_with_imports.keys() == expected_covered_with_imports.keys()
-        ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+        ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports}"
+        " vs actual={covered_with_imports}"
 
 
 def test_coverage_namespace_package_nsa_import_parent_late():
@@ -260,7 +263,8 @@ def test_coverage_namespace_package_nsa_import_parent_late():
         ), f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
         assert (
             covered_with_imports.keys() == expected_covered_with_imports.keys()
-        ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+        ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports}"
+        " vs actual={covered_with_imports}"
 
 
 def test_coverage_namespace_package_nsa_import_dot_normal():
@@ -315,7 +319,8 @@ def test_coverage_namespace_package_nsa_import_dot_normal():
         ), f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
         assert (
             covered_with_imports.keys() == expected_covered_with_imports.keys()
-        ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+        ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports}"
+        " vs actual={covered_with_imports}"
 
 
 def test_coverage_namespace_package_nsa_import_dot_late():
@@ -379,4 +384,5 @@ def test_coverage_namespace_package_nsa_import_dot_late():
         ), f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
         assert (
             covered_with_imports.keys() == expected_covered_with_imports.keys()
-        ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+        ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports}"
+        " vs actual={covered_with_imports}"
