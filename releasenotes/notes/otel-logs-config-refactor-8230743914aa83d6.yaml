@@ -1,5 +1,4 @@
 ---
 fixes:
   - |
-    fix(otel): Ensures the /v1/logs path is correctly added to prevent log payloads from being dropped by the Agent when using OTEL_EXPORTER_OTLP_ENDPOINT configuration. 
-    Metrics and tracing are unaffected.
+    fix(otel): Ensures the /v1/logs path is correctly added to prevent log payloads from being dropped by the Agent when using OTEL_EXPORTER_OTLP_ENDPOINT configuration. Metrics and traces are unaffected.
