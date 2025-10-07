@@ -361,12 +361,7 @@ venv = Venv(
             venvs=[
                 Venv(
                     venvs=[
-                        Venv(pys=select_pys(max_version="3.13")),
-                        Venv(
-                            pys=select_pys(min_version="3.14"),
-                            # pydantic 2.2.12.0a1 is the first version to support Python 3.14
-                            pkgs={"pydantic": "==2.12.0a1"},
-                        ),
+                        Venv(pys=select_pys()),
                     ]
                 ),
                 # This test variant ensures tracer tests are compatible with both 64bit trace ids.
@@ -377,7 +372,6 @@ venv = Venv(
                     env={
                         "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": "false",
                     },
-                    pkgs={"pydantic": "==2.12.0a1"},
                 ),
                 Venv(
                     name="tracer-python-optimize",
@@ -385,12 +379,7 @@ venv = Venv(
                     # Test with the latest version of Python only
                     pys=MAX_PYTHON_VERSION,
                     venvs=[
-                        Venv(pys=select_pys(max_version="3.13")),
-                        Venv(
-                            pys=select_pys(min_version="3.14"),
-                            # pydantic 2.2.12.0a1 is the first version to support Python 3.14
-                            pkgs={"pydantic": "==2.12.0a1"},
-                        ),
+                        Venv(pys=select_pys()),
                     ],
                 ),
                 Venv(
@@ -1191,14 +1180,6 @@ venv = Venv(
                         # Flask 3.x.x requires Werkzeug >= 3.0.0
                         "werkzeug": ">=3.0",
                     },
-                    venvs=[
-                        Venv(
-                            pys="3.14",
-                            pkgs={
-                                "pydantic": "==2.12.0a1",
-                            },
-                        )
-                    ],
                 ),
                 Venv(
                     pys=select_pys(min_version="3.8"),
@@ -1215,14 +1196,6 @@ venv = Venv(
                         # Flask 3.x.x requires Werkzeug >= 3.0.0
                         "werkzeug": ">=3.0",
                     },
-                    venvs=[
-                        Venv(
-                            pys="3.14",
-                            pkgs={
-                                "pydantic": "==2.12.0a1",
-                            },
-                        )
-                    ],
                 ),
             ],
         ),
@@ -1645,12 +1618,7 @@ venv = Venv(
                     pkgs={"botocore": "==1.34.49", "boto3": "==1.34.49"},
                     venvs=[
                         Venv(
-                            pys=select_pys(min_version="3.8", max_version="3.13"),
-                        ),
-                        Venv(
-                            pys=select_pys(min_version="3.14"),
-                            # pydantic 2.2.12.0a1 is the first version to support Python 3.14
-                            pkgs={"pydantic": "==2.12.0a1"},
+                            pys=select_pys(min_version="3.8"),
                         ),
                     ],
                 ),
@@ -1658,12 +1626,7 @@ venv = Venv(
                     pkgs={"vcrpy": "==7.0.0", "botocore": "==1.38.26", "boto3": "==1.38.26"},
                     venvs=[
                         Venv(
-                            pys=select_pys(min_version="3.9", max_version="3.13"),
-                        ),
-                        Venv(
-                            pys=select_pys(min_version="3.14"),
-                            # pydantic 2.2.12.0a1 is the first version to support Python 3.14
-                            pkgs={"pydantic": "==2.12.0a1"},
+                            pys=select_pys(min_version="3.9"),
                         ),
                     ],
                 ),
@@ -1825,7 +1788,7 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(min_version="3.14"),
-                    pkgs={"fastapi": latest, "hypothesis": latest, "pydantic": "==2.12.0a1"},
+                    pkgs={"fastapi": latest, "hypothesis": latest},
                 ),
             ],
         ),
@@ -2794,7 +2757,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.8", max_version="3.13"),
+                    pys=select_pys(min_version="3.8"),
                     pkgs={
                         "openai": [latest, "~=1.76.2", "==1.66.0"],
                         "tiktoken": latest,
@@ -3048,8 +3011,6 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": latest,
                 "mcp": ["~=1.10.0", latest],
-                # pydantic 2.2.12.0a1 is the first version to support Python 3.14
-                "pydantic": "==2.12.0a1",
             },
         ),
         Venv(
@@ -3078,16 +3039,8 @@ venv = Venv(
                     pkgs={"anthropic": "~=0.28.0", "httpx": "~=0.27.0"},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.8", max_version="3.13"),
+                    pys=select_pys(min_version="3.8"),
                     pkgs={"anthropic": latest, "httpx": "<0.28.0"},
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.14"),
-                    pkgs={
-                        "anthropic": latest,
-                        "httpx": "<0.28.0",
-                        "pydantic": "==2.12.0a1",
-                    },
                 ),
             ],
         ),
@@ -3128,13 +3081,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.9", max_version="3.13"),
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.14"),
-                    pkgs={
-                        "pydantic": "==2.12.0a1",
-                    },
+                    pys=select_pys(min_version="3.9"),
                 ),
             ],
         ),
@@ -3147,13 +3094,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.9", max_version="3.13"),
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.14"),
-                    pkgs={
-                        "pydantic": "==2.12.0a1",
-                    },
+                    pys=select_pys(min_version="3.9"),
                 ),
             ],
         ),
@@ -3177,7 +3118,6 @@ venv = Venv(
                 "pydantic-ai": ["==0.3.0", "==0.4.4", latest],
                 "vcrpy": "==7.0.0",
                 "typing_extensions": latest,
-                "pydantic": "==2.12.0a1",
             },
         ),
         Venv(
@@ -3926,7 +3866,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.9", max_version="3.12"),
+                    pys=select_pys(min_version="3.9", max_version="3.13"),
                     pkgs={
                         "langchain": latest,
                         "langchain-core": latest,
