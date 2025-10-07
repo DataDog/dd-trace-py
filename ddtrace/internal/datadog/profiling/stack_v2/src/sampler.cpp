@@ -153,6 +153,8 @@ Sampler::sampling_thread(const uint64_t seq_num)
         // Perform the sample
         for_each_interp([&](InterpreterInfo& interp) -> void {
             for_each_thread(interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
+                std::cerr << "sampling_thread: " << interp.id << ", " << tstate << ", " << thread.thread_id << ", "
+                          << thread.native_id << ", " << thread.name << std::endl;
                 thread.sample(interp.id, tstate, wall_time_us);
             });
         });
