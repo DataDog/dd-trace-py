@@ -1890,7 +1890,7 @@ venv = Venv(
                     ],
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.10", max_version="3.12"),
+                    pys=select_pys(min_version="3.10", max_version="3.14"),
                     pkgs={
                         "pytest": [
                             "~=6.0",
@@ -1906,7 +1906,7 @@ venv = Venv(
                 Venv(
                     name="pytest_plugin_v2",
                     command="pytest -c /dev/null --no-ddtrace --no-cov tests/contrib/pytest {cmdargs}",
-                    pys=select_pys(min_version="3.9", max_version="3.12"),
+                    pys=select_pys(min_version="3.9", max_version="3.14"),
                     pkgs={
                         "httpx": "<0.28.0",
                         "msgpack": latest,

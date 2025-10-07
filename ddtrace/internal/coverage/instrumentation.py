@@ -2,11 +2,7 @@ import sys
 
 
 # Import are noqa'd otherwise some formatters will helpfully remove them
-if sys.version_info >= (3, 14):
-    from ddtrace.internal.coverage.instrumentation_py3_14 import instrument_all_lines  # noqa
-elif sys.version_info >= (3, 13):
-    from ddtrace.internal.coverage.instrumentation_py3_13 import instrument_all_lines  # noqa
-elif sys.version_info >= (3, 12):
+if sys.version_info >= (3, 12):
     from ddtrace.internal.coverage.instrumentation_py3_12 import instrument_all_lines  # noqa
 elif sys.version_info >= (3, 11):
     from ddtrace.internal.coverage.instrumentation_py3_11 import instrument_all_lines  # noqa
