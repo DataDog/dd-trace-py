@@ -63,17 +63,40 @@ def _instrument_all_lines_with_monitoring(
 
     # Collect all the line numbers in the code object
     #
-    # linestarts = dict(dis.findlinestarts(code))
+    # For lightweight coverage, we enable monitoring for:
+    # 1. The first line (to track module loading)
+    # 2. All lines with IMPORT_NAME/IMPORT_FROM (to track import dependencies)
     line_starts_raw = dis.findlinestarts(code)
     line_starts_dict = dict(line_starts_raw)
     try:
         first_line_start = min(o for o, _ in line_starts_raw)
     except ValueError:
         first_line_start = line_starts_raw[0][0]
-    linestarts = {first_line_start: line_starts_dict[first_line_start]}
+    
+    # Find all line start offsets that contain IMPORT_NAME or IMPORT_FROM opcodes
+    import_line_offsets = set()
+    current_line_offset = None
+    
+    for i in range(0, len(code.co_code), 2):
+        # Update current line if we hit a line start
+        if i in line_starts_dict:
+            current_line_offset = i
+        
+        # Check if this opcode is an import
+        opcode = code.co_code[i]
+        if opcode in (IMPORT_NAME, IMPORT_FROM) and current_line_offset is not None:
+            import_line_offsets.add(current_line_offset)
+    
+    # Combine first offset with import line offsets
+    offsets_to_monitor = {first_line_start} | import_line_offsets
+    linestarts = {offset: line_starts_dict[offset] for offset in offsets_to_monitor}
 
-    lines = CoverageLines()
     import_names: t.Dict[int, t.Tuple[str, t.Optional[t.Tuple[str, ...]]]] = {}
+    
+    # Track all executable lines for coverage reporting (not just the monitored lines)
+    all_executable_lines = CoverageLines()
+    for _, line in line_starts_dict.items():
+        all_executable_lines.add(line)
 
     # The previous two arguments are kept in order to track the depth of the IMPORT_NAME
     # For example, from ...package import module
@@ -97,11 +120,10 @@ def _instrument_all_lines_with_monitoring(
 
             if offset in linestarts:
                 line = linestarts[offset]
-                lines.add(line)
 
                 # Make sure that the current module is marked as depending on its own package by instrumenting the
                 # first executable line
-                if code.co_name == "<module>" and len(lines) == 1 and package is not None:
+                if code.co_name == "<module>" and line == linestarts[first_line_start] and package is not None:
                     import_names[line] = (package, ("",))
 
             if opcode is EXTENDED_ARG:
@@ -148,16 +170,16 @@ def _instrument_all_lines_with_monitoring(
     # Recursively instrument nested code objects
     for nested_code in (_ for _ in code.co_consts if isinstance(_, CodeType)):
         _, nested_lines = instrument_all_lines(nested_code, hook, path, package)
-        lines.update(nested_lines)
+        all_executable_lines.update(nested_lines)
 
     # Register the hook and argument for the code object
     _CODE_HOOKS[code] = (hook, path, import_names)
 
     # Special case for empty modules (eg: __init__.py ):
     # Make sure line 0 is marked as executable, and add package dependency
-    if not lines and code.co_name == "<module>" and code.co_code == EMPTY_MODULE_BYTES:
-        lines.add(0)
+    if not all_executable_lines and code.co_name == "<module>" and code.co_code == EMPTY_MODULE_BYTES:
+        all_executable_lines.add(0)
         if package is not None:
             import_names[0] = (package, ("",))
 
-    return code, lines
+    return code, all_executable_lines
