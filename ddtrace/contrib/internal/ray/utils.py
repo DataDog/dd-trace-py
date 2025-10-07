@@ -18,7 +18,7 @@ from ray.runtime_context import get_runtime_context
 from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
-from ddtrace.constants import _AI_OBS_KEY
+from ddtrace.constants import _AI_OBS_ENABLED_KEY
 from ddtrace.constants import _DJM_ENABLED_KEY
 from ddtrace.constants import _FILTER_KEPT_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
@@ -89,7 +89,7 @@ def _extract_tracing_context_from_env() -> Optional[Context]:
 def _inject_ray_span_tags_and_metrics(span: Span) -> None:
     span.set_tag_str("component", RAY_COMPONENT)
     span.set_tag_str(RAY_HOSTNAME, socket.gethostname())
-    span.set_metric(_AI_OBS_KEY, 1)
+    span.set_metric(_AI_OBS_ENABLED_KEY, 1)
     span.set_metric(_DJM_ENABLED_KEY, 1)
     span.set_metric(_FILTER_KEPT_KEY, 1)
     span.set_metric(_SPAN_MEASURED_KEY, 1)
