@@ -212,9 +212,9 @@ macro_rules! define_event {
 
                 /// Python wrapper for dispatch - receives owned values from Python
                 #[pyfunction]
-                #[pyo3(signature = ($($param),*))]
-                pub fn dispatch_py($($param: $param_type),*) {
-                    super::dispatch($(&$param),*);
+                #[pyo3(signature = ($($param)*, /))]
+                pub fn dispatch_py($($param: $param_type)*) {
+                    super::dispatch($(&$param)*);
                 }
 
                 /// Python wrapper for on (register listener)
