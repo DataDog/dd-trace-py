@@ -140,51 +140,44 @@ def traced_get_response(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[
         try:
             if get_blocked():
                 response = blocked_response()
-                return response
+            else:
+                query = request.META.get("QUERY_STRING", "")
+                uri = utils.get_request_uri(request)
+                if uri is not None and query:
+                    uri += "?" + query
+                resolver = get_resolver(getattr(request, "urlconf", None))
+                if resolver:
+                    try:
+                        path = resolver.resolve(request.path_info).kwargs
+                        log.debug("resolver.pattern %s", path)
+                    except Exception:
+                        path = None
 
-            query = request.META.get("QUERY_STRING", "")
-            uri = utils.get_request_uri(request)
-            if uri is not None and query:
-                uri += "?" + query
-            resolver = get_resolver(getattr(request, "urlconf", None))
-            if resolver:
-                try:
-                    path = resolver.resolve(request.path_info).kwargs
-                    log.debug("resolver.pattern %s", path)
-                except Exception:
-                    path = None
+                core.dispatch(
+                    "django.start_response", (ctx, request, utils._extract_body, utils._remake_body, query, uri, path)
+                )
+                core.dispatch("django.start_response.post", ("Django",))
 
-            core.dispatch(
-                "django.start_response", (ctx, request, utils._extract_body, utils._remake_body, query, uri, path)
-            )
-            core.dispatch("django.start_response.post", ("Django",))
+                if get_blocked():
+                    response = blocked_response()
+                else:
+                    try:
+                        response = func(*args, **kwargs)
+                    except BlockingException as e:
+                        set_blocked(e.args[0])
+                        response = blocked_response()
+                        return response
 
-            if get_blocked():
-                response = blocked_response()
-                return response
+                    if get_blocked():
+                        response = blocked_response()
 
-            try:
-                response = func(*args, **kwargs)
-            except BlockingException as e:
-                set_blocked(e.args[0])
-                response = blocked_response()
-                return response
-
-            if get_blocked():
-                response = blocked_response()
-                return response
-
-            return response
         finally:
-            override_response = None
+            result = None
             core.dispatch("django.finalize_response.pre", (ctx, utils._after_request_tags, request, response))
             if not get_blocked():
                 core.dispatch("django.finalize_response", ("Django",))
                 if get_blocked():
-                    override_response = blocked_response()
-
-            if override_response is not None:
-                response = override_response
+                    response = blocked_response()
         return response
 
 
