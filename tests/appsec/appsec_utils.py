@@ -42,6 +42,8 @@ def gunicorn_flask_server(
     if use_ddtrace_cmd:
         cmd = ["python", "-m", "ddtrace.commands.ddtrace_run"] + cmd
         env["_USE_DDTRACE_COMMAND"] = "true"
+    else:
+        env["_USE_DDTRACE_COMMAND"] = ""
     if use_threads:
         cmd += ["--threads", "1"]
     if use_gevent:
@@ -81,6 +83,8 @@ def flask_server(
     if use_ddtrace_cmd:
         cmd = [python_cmd, "-m", "ddtrace.commands.ddtrace_run"] + cmd
         env["_USE_DDTRACE_COMMAND"] = "true"
+    else:
+        env["_USE_DDTRACE_COMMAND"] = ""
     yield from appsec_application_server(
         cmd,
         appsec_enabled=appsec_enabled,
@@ -136,6 +140,8 @@ def gunicorn_django_server(
     }
     if use_ddtrace_cmd:
         extra_env["_USE_DDTRACE_COMMAND"] = "true"
+    else:
+        extra_env["_USE_DDTRACE_COMMAND"] = ""
     if env:
         extra_env.update(env)
     yield from appsec_application_server(
@@ -282,8 +288,14 @@ def appsec_application_server(
         env["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = "X-Datadog-Test-Session-Token:{}".format(token)
     if appsec_enabled:
         env["DD_APPSEC_ENABLED"] = appsec_enabled
+    else:
+        env["DD_APPSEC_ENABLED"] = ""
+
     if apm_tracing_enabled:
         env["DD_APM_TRACING_ENABLED"] = apm_tracing_enabled
+    else:
+        env["DD_APM_TRACING_ENABLED"] = ""
+
     if iast_enabled is not None and iast_enabled != "false":
         env[IAST.ENV] = iast_enabled
         env[IAST.ENV_REQUEST_SAMPLING] = "100"
@@ -294,6 +306,9 @@ def appsec_application_server(
             env["_" + IAST.ENV_DEBUG] = iast_enabled
             env["_" + IAST.ENV_PROPAGATION_DEBUG] = iast_enabled
             env["DD_TRACE_DEBUG"] = iast_enabled
+    else:
+        env[IAST.ENV] = iast_enabled
+
     if tracer_enabled:
         env["DD_TRACE_ENABLED"] = tracer_enabled
     env["DD_TRACE_AGENT_URL"] = os.environ.get("DD_TRACE_AGENT_URL", "")
