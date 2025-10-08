@@ -24,7 +24,7 @@ def create_context(
     pin: Pin,
     operation_name: str,
     resource: Optional[str] = None,
-):
+) -> core.ExecutionContext:
     return core.context_with_data(
         context_name,
         span_name=operation_name,
@@ -38,7 +38,7 @@ def create_context(
 def handle_event_hubs_event_data_context(
     span: Span,
     event_data_arg_value: Union[
-        EventData, AmqpAnnotatedMessage, List[EventData], List[AmqpAnnotatedMessage], EventDataBatch
+        EventData, AmqpAnnotatedMessage, List[Union[EventData, AmqpAnnotatedMessage]], EventDataBatch
     ],
 ):
     if isinstance(event_data_arg_value, (EventData, AmqpAnnotatedMessage)):
@@ -94,9 +94,9 @@ def inject_context(span: Span, event_data: Union[EventData, AmqpAnnotatedMessage
 
 def handle_event_data_attributes(
     event_data_arg_value: Union[
-        EventData, AmqpAnnotatedMessage, List[EventData], List[AmqpAnnotatedMessage], EventDataBatch
+        EventData, AmqpAnnotatedMessage, List[Union[EventData, AmqpAnnotatedMessage]], EventDataBatch
     ],
-):
+) -> tuple[Union[str, None], Union[str, None]]:
     if isinstance(event_data_arg_value, EventData):
         batch_count = None
         message_id = event_data_arg_value.message_id
