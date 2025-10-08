@@ -442,3 +442,12 @@ class SerializationError(Exception):
     """
 
     ...
+
+def ffande_process_config(config_bytes: bytes) -> Optional[bool]:
+    """
+    Process feature flagging and experimentation configuration rules.
+
+    :param config_bytes: Raw bytes containing the configuration data
+    :return: True if processing was successful, False otherwise, None on error
+    """
+    ...
