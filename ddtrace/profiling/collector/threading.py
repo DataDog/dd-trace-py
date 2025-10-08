@@ -10,6 +10,8 @@ from ddtrace.settings.profiling import config
 from . import _lock
 
 
+# TODO(vlad): add type annotations
+
 class _ProfiledThreadingLock(_lock._ProfiledLock):
     pass
 
