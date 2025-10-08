@@ -29,7 +29,7 @@ def database_operation_v0(v0_operation, database_provider=None):
 
 def database_operation_v1(v0_operation, database_provider=None):
     operation = "query"
-    return "{}.{}".format(database_provider, operation)
+    return f"{database_provider}.{operation}"
 
 
 def cache_operation_v0(v0_operation, cache_provider=None):
