@@ -4,6 +4,9 @@ import os
 
 if os.getenv("_USE_DDTRACE_COMMAND", False) not in ("1", "true", "True"):
     import ddtrace.auto  # noqa: F401  # isort: skip
+    import logging
+
+    logging.warning("ddtrace.auto was imported")
 import copy
 import re
 import shlex
