@@ -55,12 +55,14 @@ from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounter
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.schema.processor import BaseServiceProcessor
 from ddtrace.internal.utils import _get_metas_to_propagate
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import HTTPWriter
 from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
+from ddtrace.vendor.debtcollector.removals import remove
 from ddtrace.version import get_version
 
 
@@ -199,6 +201,11 @@ class Tracer(object):
         )
         self.shutdown(timeout=self.SHUTDOWN_TIMEOUT)
 
+    @remove(
+        message="on_start_span is being removed with no replacement",
+        removal_version="4.0.0",
+        category=DDTraceDeprecationWarning,
+    )
     def on_start_span(self, func: Callable[[Span], None]) -> Callable[[Span], None]:
         """Register a function to execute when a span start.
 
@@ -214,6 +221,11 @@ class Tracer(object):
             core.on("trace.span_start", func)
         return func
 
+    @remove(
+        message="deregister_on_start_span is being removed with no replacement",
+        removal_version="4.0.0",
+        category=DDTraceDeprecationWarning,
+    )
     def deregister_on_start_span(self, func: Callable[[Span], None]) -> Callable[[Span], None]:
         """Unregister a function registered to execute when a span starts.
 
@@ -477,17 +489,19 @@ class Tracer(object):
                 child_of = new_ctx
 
         parent: Optional[Span] = None
+        context: Optional[Context] = None
+        trace_id: Optional[int] = None
+        parent_id: Optional[int] = None
+
         if child_of is not None:
             if isinstance(child_of, Context):
                 context = child_of
             else:
                 context = child_of.context
                 parent = child_of
-        else:
-            context = Context(is_remote=False)
 
-        trace_id = context.trace_id
-        parent_id = context.span_id
+            trace_id = context.trace_id
+            parent_id = context.span_id
 
         # The following precedence is used for a new span's service:
         # 1. Explicitly provided service name
@@ -504,8 +518,8 @@ class Tracer(object):
         # Update the service name based on any mapping
         service = config.service_mapping.get(service, service)
 
-        links = context._span_links if not parent else []
-        if trace_id or links or context._baggage:
+        links = context._span_links if not parent and context else []
+        if trace_id or links or (context and context._baggage):
             # child_of a non-empty context, so either a local child span or from a remote context
             span = Span(
                 name=name,
