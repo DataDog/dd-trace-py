@@ -30,7 +30,7 @@ def wrap_function_with_tracing(func, context_factory, pre_dispatch=None, post_di
 
         @functools.wraps(func)
         async def async_wrapper(*args, **kwargs):
-            with context_factory(kwargs) as ctx, ctx.span:
+            with context_factory(kwargs) as ctx:
                 if pre_dispatch:
                     core.dispatch(*pre_dispatch(ctx, kwargs))
 
@@ -46,7 +46,7 @@ def wrap_function_with_tracing(func, context_factory, pre_dispatch=None, post_di
 
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
-        with context_factory(kwargs) as ctx, ctx.span:
+        with context_factory(kwargs) as ctx:
             if pre_dispatch:
                 core.dispatch(*pre_dispatch(ctx, kwargs))
 
