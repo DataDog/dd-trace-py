@@ -11,8 +11,10 @@ from fastapi import Form
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from fastapi.responses import Response
+import requests
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.base import RequestResponseEndpoint
+from starlette.responses import PlainTextResponse
 import urllib3
 import uvicorn
 
@@ -101,6 +103,22 @@ def get_app():
         subp.communicate()
         subp.wait()
         return Response(content="OK")
+
+    @app.post("/iast/ssrf/test_secure", response_class=PlainTextResponse)
+    async def view_iast_ssrf_secure(url: str = Form(...)):
+        from urllib.parse import urlparse
+
+        # Validate the URL and enforce whitelist
+        allowed_domains = ["example.com", "api.example.com", "www.datadoghq.com", "localhost"]
+        parsed_url = urlparse(str(url))
+        if parsed_url.hostname not in allowed_domains:
+            return PlainTextResponse("Forbidden", status_code=403)
+        try:
+            requests.get(str(url))
+        except Exception:
+            pass
+
+        return "OK"
 
     @app.get("/iast-cmdi-vulnerability-secure")
     async def cmdi_secure(filename: str):

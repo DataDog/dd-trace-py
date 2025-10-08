@@ -356,7 +356,10 @@ def appsec_application_server(
         client = Client("http://0.0.0.0:%s" % port)
 
         try:
-            print("Waiting for server to start")
+            print("Waiting for server to start...")
+            print(f"* Command: {cmd}")
+            print(f"* Environment {env}")
+            print("* *****************************************")
             if use_multiprocess:
                 # Socket-based readiness check similar to the provided fixture snippet
                 max_attempts = 120
