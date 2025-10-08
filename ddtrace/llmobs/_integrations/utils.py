@@ -725,7 +725,7 @@ def openai_get_metadata_from_response(
         return metadata
 
     # Add metadata from response
-    for field in ["temperature", "max_output_tokens", "top_p", "tool_choice", "truncation", "text", "user"]:
+    for field in ["temperature", "max_output_tokens", "top_p", "tool_choice", "truncation", "user"]:
         value = getattr(response, field, None)
         if value is not None:
             metadata[field] = load_data_value(value)
