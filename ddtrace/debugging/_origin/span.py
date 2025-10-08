@@ -117,6 +117,7 @@ class EntrySpanLocation:
 
 
 class EntrySpanWrappingContext(WrappingContext):
+    __enabled__ = False
     __priority__ = 199
 
     def __init__(self, uploader: t.Type[SignalUploader], f: FunctionType) -> None:
@@ -135,13 +136,10 @@ class EntrySpanWrappingContext(WrappingContext):
             probe=t.cast(EntrySpanProbe, EntrySpanProbe.build(name=name, module=module, function=name)),
         )
 
-    def is_enabled(self) -> bool:
-        return self.uploader.get_collector() is not None
-
     def __enter__(self):
         super().__enter__()
 
-        if self.is_enabled():
+        if self.__enabled__:
             root = ddtrace.tracer.current_root_span()
             span = ddtrace.tracer.current_span()
             location = self.location
@@ -162,7 +160,7 @@ class EntrySpanWrappingContext(WrappingContext):
         return self
 
     def _close_signal(self, retval=None, exc_info=(None, None, None)):
-        if not self.is_enabled():
+        if not self.__enabled__:
             return
 
         root = ddtrace.tracer.current_root_span()
@@ -211,9 +209,16 @@ class EntrySpanWrappingContext(WrappingContext):
 @dataclass
 class SpanCodeOriginProcessorEntry:
     __uploader__ = SignalUploader
+    __context_wrapper__ = EntrySpanWrappingContext
 
     _instance: t.Optional["SpanCodeOriginProcessorEntry"] = None
     _handler: t.Optional[t.Callable] = None
+
+    @classmethod
+    def init(cls) -> None:
+        # Register the entrypoint wrapping for entry spans
+        cls._handler = handler = partial(wrap_entrypoint, cls.__uploader__)
+        core.on("service_entrypoint.patch", handler)
 
     @classmethod
     def enable(cls):
@@ -225,23 +230,17 @@ class SpanCodeOriginProcessorEntry:
         # Register code origin for span with the snapshot uploader
         cls.__uploader__.register(UploaderProduct.CODE_ORIGIN_SPAN_ENTRY)
 
-    @classmethod
-    def init(cls) -> None:
-        # Register the entrypoint wrapping for entry spans
-        cls._handler = handler = partial(wrap_entrypoint, cls.__uploader__)
-        core.on("service_entrypoint.patch", handler)
-
-    @classmethod
-    def is_enabled(cls) -> bool:
-        return cls._instance is not None
+        # Enable the context wrapper
+        cls.__context_wrapper__.__enabled__ = True
 
     @classmethod
     def disable(cls):
         if cls._instance is None:
             return
 
-        # Unregister the entrypoint wrapping for entry spans
-        core.reset_listeners("service_entrypoint.patch", cls._handler)
+        # Disable the context wrapper
+        cls.__context_wrapper__.__enabled__ = False
+
         # Unregister code origin for span with the snapshot uploader
         cls.__uploader__.unregister(UploaderProduct.CODE_ORIGIN_SPAN_ENTRY)
 
