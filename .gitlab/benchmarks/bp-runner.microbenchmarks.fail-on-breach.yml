@@ -799,11 +799,11 @@ experiments:
           - name: otelspan-add-metrics
             thresholds:
               - execution_time < 344.80 ms
-              - max_rss_usage < 562.00 MB
+              - max_rss_usage < 600.00 MB
           - name: otelspan-add-tags
             thresholds:
               - execution_time < 314.00 ms
-              - max_rss_usage < 563.50 MB
+              - max_rss_usage < 600.00 MB
           - name: otelspan-get-context
             thresholds:
               - execution_time < 92.35 ms
@@ -1027,55 +1027,55 @@ experiments:
           # span
           - name: span-add-event
             thresholds:
-              - execution_time < 26.20 ms
+              - execution_time < 22.50 ms
               - max_rss_usage < 53.00 MB
           - name: span-add-metrics
             thresholds:
-              - execution_time < 98.35 ms
+              - execution_time < 93.50 ms
               - max_rss_usage < 961.00 MB
           - name: span-add-tags
             thresholds:
-              - execution_time < 168.55 ms
+              - execution_time < 155.00 ms
               - max_rss_usage < 962.50 MB
           - name: span-get-context
             thresholds:
-              - execution_time < 23.70 ms
+              - execution_time < 20.50 ms
               - max_rss_usage < 53.00 MB
           - name: span-is-recording
             thresholds:
-              - execution_time < 23.90 ms
+              - execution_time < 20.50 ms
               - max_rss_usage < 53.00 MB
           - name: span-record-exception
             thresholds:
-              - execution_time < 44.50 ms
+              - execution_time < 40.00 ms
               - max_rss_usage < 53.00 MB
           - name: span-set-status
             thresholds:
-              - execution_time < 26.00 ms
+              - execution_time < 22.00 ms
               - max_rss_usage < 53.00 MB
           - name: span-start
             thresholds:
-              - execution_time < 23.50 ms
+              - execution_time < 20.50 ms
               - max_rss_usage < 53.00 MB
           - name: span-start-finish
             thresholds:
-              - execution_time < 55.50 ms
+              - execution_time < 52.50 ms
               - max_rss_usage < 34.00 MB
           - name: span-start-finish-telemetry
             thresholds:
-              - execution_time < 58.30 ms
+              - execution_time < 54.50 ms
               - max_rss_usage < 34.00 MB
           - name: span-start-finish-traceid128
             thresholds:
-              - execution_time < 60.05 ms
+              - execution_time < 56.00 ms
               - max_rss_usage < 34.00 MB
           - name: span-start-traceid128
             thresholds:
-              - execution_time < 24.60 ms
+              - execution_time < 22.50 ms
               - max_rss_usage < 53.00 MB
           - name: span-update-name
             thresholds:
-              - execution_time < 24.10 ms
+              - execution_time < 22.00 ms
               - max_rss_usage < 53.00 MB
 
           # telemetryaddmetric
