@@ -1,7 +1,10 @@
 """This Flask application is imported on tests.appsec.appsec_utils.gunicorn_flask_server"""
-import ddtrace.auto  # noqa: F401  # isort: skip
-import copy
 import os
+
+
+if os.getenv("_USE_DDTRACE_COMMAND", False) not in ("1", "true", "True"):
+    import ddtrace.auto  # noqa: F401  # isort: skip
+import copy
 import re
 import shlex
 import subprocess

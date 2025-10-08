@@ -24,23 +24,24 @@ FILE_PATH = Path(__file__).resolve().parent
 
 @contextmanager
 def gunicorn_flask_server(
-    use_ddtrace_cmd=True,
-    appsec_enabled="true",
-    iast_enabled="false",
-    remote_configuration_enabled="true",
-    tracer_enabled="true",
-    apm_tracing_enabled="true",
-    token=None,
-    port=8000,
-    workers="1",
-    use_threads=False,
-    use_gevent=False,
-    assert_debug=False,
-    env=None,
-):
+    use_ddtrace_cmd: bool = True,
+    appsec_enabled: str = "true",
+    iast_enabled: str = "false",
+    remote_configuration_enabled: str = "true",
+    tracer_enabled: str = "true",
+    apm_tracing_enabled: _t.Optional[str] = "true",
+    token: _t.Optional[str] = None,
+    port: int = 8000,
+    workers: str = "1",
+    use_threads: bool = False,
+    use_gevent: bool = False,
+    assert_debug: bool = False,
+    env: dict = {},
+) -> _t.Iterator[_t.Tuple[_t.Union[subprocess.Popen, multiprocessing.Process], Client, _t.Optional[int]]]:
     cmd = ["gunicorn", "-w", workers, "--log-level", "debug"]
     if use_ddtrace_cmd:
         cmd = ["python", "-m", "ddtrace.commands.ddtrace_run"] + cmd
+        env["_USE_DDTRACE_COMMAND"] = "true"
     if use_threads:
         cmd += ["--threads", "1"]
     if use_gevent:
@@ -62,23 +63,24 @@ def gunicorn_flask_server(
 
 @contextmanager
 def flask_server(
-    python_cmd="python",
-    appsec_enabled="false",
-    remote_configuration_enabled="true",
-    iast_enabled="false",
-    tracer_enabled="true",
-    apm_tracing_enabled=None,
-    token=None,
-    app="tests/appsec/app.py",
-    env=None,
-    port=8000,
-    assert_debug=False,
-    manual_propagation_debug=False,
-    use_ddtrace_cmd=True,
-):
+    python_cmd: str = "python",
+    appsec_enabled: _t.Optional[str] = "false",
+    remote_configuration_enabled: str = "true",
+    iast_enabled: _t.Optional[str] = "false",
+    tracer_enabled: _t.Optional[str] = "true",
+    apm_tracing_enabled: _t.Optional[str] = None,
+    token: _t.Optional[str] = None,
+    app: str = "tests/appsec/app.py",
+    env: dict = {},
+    port: int = 8000,
+    assert_debug: bool = False,
+    manual_propagation_debug: bool = False,
+    use_ddtrace_cmd: bool = True,
+) -> _t.Iterator[_t.Tuple[_t.Union[subprocess.Popen, multiprocessing.Process], Client, _t.Optional[int]]]:
     cmd = [python_cmd, app, "--no-reload"]
     if use_ddtrace_cmd:
         cmd = [python_cmd, "-m", "ddtrace.commands.ddtrace_run"] + cmd
+        env["_USE_DDTRACE_COMMAND"] = "true"
     yield from appsec_application_server(
         cmd,
         appsec_enabled=appsec_enabled,
@@ -102,14 +104,14 @@ def gunicorn_django_server(
     remote_configuration_enabled: str = "true",
     tracer_enabled: str = "true",
     apm_tracing_enabled: str = "true",
-    token: str = None,
+    token: _t.Optional[str] = None,
     port: int = 8000,
     workers: str = "1",
     use_threads: bool = False,
     use_gevent: bool = False,
     assert_debug: bool = False,
-    env: dict = None,
-):
+    env: dict = {},
+) -> _t.Iterator[_t.Tuple[_t.Union[subprocess.Popen, multiprocessing.Process], Client, _t.Optional[int]]]:
     """Run the Django test application under Gunicorn.
 
     Uses the WSGI application at
@@ -132,6 +134,8 @@ def gunicorn_django_server(
     extra_env = {
         "DJANGO_SETTINGS_MODULE": "tests.appsec.integrations.django_tests.django_app.settings",
     }
+    if use_ddtrace_cmd:
+        extra_env["_USE_DDTRACE_COMMAND"] = "true"
     if env:
         extra_env.update(env)
     yield from appsec_application_server(
@@ -150,20 +154,20 @@ def gunicorn_django_server(
 
 @contextmanager
 def django_server(
-    python_cmd="python",
-    appsec_enabled="false",
-    remote_configuration_enabled="true",
-    iast_enabled="false",
-    tracer_enabled="true",
-    apm_tracing_enabled=None,
-    token=None,
-    port=8000,
-    env=None,
-    assert_debug=False,
-    manual_propagation_debug=False,
-    *args,
-    **kwargs,
-):
+    python_cmd: str = "python",
+    appsec_enabled: _t.Optional[str] = "false",
+    remote_configuration_enabled: str = "true",
+    iast_enabled: _t.Optional[str] = "false",
+    tracer_enabled: _t.Optional[str] = "true",
+    apm_tracing_enabled: _t.Optional[str] = None,
+    token: _t.Optional[str] = None,
+    port: int = 8000,
+    env: _t.Optional[dict] = None,
+    assert_debug: bool = False,
+    manual_propagation_debug: bool = False,
+    *args: _t.Any,
+    **kwargs: _t.Any,
+) -> _t.Iterator[_t.Tuple[_t.Union[subprocess.Popen, multiprocessing.Process], Client, _t.Optional[int]]]:
     """
     Context manager that runs a Django test server in a subprocess.
 
@@ -198,20 +202,20 @@ def django_server(
 
 @contextmanager
 def uvicorn_server(
-    python_cmd="python",
-    appsec_enabled="false",
-    remote_configuration_enabled="true",
-    iast_enabled="false",
-    tracer_enabled="true",
-    apm_tracing_enabled=None,
-    token=None,
-    app="tests.appsec.integrations.fastapi_tests.app:app",
-    env=None,
-    port=8000,
-    assert_debug=False,
-    manual_propagation_debug=False,
-    use_multiprocess=False,
-):
+    python_cmd: str = "python",
+    appsec_enabled: _t.Optional[str] = "false",
+    remote_configuration_enabled: str = "true",
+    iast_enabled: _t.Optional[str] = "false",
+    tracer_enabled: _t.Optional[str] = "true",
+    apm_tracing_enabled: _t.Optional[str] = None,
+    token: _t.Optional[str] = None,
+    app: str = "tests.appsec.integrations.fastapi_tests.app:app",
+    env: _t.Optional[dict] = None,
+    port: int = 8000,
+    assert_debug: bool = False,
+    manual_propagation_debug: bool = False,
+    use_multiprocess: bool = False,
+) -> _t.Iterator[_t.Tuple[_t.Union[subprocess.Popen, multiprocessing.Process], Client, _t.Optional[int]]]:
     """
     Context manager that runs a FastAPI test server in a subprocess using Uvicorn.
 
@@ -247,19 +251,19 @@ def uvicorn_server(
 
 
 def appsec_application_server(
-    cmd,
-    appsec_enabled="true",
-    remote_configuration_enabled="true",
-    iast_enabled="false",
-    tracer_enabled="true",
-    apm_tracing_enabled=None,
-    token=None,
-    env=None,
-    port=8000,
-    assert_debug=False,
-    manual_propagation_debug=False,
-    use_multiprocess=False,
-):
+    cmd: _t.Sequence[str],
+    appsec_enabled: _t.Optional[str] = "true",
+    remote_configuration_enabled: str = "true",
+    iast_enabled: _t.Optional[str] = "false",
+    tracer_enabled: _t.Optional[str] = "true",
+    apm_tracing_enabled: _t.Optional[str] = None,
+    token: _t.Optional[str] = None,
+    env: _t.Optional[dict] = None,
+    port: int = 8000,
+    assert_debug: bool = False,
+    manual_propagation_debug: bool = False,
+    use_multiprocess: bool = False,
+) -> _t.Iterator[_t.Tuple[_t.Union[subprocess.Popen, multiprocessing.Process], Client, _t.Optional[int]]]:
     """Start an application server subprocess for AppSec/IAST tests.
 
     This helper optionally applies CPU/memory limits to the spawned subprocess when the following
