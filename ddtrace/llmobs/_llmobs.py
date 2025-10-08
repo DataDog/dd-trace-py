@@ -1393,7 +1393,7 @@ class LLMObs(Service):
                 else:
                     cls._set_dict_attribute(span, METADATA, metadata)
             if metrics is not None:
-                if not isinstance(metrics, dict):
+                if not isinstance(metrics, dict) or not all(isinstance(v, (int, float)) for v in metrics.values()):
                     error = "invalid_metrics"
                     log.warning("metrics must be a dictionary of string key - numeric value pairs.")
                 else:
