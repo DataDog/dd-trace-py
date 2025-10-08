@@ -1569,9 +1569,7 @@ def test_submit_evaluation_span_with_tag_value_incorrect_type_raises_error(llmob
         TypeError,
         match=r"`span_with_tag_value` must be a dict with keys 'tag_key' and 'tag_value' containing string values",
     ):
-        llmobs.submit_evaluation(
-            span_with_tag_value="asd", label="toxicity", metric_type="categorical", value="high"
-        )
+        llmobs.submit_evaluation(span_with_tag_value="asd", label="toxicity", metric_type="categorical", value="high")
     with pytest.raises(
         TypeError,
         match=r"`span_with_tag_value` must be a dict with keys 'tag_key' and 'tag_value' containing string values",
@@ -1594,9 +1592,7 @@ def test_submit_evaluation_empty_span_or_trace_id_raises_error(llmobs, mock_llmo
             )
         ),
     ):
-        llmobs.submit_evaluation(
-            span={"trace_id": "456"}, label="toxicity", metric_type="categorical", value="high"
-        )
+        llmobs.submit_evaluation(span={"trace_id": "456"}, label="toxicity", metric_type="categorical", value="high")
     with pytest.raises(
         TypeError,
         match=re.escape(
