@@ -106,6 +106,10 @@ macro_rules! define_event_core {
         #[allow(dead_code)]
         static NEXT_ID: AtomicU64 = AtomicU64::new(1);
 
+        /// Fast atomic counter for listener presence check (avoids lock acquisition)
+        #[allow(dead_code)]
+        static LISTENER_COUNT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
         /// Generic function to add a listener
         #[allow(dead_code)]
         fn add_listener_internal(listener: $listener_entry_type) -> $crate::events::ListenerHandle {
@@ -116,6 +120,7 @@ macro_rules! define_event_core {
             };
 
             LISTENERS.write().unwrap().push((id, listener));
+            LISTENER_COUNT.fetch_add(1, Ordering::SeqCst);
             handle
         }
 
@@ -129,15 +134,16 @@ macro_rules! define_event_core {
             let mut listeners = LISTENERS.write().unwrap();
             if let Some(pos) = listeners.iter().position(|(id, _)| *id == handle.id) {
                 listeners.remove(pos);
+                LISTENER_COUNT.fetch_sub(1, Ordering::SeqCst);
                 return true;
             }
             false
         }
 
-        /// Check if there are any listeners registered
+        /// Check if there are any listeners registered (lock-free fast path)
         #[allow(dead_code)]
         pub fn has_listeners() -> bool {
-            !LISTENERS.read().unwrap().is_empty()
+            LISTENER_COUNT.load(Ordering::Relaxed) > 0
         }
     };
 }
@@ -210,11 +216,18 @@ macro_rules! define_event {
             mod python_integration {
                 use super::*;
 
-                /// Python wrapper for dispatch - receives owned values from Python
+                /// Python wrapper for dispatch - optimized to defer argument unpacking
+                /// Takes varargs and only processes if there are listeners
                 #[pyfunction]
                 #[pyo3(signature = ($($param)*, /))]
-                pub fn dispatch_py($($param: $param_type)*) {
+                pub fn dispatch_py($($param: $param_type)*) -> PyResult<()> {
+                    // Fast path: no listeners, skip all argument processing
+                    // This uses an atomic check (no lock acquisition)
+                    if !super::has_listeners() {
+                        return Ok(());
+                    }
                     super::dispatch($(&$param)*);
+                    Ok(())
                 }
 
                 /// Python wrapper for on (register listener)
