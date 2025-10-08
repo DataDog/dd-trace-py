@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 import dis
 import sys
 from types import CodeType
@@ -25,11 +24,16 @@ is_python_3_10 = sys.version_info[:2] == (3, 10)
 is_python_3_11 = sys.version_info[:2] == (3, 11)
 
 
-@dataclass
 class InjectionContext:
-    original_code: CodeType
-    hook: CallbackType
-    offsets_callback: t.Callable[["InjectionContext"], t.List[int]]
+    def __init__(
+        self,
+        original_code: CodeType,
+        hook: CallbackType,
+        offsets_callback: t.Callable[["InjectionContext"], t.List[int]],
+    ):
+        self.original_code = original_code
+        self.hook = hook
+        self.offsets_callback = offsets_callback
 
     def transfer(self, code: CodeType) -> "InjectionContext":
         return InjectionContext(code, self.hook, self.offsets_callback)

@@ -139,7 +139,7 @@ def _report_coverage_to_span(
             # In this case, coverage_data is the context manager supplied by ModuleCodeCollector.CollectInContext
 
             workspace_path = getattr(coverage_data, "_workspace_path", Path("/"))
-            files = ModuleCodeCollector.report_seen_lines(workspace_path, include_imported=True)
+            files = ModuleCodeCollector.report_seen_files(workspace_path, include_imported=True)
             if not files:
                 return
             span.set_tag_str(

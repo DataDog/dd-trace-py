@@ -234,21 +234,23 @@ def _handle_collected_coverage(item, test_id, coverage_collector) -> None:
     if not should_collect_coverage:
         return
 
-    # TODO: clean up internal coverage API usage
-    test_covered_lines = _coverage_collector_get_covered_lines(coverage_collector)
+    # File-level mode: get covered files
+    test_covered_files = coverage_collector.get_covered_files()
     _coverage_collector_exit(coverage_collector)
 
     record_code_coverage_finished(COVERAGE_LIBRARY.COVERAGEPY, FRAMEWORK)
 
-    if not test_covered_lines:
-        log.debug("No covered lines found for test %s", test_id)
+    if not test_covered_files:
+        log.debug("No covered files found for test %s", test_id)
         record_code_coverage_empty()
         return
 
     coverage_data: t.Dict[Path, CoverageLines] = {}
-
-    for path_str, covered_lines in test_covered_lines.items():
-        coverage_data[Path(path_str).absolute()] = covered_lines
+    # Convert file paths to coverage data with a single "line" marker
+    for path_str in test_covered_files:
+        coverage_lines = CoverageLines()
+        coverage_lines.add(0)  # Mark file as covered with dummy line 0
+        coverage_data[Path(path_str).absolute()] = coverage_lines
 
     if not coverage_data:
         log.debug("No coverage data found for test %s", test_id)

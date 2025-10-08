@@ -82,7 +82,9 @@ class CoverageCollectingMultiprocess(BaseProcess):
             # Avoid circular import since the installer imports uses _patch_multiprocessing()
             from ddtrace.internal.coverage.installer import install
 
-            install(include_paths=self._dd_coverage_include_paths)
+            install(
+                include_paths=self._dd_coverage_include_paths,
+            )
             ModuleCodeCollector.start_coverage()
 
         # Call the original bootstrap method
@@ -95,7 +97,13 @@ class CoverageCollectingMultiprocess(BaseProcess):
                 return
 
             try:
-                self._child_conn.send(pickle.dumps({"lines": instance.lines, "covered": instance.covered}))
+                # File-level mode: convert covered files to coverage data format
+                covered = {}
+                for path in instance.covered_files:
+                    coverage_lines = CoverageLines()
+                    coverage_lines.add(0)
+                    covered[path] = coverage_lines
+                self._child_conn.send(pickle.dumps({"lines": instance.lines, "covered": covered}))
             except pickle.PicklingError:
                 log.warning("Failed to pickle coverage data for child process", exc_info=True)
             except Exception:
@@ -154,7 +162,11 @@ class Stowaway:
     ModuleCodeCollector in it leads to incomplete code coverage data.
     """
 
-    def __init__(self, include_paths: t.Optional[t.List[Path]] = None, dd_coverage_enabled: bool = True) -> None:
+    def __init__(
+        self,
+        include_paths: t.Optional[t.List[Path]] = None,
+        dd_coverage_enabled: bool = True,
+    ) -> None:
         self.dd_coverage_enabled: bool = dd_coverage_enabled
         self.include_paths_strs: t.List[str] = []
         if include_paths is not None:
@@ -166,7 +178,7 @@ class Stowaway:
             "dd_coverage_enabled": self.dd_coverage_enabled,
         }
 
-    def __setstate__(self, state: t.Dict[str, str]) -> None:
+    def __setstate__(self, state: t.Dict[str, t.Any]) -> None:
         include_paths = [Path(include_path_str) for include_path_str in json.loads(state["include_paths_strs"])]
 
         if state["dd_coverage_enabled"]:
@@ -199,9 +211,10 @@ def _patch_multiprocessing():
         def get_preparation_data_with_stowaway(name: str) -> t.Dict[str, t.Any]:
             """Make sure that the ModuleCodeCollector is installed as soon as possible, with the same include paths"""
             d = original_get_preparation_data(name)
-            include_paths = (
-                [] if ModuleCodeCollector._instance is None else ModuleCodeCollector._instance._include_paths
-            )
+            if ModuleCodeCollector._instance is None:
+                include_paths = []
+            else:
+                include_paths = ModuleCodeCollector._instance._include_paths
             d["stowaway"] = Stowaway(include_paths=include_paths)
             return d
 

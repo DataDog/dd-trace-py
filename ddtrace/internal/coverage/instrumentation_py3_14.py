@@ -16,6 +16,12 @@ IMPORT_FROM = dis.opmap["IMPORT_FROM"]
 RESUME = dis.opmap["RESUME"]
 
 
+def instrument_file_only(code: CodeType, hook: HookType, path: str, package: str) -> CodeType:
+    """Lightweight instrumentation for file-level tracking (Python 3.14+)"""
+    # No-op for now - would use sys.monitoring like 3.12
+    return code
+
+
 def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, CoverageLines]:
     # No-op
     return code, CoverageLines()
