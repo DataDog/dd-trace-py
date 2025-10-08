@@ -176,12 +176,15 @@ def traced_get_response(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[
 
             return response
         finally:
+            override_response = None
             core.dispatch("django.finalize_response.pre", (ctx, utils._after_request_tags, request, response))
             if not get_blocked():
                 core.dispatch("django.finalize_response", ("Django",))
                 if get_blocked():
-                    response = blocked_response()
-                    return response  # noqa: B012
+                    override_response = blocked_response()
+
+            if override_response is not None:
+                response = override_response
 
 
 async def traced_get_response_async(

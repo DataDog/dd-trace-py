@@ -32,16 +32,15 @@ class TracedBotocoreEventStream(wrapt.ObjectProxy):
             self._dd_span.set_exc_info(*sys.exc_info())
             raise
         finally:
-            if self._dd_span.finished:
-                return
-            traces, chunks = _extract_traces_response_from_chunks(self._stream_chunks)
-            response = _process_streamed_response_chunks(chunks)
-            try:
-                self._dd_integration.translate_bedrock_traces(traces, self._dd_span)
-            except Exception:
-                log.error("Error translating Bedrock traces", exc_info=True)
-            self._dd_integration.llmobs_set_tags(self._dd_span, self._args, self._kwargs, response, operation="agent")
-            self._dd_span.finish()
+            if not self._dd_span.finished:
+                traces, chunks = _extract_traces_response_from_chunks(self._stream_chunks)
+                response = _process_streamed_response_chunks(chunks)
+                try:
+                    self._dd_integration.translate_bedrock_traces(traces, self._dd_span)
+                except Exception:
+                    log.error("Error translating Bedrock traces", exc_info=True)
+                self._dd_integration.llmobs_set_tags(self._dd_span, self._args, self._kwargs, response, operation="agent")
+                self._dd_span.finish()
 
 
 def _extract_traces_response_from_chunks(chunks):

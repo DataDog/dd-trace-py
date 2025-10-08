@@ -136,8 +136,8 @@ def taint_structure(main_obj, source_key, source_value, override_pyobject_tainte
     except Exception:
         log.debug("taint_structure error", exc_info=True)
         pass
-    finally:
-        return main_res[0] if main_res else main_obj
+
+    return main_res[0] if main_res else main_obj
 
 
 # Lazy Tainting
