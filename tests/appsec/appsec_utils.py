@@ -29,8 +29,8 @@ def gunicorn_flask_server(
     iast_enabled: str = "false",
     remote_configuration_enabled: str = "true",
     tracer_enabled: str = "true",
-    apm_tracing_enabled: _t.Optional[str] = "true",
-    token: _t.Optional[str] = None,
+    apm_tracing_enabled: str = "true",
+    token: str = "",
     port: int = 8000,
     workers: str = "1",
     use_threads: bool = False,
@@ -68,7 +68,7 @@ def flask_server(
     remote_configuration_enabled: str = "true",
     iast_enabled: _t.Optional[str] = "false",
     tracer_enabled: _t.Optional[str] = "true",
-    apm_tracing_enabled: _t.Optional[str] = None,
+    apm_tracing_enabled: _t.Optional[str] = "",
     token: _t.Optional[str] = None,
     app: str = "tests/appsec/app.py",
     env: dict = {},
@@ -207,10 +207,10 @@ def uvicorn_server(
     remote_configuration_enabled: str = "true",
     iast_enabled: _t.Optional[str] = "false",
     tracer_enabled: _t.Optional[str] = "true",
-    apm_tracing_enabled: _t.Optional[str] = None,
-    token: _t.Optional[str] = None,
+    apm_tracing_enabled: str = "",
+    token: str = "",
     app: str = "tests.appsec.integrations.fastapi_tests.app:app",
-    env: _t.Optional[dict] = None,
+    env: _t.Optional[dict] = {},
     port: int = 8000,
     assert_debug: bool = False,
     manual_propagation_debug: bool = False,
@@ -252,13 +252,13 @@ def uvicorn_server(
 
 def appsec_application_server(
     cmd: _t.Sequence[str],
-    appsec_enabled: _t.Optional[str] = "true",
+    appsec_enabled: str = "true",
     remote_configuration_enabled: str = "true",
-    iast_enabled: _t.Optional[str] = "false",
-    tracer_enabled: _t.Optional[str] = "true",
-    apm_tracing_enabled: _t.Optional[str] = None,
-    token: _t.Optional[str] = None,
-    env: _t.Optional[dict] = None,
+    iast_enabled: str = "false",
+    tracer_enabled: str = "true",
+    apm_tracing_enabled: str = "",
+    token: str = "",
+    env: _t.Optional[dict] = {},
     port: int = 8000,
     assert_debug: bool = False,
     manual_propagation_debug: bool = False,
@@ -280,9 +280,9 @@ def appsec_application_server(
     if token:
         env["_DD_REMOTE_CONFIGURATION_ADDITIONAL_HEADERS"] = "X-Datadog-Test-Session-Token:%s," % (token,)
         env["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = "X-Datadog-Test-Session-Token:{}".format(token)
-    if appsec_enabled is not None:
+    if appsec_enabled:
         env["DD_APPSEC_ENABLED"] = appsec_enabled
-    if apm_tracing_enabled is not None:
+    if apm_tracing_enabled:
         env["DD_APM_TRACING_ENABLED"] = apm_tracing_enabled
     if iast_enabled is not None and iast_enabled != "false":
         env[IAST.ENV] = iast_enabled
@@ -294,7 +294,7 @@ def appsec_application_server(
             env["_" + IAST.ENV_DEBUG] = iast_enabled
             env["_" + IAST.ENV_PROPAGATION_DEBUG] = iast_enabled
             env["DD_TRACE_DEBUG"] = iast_enabled
-    if tracer_enabled is not None:
+    if tracer_enabled:
         env["DD_TRACE_ENABLED"] = tracer_enabled
     env["DD_TRACE_AGENT_URL"] = os.environ.get("DD_TRACE_AGENT_URL", "")
     env["FLASK_RUN_PORT"] = str(port)
