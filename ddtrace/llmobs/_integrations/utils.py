@@ -1255,7 +1255,6 @@ def _compute_prompt_tokens(prompts=None, messages=None):
     Only required if token usage is not provided in the streamed response.
     """
     num_prompt_tokens = 0
-    estimated = True
     if messages:
         for m in messages:
             prompt_tokens = _est_tokens(m.get("content", ""))
@@ -1266,20 +1265,17 @@ def _compute_prompt_tokens(prompts=None, messages=None):
         for prompt in prompts:
             prompt_tokens = _est_tokens(prompt)
             num_prompt_tokens += prompt_tokens
-    return estimated, num_prompt_tokens
+    return num_prompt_tokens
 
 
 def _compute_completion_tokens(completions_or_messages):
     """Compute/Estimate the completion token count from the streamed response."""
-    if not completions_or_messages:
-        return False, 0
-    estimated = True
     num_completion_tokens = 0
     for choice in completions_or_messages:
         content = choice.get("content", "") or choice.get("text", "")
         completion_tokens = _est_tokens(content)
         num_completion_tokens += completion_tokens
-    return estimated, num_completion_tokens
+    return num_completion_tokens
 
 
 def _est_tokens(prompt: Union[str, List[int]]) -> int:
