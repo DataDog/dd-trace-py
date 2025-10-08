@@ -1,38 +1,11 @@
-import sys
-
 import pytest
 
 
-@pytest.fixture(autouse=True)
-def cleanup_coverage_modules():
-    """Clean up coverage collector and imported test modules between tests."""
-    from ddtrace.internal.coverage.code import ModuleCodeCollector
-
-    # Store modules to remove after test
-    modules_to_remove = [key for key in sys.modules.keys() if key.startswith("tests.coverage.included_path")]
-
-    yield
-
-    # Clean up after test
-    if ModuleCodeCollector._instance:
-        ModuleCodeCollector._instance.uninstall()
-        ModuleCodeCollector._instance = None
-
-    # Remove imported test modules so they can be re-imported fresh in the next test
-    for module_name in modules_to_remove:
-        sys.modules.pop(module_name, None)
-
-    # Also remove any modules that were imported during the test
-    for key in list(sys.modules.keys()):
-        if key.startswith("tests.coverage.included_path"):
-            sys.modules.pop(key, None)
-
-
+@pytest.mark.subprocess
 def test_coverage_threading_session():
     import os
     from pathlib import Path
     import threading
-    from unittest.mock import patch
 
     from ddtrace.internal.coverage.code import ModuleCodeCollector
     from ddtrace.internal.coverage.installer import install
@@ -41,36 +14,34 @@ def test_coverage_threading_session():
     cwd = os.getcwd()
 
     include_paths = [Path(cwd) / "tests/coverage/included_path/"]
+    install(include_paths=include_paths)
 
-    with patch("ddtrace.internal.coverage.code.is_user_code", return_value=True):
-        install(include_paths=include_paths)
+    ModuleCodeCollector.start_coverage()
+    from tests.coverage.included_path.callee import called_in_session_main
 
-        ModuleCodeCollector.start_coverage()
-        from tests.coverage.included_path.callee import called_in_session_main
+    thread = threading.Thread(target=called_in_session_main, args=(1, 2))
+    thread.start()
+    thread.join()
 
-        thread = threading.Thread(target=called_in_session_main, args=(1, 2))
-        thread.start()
-        thread.join()
+    ModuleCodeCollector.stop_coverage()
 
-        ModuleCodeCollector.stop_coverage()
+    covered_lines = _get_relpath_dict(cwd, ModuleCodeCollector._instance._get_covered_lines())
 
-        covered_lines = _get_relpath_dict(cwd, ModuleCodeCollector._instance._get_covered_lines())
+    expected_lines = {
+        "tests/coverage/included_path/callee.py": {1, 2, 3, 5, 6, 9, 17},
+        "tests/coverage/included_path/lib.py": {1, 2, 5},
+    }
 
-        expected_lines = {
-            "tests/coverage/included_path/callee.py": {1, 2, 3, 5, 6, 9, 17},
-            "tests/coverage/included_path/lib.py": {1, 2, 5},
-        }
-
-        if expected_lines.keys() != covered_lines.keys():
-            print(f"Mismatched lines: {expected_lines} vs  {covered_lines}")
-            assert False
+    if expected_lines != covered_lines:
+        print(f"Mismatched lines: {expected_lines} vs  {covered_lines}")
+        assert False
 
 
+@pytest.mark.subprocess
 def test_coverage_threading_context():
     import os
     from pathlib import Path
     import threading
-    from unittest.mock import patch
 
     from ddtrace.internal.coverage.code import ModuleCodeCollector
     from ddtrace.internal.coverage.installer import install
@@ -79,41 +50,37 @@ def test_coverage_threading_context():
     cwd = os.getcwd()
 
     include_paths = [Path(cwd) / "tests/coverage/included_path/"]
+    install(include_paths=include_paths)
 
-    with patch("ddtrace.internal.coverage.code.is_user_code", return_value=True):
-        install(include_paths=include_paths)
+    from tests.coverage.included_path.callee import called_in_session_main
 
-        from tests.coverage.included_path.callee import called_in_session_main
+    called_in_session_main(1, 2)
 
-        called_in_session_main(1, 2)
+    with ModuleCodeCollector.CollectInContext() as context_collector:
+        from tests.coverage.included_path.callee import called_in_context_main
 
-        with ModuleCodeCollector.CollectInContext() as context_collector:
-            from tests.coverage.included_path.callee import called_in_context_main
+        thread = threading.Thread(target=called_in_context_main, args=(1, 2))
+        thread.start()
+        thread.join()
 
-            thread = threading.Thread(target=called_in_context_main, args=(1, 2))
-            thread.start()
-            thread.join()
+        context_covered = _get_relpath_dict(cwd, context_collector.get_covered_lines())
 
-            context_covered = _get_relpath_dict(cwd, context_collector.get_covered_lines())
+    expected_lines = {
+        "tests/coverage/included_path/callee.py": {10, 11, 13, 14},
+        "tests/coverage/included_path/in_context_lib.py": {1, 2, 5},
+    }
 
-        expected_lines = {
-            "tests/coverage/included_path/callee.py": {10, 11, 13, 14},
-            "tests/coverage/included_path/in_context_lib.py": {1, 2, 5},
-        }
+    assert expected_lines == context_covered, f"Mismatched lines: {expected_lines} vs  {context_covered}"
 
-        assert (
-            expected_lines.keys() == context_covered.keys()
-        ), f"Mismatched lines: {expected_lines} vs  {context_covered}"
-
-        session_covered = dict(ModuleCodeCollector._instance._get_covered_lines())
-        assert not session_covered, f"Session recorded lines when it should not have: {session_covered}"
+    session_covered = dict(ModuleCodeCollector._instance._get_covered_lines())
+    assert not session_covered, f"Session recorded lines when it should not have: {session_covered}"
 
 
+@pytest.mark.subprocess
 def test_coverage_concurrent_futures_threadpool_session():
     import concurrent.futures
     import os
     from pathlib import Path
-    from unittest.mock import patch
 
     from ddtrace.internal.coverage.code import ModuleCodeCollector
     from ddtrace.internal.coverage.installer import install
@@ -122,36 +89,34 @@ def test_coverage_concurrent_futures_threadpool_session():
     cwd = os.getcwd()
 
     include_paths = [Path(cwd) / "tests/coverage/included_path/"]
+    install(include_paths=include_paths)
 
-    with patch("ddtrace.internal.coverage.code.is_user_code", return_value=True):
-        install(include_paths=include_paths)
+    ModuleCodeCollector.start_coverage()
+    from tests.coverage.included_path.callee import called_in_session_main
 
-        ModuleCodeCollector.start_coverage()
-        from tests.coverage.included_path.callee import called_in_session_main
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        future = executor.submit(called_in_session_main, 1, 2)
+        future.result()
 
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            future = executor.submit(called_in_session_main, 1, 2)
-            future.result()
+    ModuleCodeCollector.stop_coverage()
 
-        ModuleCodeCollector.stop_coverage()
+    covered_lines = _get_relpath_dict(cwd, ModuleCodeCollector._instance._get_covered_lines())
 
-        covered_lines = _get_relpath_dict(cwd, ModuleCodeCollector._instance._get_covered_lines())
+    expected_lines = {
+        "tests/coverage/included_path/callee.py": {1, 2, 3, 5, 6, 9, 17},
+        "tests/coverage/included_path/lib.py": {1, 2, 5},
+    }
 
-        expected_lines = {
-            "tests/coverage/included_path/callee.py": {1, 2, 3, 5, 6, 9, 17},
-            "tests/coverage/included_path/lib.py": {1, 2, 5},
-        }
-
-        if expected_lines.keys() != covered_lines.keys():
-            print(f"Mismatched lines: {expected_lines} vs  {covered_lines}")
-            assert False
+    if expected_lines != covered_lines:
+        print(f"Mismatched lines: {expected_lines} vs  {covered_lines}")
+        assert False
 
 
+@pytest.mark.subprocess
 def test_coverage_concurrent_futures_threadpool_context():
     import concurrent.futures
     import os
     from pathlib import Path
-    from unittest.mock import patch
 
     from ddtrace.internal.coverage.code import ModuleCodeCollector
     from ddtrace.internal.coverage.installer import install
@@ -160,31 +125,27 @@ def test_coverage_concurrent_futures_threadpool_context():
     cwd = os.getcwd()
 
     include_paths = [Path(cwd) / "tests/coverage/included_path/"]
+    install(include_paths=include_paths)
 
-    with patch("ddtrace.internal.coverage.code.is_user_code", return_value=True):
-        install(include_paths=include_paths)
+    from tests.coverage.included_path.callee import called_in_session_main
 
-        from tests.coverage.included_path.callee import called_in_session_main
+    called_in_session_main(1, 2)
 
-        called_in_session_main(1, 2)
+    with ModuleCodeCollector.CollectInContext() as context_collector:
+        from tests.coverage.included_path.callee import called_in_context_main
 
-        with ModuleCodeCollector.CollectInContext() as context_collector:
-            from tests.coverage.included_path.callee import called_in_context_main
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            future = executor.submit(called_in_context_main, 1, 2)
+            future.result()
 
-            with concurrent.futures.ProcessPoolExecutor() as executor:
-                future = executor.submit(called_in_context_main, 1, 2)
-                future.result()
+        context_covered = _get_relpath_dict(cwd, context_collector.get_covered_lines())
 
-            context_covered = _get_relpath_dict(cwd, context_collector.get_covered_lines())
+    expected_lines = {
+        "tests/coverage/included_path/callee.py": {10, 11, 13, 14},
+        "tests/coverage/included_path/in_context_lib.py": {1, 2, 5},
+    }
 
-        expected_lines = {
-            "tests/coverage/included_path/callee.py": {10, 11, 13, 14},
-            "tests/coverage/included_path/in_context_lib.py": {1, 2, 5},
-        }
+    assert expected_lines == context_covered, f"Mismatched lines: {expected_lines} vs  {context_covered}"
 
-        assert (
-            expected_lines.keys() == context_covered.keys()
-        ), f"Mismatched lines: {expected_lines} vs  {context_covered}"
-
-        session_covered = dict(ModuleCodeCollector._instance._get_covered_lines())
-        assert not session_covered, f"Session recorded lines when it should not have: {session_covered}"
+    session_covered = dict(ModuleCodeCollector._instance._get_covered_lines())
+    assert not session_covered, f"Session recorded lines when it should not have: {session_covered}"
