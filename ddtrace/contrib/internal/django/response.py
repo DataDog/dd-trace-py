@@ -172,7 +172,6 @@ def traced_get_response(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[
                         response = blocked_response()
 
         finally:
-            result = None
             core.dispatch("django.finalize_response.pre", (ctx, utils._after_request_tags, request, response))
             if not get_blocked():
                 core.dispatch("django.finalize_response", ("Django",))
