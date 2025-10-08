@@ -19,6 +19,10 @@ class TestMCPPatch(PatchTestCase.Base):
         self.assert_wrapped(BaseSession.send_request)
         self.assert_wrapped(ClientSession.call_tool)
         self.assert_wrapped(ToolManager.call_tool)
+        self.assert_wrapped(ClientSession.__aenter__)
+        self.assert_wrapped(ClientSession.__aexit__)
+        self.assert_wrapped(ClientSession.list_tools)
+        self.assert_wrapped(ClientSession.initialize)
 
     def assert_not_module_patched(self, mcp):
         from mcp.client.session import ClientSession
@@ -28,6 +32,10 @@ class TestMCPPatch(PatchTestCase.Base):
         self.assert_not_wrapped(BaseSession.send_request)
         self.assert_not_wrapped(ClientSession.call_tool)
         self.assert_not_wrapped(ToolManager.call_tool)
+        self.assert_not_wrapped(ClientSession.__aenter__)
+        self.assert_not_wrapped(ClientSession.__aexit__)
+        self.assert_not_wrapped(ClientSession.list_tools)
+        self.assert_not_wrapped(ClientSession.initialize)
 
     def assert_not_module_double_patched(self, mcp):
         from mcp.client.session import ClientSession
@@ -37,3 +45,7 @@ class TestMCPPatch(PatchTestCase.Base):
         self.assert_not_double_wrapped(BaseSession.send_request)
         self.assert_not_double_wrapped(ClientSession.call_tool)
         self.assert_not_double_wrapped(ToolManager.call_tool)
+        self.assert_not_double_wrapped(ClientSession.__aenter__)
+        self.assert_not_double_wrapped(ClientSession.__aexit__)
+        self.assert_not_double_wrapped(ClientSession.list_tools)
+        self.assert_not_double_wrapped(ClientSession.initialize)

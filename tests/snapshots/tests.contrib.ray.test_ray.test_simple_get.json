@@ -1,0 +1,106 @@
+[[
+  {
+    "name": "task.submit",
+    "service": "tests.contrib.ray",
+    "resource": "tests.contrib.ray.test_ray.add_one.remote",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "ray",
+    "error": 0,
+    "meta": {
+      "_dd.hostname": "docker-desktop",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68dfeb8100000000",
+      "component": "ray",
+      "language": "python",
+      "ray.hostname": "docker-desktop",
+      "ray.job_id": "01000000",
+      "ray.node_id": "142aa12894d2b47a2b01989991cd0cec0340e675b8ba6d22a3ea0292",
+      "ray.task.submit_status": "success",
+      "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
+      "runtime-id": "81dd04c9904045e9b283e0bdc8fe152f",
+      "span.kind": "producer"
+    },
+    "metrics": {
+      "_dd.ai_obs.enabled": 1,
+      "_dd.djm.enabled": 1,
+      "_dd.filter.kept": 1,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 2,
+      "process_id": 1289
+    },
+    "duration": 2621500,
+    "start": 1759505281704904470
+  },
+     {
+       "name": "task.execute",
+       "service": "tests.contrib.ray",
+       "resource": "tests.contrib.ray.test_ray.TestRayIntegration.test_simple_get.<locals>.add_one",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "ray",
+       "error": 0,
+       "meta": {
+         "component": "ray",
+         "ray.hostname": "docker-desktop",
+         "ray.job_id": "01000000",
+         "ray.node_id": "142aa12894d2b47a2b01989991cd0cec0340e675b8ba6d22a3ea0292",
+         "ray.task.status": "success",
+         "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
+         "runtime-id": "81dd04c9904045e9b283e0bdc8fe152f",
+         "span.kind": "consumer"
+       },
+       "metrics": {
+         "_dd.ai_obs.enabled": 1,
+         "_dd.djm.enabled": 1,
+         "_dd.filter.kept": 1,
+         "_dd.measured": 1,
+         "_dd.top_level": 1,
+         "_sampling_priority_v1": 2,
+         "process_id": 1289
+       },
+       "duration": 266417,
+       "start": 1759505281707023595
+     }],
+[
+  {
+    "name": "ray.get",
+    "service": "unnamed.ray.job",
+    "resource": "ray.get",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "ray",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.ray",
+      "_dd.hostname": "docker-desktop",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68dfeb8100000000",
+      "component": "ray",
+      "language": "python",
+      "ray.get.value_size_bytes": "88",
+      "ray.hostname": "docker-desktop",
+      "ray.job_id": "01000000",
+      "ray.node_id": "142aa12894d2b47a2b01989991cd0cec0340e675b8ba6d22a3ea0292",
+      "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
+      "runtime-id": "81dd04c9904045e9b283e0bdc8fe152f",
+      "span.kind": "producer"
+    },
+    "metrics": {
+      "_dd.ai_obs.enabled": 1,
+      "_dd.djm.enabled": 1,
+      "_dd.filter.kept": 1,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 2,
+      "process_id": 1289
+    },
+    "duration": 313000,
+    "start": 1759505281707677970
+  }]]

@@ -2067,10 +2067,15 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    # grpcio added support for Python 3.13 in 1.66.2
-                    pys=select_pys(min_version="3.13"),
+                    pys="3.13",
                     pkgs={
-                        "grpcio": ["~=1.66.2", latest],
+                        "grpcio": latest,
+                    },
+                ),
+                Venv(
+                    pys="3.14",
+                    pkgs={
+                        "grpcio": ">=1.75.0",
                     },
                 ),
             ],
@@ -3178,13 +3183,9 @@ venv = Venv(
         Venv(
             name="ray",
             command="pytest {cmdargs} tests/contrib/ray",
-            env={
-                "DD_TRACE_AIOHTTP_ENABLED": "false",
-                "DD_TRACE_REPORT_HOSTNAME": "true",
-            },
             pys=select_pys(min_version="3.11", max_version="3.13"),
             pkgs={
-                "ray[default]": ["~=2.48.0", latest],
+                "ray[default]": ["~=2.46.0", latest],
             },
         ),
         Venv(
@@ -3474,7 +3475,7 @@ venv = Venv(
         Venv(
             name="profile-v2",
             # NB riot commands that use this Venv must include --pass-env to work properly
-            command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling_v2",  # noqa: E501
+            command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable --ignore='tests/profiling_v2/collector/test_memalloc.py' {cmdargs} tests/profiling_v2",  # noqa: E501
             env={
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
                 "CPUCOUNT": "12",
@@ -3568,6 +3569,25 @@ venv = Venv(
                                 "DD_PROFILE_TEST_GEVENT": "1",
                             },
                             pkgs={"gunicorn[gevent]": latest, "gevent": latest},
+                        ),
+                    ],
+                ),
+                Venv(
+                    name="profile-v2-memalloc",
+                    command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling_v2/collector/test_memalloc.py",  # noqa: E501
+                    # skipping v3.14 for now due to an unstable `lz4 ` lib issue: https://gitlab.ddbuild.io/DataDog/apm-reliability/dd-trace-py/-/jobs/1163312347
+                    pys=select_pys(max_version="3.13"),
+                    venvs=[
+                        # standard allocators
+                        Venv(
+                            env={
+                                "PYTHONMALLOC": [
+                                    "malloc",
+                                    "pymalloc",
+                                    "malloc_debug",
+                                    "pymalloc_debug",
+                                ],
+                            },
                         ),
                     ],
                 ),
