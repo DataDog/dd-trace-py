@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    CI Visibility: This fix resolves an issue where tests would be incorrectly detected as third-party code if a
+    third-party package containing a folder with the same name as the tests folder was installed. For instance, the
+    ``sumy`` package installs files under ``tests/*`` in ``site-packages``, and this would cause any modules under
+    ``tests.*`` to be considered third-party.
