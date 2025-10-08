@@ -466,17 +466,19 @@ class Tracer(object):
                 child_of = new_ctx
 
         parent: Optional[Span] = None
+        context: Optional[Context] = None
+        trace_id: Optional[int] = None
+        parent_id: Optional[int] = None
+
         if child_of is not None:
             if isinstance(child_of, Context):
                 context = child_of
             else:
                 context = child_of.context
                 parent = child_of
-        else:
-            context = Context(is_remote=False)
 
-        trace_id = context.trace_id
-        parent_id = context.span_id
+            trace_id = context.trace_id
+            parent_id = context.span_id
 
         # The following precedence is used for a new span's service:
         # 1. Explicitly provided service name
@@ -493,8 +495,8 @@ class Tracer(object):
         # Update the service name based on any mapping
         service = config.service_mapping.get(service, service)
 
-        links = context._span_links if not parent else []
-        if trace_id or links or context._baggage:
+        links = context._span_links if not parent and context else []
+        if trace_id or links or (context and context._baggage):
             # child_of a non-empty context, so either a local child span or from a remote context
             span = Span(
                 name=name,
