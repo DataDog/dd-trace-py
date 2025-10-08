@@ -413,16 +413,6 @@ integrations:
       min: 1.21.1
       max: 1.39.0
 
-- integration_name: google_generativeai
-  is_external_package: true
-  is_tested: true
-  dependency_names:
-  - google-generativeai
-  tested_versions_by_dependency:
-    google-generativeai:
-      min: 0.7.2
-      max: 0.8.5
-
 - integration_name: graphql
   is_external_package: true
   is_tested: true

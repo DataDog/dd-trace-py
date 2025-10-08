@@ -3092,22 +3092,6 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="google_generativeai",
-            command="pytest {cmdargs} tests/contrib/google_generativeai",
-            venvs=[
-                Venv(
-                    pys=select_pys(min_version="3.9", max_version="3.13"),
-                    pkgs={
-                        "pytest-asyncio": latest,
-                        "google-generativeai": ["~=0.7.0", latest],
-                        "pillow": latest,
-                        "google-ai-generativelanguage": [latest],
-                        "vertexai": [latest],
-                    },
-                )
-            ],
-        ),
-        Venv(
             name="vertexai",
             command="pytest {cmdargs} tests/contrib/vertexai",
             pys=select_pys(min_version="3.9", max_version="3.12"),

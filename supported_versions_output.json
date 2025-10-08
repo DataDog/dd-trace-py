@@ -330,13 +330,6 @@
         "auto-instrumented": true
     },
     {
-        "dependency": "google-generativeai",
-        "integration": "google_generativeai",
-        "minimum_tracer_supported": "0.7.2",
-        "max_tracer_supported": "0.8.5",
-        "auto-instrumented": true
-    },
-    {
         "dependency": "graphql-core",
         "integration": "graphql",
         "minimum_tracer_supported": "3.1.7",

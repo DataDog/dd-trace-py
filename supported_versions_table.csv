@@ -45,7 +45,6 @@ freezegun,freezegun *,1.3.1,1.5.2,False
 gevent,gevent,20.12.1,25.5.1,True
 google-adk,google_adk,1.0.0,1.15.0,True
 google-genai,google_genai,1.21.1,1.39.0,True
-google-generativeai,google_generativeai,0.7.2,0.8.5,True
 graphql-core,graphql,3.1.7,3.2.6,True
 grpcio,grpc,1.34.1,1.75.1,True
 httpx,httpx,0.17.1,0.28.1,True

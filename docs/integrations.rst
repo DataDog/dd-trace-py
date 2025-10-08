@@ -250,12 +250,6 @@ google-genai
 ^^^^^^^^^^^^
 .. automodule:: ddtrace.contrib.internal.google_genai
 
-.. _google_generativeai:
-
-google-generativeai
-^^^^^^^^^^^^^^^^^^^
-.. automodule:: ddtrace.contrib.internal.google_generativeai
-
 
 .. _graphql:
 
