@@ -137,46 +137,47 @@ def traced_get_response(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[
             utils._after_request_tags(pin, ctx.span, request, response)
             return response
 
-        if get_blocked():
-            response = blocked_response()
-        else:
-            _resolve_and_start_response(ctx, request)
+        try:
             if get_blocked():
                 response = blocked_response()
             else:
-                try:
-                    response = func(*args, **kwargs)
-                except BlockingException as e:
-                    set_blocked(e.args[0])
-                    return blocked_response()
+                query = request.META.get("QUERY_STRING", "")
+                uri = utils.get_request_uri(request)
+                if uri is not None and query:
+                    uri += "?" + query
+                resolver = get_resolver(getattr(request, "urlconf", None))
+                if resolver:
+                    try:
+                        path = resolver.resolve(request.path_info).kwargs
+                        log.debug("resolver.pattern %s", path)
+                    except Exception:
+                        path = None
+
+                core.dispatch(
+                    "django.start_response", (ctx, request, utils._extract_body, utils._remake_body, query, uri, path)
+                )
+                core.dispatch("django.start_response.post", ("Django",))
 
                 if get_blocked():
                     response = blocked_response()
+                else:
+                    try:
+                        response = func(*args, **kwargs)
+                    except BlockingException as e:
+                        set_blocked(e.args[0])
+                        response = blocked_response()
+                        return response
 
-        core.dispatch("django.finalize_response.pre", (ctx, utils._after_request_tags, request, response))
-        if not get_blocked():
-            core.dispatch("django.finalize_response", ("Django",))
-            if get_blocked():
-                response = blocked_response()
+                    if get_blocked():
+                        response = blocked_response()
 
+        finally:
+            core.dispatch("django.finalize_response.pre", (ctx, utils._after_request_tags, request, response))
+            if not get_blocked():
+                core.dispatch("django.finalize_response", ("Django",))
+                if get_blocked():
+                    response = blocked_response()
         return response
-
-
-def _resolve_and_start_response(ctx, request):
-    query = request.META.get("QUERY_STRING", "")
-    uri = utils.get_request_uri(request)
-    if uri is not None and query:
-        uri += "?" + query
-    resolver = get_resolver(getattr(request, "urlconf", None))
-    if resolver:
-        try:
-            path = resolver.resolve(request.path_info).kwargs
-            log.debug("resolver.pattern %s", path)
-        except Exception:
-            path = None
-
-    core.dispatch("django.start_response", (ctx, request, utils._extract_body, utils._remake_body, query, uri, path))
-    core.dispatch("django.start_response.post", ("Django",))
 
 
 async def traced_get_response_async(
