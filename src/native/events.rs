@@ -165,14 +165,14 @@ macro_rules! define_event {
             /// Listener entry for this specific event
             #[allow(dead_code)]
             pub enum ListenerEntry {
-                Rust(Arc<dyn Fn($(&$param_type),*) + Send + Sync>),
+                Rust(Arc<dyn Fn($($param_type),*) + Send + Sync>),
                 Python(PyObject),
             }
 
             $crate::define_event_core!(
                 $event_name,
                 ListenerEntry,
-                fn($($param: &$param_type),*),
+                fn($($param: $param_type),*),
                 {
                     let listeners = LISTENERS.read().unwrap();
                     for (_id, listener) in listeners.iter() {
@@ -206,7 +206,7 @@ macro_rules! define_event {
             #[allow(dead_code)]
             pub fn on<F>(callback: F) -> $crate::events::ListenerHandle
             where
-                F: Fn($(&$param_type),*) + Send + Sync + 'static,
+                F: Fn($($param_type),*) + Send + Sync + 'static,
             {
                 add_listener_internal(ListenerEntry::Rust(Arc::new(callback)))
             }
@@ -226,7 +226,7 @@ macro_rules! define_event {
                     if !super::has_listeners() {
                         return Ok(());
                     }
-                    super::dispatch($(&$param)*);
+                    super::dispatch($($param)*);
                     Ok(())
                 }
 

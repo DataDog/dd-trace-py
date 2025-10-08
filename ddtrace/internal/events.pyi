@@ -17,7 +17,7 @@ class ListenerHandle:
 
 class Event(Protocol[P]):
     """Generic event protocol with strongly typed dispatch and listeners"""
-    def dispatch(self, *args: P.args, **kwargs: P.kwargs) -> None:
+    def dispatch(self, *args: P.args) -> None:
         """Fire the event to all registered listeners"""
         ...
 
