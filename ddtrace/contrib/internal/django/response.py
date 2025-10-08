@@ -185,6 +185,7 @@ def traced_get_response(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[
 
             if override_response is not None:
                 response = override_response
+        return response
 
 
 async def traced_get_response_async(
