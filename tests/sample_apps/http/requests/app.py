@@ -1,5 +1,7 @@
 import requests
+from ddtrace import patch
 
+patch(requests=True)
 
 def sync_example():
     """Synchronous requests"""

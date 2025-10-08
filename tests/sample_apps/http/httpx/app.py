@@ -1,5 +1,7 @@
 import httpx
+from ddtrace import patch
 
+patch(httpx=True)
 
 def sync_example():
     """Synchronous requests"""
