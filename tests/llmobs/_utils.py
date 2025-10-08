@@ -604,7 +604,7 @@ class DummyEvaluator:
         self.LABEL = label
 
     def run_and_submit_evaluation(self, span):
-        self.llmobs_service.submit_evaluation_for(
+        self.llmobs_service.submit_evaluation(
             span=span,
             label=self.LABEL,
             value=1.0,

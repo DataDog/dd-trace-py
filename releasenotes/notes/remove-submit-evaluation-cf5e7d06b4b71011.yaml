@@ -1,3 +1,4 @@
 deprecations:
   - |
-    LLM Observability: ``LLMObs.submit_evaluation()`` has been removed. Use ``LLMObs.submit_evaluation_for()`` instead.
+    LLM Observability: ``LLMObs.submit_evaluation_for()`` has been renamed to ``LLMObs.submit_evaluation()`` 
+    and the original ``LLMObs.submit_evaluation()`` has been removed. Please use ``LLMObs.submit_evaluation()`` for submitting evaluations.

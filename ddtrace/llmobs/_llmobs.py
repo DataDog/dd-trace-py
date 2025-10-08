@@ -1537,7 +1537,7 @@ class LLMObs(Service):
         span._set_ctx_item(key, existing_value)
 
     @classmethod
-    def submit_evaluation_for(
+    def submit_evaluation(
         cls,
         label: str,
         metric_type: str,
@@ -1569,7 +1569,7 @@ class LLMObs(Service):
         """
         if cls.enabled is False:
             log.debug(
-                "LLMObs.submit_evaluation_for() called when LLMObs is not enabled. ",
+                "LLMObs.submit_evaluation() called when LLMObs is not enabled. ",
                 "Evaluation metric data will not be sent.",
             )
             return
