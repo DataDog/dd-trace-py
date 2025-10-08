@@ -743,7 +743,7 @@ def test_crashtracker_upload_errors_intake():
     with utils.with_test_agent() as client:
         pid = os.fork()
         if pid == 0:
-            ct = utils.CrashtrackerWrapper(base_name="tags_required")
+            ct = utils.CrashtrackerWrapper(base_name="errors_intake_test")
             assert ct.start()
             stdout_msg, stderr_msg = ct.logs()
             assert not stdout_msg
@@ -752,11 +752,26 @@ def test_crashtracker_upload_errors_intake():
             ctypes.string_at(0)
             sys.exit(-1)
 
-        # Check for crash ping and report
-        _crash_ping = utils.get_crash_ping(client)
-        _crash_report = utils.get_crash_report(client)
-        assert _crash_ping is not None, "Should have a crash ping"
-        assert _crash_report is not None, "Should have a crash report"
-
+        # Check for telemetry crash ping and report
+        _telemetry_crash_ping = utils.get_crash_ping(client)
+        _telemetry_crash_report = utils.get_crash_report(client)
+        assert _telemetry_crash_ping is not None, "Should have a telemetry crash ping"
+        assert _telemetry_crash_report is not None, "Should have a telemetry crash report"
+        # Verify that we have both telemetry and errors intake messages
         all_requests = client.requests()
-        assert len(all_requests) == 4, f"Should have 4 total requests (2 telemetry, 2 errors intake) {all_requests}"
+
+        # Check for errors intake crash ping and report
+        _errors_intake_crash_ping = utils.get_errors_intake_crash_ping(client)
+        _errors_intake_crash_report = utils.get_errors_intake_crash_report(client)
+        assert _errors_intake_crash_ping is not None, "Should have an errors intake crash ping"
+        assert _errors_intake_crash_report is not None, "Should have an errors intake crash report"
+
+        telemetry_requests = client.crash_messages()
+        errors_intake_requests = client.error_intake_messages()
+
+        assert len(
+            telemetry_requests) == 2, f"Should have 2 telemetry crash messages (ping + report), got {len(telemetry_requests)}"
+        assert len(
+            errors_intake_requests) == 2, f"Should have 2 errors intake messages (ping + report), got {len(errors_intake_requests)}"
+        assert len(
+            all_requests) == 4, f"Should have 4 total requests (2 telemetry, 2 errors intake), got {len(all_requests)}"
