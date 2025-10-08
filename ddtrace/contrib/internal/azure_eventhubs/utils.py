@@ -1,6 +1,7 @@
 from typing import Any
 from typing import List
 from typing import Optional
+from typing import Tuple
 from typing import Union
 from uuid import UUID
 
@@ -96,7 +97,7 @@ def handle_event_data_attributes(
     event_data_arg_value: Union[
         EventData, AmqpAnnotatedMessage, List[Union[EventData, AmqpAnnotatedMessage]], EventDataBatch
     ],
-) -> tuple[Union[str, None], Union[str, None]]:
+) -> Tuple[Union[str, None], Union[str, None]]:
     if isinstance(event_data_arg_value, EventData):
         batch_count = None
         message_id = event_data_arg_value.message_id
