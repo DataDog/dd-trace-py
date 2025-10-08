@@ -128,7 +128,9 @@ def traced_auth_middleware_process_request(func: FunctionType, args: Tuple[Any],
                             ),
                         )
                 except Exception:
-                    log.debug("Error while trying to trace Django AuthenticationMiddleware process_request", exc_info=True)
+                    log.debug(
+                        "Error while trying to trace Django AuthenticationMiddleware process_request", exc_info=True
+                    )
 
 
 def traced_middleware_factory(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
