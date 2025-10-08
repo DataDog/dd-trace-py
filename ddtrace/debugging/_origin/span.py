@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from functools import partial
 from itertools import count
 import sys
 from threading import current_thread
@@ -21,10 +20,8 @@ from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.debugging._uploader import UploaderProduct
 from ddtrace.ext import EXIT_SPAN_TYPES
-from ddtrace.internal import core
 from ddtrace.internal.compat import Path
 from ddtrace.internal.packages import is_user_code
-from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.settings.code_origin import config as co_config
 from ddtrace.trace import Span
@@ -35,15 +32,6 @@ def frame_stack(frame: FrameType) -> t.Iterator[FrameType]:
     while _frame is not None:
         yield _frame
         _frame = _frame.f_back
-
-
-def wrap_entrypoint(uploader: t.Type[SignalUploader], f: t.Callable) -> None:
-    if not _isinstance(f, FunctionType):
-        return
-
-    _f = t.cast(FunctionType, f)
-    if not EntrySpanWrappingContext.is_wrapped(_f):
-        EntrySpanWrappingContext(uploader, _f).wrap()
 
 
 @dataclass
@@ -212,13 +200,6 @@ class SpanCodeOriginProcessorEntry:
     __context_wrapper__ = EntrySpanWrappingContext
 
     _instance: t.Optional["SpanCodeOriginProcessorEntry"] = None
-    _handler: t.Optional[t.Callable] = None
-
-    @classmethod
-    def init(cls) -> None:
-        # Register the entrypoint wrapping for entry spans
-        cls._handler = handler = partial(wrap_entrypoint, cls.__uploader__)
-        core.on("service_entrypoint.patch", handler)
 
     @classmethod
     def enable(cls):
@@ -244,7 +225,6 @@ class SpanCodeOriginProcessorEntry:
         # Unregister code origin for span with the snapshot uploader
         cls.__uploader__.unregister(UploaderProduct.CODE_ORIGIN_SPAN_ENTRY)
 
-        cls._handler = None
         cls._instance = None
 
 

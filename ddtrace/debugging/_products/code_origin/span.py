@@ -1,9 +1,15 @@
 import enum
+from functools import partial
+import typing as t
 
-from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
+import ddtrace.internal.core as core
 from ddtrace.internal.products import manager as product_manager
 from ddtrace.settings._core import ValueSource
 from ddtrace.settings.code_origin import config
+
+
+if t.TYPE_CHECKING:
+    from types import FunctionType
 
 
 CO_ENABLED = "DD_CODE_ORIGIN_FOR_SPANS_ENABLED"
@@ -18,13 +24,26 @@ def post_preload():
 
 
 def _start():
+    from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
+
     SpanCodeOriginProcessorEntry.enable()
 
 
 def start():
     # We need to instrument the entrypoints on boot because this is the only
     # time the tracer will notify us of entrypoints being registered.
-    SpanCodeOriginProcessorEntry.init()
+    @partial(core.on, "service_entrypoint.patch")
+    def _(f: t.Callable) -> None:
+        from ddtrace.debugging._origin.span import EntrySpanWrappingContext
+        from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
+        from ddtrace.internal.safety import _isinstance
+
+        if not _isinstance(f, FunctionType):
+            return
+
+        _f = t.cast(FunctionType, f)
+        if not EntrySpanWrappingContext.is_wrapped(_f):
+            EntrySpanWrappingContext(SpanCodeOriginProcessorEntry.__uploader__, _f).wrap()
 
     if config.span.enabled:
         from ddtrace.debugging._origin.span import SpanCodeOriginProcessorExit
@@ -43,16 +62,21 @@ def restart(join=False):
 
 
 def _stop():
+    from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
+
     SpanCodeOriginProcessorEntry.disable()
 
 
 def stop(join=False):
     if config.span.enabled:
+        from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
         from ddtrace.debugging._origin.span import SpanCodeOriginProcessorExit
 
         SpanCodeOriginProcessorEntry.disable()
         SpanCodeOriginProcessorExit.disable()
     elif product_manager.is_enabled(DI_PRODUCT_KEY):
+        from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
+
         SpanCodeOriginProcessorEntry.disable()
 
 
