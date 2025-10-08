@@ -209,6 +209,7 @@ def gen_build_docs() -> None:
             print("    PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'", file=f)
             print("  script:", file=f)
             print("    - |", file=f)
+            print("      pip install --upgrade hatch==1.14.2", file=f)
             print("      hatch run docs:build", file=f)
             print("      mkdir -p /tmp/docs", file=f)
             print("  cache:", file=f)
