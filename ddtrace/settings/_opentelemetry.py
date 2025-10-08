@@ -98,7 +98,7 @@ class ExporterConfig(DDConfig):
     def _get_default_endpoint(protocol: str, endpoint: str = ""):
         if protocol.lower() in ("http/json", "http/protobuf"):
             return f"{ExporterConfig.DEFAULT_HTTP_ENDPOINT}{endpoint}"
-        return f"{ExporterConfig.DEFAULT_GRPC_ENDPOINT}{endpoint}"
+        return f"{ExporterConfig.DEFAULT_GRPC_ENDPOINT}"
 
 
 OpenTelemetryConfig.include(ExporterConfig, namespace="exporter")
