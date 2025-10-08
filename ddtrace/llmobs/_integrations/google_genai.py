@@ -140,7 +140,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             content = _get_attr(candidate, "content", None)
             if not content:
                 continue
-            parts = _get_attr(content, "parts", [])
+            parts = _get_attr(content, "parts", []) or []
             role = _get_attr(content, "role", GOOGLE_GENAI_DEFAULT_MODEL_ROLE)
             for part in parts:
                 message = extract_message_from_part_google_genai(part, role)
