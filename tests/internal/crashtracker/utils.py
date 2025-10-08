@@ -174,6 +174,50 @@ def get_crash_ping(test_agent_client: TestAgentClient) -> TestAgentRequest:
     return crash_ping
 
 
+def get_errors_intake_crash_report(test_agent_client: TestAgentClient) -> TestAgentRequest:
+    """Wait for and retrieve a crash report from the errors intake endpoint."""
+    for _ in range(5):
+        errors_messages = test_agent_client.error_intake_messages()
+        for message in errors_messages:
+            body = message.get("body", b"")
+            if isinstance(body, str):
+                body = body.encode("utf-8")
+            try:
+                if isinstance(message.get("body"), bytes):
+                    data = json.loads(message["body"].decode("utf-8"))
+                else:
+                    data = json.loads(message["body"])
+                if "is_crash:true" in data.get("ddtags", ""):
+                    return message
+            except (json.JSONDecodeError, KeyError, TypeError):
+                continue
+        time.sleep(0.2)
+
+    raise AssertionError("Could not find errors intake crash report with 'is_crash: true'")
+
+
+def get_errors_intake_crash_ping(test_agent_client: TestAgentClient) -> TestAgentRequest:
+    """Wait for and retrieve a crash ping from the errors intake endpoint."""
+    for _ in range(5):
+        errors_messages = test_agent_client.error_intake_messages()
+        for message in errors_messages:
+            body = message.get("body", b"")
+            if isinstance(body, str):
+                body = body.encode("utf-8")
+            try:
+                if isinstance(message.get("body"), bytes):
+                    data = json.loads(message["body"].decode("utf-8"))
+                else:
+                    data = json.loads(message["body"])
+                if "is_crash_ping:true" in data.get("ddtags", ""):
+                    return message
+            except (json.JSONDecodeError, KeyError, TypeError):
+                continue
+        time.sleep(0.2)
+
+    raise AssertionError("Could not find errors intake crash ping with 'is_crash: false' and 'is_crash_ping:true' tag")
+
+
 @contextmanager
 def with_test_agent() -> Generator[TestAgentClient, None, None]:
     base_url = ddtrace.tracer.agent_trace_url or "http://localhost:9126"  # default to local test agent
