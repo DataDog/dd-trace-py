@@ -2757,9 +2757,18 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.8"),
+                    pys=select_pys(min_version="3.8", max_version="3.13"),
                     pkgs={
                         "openai": [latest, "~=1.76.2", "==1.66.0"],
+                        "tiktoken": latest,
+                        "pillow": latest,
+                    },
+                    env={"TIKTOKEN_AVAILABLE": "True"},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.14"),
+                    pkgs={
+                        "openai": latest,
                         "tiktoken": latest,
                         "pillow": latest,
                     },
@@ -3118,6 +3127,7 @@ venv = Venv(
                 "pydantic-ai": ["==0.3.0", "==0.4.4", latest],
                 "vcrpy": "==7.0.0",
                 "typing_extensions": latest,
+                "pydantic": "==2.12.0a1",
             },
         ),
         Venv(
