@@ -287,14 +287,14 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     # This reduces instrumentation by ~50% compared to "first + all imports"
     # while maintaining correctness. Import dependencies are captured by scanning
     # bytecode for IMPORT_NAME/IMPORT_FROM and attaching metadata to the first line's hook.
-    
+
     # Find the offset of the RESUME opcode first (if it exists)
     resume_offset_temp = NO_OFFSET
     for i in range(0, len(code.co_code), 2):
         if code.co_code[i] == RESUME:
             resume_offset_temp = i
             break
-    
+
     # For the first line, skip RESUME if it's at the first offset
     # This is important for functions where RESUME is at offset 0
     first_line_start = min(o for o, _ in line_starts_list)

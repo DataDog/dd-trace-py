@@ -75,7 +75,7 @@ def _instrument_all_lines_with_monitoring(
     # This reduces monitored lines by ~50% compared to "first + all imports"
     # while maintaining correctness. Import metadata is captured by scanning
     # bytecode for IMPORT_NAME/IMPORT_FROM and attaching it to the first line.
-    
+
     line_starts_list = list(dis.findlinestarts(code))
     if not line_starts_list:
         # No line starts, return empty coverage

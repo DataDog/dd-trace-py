@@ -21,14 +21,14 @@ def _get_offsets_to_instrument(injection_context) -> t.List[int]:
 
     LIGHTWEIGHT COVERAGE STRATEGY:
     We ONLY instrument the first executable line of each code object. This is sufficient because:
-    
+
     1. For modules: First line always executes when module loads
        - Tracks that the module was imported ✅
        - Import dependencies tracked via bytecode scanning (done by inject_invocation) ✅
-    
+
     2. For functions: First line executes when function is called
        - Tracks that the function ran ✅
-    
+
     This is simpler and faster than "first + all imports", reducing instrumentation by ~50%.
     Import metadata is still captured by scanning bytecode for IMPORT_NAME/IMPORT_FROM and
     attaching it to the first line's hook.
@@ -42,7 +42,7 @@ def _get_offsets_to_instrument(injection_context) -> t.List[int]:
 
     # ONLY instrument the first line (not import lines!)
     first_offset = min(o for o, _ in line_starts_list)
-    
+
     return [first_offset]
 
 
