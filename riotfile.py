@@ -492,7 +492,7 @@ venv = Venv(
                 "msgpack": [latest],
                 "pytest-randomly": latest,
             },
-            pys=select_pys(max_version="3.12"),
+            pys=select_pys(),
             venvs=[
                 Venv(
                     name="datastreams-latest",
