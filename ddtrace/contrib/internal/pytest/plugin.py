@@ -35,9 +35,6 @@ from ddtrace.settings._telemetry import config as telemetry_config
 from ddtrace.settings.asm import config as asm_config
 
 
-# Import sitecustomize to perform the patching
-import ddtrace.bootstrap.sitecustomize  # noqa: F401
-
 if asm_config._iast_enabled:
     from ddtrace.appsec._iast._pytest_plugin import ddtrace_iast  # noqa:F401
 
@@ -165,6 +162,4 @@ def patch_all(request):
     is specified in command or .ini.
     """
     if request.config.getoption("ddtrace-patch-all") or request.config.getini("ddtrace-patch-all"):
-        from ddtrace._monkey import _patch_all
-
-        _patch_all()
+        import ddtrace.bootstrap.sitecustomize
