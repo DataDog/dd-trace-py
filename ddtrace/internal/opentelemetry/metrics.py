@@ -184,7 +184,7 @@ def _initialize_metrics(exporter_class, protocol, resource):
     try:
         from opentelemetry.sdk._configuration import _init_metrics
 
-        # Ensure logging exporter is configured to send payloads to a Datadog Agent.
+        # Ensure metrics exporter is configured to send payloads to a Datadog Agent.
         # The default endpoint is resolved using the hostname from DD_AGENT.. and DD_TRACE_AGENT_... configs
         if "OTEL_EXPORTER_OTLP_ENDPOINT" in os.environ and "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT" not in os.environ:
             # If only OTEL_EXPORTER_OTLP_ENDPOINT is set, update it with the general endpoint.
