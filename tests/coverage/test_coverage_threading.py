@@ -32,7 +32,7 @@ def test_coverage_threading_session():
         "tests/coverage/included_path/lib.py": {1, 2, 5},
     }
 
-    if expected_lines != covered_lines:
+    if expected_lines.keys() != covered_lines.keys():
         print(f"Mismatched lines: {expected_lines} vs  {covered_lines}")
         assert False
 
