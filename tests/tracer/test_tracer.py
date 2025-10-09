@@ -1257,9 +1257,11 @@ def test_filters(tracer, test_spans):
 def test_early_exit(tracer, test_spans):
     s1 = tracer.trace("1")
     s2 = tracer.trace("2")
-    with mock.patch.object(logging.Logger, "debug") as mock_logger:
-        s1.finish()
-        s2.finish()
+    with mock.patch.object(logging.Logger, "isEnabledFor") as mock_enabled_for:
+        mock_enabled_for.return_value = True
+        with mock.patch.object(logging.Logger, "debug") as mock_logger:
+            s1.finish()
+            s2.finish()
 
     calls = [
         mock.call("span %r closing after its parent %r, this is an error when not using async", s2, s1),

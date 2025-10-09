@@ -330,20 +330,22 @@ class SpanAggregator(SpanProcessor):
             f"{self.writer})"
         )
 
-    def _emit_telemetry_metrics(self) -> None:
+    def _emit_telemetry_metrics(self, force_flush: bool = False) -> None:
         ns = TELEMETRY_NAMESPACE.TRACERS
         add_count_metric = telemetry.telemetry_writer.add_count_metric
 
-        for tag_value, count in self._spans_created.items():
-            add_count_metric(ns, "spans_created", count, tags=(("integration_name", tag_value),))
-        self._spans_created.clear()
-        self._total_spans_created = 0
+        if self._total_spans_created >= 100 or force_flush:
+            for tag_value, count in self._spans_created.items():
+                add_count_metric(ns, "spans_created", count, tags=(("integration_name", tag_value),))
+            self._spans_created.clear()
+            self._total_spans_created = 0
 
-        for tag_value, count in self._spans_finished.items():
-            add_count_metric(ns, "spans_finished", count, tags=(("integration_name", tag_value),))
+        if self._total_spans_finished >= 100 or force_flush:
+            for tag_value, count in self._spans_finished.items():
+                add_count_metric(ns, "spans_finished", count, tags=(("integration_name", tag_value),))
 
-        self._spans_finished.clear()
-        self._total_spans_finished = 0
+            self._spans_finished.clear()
+            self._total_spans_finished = 0
 
     def _metric_inc_spans_created(self, integration_name: str) -> None:
         """
@@ -356,9 +358,7 @@ class SpanAggregator(SpanProcessor):
 
         self._total_spans_created += 1
         self._spans_created[integration_name] += 1
-
-        if self._total_spans_created >= 100:
-            self._emit_telemetry_metrics()
+        self._emit_telemetry_metrics()
 
     def _metric_inc_spans_finished(self, integration_name: str) -> None:
         """
@@ -371,9 +371,7 @@ class SpanAggregator(SpanProcessor):
 
         self._total_spans_finished += 1
         self._spans_finished[integration_name] += 1
-
-        if self._total_spans_finished >= 100:
-            self._emit_telemetry_metrics()
+        self._emit_telemetry_metrics()
 
     def on_span_start(self, span: Span) -> None:
         with self._lock:
@@ -482,7 +480,7 @@ class SpanAggregator(SpanProcessor):
         """
         # on_span_start queue span created counts in batches of 100. This ensures all remaining counts are sent
         # before the tracer is shutdown.
-        self._emit_telemetry_metrics()
+        self._emit_telemetry_metrics(force_flush=True)
         # Log a warning if the tracer is shutdown before spans are finished
         if log.isEnabledFor(logging.WARNING):
             unfinished_spans = [

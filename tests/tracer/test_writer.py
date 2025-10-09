@@ -1126,7 +1126,7 @@ def test_writer_reuse_connections_false(writer_class):
         assert writer._conn is conn
 
 
-@pytest.mark.subprocess(env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true"))
+@pytest.mark.subprocess(env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true"), check_logs=False)
 def test_trace_with_128bit_trace_ids():
     """Ensure 128bit trace ids are correctly encoded"""
     from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
