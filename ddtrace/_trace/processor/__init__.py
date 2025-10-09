@@ -404,10 +404,12 @@ class SpanAggregator(SpanProcessor):
                 return
 
             if not is_trace_complete:
-                finished = [s for s in trace.spans if s.finished]
+                # perf: Avoid Span.finished which is a computed property and has function call overhead
+                #       so check Span.duration_ns manually.
+                finished = [s for s in trace.spans if s.duration_ns is not None]
                 if not finished:
                     return
-                trace.spans[:] = [s for s in trace.spans if not s.finished]
+                trace.spans[:] = [s for s in trace.spans if s.duration_ns is None]
                 trace.num_finished = 0
             else:
                 finished = trace.spans
