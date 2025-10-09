@@ -3,7 +3,7 @@
 
 Importing ``ddtrace.auto`` installs Datadog instrumentation in the runtime. It should be used
 when :ref:`ddtrace-run<ddtracerun>` is not an option. Using it with :ref:`ddtrace-run<ddtracerun>`
-or with the ddtrace pytest plugin is unsupported and may lead to undefined behavior::
+is unsupported and may lead to undefined behavior::
 
     # myapp.py
 
