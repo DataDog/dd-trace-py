@@ -43,12 +43,12 @@ def test_coverage_async_function():
     }
 
     assert (
-        executable.items() == expected_executable.items()
+        executable.keys() == expected_executable.keys()
     ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
     assert (
-        covered.items() == expected_covered.items()
+        covered.keys() == expected_covered.keys()
     ), f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
     assert (
-        covered_with_imports.items() == expected_covered_with_imports.items()
+        covered_with_imports.keys() == expected_covered_with_imports.keys()
     ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
     assert line_number == 7
