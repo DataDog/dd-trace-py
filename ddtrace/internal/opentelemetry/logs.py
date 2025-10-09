@@ -175,14 +175,8 @@ def _initialize_logging(exporter_class, protocol, resource):
     try:
         from opentelemetry.sdk._configuration import _init_logging
 
-        # Ensure logging exporter is configured to send payloads to a Datadog Agent.
-        # The default endpoint is resolved using the hostname from DD_AGENT.. and DD_TRACE_AGENT_... configs
-        if "OTEL_EXPORTER_OTLP_ENDPOINT" in os.environ and "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT" not in os.environ:
-            # If only OTEL_EXPORTER_OTLP_ENDPOINT is set, update it with the general endpoint.
-            os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = otel_config.exporter.ENDPOINT
-        else:
-            # Otherwise (if OTEL_EXPORTER_OTLP_LOGS_ENDPOINT exists or neither exists),
-            # use the logs-specific endpoint. This ensures that the higher precedence config is used.
+        # Ensure logs exporter is configured to send payloads to a Datadog Agent.
+        if "OTEL_EXPORTER_OTLP_ENDPOINT" not in os.environ and "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT" not in os.environ:
             os.environ["OTEL_EXPORTER_OTLP_LOGS_ENDPOINT"] = otel_config.exporter.LOGS_ENDPOINT
         _init_logging({protocol: exporter_class}, resource=resource)
         return True
