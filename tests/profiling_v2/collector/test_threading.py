@@ -289,7 +289,6 @@ class BaseThreadingLockCollectorTest:
                 os.remove(f)
             except Exception as e:
                 print("Error removing file: {}".format(e))
-        pass
 
     def test_wrapper(self):
         collector = collector_threading.ThreadingLockCollector()
