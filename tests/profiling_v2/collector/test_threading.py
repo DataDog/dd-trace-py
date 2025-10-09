@@ -1,3 +1,4 @@
+from typing import Type
 import glob
 import os
 import sys
@@ -254,7 +255,16 @@ def test_lock_gevent_tasks():
             print("Error removing file: {}".format(e))
 
 
-class TestThreadingLockCollector:
+class BaseThreadingLockCollectorTest:
+    # These should be implemented by child classes
+    @property
+    def collector_class(self):
+        raise NotImplementedError("Child classes must implement collector_class")
+
+    @property
+    def lock_class(self):
+        raise NotImplementedError("Child classes must implement lock_class")
+
     # setup_method and teardown_method which will be called before and after
     # each test method, respectively, part of pytest api.
     def setup_method(self, method):
@@ -304,8 +314,8 @@ class TestThreadingLockCollector:
     def test_lock_events(self):
         # The first argument is the recorder.Recorder which is used for the
         # v1 exporter. We don't need it for the v2 exporter.
-        with collector_threading.ThreadingLockCollector(capture_pct=100):
-            lock = threading.Lock()  # !CREATE! test_lock_events
+        with self.collector_class(capture_pct=100):
+            lock = self.lock_class()  # !CREATE! test_lock_events
             lock.acquire()  # !ACQUIRE! test_lock_events
             lock.release()  # !RELEASE! test_lock_events
         # Calling upload will trigger the exporter to write to a file
@@ -334,11 +344,12 @@ class TestThreadingLockCollector:
         )
 
     def test_lock_acquire_events_class(self):
-        with collector_threading.ThreadingLockCollector(capture_pct=100):
+        with self.collector_class(capture_pct=100):
+            lock_class = self.lock_class  # Capture for inner class
 
             class Foobar(object):
                 def lockfunc(self):
-                    lock = threading.Lock()  # !CREATE! test_lock_acquire_events_class
+                    lock = lock_class()  # !CREATE! test_lock_acquire_events_class
                     lock.acquire()  # !ACQUIRE! test_lock_acquire_events_class
 
             Foobar().lockfunc()
@@ -364,14 +375,14 @@ class TestThreadingLockCollector:
         tracer._endpoint_call_counter_span_processor.enable()
         resource = str(uuid.uuid4())
         span_type = ext.SpanTypes.WEB
-        with collector_threading.ThreadingLockCollector(
+        with self.collector_class(
             tracer=tracer,
             capture_pct=100,
         ):
-            lock1 = threading.Lock()  # !CREATE! test_lock_events_tracer_1
+            lock1 = self.lock_class()  # !CREATE! test_lock_events_tracer_1
             lock1.acquire()  # !ACQUIRE! test_lock_events_tracer_1
             with tracer.trace("test", resource=resource, span_type=span_type) as t:
-                lock2 = threading.Lock()  # !CREATE! test_lock_events_tracer_2
+                lock2 = self.lock_class()  # !CREATE! test_lock_events_tracer_2
                 lock2.acquire()  # !ACQUIRE! test_lock_events_tracer_2
                 lock1.release()  # !RELEASE! test_lock_events_tracer_1
                 span_id = t.span_id
@@ -580,8 +591,8 @@ class TestThreadingLockCollector:
         )
 
     def test_lock_enter_exit_events(self):
-        with collector_threading.ThreadingLockCollector(capture_pct=100):
-            th_lock = threading.Lock()  # !CREATE! test_lock_enter_exit_events
+        with self.collector_class(capture_pct=100):
+            th_lock = self.lock_class()  # !CREATE! test_lock_enter_exit_events
             with th_lock:  # !ACQUIRE! !RELEASE! test_lock_enter_exit_events
                 pass
 
@@ -841,3 +852,27 @@ class TestThreadingLockCollector:
         # have any samples
         with pytest.raises(AssertionError):
             pprof_utils.parse_newest_profile(self.output_filename)
+
+
+class TestThreadingLockCollector(BaseThreadingLockCollectorTest):
+    """Test threading.Lock profiling"""
+
+    @property
+    def collector_class(self):
+        return collector_threading.ThreadingLockCollector
+
+    @property
+    def lock_class(self):
+        return threading.Lock
+
+
+class TestThreadingRLockCollector(BaseThreadingLockCollectorTest):
+    """Test threading.RLock profiling"""
+
+    @property
+    def collector_class(self):
+        return collector_threading.ThreadingRLockCollector
+
+    @property
+    def lock_class(self):
+        return threading.RLock
