@@ -21,10 +21,14 @@ from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.debugging._uploader import UploaderProduct
 from ddtrace.ext import EXIT_SPAN_TYPES
 from ddtrace.internal.compat import Path
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.settings.code_origin import config as co_config
 from ddtrace.trace import Span
+
+
+log = get_logger(__name__)
 
 
 def frame_stack(frame: FrameType) -> t.Iterator[FrameType]:
@@ -214,6 +218,8 @@ class SpanCodeOriginProcessorEntry:
         # Enable the context wrapper
         cls.__context_wrapper__.__enabled__ = True
 
+        log.debug("Code Origin for Spans (entry) enabled")
+
     @classmethod
     def disable(cls):
         if cls._instance is None:
@@ -226,6 +232,8 @@ class SpanCodeOriginProcessorEntry:
         cls.__uploader__.unregister(UploaderProduct.CODE_ORIGIN_SPAN_ENTRY)
 
         cls._instance = None
+
+        log.debug("Code Origin for Spans (entry) disabled")
 
 
 @dataclass
@@ -303,6 +311,8 @@ class SpanCodeOriginProcessorExit(SpanProcessor):
         # Register the processor for exit spans
         instance.register()
 
+        log.debug("Code Origin for Spans (exit) enabled")
+
     @classmethod
     def disable(cls):
         if cls._instance is None:
@@ -315,3 +325,5 @@ class SpanCodeOriginProcessorExit(SpanProcessor):
         cls.__uploader__.unregister(UploaderProduct.CODE_ORIGIN_SPAN_EXIT)
 
         cls._instance = None
+
+        log.debug("Code Origin for Spans (exit) disabled")

@@ -1,16 +1,16 @@
 import enum
 from functools import partial
+from types import FunctionType
 import typing as t
 
 import ddtrace.internal.core as core
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.products import manager as product_manager
 from ddtrace.settings._core import ValueSource
 from ddtrace.settings.code_origin import config
 
 
-if t.TYPE_CHECKING:
-    from types import FunctionType
-
+log = get_logger(__name__)
 
 CO_ENABLED = "DD_CODE_ORIGIN_FOR_SPANS_ENABLED"
 DI_PRODUCT_KEY = "dynamic-instrumentation"
@@ -43,7 +43,10 @@ def start():
 
         _f = t.cast(FunctionType, f)
         if not EntrySpanWrappingContext.is_wrapped(_f):
+            log.debug("Patching entrypoint %r for code origin", f)
             EntrySpanWrappingContext(SpanCodeOriginProcessorEntry.__uploader__, _f).wrap()
+
+    log.debug("Registered entrypoint patching hook for code origin for spans")
 
     if config.span.enabled:
         from ddtrace.debugging._origin.span import SpanCodeOriginProcessorExit
