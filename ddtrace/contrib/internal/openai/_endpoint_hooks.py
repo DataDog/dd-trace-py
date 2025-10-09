@@ -220,6 +220,10 @@ class _ChatCompletionWithRawResponseHook(_ChatCompletionHook):
     pass
 
 
+class _ChatCompletionParseHook(_ChatCompletionHook):
+    OPERATION_ID = "parseChatCompletion"
+
+
 class _EmbeddingHook(_EndpointHook):
     _request_kwarg_params = ("model", "engine")
     _response_attrs = ("model",)
@@ -522,3 +526,7 @@ class _ResponseHook(_BaseCompletionHook):
             return self._handle_streamed_response(integration, span, kwargs, resp, operation_type="response")
         integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="response")
         return resp
+
+
+class _ResponseParseHook(_ResponseHook):
+    OPERATION_ID = "parseResponse"

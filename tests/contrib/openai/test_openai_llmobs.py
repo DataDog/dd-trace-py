@@ -2045,6 +2045,93 @@ MUL: "*"
             == '{"temperature": "72°F", "conditions": "sunny", "humidity": "65%"}'
         )
 
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 92), reason="Parse method only available in openai >= 1.92"
+    )
+    def test_chat_completion_parse(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+        from typing import List
+
+        from pydantic import BaseModel
+
+        class Step(BaseModel):
+            explanation: str
+            output: str
+
+        class MathResponse(BaseModel):
+            steps: List[Step]
+            final_answer: str
+
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_parse.yaml"):
+            client = openai.OpenAI()
+            resp = client.chat.completions.parse(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "You are a helpful math tutor."},
+                    {"role": "user", "content": "solve 8x + 31 = 2"},
+                ],
+                response_format=MathResponse,
+            )
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        print(mock_llmobs_writer.enqueue.call_args[0][0])
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name=resp.model,
+                model_provider="openai",
+                input_messages=[
+                    {"role": "system", "content": "You are a helpful math tutor."},
+                    {"role": "user", "content": "solve 8x + 31 = 2"},
+                ],
+                output_messages=[{"role": "assistant", "content": mock.ANY}],
+                metadata=mock.ANY,
+                token_metrics=mock.ANY,
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+            )
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 92), reason="Parse method only available in openai >= 1.92"
+    )
+    def test_response_parse(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+        from typing import List
+
+        from pydantic import BaseModel
+
+        class Step(BaseModel):
+            explanation: str
+            output: str
+
+        class MathResponse(BaseModel):
+            steps: List[Step]
+            final_answer: str
+
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("response_parse.yaml"):
+            client = openai.OpenAI()
+            resp = client.responses.parse(
+                model="gpt-3.5-turbo",
+                input="solve 8x + 31 = 2",
+                text_format=MathResponse,
+            )
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        print(mock_llmobs_writer.enqueue.call_args[0][0])
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name=resp.model,
+                model_provider="openai",
+                input_messages=[
+                    {"role": "system", "content": "You are a helpful math tutor."},
+                    {"role": "user", "content": "solve 8x + 31 = 2"},
+                ],
+                output_messages=mock.ANY,
+                metadata=mock.ANY,
+                token_metrics=mock.ANY,
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+            )
+        )
+
 
 @pytest.mark.parametrize(
     "ddtrace_global_config",
