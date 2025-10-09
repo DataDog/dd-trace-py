@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Avoid patching issues when both the pytest plugin and ``import ddtrace.auto`` are used.
