@@ -260,6 +260,7 @@ def _patched_endpoint(openai, patch_hook):
         g = _traced_endpoint(patch_hook, integration, instance, pin, args, kwargs)
         g.send(None)
         resp, err = None, None
+        override_return = None
         try:
             resp = func(*args, **kwargs)
         except BaseException as e:
@@ -270,8 +271,11 @@ def _patched_endpoint(openai, patch_hook):
                 g.send((resp, err))
             except StopIteration as e:
                 if err is None:
-                    # This return takes priority over `return resp`
-                    return e.value  # noqa: B012
+                    # This return takes priority over the implicit None return
+                    override_return = e.value
+
+        if override_return is not None:
+            return override_return
 
     return patched_endpoint(openai)
 
@@ -293,9 +297,9 @@ def _patched_endpoint_async(openai, patch_hook):
         g = _traced_endpoint(patch_hook, integration, instance, pin, args, kwargs)
         g.send(None)
         resp, err = None, None
+        override_return = None
         try:
             resp = await func(*args, **kwargs)
-            return resp
         except BaseException as e:
             err = e
             raise
@@ -305,7 +309,11 @@ def _patched_endpoint_async(openai, patch_hook):
             except StopIteration as e:
                 if err is None:
                     # This return takes priority over `return resp`
-                    return e.value  # noqa: B012
+                    override_return = e.value
+
+        if override_return is not None:
+            return override_return
+        return resp
 
     return patched_endpoint(openai)
 
