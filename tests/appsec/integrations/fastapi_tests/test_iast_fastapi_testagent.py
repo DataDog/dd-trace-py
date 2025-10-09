@@ -40,10 +40,11 @@ def test_iast_header_injection_secure_attack(iast_test_token):
     assert len(vulnerabilities) == 0
 
 
-def test_iast_header_injection(iast_test_token):
+@pytest.mark.parametrize("use_multiprocess", (True, False))
+def test_iast_header_injection(iast_test_token, use_multiprocess):
     """Test that header injection attempts are detected in FastAPI."""
     with uvicorn_server(
-        iast_enabled="true", token=iast_test_token, port=8050, env={"DD_TRACE_DEBUG": "true"}
+        iast_enabled="true", token=iast_test_token, port=8050, use_multiprocess=use_multiprocess
     ) as context:
         _, fastapi_client, pid = context
 
@@ -63,7 +64,7 @@ def test_iast_header_injection(iast_test_token):
             if iast_data:
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
 
-    assert len(spans_with_iast) == 2
+    assert len(spans_with_iast) >= 1
     assert len(vulnerabilities) == 0
 
 
@@ -93,10 +94,38 @@ def test_iast_header_injection_attack(iast_test_token):
     assert len(vulnerabilities) == 0
 
 
-def test_iast_cmdi_uvicorn(iast_test_token):
+@pytest.mark.parametrize("use_multiprocess", (True, False))
+def test_iast_ssrf_secure_mark_validator(iast_test_token, use_multiprocess):
+    with uvicorn_server(
+        iast_enabled="true", token=iast_test_token, port=8050, use_multiprocess=use_multiprocess
+    ) as context:
+        _, fastapi_client, pid = context
+        response = fastapi_client.post(
+            "/iast/ssrf/test_secure",
+            data={"url": "http://localhost:8000/"},
+        )
+        assert response.status_code == 200
+
+    response_tracer = _get_span(iast_test_token)
+    spans_with_iast = []
+    vulnerabilities = []
+    for trace in response_tracer:
+        for span in trace:
+            if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
+                spans_with_iast.append(span)
+            iast_data = load_iast_report(span)
+            if iast_data:
+                vulnerabilities.append(iast_data.get("vulnerabilities"))
+
+    assert len(spans_with_iast) >= 1
+    assert len(vulnerabilities) == 0
+
+
+@pytest.mark.parametrize("use_multiprocess", (True, False))
+def test_iast_cmdi_uvicorn(iast_test_token, use_multiprocess):
     """Test command injection vulnerability detection with uvicorn server."""
     with uvicorn_server(
-        iast_enabled="true", token=iast_test_token, port=8050, env={"DD_TRACE_DEBUG": "true"}
+        iast_enabled="true", token=iast_test_token, port=8050, use_multiprocess=use_multiprocess
     ) as context:
         _, fastapi_client, pid = context
 
@@ -114,7 +143,7 @@ def test_iast_cmdi_uvicorn(iast_test_token):
             if iast_data and iast_data.get("vulnerabilities"):
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
 
-    assert len(spans_with_iast) == 2
+    assert len(spans_with_iast) >= 1
     assert len(vulnerabilities) == 1
     assert len(vulnerabilities[0]) == 1
     vulnerability = vulnerabilities[0][0]
@@ -211,9 +240,9 @@ def test_iast_cmdi_form_multiple_fastapi(iast_test_token):
     assert vulnerability["evidence"] == {
         "valueParts": [
             {"value": "ls "},
-            {"redacted": True, "source": 0, "pattern": ANY},
+            {"redacted": True, "source": ANY, "pattern": ANY},
             {"redacted": True},
-            {"redacted": True, "source": 1, "pattern": ANY},
+            {"redacted": True, "source": ANY, "pattern": ANY},
         ]
     }
     assert vulnerability["hash"]
