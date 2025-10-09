@@ -258,7 +258,6 @@ def test_lock_gevent_tasks() -> None:
     validate_and_cleanup()
 
 
-<<<<<<< HEAD
 # This test has to be run in a subprocess because it calls gevent.monkey.patch_all()
 # which affects the whole process.
 @pytest.mark.skipif(not TESTING_GEVENT, reason="gevent is not available")
@@ -347,8 +346,6 @@ def test_rlock_gevent_tasks() -> None:
     validate_and_cleanup()
 
 
-=======
->>>>>>> 2395cfc0a3 (add RLock tests)
 class BaseThreadingLockCollectorTest:
     # These should be implemented by child classes
     @property
@@ -721,8 +718,8 @@ class BaseThreadingLockCollectorTest:
         with mock.patch("ddtrace.settings.profiling.config.lock.name_inspect_dir", inspect_dir_enabled):
             expected_lock_name = "foo_lock" if inspect_dir_enabled else None
 
-            with self.collector_class(capture_pct=100):
-                foobar = Foo(self.lock_class)
+            with collector_threading.ThreadingLockCollector(capture_pct=100):
+                foobar = Foo()
                 foobar.foo()
                 bar = Bar(self.lock_class)
                 bar.bar()
@@ -758,15 +755,15 @@ class BaseThreadingLockCollectorTest:
 
     def test_private_lock(self):
         class Foo:
-            def __init__(self, lock_class: Any):
-                self.__lock = lock_class()  # !CREATE! test_private_lock
+            def __init__(self):
+                self.__lock = threading.Lock()  # !CREATE! test_private_lock
 
             def foo(self):
                 with self.__lock:  # !RELEASE! !ACQUIRE! test_private_lock
                     pass
 
-        with self.collector_class(capture_pct=100):
-            foo = Foo(self.lock_class)
+        with collector_threading.ThreadingLockCollector(capture_pct=100):
+            foo = Foo()
             foo.foo()
 
         ddup.upload()
@@ -804,8 +801,8 @@ class BaseThreadingLockCollectorTest:
                 with self.foo.foo_lock:  # !RELEASE! !ACQUIRE! test_inner_lock
                     pass
 
-        with self.collector_class(capture_pct=100):
-            bar = Bar(self.lock_class)
+        with collector_threading.ThreadingLockCollector(capture_pct=100):
+            bar = Bar()
             bar.bar()
 
         ddup.upload()
@@ -862,32 +859,12 @@ class BaseThreadingLockCollectorTest:
             ],
         )
 
-    def test_global_locks(self) -> None:
-        global _test_global_lock, _test_global_bar_instance
+    def test_global_locks(self):
+        with collector_threading.ThreadingLockCollector(capture_pct=100):
+            from tests.profiling.collector import global_locks
 
-        with self.collector_class(capture_pct=100):
-            # Create true module-level globals
-            _test_global_lock = self.lock_class()  # !CREATE! _test_global_lock
-
-            class TestBar:
-                def __init__(self, lock_class: LockClass) -> None:
-                    self.bar_lock = lock_class()  # !CREATE! bar_lock
-
-                def bar(self):
-                    with self.bar_lock:  # !ACQUIRE! !RELEASE! bar_lock
-                        pass
-
-            def foo():
-                global _test_global_lock
-                assert _test_global_lock is not None
-                with _test_global_lock:  # !ACQUIRE! !RELEASE! _test_global_lock
-                    pass
-
-            _test_global_bar_instance = TestBar(self.lock_class)
-
-            # Use the locks
-            foo()
-            _test_global_bar_instance.bar()
+            global_locks.foo()
+            global_locks.bar_instance.bar()
 
         ddup.upload()
 
@@ -969,19 +946,11 @@ class BaseThreadingLockCollectorTest:
 
 
 class TestThreadingLockCollector(BaseThreadingLockCollectorTest):
-<<<<<<< HEAD
     """Test Lock profiling"""
 
     @property
     def collector_class(self):
         return ThreadingLockCollector
-=======
-    """Test threading.Lock profiling"""
-
-    @property
-    def collector_class(self):
-        return collector_threading.ThreadingLockCollector
->>>>>>> 2395cfc0a3 (add RLock tests)
 
     @property
     def lock_class(self):
@@ -989,19 +958,11 @@ class TestThreadingLockCollector(BaseThreadingLockCollectorTest):
 
 
 class TestThreadingRLockCollector(BaseThreadingLockCollectorTest):
-<<<<<<< HEAD
     """Test RLock profiling"""
 
     @property
     def collector_class(self):
         return ThreadingRLockCollector
-=======
-    """Test threading.RLock profiling"""
-
-    @property
-    def collector_class(self):
-        return collector_threading.ThreadingRLockCollector
->>>>>>> 2395cfc0a3 (add RLock tests)
 
     @property
     def lock_class(self):
