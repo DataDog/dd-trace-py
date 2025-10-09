@@ -436,12 +436,12 @@ class BaseThreadingLockCollectorTest:
         tracer._endpoint_call_counter_span_processor.enable()
         resource = str(uuid.uuid4())
         span_type = ext.SpanTypes.SQL
-        with collector_threading.ThreadingLockCollector(
+        with self.collector_class(
             tracer=tracer,
             capture_pct=100,
         ):
             with tracer.trace("test", resource=resource, span_type=span_type) as t:
-                lock2 = threading.Lock()  # !CREATE! test_lock_events_tracer_non_web
+                lock2 = self.lock_class()  # !CREATE! test_lock_events_tracer_non_web
                 lock2.acquire()  # !ACQUIRE! test_lock_events_tracer_non_web
                 span_id = t.span_id
 
@@ -478,14 +478,14 @@ class BaseThreadingLockCollectorTest:
         tracer._endpoint_call_counter_span_processor.enable()
         resource = str(uuid.uuid4())
         span_type = ext.SpanTypes.WEB
-        with collector_threading.ThreadingLockCollector(
+        with self.collector_class(
             tracer=tracer,
             capture_pct=100,
         ):
-            lock1 = threading.Lock()  # !CREATE! test_lock_events_tracer_late_finish_1
+            lock1 = self.lock_class()  # !CREATE! test_lock_events_tracer_late_finish_1
             lock1.acquire()  # !ACQUIRE! test_lock_events_tracer_late_finish_1
             span = tracer.start_span("test", span_type=span_type)
-            lock2 = threading.Lock()  # !CREATE! test_lock_events_tracer_late_finish_2
+            lock2 = self.lock_class()  # !CREATE! test_lock_events_tracer_late_finish_2
             lock2.acquire()  # !ACQUIRE! test_lock_events_tracer_late_finish_2
             lock1.release()  # !RELEASE! test_lock_events_tracer_late_finish_1
             lock2.release()  # !RELEASE! test_lock_events_tracer_late_finish_2
@@ -533,15 +533,15 @@ class BaseThreadingLockCollectorTest:
         tracer._endpoint_call_counter_span_processor.enable()
         resource = str(uuid.uuid4())
         span_type = ext.SpanTypes.WEB
-        with collector_threading.ThreadingLockCollector(
+        with self.collector_class(
             tracer=tracer,
             capture_pct=100,
             endpoint_collection_enabled=False,
         ):
-            lock1 = threading.Lock()  # !CREATE! test_resource_not_collected_1
+            lock1 = self.lock_class()  # !CREATE! test_resource_not_collected_1
             lock1.acquire()  # !ACQUIRE! test_resource_not_collected_1
             with tracer.trace("test", resource=resource, span_type=span_type) as t:
-                lock2 = threading.Lock()  # !CREATE! test_resource_not_collected_2
+                lock2 = self.lock_class()  # !CREATE! test_resource_not_collected_2
                 lock2.acquire()  # !ACQUIRE! test_resource_not_collected_2
                 lock1.release()  # !RELEASE! test_resource_not_collected_1
                 span_id = t.span_id
@@ -630,7 +630,7 @@ class BaseThreadingLockCollectorTest:
         with mock.patch("ddtrace.settings.profiling.config.lock.name_inspect_dir", inspect_dir_enabled):
             expected_lock_name = "foo_lock" if inspect_dir_enabled else None
 
-            with collector_threading.ThreadingLockCollector(capture_pct=100):
+            with self.collector_class(capture_pct=100):
                 foobar = Foo()
                 foobar.foo()
                 bar = Bar()
@@ -667,15 +667,15 @@ class BaseThreadingLockCollectorTest:
 
     def test_private_lock(self):
         class Foo:
-            def __init__(self):
-                self.__lock = threading.Lock()  # !CREATE! test_private_lock
+            def __init__(self, outer_class: BaseThreadingLockCollectorTest):
+                self.__lock = outer_class.lock_class()  # !CREATE! test_private_lock
 
             def foo(self):
                 with self.__lock:  # !RELEASE! !ACQUIRE! test_private_lock
                     pass
 
-        with collector_threading.ThreadingLockCollector(capture_pct=100):
-            foo = Foo()
+        with self.collector_class(capture_pct=100):
+            foo = Foo(self)
             foo.foo()
 
         ddup.upload()
@@ -713,7 +713,7 @@ class BaseThreadingLockCollectorTest:
                 with self.foo.foo_lock:  # !RELEASE! !ACQUIRE! test_inner_lock
                     pass
 
-        with collector_threading.ThreadingLockCollector(capture_pct=100):
+        with self.collector_class(capture_pct=100):
             bar = Bar()
             bar.bar()
 
@@ -745,8 +745,8 @@ class BaseThreadingLockCollectorTest:
         )
 
     def test_anonymous_lock(self):
-        with collector_threading.ThreadingLockCollector(capture_pct=100):
-            with threading.Lock():  # !CREATE! !ACQUIRE! !RELEASE! test_anonymous_lock
+        with self.collector_class(capture_pct=100):
+            with self.lock_class():  # !CREATE! !ACQUIRE! !RELEASE! test_anonymous_lock
                 pass
         ddup.upload()
 
@@ -772,7 +772,7 @@ class BaseThreadingLockCollectorTest:
         )
 
     def test_global_locks(self):
-        with collector_threading.ThreadingLockCollector(capture_pct=100):
+        with self.collector_class(capture_pct=100):
             from tests.profiling.collector import global_locks
 
             global_locks.foo()
@@ -820,8 +820,8 @@ class BaseThreadingLockCollectorTest:
         # This test checks that the profile is cleared after each upload() call
         # It is added in test_threading.py as LockCollector can easily be
         # configured to be deterministic with capture_pct=100.
-        with collector_threading.ThreadingLockCollector(capture_pct=100):
-            with threading.Lock():  # !CREATE! !ACQUIRE! !RELEASE! test_upload_resets_profile
+        with self.collector_class(capture_pct=100):
+            with self.lock_class():  # !CREATE! !ACQUIRE! !RELEASE! test_upload_resets_profile
                 pass
         ddup.upload()
 
