@@ -19,5 +19,3 @@ If you'd like more granular control over instrumentation setup, you can call the
 directly.
 """
 import ddtrace.bootstrap.sitecustomize  # noqa:F401
-
-__all__ = []
