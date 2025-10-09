@@ -1,4 +1,4 @@
-from typing import Type
+from typing import Any, Type
 import glob
 import os
 import threading
@@ -718,8 +718,8 @@ class BaseThreadingLockCollectorTest:
         with mock.patch("ddtrace.settings.profiling.config.lock.name_inspect_dir", inspect_dir_enabled):
             expected_lock_name = "foo_lock" if inspect_dir_enabled else None
 
-            with collector_threading.ThreadingLockCollector(capture_pct=100):
-                foobar = Foo()
+            with self.collector_class(capture_pct=100):
+                foobar = Foo(self.lock_class)
                 foobar.foo()
                 bar = Bar(self.lock_class)
                 bar.bar()
@@ -755,15 +755,15 @@ class BaseThreadingLockCollectorTest:
 
     def test_private_lock(self):
         class Foo:
-            def __init__(self):
-                self.__lock = threading.Lock()  # !CREATE! test_private_lock
+            def __init__(self, lock_class: Any):
+                self.__lock = lock_class()  # !CREATE! test_private_lock
 
             def foo(self):
                 with self.__lock:  # !RELEASE! !ACQUIRE! test_private_lock
                     pass
 
-        with collector_threading.ThreadingLockCollector(capture_pct=100):
-            foo = Foo()
+        with self.collector_class(capture_pct=100):
+            foo = Foo(self.lock_class)
             foo.foo()
 
         ddup.upload()
@@ -801,8 +801,8 @@ class BaseThreadingLockCollectorTest:
                 with self.foo.foo_lock:  # !RELEASE! !ACQUIRE! test_inner_lock
                     pass
 
-        with collector_threading.ThreadingLockCollector(capture_pct=100):
-            bar = Bar()
+        with self.collector_class(capture_pct=100):
+            bar = Bar(self.lock_class)
             bar.bar()
 
         ddup.upload()
