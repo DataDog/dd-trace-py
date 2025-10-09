@@ -530,11 +530,6 @@ class Tracer(object):
                 if span._parent.service == service:
                     span._service_entry_span = parent._service_entry_span
 
-            for k, v in _get_metas_to_propagate(context):
-                # We do not want to propagate AppSec propagation headers
-                # to children spans, only across distributed spans
-                if k not in (SAMPLING_DECISION_TRACE_TAG_KEY, APPSEC.PROPAGATION_HEADER):
-                    span._meta[k] = v
         else:
             # this is the root span of a new trace
             span = Span(
