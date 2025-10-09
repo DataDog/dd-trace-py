@@ -209,7 +209,6 @@ def gen_build_docs() -> None:
             print("    PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'", file=f)
             print("  script:", file=f)
             print("    - |", file=f)
-            print("      pip install --upgrade hatch==1.14.2", file=f)
             print("      hatch run docs:build", file=f)
             print("      mkdir -p /tmp/docs", file=f)
             print("  cache:", file=f)
@@ -285,7 +284,6 @@ prechecks:
     PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'
   script:
     - |
-      pip install --upgrade hatch==1.14.2
       echo -e "\\e[0Ksection_start:`date +%s`:pip_cache_info[collapsed=true]\\r\\e[0KPip cache info"
       pip cache info
       echo -e "\\e[0Ksection_end:`date +%s`:pip_cache_info\\r\\e[0K"
