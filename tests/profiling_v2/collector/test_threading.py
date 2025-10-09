@@ -1,3 +1,4 @@
+from typing import Type
 import glob
 import os
 import threading
@@ -257,6 +258,7 @@ def test_lock_gevent_tasks() -> None:
     validate_and_cleanup()
 
 
+<<<<<<< HEAD
 # This test has to be run in a subprocess because it calls gevent.monkey.patch_all()
 # which affects the whole process.
 @pytest.mark.skipif(not TESTING_GEVENT, reason="gevent is not available")
@@ -345,6 +347,8 @@ def test_rlock_gevent_tasks() -> None:
     validate_and_cleanup()
 
 
+=======
+>>>>>>> 2395cfc0a3 (add RLock tests)
 class BaseThreadingLockCollectorTest:
     # These should be implemented by child classes
     @property
@@ -965,11 +969,19 @@ class BaseThreadingLockCollectorTest:
 
 
 class TestThreadingLockCollector(BaseThreadingLockCollectorTest):
+<<<<<<< HEAD
     """Test Lock profiling"""
 
     @property
     def collector_class(self):
         return ThreadingLockCollector
+=======
+    """Test threading.Lock profiling"""
+
+    @property
+    def collector_class(self):
+        return collector_threading.ThreadingLockCollector
+>>>>>>> 2395cfc0a3 (add RLock tests)
 
     @property
     def lock_class(self):
@@ -977,11 +989,19 @@ class TestThreadingLockCollector(BaseThreadingLockCollectorTest):
 
 
 class TestThreadingRLockCollector(BaseThreadingLockCollectorTest):
+<<<<<<< HEAD
     """Test RLock profiling"""
 
     @property
     def collector_class(self):
         return ThreadingRLockCollector
+=======
+    """Test threading.RLock profiling"""
+
+    @property
+    def collector_class(self):
+        return collector_threading.ThreadingRLockCollector
+>>>>>>> 2395cfc0a3 (add RLock tests)
 
     @property
     def lock_class(self):
