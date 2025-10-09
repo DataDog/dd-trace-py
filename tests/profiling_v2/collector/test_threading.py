@@ -1,4 +1,4 @@
-from typing import Type
+from typing import Any, Type
 import glob
 import os
 import sys
@@ -24,8 +24,8 @@ init_linenos(__file__)
 
 # Helper classes for testing lock collector
 class Foo:
-    def __init__(self):
-        self.foo_lock = threading.Lock()  # !CREATE! foolock
+    def __init__(self, lock_class: Any):
+        self.foo_lock = lock_class()  # !CREATE! foolock
 
     def foo(self):
         with self.foo_lock:  # !RELEASE! !ACQUIRE! foolock
@@ -33,8 +33,8 @@ class Foo:
 
 
 class Bar:
-    def __init__(self):
-        self.foo = Foo()
+    def __init__(self, lock_class: Any):
+        self.foo = Foo(lock_class)
 
     def bar(self):
         self.foo.foo()
@@ -631,9 +631,9 @@ class BaseThreadingLockCollectorTest:
             expected_lock_name = "foo_lock" if inspect_dir_enabled else None
 
             with self.collector_class(capture_pct=100):
-                foobar = Foo()
+                foobar = Foo(self.lock_class)
                 foobar.foo()
-                bar = Bar()
+                bar = Bar(self.lock_class)
                 bar.bar()
 
             ddup.upload()
@@ -667,15 +667,15 @@ class BaseThreadingLockCollectorTest:
 
     def test_private_lock(self):
         class Foo:
-            def __init__(self, outer_class: BaseThreadingLockCollectorTest):
-                self.__lock = outer_class.lock_class()  # !CREATE! test_private_lock
+            def __init__(self, lock_class: Any):
+                self.__lock = lock_class()  # !CREATE! test_private_lock
 
             def foo(self):
                 with self.__lock:  # !RELEASE! !ACQUIRE! test_private_lock
                     pass
 
         with self.collector_class(capture_pct=100):
-            foo = Foo(self)
+            foo = Foo(self.lock_class)
             foo.foo()
 
         ddup.upload()
@@ -706,15 +706,15 @@ class BaseThreadingLockCollectorTest:
 
     def test_inner_lock(self):
         class Bar:
-            def __init__(self):
-                self.foo = Foo()
+            def __init__(self, lock_class: Any):
+                self.foo = Foo(lock_class)
 
             def bar(self):
                 with self.foo.foo_lock:  # !RELEASE! !ACQUIRE! test_inner_lock
                     pass
 
         with self.collector_class(capture_pct=100):
-            bar = Bar()
+            bar = Bar(self.lock_class)
             bar.bar()
 
         ddup.upload()
