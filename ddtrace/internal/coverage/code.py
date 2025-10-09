@@ -14,6 +14,7 @@ from ddtrace.internal.coverage.report import print_coverage_report
 from ddtrace.internal.coverage.util import collapse_ranges
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.packages import platlib_path
 from ddtrace.internal.packages import platstdlib_path
 from ddtrace.internal.packages import purelib_path
@@ -175,21 +176,7 @@ class ModuleCodeCollector(ModuleWatchdog):
         return covered_lines
 
     def _add_import_time_lines(self, covered_lines):
-        """Modify given covered_lines in place and add lines that were covered at import time.
-
-        This method performs a breadth-first traversal of the import dependency graph, starting
-        from the files in `covered_lines` and recursively adding all their import-time dependencies.
-
-        The algorithm:
-        1. Start with all files that have runtime coverage (covered_lines.keys())
-        2. For each file, add its import-time covered lines
-        3. Add the file's import dependencies to the queue for processing
-        4. Repeat until all dependencies are processed
-
-        Special handling for package __init__.py files:
-        - When processing a module, also include its package's __init__.py
-        - This ensures that package imports are tracked even when not explicitly in the dependency graph
-        """
+        """Modify given covered_lines in place and add lines that were covered at import time"""
         visited_paths = set()
         to_visit_paths = set(covered_lines.keys())
 
@@ -206,16 +193,6 @@ class ModuleCodeCollector(ModuleWatchdog):
 
             imported_module_lines = self._import_time_covered[path]
             covered_lines[path].update(imported_module_lines)
-
-            # # Note: With the optimized lightweight coverage (instrument first line only),
-            # # package __init__.py files are now automatically tracked because their first
-            # # line is always instrumented. This explicit traversal is no longer necessary
-            # # but kept for compatibility with edge cases where __init__.py might not be
-            # # in the dependency graph.
-            # if path.endswith(".py") and not path.endswith("/__init__.py"):
-            #     package_init = path.rsplit("/", 1)[0] + "/__init__.py"
-            #     if package_init in self._import_time_covered and package_init not in visited_paths:
-            #         to_visit_paths.add(package_init)
 
             # Queue up dependencies of current path, if they exist, have valid paths, and haven't been visited yet
             for dependencies in self._import_names_by_path.get(path, set()):
@@ -359,6 +336,9 @@ class ModuleCodeCollector(ModuleWatchdog):
             # Don't instrument code from standard library/site packages/etc.
             return code
 
+        if not is_user_code(code_path):
+            return code
+
         retval = self.instrument_code(code, _module.__package__ if _module is not None else "")
 
         if self._collect_import_coverage:
@@ -380,11 +360,6 @@ class ModuleCodeCollector(ModuleWatchdog):
             del self._import_time_contexts[_module.__file__]
 
     def after_import(self, _module: ModuleType) -> None:
-        """Called after a module has been imported to collect its import-time coverage.
-
-        This method collects which lines were executed during the import of a module,
-        which is critical for tracking dependencies and understanding import-time behavior.
-        """
         if not self._collect_import_coverage:
             return
 
@@ -393,17 +368,7 @@ class ModuleCodeCollector(ModuleWatchdog):
             covered_lines = collector.get_covered_lines()
             collector.__exit__()
             if covered_lines[_module.__file__]:
-                # Normal case: some lines were executed during import
                 self._import_time_covered[_module.__file__].update(covered_lines[_module.__file__])
-            # else:
-            #     # Note: With optimized lightweight coverage (first line always instrumented),
-            #     # this else branch should rarely be hit. It's kept as a safety net for edge cases
-            #     # where instrumentation might fail or be skipped.
-            #     #
-            #     # In the new approach, even empty __init__.py files have their first line
-            #     # instrumented, so the hook should fire and covered_lines should be non-empty.
-            #     # If we reach here, something unexpected happened - log it for debugging.
-            #     pass  # Empty modules are now handled by always instrumenting first line
 
             del self._import_time_contexts[_module.__file__]
 

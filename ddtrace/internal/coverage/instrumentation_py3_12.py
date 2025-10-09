@@ -61,39 +61,22 @@ def _instrument_all_lines_with_monitoring(
     # Enable local line events for the code object
     sys.monitoring.set_local_events(sys.monitoring.COVERAGE_ID, code, sys.monitoring.events.LINE)  # noqa
 
-    # LIGHTWEIGHT COVERAGE STRATEGY:
-    # We ONLY enable monitoring for the first executable line of each code object.
-    # This is sufficient because:
-    #
-    # 1. For modules: First line always executes when module loads
-    #    - Tracks that the module was imported ✅
-    #    - Import dependencies tracked via bytecode scanning (below) ✅
-    #
-    # 2. For functions: First line executes when function is called
-    #    - Tracks that the function ran ✅
-    #
-    # This reduces monitored lines by ~50% compared to "first + all imports"
-    # while maintaining correctness. Import metadata is captured by scanning
-    # bytecode for IMPORT_NAME/IMPORT_FROM and attaching it to the first line.
+    # Collect all the line numbers in the code object
+    all_linestarts = dict(dis.findlinestarts(code))
+    
+    # Lightweight coverage: only monitor the first executable line
+    if all_linestarts:
+        first_offset = min(all_linestarts.keys())
+        linestarts = {first_offset: all_linestarts[first_offset]}
+    else:
+        linestarts = {}
 
-    line_starts_list = list(dis.findlinestarts(code))
-    if not line_starts_list:
-        # No line starts, return empty coverage
-        return code, CoverageLines()
-
-    line_starts_dict = dict(line_starts_list)
-    first_line_start = min(o for o, _ in line_starts_list)
-
-    # ONLY monitor the first line (not import lines!)
-    offsets_to_monitor = {first_line_start}
-    linestarts = {offset: line_starts_dict[offset] for offset in offsets_to_monitor}
+    lines = CoverageLines()
+    # Track all executable lines for coverage reporting
+    for line in all_linestarts.values():
+        lines.add(line)
 
     import_names: t.Dict[int, t.Tuple[str, t.Optional[t.Tuple[str, ...]]]] = {}
-
-    # Track all executable lines for coverage reporting (not just the monitored lines)
-    all_executable_lines = CoverageLines()
-    for _, line in line_starts_dict.items():
-        all_executable_lines.add(line)
 
     # The previous two arguments are kept in order to track the depth of the IMPORT_NAME
     # For example, from ...package import module
@@ -104,6 +87,7 @@ def _instrument_all_lines_with_monitoring(
     current_import_package: t.Optional[str] = None
 
     line = 0
+    first_line_seen = False
 
     ext: list[bytes] = []
     code_iter = iter(enumerate(code.co_code))
@@ -120,8 +104,9 @@ def _instrument_all_lines_with_monitoring(
 
                 # Make sure that the current module is marked as depending on its own package by instrumenting the
                 # first executable line
-                if code.co_name == "<module>" and line == linestarts[first_line_start] and package is not None:
+                if code.co_name == "<module>" and not first_line_seen and package is not None:
                     import_names[line] = (package, ("",))
+                    first_line_seen = True
 
             if opcode is EXTENDED_ARG:
                 ext.append(arg)
@@ -167,16 +152,16 @@ def _instrument_all_lines_with_monitoring(
     # Recursively instrument nested code objects
     for nested_code in (_ for _ in code.co_consts if isinstance(_, CodeType)):
         _, nested_lines = instrument_all_lines(nested_code, hook, path, package)
-        all_executable_lines.update(nested_lines)
+        lines.update(nested_lines)
 
     # Register the hook and argument for the code object
     _CODE_HOOKS[code] = (hook, path, import_names)
 
     # Special case for empty modules (eg: __init__.py ):
     # Make sure line 0 is marked as executable, and add package dependency
-    if not all_executable_lines and code.co_name == "<module>" and code.co_code == EMPTY_MODULE_BYTES:
-        all_executable_lines.add(0)
+    if not lines and code.co_name == "<module>" and code.co_code == EMPTY_MODULE_BYTES:
+        lines.add(0)
         if package is not None:
             import_names[0] = (package, ("",))
 
-    return code, all_executable_lines
+    return code, lines

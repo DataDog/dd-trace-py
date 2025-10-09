@@ -258,6 +258,8 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     trap_index = len(new_consts)
     new_consts.append(trap_func)
 
+    seen_lines = CoverageLines()
+
     exc_table = list(parse_exception_table(code))
     exc_table_offsets = {_ for e in exc_table for _ in (e.start, e.end, e.target)}
     offset_map = {}
@@ -266,52 +268,7 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     jumps: t.Dict[int, Jump] = {}
     traps: t.Dict[int, int] = {}  # DEV: This uses the original offsets
     line_map = {}
-    line_starts_list = list(dis.findlinestarts(code))
-    if not line_starts_list:
-        # No line starts, return empty coverage
-        return code, CoverageLines()
-
-    line_starts_dict = dict(line_starts_list)
-
-    # LIGHTWEIGHT COVERAGE STRATEGY:
-    # Instead of instrumenting first line + all import lines, we ONLY instrument
-    # the first executable line after RESUME. This is sufficient because:
-    #
-    # 1. For modules: First line always executes when module loads
-    #    - Tracks that the module was imported ✅
-    #    - Import dependencies tracked via bytecode scanning (below) ✅
-    #
-    # 2. For functions: First line executes when function is called
-    #    - Tracks that the function ran ✅
-    #
-    # This reduces instrumentation by ~50% compared to "first + all imports"
-    # while maintaining correctness. Import dependencies are captured by scanning
-    # bytecode for IMPORT_NAME/IMPORT_FROM and attaching metadata to the first line's hook.
-
-    # Find the offset of the RESUME opcode first (if it exists)
-    resume_offset_temp = NO_OFFSET
-    for i in range(0, len(code.co_code), 2):
-        if code.co_code[i] == RESUME:
-            resume_offset_temp = i
-            break
-
-    # For the first line, skip RESUME if it's at the first offset
-    # This is important for functions where RESUME is at offset 0
-    first_line_start = min(o for o, _ in line_starts_list)
-    if first_line_start == resume_offset_temp and resume_offset_temp != NO_OFFSET:
-        # Find the next line start after RESUME
-        remaining_starts = [o for o, _ in line_starts_list if o > resume_offset_temp]
-        if remaining_starts:
-            first_line_start = min(remaining_starts)
-
-    # ONLY instrument the first line (not import lines!)
-    offsets_to_instrument = {first_line_start}
-    line_starts = {offset: line_starts_dict[offset] for offset in offsets_to_instrument}
-
-    # Track ALL executable lines for coverage reporting
-    all_executable_lines = CoverageLines()
-    for _, line in line_starts_dict.items():
-        all_executable_lines.add(line)
+    all_line_starts = dict(dis.findlinestarts(code))
 
     # Find the offset of the RESUME opcode. We should not add any instrumentation before this point.
     resume_offset = NO_OFFSET
@@ -320,10 +277,25 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
             resume_offset = i
             break
 
+    # Lightweight coverage: only instrument the first executable line
+    if all_line_starts:
+        first_offset = min(all_line_starts.keys())
+        # Skip RESUME if it's at the first offset (for functions)
+        if first_offset == resume_offset and resume_offset != NO_OFFSET:
+            remaining = [o for o in all_line_starts.keys() if o > resume_offset]
+            first_offset = min(remaining) if remaining else first_offset
+        line_starts = {first_offset: all_line_starts[first_offset]}
+    else:
+        line_starts = {}
+
     # If we are looking at an empty module, we trick ourselves into instrumenting line 0 by skipping the RESUME at index
     # and instrumenting the second offset:
     if code.co_name == "<module>" and line_starts == {0: 0} and code.co_code == EMPTY_BYTECODE:
         line_starts = {2: 0}
+
+    # Track all executable lines for coverage reporting (not just instrumented ones)
+    for line in all_line_starts.values():
+        seen_lines.add(line)
 
     # The previous two arguments are kept in order to track the depth of the IMPORT_NAME
     # For example, from ...package import module
@@ -501,7 +473,7 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     for original_offset, nested_code in enumerate(code.co_consts):
         if isinstance(nested_code, CodeType):
             new_consts[original_offset], nested_lines = instrument_all_lines(nested_code, trap_func, trap_arg, package)
-            all_executable_lines.update(nested_lines)
+            seen_lines.update(nested_lines)
 
     return (
         code.replace(
@@ -511,5 +483,5 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
             co_linetable=update_location_data(code, traps, [(instr.offset, s) for instr, s in exts]),
             co_exceptiontable=compile_exception_table(exc_table),
         ),
-        all_executable_lines,
+        seen_lines,
     )
