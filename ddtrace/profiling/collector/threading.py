@@ -12,11 +12,14 @@ from . import _lock
 
 # TODO(vlad): add type annotations
 
+
 class _ProfiledThreadingLock(_lock._ProfiledLock):
     pass
 
+
 class _ProfiledThreadingRLock(_lock._ProfiledLock):
     pass
+
 
 class ThreadingLockCollector(_lock.LockCollector):
     """Record threading.Lock usage."""
