@@ -1,8 +1,8 @@
-from typing import Any, Type
 import glob
 import os
 import sys
 import threading
+from typing import Any
 import uuid
 
 import mock
