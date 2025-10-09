@@ -4,7 +4,6 @@ from itertools import chain
 import logging
 from threading import RLock
 from typing import DefaultDict
-from typing import Dict
 from typing import List
 from typing import Optional
 
@@ -310,10 +309,10 @@ class SpanAggregator(SpanProcessor):
         self._lock: RLock = RLock()
         # Track telemetry span metrics by span api
         # ex: otel api, opentracing api, datadog api
-        self._span_metrics: Dict[str, DefaultDict] = {
-            "spans_created": defaultdict(int),
-            "spans_finished": defaultdict(int),
-        }
+        self._total_spans_created: int = 0
+        self._spans_created: DefaultDict[str, int] = defaultdict(int)
+        self._total_spans_finished: int = 0
+        self._spans_finished: DefaultDict[str, int] = defaultdict(int)
         super(SpanAggregator, self).__init__()
 
     def __repr__(self) -> str:
@@ -326,25 +325,72 @@ class SpanAggregator(SpanProcessor):
             f"{self.tags_processor},"
             f"{self.dd_processors}, "
             f"{self.user_processors}, "
-            f"{self._span_metrics}, "
+            f"{self._spans_created}, "
+            f"{self._spans_finished}, "
             f"{self.writer})"
         )
+
+    def _emit_telemetry_metrics(self) -> None:
+        ns = TELEMETRY_NAMESPACE.TRACERS
+        add_count_metric = telemetry.telemetry_writer.add_count_metric
+
+        for tag_value, count in self._spans_created.items():
+            add_count_metric(ns, "spans_created", count, tags=(("integration_name", tag_value),))
+        self._spans_created.clear()
+        self._total_spans_created = 0
+
+        for tag_value, count in self._spans_finished.items():
+            add_count_metric(ns, "spans_finished", count, tags=(("integration_name", tag_value),))
+
+        self._spans_finished.clear()
+        self._total_spans_finished = 0
+
+    def _metric_inc_spans_created(self, integration_name: str) -> None:
+        """
+        Increment span started counts by 1.
+
+        Lock *MUST* be acquired while calling this function
+        """
+        if not config._telemetry_enabled:
+            return
+
+        self._total_spans_created += 1
+        self._spans_created[integration_name] += 1
+
+        if self._total_spans_created >= 100:
+            self._emit_telemetry_metrics()
+
+    def _metric_inc_spans_finished(self, integration_name: str) -> None:
+        """
+        Increment span finished counts by 1.
+
+        Lock *MUST* be acquired while calling this function
+        """
+        if not config._telemetry_enabled:
+            return
+
+        self._total_spans_finished += 1
+        self._spans_finished[integration_name] += 1
+
+        if self._total_spans_finished >= 100:
+            self._emit_telemetry_metrics()
 
     def on_span_start(self, span: Span) -> None:
         with self._lock:
             trace = self._traces[span.trace_id]
             trace.spans.append(span)
             integration_name = span._meta.get(COMPONENT, span._span_api)
+            self._metric_inc_spans_created(integration_name)
 
-            self._span_metrics["spans_created"][integration_name] += 1
-            self._queue_span_count_metrics("spans_created", "integration_name")
-        log.debug(self.SPAN_START_DEBUG_MESSAGE, span, len(trace.spans))
+        # Avoid the len(trace.spans) if debug logging isn't enabled
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug(self.SPAN_START_DEBUG_MESSAGE, span, len(trace.spans))
 
     def on_span_finish(self, span: Span) -> None:
         # Acquire lock to get finished and update trace.spans
         with self._lock:
             integration_name = span._meta.get(COMPONENT, span._span_api)
-            self._span_metrics["spans_finished"][integration_name] += 1
+            self._metric_inc_spans_finished(integration_name)
 
             if span.trace_id not in self._traces:
                 return
@@ -353,7 +399,7 @@ class SpanAggregator(SpanProcessor):
             num_buffered = len(trace.spans)
             trace.num_finished += 1
             should_partial_flush = self.partial_flush_enabled and trace.num_finished >= self.partial_flush_min_spans
-            is_trace_complete = trace.num_finished >= len(trace.spans)
+            is_trace_complete = trace.num_finished >= num_buffered
             if not is_trace_complete and not should_partial_flush:
                 return
 
@@ -361,13 +407,11 @@ class SpanAggregator(SpanProcessor):
                 finished = [s for s in trace.spans if s.finished]
                 if not finished:
                     return
-                trace.spans[:] = [s for s in trace.spans if not s.finished]  # In-place update
+                trace.spans[:] = [s for s in trace.spans if not s.finished]
                 trace.num_finished = 0
             else:
                 finished = trace.spans
                 del self._traces[span.trace_id]
-                # perf: Flush span finish metrics to the telemetry writer after the trace is complete
-                self._queue_span_count_metrics("spans_finished", "integration_name")
 
         num_finished = len(finished)
         if should_partial_flush:
@@ -396,18 +440,20 @@ class SpanAggregator(SpanProcessor):
             sampling_priority = root_span.context.sampling_priority
             sampling_mechanism = root_span.context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY, "None")
 
-            log.debug(
-                self.SPAN_FINISH_DEBUG_MESSAGE,
-                len(spans),
-                num_buffered,
-                num_finished - len(spans),
-                num_buffered - num_finished,
-                spans[0].trace_id,
-                spans[0].name,
-                sampling_priority,
-                sampling_mechanism,
-                should_partial_flush,
-            )
+            # Avoid computed arguments unless we are actually going to log
+            if log.isEnabledFor(logging.DEBUG):
+                log.debug(
+                    self.SPAN_FINISH_DEBUG_MESSAGE,
+                    len(spans),
+                    num_buffered,
+                    num_finished - len(spans),
+                    num_buffered - num_finished,
+                    spans[0].trace_id,
+                    spans[0].name,
+                    sampling_priority,
+                    sampling_mechanism,
+                    should_partial_flush,
+                )
             self.writer.write(spans)
 
     def _agent_response_callback(self, resp: AgentResponse) -> None:
@@ -434,10 +480,7 @@ class SpanAggregator(SpanProcessor):
         """
         # on_span_start queue span created counts in batches of 100. This ensures all remaining counts are sent
         # before the tracer is shutdown.
-        self._queue_span_count_metrics("spans_created", "integration_name", 1)
-        # on_span_finish(...) queues span finish metrics in batches of 100.
-        # This ensures all remaining counts are sent before the tracer is shutdown.
-        self._queue_span_count_metrics("spans_finished", "integration_name", 1)
+        self._emit_telemetry_metrics()
         # Log a warning if the tracer is shutdown before spans are finished
         if log.isEnabledFor(logging.WARNING):
             unfinished_spans = [
@@ -459,17 +502,6 @@ class SpanAggregator(SpanProcessor):
         except ServiceStatusError:
             # It's possible the writer never got started in the first place :(
             pass
-
-    def _queue_span_count_metrics(self, metric_name: str, tag_name: str, min_count: int = 100) -> None:
-        """Queues a telemetry count metric for span created and span finished"""
-        # perf: telemetry_metrics_writer.add_count_metric(...) is an expensive operation.
-        # We should avoid calling this method on every invocation of span finish and span start.
-        if config._telemetry_enabled and sum(self._span_metrics[metric_name].values()) >= min_count:
-            for tag_value, count in self._span_metrics[metric_name].items():
-                telemetry.telemetry_writer.add_count_metric(
-                    TELEMETRY_NAMESPACE.TRACERS, metric_name, count, tags=((tag_name, tag_value),)
-                )
-            self._span_metrics[metric_name] = defaultdict(int)
 
     def reset(
         self,
@@ -506,7 +538,7 @@ class SpanAggregator(SpanProcessor):
         # Useful when forking to prevent sending duplicate spans from parent and child processes.
         if reset_buffer:
             self._traces = defaultdict(lambda: _Trace())
-            self._span_metrics = {
-                "spans_created": defaultdict(int),
-                "spans_finished": defaultdict(int),
-            }
+            self._total_spans_created = 0
+            self._spans_created.clear()
+            self._total_spans_finished = 0
+            self._spans_finished.clear()
