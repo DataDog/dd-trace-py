@@ -38,4 +38,3 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     new_code, _ = inject_invocation(injection_context, path, package)
     coverage_lines = _collect_all_executable_lines(code)
     return new_code, coverage_lines
- 

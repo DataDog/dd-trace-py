@@ -63,14 +63,14 @@ def _instrument_all_lines_with_monitoring(
 
     # Collect all the line numbers in the code object
     all_linestarts = dict(dis.findlinestarts(code))
-    
+
     # Find the offset of the RESUME opcode (if present)
     resume_offset = -1
     for i in range(0, len(code.co_code), 2):
         if code.co_code[i] == RESUME:
             resume_offset = i
             break
-    
+
     # Lightweight coverage: monitor only the first REAL executable line (skip RESUME)
     if all_linestarts:
         # Skip RESUME and monitor the first real line; fall back to RESUME if it's the only line
