@@ -3125,13 +3125,6 @@ venv = Venv(
                         "pydantic": "==2.12.0a1",
                     },
                 ),
-                Venv(
-                    pys=select_pys(min_version="3.12", max_version="3.13"),
-                    pkgs={
-                        "pydantic-ai": latest,
-                        "pydantic": "==2.12.0a1",
-                    },
-                ),
             ],
         ),
         Venv(
