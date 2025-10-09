@@ -220,7 +220,6 @@ def _inject_invocation_nonrecursive(
     # key: old offset, value: how many instructions have been injected at that spot
     offsets_map: t.Dict[int, int] = {}
 
-    injection_occurred = False
     for old_offset in range(0, len(old_code), 2):
         opcode = old_code[old_offset]
         arg = old_code[old_offset + 1] | extended_arg
@@ -230,7 +229,6 @@ def _inject_invocation_nonrecursive(
 
         line = line_starts.get(old_offset)
         if line is not None:
-            injection_occurred = False
             if old_offset in line_injection_offsets:
                 code_size_before_injection = len(new_code)
 
@@ -264,7 +262,6 @@ def _inject_invocation_nonrecursive(
                 new_code.append(0)
 
                 offsets_map[old_offset] = (len(new_code) - code_size_before_injection) // 2
-                injection_occurred = True
                 instrumented_lines.append(line)
 
                 # Make sure that the current module is marked as depending on its own package by instrumenting the
