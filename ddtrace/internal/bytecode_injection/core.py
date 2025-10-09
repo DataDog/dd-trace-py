@@ -311,8 +311,9 @@ def _inject_invocation_nonrecursive(
         else:
             append_instruction(opcode, arg)
 
-            if injection_occurred:
-                # Track imports names
+            # Track imports names (even if this specific line wasn't instrumented)
+            # For lightweight coverage, import metadata is attached to the first instrumented line
+            if len(instrumented_lines) > 0:  # Only if we've instrumented at least one line
                 if opcode == IMPORT_NAME:
                     import_depth = code.co_consts[previous_previous_arg]
                     current_import_name = code.co_names[arg]
@@ -320,10 +321,17 @@ def _inject_invocation_nonrecursive(
                     current_import_package = (
                         ".".join(package.split(".")[: -import_depth + 1]) if import_depth > 1 else package
                     )
-                    new_consts[-1] = (
-                        new_consts[-1][0],
-                        new_consts[-1][1],
-                        (current_import_package, (current_import_name,)),
+                    # Find the constant for the FIRST instrumented line and accumulate import metadata
+                    # Note: We always use hook_index + 1 (the first instrumented line's constant)
+                    first_instrumented_const_idx = hook_index + 1
+                    # Get existing metadata (might already have imports from previous IMPORT_NAME opcodes)
+                    existing_const = new_consts[first_instrumented_const_idx]
+                    existing_imports = existing_const[2][1] if existing_const[2] else ()
+                    new_imports = list(existing_imports) + [current_import_name]
+                    new_consts[first_instrumented_const_idx] = (
+                        existing_const[0],
+                        existing_const[1],
+                        (current_import_package, tuple(new_imports)),
                     )
 
                 # Also track import from statements since it's possible that the "from" target is a module, eg:
@@ -331,10 +339,12 @@ def _inject_invocation_nonrecursive(
                 # Since the package has not changed, we simply extend the previous import names with the new value
                 if opcode == IMPORT_FROM:
                     import_from_name = f"{current_import_name}.{code.co_names[arg]}"
-                    new_consts[-1] = (
-                        new_consts[-1][0],
-                        new_consts[-1][1],
-                        (new_consts[-1][2][0], tuple(list(new_consts[-1][2][1]) + [import_from_name])),
+                    first_instrumented_const_idx = hook_index + 1
+                    existing_const = new_consts[first_instrumented_const_idx]
+                    new_consts[first_instrumented_const_idx] = (
+                        existing_const[0],
+                        existing_const[1],
+                        (existing_const[2][0], tuple(list(existing_const[2][1]) + [import_from_name])),
                     )
 
         original_extended_arg_count = 0

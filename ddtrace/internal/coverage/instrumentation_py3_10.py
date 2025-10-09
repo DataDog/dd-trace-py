@@ -13,11 +13,12 @@ assert sys.version_info[:2] == (3, 10)  # nosec
 
 
 def _get_offsets_to_instrument(injection_context) -> t.List[int]:
-    """For lightweight coverage, only instrument the first executable line."""
+    """For lightweight coverage, instrument only the first executable line."""
     code = injection_context.original_code
     line_starts_list = list(dis.findlinestarts(code))
     if not line_starts_list:
         return []
+    # Just instrument the first line
     return [min(o for o, _ in line_starts_list)]
 
 
@@ -37,3 +38,4 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     new_code, _ = inject_invocation(injection_context, path, package)
     coverage_lines = _collect_all_executable_lines(code)
     return new_code, coverage_lines
+ 
