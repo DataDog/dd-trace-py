@@ -637,7 +637,7 @@ integrations:
   tested_versions_by_dependency:
     openai:
       min: 1.0.0
-      max: 2.2.0
+      max: 1.91.0
 
 - integration_name: openai_agents
   is_external_package: true
@@ -681,7 +681,7 @@ integrations:
   tested_versions_by_dependency:
     pydantic-ai-slim:
       min: 0.3.0
-      max: 1.0.15
+      max: 1.0.17
 
 - integration_name: pylibmc
   is_external_package: true

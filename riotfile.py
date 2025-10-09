@@ -2765,15 +2765,6 @@ venv = Venv(
                     },
                     env={"TIKTOKEN_AVAILABLE": "True"},
                 ),
-                Venv(
-                    pys=select_pys(min_version="3.14"),
-                    pkgs={
-                        "openai": latest,
-                        "tiktoken": latest,
-                        "pillow": latest,
-                    },
-                    env={"TIKTOKEN_AVAILABLE": "True"},
-                ),
             ],
         ),
         Venv(
@@ -3121,14 +3112,27 @@ venv = Venv(
         Venv(
             name="pydantic_ai",
             command="pytest {cmdargs} tests/contrib/pydantic_ai",
-            pys=select_pys(min_version="3.9"),
             pkgs={
                 "pytest-asyncio": latest,
-                "pydantic-ai": ["==0.3.0", "==0.4.4", latest],
                 "vcrpy": "==7.0.0",
                 "typing_extensions": latest,
-                "pydantic": "==2.12.0a1",
             },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.9"),
+                    pkgs={
+                        "pydantic-ai": ["==0.3.0", "==0.4.4"],
+                        "pydantic": "==2.12.0a1",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.12", max_version="3.13"),
+                    pkgs={
+                        "pydantic-ai": latest,
+                        "pydantic": "==2.12.0a1",
+                    },
+                ),
+            ],
         ),
         Venv(
             name="ray",
