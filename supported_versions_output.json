@@ -397,14 +397,14 @@
         "dependency": "langgraph",
         "integration": "langgraph",
         "minimum_tracer_supported": "0.2.23",
-        "max_tracer_supported": "0.6.8",
+        "max_tracer_supported": "0.6.10",
         "auto-instrumented": true
     },
     {
         "dependency": "langgraph-checkpoint",
         "integration": "langgraph",
         "minimum_tracer_supported": "1.0.12",
-        "max_tracer_supported": "2.1.1",
+        "max_tracer_supported": "2.1.2",
         "auto-instrumented": true
     },
     {
