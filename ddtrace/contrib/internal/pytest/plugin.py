@@ -36,9 +36,6 @@ from ddtrace.settings._telemetry import config as telemetry_config
 from ddtrace.settings.asm import config as asm_config
 
 
-# Store the original sitecustomize to restore it later
-_original_sitecustomize = sys.modules.get('sitecustomize', None)
-
 # Import sitecustomize to perform the patching
 import ddtrace.bootstrap.sitecustomize  # noqa: F401
 
@@ -129,7 +126,6 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
     if is_enabled(config):
         _disable_telemetry_dependency_collection()
-        # The actual patching is now handled by sitecustomize
         _versioned_pytest_configure(config)
 
 
