@@ -30,24 +30,6 @@ _config = _Config()
 
 def post_preload():
     if _config.enabled:
-        # Check if pytest is running with the ddtrace plugin enabled
-        # to avoid incompatibility when both ddtrace.auto and pytest plugin are used
-        import sys
-
-        if "pytest" in sys.modules:
-            try:
-                import pytest
-                # Check if we're in a pytest session and the ddtrace plugin is enabled
-                # This is indicated by the pytest config having the ddtrace plugin registered
-                if hasattr(pytest, "config") and pytest.config is not None:
-                    # Try to access the plugin manager to see if ddtrace plugin is registered
-                    if pytest.config.pluginmanager.has_plugin("ddtrace"):
-                        log.debug("Skipping auto-patching: pytest with ddtrace plugin is already enabled")
-                        return
-            except (AttributeError, ImportError):
-                # If we can't determine the state, proceed with patching
-                pass
-
         from ddtrace._monkey import _patch_all
 
         modules_to_patch = os.getenv("DD_PATCH_MODULES")
