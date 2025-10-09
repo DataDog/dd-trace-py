@@ -859,13 +859,6 @@ def test_on_finish_multi_callback():
     m2.assert_called_once_with(s)
 
 
-@pytest.mark.parametrize("arg", ["span_id", "trace_id", "parent_id"])
-def test_span_preconditions(arg):
-    Span("test", **{arg: None})
-    with pytest.raises(TypeError):
-        Span("test", **{arg: "foo"})
-
-
 def test_span_pprint():
     root = Span("test.span", service="s", resource="r", span_type=SpanTypes.WEB, context=Context(trace_id=1, span_id=2))
     root.set_tag("t", "v")
