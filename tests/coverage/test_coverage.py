@@ -53,11 +53,13 @@ def test_coverage_import_time_lib():
     }
 
     assert (
-        executable == expected_executable
+        executable.items() == expected_executable.items()
     ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
-    assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
     assert (
-        covered_with_imports == expected_covered_with_imports
+        covered.items() == expected_covered.items()
+    ), f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
+    assert (
+        covered_with_imports.items() == expected_covered_with_imports.items()
     ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
 
 
@@ -102,8 +104,12 @@ def test_coverage_import_time_function():
         "tests/coverage/included_path/imported_in_function_lib.py": {1, 2, 3, 4, 7},
     }
 
-    assert lines == expected_lines, f"Executable lines mismatch: expected={expected_lines} vs actual={lines}"
-    assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
     assert (
-        covered_with_imports == expected_covered_with_imports
+        lines.items() == expected_lines.items()
+    ), f"Executable lines mismatch: expected={expected_lines} vs actual={lines}"
+    assert (
+        covered.items() == expected_covered.items()
+    ), f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
+    assert (
+        covered_with_imports.items() == expected_covered_with_imports.items()
     ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
