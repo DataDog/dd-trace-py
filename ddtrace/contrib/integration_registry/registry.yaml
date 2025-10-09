@@ -517,7 +517,7 @@ integrations:
   tested_versions_by_dependency:
     langgraph:
       min: 0.2.23
-      max: 0.6.8
+      max: 0.6.10
     langgraph-checkpoint:
       min: 1.0.12
       max: 2.1.2
