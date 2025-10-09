@@ -579,7 +579,7 @@ def _on_django_cache(
         if rowcount is not None:
             ctx.span.set_metric(db.ROWCOUNT, rowcount)
     finally:
-        return _finish_span(ctx, exc_info)
+        _finish_span(ctx, exc_info)
 
 
 def _on_django_func_wrapped(_unused1, _unused2, _unused3, ctx, ignored_excs):
