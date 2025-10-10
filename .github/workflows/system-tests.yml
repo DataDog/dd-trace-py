@@ -35,8 +35,6 @@ jobs:
       TEST_LIBRARY: python
       WEBLOG_VARIANT: ${{ matrix.weblog-variant }}
       CMAKE_BUILD_PARALLEL_LEVEL: 12
-      SYSTEM_TESTS_AWS_ACCESS_KEY_ID: ${{ secrets.IDM_AWS_ACCESS_KEY_ID }}
-      SYSTEM_TESTS_AWS_SECRET_ACCESS_KEY: ${{ secrets.IDM_AWS_SECRET_ACCESS_KEY }}
     steps:
       - name: Install Dependencies
         run: sudo apt-get install -y patchelf
@@ -84,8 +82,6 @@ jobs:
       TEST_LIBRARY: python
       WEBLOG_VARIANT: ${{ matrix.weblog-variant }}
       CMAKE_BUILD_PARALLEL_LEVEL: 12
-      SYSTEM_TESTS_AWS_ACCESS_KEY_ID: ${{ secrets.IDM_AWS_ACCESS_KEY_ID }}
-      SYSTEM_TESTS_AWS_SECRET_ACCESS_KEY: ${{ secrets.IDM_AWS_SECRET_ACCESS_KEY }}
     steps:
 
       - name: Checkout system tests
