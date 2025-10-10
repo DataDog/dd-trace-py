@@ -314,8 +314,6 @@ import ddtrace.settings.exception_replay
         {"name": "DD_IAST_VULNERABILITIES_PER_REQUEST", "origin": "default", "value": 2},
         {"name": "DD_INJECTION_ENABLED", "origin": "env_var", "value": "tracer"},
         {"name": "DD_INJECT_FORCE", "origin": "env_var", "value": True},
-        {"name": "DD_INSTRUMENTATION_INSTALL_ID", "origin": "default", "value": None},
-        {"name": "DD_INSTRUMENTATION_INSTALL_TYPE", "origin": "default", "value": None},
         {"name": "DD_INSTRUMENTATION_TELEMETRY_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_LIVE_DEBUGGING_ENABLED", "origin": "default", "value": False},
         {"name": "DD_LLMOBS_AGENTLESS_ENABLED", "origin": "default", "value": None},
