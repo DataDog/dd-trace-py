@@ -168,8 +168,6 @@ Datadog::UploaderBuilder::build()
 
     auto ddog_exporter = &res.ok;
 
-    // 5s is a common timeout parameter for Datadog profilers
-    const uint64_t max_timeout_ms = 5000;
     auto set_timeout_result = ddog_prof_Exporter_set_timeout(ddog_exporter, max_timeout_ms);
     if (set_timeout_result.tag == DDOG_VOID_RESULT_ERR) {
         auto& err = set_timeout_result.err;
