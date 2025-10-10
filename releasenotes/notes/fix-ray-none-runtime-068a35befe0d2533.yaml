@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    ray: This fix resolves an issue where submitting Ray jobs caused an ``AttributeError`` crash in certain configurations.
