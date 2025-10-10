@@ -1,0 +1,6 @@
+---
+upgrade:
+  - |
+    openai: ``tiktoken`` has been removed from ``ddtrace`` as a dependency, and streamed chat/completions will default to having their token counts estimated
+     if not explicitly provided in the OpenAI response object. To guarantee accurate streamed token metrics, set ``stream_options={"include_usage": True}`` in the
+     OpenAI request.

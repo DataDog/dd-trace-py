@@ -269,16 +269,14 @@ class TestLLMObsOpenaiV1:
 
     def test_completion_stream(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
         with get_openai_vcr(subdirectory_name="v1").use_cassette("completion_streamed.yaml"):
-            with mock.patch("ddtrace.llmobs._integrations.utils.encoding_for_model", create=True) as mock_encoding:
-                with mock.patch("ddtrace.llmobs._integrations.utils._est_tokens") as mock_est:
-                    mock_encoding.return_value.encode.side_effect = lambda x: [1, 2]
-                    mock_est.return_value = 2
-                    model = "ada"
-                    expected_completion = '! ... A page layouts page drawer? ... Interesting. The "Tools" is'
-                    client = openai.OpenAI()
-                    resp = client.completions.create(model=model, prompt="Hello world", stream=True)
-                    for _ in resp:
-                        pass
+            with mock.patch("ddtrace.llmobs._integrations.utils._est_tokens") as mock_est:
+                mock_est.return_value = 2
+                model = "ada"
+                expected_completion = '! ... A page layouts page drawer? ... Interesting. The "Tools" is'
+                client = openai.OpenAI()
+                resp = client.completions.create(model=model, prompt="Hello world", stream=True)
+                for _ in resp:
+                    pass
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
@@ -565,24 +563,22 @@ class TestLLMObsOpenaiV1:
         """
 
         with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_streamed.yaml"):
-            with mock.patch("ddtrace.llmobs._integrations.utils.encoding_for_model", create=True) as mock_encoding:
-                with mock.patch("ddtrace.llmobs._integrations.utils._est_tokens") as mock_est:
-                    mock_encoding.return_value.encode.side_effect = lambda x: [1, 2, 3, 4, 5, 6, 7, 8]
-                    mock_est.return_value = 8
-                    model = "gpt-3.5-turbo"
-                    resp_model = model
-                    input_messages = [{"role": "user", "content": "Who won the world series in 2020?"}]
-                    expected_completion = "The Los Angeles Dodgers won the World Series in 2020."
-                    client = openai.OpenAI()
-                    resp = client.chat.completions.create(
-                        model=model,
-                        messages=input_messages,
-                        stream=True,
-                        user="ddtrace-test",
-                        stream_options={"include_usage": False},
-                    )
-                    for chunk in resp:
-                        resp_model = chunk.model
+            with mock.patch("ddtrace.llmobs._integrations.utils._est_tokens") as mock_est:
+                mock_est.return_value = 8
+                model = "gpt-3.5-turbo"
+                resp_model = model
+                input_messages = [{"role": "user", "content": "Who won the world series in 2020?"}]
+                expected_completion = "The Los Angeles Dodgers won the World Series in 2020."
+                client = openai.OpenAI()
+                resp = client.chat.completions.create(
+                    model=model,
+                    messages=input_messages,
+                    stream=True,
+                    user="ddtrace-test",
+                    stream_options={"include_usage": False},
+                )
+                for chunk in resp:
+                    resp_model = chunk.model
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
@@ -963,7 +959,6 @@ class TestLLMObsOpenaiV1:
                     "top_p": 1.0,
                     "tool_choice": "auto",
                     "truncation": "disabled",
-                    "text": {"format": {"type": "text"}, "verbosity": "medium"},
                     "reasoning_tokens": 256,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
@@ -1519,7 +1514,6 @@ MUL: "*"
                     "temperature": 1.0,
                     "tool_choice": "auto",
                     "truncation": "disabled",
-                    "text": {"format": {"type": "text"}},
                     "reasoning_tokens": 0,
                 },
                 token_metrics={
@@ -1562,7 +1556,6 @@ MUL: "*"
                     "top_p": 1.0,
                     "tool_choice": "auto",
                     "truncation": "disabled",
-                    "text": {"format": {"type": "text"}},
                     "reasoning_tokens": 0,
                 },
                 token_metrics={
@@ -1617,7 +1610,6 @@ MUL: "*"
                     "top_p": 1.0,
                     "tool_choice": "auto",
                     "truncation": "disabled",
-                    "text": {"format": {"type": "text"}},
                     "reasoning_tokens": 0,
                 },
                 token_metrics={"input_tokens": 0, "output_tokens": 0, "total_tokens": 0, "cache_read_input_tokens": 0},
@@ -1651,7 +1643,6 @@ MUL: "*"
                     "temperature": 1.0,
                     "top_p": 1.0,
                     "truncation": "disabled",
-                    "text": {"format": {"type": "text"}},
                     "reasoning_tokens": 0,
                 },
                 token_metrics={
@@ -1716,7 +1707,6 @@ MUL: "*"
                     "stream": True,
                     "tool_choice": "auto",
                     "truncation": "disabled",
-                    "text": {"format": {"type": "text"}},
                     "reasoning_tokens": 0,
                 },
                 tool_definitions=[
@@ -1801,7 +1791,6 @@ MUL: "*"
                     "top_p": 0.9,
                     "tool_choice": "auto",
                     "truncation": "disabled",
-                    "text": {"format": {"type": "text"}},
                     "user": "ddtrace-test",
                     "reasoning_tokens": 0,
                 },
@@ -1858,7 +1847,6 @@ MUL: "*"
                             "top_p": 1.0,
                             "tool_choice": "auto",
                             "truncation": "disabled",
-                            "text": {"format": {"type": "text"}},
                             "reasoning_tokens": 0,
                             "user": "ddtrace-test",
                         },
@@ -1884,7 +1872,6 @@ MUL: "*"
                             "top_p": 1.0,
                             "tool_choice": "auto",
                             "truncation": "disabled",
-                            "text": {"format": {"type": "text"}},
                             "reasoning_tokens": 0,
                             "user": "ddtrace-test",
                         },
@@ -1948,7 +1935,6 @@ MUL: "*"
                             "top_p": 1.0,
                             "tool_choice": "auto",
                             "truncation": "disabled",
-                            "text": {"format": {"type": "text"}},
                             "reasoning_tokens": 0,
                             "stream": True,
                         },
@@ -1974,7 +1960,6 @@ MUL: "*"
                             "top_p": 1.0,
                             "tool_choice": "auto",
                             "truncation": "disabled",
-                            "text": {"format": {"type": "text"}},
                             "reasoning_tokens": 0,
                             "stream": True,
                         },
