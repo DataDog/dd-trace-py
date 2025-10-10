@@ -1049,6 +1049,11 @@ setup(
                 libraries=encoding_libraries,
                 define_macros=[(f"__{sys.byteorder.upper()}_ENDIAN__", "1")],
             ),
+            Cython.Distutils.Extension(
+                "ddtrace.internal.peer_service.processor",
+                sources=["ddtrace/internal/peer_service/processor.pyx"],
+                language="c",
+            ),
             Extension(
                 "ddtrace.internal.telemetry.metrics_namespaces",
                 ["ddtrace/internal/telemetry/metrics_namespaces.pyx"],

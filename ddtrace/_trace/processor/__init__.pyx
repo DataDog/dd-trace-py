@@ -42,7 +42,7 @@ cdef class TraceProcessor:
         """
         pass
 
-    def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:        
+    cpdef object process_trace(self, list trace):
         """Processes a trace.
 
         ``None`` can be returned to prevent the trace from being further
@@ -110,12 +110,12 @@ cdef class TraceSamplingProcessor(TraceProcessor):
     * If a dropped trace includes a span that had been kept by a span sampling rule, then the span is sent to the
       Agent even if the dropped trace is not (as is the case when trace stats computation is enabled).
     """
-    
+
     # TODO: Make these not public anymore
     cdef public bint _compute_stats_enabled, _apm_opt_out
     cdef public list single_span_rules
     cdef public object sampler
-    
+
     def __init__(
         self,
         compute_stats_enabled: bool,
@@ -146,11 +146,11 @@ cdef class TraceSamplingProcessor(TraceProcessor):
             self.sampler._rate_limit_always_on = False
         self._apm_opt_out = value
 
-    cpdef object process_trace(self, trace: List[Span]):
+    cpdef object process_trace(self, list trace):
         cdef object chunk_root, span
         cdef list single_spans
         cdef bint can_drop_trace
-        
+
         if trace:
             chunk_root = trace[0]
 
@@ -216,7 +216,7 @@ cdef class TopLevelSpanProcessor(SpanProcessor):
 cdef class ServiceNameProcessor(TraceProcessor):
     """Processor that adds the service name to the globalconfig."""
 
-    cpdef object process_trace(self, trace: List[Span]):
+    cpdef object process_trace(self, list trace):
         cdef object span
         for span in trace:
             if span.service:
@@ -227,7 +227,7 @@ cdef class ServiceNameProcessor(TraceProcessor):
 cdef class TraceTagsProcessor(TraceProcessor):
     """Processor that applies trace-level tags to the trace."""
 
-    cdef void _set_git_metadata(self, chunk_root: Span) except *:    
+    cdef void _set_git_metadata(self, chunk_root: Span) except *:
         cdef str repository_url, commit_sha, main_package
         repository_url, commit_sha, main_package = gitmetadata.get_git_tags()
         if repository_url:
@@ -237,11 +237,11 @@ cdef class TraceTagsProcessor(TraceProcessor):
         if main_package:
             chunk_root.set_tag_str("_dd.python_main_package", main_package)
 
-    cpdef object process_trace(self, trace: List[Span]):
+    cpdef object process_trace(self, list trace):
         cdef list spans_to_tag
         cdef object span
         cdef str trace_id_hob
-        
+
         if not trace:
             return trace
 
@@ -273,10 +273,10 @@ cdef class TraceTagsProcessor(TraceProcessor):
         return trace
 
 
-cdef class _Trace:   
+cdef class _Trace:
     cdef list spans
     cdef int num_finished
-    
+
     def __init__(self, spans: Optional[List[Span]] = None, num_finished: int = 0) -> None:
         self.spans: List[Span] = spans if spans is not None else []
         self.num_finished: int = num_finished
@@ -319,8 +319,8 @@ cdef class SpanAggregator(SpanProcessor):
     cdef public object writer
     cdef public dict _traces, _spans_created, _spans_finished
     cdef public object _lock
-    cdef public int _total_spans_finished    
-    
+    cdef public int _total_spans_finished
+
     def __init__(
         self,
         partial_flush_enabled: bool,
@@ -346,7 +346,7 @@ cdef class SpanAggregator(SpanProcessor):
         # Track telemetry span metrics by span api
         # ex: otel api, opentracing api, datadog api
         self._spans_created = {}
-        self._spans_finished = {}        
+        self._spans_finished = {}
         self._total_spans_finished: int = 0
         super(SpanAggregator, self).__init__()
 
@@ -364,7 +364,7 @@ cdef class SpanAggregator(SpanProcessor):
             f"{self.writer})"
         )
 
-    cdef void _emit_telemetry_metrics(self, force_flush: bool = False) except *:
+    cdef void _emit_telemetry_metrics(self, bint force_flush = False) except *:
         ns = TELEMETRY_NAMESPACE.TRACERS
         add_count_metric = telemetry.telemetry_writer.add_count_metric
 
@@ -382,7 +382,7 @@ cdef class SpanAggregator(SpanProcessor):
     cpdef void on_span_start(self, span: Span) except *:
         cdef _Trace trace
         cdef str integration_name
-        
+
         with self._lock:
             trace = self._traces.setdefault(span.trace_id, _Trace())
             trace.spans.append(span)
@@ -401,13 +401,13 @@ cdef class SpanAggregator(SpanProcessor):
         cdef int num_buffered, num_finished
         cdef bint is_trace_complete, should_partial_flush
         cdef list finished, spans
-        
+
         # Acquire lock to get finished and update trace.spans
         with self._lock:
             if config._telemetry_enabled:
                 self._total_spans_finished += 1
                 integration_name = span._meta.get(COMPONENT, span._span_api)
-                self._spans_finished.setdefault(integration_name, 0)                
+                self._spans_finished.setdefault(integration_name, 0)
                 self._spans_finished[integration_name] += 1
                 self._emit_telemetry_metrics()
 
@@ -489,7 +489,7 @@ cdef class SpanAggregator(SpanProcessor):
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
         cdef _Trace trace
-        
+
         # on_span_start queue span created counts in batches of 100. This ensures all remaining counts are sent
         # before the tracer is shutdown.
         self._emit_telemetry_metrics(force_flush=True)
@@ -552,4 +552,4 @@ cdef class SpanAggregator(SpanProcessor):
             self._traces.clear()
             self._spans_created.clear()
             self._spans_finished.clear()
-            self._total_spans_finished = 0            
+            self._total_spans_finished = 0

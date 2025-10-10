@@ -1,22 +1,31 @@
+# cython: freethreading_compatible=True
 from typing import List
 from typing import Optional
 
-from ddtrace._trace.processor import TraceProcessor
+from ddtrace._trace.processor cimport TraceProcessor
 from ddtrace._trace.span import Span
 from ddtrace.constants import SPAN_KIND
 
 
-class PeerServiceProcessor(TraceProcessor):
+cdef class PeerServiceProcessor(TraceProcessor):
+    cdef object _config
+    cdef bint _set_defaults_enabled
+    cdef dict _mapping
+    
     def __init__(self, peer_service_config):
         self._config = peer_service_config
         self._set_defaults_enabled = self._config.set_defaults_enabled
         self._mapping = self._config.peer_service_mapping
 
-    def process_trace(self, trace: List[Span]):
+    cpdef process_trace(self, trace: List[Span]):
+        cdef str tag_name
+        cdef object span, tag
+        cdef set enabled_span_kinds
+        
         if not trace:
             return
 
-        tag_name: str = self._config.tag_name
+        tag_name = self._config.tag_name
 
         if not self._set_defaults_enabled:
             for span in trace:
@@ -31,7 +40,9 @@ class PeerServiceProcessor(TraceProcessor):
                     self._update_peer_service_tags(span, tag)
         return trace
 
-    def _update_peer_service_tags(self, span: Span, tag: Optional[str]):
+    cdef inline void _update_peer_service_tags(self, span: Span, tag: Optional[str]):
+        cdef str data_source
+        
         if tag:  # If the tag already exists, assume it is user generated
             span.set_tag_str(self._config.source_tag_name, self._config.tag_name)
         else:
