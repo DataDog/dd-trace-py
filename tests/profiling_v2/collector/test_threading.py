@@ -14,12 +14,13 @@ from ddtrace.profiling.collector import threading as collector_threading
 from tests.profiling.collector import pprof_utils
 from tests.profiling.collector import test_collector
 from tests.profiling.collector.lock_utils import get_lock_linenos
+from tests.profiling.collector.lock_utils import init_linenos
+
 
 
 # Module-level globals for testing global lock profiling
 _test_global_lock = None
 _test_global_bar_instance = None
-from tests.profiling.collector.lock_utils import init_linenos
 
 
 TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
