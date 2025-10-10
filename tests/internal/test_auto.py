@@ -76,12 +76,21 @@ def test_foo():
     assert A == 1
 """)
 
-        # Run pytest as a subprocess
+        # Run pytest as a subprocess with the current ddtrace on PYTHONPATH
+        import os
+        import ddtrace
+
+        ddtrace_path = str(Path(ddtrace.__file__).parent.parent)
+        env = os.environ.copy()
+        # Prepend ddtrace path to PYTHONPATH to ensure we use the local version
+        env["PYTHONPATH"] = ddtrace_path + os.pathsep + env.get("PYTHONPATH", "")
+
         result = subprocess.run(
             [sys.executable, "-m", "pytest", str(test_file), "-v"],
             cwd=tmpdir,
             capture_output=True,
             text=True,
+            env=env,
         )
 
         # The test should pass without KeyError
