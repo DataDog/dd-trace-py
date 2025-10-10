@@ -11,7 +11,7 @@ cdef class PeerServiceProcessor(TraceProcessor):
     cdef object _config
     cdef bint _set_defaults_enabled
     cdef dict _mapping
-    
+
     def __init__(self, peer_service_config):
         self._config = peer_service_config
         self._set_defaults_enabled = self._config.set_defaults_enabled
@@ -21,7 +21,7 @@ cdef class PeerServiceProcessor(TraceProcessor):
         cdef str tag_name
         cdef object span, tag
         cdef set enabled_span_kinds
-        
+
         if not trace:
             return
 
@@ -42,7 +42,7 @@ cdef class PeerServiceProcessor(TraceProcessor):
 
     cdef inline void _update_peer_service_tags(self, span: Span, tag: Optional[str]):
         cdef str data_source
-        
+
         if tag:  # If the tag already exists, assume it is user generated
             span.set_tag_str(self._config.source_tag_name, self._config.tag_name)
         else:

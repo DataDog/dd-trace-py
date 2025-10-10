@@ -1,9 +1,7 @@
 # cython: freethreading_compatible=True
-from collections import defaultdict
 from itertools import chain
 import logging
 from threading import RLock
-from typing import DefaultDict
 from typing import List
 from typing import Optional
 

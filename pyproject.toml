@@ -114,10 +114,12 @@ exclude = '''
   | .venv*
   | \.sg
   | \.riot/
+  | ddtrace/_trace/processor/__init__.pyx$
   | ddtrace/appsec/_ddwaf.pyx$
   | ddtrace/internal/_encoding.pyx$
   | ddtrace/internal/_rand.pyx$
   | ddtrace/internal/_tagset.pyx$
+  | ddtrace/internal/peer_service/processor.pyx$
   | ddtrace/internal/telemetry/metrics_namespaces.pyx$
   | ddtrace/profiling/collector/_traceback.pyx$
   | ddtrace/profiling/collector/_task.pyx$
