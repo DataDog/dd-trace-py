@@ -1028,6 +1028,11 @@ setup(
     + cythonize(
         [
             Cython.Distutils.Extension(
+                "ddtrace._trace.processor.__init__",
+                sources=["ddtrace/_trace/processor/__init__.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
                 "ddtrace.internal._rand",
                 sources=["ddtrace/internal/_rand.pyx"],
                 language="c",

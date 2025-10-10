@@ -104,7 +104,7 @@ class Tracer(object):
         trace = tracer.trace('app.request', 'web-server').finish()
     """
 
-    SHUTDOWN_TIMEOUT = 5
+    SHUTDOWN_TIMEOUT = 5.0
     _instance = None
 
     def __init__(self) -> None:

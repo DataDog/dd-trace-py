@@ -6,7 +6,7 @@ from ddtrace._trace.processor import TraceProcessor
 from ddtrace._trace.span import Span
 
 
-class TraceFilter(TraceProcessor):
+class TraceFilter(TraceProcessor, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         """Processes a trace.

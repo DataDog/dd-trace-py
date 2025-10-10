@@ -712,7 +712,7 @@ def test_tracer_shutdown_timeout():
         with t.trace("something"):
             pass
 
-        t.shutdown(timeout=2)
+        t.shutdown(timeout=2.0)
     mock_stop.assert_called_once_with(2)
 
 

@@ -38,14 +38,6 @@ class DummyProcessor(TraceProcessor):
         return trace
 
 
-def test_no_impl():
-    class BadProcessor(SpanProcessor):
-        pass
-
-    with pytest.raises(TypeError):
-        BadProcessor()
-
-
 def test_aggregator_single_span():
     class Proc(TraceProcessor):
         def process_trace(self, trace):
