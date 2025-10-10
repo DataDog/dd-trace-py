@@ -3,6 +3,7 @@
 import os
 import sys
 
+
 sitecustomize_imported = "ddtrace.bootstrap.sitecustomize" in sys.modules
 
 with open("auto_import_result.txt", "w") as f:
