@@ -74,6 +74,8 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         operation: str = "",
     ) -> None:
         provider_name, model_name = extract_provider_and_model_name(kwargs=kwargs)
+        if response is not None:
+            model_name = getattr(response, "model_version", "") or model_name
         span._set_ctx_items(
             {
                 SPAN_KIND: operation,

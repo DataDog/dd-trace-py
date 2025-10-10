@@ -232,7 +232,11 @@ def traced_submit_job(wrapped, instance, args, kwargs):
             submit_span.set_tag_str(RAY_SUBMISSION_ID_TAG, submission_id)
 
             # Inject the context of the job so that ray.job.run is its child
-            env_vars = kwargs.setdefault("runtime_env", {}).setdefault("env_vars", {})
+            runtime_env = kwargs.get("runtime_env") or {}
+            kwargs["runtime_env"] = runtime_env
+            env_vars = runtime_env.get("env_vars") or {}
+            runtime_env["env_vars"] = env_vars
+
             _TraceContext._inject(job_span.context, env_vars)
             env_vars[RAY_SUBMISSION_ID] = submission_id
             if job_name:

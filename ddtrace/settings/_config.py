@@ -119,6 +119,7 @@ INTEGRATION_CONFIGS = frozenset(
         "sanic",
         "snowflake",
         "pymemcache",
+        "azure_eventhubs",
         "azure_functions",
         "azure_servicebus",
         "protobuf",
@@ -644,10 +645,6 @@ class Config(object):
         self._otel_enabled = self._otel_trace_enabled or self._otel_metrics_enabled or self._otel_logs_enabled
 
         self._trace_methods = _get_config("DD_TRACE_METHODS")
-
-        self._telemetry_install_id = _get_config("DD_INSTRUMENTATION_INSTALL_ID")
-        self._telemetry_install_type = _get_config("DD_INSTRUMENTATION_INSTALL_TYPE")
-        self._telemetry_install_time = _get_config("DD_INSTRUMENTATION_INSTALL_TYPE")
 
         self._dd_api_key = _get_config("DD_API_KEY")
         self._dd_site = _get_config("DD_SITE", "datadoghq.com")
