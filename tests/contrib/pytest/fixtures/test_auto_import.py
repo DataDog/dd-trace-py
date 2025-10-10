@@ -1,4 +1,5 @@
 """Test script to verify ddtrace.auto behavior with pytest.ini."""
+
 import os
 import sys
 
