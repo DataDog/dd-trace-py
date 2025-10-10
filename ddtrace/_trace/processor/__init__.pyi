@@ -8,6 +8,8 @@ class TraceProcessor:
     def process_trace(self, trace: List[Span]) -> Optional[List[Span]]: ...
 
 class SpanProcessor:
+    __processors__: List["SpanProcessor"]
+
     def on_span_start(self, span: Span) -> None: ...
     def on_span_finish(self, span: Span) -> None: ...
     def shutdown(self, timeout: Optional[float]) -> None: ...
@@ -40,4 +42,12 @@ class SpanAggregator(SpanProcessor):
         partial_flush_min_spans: int,
         dd_processors: Optional[List[TraceProcessor]] = None,
         user_processors: Optional[List[TraceProcessor]] = None,
+    ) -> None: ...
+    def reset(
+        self,
+        user_processors: Optional[List[TraceProcessor]] = None,
+        compute_stats: Optional[bool] = None,
+        apm_opt_out: Optional[bool] = None,
+        appsec_enabled: Optional[bool] = None,
+        reset_buffer: bool = True,
     ) -> None: ...
