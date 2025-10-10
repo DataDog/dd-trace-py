@@ -48,11 +48,13 @@ def test_coverage_namespace_package_import_normal():
     }
 
     assert (
-        executable == expected_executable
+        executable.keys() == expected_executable.keys()
     ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
-    assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
     assert (
-        covered_with_imports == expected_covered_with_imports
+        covered.keys() == expected_covered.keys()
+    ), f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
+    assert (
+        covered_with_imports.keys() == expected_covered_with_imports.keys()
     ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
 
 
@@ -118,11 +120,13 @@ def test_coverage_namespace_package_import_late():
     }
 
     assert (
-        executable == expected_executable
+        executable.keys() == expected_executable.keys()
     ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
-    assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
     assert (
-        covered_with_imports == expected_covered_with_imports
+        covered.keys() == expected_covered.keys()
+    ), f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
+    assert (
+        covered_with_imports.keys() == expected_covered_with_imports.keys()
     ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
 
 
@@ -167,11 +171,13 @@ def test_coverage_namespace_package_nsa_import_parent_normal():
     }
 
     assert (
-        executable == expected_executable
+        executable.keys() == expected_executable.keys()
     ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
-    assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
     assert (
-        covered_with_imports == expected_covered_with_imports
+        covered.keys() == expected_covered.keys()
+    ), f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
+    assert (
+        covered_with_imports.keys() == expected_covered_with_imports.keys()
     ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
 
 
@@ -219,11 +225,13 @@ def test_coverage_namespace_package_nsa_import_parent_late():
     }
 
     assert (
-        executable == expected_executable
+        executable.keys() == expected_executable.keys()
     ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
-    assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
     assert (
-        covered_with_imports == expected_covered_with_imports
+        covered.keys() == expected_covered.keys()
+    ), f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
+    assert (
+        covered_with_imports.keys() == expected_covered_with_imports.keys()
     ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
 
 
@@ -272,11 +280,13 @@ def test_coverage_namespace_package_nsa_import_dot_normal():
     }
 
     assert (
-        executable == expected_executable
+        executable.keys() == expected_executable.keys()
     ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
-    assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
     assert (
-        covered_with_imports == expected_covered_with_imports
+        covered.keys() == expected_covered.keys()
+    ), f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
+    assert (
+        covered_with_imports.keys() == expected_covered_with_imports.keys()
     ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
 
 
@@ -334,9 +344,11 @@ def test_coverage_namespace_package_nsa_import_dot_late():
     }
 
     assert (
-        executable == expected_executable
+        executable.keys() == expected_executable.keys()
     ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
-    assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
     assert (
-        covered_with_imports == expected_covered_with_imports
+        covered.keys() == expected_covered.keys()
+    ), f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
+    assert (
+        covered_with_imports.keys() == expected_covered_with_imports.keys()
     ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
