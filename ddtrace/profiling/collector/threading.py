@@ -36,10 +36,12 @@ def init_stack_v2() -> None:
         _thread_bootstrap_inner = ddtrace_threading.Thread._bootstrap_inner  # type: ignore[attr-defined]
 
         def thread_set_native_id(self, *args, **kwargs):
+            print(f"thread_set_native_id: {self.ident}, {self.native_id}, {self.name}")
             _thread_set_native_id(self, *args, **kwargs)
             stack_v2.register_thread(self.ident, self.native_id, self.name)
 
         def thread_bootstrap_inner(self, *args, **kwargs):
+            print(f"thread_bootstrap_inner: {self.ident}, {self.native_id}, {self.name}")
             _thread_bootstrap_inner(self, *args, **kwargs)
             stack_v2.unregister_thread(self.ident)
 
@@ -48,4 +50,5 @@ def init_stack_v2() -> None:
 
         # Instrument any living threads
         for thread_id, thread in ddtrace_threading._active.items():  # type: ignore[attr-defined]
+            print(f"init_stack_v2: {thread_id}, {thread.native_id}, {thread.name}")
             stack_v2.register_thread(thread_id, thread.native_id, thread.name)
