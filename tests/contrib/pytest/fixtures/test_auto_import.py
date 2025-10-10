@@ -13,3 +13,6 @@ print(f"sys.path={sys.path}")
 print(f"sys.modules keys: {list(k for k in sys.modules.keys() if 'ddtrace' in k or 'sitecustomize' in k)}")
 
 assert not sitecustomize_imported, "sitecustomize was imported when it shouldn't have been"
+
+def test_foo():
+    assert 1+1 == 2
