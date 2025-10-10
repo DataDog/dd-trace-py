@@ -1028,6 +1028,11 @@ setup(
     + cythonize(
         [
             Cython.Distutils.Extension(
+                "ddtrace._trace.processor.__init__",
+                sources=["ddtrace/_trace/processor/__init__.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
                 "ddtrace.internal._rand",
                 sources=["ddtrace/internal/_rand.pyx"],
                 language="c",
@@ -1043,6 +1048,11 @@ setup(
                 include_dirs=["."],
                 libraries=encoding_libraries,
                 define_macros=[(f"__{sys.byteorder.upper()}_ENDIAN__", "1")],
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.internal.peer_service.processor",
+                sources=["ddtrace/internal/peer_service/processor.pyx"],
+                language="c",
             ),
             Extension(
                 "ddtrace.internal.telemetry.metrics_namespaces",
