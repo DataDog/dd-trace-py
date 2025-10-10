@@ -22,18 +22,19 @@ class TestAutoImport:
 
         assert "ddtrace.auto" in sys.modules
 
-
     @pytest.mark.parametrize("pytest_plugin_enabled", [True, False])
     def test_auto_avoids_double_patching_with_pytest_plugin(self, pytest_plugin_enabled):
         """Test that ddtrace.auto doesn't import sitecustomize when pytest plugin is enabled."""
         fake_pytest = type(sys)("pytest")
         fake_pytest.config = mock.MagicMock()
 
-        with mock.patch.dict("sys.modules", {"pytest": fake_pytest}), mock.patch(
-            "ddtrace.bootstrap.sitecustomize"
-        ) as mock_sitecustomize, mock.patch(
-            "ddtrace.contrib.internal.pytest.plugin.is_enabled", return_value=pytest_plugin_enabled
-        ) as mock_is_enabled:
+        with (
+            mock.patch.dict("sys.modules", {"pytest": fake_pytest}),
+            mock.patch("ddtrace.bootstrap.sitecustomize") as mock_sitecustomize,
+            mock.patch(
+                "ddtrace.contrib.internal.pytest.plugin.is_enabled", return_value=pytest_plugin_enabled
+            ) as mock_is_enabled,
+        ):
             import ddtrace.auto  # noqa: F401
 
             mock_is_enabled.assert_called_once_with(fake_pytest.config)
