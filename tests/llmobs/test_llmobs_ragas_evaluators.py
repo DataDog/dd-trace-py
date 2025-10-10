@@ -109,7 +109,7 @@ def test_ragas_faithfulness_submits_evaluation(ragas, llmobs, mock_llmobs_submit
     rf_evaluator.llmobs_service.submit_evaluation.assert_has_calls(
         [
             mock.call(
-                span_context={
+                span={
                     "span_id": llm_span.get("span_id"),
                     "trace_id": llm_span.get("trace_id"),
                 },
@@ -137,7 +137,7 @@ def test_ragas_faithfulness_submits_evaluation_on_span_with_question_in_messages
     rf_evaluator.llmobs_service.submit_evaluation.assert_has_calls(
         [
             mock.call(
-                span_context={
+                span={
                     "span_id": llm_span.get("span_id"),
                     "trace_id": llm_span.get("trace_id"),
                 },
@@ -176,7 +176,7 @@ def test_ragas_faithfulness_submits_evaluation_on_span_with_custom_keys(ragas, l
     rf_evaluator.llmobs_service.submit_evaluation.assert_has_calls(
         [
             mock.call(
-                span_context={
+                span={
                     "span_id": llm_span.get("span_id"),
                     "trace_id": llm_span.get("trace_id"),
                 },
@@ -293,7 +293,7 @@ def test_ragas_context_precision_submits_evaluation(ragas, llmobs, mock_llmobs_s
     rcp_evaluator.llmobs_service.submit_evaluation.assert_has_calls(
         [
             mock.call(
-                span_context={
+                span={
                     "span_id": llm_span.get("span_id"),
                     "trace_id": llm_span.get("trace_id"),
                 },
@@ -320,7 +320,7 @@ def test_ragas_context_precision_submits_evaluation_on_span_with_question_in_mes
     rcp_evaluator.llmobs_service.submit_evaluation.assert_has_calls(
         [
             mock.call(
-                span_context={
+                span={
                     "span_id": llm_span.get("span_id"),
                     "trace_id": llm_span.get("trace_id"),
                 },
@@ -359,7 +359,7 @@ def test_ragas_context_precision_submits_evaluation_on_span_with_custom_keys(
     rcp_evaluator.llmobs_service.submit_evaluation.assert_has_calls(
         [
             mock.call(
-                span_context={
+                span={
                     "span_id": llm_span.get("span_id"),
                     "trace_id": llm_span.get("trace_id"),
                 },
@@ -474,7 +474,7 @@ def test_ragas_answer_relevancy_submits_evaluation(
     rar_evaluator.llmobs_service.submit_evaluation.assert_has_calls(
         [
             mock.call(
-                span_context={
+                span={
                     "span_id": llm_span.get("span_id"),
                     "trace_id": llm_span.get("trace_id"),
                 },
@@ -500,7 +500,7 @@ def test_ragas_answer_relevancy_submits_evaluation_on_span_with_question_in_mess
     rar_evaluator.llmobs_service.submit_evaluation.assert_has_calls(
         [
             mock.call(
-                span_context={
+                span={
                     "span_id": llm_span.get("span_id"),
                     "trace_id": llm_span.get("trace_id"),
                 },
@@ -538,7 +538,7 @@ def test_ragas_answer_relevancy_submits_evaluation_on_span_with_custom_keys(
     rar_evaluator.llmobs_service.submit_evaluation.assert_has_calls(
         [
             mock.call(
-                span_context={
+                span={
                     "span_id": llm_span.get("span_id"),
                     "trace_id": llm_span.get("trace_id"),
                 },
