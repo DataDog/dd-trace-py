@@ -1,0 +1,105 @@
+id: pep765-control-flow-in-finally
+valid:
+  # These should NOT trigger the rule (valid code)
+  - |
+    try:
+        do_something()
+    finally:
+        cleanup()
+  - |
+    try:
+        result = compute()
+        return result
+    finally:
+        cleanup()
+  - |
+    def foo():
+        try:
+            do_something()
+        except Exception:
+            return None
+        finally:
+            cleanup()
+  - |
+    try:
+        x = 1
+    finally:
+        print("done")
+  - |
+    # Control flow that doesn't exit the finally block is OK
+    try:
+        do_something()
+    finally:
+        for item in items:
+            break  # breaks the loop, not the finally block
+  - |
+    # Nested function with return is OK
+    try:
+        do_something()
+    finally:
+        def cleanup():
+            return None
+        cleanup()
+
+invalid:
+  # These should trigger the rule (warnings)
+  # Return statements
+  - |
+    try:
+        do_something()
+    finally:
+        return None
+  - |
+    def foo():
+        try:
+            result = compute()
+        finally:
+            return result
+  - |
+    try:
+        x = compute()
+    except Exception:
+        pass
+    finally:
+        return x
+  - |
+    def bar():
+        try:
+            do_something()
+        finally:
+            cleanup()
+            return 42
+  - |
+    try:
+        x = 1
+    finally:
+        if condition:
+            return x
+  # Break statements
+  - |
+    for item in items:
+        try:
+            process(item)
+        finally:
+            break
+  - |
+    while condition:
+        try:
+            do_something()
+        finally:
+            if error:
+                break
+  # Continue statements
+  - |
+    for item in items:
+        try:
+            process(item)
+        finally:
+            continue
+  - |
+    while condition:
+        try:
+            do_something()
+        finally:
+            if skip:
+                continue
