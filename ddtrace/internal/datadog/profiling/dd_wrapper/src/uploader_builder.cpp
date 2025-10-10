@@ -90,6 +90,12 @@ Datadog::UploaderBuilder::set_output_filename(std::string_view _output_filename)
     }
 }
 
+void
+Datadog::UploaderBuilder::set_max_timeout_ms(uint64_t _max_timeout_ms)
+{
+    max_timeout_ms = _max_timeout_ms;
+}
+
 std::string
 join(const std::vector<std::string>& vec, const std::string& delim)
 {
