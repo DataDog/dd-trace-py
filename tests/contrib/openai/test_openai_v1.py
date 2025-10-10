@@ -1350,3 +1350,113 @@ async def test_empty_streamed_response_resp_returns_async(openai, snapshot_trace
             stream=True,
         )
         assert resp is None
+
+
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 92), reason="Parse method only available in openai >= 1.92"
+)
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai_v1.test_chat_completion_parse")
+def test_chat_completion_parse(openai, openai_vcr, snapshot_tracer):
+    from typing import List
+
+    from pydantic import BaseModel
+
+    class Step(BaseModel):
+        explanation: str
+        output: str
+
+    class MathResponse(BaseModel):
+        steps: List[Step]
+        final_answer: str
+
+    with openai_vcr.use_cassette("chat_completion_parse.yaml"):
+        client = openai.OpenAI()
+        client.chat.completions.parse(
+            model="gpt-4o-2024-08-06",
+            messages=[
+                {"role": "system", "content": "You are a helpful math tutor."},
+                {"role": "user", "content": "solve 8x + 31 = 2"},
+            ],
+            response_format=MathResponse,
+        )
+
+
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 92), reason="Parse method only available in openai >= 1.92"
+)
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai_v1.test_chat_completion_parse")
+async def test_achat_completion_parse(openai, openai_vcr, snapshot_tracer):
+    from typing import List
+
+    from pydantic import BaseModel
+
+    class Step(BaseModel):
+        explanation: str
+        output: str
+
+    class MathResponse(BaseModel):
+        steps: List[Step]
+        final_answer: str
+
+    with openai_vcr.use_cassette("chat_completion_parse.yaml"):
+        client = openai.AsyncOpenAI()
+        await client.chat.completions.parse(
+            model="gpt-4o-2024-08-06",
+            messages=[
+                {"role": "system", "content": "You are a helpful math tutor."},
+                {"role": "user", "content": "solve 8x + 31 = 2"},
+            ],
+            response_format=MathResponse,
+        )
+
+
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 92), reason="Parse method only available in openai >= 1.92"
+)
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai_v1.test_response_parse")
+def test_response_parse(openai, openai_vcr, snapshot_tracer):
+    from typing import List
+
+    from pydantic import BaseModel
+
+    class Step(BaseModel):
+        explanation: str
+        output: str
+
+    class MathResponse(BaseModel):
+        steps: List[Step]
+        final_answer: str
+
+    with openai_vcr.use_cassette("response_parse.yaml"):
+        client = openai.OpenAI()
+        client.responses.parse(
+            model="gpt-4o-2024-08-06",
+            input="solve 8x + 31 = 2",
+            text_format=MathResponse,
+        )
+
+
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 92), reason="Parse method only available in openai >= 1.92"
+)
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai_v1.test_response_parse")
+async def test_aresponse_parse(openai, openai_vcr, snapshot_tracer):
+    from typing import List
+
+    from pydantic import BaseModel
+
+    class Step(BaseModel):
+        explanation: str
+        output: str
+
+    class MathResponse(BaseModel):
+        steps: List[Step]
+        final_answer: str
+
+    with openai_vcr.use_cassette("response_parse.yaml"):
+        client = openai.AsyncOpenAI()
+        await client.responses.parse(
+            model="gpt-4o-2024-08-06",
+            input="solve 8x + 31 = 2",
+            text_format=MathResponse,
+        )
