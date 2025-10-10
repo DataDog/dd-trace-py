@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    google-adk: Fixes an ``AttributeError`` that could occur when tracing Google ADK agent runs, due to the agent ``model`` attribute not being defined for 
+    ``SequentialAgent`` class.
