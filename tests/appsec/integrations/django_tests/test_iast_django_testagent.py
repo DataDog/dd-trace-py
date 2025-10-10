@@ -1,5 +1,6 @@
 import concurrent.futures
 
+from mock import ANY
 import pytest
 
 from ddtrace.appsec._iast.constants import VULN_CMDI
@@ -19,15 +20,40 @@ from tests.appsec.integrations.utils_testagent import start_trace
 log = get_logger(__name__)
 
 
-def test_iast_cmdi():
-    token = "test_iast_header_injection"
-    _ = start_trace(token)
-    with django_server(
+@pytest.mark.parametrize(
+    "body, content_type",
+    [
+        ("master", "text/plain"),
+        # application/json variants
+        ('"master"', "application/json"),  # raw JSON string
+        ('{"key":"master"}', "application/json"),  # simple JSON object
+        ('{"first":"ignore","second":"master"}', "application/json"),  # multi-key object
+        ('["master","ignore"]', "application/json"),  # JSON array
+        # form-encoded
+        ("master_key=master", "application/x-www-form-urlencoded"),
+    ],
+)
+@pytest.mark.parametrize("server", (gunicorn_django_server, django_server))
+def test_iast_cmdi_bodies(body, content_type, server):
+    """This test parametrizes body encodings to validate that IAST taints http.request.body
+    across different content types and still reports CMDI on the vulnerable sink in
+    tests/appsec/integrations/django_tests/django_app/views.py:command_injection
+    NOTES: We use a direct call to start_trace instead of iast_test_token due to a problem with the requests.request
+    wrapper witch creates many error traces, and we can't retrieve the IAST span later. this an example:
+    name': 'requests.request', 'resource': 'GET /', 'meta': {'runtime-id': 'ae33e5f0844148159de930d1dd45849b',
+     'component': 'requests', 'span.kind': 'client', 'http.method': 'GET', 'http.url': 'http://0.0.0.0:8000/',
+      'out.host': '0.0.0.0', 'http.useragent': 'python-requests/2.32.5',
+      'error.type': 'requests.exceptions.ConnectionError',
+      'error.message': "HTTPConnectionPool(host='0.0.0.0', port=8000): Max retries exceeded with url: /
+    """
+    token = "test_iast_cmdi_bodies"
+    start_trace(token)
+    with server(
+        use_ddtrace_cmd=False,
         iast_enabled="true",
+        appsec_enabled="false",
         token=token,
         env={
-            "DD_TRACE_DEBUG": "true",
-            "_DD_IAST_DEBUG": "true",
             "_DD_IAST_PATCH_MODULES": (
                 "benchmarks.," "tests.appsec.," "tests.appsec.integrations.django_tests.django_app.views."
             ),
@@ -35,13 +61,20 @@ def test_iast_cmdi():
     ) as context:
         _, django_client, pid = context
 
-        response = django_client.post("/appsec/command-injection/", data="master")
+        response = django_client.post(
+            "/appsec/command-injection/",
+            data=body,
+            headers={
+                "Content-Type": content_type,
+            },
+        )
 
         assert response.status_code == 200
 
     response_tracer = _get_span(token)
     spans_with_iast = []
     vulnerabilities = []
+    clear_session(token)
     for trace in response_tracer:
         for span in trace:
             if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
@@ -49,7 +82,6 @@ def test_iast_cmdi():
             iast_data = load_iast_report(span)
             if iast_data:
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
-    clear_session(token)
 
     assert len(spans_with_iast) == 2, f"Invalid number of spans ({len(spans_with_iast)}):\n{spans_with_iast}"
     assert len(vulnerabilities) == 1, f"Invalid number of vulnerabilities ({len(vulnerabilities)}):\n{vulnerabilities}"
@@ -58,7 +90,11 @@ def test_iast_cmdi():
     vulnerability = vulnerabilities[0][0]
     assert vulnerability["type"] == VULN_CMDI
     assert vulnerability["evidence"] == {
-        "valueParts": [{"value": "dir "}, {"redacted": True}, {"redacted": True, "source": 0, "pattern": "abcdef"}]
+        "valueParts": [
+            {"value": "dir "},
+            {"redacted": True},
+            {"redacted": True, "source": 0, "pattern": ANY},
+        ]
     }
     assert vulnerability["location"]["spanId"]
     assert not vulnerability["location"]["path"].startswith("werkzeug")
@@ -66,15 +102,13 @@ def test_iast_cmdi():
     assert vulnerability["hash"]
 
 
-def test_iast_untrusted_serialization_yaml():
-    token = "test_iast_untrusted_serialization_yaml"
-    _ = start_trace(token)
-    with django_server(
+@pytest.mark.parametrize("server", (gunicorn_django_server, django_server))
+def test_iast_untrusted_serialization_yaml(server, iast_test_token):
+    with server(
+        use_ddtrace_cmd=False,
         iast_enabled="true",
-        token=token,
+        token=iast_test_token,
         env={
-            "DD_TRACE_DEBUG": "true",
-            "_DD_IAST_DEBUG": "true",
             "_DD_IAST_PATCH_MODULES": (
                 "benchmarks.," "tests.appsec.," "tests.appsec.integrations.django_tests.django_app.views."
             ),
@@ -86,7 +120,7 @@ def test_iast_untrusted_serialization_yaml():
 
         assert response.status_code == 200
 
-    response_tracer = _get_span(token)
+    response_tracer = _get_span(iast_test_token)
     spans_with_iast = []
     vulnerabilities = []
     for trace in response_tracer:
@@ -96,7 +130,6 @@ def test_iast_untrusted_serialization_yaml():
             iast_data = load_iast_report(span)
             if iast_data:
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
-    clear_session(token)
 
     assert len(spans_with_iast) == 2, f"Invalid number of spans ({len(spans_with_iast)}):\n{spans_with_iast}"
     assert len(vulnerabilities) == 1, f"Invalid number of vulnerabilities ({len(vulnerabilities)}):\n{vulnerabilities}"
@@ -180,15 +213,13 @@ def test_iast_untrusted_serialization_yaml():
         (django_server, {"env": {"DD_APM_TRACING_ENABLED": "false"}}),
     ),
 )
-def test_iast_vulnerable_request_downstream_django(server, config):
+def test_iast_vulnerable_request_downstream_django(server, config, iast_test_token):
     """Mirror Flask downstream propagation test for Django server.
 
     Sends a request with Datadog headers to the Django endpoint which triggers a weak-hash
     vulnerability and then calls a downstream endpoint to echo headers. Asserts that headers are
     properly propagated and that an IAST WEAK_HASH vulnerability is reported.
     """
-    token = "test_iast_vulnerable_request_downstream_django"
-    _ = start_trace(token)
     env = {
         "DD_APM_TRACING_ENABLED": "false",
         "DD_TRACE_URLLIB3_ENABLED": "true",
@@ -224,7 +255,7 @@ def test_iast_vulnerable_request_downstream_django(server, config):
     #   File "/python310importlib/_bootstrap.py", line 923, in _find_spec
     #     meta_path = sys.meta_path
     #  NameError: name 'sys' is not defined
-    with server(use_ddtrace_cmd=False, iast_enabled="true", token=token, port=8050, **config) as context:
+    with server(use_ddtrace_cmd=False, iast_enabled="true", token=iast_test_token, port=8050, **config) as context:
         _, django_client, pid = context
 
         trace_id = 1212121212121212121
@@ -246,7 +277,7 @@ def test_iast_vulnerable_request_downstream_django(server, config):
         assert downstream_headers["X-Datadog-Parent-Id"] != str(parent_id)
         assert downstream_headers["X-Datadog-Sampling-Priority"] == "2"
 
-    response_tracer = _get_span(token)
+    response_tracer = _get_span(iast_test_token)
     spans = []
     spans_with_iast = []
     vulnerabilities = []
@@ -258,7 +289,6 @@ def test_iast_vulnerable_request_downstream_django(server, config):
             if iast_data:
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
             spans.append(span)
-    clear_session(token)
 
     assert len(spans) >= 8, f"Incorrect number of spans ({len(spans)}):\n{spans}"
     assert len(spans_with_iast) >= 2, f"Invalid number of spans with IAST ({len(spans_with_iast)}):\n{spans_with_iast}"
@@ -269,15 +299,12 @@ def test_iast_vulnerable_request_downstream_django(server, config):
         assert vulnerability["hash"]
 
 
-def test_iast_concurrent_requests_limit_django():
+def test_iast_concurrent_requests_limit_django(iast_test_token):
     """Ensure only DD_IAST_MAX_CONCURRENT_REQUESTS requests have IAST enabled concurrently in Django app.
 
     Hits /iast-enabled concurrently; the response contains whether IAST was enabled.
     The number of True responses must equal the configured max concurrent requests.
     """
-    token = "test_iast_concurrent_requests_limit_django"
-    _ = start_trace(token)
-
     max_concurrent = 7
     rejected_requests = 15
     total_requests = max_concurrent + rejected_requests
@@ -287,7 +314,7 @@ def test_iast_concurrent_requests_limit_django():
         "DD_IAST_MAX_CONCURRENT_REQUESTS": str(max_concurrent),
     }
 
-    with django_server(iast_enabled="true", token=token, env=env) as context:
+    with django_server(iast_enabled="true", token=iast_test_token, env=env) as context:
         _, django_client, pid = context
 
         def worker():
@@ -306,15 +333,11 @@ def test_iast_concurrent_requests_limit_django():
     assert false_count <= rejected_requests, f"{len(results)} requests. Expected {rejected_requests}, got {false_count}"
 
 
-def test_iast_header_injection():
-    token = "test_iast_header_injection"
-    _ = start_trace(token)
+def test_iast_header_injection(iast_test_token):
     with django_server(
         iast_enabled="true",
-        token=token,
+        token=iast_test_token,
         env={
-            "DD_TRACE_DEBUG": "true",
-            "_DD_IAST_DEBUG": "true",
             "_DD_IAST_PATCH_MODULES": (
                 "benchmarks.," "tests.appsec.," "tests.appsec.integrations.django_tests.django_app.views."
             ),
@@ -329,7 +352,7 @@ def test_iast_header_injection():
         assert response.headers["Header-Injection"] == "master"
         assert response.headers["Injected-Header"] == "1234"
 
-    response_tracer = _get_span(token)
+    response_tracer = _get_span(iast_test_token)
     spans_with_iast = []
     vulnerabilities = []
     for trace in response_tracer:
@@ -339,7 +362,6 @@ def test_iast_header_injection():
             iast_data = load_iast_report(span)
             if iast_data:
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
-    clear_session(token)
 
     assert len(spans_with_iast) == 2, f"Invalid number of spans ({len(spans_with_iast)}):\n{spans_with_iast}"
     assert len(vulnerabilities) == 1, f"Invalid number of vulnerabilities ({len(vulnerabilities)}):\n{vulnerabilities}"

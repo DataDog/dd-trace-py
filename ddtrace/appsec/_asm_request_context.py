@@ -2,6 +2,7 @@ import functools
 import json
 import re
 from types import TracebackType
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -17,8 +18,6 @@ from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import Constant_Class
-from ddtrace.appsec._utils import DDWaf_info
-from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.appsec._utils import Telemetry_result
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.contrib.internal.trace_utils_base import _normalize_tag_name
@@ -28,6 +27,10 @@ from ddtrace.internal.constants import REQUEST_PATH_PARAMS
 import ddtrace.internal.logger as ddlogger
 from ddtrace.settings.asm import config as asm_config
 
+
+if TYPE_CHECKING:
+    from ddtrace.appsec._utils import DDWaf_info
+    from ddtrace.appsec._utils import DDWaf_result
 
 logger = ddlogger.get_logger(__name__)
 
@@ -95,7 +98,7 @@ class ASM_Environment:
         else:
             self.framework = self.span.name
         self.framework = self.framework.lower().replace(" ", "_")
-        self.waf_info: Optional[Callable[[], DDWaf_info]] = None
+        self.waf_info: Optional[Callable[[], "DDWaf_info"]] = None
         self.waf_addresses: Dict[str, Any] = {}
         self.callbacks: Dict[str, Any] = {_CONTEXT_CALL: []}
         self.telemetry: Telemetry_result = Telemetry_result()
@@ -375,7 +378,7 @@ def set_waf_callback(value) -> None:
     set_value(_CALLBACKS, _WAF_CALL, value)
 
 
-def set_waf_info(info: Callable[[], DDWaf_info]) -> None:
+def set_waf_info(info: Callable[[], "DDWaf_info"]) -> None:
     env = _get_asm_context()
     if env is None:
         logger.warning(WARNING_TAGS.SET_WAF_INFO_NO_ASM_CONTEXT, extra=log_extra, stack_info=True)
@@ -383,7 +386,7 @@ def set_waf_info(info: Callable[[], DDWaf_info]) -> None:
     env.waf_info = info
 
 
-def call_waf_callback(custom_data: Optional[Dict[str, Any]] = None, **kwargs) -> Optional[DDWaf_result]:
+def call_waf_callback(custom_data: Optional[Dict[str, Any]] = None, **kwargs) -> Optional["DDWaf_result"]:
     if not asm_config._asm_enabled:
         return None
     callback = get_value(_CALLBACKS, _WAF_CALL)
@@ -480,7 +483,7 @@ def asm_request_context_set(
 def set_waf_telemetry_results(
     rules_version: str,
     is_blocked: bool,
-    waf_results: DDWaf_result,
+    waf_results: "DDWaf_result",
     rule_type: Optional[str],
     is_sampled: bool,
 ) -> None:
