@@ -20,6 +20,7 @@ from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.writer import TelemetryWriter
 from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
+from ddtrace.settings._agent import get_agent_hostname
 from ddtrace.settings._telemetry import config as telemetry_config
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.utils import call_program
@@ -446,8 +447,8 @@ import ddtrace.settings.exception_replay
         },
         {
             "name": "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT",
-            "origin": "env_var",
-            "value": "http://localhost:4317",
+            "origin": "default",
+            "value": f"http://{get_agent_hostname()}:4317",
         },
         {
             "name": "OTEL_EXPORTER_OTLP_LOGS_HEADERS",
@@ -466,8 +467,8 @@ import ddtrace.settings.exception_replay
         },
         {
             "name": "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT",
-            "origin": "env_var",
-            "value": "http://localhost:4317",
+            "origin": "default",
+            "value": f"http://{get_agent_hostname()}:4317",
         },
         {
             "name": "OTEL_EXPORTER_OTLP_METRICS_HEADERS",
