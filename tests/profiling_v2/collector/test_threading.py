@@ -17,6 +17,10 @@ from ddtrace.profiling.collector.threading import ThreadingRLockCollector
 from tests.profiling.collector import pprof_utils
 from tests.profiling.collector import test_collector
 from tests.profiling.collector.lock_utils import get_lock_linenos
+
+# Module-level globals for testing global lock profiling
+_test_global_lock = None
+_test_global_bar_instance = None
 from tests.profiling.collector.lock_utils import init_linenos
 
 
@@ -859,17 +863,30 @@ class BaseThreadingLockCollectorTest:
         )
 
     def test_global_locks(self):
-        # Import the module first
-        from tests.profiling.collector import global_locks
-        from tests.profiling.collector.lock_utils import init_linenos
+        global _test_global_lock, _test_global_bar_instance
         
         with self.collector_class(capture_pct=100):
-            # Recreate the locks with the patched lock type
-            global_locks.global_lock = self.lock_class()  # !CREATE! global_lock
-            global_locks.bar_instance.bar_lock = self.lock_class()  # !CREATE! bar_lock
-
-            global_locks.foo()
-            global_locks.bar_instance.bar()
+            # Create true module-level globals
+            _test_global_lock = self.lock_class()  # !CREATE! _test_global_lock
+            
+            class TestBar:
+                def __init__(self, lock_class: Any):
+                    self.bar_lock = lock_class()  # !CREATE! bar_lock
+                
+                def bar(self):
+                    with self.bar_lock:  # !ACQUIRE! !RELEASE! bar_lock
+                        pass
+            
+            def foo():
+                global _test_global_lock
+                with _test_global_lock:  # !ACQUIRE! !RELEASE! _test_global_lock
+                    pass
+            
+            _test_global_bar_instance = TestBar(self.lock_class)
+            
+            # Use the locks
+            foo()
+            _test_global_bar_instance.bar()
 
         ddup.upload()
 
@@ -877,8 +894,7 @@ class BaseThreadingLockCollectorTest:
         init_linenos(__file__)
         
         profile = pprof_utils.parse_newest_profile(self.output_filename)
-        # Since we're creating the locks in this test file, use our line numbers
-        linenos_global = get_lock_linenos("global_lock")
+        linenos_global = get_lock_linenos("_test_global_lock")
         linenos_bar = get_lock_linenos("bar_lock")
 
         pprof_utils.assert_lock_events(
@@ -888,7 +904,7 @@ class BaseThreadingLockCollectorTest:
                     caller_name="foo",
                     filename=os.path.basename(__file__),
                     linenos=linenos_global,
-                    lock_name="global_lock",
+                    lock_name="_test_global_lock",
                 ),
                 pprof_utils.LockAcquireEvent(
                     caller_name="bar",
@@ -902,7 +918,7 @@ class BaseThreadingLockCollectorTest:
                     caller_name="foo",
                     filename=os.path.basename(__file__),
                     linenos=linenos_global,
-                    lock_name="global_lock",
+                    lock_name="_test_global_lock",
                 ),
                 pprof_utils.LockReleaseEvent(
                     caller_name="bar",
