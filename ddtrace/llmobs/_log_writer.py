@@ -4,9 +4,9 @@ import json
 from typing import List  # noqa:F401
 from typing import TypedDict  # noqa:F401
 
-from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
+from ddtrace.internal.threads import RLock
 
 
 logger = get_logger(__name__)
@@ -43,7 +43,7 @@ class V2LogWriter(PeriodicService):
     def __init__(self, site, api_key, interval, timeout):
         # type: (str, str, float, float) -> None
         super(V2LogWriter, self).__init__(interval=interval)
-        self._lock = forksafe.RLock()
+        self._lock = RLock()
         self._buffer = []  # type: List[V2LogEvent]
         # match the API limit
         self._buffer_limit = 1000
