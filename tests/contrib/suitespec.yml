@@ -18,6 +18,8 @@ components:
   aws_lambda:
     - ddtrace/contrib/internal/aws_lambda/*
     - ddtrace/ext/aws.py
+  azure_eventhubs:
+    - ddtrace/contrib/internal/azure_eventhubs/*
   azure_functions:
     - ddtrace/contrib/internal/azure_functions/*
   azure_servicebus:
@@ -347,6 +349,21 @@ suites:
       - tests/snapshots/tests.{suite}.*
     runner: riot
     snapshot: true
+  azure_eventhubs:
+    parallelism: 4
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@azure_eventhubs'
+      - tests/contrib/azure_eventhubs/*
+      - tests/snapshots/tests.contrib.azure_eventhubs.*
+    runner: riot
+    snapshot: true
+    services:
+      - azurite
+      - azureeventhubsemulator
   azure_functions:
     parallelism: 4
     paths:
@@ -362,6 +379,23 @@ suites:
     snapshot: true
     services:
       - azurite
+  azure_functions:eventhubs:
+    parallelism: 4
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@azure_functions'
+      - '@azure_eventhubs'
+      - tests/contrib/azure_functions_eventhubs/*
+      - tests/snapshots/tests.contrib.azure_functions_eventhubs.*
+    pattern: azure_functions:eventhubs
+    runner: riot
+    snapshot: true
+    services:
+      - azurite
+      - azureeventhubsemulator
   azure_functions:servicebus:
     parallelism: 4
     paths:
