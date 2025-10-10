@@ -101,8 +101,6 @@ def cleanup_loaded_modules():
         if any(m == _ or m.startswith(_ + ".") for _ in KEEP_MODULES):
             continue
 
-        if os.getenv("DD_TRACE_DEBUG_CLEANUP"):
-            print(f"DEBUG: Will drop {m} (not in KEEP_MODULES)")
         drop(m)
 
     # TODO: The better strategy is to identify the core modules in LOADED_MODULES
