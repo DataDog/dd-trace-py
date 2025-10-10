@@ -242,7 +242,7 @@ def test_django_instrumented_metrics(telemetry_writer):
         _on_django_patch()
 
     metrics_result = telemetry_writer._namespace.flush()
-    metrics_source_tags_result = [metric["tags"][0] for metric in metrics_result["generate-metrics"]["iast"]]
+    metrics_source_tags_result = [metric["tags"][0] for metric in metrics_result[TELEMETRY_EVENT_TYPE.METRICS]["iast"]]
 
     assert len(metrics_source_tags_result) == 9
     assert f"source_type:{origin_to_str(OriginType.HEADER_NAME)}" in metrics_source_tags_result
@@ -261,4 +261,4 @@ def test_django_instrumented_metrics_iast_disabled(telemetry_writer):
         _on_django_patch()
 
     metrics_result = telemetry_writer._namespace.flush()
-    assert "iast" not in metrics_result["generate-metrics"]
+    assert "iast" not in metrics_result[TELEMETRY_EVENT_TYPE.METRICS]
