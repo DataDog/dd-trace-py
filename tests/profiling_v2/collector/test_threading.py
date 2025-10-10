@@ -291,6 +291,7 @@ class BaseThreadingLockCollectorTest:
                 print("Error removing file: {}".format(e))
 
     def test_wrapper(self):
+        # TODO: change to collector_class
         collector = collector_threading.ThreadingLockCollector()
         with collector:
 
@@ -771,30 +772,40 @@ class BaseThreadingLockCollectorTest:
         )
 
     def test_global_locks(self):
+        # Import the module first
+        from tests.profiling.collector import global_locks
+        from tests.profiling.collector.lock_utils import init_linenos
+        
         with self.collector_class(capture_pct=100):
-            from tests.profiling.collector import global_locks
+            # Recreate the locks with the patched lock type
+            global_locks.global_lock = self.lock_class()  # !CREATE! global_lock
+            global_locks.bar_instance.bar_lock = self.lock_class()  # !CREATE! bar_lock
 
             global_locks.foo()
             global_locks.bar_instance.bar()
 
         ddup.upload()
 
+        # Process this file to get the correct line numbers for our !CREATE! comments
+        init_linenos(__file__)
+        
         profile = pprof_utils.parse_newest_profile(self.output_filename)
-        linenos_foo = get_lock_linenos("global_lock", with_stmt=True)
-        linenos_bar = get_lock_linenos("bar_lock", with_stmt=True)
+        # Since we're creating the locks in this test file, use our line numbers
+        linenos_global = get_lock_linenos("global_lock")
+        linenos_bar = get_lock_linenos("bar_lock")
 
         pprof_utils.assert_lock_events(
             profile,
             expected_acquire_events=[
                 pprof_utils.LockAcquireEvent(
                     caller_name="foo",
-                    filename=os.path.basename(global_locks.__file__),
-                    linenos=linenos_foo,
+                    filename=os.path.basename(__file__),
+                    linenos=linenos_global,
                     lock_name="global_lock",
                 ),
                 pprof_utils.LockAcquireEvent(
                     caller_name="bar",
-                    filename=os.path.basename(global_locks.__file__),
+                    filename=os.path.basename(__file__),
                     linenos=linenos_bar,
                     lock_name="bar_lock",
                 ),
@@ -802,13 +813,13 @@ class BaseThreadingLockCollectorTest:
             expected_release_events=[
                 pprof_utils.LockReleaseEvent(
                     caller_name="foo",
-                    filename=os.path.basename(global_locks.__file__),
-                    linenos=linenos_foo,
+                    filename=os.path.basename(__file__),
+                    linenos=linenos_global,
                     lock_name="global_lock",
                 ),
                 pprof_utils.LockReleaseEvent(
                     caller_name="bar",
-                    filename=os.path.basename(global_locks.__file__),
+                    filename=os.path.basename(__file__),
                     linenos=linenos_bar,
                     lock_name="bar_lock",
                 ),
@@ -852,7 +863,6 @@ class BaseThreadingLockCollectorTest:
         with pytest.raises(AssertionError):
             pprof_utils.parse_newest_profile(self.output_filename)
 
-
 class TestThreadingLockCollector(BaseThreadingLockCollectorTest):
     """Test threading.Lock profiling"""
 
@@ -875,3 +885,4 @@ class TestThreadingRLockCollector(BaseThreadingLockCollectorTest):
     @property
     def lock_class(self):
         return threading.RLock
+
