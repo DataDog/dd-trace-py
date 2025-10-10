@@ -12,29 +12,12 @@ from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 assert sys.version_info[:2] == (3, 10)  # nosec
 
 
-def _get_offsets_to_instrument(injection_context) -> t.List[int]:
-    """For lightweight coverage, instrument only the first executable line."""
-    code = injection_context.original_code
-    line_starts_list = list(dis.findlinestarts(code))
-    if not line_starts_list:
-        return []
-    # Just instrument the first line
-    return [min(o for o, _ in line_starts_list)]
-
-
-def _collect_all_executable_lines(code: CodeType) -> CoverageLines:
-    """Recursively collect all executable lines from a code object."""
-    coverage_lines = CoverageLines()
-    for _, line in dis.findlinestarts(code):
-        coverage_lines.add(line)
-    for const in code.co_consts:
-        if isinstance(const, CodeType):
-            coverage_lines.update(_collect_all_executable_lines(const))
-    return coverage_lines
-
-
 def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, CoverageLines]:
-    injection_context = InjectionContext(code, hook, _get_offsets_to_instrument)
-    new_code, _ = inject_invocation(injection_context, path, package)
-    coverage_lines = _collect_all_executable_lines(code)
+    injection_context = InjectionContext(code, hook, lambda _s: [o for o, _ in dis.findlinestarts(_s.original_code)])
+    new_code, lines = inject_invocation(injection_context, path, package)
+
+    coverage_lines = CoverageLines()
+    for line in lines:
+        coverage_lines.add(line)
+
     return new_code, coverage_lines

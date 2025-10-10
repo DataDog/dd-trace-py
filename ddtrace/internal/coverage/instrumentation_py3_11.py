@@ -268,7 +268,7 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     jumps: t.Dict[int, Jump] = {}
     traps: t.Dict[int, int] = {}  # DEV: This uses the original offsets
     line_map = {}
-    all_line_starts = dict(dis.findlinestarts(code))
+    line_starts = dict(dis.findlinestarts(code))
 
     # Find the offset of the RESUME opcode. We should not add any instrumentation before this point.
     resume_offset = NO_OFFSET
@@ -277,27 +277,10 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
             resume_offset = i
             break
 
-    # Lightweight coverage: instrument only the first REAL executable line (skip RESUME)
-    if all_line_starts:
-        # Skip RESUME and instrument the first real line; fall back to RESUME if it's the only line
-        if resume_offset != NO_OFFSET:
-            # Skip RESUME to instrument the actual first executable line
-            remaining = [o for o in all_line_starts.keys() if o > resume_offset]
-            if remaining:
-                first_offset = min(remaining)
-            else:
-                # Empty module/function - instrument RESUME
-                first_offset = min(all_line_starts.keys())
-        else:
-            # No RESUME, instrument the first offset
-            first_offset = min(all_line_starts.keys())
-        line_starts = {first_offset: all_line_starts[first_offset]}
-    else:
-        line_starts = {}
-
-    # Track all executable lines for coverage reporting (not just instrumented ones)
-    for line in all_line_starts.values():
-        seen_lines.add(line)
+    # If we are looking at an empty module, we trick ourselves into instrumenting line 0 by skipping the RESUME at index
+    # and instrumenting the second offset:
+    if code.co_name == "<module>" and line_starts == {0: 0} and code.co_code == EMPTY_BYTECODE:
+        line_starts = {2: 0}
 
     # The previous two arguments are kept in order to track the depth of the IMPORT_NAME
     # For example, from ...package import module
@@ -316,7 +299,7 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
             if original_offset in exc_table_offsets:
                 offset_map[original_offset] = len(instructions) << 1
 
-            if original_offset in line_starts and original_offset >= resume_offset:
+            if original_offset in line_starts and original_offset > resume_offset:
                 line = line_starts[original_offset]
                 if code.co_code[original_offset] not in SKIP_LINES:
                     # Inject trap call at the beginning of the line. Keep
@@ -337,6 +320,8 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
 
                     line_map[original_offset] = trap_instructions[0]
 
+                seen_lines.add(line)
+
             _, arg = next(code_iter)
 
             offset = len(instructions) << 1
@@ -353,7 +338,7 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
                 current_arg = int.from_bytes([*ext, arg], "big", signed=False)
                 ext.clear()
 
-            # Track imports names - accumulate all imports in the last constant
+            # Track imports names
             if opcode == IMPORT_NAME:
                 import_depth = code.co_consts[_previous_previous_arg]
                 current_import_name = code.co_names[current_arg]
@@ -361,13 +346,10 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
                 current_import_package = (
                     ".".join(package.split(".")[: -import_depth + 1]) if import_depth > 1 else package
                 )
-                # Get existing imports and accumulate
-                existing_const = new_consts[-1]
-                existing_imports = existing_const[2][1] if existing_const[2] else ()
                 new_consts[-1] = (
-                    existing_const[0],
-                    existing_const[1],
-                    (current_import_package, tuple(list(existing_imports) + [current_import_name])),
+                    new_consts[-1][0],
+                    new_consts[-1][1],
+                    (current_import_package, (current_import_name,)),
                 )
 
             # Also track import from statements since it's possible that the "from" target is a module, eg:
@@ -375,11 +357,10 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
             # Since the package has not changed, we simply extend the previous import names with the new value
             if opcode == IMPORT_FROM:
                 import_from_name = f"{current_import_name}.{code.co_names[current_arg]}"
-                existing_const = new_consts[-1]
                 new_consts[-1] = (
-                    existing_const[0],
-                    existing_const[1],
-                    (existing_const[2][0], tuple(list(existing_const[2][1]) + [import_from_name])),
+                    new_consts[-1][0],
+                    new_consts[-1][1],
+                    (new_consts[-1][2][0], tuple(list(new_consts[-1][2][1]) + [import_from_name])),
                 )
 
             # Collect branching instructions for processing

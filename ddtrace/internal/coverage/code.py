@@ -193,16 +193,6 @@ class ModuleCodeCollector(ModuleWatchdog):
             imported_module_lines = self._import_time_covered[path]
             covered_lines[path].update(imported_module_lines)
 
-            # IMPORTANT: Python implicitly imports parent package __init__.py files when loading modules,
-            # but these imports are NOT visible in bytecode (no IMPORT_NAME opcode is generated).
-            # We must explicitly traverse to parent packages to capture this implicit dependency.
-            # This is NOT a workaround - it's the correct way to handle Python's implicit package loading.
-            init_file = os.sep + "__init__.py"
-            if path.endswith(".py") and not path.endswith(init_file):
-                package_init = path.rsplit(os.sep, 1)[0] + init_file
-                if package_init in self._import_time_covered and package_init not in visited_paths:
-                    to_visit_paths.add(package_init)
-
             # Queue up dependencies of current path, if they exist, have valid paths, and haven't been visited yet
             for dependencies in self._import_names_by_path.get(path, set()):
                 package, modules = dependencies

@@ -62,38 +62,9 @@ def _instrument_all_lines_with_monitoring(
     sys.monitoring.set_local_events(sys.monitoring.COVERAGE_ID, code, sys.monitoring.events.LINE)  # noqa
 
     # Collect all the line numbers in the code object
-    all_linestarts = dict(dis.findlinestarts(code))
-
-    # Find the offset of the RESUME opcode (if present)
-    resume_offset = -1
-    for i in range(0, len(code.co_code), 2):
-        if code.co_code[i] == RESUME:
-            resume_offset = i
-            break
-
-    # Lightweight coverage: monitor only the first REAL executable line (skip RESUME)
-    if all_linestarts:
-        # Skip RESUME and monitor the first real line; fall back to RESUME if it's the only line
-        if resume_offset >= 0:
-            # Skip RESUME to monitor the actual first executable line
-            remaining = [o for o in all_linestarts.keys() if o > resume_offset]
-            if remaining:
-                first_offset = min(remaining)
-            else:
-                # Empty module/function - monitor RESUME
-                first_offset = min(all_linestarts.keys())
-        else:
-            # No RESUME, monitor the first offset
-            first_offset = min(all_linestarts.keys())
-        linestarts = {first_offset: all_linestarts[first_offset]}
-    else:
-        linestarts = {}
+    linestarts = dict(dis.findlinestarts(code))
 
     lines = CoverageLines()
-    # Track all executable lines for coverage reporting
-    for line in all_linestarts.values():
-        lines.add(line)
-
     import_names: t.Dict[int, t.Tuple[str, t.Optional[t.Tuple[str, ...]]]] = {}
 
     # The previous two arguments are kept in order to track the depth of the IMPORT_NAME
@@ -105,8 +76,6 @@ def _instrument_all_lines_with_monitoring(
     current_import_package: t.Optional[str] = None
 
     line = 0
-    first_line_seen = False
-    first_instrumented_line: t.Optional[int] = None  # Track first instrumented line for import metadata
 
     ext: list[bytes] = []
     code_iter = iter(enumerate(code.co_code))
@@ -115,21 +84,17 @@ def _instrument_all_lines_with_monitoring(
             offset, opcode = next(code_iter)
             _, arg = next(code_iter)
 
+            if opcode == RESUME:
+                continue
+
             if offset in linestarts:
                 line = linestarts[offset]
-
-                # Track the first instrumented line for lightweight coverage
-                if first_instrumented_line is None:
-                    first_instrumented_line = line
+                lines.add(line)
 
                 # Make sure that the current module is marked as depending on its own package by instrumenting the
                 # first executable line
-                if code.co_name == "<module>" and not first_line_seen and package is not None:
+                if code.co_name == "<module>" and len(lines) == 1 and package is not None:
                     import_names[line] = (package, ("",))
-                    first_line_seen = True
-
-            if opcode == RESUME:
-                continue
 
             if opcode is EXTENDED_ARG:
                 ext.append(arg)
@@ -148,30 +113,26 @@ def _instrument_all_lines_with_monitoring(
                     ".".join(package.split(".")[: -import_depth + 1]) if import_depth > 1 else package
                 )
 
-                # For lightweight coverage, attach all imports to the first instrumented line
-                target_line = first_instrumented_line if first_instrumented_line is not None else line
-                if target_line in import_names:
-                    import_names[target_line] = (
+                if line in import_names:
+                    import_names[line] = (
                         current_import_package,
-                        tuple(list(import_names[target_line][1]) + [current_import_name]),
+                        tuple(list(import_names[line][1]) + [current_import_name]),
                     )
                 else:
-                    import_names[target_line] = (current_import_package, (current_import_name,))
+                    import_names[line] = (current_import_package, (current_import_name,))
 
             # Also track import from statements since it's possible that the "from" target is a module, eg:
             # from my_package import my_module
             # Since the package has not changed, we simply extend the previous import names with the new value
             if opcode == IMPORT_FROM:
                 import_from_name = f"{current_import_name}.{code.co_names[current_arg]}"
-                # For lightweight coverage, attach all imports to the first instrumented line
-                target_line = first_instrumented_line if first_instrumented_line is not None else line
-                if target_line in import_names:
-                    import_names[target_line] = (
+                if line in import_names:
+                    import_names[line] = (
                         current_import_package,
-                        tuple(list(import_names[target_line][1]) + [import_from_name]),
+                        tuple(list(import_names[line][1]) + [import_from_name]),
                     )
                 else:
-                    import_names[target_line] = (current_import_package, (import_from_name,))
+                    import_names[line] = (current_import_package, (import_from_name,))
 
     except StopIteration:
         pass

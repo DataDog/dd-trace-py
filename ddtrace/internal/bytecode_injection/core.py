@@ -220,6 +220,7 @@ def _inject_invocation_nonrecursive(
     # key: old offset, value: how many instructions have been injected at that spot
     offsets_map: t.Dict[int, int] = {}
 
+    injection_occurred = False
     for old_offset in range(0, len(old_code), 2):
         opcode = old_code[old_offset]
         arg = old_code[old_offset + 1] | extended_arg
@@ -229,6 +230,7 @@ def _inject_invocation_nonrecursive(
 
         line = line_starts.get(old_offset)
         if line is not None:
+            injection_occurred = False
             if old_offset in line_injection_offsets:
                 code_size_before_injection = len(new_code)
 
@@ -262,6 +264,7 @@ def _inject_invocation_nonrecursive(
                 new_code.append(0)
 
                 offsets_map[old_offset] = (len(new_code) - code_size_before_injection) // 2
+                injection_occurred = True
                 instrumented_lines.append(line)
 
                 # Make sure that the current module is marked as depending on its own package by instrumenting the
@@ -308,9 +311,8 @@ def _inject_invocation_nonrecursive(
         else:
             append_instruction(opcode, arg)
 
-            # Track imports names (even if this specific line wasn't instrumented)
-            # For lightweight coverage, import metadata is attached to the first instrumented line
-            if len(instrumented_lines) > 0:  # Only if we've instrumented at least one line
+            if injection_occurred:
+                # Track imports names
                 if opcode == IMPORT_NAME:
                     import_depth = code.co_consts[previous_previous_arg]
                     current_import_name = code.co_names[arg]
@@ -318,17 +320,10 @@ def _inject_invocation_nonrecursive(
                     current_import_package = (
                         ".".join(package.split(".")[: -import_depth + 1]) if import_depth > 1 else package
                     )
-                    # Find the constant for the FIRST instrumented line and accumulate import metadata
-                    # Note: We always use hook_index + 1 (the first instrumented line's constant)
-                    first_instrumented_const_idx = hook_index + 1
-                    # Get existing metadata (might already have imports from previous IMPORT_NAME opcodes)
-                    existing_const = new_consts[first_instrumented_const_idx]
-                    existing_imports = existing_const[2][1] if existing_const[2] else ()
-                    new_imports = list(existing_imports) + [current_import_name]
-                    new_consts[first_instrumented_const_idx] = (
-                        existing_const[0],
-                        existing_const[1],
-                        (current_import_package, tuple(new_imports)),
+                    new_consts[-1] = (
+                        new_consts[-1][0],
+                        new_consts[-1][1],
+                        (current_import_package, (current_import_name,)),
                     )
 
                 # Also track import from statements since it's possible that the "from" target is a module, eg:
@@ -336,12 +331,10 @@ def _inject_invocation_nonrecursive(
                 # Since the package has not changed, we simply extend the previous import names with the new value
                 if opcode == IMPORT_FROM:
                     import_from_name = f"{current_import_name}.{code.co_names[arg]}"
-                    first_instrumented_const_idx = hook_index + 1
-                    existing_const = new_consts[first_instrumented_const_idx]
-                    new_consts[first_instrumented_const_idx] = (
-                        existing_const[0],
-                        existing_const[1],
-                        (existing_const[2][0], tuple(list(existing_const[2][1]) + [import_from_name])),
+                    new_consts[-1] = (
+                        new_consts[-1][0],
+                        new_consts[-1][1],
+                        (new_consts[-1][2][0], tuple(list(new_consts[-1][2][1]) + [import_from_name])),
                     )
 
         original_extended_arg_count = 0
