@@ -262,9 +262,20 @@ class TraceTagsProcessor(TraceProcessor):
 
 
 class _Trace:
-    def __init__(self, spans=None, num_finished=0):
-        self.spans = spans if spans is not None else []
-        self.num_finished = num_finished
+    __slots__ = ("spans", "num_finished")
+
+    def __init__(self, spans: Optional[List[Span]] = None, num_finished: int = 0) -> None:
+        self.spans: List[Span] = spans if spans is not None else []
+        self.num_finished: int = num_finished
+
+    def remove_finished(self) -> List[Span]:
+        # perf: Avoid Span.finished which is a computed property and has function call overhead
+        #       so check Span.duration_ns manually.
+        finished = [s for s in self.spans if s.duration_ns is not None]
+        if finished:
+            self.spans[:] = [s for s in self.spans if s.duration_ns is None]
+            self.num_finished = 0
+        return finished
 
 
 class SpanAggregator(SpanProcessor):
@@ -380,7 +391,7 @@ class SpanAggregator(SpanProcessor):
             integration_name = span._meta.get(COMPONENT, span._span_api)
             self._metric_inc_spans_created(integration_name)
 
-        # Avoid the len(trace.spans) if debug logging isn't enabled
+        # perf: Avoid computed arguments unless we are actually going to log
         if log.isEnabledFor(logging.DEBUG):
             log.debug(self.SPAN_START_DEBUG_MESSAGE, span, len(trace.spans))
 
@@ -396,29 +407,17 @@ class SpanAggregator(SpanProcessor):
             trace = self._traces[span.trace_id]
             num_buffered = len(trace.spans)
             trace.num_finished += 1
-            should_partial_flush = self.partial_flush_enabled and trace.num_finished >= self.partial_flush_min_spans
+            num_buffered = len(trace.spans)
             is_trace_complete = trace.num_finished >= num_buffered
-            if not is_trace_complete and not should_partial_flush:
-                return
-
-            if not is_trace_complete:
-                # perf: Avoid Span.finished which is a computed property and has function call overhead
-                #       so check Span.duration_ns manually.
-                finished = [s for s in trace.spans if s.duration_ns is not None]
-                if not finished:
-                    return
-                trace.spans[:] = [s for s in trace.spans if s.duration_ns is None]
-                trace.num_finished = 0
-            else:
+            num_finished = trace.num_finished
+            if is_trace_complete:
                 finished = trace.spans
                 del self._traces[span.trace_id]
-
-        num_finished = len(finished)
-        if should_partial_flush:
-            # FIXME(munir): should_partial_flush should return false if all the spans in the trace are finished.
-            # For example if partial flushing min spans is 10 and the trace has 10 spans, the trace should
-            # not have a partial flush metric. This trace was processed in its entirety.
-            finished[0].set_metric("_dd.py.partial_flush", num_finished)
+            elif self.partial_flush_enabled and num_finished >= self.partial_flush_min_spans:
+                finished = trace.remove_finished()
+                finished[0].set_metric("_dd.py.partial_flush", num_finished)
+            else:
+                return
 
         # perf: Process spans outside of the span aggregator lock
         spans = finished
