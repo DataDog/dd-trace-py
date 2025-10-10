@@ -17,11 +17,12 @@ from ddtrace.profiling.collector.threading import ThreadingRLockCollector
 from tests.profiling.collector import pprof_utils
 from tests.profiling.collector import test_collector
 from tests.profiling.collector.lock_utils import get_lock_linenos
+from tests.profiling.collector.lock_utils import init_linenos
+
 
 # Module-level globals for testing global lock profiling
 _test_global_lock = None
 _test_global_bar_instance = None
-from tests.profiling.collector.lock_utils import init_linenos
 
 
 # Type aliases for supported classes
@@ -864,26 +865,26 @@ class BaseThreadingLockCollectorTest:
 
     def test_global_locks(self):
         global _test_global_lock, _test_global_bar_instance
-        
+
         with self.collector_class(capture_pct=100):
             # Create true module-level globals
             _test_global_lock = self.lock_class()  # !CREATE! _test_global_lock
-            
+
             class TestBar:
                 def __init__(self, lock_class: Any):
                     self.bar_lock = lock_class()  # !CREATE! bar_lock
-                
+
                 def bar(self):
                     with self.bar_lock:  # !ACQUIRE! !RELEASE! bar_lock
                         pass
-            
+
             def foo():
                 global _test_global_lock
                 with _test_global_lock:  # !ACQUIRE! !RELEASE! _test_global_lock
                     pass
-            
+
             _test_global_bar_instance = TestBar(self.lock_class)
-            
+
             # Use the locks
             foo()
             _test_global_bar_instance.bar()
@@ -892,7 +893,7 @@ class BaseThreadingLockCollectorTest:
 
         # Process this file to get the correct line numbers for our !CREATE! comments
         init_linenos(__file__)
-        
+
         profile = pprof_utils.parse_newest_profile(self.output_filename)
         linenos_global = get_lock_linenos("_test_global_lock")
         linenos_bar = get_lock_linenos("bar_lock")
@@ -966,6 +967,7 @@ class BaseThreadingLockCollectorTest:
         with pytest.raises(AssertionError):
             pprof_utils.parse_newest_profile(self.output_filename)
 
+
 class TestThreadingLockCollector(BaseThreadingLockCollectorTest):
     """Test Lock profiling"""
 
@@ -988,4 +990,3 @@ class TestThreadingRLockCollector(BaseThreadingLockCollectorTest):
     @property
     def lock_class(self):
         return threading.RLock
-
