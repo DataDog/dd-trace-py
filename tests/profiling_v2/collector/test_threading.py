@@ -808,8 +808,8 @@ class BaseThreadingLockCollectorTest:
         init_linenos(__file__)
 
         profile = pprof_utils.parse_newest_profile(self.output_filename)
-        linenos_global = get_lock_linenos("_test_global_lock")
-        linenos_bar = get_lock_linenos("bar_lock")
+        linenos_global = get_lock_linenos("_test_global_lock", with_stmt=True)
+        linenos_bar = get_lock_linenos("bar_lock", with_stmt=True)
 
         pprof_utils.assert_lock_events(
             profile,
