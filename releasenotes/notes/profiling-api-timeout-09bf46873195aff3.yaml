@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: This fix resolves an issue where setting ``DD_PROFILING_API_TIMEOUT``
+    had no effect.
