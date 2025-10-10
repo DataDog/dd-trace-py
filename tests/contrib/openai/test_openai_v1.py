@@ -1372,7 +1372,7 @@ def test_chat_completion_parse(openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("chat_completion_parse.yaml"):
         client = openai.OpenAI()
         client.chat.completions.parse(
-            model="gpt-3.5-turbo",
+            model="gpt-4o-2024-08-06",
             messages=[
                 {"role": "system", "content": "You are a helpful math tutor."},
                 {"role": "user", "content": "solve 8x + 31 = 2"},
@@ -1401,7 +1401,7 @@ async def test_achat_completion_parse(openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("chat_completion_parse.yaml"):
         client = openai.AsyncOpenAI()
         await client.chat.completions.parse(
-            model="gpt-3.5-turbo",
+            model="gpt-4o-2024-08-06",
             messages=[
                 {"role": "system", "content": "You are a helpful math tutor."},
                 {"role": "user", "content": "solve 8x + 31 = 2"},
@@ -1430,7 +1430,7 @@ def test_response_parse(openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("response_parse.yaml"):
         client = openai.OpenAI()
         client.responses.parse(
-            model="gpt-3.5-turbo",
+            model="gpt-4o-2024-08-06",
             input="solve 8x + 31 = 2",
             text_format=MathResponse,
         )
@@ -1456,7 +1456,7 @@ async def test_aresponse_parse(openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("response_parse.yaml"):
         client = openai.AsyncOpenAI()
         await client.responses.parse(
-            model="gpt-3.5-turbo",
+            model="gpt-4o-2024-08-06",
             input="solve 8x + 31 = 2",
             text_format=MathResponse,
         )
