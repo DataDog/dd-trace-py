@@ -1,7 +1,7 @@
+from pathlib import Path
 import subprocess
 import sys
 import tempfile
-from pathlib import Path
 
 import pytest
 
@@ -82,6 +82,7 @@ def test_foo():
 
         # Run pytest as a subprocess with the current ddtrace on PYTHONPATH
         import os
+
         import ddtrace
 
         ddtrace_path = str(Path(ddtrace.__file__).parent.parent)
