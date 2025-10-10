@@ -67,7 +67,7 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
 }
 
 void
-StackRenderer::render_task_begin(std::string task_name, bool on_cpu)
+StackRenderer::render_task_begin(const std::string& task_name, bool on_cpu)
 {
     static bool failed = false;
     if (failed) {
@@ -131,15 +131,18 @@ StackRenderer::render_frame(Frame& frame)
     static constexpr std::string_view missing_name = "<unknown function>";
     std::string_view filename_str;
     std::string_view name_str;
-    try {
-        filename_str = string_table.lookup(frame.filename);
-    } catch (StringTable::Error&) {
+
+    auto filename_str_opt = string_table.lookup(frame.filename);
+    if (filename_str_opt.has_value()) {
+        filename_str = filename_str_opt.value();
+    } else {
         filename_str = missing_filename;
     }
 
-    try {
-        name_str = string_table.lookup(frame.name);
-    } catch (StringTable::Error&) {
+    auto name_str_opt = string_table.lookup(frame.name);
+    if (name_str_opt.has_value()) {
+        name_str = name_str_opt.value();
+    } else {
         name_str = missing_name;
     }
 
