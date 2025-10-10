@@ -6,8 +6,7 @@ from typing import Tuple
 
 from ddtrace.internal import forksafe
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
-from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_DISTRIBUTION
-from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
+from ddtrace.internal.telemetry.constants import TELEMETRY_EVENT_TYPE
 
 
 MetricTagType = Optional[Tuple[Tuple[str, str], ...]]
@@ -46,14 +45,14 @@ cdef class MetricNamespace:
 
         now = int(time.time())
         data = {
-            TELEMETRY_TYPE_GENERATE_METRICS: {},
-            TELEMETRY_TYPE_DISTRIBUTION: {},
+            TELEMETRY_EVENT_TYPE.METRICS: {},
+            TELEMETRY_EVENT_TYPE.DISTRIBUTIONS: {},
         }
         for metric_id, value in namespace_metrics.items():
             name, namespace, _tags, metric_type = metric_id
             tags = ["{}:{}".format(k, v).lower() for k, v in _tags] if _tags else []
             if metric_type is MetricType.DISTRIBUTION:
-                data[TELEMETRY_TYPE_DISTRIBUTION].setdefault(namespace, []).append({
+                data[TELEMETRY_EVENT_TYPE.DISTRIBUTIONS].setdefault(namespace, []).append({
                     "metric": name,
                     "points": value,
                     "tags": tags,
@@ -70,7 +69,7 @@ cdef class MetricNamespace:
                 }
                 if metric_type in (MetricType.RATE, MetricType.GAUGE):
                     metric["interval"] = _interval
-                data[TELEMETRY_TYPE_GENERATE_METRICS].setdefault(namespace, []).append(metric)
+                data[TELEMETRY_EVENT_TYPE.METRICS].setdefault(namespace, []).append(metric)
 
         return data
 

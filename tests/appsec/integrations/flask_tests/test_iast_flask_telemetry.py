@@ -1,6 +1,7 @@
 from ddtrace.appsec._iast._handlers import _on_flask_patch
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
+from ddtrace.internal.telemetry.constants import TELEMETRY_EVENT_TYPE
 from tests.appsec.appsec_utils import flask_server
 from tests.utils import override_global_config
 
@@ -20,11 +21,11 @@ def test_flask_instrumented_metrics(telemetry_writer):
         _on_flask_patch((2, 0, 0))
 
     metrics_result = telemetry_writer._namespace.flush()
-    assert metrics_result["generate-metrics"]["iast"]
+    assert metrics_result[TELEMETRY_EVENT_TYPE.METRICS]["iast"]
 
     metrics_source_tags_result = [
         metric["tags"][0]
-        for metric in metrics_result["generate-metrics"]["iast"]
+        for metric in metrics_result[TELEMETRY_EVENT_TYPE.METRICS]["iast"]
         if metric["metric"] == "instrumented.source"
     ]
 
@@ -46,4 +47,4 @@ def test_flask_instrumented_metrics_iast_disabled(telemetry_writer):
         _on_flask_patch((2, 0, 0))
 
     metrics_result = telemetry_writer._namespace.flush()
-    assert "iast" not in metrics_result["generate-metrics"]
+    assert "iast" not in metrics_result[TELEMETRY_EVENT_TYPE.METRICS]
