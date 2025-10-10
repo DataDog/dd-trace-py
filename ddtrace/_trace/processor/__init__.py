@@ -320,7 +320,6 @@ class SpanAggregator(SpanProcessor):
         self._lock: RLock = RLock()
         # Track telemetry span metrics by span api
         # ex: otel api, opentracing api, datadog api
-        self._total_spans_created: int = 0
         self._spans_created: DefaultDict[str, int] = defaultdict(int)
         self._total_spans_finished: int = 0
         self._spans_finished: DefaultDict[str, int] = defaultdict(int)
@@ -336,7 +335,6 @@ class SpanAggregator(SpanProcessor):
             f"{self.tags_processor},"
             f"{self.dd_processors}, "
             f"{self.user_processors}, "
-            f"{self._spans_created}, "
             f"{self._spans_finished}, "
             f"{self.writer})"
         )
@@ -345,51 +343,25 @@ class SpanAggregator(SpanProcessor):
         ns = TELEMETRY_NAMESPACE.TRACERS
         add_count_metric = telemetry.telemetry_writer.add_count_metric
 
-        if self._total_spans_created >= 100 or force_flush:
+        if self._total_spans_finished >= 100 or force_flush:
             for tag_value, count in self._spans_created.items():
                 add_count_metric(ns, "spans_created", count, tags=(("integration_name", tag_value),))
             self._spans_created.clear()
             self._total_spans_created = 0
 
-        if self._total_spans_finished >= 100 or force_flush:
             for tag_value, count in self._spans_finished.items():
                 add_count_metric(ns, "spans_finished", count, tags=(("integration_name", tag_value),))
 
             self._spans_finished.clear()
             self._total_spans_finished = 0
 
-    def _metric_inc_spans_created(self, integration_name: str) -> None:
-        """
-        Increment span started counts by 1.
-
-        Lock *MUST* be acquired while calling this function
-        """
-        if not config._telemetry_enabled:
-            return
-
-        self._total_spans_created += 1
-        self._spans_created[integration_name] += 1
-        self._emit_telemetry_metrics()
-
-    def _metric_inc_spans_finished(self, integration_name: str) -> None:
-        """
-        Increment span finished counts by 1.
-
-        Lock *MUST* be acquired while calling this function
-        """
-        if not config._telemetry_enabled:
-            return
-
-        self._total_spans_finished += 1
-        self._spans_finished[integration_name] += 1
-        self._emit_telemetry_metrics()
-
     def on_span_start(self, span: Span) -> None:
         with self._lock:
             trace = self._traces[span.trace_id]
             trace.spans.append(span)
-            integration_name = span._meta.get(COMPONENT, span._span_api)
-            self._metric_inc_spans_created(integration_name)
+            if config._telemetry_enabled:
+                integration_name = span._meta.get(COMPONENT, span._span_api)
+                self._spans_created[integration_name] += 1
 
         # perf: Avoid computed arguments unless we are actually going to log
         if log.isEnabledFor(logging.DEBUG):
@@ -398,22 +370,26 @@ class SpanAggregator(SpanProcessor):
     def on_span_finish(self, span: Span) -> None:
         # Acquire lock to get finished and update trace.spans
         with self._lock:
-            integration_name = span._meta.get(COMPONENT, span._span_api)
-            self._metric_inc_spans_finished(integration_name)
+            if config._telemetry_enabled:
+                self._total_spans_finished += 1
+                integration_name = span._meta.get(COMPONENT, span._span_api)
+                self._spans_finished[integration_name] += 1
+                self._emit_telemetry_metrics()
 
             if span.trace_id not in self._traces:
                 return
 
             trace = self._traces[span.trace_id]
-            num_buffered = len(trace.spans)
             trace.num_finished += 1
             num_buffered = len(trace.spans)
             is_trace_complete = trace.num_finished >= num_buffered
             num_finished = trace.num_finished
+            should_partial_flush = False
             if is_trace_complete:
                 finished = trace.spans
                 del self._traces[span.trace_id]
             elif self.partial_flush_enabled and num_finished >= self.partial_flush_min_spans:
+                should_partial_flush = True
                 finished = trace.remove_finished()
                 finished[0].set_metric("_dd.py.partial_flush", num_finished)
             else:
