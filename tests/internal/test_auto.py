@@ -64,17 +64,21 @@ def test_pytest_with_gevent_and_ddtrace_auto():
 
         # Create a module that imports ddtrace.auto
         foo_module = tmpdir_path / "foo.py"
-        foo_module.write_text("""import ddtrace.auto
+        foo_module.write_text(
+            """import ddtrace.auto
 A = 1
-""")
+"""
+        )
 
         # Create a test file that imports the module
         test_file = tmpdir_path / "test_foo.py"
-        test_file.write_text("""from foo import A
+        test_file.write_text(
+            """from foo import A
 
 def test_foo():
     assert A == 1
-""")
+"""
+        )
 
         # Run pytest as a subprocess with the current ddtrace on PYTHONPATH
         import os

@@ -2,6 +2,7 @@
 Bootstrapping code that is run when using the `ddtrace-run` Python entrypoint
 Add all monkey-patching that needs to run by default here
 """
+
 #  _____ ___  _________  _____ ______  _____   ___   _   _  _____
 # |_   _||  \/  || ___ \|  _  || ___ \|_   _| / _ \ | \ | ||_   _|
 #   | |  | .  . || |_/ /| | | || |_/ /  | |  / /_\ \|  \| |  | |
@@ -52,12 +53,12 @@ def cleanup_loaded_modules():
         if module is None:
             return
         # Skip modules that don't have a __spec__ attribute yet (still being imported)
-        if not hasattr(module, '__spec__'):
+        if not hasattr(module, "__spec__"):
             return
         # Check if the module is currently being initialized
         # During import, __spec__._initializing is True
-        spec = getattr(module, '__spec__', None)
-        if spec is not None and getattr(spec, '_initializing', False):
+        spec = getattr(module, "__spec__", None)
+        if spec is not None and getattr(spec, "_initializing", False):
             return
         del sys.modules[module_name]
 
