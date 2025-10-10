@@ -162,4 +162,5 @@ def patch_all(request):
     is specified in command or .ini.
     """
     if request.config.getoption("ddtrace-patch-all") or request.config.getini("ddtrace-patch-all"):
-        import ddtrace.bootstrap.sitecustomize
+        from ddtrace._monkey import _patch_all
+        _patch_all()
