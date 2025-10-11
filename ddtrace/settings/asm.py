@@ -272,7 +272,6 @@ class ASMConfig(DDConfig):
 
             # Disable all features that are not supported in Lambda
             tracer_config._remote_config_enabled = False
-            self._ep_enabled = False
             self._iast_supported = False
 
         if not self._iast_supported:
