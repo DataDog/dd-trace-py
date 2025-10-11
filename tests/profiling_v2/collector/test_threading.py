@@ -20,6 +20,11 @@ from tests.profiling.collector.lock_utils import get_lock_linenos
 from tests.profiling.collector.lock_utils import init_linenos
 
 
+# Module-level globals for testing global lock profiling
+_test_global_lock = None
+_test_global_bar_instance = None
+
+
 # Type aliases for supported classes
 LockClass = Union[Type[threading.Lock], Type[threading.RLock]]
 CollectorClass = Union[
@@ -809,11 +814,11 @@ class BaseThreadingLockCollectorTest:
                 def __init__(self, lock_class: LockClass) -> None:
                     self.bar_lock = lock_class()  # !CREATE! bar_lock
 
-                def bar(self) -> None:
+                def bar(self):
                     with self.bar_lock:  # !ACQUIRE! !RELEASE! bar_lock
                         pass
 
-            def foo() -> None:
+            def foo():
                 global _test_global_lock
                 assert _test_global_lock is not None
                 with _test_global_lock:  # !ACQUIRE! !RELEASE! _test_global_lock
