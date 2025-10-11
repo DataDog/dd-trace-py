@@ -3,6 +3,9 @@ import os
 import sys
 import threading
 from typing import Any
+from typing import Optional
+from typing import Type
+from typing import Union
 import uuid
 
 import mock
@@ -22,30 +25,47 @@ _test_global_lock = None
 _test_global_bar_instance = None
 
 
-TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
+# Type aliases for supported classes
+LockClass = Union[Type[threading.Lock], Type[threading.RLock]]
+CollectorClass = Union[
+    Type[collector_threading.ThreadingLockCollector], Type[collector_threading.ThreadingRLockCollector]
+]
+
+
+# Type aliases for supported classes
+LockClass = Union[Type[threading.Lock], Type[threading.RLock]]
+CollectorClass = Union[
+    Type[collector_threading.ThreadingLockCollector], Type[collector_threading.ThreadingRLockCollector]
+]
+
+# Module-level globals for testing global lock profiling
+_test_global_lock: Optional[Any] = None
+_test_global_bar_instance: Optional[Any] = None
+
+TESTING_GEVENT: Union[str, bool] = os.getenv("DD_PROFILE_TEST_GEVENT", False)
 
 init_linenos(__file__)
 
 
 # Helper classes for testing lock collector
 class Foo:
-    def __init__(self, lock_class: Any):
+    def __init__(self, lock_class: LockClass) -> None:
         self.foo_lock = lock_class()  # !CREATE! foolock
 
-    def foo(self):
+    def foo(self) -> None:
         with self.foo_lock:  # !RELEASE! !ACQUIRE! foolock
             pass
 
 
 class Bar:
-    def __init__(self, lock_class: Any):
+    def __init__(self, lock_class: LockClass) -> None:
         self.foo = Foo(lock_class)
 
-    def bar(self):
+    def bar(self) -> None:
         self.foo.foo()
 
 
-def test_repr():
+def test_repr() -> None:
     test_collector._test_repr(
         collector_threading.ThreadingLockCollector,
         "ThreadingLockCollector(status=<ServiceStatus.STOPPED: 'stopped'>, "
@@ -54,7 +74,7 @@ def test_repr():
     )
 
 
-def test_patch():
+def test_patch() -> None:
     lock = threading.Lock
     collector = collector_threading.ThreadingLockCollector()
     collector.start()
@@ -69,7 +89,7 @@ def test_patch():
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="only works on linux")
 @pytest.mark.subprocess(err=None)
 # For macOS: Could print 'Error uploading' but okay to ignore since we are checking if native_id is set
-def test_user_threads_have_native_id():
+def test_user_threads_have_native_id() -> None:
     from os import getpid
     from threading import Thread
     from threading import _MainThread
@@ -96,13 +116,16 @@ def test_user_threads_have_native_id():
     for _ in range(10):
         try:
             # The TID should be higher than the PID, but not too high
-            assert 0 < t.native_id - getpid() < 100, (t.native_id, getpid())
+            native_id = getattr(t, "native_id", None)
+            if native_id is not None:
+                assert 0 < native_id - getpid() < 100, (native_id, getpid())
+                break
+            else:
+                raise AttributeError("native_id not set yet")
         except AttributeError:
             # The native_id attribute is set by the thread so we might have to
             # wait a bit for it to be set.
             sleep(0.1)
-        else:
-            break
     else:
         raise AssertionError("Thread.native_id not set")
 
@@ -114,7 +137,7 @@ def test_user_threads_have_native_id():
 @pytest.mark.subprocess(
     env=dict(WRAPT_DISABLE_EXTENSIONS="True", DD_PROFILING_FILE_PATH=__file__),
 )
-def test_wrapt_disable_extensions():
+def test_wrapt_disable_extensions() -> None:
     import os
     import threading
 
@@ -181,7 +204,7 @@ def test_wrapt_disable_extensions():
 @pytest.mark.subprocess(
     env=dict(DD_PROFILING_FILE_PATH=__file__),
 )
-def test_lock_gevent_tasks():
+def test_lock_gevent_tasks() -> None:
     from gevent import monkey
 
     monkey.patch_all()
@@ -207,7 +230,7 @@ def test_lock_gevent_tasks():
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
 
-    def play_with_lock():
+    def play_with_lock() -> None:
         lock = threading.Lock()  # !CREATE! test_lock_gevent_tasks
         lock.acquire()  # !ACQUIRE! test_lock_gevent_tasks
         lock.release()  # !RELEASE! test_lock_gevent_tasks
@@ -261,18 +284,22 @@ def test_lock_gevent_tasks():
 
 
 class BaseThreadingLockCollectorTest:
+    test_name: str
+    pprof_prefix: str
+    output_filename: str
+
     # These should be implemented by child classes
     @property
-    def collector_class(self):
+    def collector_class(self) -> CollectorClass:
         raise NotImplementedError("Child classes must implement collector_class")
 
     @property
-    def lock_class(self):
+    def lock_class(self) -> LockClass:
         raise NotImplementedError("Child classes must implement lock_class")
 
     # setup_method and teardown_method which will be called before and after
     # each test method, respectively, part of pytest api.
-    def setup_method(self, method):
+    def setup_method(self, method: Any) -> None:
         self.test_name = method.__name__
         self.pprof_prefix = "/tmp" + os.sep + self.test_name
         # The output filename will be /tmp/method_name.<pid>.<counter>.
@@ -285,7 +312,7 @@ class BaseThreadingLockCollectorTest:
         ddup.config(env="test", service=self.test_name, version="my_version", output_filename=self.pprof_prefix)
         ddup.start()
 
-    def teardown_method(self, method):
+    def teardown_method(self, method: Any) -> None:
         # might be unnecessary but this will ensure that the file is removed
         # after each successful test, and when a test fails it's easier to
         # pinpoint and debug.
@@ -295,7 +322,7 @@ class BaseThreadingLockCollectorTest:
             except Exception as e:
                 print("Error removing file: {}".format(e))
 
-    def test_wrapper(self):
+    def test_wrapper(self) -> None:
         # TODO: change to collector_class
         collector = collector_threading.ThreadingLockCollector()
         with collector:
@@ -303,7 +330,7 @@ class BaseThreadingLockCollectorTest:
             class Foobar(object):
                 lock_class = threading.Lock
 
-                def __init__(self):
+                def __init__(self) -> None:
                     lock = self.lock_class()
                     assert lock.acquire()
                     lock.release()
@@ -316,7 +343,7 @@ class BaseThreadingLockCollectorTest:
             Foobar()
 
     # Tests
-    def test_lock_events(self):
+    def test_lock_events(self) -> None:
         # The first argument is the recorder.Recorder which is used for the
         # v1 exporter. We don't need it for the v2 exporter.
         with self.collector_class(capture_pct=100):
@@ -348,12 +375,12 @@ class BaseThreadingLockCollectorTest:
             ],
         )
 
-    def test_lock_acquire_events_class(self):
+    def test_lock_acquire_events_class(self) -> None:
         with self.collector_class(capture_pct=100):
             lock_class = self.lock_class  # Capture for inner class
 
             class Foobar(object):
-                def lockfunc(self):
+                def lockfunc(self) -> None:
                     lock = lock_class()  # !CREATE! test_lock_acquire_events_class
                     lock.acquire()  # !ACQUIRE! test_lock_acquire_events_class
 
@@ -376,7 +403,7 @@ class BaseThreadingLockCollectorTest:
             ],
         )
 
-    def test_lock_events_tracer(self, tracer):
+    def test_lock_events_tracer(self, tracer: Any) -> None:
         tracer._endpoint_call_counter_span_processor.enable()
         resource = str(uuid.uuid4())
         span_type = ext.SpanTypes.WEB
@@ -437,7 +464,7 @@ class BaseThreadingLockCollectorTest:
             ],
         )
 
-    def test_lock_events_tracer_non_web(self, tracer):
+    def test_lock_events_tracer_non_web(self, tracer: Any) -> None:
         tracer._endpoint_call_counter_span_processor.enable()
         resource = str(uuid.uuid4())
         span_type = ext.SpanTypes.SQL
@@ -479,7 +506,7 @@ class BaseThreadingLockCollectorTest:
             ],
         )
 
-    def test_lock_events_tracer_late_finish(self, tracer):
+    def test_lock_events_tracer_late_finish(self, tracer: Any) -> None:
         tracer._endpoint_call_counter_span_processor.enable()
         resource = str(uuid.uuid4())
         span_type = ext.SpanTypes.WEB
@@ -534,7 +561,7 @@ class BaseThreadingLockCollectorTest:
             ],
         )
 
-    def test_resource_not_collected(self, tracer):
+    def test_resource_not_collected(self, tracer: Any) -> None:
         tracer._endpoint_call_counter_span_processor.enable()
         resource = str(uuid.uuid4())
         span_type = ext.SpanTypes.WEB
@@ -595,7 +622,7 @@ class BaseThreadingLockCollectorTest:
             ],
         )
 
-    def test_lock_enter_exit_events(self):
+    def test_lock_enter_exit_events(self) -> None:
         with self.collector_class(capture_pct=100):
             th_lock = self.lock_class()  # !CREATE! test_lock_enter_exit_events
             with th_lock:  # !ACQUIRE! !RELEASE! test_lock_enter_exit_events
@@ -631,7 +658,7 @@ class BaseThreadingLockCollectorTest:
         "inspect_dir_enabled",
         [True, False],
     )
-    def test_class_member_lock(self, inspect_dir_enabled):
+    def test_class_member_lock(self, inspect_dir_enabled: bool) -> None:
         with mock.patch("ddtrace.settings.profiling.config.lock.name_inspect_dir", inspect_dir_enabled):
             expected_lock_name = "foo_lock" if inspect_dir_enabled else None
 
@@ -670,12 +697,12 @@ class BaseThreadingLockCollectorTest:
                 ],
             )
 
-    def test_private_lock(self):
+    def test_private_lock(self) -> None:
         class Foo:
-            def __init__(self, lock_class: Any):
+            def __init__(self, lock_class: LockClass) -> None:
                 self.__lock = lock_class()  # !CREATE! test_private_lock
 
-            def foo(self):
+            def foo(self) -> None:
                 with self.__lock:  # !RELEASE! !ACQUIRE! test_private_lock
                     pass
 
@@ -709,12 +736,12 @@ class BaseThreadingLockCollectorTest:
             ],
         )
 
-    def test_inner_lock(self):
+    def test_inner_lock(self) -> None:
         class Bar:
-            def __init__(self, lock_class: Any):
+            def __init__(self, lock_class: LockClass) -> None:
                 self.foo = Foo(lock_class)
 
-            def bar(self):
+            def bar(self) -> None:
                 with self.foo.foo_lock:  # !RELEASE! !ACQUIRE! test_inner_lock
                     pass
 
@@ -749,7 +776,7 @@ class BaseThreadingLockCollectorTest:
             ],
         )
 
-    def test_anonymous_lock(self):
+    def test_anonymous_lock(self) -> None:
         with self.collector_class(capture_pct=100):
             with self.lock_class():  # !CREATE! !ACQUIRE! !RELEASE! test_anonymous_lock
                 pass
@@ -776,7 +803,7 @@ class BaseThreadingLockCollectorTest:
             ],
         )
 
-    def test_global_locks(self):
+    def test_global_locks(self) -> None:
         global _test_global_lock, _test_global_bar_instance
 
         with self.collector_class(capture_pct=100):
@@ -784,7 +811,7 @@ class BaseThreadingLockCollectorTest:
             _test_global_lock = self.lock_class()  # !CREATE! _test_global_lock
 
             class TestBar:
-                def __init__(self, lock_class: Any):
+                def __init__(self, lock_class: LockClass) -> None:
                     self.bar_lock = lock_class()  # !CREATE! bar_lock
 
                 def bar(self):
@@ -793,6 +820,7 @@ class BaseThreadingLockCollectorTest:
 
             def foo():
                 global _test_global_lock
+                assert _test_global_lock is not None
                 with _test_global_lock:  # !ACQUIRE! !RELEASE! _test_global_lock
                     pass
 
@@ -843,7 +871,7 @@ class BaseThreadingLockCollectorTest:
             ],
         )
 
-    def test_upload_resets_profile(self):
+    def test_upload_resets_profile(self) -> None:
         # This test checks that the profile is cleared after each upload() call
         # It is added in test_threading.py as LockCollector can easily be
         # configured to be deterministic with capture_pct=100.
@@ -885,11 +913,11 @@ class TestThreadingLockCollector(BaseThreadingLockCollectorTest):
     """Test threading.Lock profiling"""
 
     @property
-    def collector_class(self):
+    def collector_class(self) -> Type[collector_threading.ThreadingLockCollector]:
         return collector_threading.ThreadingLockCollector
 
     @property
-    def lock_class(self):
+    def lock_class(self) -> Type[threading.Lock]:
         return threading.Lock
 
 
@@ -897,9 +925,9 @@ class TestThreadingRLockCollector(BaseThreadingLockCollectorTest):
     """Test threading.RLock profiling"""
 
     @property
-    def collector_class(self):
+    def collector_class(self) -> Type[collector_threading.ThreadingRLockCollector]:
         return collector_threading.ThreadingRLockCollector
 
     @property
-    def lock_class(self):
+    def lock_class(self) -> Type[threading.RLock]:
         return threading.RLock
