@@ -2,7 +2,10 @@ import glob
 import os
 import sys
 import threading
-from typing import Any, Optional, Type, Union
+from typing import Any
+from typing import Optional
+from typing import Type
+from typing import Union
 import uuid
 
 import mock
@@ -19,12 +22,16 @@ from tests.profiling.collector.lock_utils import init_linenos
 
 # Type aliases for supported classes
 LockClass = Union[Type[threading.Lock], Type[threading.RLock]]
-CollectorClass = Union[Type[collector_threading.ThreadingLockCollector], Type[collector_threading.ThreadingRLockCollector]]
+CollectorClass = Union[
+    Type[collector_threading.ThreadingLockCollector], Type[collector_threading.ThreadingRLockCollector]
+]
 
 
 # Type aliases for supported classes
 LockClass = Union[Type[threading.Lock], Type[threading.RLock]]
-CollectorClass = Union[Type[collector_threading.ThreadingLockCollector], Type[collector_threading.ThreadingRLockCollector]]
+CollectorClass = Union[
+    Type[collector_threading.ThreadingLockCollector], Type[collector_threading.ThreadingRLockCollector]
+]
 
 # Module-level globals for testing global lock profiling
 _test_global_lock: Optional[Any] = None
@@ -104,7 +111,7 @@ def test_user_threads_have_native_id() -> None:
     for _ in range(10):
         try:
             # The TID should be higher than the PID, but not too high
-            native_id = getattr(t, 'native_id', None)
+            native_id = getattr(t, "native_id", None)
             if native_id is not None:
                 assert 0 < native_id - getpid() < 100, (native_id, getpid())
                 break
