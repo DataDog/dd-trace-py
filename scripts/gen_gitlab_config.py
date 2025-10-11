@@ -134,7 +134,7 @@ def gen_required_suites() -> None:
     )
 
     # If the ci_visibility suite is in the list of required suites, we need to run all suites
-    ci_visibility_suites = {"ci_visibility", "pytest", "pytest_v2"}
+    ci_visibility_suites = {"ci_visibility", "pytest"}
     # If any of them in required_suites:
     if any(suite in required_suites for suite in ci_visibility_suites):
         required_suites = sorted(suites.keys())
