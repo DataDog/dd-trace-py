@@ -35,7 +35,7 @@ def instrument_all_lines(
         hook: The hook function to call
         path: The file path
         package: The package name
-        lightweight: For Python 3.12, this uses the monitoring API which tracks all lines.
+        file_level: For Python 3.12, this uses the monitoring API which tracks all lines.
                      The parameter is kept for API consistency but doesn't affect behavior.
     """
     coverage_tool = sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID)
