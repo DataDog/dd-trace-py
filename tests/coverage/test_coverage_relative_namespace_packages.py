@@ -55,10 +55,10 @@ def test_coverage_namespace_package_import_normal():
         assert (
             covered.keys() == expected_covered.keys()
         ), f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
-        assert (
-            covered_with_imports.keys() == expected_covered_with_imports.keys()
-        ), "Covered lines with imports mismatch:"
-        f" expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+        assert covered_with_imports.keys() == expected_covered_with_imports.keys(), (
+            f"Covered lines with imports mismatch: expected={expected_covered_with_imports} "
+            f"vs actual={covered_with_imports}"
+        )
     else:
         # In full coverage mode, we track exact line numbers
         assert (
@@ -140,10 +140,10 @@ def test_coverage_namespace_package_import_late():
         assert (
             covered.keys() == expected_covered.keys()
         ), f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
-        assert (
-            covered_with_imports.keys() == expected_covered_with_imports.keys()
-        ), "Covered lines with imports mismatch:"
-        f" expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+        assert covered_with_imports.keys() == expected_covered_with_imports.keys(), (
+            f"Covered lines with imports mismatch: expected={expected_covered_with_imports}"
+            f" vs actual={covered_with_imports}"
+        )
     else:
         # In full coverage mode, we track exact line numbers
         assert (
@@ -416,10 +416,10 @@ def test_coverage_namespace_package_nsa_import_dot_late():
         assert (
             covered.keys() == expected_covered.keys()
         ), f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
-        assert (
-            covered_with_imports.keys() == expected_covered_with_imports.keys()
-        ), "Covered lines with imports mismatch:"
-        f" expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+        assert covered_with_imports.keys() == expected_covered_with_imports.keys(), (
+            f"Covered lines with imports mismatch: expected={expected_covered_with_imports} "
+            f"vs actual={covered_with_imports}"
+        )
     else:
         # In full coverage mode, we track exact line numbers
         assert (
