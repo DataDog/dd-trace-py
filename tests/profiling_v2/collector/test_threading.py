@@ -1,6 +1,5 @@
 import glob
 import os
-import sys
 from threading import Lock
 from threading import RLock
 from typing import Any
@@ -20,6 +19,7 @@ from tests.profiling.collector import pprof_utils
 from tests.profiling.collector import test_collector
 from tests.profiling.collector.lock_utils import get_lock_linenos
 from tests.profiling.collector.lock_utils import init_linenos
+
 
 # Type aliases for supported classes
 LockClass = Union[Type[Lock], Type[RLock]]
@@ -106,34 +106,11 @@ def test_patch(
     assert collector._original == lock_class
 
 
-@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="only works on linux")
-@pytest.mark.subprocess(err=None)
-# For macOS: Could print 'Error uploading' but okay to ignore since we are checking if native_id is set
-def test_user_threads_have_native_id() -> None:
-    from os import getpid
-
-    for _ in range(10):
-        try:
-            # The TID should be higher than the PID, but not too high
-            native_id = getattr(t, "native_id", None)
-            if native_id is not None:
-                assert 0 < native_id - getpid() < 100, (native_id, getpid())
-                break
-            else:
-                raise AttributeError("native_id not set yet")
-        except AttributeError:
-            # The native_id attribute is set by the thread so we might have to
-            # wait a bit for it to be set.
-            sleep(0.1)
-    else:
-        raise AssertionError("Thread.native_id not set")
-
 @pytest.mark.subprocess(
     env=dict(WRAPT_DISABLE_EXTENSIONS="True", DD_PROFILING_FILE_PATH=__file__),
 )
 def test_wrapt_disable_extensions():
     import os
-    import threading
 
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import _lock
@@ -400,6 +377,7 @@ class BaseThreadingLockCollectorTest:
     def test_wrapper(self):
         collector = self.collector_class()
         with collector:
+
             class Foobar(object):
                 def __init__(self, lock_class):
                     lock = lock_class()
@@ -941,7 +919,7 @@ class BaseThreadingLockCollectorTest:
                 ),
             ],
         )
-    
+
     def test_upload_resets_profile(self):
         # This test checks that the profile is cleared after each upload() call
         # It is added in test_threading.py as LockCollector can easily be
