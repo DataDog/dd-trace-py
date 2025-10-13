@@ -11,5 +11,3 @@ async def async_send_request(method: str, url:str):
     async with aiohttp.ClientSession() as session:
         async with session.request(method=method, url=url) as response:
             print(f"{method} {url}: {response.status}")
-
-send_request("get", "https://example.com")
