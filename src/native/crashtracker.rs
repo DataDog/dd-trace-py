@@ -345,8 +345,6 @@ pub struct RuntimeStackFramePy {
     pub file_name: Option<String>,
     pub line_number: u32,
     pub column_number: u32,
-    pub class_name: Option<String>,
-    pub module_name: Option<String>,
 }
 
 #[pymethods]
@@ -357,16 +355,12 @@ impl RuntimeStackFramePy {
         file_name: Option<String>,
         line_number: u32,
         column_number: u32,
-        class_name: Option<String>,
-        module_name: Option<String>,
     ) -> Self {
         Self {
             function_name,
             file_name,
             line_number,
             column_number,
-            class_name,
-            module_name,
         }
     }
 
@@ -388,16 +382,6 @@ impl RuntimeStackFramePy {
     #[getter]
     fn get_column_number(&self) -> u32 {
         self.column_number
-    }
-
-    #[getter]
-    fn get_class_name(&self) -> Option<String> {
-        self.class_name.clone()
-    }
-
-    #[getter]
-    fn get_module_name(&self) -> Option<String> {
-        self.module_name.clone()
     }
 }
 
@@ -512,8 +496,6 @@ unsafe fn parse_and_emit_traceback(
                 file_name: file_buf.as_ptr(),
                 line_number,
                 column_number: 0,
-                class_name: ptr::null(),
-                module_name: ptr::null(),
             };
 
             emit_frame(&c_frame);
@@ -595,8 +577,6 @@ unsafe fn emit_fallback_frame(
         file_name: file_buf.as_ptr(),
         line_number: 0,
         column_number: 0,
-        class_name: ptr::null(),
-        module_name: ptr::null(),
     };
 
     emit_frame(&fallback_frame);
