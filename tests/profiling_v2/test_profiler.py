@@ -1,4 +1,5 @@
 import logging
+import sys
 import time
 
 import mock
@@ -270,3 +271,48 @@ def test_stack_v2_failure_telemetry_logging_with_auto():
         message = call_args[0][1]
         assert "Failed to load stack_v2 module" in message
         assert "mock failure message" in message
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="only works on linux")
+@pytest.mark.subprocess(err=None)
+# For macOS: Could print 'Error uploading' but okay to ignore since we are checking if native_id is set
+def test_user_threads_have_native_id():
+    from os import getpid
+    from threading import Thread
+    from threading import _MainThread  # pyright: ignore[reportAttributeAccessIssue]
+    from threading import current_thread
+    from time import sleep
+
+    from ddtrace.profiling import profiler
+
+    # DEV: We used to run this test with ddtrace_run=True passed into the
+    # subprocess decorator, but that caused this to be flaky for Python 3.8.x
+    # with gevent. When it failed for that specific venv, current_thread()
+    # returned a DummyThread instead of a _MainThread.
+    p = profiler.Profiler()
+    p.start()
+
+    main = current_thread()
+    assert isinstance(main, _MainThread)
+    # We expect the current thread to have the same ID as the PID
+    assert main.native_id == getpid(), (main.native_id, getpid())
+
+    t = Thread(target=lambda: None)
+    t.start()
+
+    for _ in range(10):
+        try:
+            # The TID should be higher than the PID, but not too high
+            assert 0 < t.native_id - getpid() < 100, (t.native_id, getpid())
+        except AttributeError:
+            # The native_id attribute is set by the thread so we might have to
+            # wait a bit for it to be set.
+            sleep(0.1)
+        else:
+            break
+    else:
+        raise AssertionError("Thread.native_id not set")
+
+    t.join()
+
+    p.stop()
