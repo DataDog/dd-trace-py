@@ -18,6 +18,8 @@ RETURN_CONST = dis.opmap["RETURN_CONST"]
 EMPTY_MODULE_BYTES = bytes([RESUME, 0, RETURN_CONST, 0])
 
 
-def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, CoverageLines]:
+def instrument_all_lines(
+    code: CodeType, hook: HookType, path: str, package: str, lightweight: bool = True
+) -> t.Tuple[CodeType, CoverageLines]:
     # No-op
     return code, CoverageLines()

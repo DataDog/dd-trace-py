@@ -4,7 +4,7 @@ import pytest
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="sys.monitoring coverage is only used in Python 3.12+")
-@pytest.mark.subprocess
+@pytest.mark.subprocess(parametrize={"_DD_LIGHTWEIGHT_COVERAGE": ["true", "false"]})
 def test_code_coverage_tool_clash():
     """If another tool is already registered as the `sys.monitoring` coverage tool, do not collect coverage."""
     import os
@@ -40,13 +40,24 @@ def test_code_coverage_tool_clash():
     expected_covered = {}
     expected_covered_with_imports = {}
 
-    assert (
-        executable.keys() == expected_executable.keys()
-    ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
-    assert (
-        covered.keys() == expected_covered.keys()
-    ), f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
-    assert (
-        covered_with_imports.keys() == expected_covered_with_imports.keys()
-    ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+    if os.getenv("_DD_LIGHTWEIGHT_COVERAGE") == "true":
+        # In lightweight mode, we only track files, not specific line numbers
+        assert (
+            executable.keys() == expected_executable.keys()
+        ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
+        assert (
+            covered.keys() == expected_covered.keys()
+        ), f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
+        assert (
+            covered_with_imports.keys() == expected_covered_with_imports.keys()
+        ), "Covered lines with imports mismatch:"
+        f" expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+    else:
+        # In full coverage mode, we track exact line numbers
+        assert (
+            executable == expected_executable
+        ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
+        assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
+        assert covered_with_imports == expected_covered_with_imports, "Covered lines with imports mismatch:"
+        f" expected={expected_covered_with_imports} vs actual={covered_with_imports}"
     assert line_number == 7

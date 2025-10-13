@@ -152,6 +152,52 @@ def inject_invocation(injection_context: InjectionContext, path: str, package: s
 # because relative jumps are relative to the offset of the _next_ instruction.
 
 
+def find_lines_to_instrument(code: CodeType, line_starts: t.Dict[int, int], resume_offset: int = -1) -> t.Set[int]:
+    """
+    Unified function to find which line offsets should be instrumented for minimal overhead.
+    Returns offsets for:
+    1. The first executable line after resume_offset (to track file execution)
+    2. All lines containing IMPORT_NAME or IMPORT_FROM opcodes (to track imports)
+
+    This provides minimal instrumentation while capturing file execution and all import events.
+
+    Args:
+        code: The code object to analyze
+        line_starts: Dictionary mapping bytecode offsets to line numbers
+        resume_offset: Offset to start instrumenting after (e.g., RESUME opcode in 3.11+)
+
+    Returns:
+        A set of bytecode offsets that should be instrumented.
+    """
+    if not line_starts:
+        return set()
+
+    sorted_line_offsets = sorted(line_starts.keys())
+    lines_to_instrument = set()
+
+    # Find the first line after resume_offset
+    first_line_offset = next((offset for offset in sorted_line_offsets if offset > resume_offset), None)
+    if first_line_offset is not None:
+        lines_to_instrument.add(first_line_offset)
+
+    # Single pass: scan bytecode and track current line start
+    current_line_start = None
+    line_index = 0
+
+    for offset in range(0, len(code.co_code), 2):
+        # Update current line start when we hit a new line boundary
+        if line_index < len(sorted_line_offsets) and offset >= sorted_line_offsets[line_index]:
+            current_line_start = sorted_line_offsets[line_index]
+            line_index += 1
+
+        # Check if this is an import opcode
+        opcode = code.co_code[offset]
+        if opcode in (IMPORT_NAME, IMPORT_FROM) and current_line_start is not None:
+            lines_to_instrument.add(current_line_start)
+
+    return lines_to_instrument
+
+
 def _inject_invocation_nonrecursive(
     injection_context: InjectionContext, path: str, package: str
 ) -> t.Tuple[bytes, t.List[t.Any], bytes, bytes, t.List[int]]:

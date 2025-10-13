@@ -90,7 +90,9 @@ def test_coverage_multiprocessing_coverage_stopped():
         # This should simply not hang.
 
 
-@pytest.mark.subprocess(parametrize={"start_method": ["fork", "forkserver", "spawn"]})
+@pytest.mark.subprocess(
+    parametrize={"start_method": ["fork", "forkserver", "spawn"], "_DD_LIGHTWEIGHT_COVERAGE": ["true", "false"]}
+)
 def test_coverage_multiprocessing_session():
     import multiprocessing
 
@@ -125,12 +127,19 @@ def test_coverage_multiprocessing_session():
             "tests/coverage/included_path/lib.py": {1, 2, 5},
         }
 
-        if expected_lines.keys() != covered_lines.keys():
-            print(f"Mismatched lines: {expected_lines} vs  {covered_lines}")
-            assert False
+        if os.getenv("_DD_LIGHTWEIGHT_COVERAGE") == "true":
+            # In lightweight mode, we only track files, not specific line numbers
+            assert (
+                expected_lines.keys() == covered_lines.keys()
+            ), f"Mismatched files: {expected_lines} vs {covered_lines}"
+        else:
+            # In full coverage mode, we track exact line numbers
+            assert expected_lines == covered_lines, f"Mismatched lines: {expected_lines} vs {covered_lines}"
 
 
-@pytest.mark.subprocess(parametrize={"start_method": ["fork", "forkserver", "spawn"]})
+@pytest.mark.subprocess(
+    parametrize={"start_method": ["fork", "forkserver", "spawn"], "_DD_LIGHTWEIGHT_COVERAGE": ["true", "false"]}
+)
 def test_coverage_multiprocessing_context():
     import multiprocessing
 
@@ -167,15 +176,22 @@ def test_coverage_multiprocessing_context():
             "tests/coverage/included_path/in_context_lib.py": {1, 2, 5},
         }
 
-        assert (
-            expected_lines.keys() == context_covered.keys()
-        ), f"Mismatched lines: {expected_lines} vs  {context_covered}"
+        if os.getenv("_DD_LIGHTWEIGHT_COVERAGE") == "true":
+            # In lightweight mode, we only track files, not specific line numbers
+            assert (
+                expected_lines.keys() == context_covered.keys()
+            ), f"Mismatched files: {expected_lines} vs {context_covered}"
+        else:
+            # In full coverage mode, we track exact line numbers
+            assert expected_lines == context_covered, f"Mismatched lines: {expected_lines} vs {context_covered}"
 
         session_covered = dict(ModuleCodeCollector._instance._get_covered_lines())
         assert not session_covered, f"Session recorded lines when it should not have: {session_covered}"
 
 
-@pytest.mark.subprocess(parametrize={"start_method": ["fork", "forkserver", "spawn"]})
+@pytest.mark.subprocess(
+    parametrize={"start_method": ["fork", "forkserver", "spawn"], "_DD_LIGHTWEIGHT_COVERAGE": ["true", "false"]}
+)
 def test_coverage_concurrent_futures_processpool_session():
     import multiprocessing
 
@@ -212,12 +228,19 @@ def test_coverage_concurrent_futures_processpool_session():
             "tests/coverage/included_path/lib.py": {1, 2, 5},
         }
 
-        if expected_lines.keys() != covered_lines.keys():
-            print(f"Mismatched lines: {expected_lines} vs  {covered_lines}")
-            assert False
+        if os.getenv("_DD_LIGHTWEIGHT_COVERAGE") == "true":
+            # In lightweight mode, we only track files, not specific line numbers
+            assert (
+                expected_lines.keys() == covered_lines.keys()
+            ), f"Mismatched files: {expected_lines} vs {covered_lines}"
+        else:
+            # In full coverage mode, we track exact line numbers
+            assert expected_lines == covered_lines, f"Mismatched lines: {expected_lines} vs {covered_lines}"
 
 
-@pytest.mark.subprocess(parametrize={"start_method": ["fork", "forkserver", "spawn"]})
+@pytest.mark.subprocess(
+    parametrize={"start_method": ["fork", "forkserver", "spawn"], "_DD_LIGHTWEIGHT_COVERAGE": ["true", "false"]}
+)
 def test_coverage_concurrent_futures_processpool_context():
     import multiprocessing
 
@@ -260,9 +283,14 @@ def test_coverage_concurrent_futures_processpool_context():
             # In spawn or forkserver modes, the module is reimported entirely
             expected_lines["tests/coverage/included_path/callee.py"] = {1, 9, 10, 11, 13, 14, 17}
 
-        assert (
-            expected_lines.keys() == context_covered.keys()
-        ), f"Mismatched lines: {expected_lines} vs  {context_covered}"
+        if os.getenv("_DD_LIGHTWEIGHT_COVERAGE") == "true":
+            # In lightweight mode, we only track files, not specific line numbers
+            assert (
+                expected_lines.keys() == context_covered.keys()
+            ), f"Mismatched files: {expected_lines} vs {context_covered}"
+        else:
+            # In full coverage mode, we track exact line numbers
+            assert expected_lines == context_covered, f"Mismatched lines: {expected_lines} vs {context_covered}"
 
         session_covered = dict(ModuleCodeCollector._instance._get_covered_lines())
         assert not session_covered, f"Session recorded lines when it should not have: {session_covered}"
