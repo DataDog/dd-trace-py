@@ -33,7 +33,7 @@ ctx_coverage_enabled = ContextVar("ctx_coverage_enabled", default=False)
 
 
 def _is_lightweight_coverage_enabled():
-    return asbool(os.getenv("_DD_LIGHTWEIGHT_COVERAGE", "false"))
+    return asbool(os.getenv("_DD_COVERAGE_FILE_LEVEL", "false"))
 
 
 def _get_ctx_covered_lines() -> t.DefaultDict[str, CoverageLines]:

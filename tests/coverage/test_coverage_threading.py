@@ -1,7 +1,7 @@
 import pytest
 
 
-@pytest.mark.subprocess(parametrize={"_DD_LIGHTWEIGHT_COVERAGE": ["true", "false"]})
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
 def test_coverage_threading_session():
     import os
     from pathlib import Path
@@ -32,7 +32,7 @@ def test_coverage_threading_session():
         "tests/coverage/included_path/lib.py": {1, 2, 5},
     }
 
-    if os.getenv("_DD_LIGHTWEIGHT_COVERAGE") == "true":
+    if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
         # In lightweight mode, we only track files, not specific line numbers
         assert expected_lines.keys() == covered_lines.keys(), f"Mismatched files: {expected_lines} vs {covered_lines}"
     else:
@@ -40,7 +40,7 @@ def test_coverage_threading_session():
         assert expected_lines == covered_lines, f"Mismatched lines: {expected_lines} vs {covered_lines}"
 
 
-@pytest.mark.subprocess(parametrize={"_DD_LIGHTWEIGHT_COVERAGE": ["true", "false"]})
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
 def test_coverage_threading_context():
     import os
     from pathlib import Path
@@ -73,7 +73,7 @@ def test_coverage_threading_context():
         "tests/coverage/included_path/in_context_lib.py": {1, 2, 5},
     }
 
-    if os.getenv("_DD_LIGHTWEIGHT_COVERAGE") == "true":
+    if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
         # In lightweight mode, we only track files, not specific line numbers
         assert (
             expected_lines.keys() == context_covered.keys()
@@ -86,7 +86,7 @@ def test_coverage_threading_context():
     assert not session_covered, f"Session recorded lines when it should not have: {session_covered}"
 
 
-@pytest.mark.subprocess(parametrize={"_DD_LIGHTWEIGHT_COVERAGE": ["true", "false"]})
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
 def test_coverage_concurrent_futures_threadpool_session():
     import concurrent.futures
     import os
@@ -117,7 +117,7 @@ def test_coverage_concurrent_futures_threadpool_session():
         "tests/coverage/included_path/lib.py": {1, 2, 5},
     }
 
-    if os.getenv("_DD_LIGHTWEIGHT_COVERAGE") == "true":
+    if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
         # In lightweight mode, we only track files, not specific line numbers
         assert expected_lines.keys() == covered_lines.keys(), f"Mismatched files: {expected_lines} vs {covered_lines}"
     else:
@@ -125,7 +125,7 @@ def test_coverage_concurrent_futures_threadpool_session():
         assert expected_lines == covered_lines, f"Mismatched lines: {expected_lines} vs {covered_lines}"
 
 
-@pytest.mark.subprocess(parametrize={"_DD_LIGHTWEIGHT_COVERAGE": ["true", "false"]})
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
 def test_coverage_concurrent_futures_threadpool_context():
     import concurrent.futures
     import os
@@ -158,7 +158,7 @@ def test_coverage_concurrent_futures_threadpool_context():
         "tests/coverage/included_path/in_context_lib.py": {1, 2, 5},
     }
 
-    if os.getenv("_DD_LIGHTWEIGHT_COVERAGE") == "true":
+    if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
         # In lightweight mode, we only track files, not specific line numbers
         assert (
             expected_lines.keys() == context_covered.keys()

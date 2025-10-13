@@ -1,7 +1,7 @@
 import pytest
 
 
-@pytest.mark.subprocess(parametrize={"_DD_LIGHTWEIGHT_COVERAGE": ["true", "false"]})
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
 def test_coverage_regular_package_import_normal():
     """This test validates that regular packages are correctly covered when imported normally"""
     import os
@@ -57,7 +57,7 @@ def test_coverage_regular_package_import_normal():
         "tests/coverage/included_path/rpb/normal_import_const.py": {1},
     }
 
-    if os.getenv("_DD_LIGHTWEIGHT_COVERAGE") == "true":
+    if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
         # In lightweight mode, we only track files, not specific line numbers
         assert (
             executable.keys() == expected_executable.keys()
@@ -81,7 +81,7 @@ def test_coverage_regular_package_import_normal():
         )
 
 
-@pytest.mark.subprocess(parametrize={"_DD_LIGHTWEIGHT_COVERAGE": ["true", "false"]})
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
 def test_coverage_regular_package_import_late():
     """Regular packages are correctly covered when they are imported late"""
     import os
@@ -155,7 +155,7 @@ def test_coverage_regular_package_import_late():
         "tests/coverage/included_path/rpb/normal_import_const.py": {1},
     }
 
-    if os.getenv("_DD_LIGHTWEIGHT_COVERAGE") == "true":
+    if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
         # In lightweight mode, we only track files, not specific line numbers
         assert (
             executable.keys() == expected_executable.keys()
@@ -179,7 +179,7 @@ def test_coverage_regular_package_import_late():
         )
 
 
-@pytest.mark.subprocess(parametrize={"_DD_LIGHTWEIGHT_COVERAGE": ["true", "false"]})
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
 def test_coverage_regular_package_rpa_import_parent_normal():
     """Regular packages are correctly covered when imported normally when using a nested package"""
     import os
@@ -223,7 +223,7 @@ def test_coverage_regular_package_rpa_import_parent_normal():
         "tests/coverage/included_path/rpa/rpa_imports_parent.py": {1, 2, 5, 6, 9},
     }
 
-    if os.getenv("_DD_LIGHTWEIGHT_COVERAGE") == "true":
+    if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
         # In lightweight mode, we only track files, not specific line numbers
         assert (
             executable.keys() == expected_executable.keys()
@@ -245,7 +245,7 @@ def test_coverage_regular_package_rpa_import_parent_normal():
         f" expected={expected_covered_with_imports} vs actual={covered_with_imports}"
 
 
-@pytest.mark.subprocess(parametrize={"_DD_LIGHTWEIGHT_COVERAGE": ["true", "false"]})
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
 def test_coverage_regular_package_rpa_import_parent_late():
     """Regular packages are correctly covered when imported normally when using a nested package"""
     import os
@@ -294,7 +294,7 @@ def test_coverage_regular_package_rpa_import_parent_late():
         "tests/coverage/included_path/rpa/rpa_imports_parent.py": {1, 2, 5, 9, 10, 12},
     }
 
-    if os.getenv("_DD_LIGHTWEIGHT_COVERAGE") == "true":
+    if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
         # In lightweight mode, we only track files, not specific line numbers
         assert (
             executable.keys() == expected_executable.keys()
@@ -318,7 +318,7 @@ def test_coverage_regular_package_rpa_import_parent_late():
         )
 
 
-@pytest.mark.subprocess(parametrize={"_DD_LIGHTWEIGHT_COVERAGE": ["true", "false"]})
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
 def test_coverage_regular_package_rpa_import_dot_normal():
     """Regular packages are correctly covered when imported normally when using a nested package"""
     import os
@@ -370,7 +370,7 @@ def test_coverage_regular_package_rpa_import_dot_normal():
         "tests/coverage/included_path/rpa/rpb/normal_import_const.py": {1},
     }
 
-    if os.getenv("_DD_LIGHTWEIGHT_COVERAGE") == "true":
+    if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
         # In lightweight mode, we only track files, not specific line numbers
         assert (
             executable.keys() == expected_executable.keys()
@@ -394,7 +394,7 @@ def test_coverage_regular_package_rpa_import_dot_normal():
         )
 
 
-@pytest.mark.subprocess(parametrize={"_DD_LIGHTWEIGHT_COVERAGE": ["true", "false"]})
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
 def test_coverage_regular_package_rpa_import_dot_late():
     """Regular packages are correctly covered when imported normally when using a nested package"""
     import os
@@ -458,7 +458,7 @@ def test_coverage_regular_package_rpa_import_dot_late():
         "tests/coverage/included_path/rpa/rpb/normal_import_const.py": {1},
     }
 
-    if os.getenv("_DD_LIGHTWEIGHT_COVERAGE") == "true":
+    if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
         # In lightweight mode, we only track files, not specific line numbers
         assert (
             executable.keys() == expected_executable.keys()

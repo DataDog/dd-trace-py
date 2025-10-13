@@ -1,7 +1,7 @@
 import pytest
 
 
-@pytest.mark.subprocess(parametrize={"_DD_LIGHTWEIGHT_COVERAGE": ["true", "false"]})
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
 def test_coverage_async_function():
     """
     Async functions in Python 3.10 have an initial GEN_START instruction with no corresponding line number.
@@ -42,7 +42,7 @@ def test_coverage_async_function():
         "tests/coverage/included_path/async_code.py": {1, 2, 5, 6, 7, 8, 9, 10, 13, 14},
     }
 
-    if os.getenv("_DD_LIGHTWEIGHT_COVERAGE") == "true":
+    if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
         # In lightweight mode, we only track files, not specific line numbers
         assert (
             executable.keys() == expected_executable.keys()

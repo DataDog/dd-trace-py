@@ -10,7 +10,7 @@ time rather than at code execution time.
 import pytest
 
 
-@pytest.mark.subprocess(parametrize={"_DD_LIGHTWEIGHT_COVERAGE": ["true", "false"]})
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
 def test_coverage_import_time_lib():
     import os
     from pathlib import Path
@@ -52,7 +52,7 @@ def test_coverage_import_time_lib():
         "tests/coverage/included_path/nested_import_time_lib.py": {1, 4},
     }
 
-    if os.getenv("_DD_LIGHTWEIGHT_COVERAGE") == "true":
+    if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
         # In lightweight mode, we only track files, not specific line numbers
         assert (
             executable.keys() == expected_executable.keys()
@@ -74,7 +74,7 @@ def test_coverage_import_time_lib():
         f" expected={expected_covered_with_imports} vs actual={covered_with_imports}"
 
 
-@pytest.mark.subprocess(parametrize={"_DD_LIGHTWEIGHT_COVERAGE": ["true", "false"]})
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
 def test_coverage_import_time_function():
     import os
     from pathlib import Path
@@ -115,7 +115,7 @@ def test_coverage_import_time_function():
         "tests/coverage/included_path/imported_in_function_lib.py": {1, 2, 3, 4, 7},
     }
 
-    if os.getenv("_DD_LIGHTWEIGHT_COVERAGE") == "true":
+    if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
         # In lightweight mode, we only track files, not specific line numbers
         assert (
             lines.keys() == expected_lines.keys()

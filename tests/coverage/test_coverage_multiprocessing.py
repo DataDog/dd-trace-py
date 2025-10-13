@@ -91,7 +91,7 @@ def test_coverage_multiprocessing_coverage_stopped():
 
 
 @pytest.mark.subprocess(
-    parametrize={"start_method": ["fork", "forkserver", "spawn"], "_DD_LIGHTWEIGHT_COVERAGE": ["true", "false"]}
+    parametrize={"start_method": ["fork", "forkserver", "spawn"], "_DD_COVERAGE_FILE_LEVEL": ["true", "false"]}
 )
 def test_coverage_multiprocessing_session():
     import multiprocessing
@@ -127,7 +127,7 @@ def test_coverage_multiprocessing_session():
             "tests/coverage/included_path/lib.py": {1, 2, 5},
         }
 
-        if os.getenv("_DD_LIGHTWEIGHT_COVERAGE") == "true":
+        if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
             # In lightweight mode, we only track files, not specific line numbers
             assert (
                 expected_lines.keys() == covered_lines.keys()
@@ -138,7 +138,7 @@ def test_coverage_multiprocessing_session():
 
 
 @pytest.mark.subprocess(
-    parametrize={"start_method": ["fork", "forkserver", "spawn"], "_DD_LIGHTWEIGHT_COVERAGE": ["true", "false"]}
+    parametrize={"start_method": ["fork", "forkserver", "spawn"], "_DD_COVERAGE_FILE_LEVEL": ["true", "false"]}
 )
 def test_coverage_multiprocessing_context():
     import multiprocessing
@@ -176,7 +176,7 @@ def test_coverage_multiprocessing_context():
             "tests/coverage/included_path/in_context_lib.py": {1, 2, 5},
         }
 
-        if os.getenv("_DD_LIGHTWEIGHT_COVERAGE") == "true":
+        if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
             # In lightweight mode, we only track files, not specific line numbers
             assert (
                 expected_lines.keys() == context_covered.keys()
@@ -190,7 +190,7 @@ def test_coverage_multiprocessing_context():
 
 
 @pytest.mark.subprocess(
-    parametrize={"start_method": ["fork", "forkserver", "spawn"], "_DD_LIGHTWEIGHT_COVERAGE": ["true", "false"]}
+    parametrize={"start_method": ["fork", "forkserver", "spawn"], "_DD_COVERAGE_FILE_LEVEL": ["true", "false"]}
 )
 def test_coverage_concurrent_futures_processpool_session():
     import multiprocessing
@@ -228,7 +228,7 @@ def test_coverage_concurrent_futures_processpool_session():
             "tests/coverage/included_path/lib.py": {1, 2, 5},
         }
 
-        if os.getenv("_DD_LIGHTWEIGHT_COVERAGE") == "true":
+        if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
             # In lightweight mode, we only track files, not specific line numbers
             assert (
                 expected_lines.keys() == covered_lines.keys()
@@ -239,7 +239,7 @@ def test_coverage_concurrent_futures_processpool_session():
 
 
 @pytest.mark.subprocess(
-    parametrize={"start_method": ["fork", "forkserver", "spawn"], "_DD_LIGHTWEIGHT_COVERAGE": ["true", "false"]}
+    parametrize={"start_method": ["fork", "forkserver", "spawn"], "_DD_COVERAGE_FILE_LEVEL": ["true", "false"]}
 )
 def test_coverage_concurrent_futures_processpool_context():
     import multiprocessing
@@ -283,7 +283,7 @@ def test_coverage_concurrent_futures_processpool_context():
             # In spawn or forkserver modes, the module is reimported entirely
             expected_lines["tests/coverage/included_path/callee.py"] = {1, 9, 10, 11, 13, 14, 17}
 
-        if os.getenv("_DD_LIGHTWEIGHT_COVERAGE") == "true":
+        if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
             # In lightweight mode, we only track files, not specific line numbers
             assert (
                 expected_lines.keys() == context_covered.keys()
