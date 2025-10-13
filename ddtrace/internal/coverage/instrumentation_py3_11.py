@@ -249,6 +249,32 @@ def trap_call(trap_index: int, arg_index: int) -> t.Tuple[Instruction, ...]:
 SKIP_LINES = frozenset([dis.opmap["END_ASYNC_FOR"]])
 
 
+def should_instrument_line(
+    code: CodeType,
+    offset: int,
+    lines_to_instrument: t.Optional[t.Set[int]],
+) -> bool:
+    """
+    Determine if a bytecode offset should be instrumented.
+
+    Args:
+        code: The code object
+        offset: The bytecode offset to check
+        lines_to_instrument: Set of line offsets to instrument (lightweight mode),
+                            or None for full coverage (instrument all lines)
+
+    Returns:
+        True if the offset should be instrumented, False otherwise
+    """
+    # Always skip lines with opcodes in SKIP_LINES
+    if code.co_code[offset] in SKIP_LINES:
+        return False
+
+    # lines_to_instrument is None -> Full instrumentation, return True
+    # offset in lines_to_instrument -> Lightweight instrumentation
+    return lines_to_instrument is None or offset in lines_to_instrument
+
+
 def instrument_all_lines(
     code: CodeType, hook: HookType, path: str, package: str, lightweight: bool = True
 ) -> t.Tuple[CodeType, CoverageLines]:
@@ -296,18 +322,8 @@ def instrument_all_lines(
     if code.co_name == "<module>" and line_starts == {0: 0} and code.co_code == EMPTY_BYTECODE:
         line_starts = {2: 0}
 
-    # Create a predicate function to determine which lines to instrument
-    if lightweight:
-        # Minimal instrumentation: only first line + import lines
-        lines_to_instrument = find_lines_to_instrument(code, line_starts, resume_offset)
-
-        def should_instrument_line(offset):
-            return code.co_code[offset] not in SKIP_LINES and offset in lines_to_instrument
-
-    else:
-        # Full instrumentation: all lines (except those in SKIP_LINES)
-        def should_instrument_line(offset):
-            return code.co_code[offset] not in SKIP_LINES
+    # Pre-compute lines to instrument for lightweight mode (optimization to avoid recomputing)
+    lines_to_instrument = find_lines_to_instrument(code, line_starts, resume_offset) if lightweight else None
 
     # The previous two arguments are kept in order to track the depth of the IMPORT_NAME
     # For example, from ...package import module
@@ -328,7 +344,7 @@ def instrument_all_lines(
 
             if original_offset in line_starts and original_offset > resume_offset:
                 line = line_starts[original_offset]
-                if should_instrument_line(original_offset):
+                if should_instrument_line(code, original_offset, lines_to_instrument):
                     # Inject trap call at the beginning of the line. Keep
                     # track of location and size of the trap call
                     # instructions. We need this to adjust the location
