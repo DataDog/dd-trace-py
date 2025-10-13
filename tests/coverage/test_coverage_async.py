@@ -43,7 +43,7 @@ def test_coverage_async_function():
     }
 
     if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
-        # In lightweight mode, we only track files, not specific line numbers
+        # In file-level mode, we only track files, not specific line numbers
         assert (
             executable.keys() == expected_executable.keys()
         ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"

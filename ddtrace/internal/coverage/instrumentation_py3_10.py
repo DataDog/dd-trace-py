@@ -14,7 +14,7 @@ assert sys.version_info[:2] == (3, 10)  # nosec
 
 
 def instrument_all_lines(
-    code: CodeType, hook: HookType, path: str, package: str, lightweight: bool = True
+    code: CodeType, hook: HookType, path: str, package: str, file_level: bool = True
 ) -> t.Tuple[CodeType, CoverageLines]:
     """
     Instrument code for coverage tracking.
@@ -24,10 +24,10 @@ def instrument_all_lines(
         hook: The hook function to call
         path: The file path
         package: The package name
-        lightweight: If True, only instrument first line + import lines (minimal overhead).
+        file_level: If True, only instrument first line + import lines (minimal overhead).
                      If False, instrument all executable lines (full coverage).
     """
-    if lightweight:
+    if file_level:
         # Minimal instrumentation: only first line + import lines using unified function
         injection_context = InjectionContext(
             code,

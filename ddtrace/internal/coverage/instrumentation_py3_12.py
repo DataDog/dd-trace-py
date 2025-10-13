@@ -25,7 +25,7 @@ _CODE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str, t.Dict[int, t.Tuple[str, t.
 
 
 def instrument_all_lines(
-    code: CodeType, hook: HookType, path: str, package: str, lightweight: bool = True
+    code: CodeType, hook: HookType, path: str, package: str, file_level: bool = True
 ) -> t.Tuple[CodeType, CoverageLines]:
     """
     Instrument code for coverage tracking using Python 3.12's monitoring API.
@@ -47,7 +47,7 @@ def instrument_all_lines(
         log.debug("Registering code coverage tool")
         _register_monitoring()
 
-    return _instrument_all_lines_with_monitoring(code, hook, path, package, lightweight)
+    return _instrument_all_lines_with_monitoring(code, hook, path, package, file_level)
 
 
 def _line_event_handler(code: CodeType, line: int) -> t.Any:
@@ -69,7 +69,7 @@ def _register_monitoring():
 
 
 def _instrument_all_lines_with_monitoring(
-    code: CodeType, hook: HookType, path: str, package: str, lightweight: bool = True
+    code: CodeType, hook: HookType, path: str, package: str, file_level: bool = True
 ) -> t.Tuple[CodeType, CoverageLines]:
     # Enable local line events for the code object
     sys.monitoring.set_local_events(sys.monitoring.COVERAGE_ID, code, sys.monitoring.events.LINE)  # noqa
@@ -152,7 +152,7 @@ def _instrument_all_lines_with_monitoring(
 
     # Recursively instrument nested code objects
     for nested_code in (_ for _ in code.co_consts if isinstance(_, CodeType)):
-        _, nested_lines = instrument_all_lines(nested_code, hook, path, package, lightweight)
+        _, nested_lines = instrument_all_lines(nested_code, hook, path, package, file_level)
         lines.update(nested_lines)
 
     # Register the hook and argument for the code object

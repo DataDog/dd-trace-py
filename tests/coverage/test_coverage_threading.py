@@ -33,7 +33,7 @@ def test_coverage_threading_session():
     }
 
     if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
-        # In lightweight mode, we only track files, not specific line numbers
+        # In file-level mode, we only track files, not specific line numbers
         assert expected_lines.keys() == covered_lines.keys(), f"Mismatched files: {expected_lines} vs {covered_lines}"
     else:
         # In full coverage mode, we track exact line numbers
@@ -74,7 +74,7 @@ def test_coverage_threading_context():
     }
 
     if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
-        # In lightweight mode, we only track files, not specific line numbers
+        # In file-level mode, we only track files, not specific line numbers
         assert (
             expected_lines.keys() == context_covered.keys()
         ), f"Mismatched files: {expected_lines} vs {context_covered}"
@@ -118,7 +118,7 @@ def test_coverage_concurrent_futures_threadpool_session():
     }
 
     if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
-        # In lightweight mode, we only track files, not specific line numbers
+        # In file-level mode, we only track files, not specific line numbers
         assert expected_lines.keys() == covered_lines.keys(), f"Mismatched files: {expected_lines} vs {covered_lines}"
     else:
         # In full coverage mode, we track exact line numbers
@@ -159,7 +159,7 @@ def test_coverage_concurrent_futures_threadpool_context():
     }
 
     if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
-        # In lightweight mode, we only track files, not specific line numbers
+        # In file-level mode, we only track files, not specific line numbers
         assert (
             expected_lines.keys() == context_covered.keys()
         ), f"Mismatched files: {expected_lines} vs {context_covered}"

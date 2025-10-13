@@ -128,7 +128,7 @@ def test_coverage_multiprocessing_session():
         }
 
         if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
-            # In lightweight mode, we only track files, not specific line numbers
+            # In file-level mode, we only track files, not specific line numbers
             assert (
                 expected_lines.keys() == covered_lines.keys()
             ), f"Mismatched files: {expected_lines} vs {covered_lines}"
@@ -177,7 +177,7 @@ def test_coverage_multiprocessing_context():
         }
 
         if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
-            # In lightweight mode, we only track files, not specific line numbers
+            # In file-level mode, we only track files, not specific line numbers
             assert (
                 expected_lines.keys() == context_covered.keys()
             ), f"Mismatched files: {expected_lines} vs {context_covered}"
@@ -229,7 +229,7 @@ def test_coverage_concurrent_futures_processpool_session():
         }
 
         if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
-            # In lightweight mode, we only track files, not specific line numbers
+            # In file-level mode, we only track files, not specific line numbers
             assert (
                 expected_lines.keys() == covered_lines.keys()
             ), f"Mismatched files: {expected_lines} vs {covered_lines}"
@@ -284,7 +284,7 @@ def test_coverage_concurrent_futures_processpool_context():
             expected_lines["tests/coverage/included_path/callee.py"] = {1, 9, 10, 11, 13, 14, 17}
 
         if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
-            # In lightweight mode, we only track files, not specific line numbers
+            # In file-level mode, we only track files, not specific line numbers
             assert (
                 expected_lines.keys() == context_covered.keys()
             ), f"Mismatched files: {expected_lines} vs {context_covered}"

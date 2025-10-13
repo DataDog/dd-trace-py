@@ -260,7 +260,7 @@ def should_instrument_line(
     Args:
         code: The code object
         offset: The bytecode offset to check
-        lines_to_instrument: Set of line offsets to instrument (lightweight mode),
+        lines_to_instrument: Set of line offsets to instrument (file-level mode),
                             or None for full coverage (instrument all lines)
 
     Returns:
@@ -271,12 +271,12 @@ def should_instrument_line(
         return False
 
     # lines_to_instrument is None -> Full instrumentation, return True
-    # offset in lines_to_instrument -> Lightweight instrumentation
+    # offset in lines_to_instrument -> File-Level instrumentation
     return lines_to_instrument is None or offset in lines_to_instrument
 
 
 def instrument_all_lines(
-    code: CodeType, hook: HookType, path: str, package: str, lightweight: bool = True
+    code: CodeType, hook: HookType, path: str, package: str, file_level: bool = True
 ) -> t.Tuple[CodeType, CoverageLines]:
     """
     Instrument code for coverage tracking.
@@ -286,7 +286,7 @@ def instrument_all_lines(
         hook: The hook function to call
         path: The file path
         package: The package name
-        lightweight: If True, only instrument first line + import lines (minimal overhead).
+        file_level: If True, only instrument first line + import lines (minimal overhead).
                      If False, instrument all executable lines (full coverage).
     """
     # TODO[perf]: Check if we really need to << and >> everywhere
@@ -322,8 +322,8 @@ def instrument_all_lines(
     if code.co_name == "<module>" and line_starts == {0: 0} and code.co_code == EMPTY_BYTECODE:
         line_starts = {2: 0}
 
-    # Pre-compute lines to instrument for lightweight mode (optimization to avoid recomputing)
-    lines_to_instrument = find_lines_to_instrument(code, line_starts, resume_offset) if lightweight else None
+    # Pre-compute lines to instrument for file-level mode (optimization to avoid recomputing)
+    lines_to_instrument = find_lines_to_instrument(code, line_starts, resume_offset) if file_level else None
 
     # The previous two arguments are kept in order to track the depth of the IMPORT_NAME
     # For example, from ...package import module
@@ -503,7 +503,7 @@ def instrument_all_lines(
     for original_offset, nested_code in enumerate(code.co_consts):
         if isinstance(nested_code, CodeType):
             new_consts[original_offset], nested_lines = instrument_all_lines(
-                nested_code, trap_func, trap_arg, package, lightweight
+                nested_code, trap_func, trap_arg, package, file_level
             )
             seen_lines.update(nested_lines)
 

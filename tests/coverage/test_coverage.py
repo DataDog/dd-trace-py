@@ -53,7 +53,7 @@ def test_coverage_import_time_lib():
     }
 
     if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
-        # In lightweight mode, we only track files, not specific line numbers
+        # In file-level mode, we only track files, not specific line numbers
         assert (
             executable.keys() == expected_executable.keys()
         ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
@@ -116,7 +116,7 @@ def test_coverage_import_time_function():
     }
 
     if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
-        # In lightweight mode, we only track files, not specific line numbers
+        # In file-level mode, we only track files, not specific line numbers
         assert (
             lines.keys() == expected_lines.keys()
         ), f"Executable lines mismatch: expected={expected_lines} vs actual={lines}"

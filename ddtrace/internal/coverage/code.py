@@ -32,7 +32,7 @@ ctx_is_import_coverage = ContextVar("ctx_is_import_coverage", default=False)
 ctx_coverage_enabled = ContextVar("ctx_coverage_enabled", default=False)
 
 
-def _is_lightweight_coverage_enabled():
+def _is_file_level_coverage_enabled():
     return asbool(os.getenv("_DD_COVERAGE_FILE_LEVEL", "false"))
 
 
@@ -380,7 +380,7 @@ class ModuleCodeCollector(ModuleWatchdog):
         self.seen.add((code, code.co_filename))
 
         new_code, lines = instrument_all_lines(
-            code, self.hook, code.co_filename, package, lightweight=_is_lightweight_coverage_enabled()
+            code, self.hook, code.co_filename, package, file_level=_is_file_level_coverage_enabled()
         )
         self.seen.add((new_code, code.co_filename))
         # Keep note of all the lines that have been instrumented. These will be

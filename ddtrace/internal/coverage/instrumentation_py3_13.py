@@ -19,7 +19,7 @@ EMPTY_MODULE_BYTES = bytes([RESUME, 0, RETURN_CONST, 0])
 
 
 def instrument_all_lines(
-    code: CodeType, hook: HookType, path: str, package: str, lightweight: bool = True
+    code: CodeType, hook: HookType, path: str, package: str, file_level: bool = True
 ) -> t.Tuple[CodeType, CoverageLines]:
     # No-op
     return code, CoverageLines()
