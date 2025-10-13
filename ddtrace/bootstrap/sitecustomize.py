@@ -2,6 +2,7 @@
 Bootstrapping code that is run when using the `ddtrace-run` Python entrypoint
 Add all monkey-patching that needs to run by default here
 """
+
 #  _____ ___  _________  _____ ______  _____   ___   _   _  _____
 # |_   _||  \/  || ___ \|  _  || ___ \|_   _| / _ \ | \ | ||_   _|
 #   | |  | .  . || |_/ /| | | || |_/ /  | |  / /_\ \|  \| |  | |
@@ -131,14 +132,9 @@ try:
         index = sys.path.index(bootstrap_dir)
         del sys.path[index]
 
-        # NOTE: this reference to the module is crucial in Python 2.
-        # Without it the current module gets gc'd and all subsequent references
-        # will be `None`.
-        ddtrace_sitecustomize = sys.modules["sitecustomize"]
-        del sys.modules["sitecustomize"]
-
         # Cache this module under it's fully qualified package name
-        if "ddtrace.bootstrap.sitecustomize" not in sys.modules:
+        ddtrace_sitecustomize = sys.modules.pop("sitecustomize", None)
+        if "ddtrace.bootstrap.sitecustomize" not in sys.modules and ddtrace_sitecustomize is not None:
             sys.modules["ddtrace.bootstrap.sitecustomize"] = ddtrace_sitecustomize
 
         try:
@@ -147,7 +143,8 @@ try:
             # If an additional sitecustomize is not found then put the ddtrace
             # sitecustomize back.
             log.debug("additional sitecustomize not found")
-            sys.modules["sitecustomize"] = ddtrace_sitecustomize
+            if ddtrace_sitecustomize is not None:
+                sys.modules["sitecustomize"] = ddtrace_sitecustomize
         else:
             log.debug("additional sitecustomize found in: %s", sys.path)
         finally:
