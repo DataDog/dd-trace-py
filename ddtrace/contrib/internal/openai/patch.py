@@ -137,12 +137,9 @@ def patch():
         for method_name, endpoint_hook in method_hook_dict.items():
             sync_method = "resources.{}.{}".format(resource, method_name)
             async_method = "resources.{}.{}".format(".Async".join(resource.split(".")), method_name)
-            if deep_getattr(openai.resources, "{}.{}".format(resource, method_name)) is not None:
+            if deep_getattr(openai, sync_method) is not None:
                 wrap(openai, sync_method, _patched_endpoint(openai, endpoint_hook))
-            if (
-                deep_getattr(openai.resources, "{}.{}".format(".Async".join(resource.split(".")), method_name))
-                is not None
-            ):
+            if deep_getattr(openai, async_method) is not None:
                 wrap(openai, async_method, _patched_endpoint_async(openai, endpoint_hook))
 
     openai.__datadog_patch = True

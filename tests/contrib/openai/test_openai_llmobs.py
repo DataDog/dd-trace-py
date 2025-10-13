@@ -2083,7 +2083,7 @@ MUL: "*"
                     {"role": "user", "content": "solve 8x + 31 = 2"},
                 ],
                 output_messages=[{"role": "assistant", "content": mock.ANY}],
-                metadata={"response_format": MathResponse},
+                metadata={"response_format": "MathResponse"},
                 token_metrics={
                     "input_tokens": 127,
                     "output_tokens": 93,
