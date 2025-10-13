@@ -1,7 +1,12 @@
 import glob
 import os
-import threading
+import sys
+from threading import Lock
+from threading import RLock
 from typing import Any
+from typing import Optional
+from typing import Type
+from typing import Union
 from typing import Optional
 from typing import Type
 from typing import Union
@@ -14,19 +19,15 @@ from ddtrace import ext
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling.collector.threading import ThreadingLockCollector
 from ddtrace.profiling.collector.threading import ThreadingRLockCollector
+from ddtrace.profiling.collector.threading import ThreadingLockCollector
+from ddtrace.profiling.collector.threading import ThreadingRLockCollector
 from tests.profiling.collector import pprof_utils
 from tests.profiling.collector import test_collector
 from tests.profiling.collector.lock_utils import get_lock_linenos
 from tests.profiling.collector.lock_utils import init_linenos
 
-
-# Module-level globals for testing global lock profiling
-_test_global_lock = None
-_test_global_bar_instance = None
-
-
 # Type aliases for supported classes
-LockClass = Union[Type[threading.Lock], Type[threading.RLock]]
+LockClass = Union[Type[Lock], Type[RLock]]
 CollectorClass = Union[Type[ThreadingLockCollector], Type[ThreadingRLockCollector]]
 
 # Module-level globals for testing global lock profiling
@@ -91,8 +92,8 @@ def test_repr(
 @pytest.mark.parametrize(
     "lock_class,collector_class",
     [
-        (threading.Lock, ThreadingLockCollector),
-        (threading.RLock, ThreadingRLockCollector),
+        (Lock, ThreadingLockCollector),
+        (RLock, ThreadingRLockCollector),
     ],
 )
 def test_patch(
@@ -105,10 +106,33 @@ def test_patch(
     assert lock == collector._original
     # wrapt makes this true
     assert lock == lock_class
+    assert lock == lock_class
     collector.stop()
     assert lock == lock_class
     assert collector._original == lock_class
 
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="only works on linux")
+@pytest.mark.subprocess(err=None)
+# For macOS: Could print 'Error uploading' but okay to ignore since we are checking if native_id is set
+def test_user_threads_have_native_id() -> None:
+    from os import getpid
+
+    for _ in range(10):
+        try:
+            # The TID should be higher than the PID, but not too high
+            native_id = getattr(t, "native_id", None)
+            if native_id is not None:
+                assert 0 < native_id - getpid() < 100, (native_id, getpid())
+                break
+            else:
+                raise AttributeError("native_id not set yet")
+        except AttributeError:
+            # The native_id attribute is set by the thread so we might have to
+            # wait a bit for it to be set.
+            sleep(0.1)
+    else:
+        raise AssertionError("Thread.native_id not set")
 
 @pytest.mark.subprocess(
     env=dict(WRAPT_DISABLE_EXTENSIONS="True", DD_PROFILING_FILE_PATH=__file__),
@@ -119,6 +143,7 @@ def test_wrapt_disable_extensions():
 
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import _lock
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import get_lock_linenos
@@ -142,7 +167,7 @@ def test_wrapt_disable_extensions():
     assert _lock.WRAPT_C_EXT is False
 
     with ThreadingLockCollector(capture_pct=100):
-        th_lock = threading.Lock()  # !CREATE! test_wrapt_disable_extensions
+        th_lock = Lock()  # !CREATE! test_wrapt_disable_extensions
         with th_lock:  # !ACQUIRE! !RELEASE! test_wrapt_disable_extensions
             pass
 
@@ -181,6 +206,7 @@ def test_wrapt_disable_extensions():
     env=dict(DD_PROFILING_FILE_PATH=__file__),
 )
 def test_lock_gevent_tasks() -> None:
+def test_lock_gevent_tasks() -> None:
     from gevent import monkey
 
     monkey.patch_all()
@@ -190,6 +216,7 @@ def test_lock_gevent_tasks() -> None:
     import threading
 
     from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import get_lock_linenos
@@ -207,54 +234,97 @@ def test_lock_gevent_tasks() -> None:
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
 
     def play_with_lock() -> None:
+    def play_with_lock() -> None:
         lock = threading.Lock()  # !CREATE! test_lock_gevent_tasks
         lock.acquire()  # !ACQUIRE! test_lock_gevent_tasks
         lock.release()  # !RELEASE! test_lock_gevent_tasks
 
-    def validate_and_cleanup():
-        ddup.upload()
-
-        expected_filename = "test_threading.py"
-        linenos = get_lock_linenos(test_name)
-
-        profile = pprof_utils.parse_newest_profile(output_filename)
-        pprof_utils.assert_lock_events(
-            profile,
-            expected_acquire_events=[
-                pprof_utils.LockAcquireEvent(
-                    caller_name="play_with_lock",
-                    filename=expected_filename,
-                    linenos=linenos,
-                    lock_name="lock",
-                    # TODO: With stack_v2, the way we trace gevent greenlets has
-                    # changed, and we'd need to expose an API to get the task_id,
-                    # task_name, and task_frame.
-                    # task_id=t.ident,
-                    # task_name="foobar",
-                ),
-            ],
-            expected_release_events=[
-                pprof_utils.LockReleaseEvent(
-                    caller_name="play_with_lock",
-                    filename=expected_filename,
-                    linenos=linenos,
-                    lock_name="lock",
-                    # TODO: With stack_v2, the way we trace gevent greenlets has
-                    # changed, and we'd need to expose an API to get the task_id,
-                    # task_name, and task_frame.
-                    # task_id=t.ident,
-                    # task_name="foobar",
-                ),
-            ],
-        )
-
-        for f in glob.glob(pprof_prefix + ".*"):
-            try:
-                os.remove(f)
-            except Exception as e:
-                print("Error removing file: {}".format(e))
-
     with ThreadingLockCollector(capture_pct=100):
+        t = threading.Thread(name="foobar", target=play_with_lock)
+        t.start()
+        t.join()
+
+    ddup.upload()
+
+    expected_filename = "test_threading.py"
+    linenos = get_lock_linenos(test_name)
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    pprof_utils.assert_lock_events(
+        profile,
+        expected_acquire_events=[
+            pprof_utils.LockAcquireEvent(
+                caller_name="play_with_lock",
+                filename=expected_filename,
+                linenos=linenos,
+                lock_name="lock",
+                # TODO: With stack_v2, the way we trace gevent greenlets has
+                # changed, and we'd need to expose an API to get the task_id,
+                # task_name, and task_frame.
+                # task_id=t.ident,
+                # task_name="foobar",
+            ),
+        ],
+        expected_release_events=[
+            pprof_utils.LockReleaseEvent(
+                caller_name="play_with_lock",
+                filename=expected_filename,
+                linenos=linenos,
+                lock_name="lock",
+                # TODO: With stack_v2, the way we trace gevent greenlets has
+                # changed, and we'd need to expose an API to get the task_id,
+                # task_name, and task_frame.
+                # task_id=t.ident,
+                # task_name="foobar",
+            ),
+        ],
+    )
+
+    for f in glob.glob(pprof_prefix + ".*"):
+        try:
+            os.remove(f)
+        except Exception as e:
+            print("Error removing file: {}".format(e))
+
+
+# This test has to be run in a subprocess because it calls gevent.monkey.patch_all()
+# which affects the whole process.
+@pytest.mark.skipif(not TESTING_GEVENT, reason="gevent is not available")
+@pytest.mark.subprocess(
+    env=dict(DD_PROFILING_FILE_PATH=__file__),
+)
+def test_rlock_gevent_tasks() -> None:
+    from gevent import monkey
+
+    monkey.patch_all()
+
+    import glob
+    import os
+    import threading
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector.threading import ThreadingRLockCollector
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.lock_utils import get_lock_linenos
+    from tests.profiling.collector.lock_utils import init_linenos
+
+    assert ddup.is_available, "ddup is not available"
+
+    # Set up the ddup exporter
+    test_name = "test_rlock_gevent_tasks"
+    pprof_prefix = "/tmp" + os.sep + test_name
+    output_filename = pprof_prefix + "." + str(os.getpid())
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+
+    init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
+
+    def play_with_lock() -> None:
+        lock = threading.RLock()  # !CREATE! test_rlock_gevent_tasks
+        lock.acquire()  # !ACQUIRE! test_rlock_gevent_tasks
+        lock.release()  # !RELEASE! test_rlock_gevent_tasks
+
+    with ThreadingRLockCollector(capture_pct=100):
         t = threading.Thread(name="foobar", target=play_with_lock)
         t.start()
         t.join()
@@ -387,19 +457,23 @@ class BaseThreadingLockCollectorTest:
 
     def test_wrapper(self):
         collector = self.collector_class()
+        collector = self.collector_class()
         with collector:
-
             class Foobar(object):
+                def __init__(self, lock_class):
+                    lock = lock_class()
                 def __init__(self, lock_class):
                     lock = lock_class()
                     assert lock.acquire()
                     lock.release()
 
             lock = self.lock_class()
+            lock = self.lock_class()
             assert lock.acquire()
             lock.release()
 
             # Try this way too
+            Foobar(self.lock_class)
             Foobar(self.lock_class)
 
     # Tests
@@ -863,7 +937,7 @@ class BaseThreadingLockCollectorTest:
             ],
         )
 
-    def test_global_locks(self):
+    def test_global_locks(self) -> None:
         global _test_global_lock, _test_global_bar_instance
 
         with self.collector_class(capture_pct=100):
@@ -871,7 +945,7 @@ class BaseThreadingLockCollectorTest:
             _test_global_lock = self.lock_class()  # !CREATE! _test_global_lock
 
             class TestBar:
-                def __init__(self, lock_class: Any):
+                def __init__(self, lock_class: LockClass) -> None:
                     self.bar_lock = lock_class()  # !CREATE! bar_lock
 
                 def bar(self):
@@ -880,6 +954,7 @@ class BaseThreadingLockCollectorTest:
 
             def foo():
                 global _test_global_lock
+                assert _test_global_lock is not None
                 with _test_global_lock:  # !ACQUIRE! !RELEASE! _test_global_lock
                     pass
 
@@ -929,7 +1004,7 @@ class BaseThreadingLockCollectorTest:
                 ),
             ],
         )
-
+    
     def test_upload_resets_profile(self):
         # This test checks that the profile is cleared after each upload() call
         # It is added in test_threading.py as LockCollector can easily be
@@ -970,23 +1045,27 @@ class BaseThreadingLockCollectorTest:
 
 class TestThreadingLockCollector(BaseThreadingLockCollectorTest):
     """Test Lock profiling"""
+    """Test Lock profiling"""
 
     @property
     def collector_class(self):
         return ThreadingLockCollector
+        return ThreadingLockCollector
 
     @property
     def lock_class(self):
-        return threading.Lock
+        return Lock
 
 
 class TestThreadingRLockCollector(BaseThreadingLockCollectorTest):
+    """Test RLock profiling"""
     """Test RLock profiling"""
 
     @property
     def collector_class(self):
         return ThreadingRLockCollector
+        return ThreadingRLockCollector
 
     @property
     def lock_class(self):
-        return threading.RLock
+        return RLock
