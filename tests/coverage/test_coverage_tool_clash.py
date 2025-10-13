@@ -49,7 +49,7 @@ def test_code_coverage_tool_clash():
             covered.keys() == expected_covered.keys()
         ), f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
         assert covered_with_imports.keys() == expected_covered_with_imports.keys(), (
-            "Covered lines with imports mismatch: expected={expected_covered_with_imports} "
+            f"Covered lines with imports mismatch: expected={expected_covered_with_imports} "
             f"vs actual={covered_with_imports}"
         )
     else:

@@ -65,8 +65,10 @@ def test_coverage_namespace_package_import_normal():
             executable == expected_executable
         ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
         assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
-        assert covered_with_imports == expected_covered_with_imports, "Covered lines with imports mismatch:"
-        f" expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+        assert covered_with_imports == expected_covered_with_imports, (
+            f"Covered lines with imports mismatch: expected={expected_covered_with_imports} "
+            f"vs actual={covered_with_imports}"
+        )
 
 
 @pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
@@ -148,8 +150,10 @@ def test_coverage_namespace_package_import_late():
             executable == expected_executable
         ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
         assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
-        assert covered_with_imports == expected_covered_with_imports, "Covered lines with imports mismatch:"
-        f" expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+        assert covered_with_imports == expected_covered_with_imports, (
+            f"Covered lines with imports mismatch: expected={expected_covered_with_imports} "
+            f"vs actual={covered_with_imports}"
+        )
 
 
 @pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
@@ -210,8 +214,10 @@ def test_coverage_namespace_package_nsa_import_parent_normal():
             executable == expected_executable
         ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
         assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
-        assert covered_with_imports == expected_covered_with_imports, "Covered lines with imports mismatch:"
-        f" expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+        assert covered_with_imports == expected_covered_with_imports, (
+            f"Covered lines with imports mismatch: expected={expected_covered_with_imports} "
+            f"vs actual={covered_with_imports}"
+        )
 
 
 @pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
@@ -275,8 +281,10 @@ def test_coverage_namespace_package_nsa_import_parent_late():
             executable == expected_executable
         ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
         assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
-        assert covered_with_imports == expected_covered_with_imports, "Covered lines with imports mismatch:"
-        f" expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+        assert covered_with_imports == expected_covered_with_imports, (
+            f"Covered lines with imports mismatch: expected={expected_covered_with_imports} "
+            f"vs actual={covered_with_imports}"
+        )
 
 
 @pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
@@ -341,8 +349,10 @@ def test_coverage_namespace_package_nsa_import_dot_normal():
             executable == expected_executable
         ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
         assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
-        assert covered_with_imports == expected_covered_with_imports, "Covered lines with imports mismatch:"
-        f" expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+        assert covered_with_imports == expected_covered_with_imports, (
+            f"Covered lines with imports mismatch: expected={expected_covered_with_imports} "
+            f"vs actual={covered_with_imports}"
+        )
 
 
 @pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
@@ -416,5 +426,7 @@ def test_coverage_namespace_package_nsa_import_dot_late():
             executable == expected_executable
         ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
         assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
-        assert covered_with_imports == expected_covered_with_imports, "Covered lines with imports mismatch:"
-        f" expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+        assert covered_with_imports == expected_covered_with_imports, (
+            f"Covered lines with imports mismatch: expected={expected_covered_with_imports} "
+            f"vs actual={covered_with_imports}"
+        )
