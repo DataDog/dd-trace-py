@@ -20,6 +20,7 @@ from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.writer import TelemetryWriter
 from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
+from ddtrace.settings._agent import get_agent_hostname
 from ddtrace.settings._telemetry import config as telemetry_config
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.utils import call_program
@@ -314,8 +315,6 @@ import ddtrace.settings.exception_replay
         {"name": "DD_IAST_VULNERABILITIES_PER_REQUEST", "origin": "default", "value": 2},
         {"name": "DD_INJECTION_ENABLED", "origin": "env_var", "value": "tracer"},
         {"name": "DD_INJECT_FORCE", "origin": "env_var", "value": True},
-        {"name": "DD_INSTRUMENTATION_INSTALL_ID", "origin": "default", "value": None},
-        {"name": "DD_INSTRUMENTATION_INSTALL_TYPE", "origin": "default", "value": None},
         {"name": "DD_INSTRUMENTATION_TELEMETRY_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_LIVE_DEBUGGING_ENABLED", "origin": "default", "value": False},
         {"name": "DD_LLMOBS_AGENTLESS_ENABLED", "origin": "default", "value": None},
@@ -448,8 +447,8 @@ import ddtrace.settings.exception_replay
         },
         {
             "name": "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT",
-            "origin": "env_var",
-            "value": "http://localhost:4317",
+            "origin": "default",
+            "value": f"http://{get_agent_hostname()}:4317",
         },
         {
             "name": "OTEL_EXPORTER_OTLP_LOGS_HEADERS",
@@ -468,8 +467,8 @@ import ddtrace.settings.exception_replay
         },
         {
             "name": "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT",
-            "origin": "env_var",
-            "value": "http://localhost:4317",
+            "origin": "default",
+            "value": f"http://{get_agent_hostname()}:4317",
         },
         {
             "name": "OTEL_EXPORTER_OTLP_METRICS_HEADERS",
