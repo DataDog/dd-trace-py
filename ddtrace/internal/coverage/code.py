@@ -22,6 +22,7 @@ from ddtrace.internal.packages import stdlib_path
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.inspection import resolved_code_origin
 
+
 if sys.version_info >= (3, 12):
     from ddtrace.internal.coverage.instrumentation_py3_12 import reset_monitoring_for_new_context
 
