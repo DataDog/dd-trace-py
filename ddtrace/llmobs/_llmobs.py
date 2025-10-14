@@ -140,7 +140,7 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
     "openai_agents": "openai_agents",
     "mcp": "mcp",
     "pydantic_ai": "pydantic_ai",
-    # requests frameworks for distributed injection/extraction
+    # requests/concurrent frameworks for distributed injection/extraction
     "requests": "requests",
     "httpx": "httpx",
     "urllib3": "urllib3",
@@ -149,6 +149,8 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
     "starlette": "starlette",
     "fastapi": "fastapi",
     "aiohttp": "aiohttp",
+    "asyncio": "asyncio",
+    "futures": "futures",
 }
 
 
@@ -506,6 +508,8 @@ class LLMObs(Service):
         core.reset_listeners("http.activate_distributed_headers", self._activate_llmobs_distributed_context)
         core.reset_listeners("threading.submit", self._current_trace_context)
         core.reset_listeners("threading.execution", self._llmobs_context_provider.activate)
+        core.reset_listeners("asyncio.create_task", self._current_trace_context)
+        core.reset_listeners("asyncio.execute_task", self._llmobs_context_provider.activate)
 
         core.reset_listeners(DISPATCH_ON_LLM_TOOL_CHOICE, self._link_tracker.on_llm_tool_choice)
         core.reset_listeners(DISPATCH_ON_TOOL_CALL, self._link_tracker.on_tool_call)
@@ -619,6 +623,8 @@ class LLMObs(Service):
             core.on("http.activate_distributed_headers", cls._activate_llmobs_distributed_context)
             core.on("threading.submit", cls._instance._current_trace_context, "llmobs_ctx")
             core.on("threading.execution", cls._instance._llmobs_context_provider.activate)
+            core.on("asyncio.create_task", cls._instance._current_trace_context, "llmobs_ctx")
+            core.on("asyncio.execute_task", cls._instance._llmobs_context_provider.activate)
 
             core.on(DISPATCH_ON_LLM_TOOL_CHOICE, cls._instance._link_tracker.on_llm_tool_choice)
             core.on(DISPATCH_ON_TOOL_CALL, cls._instance._link_tracker.on_tool_call)

@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: Introduces automatic tracing context propagation for LLM Observability traces involving asynchronous tasks created via ``asyncio.create_task()``.

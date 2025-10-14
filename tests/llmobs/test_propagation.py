@@ -5,6 +5,8 @@ import pytest
 
 from ddtrace.contrib.internal.futures.patch import patch as patch_futures
 from ddtrace.contrib.internal.futures.patch import unpatch as unpatch_futures
+from ddtrace.contrib.internal.asyncio.patch import patch as patch_asyncio
+from ddtrace.contrib.internal.asyncio.patch import unpatch as unpatch_asyncio
 from ddtrace.llmobs._constants import LLMOBS_TRACE_ID
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import PARENT_ID_KEY
@@ -18,6 +20,13 @@ def patched_futures():
     patch_futures()
     yield
     unpatch_futures()
+
+
+@pytest.fixture
+def patched_asyncio():
+    patch_asyncio()
+    yield
+    unpatch_asyncio()
 
 
 def test_inject_llmobs_parent_id_no_llmobs_span(llmobs):
@@ -412,3 +421,26 @@ def test_threading_map_propagation(llmobs, llmobs_events, patched_futures):
     assert main_thread_span["_dd"]["apm_trace_id"] == executor_thread_spans[0]["_dd"]["apm_trace_id"]
     assert main_thread_span["_dd"]["apm_trace_id"] == executor_thread_spans[1]["_dd"]["apm_trace_id"]
     assert main_thread_span["trace_id"] != main_thread_span["_dd"]["apm_trace_id"]
+
+
+async def test_asyncio_create_task(llmobs, llmobs_events, patched_asyncio):
+    import asyncio
+
+    async def fn():
+        with llmobs.task("side_task"):
+            return 42
+
+    with llmobs.workflow("main_task"):
+        await asyncio.create_task(fn())
+
+    main_task_span, side_task_span = None, None
+    for span in llmobs_events:
+        if span["name"] == "main_task":
+            main_task_span = span
+        else:
+            side_task_span = span
+    assert main_task_span["parent_id"] == ROOT_PARENT_ID
+    assert side_task_span["parent_id"] == main_task_span["span_id"]
+    assert main_task_span["trace_id"] == side_task_span["trace_id"]
+    assert main_task_span["_dd"]["apm_trace_id"] == side_task_span["_dd"]["apm_trace_id"]
+    assert main_task_span["trace_id"] != main_task_span["_dd"]["apm_trace_id"]
