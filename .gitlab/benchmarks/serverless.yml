@@ -52,7 +52,7 @@ candidate:
     cd ./serverless-tools
 
 .setup:
-  needs:
+  dependencies:
     - candidate
   before_script:
     - !reference [.common, before_script]
