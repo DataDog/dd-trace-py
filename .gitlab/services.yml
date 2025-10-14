@@ -52,7 +52,7 @@
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
   httpbin_local:
     name: registry.ddbuild.io/images/mirror/mccutchen/go-httpbin:v2.14.1
-    alias: httpbin-local
+    alias: httpbin_local
     variables:
       PORT: 8001
   memcached:
