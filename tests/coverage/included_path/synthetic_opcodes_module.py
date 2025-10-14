@@ -15,13 +15,13 @@ def test_comprehensions(items):
     doubled = [x * 2 for x in items]
 
     # Dict comprehension
-    squared_dict = {x: x**2 for x in items}
+    squared_dict = {x: x**2 for x in items}  # noqa: F841
 
     # Set comprehension
-    unique_doubled = {x * 2 for x in items}
+    unique_doubled = {x * 2 for x in items}  # noqa: F841
 
     # Nested comprehension
-    nested = [[y * 2 for y in range(x)] for x in items[:3]]
+    nested = [[y * 2 for y in range(x)] for x in items[:3]]  # noqa: F841
 
     return doubled
 
@@ -32,10 +32,10 @@ def test_lambda(value):
     square = lambda x: x * x
 
     # Lambda with conditional
-    safe_divide = lambda x, y: x / y if y != 0 else 0
+    safe_divide = lambda x, y: x / y if y != 0 else 0  # noqa: F841
 
     # Lambda with complex expression
-    complex_calc = lambda x: (x + 1) * (x + 2) * (x + 3) if x > 0 else 0
+    complex_calc = lambda x: (x + 1) * (x + 2) * (x + 3) if x > 0 else 0  # noqa: F841
 
     return square(value)
 
@@ -62,10 +62,10 @@ def test_generator_expression():
     gen = (x * 2 for x in range(10))
 
     # Generator with filter
-    filtered_gen = (x * 2 for x in range(10) if x % 2 == 0)
+    filtered_gen = (x * 2 for x in range(10) if x % 2 == 0)  # noqa: F841
 
     # Nested generator
-    nested_gen = ((x, y) for x in range(3) for y in range(3))
+    nested_gen = ((x, y) for x in range(3) for y in range(3))  # noqa: F841
 
     return list(gen)
 
@@ -94,8 +94,8 @@ class TestClass:
 
     def method_with_lambda(self):
         """Method that uses lambda."""
-        transform = lambda x: x * self.value
-        return [transform(i) for i in range(5)]
+        transform = lambda x: x * self.value  # noqa: F841
+        return [i * self.value for i in range(5)]
 
     @property
     def computed_property(self):
