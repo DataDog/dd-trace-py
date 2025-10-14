@@ -42,7 +42,7 @@ candidate:
 
 .common:
   # We are in a child pipeline of dd-trace-py so we need to clone and enter the serverless-tools repo for jobs to work
-  before: |
+  before_script: |
     if [[ -n "$CI_JOB_TOKEN" ]];
     then
       git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
@@ -53,13 +53,13 @@ candidate:
 .setup:
   needs:
     - candidate
-  before:
-    - !reference [.common, before]
+  before_script:
+    - !reference [.common, before_script]
 
 .layer-size:
-  before:
-    - !reference [.common, before]
+  before_script:
+    - !reference [.common, before_script]
 
 .cold-start:
-  before:
-    - !reference [.common, before]
+  before_script:
+    - !reference [.common, before_script]
