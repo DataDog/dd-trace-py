@@ -58,13 +58,14 @@ class CoverageCollectingThread(threading.Thread):
         finally:
             # Ensure coverage data is collected, and context is exited, even if an exception is raised
             if self._should_cover:
+                covered_lines = None
                 try:
                     covered_lines = pickle.dumps({"covered": self._coverage_context.get_covered_lines()})
                 except pickle.PicklingError:
                     log.warning("Could not pickle coverage data, not injecting coverage")
-                    return
                 self._coverage_context.__exit__()
-                self._coverage_queue.put(covered_lines)
+                if covered_lines is not None:
+                    self._coverage_queue.put(covered_lines)
 
     def join(self, *args, **kwargs):
         """Absorb coverage data from the thread after it's joined"""

@@ -74,6 +74,8 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         operation: str = "",
     ) -> None:
         provider_name, model_name = extract_provider_and_model_name(kwargs=kwargs)
+        if response is not None:
+            model_name = getattr(response, "model_version", "") or model_name
         span._set_ctx_items(
             {
                 SPAN_KIND: operation,
@@ -140,7 +142,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             content = _get_attr(candidate, "content", None)
             if not content:
                 continue
-            parts = _get_attr(content, "parts", [])
+            parts = _get_attr(content, "parts", []) or []
             role = _get_attr(content, "role", GOOGLE_GENAI_DEFAULT_MODEL_ROLE)
             for part in parts:
                 message = extract_message_from_part_google_genai(part, role)
