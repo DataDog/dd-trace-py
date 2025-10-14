@@ -43,15 +43,17 @@ candidate:
 .common:
   # We are in a child pipeline of dd-trace-py so we need to clone and enter the serverless-tools repo for jobs to work
   before_script: |
+    echo $CANDIDATE_AMD64_WHL
+    echo $CANDIDATE_ARM64_WHL
+
     if [[ -n "$CI_JOB_TOKEN" ]];
     then
       git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     fi
     git clone --branch "brettlangdon/candidate.wheels" --single-branch https://github.com/DataDog/serverless-tools ./serverless-tools
-    cp *.whl ./serverless-tools/
     cd ./serverless-tools
 
-.setup:
+setup (amd64):
   needs:
     - job: candidate
       artifacts: true
@@ -59,6 +61,17 @@ candidate:
     - candidate
   before_script:
     - !reference [.common, before_script]
+    - "cp ../*.whl ./"
+
+setup (arm64):
+  needs:
+    - job: candidate
+      artifacts: true
+  dependencies:
+    - candidate
+  before_script:
+    - !reference [.common, before_script]
+    - "cp ../*.whl ./"
 
 .layer-size:
   before_script:
