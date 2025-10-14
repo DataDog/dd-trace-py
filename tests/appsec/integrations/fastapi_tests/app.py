@@ -110,11 +110,13 @@ def get_app():
 
         # Validate the URL and enforce whitelist
         allowed_domains = ["example.com", "api.example.com", "www.datadoghq.com", "localhost"]
-        parsed_url = urlparse(str(url))
+        if type(url) == bytes:
+            url = url.decode("utf-8")
+        parsed_url = urlparse(url)
         if parsed_url.hostname not in allowed_domains:
             return PlainTextResponse("Forbidden", status_code=403)
         try:
-            requests.get(str(url))
+            requests.get(parsed_url.geturl())
         except Exception:
             pass
 
