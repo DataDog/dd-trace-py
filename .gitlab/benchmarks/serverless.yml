@@ -31,7 +31,7 @@ candidate:
       job: download_ddtrace_artifacts
   script: |
     cp pywheels/*-cp311-cp311-manylinux*_x86_64*.whl ./
-    cp pywheels/*-cp311-cp311-musllinux*_aarch64*.whl ./
+    cp pywheels/*-cp311-cp311-manylinux*_aarch64*.whl ./
     echo "CANDIDATE_AMD64_WHL=$(ls *x86_64*.whl | head -n 1)" | tee candidate.env
     echo "CANDIDATE_ARM64_WHL=$(ls *aarch64*.whl | head -n 1)" | tee -a candidate.env
   artifacts:
