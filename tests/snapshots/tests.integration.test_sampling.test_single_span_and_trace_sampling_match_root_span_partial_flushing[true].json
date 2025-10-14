@@ -16,7 +16,6 @@
       "runtime-id": "643fa3aa63d140ceb4d1b28983fc68cb"
     },
     "metrics": {
-      "_dd.py.partial_flush": 1,
       "_dd.rule_psr": 0.0,
       "_dd.span_sampling.mechanism": 8,
       "_dd.span_sampling.rule_rate": 1,
