@@ -52,8 +52,9 @@ candidate:
     cd ./serverless-tools
 
 .setup:
-  dependencies:
-    - candidate
+  needs:
+    - job: candidate
+      artifacts: true
   before_script:
     - !reference [.common, before_script]
 
