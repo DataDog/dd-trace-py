@@ -27,8 +27,22 @@ Configuration
 
 The Ray integration can be configured using environment variables:
 
+- ``DD_TRACE_RAY_CORE_API``: Enable tracing of Ray's core API functions like ``ray.wait()``
+    (default: ``False``)
+
+- ``DD_TRACE_RAY_ARGS_KWARGS``: Enable tracing of arguments and keyword arguments passed to
+    Ray tasks and actor methods (default: ``False``)
+
 - ``DD_TRACE_EXPERIMENTAL_LONG_RUNNING_FLUSH_INTERVAL``: Interval for resubmitting long-running
     spans (default: ``120.0`` seconds)
+
+- ``DD_TRACE_RAY_USE_ENTRYPOINT_AS_SERVICE_NAME``: Whether to use the job entrypoint as the
+    service name (default: ``False``). If ``True``, the entrypoint will be used as the service
+    name if DD_SERVICE is not set and a job name is not specified in the metadata.
+
+- ``DD_TRACE_RAY_REDACT_ENTRYPOINT_PATHS``: Whether to redact file paths in the job entrypoint
+    (default: ``True``). If ``True``, file paths in the entrypoint will be redacted to avoid
+    leaking sensitive information.
 
 Ray service name can be configured by:
 
@@ -42,7 +56,10 @@ Ray service name can be configured by:
 
 - specifying ``DD_SERVICE`` when initializing your Ray cluster.
 
-By default, the service name will be the name of your entrypoint
+- setting ``DD_TRACE_RAY_USE_ENTRYPOINT_AS_SERVICE_NAME=True``. In this case, the service
+  name will be the name of your entrypoint script.
+
+By default, the service name will be ``unnamed.ray.job``.
 
 Notes
 ~~~~~

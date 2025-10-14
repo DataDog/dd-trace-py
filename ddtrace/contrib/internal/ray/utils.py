@@ -1,6 +1,7 @@
 import inspect
 from inspect import Parameter
 from inspect import Signature
+import json
 import os
 import re
 import socket
@@ -17,6 +18,7 @@ from ray.runtime_context import get_runtime_context
 from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
+from ddtrace.constants import _AI_OBS_ENABLED_KEY
 from ddtrace.constants import _DJM_ENABLED_KEY
 from ddtrace.constants import _FILTER_KEPT_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
@@ -28,11 +30,13 @@ from .constants import RAY_ACTOR_ID
 from .constants import RAY_COMPONENT
 from .constants import RAY_HOSTNAME
 from .constants import RAY_JOB_ID
+from .constants import RAY_METADATA_PREFIX
 from .constants import RAY_NODE_ID
 from .constants import RAY_SUBMISSION_ID
 from .constants import RAY_SUBMISSION_ID_TAG
 from .constants import RAY_TASK_ID
 from .constants import RAY_WORKER_ID
+from .constants import REDACTED_PATH
 from .constants import REDACTED_VALUE
 
 
@@ -85,6 +89,7 @@ def _extract_tracing_context_from_env() -> Optional[Context]:
 def _inject_ray_span_tags_and_metrics(span: Span) -> None:
     span.set_tag_str("component", RAY_COMPONENT)
     span.set_tag_str(RAY_HOSTNAME, socket.gethostname())
+    span.set_metric(_AI_OBS_ENABLED_KEY, 1)
     span.set_metric(_DJM_ENABLED_KEY, 1)
     span.set_metric(_FILTER_KEPT_KEY, 1)
     span.set_metric(_SPAN_MEASURED_KEY, 1)
@@ -125,19 +130,7 @@ def set_tag_or_truncate(span: Span, tag_name: str, tag_value: Any = None) -> Non
         span.set_tag(tag_name, tag_value)
 
 
-def get_dd_job_name_from_submission_id(submission_id: str) -> Optional[str]:
-    """
-    Get the job name from the submission id.
-    If the submission id is set but not in a job:test,run:3 format, return the default job name.
-    If the submission id is not set, return None.
-    """
-    match = JOB_NAME_REGEX.match(submission_id)
-    if match:
-        return match.group(1)
-    return None
-
-
-def get_dd_job_name_from_entrypoint(entrypoint: str) -> Optional[str]:
+def get_dd_job_name_from_entrypoint(entrypoint: str):
     """
     Get the job name from the entrypoint.
     """
@@ -145,6 +138,90 @@ def get_dd_job_name_from_entrypoint(entrypoint: str) -> Optional[str]:
     if match:
         return match.group(1)
     return None
+
+
+def redact_paths(s: str) -> str:
+    """
+    Redact path-like substrings from an entry-point string.
+    Uses os.sep (and os.altsep if present) to detect paths; preserves spacing.
+    """
+
+    def _redact_pathlike(s):
+        """
+        If s contains a path separator, replace the directory part with REDACTION,
+        preserving the final component (basename). Trailing separators are ignored.
+        Detects both os.sep and os.altsep if present.
+        """
+
+        # Pick the actual separator used in this token (prefer os.sep if both appear)
+        used_sep = os.sep if (os.sep in s) else (os.altsep if (os.altsep and os.altsep in s) else None)
+        if not used_sep:
+            return s
+
+        core = s.rstrip(used_sep)
+        if not core:
+            return REDACTED_PATH
+
+        basename = core.split(used_sep)[-1]
+        return f"{REDACTED_PATH}{used_sep}{basename}"
+
+    def _redact_token(tok) -> str:
+        # key=value (value may be quoted)
+        if "=" in tok:
+            key, val = tok.split("=", 1)
+            if len(val) >= 2 and val[0] == val[-1] and val[0] in {"'", '"'}:
+                q = val[0]
+                inner = val[1:-1]
+                return f"{key}={q}{_redact_pathlike(inner)}{q}"
+            return f"{key}={_redact_pathlike(val)}"
+
+        # Whole token may be quoted
+        if len(tok) >= 2 and tok[0] == tok[-1] and tok[0] in {"'", '"'}:
+            q = tok[0]
+            inner = tok[1:-1]
+            return f"{q}{_redact_pathlike(inner)}{q}"
+
+        return _redact_pathlike(tok)
+
+    parts = re.split(r"(\s+)", s)  # keep whitespace
+    return "".join(part if part.strip() == "" else _redact_token(part) for part in parts)
+
+
+def flatten_metadata_dict(data: dict) -> Dict[str, Any]:
+    """
+    Converts a JSON (or Python dictionary) structure into a dict mapping
+    dot-notation paths to leaf values, with keys prefixed once by RAY_METADATA_PREFIX.
+
+    - Assumes the top-level is a dictionary. If a list is encountered anywhere,
+      it is stringified with json.dumps and treated as a leaf (no recursion into list elements).
+    - Leaf values (str, int, float, bool, None) are returned as-is as the dict values.
+    - Returned dict keys are prefixed once with RAY_METADATA_PREFIX.
+    """
+
+    if not isinstance(data, dict):
+        return {}
+
+    result = {}
+
+    def _recurse(node, path):
+        if isinstance(node, dict):
+            for key, value in node.items():
+                new_path = f"{path}.{key}" if path else key
+                _recurse(value, new_path)
+        elif isinstance(node, list):
+            # Treat any list as a leaf by stringifying it
+            try:
+                list_dump = json.dumps(node, ensure_ascii=False)
+            except Exception:
+                list_dump = "[]"
+            result[path] = list_dump
+        else:
+            # leaf node: store the accumulated path -> value
+            result[path] = node
+
+    _recurse(data, RAY_METADATA_PREFIX)
+
+    return result
 
 
 # -------------------------------------------------------------------------------------------
