@@ -38,7 +38,6 @@ include:
   - local: ".gitlab/package.yml"
   - local: ".gitlab/release.yml"
   - local: ".gitlab/testrunner.yml"
-  - local: ".gitlab/benchmarks/serverless.yml"
   - local: ".gitlab/native.yml"
 
 tests-gen:
@@ -104,6 +103,19 @@ microbenchmarks:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     # Disable VPA for benchmarks
     DD_DISABLE_VPA: true
+
+serverless-benchmarks:
+  stage: benchmarks
+  needs: []
+  rules:
+    - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
+      allow_failure: true
+    - allow_failure: false
+  trigger:
+    include: .gitlab/benchmarks/serverless.yml
+    strategy: depend
+  variables:
+    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
 
 macrobenchmarks:
   stage: benchmarks
