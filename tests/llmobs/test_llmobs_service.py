@@ -2286,6 +2286,68 @@ def test_submit_evaluation_for_metric_with_metadata_enqueues_metric(llmobs, mock
     )
 
 
+def test_submit_evaluation_for_invalid_success_assessment_raises_warning(llmobs, mock_llmobs_logs):
+    llmobs.submit_evaluation_for(
+        span={"span_id": "123", "trace_id": "456"},
+        label="toxicity",
+        metric_type="categorical",
+        value="high",
+        success_assessment=True,
+    )
+    mock_llmobs_logs.warning.assert_called_once_with(
+        "Failed to parse success_assessment. success_assessment must be either 'pass' or 'fail'."
+    )
+
+
+def test_submit_evaluation_for_enqueues_writer_with_success_criteria(llmobs, mock_llmobs_eval_metric_writer):
+    llmobs.submit_evaluation_for(
+        span={"span_id": "123", "trace_id": "456"},
+        label="toxicity",
+        metric_type="categorical",
+        value="high",
+        tags={"foo": "bar", "bee": "baz", "ml_app": "ml_app_override"},
+        ml_app="ml_app_override",
+        metadata={"foo": ["bar", "baz"]},
+        success_assessment="pass",
+    )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            ml_app="ml_app_override",
+            span_id="123",
+            trace_id="456",
+            label="toxicity",
+            metric_type="categorical",
+            categorical_value="high",
+            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
+            metadata={"foo": ["bar", "baz"]},
+            success_criteria={"assessment": "pass"},
+        )
+    )
+    mock_llmobs_eval_metric_writer.reset()
+    llmobs.submit_evaluation_for(
+        span={"span_id": "123", "trace_id": "456"},
+        label="toxicity",
+        metric_type="categorical",
+        value="high",
+        tags={"foo": "bar", "bee": "baz", "ml_app": "ml_app_override"},
+        ml_app="ml_app_override",
+        metadata="invalid",
+        success_assessment="fail",
+    )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            ml_app="ml_app_override",
+            span_id="123",
+            trace_id="456",
+            label="toxicity",
+            metric_type="categorical",
+            categorical_value="high",
+            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
+            success_criteria={"assessment": "fail"},
+        )
+    )
+
+
 def test_llmobs_parenting_with_root_apm_span(llmobs, tracer, llmobs_events):
     # orphaned llmobs spans with apm root have undefined parent_id
     with tracer.trace("no_llm_span"):

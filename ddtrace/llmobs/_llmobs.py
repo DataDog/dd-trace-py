@@ -1567,7 +1567,7 @@ class LLMObs(Service):
                                     If not set, the current time will be used.
         :param dict metadata: A JSON serializable dictionary of key-value metadata pairs relevant to the
                                 evaluation metric.
-        :param str success_assessment: An assessment of the success of this evaluation. Must be either "pass" or "fail".
+        :param str success_assessment: An assessment of the validity this evaluation. Must be either "pass" or "fail".
         """
         if cls.enabled is False:
             log.debug(
@@ -1679,7 +1679,9 @@ class LLMObs(Service):
             if success_assessment:
                 if not isinstance(success_assessment, str) or success_assessment not in ("pass", "fail"):
                     error = "invalid_success_assessment"
-                    log.warning("Failed to parse success_assessment. success_assessment must be either 'pass' or 'fail'.")
+                    log.warning(
+                        "Failed to parse success_assessment. success_assessment must be either 'pass' or 'fail'."
+                    )
                 else:
                     evaluation_metric["success_criteria"] = {"assessment": success_assessment}
 
