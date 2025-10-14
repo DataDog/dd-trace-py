@@ -1,5 +1,4 @@
 variables:
-  SERVERLESS_TOOLS_REF: main
   SLS_CI_IMAGE: registry.ddbuild.io/ci/serverless-tools:1
   PACKAGE_IMAGE: registry.ddbuild.io/images/mirror/pypa/manylinux2014_x86_64:2024-08-12-7fde9b1
   UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
@@ -21,7 +20,7 @@ stages:
 include:
   - project: 'DataDog/serverless-tools'
     file: '.gitlab-ci.yml'
-    ref: $SERVERLESS_TOOLS_REF
+    ref: main
 
 candidate:
   image: $PACKAGE_IMAGE
@@ -48,7 +47,7 @@ candidate:
     then
       git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     fi
-    git clone --branch "${SERVERLESS_TOOLS_REF}" --single-branch https://github.com/DataDog/serverless-tools ./serverless-tools
+    git clone --branch "main" --single-branch https://github.com/DataDog/serverless-tools ./serverless-tools
     cd ./serverless-tools
 
 .setup:
