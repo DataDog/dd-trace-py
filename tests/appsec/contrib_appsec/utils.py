@@ -1373,6 +1373,44 @@ class Contrib_TestClass_For_Threats:
                 assert value is None
 
     @pytest.mark.parametrize("apisec_enabled", [True, False])
+    def test_api_custom_scanners(self, interface: Interface, get_entry_span_tag, apisec_enabled):
+        import base64
+        import gzip
+
+        from ddtrace.ext import http
+
+        magic_key = "weqpfdjwlekfjowekhgfjiew"
+
+        with override_global_config(
+            dict(
+                _asm_enabled=True,
+                _api_security_enabled=apisec_enabled,
+                _asm_static_rule_file=rules.RULES_CUSTOM_SCANNERS,
+            )
+        ):
+            self.update_tracer(interface)
+            response = interface.client.get("/", headers={magic_key: "A0000B1111C2222"})
+            assert self.status(response) == 200
+            assert get_entry_span_tag(http.STATUS_CODE) == "200"
+            assert asm_config._api_security_enabled == apisec_enabled
+
+            value = get_entry_span_tag("_dd.appsec.s.req.headers")
+            if apisec_enabled:
+                assert value
+                api = json.loads(gzip.decompress(base64.b64decode(value)).decode())
+                assert isinstance(api, list)
+                assert api
+                headers = api[0]
+                assert magic_key in headers
+                assert headers[magic_key][1] == {
+                    "type": "custom_type",
+                    "category": "custom_category",
+                    "custom": "custom_data",
+                }
+            else:
+                assert value is None
+
+    @pytest.mark.parametrize("apisec_enabled", [True, False])
     @pytest.mark.parametrize("priority", ["keep", "drop"])
     @pytest.mark.parametrize("delay", [0.0, 120.0])
     def test_api_security_sampling(self, interface: Interface, get_entry_span_tag, apisec_enabled, priority, delay):
