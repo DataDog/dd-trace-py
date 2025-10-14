@@ -1,28 +1,66 @@
 variables:
+  SERVERLESS_TOOLS_REF: main
   SLS_CI_IMAGE: registry.ddbuild.io/ci/serverless-tools:1
+  PACKAGE_IMAGE: registry.ddbuild.io/images/mirror/pypa/manylinux2014_x86_64:2024-08-12-7fde9b1
+  UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
+  UPSTREAM_PROJECT_URL: $CI_PROJECT_URL
+  UPSTREAM_COMMIT_BRANCH: $CI_COMMIT_BRANCH
+  UPSTREAM_COMMIT_AUTHOR: $CI_COMMIT_AUTHOR
+  UPSTREAM_COMMIT_TITLE: $CI_COMMIT_TITLE
+  UPSTREAM_COMMIT_TAG: $CI_COMMIT_TAG
+  UPSTREAM_PROJECT_NAME:   $CI_PROJECT_NAME
+  UPSTREAM_GITLAB_USER_LOGIN: $GITLAB_USER_LOGIN
+  UPSTREAM_GITLAB_USER_EMAIL: $GITLAB_USER_EMAIL
+
+
+stages:
+  - build
+  - benchmark
+  - notify
 
 include:
   - project: 'DataDog/serverless-tools'
     file: '.gitlab-ci.yml'
-    ref: main
+    ref: $SERVERLESS_TOOLS_REF
 
-# benchmark-serverless:
-#   stage: benchmarks
-#   trigger:
-#     project: DataDog/serverless-tools
-#     strategy: depend
-#   needs: []
-#   rules:
-#     - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
-#       allow_failure: true
-#     - allow_failure: false
-#   variables:
-#     UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
-#     UPSTREAM_PROJECT_URL: $CI_PROJECT_URL
-#     UPSTREAM_COMMIT_BRANCH: $CI_COMMIT_BRANCH
-#     UPSTREAM_COMMIT_AUTHOR: $CI_COMMIT_AUTHOR
-#     UPSTREAM_COMMIT_TITLE: $CI_COMMIT_TITLE
-#     UPSTREAM_COMMIT_TAG: $CI_COMMIT_TAG
-#     UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME
-#     UPSTREAM_GITLAB_USER_LOGIN: $GITLAB_USER_LOGIN
-#     UPSTREAM_GITLAB_USER_EMAIL: $GITLAB_USER_EMAIL
+candidate:
+  image: $PACKAGE_IMAGE
+  stage: build
+  tags: [ "arch:amd64" ]
+  needs:
+    - pipeline: $PARENT_PIPELINE_ID
+      job: download_ddtrace_artifacts
+  script: |
+    cp pywheels/*-cp311-cp311-manylinux*_x86_64*.whl ./
+    cp pywheels/*-cp311-cp311-musllinux*_aarch64*.whl ./
+    echo "CANDIDATE_AMD64_WHL=$(ls *x86_64*.whl | head -n 1)" | tee candidate.env
+    echo "CANDIDATE_ARM64_WHL=$(ls *aarch64*.whl | head -n 1)" | tee candidate.env
+  artifacts:
+    reports:
+      dotenv: candidate.env
+    paths:
+      - "*.whl"
+
+.common:
+  # We are in a child pipeline of dd-trace-py so we need to clone and enter the serverless-tools repo for jobs to work
+  before: |
+    if [[ -n "$CI_JOB_TOKEN" ]];
+    then
+      git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
+    fi
+    git clone --branch "${SERVERLESS_TOOLS_REF}" --single-branch https://github.com/DataDog/serverless-tools ./serverless-tools
+    cd ./serverless-tools
+
+.setup:
+  needs:
+    - candidate
+  before:
+    - !reference [.common, before]
+
+.layer-size:
+  before:
+    - !reference [.common, before]
+
+.cold-start:
+  before:
+    - !reference [.common, before]
