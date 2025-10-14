@@ -29,13 +29,13 @@ def test_comprehensions(items):
 def test_lambda(value):
     """Test lambda functions which may have synthetic opcodes."""
     # Simple lambda
-    square = lambda x: x * x
+    square = lambda x: x * x  # noqa: E731
 
     # Lambda with conditional
-    safe_divide = lambda x, y: x / y if y != 0 else 0  # noqa: F841
+    safe_divide = lambda x, y: x / y if y != 0 else 0  # noqa: E731, F841
 
     # Lambda with complex expression
-    complex_calc = lambda x: (x + 1) * (x + 2) * (x + 3) if x > 0 else 0  # noqa: F841
+    complex_calc = lambda x: (x + 1) * (x + 2) * (x + 3) if x > 0 else 0  # noqa: E731, F841
 
     return square(value)
 
@@ -94,7 +94,7 @@ class TestClass:
 
     def method_with_lambda(self):
         """Method that uses lambda."""
-        transform = lambda x: x * self.value  # noqa: F841
+        transform = lambda x: x * self.value  # noqa: E731, F841
         return [i * self.value for i in range(5)]
 
     @property
@@ -107,7 +107,7 @@ class TestClass:
 MODULE_LEVEL_COMP = [x * 3 for x in range(5)]
 
 # Module-level lambda
-MODULE_LEVEL_LAMBDA = lambda x: x * 2
+MODULE_LEVEL_LAMBDA = lambda x: x * 2  # noqa: E731
 
 # Module-level generator
 MODULE_LEVEL_GEN = (x for x in range(10))

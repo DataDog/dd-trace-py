@@ -41,11 +41,9 @@ def test_coverage_with_synthetic_opcodes():
     install(include_paths=[include_path])
 
     # Import a module that will exercise various code patterns that may generate synthetic opcodes
-    from tests.coverage.included_path.synthetic_opcodes_module import (
-        test_comprehensions,
-        test_lambda,
-        test_nested_functions,
-    )
+    from tests.coverage.included_path.synthetic_opcodes_module import test_comprehensions
+    from tests.coverage.included_path.synthetic_opcodes_module import test_lambda
+    from tests.coverage.included_path.synthetic_opcodes_module import test_nested_functions
 
     ModuleCodeCollector.start_coverage()
 
@@ -114,7 +112,7 @@ def test_coverage_with_complex_expressions():
     assert result == [[0, 2, 4], [0, 2, 4]]
 
     # Lambda with complex expression
-    func = lambda x: (x + 1) * (x + 2) if x > 0 else 0
+    func = lambda x: (x + 1) * (x + 2) if x > 0 else 0  # noqa: E731
     assert func(3) == 20
 
     ModuleCodeCollector.stop_coverage()
