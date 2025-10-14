@@ -106,7 +106,7 @@ microbenchmarks:
 
 serverless-benchmarks:
   stage: benchmarks
-  needs: []
+  needs: [ "download_ddtrace_artifacts" ]
   rules:
     - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
       allow_failure: true
