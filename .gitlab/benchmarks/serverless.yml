@@ -33,7 +33,7 @@ candidate:
     cp pywheels/*-cp311-cp311-manylinux*_x86_64*.whl ./
     cp pywheels/*-cp311-cp311-musllinux*_aarch64*.whl ./
     echo "CANDIDATE_AMD64_WHL=$(ls *x86_64*.whl | head -n 1)" | tee candidate.env
-    echo "CANDIDATE_ARM64_WHL=$(ls *aarch64*.whl | head -n 1)" | tee candidate.env
+    echo "CANDIDATE_ARM64_WHL=$(ls *aarch64*.whl | head -n 1)" | tee -a candidate.env
   artifacts:
     reports:
       dotenv: candidate.env
@@ -43,9 +43,6 @@ candidate:
 .common:
   # We are in a child pipeline of dd-trace-py so we need to clone and enter the serverless-tools repo for jobs to work
   before_script: |
-    echo $CANDIDATE_AMD64_WHL
-    echo $CANDIDATE_ARM64_WHL
-
     if [[ -n "$CI_JOB_TOKEN" ]];
     then
       git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
