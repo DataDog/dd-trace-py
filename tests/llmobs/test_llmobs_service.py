@@ -2286,16 +2286,16 @@ def test_submit_evaluation_for_metric_with_metadata_enqueues_metric(llmobs, mock
     )
 
 
-def test_submit_evaluation_for_invalid_success_assessment_raises_warning(llmobs, mock_llmobs_logs):
+def test_submit_evaluation_for_invalid_assessment_raises_warning(llmobs, mock_llmobs_logs):
     llmobs.submit_evaluation_for(
         span={"span_id": "123", "trace_id": "456"},
         label="toxicity",
         metric_type="categorical",
         value="high",
-        success_assessment=True,
+        assessment=True,
     )
     mock_llmobs_logs.warning.assert_called_once_with(
-        "Failed to parse success_assessment. success_assessment must be either 'pass' or 'fail'."
+        "Failed to parse assessment. assessment must be either 'pass' or 'fail'."
     )
 
 
@@ -2308,7 +2308,7 @@ def test_submit_evaluation_for_enqueues_writer_with_success_criteria(llmobs, moc
         tags={"foo": "bar", "bee": "baz", "ml_app": "ml_app_override"},
         ml_app="ml_app_override",
         metadata={"foo": ["bar", "baz"]},
-        success_assessment="pass",
+        assessment="pass",
     )
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
         _expected_llmobs_eval_metric_event(
@@ -2332,7 +2332,7 @@ def test_submit_evaluation_for_enqueues_writer_with_success_criteria(llmobs, moc
         tags={"foo": "bar", "bee": "baz", "ml_app": "ml_app_override"},
         ml_app="ml_app_override",
         metadata="invalid",
-        success_assessment="fail",
+        assessment="fail",
     )
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
         _expected_llmobs_eval_metric_event(

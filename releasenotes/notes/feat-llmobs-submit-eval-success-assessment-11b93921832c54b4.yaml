@@ -1,5 +1,5 @@
 ---
 features:
   - |
-    LLM Observability: The ``LLMObs.submit_evaluation_for()`` method now accepts a ``success_assessment`` argument to denote
+    LLM Observability: The ``LLMObs.submit_evaluation_for()`` method now accepts a ``assessment`` argument to denote
      whether or not the evaluation is valid or correct. Accepted values are either ``"pass"`` or ``"fail"``.

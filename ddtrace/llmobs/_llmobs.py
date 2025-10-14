@@ -1548,7 +1548,7 @@ class LLMObs(Service):
         ml_app: Optional[str] = None,
         timestamp_ms: Optional[int] = None,
         metadata: Optional[Dict[str, object]] = None,
-        success_assessment: Optional[str] = None,
+        assessment: Optional[str] = None,
     ) -> None:
         """
         Submits a custom evaluation metric for a given span.
@@ -1567,7 +1567,7 @@ class LLMObs(Service):
                                     If not set, the current time will be used.
         :param dict metadata: A JSON serializable dictionary of key-value metadata pairs relevant to the
                                 evaluation metric.
-        :param str success_assessment: An assessment of the validity this evaluation. Must be either "pass" or "fail".
+        :param str assessment: An assessment of the validity of this evaluation. Must be either "pass" or "fail".
         """
         if cls.enabled is False:
             log.debug(
@@ -1676,14 +1676,12 @@ class LLMObs(Service):
                 "tags": ["{}:{}".format(k, v) for k, v in evaluation_tags.items()],
             }
 
-            if success_assessment:
-                if not isinstance(success_assessment, str) or success_assessment not in ("pass", "fail"):
-                    error = "invalid_success_assessment"
-                    log.warning(
-                        "Failed to parse success_assessment. success_assessment must be either 'pass' or 'fail'."
-                    )
+            if assessment:
+                if not isinstance(assessment, str) or assessment not in ("pass", "fail"):
+                    error = "invalid_assessment"
+                    log.warning("Failed to parse assessment. assessment must be either 'pass' or 'fail'.")
                 else:
-                    evaluation_metric["success_criteria"] = {"assessment": success_assessment}
+                    evaluation_metric["success_criteria"] = {"assessment": assessment}
 
             if metadata:
                 if not isinstance(metadata, dict):
