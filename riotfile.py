@@ -787,32 +787,31 @@ venv = Venv(
         Venv(
             name="celery",
             command="pytest {cmdargs} tests/contrib/celery",
+            env={
+                # https://docs.celeryproject.org/en/v5.0.5/userguide/testing.html#enabling
+                "PYTEST_PLUGINS": "celery.contrib.pytest",
+            },
             pkgs={
                 "more_itertools": "<8.11.0",
                 "pytest-randomly": latest,
             },
             venvs=[
-                # Celery 4.3 wants Kombu >= 4.4 and Redis >= 3.2
-                # Split into <3.8 and >=3.8 to pin importlib_metadata dependency for kombu
-                #     # celery added support for Python 3.9 in 4.x
-                #     pys=select_pys(min_version="3.8", max_version="3.9"),
-                #     pkgs={
-                #         "pytest": "~=4.0",
-                #         "celery": [
-                #             "latest",  # most recent 4.x
-                #         ],
-                #         "redis": "~=3.5",
-                #         "kombu": "~=4.4",
-                #     },
-                # ),
+                Venv(
+                    # celery added support for Python 3.9 in 4.x
+                    pys=select_pys(min_version="3.8", max_version="3.9"),
+                    pkgs={
+                        "pytest": "~=4.0",
+                        "celery": [
+                            "~=4.4",  # most recent 4.x
+                        ],
+                        "redis": "~=3.5",
+                        "kombu": "~=4.4",
+                    },
+                ),
                 # Celery 5.x wants Python 3.6+
                 # Split into <3.8 and >=3.8 to pin importlib_metadata dependency for kombu
                 Venv(
                     pys=select_pys(min_version="3.8", max_version="3.9"),
-                    env={
-                        # https://docs.celeryproject.org/en/v5.0.5/userguide/testing.html#enabling
-                        "PYTEST_PLUGINS": "celery.contrib.pytest",
-                    },
                     pkgs={
                         "celery": [
                             "~=5.2",
@@ -823,10 +822,6 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(min_version="3.10"),
-                    env={
-                        # https://docs.celeryproject.org/en/v5.0.5/userguide/testing.html#enabling
-                        "PYTEST_PLUGINS": "celery.contrib.pytest",
-                    },
                     pkgs={
                         "celery[redis]": [
                             latest,
