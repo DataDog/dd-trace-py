@@ -25,7 +25,7 @@ _CODE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str, t.Dict[int, t.Tuple[str, t.
 
 
 def instrument_all_lines(
-    code: CodeType, hook: HookType, path: str, package: str, file_level: bool = True
+    code: CodeType, hook: HookType, path: str, package: str, file_level: bool = False
 ) -> t.Tuple[CodeType, CoverageLines]:
     """
     Instrument code for coverage tracking using Python 3.12's monitoring API.
@@ -69,7 +69,7 @@ def _register_monitoring():
 
 
 def _instrument_all_lines_with_monitoring(
-    code: CodeType, hook: HookType, path: str, package: str, file_level: bool = True
+    code: CodeType, hook: HookType, path: str, package: str, file_level: bool = False
 ) -> t.Tuple[CodeType, CoverageLines]:
     # Enable local line events for the code object
     sys.monitoring.set_local_events(sys.monitoring.COVERAGE_ID, code, sys.monitoring.events.LINE)  # noqa

@@ -14,7 +14,7 @@ assert sys.version_info[:2] == (3, 10)  # nosec
 
 
 def instrument_all_lines(
-    code: CodeType, hook: HookType, path: str, package: str, file_level: bool = True
+    code: CodeType, hook: HookType, path: str, package: str, file_level: bool = False
 ) -> t.Tuple[CodeType, CoverageLines]:
     """
     Instrument code for coverage tracking.

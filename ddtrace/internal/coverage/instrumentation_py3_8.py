@@ -179,7 +179,7 @@ def trap_call(trap_index: int, arg_index: int) -> t.Tuple[Instruction, ...]:
 
 
 def instrument_all_lines(
-    code: CodeType, hook: HookType, path: str, package: str, file_level: bool = True
+    code: CodeType, hook: HookType, path: str, package: str, file_level: bool = False
 ) -> t.Tuple[CodeType, CoverageLines]:
     # TODO[perf]: Check if we really need to << and >> everywhere
     trap_func, trap_arg = hook, path
