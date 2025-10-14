@@ -159,6 +159,7 @@ class RaySpanManager:
     def _recreate_job_span(self, job_span: Span) -> Span:
         new_span = Span(
             name=job_span.name,
+            resource=job_span.resource,
             service=job_span.service,
             span_type=job_span.span_type,
             trace_id=job_span.trace_id,

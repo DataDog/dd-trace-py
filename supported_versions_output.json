@@ -54,7 +54,7 @@
         "dependency": "anthropic",
         "integration": "anthropic",
         "minimum_tracer_supported": "0.28.1",
-        "max_tracer_supported": "0.68.1",
+        "max_tracer_supported": "0.69.0",
         "auto-instrumented": true
     },
     {
@@ -98,6 +98,14 @@
         "integration": "aws_lambda",
         "minimum_tracer_supported": "6.105.0",
         "max_tracer_supported": "6.105.0",
+        "auto-instrumented": true
+    },
+    {
+        "dependency": "azure-eventhub",
+        "integration": "azure_eventhubs",
+        "minimum_tracer_supported": "5.12.2",
+        "max_tracer_supported": "5.15.0",
+        "pinned": "true",
         "auto-instrumented": true
     },
     {
@@ -276,7 +284,7 @@
         "dependency": "fastapi",
         "integration": "fastapi",
         "minimum_tracer_supported": "0.64.0",
-        "max_tracer_supported": "0.116.1",
+        "max_tracer_supported": "0.118.0",
         "auto-instrumented": true
     },
     {
@@ -319,14 +327,14 @@
         "dependency": "google-adk",
         "integration": "google_adk",
         "minimum_tracer_supported": "1.0.0",
-        "max_tracer_supported": "1.15.0",
+        "max_tracer_supported": "1.15.1",
         "auto-instrumented": true
     },
     {
         "dependency": "google-genai",
         "integration": "google_genai",
         "minimum_tracer_supported": "1.21.1",
-        "max_tracer_supported": "1.39.0",
+        "max_tracer_supported": "1.41.0",
         "auto-instrumented": true
     },
     {
@@ -347,7 +355,7 @@
         "dependency": "grpcio",
         "integration": "grpc",
         "minimum_tracer_supported": "1.34.1",
-        "max_tracer_supported": "1.74.0",
+        "max_tracer_supported": "1.75.1",
         "auto-instrumented": true
     },
     {
@@ -389,14 +397,14 @@
         "dependency": "langgraph",
         "integration": "langgraph",
         "minimum_tracer_supported": "0.2.23",
-        "max_tracer_supported": "0.6.5",
+        "max_tracer_supported": "0.6.10",
         "auto-instrumented": true
     },
     {
         "dependency": "langgraph-checkpoint",
         "integration": "langgraph",
         "minimum_tracer_supported": "1.0.12",
-        "max_tracer_supported": "2.1.1",
+        "max_tracer_supported": "2.1.2",
         "auto-instrumented": true
     },
     {
@@ -446,7 +454,7 @@
         "dependency": "mcp",
         "integration": "mcp",
         "minimum_tracer_supported": "1.10.1",
-        "max_tracer_supported": "1.14.1",
+        "max_tracer_supported": "1.16.0",
         "auto-instrumented": true
     },
     {
@@ -516,7 +524,7 @@
         "dependency": "pydantic-ai-slim",
         "integration": "pydantic_ai",
         "minimum_tracer_supported": "0.3.0",
-        "max_tracer_supported": "1.0.8",
+        "max_tracer_supported": "0.4.4",
         "pinned": "true",
         "auto-instrumented": true
     },
@@ -586,6 +594,14 @@
         "auto-instrumented": false
     },
     {
+        "dependency": "ray",
+        "integration": "ray",
+        "minimum_tracer_supported": "2.46.0",
+        "max_tracer_supported": "2.49.2",
+        "pinned": "true",
+        "auto-instrumented": false
+    },
+    {
         "dependency": "redis",
         "integration": "redis",
         "minimum_tracer_supported": "4.6.0",
@@ -617,7 +633,7 @@
         "dependency": "sanic",
         "integration": "sanic",
         "minimum_tracer_supported": "20.12.7",
-        "max_tracer_supported": "25.3.0",
+        "max_tracer_supported": "24.6.0",
         "auto-instrumented": true
     },
     {

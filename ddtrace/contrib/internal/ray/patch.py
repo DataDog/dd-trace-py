@@ -29,6 +29,7 @@ from .constants import DEFAULT_JOB_NAME
 from .constants import RAY_ACTOR_METHOD_ARGS
 from .constants import RAY_ACTOR_METHOD_KWARGS
 from .constants import RAY_ENTRYPOINT
+from .constants import RAY_GET_VALUE_SIZE_BYTES
 from .constants import RAY_JOB_NAME
 from .constants import RAY_JOB_STATUS
 from .constants import RAY_JOB_SUBMIT_STATUS
@@ -231,7 +232,11 @@ def traced_submit_job(wrapped, instance, args, kwargs):
             submit_span.set_tag_str(RAY_SUBMISSION_ID_TAG, submission_id)
 
             # Inject the context of the job so that ray.job.run is its child
-            env_vars = kwargs.setdefault("runtime_env", {}).setdefault("env_vars", {})
+            runtime_env = kwargs.get("runtime_env") or {}
+            kwargs["runtime_env"] = runtime_env
+            env_vars = runtime_env.get("env_vars") or {}
+            runtime_env["env_vars"] = env_vars
+
             _TraceContext._inject(job_span.context, env_vars)
             env_vars[RAY_SUBMISSION_ID] = submission_id
             if job_name:
@@ -284,6 +289,33 @@ def traced_actor_method_call(wrapped, instance, args, kwargs):
         _inject_ray_span_tags_and_metrics(span)
 
         _inject_context_in_kwargs(span.context, kwargs)
+        return wrapped(*args, **kwargs)
+
+
+def traced_get(wrapped, instance, args, kwargs):
+    """
+    Trace the calls of ray.get
+    """
+    if not config.ray.trace_core_api:
+        return wrapped(*args, **kwargs)
+
+    if tracer.current_span() is None:
+        tracer.context_provider.activate(_extract_tracing_context_from_env())
+
+    with long_running_ray_span(
+        "ray.get",
+        service=RAY_SERVICE_NAME or DEFAULT_JOB_NAME,
+        span_type=SpanTypes.RAY,
+        child_of=tracer.context_provider.active(),
+        activate=True,
+    ) as span:
+        span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+        timeout = kwargs.get("timeout")
+        if timeout is not None:
+            span.set_tag_str("ray.get.timeout_s", str(timeout))
+        _inject_ray_span_tags_and_metrics(span)
+        get_value = get_argument_value(args, kwargs, 0, "object_refs")
+        span.set_tag_str(RAY_GET_VALUE_SIZE_BYTES, str(sys.getsizeof(get_value)))
         return wrapped(*args, **kwargs)
 
 
@@ -529,6 +561,7 @@ def patch():
     def _(m):
         _w(m.RemoteFunction, "_remote", traced_submit_task)
 
+    _w(ray, "get", traced_get)
     _w(ray, "wait", traced_wait)
     _w(ray, "put", traced_put)
 
@@ -545,6 +578,7 @@ def unpatch():
     _u(ray.actor, "_modify_class")
     _u(ray.actor.ActorHandle, "_actor_method_call")
 
+    _u(ray, "get")
     _u(ray, "wait")
     _u(ray, "put")
 
