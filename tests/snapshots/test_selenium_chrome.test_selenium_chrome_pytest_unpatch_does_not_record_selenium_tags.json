@@ -33,7 +33,6 @@
       "type": "test_session_end"
     },
     "metrics": {
-      "_dd.py.partial_flush": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
