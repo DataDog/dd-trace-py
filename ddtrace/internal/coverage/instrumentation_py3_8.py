@@ -264,6 +264,10 @@ def instrument_all_lines(
                     line_map[original_offset] = trap_instructions[0]
 
                     seen_lines.add(line)
+                else:
+                    # Even if we don't instrument, we need to add an entry to traps
+                    # with 0 size so update_location_data can process it
+                    traps[original_offset] = 0
 
             _, arg = next(code_iter)
 
