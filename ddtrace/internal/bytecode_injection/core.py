@@ -159,6 +159,21 @@ def find_lines_to_instrument(code: CodeType, line_starts: t.Dict[int, int], resu
     1. The first executable line after resume_offset (to track file execution)
     2. All lines containing IMPORT_NAME or IMPORT_FROM opcodes (to track imports)
 
+    Why we need this:
+        import dis
+        code = compile('from sys import path', '<test>', 'exec')
+        print('\\nLine starts:', dict(dis.findlinestarts(code)))
+        0           0 RESUME                   0
+
+        1           2 LOAD_CONST               0 (0)             # <- This is at line start
+                    4 LOAD_CONST               1 (('path',))
+                    6 IMPORT_NAME              0 (sys)           # <- This is not at line start
+                    8 IMPORT_FROM              1 (path           # <- This is not at line start
+                    10 STORE_NAME               1 (path)
+                    12 POP_TOP
+                    14 LOAD_CONST               2 (None)
+                    16 RETURN_VALUE
+
     This provides minimal instrumentation while capturing file execution and all import events.
 
     Args:

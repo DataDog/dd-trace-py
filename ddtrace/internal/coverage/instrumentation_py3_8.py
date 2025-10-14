@@ -178,7 +178,9 @@ def trap_call(trap_index: int, arg_index: int) -> t.Tuple[Instruction, ...]:
     )
 
 
-def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, CoverageLines]:
+def instrument_all_lines(
+    code: CodeType, hook: HookType, path: str, package: str, file_level: bool = True
+) -> t.Tuple[CodeType, CoverageLines]:
     # TODO[perf]: Check if we really need to << and >> everywhere
     trap_func, trap_arg = hook, path
 
@@ -196,7 +198,29 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     jumps: t.Dict[int, Jump] = {}
     traps: t.Dict[int, int] = {}  # DEV: This uses the original offsets
     line_map = {}
+
     line_starts = dict(dis.findlinestarts(code))
+
+    # Pre-compute first line and lines with imports for file-level mode
+    first_line_offset = None
+    lines_with_imports = set()
+    if file_level:
+        sorted_offsets = sorted(line_starts.keys())
+        first_line_offset = next((o for o in sorted_offsets if o >= 0), None)
+
+        # Single pass: find which lines contain imports
+        current_line_start = None
+        line_idx = 0
+        for offset in range(0, len(code.co_code), 2):
+            # Update current line start when we hit a new line boundary
+            while line_idx < len(sorted_offsets) and offset >= sorted_offsets[line_idx]:
+                current_line_start = sorted_offsets[line_idx]
+                line_idx += 1
+
+            # Check if this offset has an import opcode
+            opcode_at_offset = code.co_code[offset]
+            if opcode_at_offset in (IMPORT_NAME, IMPORT_FROM) and current_line_start is not None:
+                lines_with_imports.add(current_line_start)
 
     # The previous two arguments are kept in order to track the depth of the IMPORT_NAME
     # For example, from ...package import module
@@ -213,25 +237,33 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
             original_offset, opcode = next(code_iter)
 
             if original_offset in line_starts:
-                # Inject trap call at the beginning of the line. Keep track
-                # of location and size of the trap call instructions. We
-                # need this to adjust the location table.
                 line = line_starts[original_offset]
-                trap_instructions = trap_call(trap_index, len(new_consts))
-                traps[original_offset] = len(trap_instructions)
-                instructions.extend(trap_instructions)
 
-                # Make sure that the current module is marked as depending on its own package by instrumenting the
-                # first executable line
-                package_dep = None
-                if code.co_name == "<module>" and len(new_consts) == len(code.co_consts) + 1:
-                    package_dep = (package, ("",))
+                # Decide whether to instrument this line
+                should_instrument = True
+                if file_level:
+                    # File-level mode: only instrument first line and lines with imports
+                    should_instrument = original_offset == first_line_offset or original_offset in lines_with_imports
 
-                new_consts.append((line, trap_arg, package_dep))
+                if should_instrument:
+                    # Inject trap call at the beginning of the line. Keep track
+                    # of location and size of the trap call instructions. We
+                    # need this to adjust the location table.
+                    trap_instructions = trap_call(trap_index, len(new_consts))
+                    traps[original_offset] = len(trap_instructions)
+                    instructions.extend(trap_instructions)
 
-                line_map[original_offset] = trap_instructions[0]
+                    # Make sure that the current module is marked as depending on its own package by instrumenting the
+                    # first executable line
+                    package_dep = None
+                    if code.co_name == "<module>" and len(new_consts) == len(code.co_consts) + 1:
+                        package_dep = (package, ("",))
 
-                seen_lines.add(line)
+                    new_consts.append((line, trap_arg, package_dep))
+
+                    line_map[original_offset] = trap_instructions[0]
+
+                    seen_lines.add(line)
 
             _, arg = next(code_iter)
 
@@ -374,7 +406,9 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     # Instrument nested code objects recursively
     for original_offset, nested_code in enumerate(code.co_consts):
         if isinstance(nested_code, CodeType):
-            new_consts[original_offset], nested_lines = instrument_all_lines(nested_code, trap_func, trap_arg, package)
+            new_consts[original_offset], nested_lines = instrument_all_lines(
+                nested_code, trap_func, trap_arg, package, file_level
+            )
             seen_lines.update(nested_lines)
 
     ext_arg_offsets = [(instr.offset, s) for instr, s in exts]
