@@ -216,52 +216,55 @@ def test_lock_gevent_tasks() -> None:
         lock.acquire()  # !ACQUIRE! test_lock_gevent_tasks
         lock.release()  # !RELEASE! test_lock_gevent_tasks
 
+    def validate_and_cleanup():
+        ddup.upload()
+
+        expected_filename = "test_threading.py"
+        linenos = get_lock_linenos(test_name)
+
+        profile = pprof_utils.parse_newest_profile(output_filename)
+        pprof_utils.assert_lock_events(
+            profile,
+            expected_acquire_events=[
+                pprof_utils.LockAcquireEvent(
+                    caller_name="play_with_lock",
+                    filename=expected_filename,
+                    linenos=linenos,
+                    lock_name="lock",
+                    # TODO: With stack_v2, the way we trace gevent greenlets has
+                    # changed, and we'd need to expose an API to get the task_id,
+                    # task_name, and task_frame.
+                    # task_id=t.ident,
+                    # task_name="foobar",
+                ),
+            ],
+            expected_release_events=[
+                pprof_utils.LockReleaseEvent(
+                    caller_name="play_with_lock",
+                    filename=expected_filename,
+                    linenos=linenos,
+                    lock_name="lock",
+                    # TODO: With stack_v2, the way we trace gevent greenlets has
+                    # changed, and we'd need to expose an API to get the task_id,
+                    # task_name, and task_frame.
+                    # task_id=t.ident,
+                    # task_name="foobar",
+                ),
+            ],
+        )
+
+        for f in glob.glob(pprof_prefix + ".*"):
+            try:
+                os.remove(f)
+            except Exception as e:
+                print("Error removing file: {}".format(e))
+
     with ThreadingLockCollector(capture_pct=100):
         t = threading.Thread(name="foobar", target=play_with_lock)
         t.start()
         t.join()
 
-    ddup.upload()
-
-    expected_filename = "test_threading.py"
-    linenos = get_lock_linenos(test_name)
-
-    profile = pprof_utils.parse_newest_profile(output_filename)
-    pprof_utils.assert_lock_events(
-        profile,
-        expected_acquire_events=[
-            pprof_utils.LockAcquireEvent(
-                caller_name="play_with_lock",
-                filename=expected_filename,
-                linenos=linenos,
-                lock_name="lock",
-                # TODO: With stack_v2, the way we trace gevent greenlets has
-                # changed, and we'd need to expose an API to get the task_id,
-                # task_name, and task_frame.
-                # task_id=t.ident,
-                # task_name="foobar",
-            ),
-        ],
-        expected_release_events=[
-            pprof_utils.LockReleaseEvent(
-                caller_name="play_with_lock",
-                filename=expected_filename,
-                linenos=linenos,
-                lock_name="lock",
-                # TODO: With stack_v2, the way we trace gevent greenlets has
-                # changed, and we'd need to expose an API to get the task_id,
-                # task_name, and task_frame.
-                # task_id=t.ident,
-                # task_name="foobar",
-            ),
-        ],
-    )
-
-    for f in glob.glob(pprof_prefix + ".*"):
-        try:
-            os.remove(f)
-        except Exception as e:
-            print("Error removing file: {}".format(e))
+    validate_and_cleanup()
 
 
 # This test has to be run in a subprocess because it calls gevent.monkey.patch_all()
@@ -300,6 +303,49 @@ def test_rlock_gevent_tasks() -> None:
         lock = threading.RLock()  # !CREATE! test_rlock_gevent_tasks
         lock.acquire()  # !ACQUIRE! test_rlock_gevent_tasks
         lock.release()  # !RELEASE! test_rlock_gevent_tasks
+
+    def validate_and_cleanup():
+        ddup.upload()
+
+        expected_filename = "test_threading.py"
+        linenos = get_lock_linenos(test_name)
+
+        profile = pprof_utils.parse_newest_profile(output_filename)
+        pprof_utils.assert_lock_events(
+            profile,
+            expected_acquire_events=[
+                pprof_utils.LockAcquireEvent(
+                    caller_name="play_with_lock",
+                    filename=expected_filename,
+                    linenos=linenos,
+                    lock_name="lock",
+                    # TODO: With stack_v2, the way we trace gevent greenlets has
+                    # changed, and we'd need to expose an API to get the task_id,
+                    # task_name, and task_frame.
+                    # task_id=t.ident,
+                    # task_name="foobar",
+                ),
+            ],
+            expected_release_events=[
+                pprof_utils.LockReleaseEvent(
+                    caller_name="play_with_lock",
+                    filename=expected_filename,
+                    linenos=linenos,
+                    lock_name="lock",
+                    # TODO: With stack_v2, the way we trace gevent greenlets has
+                    # changed, and we'd need to expose an API to get the task_id,
+                    # task_name, and task_frame.
+                    # task_id=t.ident,
+                    # task_name="foobar",
+                ),
+            ],
+        )
+
+        for f in glob.glob(pprof_prefix + ".*"):
+            try:
+                os.remove(f)
+            except Exception as e:
+                print("Error removing file: {}".format(e))
 
     with ThreadingRLockCollector(capture_pct=100):
         t = threading.Thread(name="foobar", target=play_with_lock)
