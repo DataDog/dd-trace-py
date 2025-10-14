@@ -21,10 +21,30 @@ RESUME = dis.opmap["RESUME"]
 RETURN_CONST = dis.opmap["RETURN_CONST"]
 EMPTY_MODULE_BYTES = bytes([RESUME, 0, RETURN_CONST, 0])
 
+# Store: (hook, path, import_names_by_line)
 _CODE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str, t.Dict[int, t.Tuple[str, t.Optional[t.Tuple[str]]]]]] = {}
+
+# Track all instrumented code objects so we can re-enable monitoring between tests/suites
+_DEINSTRUMENTED_CODE_OBJECTS: t.Set[CodeType] = set()
 
 
 def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, CoverageLines]:
+    """
+    Instrument code for coverage tracking using Python 3.12's monitoring API.
+
+    Args:
+        code: The code object to instrument
+        hook: The hook function to call
+        path: The file path
+        package: The package name
+
+    Note: Python 3.12+ uses an optimized approach where each line callback returns DISABLE
+    after recording. This means:
+    - Each line is only reported once per coverage context (test/suite)
+    - No overhead for repeated line executions (e.g., in loops)
+    - Full line-by-line coverage data is captured
+    - reset_monitoring_for_new_context() re-enables monitoring between contexts
+    """
     coverage_tool = sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID)
     if coverage_tool is not None and coverage_tool != "datadog":
         log.debug("Coverage tool '%s' already registered, not gathering coverage", coverage_tool)
@@ -38,9 +58,24 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
 
 
 def _line_event_handler(code: CodeType, line: int) -> t.Any:
-    hook, path, import_names = _CODE_HOOKS[code]
+    hook_data = _CODE_HOOKS.get(code)
+    if hook_data is None:
+        # Track this code object so we can re-enable monitoring for it later
+        _DEINSTRUMENTED_CODE_OBJECTS.add(code)
+        return sys.monitoring.DISABLE
+
+    hook, path, import_names = hook_data
+
+    # Report the line and then disable monitoring for this specific line
+    # This ensures each line is only reported once per context, even if executed multiple times (e.g., in loops)
     import_name = import_names.get(line, None)
-    return hook((line, path, import_name))
+    hook((line, path, import_name))
+
+    # Track this code object so we can re-enable monitoring for it later
+    _DEINSTRUMENTED_CODE_OBJECTS.add(code)
+    # Return DISABLE to prevent future callbacks for this specific line
+    # This provides full line coverage with minimal overhead
+    return sys.monitoring.DISABLE
 
 
 def _register_monitoring():
@@ -53,6 +88,18 @@ def _register_monitoring():
     sys.monitoring.register_callback(
         sys.monitoring.COVERAGE_ID, sys.monitoring.events.LINE, _line_event_handler
     )  # noqa
+
+
+def reset_monitoring_for_new_context():
+    """
+    Re-enable monitoring for all instrumented code objects.
+
+    This should be called when starting a new coverage context (e.g., per-test or per-suite).
+    It re-enables monitoring that was disabled by previous DISABLE returns.
+    """
+    for code in _DEINSTRUMENTED_CODE_OBJECTS:
+        # Re-enable LINE events for this code object
+        sys.monitoring.set_local_events(sys.monitoring.COVERAGE_ID, code, sys.monitoring.events.LINE)  # noqa
 
 
 def _instrument_all_lines_with_monitoring(
@@ -75,7 +122,7 @@ def _instrument_all_lines_with_monitoring(
     current_import_name: t.Optional[str] = None
     current_import_package: t.Optional[str] = None
 
-    line = 0
+    line: t.Optional[int] = None
 
     ext: list[bytes] = []
     code_iter = iter(enumerate(code.co_code))
@@ -89,12 +136,14 @@ def _instrument_all_lines_with_monitoring(
 
             if offset in linestarts:
                 line = linestarts[offset]
-                lines.add(line)
+                # Skip if line is None (can happen for synthetic/compiler-generated opcodes)
+                if line is not None:
+                    lines.add(line)
 
-                # Make sure that the current module is marked as depending on its own package by instrumenting the
-                # first executable line
-                if code.co_name == "<module>" and len(lines) == 1 and package is not None:
-                    import_names[line] = (package, ("",))
+                    # Make sure that the current module is marked as depending on its own package by instrumenting the
+                    # first executable line
+                    if code.co_name == "<module>" and len(lines) == 1 and package is not None:
+                        import_names[line] = (package, ("",))
 
             if opcode is EXTENDED_ARG:
                 ext.append(arg)
@@ -105,7 +154,7 @@ def _instrument_all_lines_with_monitoring(
                 current_arg = int.from_bytes([*ext, arg], "big", signed=False)
                 ext.clear()
 
-            if opcode == IMPORT_NAME:
+            if opcode == IMPORT_NAME and line is not None:
                 import_depth: int = code.co_consts[_previous_previous_arg]
                 current_import_name: str = code.co_names[current_arg]
                 # Adjust package name if the import is relative and a parent (ie: if depth is more than 1)
@@ -124,7 +173,7 @@ def _instrument_all_lines_with_monitoring(
             # Also track import from statements since it's possible that the "from" target is a module, eg:
             # from my_package import my_module
             # Since the package has not changed, we simply extend the previous import names with the new value
-            if opcode == IMPORT_FROM:
+            if opcode == IMPORT_FROM and line is not None:
                 import_from_name = f"{current_import_name}.{code.co_names[current_arg]}"
                 if line in import_names:
                     import_names[line] = (

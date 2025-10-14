@@ -3,6 +3,7 @@ from contextvars import ContextVar
 from copy import deepcopy
 from inspect import getmodule
 import os
+import sys
 from types import CodeType
 from types import ModuleType
 import typing as t
@@ -21,6 +22,8 @@ from ddtrace.internal.packages import stdlib_path
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.inspection import resolved_code_origin
 
+if sys.version_info >= (3, 12):
+    from ddtrace.internal.coverage.instrumentation_py3_12 import reset_monitoring_for_new_context
 
 log = get_logger(__name__)
 
@@ -230,6 +233,11 @@ class ModuleCodeCollector(ModuleWatchdog):
 
             if self.is_import_coverage:
                 ctx_is_import_coverage.set(self.is_import_coverage)
+
+            # For Python 3.12+, re-enable monitoring that was disabled by previous contexts
+            # This ensures each test/suite gets accurate coverage data
+            if sys.version_info >= (3, 12):
+                reset_monitoring_for_new_context()
 
             return self
 
