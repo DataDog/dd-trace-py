@@ -1,7 +1,6 @@
 import glob
 import os
-from threading import Lock
-from threading import RLock
+import threading
 from typing import Any
 from typing import Optional
 from typing import Type
@@ -22,7 +21,7 @@ from tests.profiling.collector.lock_utils import init_linenos
 
 
 # Type aliases for supported classes
-LockClass = Union[Type[Lock], Type[RLock]]
+LockClass = Union[Type[threading.Lock], Type[threading.RLock]]
 CollectorClass = Union[Type[ThreadingLockCollector], Type[ThreadingRLockCollector]]
 
 # Module-level globals for testing global lock profiling
@@ -87,8 +86,8 @@ def test_repr(
 @pytest.mark.parametrize(
     "lock_class,collector_class",
     [
-        (Lock, ThreadingLockCollector),
-        (RLock, ThreadingRLockCollector),
+        (threading.Lock, ThreadingLockCollector),
+        (threading.RLock, ThreadingRLockCollector),
     ],
 )
 def test_patch(
@@ -111,6 +110,7 @@ def test_patch(
 )
 def test_wrapt_disable_extensions():
     import os
+    import threading
 
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import _lock
@@ -137,7 +137,7 @@ def test_wrapt_disable_extensions():
     assert _lock.WRAPT_C_EXT is False
 
     with ThreadingLockCollector(capture_pct=100):
-        th_lock = Lock()  # !CREATE! test_wrapt_disable_extensions
+        th_lock = threading.Lock()  # !CREATE! test_wrapt_disable_extensions
         with th_lock:  # !ACQUIRE! !RELEASE! test_wrapt_disable_extensions
             pass
 
@@ -973,7 +973,7 @@ class TestThreadingLockCollector(BaseThreadingLockCollectorTest):
 
     @property
     def lock_class(self):
-        return Lock
+        return threading.Lock
 
 
 class TestThreadingRLockCollector(BaseThreadingLockCollectorTest):
@@ -985,4 +985,4 @@ class TestThreadingRLockCollector(BaseThreadingLockCollectorTest):
 
     @property
     def lock_class(self):
-        return RLock
+        return threading.RLock
