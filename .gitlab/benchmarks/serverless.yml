@@ -20,7 +20,7 @@ stages:
 include:
   - project: 'DataDog/serverless-tools'
     file: '.gitlab-ci.yml'
-    ref: main
+    ref: brettlangdon/candidate.wheels
 
 candidate:
   image: $PACKAGE_IMAGE
@@ -47,7 +47,8 @@ candidate:
     then
       git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     fi
-    git clone --branch "main" --single-branch https://github.com/DataDog/serverless-tools ./serverless-tools
+    git clone --branch "brettlangdon/candidate.wheels" --single-branch https://github.com/DataDog/serverless-tools ./serverless-tools
+    cp *.whl ./serverless-tools/
     cd ./serverless-tools
 
 .setup:
