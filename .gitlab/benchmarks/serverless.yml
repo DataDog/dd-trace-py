@@ -55,6 +55,8 @@ candidate:
   needs:
     - job: candidate
       artifacts: true
+  dependencies:
+    - candidate
   before_script:
     - !reference [.common, before_script]
 
