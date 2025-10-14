@@ -22,7 +22,13 @@ pytestmark = pytest.mark.skipif(not _pytest_version_supports_itr(), reason="pyte
 
 
 class PytestTestCase(PytestTestCaseBase):
-    def test_pytest_will_report_coverage_by_suite_with_pytest_skipped(self):
+    def test_pytest_will_report_coverage_by_suite_with_pytest_skipped_file_level(self):
+        self._test_pytest_will_report_coverage_by_suite_with_pytest_skipped(file_level=True)
+
+    def test_pytest_will_report_coverage_by_suite_with_pytest_skipped_full_coverage(self):
+        self._test_pytest_will_report_coverage_by_suite_with_pytest_skipped(file_level=False)
+
+    def _test_pytest_will_report_coverage_by_suite_with_pytest_skipped(self, file_level):
         self.testdir.makepyfile(
             ret_false="""
         def ret_false():
@@ -95,10 +101,18 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
 
-        with _ci_override_env({"DD_API_KEY": "foobar.baz", "_DD_CIVISIBILITY_ITR_SUITE_MODE": "True"}), mock.patch(
+        with _ci_override_env(
+            {
+                "DD_API_KEY": "foobar.baz",
+                "_DD_CIVISIBILITY_ITR_SUITE_MODE": "True",
+                "_DD_COVERAGE_FILE_LEVEL": str(file_level),
+            }
+        ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(True, False, False, True),
-        ), _mock_ddconfig_test_visibility(itr_skipping_level=ITR_SKIPPING_LEVEL.SUITE):
+        ), _mock_ddconfig_test_visibility(
+            itr_skipping_level=ITR_SKIPPING_LEVEL.SUITE
+        ):
             self.inline_run(
                 "-p",
                 "no:randomly",
@@ -113,28 +127,69 @@ class PytestTestCase(PytestTestCaseBase):
         assert first_suite_span.get_tag("type") == "test_suite_end"
         first_suite_coverage = _get_span_coverage_data(first_suite_span, _USE_PLUGIN_V2)
         assert len(first_suite_coverage) == 3
-        if _USE_PLUGIN_V2:
-            assert first_suite_coverage["/test_cov.py"] != []
-            assert first_suite_coverage["/lib_fn.py"] != []
-            assert first_suite_coverage["/ret_false.py"] != []
 
+        if file_level:
+            # In file-level mode, we only track files, not specific line numbers
+            if _USE_PLUGIN_V2:
+                assert first_suite_coverage["/test_cov.py"] != []
+                assert first_suite_coverage["/lib_fn.py"] != []
+                assert first_suite_coverage["/ret_false.py"] != []
+            else:
+                assert first_suite_coverage["test_cov.py"] != []
+                assert first_suite_coverage["lib_fn.py"] != []
+                assert first_suite_coverage["ret_false.py"] != []
         else:
-            assert first_suite_coverage["test_cov.py"] != []
-            assert first_suite_coverage["lib_fn.py"] != []
-            assert first_suite_coverage["ret_false.py"] != []
+            # In full coverage mode, we track exact line numbers
+            if _USE_PLUGIN_V2:
+                assert first_suite_coverage["/test_cov.py"] == [
+                    (1, 2),
+                    (4, 5),
+                    (7, 9),
+                    (11, 13),
+                    (16, 17),
+                    (20, 22),
+                    (24, 25),
+                    (28, 31),
+                    (33, 36),
+                    (39, 42),
+                    (44, 45),
+                ]
+                assert first_suite_coverage["/lib_fn.py"] == [(1, 2)]
+                assert first_suite_coverage["/ret_false.py"] == [(1, 2)]
+            else:
+                assert first_suite_coverage["test_cov.py"] == [(5, 5), (8, 9), (12, 13), (21, 22), (35, 36)]
+                assert first_suite_coverage["lib_fn.py"] == [(2, 2)]
+                assert first_suite_coverage["ret_false.py"] == [(1, 2)]
 
         second_suite_span = test_suite_spans[-1]
         assert second_suite_span.get_tag("type") == "test_suite_end"
         second_suite_coverage = _get_span_coverage_data(second_suite_span, _USE_PLUGIN_V2)
         assert len(second_suite_coverage) == 2
-        if _USE_PLUGIN_V2:
-            assert second_suite_coverage["/test_cov_second.py"] != []
-            assert second_suite_coverage["/ret_false.py"] != []
-        else:
-            assert second_suite_coverage["test_cov_second.py"] != []
-            assert second_suite_coverage["ret_false.py"] != []
 
-    def test_pytest_will_report_coverage_by_suite_with_itr_skipped(self):
+        if file_level:
+            # In file-level mode, we only track files, not specific line numbers
+            if _USE_PLUGIN_V2:
+                assert second_suite_coverage["/test_cov_second.py"] != []
+                assert second_suite_coverage["/ret_false.py"] != []
+            else:
+                assert second_suite_coverage["test_cov_second.py"] != []
+                assert second_suite_coverage["ret_false.py"] != []
+        else:
+            # In full coverage mode, we track exact line numbers
+            if _USE_PLUGIN_V2:
+                assert second_suite_coverage["/test_cov_second.py"] == [(1, 1), (3, 5)]
+                assert second_suite_coverage["/ret_false.py"] == [(1, 2)]
+            else:
+                assert second_suite_coverage["test_cov_second.py"] == [(4, 5)]
+                assert second_suite_coverage["ret_false.py"] == [(2, 2)]
+
+    def test_pytest_will_report_coverage_by_suite_with_itr_skipped_file_level(self):
+        self._test_pytest_will_report_coverage_by_suite_with_itr_skipped(file_level=True)
+
+    def test_pytest_will_report_coverage_by_suite_with_itr_skipped_full_coverage(self):
+        self._test_pytest_will_report_coverage_by_suite_with_itr_skipped(file_level=False)
+
+    def _test_pytest_will_report_coverage_by_suite_with_itr_skipped(self, file_level):
         self.testdir.makepyfile(
             ret_false="""
         def ret_false():
@@ -184,6 +239,7 @@ class PytestTestCase(PytestTestCaseBase):
                 "_DD_CIVISIBILITY_ITR_SUITE_MODE": "True",
                 "DD_APPLICATION_KEY": "not_an_app_key_at_all",
                 "DD_CIVISIBILITY_AGENTLESS_ENABLED": "True",
+                "_DD_COVERAGE_FILE_LEVEL": str(file_level),
             },
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
@@ -211,15 +267,31 @@ class PytestTestCase(PytestTestCaseBase):
 
         first_suite_coverage = _get_span_coverage_data(first_suite_span, _USE_PLUGIN_V2)
 
-        if _USE_PLUGIN_V2:
-            assert len(first_suite_coverage) == 3
-            assert first_suite_coverage["/test_cov.py"] != []
-            assert first_suite_coverage["/lib_fn.py"] != []
-            assert first_suite_coverage["/ret_false.py"] != []
-            assert second_suite_span.get_struct_tag(COVERAGE_TAG_NAME) is None
+        if file_level:
+            # In file-level mode, we only track files, not specific line numbers
+            if _USE_PLUGIN_V2:
+                assert len(first_suite_coverage) == 3
+                assert first_suite_coverage["/test_cov.py"] != []
+                assert first_suite_coverage["/lib_fn.py"] != []
+                assert first_suite_coverage["/ret_false.py"] != []
+                assert second_suite_span.get_struct_tag(COVERAGE_TAG_NAME) is None
+            else:
+                assert len(first_suite_coverage) == 3
+                assert first_suite_coverage["test_cov.py"] != []
+                assert first_suite_coverage["lib_fn.py"] != []
+                assert first_suite_coverage["ret_false.py"] != []
+                assert COVERAGE_TAG_NAME not in second_suite_span.get_tags()
         else:
-            assert len(first_suite_coverage) == 3
-            assert first_suite_coverage["test_cov.py"] != []
-            assert first_suite_coverage["lib_fn.py"] != []
-            assert first_suite_coverage["ret_false.py"] != []
-            assert COVERAGE_TAG_NAME not in second_suite_span.get_tags()
+            # In full coverage mode, we track exact line numbers
+            if _USE_PLUGIN_V2:
+                assert len(first_suite_coverage) == 3
+                assert first_suite_coverage["/test_cov.py"] == [(1, 2), (4, 5), (7, 9)]
+                assert first_suite_coverage["/lib_fn.py"] == [(1, 2)]
+                assert first_suite_coverage["/ret_false.py"] == [(1, 2)]
+                assert second_suite_span.get_struct_tag(COVERAGE_TAG_NAME) is None
+            else:
+                assert len(first_suite_coverage) == 3
+                assert first_suite_coverage["test_cov.py"] == [(5, 5), (8, 9)]
+                assert first_suite_coverage["lib_fn.py"] == [(2, 2)]
+                assert first_suite_coverage["ret_false.py"] == [(1, 2)]
+                assert COVERAGE_TAG_NAME not in second_suite_span.get_tags()
