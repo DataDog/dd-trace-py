@@ -46,6 +46,20 @@ if "gevent" in sys.modules or "gevent.monkey" in sys.modules:
 def cleanup_loaded_modules():
     def drop(module_name):
         # type: (str) -> None
+        module = sys.modules.get(module_name)
+        # Don't delete modules that are currently being imported (they might be None or incomplete)
+        # or that don't exist. This can happen when pytest's assertion rewriter is importing modules
+        # that themselves import ddtrace.auto, which triggers this cleanup during the import process.
+        if module is None:
+            return
+        # Skip modules that don't have a __spec__ attribute yet (still being imported)
+        if not hasattr(module, "__spec__"):
+            return
+        # Check if the module is currently being initialized
+        # During import, __spec__._initializing is True
+        spec = getattr(module, "__spec__", None)
+        if spec is not None and getattr(spec, "_initializing", False):
+            return
         del sys.modules[module_name]
 
     MODULES_REQUIRING_CLEANUP = ("gevent",)
