@@ -1,3 +1,5 @@
+import sys
+
 import pytest
 
 from ddtrace.internal.serverless import in_azure_function
@@ -98,6 +100,68 @@ sys.meta_path = [BlockListFinder()] + sys.meta_path
 
 import {package}
 """
+
+    stderr, stdout, status, _ = run_python_code_in_subprocess(code, env=env)
+    assert stdout.decode() == ""
+    assert stderr.decode() == ""
+    assert status == 0
+
+
+@pytest.mark.parametrize(
+    "from_,import_",
+    [
+        ("ddtrace", "__version__"),
+        ("ddtrace", "patch"),
+        ("ddtrace", "patch_all"),
+        ("ddtrace._trace._span_pointer", "_SpanPointerDescription"),
+        ("ddtrace._trace._span_pointer", "_SpanPointerDirection"),
+        ("ddtrace._trace.utils_botocore.span_pointers.dynamodb", "_aws_dynamodb_item_span_pointer_description"),
+        ("ddtrace._trace.utils_botocore.span_pointers.s3", "_aws_s3_object_span_pointer_description"),
+        ("ddtrace.contrib.internal.trace_utils", "_get_request_header_client_ip"),
+        ("ddtrace.data_streams", "set_consume_checkpoint"),
+        ("ddtrace.debugging._exception.replay", "SpanExceptionHandler"),
+        ("ddtrace.debugging._uploader", "SignalUploader"),
+        ("ddtrace.internal", "core"),
+        ("ddtrace.internal._exceptions", "BlockingException"),
+        ("ddtrace.internal.appsec.product", "start"),
+        ("ddtrace.internal.telemetry", "telemetry_writer"),
+        ("ddtrace.internal.utils", "get_blocked"),
+        ("ddtrace.internal.utils", "http"),
+        ("ddtrace.llmobs", "LLMObs"),
+        ("ddtrace.opentelemetry", "TracerProvider"),
+        pytest.param(
+            "ddtrace.profiling",
+            "profiler",
+            # when 3.14 is officially supported, this xfail can be removed.
+            marks=pytest.mark.xfail(
+                reason="throws AttributeError: module 'asyncio.events' has no attribute 'BaseDefaultEventLoopPolicy'",
+                condition=sys.version_info >= (3, 14),
+                strict=True,
+            ),
+        ),
+        ("ddtrace.propagation.http", "HTTPPropagator"),
+        ("ddtrace.trace", "Context, Span, tracer"),
+        ("ddtrace.trace", "Span"),
+        ("ddtrace.trace", "tracer"),
+    ],
+)
+def test_serverless_imports(from_, import_, run_python_code_in_subprocess):
+    # datadog-lambda-python imports a bunch of packages from ddtrace.  This
+    # test ensures that none of those imports break.  If this test fails, then
+    # either you will need to retain the import that was removed or you must
+    # update datadog-lambda-python to support the new import path.
+    import os
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "AWS_LAMBDA_FUNCTION_NAME": "foobar",
+            "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "False",
+            "DD_API_SECURITY_ENABLED": "False",
+        }
+    )
+
+    code = f"from {from_} import {import_}"
 
     stderr, stdout, status, _ = run_python_code_in_subprocess(code, env=env)
     assert stdout.decode() == ""

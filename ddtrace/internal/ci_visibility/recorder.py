@@ -378,7 +378,7 @@ class CIVisibility(Service):
 
             # The most recent API response overrides the first one
             try:
-                settings = self._api_client.fetch_settings()
+                settings = self._api_client.fetch_settings(read_from_cache=False)
             except Exception:
                 log.warning(
                     "Error checking Intelligent Test Runner API after git metadata upload,"
