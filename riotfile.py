@@ -3435,7 +3435,8 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    command="python -m pytest {cmdargs} tests/profiling_v2/test_uwsgi.py",
+                    name="profile-v2-uwsgi",
+                    command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling_v2/test_uwsgi.py",  # noqa: E501
                     pys=select_pys(max_version="3.13"),
                     pkgs={"uwsgi": "<2.0.30"},
                 ),
