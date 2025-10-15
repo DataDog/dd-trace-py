@@ -57,7 +57,7 @@ def inject_context(trace_data, endpoint_service, dsm_identifier, message):
     """
     from . import data_streams_processor as processor
 
-    path_type = "type:{}".format(endpoint_service)
+    path_type = f"type:{endpoint_service}"
 
     payload_size = None
     if endpoint_service == "sqs":
@@ -69,9 +69,7 @@ def inject_context(trace_data, endpoint_service, dsm_identifier, message):
 
     if not dsm_identifier:
         log.debug("pathway being generated with unrecognized service: ", dsm_identifier)
-    ctx = processor().set_checkpoint(
-        ["direction:out", "topic:{}".format(dsm_identifier), path_type], payload_size=payload_size
-    )
+    ctx = processor().set_checkpoint(["direction:out", f"topic:{dsm_identifier}", path_type], payload_size=payload_size)
     DsmPathwayCodec.encode(ctx, trace_data)
 
 

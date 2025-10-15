@@ -39,8 +39,11 @@ class EvaluatorRunnerSamplingRule(SamplingRule):
         return True
 
     def __repr__(self):
-        return "EvaluatorRunnerSamplingRule(sample_rate={}, evaluator_label={}, span_name={})".format(
-            self.sample_rate, self.evaluator_label, self.span_name
+        return (
+            f"EvaluatorRunnerSamplingRule("
+            f"sample_rate={self.sample_rate}, "
+            f"evaluator_label={self.evaluator_label}, "
+            f"span_name={self.span_name})"
         )
 
     __str__ = __repr__
@@ -66,7 +69,7 @@ class EvaluatorRunnerSampler:
 
         def parsing_failed_because(msg, maybe_throw_this):
             telemetry_writer.add_log(
-                TELEMETRY_LOG_LEVEL.ERROR, message="Evaluator sampling parsing failure because: {}".format(msg)
+                TELEMETRY_LOG_LEVEL.ERROR, message=f"Evaluator sampling parsing failure because: {msg}"
             )
             telemetry_writer.add_count_metric(
                 namespace=TELEMETRY_NAMESPACE.MLOBS,
@@ -83,9 +86,7 @@ class EvaluatorRunnerSampler:
         try:
             json_rules = json.loads(sampling_rules_str)
         except JSONDecodeError:
-            parsing_failed_because(
-                "Failed to parse evaluator sampling rules of: `{}`".format(sampling_rules_str), ValueError
-            )
+            parsing_failed_because(f"Failed to parse evaluator sampling rules of: `{sampling_rules_str}`", ValueError)
             return []
 
         if not isinstance(json_rules, list):
@@ -94,14 +95,12 @@ class EvaluatorRunnerSampler:
 
         for rule in json_rules:
             if "sample_rate" not in rule:
-                parsing_failed_because(
-                    "No sample_rate provided for sampling rule: {}".format(json.dumps(rule)), KeyError
-                )
+                parsing_failed_because(f"No sample_rate provided for sampling rule: {json.dumps(rule)}", KeyError)
                 continue
             try:
                 sample_rate = float(rule[EvaluatorRunnerSamplingRule.SAMPLE_RATE_KEY])
             except ValueError:
-                parsing_failed_because("sample_rate is not a float for rule: {}".format(json.dumps(rule)), KeyError)
+                parsing_failed_because(f"sample_rate is not a float for rule: {json.dumps(rule)}", KeyError)
                 continue
             span_name = rule.get(EvaluatorRunnerSamplingRule.SPAN_NAME_KEY, EvaluatorRunnerSamplingRule.NO_RULE)
             evaluator_label = rule.get(

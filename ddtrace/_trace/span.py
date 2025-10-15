@@ -103,7 +103,7 @@ def _get_64_lowest_order_bits_as_int(large_int: int) -> int:
 
 def _get_64_highest_order_bits_as_hex(large_int: int) -> str:
     """Get the 64 highest order bits from a 128bit integer"""
-    return "{:032x}".format(large_int)[:16]
+    return f"{large_int:032x}"[:16]
 
 
 class Span(object):

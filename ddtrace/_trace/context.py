@@ -157,9 +157,9 @@ class Context(object):
             # grab the original traceparent trace id, not the converted value
             trace_id = tp.split("-")[1]
         else:
-            trace_id = "{:032x}".format(self.trace_id)
+            trace_id = f"{self.trace_id:032x}"
 
-        return "00-{}-{:016x}-{}".format(trace_id, self.span_id, self._traceflags)
+        return f"00-{trace_id}-{self.span_id:016x}-{self._traceflags}"
 
     @property
     def _traceflags(self) -> str:
@@ -175,12 +175,12 @@ class Context(object):
             # cut out the original dd list member from tracestate so we can replace it with the new one we created
             ts_w_out_dd = re.sub("dd=(.+?)(?:,|$)", "", ts)
             if ts_w_out_dd:
-                ts = "dd={},{}".format(dd_list_member, ts_w_out_dd)
+                ts = f"dd={dd_list_member},{ts_w_out_dd}"
             else:
-                ts = "dd={}".format(dd_list_member)
+                ts = f"dd={dd_list_member}"
         # if there is no original tracestate value then tracestate is just the dd list member we created
         elif dd_list_member:
-            ts = "dd={}".format(dd_list_member)
+            ts = f"dd={dd_list_member}"
         return ts
 
     @property

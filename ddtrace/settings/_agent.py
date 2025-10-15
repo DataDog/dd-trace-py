@@ -39,12 +39,12 @@ def _derive_trace_url(config: "AgentConfig") -> str:
             host = user_supplied_host or DEFAULT_HOSTNAME
             port = user_supplied_port or DEFAULT_TRACE_PORT
             if is_ipv6_hostname(host):
-                host = "[{}]".format(host)
+                host = f"[{host}]"
             url = "http://%s:%s" % (host, port)
         elif os.path.exists("/var/run/datadog/apm.socket"):
             url = "unix://%s" % (DEFAULT_UNIX_TRACE_PATH)
         else:
-            url = "http://{}:{}".format(DEFAULT_HOSTNAME, DEFAULT_TRACE_PORT)
+            url = f"http://{DEFAULT_HOSTNAME}:{DEFAULT_TRACE_PORT}"
 
     return url
 
@@ -59,12 +59,12 @@ def _derive_stats_url(config: "AgentConfig") -> str:
             port = user_supplied_port or DEFAULT_STATS_PORT
             host = user_supplied_host or DEFAULT_HOSTNAME
             if is_ipv6_hostname(host):
-                host = "[{}]".format(host)
-            url = "udp://{}:{}".format(host, port)
+                host = f"[{host}]"
+            url = f"udp://{host}:{port}"
         elif os.path.exists("/var/run/datadog/dsd.socket"):
             url = "unix://%s" % (DEFAULT_UNIX_DSD_PATH)
         else:
-            url = "udp://{}:{}".format(DEFAULT_HOSTNAME, DEFAULT_STATS_PORT)
+            url = f"udp://{DEFAULT_HOSTNAME}:{DEFAULT_STATS_PORT}"
     return url
 
 

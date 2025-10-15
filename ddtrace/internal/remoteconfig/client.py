@@ -338,18 +338,18 @@ class RemoteConfigClient:
         try:
             raw = base64.b64decode(candidates[0])
         except Exception:
-            raise RemoteConfigError("invalid base64 target_files for {!r}".format(target))
+            raise RemoteConfigError(f"invalid base64 target_files for {target!r}")
 
         computed_hash = hashlib.sha256(raw).hexdigest()
         if computed_hash != config.sha256_hash:
             raise RemoteConfigError(
-                "mismatch between target {!r} hashes {!r} != {!r}".format(target, computed_hash, config.sha256_hash)
+                f"mismatch between target {target!r} hashes {computed_hash!r} != {config.sha256_hash!r}"
             )
 
         try:
             return json.loads(raw)
         except Exception:
-            raise RemoteConfigError("invalid JSON content for target {!r}".format(target))
+            raise RemoteConfigError(f"invalid JSON content for target {target!r}")
 
     def _build_payload(self, state: Mapping[str, Any]) -> Mapping[str, Any]:
         self._client_tracer["extra_services"] = list(ddtrace.config._get_extra_services())
@@ -517,7 +517,7 @@ class RemoteConfigClient:
         for target, metadata in signed.targets.items():
             m = TARGET_FORMAT.match(target)
             if m is None:
-                raise RemoteConfigError("unexpected target format {!r}".format(target))
+                raise RemoteConfigError(f"unexpected target format {target!r}")
             _, product_name, config_id, _ = m.groups()
             targets[target] = ConfigMetadata(
                 id=config_id,

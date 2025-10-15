@@ -449,7 +449,7 @@ class LLMObs(Service):
         existing_tags = span._get_ctx_item(TAGS)
         if existing_tags is not None:
             tags.update(existing_tags)
-        return ["{}:{}".format(k, v) for k, v in tags.items()]
+        return [f"{k}:{v}" for k, v in tags.items()]
 
     def _do_annotations(self, span: Span) -> None:
         # get the current span context
@@ -791,7 +791,7 @@ class LLMObs(Service):
             params = sig.parameters
             evaluator_required_params = ("input_data", "output_data", "expected_output")
             if not all(param in params for param in evaluator_required_params):
-                raise TypeError("Evaluator function must have parameters {}.".format(evaluator_required_params))
+                raise TypeError(f"Evaluator function must have parameters {evaluator_required_params}.")
 
         if summary_evaluators and not all(callable(summary_evaluator) for summary_evaluator in summary_evaluators):
             raise TypeError("Summary evaluators must be a list of callable functions.")
@@ -802,7 +802,7 @@ class LLMObs(Service):
                 summary_evaluator_required_params = ("inputs", "outputs", "expected_outputs", "evaluators_results")
                 if not all(param in params for param in summary_evaluator_required_params):
                     raise TypeError(
-                        "Summary evaluator function must have parameters {}.".format(summary_evaluator_required_params)
+                        f"Summary evaluator function must have parameters {summary_evaluator_required_params}."
                     )
         return Experiment(
             name,
@@ -1668,9 +1668,9 @@ class LLMObs(Service):
                 "label": str(label),
                 "metric_type": metric_type,
                 "timestamp_ms": timestamp_ms,
-                "{}_value".format(metric_type): value,  # type: ignore
+                f"{metric_type}_value": value,  # type: ignore
                 "ml_app": ml_app,
-                "tags": ["{}:{}".format(k, v) for k, v in evaluation_tags.items()],
+                "tags": [f"{k}:{v}" for k, v in evaluation_tags.items()],
             }
 
             if metadata:
@@ -1806,9 +1806,9 @@ class LLMObs(Service):
                 "label": str(label),
                 "metric_type": metric_type.lower(),
                 "timestamp_ms": timestamp_ms,
-                "{}_value".format(metric_type): value,  # type: ignore
+                f"{metric_type}_value": value,  # type: ignore
                 "ml_app": ml_app,
-                "tags": ["{}:{}".format(k, v) for k, v in evaluation_tags.items()],
+                "tags": [f"{k}:{v}" for k, v in evaluation_tags.items()],
             }
 
             if metadata:

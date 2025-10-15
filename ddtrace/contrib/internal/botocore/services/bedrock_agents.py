@@ -83,10 +83,8 @@ def patched_bedrock_agents_api_call(original_func, instance, args, kwargs, funct
     result = None
     span = integration.trace(
         pin,
-        schematize_service_name(
-            "{}.{}".format(ext_service(pin, int_config=config.botocore), function_vars.get("endpoint_name"))
-        ),
-        span_name="Bedrock Agent {}".format(agent_id),
+        schematize_service_name(f'{ext_service(pin, int_config=config.botocore)}.{function_vars.get("endpoint_name")}'),
+        span_name=f"Bedrock Agent {agent_id}",
         submit_to_llmobs=True,
         interface_type="agent",
     )
