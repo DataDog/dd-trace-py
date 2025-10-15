@@ -1,0 +1,93 @@
+id: prefer-fstring
+snapshots:
+  ? |
+    # Method call on variable
+    template = "Value: {}"
+    result = template.format(value)
+  : labels:
+    - source: template.format(value)
+      style: primary
+      start: 58
+      end: 80
+  ? |
+    # Multi-line format
+    message = "Line 1: {}\nLine 2: {}".format(
+        first_line,
+        second_line
+    )
+  : labels:
+    - source: |-
+        "Line 1: {}\nLine 2: {}".format(
+            first_line,
+            second_line
+        )
+      style: primary
+      start: 30
+      end: 96
+  ? |
+    message = "Hello {0}".format(name)
+  : labels:
+    - source: '"Hello {0}".format(name)'
+      style: primary
+      start: 10
+      end: 34
+  ? |
+    message = "Hello {name}".format(name=name)
+  : labels:
+    - source: '"Hello {name}".format(name=name)'
+      style: primary
+      start: 10
+      end: 42
+  ? |
+    message = "Line 1: {}\nLine 2: {}".format(
+        first_line,
+        second_line
+    )
+  : labels:
+    - source: |-
+        "Line 1: {}\nLine 2: {}".format(
+            first_line,
+            second_line
+        )
+      style: primary
+      start: 10
+      end: 76
+  ? |
+    name = "World"
+    message = "Hello {}".format(name)
+  : labels:
+    - source: '"Hello {}".format(name)'
+      style: primary
+      start: 25
+      end: 48
+  ? |
+    span_name = "{}.{}".format(self._name, "operation")
+  : labels:
+    - source: '"{}.{}".format(self._name, "operation")'
+      style: primary
+      start: 12
+      end: 51
+  ? |
+    template = "Value: {}"
+    result = template.format(value)
+  : labels:
+    - source: template.format(value)
+      style: primary
+      start: 32
+      end: 54
+  ? |
+    url = "https://example.com/{}".format(path)
+  : labels:
+    - source: '"https://example.com/{}".format(path)'
+      style: primary
+      start: 6
+      end: 43
+  ? |
+    x = 1
+    y = 2
+    result = "{} + {} = {}".format(x, y, x + y)
+  : labels:
+    - source: '"{} + {} = {}".format(x, y, x + y)'
+      style: primary
+      start: 21
+      end: 55

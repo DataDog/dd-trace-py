@@ -1,0 +1,41 @@
+id: prefer-fstring
+valid:
+  - |
+    name = "World"
+    message = f"Hello {name}"
+  - |
+    x = 1
+    y = 2
+    result = f"{x} + {y} = {x + y}"
+  - |
+    # Using % formatting (different rule could catch this)
+    message = "Hello %s" % name
+  - |
+    # Plain string concatenation
+    message = "Hello " + name
+
+invalid:
+  - |
+    name = "World"
+    message = "Hello {}".format(name)
+  - |
+    message = "Hello {0}".format(name)
+  - |
+    message = "Hello {name}".format(name=name)
+  - |
+    x = 1
+    y = 2
+    result = "{} + {} = {}".format(x, y, x + y)
+  - |
+    url = "https://example.com/{}".format(path)
+  - |
+    span_name = "{}.{}".format(self._name, "operation")
+  - |
+    message = "Line 1: {}\nLine 2: {}".format(
+        first_line,
+        second_line
+    )
+  - |
+    template = "Value: {}"
+    result = template.format(value)
+

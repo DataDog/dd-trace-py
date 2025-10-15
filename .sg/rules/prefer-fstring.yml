@@ -1,0 +1,17 @@
+id: prefer-fstring
+message: Consider using f-string instead of .format() for better readability
+severity: warning
+language: python
+paths:
+  - "ddtrace/**"
+rule:
+  pattern: $OBJ.format($$$ARGS)
+note: |
+  String formatting with .format() can be replaced with f-strings (Python 3.6+):
+
+  Example:
+  - Instead of: "{0} {1}".format(a, b)
+  - Use: f"{a} {b}"
+
+
+
