@@ -525,7 +525,7 @@ def get_metadata_from_kwargs(
         keys_to_include += OPENAI_METADATA_CHAT_KEYS if operation == "chat" else OPENAI_METADATA_COMPLETION_KEYS
     elif integration_name == "litellm":
         keys_to_include += LITELLM_METADATA_CHAT_KEYS if operation == "chat" else LITELLM_METADATA_COMPLETION_KEYS
-    metadata = {k: v for k, v in kwargs.items() if k in keys_to_include}
+    metadata = {k: load_data_value(v) for k, v in kwargs.items() if k in keys_to_include}
     return metadata
 
 

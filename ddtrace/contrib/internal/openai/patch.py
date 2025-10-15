@@ -51,6 +51,7 @@ _RESOURCES = {
     },
     "chat.Completions": {
         "create": _endpoint_hooks._ChatCompletionHook,
+        "parse": _endpoint_hooks._ChatCompletionParseHook,
     },
     "images.Images": {
         "generate": _endpoint_hooks._ImageCreateHook,
@@ -78,6 +79,7 @@ _RESOURCES = {
     },
     "responses.Responses": {
         "create": _endpoint_hooks._ResponseHook,
+        "parse": _endpoint_hooks._ResponseParseHook,
     },
 }
 
@@ -135,8 +137,10 @@ def patch():
         for method_name, endpoint_hook in method_hook_dict.items():
             sync_method = "resources.{}.{}".format(resource, method_name)
             async_method = "resources.{}.{}".format(".Async".join(resource.split(".")), method_name)
-            wrap(openai, sync_method, _patched_endpoint(openai, endpoint_hook))
-            wrap(openai, async_method, _patched_endpoint_async(openai, endpoint_hook))
+            if deep_getattr(openai, sync_method) is not None:
+                wrap(openai, sync_method, _patched_endpoint(openai, endpoint_hook))
+            if deep_getattr(openai, async_method) is not None:
+                wrap(openai, async_method, _patched_endpoint_async(openai, endpoint_hook))
 
     openai.__datadog_patch = True
 
@@ -173,8 +177,10 @@ def unpatch():
         for method_name, _ in method_hook_dict.items():
             sync_resource = deep_getattr(openai.resources, resource)
             async_resource = deep_getattr(openai.resources, ".Async".join(resource.split(".")))
-            unwrap(sync_resource, method_name)
-            unwrap(async_resource, method_name)
+            if sync_resource is not None and hasattr(sync_resource, method_name):
+                unwrap(sync_resource, method_name)
+            if async_resource is not None and hasattr(async_resource, method_name):
+                unwrap(async_resource, method_name)
 
     delattr(openai, "_datadog_integration")
 
@@ -260,6 +266,7 @@ def _patched_endpoint(openai, patch_hook):
         g = _traced_endpoint(patch_hook, integration, instance, pin, args, kwargs)
         g.send(None)
         resp, err = None, None
+        override_return = None
         try:
             resp = func(*args, **kwargs)
         except BaseException as e:
@@ -270,8 +277,11 @@ def _patched_endpoint(openai, patch_hook):
                 g.send((resp, err))
             except StopIteration as e:
                 if err is None:
-                    # This return takes priority over `return resp`
-                    return e.value  # noqa: B012
+                    # This return takes priority over the implicit None return
+                    override_return = e.value
+
+        if override_return is not None:
+            return override_return
 
     return patched_endpoint(openai)
 
@@ -293,9 +303,9 @@ def _patched_endpoint_async(openai, patch_hook):
         g = _traced_endpoint(patch_hook, integration, instance, pin, args, kwargs)
         g.send(None)
         resp, err = None, None
+        override_return = None
         try:
             resp = await func(*args, **kwargs)
-            return resp
         except BaseException as e:
             err = e
             raise
@@ -305,7 +315,11 @@ def _patched_endpoint_async(openai, patch_hook):
             except StopIteration as e:
                 if err is None:
                     # This return takes priority over `return resp`
-                    return e.value  # noqa: B012
+                    override_return = e.value
+
+        if override_return is not None:
+            return override_return
+        return resp
 
     return patched_endpoint(openai)
 
