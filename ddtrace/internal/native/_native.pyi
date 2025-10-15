@@ -470,17 +470,16 @@ class SpanData:
     error: int
     _span_api: SpanStr
 
-    def __new__(
-        cls,
+    def __init__(
+        self,
         name: SpanStr,
         service: Optional[SpanStr] = None,
         resource: Optional[SpanStr] = None,
         span_type: Optional[SpanStr] = None,
         trace_id: Optional[int] = None,
         span_id: Optional[int] = None,
-        parent_id: Optional[SpanStr] = None,
+        parent_id: Optional[int] = None,
         start: Optional[SpanNumeric] = None,
-        duration_ns: Optional[SpanStr] = None,
         span_api: SpanStr = "",
     ): ...
     def _set_default_metrics_inner(self, key: SpanStr, value: SpanNumeric): ...

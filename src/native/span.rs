@@ -145,6 +145,7 @@ impl SpanText for PyBackedString {
 }
 
 #[pyo3::pyclass(name = "SpanData", module = "ddtrace.internal._native", subclass)]
+#[derive(Default)]
 struct SpanData {
     data: NativeSpan<PyBackedString>,
     // Store duration here until the span is finished
@@ -162,7 +163,7 @@ fn time_ns() -> i64 {
 }
 
 /// Python can pass bigints to our function, like duration_ns and start_ns
-/// These are in general edge cases which we won't be able to represent in the encoding format 
+/// These are in general edge cases which we won't be able to represent in the encoding format
 /// anyway.
 /// So we pick either the max/min value on over/underflow
 enum OverflowInt {
@@ -218,22 +219,24 @@ fn f64_unix_secs_to_nanos_saturate(unix_secs: f64) -> i64 {
 impl SpanData {
     #[new]
     #[pyo3(signature =(
-        name,
         *_py_args,
-        service  = None,
-        resource = None,
-        span_type = None,
-        trace_id = None,
-        span_id = None,
-        parent_id = None,
-        start = None,
-        span_api = PyBackedString::from_static_str("datadog"),
         **_py_kwargs,
     ))]
     #[allow(clippy::too_many_arguments)]
-    fn new<'py>(
-        name: PyBackedString,
+    fn __new__<'py>(
         _py_args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
+        _py_kwargs: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
+    ) -> Self {
+        Self::default()
+    }
+
+    /// Performs span initialization
+    ///
+    /// This can not be put on new, because otherwise the signature needs to match
+    /// for every inherited class
+    fn __init__(
+        &mut self,
+        name: PyBackedString,
         service: Option<PyBackedString>,
         resource: Option<PyBackedString>,
         span_type: Option<PyBackedString>,
@@ -242,9 +245,8 @@ impl SpanData {
         parent_id: Option<u64>,
         start: Option<f64>,
         span_api: PyBackedString,
-        _py_kwargs: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
-    ) -> Self {
-        Self {
+    ) {
+        *self = Self {
             data: NativeSpan {
                 name,
                 service: service.unwrap_or_default(),
@@ -428,13 +430,17 @@ impl SpanData {
     }
 
     #[getter]
-    fn get_parent_id(&self) -> u64 {
-        self.data.parent_id
+    fn get_parent_id(&self) -> Option<u64> {
+        if self.data.parent_id == 0 {
+            None
+        } else {
+            Some(self.data.parent_id)
+        }
     }
 
     #[setter]
-    fn set_parent_id(&mut self, parent_id: u64) {
-        self.data.parent_id = parent_id;
+    fn set_parent_id(&mut self, parent_id: Option<u64>) {
+        self.data.parent_id = parent_id.unwrap_or(0);
     }
 
     #[getter]

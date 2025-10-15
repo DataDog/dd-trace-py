@@ -43,7 +43,7 @@ from ddtrace.internal import core
 from ddtrace.internal.compat import NumericType
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import is_integer
-from ddtrace.internal.constants import MAX_INT_64BITS as _MAX_INT_64BITS
+from ddtrace.internal.constants import MAX_INT_64BITS as _MAX_INT_64BITS, SPAN_API_DATADOG
 from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ddtrace.internal.constants import MIN_INT_64BITS as _MIN_INT_64BITS
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
@@ -111,7 +111,6 @@ class Span(SpanData):
         "_meta_struct",
         "context",
         "_store",
-
         # Internal attributes
         "_parent_context",
         "_local_root_value",
@@ -126,11 +125,18 @@ class Span(SpanData):
 
     def __init__(
         self,
-        *_args,
+        name: str,
+        service: Optional[str] = None,
+        resource: Optional[str] = None,
+        span_type: Optional[str] = None,
+        trace_id: Optional[int] = None,
+        span_id: Optional[int] = None,
+        parent_id: Optional[int] = None,
+        start: Optional[int] = None,
         context: Optional[Context] = None,
         on_finish: Optional[List[Callable[["Span"], None]]] = None,
+        span_api: str = SPAN_API_DATADOG,
         links: Optional[List[SpanLink]] = None,
-        **_kwargs,
     ) -> None:
         """
         Create a new span. Call `finish` once the traced operation is over.
@@ -153,6 +159,7 @@ class Span(SpanData):
         :param object context: the Context of the span.
         :param on_finish: list of functions called when the span finishes.
         """
+        super().__init__(name, service, resource, span_type, trace_id, span_id, parent_id, start, span_api)
 
         self._meta: _MetaDictType = {}
 
@@ -233,7 +240,7 @@ class Span(SpanData):
         self._set_sampling_decision_maker(SamplingMechanism.MANUAL)
         if self._local_root:
             for key in (_SAMPLING_RULE_DECISION, _SAMPLING_AGENT_DECISION, _SAMPLING_LIMIT_DECISION):
-                    self._local_root._delete_metrics_inner(key)
+                self._local_root._delete_metrics_inner(key)
 
     def _set_sampling_decision_maker(
         self,
