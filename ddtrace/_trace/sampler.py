@@ -132,12 +132,9 @@ class DatadogSampler:
 
     def __str__(self):
         rates = {key: sampler.sample_rate for key, sampler in self._agent_based_samplers.items()}
-        return "{}(agent_rates={!r}, limiter={!r}, rules={!r}), rate_limit_always_on={!r}".format(
-            self.__class__.__name__,
-            rates,
-            self.limiter,
-            self.rules,
-            self._rate_limit_always_on,
+        return (
+            f"{self.__class__.__name__}(agent_rates={rates!r}, limiter={self.limiter!r}, "
+            f"rules={self.rules!r}), rate_limit_always_on={self._rate_limit_always_on!r}"
         )
 
     __repr__ = __str__
