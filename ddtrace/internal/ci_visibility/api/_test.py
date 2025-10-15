@@ -129,8 +129,9 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
     def __repr__(self) -> str:
         suite_name = self.parent.name if self.parent is not None else "none"
         module_name = self.parent.parent.name if self.parent is not None and self.parent.parent is not None else "none"
-        return "{}(name={}, suite={}, module={}, parameters={}, status={})".format(
-            self.__class__.__name__, self.name, suite_name, module_name, self._parameters, self._status
+        return (
+            f"{self.__class__.__name__}(name={self.name}, suite={suite_name}, module={module_name}, "
+            f"parameters={self._parameters}, status={self._status})"
         )
 
     def _get_hierarchy_tags(self) -> Dict[str, str]:

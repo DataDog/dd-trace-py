@@ -87,11 +87,11 @@ def _add_pct_covered_to_span(coverage_data: dict, span: ddtrace.trace.Span):
 
 
 def _generate_fully_qualified_test_name(test_module_path: str, test_suite_name: str, test_name: str) -> str:
-    return "{}.{}.{}".format(test_module_path, test_suite_name, test_name)
+    return f"{test_module_path}.{test_suite_name}.{test_name}"
 
 
 def _generate_fully_qualified_module_name(test_module_path: str, test_suite_name: str) -> str:
-    return "{}.{}".format(test_module_path, test_suite_name)
+    return f"{test_module_path}.{test_suite_name}"
 
 
 def take_over_logger_stream_handler(remove_ddtrace_stream_handlers=True):
