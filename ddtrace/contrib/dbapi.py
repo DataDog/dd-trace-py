@@ -54,7 +54,7 @@ class TracedCursor(wrapt.ObjectProxy):
         span_name = (
             cfg["_dbapi_span_operation_name"]
             if cfg and "_dbapi_span_operation_name" in cfg
-            else "{}.query".format(span_name_prefix)
+            else f"{span_name_prefix}.query"
         )
         self._self_datadog_name = span_name
         self._self_last_execute_operation = None
@@ -196,21 +196,21 @@ class FetchTracedCursor(TracedCursor):
 
     def fetchone(self, *args, **kwargs):
         """Wraps the cursor.fetchone method"""
-        span_name = "{}.{}".format(self._self_datadog_name, "fetchone")
+        span_name = f"{self._self_datadog_name}.fetchone"
         return self._trace_method(
             self.__wrapped__.fetchone, span_name, self._self_last_execute_operation, {}, None, *args, **kwargs
         )
 
     def fetchall(self, *args, **kwargs):
         """Wraps the cursor.fetchall method"""
-        span_name = "{}.{}".format(self._self_datadog_name, "fetchall")
+        span_name = f"{self._self_datadog_name}.fetchall"
         return self._trace_method(
             self.__wrapped__.fetchall, span_name, self._self_last_execute_operation, {}, None, *args, **kwargs
         )
 
     def fetchmany(self, *args, **kwargs):
         """Wraps the cursor.fetchmany method"""
-        span_name = "{}.{}".format(self._self_datadog_name, "fetchmany")
+        span_name = f"{self._self_datadog_name}.fetchmany"
         # We want to trace the information about how many rows were requested. Note that this number may be larger
         # the number of rows actually returned if less then requested are available from the query.
         size_tag_key = "db.fetch.size"
@@ -239,7 +239,7 @@ class TracedConnection(wrapt.ObjectProxy):
 
         super(TracedConnection, self).__init__(conn)
         name = _get_vendor(conn)
-        self._self_datadog_name = "{}.connection".format(name)
+        self._self_datadog_name = f"{name}.connection"
         db_pin = pin or Pin(service=name)
         db_pin.onto(self)
         # wrapt requires prefix of `_self` for attributes that are only in the
@@ -313,11 +313,11 @@ class TracedConnection(wrapt.ObjectProxy):
         return self._self_cursor_cls(cursor=cursor, pin=pin, cfg=self._self_config)
 
     def commit(self, *args, **kwargs):
-        span_name = "{}.{}".format(self._self_datadog_name, "commit")
+        span_name = f"{self._self_datadog_name}.commit"
         return self._trace_method(self.__wrapped__.commit, span_name, {}, *args, **kwargs)
 
     def rollback(self, *args, **kwargs):
-        span_name = "{}.{}".format(self._self_datadog_name, "rollback")
+        span_name = f"{self._self_datadog_name}.rollback"
         return self._trace_method(self.__wrapped__.rollback, span_name, {}, *args, **kwargs)
 
 

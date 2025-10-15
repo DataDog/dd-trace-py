@@ -48,7 +48,7 @@ def _normalize_tag_name(request_or_response: str, header_name: str) -> str:
     #   - any digit is left unchanged
     #   - any block of any length of different ASCII chars is converted to a single underscore '_'
     normalized_name = _normalized_header_name(header_name)
-    return "http.{}.headers.{}".format(request_or_response, normalized_name)
+    return f"http.{request_or_response}.headers.{normalized_name}"
 
 
 def _get_header_value_case_insensitive(headers: Mapping[str, str], keyname: str) -> Optional[str]:

@@ -61,7 +61,7 @@ def traced_llm_generate(langchain_core, pin, func, instance, args, kwargs):
     prompts = get_argument_value(args, kwargs, 0, "prompts")
     span = integration.trace(
         pin,
-        "%s.%s" % (instance.__module__, instance.__class__.__name__),
+        f"{instance.__module__}.{instance.__class__.__name__}",
         submit_to_llmobs=True,
         interface_type="llm",
         provider=llm_provider,
@@ -95,7 +95,7 @@ async def traced_llm_agenerate(langchain_core, pin, func, instance, args, kwargs
     model = _extract_model_name(instance)
     span = integration.trace(
         pin,
-        "%s.%s" % (instance.__module__, instance.__class__.__name__),
+        f"{instance.__module__}.{instance.__class__.__name__}",
         submit_to_llmobs=True,
         interface_type="llm",
         provider=llm_provider,
@@ -128,7 +128,7 @@ def traced_chat_model_generate(langchain_core, pin, func, instance, args, kwargs
     integration: LangChainIntegration = langchain_core._datadog_integration
     span = integration.trace(
         pin,
-        "%s.%s" % (instance.__module__, instance.__class__.__name__),
+        f"{instance.__module__}.{instance.__class__.__name__}",
         submit_to_llmobs=True,
         interface_type="chat_model",
         provider=llm_provider,
@@ -161,7 +161,7 @@ async def traced_chat_model_agenerate(langchain_core, pin, func, instance, args,
     integration: LangChainIntegration = langchain_core._datadog_integration
     span = integration.trace(
         pin,
-        "%s.%s" % (instance.__module__, instance.__class__.__name__),
+        f"{instance.__module__}.{instance.__class__.__name__}",
         submit_to_llmobs=True,
         interface_type="chat_model",
         provider=llm_provider,
@@ -204,7 +204,7 @@ def traced_lcel_runnable_sequence(langchain_core, pin, func, instance, args, kwa
     integration: LangChainIntegration = langchain_core._datadog_integration
     span = integration.trace(
         pin,
-        "{}.{}".format(instance.__module__, instance.__class__.__name__),
+        f"{instance.__module__}.{instance.__class__.__name__}",
         submit_to_llmobs=True,
         interface_type="chain",
         instance=instance,
@@ -239,7 +239,7 @@ async def traced_lcel_runnable_sequence_async(langchain_core, pin, func, instanc
     integration: LangChainIntegration = langchain_core._datadog_integration
     span = integration.trace(
         pin,
-        "{}.{}".format(instance.__module__, instance.__class__.__name__),
+        f"{instance.__module__}.{instance.__class__.__name__}",
         submit_to_llmobs=True,
         interface_type="chain",
         instance=instance,
@@ -387,7 +387,7 @@ def traced_base_tool_invoke(langchain_core, pin, func, instance, args, kwargs):
 
     span = integration.trace(
         pin,
-        "%s" % func.__self__.name,
+        f"{func.__self__.name}",
         interface_type="tool",
         submit_to_llmobs=True,
         instance=instance,
@@ -428,7 +428,7 @@ async def traced_base_tool_ainvoke(langchain_core, pin, func, instance, args, kw
 
     span = integration.trace(
         pin,
-        "%s" % func.__self__.name,
+        f"{func.__self__.name}",
         interface_type="tool",
         submit_to_llmobs=True,
         instance=instance,
@@ -532,7 +532,7 @@ def traced_embedding(langchain_core, pin, func, instance, args, kwargs):
     integration: LangChainIntegration = langchain_core._datadog_integration
     span = integration.trace(
         pin,
-        "%s.%s" % (instance.__module__, instance.__class__.__name__),
+        f"{instance.__module__}.{instance.__class__.__name__}",
         submit_to_llmobs=True,
         interface_type="embedding",
         provider=provider,
@@ -560,7 +560,7 @@ def traced_similarity_search(langchain_core, pin, func, instance, args, kwargs):
     provider = instance.__class__.__name__.lower()
     span = integration.trace(
         pin,
-        "%s.%s" % (instance.__module__, instance.__class__.__name__),
+        f"{instance.__module__}.{instance.__class__.__name__}",
         submit_to_llmobs=True,
         interface_type="similarity_search",
         provider=provider,

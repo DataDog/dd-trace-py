@@ -171,7 +171,7 @@ def traced_handler(wrapped, instance, args, kwargs):
             path = "".join(resource_paths[index:])
 
             if scope.get("method"):
-                span.resource = "{} {}".format(scope["method"], path)
+                span.resource = f'{scope["method"]} {path}'
             else:
                 span.resource = path
             # route should only be in the root span
@@ -181,7 +181,7 @@ def traced_handler(wrapped, instance, args, kwargs):
     elif request_spans and resource_paths:
         route = "".join(resource_paths)
         if scope.get("method"):
-            request_spans[0].resource = "{} {}".format(scope["method"], route)
+            request_spans[0].resource = f'{scope["method"]} {route}'
         else:
             request_spans[0].resource = route
         request_spans[0].set_tag_str(http.ROUTE, route)

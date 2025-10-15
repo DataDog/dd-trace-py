@@ -102,7 +102,7 @@ def _wrap_urlopen(func, instance, args, kwargs):
         request_url = parse.urlunparse(
             (
                 instance.scheme,
-                "{}:{}".format(instance.host, instance.port)
+                f"{instance.host}:{instance.port}"
                 if instance.port and instance.port not in DROP_PORTS
                 else str(instance.host),
                 request_url,

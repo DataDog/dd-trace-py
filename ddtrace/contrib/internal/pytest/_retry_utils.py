@@ -51,7 +51,7 @@ def set_retry_num(item: pytest.Item, retry_num: int):
 
 def _get_retry_attempt_string(report: pytest_TestReport) -> str:
     retry_number = get_retry_num(report)
-    return "ATTEMPT {} ".format(retry_number) if retry_number else "INITIAL ATTEMPT "
+    return f"ATTEMPT {retry_number} " if retry_number else "INITIAL ATTEMPT "
 
 
 def _get_outcome_from_retry(
