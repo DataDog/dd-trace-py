@@ -34,7 +34,7 @@ class ThreadingLockCollector(_lock.LockCollector):
 
 
 class ThreadingRLockCollector(_lock.LockCollector):
-    """Record threading.Lock usage."""
+    """Record threading.RLock usage."""
 
     PROFILED_LOCK_CLASS = _ProfiledThreadingRLock
 
