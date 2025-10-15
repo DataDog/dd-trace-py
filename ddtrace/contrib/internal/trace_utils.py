@@ -45,7 +45,7 @@ from ddtrace.settings.asm import config as asm_config
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace.settings.integration import IntegrationConfig  # noqa:F401
+    from ddtrace.settings.integration import _IntegrationConfig  # noqa:F401
     from ddtrace.trace import Span  # noqa:F401
     from ddtrace.trace import Tracer  # noqa:F401
 
@@ -80,14 +80,14 @@ IP_PATTERNS = (
 
 
 def _store_headers(headers, span, integration_config, request_or_response):
-    # type: (Dict[str, str], Span, IntegrationConfig, str) -> None
+    # type: (Dict[str, str], Span, _IntegrationConfig, str) -> None
     """
     :param headers: A dict of http headers to be stored in the span
     :type headers: dict or list
     :param span: The Span instance where tags will be stored
     :type span: ddtrace.trace.Span
     :param integration_config: An integration specific config object.
-    :type integration_config: ddtrace.settings.IntegrationConfig
+    :type integration_config: ddtrace.settings._IntegrationConfig
     """
     if not isinstance(headers, dict):
         try:
@@ -230,7 +230,7 @@ def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensit
 
 
 def _store_request_headers(headers, span, integration_config):
-    # type: (Dict[str, str], Span, IntegrationConfig) -> None
+    # type: (Dict[str, str], Span, _IntegrationConfig) -> None
     """
     Store request headers as a span's tags
     :param headers: All the request's http headers, will be filtered through the whitelist
@@ -238,13 +238,13 @@ def _store_request_headers(headers, span, integration_config):
     :param span: The Span instance where tags will be stored
     :type span: ddtrace.trace.Span
     :param integration_config: An integration specific config object.
-    :type integration_config: ddtrace.settings.IntegrationConfig
+    :type integration_config: ddtrace.settings._IntegrationConfig
     """
     _store_headers(headers, span, integration_config, REQUEST)
 
 
 def _store_response_headers(headers, span, integration_config):
-    # type: (Dict[str, str], Span, IntegrationConfig) -> None
+    # type: (Dict[str, str], Span, _IntegrationConfig) -> None
     """
     Store response headers as a span's tags
     :param headers: All the response's http headers, will be filtered through the whitelist
@@ -252,7 +252,7 @@ def _store_response_headers(headers, span, integration_config):
     :param span: The Span instance where tags will be stored
     :type span: ddtrace.trace.Span
     :param integration_config: An integration specific config object.
-    :type integration_config: ddtrace.settings.IntegrationConfig
+    :type integration_config: ddtrace.settings._IntegrationConfig
     """
     _store_headers(headers, span, integration_config, RESPONSE)
 
@@ -320,7 +320,7 @@ def with_traced_module(func):
 
 
 def distributed_tracing_enabled(int_config, default=False):
-    # type: (IntegrationConfig, bool) -> bool
+    # type: (_IntegrationConfig, bool) -> bool
     """Returns whether distributed tracing is enabled for this integration config"""
     if "distributed_tracing_enabled" in int_config and int_config.distributed_tracing_enabled is not None:
         return int_config.distributed_tracing_enabled
@@ -330,7 +330,7 @@ def distributed_tracing_enabled(int_config, default=False):
 
 
 def int_service(pin, int_config, default=None):
-    # type: (Optional[Pin], IntegrationConfig, Optional[str]) -> Optional[str]
+    # type: (Optional[Pin], _IntegrationConfig, Optional[str]) -> Optional[str]
     """Returns the service name for an integration which is internal
     to the application. Internal meaning that the work belongs to the
     user's application. Eg. Web framework, sqlalchemy, web servers.
@@ -368,7 +368,7 @@ def int_service(pin, int_config, default=None):
 
 
 def ext_service(pin, int_config, default=None):
-    # type: (Optional[Pin], IntegrationConfig, Optional[str]) -> Optional[str]
+    # type: (Optional[Pin], _IntegrationConfig, Optional[str]) -> Optional[str]
     """Returns the service name for an integration which is external
     to the application. External meaning that the integration generates
     spans wrapping code that is outside the scope of the user's application. Eg. A database, RPC, cache, etc.
@@ -390,7 +390,7 @@ def ext_service(pin, int_config, default=None):
 
 def set_http_meta(
     span,  # type: Span
-    integration_config,  # type: IntegrationConfig
+    integration_config,  # type: _IntegrationConfig
     method=None,  # type: Optional[str]
     url=None,  # type: Optional[str]
     target_host=None,  # type: Optional[str]
@@ -520,7 +520,7 @@ def set_http_meta(
 
 
 def activate_distributed_headers(tracer, int_config=None, request_headers=None, override=None):
-    # type: (Tracer, Optional[IntegrationConfig], Optional[Dict[str, str]], Optional[bool]) -> None
+    # type: (Tracer, Optional[_IntegrationConfig], Optional[Dict[str, str]], Optional[bool]) -> None
     """
     Helper for activating a distributed trace headers' context if enabled in integration config.
     int_config will be used to check if distributed trace headers context will be activated, but

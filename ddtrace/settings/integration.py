@@ -6,10 +6,10 @@ from ddtrace.vendor.debtcollector import deprecate
 
 from .._hooks import Hooks
 from ..internal.utils.attrdict import AttrDict
-from .http import HttpConfig
+from .http import _HttpConfig
 
 
-class IntegrationConfig(AttrDict):
+class _IntegrationConfig(AttrDict):
     """
     Integration specific configuration object.
 
@@ -17,29 +17,23 @@ class IntegrationConfig(AttrDict):
 
         from ddtrace import config
 
-        # This is an `IntegrationConfig`
+        # This is an `_IntegrationConfig`
         config.flask
 
-        # `IntegrationConfig` supports both attribute and item accessors
+        # `_IntegrationConfig` supports both attribute and item accessors
         config.flask['service_name'] = 'my-service-name'
         config.flask.service_name = 'my-service-name'
     """
 
     def __init__(self, global_config, name, *args, **kwargs):
-        """
-        :param global_config:
-        :type global_config: Config
-        :param args:
-        :param kwargs:
-        """
-        super(IntegrationConfig, self).__init__(*args, **kwargs)
+        super(_IntegrationConfig, self).__init__(*args, **kwargs)
 
-        # Set internal properties for this `IntegrationConfig`
+        # Set internal properties for this `_IntegrationConfig`
         # DEV: By-pass the `__setattr__` overrides from `AttrDict` to set real properties
         object.__setattr__(self, "global_config", global_config)
         object.__setattr__(self, "integration_name", name)
         object.__setattr__(self, "hooks", Hooks())
-        object.__setattr__(self, "http", HttpConfig())
+        object.__setattr__(self, "http", _HttpConfig())
 
         # Trace Analytics was removed in v3.0.0
         # TODO(munir): Remove all references to analytics_enabled and analytics_sample_rate

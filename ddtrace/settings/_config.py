@@ -39,8 +39,8 @@ from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
 from ._inferred_base_service import detect_service
 from .endpoint_config import fetch_config_from_endpoint
-from .http import HttpConfig
-from .integration import IntegrationConfig
+from .http import _HttpConfig
+from .integration import _IntegrationConfig
 
 
 log = get_logger(__name__)
@@ -456,7 +456,7 @@ class Config(object):
         self._partial_flush_enabled = _get_config("DD_TRACE_PARTIAL_FLUSH_ENABLED", True, asbool)
         self._partial_flush_min_spans = _get_config("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", 300, int)
 
-        self._http = HttpConfig(header_tags=self._trace_http_header_tags)
+        self._http = _HttpConfig(header_tags=self._trace_http_header_tags)
         self._remote_config_enabled = _get_config("DD_REMOTE_CONFIGURATION_ENABLED", True, asbool)
         self._remote_config_poll_interval = _get_config(
             ["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "DD_REMOTECONFIG_POLL_SECONDS"], 5.0, float
@@ -689,7 +689,7 @@ class Config(object):
             return self._integration_configs[name]
         elif name in INTEGRATION_CONFIGS:
             # Allows for accessing integration configs before an integration is patched
-            self._integration_configs[name] = IntegrationConfig(self, name)
+            self._integration_configs[name] = _IntegrationConfig(self, name)
             return self._integration_configs[name]
         raise AttributeError(f"{type(self)} object has no attribute {name}, {name} is not a valid configuration")
 
@@ -743,11 +743,11 @@ class Config(object):
             # >>> config._add('requests', dict(split_by_domain=False))
             # >>> config.requests['split_by_domain']
             # True
-            self._integration_configs[integration] = IntegrationConfig(
+            self._integration_configs[integration] = _IntegrationConfig(
                 self, integration, _deepmerge(existing, settings)
             )
         else:
-            self._integration_configs[integration] = IntegrationConfig(self, integration, settings)
+            self._integration_configs[integration] = _IntegrationConfig(self, integration, settings)
 
     @cachedmethod()
     def _header_tag_name(self, header_name):

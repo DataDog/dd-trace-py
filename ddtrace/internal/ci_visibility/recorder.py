@@ -72,7 +72,7 @@ from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabi
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.settings._agent import config as agent_config
-from ddtrace.settings.integration import IntegrationConfig
+from ddtrace.settings.integration import _IntegrationConfig
 from ddtrace.trace import Span
 from ddtrace.trace import TraceFilter
 from ddtrace.trace import Tracer
@@ -156,7 +156,7 @@ class CIVisibility(Service):
     enabled = False
 
     def __init__(
-        self, tracer: Optional[Tracer] = None, config: Optional[IntegrationConfig] = None, service: Optional[str] = None
+        self, tracer: Optional[Tracer] = None, config: Optional[_IntegrationConfig] = None, service: Optional[str] = None
     ) -> None:
         super().__init__()
 
@@ -207,7 +207,7 @@ class CIVisibility(Service):
         self._api_key = os.getenv("_CI_DD_API_KEY", os.getenv("DD_API_KEY"))
 
         self._dd_site = os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE)
-        self.config = config or ddconfig.test_visibility  # type: Optional[IntegrationConfig]
+        self.config = config or ddconfig.test_visibility  # type: Optional[_IntegrationConfig]
         self._itr_skipping_level: ITR_SKIPPING_LEVEL = ddconfig.test_visibility.itr_skipping_level
         self._itr_skipping_ignore_parameters: bool = ddconfig.test_visibility._itr_skipping_ignore_parameters
         if not isinstance(ddconfig.test_visibility.itr_skipping_level, ITR_SKIPPING_LEVEL):

@@ -33,7 +33,7 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.settings.integration import IntegrationConfig
+from ddtrace.settings.integration import _IntegrationConfig
 from ddtrace.vendor.packaging.version import parse as parse_version
 
 
@@ -87,7 +87,7 @@ config._add(
 )
 
 # PERF: cache the getattr lookup for the Django config
-config_django: IntegrationConfig = cast(IntegrationConfig, config.django)
+config_django: _IntegrationConfig = cast(_IntegrationConfig, config.django)
 
 
 def get_version():

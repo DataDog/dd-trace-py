@@ -36,7 +36,7 @@ from ddtrace.internal.utils import set_blocked
 from ddtrace.internal.wrapping import is_wrapped_with
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
-from ddtrace.settings.integration import IntegrationConfig
+from ddtrace.settings.integration import _IntegrationConfig
 
 from . import utils
 
@@ -44,7 +44,7 @@ from . import utils
 log = get_logger(__name__)
 
 # PERF: cache the getattr lookup for the Django config
-config_django: IntegrationConfig = cast(IntegrationConfig, config.django)
+config_django: _IntegrationConfig = cast(_IntegrationConfig, config.django)
 
 
 def _gather_block_metadata(request, request_headers, ctx: core.ExecutionContext):

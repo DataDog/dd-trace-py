@@ -14,7 +14,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._llmobs import LLMObs
-from ddtrace.settings.integration import IntegrationConfig
+from ddtrace.settings.integration import _IntegrationConfig
 from ddtrace.trace import Span
 
 
@@ -24,7 +24,7 @@ log = get_logger(__name__)
 class BaseLLMIntegration:
     _integration_name = "baseLLM"
 
-    def __init__(self, integration_config: IntegrationConfig) -> None:
+    def __init__(self, integration_config: _IntegrationConfig) -> None:
         self.integration_config = integration_config
         self._span_pc_sampler = RateSampler(
             sample_rate=getattr(integration_config, "span_prompt_completion_sample_rate", 1.0)
