@@ -23,6 +23,7 @@ jobs:
 
       - name: Type checking
         run: |
+          cd ddtrace/internal/datadog/profiling/echion
           hatch run checks:typing
 
   linting:
@@ -41,4 +42,5 @@ jobs:
 
       - name: Linting
         run: |
+          cd ddtrace/internal/datadog/profiling/echion
           hatch run checks:linting

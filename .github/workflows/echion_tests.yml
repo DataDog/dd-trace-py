@@ -29,10 +29,12 @@ jobs:
 
       - name: Install dependencies
         run: |
+          sudo apt-get remove -yq man-db
           sudo apt-get update
           sudo apt-get install -y gdb liblzma-dev
+          cd ddtrace/internal/datadog/profiling/echion
           sudo -E bash scripts/build_libunwind.sh
-          pip install pygments
+          pip install pygments hypothesis
 
       - name: Install Hatch
         uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc # install branch
@@ -47,7 +49,9 @@ jobs:
 
       - name: Run tests
         run: |
+          cd ddtrace/internal/datadog/profiling/echion
           sudo echo "core.%p" | sudo tee /proc/sys/kernel/core_pattern
+          export SETUPTOOLS_SCM_PRETEND_VERSION=1.0.0
           sudo -E env PATH="$PATH" bash -c 'ECHION_ALT_VM_READ_FORCE=${{ matrix.echion-alt-vm-force }} ulimit -c unlimited && hatch run tests.py${{ matrix.python-version }}:tests -svv'
 
       - name: Upload profiles
@@ -94,7 +98,11 @@ jobs:
         uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc # install branch
 
       - name: Run tests
-        run: sudo -E hatch run tests.py${{ matrix.python-version }}:tests -svv
+        run: |
+          cd ddtrace/internal/datadog/profiling/echion
+          export SETUPTOOLS_SCM_PRETEND_VERSION=1.0.0
+          sudo pip install  hypothesis
+          sudo -E hatch run tests.py${{ matrix.python-version }}:tests -svv
 
       - name: Upload profiles
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
