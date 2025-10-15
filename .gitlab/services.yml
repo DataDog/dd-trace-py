@@ -50,9 +50,9 @@
       KAFKA_PROCESS_ROLES: controller,broker
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-  httpbin_local:
+  httpbin:
     name: registry.ddbuild.io/images/mirror/mccutchen/go-httpbin:v2.14.1
-    alias: httpbin_local
+    alias: httpbin
     variables:
       PORT: 8001
   memcached:
