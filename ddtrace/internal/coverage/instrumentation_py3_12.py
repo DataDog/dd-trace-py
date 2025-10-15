@@ -24,9 +24,6 @@ EMPTY_MODULE_BYTES = bytes([RESUME, 0, RETURN_CONST, 0])
 # Store: (hook, path, import_names_by_line)
 _CODE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str, t.Dict[int, t.Tuple[str, t.Optional[t.Tuple[str]]]]]] = {}
 
-# Track all instrumented code objects so we can re-enable monitoring between tests/suites
-_DEINSTRUMENTED_CODE_OBJECTS: t.Set[CodeType] = set()
-
 
 def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, CoverageLines]:
     """
@@ -43,7 +40,6 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     - Each line is only reported once per coverage context (test/suite)
     - No overhead for repeated line executions (e.g., in loops)
     - Full line-by-line coverage data is captured
-    - reset_monitoring_for_new_context() re-enables monitoring between contexts
     """
     coverage_tool = sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID)
     if coverage_tool is not None and coverage_tool != "datadog":
@@ -60,8 +56,6 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
 def _line_event_handler(code: CodeType, line: int) -> t.Any:
     hook_data = _CODE_HOOKS.get(code)
     if hook_data is None:
-        # Track this code object so we can re-enable monitoring for it later
-        _DEINSTRUMENTED_CODE_OBJECTS.add(code)
         return sys.monitoring.DISABLE
 
     hook, path, import_names = hook_data
@@ -71,10 +65,7 @@ def _line_event_handler(code: CodeType, line: int) -> t.Any:
     import_name = import_names.get(line, None)
     hook((line, path, import_name))
 
-    # Track this code object so we can re-enable monitoring for it later
-    _DEINSTRUMENTED_CODE_OBJECTS.add(code)
     # Return DISABLE to prevent future callbacks for this specific line
-    # This provides full line coverage with minimal overhead
     return sys.monitoring.DISABLE
 
 
@@ -88,18 +79,6 @@ def _register_monitoring():
     sys.monitoring.register_callback(
         sys.monitoring.COVERAGE_ID, sys.monitoring.events.LINE, _line_event_handler
     )  # noqa
-
-
-def reset_monitoring_for_new_context():
-    """
-    Re-enable monitoring for all instrumented code objects.
-
-    This should be called when starting a new coverage context (e.g., per-test or per-suite).
-    It re-enables monitoring that was disabled by previous DISABLE returns.
-    """
-    for code in _DEINSTRUMENTED_CODE_OBJECTS:
-        # Re-enable LINE events for this code object
-        sys.monitoring.set_local_events(sys.monitoring.COVERAGE_ID, code, sys.monitoring.events.LINE)  # noqa
 
 
 def _instrument_all_lines_with_monitoring(

@@ -23,9 +23,6 @@ from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.inspection import resolved_code_origin
 
 
-if sys.version_info >= (3, 12):
-    from ddtrace.internal.coverage.instrumentation_py3_12 import reset_monitoring_for_new_context
-
 log = get_logger(__name__)
 
 _original_exec = exec
@@ -238,7 +235,7 @@ class ModuleCodeCollector(ModuleWatchdog):
             # For Python 3.12+, re-enable monitoring that was disabled by previous contexts
             # This ensures each test/suite gets accurate coverage data
             if sys.version_info >= (3, 12):
-                reset_monitoring_for_new_context()
+                sys.monitoring.restart_events()
 
             return self
 
