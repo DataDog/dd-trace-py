@@ -106,7 +106,7 @@
         "minimum_tracer_supported": "5.12.2",
         "max_tracer_supported": "5.15.0",
         "pinned": "true",
-        "auto-instrumented": true
+        "auto-instrumented": false
     },
     {
         "dependency": "azure-functions",
@@ -144,7 +144,7 @@
         "dependency": "bottle",
         "integration": "bottle",
         "minimum_tracer_supported": "0.12.25",
-        "max_tracer_supported": "0.13.2",
+        "max_tracer_supported": "0.13.4",
         "auto-instrumented": true
     },
     {
