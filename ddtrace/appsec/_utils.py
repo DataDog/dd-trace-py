@@ -10,7 +10,6 @@ from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Union
-import uuid
 
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
@@ -236,6 +235,10 @@ def _safe_userid(user_id):
         return user_id
     except ValueError:
         try:
+            # Import uuid lazily because this also imports threading via the
+            # platform module
+            import uuid
+
             _ = uuid.UUID(user_id)
             return user_id
         except ValueError:

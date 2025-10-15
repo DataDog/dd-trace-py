@@ -250,10 +250,9 @@ class LLMObs(Service):
                 "Error generating LLMObs span event for span %s, likely due to malformed span", span, exc_info=True
             )
         finally:
-            if not span_event or not span._get_ctx_item(SPAN_KIND) == "llm" or _is_evaluation_span(span):
-                return
-            if self._evaluator_runner:
-                self._evaluator_runner.enqueue(span_event, span)
+            if span_event and span._get_ctx_item(SPAN_KIND) == "llm" and not _is_evaluation_span(span):
+                if self._evaluator_runner:
+                    self._evaluator_runner.enqueue(span_event, span)
 
     def _llmobs_span_event(self, span: Span) -> Optional[LLMObsSpanEvent]:
         """Span event object structure."""
@@ -1393,7 +1392,7 @@ class LLMObs(Service):
                 else:
                     cls._set_dict_attribute(span, METADATA, metadata)
             if metrics is not None:
-                if not isinstance(metrics, dict):
+                if not isinstance(metrics, dict) or not all(isinstance(v, (int, float)) for v in metrics.values()):
                     error = "invalid_metrics"
                     log.warning("metrics must be a dictionary of string key - numeric value pairs.")
                 else:
