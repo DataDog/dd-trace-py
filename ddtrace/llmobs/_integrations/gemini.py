@@ -81,7 +81,7 @@ class GeminiIntegration(BaseLLMIntegration):
             messages.append(message)
             return messages
         if not isinstance(contents, list):
-            messages.append(Message(content="[Non-text content object: {}]".format(repr(contents))))
+            messages.append(Message(content=f"[Non-text content object: {repr(contents)}]"))
             return messages
         for content in contents:
             if isinstance(content, str):
@@ -90,7 +90,7 @@ class GeminiIntegration(BaseLLMIntegration):
             role = _get_attr(content, "role", None)
             parts = _get_attr(content, "parts", [])
             if not parts or not isinstance(parts, Iterable):
-                message = Message(content="[Non-text content object: {}]".format(repr(content)))
+                message = Message(content=f"[Non-text content object: {repr(content)}]")
                 if role:
                     message["role"] = role
                 messages.append(message)

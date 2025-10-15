@@ -185,7 +185,7 @@ def _get_span_name(span: Span) -> str:
         return span.resource
     elif span.name == OPENAI_APM_SPAN_NAME and span.resource != "":
         client_name = span.get_tag("openai.request.provider") or "OpenAI"
-        return "{}.{}".format(client_name, span.resource)
+        return f"{client_name}.{span.resource}"
     return span._get_ctx_item(NAME) or span.name
 
 
@@ -242,7 +242,7 @@ def _unserializable_default_repr(obj):
         return str(obj)
     except Exception:
         log.warning("I/O object is neither JSON serializable nor string-able. Defaulting to placeholder value instead.")
-        return "[Unserializable object: {}]".format(repr(obj))
+        return f"[Unserializable object: {repr(obj)}]"
 
 
 def safe_json(obj, ensure_ascii=True):

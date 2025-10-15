@@ -58,7 +58,7 @@ class BaseLLMIntegration:
         Reuse the service of the application since we'll tag downstream request spans with the LLM name.
         Eventually those should also be internal service spans once peer.service is implemented.
         """
-        span_name = kwargs.get("span_name", None) or "{}.request".format(self._integration_name)
+        span_name = kwargs.get("span_name", None) or f"{self._integration_name}.request"
         span = pin.tracer.trace(
             span_name,
             resource=operation_id,

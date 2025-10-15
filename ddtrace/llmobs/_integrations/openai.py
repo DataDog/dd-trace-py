@@ -147,11 +147,9 @@ class OpenAIIntegration(BaseLLMIntegration):
             return
         if encoding_format == "float":
             embedding_dim = len(resp.data[0].embedding)
-            span._set_ctx_item(
-                OUTPUT_VALUE, "[{} embedding(s) returned with size {}]".format(len(resp.data), embedding_dim)
-            )
+            span._set_ctx_item(OUTPUT_VALUE, f"[{len(resp.data)} embedding(s) returned with size {embedding_dim}]")
             return
-        span._set_ctx_item(OUTPUT_VALUE, "[{} embedding(s) returned]".format(len(resp.data)))
+        span._set_ctx_item(OUTPUT_VALUE, f"[{len(resp.data)} embedding(s) returned]")
 
     @staticmethod
     def _extract_llmobs_metrics_tags(

@@ -234,7 +234,7 @@ def extract_message_from_part_google_genai(part, role: str) -> Message:
         message["content"] = safe_json({"outcome": str(outcome), "output": str(output)}) or ""
         return message
 
-    return Message(content="Unsupported file type: {}".format(type(part)), role=role)
+    return Message(content=f"Unsupported file type: {type(part)}", role=role)
 
 
 def llmobs_get_metadata_gemini_vertexai(kwargs, instance):
