@@ -1567,7 +1567,7 @@ class LLMObs(Service):
             timestamp_ms=timestamp_ms,
             metadata=metadata,
         )
-    
+
     @classmethod
     def submit_evaluation(
         cls,
@@ -1589,7 +1589,7 @@ class LLMObs(Service):
         :param str metric_type: The type of the evaluation metric. One of "categorical", "score", "boolean".
         :param value: The value of the evaluation metric.
                       Must be a string (categorical), integer (score), float (score), or boolean (boolean).
-        :param dict span_context: A dictionary containing the span_id and trace_id of interest. This is a 
+        :param dict span_context: A dictionary containing the span_id and trace_id of interest. This is a
                             deprecated parameter and will be removed in a future version. Please use `span`
                             or `span_with_tag_value` instead.
         :param dict span: A dictionary of shape {'span_id': str, 'trace_id': str} uniquely identifying
