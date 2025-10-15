@@ -50,9 +50,19 @@ candidate:
     git clone --branch "brettlangdon/candidate.wheels" --single-branch https://github.com/DataDog/serverless-tools ./serverless-tools
     cd ./serverless-tools
 
-  # We are in ./serverless-tools, but we need the artifacts in the parent dir
-  after_script: |
-    mv ${CI_PROJECT_DIR}/serverless-tools/*.zip ${CI_PROJECT_DIR}/
+
+.common_setup:
+  before_script:
+    - !reference [.common, before_script]
+    - "cp ../*.whl ./"
+
+  # We are in ./serverless-tools, and child jobs will be in serverless-tools as well
+  artifacts:
+    expire_in: 1 hr # Unsigned zips expire in 1 hour
+    paths:
+      - ${CI_PROJECT_DIR}/serverless-tools/layer.zip
+    reports:
+      dotenv: ${CI_PROJECT_DIR}/serverless-tools/.env # To pass environment variables
 
 setup (amd64):
   needs:
@@ -61,8 +71,8 @@ setup (amd64):
   dependencies:
     - candidate
   before_script:
-    - !reference [.common, before_script]
-    - "cp ../*.whl ./"
+    - !reference [.common_setup, before_script]
+  artifacts: !reference [.common_setup, artifacts]
 
 setup (arm64):
   needs:
@@ -71,8 +81,8 @@ setup (arm64):
   dependencies:
     - candidate
   before_script:
-    - !reference [.common, before_script]
-    - "cp ../*.whl ./"
+    - !reference [.common_setup, before_script]
+  artifacts: !reference [.common_setup, artifacts]
 
 .layer-size:
   before_script:
