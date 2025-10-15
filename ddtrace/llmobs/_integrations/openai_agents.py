@@ -266,7 +266,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         )
 
     def _llmobs_set_handoff_attributes(self, span: Span, oai_span: OaiSpanAdapter) -> None:
-        handoff_tool_name = "transfer_to_{}".format("_".join(oai_span.to_agent.split(" ")).lower())
+        handoff_tool_name = f"transfer_to_{'_'.join(oai_span.to_agent.split(' ')).lower()}"
         span.name = handoff_tool_name
         span._set_ctx_item("input_value", oai_span.from_agent or "")
         span._set_ctx_item("output_value", oai_span.to_agent or "")
