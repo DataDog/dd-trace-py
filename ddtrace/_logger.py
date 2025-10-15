@@ -136,8 +136,9 @@ def _configure_ddtrace_native_logger():
     try:
         from ddtrace.internal.native._native import logger
 
-        native_writer_enabled = get_config("_DD_TRACE_WRITER_NATIVE", False, asbool, report_telemetry=True)
-        if native_writer_enabled:
+        from .settings._config import config
+
+        if config._trace_writer_native:
             backend = get_config("_DD_NATIVE_LOGGING_BACKEND", "file", report_telemetry=True)
             kwargs = {"output": backend}
             if backend == "file":
