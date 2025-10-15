@@ -55,14 +55,16 @@ candidate:
   before_script:
     - !reference [.common, before_script]
     - "cp ../*.whl ./"
+  after_script:
+    - cp ${CI_PROJECT_DIR}/serverless-tools/.env ${CI_PROJECT_DIR}/serverless-tools/layer.zip ${CI_PROJECT_DIR}/
 
   # We are in ./serverless-tools, and child jobs will be in serverless-tools as well
   artifacts:
     expire_in: 1 hr # Unsigned zips expire in 1 hour
     paths:
-      - ${CI_PROJECT_DIR}/serverless-tools/layer.zip
+      - layer.zip
     reports:
-      dotenv: ${CI_PROJECT_DIR}/serverless-tools/.env # To pass environment variables
+      dotenv: .env # To pass environment variables
 
 setup (amd64):
   needs:
@@ -72,6 +74,8 @@ setup (amd64):
     - candidate
   before_script:
     - !reference [.common_setup, before_script]
+  after_script:
+    - !reference [.common_setup, after_script]
   artifacts: !reference [.common_setup, artifacts]
 
 setup (arm64):
@@ -82,12 +86,20 @@ setup (arm64):
     - candidate
   before_script:
     - !reference [.common_setup, before_script]
+  after_script:
+    - !reference [.common_setup, after_script]
   artifacts: !reference [.common_setup, artifacts]
+
+
+.common_tests:
+    before_script:
+      - !reference [.common, before_script]
+      - "cp ${CI_PROJECT_DIR}/*.zip ./"
 
 .layer-size:
   before_script:
-    - !reference [.common, before_script]
+    - !reference [.common_tests, before_script]
 
 .cold-start:
   before_script:
-    - !reference [.common, before_script]
+    - !reference [.common_tests, before_script]
