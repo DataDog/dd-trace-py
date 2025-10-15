@@ -23,6 +23,8 @@ dependencies = [
     "cmake-format==0.6.13",
     "ruamel.yaml==0.18.6",
     "ast-grep-cli==0.39.4",
+    "flake8>=7.0.0",
+    "flake8_environ_rule @ {root:uri}/scripts/flake8_environ_rule",
 ]
 
 [envs.lint.scripts]
@@ -38,6 +40,7 @@ cformat_check = [
 style = [
     "black_check",
     "ruff check {args:.}",
+    "flake8 --select=ENV001 {args:ddtrace/}",
     "cython-lint {args:.}",
     "cformat_check",
     "cmakeformat_check",
