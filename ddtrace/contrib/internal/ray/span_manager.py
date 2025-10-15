@@ -268,7 +268,7 @@ def start_long_running_job(job_span: Span) -> None:
     start_long_running_span(job_span)
 
 
-def stop_long_running_job(submission_id: str, job_info: Optional[JobInfo]) -> None:
+def stop_long_running_job(submission_id: str, job_info: Optional[JobInfo] = None) -> None:
     get_span_manager().stop_long_running_job(submission_id, job_info)
 
 
