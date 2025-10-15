@@ -1,0 +1,9 @@
+deprecations:
+  - |
+    LLM Observability: ``LLMObs.submit_evaluation_for()`` has been deprecated and will be removed in a future version. 
+    It will be replaced with ``LLMObs.submit_evaluation()`` which will take the signature of the original ``LLMObs.submit_evaluation_for()``
+    method in ddtrace version 4.0.0. Please use ``LLMObs.submit_evaluation()`` for submitting evaluations moving forward. 
+    To migrate:
+	    - ``LLMObs.submit_evaluation_for(...)`` users: rename to ``LLMObs.submit_evaluation(...)``
+	    - ``LLMObs.submit_evaluation(...)`` users: rename the ``span_context`` argument to ``span``, i.e. 
+        ``LLMObs.submit_evaluation(span_context={"span_id": ..., "trace_id": ...}, ...)`` to ``LLMObs.submit_evaluation(span={"span_id": ..., "trace_id": ...}, ...)``

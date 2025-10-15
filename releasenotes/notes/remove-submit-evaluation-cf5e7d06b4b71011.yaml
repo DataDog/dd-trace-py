@@ -1,4 +1,0 @@
-upgrade:
-  - |
-    LLM Observability: ``LLMObs.submit_evaluation_for`` has been removed and ``LLMObs.submit_evaluation()`` has been updated to have the same signature 
-    and functionality as the original ``LLMObs.submit_evaluation_for()`` method. Please use ``LLMObs.submit_evaluation()`` for submitting evaluations.
