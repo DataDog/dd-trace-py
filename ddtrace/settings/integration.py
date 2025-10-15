@@ -81,8 +81,7 @@ class IntegrationConfig(AttrDict):
         return self.global_config._http.trace_query_string
 
     @property
-    def is_header_tracing_configured(self):
-        # type: (...) -> bool
+    def is_header_tracing_configured(self) -> bool:
         """Returns whether header tracing is enabled for this integration.
 
         Will return true if traced headers are configured for this integration
@@ -90,45 +89,23 @@ class IntegrationConfig(AttrDict):
         """
         return self.http.is_header_tracing_configured or self.global_config._http.is_header_tracing_configured
 
-    def header_is_traced(self, header_name):
-        # type: (str) -> bool
-        """
-        Returns whether or not the current header should be traced.
-        :param header_name: the header name
-        :type header_name: str
-        :rtype: bool
-        """
+    def header_is_traced(self, header_name: str) -> bool:
+        """Returns whether or not the current header should be traced."""
         return self._header_tag_name(header_name) is not None
 
-    def _header_tag_name(self, header_name):
-        # type: (str) -> Optional[str]
+    def _header_tag_name(self, header_name: str) -> Optional[str]:
         tag_name = self.http._header_tag_name(header_name)
         if tag_name is None:
             return self.global_config._header_tag_name(header_name)
         return tag_name
 
     def __getattr__(self, key):
-        if key in self.APP_ANALYTICS_CONFIG_NAMES:
-            self.app_analytics_deprecated_warning(key)
         return super().__getattr__(key)
 
     def __setattr__(self, key, value):
-        if key in self.APP_ANALYTICS_CONFIG_NAMES:
-            self.app_analytics_deprecated_warning(key)
         return super().__setattr__(key, value)
 
-    def app_analytics_deprecated_warning(self, key):
-        deprecate(
-            f"{key} is deprecated",
-            message="Controlling ingestion via analytics is no longer supported. "
-            "See https://docs.datadoghq.com/tracing/legacy_app_analytics/"
-            "?code-lang=python#migrate-to-the-new-configuration-options",
-            category=DDTraceDeprecationWarning,
-            removal_version="4.0.0",
-        )
-
     def get_analytics_sample_rate(self, use_global_config=False):
-        self.app_analytics_deprecated_warning("get_analytics_sample_rate")
         return 1
 
     def __repr__(self):
