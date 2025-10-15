@@ -3,10 +3,10 @@ import os
 
 import pytest
 
-from ddtrace.contrib.internal.futures.patch import patch as patch_futures
-from ddtrace.contrib.internal.futures.patch import unpatch as unpatch_futures
 from ddtrace.contrib.internal.asyncio.patch import patch as patch_asyncio
 from ddtrace.contrib.internal.asyncio.patch import unpatch as unpatch_asyncio
+from ddtrace.contrib.internal.futures.patch import patch as patch_futures
+from ddtrace.contrib.internal.futures.patch import unpatch as unpatch_futures
 from ddtrace.llmobs._constants import LLMOBS_TRACE_ID
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import PARENT_ID_KEY
@@ -431,7 +431,9 @@ async def test_asyncio_create_task(llmobs, llmobs_events, patched_asyncio):
             return 42
 
     with llmobs.workflow("main_task"):
-        await asyncio.create_task(fn())
+        asyncio.create_task(fn())
+
+    await asyncio.sleep(0)  # Need this to allow fn() task to run
 
     main_task_span, side_task_span = None, None
     for span in llmobs_events:
