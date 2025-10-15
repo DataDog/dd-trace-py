@@ -10,7 +10,7 @@ from ddtrace.internal.utils import get_argument_value
 INT_TYPES = (int,)
 
 
-def dsm_aiokafka_send_start(topic, value, key, headers, span):
+def dsm_aiokafka_send_start(topic, value, key, headers, span, _):
     from . import data_streams_processor as processor
 
     payload_size = 0
@@ -18,13 +18,10 @@ def dsm_aiokafka_send_start(topic, value, key, headers, span):
     payload_size += _calculate_byte_size(key)
     payload_size += _calculate_byte_size(headers)
 
-    ctx = processor().set_checkpoint(
-        ["direction:out", "topic:" + topic, "type:kafka"], payload_size=payload_size, span=span
-    )
-    dsm_headers = {}
-    DsmPathwayCodec.encode(ctx, dsm_headers)
-    for key, value in dsm_headers.items():
-        headers.append((key, value.encode("utf-8")))
+    edge_tags = ["direction:out", "topic:" + topic, "type:kafka"]
+    ctx = processor().set_checkpoint(edge_tags, payload_size=payload_size, span=span)
+
+    DsmPathwayCodec.encode(ctx, headers)
 
 
 def dsm_aiokafka_send_completed(record_metadata):
@@ -34,7 +31,7 @@ def dsm_aiokafka_send_completed(record_metadata):
     processor().track_kafka_produce(record_metadata.topic, record_metadata.partition, reported_offset, time.time())
 
 
-def dsm_aiokafka_get_completed(instance, message, span):
+def dsm_aiokafka_message_consume(instance, span, message, _):
     from . import data_streams_processor as processor
 
     headers = {header[0]: header[1].decode("utf-8") for header in (message.headers or [])}
@@ -58,19 +55,32 @@ def dsm_aiokafka_get_completed(instance, message, span):
             instance._group_id, message.topic, message.partition, reported_offset, time.time()
         )
 
+def dsm_aiokafka_many_messages_consume(instance, span, messages):
+    if messages is not None:
+        for _, records in messages.items():
+            for record in records:
+                dsm_aiokafka_message_consume(instance, span, record, None)
 
-def dsm_aiokafka_commit_start(instance, args, kwargs):
+
+def dsm_aiokafka_messsage_commit(instance, args, kwargs):
     from . import data_streams_processor as processor
 
     offsets = get_argument_value(args, kwargs, 0, "offsets", optional=True)
     if offsets:
         for tp, offset in offsets.items():
-            reported_offset = offset if isinstance(offset, INT_TYPES) else -1
+            # offset can be either an int or a tuple of (offset, metadata)
+            if isinstance(offset, INT_TYPES):
+                reported_offset = offset
+            elif isinstance(offset, tuple) and len(offset) > 0 and isinstance(offset[0], INT_TYPES):
+                reported_offset = offset[0]
+            else:
+                reported_offset = -1
             processor().track_kafka_commit(instance._group_id, tp.topic, tp.partition, reported_offset, time.time())
 
 
 if config._data_streams_enabled:
     core.on("aiokafka.send.start", dsm_aiokafka_send_start)
     core.on("aiokafka.send.completed", dsm_aiokafka_send_completed)
-    core.on("aiokafka.get.completed", dsm_aiokafka_get_completed)
-    core.on("aiokafka.commit.start", dsm_aiokafka_commit_start)
+    core.on("aiokafka.getone.message", dsm_aiokafka_message_consume)
+    core.on("aiokafka.getmany.message", dsm_aiokafka_many_messages_consume)
+    core.on("aiokafka.commit.start", dsm_aiokafka_messsage_commit)

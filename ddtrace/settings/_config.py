@@ -105,6 +105,7 @@ INTEGRATION_CONFIGS = frozenset(
         "urllib3",
         "subprocess",
         "kafka",
+        "aiokafka",
         "futures",
         "unittest",
         "falcon",

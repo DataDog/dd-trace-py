@@ -16,7 +16,6 @@ import ddtrace
 from ddtrace import config
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
 from ddtrace._trace._span_pointer import _SpanPointerDescription
-from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace._trace.utils import extract_DD_context_from_messages
 from ddtrace.constants import _SPAN_MEASURED_KEY
@@ -40,6 +39,7 @@ from ddtrace.ext import websocket
 from ddtrace.ext.kafka import MESSAGE_KEY
 from ddtrace.ext.kafka import MESSAGE_OFFSET
 from ddtrace.ext.kafka import PARTITION
+from ddtrace.ext.kafka import RECEIVED_MESSAGE
 from ddtrace.ext.kafka import TOMBSTONE
 from ddtrace.ext.kafka import TOPIC
 from ddtrace.internal import core
@@ -1133,7 +1133,13 @@ def _on_asgi_request(ctx: core.ExecutionContext) -> None:
         scope["datadog"]["request_spans"].append(span)
 
 
-def _on_aiokafka_send_start(topic, value, key, headers, span):
+def _on_aiokafka_send_start(_, send_value, send_key, headers, span, partition):
+    span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+    span.set_tag_str(MESSAGE_KEY, str(send_key))
+    span.set_tag_str(PARTITION, str(partition))
+    span.set_tag_str(TOMBSTONE, str(send_value is None))
+    span.set_metric(_SPAN_MEASURED_KEY, 1)
+
     if config.aiokafka.distributed_tracing_enabled:
         # inject headers with Datadog tags:
         tracing_headers = {}
@@ -1142,23 +1148,59 @@ def _on_aiokafka_send_start(topic, value, key, headers, span):
             headers.append((key, value.encode("utf-8")))
 
 
-def _on_aiokafka_getone_message(ctx, message, err):
-    span = ctx[ctx["call_key"]]
-    span.set_tag(TOMBSTONE, str(message is None).lower())
+def _on_aiokafka_getone_message(_, span, message, err):
+    span.set_tag_str(RECEIVED_MESSAGE, str(message is not None))
+    span.set_metric(_SPAN_MEASURED_KEY, 1)
+
     if message is not None:
         message_key = message.key or ""
         message_offset = message.offset or -1
-        span.set_tag_str(TOPIC, message.topic)
+        topic = str(message.topic)
+        span.set_tag_str(TOPIC, topic)
 
-    if isinstance(message_key, str) or isinstance(message_key, bytes):
-        span.set_tag_str(MESSAGE_KEY, message_key)
+        if isinstance(message_key, str) or isinstance(message_key, bytes):
+            span.set_tag_str(MESSAGE_KEY, message_key)
 
-    span.set_tag(PARTITION, message.partition)
-    span.set_tag(MESSAGE_OFFSET, message_offset)
-    span.set_tag(SPAN_MEASURED_KEY)
+        span.set_tag_str(TOMBSTONE, str(message.value is None))
+        span.set_tag_str(PARTITION, str(message.partition))
+        span.set_tag_str(MESSAGE_OFFSET, str(message_offset))
 
     if err is not None:
         span.set_exc_info(*sys.exc_info())
+
+
+def _on_aiokafka_getmany_message(_, span, messages):
+    span.set_tag_str(RECEIVED_MESSAGE, str(messages is not None))
+    span.set_metric(_SPAN_MEASURED_KEY, 1)
+
+    if messages is not None:
+        first_topic = next(iter(messages)).topic
+        span.set_tag_str(MESSAGING_DESTINATION_NAME, first_topic)
+
+        topics_partitions = {}
+        for topic_partition in messages.keys():
+            topic = topic_partition.topic
+            partition = topic_partition.partition
+            if topic not in topics_partitions:
+                topics_partitions[topic] = []
+            topics_partitions[topic].append(partition)
+
+        all_topics = list(topics_partitions.keys())
+        span.set_tag(TOPIC, ",".join(all_topics))
+
+        for topic, partitions in topics_partitions.items():
+            partition_list = ",".join(map(str, sorted(partitions)))
+            span.set_tag_str(f"kafka.partitions.{topic}", partition_list)
+
+        for topic_partition, records in messages.items():
+            for record in records:
+                if config.aiokafka.distributed_tracing_enabled and record.headers:
+                    dd_headers = {}
+                    for header in record.headers:
+                        dd_headers[header[0]] = header[1].decode("utf-8")
+                    context = HTTPPropagator.extract(dd_headers)
+
+                    span.link_span(context)
 
 
 def listen():
@@ -1241,6 +1283,7 @@ def listen():
     core.on("molten.router.match", _on_router_match)
     core.on("aiokafka.send.start", _on_aiokafka_send_start)
     core.on("aiokafka.getone.message", _on_aiokafka_getone_message)
+    core.on("aiokafka.getmany.message", _on_aiokafka_getmany_message)
 
     for context_name in (
         # web frameworks
@@ -1300,7 +1343,6 @@ def listen():
         "azure.servicebus.patched_producer_send",
         "psycopg.patched_connect",
         "aiokafka.send",
-        "aiokafka.send_and_wait",
         "aiokafka.getone",
         "aiokafka.getmany",
     ):
@@ -1328,6 +1370,8 @@ def listen():
         "azure.eventhubs.patched_producer_batch",
         "azure.eventhubs.patched_producer_send",
         "azure.eventhubs.patched_producer_send_batch",
+        "aiokafka.getone",
+        "aiokafka.getmany",
     ):
         core.on(f"context.ended.{name}", _finish_span)
 
