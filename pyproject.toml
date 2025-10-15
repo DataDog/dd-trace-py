@@ -63,9 +63,7 @@ _dd_crashtracker_receiver = "ddtrace.commands._dd_crashtracker_receiver:main"
 ddcontextvars_context = "ddtrace.internal.opentelemetry.context:DDRuntimeContext"
 
 [project.entry-points.pytest11]
-ddtrace = "ddtrace.contrib.internal.pytest.plugin"
-"ddtrace.pytest_bdd" = "ddtrace.contrib.internal.pytest_bdd.plugin"
-"ddtrace.pytest_benchmark" = "ddtrace.contrib.internal.pytest_benchmark.plugin"
+ddtrace = "ddtestpy.ddtrace_integration.pytest_entry_point"
 
 [project.entry-points.'ddtrace.products']
 "apm-tracing-rc" = "ddtrace.internal.remoteconfig.products.apm_tracing"
