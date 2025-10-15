@@ -40,8 +40,6 @@ from ddtrace.constants import VERSION_KEY
 from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.internal import core
-from ddtrace.internal._rand import rand64bits as _rand64bits
-from ddtrace.internal._rand import rand128bits as _rand128bits
 from ddtrace.internal.compat import NumericType
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import is_integer
@@ -49,9 +47,9 @@ from ddtrace.internal.constants import MAX_INT_64BITS as _MAX_INT_64BITS
 from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ddtrace.internal.constants import MIN_INT_64BITS as _MIN_INT_64BITS
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
-from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.time import Time
 from ddtrace.settings._config import config
@@ -106,25 +104,14 @@ def _get_64_highest_order_bits_as_hex(large_int: int) -> str:
     return "{:032x}".format(large_int)[:16]
 
 
-class Span(object):
+class Span(SpanData):
     __slots__ = [
         # Public span attributes
-        "service",
-        "name",
-        "_resource",
-        "_span_api",
-        "span_id",
-        "trace_id",
-        "parent_id",
         "_meta",
         "_meta_struct",
-        "error",
         "context",
-        "_metrics",
         "_store",
-        "span_type",
-        "start_ns",
-        "duration_ns",
+
         # Internal attributes
         "_parent_context",
         "_local_root_value",
@@ -139,18 +126,11 @@ class Span(object):
 
     def __init__(
         self,
-        name: str,
-        service: Optional[str] = None,
-        resource: Optional[str] = None,
-        span_type: Optional[str] = None,
-        trace_id: Optional[int] = None,
-        span_id: Optional[int] = None,
-        parent_id: Optional[int] = None,
-        start: Optional[int] = None,
+        *_args,
         context: Optional[Context] = None,
         on_finish: Optional[List[Callable[["Span"], None]]] = None,
-        span_api: str = SPAN_API_DATADOG,
         links: Optional[List[SpanLink]] = None,
+        **_kwargs,
     ) -> None:
         """
         Create a new span. Call `finish` once the traced operation is over.
@@ -173,41 +153,11 @@ class Span(object):
         :param object context: the Context of the span.
         :param on_finish: list of functions called when the span finishes.
         """
-        if not (span_id is None or isinstance(span_id, int)):
-            if config._raise:
-                raise TypeError("span_id must be an integer")
-            return
-        if not (trace_id is None or isinstance(trace_id, int)):
-            if config._raise:
-                raise TypeError("trace_id must be an integer")
-            return
-        if not (parent_id is None or isinstance(parent_id, int)):
-            if config._raise:
-                raise TypeError("parent_id must be an integer")
-            return
-        self.name = name
-        self.service = service
-        self._resource = [resource or name]
-        self.span_type = span_type
-        self._span_api = span_api
 
         self._meta: _MetaDictType = {}
-        self.error = 0
-        self._metrics: _MetricDictType = {}
 
         self._meta_struct: Dict[str, Dict[str, Any]] = {}
 
-        self.start_ns: int = Time.time_ns() if start is None else int(start * 1e9)
-        self.duration_ns: Optional[int] = None
-
-        if trace_id is not None:
-            self.trace_id: int = trace_id
-        elif config._128_bit_trace_id_enabled:
-            self.trace_id: int = _rand128bits()  # type: ignore[no-redef]
-        else:
-            self.trace_id: int = _rand64bits()  # type: ignore[no-redef]
-        self.span_id: int = span_id or _rand64bits()
-        self.parent_id: Optional[int] = parent_id
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
         self._parent_context: Optional[Context] = context
@@ -234,7 +184,7 @@ class Span(object):
             for tag in self.context._meta:
                 self._meta.setdefault(tag, self.context._meta[tag])
             for metric in self.context._metrics:
-                self._metrics.setdefault(metric, self.context._metrics[metric])
+                self._set_default_metrics_inner(metric, self.context._metrics[metric])
 
     def _ignore_exception(self, exc: Type[Exception]) -> None:
         if self._ignored_exceptions is None:
@@ -256,55 +206,6 @@ class Span(object):
         if not self._store:
             return None
         return self._store.get(key)
-
-    @property
-    def _trace_id_64bits(self) -> int:
-        return _get_64_lowest_order_bits_as_int(self.trace_id)
-
-    @property
-    def start(self) -> float:
-        """The start timestamp in Unix epoch seconds."""
-        return self.start_ns / 1e9
-
-    @start.setter
-    def start(self, value: Union[int, float]) -> None:
-        self.start_ns = int(value * 1e9)
-
-    @property
-    def resource(self) -> str:
-        return self._resource[0]
-
-    @resource.setter
-    def resource(self, value: str) -> None:
-        self._resource[0] = value
-
-    @property
-    def finished(self) -> bool:
-        return self.duration_ns is not None
-
-    @finished.setter
-    def finished(self, value: bool) -> None:
-        """Finishes the span if set to a truthy value.
-
-        If the span is already finished and a truthy value is provided
-        no action will occur.
-        """
-        if value:
-            if not self.finished:
-                self.duration_ns = Time.time_ns() - self.start_ns
-        else:
-            self.duration_ns = None
-
-    @property
-    def duration(self) -> Optional[float]:
-        """The span duration in seconds."""
-        if self.duration_ns is not None:
-            return self.duration_ns / 1e9
-        return None
-
-    @duration.setter
-    def duration(self, value: float) -> None:
-        self.duration_ns = int(value * 1e9)
 
     def finish(self, finish_time: Optional[float] = None) -> None:
         """Mark the end time of the span and submit it to the tracer.
@@ -332,8 +233,7 @@ class Span(object):
         self._set_sampling_decision_maker(SamplingMechanism.MANUAL)
         if self._local_root:
             for key in (_SAMPLING_RULE_DECISION, _SAMPLING_AGENT_DECISION, _SAMPLING_LIMIT_DECISION):
-                if key in self._local_root._metrics:
-                    del self._local_root._metrics[key]
+                    self._local_root._delete_metrics_inner(key)
 
     def _set_sampling_decision_maker(
         self,
@@ -409,8 +309,7 @@ class Span(object):
 
         try:
             self._meta[key] = str(value)
-            if key in self._metrics:
-                del self._metrics[key]
+            self._delete_metrics_inner(key)
         except Exception:
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
 
@@ -481,7 +380,7 @@ class Span(object):
 
         if key in self._meta:
             del self._meta[key]
-        self._metrics[key] = value
+        self._set_metrics_inner(key, value)
 
     def set_metrics(self, metrics: _MetricDictType) -> None:
         """Set a dictionary of metrics on the given span. Keys must be
@@ -493,7 +392,7 @@ class Span(object):
 
     def get_metric(self, key: _TagNameType) -> Optional[NumericType]:
         """Return the given metric or None if it doesn't exist."""
-        return self._metrics.get(key)
+        return self._get_metrics_inner(key)
 
     def _add_event(
         self, name: str, attributes: Optional[Dict[str, _AttributeValueType]] = None, timestamp: Optional[int] = None
@@ -506,7 +405,7 @@ class Span(object):
 
     def get_metrics(self) -> _MetricDictType:
         """Return all metrics."""
-        return self._metrics.copy()
+        return self._metrics_into_py_dict()
 
     def set_traceback(self, limit: Optional[int] = None):
         """If the current stack has an exception, tag the span with the
@@ -858,7 +757,7 @@ class Span(object):
             f"duration={self.duration_ns}, "
             f"error={self.error}, "
             f"tags={self._meta}, "
-            f"metrics={self._metrics}, "
+            f"metrics={self._metrics_into_py_dict()}, "
             f"links={self._links}, "
             f"events={self._events}, "
             f"context={self.context}, "
@@ -884,3 +783,7 @@ class Span(object):
         return (self._local_root is self) or (
             self._parent is not None and self._parent.service != self.service and self.service is not None
         )
+
+    @property
+    def _metrics(self):
+        return self.get_metrics()

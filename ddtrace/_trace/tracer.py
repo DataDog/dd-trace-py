@@ -551,7 +551,7 @@ class Tracer(object):
 
         if not span._parent:
             span.set_tag_str("runtime-id", get_runtime_id())
-            span._metrics[PID] = self._pid
+            span._set_metrics_inner(PID, self._pid)
 
         # Apply default global tags.
         if self._tags:

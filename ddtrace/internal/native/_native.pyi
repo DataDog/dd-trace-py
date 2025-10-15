@@ -1,4 +1,4 @@
-from typing import Dict, List, Literal, Optional
+from typing import Dict, List, Literal, Optional, Union
 
 class DDSketch:
     def __init__(self): ...
@@ -451,3 +451,40 @@ def ffande_process_config(config_bytes: bytes) -> Optional[bool]:
     :return: True if processing was successful, False otherwise, None on error
     """
     ...
+
+SpanStr = Union[str, bytes]
+SpanNumeric = Union[int, float]
+
+class SpanData:
+    service: SpanStr
+    name: SpanStr
+    resource: SpanStr
+    span_type: SpanStr
+    trace_id: int
+    span_id: int
+    parent_id: Optional[int]
+    start_ns: int
+    start: float
+    duration_ns: Optional[int]
+    duration: Optional[float]
+    error: int
+    _span_api: SpanStr
+
+    def __new__(
+        cls,
+        name: SpanStr,
+        service: Optional[SpanStr] = None,
+        resource: Optional[SpanStr] = None,
+        span_type: Optional[SpanStr] = None,
+        trace_id: Optional[int] = None,
+        span_id: Optional[int] = None,
+        parent_id: Optional[SpanStr] = None,
+        start: Optional[SpanNumeric] = None,
+        duration_ns: Optional[SpanStr] = None,
+        span_api: SpanStr = "",
+    ): ...
+    def _set_default_metrics_inner(self, key: SpanStr, value: SpanNumeric): ...
+    def _set_metrics_inner(self, key: SpanStr, value: SpanNumeric): ...
+    def _delete_metrics_inner(self, key: SpanStr): ...
+    def _get_metrics_inner(self, key: SpanStr) -> Optional[float]: ...
+    def _metrics_into_py_dict(self) -> Dict[SpanStr, float]: ...

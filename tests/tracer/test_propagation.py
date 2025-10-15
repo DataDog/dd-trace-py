@@ -353,7 +353,7 @@ def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(
                 assert span.parent_id == 5678
                 # Priority is unset
                 assert span.context.sampling_priority is None
-                assert "_sampling_priority_v1" not in span._metrics
+                assert span.get_metric("_sampling_priority_v1") is None
                 assert span.context.dd_origin == "synthetics"
                 assert "_dd.p.test" in span.context._meta
                 assert "_dd.p.ts" not in span.context._meta
@@ -370,7 +370,7 @@ def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(
 
             # Span priority was unset, but as we keep 1 per min, it should be kept
             # Since we have a rate limiter, priorities used are AUTO_KEEP and AUTO_REJECT
-            assert span._metrics["_sampling_priority_v1"] == AUTO_KEEP
+            assert span.get_metric("_sampling_priority_v1") == AUTO_KEEP
 
         finally:
             with override_env({"DD_APPSEC_SCA_ENABLED": "0"}):
@@ -416,7 +416,7 @@ def test_asm_standalone_missing_propagation_tags_no_appsec_event_trace_dropped(
             assert "x-datadog-sampling-priority" not in next_headers
 
             # Ensure span is dropped (no appsec event upstream or in this span)
-            assert span._metrics["_sampling_priority_v1"] == AUTO_REJECT
+            assert span.get_metric("_sampling_priority_v1") == AUTO_REJECT
         finally:
             with override_env({"DD_APPSEC_SCA_ENABLED": "0"}):
                 ddtrace.config._reset()
@@ -452,7 +452,7 @@ def test_asm_standalone_missing_propagation_tags_appsec_event_present_trace_kept
         assert next_headers["x-datadog-sampling-priority"] == str(USER_KEEP)
 
         # Ensure span is user keep
-        assert span._metrics["_sampling_priority_v1"] == USER_KEEP
+        assert span.get_metric("_sampling_priority_v1") == USER_KEEP
     finally:
         tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
 
@@ -492,7 +492,7 @@ def test_asm_standalone_missing_appsec_tag_no_appsec_event_propagation_resets(
                 assert span.parent_id == 5678
                 # Priority is unset
                 assert span.context.sampling_priority is None
-                assert "_sampling_priority_v1" not in span._metrics
+                assert span.get_metric("_sampling_priority_v1") is None
                 assert span.context.dd_origin == "synthetics"
                 assert "_dd.p.test" in span.context._meta
                 assert "_dd.p.ts" not in span.context._meta
@@ -509,7 +509,7 @@ def test_asm_standalone_missing_appsec_tag_no_appsec_event_propagation_resets(
 
             # Priority was unset, and trace is not kept, so it should be dropped
             # As we have a rate limiter, priorities used are AUTO_KEEP and AUTO_REJECT
-            assert span._metrics["_sampling_priority_v1"] == AUTO_REJECT
+            assert span.get_metric("_sampling_priority_v1") == AUTO_REJECT
         finally:
             with override_env({"DD_APPSEC_SCA_ENABLED": "false"}):
                 ddtrace.config._reset()
@@ -558,7 +558,7 @@ def test_asm_standalone_missing_appsec_tag_appsec_event_present_trace_kept(
         assert "_dd.p.ts=02" in next_headers["x-datadog-tags"]
 
         # Ensure span has force-keep priority now
-        assert span._metrics["_sampling_priority_v1"] == USER_KEEP
+        assert span.get_metric("_sampling_priority_v1") == USER_KEEP
 
     finally:
         tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
@@ -624,7 +624,7 @@ def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_set_to_us
                 assert next_headers["x-datadog-tags"] == "_dd.p.ts=02"
 
             # Ensure span sets user keep regardless of received priority (appsec event upstream)
-            assert span._metrics["_sampling_priority_v1"] == USER_KEEP
+            assert span.get_metric("_sampling_priority_v1") == USER_KEEP
 
         finally:
             with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
@@ -693,7 +693,7 @@ def test_asm_standalone_present_appsec_tag_appsec_event_present_propagation_forc
                 assert next_headers["x-datadog-tags"].startswith("_dd.p.ts=02,")
 
             # Ensure span set to user keep regardless received priority (appsec event upstream)
-            assert span._metrics["_sampling_priority_v1"] == USER_KEEP  # user keep always
+            assert span.get_metric("_sampling_priority_v1") == USER_KEEP  # user keep always
 
         finally:
             with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):

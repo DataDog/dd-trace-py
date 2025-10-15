@@ -190,7 +190,7 @@ class RaySpanManager:
     def _finish_span(self, span: Span, job_info: Optional[JobInfo] = None) -> None:
         # only if span was long running
         if span.get_metric(DD_PARTIAL_VERSION) is not None:
-            del span._metrics[DD_PARTIAL_VERSION]
+            span._delete_metrics_inner(DD_PARTIAL_VERSION)
 
             span.set_metric(DD_WAS_LONG_RUNNING, 1)
             span.set_tag_str(RAY_JOB_STATUS, RAY_STATUS_FINISHED)

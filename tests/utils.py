@@ -919,12 +919,12 @@ class TestSpan(Span):
         :raises: AssertionError
         """
         if exact:
-            assert self._metrics == metrics
+            assert self.get_metrics() == metrics
         else:
             for key, value in metrics.items():
-                assert key in self._metrics, "{0} metrics does not have property {1!r}".format(self, key)
-                assert self._metrics[key] == value, "{0} metrics property {1!r}: {2!r} != {3!r}".format(
-                    self, key, self._metrics[key], value
+                assert self.get_metric(key) is not None, "{0} metrics does not have property {1!r}".format(self, key)
+                assert self.get_metric(key) == value, "{0} metrics property {1!r}: {2!r} != {3!r}".format(
+                    self, key, self.get_metric(key), value
                 )
 
     def assert_span_event_count(self, count):

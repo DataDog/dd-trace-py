@@ -765,10 +765,10 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
         cdef int has_metrics
 
         has_error = <bint> (span.error != 0)
-        has_span_type = <bint> (span.span_type is not None)
+        has_span_type = <bint> (span.span_type is not None and span.span_type != "")
         has_span_events = <bint> (len(span._events) > 0)
         has_metrics = <bint> (len(span._metrics) > 0)
-        has_parent_id = <bint> (span.parent_id is not None)
+        has_parent_id = <bint> (span.parent_id is not None and span.parent_id != 0)
         has_links = <bint> (len(span._links) > 0)
         has_meta_struct = <bint> (len(span._meta_struct) > 0)
         has_meta = <bint> (
