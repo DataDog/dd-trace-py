@@ -99,9 +99,7 @@ class CIVisibilityGitClient(object):
             self._base_url = urljoin(tracer_url, EVP_PROXY_AGENT_BASE_PATH + GIT_API_BASE_PATH)
         elif self._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
             self._base_url = urljoin(
-                "https://api.{}".format(
-                    os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE),
-                ),
+                f"https://api.{os.getenv('DD_SITE', AGENTLESS_DEFAULT_SITE)}",
                 GIT_API_BASE_PATH,
             )
 
@@ -304,7 +302,7 @@ class CIVisibilityGitClient(object):
     @fibonacci_backoff_with_jitter(attempts=5, until=lambda result: isinstance(result, Response))
     def _do_request(cls, requests_mode, base_url, endpoint, payload, serializer, headers=None, timeout=DEFAULT_TIMEOUT):
         # type: (int, str, str, str, CIVisibilityGitClientSerializerV1, Optional[dict], int) -> Response
-        url = "{}/repository{}".format(base_url, endpoint)
+        url = f"{base_url}/repository{endpoint}"
         _headers = {
             AGENTLESS_API_KEY_HEADER_NAME: serializer.api_key,
         }
