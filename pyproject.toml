@@ -42,6 +42,7 @@ dependencies = [
     "opentelemetry-api>=1",
     "protobuf>=3",
     "wrapt>=1",
+    "ddtestpy~=0.1.0",
 ]
 
 [project.optional-dependencies]
