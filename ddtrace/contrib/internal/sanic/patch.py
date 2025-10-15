@@ -118,7 +118,7 @@ async def patch_run_request_middleware(wrapped, instance, args, kwargs):
     request = args[0]
     span = _get_current_span(request)
     if span is not None:
-        span.resource = "{} {}".format(request.method, _get_path(request))
+        span.resource = f"{request.method} {_get_path(request)}"
     return await wrapped(*args, **kwargs)
 
 
@@ -196,7 +196,7 @@ def _create_sanic_request_span(request):
 
     if SANIC_VERSION < (21, 0, 0):
         # Set span resource from the framework request
-        resource = "{} {}".format(request.method, _get_path(request))
+        resource = f"{request.method} {_get_path(request)}"
     else:
         # The path is not available anymore in 21.x. Get it from
         # the _run_request_middleware instrumented method.
@@ -223,7 +223,7 @@ def _create_sanic_request_span(request):
         core.dispatch("web.request.start", (ctx, config.sanic))
 
         method = request.method
-        url = "{scheme}://{host}{path}".format(scheme=request.scheme, host=request.host, path=request.path)
+        url = f"{request.scheme}://{request.host}{request.path}"
         query_string = request.query_string
         if isinstance(query_string, bytes):
             query_string = query_string.decode()
@@ -249,11 +249,11 @@ async def sanic_http_routing_after(request, route, kwargs, handler):
     pattern = route.raw_path
     # Sanic 21.9.0 and newer strip the leading slash from `route.raw_path`
     if not pattern.startswith("/"):
-        pattern = "/{}".format(pattern)
+        pattern = f"/{pattern}"
     if route.regex:
         pattern = route.pattern
 
-    span.resource = "{} {}".format(request.method, pattern)
+    span.resource = f"{request.method} {pattern}"
     span.set_tag_str("sanic.route.name", route.name)
 
 

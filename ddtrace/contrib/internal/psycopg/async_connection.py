@@ -25,7 +25,7 @@ class Psycopg3TracedAsyncConnection(dbapi_async.TracedAsyncConnection):
 
     async def execute(self, *args, **kwargs):
         """Execute a query and return a cursor to read its results."""
-        span_name = "{}.{}".format(self._self_datadog_name, "execute")
+        span_name = f"{self._self_datadog_name}.execute"
 
         async def patched_execute(*args, **kwargs):
             try:
@@ -50,7 +50,7 @@ def patched_connect_async_factory(psycopg_module):
         else:
             with core.context_with_data(
                 "psycopg.patched_connect",
-                span_name="{}.{}".format(connect_func.__module__, connect_func.__name__),
+                span_name=f"{connect_func.__module__}.{connect_func.__name__}",
                 service=ext_service(pin, pin._config),
                 span_type=SpanTypes.SQL,
                 pin=pin,

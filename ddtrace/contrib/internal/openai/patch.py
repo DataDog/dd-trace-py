@@ -135,8 +135,8 @@ def patch():
             log.debug("WARNING: resource %s is not found", resource)
             continue
         for method_name, endpoint_hook in method_hook_dict.items():
-            sync_method = "resources.{}.{}".format(resource, method_name)
-            async_method = "resources.{}.{}".format(".Async".join(resource.split(".")), method_name)
+            sync_method = f"resources.{resource}.{method_name}"
+            async_method = f"resources.{".Async".join(resource.split("."))}.{method_name}"
             if deep_getattr(openai, sync_method) is not None:
                 wrap(openai, sync_method, _patched_endpoint(openai, endpoint_hook))
             if deep_getattr(openai, async_method) is not None:

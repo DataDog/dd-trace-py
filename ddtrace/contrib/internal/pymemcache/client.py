@@ -327,7 +327,7 @@ def _trace(func, p, method_name, *args, **kwargs):
             span.set_tags(p.tags)
             if config.pymemcache.command_enabled:
                 vals = _get_query_string(args)
-                query = "{}{}{}".format(method_name, " " if vals else "", vals)
+                query = f'{method_name}{" " if vals else ""}{vals}'
                 span.set_tag_str(memcachedx.QUERY, query)
         except Exception:
             log.debug("Error setting relevant pymemcache tags")

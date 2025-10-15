@@ -87,7 +87,7 @@ def on_finish(func, handler, args, kwargs):
         # default handler class will be used so we don't pollute the resource
         # space here
         klass = handler.__class__
-        request_span.resource = "{}.{}".format(klass.__module__, klass.__name__)
+        request_span.resource = f"{klass.__module__}.{klass.__name__}"
         core.dispatch(
             "web.request.finish",
             (

@@ -245,12 +245,12 @@ class TraceMiddleware:
             parsed_query = parse.parse_qs(bytes_to_str(scope.get("query_string", b"")))
             full_path = scope.get("path", "")
             if host_header:
-                url = "{}://{}{}".format(scheme, host_header, full_path)
+                url = f"{scheme}://{host_header}{full_path}"
             elif server and len(server) == 2:
                 port = server[1]
                 default_port = self.default_ports.get(scheme, None)
                 server_host = server[0] + (":" + str(port) if port is not None and port != default_port else "")
-                url = "{}://{}{}".format(scheme, server_host, full_path)
+                url = f"{scheme}://{server_host}{full_path}"
             else:
                 url = None
             query_string = scope.get("query_string")

@@ -268,19 +268,19 @@ def _extract_module_file_path(item) -> str:
 
 
 def _generate_test_resource(suite_name: str, test_name: str) -> str:
-    return "{}.{}".format(suite_name, test_name)
+    return f"{suite_name}.{test_name}"
 
 
 def _generate_suite_resource(test_suite: str) -> str:
-    return "{}".format(test_suite)
+    return f"{test_suite}"
 
 
 def _generate_module_resource(test_module: str) -> str:
-    return "{}".format(test_module)
+    return f"{test_module}"
 
 
 def _generate_session_resource(test_command: str) -> str:
-    return "{}".format(test_command)
+    return f"{test_command}"
 
 
 def _set_test_skipping_tags_to_span(span: ddtrace.trace.Span):
@@ -336,7 +336,7 @@ def _is_invoked_by_text_test_runner() -> bool:
 
 
 def _generate_module_suite_path(test_module_path: str, test_suite_name: str) -> str:
-    return "{}.{}".format(test_module_path, test_suite_name)
+    return f"{test_module_path}.{test_suite_name}"
 
 
 def _populate_suites_and_modules(test_objects: list, seen_suites: dict, seen_modules: dict):
@@ -584,9 +584,7 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
                     span.set_tag_str(test.ITR_UNSKIPPABLE, "true")
                     test_module_span.set_tag_str(test.ITR_UNSKIPPABLE, "true")
                     test_session_span.set_tag_str(test.ITR_UNSKIPPABLE, "true")
-                test_module_suite_path_without_extension = "{}/{}".format(
-                    os.path.splitext(test_module_path)[0], test_suite_name
-                )
+                test_module_suite_path_without_extension = f"{os.path.splitext(test_module_path)[0]}/{test_suite_name}"
                 if _should_be_skipped_by_itr(args, test_module_suite_path_without_extension, test_name, instance):
                     if _is_marked_as_unskippable(instance):
                         span.set_tag_str(test.ITR_FORCED_RUN, "true")
