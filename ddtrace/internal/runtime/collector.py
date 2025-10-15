@@ -81,9 +81,7 @@ class ValueCollector(object):
         return self.value
 
     def __repr__(self):
-        return "<{}(enabled={},periodic={},required_modules={})>".format(
-            self.__class__.__name__,
-            self.enabled,
-            self.periodic,
-            self.required_modules,
+        return (
+            f"<{self.__class__.__name__}(enabled={self.enabled},periodic={self.periodic},"
+            f"required_modules={self.required_modules})>"
         )

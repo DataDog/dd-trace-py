@@ -178,83 +178,61 @@ def pretty_collect(tracer, color=True):
 
     info = collect(tracer)
 
-    info_pretty = """{blue}{bold}Tracer Configurations:{end}
-    Tracer enabled: {tracer_enabled}
-    Application Security enabled: {appsec_enabled}
-    Remote Configuration enabled: {remote_config_enabled}
-    IAST enabled (experimental): {iast_enabled}
-    Debug logging: {debug}
-    Writing traces to: {agent_url}
-    Agent error: {agent_error}
-    Log injection enabled: {log_injection_enabled}
-    Health metrics enabled: {health_metrics_enabled}
-    Priority sampling enabled: {priority_sampling_enabled}
-    Partial flushing enabled: {partial_flush_enabled}
-    Partial flush minimum number of spans: {partial_flush_min_spans}
-    WAF timeout: {waf_timeout} msecs
-    {green}{bold}Tagging:{end}
-    DD Service: {service}
-    DD Env: {env}
-    DD Version: {dd_version}
-    Global Tags: {global_tags}
-    Tracer Tags: {tracer_tags}""".format(
-        tracer_enabled=info.get("ddtrace_enabled"),
-        appsec_enabled=info.get("asm_enabled"),
-        remote_config_enabled=info.get("remote_config_enabled"),
-        iast_enabled=info.get("iast_enabled"),
-        debug=info.get("debug"),
-        agent_url=info.get("agent_url") or "Not writing at the moment, is your tracer running?",
-        agent_error=info.get("agent_error") or "None",
-        log_injection_enabled=info.get("log_injection_enabled"),
-        health_metrics_enabled=info.get("health_metrics_enabled"),
-        priority_sampling_enabled=info.get("priority_sampling_enabled"),
-        partial_flush_enabled=info.get("partial_flush_enabled"),
-        partial_flush_min_spans=info.get("partial_flush_min_spans") or "Not set",
-        service=info.get("service") or "None",
-        env=info.get("env") or "None",
-        dd_version=info.get("dd_version") or "None",
-        global_tags=info.get("global_tags") or "None",
-        waf_timeout=info.get("waf_timeout"),
-        tracer_tags=info.get("tracer_tags") or "None",
-        blue=bcolors.OKBLUE,
-        green=bcolors.OKGREEN,
-        bold=bcolors.BOLD,
-        end=bcolors.ENDC,
-    )
+    info_pretty = f"""{bcolors.OKBLUE}{bcolors.BOLD}Tracer Configurations:{bcolors.ENDC}
+    Tracer enabled: {info.get('ddtrace_enabled')}
+    Application Security enabled: {info.get('asm_enabled')}
+    Remote Configuration enabled: {info.get('remote_config_enabled')}
+    IAST enabled (experimental): {info.get('iast_enabled')}
+    Debug logging: {info.get('debug')}
+    Writing traces to: {info.get('agent_url') or 'Not writing at the moment, is your tracer running?'}
+    Agent error: {info.get('agent_error') or 'None'}
+    Log injection enabled: {info.get('log_injection_enabled')}
+    Health metrics enabled: {info.get('health_metrics_enabled')}
+    Priority sampling enabled: {info.get('priority_sampling_enabled')}
+    Partial flushing enabled: {info.get('partial_flush_enabled')}
+    Partial flush minimum number of spans: {info.get('partial_flush_min_spans') or 'Not set'}
+    WAF timeout: {info.get('waf_timeout')} msecs
+    {bcolors.OKGREEN}{bcolors.BOLD}Tagging:{bcolors.ENDC}
+    DD Service: {info.get('service') or 'None'}
+    DD Env: {info.get('env') or 'None'}
+    DD Version: {info.get('dd_version') or 'None'}
+    Global Tags: {info.get('global_tags') or 'None'}
+    Tracer Tags: {info.get('tracer_tags') or 'None'}"""
 
-    summary = "{0}{1}Summary{2}".format(bcolors.OKCYAN, bcolors.BOLD, bcolors.ENDC)
+    summary = f"{bcolors.OKCYAN}{bcolors.BOLD}Summary{bcolors.ENDC}"
 
     if info.get("agent_error"):
         summary += (
-            "\n\n{fail}ERROR: It looks like you have an agent error: '{agent_error}'\n If you're experiencing"
+            f"\n\n{bcolors.FAIL}ERROR: It looks like you have an agent error: "
+            f"'{info.get('agent_error')}'\n If you're experiencing"
             " a connection error, please make sure you've followed the setup for your particular environment so that "
             "the tracer and Datadog agent are configured properly to connect, and that the Datadog agent is running: "
             "https://ddtrace.readthedocs.io/en/stable/troubleshooting.html#failed-to-send-traces-connectionrefused"
             "error"
             "\nIf your issue is not a connection error then please reach out to support for further assistance:"
-            " https://docs.datadoghq.com/help/{end}"
-        ).format(fail=bcolors.FAIL, agent_error=info.get("agent_error"), end=bcolors.ENDC)
+            f" https://docs.datadoghq.com/help/{bcolors.ENDC}"
+        )
 
     if not info.get("service"):
         summary += (
-            "\n\n{warning}WARNING SERVICE NOT SET: It is recommended that a service tag be set for all traced"
+            f"\n\n{bcolors.WARNING}WARNING SERVICE NOT SET: It is recommended that a service tag be set for all traced"
             " applications. For more information please see"
-            " https://ddtrace.readthedocs.io/en/stable/troubleshooting.html{end}"
-        ).format(warning=bcolors.WARNING, end=bcolors.ENDC)
+            f" https://ddtrace.readthedocs.io/en/stable/troubleshooting.html{bcolors.ENDC}"
+        )
 
     if not info.get("env"):
         summary += (
-            "\n\n{warning}WARNING ENV NOT SET: It is recommended that an env tag be set for all traced"
+            f"\n\n{bcolors.WARNING}WARNING ENV NOT SET: It is recommended that an env tag be set for all traced"
             " applications. For more information please see "
-            "https://ddtrace.readthedocs.io/en/stable/troubleshooting.html{end}"
-        ).format(warning=bcolors.WARNING, end=bcolors.ENDC)
+            f"https://ddtrace.readthedocs.io/en/stable/troubleshooting.html{bcolors.ENDC}"
+        )
 
     if not info.get("dd_version"):
         summary += (
-            "\n\n{warning}WARNING VERSION NOT SET: It is recommended that a version tag be set for all traced"
+            f"\n\n{bcolors.WARNING}WARNING VERSION NOT SET: It is recommended that a version tag be set for all traced"
             " applications. For more information please see"
-            " https://ddtrace.readthedocs.io/en/stable/troubleshooting.html{end}"
-        ).format(warning=bcolors.WARNING, end=bcolors.ENDC)
+            f" https://ddtrace.readthedocs.io/en/stable/troubleshooting.html{bcolors.ENDC}"
+        )
 
     info_pretty += "\n\n" + summary
 
