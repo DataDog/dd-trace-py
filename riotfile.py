@@ -16,7 +16,7 @@ SUPPORTED_PYTHON_VERSIONS: List[Tuple[int, int]] = [
     (3, 12),
     (3, 13),
     (3, 14),
-]  # type: List[Tuple[int, int]]
+]
 
 
 def version_to_str(version: Tuple[int, int]) -> str:

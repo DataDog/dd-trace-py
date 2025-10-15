@@ -41,12 +41,12 @@ __all__ = [
 
 
 def check_supported_python_version():
-    if PYTHON_VERSION_INFO < (3, 8):
+    if PYTHON_VERSION_INFO < (3, 10):
         deprecation_message = (
-            "Support for ddtrace with Python version %d.%d is deprecated and will be removed in 3.0.0."
+            "Support for ddtrace with Python version %d.%d is deprecated and will be removed in 5.0.0."
         )
-        if PYTHON_VERSION_INFO < (3, 7):
-            deprecation_message = "Support for ddtrace with Python version %d.%d was removed in 2.0.0."
+        if PYTHON_VERSION_INFO < (3, 9):
+            deprecation_message = "Support for ddtrace with Python version %d.%d was removed in 4.0.0."
         debtcollector.deprecate(
             (deprecation_message % (PYTHON_VERSION_INFO[0], PYTHON_VERSION_INFO[1])),
             category=DDTraceDeprecationWarning,
