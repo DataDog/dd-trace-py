@@ -1549,8 +1549,8 @@ class LLMObs(Service):
         metadata: Optional[Dict[str, object]] = None,
     ) -> None:
         """
-        Submits a custom evaluation metric for a given span. This method is deprecated and will be removed in a future version.
-        Please use `LLMObs.submit_evaluation()` instead.
+        Submits a custom evaluation metric for a given span. This method is deprecated and will be
+        removed in a future version. Please use `LLMObs.submit_evaluation()` instead.
         """
         log.warning(
             "LLMObs.submit_evaluation_for() is deprecated and will be removed in a future version. "
