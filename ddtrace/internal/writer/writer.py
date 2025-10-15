@@ -203,7 +203,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         )
 
     def _intake_endpoint(self, client=None):
-        return "{}/{}".format(self._intake_url(client), client.ENDPOINT if client else self._endpoint)
+        return f"{self._intake_url(client)}/{client.ENDPOINT if client else self._endpoint}"
 
     @property
     def _endpoint(self):
@@ -898,7 +898,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             )
 
     def _intake_endpoint(self, client=None):
-        return "{}/{}".format(self.intake_url, client.ENDPOINT if client else self._endpoint)
+        return f"{self.intake_url}/{client.ENDPOINT if client else self._endpoint}"
 
     @property
     def _endpoint(self):

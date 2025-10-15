@@ -36,10 +36,7 @@ class RuntimeCollectorsIterable(object):
         return itertools.chain.from_iterable(collected)
 
     def __repr__(self):
-        return "{}(enabled={})".format(
-            self.__class__.__name__,
-            self._enabled,
-        )
+        return f"{self.__class__.__name__}(enabled={self._enabled})"
 
 
 class PlatformTags(RuntimeCollectorsIterable):
@@ -169,7 +166,7 @@ class RuntimeWorker(periodic.PeriodicService):
 
     def _format_tags(self, tags: RuntimeCollectorsIterable) -> List[str]:
         # DEV: ddstatsd expects tags in the form ['key1:value1', 'key2:value2', ...]
-        return ["{}:{}".format(k, v) for k, v in tags]
+        return [f"{k}:{v}" for k, v in tags]
 
     periodic = flush
     on_shutdown = flush

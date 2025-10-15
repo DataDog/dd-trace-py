@@ -820,7 +820,7 @@ class TelemetryWriter(PeriodicService):
                         1,
                         (("integration_name", integration_name), ("error_type", tp.__name__)),
                     )
-                    error_msg = "{}:{} {}".format(filename, lineno, str(value))
+                    error_msg = f"{filename}:{lineno} {str(value)}"
                     self.add_integration(integration_name, True, error_msg=error_msg)
 
             if self._enabled and not self.started and (app_started := self._app_started()):

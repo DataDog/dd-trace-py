@@ -155,12 +155,9 @@ class RateLimiter(object):
         return (self._current_window_rate() + self.prev_window_rate) / 2.0
 
     def __repr__(self):
-        return "{}(rate_limit={!r}, tokens={!r}, last_update_ns={!r}, effective_rate={!r})".format(
-            self.__class__.__name__,
-            self.rate_limit,
-            self.tokens,
-            self.last_update_ns,
-            self.effective_rate,
+        return (
+            f"{self.__class__.__name__}(rate_limit={self.rate_limit!r}, tokens={self.tokens!r}, "
+            f"last_update_ns={self.last_update_ns!r}, effective_rate={self.effective_rate!r})"
         )
 
 

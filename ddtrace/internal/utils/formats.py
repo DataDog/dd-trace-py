@@ -159,4 +159,4 @@ def flatten_key_value(root_key, value):
 
 def format_trace_id(trace_id: int) -> str:
     """Translate a trace ID to a string format supported by the backend."""
-    return "{:032x}".format(trace_id) if trace_id > MAX_UINT_64BITS else str(trace_id)
+    return f"{trace_id:032x}" if trace_id > MAX_UINT_64BITS else str(trace_id)
