@@ -1,0 +1,125 @@
+id: os-environ-usage
+valid:
+  # These should NOT trigger the rule (valid code)
+  - |
+    from ddtrace.settings._env import environ
+    value = environ["HOME"]
+  - |
+    from ddtrace.settings._env import get_env
+    debug = get_env("DEBUG", "false")
+  - |
+    from ddtrace.settings._env import environ, get_env
+    value = environ["HOME"]
+    debug = get_env("DEBUG", "false")
+  - |
+    # Using the centralized helpers is OK
+    from ddtrace.settings._env import environ
+    if "HOME" in environ:
+        print(environ["HOME"])
+
+invalid:
+  # These should trigger the rule (errors)
+
+  # Direct os.environ access patterns
+  - |
+    import os
+    value = os.environ["HOME"]
+  - |
+    import os
+    value = os.environ.get("PATH")
+  - |
+    import os
+    env_copy = os.environ.copy()
+  - |
+    import os
+    os.environ.clear()
+  - |
+    import os
+    os.environ.update({"NEW_VAR": "value"})
+  - |
+    import os
+    removed = os.environ.pop("TEMP_VAR", None)
+  - |
+    import os
+    default_val = os.environ.setdefault("DEF", "default")
+  - |
+    import os
+    all_keys = os.environ.keys()
+  - |
+    import os
+    all_values = os.environ.values()
+  - |
+    import os
+    all_items = os.environ.items()
+
+  # Membership tests and iteration
+  - |
+    import os
+    if "HOME" in os.environ:
+        pass
+  - |
+    import os
+    for key in os.environ:
+        pass
+  - |
+    import os
+    for k, v in os.environ.items():
+        pass
+
+  # os.getenv function calls
+  - |
+    import os
+    value = os.getenv("DEBUG")
+  - |
+    import os
+    value = os.getenv("TIMEOUT", "30")
+
+  # Direct environ usage (imported from os)
+  - from os import environ
+  - |
+    from os import environ
+    value = environ["USER"]
+  - |
+    from os import environ
+    value = environ.get("SHELL")
+  - |
+    from os import environ
+    env_keys = environ.keys()
+
+  # Aliased environ usage
+  - from os import environ as env_dict
+  - |
+    from os import environ as env_dict
+    value = env_dict["HOME"]
+  - |
+    from os import environ as env_dict
+    value = env_dict.get("PATH")
+
+  # Direct getenv calls (imported from os)
+  - from os import getenv
+  - |
+    from os import getenv
+    value = getenv("CONFIG")
+  - |
+    from os import getenv
+    value = getenv("MODE", "production")
+
+  # Aliased getenv calls
+  - from os import getenv as get_env_func
+  - |
+    from os import getenv as get_env_func
+    value = get_env_func("LEVEL")
+  - |
+    from os import getenv as get_env_func
+    value = get_env_func("PORT", "8080")
+
+  # Mixed imports
+  - from os import environ, getenv
+  - from os import getenv, environ
+  - from os import path, environ, getenv
+
+  # Direct attribute access
+  - |
+    import os
+    env_ref = os.environ
+

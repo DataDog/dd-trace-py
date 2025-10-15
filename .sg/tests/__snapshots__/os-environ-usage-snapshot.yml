@@ -1,0 +1,247 @@
+id: os-environ-usage
+snapshots:
+  from os import environ:
+    labels:
+    - source: from os import environ
+      style: primary
+      start: 0
+      end: 22
+  ? |
+    from os import environ
+    env_keys = environ.keys()
+  : labels:
+    - source: from os import environ
+      style: primary
+      start: 0
+      end: 22
+  ? |
+    from os import environ
+    value = environ.get("SHELL")
+  : labels:
+    - source: from os import environ
+      style: primary
+      start: 0
+      end: 22
+  ? |
+    from os import environ
+    value = environ["USER"]
+  : labels:
+    - source: from os import environ
+      style: primary
+      start: 0
+      end: 22
+  from os import environ as env_dict:
+    labels:
+    - source: from os import environ as env_dict
+      style: primary
+      start: 0
+      end: 34
+  ? |
+    from os import environ as env_dict
+    value = env_dict.get("PATH")
+  : labels:
+    - source: from os import environ as env_dict
+      style: primary
+      start: 0
+      end: 34
+  ? |
+    from os import environ as env_dict
+    value = env_dict["HOME"]
+  : labels:
+    - source: from os import environ as env_dict
+      style: primary
+      start: 0
+      end: 34
+  from os import environ, getenv:
+    labels:
+    - source: from os import environ, getenv
+      style: primary
+      start: 0
+      end: 30
+  from os import getenv:
+    labels:
+    - source: from os import getenv
+      style: primary
+      start: 0
+      end: 21
+  ? |
+    from os import getenv
+    value = getenv("CONFIG")
+  : labels:
+    - source: from os import getenv
+      style: primary
+      start: 0
+      end: 21
+  ? |
+    from os import getenv
+    value = getenv("MODE", "production")
+  : labels:
+    - source: from os import getenv
+      style: primary
+      start: 0
+      end: 21
+  from os import getenv as get_env_func:
+    labels:
+    - source: from os import getenv as get_env_func
+      style: primary
+      start: 0
+      end: 37
+  ? |
+    from os import getenv as get_env_func
+    value = get_env_func("LEVEL")
+  : labels:
+    - source: from os import getenv as get_env_func
+      style: primary
+      start: 0
+      end: 37
+  ? |
+    from os import getenv as get_env_func
+    value = get_env_func("PORT", "8080")
+  : labels:
+    - source: from os import getenv as get_env_func
+      style: primary
+      start: 0
+      end: 37
+  from os import getenv, environ:
+    labels:
+    - source: from os import getenv, environ
+      style: primary
+      start: 0
+      end: 30
+  from os import path, environ, getenv:
+    labels:
+    - source: from os import path, environ, getenv
+      style: primary
+      start: 0
+      end: 36
+  ? |
+    import os
+    all_items = os.environ.items()
+  : labels:
+    - source: os.environ.items()
+      style: primary
+      start: 22
+      end: 40
+  ? |
+    import os
+    all_keys = os.environ.keys()
+  : labels:
+    - source: os.environ.keys()
+      style: primary
+      start: 21
+      end: 38
+  ? |
+    import os
+    all_values = os.environ.values()
+  : labels:
+    - source: os.environ.values()
+      style: primary
+      start: 23
+      end: 42
+  ? |
+    import os
+    default_val = os.environ.setdefault("DEF", "default")
+  : labels:
+    - source: os.environ.setdefault("DEF", "default")
+      style: primary
+      start: 24
+      end: 63
+  ? |
+    import os
+    env_copy = os.environ.copy()
+  : labels:
+    - source: os.environ.copy()
+      style: primary
+      start: 21
+      end: 38
+  ? |
+    import os
+    env_ref = os.environ
+  : labels:
+    - source: os.environ
+      style: primary
+      start: 20
+      end: 30
+  ? |
+    import os
+    for k, v in os.environ.items():
+        pass
+  : labels:
+    - source: os.environ.items()
+      style: primary
+      start: 22
+      end: 40
+  ? |
+    import os
+    for key in os.environ:
+        pass
+  : labels:
+    - source: os.environ
+      style: primary
+      start: 21
+      end: 31
+  ? |
+    import os
+    if "HOME" in os.environ:
+        pass
+  : labels:
+    - source: os.environ
+      style: primary
+      start: 23
+      end: 33
+  ? |
+    import os
+    os.environ.clear()
+  : labels:
+    - source: os.environ.clear()
+      style: primary
+      start: 10
+      end: 28
+  ? |
+    import os
+    os.environ.update({"NEW_VAR": "value"})
+  : labels:
+    - source: 'os.environ.update({"NEW_VAR": "value"})'
+      style: primary
+      start: 10
+      end: 49
+  ? |
+    import os
+    removed = os.environ.pop("TEMP_VAR", None)
+  : labels:
+    - source: os.environ.pop("TEMP_VAR", None)
+      style: primary
+      start: 20
+      end: 52
+  ? |
+    import os
+    value = os.environ.get("PATH")
+  : labels:
+    - source: os.environ.get("PATH")
+      style: primary
+      start: 18
+      end: 40
+  ? |
+    import os
+    value = os.environ["HOME"]
+  : labels:
+    - source: os.environ["HOME"]
+      style: primary
+      start: 18
+      end: 36
+  ? |
+    import os
+    value = os.getenv("DEBUG")
+  : labels:
+    - source: os.getenv("DEBUG")
+      style: primary
+      start: 18
+      end: 36
+  ? |
+    import os
+    value = os.getenv("TIMEOUT", "30")
+  : labels:
+    - source: os.getenv("TIMEOUT", "30")
+      style: primary
+      start: 18
+      end: 44
