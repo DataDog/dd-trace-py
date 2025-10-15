@@ -614,8 +614,6 @@ class Span(object):
         self,
         exception: BaseException,
         attributes: Optional[Dict[str, _AttributeValueType]] = None,
-        timestamp: Optional[int] = None,
-        escaped: bool = False,
     ) -> None:
         """
         Records an exception as a span event. Multiple exceptions can be recorded on a span.
@@ -627,23 +625,6 @@ class Span(object):
         :param timestamp: Deprecated.
         :param escaped: Deprecated.
         """
-        if escaped:
-            deprecate(
-                prefix="The escaped argument is deprecated for record_exception",
-                message="""If an exception exits the scope of the span, it will automatically be
-                reported in the span tags.""",
-                category=DDTraceDeprecationWarning,
-                removal_version="4.0.0",
-            )
-        if timestamp is not None:
-            deprecate(
-                prefix="The timestamp argument is deprecated for record_exception",
-                message="""The timestamp of the span event should correspond to the time when the
-                error is recorded which is set automatically.""",
-                category=DDTraceDeprecationWarning,
-                removal_version="4.0.0",
-            )
-
         tb = self._get_traceback(type(exception), exception, exception.__traceback__)
 
         attrs: Dict[str, _AttributeValueType] = {
@@ -830,18 +811,6 @@ class Span(object):
             self.finish()
         except Exception:
             log.exception("error closing trace")
-
-    def _pprint(self) -> str:
-        # Although Span._pprint has been internal to ddtrace since v1.0.0, it is still
-        # used to debug spans in the wild. Introducing a deprecation warning here to
-        # give users a chance to migrate to __repr__ before we remove it.
-        deprecate(
-            prefix="The _pprint method is deprecated for __repr__",
-            message="""Use __repr__ instead.""",
-            category=DDTraceDeprecationWarning,
-            removal_version="4.0.0",
-        )
-        return self.__repr__()
 
     def __repr__(self) -> str:
         """Return a detailed string representation of a span."""
