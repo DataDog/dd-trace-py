@@ -50,6 +50,10 @@ candidate:
     git clone --branch "brettlangdon/candidate.wheels" --single-branch https://github.com/DataDog/serverless-tools ./serverless-tools
     cd ./serverless-tools
 
+  # We are in ./serverless-tools, but we need the artifacts in the parent dir
+  after_script: |
+    mv ${CI_PROJECT_DIR}/serverless-tools/*.zip ${CI_PROJECT_DIR}/
+
 setup (amd64):
   needs:
     - job: candidate
