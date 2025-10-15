@@ -29,7 +29,6 @@ class DDTraceHooks:
             _iast_pytest_activation()
 
     def pytest_terminal_summary(self, terminalreporter, exitstatus, config):
-        """Report flaky or failed tests"""
         try:
             if asm_config._iast_enabled:
                 from ddtrace.appsec._iast._pytest_plugin import print_iast_report
