@@ -1121,7 +1121,7 @@ class HTTPPropagator(object):
         return primary_context
 
     @staticmethod
-    def inject(context: Union[Context, Span], headers: Dict[str, str], non_active_span: Optional[Span] = None) -> None:
+    def inject(context: Union[Context, Span], headers: Dict[str, str]) -> None:
         """Inject Context attributes that have to be propagated as HTTP headers.
 
         Here is an example using `requests`::
@@ -1150,26 +1150,16 @@ class HTTPPropagator(object):
             Span objects automatically trigger sampling decisions. Context objects should have
             sampling_priority set to avoid inconsistent downstream sampling.
         :param dict headers: HTTP headers to extend with tracing attributes.
-        :param Span non_active_span: **DEPRECATED** - Pass Span objects to the context parameter instead.
         """
-        if non_active_span is not None:
-            # non_active_span is only used for sampling decisions, not to inject headers.
-            deprecate(
-                "The non_active_span parameter is deprecated",
-                message="Use the context parameter instead.",
-                category=DDTraceDeprecationWarning,
-                removal_version="4.0.0",
-            )
         # Cannot rename context parameter due to backwards compatibility
         # Handle sampling and get context for header injection
-        span_context = HTTPPropagator._get_sampled_injection_context(context, non_active_span)
+        span_context = HTTPPropagator._get_sampled_injection_context(context, None)
         # Log a warning if we cannot determine a sampling decision before injecting headers.
         if span_context.span_id and span_context.trace_id and span_context.sampling_priority is None:
             log.debug(
                 "Sampling decision not available. Downstream spans will not inherit a sampling priority: "
-                "args=(context=%s, ..., non_active_span=%s) detected span context=%s",
+                "args=(context=%s, ...) detected span context=%s",
                 context,
-                non_active_span,
                 span_context,
             )
 
