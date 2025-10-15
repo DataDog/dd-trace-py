@@ -105,6 +105,7 @@ PATCH_MODULES = {
     "yaaredis": True,
     "asyncpg": True,
     "aws_lambda": True,  # patch only in AWS Lambda environments
+    "azure_eventhubs": True,
     "azure_functions": True,
     "azure_servicebus": True,
     "tornado": False,
@@ -119,6 +120,7 @@ PATCH_MODULES = {
     "selenium": True,
     "valkey": True,
     "openai_agents": True,
+    "ray": False,
     "protobuf": config._data_streams_enabled,
 }
 
@@ -160,6 +162,7 @@ _MODULES_FOR_CONTRIB = {
     "futures": ("concurrent.futures.thread",),
     "vertica": ("vertica_python",),
     "aws_lambda": ("datadog_lambda",),
+    "azure_eventhubs": ("azure.eventhub",),
     "azure_functions": ("azure.functions",),
     "azure_servicebus": ("azure.servicebus",),
     "httplib": ("http.client",),
@@ -167,6 +170,7 @@ _MODULES_FOR_CONTRIB = {
     "google_adk": ("google.adk",),
     "google_generativeai": ("google.generativeai",),
     "google_genai": ("google.genai",),
+    "langchain": ("langchain_core",),
     "langgraph": (
         "langgraph",
         "langgraph.graph",
