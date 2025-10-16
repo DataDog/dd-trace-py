@@ -199,24 +199,23 @@ def gen_build_docs() -> None:
             ".readthedocs.yml",
         }
     ):
+        date_str = datetime.datetime.now().strftime("%Y-%m")
+
         with TESTS_GEN.open("a") as f:
             print("build_docs:", file=f)
             print("  extends: .testrunner", file=f)
             print("  stage: core", file=f)
+            print("  timeout: 25m", file=f)
             print("  needs:", file=f)
             print("    - prechecks", file=f)
             print("  variables:", file=f)
             print("    PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'", file=f)
-            print("    DD_DISABLE_VPA: true", file=f)
-            print("    KUBERNETES_CPU_REQUEST: 6", file=f)
-            print("    KUBERNETES_MEMORY_REQUEST: 4Gi", file=f)
-            print("    KUBERNETES_MEMORY_LIMIT: 8Gi", file=f)
             print("  script:", file=f)
             print("    - |", file=f)
             print("      hatch run docs:build", file=f)
             print("      mkdir -p /tmp/docs", file=f)
             print("  cache:", file=f)
-            print("    key: v2-build_docs-pip-cache", file=f)
+            print(f"    key: build_docs-pip-cache-{date_str}", file=f)
             print("    paths:", file=f)
             print("      - .cache", file=f)
             print("  artifacts:", file=f)
