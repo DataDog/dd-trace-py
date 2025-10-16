@@ -832,7 +832,7 @@ async def test_chat_completion_async_stream_context_manager(openai, openai_vcr, 
 
 
 @pytest.mark.snapshot(
-    token="tests.contrib.openai.test_openai_v1.test_integration_sync", ignores=["meta.http.useragent"], async_mode=False
+    token="tests.contrib.openai.test_openai.test_integration_sync", ignores=["meta.http.useragent"], async_mode=False
 )
 def test_integration_sync(openai_api_key, ddtrace_run_python_code_in_subprocess):
     """OpenAI uses httpx for its synchronous requests.
@@ -853,7 +853,7 @@ def test_integration_sync(openai_api_key, ddtrace_run_python_code_in_subprocess)
 import openai
 import ddtrace
 from tests.contrib.openai.conftest import FilterOrg
-from tests.contrib.openai.test_openai_v1 import get_openai_vcr
+from tests.contrib.openai.test_openai import get_openai_vcr
 pin = ddtrace.trace.Pin.get_from(openai)
 pin.tracer.configure(trace_processors=[FilterOrg()])
 with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
@@ -870,7 +870,7 @@ with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
 
 
 @pytest.mark.snapshot(
-    token="tests.contrib.openai.test_openai_v1.test_integration_async",
+    token="tests.contrib.openai.test_openai.test_integration_async",
     ignores=["meta.http.useragent"],
     async_mode=False,
 )
@@ -894,7 +894,7 @@ import asyncio
 import openai
 import ddtrace
 from tests.contrib.openai.conftest import FilterOrg
-from tests.contrib.openai.test_openai_v1 import get_openai_vcr
+from tests.contrib.openai.test_openai import get_openai_vcr
 pin = ddtrace.trace.Pin.get_from(openai)
 pin.tracer.configure(trace_processors=[FilterOrg()])
 async def task():
@@ -1087,7 +1087,7 @@ def test_integration_service_name(openai_api_key, ddtrace_run_python_code_in_sub
     if service_name:
         env["DD_SERVICE"] = service_name
     with snapshot_context(
-        token="tests.contrib.openai.test_openai_v1.test_integration_service_name[%s-%s]"
+        token="tests.contrib.openai.test_openai.test_integration_service_name[%s-%s]"
         % (service_name, schema_version),
         ignores=["meta.http.useragent", "meta.openai.api_base", "meta.openai.api_type"],
         async_mode=False,
@@ -1097,7 +1097,7 @@ def test_integration_service_name(openai_api_key, ddtrace_run_python_code_in_sub
 import openai
 import ddtrace
 from tests.contrib.openai.conftest import FilterOrg
-from tests.contrib.openai.test_openai_v1 import get_openai_vcr
+from tests.contrib.openai.test_openai import get_openai_vcr
 pin = ddtrace.trace.Pin.get_from(openai)
 pin.tracer.configure(trace_processors=[FilterOrg()])
 with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
@@ -1280,7 +1280,7 @@ def test_empty_streamed_chat_completion_resp_returns(openai, openai_vcr, snapsho
         assert resp is None
 
 
-@pytest.mark.snapshot(token="tests.contrib.openai.test_openai_v1.test_empty_streamed_chat_completion_resp_returns")
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_empty_streamed_chat_completion_resp_returns")
 async def test_empty_streamed_chat_completion_resp_returns_async(openai, openai_vcr, snapshot_tracer):
     client = openai.AsyncOpenAI()
     with mock.patch.object(client.chat.completions, "_post", return_value=None):
@@ -1306,7 +1306,7 @@ def test_empty_streamed_completion_resp_returns(openai, snapshot_tracer):
         assert resp is None
 
 
-@pytest.mark.snapshot(token="tests.contrib.openai.test_openai_v1.test_empty_streamed_completion_resp_returns")
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_empty_streamed_completion_resp_returns")
 async def test_empty_streamed_completion_resp_returns_async(openai, snapshot_tracer):
     client = openai.AsyncOpenAI()
     with mock.patch.object(client.completions, "_post", return_value=None):
@@ -1340,7 +1340,7 @@ def test_empty_streamed_response_resp_returns(openai, snapshot_tracer):
 @pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
 )
-@pytest.mark.snapshot(token="tests.contrib.openai.test_openai_v1.test_empty_streamed_response_resp_returns")
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_empty_streamed_response_resp_returns")
 async def test_empty_streamed_response_resp_returns_async(openai, snapshot_tracer):
     client = openai.AsyncOpenAI()
     with mock.patch.object(client.responses, "_post", return_value=None):
@@ -1355,7 +1355,7 @@ async def test_empty_streamed_response_resp_returns_async(openai, snapshot_trace
 @pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) < (1, 92), reason="Parse method only available in openai >= 1.92"
 )
-@pytest.mark.snapshot(token="tests.contrib.openai.test_openai_v1.test_chat_completion_parse")
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_chat_completion_parse")
 def test_chat_completion_parse(openai, openai_vcr, snapshot_tracer):
     from typing import List
 
@@ -1384,7 +1384,7 @@ def test_chat_completion_parse(openai, openai_vcr, snapshot_tracer):
 @pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) < (1, 92), reason="Parse method only available in openai >= 1.92"
 )
-@pytest.mark.snapshot(token="tests.contrib.openai.test_openai_v1.test_chat_completion_parse")
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_chat_completion_parse")
 async def test_achat_completion_parse(openai, openai_vcr, snapshot_tracer):
     from typing import List
 
@@ -1413,7 +1413,7 @@ async def test_achat_completion_parse(openai, openai_vcr, snapshot_tracer):
 @pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) < (1, 92), reason="Parse method only available in openai >= 1.92"
 )
-@pytest.mark.snapshot(token="tests.contrib.openai.test_openai_v1.test_response_parse")
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_response_parse")
 def test_response_parse(openai, openai_vcr, snapshot_tracer):
     from typing import List
 
@@ -1439,7 +1439,7 @@ def test_response_parse(openai, openai_vcr, snapshot_tracer):
 @pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) < (1, 92), reason="Parse method only available in openai >= 1.92"
 )
-@pytest.mark.snapshot(token="tests.contrib.openai.test_openai_v1.test_response_parse")
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_response_parse")
 async def test_aresponse_parse(openai, openai_vcr, snapshot_tracer):
     from typing import List
 
