@@ -25,6 +25,7 @@ jobs:
             pr_name_lint
             Validate changelog
             Report codeowners
+            Tests with Python
             devflow/.*
             dd-gitlab/.*
 

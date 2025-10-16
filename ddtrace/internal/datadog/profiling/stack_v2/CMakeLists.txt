@@ -40,13 +40,12 @@ if(NOT Threads_FOUND OR NOT CMAKE_USE_PTHREADS_INIT)
 endif()
 
 # Add echion
-set(ECHION_COMMIT
-    "ee5df24d7becce660223e9b8b1bd7d6dce3e8ede" # https://github.com/kowalskithomas/echion/commit/ee5df24d7becce660223e9b8b1bd7d6dce3e8ede
-    CACHE STRING "Commit hash of echion to use")
+set(ECHION_LOCAL_DIR "${CMAKE_CURRENT_LIST_DIR}/../echion") # adjust relative path if needed
+
 FetchContent_Declare(
     echion
-    GIT_REPOSITORY "https://github.com/P403n1x87/echion.git"
-    GIT_TAG ${ECHION_COMMIT})
+    SOURCE_DIR ${ECHION_LOCAL_DIR}
+)
 FetchContent_GetProperties(echion)
 
 if(NOT echion_POPULATED)

@@ -1,0 +1,12 @@
+[flake8]
+select = ANN,B,B9,C,D,E,F,W,I
+ignore = ANN001,ANN101,ANN102,ANN201,ANN401,B950,BLK100,D100,D101,D102,D103,D104,D105,D107,E203,E501,I001,I005,I201,I202,W503,W606
+exclude =
+  austin/format/pprof/profile_pb2.py
+max-line-length = 88
+docstring-convention = google
+import-order-style = pep8
+application-import-names = austin
+per-file-ignores =
+  test/*:ANN,D
+  noxfile.py:ANN,D
