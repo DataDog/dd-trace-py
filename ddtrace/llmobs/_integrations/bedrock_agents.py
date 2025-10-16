@@ -161,7 +161,7 @@ def _create_or_update_bedrock_trace_step_span(trace, trace_step_id, inner_span_e
     if not span_event:
         start_ns = root_span.start_ns if not inner_span_event else inner_span_event.get("start_ns", root_span.start_ns)
         span_event = _build_span_event(
-            span_name="{} Step".format(trace_type),
+            span_name=f"{trace_type} Step",
             root_span=root_span,
             parent_id=root_span.span_id,
             span_kind="workflow",

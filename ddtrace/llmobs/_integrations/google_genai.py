@@ -153,7 +153,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         embeddings = _get_attr(response, "embeddings", [])
         if embeddings:
             embedding_dim = len(embeddings[0].values)
-            return "[{} embedding(s) returned with size {}]".format(len(embeddings), embedding_dim)
+            return f"[{len(embeddings)} embedding(s) returned with size {embedding_dim}]"
         return ""
 
     def _extract_embedding_input_documents(self, args, kwargs, config) -> List[Document]:

@@ -699,7 +699,7 @@ class LangChainIntegration(BaseLLMIntegration):
             embedding_dim = len(output_values[0])
             span._set_ctx_item(
                 output_tag_key,
-                "[{} embedding(s) returned with size {}]".format(embeddings_count, embedding_dim),
+                f"[{embeddings_count} embedding(s) returned with size {embedding_dim}]",
             )
         except (TypeError, IndexError):
             log.warning("Failed to write output vectors", output_embedding)
@@ -727,7 +727,7 @@ class LangChainIntegration(BaseLLMIntegration):
             span._set_ctx_item(OUTPUT_VALUE, "")
             return
         if is_workflow:
-            span._set_ctx_item(OUTPUT_VALUE, "[{} document(s) retrieved]".format(len(output_documents)))
+            span._set_ctx_item(OUTPUT_VALUE, f"[{len(output_documents)} document(s) retrieved]")
             return
         documents: List[Document] = []
         for d in output_documents:
@@ -738,7 +738,7 @@ class LangChainIntegration(BaseLLMIntegration):
             documents.append(doc)
         span._set_ctx_item(OUTPUT_DOCUMENTS, format_langchain_io(documents))
         # we set the value as well to ensure that the UI would display it in case the span was the root
-        span._set_ctx_item(OUTPUT_VALUE, "[{} document(s) retrieved]".format(len(documents)))
+        span._set_ctx_item(OUTPUT_VALUE, f"[{len(documents)} document(s) retrieved]")
 
     def _llmobs_set_meta_tags_from_tool(self, span: Span, tool_inputs: Dict[str, Any], tool_output: object) -> None:
         metadata = json.loads(str(span.get_tag(METADATA))) if span.get_tag(METADATA) else {}

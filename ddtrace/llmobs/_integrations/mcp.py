@@ -59,7 +59,7 @@ class MCPIntegration(BaseLLMIntegration):
     def _llmobs_set_tags_client(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any) -> None:
         tool_arguments = get_argument_value(args, kwargs, 1, "arguments", optional=True) or {}
         tool_name = args[0] if len(args) > 0 else kwargs.get("name", "unknown_tool")
-        span_name = "MCP Client Tool Call: {}".format(tool_name)
+        span_name = f"MCP Client Tool Call: {tool_name}"
 
         span._set_ctx_items(
             {
@@ -84,7 +84,7 @@ class MCPIntegration(BaseLLMIntegration):
     def _llmobs_set_tags_server(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any) -> None:
         tool_arguments = get_argument_value(args, kwargs, 1, "arguments", optional=True) or {}
         tool_name = args[0] if len(args) > 0 else "unknown_tool"
-        span_name = "MCP Server Tool Execute: {}".format(tool_name)
+        span_name = f"MCP Server Tool Execute: {tool_name}"
 
         span._set_ctx_items(
             {

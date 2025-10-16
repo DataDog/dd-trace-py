@@ -427,7 +427,7 @@ class Experiment:
             return []
         if sample_size is not None and sample_size < len(self._dataset):
             subset_records = [deepcopy(record) for record in self._dataset._records[:sample_size]]
-            subset_name = "[Test subset of {} records] {}".format(sample_size, self._dataset.name)
+            subset_name = f"[Test subset of {sample_size} records] {self._dataset.name}"
             subset_dataset = Dataset(
                 name=subset_name,
                 project=self._dataset.project,
@@ -451,9 +451,7 @@ class Experiment:
                     err_stack = err_dict.get("stack")
                     err_type = err_dict.get("type")
                 if raise_errors and err_msg:
-                    raise RuntimeError(
-                        "Error on record {}: {}\n{}\n{}".format(result["idx"], err_msg, err_type, err_stack)
-                    )
+                    raise RuntimeError(f"Error on record {result['idx']}: {err_msg}\n{err_type}\n{err_stack}")
         self._llmobs_instance.flush()  # Ensure spans get submitted in serverless environments
         return task_results
 
