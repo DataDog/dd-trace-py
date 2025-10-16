@@ -669,8 +669,8 @@ class LLMObs(Service):
             self._llmobs_context_provider.activate(llmobs_ctx)
 
     @classmethod
-    def pull_dataset(cls, dataset_name: str, project_name: Optional[str] = None) -> Dataset:
-        ds = cls._instance._dne_client.dataset_get_with_records(dataset_name, (project_name or cls._project_name))
+    def pull_dataset(cls, dataset_name: str, project_name: Optional[str] = None, version: Optional[int] = None) -> Dataset:
+        ds = cls._instance._dne_client.dataset_get_with_records(dataset_name, (project_name or cls._project_name), version)
         return ds
 
     @classmethod

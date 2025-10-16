@@ -458,10 +458,10 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         new_record_ids: List[str] = [r["id"] for r in data] if data else []
         return new_version, new_record_ids
 
-    def dataset_get_with_records(self, dataset_name: str, project_name: Optional[str] = None) -> Dataset:
+    def dataset_get_with_records(self, dataset_name: str, project_name: Optional[str] = None, version: Optional[int] = None) -> Dataset:
         project = self.project_create_or_get(project_name)
         project_id = project.get("_id")
-        logger.debug("getting records with project ID %s for %s", project_id, project_name)
+        logger.debug("getting records with project ID %s for %s, version: %s", project_id, project_name, str(version) or "latest")
 
         path = f"/api/unstable/llm-obs/v1/{project_id}/datasets?filter[name]={quote(dataset_name)}"
         resp = self.request("GET", path)
@@ -480,6 +480,9 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         dataset_id = data[0]["id"]
 
         list_base_path = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
+        if version:
+            list_base_path = f"{list_base_path}?filter[version]={version}"
+
         has_next_page = True
         class_records: List[DatasetRecord] = []
         list_path = list_base_path
@@ -507,7 +510,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             has_next_page = False
             if next_cursor:
                 has_next_page = True
-                list_path = f"{list_base_path}?page[cursor]={next_cursor}"
+                list_path = f"{list_base_path}{"&" if version else "?"}page[cursor]={next_cursor}"
                 logger.debug("next list records request path %s", list_path)
                 page_num += 1
         return Dataset(
