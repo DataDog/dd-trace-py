@@ -177,6 +177,7 @@ def track_user_id(
             ):
                 raise BlockingException(_get_blocked())
 
+
 def track_custom_event(event_name: str, metadata: t.Dict[str, t.Any]):
     """
     Track a custom user event.

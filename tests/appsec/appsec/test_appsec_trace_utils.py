@@ -299,7 +299,6 @@ class EventsSDKTestCase(TracerTestCase):
         assert span.get_tag("usr.id") == str(self._BLOCKED_USER)
         assert is_blocked(span)
 
-
     def test_track_user_id_blocked(self):
         with asm_context(tracer=self.tracer, span_name="fake_span", config=config_good_rules) as span:
             track_user_id(
