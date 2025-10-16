@@ -1091,10 +1091,10 @@ def test_enable():
 @pytest.mark.subprocess(
     err=b"Shutting down tracer with 2 unfinished spans. "
     b"Unfinished spans will not be sent to Datadog: "
-    b"trace_id=123 parent_id=0 span_id=456 name=unfinished_span1 "
-    b"resource=my_resource1 started=46121775360.0 sampling_priority=2, "
+    b"trace_id=123 parent_id=None span_id=456 name=unfinished_span1 "
+    b"resource=my_resource1 started=4612177536.0 sampling_priority=2, "
     b"trace_id=123 parent_id=456 span_id=666 name=unfinished_span2 "
-    b"resource=my_resource1 started=167232131231.0 sampling_priority=2\n"
+    b"resource=my_resource1 started=1672321312.0 sampling_priority=2\n"
 )
 def test_unfinished_span_warning_log():
     """Test that a warning log is emitted when the tracer is shut down with unfinished spans."""
@@ -1108,12 +1108,12 @@ def test_unfinished_span_warning_log():
     span1.trace_id = 123
     span1.parent_id = 0
     span1.span_id = 456
-    span1.start = 46121775360
+    span1.start = 4612177536
     span1.set_tag(MANUAL_KEEP_KEY)
     span2.trace_id = 123
     span2.parent_id = 456
     span2.span_id = 666
-    span2.start = 167232131231
+    span2.start = 1672321312
     span2.set_tag(MANUAL_KEEP_KEY)
 
 
