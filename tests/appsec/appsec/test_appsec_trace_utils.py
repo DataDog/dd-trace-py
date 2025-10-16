@@ -14,6 +14,7 @@ from ddtrace.appsec.trace_utils import track_user_login_failure_event
 from ddtrace.appsec.trace_utils import track_user_login_success_event
 from ddtrace.appsec.trace_utils import track_user_signup_event
 from ddtrace.appsec.track_user_sdk import track_user
+from ddtrace.appsec.track_user_sdk import track_user_id
 from ddtrace.contrib.internal.trace_utils import set_user
 from ddtrace.ext import user
 import ddtrace.internal.telemetry
@@ -275,8 +276,34 @@ class EventsSDKTestCase(TracerTestCase):
     def test_track_user_blocked(self):
         with asm_context(tracer=self.tracer, span_name="fake_span", config=config_good_rules) as span:
             track_user(
-                self.tracer,
+                "login",
                 user_id=self._BLOCKED_USER,
+                session_id="usr.session_id",
+                metadata={
+                    "email": "usr.email",
+                    "name": "usr.name",
+                    "role": "usr.role",
+                    "scope": "usr.scope",
+                },
+            )
+        assert span.get_tag(user.ID)
+        assert span.get_tag(user.EMAIL)
+        assert span.get_tag(user.SESSION_ID)
+        assert span.get_tag(user.NAME)
+        assert span.get_tag(user.ROLE)
+        assert span.get_tag(user.SCOPE)
+        assert span.get_tag(user.SESSION_ID)
+        assert span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE) == LOGIN_EVENTS_MODE.SDK
+        # assert metadata tags are not set for usual data
+        assert span.get_tag("appsec.events.auth_sdk.track") is None
+        assert span.get_tag("usr.id") == str(self._BLOCKED_USER)
+        assert is_blocked(span)
+
+
+    def test_track_user_id_blocked(self):
+        with asm_context(tracer=self.tracer, span_name="fake_span", config=config_good_rules) as span:
+            track_user_id(
+                self._BLOCKED_USER,
                 session_id="usr.session_id",
                 metadata={
                     "email": "usr.email",
