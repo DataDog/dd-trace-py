@@ -81,7 +81,9 @@ def shared_stream(
 
 
 def _get_chunk_callback(interface_type, args, kwargs):
-    results = core.dispatch_with_results("langchain.stream.chunk.callback", (interface_type, args, kwargs))  # ast-grep-ignore: core-dispatch-with-results
+    results = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
+        "langchain.stream.chunk.callback", (interface_type, args, kwargs)
+    )
     callbacks = []
     for result in results.values():
         if result and result.value:

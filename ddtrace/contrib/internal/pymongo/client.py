@@ -343,7 +343,9 @@ def set_query_rowcount(docs, span):
 
 def _dbm_dispatch(span, args, kwargs):
     # dispatch DBM
-    result = core.dispatch_with_results("pymongo.execute", (config.pymongo, span, args, kwargs)).result  # ast-grep-ignore: core-dispatch-with-results
+    result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
+        "pymongo.execute", (config.pymongo, span, args, kwargs)
+    ).result
     if result:
         span, args, kwargs = result.value
     return span, args, kwargs

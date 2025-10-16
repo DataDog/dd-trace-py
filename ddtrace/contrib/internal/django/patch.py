@@ -485,7 +485,9 @@ def _patch(django):
 
 
 def wrap_wsgi_environ(wrapped, _instance, args, kwargs):
-    result = core.dispatch_with_results("django.wsgi_environ", (wrapped, _instance, args, kwargs)).wrapped_result  # ast-grep-ignore: core-dispatch-with-results
+    result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
+        "django.wsgi_environ", (wrapped, _instance, args, kwargs)
+    ).wrapped_result
     # if the callback is registered and runs, return the result
     if result:
         return result.value
