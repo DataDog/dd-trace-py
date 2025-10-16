@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    AAP: This introduces ``track_user_id`` in the ATO SDK, which is equivalent to ``track_user`` but does not require the login, only the user id.
