@@ -771,14 +771,15 @@ class TestSpan(Span):
         # DEV: Use `object.__setattr__` to by-pass this class's `__setattr__`
         object.__setattr__(self, "_span", span)
 
-    def __getattr__(self, key):
+    def __getattribute__(self, key):
         """
         First look for property on the base :class:`ddtrace.trace.Span` otherwise return this object's attribute
         """
-        if hasattr(self._span, key):
-            return getattr(self._span, key)
+        _span = object.__getattribute__(self, "_span")
+        if hasattr(_span, key):
+            return getattr(_span, key)
 
-        return self.__getattribute__(key)
+        return object.__getattribute__(self, key)
 
     def __setattr__(self, key, value):
         """Pass through all assignment to the base :class:`ddtrace.trace.Span`"""
@@ -798,6 +799,9 @@ class TestSpan(Span):
         elif isinstance(other, Span):
             return other == self._span
         return other == self
+
+    def _span_hasattr(self, name):
+        return hasattr(self._span, name)
 
     def matches(self, **kwargs):
         """
@@ -819,7 +823,7 @@ class TestSpan(Span):
                 return False
 
             # Ensure it has the property first
-            if not hasattr(self, name):
+            if not self._span_hasattr(name):
                 return False
 
             # Ensure the values match
@@ -874,7 +878,7 @@ class TestSpan(Span):
             elif name == "metrics":
                 self.assert_metrics(value)
             else:
-                assert hasattr(self, name), "{0!r} does not have property {1!r}".format(self, name)
+                assert self._span_hasattr(name), "{0!r} does not have property {1!r}".format(self, name)
                 assert getattr(self, name) == value, "{0!r} property {1}: {2!r} != {3!r}".format(
                     self, name, getattr(self, name), value
                 )
