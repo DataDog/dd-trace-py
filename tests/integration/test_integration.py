@@ -8,6 +8,7 @@ import mock
 import pytest
 
 from ddtrace.internal.atexit import register_on_exit_signal
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from tests.integration.utils import parametrize_with_all_encodings
 from tests.integration.utils import skip_if_native_writer
 from tests.integration.utils import skip_if_testagent
