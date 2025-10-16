@@ -144,15 +144,12 @@ jobs:
         with:
           path: .download_cache
           key: download-cache-v1-${{ hashFiles('setup.py') }}-${{ runner.os }}-${{ runner.arch }}
-          restore-keys: |
-            download-cache-v1-${{ runner.os }}-
 
       - name: Restore Cargo cache
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ~/.cargo
-          key: cargo-cache-v1-${{ hashFiles('src/native/Cargo.lock') }}-${{ runner.os }}
-          restore-keys: cargo-cache-v1-${{ runner.os }}-
+          key: cargo-cache-v1-${{ hashFiles('src/native/Cargo.lock', 'setup.py') }}-${{ runner.os }}-${{ runner.arch }}
 
       - name: Set up QEMU
         if: runner.os == 'Linux' && matrix.os != 'ubuntu-24.04-arm'
@@ -179,7 +176,7 @@ jobs:
         continue-on-error: true
         with:
           path: ~/.cargo
-          key: cargo-cache-v1-${{ hashFiles('src/native/Cargo.lock') }}-${{ runner.os }}
+          key: cargo-cache-v1-${{ hashFiles('src/native/Cargo.lock', 'setup.py') }}-${{ runner.os }}-${{ runner.arch }}
 
       - name: Validate wheel RECORD files
         shell: bash
