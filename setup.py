@@ -329,7 +329,9 @@ class CustomBuildRust(build_rust):
 
 
 class LibraryDownload:
-    CACHE_DIR = HERE / ".download_cache"
+    # Allow overriding cache directory via environment variable for CI/caching purposes
+    _cache_dir = os.getenv("DD_SETUP_CACHE_DIR")
+    CACHE_DIR = Path(_cache_dir) if _cache_dir else HERE / ".download_cache"
     USE_CACHE = os.getenv("DD_SETUP_CACHE_DOWNLOADS", "1").lower() in ("1", "yes", "on", "true")
 
     name = None
