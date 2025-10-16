@@ -28,6 +28,22 @@ struct PyBackedString {
     storage: Option<Py<PyAny>>,
 }
 
+impl PyBackedString {
+    fn clone_ref<'py>(&self, py: Python<'py>) -> Self {
+        Self {
+            data: self.data,
+            storage: self.storage.as_ref().map(|s| s.clone_ref(py)),
+        }
+    }
+
+    fn py_none<'py>(py: Python<'py>) -> Self {
+        Self {
+            data: unsafe { NonNull::new_unchecked("" as *const str as *mut _) },
+            storage: Some(py.None()),
+        }
+    }
+}
+
 // Py bytes as immutable and can thus be safely shared between threads
 unsafe impl Sync for PyBackedString {}
 unsafe impl Send for PyBackedString {}
@@ -234,8 +250,9 @@ impl SpanData {
     ///
     /// This can not be put on new, because otherwise the signature needs to match
     /// for every inherited class
-    fn __init__(
+    fn __init__<'py>(
         &mut self,
+        py: Python<'py>,
         name: PyBackedString,
         service: Option<PyBackedString>,
         resource: Option<PyBackedString>,
@@ -248,10 +265,10 @@ impl SpanData {
     ) {
         *self = Self {
             data: NativeSpan {
+                resource: resource.unwrap_or_else(|| name.clone_ref(py)),
                 name,
-                service: service.unwrap_or_default(),
-                resource: resource.unwrap_or_default(),
-                r#type: span_type.unwrap_or_default(),
+                service: service.unwrap_or_else(|| PyBackedString::py_none(py)),
+                r#type: span_type.unwrap_or_else(|| PyBackedString::py_none(py)),
                 trace_id: trace_id.unwrap_or_else(rand128bits),
                 span_id: span_id.unwrap_or_else(rand64bits),
                 parent_id: parent_id.unwrap_or(0),
