@@ -205,7 +205,6 @@ def gen_build_docs() -> None:
             print("build_docs:", file=f)
             print("  extends: .testrunner", file=f)
             print("  stage: core", file=f)
-            print("  timeout: 25m", file=f)
             print("  needs:", file=f)
             print("    - prechecks", file=f)
             print("  variables:", file=f)
