@@ -1550,11 +1550,11 @@ class LLMObs(Service):
     ) -> None:
         """
         Submits a custom evaluation metric for a given span. This method is deprecated and will be
-        removed in a future version. Please use `LLMObs.submit_evaluation()` instead.
+        removed in the next major version of ddtrace (4.0). Please use `LLMObs.submit_evaluation()` instead.
         """
         log.warning(
-            "LLMObs.submit_evaluation_for() is deprecated and will be removed in a future version. "
-            "Please use LLMObs.submit_evaluation() instead."
+            "LLMObs.submit_evaluation_for() is deprecated and will be removed in the next major "
+            "version of ddtrace (4.0). Please use LLMObs.submit_evaluation() instead."
         )
         return cls.submit_evaluation(
             label=label,
@@ -1590,8 +1590,8 @@ class LLMObs(Service):
         :param value: The value of the evaluation metric.
                       Must be a string (categorical), integer (score), float (score), or boolean (boolean).
         :param dict span_context: A dictionary containing the span_id and trace_id of interest. This is a
-                            deprecated parameter and will be removed in a future version. Please use `span`
-                            or `span_with_tag_value` instead.
+                            deprecated parameter and will be removed in the next major version of
+                            ddtrace (4.0). Please use `span` or `span_with_tag_value` instead.
         :param dict span: A dictionary of shape {'span_id': str, 'trace_id': str} uniquely identifying
                             the span associated with this evaluation.
         :param dict span_with_tag_value: A dictionary with the format {'tag_key': str, 'tag_value': str}
@@ -1605,8 +1605,8 @@ class LLMObs(Service):
         """
         if span_context is not None:
             log.warning(
-                "The `span_context` parameter is deprecated and will be removed in a future version. "
-                "Please use `span` or `span_with_tag_value` instead."
+                "The `span_context` parameter is deprecated and will be removed in the next major version of "
+                "ddtrace (4.0). Please use `span` or `span_with_tag_value` instead."
             )
             span = span or span_context
 
