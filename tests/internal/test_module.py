@@ -428,6 +428,7 @@ def test_module_watchdog_namespace_import():
         ModuleWatchdog.uninstall()
 
 
+@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 10), reason="ddtrace under Python 3.9 is deprecated")
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env=dict(

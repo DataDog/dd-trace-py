@@ -245,6 +245,7 @@ def test_x_datadog_tags(env, expected):
         assert expected == (_._x_datadog_tags_max_length, _._x_datadog_tags_enabled)
 
 
+@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 10), reason="ddtrace under Python 3.9 is deprecated")
 @pytest.mark.subprocess()
 def test_config_exception_deprecation():
     import warnings
@@ -262,6 +263,7 @@ def test_config_exception_deprecation():
         assert "4.0.0" in str(warn.message)  # TODO: update the version
 
 
+@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 10), reason="ddtrace under Python 3.9 is deprecated")
 @pytest.mark.subprocess()
 def test_http_config_deprecation():
     import warnings
@@ -278,6 +280,7 @@ def test_http_config_deprecation():
         assert "4.0.0" in str(warn.message)  # TODO: update the version
 
 
+@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 10), reason="ddtrace under Python 3.9 is deprecated")
 @pytest.mark.subprocess()
 def test_hooks_deprecation():
     import warnings
@@ -294,6 +297,7 @@ def test_hooks_deprecation():
         assert "4.0.0" in str(warn.message)  # TODO: update the version
 
 
+@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 10), reason="ddtrace under Python 3.9 is deprecated")
 @pytest.mark.subprocess()
 def test_integration_config_deprecation():
     import warnings

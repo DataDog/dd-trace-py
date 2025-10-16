@@ -816,6 +816,7 @@ def test_logging_during_tracer_init_succeeds_when_debug_logging_and_logs_injecti
     ), "stderr should not contain any exception logs"
 
 
+@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 10), reason="ddtrace under Python 3.9 is deprecated")
 def test_no_warnings_when_Wall():
     env = os.environ.copy()
     # Have to disable sqlite3 as coverage uses it on process shutdown

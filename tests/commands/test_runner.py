@@ -522,6 +522,7 @@ def test_ddtrace_run_and_auto_sitecustomize():
     assert final_modules - starting_modules == set(["ddtrace.auto"])
 
 
+@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 10), reason="ddtrace under Python 3.9 is deprecated")
 @pytest.mark.subprocess(env=dict(DD_TRACE_GLOBAL_TAGS="a:True"), err=None)
 def test_global_trace_tags_deprecation_warning():
     """Ensure DD_TRACE_GLOBAL_TAGS deprecation warning shows"""
