@@ -691,7 +691,7 @@ class LogWriterTests(BaseTestCase):
         self.output = DummyOutput()
         writer = LogWriter(out=self.output)
         for i in range(self.N_TRACES):
-            writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(7)])
+            writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 if j > 0 else None) for j in range(7)])
         return writer
 
     def test_log_writer(self):
