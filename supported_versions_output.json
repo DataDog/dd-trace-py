@@ -45,7 +45,7 @@
     {
         "dependency": "algoliasearch",
         "integration": "algoliasearch",
-        "minimum_tracer_supported": "2.5.0",
+        "minimum_tracer_supported": "2.6.3",
         "max_tracer_supported": "2.6.3",
         "pinned": "true",
         "auto-instrumented": true
@@ -75,7 +75,7 @@
     {
         "dependency": "asyncpg",
         "integration": "asyncpg",
-        "minimum_tracer_supported": "0.22.0",
+        "minimum_tracer_supported": "0.23.0",
         "max_tracer_supported": "0.30.0",
         "auto-instrumented": true
     },
@@ -106,7 +106,7 @@
         "minimum_tracer_supported": "5.12.2",
         "max_tracer_supported": "5.15.0",
         "pinned": "true",
-        "auto-instrumented": false
+        "auto-instrumented": true
     },
     {
         "dependency": "azure-functions",
@@ -145,13 +145,6 @@
         "integration": "bottle",
         "minimum_tracer_supported": "0.12.25",
         "max_tracer_supported": "0.13.4",
-        "auto-instrumented": true
-    },
-    {
-        "dependency": "cassandra-driver",
-        "integration": "cassandra",
-        "minimum_tracer_supported": "3.24.0",
-        "max_tracer_supported": "3.28.0",
         "auto-instrumented": true
     },
     {
@@ -319,7 +312,7 @@
     {
         "dependency": "gevent",
         "integration": "gevent",
-        "minimum_tracer_supported": "20.12.1",
+        "minimum_tracer_supported": "21.1.2",
         "max_tracer_supported": "25.5.1",
         "auto-instrumented": true
     },
@@ -467,7 +460,7 @@
     {
         "dependency": "mongoengine",
         "integration": "mongoengine",
-        "minimum_tracer_supported": "0.23.1",
+        "minimum_tracer_supported": "0.24.2",
         "max_tracer_supported": "0.29.1",
         "auto-instrumented": true
     },
@@ -489,7 +482,8 @@
         "dependency": "openai",
         "integration": "openai",
         "minimum_tracer_supported": "1.0.0",
-        "max_tracer_supported": "1.91.0",
+        "max_tracer_supported": "1.109.1",
+        "pinned": "true",
         "auto-instrumented": true
     },
     {
@@ -502,7 +496,7 @@
     {
         "dependency": "protobuf",
         "integration": "protobuf",
-        "minimum_tracer_supported": "5.29.3",
+        "minimum_tracer_supported": "6.30.1",
         "max_tracer_supported": "6.32.0",
         "auto-instrumented": false
     },
@@ -516,7 +510,7 @@
     {
         "dependency": "psycopg2-binary",
         "integration": "psycopg",
-        "minimum_tracer_supported": "2.8.6",
+        "minimum_tracer_supported": "2.9.10",
         "max_tracer_supported": "2.9.10",
         "auto-instrumented": true
     },
@@ -559,7 +553,7 @@
     {
         "dependency": "pynamodb",
         "integration": "pynamodb",
-        "minimum_tracer_supported": "5.0.3",
+        "minimum_tracer_supported": "5.5.1",
         "max_tracer_supported": "5.5.1",
         "pinned": "true",
         "auto-instrumented": true
@@ -618,7 +612,7 @@
     {
         "dependency": "requests",
         "integration": "requests",
-        "minimum_tracer_supported": "2.20.1",
+        "minimum_tracer_supported": "2.25.1",
         "max_tracer_supported": "2.32.5",
         "auto-instrumented": true
     },
@@ -639,7 +633,7 @@
     {
         "dependency": "snowflake-connector-python",
         "integration": "snowflake",
-        "minimum_tracer_supported": "2.3.10",
+        "minimum_tracer_supported": "2.4.6",
         "max_tracer_supported": "3.17.2",
         "auto-instrumented": false
     },
@@ -682,7 +676,7 @@
     {
         "dependency": "urllib3",
         "integration": "urllib3",
-        "minimum_tracer_supported": "1.25",
+        "minimum_tracer_supported": "1.25.8",
         "max_tracer_supported": "2.5.0",
         "auto-instrumented": false
     },
