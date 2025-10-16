@@ -111,7 +111,7 @@ class Span(object):
         # Public span attributes
         "service",
         "name",
-        "_resource",
+        "resource",
         "_span_api",
         "span_id",
         "trace_id",
@@ -187,7 +187,7 @@ class Span(object):
             return
         self.name = name
         self.service = service
-        self._resource = [resource or name]
+        self.resource = resource or name
         self.span_type = span_type
         self._span_api = span_api
 
@@ -269,14 +269,6 @@ class Span(object):
     @start.setter
     def start(self, value: Union[int, float]) -> None:
         self.start_ns = int(value * 1e9)
-
-    @property
-    def resource(self) -> str:
-        return self._resource[0]
-
-    @resource.setter
-    def resource(self, value: str) -> None:
-        self._resource[0] = value
 
     @property
     def finished(self) -> bool:

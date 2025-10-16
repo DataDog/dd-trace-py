@@ -12,7 +12,7 @@ from tests.utils import override_config
 from tests.utils import override_http_config
 
 
-# host:port of httpbin_local container
+# host:port of httpbin container
 HOST = "localhost"
 PORT = 8001
 
