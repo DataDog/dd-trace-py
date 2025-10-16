@@ -97,9 +97,10 @@ jobs:
           if command -v yum &> /dev/null; then
             yum install -y libatomic.i686
           fi
-          curl -sSf https://sh.rustup.rs | sh -s -- -y;
+          export CARGO_HOME=/host/home/runner/.cargo
+          curl -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.78;
         fi
-      CIBW_ENVIRONMENT_LINUX: PATH=$HOME/.cargo/bin:$PATH CMAKE_BUILD_PARALLEL_LEVEL=24 CMAKE_ARGS="-DNATIVE_TESTING=OFF" SETUPTOOLS_SCM_PRETEND_VERSION_FOR_DDTRACE=${{ needs.compute_version.outputs.library_version }} CARGO_HOME=/host/home/runner/.cargo DD_SETUP_CACHE_DIR=/host/home/runner/.download_cache
+      CIBW_ENVIRONMENT_LINUX: CARGO_HOME=/host/home/runner/.cargo DD_SETUP_CACHE_DIR=/host/home/runner/.download_cache PATH=/host/home/runner/.cargo/bin:$PATH CMAKE_BUILD_PARALLEL_LEVEL=24 CMAKE_ARGS="-DNATIVE_TESTING=OFF" SETUPTOOLS_SCM_PRETEND_VERSION_FOR_DDTRACE=${{ needs.compute_version.outputs.library_version }}
       # SYSTEM_VERSION_COMPAT is a workaround for versioning issue, a.k.a.
       # `platform.mac_ver()` reports incorrect MacOS version at 11.0
       # See: https://stackoverflow.com/a/65402241
