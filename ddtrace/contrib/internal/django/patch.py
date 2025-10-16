@@ -374,7 +374,7 @@ def traced_authenticate(django, pin, func, instance, args, kwargs):
     if mode == "disabled":
         return result_user
     try:
-        result = core.dispatch_with_results(
+        result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
             "django.auth",
             (result_user, mode, kwargs, pin, _DjangoUserInfoRetriever(result_user, credentials=kwargs), config_django),
         ).user
@@ -485,7 +485,7 @@ def _patch(django):
 
 
 def wrap_wsgi_environ(wrapped, _instance, args, kwargs):
-    result = core.dispatch_with_results("django.wsgi_environ", (wrapped, _instance, args, kwargs)).wrapped_result
+    result = core.dispatch_with_results("django.wsgi_environ", (wrapped, _instance, args, kwargs)).wrapped_result  # ast-grep-ignore: core-dispatch-with-results
     # if the callback is registered and runs, return the result
     if result:
         return result.value

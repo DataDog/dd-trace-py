@@ -118,7 +118,7 @@ class _DDWSGIMiddlewareBase(object):
             ctx.set_item("wsgi.construct_url", construct_url)
 
             def blocked_view():
-                result = core.dispatch_with_results("wsgi.block.started", (ctx, construct_url)).status_headers_content
+                result = core.dispatch_with_results("wsgi.block.started", (ctx, construct_url)).status_headers_content  # ast-grep-ignore: core-dispatch-with-results
                 if result:
                     status, headers, content = result.value
                 else:
@@ -160,13 +160,13 @@ class _DDWSGIMiddlewareBase(object):
                     raise
                 else:
                     if get_blocked():
-                        _, _, content = core.dispatch_with_results(
+                        _, _, content = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
                             "wsgi.block.started", (ctx, construct_url)
                         ).status_headers_content.value or (None, None, "")
                         closing_iterable = [content]
                     core.dispatch("wsgi.app.success", (ctx, closing_iterable))
 
-            result = core.dispatch_with_results(
+            result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
                 "wsgi.request.complete", (ctx, closing_iterable, self.app_is_iterator)
             ).traced_iterable
 

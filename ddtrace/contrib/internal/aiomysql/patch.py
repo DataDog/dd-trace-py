@@ -93,7 +93,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             s.set_tags(extra_tags)
 
             # dispatch DBM
-            result = core.dispatch_with_results("aiomysql.execute", (config.aiomysql, s, args, kwargs)).result
+            result = core.dispatch_with_results("aiomysql.execute", (config.aiomysql, s, args, kwargs)).result  # ast-grep-ignore: core-dispatch-with-results
             if result:
                 s, args, kwargs = result.value
 

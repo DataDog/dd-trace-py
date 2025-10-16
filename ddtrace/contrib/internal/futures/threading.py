@@ -14,7 +14,7 @@ def _wrap_submit(func, args, kwargs):
     """
     # DEV: Be sure to propagate a Context and not a Span since we are crossing thread boundaries
     current_ctx: Optional[Context] = ddtrace.tracer.current_trace_context()
-    llmobs_ctx: Optional[Context] = core.dispatch_with_results("threading.submit", ()).llmobs_ctx.value
+    llmobs_ctx: Optional[Context] = core.dispatch_with_results("threading.submit", ()).llmobs_ctx.value  # ast-grep-ignore: core-dispatch-with-results
 
     # The target function can be provided as a kwarg argument "fn" or the first positional argument
     self = args[0]

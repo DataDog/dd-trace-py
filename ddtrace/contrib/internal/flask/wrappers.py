@@ -45,7 +45,7 @@ def _wrap_call(
         tags=tags,
     ) as ctx, ctx.span:
         if do_dispatch:
-            dispatch = core.dispatch_with_results("flask.wrapped_view", (kwargs,))
+            dispatch = core.dispatch_with_results("flask.wrapped_view", (kwargs,))  # ast-grep-ignore: core-dispatch-with-results
 
             # Appsec blocks the request
             result = dispatch.callbacks

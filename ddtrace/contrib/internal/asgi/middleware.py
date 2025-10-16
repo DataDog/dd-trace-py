@@ -261,7 +261,7 @@ class TraceMiddleware:
             if not self.integration_config.trace_query_string:
                 query_string = None
             body = None
-            result = core.dispatch_with_results("asgi.request.parse.body", (receive, headers)).await_receive_and_body
+            result = core.dispatch_with_results("asgi.request.parse.body", (receive, headers)).await_receive_and_body  # ast-grep-ignore: core-dispatch-with-results
             if result:
                 receive, body = await result.value
 
@@ -421,7 +421,7 @@ class TraceMiddleware:
                         span.finish()
 
             async def wrapped_blocked_send(message: Mapping[str, Any]):
-                result = core.dispatch_with_results("asgi.block.started", (ctx, url)).status_headers_content
+                result = core.dispatch_with_results("asgi.block.started", (ctx, url)).status_headers_content  # ast-grep-ignore: core-dispatch-with-results
                 if result:
                     status, headers, content = result.value
                 else:

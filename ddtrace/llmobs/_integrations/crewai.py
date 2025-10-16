@@ -87,7 +87,7 @@ class CrewAIIntegration(BaseLLMIntegration):
         """Extract current tracer and llmobs contexts to propagate across threads during async task execution."""
         curr_trace_ctx = pin.tracer.current_trace_context()
         if self.llmobs_enabled:
-            curr_llmobs_ctx = core.dispatch_with_results("threading.submit", ()).llmobs_ctx.value
+            curr_llmobs_ctx = core.dispatch_with_results("threading.submit", ()).llmobs_ctx.value  # ast-grep-ignore: core-dispatch-with-results
             return curr_trace_ctx, curr_llmobs_ctx
         return curr_trace_ctx, None
 

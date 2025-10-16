@@ -127,7 +127,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
             core.dispatch("flask.start_response", ("Flask",))
             if get_blocked():
                 # response code must be set here, or it will be too late
-                result_content = core.dispatch_with_results("flask.block.request.content", ()).block_requested
+                result_content = core.dispatch_with_results("flask.block.request.content", ()).block_requested  # ast-grep-ignore: core-dispatch-with-results
                 if result_content:
                     _, status, response_headers = result_content.value
                     result = start_response(str(status), response_headers)
@@ -155,7 +155,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         request = _RequestType(environ)
 
         req_body = None
-        result = core.dispatch_with_results(
+        result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
             "flask.request_call_modifier",
             (
                 ctx,
