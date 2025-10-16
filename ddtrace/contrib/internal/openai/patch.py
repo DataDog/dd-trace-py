@@ -299,16 +299,20 @@ def _patched_endpoint_async(openai, patch_hook):
 
         def __aiter__(self):
             async def _traced_aiter():
-                g = _traced_endpoint(self._patch_hook, self._integration, self._instance, self._pin, self._args, self._kwargs)
+                g = _traced_endpoint(
+                    self._patch_hook, self._integration, self._instance, self._pin, self._args, self._kwargs
+                )
                 g.send(None)
                 err = None
+                completed = False
                 try:
                     iterator = self._paginator.__aiter__()
                     first_item = await iterator.__anext__()
                     try:
                         g.send((None, None))
+                        completed = True
                     except StopIteration:
-                        pass
+                        completed = True
                     yield first_item
                     async for item in iterator:
                         yield item
@@ -316,16 +320,21 @@ def _patched_endpoint_async(openai, patch_hook):
                     pass
                 except BaseException as e:
                     err = e
-                    try:
-                        g.send((None, err))
-                    except StopIteration:
-                        pass
                     raise
+                finally:
+                    if not completed:
+                        try:
+                            g.send((None, err))
+                        except StopIteration:
+                            pass
+
             return _traced_aiter()
 
         def __await__(self):
             async def _trace_and_await():
-                g = _traced_endpoint(self._patch_hook, self._integration, self._instance, self._pin, self._args, self._kwargs)
+                g = _traced_endpoint(
+                    self._patch_hook, self._integration, self._instance, self._pin, self._args, self._kwargs
+                )
                 g.send(None)
                 resp, err = None, None
                 try:
@@ -340,6 +349,7 @@ def _patched_endpoint_async(openai, patch_hook):
                         if err is None:
                             return e.value
                 return resp
+
             return _trace_and_await().__await__()
 
     @with_traced_module
@@ -378,7 +388,7 @@ def _patched_endpoint_async(openai, patch_hook):
             if override_return is not None:
                 return override_return
             return resp
-        
+
         return async_wrapper()
 
     return patched_endpoint(openai)
