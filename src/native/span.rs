@@ -378,6 +378,30 @@ impl SpanData {
         self.data.metrics.into_py_dict(py)
     }
 
+    fn _set_meta_inner(&mut self, tag_name: PyBackedString, value: PyBackedString) {
+        self.data.meta.insert(tag_name, value);
+    }
+
+    fn _delete_meta_inner(&mut self, tag_name: PyBackedString) {
+        self.data.meta.remove(&tag_name);
+    }
+
+    fn _get_meta_inner(&self, tag_name: PyBackedString) -> Option<&PyBackedString> {
+        self.data.meta.get(&tag_name)
+    }
+
+    fn _meta_into_py_dict<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        self.data.meta.into_py_dict(py)
+    }
+
+    fn _is_meta_empty_inner(&self) -> bool {
+        self.data.meta.is_empty()
+    }
+
+    fn _is_metrics_empty_inner(&self) -> bool {
+        self.data.metrics.is_empty()
+    }
+
     #[getter]
     fn get_duration(&self) -> Option<f64> {
         Some(self.duration_ns? as f64 / 1_000_000_000.0)

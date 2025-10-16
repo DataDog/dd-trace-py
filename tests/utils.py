@@ -902,8 +902,9 @@ class TestSpan(Span):
             assert self.get_tags() == meta
         else:
             for key, value in meta.items():
-                assert key in self._meta, "{0} meta does not have property {1!r}".format(self, key)
-                assert self.get_tag(key) == value, "{0} meta property {1!r}: {2!r} != {3!r}".format(
+                actual_value = self.get_tag(key)
+                assert actual_value != None, "{0} meta does not have property {1!r}".format(self, key)
+                assert actual_value == value, "{0} meta property {1!r}: {2!r} != {3!r}".format(
                     self, key, self.get_tag(key), value
                 )
 

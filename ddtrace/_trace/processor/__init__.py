@@ -255,9 +255,9 @@ class TraceTagsProcessor(TraceProcessor):
                 trace_id_hob = _get_64_highest_order_bits_as_hex(span.trace_id)
                 span.set_tag_str(HIGHER_ORDER_TRACE_ID_BITS, trace_id_hob)
 
-            if LAST_DD_PARENT_ID_KEY in span._meta and span._parent is not None:
+            if span._get_meta_inner(LAST_DD_PARENT_ID_KEY) is not None and span._parent is not None:
                 # we should only set the last parent id on local root spans
-                del span._meta[LAST_DD_PARENT_ID_KEY]
+                span._delete_meta_inner(LAST_DD_PARENT_ID_KEY)
 
         return trace
 
@@ -334,7 +334,7 @@ class SpanAggregator(SpanProcessor):
         with self._lock:
             trace = self._traces[span.trace_id]
             trace.spans.append(span)
-            integration_name = span._meta.get(COMPONENT, span._span_api)
+            integration_name = span._get_meta_inner(COMPONENT) or span._span_api
 
             self._span_metrics["spans_created"][integration_name] += 1
             self._queue_span_count_metrics("spans_created", "integration_name")
@@ -343,7 +343,7 @@ class SpanAggregator(SpanProcessor):
     def on_span_finish(self, span: Span) -> None:
         # Acquire lock to get finished and update trace.spans
         with self._lock:
-            integration_name = span._meta.get(COMPONENT, span._span_api)
+            integration_name = span._get_meta_inner(COMPONENT) or span._span_api
             self._span_metrics["spans_finished"][integration_name] += 1
 
             if span.trace_id not in self._traces:

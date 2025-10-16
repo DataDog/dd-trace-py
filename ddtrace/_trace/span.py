@@ -107,7 +107,6 @@ def _get_64_highest_order_bits_as_hex(large_int: int) -> str:
 class Span(SpanData):
     __slots__ = [
         # Public span attributes
-        "_meta",
         "_meta_struct",
         "context",
         "_store",
@@ -161,8 +160,6 @@ class Span(SpanData):
         """
         super().__init__(name, service, resource, span_type, trace_id, span_id, parent_id, start, span_api)
 
-        self._meta: _MetaDictType = {}
-
         self._meta_struct: Dict[str, Dict[str, Any]] = {}
 
         self._on_finish_callbacks = [] if on_finish is None else on_finish
@@ -189,7 +186,8 @@ class Span(SpanData):
     def _update_tags_from_context(self) -> None:
         with self.context:
             for tag in self.context._meta:
-                self._meta.setdefault(tag, self.context._meta[tag])
+                if self._get_meta_inner(tag) is None:
+                    self._set_meta_inner(tag, self.context._meta[tag])
             for metric in self.context._metrics:
                 self._set_default_metrics_inner(metric, self.context._metrics[metric])
 
@@ -315,7 +313,7 @@ class Span(SpanData):
             return
 
         try:
-            self._meta[key] = str(value)
+            self._set_meta_inner(key, str(value))
             self._delete_metrics_inner(key)
         except Exception:
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
@@ -337,7 +335,7 @@ class Span(SpanData):
         U+FFFD.
         """
         try:
-            self._meta[key] = ensure_text(value, errors="replace")
+            self._set_meta_inner(key, ensure_text(value, errors="replace"))
         except Exception as e:
             if config._raise:
                 raise e
@@ -345,11 +343,11 @@ class Span(SpanData):
 
     def get_tag(self, key: _TagNameType) -> Optional[Text]:
         """Return the given tag or None if it doesn't exist."""
-        return self._meta.get(key, None)
+        return self._get_meta_inner(key)
 
     def get_tags(self) -> _MetaDictType:
         """Return all tags."""
-        return self._meta.copy()
+        return self._meta_into_py_dict()
 
     def set_tags(self, tags: Dict[_TagNameType, Any]) -> None:
         """Set a dictionary of tags on the given span. Keys and values
@@ -385,8 +383,7 @@ class Span(SpanData):
             log.debug("ignoring not real metric %s:%s", key, value)
             return
 
-        if key in self._meta:
-            del self._meta[key]
+        self._delete_meta_inner(key)
         self._set_metrics_inner(key, value)
 
     def set_metrics(self, metrics: _MetricDictType) -> None:
@@ -428,7 +425,7 @@ class Span(SpanData):
             if limit is None:
                 limit = config._span_traceback_max_size
             tb = "".join(traceback.format_stack(limit=limit + 1)[:-1])
-            self._meta[ERROR_STACK] = tb
+            self._set_meta_inner(ERROR_STACK, tb)
 
     def _get_traceback(
         self,
@@ -497,18 +494,18 @@ class Span(SpanData):
 
         # readable version of type (e.g. exceptions.ZeroDivisionError)
         exc_type_str = "%s.%s" % (exc_type.__module__, exc_type.__name__)
-        self._meta[ERROR_TYPE] = exc_type_str
+        self._set_meta_inner(ERROR_TYPE, exc_type_str)
 
         try:
-            self._meta[ERROR_MSG] = str(exc_val)
+            self._set_meta_inner(ERROR_MSG, str(exc_val))
         except Exception:
             # An exception can occur if a custom Exception overrides __str__
             # If this happens str(exc_val) won't work, so best we can do is print the class name
             # Otherwise, don't try to set an error message
             if exc_val and hasattr(exc_val, "__class__"):
-                self._meta[ERROR_MSG] = exc_val.__class__.__name__
+                self._set_meta_inner(ERROR_MSG, exc_val.__class__.__name__)
 
-        self._meta[ERROR_STACK] = tb
+        self._set_meta_inner(ERROR_STACK, tb)
 
         # some web integrations like bottle rely on set_exc_info to get the error tags, so we need to dispatch
         # this event such that the additional tags for inferred aws api gateway spans can be appended here.
@@ -763,7 +760,7 @@ class Span(SpanData):
             f"end={self.duration_ns and self.start_ns and self.start_ns + self.duration_ns}, "
             f"duration={self.duration_ns}, "
             f"error={self.error}, "
-            f"tags={self._meta}, "
+            f"tags={self._meta_into_py_dict()}, "
             f"metrics={self._metrics_into_py_dict()}, "
             f"links={self._links}, "
             f"events={self._events}, "

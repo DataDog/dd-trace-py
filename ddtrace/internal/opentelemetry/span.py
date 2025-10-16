@@ -131,7 +131,7 @@ class Span(OtelSpan):
         # BUG: Span.kind is required by the otel library instrumentation (ex: flask, asgi, django) but
         # this property is only defined in the opentelemetry-sdk and NOT defined the opentelemetry-api.
         # TODO: Propose a fix in opentelemetry-python-contrib project
-        return self._ddspan._meta.get(SPAN_KIND, SpanKind.INTERNAL.name.lower())
+        return self._ddspan._get_meta_inner(SPAN_KIND) or SpanKind.INTERNAL.name.lower()
 
     def get_span_context(self):
         # type: () -> SpanContext
@@ -258,16 +258,16 @@ class Span(OtelSpan):
             attrs.update(attributes)
 
         # Set the error type, error message and error stacktrace tags on the span
-        self._ddspan._meta[ERROR_MSG] = attrs["exception.message"]
-        self._ddspan._meta[ERROR_TYPE] = attrs["exception.type"]
+        self._ddspan._set_meta_inner(ERROR_MSG, attrs["exception.message"])
+        self._ddspan._set_meta_inner(ERROR_TYPE, attrs["exception.type"])
         if "exception.stacktrace" in attrs:
-            self._ddspan._meta[ERROR_STACK] = attrs["exception.stacktrace"]
+            self._ddspan._set_meta_inner(ERROR_STACK, attrs["exception.stacktrace"])
         else:
-            self._ddspan._meta[ERROR_STACK] = "".join(
+            self._ddspan._set_meta_inner(ERROR_STACK, "".join(
                 traceback.format_exception(
                     type(exception), exception, exception.__traceback__, limit=config._span_traceback_max_size
                 )
-            )
+            ))
         self.add_event(name="exception", attributes=attrs, timestamp=timestamp)
 
     def __enter__(self):

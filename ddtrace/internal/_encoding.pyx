@@ -771,8 +771,9 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
         has_parent_id = <bint> (span.parent_id is not None and span.parent_id != 0)
         has_links = <bint> (len(span._links) > 0)
         has_meta_struct = <bint> (len(span._meta_struct) > 0)
+        span_meta_dict = span._meta_into_py_dict()
         has_meta = <bint> (
-            len(span._meta) > 0
+            len(span_meta_dict) > 0
             or dd_origin is not NULL
             or (not self.top_level_span_event_encoding and has_span_events)
         )
@@ -882,7 +883,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                 span_events = ""
                 if has_span_events and not self.top_level_span_event_encoding:
                     span_events = json_dumps([vars(event)()  for event in span._events])
-                ret = self._pack_meta(span._meta, <char *> dd_origin, span_events)
+                ret = self._pack_meta(span_meta_dict, <char *> dd_origin, span_events)
                 if ret != 0:
                     return ret
 
@@ -1089,14 +1090,15 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         if span._events:
             span_events = json_dumps([vars(event)() for event in span._events])
 
+        span_meta = span.get_tags() 
         ret = msgpack_pack_map(
             &self.pk,
-            len(span._meta) + (dd_origin is not NULL) + (len(span_links) > 0) + (len(span_events) > 0)
+            len(span_meta) + (dd_origin is not NULL) + (len(span_links) > 0) + (len(span_events) > 0)
         )
         if ret != 0:
             return ret
-        if span._meta:
-            for k, v in span._meta.items():
+        if span_meta:
+            for k, v in span_meta.items():
                 ret = self._pack_string(k)
                 if ret != 0:
                     return ret

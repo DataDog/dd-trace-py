@@ -169,8 +169,12 @@ class RaySpanManager:
         )
         new_span.set_tag_str("component", RAY_COMPONENT)
         new_span.start_ns = job_span.start_ns
-        new_span._meta = job_span._meta.copy()
-        new_span._metrics = job_span._metrics.copy()
+        # Copy meta tags from job_span to new_span
+        for k, v in job_span._meta_into_py_dict().items():
+            new_span._set_meta_inner(k, v)
+        # Copy metrics from job_span to new_span
+        for k, v in job_span._metrics_into_py_dict().items():
+            new_span._set_metrics_inner(k, v)
 
         return new_span
 
