@@ -218,6 +218,7 @@ def gen_build_docs() -> None:
             print("  artifacts:", file=f)
             print("    paths:", file=f)
             print("      - 'docs/'", file=f)
+            print("  timeout: 25m", file=f)
 
 
 def gen_pre_checks() -> None:
