@@ -1583,6 +1583,7 @@ class LLMObs(Service):
             ml_app=ml_app,
             timestamp_ms=timestamp_ms,
             metadata=metadata,
+            assessment=assessment,
         )
 
     @classmethod
@@ -1598,6 +1599,7 @@ class LLMObs(Service):
         ml_app: Optional[str] = None,
         timestamp_ms: Optional[int] = None,
         metadata: Optional[Dict[str, object]] = None,
+        assessment: Optional[str] = None,
     ) -> None:
         """
         Submits a custom evaluation metric for a given span.

@@ -1857,8 +1857,8 @@ def test_submit_evaluation_metric_with_metadata_enqueues_metric(llmobs, mock_llm
     )
 
 
-def test_submit_evaluation_for_invalid_assessment_raises_warning(llmobs, mock_llmobs_logs):
-    llmobs.submit_evaluation_for(
+def test_submit_evaluation_invalid_assessment_raises_warning(llmobs, mock_llmobs_logs):
+    llmobs.submit_evaluation(
         span={"span_id": "123", "trace_id": "456"},
         label="toxicity",
         metric_type="categorical",
@@ -1870,8 +1870,8 @@ def test_submit_evaluation_for_invalid_assessment_raises_warning(llmobs, mock_ll
     )
 
 
-def test_submit_evaluation_for_enqueues_writer_with_success_criteria(llmobs, mock_llmobs_eval_metric_writer):
-    llmobs.submit_evaluation_for(
+def test_submit_evaluation_enqueues_writer_with_success_criteria(llmobs, mock_llmobs_eval_metric_writer):
+    llmobs.submit_evaluation(
         span={"span_id": "123", "trace_id": "456"},
         label="toxicity",
         metric_type="categorical",
@@ -1895,7 +1895,7 @@ def test_submit_evaluation_for_enqueues_writer_with_success_criteria(llmobs, moc
         )
     )
     mock_llmobs_eval_metric_writer.reset()
-    llmobs.submit_evaluation_for(
+    llmobs.submit_evaluation(
         span={"span_id": "123", "trace_id": "456"},
         label="toxicity",
         metric_type="categorical",
