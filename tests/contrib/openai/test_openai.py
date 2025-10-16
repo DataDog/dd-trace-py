@@ -1087,8 +1087,7 @@ def test_integration_service_name(openai_api_key, ddtrace_run_python_code_in_sub
     if service_name:
         env["DD_SERVICE"] = service_name
     with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_integration_service_name[%s-%s]"
-        % (service_name, schema_version),
+        token="tests.contrib.openai.test_openai.test_integration_service_name[%s-%s]" % (service_name, schema_version),
         ignores=["meta.http.useragent", "meta.openai.api_base", "meta.openai.api_type"],
         async_mode=False,
     ):
