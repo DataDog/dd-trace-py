@@ -31,9 +31,6 @@ components:
   bottle:
     - ddtrace/contrib/bottle.py
     - ddtrace/contrib/internal/bottle/*
-  cassandra:
-    - ddtrace/contrib/internal/cassandra/*
-    - ddtrace/ext/cassandra.py
   celery:
     - ddtrace/contrib/celery.py
     - ddtrace/contrib/internal/celery/*
