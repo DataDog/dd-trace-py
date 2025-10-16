@@ -1266,7 +1266,7 @@ def test_early_exit(tracer, test_spans):
     ]
     mock_logger.assert_has_calls(calls)
     assert s1.parent_id is None
-    assert s2.parent_id is s1.span_id
+    assert s2.parent_id == s1.span_id
 
     traces = test_spans.pop_traces()
     assert len(traces) == 1
@@ -1468,14 +1468,14 @@ def test_manual_keep(tracer, test_spans):
     with tracer.trace("asdf") as s:
         s.set_tag(MANUAL_KEEP_KEY)
     spans = test_spans.pop()
-    assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) is USER_KEEP
+    assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) == USER_KEEP
 
     # On a child span
     with tracer.trace("asdf"):
         with tracer.trace("child") as s:
             s.set_tag(MANUAL_KEEP_KEY)
     spans = test_spans.pop()
-    assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) is USER_KEEP
+    assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) == USER_KEEP
 
 
 def test_manual_keep_then_drop(tracer, test_spans):
@@ -1485,7 +1485,7 @@ def test_manual_keep_then_drop(tracer, test_spans):
             child.set_tag(MANUAL_KEEP_KEY)
         root.set_tag(MANUAL_DROP_KEY)
     spans = test_spans.pop()
-    assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) is USER_REJECT
+    assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) == USER_REJECT
 
 
 def test_manual_drop(tracer, test_spans):
@@ -1493,14 +1493,14 @@ def test_manual_drop(tracer, test_spans):
     with tracer.trace("asdf") as s:
         s.set_tag(MANUAL_DROP_KEY)
     spans = test_spans.pop()
-    assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) is USER_REJECT
+    assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) == USER_REJECT
 
     # On a child span
     with tracer.trace("asdf"):
         with tracer.trace("child") as s:
             s.set_tag(MANUAL_DROP_KEY)
     spans = test_spans.pop()
-    assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) is USER_REJECT
+    assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) == USER_REJECT
 
 
 @mock.patch("ddtrace.internal.hostname.get_hostname")
