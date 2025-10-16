@@ -9,7 +9,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
-from ddtrace.settings.http import HttpConfig
+from ddtrace.settings.http import _HttpConfig
 from ddtrace.vendor.debtcollector import deprecate
 
 
@@ -46,20 +46,6 @@ def start():
             from ddtrace.internal.tracemethods import _install_trace_methods
 
             _install_trace_methods(config._trace_methods)
-
-    if _config.global_tags:
-        from ddtrace.trace import tracer
-
-        # ddtrace library supports setting tracer tags using both DD_TRACE_GLOBAL_TAGS and DD_TAGS
-        # moving forward we should only support DD_TRACE_GLOBAL_TAGS.
-        # TODO(munir): Set dd_tags here
-        deprecate(
-            "DD_TRACE_GLOBAL_TAGS is deprecated",
-            message="Please migrate to using DD_TAGS instead",
-            category=DDTraceDeprecationWarning,
-            removal_version="4.0.0",
-        )
-        tracer.set_tags(_config.global_tags)
 
 
 def restart(join=False):
@@ -199,7 +185,7 @@ def _apply_config_change(config_name, config_value, dd_config):
             tracer.enabled = True
             log.debug("Tracing enabled via remote_config. Config: %s Value: %s", config_name, config_value)
     elif config_name == "_trace_http_header_tags":
-        dd_config._http = HttpConfig(header_tags=config_value)
+        dd_config._http = _HttpConfig(header_tags=config_value)
         log.debug("Updated HTTP header tags configuration via remote_config: %s", config_value)
     elif config_name == "_logs_injection":
         log.debug("Updated logs injection configuration via remote_config: %s", config_value)

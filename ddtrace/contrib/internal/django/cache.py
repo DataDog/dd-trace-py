@@ -17,7 +17,7 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.wrapping import is_wrapped_with
 from ddtrace.internal.wrapping import wrap
-from ddtrace.settings.integration import IntegrationConfig
+from ddtrace.settings.integration import _IntegrationConfig
 
 from . import utils
 
@@ -25,7 +25,7 @@ from . import utils
 log = get_logger(__name__)
 
 # PERF: cache the getattr lookup for the Django config
-config_django: IntegrationConfig = cast(IntegrationConfig, config.django)
+config_django: _IntegrationConfig = cast(_IntegrationConfig, config.django)
 
 
 @cached()

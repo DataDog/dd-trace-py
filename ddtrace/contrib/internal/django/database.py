@@ -24,14 +24,14 @@ from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.wrapping import is_wrapped_with
 from ddtrace.internal.wrapping import wrap
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
-from ddtrace.settings.integration import IntegrationConfig
+from ddtrace.settings.integration import _IntegrationConfig
 
 
 log = get_logger(__name__)
 
 
 # PERF: cache the getattr lookup for the Django config
-config_django: IntegrationConfig = cast(IntegrationConfig, config.django)
+config_django: _IntegrationConfig = cast(_IntegrationConfig, config.django)
 
 
 DB_CONN_ATTR_BY_TAG = {
@@ -119,9 +119,9 @@ def get_conn_service_name(alias: str) -> Optional[str]:
 
 
 @cached()
-def get_conn_config(vendor: str) -> IntegrationConfig:
+def get_conn_config(vendor: str) -> _IntegrationConfig:
     prefix = sqlx.normalize_vendor(vendor)
-    return IntegrationConfig(
+    return _IntegrationConfig(
         config_django.global_config,
         "django-database",
         _default_service=config.django._default_service,

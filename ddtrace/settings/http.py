@@ -11,7 +11,7 @@ from ..internal.utils.http import normalize_header_name
 log = get_logger(__name__)
 
 
-class HttpConfig(object):
+class _HttpConfig(object):
     """
     Configuration object that expose an API to set and retrieve both global and integration specific settings
     related to the http context.
@@ -42,13 +42,10 @@ class HttpConfig(object):
         return len(self._header_tags) > 0
 
     def trace_headers(self, whitelist):
-        # type: (Union[List[str], str]) -> Optional[HttpConfig]
+        # type: (Union[List[str], str]) -> Optional[_HttpConfig]
         """
         Registers a set of headers to be traced at global level or integration level.
         :param whitelist: the case-insensitive list of traced headers
-        :type whitelist: list of str or str
-        :return: self
-        :rtype: HttpConfig
         """
         if not whitelist:
             return None
