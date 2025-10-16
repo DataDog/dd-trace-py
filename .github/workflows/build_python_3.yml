@@ -98,7 +98,7 @@ jobs:
             yum install -y libatomic.i686
           fi
           export CARGO_HOME=/host/home/runner/.cargo
-          curl -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.78;
+          curl -sSf https://sh.rustup.rs | sh -s -- -y;
         fi
       CIBW_ENVIRONMENT_LINUX: CARGO_HOME=/host/home/runner/.cargo DD_SETUP_CACHE_DIR=/host/home/runner/.download_cache PATH=/host/home/runner/.cargo/bin:$PATH CMAKE_BUILD_PARALLEL_LEVEL=24 CMAKE_ARGS="-DNATIVE_TESTING=OFF" SETUPTOOLS_SCM_PRETEND_VERSION_FOR_DDTRACE=${{ needs.compute_version.outputs.library_version }}
       # SYSTEM_VERSION_COMPAT is a workaround for versioning issue, a.k.a.
