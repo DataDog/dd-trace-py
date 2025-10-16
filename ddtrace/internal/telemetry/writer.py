@@ -578,7 +578,6 @@ class TelemetryWriter(PeriodicService):
             - A heartbeat event is always included to keep RC connections alive
             - Multiple event types are combined into a single message-batch request
         """
-        self._dispatch()
         # Collect metrics and logs that have accumulated since last batch
         events = []
         if namespace_metrics := self._namespace.flush(float(self.interval)):
@@ -650,6 +649,7 @@ class TelemetryWriter(PeriodicService):
             "payload": events,
             "request_type": TELEMETRY_EVENT_TYPE.MESSAGE_BATCH.value,
         }
+        self._dispatch()
         self._client.send_event(batch_event, payload_types)
 
     def app_shutdown(self) -> None:
