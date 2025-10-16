@@ -459,19 +459,6 @@ suites:
       - tests/contrib/bottle/*
     runner: riot
     snapshot: true
-  cassandra:
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@contrib'
-      - '@tracing'
-      - '@cassandra'
-      - tests/contrib/cassandra/*
-    runner: riot
-    snapshot: true
-    parallelism: 1
-    services:
-      - cassandra
   celery:
     env:
       DD_DISABLE_ERROR_RESPONSES: true
