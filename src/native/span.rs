@@ -313,6 +313,9 @@ impl SpanData {
     #[setter]
     fn set_finished(&mut self, value: bool) {
         if value {
+            if self.duration_ns.is_some() {
+                return;
+            }
             self.duration_ns = Some(
                 match (SystemTime::UNIX_EPOCH + Duration::from_nanos(self.data.start as u64))
                     .elapsed()
