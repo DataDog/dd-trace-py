@@ -163,7 +163,7 @@ class SpanTestCase(TracerTestCase):
             "a": 0,
             "b": -12,
             "c": 12.134,
-            "d": 1231543543265475686787869123,
+            "d": 1231543543265475686787869123.0,
             "e": 12.34,
         }
         assert s.get_metrics() == expected
