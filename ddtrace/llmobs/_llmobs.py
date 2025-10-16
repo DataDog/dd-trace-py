@@ -140,7 +140,7 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
     "openai_agents": "openai_agents",
     "mcp": "mcp",
     "pydantic_ai": "pydantic_ai",
-    # requests frameworks for distributed injection/extraction
+    # requests/concurrent frameworks for distributed injection/extraction
     "requests": "requests",
     "httpx": "httpx",
     "urllib3": "urllib3",
@@ -149,6 +149,8 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
     "starlette": "starlette",
     "fastapi": "fastapi",
     "aiohttp": "aiohttp",
+    "asyncio": "asyncio",
+    "futures": "futures",
 }
 
 
@@ -506,6 +508,8 @@ class LLMObs(Service):
         core.reset_listeners("http.activate_distributed_headers", self._activate_llmobs_distributed_context)
         core.reset_listeners("threading.submit", self._current_trace_context)
         core.reset_listeners("threading.execution", self._llmobs_context_provider.activate)
+        core.reset_listeners("asyncio.create_task", self._on_asyncio_create_task)
+        core.reset_listeners("asyncio.execute_task", self._on_asyncio_execute_task)
 
         core.reset_listeners(DISPATCH_ON_LLM_TOOL_CHOICE, self._link_tracker.on_llm_tool_choice)
         core.reset_listeners(DISPATCH_ON_TOOL_CALL, self._link_tracker.on_tool_call)
@@ -619,6 +623,8 @@ class LLMObs(Service):
             core.on("http.activate_distributed_headers", cls._activate_llmobs_distributed_context)
             core.on("threading.submit", cls._instance._current_trace_context, "llmobs_ctx")
             core.on("threading.execution", cls._instance._llmobs_context_provider.activate)
+            core.on("asyncio.create_task", cls._instance._on_asyncio_create_task)
+            core.on("asyncio.execute_task", cls._instance._on_asyncio_execute_task)
 
             core.on(DISPATCH_ON_LLM_TOOL_CHOICE, cls._instance._link_tracker.on_llm_tool_choice)
             core.on(DISPATCH_ON_TOOL_CALL, cls._instance._link_tracker.on_tool_call)
@@ -651,6 +657,16 @@ class LLMObs(Service):
                 config._llmobs_instrumented_proxy_urls,
                 config._llmobs_ml_app,
             )
+
+    def _on_asyncio_create_task(self, task_data: Dict[str, Any]) -> None:
+        """Propagates llmobs active trace context across asyncio tasks."""
+        task_data["llmobs_ctx"] = self._current_trace_context()
+
+    def _on_asyncio_execute_task(self, task_data: Dict[str, Any]) -> None:
+        """Activates llmobs active trace context across asyncio task execution."""
+        llmobs_ctx = task_data.get("llmobs_ctx")
+        if llmobs_ctx is not None:
+            self._llmobs_context_provider.activate(llmobs_ctx)
 
     @classmethod
     def pull_dataset(cls, dataset_name: str, project_name: Optional[str] = None) -> Dataset:
@@ -1547,6 +1563,7 @@ class LLMObs(Service):
         ml_app: Optional[str] = None,
         timestamp_ms: Optional[int] = None,
         metadata: Optional[Dict[str, object]] = None,
+        assessment: Optional[str] = None,
     ) -> None:
         """
         Submits a custom evaluation metric for a given span. This method is deprecated and will be
@@ -1602,6 +1619,7 @@ class LLMObs(Service):
                                     If not set, the current time will be used.
         :param dict metadata: A JSON serializable dictionary of key-value metadata pairs relevant to the
                                 evaluation metric.
+        :param str assessment: An assessment of the validity of this evaluation. Must be either "pass" or "fail".
         """
         if span_context is not None:
             log.warning(
@@ -1716,6 +1734,13 @@ class LLMObs(Service):
                 "ml_app": ml_app,
                 "tags": ["{}:{}".format(k, v) for k, v in evaluation_tags.items()],
             }
+
+            if assessment:
+                if not isinstance(assessment, str) or assessment not in ("pass", "fail"):
+                    error = "invalid_assessment"
+                    log.warning("Failed to parse assessment. assessment must be either 'pass' or 'fail'.")
+                else:
+                    evaluation_metric["success_criteria"] = {"assessment": assessment}
 
             if metadata:
                 if not isinstance(metadata, dict):

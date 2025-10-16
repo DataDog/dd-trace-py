@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    CI Visibility: prevent ``KeyError`` from pytest runs when ``gevent`` is
-    detected within the environment.
