@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 import ctypes
 import ctypes.util
 from enum import IntEnum
@@ -145,7 +146,7 @@ class ddwaf_object(ctypes.Structure):
                     max_string_length=max_string_length,
                 )
                 ddwaf_object_array_add(array, obj)
-        elif isinstance(struct, dict):
+        elif isinstance(struct, Mapping):
             if max_depth <= 0:
                 observator.set_container_depth(DDWAF_MAX_CONTAINER_DEPTH)
                 max_objects = 0
