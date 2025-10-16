@@ -469,7 +469,7 @@ suites:
       - tests/contrib/cassandra/*
     runner: riot
     snapshot: true
-    parallelism: 2
+    parallelism: 1
     services:
       - cassandra
   celery:

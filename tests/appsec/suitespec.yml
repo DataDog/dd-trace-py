@@ -27,7 +27,7 @@ suites:
     runner: riot
     snapshot: true
   appsec_iast_default:
-    parallelism: 6
+    parallelism: 4
     paths:
       - '@bootstrap'
       - '@core'
@@ -154,7 +154,7 @@ suites:
       - testagent
     timeout: 40m
   appsec_integrations_django:
-    parallelism: 22
+    parallelism: 16
     paths:
       - '@bootstrap'
       - '@core'
@@ -169,7 +169,7 @@ suites:
       - testagent
     timeout: 30m
   appsec_integrations_fastapi:
-    parallelism: 23
+    parallelism: 17
     paths:
       - '@bootstrap'
       - '@core'
@@ -183,7 +183,7 @@ suites:
     services:
       - testagent
   appsec_threats_django:
-    parallelism: 12
+    parallelism: 8
     paths:
       - '@bootstrap'
       - '@core'
@@ -199,7 +199,7 @@ suites:
     retry: 2
     runner: riot
   appsec_threats_fastapi:
-    parallelism: 9
+    parallelism: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -216,7 +216,7 @@ suites:
     retry: 2
     runner: riot
   appsec_threats_flask:
-    parallelism: 10
+    parallelism: 7
     paths:
       - '@bootstrap'
       - '@core'
