@@ -16,17 +16,20 @@ profiling = ["dep:datadog-profiling-ffi"]
 
 [dependencies]
 anyhow = { version = "1.0", optional = true }
-datadog-crashtracker = { git = "https://github.com/DataDog/libdatadog", rev = "v21.0.0", optional = true }
-datadog-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "v21.0.0" }
-datadog-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "v21.0.0" }
-datadog-log = { git = "https://github.com/DataDog/libdatadog", rev = "v21.0.0" }
-data-pipeline = { git = "https://github.com/DataDog/libdatadog", rev = "v21.0.0" }
-datadog-profiling-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "v21.0.0", optional = true, features = [
+datadog-crashtracker = { git = "https://github.com/DataDog/libdatadog", rev = "e9902114a482cb04a3b5018ba54b0ba407168ab4", optional = true }
+datadog-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "e9902114a482cb04a3b5018ba54b0ba407168ab4" }
+datadog-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "e9902114a482cb04a3b5018ba54b0ba407168ab4" }
+datadog-log = { git = "https://github.com/DataDog/libdatadog", rev = "e9902114a482cb04a3b5018ba54b0ba407168ab4" }
+datadog-trace-utils = { git = "https://github.com/DataDog/libdatadog", rev = "e9902114a482cb04a3b5018ba54b0ba407168ab4" }
+data-pipeline = { git = "https://github.com/DataDog/libdatadog", rev = "e9902114a482cb04a3b5018ba54b0ba407168ab4" }
+datadog-profiling-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "e9902114a482cb04a3b5018ba54b0ba407168ab4", optional = true, features = [
     "cbindgen",
 ] }
-ddcommon = { git = "https://github.com/DataDog/libdatadog", rev = "v21.0.0" }
+ddcommon = { git = "https://github.com/DataDog/libdatadog", rev = "e9902114a482cb04a3b5018ba54b0ba407168ab4" }
 pyo3 = { version = "0.25", features = ["extension-module", "anyhow"] }
 tracing = { version = "0.1", default-features = false }
+serde = { version = "1" }
+rand = "0.9"
 
 [build-dependencies]
 pyo3-build-config = "0.25"

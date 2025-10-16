@@ -118,6 +118,8 @@ pub fn store_metadata(data: &PyTracerMetadata) -> PyResult<PyAnonymousFileHandle
         service_name: data.service_name.clone(),
         service_env: data.service_env.clone(),
         service_version: data.service_version.clone(),
+        process_tags: None,
+        container_id: None,
     };
 
     let res = store_tracer_metadata(&metadata);
