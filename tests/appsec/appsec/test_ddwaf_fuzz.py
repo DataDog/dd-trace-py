@@ -62,9 +62,11 @@ def test_small_objects(obj, res):
     ["obj", "res"],
     [
         (CaseInsensitiveDict({"SomeHeader": "SomeValue"}), {"SomeHeader": "SomeValue"}),
+        (range(1, 4), [1, 2, 3]),
+        ((1, 2, 3), [1, 2, 3]),
     ],
 )
-def test_non_dict_mappings(obj, res):
+def test_mappings_and_sequences(obj, res):
     dd_obj = ddwaf_object(obj)
     assert dd_obj.struct == res
 
