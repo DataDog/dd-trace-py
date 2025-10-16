@@ -5,7 +5,6 @@ import sys
 
 # This is primarily to make mypy happy without having to nest the rest of this module behind a version check
 # NOTE: the "prettier" one-liner version (eg: assert (3,11) <= sys.version_info < (3,12)) does not work for mypy
-import traceback
 from types import CodeType
 import typing as t
 
@@ -100,9 +99,9 @@ if sys.version_info < (3, 10):
 
         current_orig_offset = 0  # Cumulative offset used to compare against trap offsets
 
-        # All instructions have to have line numbers, so the first instructions of the trap call must mark the beginning of
-        # the line. The subsequent offsets need to be incremented by the size of the trap call instructions plus any
-        # extended args.
+        # All instructions have to have line numbers, so the first instructions of the trap call must mark the
+        # beginning of the line. The subsequent offsets need to be incremented by the size of the trap call
+        # instructions plus any extended args.
 
         # Set the first trap size:
         current_new_offset = accumulated_new_offset = trap_map[0] << 1
