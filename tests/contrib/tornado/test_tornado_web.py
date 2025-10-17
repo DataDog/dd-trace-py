@@ -1,6 +1,3 @@
-import pytest
-import tornado
-
 from ddtrace import config
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY

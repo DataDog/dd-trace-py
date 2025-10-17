@@ -4,7 +4,6 @@ from unittest import mock
 import pytest
 import valkey
 
-import ddtrace
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.valkey.patch import patch
 from ddtrace.contrib.internal.valkey.patch import unpatch

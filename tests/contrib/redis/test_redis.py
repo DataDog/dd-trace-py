@@ -4,7 +4,6 @@ from unittest import mock
 import pytest
 import redis
 
-import ddtrace
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.redis.patch import patch
 from ddtrace.contrib.internal.redis.patch import unpatch

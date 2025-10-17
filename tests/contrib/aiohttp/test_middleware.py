@@ -1,6 +1,5 @@
 import os
 
-from opentracing.scope_managers.asyncio import AsyncioScopeManager
 import pytest
 import pytest_asyncio
 

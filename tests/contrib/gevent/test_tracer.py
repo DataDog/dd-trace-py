@@ -2,7 +2,6 @@ import subprocess  # noqa:I001
 
 import gevent
 import gevent.pool
-from opentracing.scope_managers.gevent import GeventScopeManager
 
 import ddtrace
 from ddtrace.constants import ERROR_MSG
