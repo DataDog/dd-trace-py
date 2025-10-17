@@ -39,7 +39,6 @@ PATCH_MODULES = {
     "boto": True,
     "botocore": True,
     "bottle": True,
-    "cassandra": True,
     "celery": True,
     "consul": True,
     "ddtrace_api": True,
@@ -155,7 +154,6 @@ _MODULES_FOR_CONTRIB = {
         "psycopg2",
     ),
     "snowflake": ("snowflake.connector",),
-    "cassandra": ("cassandra.cluster",),
     "dogpile_cache": ("dogpile.cache",),
     "mysqldb": ("MySQLdb",),
     "futures": ("concurrent.futures.thread",),
@@ -334,7 +332,7 @@ def patch_all(**patch_modules: bool) -> None:
 
     :param dict patch_modules: Override whether particular modules are patched or not.
 
-        >>> _patch_all(redis=False, cassandra=False)
+        >>> _patch_all(redis=False)
     """
     deprecate(
         "patch_all is deprecated and will be removed in a future version of the tracer.",
