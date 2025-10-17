@@ -93,8 +93,10 @@ def index(request):
 
 
 def exception(request):
-    request.no_such_attr
-    return index(request)
+    try:
+        return index(request)
+    finally:
+        request.no_such_attr += 1
 
 
 urlpatterns = [path("", index), path("exc/", exception)]

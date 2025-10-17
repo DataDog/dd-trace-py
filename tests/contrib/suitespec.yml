@@ -31,9 +31,6 @@ components:
   bottle:
     - ddtrace/contrib/bottle.py
     - ddtrace/contrib/internal/bottle/*
-  cassandra:
-    - ddtrace/contrib/internal/cassandra/*
-    - ddtrace/ext/cassandra.py
   celery:
     - ddtrace/contrib/celery.py
     - ddtrace/contrib/internal/celery/*
@@ -228,7 +225,7 @@ suites:
       - tests/snapshots/tests.{suite}.*
     runner: riot
     services:
-      - httpbin_local
+      - httpbin
     snapshot: true
   aiomysql:
     parallelism: 2
@@ -459,19 +456,6 @@ suites:
       - tests/contrib/bottle/*
     runner: riot
     snapshot: true
-  cassandra:
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@contrib'
-      - '@tracing'
-      - '@cassandra'
-      - tests/contrib/cassandra/*
-    runner: riot
-    snapshot: true
-    parallelism: 2
-    services:
-      - cassandra
   celery:
     env:
       DD_DISABLE_ERROR_RESPONSES: true
@@ -772,7 +756,7 @@ suites:
       - tests/contrib/httplib/*
     runner: riot
     services:
-      - httpbin_local
+      - httpbin
     snapshot: true
   httpx:
     parallelism: 3
@@ -786,7 +770,7 @@ suites:
       - tests/snapshots/tests.contrib.httpx.*
     runner: riot
     services:
-      - httpbin_local
+      - httpbin
     snapshot: true
   integration_registry:
     paths:
@@ -1117,7 +1101,7 @@ suites:
       - tests/contrib/requests/*
     runner: riot
     services:
-      - httpbin_local
+      - httpbin
     snapshot: true
   rq:
     parallelism: 1
@@ -1261,7 +1245,7 @@ suites:
   urllib3:
     parallelism: 1
     env:
-      TEST_HTTPBIN_HOST: httpbin-local
+      TEST_HTTPBIN_HOST: httpbin
       TEST_HTTPBIN_PORT: '8001'
     paths:
       - '@bootstrap'
@@ -1273,7 +1257,7 @@ suites:
       - tests/snapshots/tests.contrib.urllib3.*
     runner: riot
     services:
-      - httpbin_local
+      - httpbin
     snapshot: true
   vertica:
     parallelism: 1
