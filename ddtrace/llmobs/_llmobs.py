@@ -1759,7 +1759,7 @@ class LLMObs(Service):
             if reasoning:
                 if not isinstance(reasoning, str):
                     error = "invalid_reasoning"
-                    log.warning("Failed to parse reasoning. reasoning must be a string.")
+                    raise Exception("Failed to parse reasoning. reasoning must be a string.")
                 else:
                     evaluation_metric["reasoning"] = reasoning
 
