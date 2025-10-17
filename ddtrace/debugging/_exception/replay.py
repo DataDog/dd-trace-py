@@ -283,7 +283,11 @@ class SpanExceptionHandler:
                 snapshot.do_line()
 
                 # Collect
-                self.__uploader__.get_collector().push(snapshot)
+                if (collector := self.__uploader__.get_collector()) is None:
+                    log.error("No collector available to push exception replay snapshot")
+                    return False
+
+                collector.push(snapshot)
 
                 # Memoize
                 frame.f_locals[SNAPSHOT_KEY] = snapshot_id = snapshot.uuid
