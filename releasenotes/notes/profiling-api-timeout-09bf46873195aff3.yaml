@@ -1,5 +1,7 @@
 ---
 fixes:
   - |
-    profiling: This fix resolves an issue where setting ``DD_PROFILING_API_TIMEOUT``
-    had no effect.
+    profiling: ``DD_PROFILING_API_TIMEOUT`` doesn't have any effect, and
+    is marked to be removed in upcoming 4.0 release. New environment variable
+    ``DD_PROFILING_API_TIMEOUT_MS`` is introduced to configure timeout for
+    uploading profiles to the backend. The default value is 10000 ms (10 seconds)

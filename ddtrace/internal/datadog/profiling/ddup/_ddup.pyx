@@ -332,7 +332,7 @@ def config(
         timeline_enabled: Optional[bool] = None,
         output_filename: StringType = None,
         sample_pool_capacity: Optional[int] = None,
-        timeout: Optional[float] = None) -> None:
+        timeout: Optional[int] = None) -> None:
 
     # Try to provide a ddtrace-specific default service if one is not given
     service = service or DEFAULT_SERVICE_NAME
@@ -364,8 +364,7 @@ def config(
         ddup_config_sample_pool_capacity(clamp_to_uint64_unsigned(sample_pool_capacity))
 
     if timeout is not None:
-        # timeout is in seconds with float type
-        ddup_config_set_max_timeout_ms(clamp_to_uint64_unsigned(int(timeout * 1000)))
+        ddup_config_set_max_timeout_ms(clamp_to_uint64_unsigned(timeout))
 
 
 def start() -> None:

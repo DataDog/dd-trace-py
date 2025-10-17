@@ -13,7 +13,7 @@ def tracer():
 
 @pytest.fixture
 def profiler(monkeypatch):
-    monkeypatch.setenv("DD_PROFILING_API_TIMEOUT", "0.1")
+    monkeypatch.setenv("DD_PROFILING_API_TIMEOUT_MS", "100")
     p = Profiler()
     p.start()
     try:

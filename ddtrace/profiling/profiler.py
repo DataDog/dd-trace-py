@@ -181,6 +181,7 @@ class _ProfilerInstance(service.Service):
             timeline_enabled=profiling_config.timeline_enabled,
             output_filename=profiling_config.output_pprof,
             sample_pool_capacity=profiling_config.sample_pool_capacity,
+            timeout=profiling_config.api_timeout_ms,
         )
         ddup.start()
 
