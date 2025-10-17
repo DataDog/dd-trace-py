@@ -208,7 +208,7 @@ def _on_web_framework_finish_request(
             status_code = int(status_code)
         except ValueError:
             pass
-        span.resource = "{} {}".format(method, status_code)
+        span.resource = f"{method} {status_code}"
     trace_utils.set_http_meta(
         span=span,
         integration_config=int_config,
@@ -952,10 +952,7 @@ def _on_azure_message_modifier(
 def _on_router_match(route):
     req_span = core.get_item("req_span")
     core.set_item("set_resource", False)
-    req_span.resource = "{} {}".format(
-        route.method,
-        route.template,
-    )
+    req_span.resource = f"{route.method} {route.template}"
 
     MOLTEN_ROUTE = "molten.route"
 
