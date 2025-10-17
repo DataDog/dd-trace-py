@@ -5,6 +5,7 @@ import mock
 import pytest
 
 import ddtrace
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.profiling import collector
 from ddtrace.profiling import profiler
 from ddtrace.profiling import scheduler
@@ -147,6 +148,7 @@ def test_profiler_serverless(monkeypatch):
     assert p.tags["functionname"] == "foobar"
 
 
+@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 9), reason="Python 3.8 throws a deprecation warning")
 @pytest.mark.subprocess()
 def test_profiler_ddtrace_deprecation():
     """
