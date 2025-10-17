@@ -10,7 +10,7 @@ time rather than at code execution time.
 import pytest
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
 def test_coverage_import_time_lib():
     import os
     from pathlib import Path
@@ -52,16 +52,31 @@ def test_coverage_import_time_lib():
         "tests/coverage/included_path/nested_import_time_lib.py": {1, 4},
     }
 
-    assert (
-        executable == expected_executable
-    ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
-    assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
-    assert (
-        covered_with_imports == expected_covered_with_imports
-    ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+    if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
+        # In file-level mode, we only track files, not specific line numbers
+        assert (
+            executable.keys() == expected_executable.keys()
+        ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
+        assert (
+            covered.keys() == expected_covered.keys()
+        ), f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
+        assert covered_with_imports.keys() == expected_covered_with_imports.keys(), (
+            f"Covered lines with imports mismatch: expected={expected_covered_with_imports}"
+            f" vs actual={covered_with_imports}"
+        )
+    else:
+        # In full coverage mode, we track exact line numbers
+        assert (
+            executable == expected_executable
+        ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
+        assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
+        assert covered_with_imports == expected_covered_with_imports, (
+            f"Covered lines with imports mismatch: expected={expected_covered_with_imports} "
+            f"vs actual={covered_with_imports}"
+        )
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
 def test_coverage_import_time_function():
     import os
     from pathlib import Path
@@ -102,8 +117,23 @@ def test_coverage_import_time_function():
         "tests/coverage/included_path/imported_in_function_lib.py": {1, 2, 3, 4, 7},
     }
 
-    assert lines == expected_lines, f"Executable lines mismatch: expected={expected_lines} vs actual={lines}"
-    assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
-    assert (
-        covered_with_imports == expected_covered_with_imports
-    ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+    if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
+        # In file-level mode, we only track files, not specific line numbers
+        assert (
+            lines.keys() == expected_lines.keys()
+        ), f"Executable lines mismatch: expected={expected_lines} vs actual={lines}"
+        assert (
+            covered.keys() == expected_covered.keys()
+        ), f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
+        assert covered_with_imports.keys() == expected_covered_with_imports.keys(), (
+            f"Covered lines with imports mismatch: expected={expected_covered_with_imports} "
+            f"vs actual={covered_with_imports}"
+        )
+    else:
+        # In full coverage mode, we track exact line numbers
+        assert lines == expected_lines, f"Executable lines mismatch: expected={expected_lines} vs actual={lines}"
+        assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
+        assert covered_with_imports == expected_covered_with_imports, (
+            f"Covered lines with imports mismatch: expected={expected_covered_with_imports} "
+            f"vs actual={covered_with_imports}"
+        )
