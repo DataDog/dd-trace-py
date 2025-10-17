@@ -345,13 +345,9 @@ class _ConfigItem:
         return "default"
 
     def __repr__(self):
-        return "<{} name={} default={} env_value={} user_value={} remote_config_value={}>".format(
-            self.__class__.__name__,
-            self._name,
-            self._default_value,
-            self._env_value,
-            self._code_value,
-            self._rc_value,
+        return (
+            f"<{self.__class__.__name__} name={self._name} default={self._default_value} "
+            f"env_value={self._env_value} user_value={self._code_value} remote_config_value={self._rc_value}>"
         )
 
 
