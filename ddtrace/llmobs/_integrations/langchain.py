@@ -62,6 +62,7 @@ TYPE = "langchain.request.type"
 ANTHROPIC_PROVIDER_NAME = "anthropic"
 BEDROCK_PROVIDER_NAME = "amazon_bedrock"
 OPENAI_PROVIDER_NAME = "openai"
+AZURE_OAI_PROVIDER_NAME = "azure"
 VERTEXAI_PROVIDER_NAME = "vertexai"
 GEMINI_PROVIDER_NAME = "google_palm"
 
@@ -189,7 +190,7 @@ class LangChainIntegration(BaseLLMIntegration):
             # only the llm interface for Gemini will get instrumented
             elif model_provider.startswith(GEMINI_PROVIDER_NAME) and operation == "llm":
                 llmobs_integration = "google_generativeai"
-            elif model_provider.startswith(OPENAI_PROVIDER_NAME):
+            elif model_provider.startswith(OPENAI_PROVIDER_NAME) or model_provider.startswith(AZURE_OAI_PROVIDER_NAME):
                 llmobs_integration = "openai"
             elif operation == "chat" and model_provider.startswith(ANTHROPIC_PROVIDER_NAME):
                 llmobs_integration = "anthropic"
