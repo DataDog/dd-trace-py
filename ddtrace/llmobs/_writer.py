@@ -400,7 +400,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         if dataset_id is None or dataset_id == "":
             raise ValueError(f"unexpected dataset state, invalid ID (is None: {dataset_id is None})")
         curr_version = response_data["data"]["attributes"]["current_version"]
-        return Dataset(dataset_name, project, dataset_id, [], description, curr_version, _dne_client=self)
+        return Dataset(dataset_name, project, dataset_id, [], description, curr_version, curr_version, _dne_client=self)
 
     @staticmethod
     def _get_record_json(record: Union[UpdatableDatasetRecord, DatasetRecordRaw], is_update: bool) -> JSONType:
@@ -514,7 +514,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                 logger.debug("next list records request path %s", list_path)
                 page_num += 1
         return Dataset(
-            dataset_name, project, dataset_id, class_records, dataset_description, curr_version, _dne_client=self
+            dataset_name, project, dataset_id, class_records, dataset_description, curr_version, version or curr_version, _dne_client=self
         )
 
     def dataset_bulk_upload(self, dataset_id: str, records: List[DatasetRecord]):
