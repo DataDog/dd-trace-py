@@ -97,8 +97,13 @@ def reset_monitoring_for_new_context():
     This should be called when starting a new coverage context (e.g., per-test or per-suite).
     It re-enables monitoring that was disabled by previous DISABLE returns.
     """
+    # restart_events() re-enables all events that were disabled by returning DISABLE
+    # This resets the per-line disable state across all code objects
+    sys.monitoring.restart_events()
+    
+    # Then re-enable local events for all instrumented code objects
+    # This ensures monitoring is active for the new context
     for code in _DEINSTRUMENTED_CODE_OBJECTS:
-        # Re-enable LINE events for this code object
         sys.monitoring.set_local_events(sys.monitoring.COVERAGE_ID, code, sys.monitoring.events.LINE)  # noqa
 
 
