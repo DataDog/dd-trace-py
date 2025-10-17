@@ -50,7 +50,7 @@ def _register(scenario_cls: typing.Type["Scenario"]) -> None:
             finally:
                 pr.dump_stats(pstats_output)
 
-    runner.bench_time_func(scenario.scenario_name, scenario._pyperf)
+    runner.bench_time_func(scenario.scenario_name, scenario._pyperf, inner_loops=scenario._inner_loops)
 
 
 @dataclasses.dataclass
@@ -80,6 +80,18 @@ class Scenario:
           they have a non-default property defined after a default one
         """
         return getattr(self, "cprofile_loops", 200)
+
+    @property
+    def _inner_loops(self) -> typing.Optional[int]:
+        """Returns the number of inner loops to run for each pyperf iteration.
+
+        This is useful for scenarios that have a very long execution time per operation.
+
+        This can be set in the scenario class as a class variable, "inner_loops", or defaults to None.
+
+        If None, pyperf will determine the number of inner loops automatically.
+        """
+        return getattr(self, "inner_loops", None)
 
     @abc.abstractmethod
     def run(self) -> typing.Generator[typing.Callable[[int], None], None, None]:
