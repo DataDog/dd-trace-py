@@ -45,8 +45,6 @@ cdef class MetricNamespace:
         cdef tuple metric_id
         cdef object value
         cdef dict namespace_metrics
-        cdef object payload_type
-        cdef dict namespace_dict
 
         with self._metrics_data_lock:
             namespace_metrics, self._metrics_data = self._metrics_data, {}
@@ -69,7 +67,7 @@ cdef class MetricNamespace:
             else:
                 payload_type = self._metrics_key
                 if metric_type is MetricType.RATE:
-                        value = value / _interval
+                    value = value / _interval
                 metric = {
                     "metric": name,
                     "type": metric_type.value,
@@ -99,16 +97,20 @@ cdef class MetricNamespace:
         Adds a new telemetry metric to the internal metrics.
         Telemetry metrics are stored under "dd.instrumentation_telemetry_data.<namespace>.<name>".
         """
-        cdef float v
-        cdef tuple metric_id
         metric_id = (name, namespace.value, tags, metric_type)
-        if metric_type is MetricType.DISTRIBUTION:
+        if metric_type is MetricType.COUNT or metric_type is MetricType.RATE:
             with self._metrics_data_lock:
-                self._metrics_data.setdefault(metric_id, []).append(value)
+                existing = self._metrics_data.get(metric_id)
+                if existing is not None:
+                    self._metrics_data[metric_id] = existing + value
+                else:
+                    self._metrics_data[metric_id] = value
         elif metric_type is MetricType.GAUGE:
-            # Dict writes are atomic, no need to lock
             self._metrics_data[metric_id] = value
-        else:
+        else:  # MetricType.DISTRIBUTION
             with self._metrics_data_lock:
-                v = self._metrics_data.get(metric_id, 0)
-                self._metrics_data[metric_id] = v + value
+                existing = self._metrics_data.get(metric_id)
+                if existing is not None:
+                    existing.append(value)
+                else:
+                    self._metrics_data[metric_id] = [value]
