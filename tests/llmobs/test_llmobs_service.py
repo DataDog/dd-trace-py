@@ -1822,7 +1822,7 @@ def test_submit_evaluation_invalid_assessment_raises(llmobs):
     assert str(excinfo.value) == "Failed to parse assessment. assessment must be either 'pass' or 'fail'."
 
 
-def test_submit_evaluation_enqueues_writer_with_success_criteria(llmobs, mock_llmobs_eval_metric_writer):
+def test_submit_evaluation_enqueues_writer_with_assessment(llmobs, mock_llmobs_eval_metric_writer):
     llmobs.submit_evaluation(
         span={"span_id": "123", "trace_id": "456"},
         label="toxicity",
@@ -1843,7 +1843,7 @@ def test_submit_evaluation_enqueues_writer_with_success_criteria(llmobs, mock_ll
             categorical_value="high",
             tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
             metadata={"foo": ["bar", "baz"]},
-            success_criteria={"assessment": "pass"},
+            assessment="pass",
         )
     )
     mock_llmobs_eval_metric_writer.reset()
@@ -1867,7 +1867,45 @@ def test_submit_evaluation_enqueues_writer_with_success_criteria(llmobs, mock_ll
             categorical_value="high",
             tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
             metadata={"foo": ["bar", "baz"]},
-            success_criteria={"assessment": "fail"},
+            assessment="fail",
+        )
+    )
+
+
+def test_submit_evaluation_invalid_reasoning_raises_warning(llmobs, mock_llmobs_logs):
+    with pytest.raises(Exception) as excinfo:
+        llmobs.submit_evaluation(
+            span={"span_id": "123", "trace_id": "456"},
+            label="toxicity",
+            metric_type="categorical",
+            value="high",
+            reasoning=123,
+        )
+    assert str(excinfo.value) == "Failed to parse reasoning. reasoning must be a string."
+
+
+def test_submit_evaluation_for_enqueues_writer_with_reasoning(llmobs, mock_llmobs_eval_metric_writer):
+    llmobs.submit_evaluation_for(
+        span={"span_id": "123", "trace_id": "456"},
+        label="toxicity",
+        metric_type="categorical",
+        value="high",
+        tags={"foo": "bar", "bee": "baz", "ml_app": "ml_app_override"},
+        ml_app="ml_app_override",
+        metadata={"foo": ["bar", "baz"]},
+        reasoning="the content of the message involved profanity",
+    )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            ml_app="ml_app_override",
+            span_id="123",
+            trace_id="456",
+            label="toxicity",
+            metric_type="categorical",
+            categorical_value="high",
+            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
+            metadata={"foo": ["bar", "baz"]},
+            reasoning="the content of the message involved profanity",
         )
     )
 
