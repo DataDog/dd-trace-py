@@ -25,4 +25,4 @@ constexpr std::string_view g_language_name = "python";
 constexpr std::string_view g_library_name = "dd-trace-py";
 
 // Keep this in sync with ddtrace/settings/profiling.py:ProfilingConfig.api_timeout_ms
-constexpr uint64_t g_default_max_timeout_ms = 10000; // 10 seconds
+constexpr uint64_t g_default_max_timeout_ms = 10'000; // 10 seconds
