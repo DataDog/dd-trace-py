@@ -335,7 +335,7 @@ class Span(object):
         self.context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] = value
         return value
 
-    def set_tag(self, key: _TagNameType, value: Any = None) -> None:
+    def set_tag(self, key: _TagNameType, value: Optional[Text] = None) -> None:
         """Set a tag key/value pair on the span.
 
         Keys must be strings, values must be ``str``-able.
@@ -343,43 +343,9 @@ class Span(object):
         :param key: Key to use for the tag
         :type key: str
         :param value: Value to assign for the tag
-        :type value: ``str``-able value
+        :type value: ``str`` | ``bytes``
         """
-
-        if not isinstance(key, str):
-            log.warning("Ignoring tag pair %s:%s. Key must be a string.", key, value)
-            return
-
-        # Special case, force `http.status_code` as a string
-        # DEV: `http.status_code` *has* to be in `meta` for metrics
-        #   calculated in the trace agent
-        if key == http.STATUS_CODE:
-            value = str(value)
-
-        # Determine once up front
-        val_is_an_int = is_integer(value)
-
-        # Explicitly try to convert expected integers to `int`
-        # DEV: Some integrations parse these values from strings, but don't call `int(value)` themselves
-        INT_TYPES = (net.TARGET_PORT,)
-        if key in INT_TYPES and not val_is_an_int:
-            try:
-                value = int(value)
-                val_is_an_int = True
-            except (ValueError, TypeError):
-                pass
-
-        # Set integers that are less than equal to 2^53 as metrics
-        if value is not None and val_is_an_int and abs(value) <= 2**53:
-            self.set_metric(key, value)
-            return
-
-        # All floats should be set as a metric
-        elif isinstance(value, float):
-            self.set_metric(key, value)
-            return
-
-        elif key == MANUAL_KEEP_KEY:
+        if key == MANUAL_KEEP_KEY:
             self._override_sampling_decision(USER_KEEP)
             return
         elif key == MANUAL_DROP_KEY:
@@ -390,21 +356,17 @@ class Span(object):
         elif key == SERVICE_VERSION_KEY:
             # Also set the `version` tag to the same value
             # DEV: Note that we do no return, we want to set both
-            self.set_tag(VERSION_KEY, value)
-        elif key == _SPAN_MEASURED_KEY:
-            # Set `_dd.measured` tag as a metric
-            # DEV: `set_metric` will ensure it is an integer 0 or 1
-            if value is None:
-                value = 1
-            self.set_metric(key, value)
-            return
+            if value:
+                self._meta[VERSION_KEY] = value
+            else:
+                self._meta.pop(VERSION_KEY, None)
 
-        try:
-            self._meta[key] = str(value)
-            if key in self._metrics:
-                del self._metrics[key]
-        except Exception:
-            log.warning("error setting tag %s, ignoring it", key, exc_info=True)
+        if value is not None:
+            self._meta[key] = value
+        else:
+            self._meta.pop(key, None)
+        # Ensure we do not have the same key in both meta and metrics
+        self._metrics.pop(key, None)
 
     def set_struct_tag(self, key: str, value: Dict[str, Any]) -> None:
         """
@@ -422,12 +384,7 @@ class Span(object):
         str in Python 3, with decoding errors in conversion being replaced with
         U+FFFD.
         """
-        try:
-            self._meta[key] = ensure_text(value, errors="replace")
-        except Exception as e:
-            if config._raise:
-                raise e
-            log.warning("Failed to set text tag '%s'", key, exc_info=True)
+        self._meta[key] = value
 
     def get_tag(self, key: _TagNameType) -> Optional[Text]:
         """Return the given tag or None if it doesn't exist."""
@@ -437,13 +394,12 @@ class Span(object):
         """Return all tags."""
         return self._meta.copy()
 
-    def set_tags(self, tags: Dict[_TagNameType, Any]) -> None:
+    def set_tags(self, tags: Dict[_TagNameType, Optional[Text]]) -> None:
         """Set a dictionary of tags on the given span. Keys and values
         must be strings (or stringable)
         """
-        if tags:
-            for k, v in iter(tags.items()):
-                self.set_tag(k, v)
+        for k, v in tags.items():
+            self.set_tag(k, v)
 
     def set_metric(self, key: _TagNameType, value: NumericType) -> None:
         """This method sets a numeric tag value for the given key."""
@@ -455,25 +411,14 @@ class Span(object):
                 log.warning("failed to convert %r tag to an integer from %r", key, value)
                 return
 
-        # FIXME[matt] we could push this check to serialization time as well.
-        # only permit types that are commonly serializable (don't use
-        # isinstance so that we convert unserializable types like numpy
-        # numbers)
-        if not isinstance(value, (int, float)):
-            try:
-                value = float(value)
-            except (ValueError, TypeError):
-                log.debug("ignoring not number metric %s:%s", key, value)
-                return
-
         # don't allow nan or inf
         if math.isnan(value) or math.isinf(value):
             log.debug("ignoring not real metric %s:%s", key, value)
             return
 
-        if key in self._meta:
-            del self._meta[key]
         self._metrics[key] = value
+        # Ensure we do not have the same key in both meta and metrics
+        self._meta.pop(key, None)
 
     def set_metrics(self, metrics: _MetricDictType) -> None:
         """Set a dictionary of metrics on the given span. Keys must be
