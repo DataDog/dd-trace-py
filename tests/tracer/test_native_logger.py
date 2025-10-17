@@ -27,7 +27,7 @@ def test_logger_disable(output, expected):
         ("trace", nullcontext()),
         ("debug", nullcontext()),
         ("info", nullcontext()),
-        ("warn", nullcontext()),
+        ("warning", nullcontext()),
         ("error", nullcontext()),
         ("invalid", pytest.raises(ValueError)),
     ],
@@ -64,7 +64,7 @@ def test_logger_configure(output, path, files, max_bytes):
         logger.configure(**kwargs)
 
 
-LEVELS = ["trace", "debug", "info", "warn", "error"]
+LEVELS = ["trace", "debug", "info", "warning", "error"]
 cases = [(config, msg, LEVELS.index(msg) >= LEVELS.index(config)) for config in LEVELS for msg in LEVELS]
 
 
