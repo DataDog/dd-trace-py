@@ -25,7 +25,7 @@ def _register(scenario_cls: typing.Type["Scenario"]) -> None:
     cmd = runner.argparser
 
     for _field in dataclasses.fields(scenario_cls):
-        if _field.name == "cprofile_loops":
+        if _field.name in ("cprofile_loops", "inner_loops"):
             continue
 
         cmd.add_argument("--{}".format(_field.name), type=_field.type if _field.type is not bool else str_to_bool)
