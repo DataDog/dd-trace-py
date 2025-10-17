@@ -190,7 +190,7 @@ class LangChainIntegration(BaseLLMIntegration):
             # only the llm interface for Gemini will get instrumented
             elif model_provider.startswith(GEMINI_PROVIDER_NAME) and operation == "llm":
                 llmobs_integration = "google_generativeai"
-            elif model_provider.startswith(OPENAI_PROVIDER_NAME) or model_provider.startswith(AZURE_OAI_PROVIDER_NAME):
+            elif any(provider in model_provider for provider in (OPENAI_PROVIDER_NAME, AZURE_OAI_PROVIDER_NAME)):
                 llmobs_integration = "openai"
             elif operation == "chat" and model_provider.startswith(ANTHROPIC_PROVIDER_NAME):
                 llmobs_integration = "anthropic"
