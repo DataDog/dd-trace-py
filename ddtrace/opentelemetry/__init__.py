@@ -3,60 +3,102 @@ OpenTelemetry API
 =================
 
 The dd-trace-py library provides an implementation of the
-`OpenTelemetry API <https://opentelemetry-python.readthedocs.io/en/latest/api/index.html>`_.
-When ddtrace OpenTelemetry support is configured, all operations defined in the
-OpenTelemetry trace api can be used to create, configure, and propagate a distributed trace.
-All operations defined the opentelemetry trace api are configured to use the ddtrace global tracer (``ddtrace.tracer``)
-and generate datadog compatible traces. By default all opentelemetry traces are submitted to a Datadog agent.
+`OpenTelemetry API <https://opentelemetry-python.readthedocs.io/en/latest/api/index.html>`_
+for distributed tracing, metrics, and logs.
 
 
-Configuration
--------------
-
-When using ``ddtrace-run``, OpenTelemetry support can be enabled by setting
-the ``DD_TRACE_OTEL_ENABLED`` environment variable to True (the default value is ``False``).
-
-OpenTelemetry support can be enabled programmatically by setting ``DD_TRACE_OTEL_ENABLED=True``
-and setting the ``ddtrace.opentelemetry.TracerProvider``. These configurations
-must be set before any OpenTelemetry Tracers are initialized::
-
-    import os
-    # Must be set before ddtrace is imported!
-    os.environ["DD_TRACE_OTEL_ENABLED"] = "true"
-
-    from opentelemetry.trace import set_tracer_provider
-    from ddtrace.opentelemetry import TracerProvider
-
-    set_tracer_provider(TracerProvider())
-
-    ...
-
-
-Usage
------
-
-Datadog and OpenTelemetry APIs can be used interchangeably::
-
-    # Sample Usage
-    from opentelemetry import trace
-    import ddtrace
-
-    oteltracer = trace.get_tracer(__name__)
-
-    with oteltracer.start_as_current_span("otel-span") as parent_span:
-        parent_span.set_attribute("otel_key", "otel_val")
-        with ddtrace.tracer.trace("ddtrace-span") as child_span:
-            child_span.set_tag("dd_key", "dd_val")
-
-    @oteltracer.start_as_current_span("span_name")
-    def some_function():
-        pass
-
-
-Mapping
+Tracing
 -------
 
-The OpenTelemetry API support implementation maps OpenTelemetry spans to Datadog spans. This mapping is described by the following table, using the protocol buffer field names used in `OpenTelemetry <https://github.com/open-telemetry/opentelemetry-proto/blob/724e427879e3d2bae2edc0218fff06e37b9eb46e/opentelemetry/proto/trace/v1/trace.proto#L80>`_ and `Datadog <https://github.com/DataDog/datadog-agent/blob/dc4958d9bf9f0e286a0854569012a3bd3e33e968/pkg/proto/datadog/trace/span.proto#L7>`_.
+dd-trace-py supports OpenTelemetry tracing by mapping OpenTelemetry spans to Datadog spans.
+The TracerProvider sends custom Datadog payloads and is only compatible with a Datadog Agent (does not emit OTLP).
+
+Enable OpenTelemetry tracing support by setting ``DD_TRACE_OTEL_ENABLED=true`` and using ``ddtrace.auto``
+or ``ddtrace-run``. Manual configuration is also supported via ``ddtrace.opentelemetry.TracerProvider``.
+
+For supported configurations, see `OpenTelemetry Tracing Configuration <placeholder-link>`_.
+
+Usage example::
+
+    import os
+    os.environ["DD_TRACE_OTEL_ENABLED"] = "true"
+
+    import ddtrace.auto
+
+    from opentelemetry import trace
+
+    # Use tracing
+    tracer = trace.get_tracer(__name__)
+    with tracer.start_as_current_span("operation") as span:
+        span.set_attribute("key", "value")
+        # Your code here
+
+
+Metrics
+-------
+
+dd-trace-py supports OpenTelemetry metrics. Metrics are sent in OTLP format and can be routed to any OTLP receiver
+(Datadog Agent, OpenTelemetry Collector, or directly to Datadog intake).
+
+Enable metrics support by setting ``DD_METRICS_OTEL_ENABLED=true`` and using ``ddtrace.auto`` or ``ddtrace-run``.
+ddtrace automatically configures the correct providers and exporters.
+
+You must install your own OTLP exporter (minimum supported version is v1.15.0)::
+
+    pip install opentelemetry-exporter-otlp>=1.15.0
+
+For supported configurations, see `OpenTelemetry Metrics Configuration <placeholder-link>`_.
+
+Usage example::
+
+    import os
+    os.environ["DD_METRICS_OTEL_ENABLED"] = "true"
+    import ddtrace.auto
+
+    from opentelemetry import metrics
+
+    # ddtrace automatically configures the MeterProvider
+    meter = metrics.get_meter(__name__)
+    counter = meter.create_counter("requests_total")
+    counter.add(1, {"method": "GET"})
+
+Logs
+----
+
+dd-trace-py supports OpenTelemetry logs. Logs are sent in OTLP format and can be routed to any OTLP receiver
+(Datadog Agent, OpenTelemetry Collector, or directly to Datadog intake).
+
+Enable logs support by setting ``DD_LOGS_OTEL_ENABLED=true`` and using ``ddtrace.auto`` or ``ddtrace-run``.
+ddtrace automatically configures the correct providers and exporters.
+
+You must install your own OTLP exporter (minimum supported version is v1.15.0)::
+
+    pip install opentelemetry-exporter-otlp>=1.15.0
+
+For supported configurations, see `OpenTelemetry Logs Configuration <placeholder-link>`_.
+
+Usage example::
+
+    import os
+    import logging
+    os.environ["DD_LOGS_OTEL_ENABLED"] = "true"
+    os.environ["DD_TRACE_OTEL_ENABLED"] = "true"
+    import ddtrace.auto
+
+    from opentelemetry import trace
+    tracer = trace.get_tracer(__name__)
+
+    # Logs within a trace context are automatically correlated
+    with tracer.start_as_current_span("user_operation") as span:
+        span.set_attribute("user.id", "12345")
+        logging.info("User operation started", extra={"operation": "login"})
+        # Your business logic here
+        logging.info("User operation completed", extra={"status": "success"})
+
+Trace Mapping
+-------------
+
+OpenTelemetry spans are mapped to Datadog spans. This mapping is described by the following table, using the protocol buffer field names used in `OpenTelemetry <https://github.com/open-telemetry/opentelemetry-proto/blob/724e427879e3d2bae2edc0218fff06e37b9eb46e/opentelemetry/proto/trace/v1/trace.proto#L80>`_ and `Datadog <https://github.com/DataDog/datadog-agent/blob/dc4958d9bf9f0e286a0854569012a3bd3e33e968/pkg/proto/datadog/trace/span.proto#L7>`_.
 
 
 .. list-table::
