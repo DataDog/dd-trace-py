@@ -286,72 +286,77 @@ def _patched_endpoint(openai, patch_hook):
     return patched_endpoint(openai)
 
 
-def _patched_endpoint_async(openai, patch_hook):
-    class _TracedAsyncPaginator:
-        def __init__(self, paginator, pin, integration, patch_hook, instance, args, kwargs):
-            self._paginator = paginator
-            self._pin = pin
-            self._integration = integration
-            self._patch_hook = patch_hook
-            self._instance = instance
-            self._args = args
-            self._kwargs = kwargs
+class _TracedAsyncPaginator:
+    """Wrapper for AsyncPaginator objects to enable tracing for both await and async for usage."""
 
-        def __aiter__(self):
-            async def _traced_aiter():
-                g = _traced_endpoint(
-                    self._patch_hook, self._integration, self._instance, self._pin, self._args, self._kwargs
-                )
-                g.send(None)
-                err = None
-                completed = False
+    def __init__(self, paginator, pin, integration, patch_hook, instance, args, kwargs):
+        self._paginator = paginator
+        self._pin = pin
+        self._integration = integration
+        self._patch_hook = patch_hook
+        self._instance = instance
+        self._args = args
+        self._kwargs = kwargs
+
+    def __aiter__(self):
+        async def _traced_aiter():
+            g = _traced_endpoint(
+                self._patch_hook, self._integration, self._instance, self._pin, self._args, self._kwargs
+            )
+            g.send(None)
+            err = None
+            completed = False
+            try:
+                iterator = self._paginator.__aiter__()
+                # Fetch first item to trigger trace completion before iteration starts.
+                # This ensures the span is recorded even if iteration stops early.
+                first_item = await iterator.__anext__()
                 try:
-                    iterator = self._paginator.__aiter__()
-                    first_item = await iterator.__anext__()
+                    g.send((None, None))
+                    completed = True
+                except StopIteration:
+                    completed = True
+                yield first_item
+                async for item in iterator:
+                    yield item
+            except StopAsyncIteration:
+                pass
+            except BaseException as e:
+                err = e
+                raise
+            finally:
+                if not completed:
                     try:
-                        g.send((None, None))
-                        completed = True
+                        g.send((None, err))
                     except StopIteration:
-                        completed = True
-                    yield first_item
-                    async for item in iterator:
-                        yield item
-                except StopAsyncIteration:
-                    pass
-                except BaseException as e:
-                    err = e
-                    raise
-                finally:
-                    if not completed:
-                        try:
-                            g.send((None, err))
-                        except StopIteration:
-                            pass
+                        pass
 
-            return _traced_aiter()
+        return _traced_aiter()
 
-        def __await__(self):
-            async def _trace_and_await():
-                g = _traced_endpoint(
-                    self._patch_hook, self._integration, self._instance, self._pin, self._args, self._kwargs
-                )
-                g.send(None)
-                resp, err = None, None
+    def __await__(self):
+        async def _trace_and_await():
+            g = _traced_endpoint(
+                self._patch_hook, self._integration, self._instance, self._pin, self._args, self._kwargs
+            )
+            g.send(None)
+            resp, err = None, None
+            try:
+                resp = await self._paginator
+            except BaseException as e:
+                err = e
+                raise
+            finally:
                 try:
-                    resp = await self._paginator
-                except BaseException as e:
-                    err = e
-                    raise
-                finally:
-                    try:
-                        g.send((resp, err))
-                    except StopIteration as e:
-                        if err is None:
-                            return e.value
-                return resp
+                    g.send((resp, err))
+                except StopIteration as e:
+                    if err is None:
+                        return e.value
+            return resp
 
-            return _trace_and_await().__await__()
+        return _trace_and_await().__await__()
 
+
+def _patched_endpoint_async(openai, patch_hook):
     @with_traced_module
     def patched_endpoint(openai, pin, func, instance, args, kwargs):
         if (
@@ -364,6 +369,8 @@ def _patched_endpoint_async(openai, patch_hook):
             return func(*args, **kwargs)
 
         result = func(*args, **kwargs)
+        # Detect AsyncPaginator objects (have both __aiter__ and __await__).
+        # These must be returned directly (not awaited) to preserve iteration behavior.
         if hasattr(result, "__aiter__") and hasattr(result, "__await__"):
             return _TracedAsyncPaginator(result, pin, openai._datadog_integration, patch_hook, instance, args, kwargs)
 
