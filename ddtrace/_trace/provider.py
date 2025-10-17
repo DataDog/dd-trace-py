@@ -71,7 +71,10 @@ class DefaultContextProvider(BaseContextProvider):
     def active(self) -> Optional[ActiveTrace]:
         """Returns the active span or context for the current execution."""
         item = _DD_CONTEXTVAR.get()
-        if isinstance(item, Span):
+
+        # perf: type(item) == Span is about the same perf as isinstance(item, Span)
+        #       when item is a Span, but slower when item is a Context
+        if type(item) == Span:
             return self._update_active(item)
         return item
 
@@ -82,8 +85,9 @@ class DefaultContextProvider(BaseContextProvider):
         If no parent exists and the context is reactivatable, that context is restored.
         """
         new_active: Optional[Span] = span
-        # PERF: Avoid calling `Span.finished` more than once per span. This is a computed property.
-        while new_active and new_active.finished:
+        # PERF: Avoid checking if the span is finished more than once per span.
+        # PERF: By-pass Span.finished which is a computed property to avoid the function call overhead
+        while new_active and new_active.duration_ns is not None:
             if new_active._parent is None and new_active._parent_context and new_active._parent_context._reactivate:
                 self.activate(new_active._parent_context)
                 return new_active._parent_context

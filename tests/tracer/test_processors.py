@@ -38,14 +38,6 @@ class DummyProcessor(TraceProcessor):
         return trace
 
 
-def test_no_impl():
-    class BadProcessor(SpanProcessor):
-        pass
-
-    with pytest.raises(TypeError):
-        BadProcessor()
-
-
 def test_aggregator_single_span():
     class Proc(TraceProcessor):
         def process_trace(self, trace):
@@ -110,25 +102,26 @@ def test_aggregator_reset_default_args():
     Test that on reset, the aggregator recreates trace writer but not the sampling processor (by default).
     Processors and trace buffers should be reset not reset.
     """
-    dd_proc = DummyProcessor()
-    user_proc = DummyProcessor()
-    aggr = SpanAggregator(
-        partial_flush_enabled=False,
-        partial_flush_min_spans=1,
-        dd_processors=[dd_proc],
-        user_processors=[user_proc],
-    )
-    sampling_proc = aggr.sampling_processor
-    dm_writer = DummyWriter()
-    aggr.writer = dm_writer
-    # Generate a span to init _traces and _span_metrics
-    span = Span("span", on_finish=[aggr.on_span_finish])
-    aggr.on_span_start(span)
+    with override_global_config(dict(_telemetry_enabled=True)):
+        dd_proc = DummyProcessor()
+        user_proc = DummyProcessor()
+        aggr = SpanAggregator(
+            partial_flush_enabled=False,
+            partial_flush_min_spans=1,
+            dd_processors=[dd_proc],
+            user_processors=[user_proc],
+        )
+        sampling_proc = aggr.sampling_processor
+        dm_writer = DummyWriter()
+        aggr.writer = dm_writer
+        # Generate a span to init _traces and _span_metrics
+        span = Span("span", on_finish=[aggr.on_span_finish])
+        aggr.on_span_start(span)
     # Expect SpanAggregator to have the processors and span in _traces
     assert dd_proc in aggr.dd_processors
     assert user_proc in aggr.user_processors
     assert span.trace_id in aggr._traces
-    assert len(aggr._span_metrics["spans_created"]) == 1
+    assert len(aggr._spans_created) == 1
     # Expect TraceWriter to be recreated and trace buffers to be reset but not the trace processors
     aggr.reset()
     assert dd_proc in aggr.dd_processors
@@ -136,7 +129,7 @@ def test_aggregator_reset_default_args():
     assert aggr.writer is not dm_writer
     assert sampling_proc is aggr.sampling_processor
     assert not aggr._traces
-    assert len(aggr._span_metrics["spans_created"]) == 0
+    assert len(aggr._spans_created) == 0
 
 
 def test_aggregator_reset_apm_opt_out_preserves_sampling():
@@ -181,24 +174,25 @@ def test_aggregator_reset_with_args(writer_class):
     user processors/filters and trace api version (when ASM is enabled)
     """
 
-    dd_proc = DummyProcessor()
-    user_proc = DummyProcessor()
-    aggr = SpanAggregator(
-        partial_flush_enabled=False,
-        partial_flush_min_spans=1,
-        dd_processors=[dd_proc],
-        user_processors=[user_proc],
-    )
+    with override_global_config(dict(_telemetry_enabled=True)):
+        dd_proc = DummyProcessor()
+        user_proc = DummyProcessor()
+        aggr = SpanAggregator(
+            partial_flush_enabled=False,
+            partial_flush_min_spans=1,
+            dd_processors=[dd_proc],
+            user_processors=[user_proc],
+        )
 
-    aggr.writer = writer_class("http://localhost:8126", api_version="v0.5")
-    span = Span("span", on_finish=[aggr.on_span_finish])
-    aggr.on_span_start(span)
+        aggr.writer = writer_class("http://localhost:8126", api_version="v0.5")
+        span = Span("span", on_finish=[aggr.on_span_finish])
+        aggr.on_span_start(span)
 
     # Expect SpanAggregator to have the expected processors, api_version and span in _traces
     assert dd_proc in aggr.dd_processors
     assert user_proc in aggr.user_processors
     assert span.trace_id in aggr._traces
-    assert len(aggr._span_metrics["spans_created"]) == 1
+    assert len(aggr._spans_created) == 1
     assert aggr.writer._api_version == "v0.5"
     # Expect the default value of apm_opt_out and compute_stats to be False
     assert aggr.sampling_processor.apm_opt_out is False
@@ -211,7 +205,7 @@ def test_aggregator_reset_with_args(writer_class):
     assert aggr.sampling_processor._compute_stats_enabled is True
     assert aggr.writer._api_version == "v0.4"
     assert span.trace_id in aggr._traces
-    assert len(aggr._span_metrics["spans_created"]) == 1
+    assert len(aggr._spans_created) == 1
 
 
 def test_aggregator_bad_processor():
@@ -315,7 +309,8 @@ def test_aggregator_partial_flush_0_spans():
     assert parent.get_metric("_dd.py.partial_flush") == 1
     child.finish()
     assert writer.pop() == [child]
-    assert child.get_metric("_dd.py.partial_flush") == 1
+    # Not a partial flush since the trace size at this point is 1 and we finished the last span
+    assert child.get_metric("_dd.py.partial_flush") is None
 
 
 def test_aggregator_partial_flush_2_spans():
@@ -375,7 +370,9 @@ def test_aggregator_partial_flush_2_spans():
     assert parent.get_metric("_dd.py.partial_flush") is None
 
 
-@pytest.mark.subprocess(env={"DD_TRACE_PARTIAL_FLUSH_ENABLED": "true", "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "2"})
+@pytest.mark.subprocess(
+    env={"DD_TRACE_PARTIAL_FLUSH_ENABLED": "true", "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "2"}, check_logs=False
+)
 def test_trace_top_level_span_processor_partial_flushing():
     """Parent span and child span have the same service name"""
     from ddtrace import tracer

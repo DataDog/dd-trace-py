@@ -24,7 +24,6 @@ from ddtrace._trace.processor.resource_renaming import ResourceRenamingProcessor
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace._trace.span import Span
-from ddtrace.appsec._constants import APPSEC
 from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import PID
@@ -42,7 +41,6 @@ from ddtrace.internal.constants import LOG_ATTR_TRACE_ID
 from ddtrace.internal.constants import LOG_ATTR_VALUE_EMPTY
 from ddtrace.internal.constants import LOG_ATTR_VALUE_ZERO
 from ddtrace.internal.constants import LOG_ATTR_VERSION
-from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
@@ -52,7 +50,6 @@ from ddtrace.internal.peer_service.processor import PeerServiceProcessor
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.schema.processor import BaseServiceProcessor
-from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.writer import AgentWriterInterface
@@ -107,7 +104,7 @@ class Tracer(object):
         trace = tracer.trace('app.request', 'web-server').finish()
     """
 
-    SHUTDOWN_TIMEOUT = 5
+    SHUTDOWN_TIMEOUT = 5.0
     _instance = None
 
     def __init__(self) -> None:
@@ -530,11 +527,6 @@ class Tracer(object):
                 if span._parent.service == service:
                     span._service_entry_span = parent._service_entry_span
 
-            for k, v in _get_metas_to_propagate(context):
-                # We do not want to propagate AppSec propagation headers
-                # to children spans, only across distributed spans
-                if k not in (SAMPLING_DECISION_TRACE_TAG_KEY, APPSEC.PROPAGATION_HEADER):
-                    span._meta[k] = v
         else:
             # this is the root span of a new trace
             span = Span(
@@ -589,14 +581,18 @@ class Tracer(object):
         active = self.current_span()
         # Debug check: if the finishing span has a parent and its parent
         # is not the next active span then this is an error in synchronous tracing.
-        if span._parent is not None and active is not span._parent:
-            log.debug("span %r closing after its parent %r, this is an error when not using async", span, span._parent)
+        if log.isEnabledFor(logging.DEBUG):
+            if span._parent is not None and active is not span._parent:
+                log.debug(
+                    "span %r closing after its parent %r, this is an error when not using async",
+                    span,
+                    span._parent,
+                )
 
         # Only call span processors if the tracer is enabled (even if APM opted out)
         if self.enabled or asm_config._apm_opt_out:
             for p in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
-                if p:
-                    p.on_span_finish(span)
+                p.on_span_finish(span)
 
         core.dispatch("trace.span_finish", (span,))
         log.debug("finishing span - %r (enabled:%s)", span, self.enabled)
