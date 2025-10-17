@@ -15,6 +15,7 @@ from .. import periodic
 from ..dogstatsd import get_dogstatsd_client
 from ..logger import get_logger
 from .constants import DEFAULT_RUNTIME_METRICS
+from .constants import DEFAULT_RUNTIME_METRICS_INTERVAL
 from .metric_collectors import GCRuntimeMetricCollector
 from .metric_collectors import PSUtilRuntimeMetricCollector
 from .tag_collectors import PlatformTagCollector
@@ -68,25 +69,14 @@ class RuntimeMetrics(RuntimeCollectorsIterable):
     ]
 
 
-def _get_interval_or_default():
-    if "DD_RUNTIME_METRICS_INTERVAL" in os.environ:
-        deprecate(
-            "`DD_RUNTIME_METRICS_INTERVAL` is deprecated and will be removed in a future version.",
-            removal_version="4.0.0",
-        )
-    return float(os.getenv("DD_RUNTIME_METRICS_INTERVAL", default=10))
-
-
 class RuntimeWorker(periodic.PeriodicService):
-    """Worker thread for collecting and writing runtime metrics to a DogStatsd
-    client.
-    """
+    """Worker thread for collecting and writing runtime metrics to a DogStatsd client."""
 
     enabled = False
-    _instance = None  # type: ClassVar[Optional[RuntimeWorker]]
+    _instance: ClassVar[Optional[RuntimeWorker]] = None
     _lock = forksafe.Lock()
 
-    def __init__(self, interval=_get_interval_or_default(), tracer=None, dogstatsd_url=None) -> None:
+    def __init__(self, interval=DEFAULT_RUNTIME_METRICS_INTERVAL, tracer=None, dogstatsd_url=None) -> None:
         super().__init__(interval=interval)
         self.dogstatsd_url: Optional[str] = dogstatsd_url
         self._dogstatsd_client: DogStatsd = get_dogstatsd_client(
@@ -107,8 +97,7 @@ class RuntimeWorker(periodic.PeriodicService):
             self._platform_tags = self._format_tags(PlatformTags())
 
     @classmethod
-    def disable(cls):
-        # type: () -> None
+    def disable(cls) -> None:
         with cls._lock:
             if cls._instance is None:
                 return
@@ -134,13 +123,15 @@ class RuntimeWorker(periodic.PeriodicService):
         cls.enable()
 
     @classmethod
-    def enable(cls, flush_interval=None, tracer=None, dogstatsd_url=None):
-        # type: (Optional[float], Optional[ddtrace.trace.Tracer], Optional[str]) -> None
+    def enable(
+        cls,
+        flush_interval: Optional[float] = DEFAULT_RUNTIME_METRICS_INTERVAL,
+        tracer: Optional[ddtrace.trace.Tracer] = None,
+        dogstatsd_url: Optional[str] = None,
+    ) -> None:
         with cls._lock:
             if cls._instance is not None:
                 return
-            if flush_interval is None:
-                flush_interval = _get_interval_or_default()
             runtime_worker = cls(flush_interval, tracer, dogstatsd_url)
             runtime_worker.start()
 
@@ -150,8 +141,7 @@ class RuntimeWorker(periodic.PeriodicService):
             cls._instance = runtime_worker
             cls.enabled = True
 
-    def flush(self):
-        # type: () -> None
+    def flush(self) -> None:
         # Ensure runtime metrics have up-to-date tags (ex: service, env, version)
         rumtime_tags = self._format_tags(TracerTags()) + self._platform_tags
         log.debug("Sending runtime metrics with the following tags: %s", rumtime_tags)
@@ -161,11 +151,6 @@ class RuntimeWorker(periodic.PeriodicService):
             for key, value in self._runtime_metrics:
                 log.debug("Sending ddtrace runtime metric %s:%s", key, value)
                 self.send_metric(key, value)
-
-    def _stop_service(self):
-        # type: (...) -> None
-        # De-register span hook
-        super(RuntimeWorker, self)._stop_service()
 
     def _format_tags(self, tags: RuntimeCollectorsIterable) -> List[str]:
         # DEV: ddstatsd expects tags in the form ['key1:value1', 'key2:value2', ...]
