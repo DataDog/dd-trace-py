@@ -1,4 +1,0 @@
----
-other:
-  - |
-    openai: The test suite now validates compatibility with both OpenAI v1.x and v2.x SDK versions.
