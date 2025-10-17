@@ -26,6 +26,7 @@ from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
+from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
@@ -424,23 +425,26 @@ def test_embedding_span(llmobs, llmobs_events):
     )
 
 
-def test_annotate_no_active_span_logs_warning(llmobs, mock_llmobs_logs):
-    llmobs.annotate(metadata={"test": "test"})
-    mock_llmobs_logs.warning.assert_called_once_with("No span provided and no active LLMObs-generated span found.")
+def test_annotate_no_active_span_logs_warning(llmobs):
+    with pytest.raises(Exception) as excinfo:
+        llmobs.annotate(metadata={"test": "test"})
+    assert str(excinfo.value) == "No span provided and no active LLMObs-generated span found."
 
 
-def test_annotate_non_llm_span_logs_warning(llmobs, mock_llmobs_logs):
+def test_annotate_non_llm_span_logs_warning(llmobs):
     dummy_tracer = DummyTracer()
     with dummy_tracer.trace("root") as non_llmobs_span:
-        llmobs.annotate(span=non_llmobs_span, metadata={"test": "test"})
-        mock_llmobs_logs.warning.assert_called_once_with("Span must be an LLMObs-generated span.")
+        with pytest.raises(Exception) as excinfo:
+            llmobs.annotate(span=non_llmobs_span, metadata={"test": "test"})
+        assert str(excinfo.value) == "Span must be an LLMObs-generated span."
 
 
-def test_annotate_finished_span_does_nothing(llmobs, mock_llmobs_logs):
+def test_annotate_finished_span_does_nothing(llmobs):
     with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         pass
-    llmobs.annotate(span=span, metadata={"test": "test"})
-    mock_llmobs_logs.warning.assert_called_once_with("Cannot annotate a finished span.")
+    with pytest.raises(Exception) as excinfo:
+        llmobs.annotate(span=span, metadata={"test": "test"})
+    assert str(excinfo.value) == "Cannot annotate a finished span."
 
 
 def test_annotate_metadata(llmobs):
@@ -462,12 +466,11 @@ def test_annotate_metadata_updates(llmobs):
         }
 
 
-def test_annotate_metadata_wrong_type_raises_warning(llmobs, mock_llmobs_logs):
+def test_annotate_metadata_wrong_type_raises_warning(llmobs):
     with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
-        llmobs.annotate(span=span, metadata="wrong_metadata")
-        assert span._get_ctx_item(METADATA) is None
-        mock_llmobs_logs.warning.assert_called_once_with("metadata must be a dictionary")
-        mock_llmobs_logs.reset_mock()
+        with pytest.raises(Exception) as excinfo:
+            llmobs.annotate(span=span, metadata="wrong_metadata")
+        assert str(excinfo.value) == "metadata must be a dictionary"
 
 
 def test_annotate_tag(llmobs):
@@ -483,13 +486,11 @@ def test_annotate_tag_can_set_session_id(llmobs):
         assert span._get_ctx_item(SESSION_ID) == "1234567890"
 
 
-def test_annotate_tag_wrong_type(llmobs, mock_llmobs_logs):
+def test_annotate_tag_wrong_type(llmobs):
     with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
-        llmobs.annotate(span=span, tags=12345)
-        assert span._get_ctx_item(TAGS) is None
-        mock_llmobs_logs.warning.assert_called_once_with(
-            "span tags must be a dictionary of string key - primitive value pairs."
-        )
+        with pytest.raises(Exception) as excinfo:
+            llmobs.annotate(span=span, tags=12345)
+        assert str(excinfo.value) == "span tags must be a dictionary of string key - primitive value pairs."
 
 
 def test_annotate_input_string(llmobs):
@@ -758,14 +759,11 @@ def test_annotate_metrics_updates(llmobs):
         assert span._get_ctx_item(METRICS) == {"input_tokens": 20, "output_tokens": 20, "total_tokens": 40}
 
 
-def test_annotate_metrics_wrong_type(llmobs, mock_llmobs_logs):
+def test_annotate_metrics_wrong_type(llmobs):
     with llmobs.llm(model_name="test_model") as llm_span:
-        llmobs.annotate(span=llm_span, metrics=12345)
-        assert llm_span._get_ctx_item(METRICS) is None
-        mock_llmobs_logs.warning.assert_called_once_with(
-            "metrics must be a dictionary of string key - numeric value pairs."
-        )
-        mock_llmobs_logs.reset_mock()
+        with pytest.raises(Exception) as excinfo:
+            llmobs.annotate(span=llm_span, metrics=12345)
+        assert str(excinfo.value) == "metrics must be a dictionary of string key - numeric value pairs."
 
 
 def test_annotate_prompt_dict(llmobs):
@@ -835,20 +833,21 @@ def test_annotate_prompt_typed_dict(llmobs):
         }
 
 
-def test_annotate_prompt_wrong_type(llmobs, mock_llmobs_logs):
+def test_annotate_prompt_wrong_type(llmobs):
     with llmobs.llm(model_name="test_model") as span:
-        llmobs.annotate(span=span, prompt="prompt")
-        assert span._get_ctx_item(INPUT_PROMPT) is None
-        mock_llmobs_logs.warning.assert_called_once_with(
-            "Failed to validate prompt with error:", "Prompt must be a dictionary, received str.", exc_info=True
+        with pytest.raises(Exception) as excinfo:
+            llmobs.annotate(span=span, prompt="prompt")
+        assert excinfo.value.args == (
+            "Failed to validate prompt with error:",
+            "Prompt must be a dictionary, received str.",
         )
-        mock_llmobs_logs.reset_mock()
 
-        llmobs.annotate(span=span, prompt={"template": 1})
-        mock_llmobs_logs.warning.assert_called_once_with(
-            "Failed to validate prompt with error:", "template: 1 must be a string, received int", exc_info=True
+        with pytest.raises(Exception) as excinfo:
+            llmobs.annotate(span=span, prompt={"template": 1})
+        assert excinfo.value.args == (
+            "Failed to validate prompt with error:",
+            "template: 1 must be a string, received int",
         )
-        mock_llmobs_logs.reset_mock()
 
 
 def test_span_error_sets_error(llmobs, llmobs_events):
@@ -916,15 +915,17 @@ def test_ml_app_override(llmobs, llmobs_events):
     assert llmobs_events[6] == _expected_llmobs_non_llm_span_event(span, "retrieval", tags={"ml_app": "test_app"})
 
 
-def test_export_span_specified_span_is_incorrect_type_raises_warning(llmobs, mock_llmobs_logs):
-    llmobs.export_span(span="asd")
-    mock_llmobs_logs.warning.assert_called_once_with("Failed to export span. Span must be a valid Span object.")
+def test_export_span_specified_span_is_incorrect_type_raises_warning(llmobs):
+    with pytest.raises(Exception) as excinfo:
+        llmobs.export_span(span="asd")
+    assert str(excinfo.value) == "Failed to export span. Span must be a valid Span object."
 
 
-def test_export_span_specified_span_is_not_llmobs_span_raises_warning(llmobs, mock_llmobs_logs):
+def test_export_span_specified_span_is_not_llmobs_span_raises_warning(llmobs):
     with DummyTracer().trace("non_llmobs_span") as span:
-        llmobs.export_span(span=span)
-    mock_llmobs_logs.warning.assert_called_once_with("Span must be an LLMObs-generated span.")
+        with pytest.raises(Exception) as excinfo:
+            llmobs.export_span(span=span)
+        assert str(excinfo.value) == "Span must be an LLMObs-generated span."
 
 
 def test_export_span_specified_span_returns_span_context(llmobs):
@@ -980,24 +981,17 @@ def test_inject_distributed_headers_llmobs_disabled_does_nothing(llmobs, mock_ll
     assert headers == {}
 
 
-def test_inject_distributed_headers_not_dict_logs_warning(llmobs, mock_llmobs_logs):
-    headers = llmobs.inject_distributed_headers("not a dictionary", span=None)
-    mock_llmobs_logs.warning.assert_called_once_with("request_headers must be a dictionary of string key-value pairs.")
-    assert headers == "not a dictionary"
-    mock_llmobs_logs.reset_mock()
-    headers = llmobs.inject_distributed_headers(123, span=None)
-    mock_llmobs_logs.warning.assert_called_once_with("request_headers must be a dictionary of string key-value pairs.")
-    assert headers == 123
-    mock_llmobs_logs.reset_mock()
-    headers = llmobs.inject_distributed_headers(None, span=None)
-    mock_llmobs_logs.warning.assert_called_once_with("request_headers must be a dictionary of string key-value pairs.")
-    assert headers is None
+@pytest.mark.parametrize("request_headers", ["not a dictionary", 123, None])
+def test_inject_distributed_headers_not_dict_logs_warning(llmobs, request_headers):
+    with pytest.raises(Exception) as excinfo:
+        llmobs.inject_distributed_headers(request_headers, span=None)
+    assert str(excinfo.value) == "request_headers must be a dictionary of string key-value pairs."
 
 
-def test_inject_distributed_headers_no_active_span_logs_warning(llmobs, mock_llmobs_logs):
-    headers = llmobs.inject_distributed_headers({}, span=None)
-    mock_llmobs_logs.warning.assert_called_once_with("No span provided and no currently active span found.")
-    assert headers == {}
+def test_inject_distributed_headers_no_active_span_logs_warning(llmobs):
+    with pytest.raises(Exception) as excinfo:
+        llmobs.inject_distributed_headers({}, span=None)
+    assert str(excinfo.value) == "No span provided and no currently active span found."
 
 
 def test_inject_distributed_headers_span_calls_httppropagator_inject(llmobs, mock_llmobs_logs):
@@ -1032,36 +1026,29 @@ def test_activate_distributed_headers_calls_httppropagator_extract(llmobs, mock_
         mock_extract.assert_called_once_with({})
 
 
-def test_activate_distributed_headers_no_trace_id_does_nothing(llmobs, mock_llmobs_logs):
-    with mock.patch("ddtrace.llmobs._llmobs.HTTPPropagator.extract") as mock_extract:
-        mock_extract.return_value = Context(span_id=123)
+def test_activate_distributed_headers_no_trace_id_raises(llmobs):
+    with pytest.raises(Exception) as excinfo:
         llmobs.activate_distributed_headers({})
-        assert mock_extract.call_count == 1
-        mock_llmobs_logs.warning.assert_called_once_with("Failed to extract trace/span ID from request headers.")
+    assert str(excinfo.value) == "Failed to extract trace/span ID from request headers."
 
 
-def test_activate_distributed_headers_no_span_id_does_nothing(llmobs, mock_llmobs_logs):
-    with mock.patch("ddtrace.llmobs._llmobs.HTTPPropagator.extract") as mock_extract:
-        mock_extract.return_value = Context(trace_id=123)
+def test_activate_distributed_headers_no_span_id_raises(llmobs):
+    with pytest.raises(Exception) as excinfo:
         llmobs.activate_distributed_headers({})
-        assert mock_extract.call_count == 1
-        mock_llmobs_logs.warning.assert_called_once_with("Failed to extract trace/span ID from request headers.")
+    assert str(excinfo.value) == "Failed to extract trace/span ID from request headers."
 
 
 def test_activate_distributed_headers_no_llmobs_parent_id_does_nothing(llmobs, mock_llmobs_logs):
     with mock.patch("ddtrace.llmobs._llmobs.HTTPPropagator.extract") as mock_extract:
         dummy_context = Context(trace_id=123, span_id=456)
         mock_extract.return_value = dummy_context
-        with mock.patch("ddtrace.llmobs.LLMObs._instance.tracer.context_provider.activate") as mock_activate:
-            llmobs.activate_distributed_headers({})
-            assert mock_extract.call_count == 1
-            mock_llmobs_logs.debug.assert_called_once_with("Failed to extract LLMObs parent ID from request headers.")
-            mock_activate.assert_called_once_with(dummy_context)
+        llmobs.activate_distributed_headers({})
+        mock_llmobs_logs.debug.assert_called_once_with("Failed to extract LLMObs parent ID from request headers.")
 
 
-def test_activate_distributed_headers_activates_context(llmobs, mock_llmobs_logs):
+def test_activate_distributed_headers_activates_context(llmobs):
     with mock.patch("ddtrace.llmobs._llmobs.HTTPPropagator.extract") as mock_extract:
-        dummy_context = Context(trace_id=123, span_id=456)
+        dummy_context = Context(trace_id=123, span_id=456, meta={PROPAGATED_PARENT_ID_KEY: "123"})
         mock_extract.return_value = dummy_context
         with mock.patch("ddtrace.llmobs.LLMObs._instance.tracer.context_provider.activate") as mock_activate:
             llmobs.activate_distributed_headers({})
@@ -1537,15 +1524,16 @@ def test_service_enable_does_not_start_evaluator_runner():
         llmobs_service.disable()
 
 
-def test_submit_evaluation_no_ml_app_raises_warning(llmobs, mock_llmobs_logs):
+def test_submit_evaluation_no_ml_app_raises_warning(llmobs):
     with override_global_config(dict(_llmobs_ml_app="")):
-        llmobs.submit_evaluation(
-            span={"span_id": "123", "trace_id": "456"},
-            label="toxicity",
-            metric_type="categorical",
-            value="high",
-        )
-        mock_llmobs_logs.warning.assert_called_once_with(
+        with pytest.raises(Exception) as excinfo:
+            llmobs.submit_evaluation(
+                span={"span_id": "123", "trace_id": "456"},
+                label="toxicity",
+                metric_type="categorical",
+                value="high",
+            )
+        assert str(excinfo.value) == (
             "ML App name is required for sending evaluation metrics. Evaluation metric data will not be sent. "
             "Ensure this configuration is set before running your application."
         )
@@ -1653,46 +1641,32 @@ def test_submit_evaluation_incorrect_score_value_type_raises_error(llmobs, mock_
 
 
 def test_submit_evaluation_invalid_tags_raises_warning(llmobs, mock_llmobs_logs):
-    llmobs.submit_evaluation(
-        span={"span_id": "123", "trace_id": "456"},
-        label="toxicity",
-        metric_type="categorical",
-        value="high",
-        tags=["invalid"],
-    )
-    mock_llmobs_logs.warning.assert_called_once_with("tags must be a dictionary of string key-value pairs.")
+    with pytest.raises(Exception) as excinfo:
+        llmobs.submit_evaluation(
+            span={"span_id": "123", "trace_id": "456"},
+            label="toxicity",
+            metric_type="categorical",
+            value="high",
+            tags=["invalid"],
+        )
+    assert str(excinfo.value) == "tags must be a dictionary of string key-value pairs."
 
 
 @pytest.mark.parametrize(
     "ddtrace_global_config",
     [dict(_llmobs_ml_app="test_app_name")],
 )
-def test_submit_evaluation_non_string_tags_raises_warning_but_still_submits(
-    llmobs, mock_llmobs_logs, mock_llmobs_eval_metric_writer
-):
-    llmobs.submit_evaluation(
-        span={"span_id": "123", "trace_id": "456"},
-        label="toxicity",
-        metric_type="categorical",
-        value="high",
-        tags={1: 2, "foo": "bar"},
-        ml_app="dummy",
-    )
-    mock_llmobs_logs.warning.assert_called_once_with(
-        "Failed to parse tags. Tags for evaluation metrics must be strings."
-    )
-    mock_llmobs_logs.reset_mock()
-    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
-        _expected_llmobs_eval_metric_event(
-            ml_app="dummy",
-            span_id="123",
-            trace_id="456",
+def test_submit_evaluation_non_string_tags_raises(llmobs):  # TODO(sabrenner): check if we're ok changing this behavior
+    with pytest.raises(Exception) as excinfo:
+        llmobs.submit_evaluation(
+            span={"span_id": "123", "trace_id": "456"},
             label="toxicity",
             metric_type="categorical",
-            categorical_value="high",
-            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:dummy", "foo:bar"],
+            value="high",
+            tags={1: 2, "foo": "bar"},
+            ml_app="dummy",
         )
-    )
+    assert str(excinfo.value) == "Failed to parse tags. Tags for evaluation metrics must be strings."
 
 
 @pytest.mark.parametrize(
@@ -1834,40 +1808,18 @@ def test_submit_evaluation_metric_with_metadata_enqueues_metric(llmobs, mock_llm
             metadata={"foo": ["bar", "baz"]},
         )
     )
-    mock_llmobs_eval_metric_writer.reset()
-    llmobs.submit_evaluation(
-        span={"span_id": "123", "trace_id": "456"},
-        label="toxicity",
-        metric_type="categorical",
-        value="high",
-        tags={"foo": "bar", "bee": "baz", "ml_app": "ml_app_override"},
-        ml_app="ml_app_override",
-        metadata="invalid",
-    )
-    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
-        _expected_llmobs_eval_metric_event(
-            ml_app="ml_app_override",
-            span_id="123",
-            trace_id="456",
+
+
+def test_submit_evaluation_invalid_assessment_raises(llmobs):
+    with pytest.raises(Exception) as excinfo:
+        llmobs.submit_evaluation(
+            span={"span_id": "123", "trace_id": "456"},
             label="toxicity",
             metric_type="categorical",
-            categorical_value="high",
-            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
+            value="high",
+            assessment=True,
         )
-    )
-
-
-def test_submit_evaluation_invalid_assessment_raises_warning(llmobs, mock_llmobs_logs):
-    llmobs.submit_evaluation(
-        span={"span_id": "123", "trace_id": "456"},
-        label="toxicity",
-        metric_type="categorical",
-        value="high",
-        assessment=True,
-    )
-    mock_llmobs_logs.warning.assert_called_once_with(
-        "Failed to parse assessment. assessment must be either 'pass' or 'fail'."
-    )
+    assert str(excinfo.value) == "Failed to parse assessment. assessment must be either 'pass' or 'fail'."
 
 
 def test_submit_evaluation_enqueues_writer_with_success_criteria(llmobs, mock_llmobs_eval_metric_writer):
@@ -1902,7 +1854,7 @@ def test_submit_evaluation_enqueues_writer_with_success_criteria(llmobs, mock_ll
         value="high",
         tags={"foo": "bar", "bee": "baz", "ml_app": "ml_app_override"},
         ml_app="ml_app_override",
-        metadata="invalid",
+        metadata={"foo": ["bar", "baz"]},
         assessment="fail",
     )
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
@@ -1914,6 +1866,7 @@ def test_submit_evaluation_enqueues_writer_with_success_criteria(llmobs, mock_ll
             metric_type="categorical",
             categorical_value="high",
             tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
+            metadata={"foo": ["bar", "baz"]},
             success_criteria={"assessment": "fail"},
         )
     )
