@@ -179,7 +179,7 @@ fn time_ns() -> i64 {
     }
 }
 
-/// Python can pass bigints to our function, like duration_ns and start_ns
+/// Python can pass big ints to our function, like duration_ns and start_ns
 /// These are in general edge cases which we won't be able to represent in the encoding format
 /// anyway.
 /// So we pick either the max/min value on over/underflow
