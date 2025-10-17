@@ -10,8 +10,8 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
+from ddtrace.internal import core
 from ddtrace.settings._config import Config
-from ddtrace.trace import tracer
 
 
 def get_version() -> str:
@@ -58,19 +58,17 @@ def _traced_send_with_options_function(integration_config: Config) -> Callable[[
     def _traced_send_with_options(
         func: Callable[[Any], Any], instance: dramatiq.Actor, args: Tuple[Any], kwargs: Dict[Any, Any]
     ) -> Callable[[Any], Any]:
-        with tracer.trace(
+        with core.context_with_data(
             "dramatiq.Actor.send_with_options",
+            span_name="dramatiq.Actor.send_with_options",
             span_type=SpanTypes.WORKER,
             service=trace_utils.ext_service(pin=None, int_config=integration_config),
-        ) as span:
-            span.set_tags(
-                {
-                    SPAN_KIND: SpanKind.PRODUCER,
-                    "actor.name": instance.actor_name,
-                    "actor.options": instance.options,
-                }
-            )
-
+            tags={
+                SPAN_KIND: SpanKind.PRODUCER,
+                "actor.name": instance.actor_name,
+                "actor.options": instance.options,
+            },
+        ) as ctx, ctx.span:
             return func(*args, **kwargs)
 
     return _traced_send_with_options
