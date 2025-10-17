@@ -47,13 +47,12 @@ config._add(
 log = get_logger(__name__)
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(asyncpg, "__version__", "")
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"asyncpg": ">=0.22.0"}
+    return {"asyncpg": ">=0.23.0"}
 
 
 def _get_connection_tags(conn):

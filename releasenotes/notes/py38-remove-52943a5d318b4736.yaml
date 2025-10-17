@@ -1,0 +1,8 @@
+---
+upgrade:
+  - |
+    Support for ddtrace with Python 3.8 is removed after being deprecated in the 3.0 release line. Use ddtrace 4.x with
+    Python 3.9 or newer.
+deprecations:
+  - |
+    Support for ddtrace with Python 3.9 is deprecated after Python 3.9 reached its end-of-life.

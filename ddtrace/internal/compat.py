@@ -72,11 +72,11 @@ def ip_is_global(ip: str) -> bool:
     return parsed_ip.is_global
 
 
+# This fix was implemented in 3.9.8
+# https://github.com/python/cpython/issues/83860
 if PYTHON_VERSION_INFO >= (3, 9, 8):
     from functools import singledispatchmethod
 else:
-    # This fix was not backported to 3.8
-    # https://github.com/python/cpython/issues/83860
     from functools import singledispatchmethod
 
     def _register(self, cls, method=None):

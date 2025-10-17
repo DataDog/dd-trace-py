@@ -31,13 +31,12 @@ _w(TracedSession, "send", _wrap_send)
 Pin(_config=config.requests).onto(TracedSession)
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(requests, "__version__", "")
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"requests": ">=2.20.0"}
+    return {"requests": ">=2.25.1"}
 
 
 def patch():

@@ -33,7 +33,7 @@ suites:
     runner: riot
     snapshot: true
   dd_coverage:
-    parallelism: 5
+    parallelism: 3
     paths:
       - '@bootstrap'
       - '@core'
