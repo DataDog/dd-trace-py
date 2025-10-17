@@ -2171,12 +2171,6 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="cassandra",
-            pys="3.8",  # see https://github.com/r4fek/django-cassandra-engine/issues/104
-            pkgs={"cassandra-driver": ["~=3.24.0", latest], "pytest-randomly": latest},
-            command="pytest {cmdargs} tests/contrib/cassandra",
-        ),
-        Venv(
             name="algoliasearch",
             command="pytest {cmdargs} tests/contrib/algoliasearch",
             pkgs={"urllib3": "~=1.26.15", "pytest-randomly": latest},

@@ -106,7 +106,7 @@
         "minimum_tracer_supported": "5.12.2",
         "max_tracer_supported": "5.15.0",
         "pinned": "true",
-        "auto-instrumented": false
+        "auto-instrumented": true
     },
     {
         "dependency": "azure-functions",
@@ -145,13 +145,6 @@
         "integration": "bottle",
         "minimum_tracer_supported": "0.12.25",
         "max_tracer_supported": "0.13.4",
-        "auto-instrumented": true
-    },
-    {
-        "dependency": "cassandra-driver",
-        "integration": "cassandra",
-        "minimum_tracer_supported": "3.24.0",
-        "max_tracer_supported": "3.28.0",
         "auto-instrumented": true
     },
     {
@@ -489,7 +482,8 @@
         "dependency": "openai",
         "integration": "openai",
         "minimum_tracer_supported": "1.0.0",
-        "max_tracer_supported": "1.91.0",
+        "max_tracer_supported": "1.109.1",
+        "pinned": "true",
         "auto-instrumented": true
     },
     {

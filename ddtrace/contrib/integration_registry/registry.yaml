@@ -195,16 +195,6 @@ integrations:
       min: 0.12.25
       max: 0.13.4
 
-- integration_name: cassandra
-  is_external_package: true
-  is_tested: true
-  dependency_names:
-  - cassandra-driver
-  tested_versions_by_dependency:
-    cassandra-driver:
-      min: 3.24.0
-      max: 3.28.0
-
 - integration_name: celery
   is_external_package: true
   is_tested: true

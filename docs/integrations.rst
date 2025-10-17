@@ -110,13 +110,6 @@ Bottle
 .. automodule:: ddtrace.contrib.bottle
 
 
-.. _cassandra:
-
-Cassandra
-^^^^^^^^^
-.. automodule:: ddtrace.contrib.internal.cassandra
-
-
 .. _celery:
 
 Celery

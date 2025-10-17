@@ -275,7 +275,8 @@ def _expected_llmobs_eval_metric_event(
     boolean_value=None,
     tags=None,
     metadata=None,
-    success_criteria=None,
+    assessment=None,
+    reasoning=None,
 ):
     eval_metric_event = {
         "join_on": {},
@@ -300,8 +301,10 @@ def _expected_llmobs_eval_metric_event(
         eval_metric_event["boolean_value"] = boolean_value
     if tags is not None:
         eval_metric_event["tags"] = tags
-    if success_criteria is not None:
-        eval_metric_event["success_criteria"] = success_criteria
+    if assessment is not None:
+        eval_metric_event["assessment"] = assessment
+    if reasoning is not None:
+        eval_metric_event["reasoning"] = reasoning
     if timestamp_ms is not None:
         eval_metric_event["timestamp_ms"] = timestamp_ms
     else:

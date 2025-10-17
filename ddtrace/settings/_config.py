@@ -178,7 +178,6 @@ INTEGRATION_CONFIGS = frozenset(
         "crewai",
         "pydantic_ai",
         "logging",
-        "cassandra",
         "boto",
         "mariadb",
         "aiohttp",

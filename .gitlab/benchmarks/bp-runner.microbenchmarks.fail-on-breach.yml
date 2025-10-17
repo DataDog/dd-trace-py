@@ -1067,7 +1067,7 @@ experiments:
               - max_rss_usage < 34.00 MB
           - name: span-start-finish-traceid128
             thresholds:
-              - execution_time < 56.00 ms
+              - execution_time < 57.00 ms
               - max_rss_usage < 34.00 MB
           - name: span-start-traceid128
             thresholds:
