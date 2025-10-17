@@ -4,10 +4,7 @@ The azure_servicebus integration traces all messages sent by the service bus cli
 Enabling
 ~~~~~~~~
 
-Use :func:`patch()<ddtrace.patch>` to manually enable the integration::
-
-    from ddtrace import patch
-    patch(azure_servicebus=True)
+The azure_servicebus integration is enabled by default when using :ref:`import ddtrace.auto<ddtraceauto>`.
 
 
 Global Configuration
