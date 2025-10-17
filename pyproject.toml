@@ -51,9 +51,6 @@ opentracing = [
 opentelemetry = [
     "opentelemetry-exporter-otlp>=1.0.0",
 ]
-openai = [
-    "tiktoken",
-]
 
 [project.scripts]
 ddtrace-run = "ddtrace.commands.ddtrace_run:main"
