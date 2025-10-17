@@ -1,11 +1,14 @@
-//! A Python-Gil protected re-seedable RNG implementation
+//! A random number generator that is reseeded on python forks
+//! This rng is using rand::SmallRng underneath to be able to generate
+//! trace ids and span ids fast, but it is not suitable for cryptographic 
+//! use cases or uses cases requiring a lot of entropy
 
-use std::{cell::RefCell, ops::DerefMut, sync::OnceLock};
+use std::cell::RefCell;
 
 use pyo3::{
     pyclass, pyfunction,
-    types::{PyAnyMethods, PyFunction, PyModule, PyModuleMethods},
-    wrap_pyfunction, Py, PyRefMut, PyResult, Python,
+    types::{PyAnyMethods, PyModule},
+    wrap_pyfunction, PyResult,
 };
 use rand::{
     rngs::{SmallRng, StdRng},
@@ -46,6 +49,7 @@ pub fn rand128bits() -> u128 {
 
 pub fn register_rand(m: &pyo3::Bound<'_, PyModule>) -> PyResult<()> {
     let reseed_pyf = wrap_pyfunction!(reseed, m.py())?;
+    // Register the reseed function with ddtrace forking machinery
     m.py()
         .import("ddtrace.internal.forksafe")?
         .getattr("register")?
