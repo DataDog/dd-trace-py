@@ -1,0 +1,7 @@
+---
+upgrade:
+  - |
+    tracing: The ``Span.set_tag`` and ``Span.set_tags`` method typings have been updated to be:
+
+        def set_tag(self, key: str | bytes, value: str | None) -> None: ...
+        def set_tags(self, tags: Dict[str, Union[str, int, bool, float]]) -> "Span": ...

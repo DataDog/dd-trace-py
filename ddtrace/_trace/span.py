@@ -42,7 +42,7 @@ from ddtrace.ext import net
 from ddtrace.internal import core
 from ddtrace.internal._rand import rand64bits as _rand64bits
 from ddtrace.internal._rand import rand128bits as _rand128bits
-from ddtrace.internal.compat import NumericType
+from ddtrace.internal.compat import NumericType, ensure_binary
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import is_integer
 from ddtrace.internal.constants import MAX_INT_64BITS as _MAX_INT_64BITS
@@ -191,9 +191,9 @@ class Span(object):
         self.span_type = span_type
         self._span_api = span_api
 
-        self._meta: _MetaDictType = {}
+        self._meta: Dict[str, str] = {}
         self.error = 0
-        self._metrics: _MetricDictType = {}
+        self._metrics: Dict[str, NumericType] = {}
 
         self._meta_struct: Dict[str, Dict[str, Any]] = {}
 
@@ -335,15 +335,15 @@ class Span(object):
         self.context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] = value
         return value
 
-    def set_tag(self, key: _TagNameType, value: Optional[Text] = None) -> None:
+    def set_tag(self, key: str, value: Optional[str] = None) -> None:
         """Set a tag key/value pair on the span.
 
         Keys must be strings, values must be ``str``-able.
 
         :param key: Key to use for the tag
-        :type key: str
+        :type key: ``str``
         :param value: Value to assign for the tag
-        :type value: ``str`` | ``bytes``
+        :type value: ``str`` | ``bytes`` | ``None``
         """
         if key == MANUAL_KEEP_KEY:
             self._override_sampling_decision(USER_KEEP)
@@ -379,29 +379,29 @@ class Span(object):
         """Return the given struct or None if it doesn't exist."""
         return self._meta_struct.get(key, None)
 
-    def set_tag_str(self, key: _TagNameType, value: Text) -> None:
+    def set_tag_str(self, key: str, value: str) -> None:
         """Set a value for a tag. Values are coerced to unicode in Python 2 and
         str in Python 3, with decoding errors in conversion being replaced with
         U+FFFD.
         """
         self._meta[key] = value
 
-    def get_tag(self, key: _TagNameType) -> Optional[Text]:
+    def get_tag(self, key: str) -> Optional[str]:
         """Return the given tag or None if it doesn't exist."""
         return self._meta.get(key, None)
 
-    def get_tags(self) -> _MetaDictType:
+    def get_tags(self) -> Dict[str, str]:
         """Return all tags."""
         return self._meta.copy()
 
-    def set_tags(self, tags: Dict[_TagNameType, Optional[Text]]) -> None:
+    def set_tags(self, tags: Dict[str, str]) -> None:
         """Set a dictionary of tags on the given span. Keys and values
         must be strings (or stringable)
         """
         for k, v in tags.items():
             self.set_tag(k, v)
 
-    def set_metric(self, key: _TagNameType, value: NumericType) -> None:
+    def set_metric(self, key: str, value: NumericType) -> None:
         """This method sets a numeric tag value for the given key."""
         # Enforce a specific constant for `_dd.measured`
         if key == _SPAN_MEASURED_KEY:
@@ -420,15 +420,14 @@ class Span(object):
         # Ensure we do not have the same key in both meta and metrics
         self._meta.pop(key, None)
 
-    def set_metrics(self, metrics: _MetricDictType) -> None:
+    def set_metrics(self, metrics: Dict[str, NumericType]) -> None:
         """Set a dictionary of metrics on the given span. Keys must be
         must be strings (or stringable). Values must be numeric.
         """
-        if metrics:
-            for k, v in metrics.items():
-                self.set_metric(k, v)
+        for k, v in metrics.items():
+            self.set_metric(k, v)
 
-    def get_metric(self, key: _TagNameType) -> Optional[NumericType]:
+    def get_metric(self, key: str) -> Optional[NumericType]:
         """Return the given metric or None if it doesn't exist."""
         return self._metrics.get(key)
 
@@ -441,7 +440,7 @@ class Span(object):
         """Add an errortracking related callback to the on_finish_callback array"""
         self._on_finish_callbacks.insert(0, callback)
 
-    def get_metrics(self) -> _MetricDictType:
+    def get_metrics(self) -> Dict[str, NumericType]:
         """Return all metrics."""
         return self._metrics.copy()
 
