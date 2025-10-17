@@ -86,6 +86,8 @@ class LLMObsEvaluationMetricEvent(TypedDict, total=False):
     ml_app: str
     timestamp_ms: int
     tags: List[str]
+    assessment: str
+    reasoning: str
 
 
 class LLMObsExperimentEvalMetricEvent(TypedDict, total=False):
