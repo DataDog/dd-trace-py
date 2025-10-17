@@ -14,6 +14,10 @@ class _ProfiledThreadingLock(_lock._ProfiledLock):
     pass
 
 
+class _ProfiledThreadingRLock(_lock._ProfiledLock):
+    pass
+
+
 class ThreadingLockCollector(_lock.LockCollector):
     """Record threading.Lock usage."""
 
@@ -27,6 +31,21 @@ class ThreadingLockCollector(_lock.LockCollector):
         value: typing.Any,
     ) -> None:
         threading.Lock = value
+
+
+class ThreadingRLockCollector(_lock.LockCollector):
+    """Record threading.RLock usage."""
+
+    PROFILED_LOCK_CLASS = _ProfiledThreadingRLock
+
+    def _get_patch_target(self) -> typing.Type[threading.RLock]:
+        return threading.RLock
+
+    def _set_patch_target(
+        self,
+        value: typing.Any,
+    ) -> None:
+        threading.RLock = value
 
 
 # Also patch threading.Thread so echion can track thread lifetimes
