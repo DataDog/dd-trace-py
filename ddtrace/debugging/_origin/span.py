@@ -162,7 +162,7 @@ class EntrySpanWrappingContext(WrappingContext):
 
         # Check if we have any level 2 debugging sessions running for the
         # current trace
-        if any(s.level >= 2 for s in Session.from_trace()):
+        if any(s.level >= 2 for s in Session.from_trace(root.context or span.context)):
             try:
                 start_time: int = self.get("start_time")
             except KeyError:
@@ -276,7 +276,7 @@ class SpanCodeOriginProcessorExit(SpanProcessor):
 
                 # Check if we have any level 2 debugging sessions running for
                 # the current trace
-                if any(s.level >= 2 for s in Session.from_trace()):
+                if any(s.level >= 2 for s in Session.from_trace(span.context)):
                     # Create a snapshot
                     snapshot = Snapshot(
                         probe=ExitSpanProbe.from_frame(frame),
