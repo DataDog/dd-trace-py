@@ -14,6 +14,7 @@ For a file with 100 lines and 5 functions called 10 times:
 - PY_START: 50 events (20x fewer!)
 """
 
+import dis
 import sys
 from types import CodeType
 import typing as t
@@ -28,8 +29,15 @@ log = get_logger(__name__)
 # This is primarily to make mypy happy without having to nest the rest of this module behind a version check
 assert sys.version_info >= (3, 12)  # nosec
 
-# Store: (hook, path) - We only need the file path, not line-by-line details
-_CODE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str]] = {}
+# Opcodes we need to track imports
+IMPORT_NAME = dis.opmap["IMPORT_NAME"]
+IMPORT_FROM = dis.opmap["IMPORT_FROM"]
+EXTENDED_ARG = dis.opmap.get("EXTENDED_ARG", dis.EXTENDED_ARG)
+RESUME = dis.opmap.get("RESUME", 151)
+
+# Store: (hook, path, import_names_by_line)
+# import_names_by_line maps line numbers to (package, modules) tuples for dependency tracking
+_CODE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str, t.Dict[int, t.Tuple[str, t.Tuple[str, ...]]]]] = {}
 
 # Track all instrumented code objects so we can re-enable monitoring between tests/suites
 _DEINSTRUMENTED_CODE_OBJECTS: t.Set[CodeType] = set()
@@ -79,12 +87,16 @@ def _py_start_event_handler(code: CodeType, instruction_offset: int) -> t.Any:
         _DEINSTRUMENTED_CODE_OBJECTS.add(code)
         return sys.monitoring.DISABLE
 
-    hook, path = hook_data
+    hook, path, import_names = hook_data
 
     # Report file-level coverage using line 0 as a sentinel value
     # Line 0 indicates "file was executed" without specific line information
-    # The hook signature expects (line, path, import_name) so we pass (0, path, None)
     hook((0, path, None))
+    
+    # Report any import dependencies (extracted at instrumentation time from bytecode)
+    # This ensures import tracking works even though we don't fire on individual lines
+    for line_num, import_name in import_names.items():
+        hook((line_num, path, import_name))
 
     # Track this code object so we can re-enable monitoring for it later
     _DEINSTRUMENTED_CODE_OBJECTS.add(code)
@@ -92,6 +104,89 @@ def _py_start_event_handler(code: CodeType, instruction_offset: int) -> t.Any:
     # Return DISABLE to prevent future callbacks for this function
     # This means each function is only reported once per context
     return sys.monitoring.DISABLE
+
+
+def _extract_import_names(code: CodeType, package: str) -> t.Dict[int, t.Tuple[str, t.Tuple[str, ...]]]:
+    """
+    Extract import information from bytecode at instrumentation time.
+    
+    This parses IMPORT_NAME and IMPORT_FROM opcodes to track what modules are imported,
+    allowing us to maintain import dependency tracking in file-level mode without
+    any runtime overhead.
+    
+    Returns:
+        Dictionary mapping line numbers to (package, module_names) tuples
+    """
+    import_names: t.Dict[int, t.Tuple[str, t.Tuple[str, ...]]] = {}
+    
+    # Track line numbers
+    linestarts = dict(dis.findlinestarts(code))
+    line = 0
+    
+    # Track import state
+    current_arg: int = 0
+    previous_arg: int = 0
+    _previous_previous_arg: int = 0
+    current_import_name: t.Optional[str] = None
+    current_import_package: t.Optional[str] = None
+    
+    ext: list[bytes] = []
+    code_iter = iter(enumerate(code.co_code))
+    
+    try:
+        while True:
+            offset, opcode = next(code_iter)
+            _, arg = next(code_iter)
+            
+            if opcode == RESUME:
+                continue
+            
+            if offset in linestarts:
+                line = linestarts[offset]
+                
+                # Mark that the current module depends on its own package
+                if code.co_name == "<module>" and len(import_names) == 0 and package is not None:
+                    import_names[line] = (package, ("",))
+            
+            if opcode == EXTENDED_ARG:
+                ext.append(arg)
+                continue
+            else:
+                _previous_previous_arg = previous_arg
+                previous_arg = current_arg
+                current_arg = int.from_bytes([*ext, arg], "big", signed=False)
+                ext.clear()
+            
+            if opcode == IMPORT_NAME:
+                import_depth: int = code.co_consts[_previous_previous_arg]
+                current_import_name = code.co_names[current_arg]
+                # Adjust package name if the import is relative and a parent
+                current_import_package = (
+                    ".".join(package.split(".")[: -import_depth + 1]) if import_depth > 1 else package
+                )
+                
+                if line in import_names:
+                    import_names[line] = (
+                        current_import_package,
+                        tuple(list(import_names[line][1]) + [current_import_name]),
+                    )
+                else:
+                    import_names[line] = (current_import_package, (current_import_name,))
+            
+            if opcode == IMPORT_FROM:
+                import_from_name = f"{current_import_name}.{code.co_names[current_arg]}"
+                if line in import_names:
+                    import_names[line] = (
+                        current_import_package,
+                        tuple(list(import_names[line][1]) + [import_from_name]),
+                    )
+                else:
+                    import_names[line] = (current_import_package, (import_from_name,))
+    
+    except StopIteration:
+        pass
+    
+    return import_names
 
 
 def _register_monitoring():
@@ -136,8 +231,12 @@ def _instrument_with_py_start(
     # Enable local PY_START events for this code object
     sys.monitoring.set_local_events(sys.monitoring.COVERAGE_ID, code, sys.monitoring.events.PY_START)
 
-    # Register the hook for this code object
-    _CODE_HOOKS[code] = (hook, path)
+    # Extract import information from bytecode (zero runtime cost!)
+    # This allows us to track import dependencies without LINE events
+    import_names = _extract_import_names(code, package)
+
+    # Register the hook for this code object with import tracking
+    _CODE_HOOKS[code] = (hook, path, import_names)
 
     # Recursively instrument nested code objects (functions, classes, etc.)
     for nested_code in (_ for _ in code.co_consts if isinstance(_, CodeType)):
