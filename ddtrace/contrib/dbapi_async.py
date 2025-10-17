@@ -81,7 +81,7 @@ class TracedAsyncCursor(TracedCursor):
             # dispatch DBM
             if dbm_propagator:
                 # this check is necessary to prevent fetch methods from trying to add dbm propagation
-                result = core.dispatch_with_results(
+                result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
                     f"{self._self_config.integration_name}.execute", (self._self_config, s, args, kwargs)
                 ).result
                 if result:
