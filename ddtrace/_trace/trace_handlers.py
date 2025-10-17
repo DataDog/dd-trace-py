@@ -31,7 +31,6 @@ from ddtrace.contrib.internal.trace_utils import _copy_trace_level_tags
 from ddtrace.contrib.internal.trace_utils import _set_url_tag
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanLinkKind
-from ddtrace.ext import azure_servicebus as azure_servicebusx
 from ddtrace.ext import db
 from ddtrace.ext import http
 from ddtrace.ext import net
@@ -579,7 +578,7 @@ def _on_django_cache(
         if rowcount is not None:
             ctx.span.set_metric(db.ROWCOUNT, rowcount)
     finally:
-        return _finish_span(ctx, exc_info)
+        _finish_span(ctx, exc_info)
 
 
 def _on_django_func_wrapped(_unused1, _unused2, _unused3, ctx, ignored_excs):
@@ -914,40 +913,40 @@ def _on_azure_functions_trigger_span_modifier(ctx, azure_functions_config, funct
     _set_azure_function_tags(span, azure_functions_config, function_name, trigger, span_kind)
 
 
-def _on_azure_functions_service_bus_trigger_span_modifier(
+def _on_azure_functions_message_trigger_span_modifier(
     ctx,
     azure_functions_config,
     function_name,
     trigger,
     span_kind,
+    operation,
+    system,
     entity_name,
     fully_qualified_namespace,
-    message_id=None,
-    batch_count=None,
+    message_id,
+    batch_count,
 ):
     span = ctx.span
     _set_azure_function_tags(span, azure_functions_config, function_name, trigger, span_kind)
     _set_azure_messaging_tags(
         ctx,
         entity_name,
-        azure_servicebusx.RECEIVE,
-        azure_servicebusx.SERVICE,
+        operation,
+        system,
         fully_qualified_namespace,
         message_id,
         batch_count,
     )
 
 
-def _on_azure_servicebus_message_modifier(
-    ctx, azure_servicebus_config, operation, entity_name, fully_qualified_namespace, message_id, batch_count
+def _on_azure_message_modifier(
+    ctx, azure_config, operation, system, entity_name, fully_qualified_namespace, message_id, batch_count
 ):
     span = ctx.span
-    span.set_tag_str(COMPONENT, azure_servicebus_config.integration_name)
+    span.set_tag_str(COMPONENT, azure_config.integration_name)
     span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
 
-    _set_azure_messaging_tags(
-        ctx, entity_name, operation, azure_servicebusx.SERVICE, fully_qualified_namespace, message_id, batch_count
-    )
+    _set_azure_messaging_tags(ctx, entity_name, operation, system, fully_qualified_namespace, message_id, batch_count)
 
 
 def _on_router_match(route):
@@ -1177,16 +1176,18 @@ def listen():
     core.on("redis.execute_pipeline", _on_redis_execute_pipeline)
     core.on("valkey.async_command.post", _on_valkey_command_post)
     core.on("valkey.command.post", _on_valkey_command_post)
+    core.on("azure.eventhubs.message_modifier", _on_azure_message_modifier)
+    core.on("azure.functions.event_hubs_trigger_modifier", _on_azure_functions_message_trigger_span_modifier)
     core.on("azure.functions.request_call_modifier", _on_azure_functions_request_span_modifier)
     core.on("azure.functions.start_response", _on_azure_functions_start_response)
     core.on("azure.functions.trigger_call_modifier", _on_azure_functions_trigger_span_modifier)
-    core.on("azure.functions.service_bus_trigger_modifier", _on_azure_functions_service_bus_trigger_span_modifier)
+    core.on("azure.functions.service_bus_trigger_modifier", _on_azure_functions_message_trigger_span_modifier)
+    core.on("azure.servicebus.message_modifier", _on_azure_message_modifier)
     core.on("asgi.websocket.receive.message", _on_asgi_websocket_receive_message)
     core.on("asgi.websocket.send.message", _on_asgi_websocket_send_message)
     core.on("asgi.websocket.disconnect.message", _on_asgi_websocket_disconnect_message)
     core.on("asgi.websocket.close.message", _on_asgi_websocket_close_message)
     core.on("context.started.asgi.request", _on_asgi_request)
-    core.on("azure.servicebus.message_modifier", _on_azure_servicebus_message_modifier)
 
     # web frameworks general handlers
     core.on("web.request.start", _on_web_framework_start_request)
@@ -1251,6 +1252,10 @@ def listen():
         "rq.worker.perform_job",
         "rq.job.perform",
         "rq.job.fetch_many",
+        "azure.eventhubs.patched_producer_batch",
+        "azure.eventhubs.patched_producer_send",
+        "azure.eventhubs.patched_producer_send_batch",
+        "azure.functions.patched_event_hubs",
         "azure.functions.patched_route_request",
         "azure.functions.patched_service_bus",
         "azure.functions.patched_timer",
@@ -1281,6 +1286,9 @@ def listen():
         "redis.execute_pipeline",
         "redis.command",
         "psycopg.patched_connect",
+        "azure.eventhubs.patched_producer_batch",
+        "azure.eventhubs.patched_producer_send",
+        "azure.eventhubs.patched_producer_send_batch",
     ):
         core.on(f"context.ended.{name}", _finish_span)
 
