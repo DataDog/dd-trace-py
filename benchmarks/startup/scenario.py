@@ -17,6 +17,9 @@ class Startup(bm.Scenario):
     # Not helpful for subprocess benchmarks
     cprofile_loops: int = 0
 
+    # This benchmark takes a long time to run, reduce the inner loops
+    inner_loops: int = 10
+
     def run(self):
         env = os.environ.copy()
         if self.env:
