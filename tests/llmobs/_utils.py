@@ -608,7 +608,7 @@ class DummyEvaluator:
 
     def run_and_submit_evaluation(self, span):
         self.llmobs_service.submit_evaluation(
-            span_context=span,
+            span=span,
             label=self.LABEL,
             value=1.0,
             metric_type="score",
