@@ -915,7 +915,6 @@ class LangChainIntegration(BaseLLMIntegration):
             "template": template,
             "chat_template": chat_template,
             "id": prompt_id if prompt_id is not None else "unknown",
-            "version": "0.0.0",
             "rag_context_variables": [],
             "rag_query_variables": [],
             "tags": tags,
