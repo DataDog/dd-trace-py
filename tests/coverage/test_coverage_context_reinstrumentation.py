@@ -229,7 +229,7 @@ def test_context_after_session_coverage():
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
-@pytest.mark.subprocess
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
 def test_comprehensive_reinstrumentation_with_simple_module():
     """
     Comprehensive test using a simple controlled module to verify re-instrumentation.
@@ -285,22 +285,40 @@ def test_comprehensive_reinstrumentation_with_simple_module():
     assert module_path in context2_covered, f"Context 2 missing {module_path}"
     assert module_path in context3_covered, f"Context 3 missing {module_path}"
 
-    # Expected lines for context 1 and 2 (same branch in function_with_branches)
-    expected_lines_true_branch = {11, 12, 17, 18, 19, 20, 25, 26, 29, 34, 35, 36, 37, 38, 39}
+    if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
+        # In file-level mode, we only verify the file was executed
+        # All three contexts should have the file (line 0 sentinel)
+        assert len(context1_covered[module_path]) > 0, "Context 1 has no coverage"
+        assert len(context2_covered[module_path]) > 0, "Context 2 has no coverage - re-instrumentation failed!"
+        assert len(context3_covered[module_path]) > 0, "Context 3 has no coverage - re-instrumentation failed!"
+    else:
+        # In line-level mode, verify specific lines
+        # Expected lines for context 1 and 2 (same branch in function_with_branches)
+        expected_lines_true_branch = {11, 12, 17, 18, 19, 20, 25, 26, 29, 34, 35, 36, 37, 38, 39}
 
-    # Expected lines for context 3 (false branch in function_with_branches)
-    expected_lines_false_branch = {11, 12, 17, 18, 19, 20, 25, 28, 29, 34, 35, 36, 37, 38, 39}
+        # Expected lines for context 3 (false branch in function_with_branches)
+        expected_lines_false_branch = {11, 12, 17, 18, 19, 20, 25, 28, 29, 34, 35, 36, 37, 38, 39}
 
-    # Verify contexts 1 and 2 captured the true branch
-    assert (
-        context1_covered[module_path] == expected_lines_true_branch
-    ), f"Context 1 coverage mismatch: expected={expected_lines_true_branch} vs actual={context1_covered[module_path]}"
+        # Verify contexts 1 and 2 captured the true branch
+        assert (
+            context1_covered[module_path] == expected_lines_true_branch
+        ), f"Context 1 coverage mismatch: expected={expected_lines_true_branch} vs actual={context1_covered[module_path]}"
 
-    assert (
-        context2_covered[module_path] == expected_lines_true_branch
-    ), f"Context 2 coverage mismatch: expected={expected_lines_true_branch} vs actual={context2_covered[module_path]}"
+        assert (
+            context2_covered[module_path] == expected_lines_true_branch
+        ), f"Context 2 coverage mismatch: expected={expected_lines_true_branch} vs actual={context2_covered[module_path]}"
 
-    # Verify context 3 captured the false branch
-    assert (
-        context3_covered[module_path] == expected_lines_false_branch
-    ), f"Context 3 coverage mismatch: expected={expected_lines_false_branch} vs actual={context3_covered[module_path]}"
+        # Verify context 3 captured the false branch
+        assert (
+            context3_covered[module_path] == expected_lines_false_branch
+        ), f"Context 3 coverage mismatch: expected={expected_lines_false_branch} vs actual={context3_covered[module_path]}"
+
+        # Critical assertions: Contexts 1 and 2 should have identical coverage
+        # Context 3 should have the same number of lines (just different branch)
+        assert (
+            len(context1_covered[module_path]) == len(context2_covered[module_path])
+        ), f"Context 1 and 2 have different line counts: {len(context1_covered[module_path])} vs {len(context2_covered[module_path])}"
+
+        assert (
+            len(context1_covered[module_path]) == len(context3_covered[module_path])
+        ), f"Context 1 and 3 have different line counts: {len(context1_covered[module_path])} vs {len(context3_covered[module_path])}"
