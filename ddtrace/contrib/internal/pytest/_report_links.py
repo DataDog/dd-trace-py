@@ -68,7 +68,7 @@ def _build_test_commit_redirect_url(base_url, ci_tags, service, env):
     url_format = "/ci/redirect/tests/{repo_url}/-/{service}/-/{branch}/-/{commit_sha}"
     url = base_url + url_format.format(**{k: quote(v, safe="") for k, v in params.items()})
     if env:
-        url += f"?env={env}".format(env=quote(env, safe=""))
+        url += f"?env={quote(env, safe='')}"
 
     return url
 
@@ -88,7 +88,7 @@ def _build_test_runs_url(base_url, ci_tags):
     if not (ci_job_name and ci_pipeline_id):
         return None
 
-    query = "@ci.job.name:{} @ci.pipeline.id:{}".format(_quote_for_query(ci_job_name), _quote_for_query(ci_pipeline_id))
+    query = f"@ci.job.name:{_quote_for_query(ci_job_name)} @ci.pipeline.id:{_quote_for_query(ci_pipeline_id)}"
 
     url_format = "/ci/test-runs?query={query}&index=citest"
     url = base_url + url_format.format(query=quote(query, safe=""))

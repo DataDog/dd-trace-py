@@ -261,7 +261,7 @@ def get_request_headers(environ):
 
 
 def default_wsgi_span_modifier(span, environ):
-    span.resource = "{} {}".format(environ["REQUEST_METHOD"], environ["PATH_INFO"])
+    span.resource = f'{environ["REQUEST_METHOD"]} {environ["PATH_INFO"]}'
 
 
 class DDWSGIMiddleware(_DDWSGIMiddlewareBase):

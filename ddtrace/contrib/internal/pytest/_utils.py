@@ -132,9 +132,9 @@ def _get_session_command(session: pytest.Session):
     """Extract and re-create pytest session command from pytest config."""
     command = "pytest"
     if getattr(session.config, "invocation_params", None):
-        command += " {}".format(" ".join(session.config.invocation_params.args))
+        command += f' {" ".join(session.config.invocation_params.args)}'
     if _get_config("PYTEST_ADDOPTS", False, asbool):
-        command += " {}".format(_get_config("PYTEST_ADDOPTS", False, asbool))
+        command += f' {_get_config("PYTEST_ADDOPTS", False, asbool)}'
     return command
 
 

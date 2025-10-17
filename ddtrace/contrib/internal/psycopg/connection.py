@@ -94,7 +94,7 @@ def patched_connect_factory(psycopg_module):
         else:
             with core.context_with_data(
                 "psycopg.patched_connect",
-                span_name="{}.{}".format(connect_func.__module__, connect_func.__name__),
+                span_name=f"{connect_func.__module__}.{connect_func.__name__}",
                 service=ext_service(pin, pin._config),
                 span_type=SpanTypes.SQL,
                 pin=pin,

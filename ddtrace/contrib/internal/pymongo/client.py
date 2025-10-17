@@ -327,9 +327,9 @@ def _set_query_metadata(span, cmd):
         # dict keys like {u'foo':'bar'}
         q = json.dumps(nq)
         span.set_tag("mongodb.query", q)
-        span.resource = "{} {} {}".format(cmd.name, cmd.coll, q)
+        span.resource = f"{cmd.name} {cmd.coll} {q}"
     else:
-        span.resource = "{} {}".format(cmd.name, cmd.coll)
+        span.resource = f"{cmd.name} {cmd.coll}"
 
 
 def set_query_rowcount(docs, span):
