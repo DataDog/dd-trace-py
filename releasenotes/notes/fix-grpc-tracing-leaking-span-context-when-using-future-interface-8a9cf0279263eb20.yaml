@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    grpc: This fix resolves an issue where the internal span was left active in the caller when using the future interface.
