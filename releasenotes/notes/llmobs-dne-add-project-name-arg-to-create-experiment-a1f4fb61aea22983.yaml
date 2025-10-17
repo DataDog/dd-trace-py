@@ -2,4 +2,4 @@
 upgrade:
   - |
     LLM Observability: Experiments can now be created to be stored under a different project from the project defined
-    in LLMObs.enable
+    in ``LLMObs.enable``
