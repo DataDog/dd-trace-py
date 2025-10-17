@@ -1,3 +1,5 @@
+#![recursion_limit = "512"]
+
 #[cfg(feature = "crashtracker")]
 mod crashtracker;
 #[cfg(feature = "profiling")]

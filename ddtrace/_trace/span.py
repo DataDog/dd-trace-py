@@ -50,14 +50,15 @@ from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import SpanData
+from ddtrace.internal.native._native import SpanEventData
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.time import Time
 from ddtrace.settings._config import config
 from ddtrace.vendor.debtcollector import deprecate
 
 
-class SpanEvent:
-    __slots__ = ["name", "attributes", "time_unix_nano"]
+class SpanEvent(SpanEventData):
+    __slots__ = []
 
     def __init__(
         self,
@@ -65,11 +66,7 @@ class SpanEvent:
         attributes: Optional[Dict[str, _AttributeValueType]] = None,
         time_unix_nano: Optional[int] = None,
     ):
-        self.name: str = name
-        if time_unix_nano is None:
-            time_unix_nano = Time.time_ns()
-        self.time_unix_nano: int = time_unix_nano
-        self.attributes: dict = attributes if attributes else {}
+        super().__init__(name, time_unix_nano, attributes)
 
     def __dict__(self):
         d = {"name": self.name, "time_unix_nano": self.time_unix_nano}
@@ -118,7 +115,6 @@ class Span(SpanData):
         "_ignored_exceptions",
         "_on_finish_callbacks",
         "_links",
-        "_events",
         "__weakref__",
     ]
 
@@ -176,7 +172,6 @@ class Span(SpanData):
             for new_link in links:
                 self._set_link_or_append_pointer(new_link)
 
-        self._events: List[SpanEvent] = []
         self._parent: Optional["Span"] = None
         self._ignored_exceptions: Optional[List[Type[Exception]]] = None
         self._local_root_value: Optional["Span"] = None  # None means this is the root span.
@@ -401,7 +396,7 @@ class Span(SpanData):
     def _add_event(
         self, name: str, attributes: Optional[Dict[str, _AttributeValueType]] = None, timestamp: Optional[int] = None
     ) -> None:
-        self._events.append(SpanEvent(name, attributes, timestamp))
+        self._add_event_from_args_inner(name, timestamp, attributes)
 
     def _add_on_finish_exception_callback(self, callback: Callable[["Span"], None]):
         """Add an errortracking related callback to the on_finish_callback array"""
@@ -560,7 +555,7 @@ class Span(SpanData):
             # User provided attributes must take precedence over attrs
             attrs.update(attributes)
 
-        self._add_event(name="exception", attributes=attrs, timestamp=Time.time_ns())
+        self._add_event(name="exception", attributes=attrs)
 
     def _validate_attribute(self, key: str, value: object) -> bool:
         if isinstance(value, (str, bool, int, float)):

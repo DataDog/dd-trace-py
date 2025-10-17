@@ -1,4 +1,6 @@
-from typing import Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
+
+from ddtrace._trace.span import SpanEvent
 
 class DDSketch:
     def __init__(self): ...
@@ -470,6 +472,7 @@ class SpanData:
     duration: Optional[float]
     error: int
     _span_api: SpanStr
+    _events: List[SpanEvent]
 
     finished: bool
 
@@ -496,3 +499,16 @@ class SpanData:
     def _meta_into_py_dict(self) -> Dict[SpanKey, SpanStr]: ...
     def _is_meta_empty_inner(self) -> bool: ...
     def _is_metrics_empty_inner(self) -> bool: ...
+    def _add_event_from_args_inner(
+        self, name: str, time_unix_nano: Optional[int], attributes: Optional[Dict[str, Any]]
+    ): ...
+    # Stores the event in the span
+    # This moves ownership of the underlying rust memory and leaves the event empty
+    def _take_event_inner(self, event: SpanEvent): ...
+
+class SpanEventData:
+    name: str
+    time_unix_nano: int
+    attributes: Dict[str, Any]
+
+    def __init__(self, name: str, time_unix_nano: Optional[int], attributes: Optional[Dict[str, Any]]) -> None: ...

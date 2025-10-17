@@ -8,13 +8,14 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use datadog_trace_utils::span::{Span as NativeSpan, SpanText};
+use datadog_trace_utils::span::{Span as NativeSpan, SpanEvent, SpanText};
 
 use pyo3::{
     exceptions::{PyTypeError, PyValueError},
     types::{
-        IntoPyDict, PyAny, PyAnyMethods, PyBytesMethods, PyDict, PyFloat, PyFloatMethods, PyInt,
-        PyModule, PyModuleMethods, PyString, PyStringMethods,
+        IntoPyDict, PyAny, PyAnyMethods, PyBytesMethods, PyDict, PyDictMethods, PyFloat,
+        PyFloatMethods, PyInt, PyList, PyListMethods, PyModule, PyModuleMethods, PyString,
+        PyStringMethods,
     },
     Bound, FromPyObject, Py, PyErr, PyResult, Python,
 };
@@ -402,6 +403,22 @@ impl SpanData {
         self.data.metrics.is_empty()
     }
 
+    fn _add_event_from_args_inner(
+        &mut self,
+        name: PyBackedString,
+        time_unix_nano: Option<u64>,
+        attributes: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<()> {
+        let mut span_event = SpanEventData::__new__();
+        span_event.__init__(name, time_unix_nano, attributes)?;
+        self.data.span_events.push(span_event.data);
+        Ok(())
+    }
+
+    fn _take_event_inner(&mut self, event: &mut SpanEventData) {
+        self.data.span_events.push(std::mem::take(&mut event.data));
+    }
+
     #[getter]
     fn get_duration(&self) -> Option<f64> {
         Some(self.duration_ns? as f64 / 1_000_000_000.0)
@@ -516,9 +533,232 @@ impl SpanData {
     fn set_duration_ns(&mut self, value: Option<OverflowInt>) {
         self.duration_ns = value.as_ref().map(OverflowInt::saturate);
     }
+
+    #[getter]
+    #[allow(non_snake_case)]
+    fn get__events<'py>(&self, py: Python<'py>) -> Vec<SpanEventData> {
+        self.data
+            .span_events
+            .iter()
+            .map(|e| SpanEventData::clone_from_datadog_span_event(py, e))
+            .collect()
+    }
+}
+
+/// Python wrapper for SpanEvent from datadog_trace_utils
+#[pyo3::pyclass(name = "SpanEventData", module = "ddtrace.internal._native", subclass)]
+pub struct SpanEventData {
+    data: SpanEvent<PyBackedString>,
+}
+
+#[pyo3::pymethods]
+impl SpanEventData {
+    #[new]
+    fn __new__() -> Self {
+        Self {
+            data: SpanEvent {
+                time_unix_nano: 0,
+                name: PyBackedString::default(),
+                attributes: HashMap::new(),
+            },
+        }
+    }
+
+    fn __init__(
+        &mut self,
+        name: PyBackedString,
+        time_unix_nano: Option<u64>,
+        attributes: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<()> {
+        *self = Self {
+            data: SpanEvent {
+                time_unix_nano: time_unix_nano.unwrap_or_else(|| time_ns().try_into().unwrap_or(0)),
+                name,
+                attributes: attributes
+                    .map(Self::convert_attributes)
+                    .transpose()?
+                    .unwrap_or_default(),
+            },
+        };
+
+        Ok(())
+    }
+
+    #[getter]
+    fn get_name(&self) -> &str {
+        &self.data.name
+    }
+
+    #[setter]
+    fn set_name(&mut self, name: PyBackedString) {
+        self.data.name = name;
+    }
+
+    #[getter]
+    fn get_time_unix_nano(&self) -> u64 {
+        self.data.time_unix_nano
+    }
+
+    #[setter]
+    fn set_time_unix_nano(&mut self, value: u64) {
+        self.data.time_unix_nano = value;
+    }
+
+    #[getter]
+    fn get_attributes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        Self::attributes_to_py_dict(py, &self.data.attributes)
+    }
+
+    #[setter]
+    fn set_attributes(&mut self, attributes: &Bound<'_, PyDict>) -> PyResult<()> {
+        self.data.attributes = Self::convert_attributes(attributes)?;
+        Ok(())
+    }
+}
+
+impl SpanEventData {
+    fn convert_attributes(
+        attrs: &Bound<'_, PyDict>,
+    ) -> PyResult<
+        HashMap<PyBackedString, datadog_trace_utils::span::AttributeAnyValue<PyBackedString>>,
+    > {
+        let mut result = HashMap::new();
+
+        for (key, value) in attrs.iter() {
+            let key_str: PyBackedString = key.extract()?;
+            let attr_value = Self::convert_attribute_value(&value)?;
+            result.insert(key_str, attr_value);
+        }
+
+        Ok(result)
+    }
+
+    fn convert_attribute_value(
+        value: &Bound<'_, PyAny>,
+    ) -> PyResult<datadog_trace_utils::span::AttributeAnyValue<PyBackedString>> {
+        use datadog_trace_utils::span::{AttributeAnyValue, AttributeArrayValue::*};
+        let from_py = |value: &Bound<'_, PyAny>| {
+            Some(if let Ok(s) = value.extract::<PyBackedString>() {
+                String(s)
+            } else if let Ok(b) = value.extract::<bool>() {
+                Boolean(b)
+            } else if let Ok(i) = value.extract::<i64>() {
+                Integer(i)
+            } else if let Ok(f) = value.extract::<f64>() {
+                Double(f)
+            } else {
+                return None;
+            })
+        };
+
+        if let Ok(list) = value.downcast::<pyo3::types::PyList>() {
+            let mut vec = Vec::with_capacity(list.len());
+            for item in list.iter() {
+                let Some(array_val) = from_py(&item) else {
+                    return Err(PyTypeError::new_err(
+                        "Unsupported span event list attribute type should be one of 'bool', 'int', 'float' ot'str'",
+                    ));
+                };
+                vec.push(array_val);
+            }
+            Ok(AttributeAnyValue::Array(vec))
+        } else {
+            let Some(array_val) = from_py(value) else {
+                return Err(PyTypeError::new_err("Unsupported span event attribute type should be one of 'list', 'bool', 'int', 'float' ot'str'"));
+            };
+            Ok(AttributeAnyValue::SingleValue(array_val))
+        }
+    }
+
+    fn attributes_to_py_dict<'py>(
+        py: Python<'py>,
+        attrs: &HashMap<
+            PyBackedString,
+            datadog_trace_utils::span::AttributeAnyValue<PyBackedString>,
+        >,
+    ) -> PyResult<Bound<'py, PyDict>> {
+        use datadog_trace_utils::span::{AttributeAnyValue, AttributeArrayValue};
+
+        let dict = PyDict::new(py);
+
+        for (key, value) in attrs.iter() {
+            match value {
+                AttributeAnyValue::SingleValue(val) => match val {
+                    AttributeArrayValue::String(s) => {
+                        dict.set_item(key, s)?;
+                    }
+                    AttributeArrayValue::Boolean(b) => {
+                        dict.set_item(key, *b)?;
+                    }
+                    AttributeArrayValue::Integer(i) => {
+                        dict.set_item(key, *i)?;
+                    }
+                    AttributeArrayValue::Double(f) => {
+                        dict.set_item(key, *f)?;
+                    }
+                },
+                AttributeAnyValue::Array(vec) => {
+                    let list = PyList::empty(py);
+                    for item in vec {
+                        match item {
+                            AttributeArrayValue::String(s) => {
+                                list.append(s)?;
+                            }
+                            AttributeArrayValue::Boolean(b) => {
+                                list.append(*b)?;
+                            }
+                            AttributeArrayValue::Integer(i) => {
+                                list.append(*i)?;
+                            }
+                            AttributeArrayValue::Double(f) => {
+                                list.append(*f)?;
+                            }
+                        }
+                    }
+                    dict.set_item(key, list)?;
+                }
+            };
+        }
+
+        Ok(dict)
+    }
+
+    fn clone_from_datadog_span_event<'py>(py: Python<'py>, ev: &SpanEvent<PyBackedString>) -> Self {
+        Self {
+            data: SpanEvent {
+                time_unix_nano: ev.time_unix_nano,
+                name: ev.name.clone_ref(py),
+                attributes: ev
+                    .attributes
+                    .iter()
+                    .map(|(k, v)| {
+                        use datadog_trace_utils::span::{
+                            AttributeAnyValue::*, AttributeArrayValue, AttributeArrayValue::*,
+                        };
+
+                        let clone_ref = |v: &AttributeArrayValue<PyBackedString>| match *v {
+                            String(ref s) => String(s.clone_ref(py)),
+                            Boolean(i) => Boolean(i),
+                            Integer(i) => Integer(i),
+                            Double(i) => Double(i),
+                        };
+
+                        (
+                            k.clone_ref(py),
+                            match v {
+                                SingleValue(v) => SingleValue(clone_ref(v)),
+                                Array(v) => Array(v.iter().map(|v| clone_ref(v)).collect()),
+                            },
+                        )
+                    })
+                    .collect(),
+            },
+        }
+    }
 }
 
 pub fn register_native_span(m: &pyo3::Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SpanData>()?;
+    m.add_class::<SpanEventData>()?;
     Ok(())
 }

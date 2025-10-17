@@ -1088,7 +1088,11 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
 
         span_events = ""
         if span._events:
-            span_events = json_dumps([vars(event)() for event in span._events])
+            span_events = json_dumps([{
+                "time_unix_nano": event.time_unix_nano,
+                "name": event.name,
+                "attributes": event.attributes,
+            } for event in span._events])
 
         span_meta = span.get_tags() 
         ret = msgpack_pack_map(

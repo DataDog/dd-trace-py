@@ -21,10 +21,13 @@ def _add_span_events(span: Span) -> None:
     a span event for every handled exceptions, we store them in the span
     and add them when the span finishes.
     """
-    span_exc_events = list(HandledExceptionCollector.get_exception_events(span.span_id).values())
-    if span_exc_events:
+    span_exc_events = HandledExceptionCollector.get_exception_events(span.span_id).values()
+    has_exc = False
+    for e in span_exc_events:
+        has_exc = True
+        span._take_event_inner(e)
+    if has_exc:
         span.set_tag_str(SPAN_EVENTS_HAS_EXCEPTION, "true")
-        span._events.extend(span_exc_events)
     HandledExceptionCollector.clear_exception_events(span.span_id)
 
 
