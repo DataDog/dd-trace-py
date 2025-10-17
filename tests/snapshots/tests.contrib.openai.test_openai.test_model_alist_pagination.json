@@ -1,0 +1,30 @@
+[[
+  {
+    "name": "openai.request",
+    "service": "tests.contrib.openai",
+    "resource": "listModels",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68f0b1d700000000",
+      "component": "openai",
+      "language": "python",
+      "openai.request.endpoint": "/v1/models",
+      "openai.request.method": "GET",
+      "openai.request.provider": "OpenAI",
+      "runtime-id": "1e2a3154601a494f8f219a4327b659c2"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 573
+    },
+    "duration": 1683125,
+    "start": 1760604631675824507
+  }]]
