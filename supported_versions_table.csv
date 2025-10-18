@@ -13,13 +13,12 @@ asyncpg,asyncpg,0.22.0,0.30.0,True
 avro,avro,1.12.0,1.12.0,True
 datadog-lambda,aws_lambda,6.105.0,6.105.0,True
 datadog_lambda,aws_lambda,6.105.0,6.105.0,True
-azure-eventhub,azure_eventhubs *,5.12.2,5.15.0,False
+azure-eventhub,azure_eventhubs *,5.12.2,5.15.0,True
 azure-functions,azure_functions *,1.10.1,1.23.0,True
 azure-servicebus,azure_servicebus *,7.14.2,7.14.2,True
 boto3,botocore *,1.34.49,1.38.26,True
 botocore,botocore *,1.34.49,1.38.26,True
 bottle,bottle,0.12.25,0.13.4,True
-cassandra-driver,cassandra,3.24.0,3.28.0,True
 celery,celery,5.5.3,5.5.3,True
 cherrypy,cherrypy,17.0.0,18.10.0,False
 python-consul,consul,1.1.0,1.1.0,True
@@ -67,7 +66,7 @@ molten,molten,1.0.2,1.0.2,True
 mongoengine,mongoengine,0.23.1,0.29.1,True
 mysql-connector-python,mysql,8.0.5,9.4.0,True
 mysqlclient,mysqldb,2.2.1,2.2.6,True
-openai,openai,1.0.0,1.91.0,True
+openai,openai *,1.0.0,1.109.1,True
 openai-agents,openai_agents,0.0.8,0.0.16,True
 protobuf,protobuf,5.29.3,6.32.0,False
 psycopg,psycopg,3.0.18,3.2.10,True
