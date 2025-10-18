@@ -90,11 +90,11 @@ def trace_wrapper(wrapped, instance, args, kwargs):
 
         async def async_wrapper(*a, **kw):
             with tracer.trace("trace.annotation", resource=resource) as span:
-                span.set_tag_str("component", "trace")
+                span._set_tag_str("component", "trace")
                 return await wrapped(*a, **kw)
 
         return async_wrapper(*args, **kwargs)
 
     with tracer.trace("trace.annotation", resource=resource) as span:
-        span.set_tag_str("component", "trace")
+        span._set_tag_str("component", "trace")
         return wrapped(*args, **kwargs)

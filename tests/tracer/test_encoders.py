@@ -299,7 +299,7 @@ def test_msgpack_encoding_after_an_exception_was_raised():
     trace = gen_trace(nspans=1, ntags=100, nmetrics=100, key_size=10, value_size=10)
     rand_string = rands(size=20, chars=string.ascii_letters)
     # trace only has one span
-    trace[0].set_tag_str("some_tag", rand_string)
+    trace[0]._set_tag_str("some_tag", rand_string)
     try:
         # Encode a trace that will trigger a rollback/BufferItemTooLarge exception
         # BufferFull is not raised since only one span is being encoded
@@ -311,7 +311,7 @@ def test_msgpack_encoding_after_an_exception_was_raised():
     # Successfully encode a small trace
     small_trace = gen_trace(nspans=1, ntags=0, nmetrics=0)
     # Add a tag to the small trace that was previously encoded in the encoder's StringTable
-    small_trace[0].set_tag_str("previously_encoded_string", rand_string)
+    small_trace[0]._set_tag_str("previously_encoded_string", rand_string)
     rolledback_encoder.put(small_trace)
 
     # Encode a trace without triggering a rollback/BufferFull exception

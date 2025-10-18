@@ -107,8 +107,8 @@ def _close_span_on_error(exc, future):
         # handling the exception manually because we
         # don't have an ongoing exception here
         span.error = 1
-        span.set_tag_str(ERROR_MSG, exc.args[0])
-        span.set_tag_str(ERROR_TYPE, exc.__class__.__name__)
+        span._set_tag_str(ERROR_MSG, exc.args[0])
+        span._set_tag_str(ERROR_TYPE, exc.__class__.__name__)
     except Exception:
         log.debug("traced_set_final_exception was not able to set the error, failed with error", exc_info=True)
     finally:
@@ -210,14 +210,14 @@ def _start_span_and_set_tags(
         service=pin.service,
         span_type=SpanTypes.CASSANDRA,
     )
-    span.set_tag_str(COMPONENT, config.cassandra.integration_name)
-    span.set_tag_str(db.SYSTEM, "cassandra")
-    span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+    span._set_tag_str(COMPONENT, config.cassandra.integration_name)
+    span._set_tag_str(db.SYSTEM, "cassandra")
+    span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
     # PERF: avoid setting via Span.set_tag
     span.set_metric(_SPAN_MEASURED_KEY, 1)
     span.set_tags(additional_tags)
     if query is not None:
-        span.set_tag_str("cassandra.query", query)
+        span._set_tag_str("cassandra.query", query)
     if statements_and_parameters is not None:
         span.set_metric("cassandra.batch_size", len(statements_and_parameters))
     span.resource = resource[:RESOURCE_MAX_LENGTH]

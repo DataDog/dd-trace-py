@@ -138,11 +138,11 @@ def traced_get_socket(func, args, kwargs):
         service=trace_utils.ext_service(pin, config.pymongo),
         span_type=SpanTypes.MONGODB,
     ) as span:
-        span.set_tag_str(COMPONENT, config.pymongo.integration_name)
-        span.set_tag_str(db.SYSTEM, mongo.SERVICE)
+        span._set_tag_str(COMPONENT, config.pymongo.integration_name)
+        span._set_tag_str(db.SYSTEM, mongo.SERVICE)
 
         # set span.kind tag equal to type of operation being performed
-        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         with func(*args, **kwargs) as sock_info:
             set_address_tags(span, sock_info.address)

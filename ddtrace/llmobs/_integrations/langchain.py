@@ -777,9 +777,9 @@ class LangChainIntegration(BaseLLMIntegration):
     ) -> None:
         """Set base level tags that should be present on all LangChain spans (if they are not None)."""
         if provider is not None:
-            span.set_tag_str(PROVIDER, provider)
+            span._set_tag_str(PROVIDER, provider)
         if model is not None:
-            span.set_tag_str(MODEL, model)
+            span._set_tag_str(MODEL, model)
 
     def _extract_tool_call_args_from_inputs(self, tool_inputs: Dict[str, Any]) -> Tuple[str, str, str]:
         """

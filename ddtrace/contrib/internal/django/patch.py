@@ -348,7 +348,7 @@ def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
 
     def django_asgi_modifier(span, scope):
         span.name = schematize_url_operation("django.request", protocol="http", direction=SpanDirection.INBOUND)
-        span.set_tag_str(COMPONENT, config_django.integration_name)
+        span._set_tag_str(COMPONENT, config_django.integration_name)
 
     return TraceMiddleware(func(*args, **kwargs), integration_config=config_django, span_modifier=django_asgi_modifier)
 

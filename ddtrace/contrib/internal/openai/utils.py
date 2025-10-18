@@ -122,7 +122,7 @@ def _loop_handler(span, chunk, streamed_chunks):
             model = getattr(response, "model", "")
         else:
             model = getattr(chunk, "model", "")
-        span.set_tag_str("openai.response.model", model)
+        span._set_tag_str("openai.response.model", model)
 
     response = getattr(chunk, "response", None)
     if response is not None:

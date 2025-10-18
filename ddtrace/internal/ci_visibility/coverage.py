@@ -142,7 +142,7 @@ def _report_coverage_to_span(
             files = ModuleCodeCollector.report_seen_lines(workspace_path, include_imported=True)
             if not files:
                 return
-            span.set_tag_str(
+            span._set_tag_str(
                 COVERAGE_TAG_NAME,
                 json.dumps({"files": files}),
             )
@@ -156,7 +156,7 @@ def _report_coverage_to_span(
         record_code_coverage_error()
         return
     record_code_coverage_finished(COVERAGE_LIBRARY.COVERAGEPY, framework)
-    span.set_tag_str(
+    span._set_tag_str(
         COVERAGE_TAG_NAME,
         build_payload(coverage_data, root_dir, span_id),
     )

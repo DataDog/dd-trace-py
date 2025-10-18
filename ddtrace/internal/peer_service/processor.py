@@ -28,15 +28,15 @@ class PeerServiceProcessor(TraceProcessor):
         tag = span.get_tag(self._config.tag_name)
 
         if tag:  # If the tag already exists, assume it is user generated
-            span.set_tag_str(self._config.source_tag_name, self._config.tag_name)
+            span._set_tag_str(self._config.source_tag_name, self._config.tag_name)
         else:
             for data_source in self._config.prioritized_data_sources:
                 tag = span.get_tag(data_source)
                 if tag:
-                    span.set_tag_str(self._config.tag_name, tag)
-                    span.set_tag_str(self._config.source_tag_name, data_source)
+                    span._set_tag_str(self._config.tag_name, tag)
+                    span._set_tag_str(self._config.source_tag_name, data_source)
                     break
 
         if tag in self._mapping:
-            span.set_tag_str(self._config.remap_tag_name, tag)
-            span.set_tag_str(self._config.tag_name, self._config.peer_service_mapping[tag])
+            span._set_tag_str(self._config.remap_tag_name, tag)
+            span._set_tag_str(self._config.tag_name, self._config.peer_service_mapping[tag])

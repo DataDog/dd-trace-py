@@ -127,10 +127,10 @@ async def _wrapped_async_send(
 
     operation_name = schematize_url_operation("http.request", protocol="http", direction=SpanDirection.OUTBOUND)
     with pin.tracer.trace(operation_name, service=_get_service_name(pin, req), span_type=SpanTypes.HTTP) as span:
-        span.set_tag_str(COMPONENT, config.httpx.integration_name)
+        span._set_tag_str(COMPONENT, config.httpx.integration_name)
 
         # set span.kind to the operation type being performed
-        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         _init_span(span, req)
         resp = None
@@ -156,10 +156,10 @@ def _wrapped_sync_send(
 
     operation_name = schematize_url_operation("http.request", protocol="http", direction=SpanDirection.OUTBOUND)
     with pin.tracer.trace(operation_name, service=_get_service_name(pin, req), span_type=SpanTypes.HTTP) as span:
-        span.set_tag_str(COMPONENT, config.httpx.integration_name)
+        span._set_tag_str(COMPONENT, config.httpx.integration_name)
 
         # set span.kind to the operation type being performed
-        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         _init_span(span, req)
         resp = None

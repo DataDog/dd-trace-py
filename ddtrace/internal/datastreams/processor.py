@@ -495,7 +495,7 @@ class DataStreamsCtx:
         parent_hash = self.hash
         hash_value = self._compute_hash(tags, parent_hash)
         if span:
-            span.set_tag_str("pathway.hash", str(hash_value))
+            span._set_tag_str("pathway.hash", str(hash_value))
         edge_latency_sec = max(now_sec - self.current_edge_start_sec, 0.0)
         pathway_latency_sec = max(now_sec - self.pathway_start_sec, 0.0)
         self.hash = hash_value

@@ -64,7 +64,7 @@ def _future_done_callback(span):
             # pull out response code from gRPC response to use both for `grpc.status.code`
             # tag and the error type tag if the response is an exception
             response_code = response.code()
-            span.set_tag_str(constants.GRPC_STATUS_CODE_KEY, str(response_code))
+            span._set_tag_str(constants.GRPC_STATUS_CODE_KEY, str(response_code))
 
             if response_code != grpc.StatusCode.OK:
                 _handle_error(span, response, response_code)
@@ -101,8 +101,8 @@ def _handle_error(span, response_error, status_code):
         # handle cancelled futures separately to avoid raising grpc.FutureCancelledError
         span.error = 1
         exc_val = str(response_error.details())
-        span.set_tag_str(ERROR_MSG, exc_val)
-        span.set_tag_str(ERROR_TYPE, str(status_code))
+        span._set_tag_str(ERROR_MSG, exc_val)
+        span._set_tag_str(ERROR_TYPE, str(status_code))
         return
 
     exception = response_error.exception()
@@ -114,9 +114,9 @@ def _handle_error(span, response_error, status_code):
             # handle internal gRPC exceptions separately to get status code and
             # details as tags properly
             exc_val = str(response_error.details())
-            span.set_tag_str(ERROR_MSG, exc_val)
-            span.set_tag_str(ERROR_TYPE, str(status_code))
-            span.set_tag_str(ERROR_STACK, str(traceback))
+            span._set_tag_str(ERROR_MSG, exc_val)
+            span._set_tag_str(ERROR_TYPE, str(status_code))
+            span._set_tag_str(ERROR_STACK, str(traceback))
         else:
             exc_type = type(exception)
             span.set_exc_info(exc_type, exception, traceback)
@@ -206,17 +206,17 @@ class _ClientInterceptor(
             child_of=parent,
         )
 
-        span.set_tag_str(COMPONENT, config.grpc.integration_name)
+        span._set_tag_str(COMPONENT, config.grpc.integration_name)
 
         # set span.kind to the type of operation being performed
-        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         # PERF: avoid setting via Span.set_tag
         span.set_metric(_SPAN_MEASURED_KEY, 1)
 
         utils.set_grpc_method_meta(span, client_call_details.method, method_kind)
         utils.set_grpc_client_meta(span, self._host, self._port)
-        span.set_tag_str(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_CLIENT)
+        span._set_tag_str(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_CLIENT)
 
         # inject tags from pin
         if self._pin.tags:

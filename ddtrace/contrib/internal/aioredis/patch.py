@@ -148,13 +148,13 @@ def traced_13_execute_command(func, instance, args, kwargs):
         child_of=parent,
     )
     # set span.kind to the type of request being performed
-    span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+    span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-    span.set_tag_str(COMPONENT, config.aioredis.integration_name)
-    span.set_tag_str(db.SYSTEM, redisx.APP)
+    span._set_tag_str(COMPONENT, config.aioredis.integration_name)
+    span._set_tag_str(db.SYSTEM, redisx.APP)
     # PERF: avoid setting via Span.set_tag
     span.set_metric(_SPAN_MEASURED_KEY, 1)
-    span.set_tag_str(redisx.RAWCMD, query)
+    span._set_tag_str(redisx.RAWCMD, query)
     if pin.tags:
         span.set_tags(pin.tags)
 
@@ -215,10 +215,10 @@ async def traced_13_execute_pipeline(func, instance, args, kwargs):
         span_type=SpanTypes.REDIS,
     ) as span:
         # set span.kind to the type of request being performed
-        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-        span.set_tag_str(COMPONENT, config.aioredis.integration_name)
-        span.set_tag_str(db.SYSTEM, redisx.APP)
+        span._set_tag_str(COMPONENT, config.aioredis.integration_name)
+        span._set_tag_str(db.SYSTEM, redisx.APP)
         span.set_tags(
             {
                 net.TARGET_HOST: instance._pool_or_conn.address[0],
@@ -229,7 +229,7 @@ async def traced_13_execute_pipeline(func, instance, args, kwargs):
 
         # PERF: avoid setting via Span.set_tag
         span.set_metric(_SPAN_MEASURED_KEY, 1)
-        span.set_tag_str(redisx.RAWCMD, cmds_string)
+        span._set_tag_str(redisx.RAWCMD, cmds_string)
         span.set_metric(redisx.PIPELINE_LEN, len(instance._pipeline))
 
         return await func(*args, **kwargs)

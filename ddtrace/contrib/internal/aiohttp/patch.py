@@ -101,10 +101,10 @@ async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwar
             HTTPPropagator.inject(span.context, headers)
             kwargs["headers"] = headers
 
-        span.set_tag_str(COMPONENT, config.aiohttp_client.integration_name)
+        span._set_tag_str(COMPONENT, config.aiohttp_client.integration_name)
 
         # set span.kind tag equal to type of request
-        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         # Params can be included separate of the URL so the URL has to be constructed
         # with the passed params.

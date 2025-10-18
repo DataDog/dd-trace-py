@@ -122,7 +122,7 @@ class TracedClient(ObjectProxy):
                 return result
 
             if args:
-                span.set_tag_str(memcached.QUERY, "%s %s" % (method_name, args[0]))
+                span._set_tag_str(memcached.QUERY, "%s %s" % (method_name, args[0]))
             if method_name == "get":
                 span.set_metric(db.ROWCOUNT, 1 if result else 0)
             elif method_name == "gets":
@@ -140,7 +140,7 @@ class TracedClient(ObjectProxy):
 
             pre = kwargs.get("key_prefix")
             if pre:
-                span.set_tag_str(memcached.QUERY, "%s %s" % (method_name, pre))
+                span._set_tag_str(memcached.QUERY, "%s %s" % (method_name, pre))
 
             if method_name == "get_multi":
                 # returns mapping of key -> value if key exists, but does not include a missing key. Empty result = {}
@@ -166,11 +166,11 @@ class TracedClient(ObjectProxy):
             span_type=SpanTypes.CACHE,
         )
 
-        span.set_tag_str(COMPONENT, config.pylibmc.integration_name)
-        span.set_tag_str(db.SYSTEM, memcached.DBMS_NAME)
+        span._set_tag_str(COMPONENT, config.pylibmc.integration_name)
+        span._set_tag_str(db.SYSTEM, memcached.DBMS_NAME)
 
         # set span.kind to the type of operation being performed
-        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         # PERF: avoid setting via Span.set_tag
         span.set_metric(_SPAN_MEASURED_KEY, 1)
@@ -186,6 +186,6 @@ class TracedClient(ObjectProxy):
         # using, so fallback to randomly choosing one. can we do better?
         if self._addresses:
             _, host, port, _ = random.choice(self._addresses)  # nosec
-            span.set_tag_str(net.TARGET_HOST, host)
+            span._set_tag_str(net.TARGET_HOST, host)
             span.set_tag(net.TARGET_PORT, port)
-            span.set_tag_str(net.SERVER_ADDRESS, host)
+            span._set_tag_str(net.SERVER_ADDRESS, host)

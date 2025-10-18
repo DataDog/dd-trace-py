@@ -170,9 +170,9 @@ class TestVisibilityItemBase(abc.ABC):
         for tag, tag_value in self._tags.items():
             try:
                 if isinstance(tag_value, str):
-                    self._span.set_tag_str(tag, tag_value)
+                    self._span._set_tag_str(tag, tag_value)
                 elif isinstance(tag_value, bool):
-                    self._span.set_tag_str(tag, "true" if tag_value else "false")
+                    self._span._set_tag_str(tag, "true" if tag_value else "false")
                 else:
                     self._span.set_tag(tag, tag_value)
             except Exception as e:
