@@ -66,8 +66,18 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, mock_tracer, llmobs_events, m
 
     # asserting the remaining spans
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
-        all_spans[0], span_kind="workflow", input_value=mock.ANY, tags={"service": "mcptest", "ml_app": "<ml-app-name>"}
+        all_spans[0],
+        span_kind="workflow",
+        input_value=mock.ANY,
+        tags={"service": "mcptest", "ml_app": "<ml-app-name>"},
+        metadata=mock.ANY,
     )
+    assert llmobs_events[0]["meta"]["metadata"]["server_name"] == "TestServer"
+    assert "server_title" in llmobs_events[0]["meta"]["metadata"]  # not something that can be set it seems
+    assert (
+        llmobs_events[0]["meta"]["metadata"]["server_version"] is not None
+    )  # not able to set this manually and imagine it could be based on something not of control
+    assert llmobs_events[0]["meta"]["metadata"]["num_tools"] == 6
 
     assert llmobs_events[1] == _expected_llmobs_non_llm_span_event(
         all_spans[1], span_kind="task", output_value=mock.ANY, tags={"service": "mcptest", "ml_app": "<ml-app-name>"}
