@@ -75,7 +75,7 @@ def _instrument_all_lines_with_monitoring(
     current_import_name: t.Optional[str] = None
     current_import_package: t.Optional[str] = None
 
-    line = 0
+    line: t.Optional[int] = None
 
     ext: list[bytes] = []
     code_iter = iter(enumerate(code.co_code))
@@ -89,12 +89,14 @@ def _instrument_all_lines_with_monitoring(
 
             if offset in linestarts:
                 line = linestarts[offset]
-                lines.add(line)
+                # Skip if line is None (bytecode that doesn't map to a specific source line)
+                if line is not None:
+                    lines.add(line)
 
-                # Make sure that the current module is marked as depending on its own package by instrumenting the
-                # first executable line
-                if code.co_name == "<module>" and len(lines) == 1 and package is not None:
-                    import_names[line] = (package, ("",))
+                    # Make sure that the current module is marked as depending on its own package by instrumenting the
+                    # first executable line
+                    if code.co_name == "<module>" and len(lines) == 1 and package is not None:
+                        import_names[line] = (package, ("",))
 
             if opcode is EXTENDED_ARG:
                 ext.append(arg)
@@ -105,7 +107,7 @@ def _instrument_all_lines_with_monitoring(
                 current_arg = int.from_bytes([*ext, arg], "big", signed=False)
                 ext.clear()
 
-            if opcode == IMPORT_NAME:
+            if opcode == IMPORT_NAME and line is not None:
                 import_depth: int = code.co_consts[_previous_previous_arg]
                 current_import_name: str = code.co_names[current_arg]
                 # Adjust package name if the import is relative and a parent (ie: if depth is more than 1)
@@ -124,7 +126,7 @@ def _instrument_all_lines_with_monitoring(
             # Also track import from statements since it's possible that the "from" target is a module, eg:
             # from my_package import my_module
             # Since the package has not changed, we simply extend the previous import names with the new value
-            if opcode == IMPORT_FROM:
+            if opcode == IMPORT_FROM and line is not None:
                 import_from_name = f"{current_import_name}.{code.co_names[current_arg]}"
                 if line in import_names:
                     import_names[line] = (

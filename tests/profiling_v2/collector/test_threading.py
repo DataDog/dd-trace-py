@@ -48,27 +48,6 @@ def test_repr():
     )
 
 
-def test_wrapper():
-    collector = collector_threading.ThreadingLockCollector()
-    with collector:
-
-        class Foobar(object):
-            lock_class = threading.Lock
-
-            def __init__(self):
-                lock = self.lock_class()
-                assert lock.acquire()
-                lock.release()
-
-        # Try to access the attribute
-        lock = Foobar.lock_class()
-        assert lock.acquire()
-        lock.release()
-
-        # Try this way too
-        Foobar()
-
-
 def test_patch():
     lock = threading.Lock
     collector = collector_threading.ThreadingLockCollector()
@@ -301,6 +280,25 @@ class TestThreadingLockCollector:
             except Exception as e:
                 print("Error removing file: {}".format(e))
         pass
+
+    def test_wrapper(self):
+        collector = collector_threading.ThreadingLockCollector()
+        with collector:
+
+            class Foobar(object):
+                lock_class = threading.Lock
+
+                def __init__(self):
+                    lock = self.lock_class()
+                    assert lock.acquire()
+                    lock.release()
+
+            lock = Foobar.lock_class()
+            assert lock.acquire()
+            lock.release()
+
+            # Try this way too
+            Foobar()
 
     # Tests
     def test_lock_events(self):
