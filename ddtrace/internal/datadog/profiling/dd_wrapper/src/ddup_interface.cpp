@@ -127,6 +127,12 @@ ddup_config_sample_pool_capacity(uint64_t capacity) // cppcheck-suppress unusedF
     Datadog::SampleManager::set_sample_pool_capacity(capacity);
 }
 
+void
+ddup_config_set_max_timeout_ms(uint64_t max_timeout_ms)
+{
+    Datadog::UploaderBuilder::set_max_timeout_ms(max_timeout_ms);
+}
+
 bool
 ddup_is_initialized() // cppcheck-suppress unusedFunction
 {
