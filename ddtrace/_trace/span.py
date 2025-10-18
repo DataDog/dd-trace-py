@@ -52,10 +52,8 @@ from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.time import Time
 from ddtrace.settings._config import config
-from ddtrace.vendor.debtcollector import deprecate
 
 
 class SpanEvent:
