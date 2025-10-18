@@ -58,27 +58,6 @@ def test_get_log_correlation_trace_context():
     }, dd_log_record
 
 
-@pytest.mark.subprocess(
-    ddtrace_run=True, env={"DD_VERSION": "test-version", "DD_ENV": "test-env", "DD_SERVICE": "test-service"}
-)
-def test_get_log_correlation_context_opentracer():
-    """Ensure expected DDLogRecord generated via get_correlation_log_record with an opentracing Tracer."""
-    from ddtrace.internal.utils.formats import format_trace_id
-    from ddtrace.opentracer.tracer import Tracer as OT_Tracer
-
-    ot_tracer = OT_Tracer(service_name="test-service")
-    with ot_tracer.start_active_span("operation") as scope:
-        dd_span = scope._span._dd_span
-        dd_log_record = ot_tracer.get_log_correlation_context()
-    assert dd_log_record == {
-        "dd.span_id": str(dd_span.span_id),
-        "dd.trace_id": format_trace_id(dd_span.trace_id),
-        "dd.service": "test-service",
-        "dd.env": "test-env",
-        "dd.version": "test-version",
-    }, dd_log_record
-
-
 @pytest.mark.subprocess()
 def test_get_log_correlation_context_no_active_span():
     """Ensure empty DDLogRecord generated if no active span."""

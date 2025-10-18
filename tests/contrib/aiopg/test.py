@@ -11,7 +11,6 @@ from ddtrace.contrib.internal.aiopg.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.config import POSTGRES_CONFIG
-from tests.opentracer.utils import init_tracer
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import assert_is_measured
 
@@ -73,29 +72,6 @@ class AiopgTestCase(AsyncioTestCase):
         assert start <= span.start <= end
         assert span.duration <= end - start
         assert span.get_tag("component") == "aiopg"
-        assert span.get_tag("span.kind") == "client"
-
-        # Ensure OpenTracing compatibility
-        ot_tracer = init_tracer("aiopg_svc", tracer)
-        with ot_tracer.start_active_span("aiopg_op"):
-            cursor = await db.cursor()
-            await cursor.execute(q)
-            rows = await cursor.fetchall()
-            assert rows == [("foobarblah",)]
-        spans = self.pop_spans()
-        assert len(spans) == 2
-        ot_span, dd_span = spans
-        # confirm the parenting
-        assert ot_span.parent_id is None
-        assert dd_span.parent_id == ot_span.span_id
-        assert ot_span.name == "aiopg_op"
-        assert ot_span.service == "aiopg_svc"
-        assert dd_span.name == "postgres.query"
-        assert dd_span.resource == q
-        assert dd_span.service == service
-        assert dd_span.error == 0
-        assert dd_span.span_type == "sql"
-        assert dd_span.get_tag("component") == "aiopg"
         assert span.get_tag("span.kind") == "client"
 
         # run a query with an error and ensure all is well
