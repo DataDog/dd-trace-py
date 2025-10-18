@@ -233,7 +233,7 @@ def test_encode_meta_struct():
     super_span = Span(name="client.testing", trace_id=1)
     payload = {"tttt": {"iuopç": [{"abcd": 1, "bcde": True}, {}]}, "zzzz": b"\x93\x01\x02\x03", "ZZZZ": [1, 2, 3]}
 
-    super_span.set_struct_tag("payload", payload)
+    super_span._set_struct_tag("payload", payload)
     super_span.set_tag("payload", "meta_payload")
     encoder.put(
         [

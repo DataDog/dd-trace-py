@@ -228,7 +228,7 @@ class PytestTestCase(PytestTestCaseBase):
             assert first_suite_coverage["/test_cov.py"] == [(1, 2), (4, 5), (7, 9)]
             assert first_suite_coverage["/lib_fn.py"] == [(1, 2)]
             assert first_suite_coverage["/ret_false.py"] == [(1, 2)]
-            assert second_suite_span.get_struct_tag(COVERAGE_TAG_NAME) is None
+            assert second_suite_span._get_struct_tag(COVERAGE_TAG_NAME) is None
         else:
             assert len(first_suite_coverage) == 3
             assert first_suite_coverage["test_cov.py"] == [(5, 5), (8, 9)]

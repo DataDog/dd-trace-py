@@ -517,7 +517,7 @@ class TestVisibilityItemBase(abc.ABC):
         if self._span is None:
             return
         if self._coverage_data:
-            self._span.set_struct_tag(
+            self._span._set_struct_tag(
                 COVERAGE_TAG_NAME, self._coverage_data.build_payload(self._session_settings.workspace_path)
             )
 

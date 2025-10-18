@@ -1942,7 +1942,7 @@ class PytestTestCase(PytestTestCaseBase):
 
         fourth_test_span = spans[3]
         assert fourth_test_span.get_tag("test.name") == "test_skipif_mark_true"
-        assert fourth_test_span.get_struct_tag(COVERAGE_TAG_NAME) is None
+        assert fourth_test_span._get_struct_tag(COVERAGE_TAG_NAME) is None
 
     @pytest.mark.skipif(
         not _PYTEST_SUPPORTS_ITR,
@@ -4751,7 +4751,7 @@ def test_coverage_target():
             assert len(test_spans) >= 3
 
             for span in test_spans:
-                coverage_data = span.get_struct_tag("test.coverage")
+                coverage_data = span._get_struct_tag("test.coverage")
                 assert coverage_data is not None, f"Test {span.get_tag('test.name')} missing coverage data"
                 # Coverage data should be a dict with 'files' key
                 assert isinstance(coverage_data, dict) and "files" in coverage_data
@@ -4848,7 +4848,7 @@ def test_coverage_target():
                 if span in atr_retry_spans:
                     # Coverage not attached to retry spans
                     continue
-                coverage_data = span.get_struct_tag("test.coverage")
+                coverage_data = span._get_struct_tag("test.coverage")
                 assert coverage_data is not None, f"Test {span.get_tag('test.name')} missing coverage data"
                 # Coverage data should be a dict with 'files' key
                 assert isinstance(coverage_data, dict) and "files" in coverage_data
@@ -4915,7 +4915,7 @@ def test_simple():
             assert len(test_spans) >= 2
 
             for span in test_spans:
-                coverage_data = span.get_struct_tag("test.coverage")
+                coverage_data = span._get_struct_tag("test.coverage")
                 assert coverage_data is not None, f"Test {span.get_tag('test.name')} missing coverage data"
                 # Coverage data should be a dict with 'files' key
                 assert isinstance(coverage_data, dict) and "files" in coverage_data

@@ -1,0 +1,6 @@
+---
+deprecations:
+  - |
+    tracing: ``Span.set_struct_tag`` is deprecated and will be removed in v4.0.0 with no direct replacement.
+  - |
+    tracing: ``Span.get_struct_tag`` is deprecated and will be removed in v4.0.0 with no direct replacement.
