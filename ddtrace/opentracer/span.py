@@ -13,6 +13,7 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.compat import NumericType  # noqa:F401
+from ddtrace.internal.compat import ensure_text  # noqa:F401
 from ddtrace.internal.constants import SPAN_API_OPENTRACING
 from ddtrace.trace import Context as DatadogContext  # noqa:F401
 from ddtrace.trace import Span as DatadogSpan
@@ -153,7 +154,12 @@ class Span(OpenTracingSpan):
         elif key == Tags.SAMPLING_PRIORITY:
             self._dd_span.context.sampling_priority = value
         else:
-            self._dd_span.set_tag(key, value)
+            if not isinstance(value, (str, bytes)):
+                try:
+                    value = str(value)
+                except Exception:
+                    value = repr(value)
+            self._dd_span.set_tag(ensure_text(key), ensure_text(value))
         return self
 
     def _get_tag(self, key):
@@ -162,7 +168,7 @@ class Span(OpenTracingSpan):
 
         This method retrieves the tag from the underlying datadog span.
         """
-        return self._dd_span.get_tag(key)
+        return self._dd_span.get_tag(ensure_text(key))
 
     def _get_metric(self, key):
         # type: (_TagNameType) -> Optional[NumericType]
@@ -170,7 +176,7 @@ class Span(OpenTracingSpan):
 
         This method retrieves the metric from the underlying datadog span.
         """
-        return self._dd_span.get_metric(key)
+        return self._dd_span.get_metric(ensure_text(key))
 
     def __enter__(self):
         return self
