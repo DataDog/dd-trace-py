@@ -328,7 +328,7 @@ class Span(object):
         self.context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] = value
         return value
 
-    def set_tag(self, key: str, value: str | None = None) -> None:
+    def set_tag(self, key: str, value: Optional[str] = None) -> None:
         """Set a tag key/value pair on the span.
 
         Keys must be strings, values must be ``str``.
@@ -379,7 +379,7 @@ class Span(object):
         """
         self._meta[key] = value
 
-    def get_tag(self, key: str) -> str | None:
+    def get_tag(self, key: str) -> Optional[str]:
         """Return the given tag or None if it doesn't exist."""
         return self._meta.get(key, None)
 
@@ -420,7 +420,7 @@ class Span(object):
         for k, v in metrics.items():
             self.set_metric(k, v)
 
-    def get_metric(self, key: str) -> NumericType | None:
+    def get_metric(self, key: str) -> Optional[NumericType]:
         """Return the given metric or None if it doesn't exist."""
         return self._metrics.get(key)
 
