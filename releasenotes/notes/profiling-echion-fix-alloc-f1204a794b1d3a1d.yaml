@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: Upgrades echion to resolve an issue where stack profiler can
+    allocate a large amount of memory unnecessarily.
+

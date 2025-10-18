@@ -131,15 +131,18 @@ StackRenderer::render_frame(Frame& frame)
     static constexpr std::string_view missing_name = "<unknown function>";
     std::string_view filename_str;
     std::string_view name_str;
-    try {
-        filename_str = string_table.lookup(frame.filename);
-    } catch (StringTable::Error&) {
+
+    auto maybe_filename_str = string_table.lookup(frame.filename);
+    if (maybe_filename_str) {
+        filename_str = **maybe_filename_str;
+    } else {
         filename_str = missing_filename;
     }
 
-    try {
-        name_str = string_table.lookup(frame.name);
-    } catch (StringTable::Error&) {
+    auto maybe_name_str = string_table.lookup(frame.name);
+    if (maybe_name_str) {
+        name_str = **maybe_name_str;
+    } else {
         name_str = missing_name;
     }
 
