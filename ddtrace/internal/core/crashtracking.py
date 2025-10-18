@@ -26,6 +26,9 @@ try:
     from ddtrace.internal.native._native import crashtracker_init
     from ddtrace.internal.native._native import crashtracker_on_fork
     from ddtrace.internal.native._native import crashtracker_status
+    from ddtrace.internal.native._native import crashtracker_register_native_runtime_callback
+    from ddtrace.internal.native._native import crashtracker_is_runtime_callback_registered
+    from ddtrace.internal.native._native import CallbackResult
 except ImportError:
     is_available = False
 
@@ -152,6 +155,16 @@ def start(additional_tags: Optional[Dict[str, str]] = None) -> bool:
 
         crashtracker_init(config, receiver_config, metadata)
 
+        if (
+            crashtracker_config.stacktrace_resolver is not None and
+            crashtracker_config.stacktrace_resolver != "none"
+        ):
+            result = crashtracker_register_native_runtime_callback()
+            # Shouldn't block on this, but log an error if it fails
+            if result != CallbackResult.Ok:
+                print(f"Failed to register runtime callback: {result}", file=sys.stderr)
+                return False
+
         def crashtracker_fork_handler():
             # We recreate the args here mainly to pass updated runtime_id after
             # fork
@@ -169,3 +182,41 @@ def start(additional_tags: Optional[Dict[str, str]] = None) -> bool:
         print(f"Failed to start crashtracker: {e}", file=sys.stderr)
         return False
     return True
+
+
+def register_runtime_callback() -> bool:
+    """
+    Register the native runtime callback for stack collection during crashes.
+
+    This should be called after crashtracker initialization to enable Python
+    runtime stack trace collection in crash reports. The callback provides
+    frame-by-frame Python stack traces with proper context information.
+
+    Returns:
+        bool: True if callback was registered successfully, False otherwise
+    """
+    if not is_available:
+        return False
+
+    try:
+        result = crashtracker_register_native_runtime_callback()
+        return result == CallbackResult.Ok
+    except Exception as e:
+        print(f"Failed to register runtime callback: {e}", file=sys.stderr)
+        return False
+
+
+def is_runtime_callback_registered() -> bool:
+    """
+    Check if a runtime callback is currently registered.
+
+    Returns:
+        bool: True if a callback is registered, False otherwise
+    """
+    if not is_available:
+        return False
+
+    try:
+        return crashtracker_is_runtime_callback_registered()
+    except Exception:
+        return False
