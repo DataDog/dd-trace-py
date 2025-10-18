@@ -17,7 +17,6 @@ from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span  # noqa:F401
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
-from ddtrace._trace.types import _MetaDictType
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.internal import core
 from ddtrace.internal.telemetry import telemetry_writer
@@ -284,11 +283,8 @@ class _DatadogMultiHeader:
 
         # Only propagate trace tags which means ignoring the _dd.origin
         tags_to_encode = {
-            # DEV: Context._meta is a _MetaDictType but we need Dict[str, str]
-            ensure_text(k): ensure_text(v)
-            for k, v in span_context._meta.items()
-            if _DatadogMultiHeader._is_valid_datadog_trace_tag_key(k)
-        }  # type: Dict[Text, Text]
+            k: v for k, v in span_context._meta.items() if _DatadogMultiHeader._is_valid_datadog_trace_tag_key(k)
+        }
 
         if tags_to_encode:
             try:
@@ -384,10 +380,7 @@ class _DatadogMultiHeader:
                 span_id=int(parent_span_id) or None,  # type: ignore[arg-type]
                 sampling_priority=sampling_priority,  # type: ignore[arg-type]
                 dd_origin=origin,
-                # DEV: This cast is needed because of the type requirements of
-                # span tags and trace tags which are currently implemented using
-                # the same type internally (_MetaDictType).
-                meta=cast(_MetaDictType, meta),
+                meta=meta,
             )
         except (TypeError, ValueError):
             log.debug(
@@ -829,14 +822,14 @@ class _TraceContext:
             log.exception("received invalid w3c traceparent: %s ", tp)
             return None
 
-        meta = {W3C_TRACEPARENT_KEY: tp}  # type: _MetaDictType
+        meta = {W3C_TRACEPARENT_KEY: tp}
 
         ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, headers)
         return _TraceContext._get_context(trace_id, span_id, trace_flag, ts, meta)
 
     @staticmethod
     def _get_context(trace_id, span_id, trace_flag, ts, meta=None):
-        # type: (int, int, Literal[0,1], Optional[str], Optional[_MetaDictType]) -> Context
+        # type: (int, int, Literal[0,1], Optional[str], Optional[Dict[str, str]]) -> Context
         if meta is None:
             meta = {}
         origin = None

@@ -1,0 +1,34 @@
+---
+upgrade:
+  - |
+    tracing: The ``Span.set_tag`` method typing has been updated to be:
+
+        def set_tag(self, key: str, value: str | None) -> None: ...
+  - |
+    tracing: The ``Span.set_tags`` method typing has been updated to be:
+
+        def set_tags(self, tags: dict[str, str]) -> None: ...
+  - |
+    tracing: The ``Span.get_tag`` method typing has been updated to be:
+
+        def get_tag(self, key: str) -> str | None: ...
+  - |
+    tracing: The ``Span.get_tags`` method typing has been updated to be:
+
+        def get_tags(self) -> dict[str, str]: ...
+  - |
+    tracing: The ``Span.set_metric`` method typing has been updated to be:
+
+        def set_metric(self, key: str, value: int | float) -> None: ...
+  - |
+    tracing: The ``Span.set_metrics`` method typing has been updated to be:
+
+        def set_metrics(self, metrics: dict[str, int | float]) -> None: ...
+  - |
+    tracing: The ``Span.get_metric`` method typing has been updated to be:
+
+        def get_metric(self, key: str) -> int | float | None: ...
+  - |
+    tracing: The ``Span.get_metrics`` method typing has been updated to be:
+
+        def get_metrics(self) -> dict[str, int | float]: ...
