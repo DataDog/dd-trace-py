@@ -22,10 +22,8 @@ from ddtrace.appsec._constants import APPSEC
 from ddtrace.internal import core
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.vendor.debtcollector import deprecate
 
 from ..constants import AUTO_KEEP
 from ..constants import AUTO_REJECT
