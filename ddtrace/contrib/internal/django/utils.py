@@ -115,11 +115,11 @@ def set_tag_array(span, prefix, value):
 
     if len(value) == 1:
         if value[0]:
-            span.set_tag_str(prefix, value[0])
+            span._set_tag_str(prefix, value[0])
     else:
         for i, v in enumerate(value, start=0):
             if v:
-                span.set_tag_str("".join((prefix, ".", str(i))), v)
+                span._set_tag_str("".join((prefix, ".", str(i))), v)
 
 
 def get_request_uri(request):
@@ -205,7 +205,7 @@ def _set_resolver_tags(pin, span, request):
             # Determine the resolver and resource name for this request
             route = get_django_2_route(request, resolver_match)
             if route:
-                span.set_tag_str("http.route", route)
+                span._set_tag_str("http.route", route)
 
         if config.django.use_handler_resource_format:
             resource = " ".join((request.method, handler))
@@ -223,7 +223,7 @@ def _set_resolver_tags(pin, span, request):
 
                 resource = " ".join((request.method, handler))
 
-        span.set_tag_str("django.view", resolver_match.view_name)
+        span._set_tag_str("django.view", resolver_match.view_name)
         set_tag_array(span, "django.namespace", resolver_match.namespaces)
 
         # Django >= 2.0.0
@@ -256,7 +256,7 @@ def _before_request_tags(pin, span, request):
     span.span_type = SpanTypes.WEB
     span._metrics[_SPAN_MEASURED_KEY] = 1
 
-    span.set_tag_str("django.request.class", func_name(request))
+    span._set_tag_str("django.request.class", func_name(request))
 
 
 def _extract_body(request):
@@ -324,16 +324,16 @@ def _after_request_tags(pin, span: Span, request, response):
             # - use a thread or sync_to_async.
             try:
                 if hasattr(user, "is_authenticated"):
-                    span.set_tag_str("django.user.is_authenticated", str(user_is_authenticated(user)))
+                    span._set_tag_str("django.user.is_authenticated", str(user_is_authenticated(user)))
 
                 uid = getattr(user, "pk", None)
                 if uid and isinstance(uid, int):
-                    span.set_tag_str("django.user.id", str(uid))
-                    span.set_tag_str(_user.ID, str(uid))
+                    span._set_tag_str("django.user.id", str(uid))
+                    span._set_tag_str(_user.ID, str(uid))
                 if config.django.include_user_name:
                     username = getattr(user, "username", None)
                     if username:
-                        span.set_tag_str("django.user.name", username)
+                        span._set_tag_str("django.user.name", username)
             except Exception:
                 log.debug("Error retrieving authentication information for user", exc_info=True)
 
@@ -342,7 +342,7 @@ def _after_request_tags(pin, span: Span, request, response):
         _set_resolver_tags(pin, span, request)
         if response:
             status = response.status_code
-            span.set_tag_str("django.response.class", func_name(response))
+            span._set_tag_str("django.response.class", func_name(response))
             if hasattr(response, "template_name"):
                 # template_name is a bit of a misnomer, as it could be any of:
                 # a list of strings, a tuple of strings, a single string, or an instance of Template

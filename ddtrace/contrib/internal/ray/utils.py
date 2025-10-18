@@ -87,8 +87,8 @@ def _extract_tracing_context_from_env() -> Optional[Context]:
 
 
 def _inject_ray_span_tags_and_metrics(span: Span) -> None:
-    span.set_tag_str("component", RAY_COMPONENT)
-    span.set_tag_str(RAY_HOSTNAME, socket.gethostname())
+    span._set_tag_str("component", RAY_COMPONENT)
+    span._set_tag_str(RAY_HOSTNAME, socket.gethostname())
     span.set_metric(_AI_OBS_ENABLED_KEY, 1)
     span.set_metric(_DJM_ENABLED_KEY, 1)
     span.set_metric(_FILTER_KEPT_KEY, 1)
@@ -97,26 +97,26 @@ def _inject_ray_span_tags_and_metrics(span: Span) -> None:
 
     submission_id = os.environ.get(RAY_SUBMISSION_ID)
     if submission_id is not None:
-        span.set_tag_str(RAY_SUBMISSION_ID_TAG, submission_id)
+        span._set_tag_str(RAY_SUBMISSION_ID_TAG, submission_id)
 
     if ray.is_initialized():
         runtime_context = get_runtime_context()
 
-        span.set_tag_str(RAY_JOB_ID, runtime_context.get_job_id())
-        span.set_tag_str(RAY_NODE_ID, runtime_context.get_node_id())
+        span._set_tag_str(RAY_JOB_ID, runtime_context.get_job_id())
+        span._set_tag_str(RAY_NODE_ID, runtime_context.get_node_id())
 
         worker_id = runtime_context.get_worker_id()
         if worker_id is not None:
-            span.set_tag_str(RAY_WORKER_ID, worker_id)
+            span._set_tag_str(RAY_WORKER_ID, worker_id)
 
         if runtime_context.worker.mode == ray._private.worker.WORKER_MODE:
             task_id = runtime_context.get_task_id()
             if task_id is not None:
-                span.set_tag_str(RAY_TASK_ID, task_id)
+                span._set_tag_str(RAY_TASK_ID, task_id)
 
         actor_id = runtime_context.get_actor_id()
         if actor_id is not None:
-            span.set_tag_str(RAY_ACTOR_ID, actor_id)
+            span._set_tag_str(RAY_ACTOR_ID, actor_id)
 
 
 def set_tag_or_truncate(span: Span, tag_name: str, tag_value: Any = None) -> None:

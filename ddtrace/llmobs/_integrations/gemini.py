@@ -31,9 +31,9 @@ class GeminiIntegration(BaseLLMIntegration):
         self, span: Span, provider: Optional[str] = None, model: Optional[str] = None, **kwargs: Dict[str, Any]
     ) -> None:
         if provider is not None:
-            span.set_tag_str("google_generativeai.request.provider", str(provider))
+            span._set_tag_str("google_generativeai.request.provider", str(provider))
         if model is not None:
-            span.set_tag_str("google_generativeai.request.model", str(model))
+            span._set_tag_str("google_generativeai.request.model", str(model))
 
     def _llmobs_set_tags(
         self,

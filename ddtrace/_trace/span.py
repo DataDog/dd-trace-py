@@ -56,6 +56,7 @@ from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.time import Time
 from ddtrace.settings._config import config
 from ddtrace.vendor.debtcollector import deprecate
+from ddtrace.vendor.debtcollector import removals
 
 
 class SpanEvent:
@@ -417,7 +418,7 @@ class Span(object):
         """Return the given struct or None if it doesn't exist."""
         return self._meta_struct.get(key, None)
 
-    def set_tag_str(self, key: _TagNameType, value: Text) -> None:
+    def _set_tag_str(self, key: _TagNameType, value: Text) -> None:
         """Set a value for a tag. Values are coerced to unicode in Python 2 and
         str in Python 3, with decoding errors in conversion being replaced with
         U+FFFD.
@@ -428,6 +429,11 @@ class Span(object):
             if config._raise:
                 raise e
             log.warning("Failed to set text tag '%s'", key, exc_info=True)
+
+    @removals.remove(message="use Span.set_tag instead", removal_version="4.0.0")
+    def set_tag_str(self, key: _TagNameType, value: Text) -> None:
+        """Deprecated: use `set_tag` instead."""
+        self._set_tag_str(key, value)
 
     def get_tag(self, key: _TagNameType) -> Optional[Text]:
         """Return the given tag or None if it doesn't exist."""

@@ -224,11 +224,11 @@ class TraceTagsProcessor(TraceProcessor):
     def _set_git_metadata(self, chunk_root):
         repository_url, commit_sha, main_package = gitmetadata.get_git_tags()
         if repository_url:
-            chunk_root.set_tag_str("_dd.git.repository_url", repository_url)
+            chunk_root._set_tag_str("_dd.git.repository_url", repository_url)
         if commit_sha:
-            chunk_root.set_tag_str("_dd.git.commit.sha", commit_sha)
+            chunk_root._set_tag_str("_dd.git.commit.sha", commit_sha)
         if main_package:
-            chunk_root.set_tag_str("_dd.python_main_package", main_package)
+            chunk_root._set_tag_str("_dd.python_main_package", main_package)
 
     def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         if not trace:
@@ -249,11 +249,11 @@ class TraceTagsProcessor(TraceProcessor):
         for span in spans_to_tag:
             span._update_tags_from_context()
             self._set_git_metadata(span)
-            span.set_tag_str("language", "python")
+            span._set_tag_str("language", "python")
             # for 128 bit trace ids
             if span.trace_id > MAX_UINT_64BITS:
                 trace_id_hob = _get_64_highest_order_bits_as_hex(span.trace_id)
-                span.set_tag_str(HIGHER_ORDER_TRACE_ID_BITS, trace_id_hob)
+                span._set_tag_str(HIGHER_ORDER_TRACE_ID_BITS, trace_id_hob)
 
             if LAST_DD_PARENT_ID_KEY in span._meta and span._parent is not None:
                 # we should only set the last parent id on local root spans
