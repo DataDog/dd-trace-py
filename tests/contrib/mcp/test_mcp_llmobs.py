@@ -77,7 +77,7 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, mock_tracer, llmobs_events, m
     assert (
         llmobs_events[0]["meta"]["metadata"]["server_version"] is not None
     )  # not able to set this manually and imagine it could be based on something not of control
-    assert llmobs_events[0]["meta"]["metadata"]["num_tools"] == 6
+    assert llmobs_events[0]["meta"]["metadata"]["mcp_num_tools"] == 6
 
     assert llmobs_events[1] == _expected_llmobs_non_llm_span_event(
         all_spans[1], span_kind="task", output_value=mock.ANY, tags={"service": "mcptest", "ml_app": "<ml-app-name>"}

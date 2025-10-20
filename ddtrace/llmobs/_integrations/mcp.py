@@ -166,7 +166,7 @@ class MCPIntegration(BaseLLMIntegration):
         client_session_root = _find_client_session_root(span)
         if client_session_root:
             client_session_root_metadata = client_session_root._get_ctx_item(METADATA) or {}
-            client_session_root_metadata["num_tools"] = len(tools)
+            client_session_root_metadata["mcp_num_tools"] = len(tools)
             client_session_root._set_ctx_item(METADATA, client_session_root_metadata)
 
     def _llmobs_set_tags_session(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any) -> None:
