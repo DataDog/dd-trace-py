@@ -121,34 +121,22 @@ The following environment variables are supported:
 - ``OTEL_METRIC_EXPORT_TIMEOUT``
   Timeout (in milliseconds) for metric export requests.
 
-- ``OTEL_EXPORTER_OTLP_METRICS_PROTOCOL``
-  When metrics export is enabled with ``DD_METRICS_OTEL_ENABLED=true``, this determines the protocol used for metric export.
-
-- ``OTEL_EXPORTER_OTLP_METRICS_ENDPOINT``
-  When metrics export is enabled with ``DD_METRICS_OTEL_ENABLED=true``, this defines the target endpoint for metrics export (default: ``http://<agent_hostname>:4317``).
-
-- ``OTEL_EXPORTER_OTLP_METRICS_HEADERS``
-  Optional headers for metrics export in JSON format (default: ``{}``).
-
-- ``OTEL_EXPORTER_OTLP_METRICS_TIMEOUT``
-  Request timeout in milliseconds for metrics export (default: ``10000``).
-
 - ``OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE``
   For the best Datadog experience, we encourage customers who bring their own OTel SDK to use **Delta Temporality** for monotonic sums, histograms, and exponential histograms.
   The default value in the Datadog SDKs is ``delta``, which differs from the OpenTelemetry specified default of ``cumulative``.
   Tracking this configuration helps understand how many customers prefer Cumulative Temporality and why.
 
-- ``OTEL_EXPORTER_OTLP_LOGS_ENDPOINT``
-  OTLP endpoint URL for logs (default: ``http://<agent_hostname>:4317``).
+- ``OTEL_EXPORTER_OTLP_{METRICS,LOGS}_ENDPOINT``
+  When metrics export is enabled with ``DD_METRICS_OTEL_ENABLED=true``, this defines the target endpoint for metrics export (default: ``http://<agent_hostname>:4317``).
 
-- ``OTEL_EXPORTER_OTLP_LOGS_HEADERS``
-  Optional headers for logs in JSON format (default: ``{}``).
+- ``OTEL_EXPORTER_OTLP_{METRICS,LOGS}_HEADERS``
+  Optional headers for metrics or logs export in JSON format (default: ``{}``).
 
-- ``OTEL_EXPORTER_OTLP_LOGS_PROTOCOL``
-  OTLP protocol used for logs (default: ``grpc``).
+- ``OTEL_EXPORTER_OTLP_{METRICS,LOGS}_TIMEOUT``
+  Request timeout in milliseconds for metrics or logs export (default: ``10000``).
 
-- ``OTEL_EXPORTER_OTLP_LOGS_TIMEOUT``
-  Request timeout in milliseconds for logs (default: ``10000``).
+- ``OTEL_EXPORTER_OTLP_{METRICS,LOGS}_PROTOCOL``
+  OTLP protocol used for metrics or logs. Supported protocols are ``grpc`` (default) and ``http/protobuf``.
 
 **Important:** Metrics and logs are exported using the OTLP protocol and can be routed to any OTLP-compatible receiver.
 Traces, however, are sent using Datadog's custom MsgPack format and require a Datadog Agent.
