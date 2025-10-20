@@ -39,10 +39,8 @@ def tracer_config(__init__, app, args, kwargs):
     # TODO: Remove `FILTERS` from supported settings
     trace_processors = settings.get("settings", {}).get("FILTERS")
 
-    tracer.configure(
-        context_provider=context_provider,
-        trace_processors=trace_processors,
-    )
+    tracer.processors = trace_processors
+    tracer.context_provider = context_provider
     tracer._wrap_executor = decorators.wrap_executor
     # TODO: Remove `enabled`, `hostname` and `port` settings in v4.0
     # Tracer should be configured via environment variables

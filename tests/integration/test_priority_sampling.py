@@ -173,7 +173,7 @@ def test_sampling_configurations_are_not_reset_on_tracer_configure():
                     return None
             return trace
 
-    t.configure(trace_processors=[CustomFilter()])  # Triggers AgentWriter recreate
+    t.processors = [CustomFilter()]  # Triggers AgentWriter recreate
     assert (
         t._span_aggregator.sampling_processor.sampler._agent_based_samplers == agent_based_samplers
     ), f"Expected agent sampling rules to be set to {agent_based_samplers}, "

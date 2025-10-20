@@ -94,8 +94,8 @@ def test_aggregator_user_processors():
         partial_flush_enabled=False,
         partial_flush_min_spans=0,
         dd_processors=[Proc()],
-        user_processors=[UserProc()],
     )
+    aggr.user_processors = [UserProc()]
 
     with Span("span", on_finish=[aggr.on_span_finish]) as span:
         aggr.on_span_start(span)
@@ -116,8 +116,8 @@ def test_aggregator_reset_default_args():
         partial_flush_enabled=False,
         partial_flush_min_spans=1,
         dd_processors=[dd_proc],
-        user_processors=[user_proc],
     )
+    aggr.user_processors = [user_proc]
     sampling_proc = aggr.sampling_processor
     dm_writer = DummyWriter()
     aggr.writer = dm_writer
@@ -152,8 +152,8 @@ def test_aggregator_reset_apm_opt_out_preserves_sampling():
         partial_flush_enabled=False,
         partial_flush_min_spans=1,
         dd_processors=[dd_proc],
-        user_processors=[user_proc],
     )
+    aggr.user_processors = [user_proc]
 
     sampling_proc = aggr.sampling_processor
     original_apm_opt_out = sampling_proc.apm_opt_out
@@ -187,8 +187,8 @@ def test_aggregator_reset_with_args(writer_class):
         partial_flush_enabled=False,
         partial_flush_min_spans=1,
         dd_processors=[dd_proc],
-        user_processors=[user_proc],
     )
+    aggr.user_processors = [user_proc]
 
     aggr.writer = writer_class("http://localhost:8126", api_version="v0.5")
     span = Span("span", on_finish=[aggr.on_span_finish])
