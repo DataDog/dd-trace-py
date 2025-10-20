@@ -199,4 +199,5 @@ tests/appsec/iast/fixtures/taint_sinks/not_exists.txt
 *.debug
 *.dSYM/
 
+# Rust build artifacts
 src/native/target*
