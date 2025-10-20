@@ -209,7 +209,7 @@ class PatchedDistribution(Distribution):
         # make sure that this env var is set to install the ffi headers in the
         # right place.
         os.environ["CARGO_TARGET_DIR"] = str(
-            NATIVE_CRATE.absolute() / "target{sys.version_info.major}.{sys.version_info.minor}"
+            NATIVE_CRATE.absolute() / f"target{sys.version_info.major}.{sys.version_info.minor}"
         )
         self.rust_extensions = [
             RustExtension(
@@ -239,7 +239,7 @@ class ExtensionHashes(build_ext):
                         for _ in source_path.glob("**/*")
                         if _.is_file()
                         and _.relative_to(source_path).parts[0]
-                        != "target{sys.version_info.major}.{sys.version_info.minor}"
+                        != f"target{sys.version_info.major}.{sys.version_info.minor}"
                     ]
                 else:
                     sources = [Path(_) for _ in ext.sources]
