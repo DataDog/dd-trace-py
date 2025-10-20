@@ -51,6 +51,7 @@ from ddtrace.internal.utils.http import ConnectionType
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
 from ddtrace.internal.utils.http import verify_url
+from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.internal.utils.time import StopWatch
 
 
@@ -79,6 +80,22 @@ class TestVisibilitySettingsError(Exception):
 class TestVisibilitySkippableItemsError(Exception):
     __test__ = False
     pass
+
+
+class CIVisibilityAPIError(Exception):
+    def __init__(self, status: int) -> None:
+        self.status = status
+
+
+class CIVisibilityAPIClientError(CIVisibilityAPIError):
+    pass
+
+
+class CIVisibilityAPIServerError(CIVisibilityAPIError):
+    pass
+
+
+_RETRIABLE_ERRORS = (*_NETWORK_ERRORS, CIVisibilityAPIServerError)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -300,6 +317,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             if conn is not None:
                 conn.close()
 
+    @fibonacci_backoff_with_jitter(attempts=5, until=lambda e: not isinstance(e, _RETRIABLE_ERRORS))
     def _do_request_with_telemetry(
         self,
         method: str,
@@ -342,7 +360,9 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                 error_type = ERROR_TYPES.CODE_4XX if response.status < 500 else ERROR_TYPES.CODE_5XX
                 if response.status == 403:
                     raise CIVisibilityAuthenticationException()
-                raise ValueError("API response status code: %d", response.status)
+                if response.status >= 500:
+                    raise CIVisibilityAPIServerError(response.status)
+                raise CIVisibilityAPIClientError(response.status)
             try:
                 sw.stop()  # Stop the timer before parsing the response
                 response_body = response.body
