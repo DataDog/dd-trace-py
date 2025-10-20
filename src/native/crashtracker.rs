@@ -322,15 +322,12 @@ pub fn crashtracker_receiver() -> anyhow::Result<()> {
 #[derive(Debug, PartialEq, Eq)]
 pub enum CallbackResult {
     Ok,
-    NullCallback,
-    UnknownError,
+    Error,
 }
 
 impl From<CallbackError> for CallbackResult {
     fn from(error: CallbackError) -> Self {
-        match error {
-            CallbackError::NullCallback => CallbackResult::NullCallback,
-        }
+        CallbackResult::Error
     }
 }
 

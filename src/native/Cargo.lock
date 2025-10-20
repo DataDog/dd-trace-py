@@ -219,8 +219,8 @@ dependencies = [
 
 [[package]]
 name = "build_common"
-version = "21.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=538a7f1c236f9c70ab91de6230b716807c721349#538a7f1c236f9c70ab91de6230b716807c721349"
+version = "22.1.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=3552e8fd3f59f938ec92f3b444293688010fa439#3552e8fd3f59f938ec92f3b444293688010fa439"
 dependencies = [
  "cbindgen",
  "serde",
@@ -288,7 +288,7 @@ dependencies = [
 [[package]]
 name = "cc_utils"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=538a7f1c236f9c70ab91de6230b716807c721349#538a7f1c236f9c70ab91de6230b716807c721349"
+source = "git+https://github.com/DataDog/libdatadog?rev=3552e8fd3f59f938ec92f3b444293688010fa439#3552e8fd3f59f938ec92f3b444293688010fa439"
 dependencies = [
  "anyhow",
  "cc",
@@ -489,14 +489,15 @@ dependencies = [
 
 [[package]]
 name = "data-pipeline"
-version = "21.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=538a7f1c236f9c70ab91de6230b716807c721349#538a7f1c236f9c70ab91de6230b716807c721349"
+version = "22.1.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=3552e8fd3f59f938ec92f3b444293688010fa439#3552e8fd3f59f938ec92f3b444293688010fa439"
 dependencies = [
  "anyhow",
  "arc-swap",
  "bytes",
  "datadog-ddsketch",
  "datadog-trace-protobuf",
+ "datadog-trace-stats",
  "datadog-trace-utils",
  "ddcommon",
  "ddtelemetry",
@@ -519,8 +520,8 @@ dependencies = [
 
 [[package]]
 name = "datadog-alloc"
-version = "21.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=538a7f1c236f9c70ab91de6230b716807c721349#538a7f1c236f9c70ab91de6230b716807c721349"
+version = "22.1.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=3552e8fd3f59f938ec92f3b444293688010fa439#3552e8fd3f59f938ec92f3b444293688010fa439"
 dependencies = [
  "allocator-api2",
  "libc",
@@ -529,8 +530,8 @@ dependencies = [
 
 [[package]]
 name = "datadog-crashtracker"
-version = "21.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=538a7f1c236f9c70ab91de6230b716807c721349#538a7f1c236f9c70ab91de6230b716807c721349"
+version = "22.1.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=3552e8fd3f59f938ec92f3b444293688010fa439#3552e8fd3f59f938ec92f3b444293688010fa439"
 dependencies = [
  "anyhow",
  "backtrace",
@@ -557,13 +558,13 @@ dependencies = [
  "thiserror",
  "tokio",
  "uuid",
- "windows",
+ "windows 0.59.0",
 ]
 
 [[package]]
 name = "datadog-ddsketch"
-version = "21.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=538a7f1c236f9c70ab91de6230b716807c721349#538a7f1c236f9c70ab91de6230b716807c721349"
+version = "22.1.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=3552e8fd3f59f938ec92f3b444293688010fa439#3552e8fd3f59f938ec92f3b444293688010fa439"
 dependencies = [
  "prost",
 ]
@@ -571,7 +572,7 @@ dependencies = [
 [[package]]
 name = "datadog-library-config"
 version = "0.0.2"
-source = "git+https://github.com/DataDog/libdatadog?rev=538a7f1c236f9c70ab91de6230b716807c721349#538a7f1c236f9c70ab91de6230b716807c721349"
+source = "git+https://github.com/DataDog/libdatadog?rev=3552e8fd3f59f938ec92f3b444293688010fa439#3552e8fd3f59f938ec92f3b444293688010fa439"
 dependencies = [
  "anyhow",
  "memfd",
@@ -584,11 +585,10 @@ dependencies = [
 
 [[package]]
 name = "datadog-log"
-version = "21.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=538a7f1c236f9c70ab91de6230b716807c721349#538a7f1c236f9c70ab91de6230b716807c721349"
+version = "22.1.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=3552e8fd3f59f938ec92f3b444293688010fa439#3552e8fd3f59f938ec92f3b444293688010fa439"
 dependencies = [
  "chrono",
- "ddcommon-ffi",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
@@ -596,8 +596,8 @@ dependencies = [
 
 [[package]]
 name = "datadog-profiling"
-version = "21.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=538a7f1c236f9c70ab91de6230b716807c721349#538a7f1c236f9c70ab91de6230b716807c721349"
+version = "22.1.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=3552e8fd3f59f938ec92f3b444293688010fa439#3552e8fd3f59f938ec92f3b444293688010fa439"
 dependencies = [
  "anyhow",
  "bitmaps",
@@ -626,8 +626,8 @@ dependencies = [
 
 [[package]]
 name = "datadog-profiling-ffi"
-version = "21.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=538a7f1c236f9c70ab91de6230b716807c721349#538a7f1c236f9c70ab91de6230b716807c721349"
+version = "22.1.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=3552e8fd3f59f938ec92f3b444293688010fa439#3552e8fd3f59f938ec92f3b444293688010fa439"
 dependencies = [
  "anyhow",
  "build_common",
@@ -645,16 +645,16 @@ dependencies = [
 
 [[package]]
 name = "datadog-profiling-protobuf"
-version = "21.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=538a7f1c236f9c70ab91de6230b716807c721349#538a7f1c236f9c70ab91de6230b716807c721349"
+version = "22.1.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=3552e8fd3f59f938ec92f3b444293688010fa439#3552e8fd3f59f938ec92f3b444293688010fa439"
 dependencies = [
  "prost",
 ]
 
 [[package]]
 name = "datadog-trace-normalization"
-version = "21.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=538a7f1c236f9c70ab91de6230b716807c721349#538a7f1c236f9c70ab91de6230b716807c721349"
+version = "22.1.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=3552e8fd3f59f938ec92f3b444293688010fa439#3552e8fd3f59f938ec92f3b444293688010fa439"
 dependencies = [
  "anyhow",
  "datadog-trace-protobuf",
@@ -662,8 +662,8 @@ dependencies = [
 
 [[package]]
 name = "datadog-trace-protobuf"
-version = "21.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=538a7f1c236f9c70ab91de6230b716807c721349#538a7f1c236f9c70ab91de6230b716807c721349"
+version = "22.1.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=3552e8fd3f59f938ec92f3b444293688010fa439#3552e8fd3f59f938ec92f3b444293688010fa439"
 dependencies = [
  "prost",
  "serde",
@@ -671,9 +671,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "datadog-trace-stats"
+version = "22.1.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=3552e8fd3f59f938ec92f3b444293688010fa439#3552e8fd3f59f938ec92f3b444293688010fa439"
+dependencies = [
+ "datadog-ddsketch",
+ "datadog-trace-protobuf",
+ "datadog-trace-utils",
+ "hashbrown",
+]
+
+[[package]]
 name = "datadog-trace-utils"
-version = "21.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=538a7f1c236f9c70ab91de6230b716807c721349#538a7f1c236f9c70ab91de6230b716807c721349"
+version = "22.1.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=3552e8fd3f59f938ec92f3b444293688010fa439#3552e8fd3f59f938ec92f3b444293688010fa439"
 dependencies = [
  "anyhow",
  "bytes",
@@ -697,8 +708,8 @@ dependencies = [
 
 [[package]]
 name = "ddcommon"
-version = "21.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=538a7f1c236f9c70ab91de6230b716807c721349#538a7f1c236f9c70ab91de6230b716807c721349"
+version = "22.1.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=3552e8fd3f59f938ec92f3b444293688010fa439#3552e8fd3f59f938ec92f3b444293688010fa439"
 dependencies = [
  "anyhow",
  "cc",
@@ -730,8 +741,8 @@ dependencies = [
 
 [[package]]
 name = "ddcommon-ffi"
-version = "21.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=538a7f1c236f9c70ab91de6230b716807c721349#538a7f1c236f9c70ab91de6230b716807c721349"
+version = "22.1.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=3552e8fd3f59f938ec92f3b444293688010fa439#3552e8fd3f59f938ec92f3b444293688010fa439"
 dependencies = [
  "anyhow",
  "build_common",
@@ -744,8 +755,8 @@ dependencies = [
 
 [[package]]
 name = "ddtelemetry"
-version = "21.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=538a7f1c236f9c70ab91de6230b716807c721349#538a7f1c236f9c70ab91de6230b716807c721349"
+version = "22.1.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=3552e8fd3f59f938ec92f3b444293688010fa439#3552e8fd3f59f938ec92f3b444293688010fa439"
 dependencies = [
  "anyhow",
  "base64",
@@ -757,6 +768,7 @@ dependencies = [
  "http-body-util",
  "hyper",
  "hyper-util",
+ "libc",
  "serde",
  "serde_json",
  "sys-info",
@@ -764,6 +776,7 @@ dependencies = [
  "tokio-util",
  "tracing",
  "uuid",
+ "winver",
 ]
 
 [[package]]
@@ -780,6 +793,7 @@ dependencies = [
  "datadog-log",
  "datadog-profiling-ffi",
  "ddcommon",
+ "libc",
  "pyo3",
  "pyo3-build-config",
  "pyo3-ffi",
@@ -816,8 +830,8 @@ dependencies = [
 
 [[package]]
 name = "dogstatsd-client"
-version = "21.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=538a7f1c236f9c70ab91de6230b716807c721349#538a7f1c236f9c70ab91de6230b716807c721349"
+version = "22.1.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=3552e8fd3f59f938ec92f3b444293688010fa439#3552e8fd3f59f938ec92f3b444293688010fa439"
 dependencies = [
  "anyhow",
  "cadence",
@@ -1314,9 +1328,9 @@ checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
 name = "libc"
-version = "0.2.174"
+version = "0.2.177"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1171693293099992e19cddea4e8b849964e9846f4acee11b3948bcc337be8776"
+checksum = "2874a2af47a2325c2001a6e6fad9b16a53b802102b528163885171cf92b15976"
 
 [[package]]
 name = "libloading"
@@ -2309,8 +2323,8 @@ dependencies = [
 
 [[package]]
 name = "tinybytes"
-version = "21.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=538a7f1c236f9c70ab91de6230b716807c721349#538a7f1c236f9c70ab91de6230b716807c721349"
+version = "22.1.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=3552e8fd3f59f938ec92f3b444293688010fa439#3552e8fd3f59f938ec92f3b444293688010fa439"
 dependencies = [
  "serde",
 ]
@@ -2680,6 +2694,15 @@ checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
 
 [[package]]
 name = "windows"
+version = "0.48.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e686886bc078bc1b0b600cac0147aadb815089b6e4da64016cbd754b6342700f"
+dependencies = [
+ "windows-targets 0.48.5",
+]
+
+[[package]]
+name = "windows"
 version = "0.59.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f919aee0a93304be7f62e8e5027811bbba96bcb1de84d6618be56e43f8a32a1"
@@ -2809,6 +2832,21 @@ dependencies = [
 
 [[package]]
 name = "windows-targets"
+version = "0.48.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a2fa6e2155d7247be68c096456083145c183cbbbc2764150dda45a87197940c"
+dependencies = [
+ "windows_aarch64_gnullvm 0.48.5",
+ "windows_aarch64_msvc 0.48.5",
+ "windows_i686_gnu 0.48.5",
+ "windows_i686_msvc 0.48.5",
+ "windows_x86_64_gnu 0.48.5",
+ "windows_x86_64_gnullvm 0.48.5",
+ "windows_x86_64_msvc 0.48.5",
+]
+
+[[package]]
+name = "windows-targets"
 version = "0.52.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b724f72796e036ab90c1021d4780d4d3d648aca59e491e6b98e725b84e99973"
@@ -2842,6 +2880,12 @@ dependencies = [
 
 [[package]]
 name = "windows_aarch64_gnullvm"
+version = "0.48.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2b38e32f0abccf9987a4e3079dfb67dcd799fb61361e53e2882c3cbaf0d905d8"
+
+[[package]]
+name = "windows_aarch64_gnullvm"
 version = "0.52.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32a4622180e7a0ec044bb555404c800bc9fd9ec262ec147edd5989ccd0c02cd3"
@@ -2854,6 +2898,12 @@ checksum = "86b8d5f90ddd19cb4a147a5fa63ca848db3df085e25fee3cc10b39b6eebae764"
 
 [[package]]
 name = "windows_aarch64_msvc"
+version = "0.48.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dc35310971f3b2dbbf3f0690a219f40e2d9afcf64f9ab7cc1be722937c26b4bc"
+
+[[package]]
+name = "windows_aarch64_msvc"
 version = "0.52.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "09ec2a7bb152e2252b53fa7803150007879548bc709c039df7627cabbd05d469"
@@ -2863,6 +2913,12 @@ name = "windows_aarch64_msvc"
 version = "0.53.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c7651a1f62a11b8cbd5e0d42526e55f2c99886c77e007179efff86c2b137e66c"
+
+[[package]]
+name = "windows_i686_gnu"
+version = "0.48.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a75915e7def60c94dcef72200b9a8e58e5091744960da64ec734a6c6e9b3743e"
 
 [[package]]
 name = "windows_i686_gnu"
@@ -2890,6 +2946,12 @@ checksum = "9ce6ccbdedbf6d6354471319e781c0dfef054c81fbc7cf83f338a4296c0cae11"
 
 [[package]]
 name = "windows_i686_msvc"
+version = "0.48.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f55c233f70c4b27f66c523580f78f1004e8b5a8b659e05a4eb49d4166cca406"
+
+[[package]]
+name = "windows_i686_msvc"
 version = "0.52.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "240948bc05c5e7c6dabba28bf89d89ffce3e303022809e73deaefe4f6ec56c66"
@@ -2899,6 +2961,12 @@ name = "windows_i686_msvc"
 version = "0.53.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "581fee95406bb13382d2f65cd4a908ca7b1e4c2f1917f143ba16efe98a589b5d"
+
+[[package]]
+name = "windows_x86_64_gnu"
+version = "0.48.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "53d40abd2583d23e4718fddf1ebec84dbff8381c07cae67ff7768bbf19c6718e"
 
 [[package]]
 name = "windows_x86_64_gnu"
@@ -2914,6 +2982,12 @@ checksum = "2e55b5ac9ea33f2fc1716d1742db15574fd6fc8dadc51caab1c16a3d3b4190ba"
 
 [[package]]
 name = "windows_x86_64_gnullvm"
+version = "0.48.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b7b52767868a23d5bab768e390dc5f5c55825b6d30b86c844ff2dc7414044cc"
+
+[[package]]
+name = "windows_x86_64_gnullvm"
 version = "0.52.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "24d5b23dc417412679681396f2b49f3de8c1473deb516bd34410872eff51ed0d"
@@ -2923,6 +2997,12 @@ name = "windows_x86_64_gnullvm"
 version = "0.53.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0a6e035dd0599267ce1ee132e51c27dd29437f63325753051e71dd9e42406c57"
+
+[[package]]
+name = "windows_x86_64_msvc"
+version = "0.48.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ed94fce61571a4006852b7389a063ab983c02eb1bb37b47f8272ce92d06d9538"
 
 [[package]]
 name = "windows_x86_64_msvc"
@@ -2943,6 +3023,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f3edebf492c8125044983378ecb5766203ad3b4c2f7a922bd7dd207f6d443e95"
 dependencies = [
  "memchr",
+]
+
+[[package]]
+name = "winver"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9e0e7162b9e282fd75a0a832cce93994bdb21208d848a418cd05a5fdd9b9ab33"
+dependencies = [
+ "windows 0.48.0",
 ]
 
 [[package]]
