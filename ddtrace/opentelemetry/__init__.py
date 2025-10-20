@@ -21,7 +21,7 @@ The ``TracerProvider`` sends Datadog-formatted payloads and is compatible only w
 Enable OpenTelemetry tracing support by setting ``DD_TRACE_OTEL_ENABLED=true`` and using ``ddtrace.auto``
 or ``ddtrace-run``. Manual configuration is also supported through ``ddtrace.opentelemetry.TracerProvider``.
 
-For supported configurations, see `OpenTelemetry Tracing Configuration <placeholder-link>`_.
+For supported configurations, see `OpenTelemetry Tracing Configuration <https://docs.datadoghq.com/tracing/trace_collection/library_config/>`_.
 
 Usage example::
 
@@ -52,7 +52,7 @@ You must install an OTLP exporter (minimum supported version: ``v1.15.0``)::
 
     pip install opentelemetry-exporter-otlp>=1.15.0
 
-For supported configurations, see `OpenTelemetry Metrics Configuration <placeholder-link>`_.
+For supported configurations, see `OpenTelemetry Metrics Configuration <https://docs.datadoghq.com/tracing/trace_collection/library_config/>`_.
 
 Usage example::
 
@@ -81,7 +81,7 @@ You must install an OTLP exporter (minimum supported version: ``v1.15.0``)::
 
     pip install opentelemetry-exporter-otlp>=1.15.0
 
-For supported configurations, see `OpenTelemetry Logs Configuration <placeholder-link>`_.
+For supported configurations, see `OpenTelemetry Logs Configuration <https://docs.datadoghq.com/tracing/trace_collection/library_config/>`_.
 
 Usage example::
 
@@ -100,6 +100,58 @@ Usage example::
         logging.info("User operation started", extra={"operation": "login"})
         # Your business logic here
         logging.info("User operation completed", extra={"status": "success"})
+
+
+Supported Configuration
+-----------------------
+
+The Datadog SDK supports many of the configurations available in the OpenTelemetry SDK.
+The following environment variables are supported:
+
+- ``DD_{LOGS,TRACE,METRICS}_OTEL_ENABLED``
+  Enable OpenTelemetry logs, metrics, or traces (default: ``false``).
+  These features are off by default, allowing Datadog to track adoption by customer or service when the configuration is set to ``true``.
+
+- ``OTEL_{METRICS,LOGS}_EXPORTER``
+  This value defaults to ``otlp``. We can gauge the prevalence of other exporters by observing other values, such as ``prometheus``, ``console``, or ``none``.
+
+- ``OTEL_METRIC_EXPORT_INTERVAL``
+  Interval (in milliseconds) between metric exports.
+
+- ``OTEL_METRIC_EXPORT_TIMEOUT``
+  Timeout (in milliseconds) for metric export requests.
+
+- ``OTEL_EXPORTER_OTLP_METRICS_PROTOCOL``
+  When metrics export is enabled with ``DD_METRICS_OTEL_ENABLED=true``, this determines the protocol used for metric export.
+
+- ``OTEL_EXPORTER_OTLP_METRICS_ENDPOINT``
+  When metrics export is enabled with ``DD_METRICS_OTEL_ENABLED=true``, this defines the target endpoint for metrics export (default: ``http://<agent_hostname>:4317``).
+
+- ``OTEL_EXPORTER_OTLP_METRICS_HEADERS``
+  Optional headers for metrics export in JSON format (default: ``{}``).
+
+- ``OTEL_EXPORTER_OTLP_METRICS_TIMEOUT``
+  Request timeout in milliseconds for metrics export (default: ``10000``).
+
+- ``OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE``
+  For the best Datadog experience, we encourage customers who bring their own OTel SDK to use **Delta Temporality** for monotonic sums, histograms, and exponential histograms.
+  The default value in the Datadog SDKs is ``delta``, which differs from the OpenTelemetry specified default of ``cumulative``.
+  Tracking this configuration helps understand how many customers prefer Cumulative Temporality and why.
+
+- ``OTEL_EXPORTER_OTLP_LOGS_ENDPOINT``
+  OTLP endpoint URL for logs (default: ``http://<agent_hostname>:4317``).
+
+- ``OTEL_EXPORTER_OTLP_LOGS_HEADERS``
+  Optional headers for logs in JSON format (default: ``{}``).
+
+- ``OTEL_EXPORTER_OTLP_LOGS_PROTOCOL``
+  OTLP protocol used for logs (default: ``grpc``).
+
+- ``OTEL_EXPORTER_OTLP_LOGS_TIMEOUT``
+  Request timeout in milliseconds for logs (default: ``10000``).
+
+**Important:** Metrics and logs are exported using the OTLP protocol and can be routed to any OTLP-compatible receiver.
+Traces, however, are sent using Datadog's custom MsgPack format and require a Datadog Agent.
 
 
 Trace Mapping
