@@ -270,7 +270,7 @@ def _instrument_message(messages, pin, start_ns, instance, err):
                 cluster_id = _get_cluster_id(instance, str(first_message.topic()))
                 core.set_item("kafka_cluster_id", cluster_id)
                 core.set_item("kafka_topic", str(first_message.topic()))
-                core.dispatch("kafka.consume.start", (instance, first_message, span))
+                core.dispatch("kafka.consume.start", (instance, message, span))
 
         span.set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
         span.set_tag_str(COMPONENT, config.kafka.integration_name)
