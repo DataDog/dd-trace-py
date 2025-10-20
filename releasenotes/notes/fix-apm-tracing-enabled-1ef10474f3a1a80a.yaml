@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracing: Fixed ``DD_APM_TRACING_ENABLED`` being ignored when LLM Observability and AAPI (APPSEC and IAST) were disabled.
+    Note: ``DD_APM_TRACING_ENABLED=False`` prevents spans from being sent to the Datadog agent, unlike sampling rules which send unindexed spans.

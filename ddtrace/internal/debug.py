@@ -128,7 +128,8 @@ def collect(tracer):
         agent_error=agent_error,
         statsd_url=agent_config.dogstatsd_url,
         env=ddtrace.config.env or "",
-        ddtrace_enabled=ddtrace.config._tracing_enabled,
+        ddtrace_enabled=ddtrace.config._ddtrace_enabled,
+        apm_tracing_enabled=ddtrace.config._apm_tracing_enabled,
         sampling_rules=sampling_rules,
         service=ddtrace.config.service or "",
         debug=logger.isEnabledFor(logging.DEBUG),
@@ -179,7 +180,8 @@ def pretty_collect(tracer, color=True):
     info = collect(tracer)
 
     info_pretty = """{blue}{bold}Tracer Configurations:{end}
-    Tracer enabled: {tracer_enabled}
+    DDTrace enabled: {ddtrace_enabled}
+    APM tracing enabled: {apm_tracing_enabled}
     Application Security enabled: {appsec_enabled}
     Remote Configuration enabled: {remote_config_enabled}
     IAST enabled (experimental): {iast_enabled}
@@ -198,7 +200,8 @@ def pretty_collect(tracer, color=True):
     DD Version: {dd_version}
     Global Tags: {global_tags}
     Tracer Tags: {tracer_tags}""".format(
-        tracer_enabled=info.get("ddtrace_enabled"),
+        ddtrace_enabled=info.get("ddtrace_enabled"),
+        apm_tracing_enabled=info.get("apm_tracing_enabled"),
         appsec_enabled=info.get("asm_enabled"),
         remote_config_enabled=info.get("remote_config_enabled"),
         iast_enabled=info.get("iast_enabled"),

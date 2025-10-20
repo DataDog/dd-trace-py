@@ -362,7 +362,7 @@ def test_telemetry_multiple_sources(test_agent_session, run_python_code_in_subpr
     env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
     _, err, status, _ = run_python_code_in_subprocess(
-        "from ddtrace import config; config._tracing_enabled = True", env=env
+        "from ddtrace import config; config._ddtrace_enabled = True", env=env
     )
     assert status == 0, err
 

@@ -133,7 +133,7 @@ class Tracer(object):
         # traces
         self._pid = getpid()
 
-        self.enabled = config._tracing_enabled
+        self.enabled = config._ddtrace_enabled
         self.context_provider: BaseContextProvider = DefaultContextProvider()
 
         if asm_config._apm_opt_out:
@@ -328,15 +328,15 @@ class Tracer(object):
             asm_config._iast_enabled = iast_enabled
 
         if apm_tracing_disabled is not None:
-            asm_config._apm_tracing_enabled = not apm_tracing_disabled
+            config._apm_tracing_enabled = not apm_tracing_disabled
 
         if asm_config._apm_opt_out:
-            config._tracing_enabled = self.enabled = False
+            config._ddtrace_enabled = self.enabled = False
             # Disable compute stats (neither agent or tracer should compute them)
             config._trace_compute_stats = False
             log.debug("ASM standalone mode is enabled, traces will be rate limited at 1 trace per minute")
-        elif asm_config._apm_tracing_enabled:
-            config._tracing_enabled = self.enabled = True
+        elif config._apm_tracing_enabled:
+            config._ddtrace_enabled = self.enabled = True
 
         if compute_stats_enabled is not None:
             config._trace_compute_stats = compute_stats_enabled

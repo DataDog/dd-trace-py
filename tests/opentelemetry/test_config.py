@@ -49,7 +49,7 @@ def test_dd_otel_mixed_env_configuration():
     assert config._debug_mode is False, config._debug_mode
     assert config._propagation_style_extract == ["b3"], config._propagation_style_extract
     assert _global_sampling_rule().sample_rate == 0.1
-    assert config._tracing_enabled is True, config._tracing_enabled
+    assert config._ddtrace_enabled is True, config._ddtrace_enabled
     assert config._runtime_metrics_enabled is False, config._runtime_metrics_enabled
     assert config._otel_trace_enabled is True, config._otel_trace_enabled
     assert config.tags == {
@@ -85,7 +85,7 @@ def test_dd_otel_missing_dd_env_configuration():
     assert config._debug_mode is True, config._debug_mode
     assert config._propagation_style_extract == ["tracecontext", "b3"], config._propagation_style_extract
     assert _global_sampling_rule().sample_rate == 0.9
-    assert config._tracing_enabled is True, config._tracing_enabled
+    assert config._ddtrace_enabled is True, config._ddtrace_enabled
     assert config._runtime_metrics_enabled is False, config._runtime_metrics_enabled
     assert config.tags == {
         "env": "prod",
@@ -197,7 +197,7 @@ def test_otel_traces_sampler_configuration_traceidratio():
 def test_otel_traces_exporter_configuration():
     from ddtrace import config
 
-    assert config._tracing_enabled is False, config._tracing_enabled
+    assert config._ddtrace_enabled is False, config._ddtrace_enabled
 
 
 @pytest.mark.subprocess(
@@ -207,7 +207,7 @@ def test_otel_traces_exporter_configuration():
 def test_otel_traces_exporter_configuration_unsupported_exporter():
     from ddtrace import config
 
-    assert config._tracing_enabled is True, config._tracing_enabled
+    assert config._ddtrace_enabled is True, config._ddtrace_enabled
 
 
 @pytest.mark.subprocess(env={"DD_METRICS_OTEL_ENABLED": "True", "OTEL_METRICS_EXPORTER": "none"})

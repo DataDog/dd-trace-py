@@ -79,7 +79,6 @@ class ASMConfig(DDConfig):
     _iast_debug = DDConfig.var(bool, IAST.ENV_DEBUG, default=False, private=True)
     _iast_propagation_debug = DDConfig.var(bool, IAST.ENV_PROPAGATION_DEBUG, default=False, private=True)
     _iast_telemetry_report_lvl = DDConfig.var(str, IAST.ENV_TELEMETRY_REPORT_LVL, default=TELEMETRY_INFORMATION_NAME)
-    _apm_tracing_enabled = DDConfig.var(bool, APPSEC.APM_TRACING_ENV, default=True)
     _use_metastruct_for_triggers = True
     _use_metastruct_for_iast = True
 
@@ -204,7 +203,6 @@ class ASMConfig(DDConfig):
         "_asm_obfuscation_parameter_key_regexp",
         "_asm_obfuscation_parameter_value_regexp",
         "_asm_processed_span_types",
-        "_apm_tracing_enabled",
         "_bypass_instrumentation_for_waf",
         "_iast_enabled",
         "_iast_request_sampling",
@@ -321,7 +319,7 @@ class ASMConfig(DDConfig):
     def _apm_opt_out(self) -> bool:
         return (
             self._asm_enabled or self._iast_enabled or tracer_config._sca_enabled is True
-        ) and not self._apm_tracing_enabled
+        ) and not tracer_config._apm_tracing_enabled
 
     @property
     def _user_event_mode(self) -> str:

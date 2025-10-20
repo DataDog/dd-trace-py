@@ -24,7 +24,6 @@ from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.settings._config import config
-from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.debtcollector import deprecate
 
 from ..constants import AUTO_KEEP
@@ -252,7 +251,7 @@ class _DatadogMultiHeader:
 
         # When apm tracing is not enabled, only distributed traces with the `_dd.p.ts` tag
         # are propagated. If the tag is not present, we should not propagate downstream.
-        if not asm_config._apm_tracing_enabled and (APPSEC.PROPAGATION_HEADER not in span_context._meta):
+        if not config._apm_tracing_enabled and (APPSEC.PROPAGATION_HEADER not in span_context._meta):
             return
 
         if span_context.trace_id > _MAX_UINT_64BITS:
@@ -368,7 +367,7 @@ class _DatadogMultiHeader:
             if meta:
                 meta = validate_sampling_decision(meta)
 
-            if not asm_config._apm_tracing_enabled:
+            if not config._apm_tracing_enabled:
                 # When apm tracing is not enabled, only distributed traces with the `_dd.p.ts` tag
                 # are propagated downstream, however we need 1 trace per minute sent to the backend, so
                 # we unset sampling priority so the rate limiter decides.

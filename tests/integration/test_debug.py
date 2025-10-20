@@ -78,6 +78,7 @@ def test_standard_tags():
 
     assert f.get("env") == ""
     assert f.get("ddtrace_enabled") is True
+    assert f.get("apm_tracing_enabled") is True
     assert f.get("service") == "ddtrace_subprocess_dir"
     assert f.get("dd_version") == ""
     assert f.get("debug") is False
@@ -121,6 +122,7 @@ class TestGlobalConfig(SubprocessTestCase):
             DD_VERSION="123456",
             DD_SERVICE="service",
             DD_TAGS="k1:v1,k2:v2",
+            DD_APM_TRACING_ENABLED="false",
         )
     )
     def test_env_config(self):
@@ -134,6 +136,7 @@ class TestGlobalConfig(SubprocessTestCase):
         assert f.get("global_tags") == "k1:v1,k2:v2"
         assert f.get("tracer_tags") in ["k1:v1,k2:v2", "k2:v2,k1:v1"]
         assert f.get("ddtrace_enabled") is True
+        assert f.get("apm_tracing_enabled") is False
 
         icfg = f.get("integrations", {})
         assert "django" not in icfg

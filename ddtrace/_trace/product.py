@@ -191,11 +191,11 @@ def _apply_config_change(config_name, config_value, dd_config):
     elif config_name == "tags":
         tracer._tags = (config_value or {}).copy()
         log.debug("Updated tracer tags via remote_config: %s", tracer._tags)
-    elif config_name == "_tracing_enabled":
+    elif config_name == "_ddtrace_enabled":
         if tracer.enabled and config_value is False:
             tracer.enabled = False
             log.debug("Tracing disabled via remote_config. Config: %s Value: %s", config_name, config_value)
-        elif config_value is True and dd_config._config["_tracing_enabled"].source() != "remote_config":
+        elif config_value is True and dd_config._config["_ddtrace_enabled"].source() != "remote_config":
             tracer.enabled = True
             log.debug("Tracing enabled via remote_config. Config: %s Value: %s", config_name, config_value)
     elif config_name == "_trace_http_header_tags":
@@ -214,7 +214,7 @@ def apm_tracing_rc(lib_config, dd_config):
         "_trace_sampling_rules": _convert_rc_trace_sampling_rules(lib_config),
         "_logs_injection": _convert_optional_bool(lib_config, "log_injection_enabled"),
         "tags": _convert_rc_tags(lib_config, "tracing_tags", dd_config),
-        "_tracing_enabled": _convert_optional_bool(lib_config, "tracing_enabled"),
+        "_ddtrace_enabled": _convert_optional_bool(lib_config, "tracing_enabled"),
         "_trace_http_header_tags": _convert_rc_tags(lib_config, "tracing_header_tags", dd_config),
     }
 

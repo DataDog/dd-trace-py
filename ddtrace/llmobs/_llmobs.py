@@ -19,7 +19,6 @@ from typing import cast
 import ddtrace
 from ddtrace import config
 from ddtrace import patch
-from ddtrace._trace.apm_filter import APMTracingEnabledFilter
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace._trace.tracer import Tracer
@@ -608,10 +607,6 @@ class LLMObs(Service):
 
             # override the default _instance with a new tracer
             cls._instance = cls(tracer=_tracer, span_processor=span_processor)
-
-            # Add APM trace filter to drop all APM traces when DD_APM_TRACING_ENABLED is falsy
-            apm_filter = APMTracingEnabledFilter()
-            cls._instance.tracer._span_aggregator.dd_processors.append(apm_filter)
 
             cls.enabled = True
             cls._instance.start()

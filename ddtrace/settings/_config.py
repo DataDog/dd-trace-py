@@ -375,10 +375,15 @@ def _default_config() -> Dict[str, _ConfigItem]:
             otel_env="OTEL_RESOURCE_ATTRIBUTES",
             modifier=lambda x: gitmetadata.clean_tags(parse_tags_str(x)),
         ),
-        "_tracing_enabled": _ConfigItem(
+        "_ddtrace_enabled": _ConfigItem(
             default=True,
             envs=["DD_TRACE_ENABLED"],
             otel_env="OTEL_TRACES_EXPORTER",
+            modifier=asbool,
+        ),
+        "_apm_tracing_enabled": _ConfigItem(
+            default=True,
+            envs=["DD_APM_TRACING_ENABLED"],
             modifier=asbool,
         ),
         "_sca_enabled": _ConfigItem(

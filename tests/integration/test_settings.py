@@ -69,7 +69,7 @@ from ddtrace import config, tracer
 config._logs_injection = False
 config._trace_http_header_tags = {"header": "value"}
 config.tags = {"header": "value"}
-config._tracing_enabled = False
+config._ddtrace_enabled = False
         """,
         env=env,
     )

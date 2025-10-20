@@ -185,22 +185,22 @@ def call_apm_tracing_rc(payloads: Sequence[Payload], g_config):
         },
         {
             "env": {"DD_TRACE_ENABLED": "true"},
-            "code": {"_tracing_enabled": True},
+            "code": {"_ddtrace_enabled": True},
             "rc": {"tracing_enabled": "true"},
-            "expected": {"_tracing_enabled": True},
-            "expected_source": {"_tracing_enabled": "remote_config"},
+            "expected": {"_ddtrace_enabled": True},
+            "expected_source": {"_ddtrace_enabled": "remote_config"},
         },
         {
             "env": {"DD_TRACE_ENABLED": "true"},
-            "code": {"_tracing_enabled": True},
+            "code": {"_ddtrace_enabled": True},
             "rc": {"tracing_enabled": "false"},
-            "expected": {"_tracing_enabled": False},
-            "expected_source": {"_tracing_enabled": "remote_config"},
+            "expected": {"_ddtrace_enabled": False},
+            "expected_source": {"_ddtrace_enabled": "remote_config"},
         },
         {
             "env": {"DD_TRACE_ENABLED": "false"},
-            "expected": {"_tracing_enabled": False},
-            "expected_source": {"_tracing_enabled": "env_var"},
+            "expected": {"_ddtrace_enabled": False},
+            "expected_source": {"_ddtrace_enabled": "env_var"},
         },
     ],
 )
@@ -227,10 +227,10 @@ def test_settings_parametrized(testcase, config, monkeypatch):
 def test_settings_missing_lib_config(config, monkeypatch):
     testcase = {
         "env": {"DD_TRACE_ENABLED": "true"},
-        "code": {"_tracing_enabled": True},
+        "code": {"_ddtrace_enabled": True},
         "rc": {},
-        "expected": {"_tracing_enabled": True},
-        "expected_source": {"_tracing_enabled": "code"},
+        "expected": {"_ddtrace_enabled": True},
+        "expected_source": {"_ddtrace_enabled": "code"},
     }
     for env_name, env_value in testcase.get("env", {}).items():
         monkeypatch.setenv(env_name, env_value)
@@ -663,7 +663,7 @@ def test_remoteconfig_debug_logging():
             '[{"sample_rate": 0.3}]',
         ),
         mock.call("Updated tracer tags via remote_config: %s", {"team": "onboarding"}),
-        mock.call("Tracing disabled via remote_config. Config: %s Value: %s", "_tracing_enabled", False),
+        mock.call("Tracing disabled via remote_config. Config: %s Value: %s", "_ddtrace_enabled", False),
         mock.call(
             "Updated HTTP header tags configuration via remote_config: %s", {"X-Header-Tag-420": "header_tag_420"}
         ),
