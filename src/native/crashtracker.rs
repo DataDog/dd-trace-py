@@ -322,66 +322,12 @@ pub fn crashtracker_receiver() -> anyhow::Result<()> {
 #[derive(Debug, PartialEq, Eq)]
 pub enum CallbackResult {
     Ok,
-    NullCallback,
-    UnknownError,
+    Error,
 }
 
 impl From<CallbackError> for CallbackResult {
-    fn from(error: CallbackError) -> Self {
-        match error {
-            CallbackError::NullCallback => CallbackResult::NullCallback,
-        }
-    }
-}
-
-/// Runtime-specific stack frame representation for FFI
-///
-/// This struct is used to pass runtime stack frame information from language
-/// runtimes to the crashtracker during crash handling.
-#[pyclass(name = "RuntimeStackFrame", module = "datadog.internal._native")]
-#[derive(Debug, Clone)]
-pub struct RuntimeStackFramePy {
-    pub function_name: Option<String>,
-    pub file_name: Option<String>,
-    pub line_number: u32,
-    pub column_number: u32,
-}
-
-#[pymethods]
-impl RuntimeStackFramePy {
-    #[new]
-    fn new(
-        function_name: Option<String>,
-        file_name: Option<String>,
-        line_number: u32,
-        column_number: u32,
-    ) -> Self {
-        Self {
-            function_name,
-            file_name,
-            line_number,
-            column_number,
-        }
-    }
-
-    #[getter]
-    fn get_function_name(&self) -> Option<String> {
-        self.function_name.clone()
-    }
-
-    #[getter]
-    fn get_file_name(&self) -> Option<String> {
-        self.file_name.clone()
-    }
-
-    #[getter]
-    fn get_line_number(&self) -> u32 {
-        self.line_number
-    }
-
-    #[getter]
-    fn get_column_number(&self) -> u32 {
-        self.column_number
+    fn from(_error: CallbackError) -> Self {
+        CallbackResult::Error
     }
 }
 
@@ -471,117 +417,6 @@ fn parse_traceback_line(
     0
 }
 
-// Parse traceback text and emit frames
-unsafe fn parse_and_emit_traceback(
-    traceback_text: &str,
-    emit_frame: unsafe extern "C" fn(*const RuntimeStackFrame),
-) {
-    let lines: Vec<&str> = traceback_text.lines().collect();
-    let mut frame_count = 0;
-
-    for line in lines {
-        if frame_count >= MAX_FRAMES {
-            break;
-        }
-
-        // Look for lines that start with "  File " - these are stack frame lines
-        if line.trim_start().starts_with("File ") {
-            let mut function_buf = StackBuffer::new();
-            let mut file_buf = StackBuffer::new();
-
-            let line_number = parse_traceback_line(line, &mut function_buf, &mut file_buf);
-
-            let c_frame = RuntimeStackFrame {
-                function_name: function_buf.as_ptr(),
-                file_name: file_buf.as_ptr(),
-                line_number,
-                column_number: 0,
-            };
-
-            emit_frame(&c_frame);
-            frame_count += 1;
-        }
-    }
-}
-
-unsafe fn dump_python_traceback_via_cpython_api(
-    emit_frame: unsafe extern "C" fn(*const RuntimeStackFrame),
-) {
-    let mut pipefd: [c_int; 2] = [0, 0];
-    if pipe(&mut pipefd as *mut [c_int; 2]) != 0 {
-        emit_fallback_frame(emit_frame, "<pipe_creation_failed>");
-        return;
-    }
-
-    let read_fd = pipefd[0];
-    let write_fd = pipefd[1];
-
-    // Make the read end non-blocking
-    fcntl(read_fd, F_SETFL, O_NONBLOCK);
-
-    // Get the current thread state safely - same approach as CPython's faulthandler
-    // SIGSEGV, SIGFPE, SIGABRT, SIGBUS and SIGILL are synchronous signals and
-    // are thus delivered to the thread that caused the fault.
-    let current_tstate = crashtracker_get_current_tstate();
-
-    // Call the CPython internal API via our C wrapper
-    // Pass NULL for interpreter state since _Py_DumpTracebackThreads handle it internally
-    let error_msg = crashtracker_dump_traceback_threads(write_fd, ptr::null_mut(), current_tstate);
-
-    close(write_fd);
-
-    if !error_msg.is_null() {
-        close(read_fd);
-        let error_str = std::ffi::CStr::from_ptr(error_msg);
-        if let Ok(error_string) = error_str.to_str() {
-            emit_fallback_frame(emit_frame, error_string);
-        } else {
-            emit_fallback_frame(emit_frame, "<cpython_api_error>");
-        }
-        return;
-    }
-
-    let mut buffer = vec![0u8; MAX_TRACEBACK_SIZE];
-    let bytes_read = read(
-        read_fd,
-        buffer.as_mut_ptr() as *mut c_void,
-        MAX_TRACEBACK_SIZE,
-    );
-
-    close(read_fd);
-
-    if bytes_read > 0 {
-        buffer.truncate(bytes_read as usize);
-        if let Ok(traceback_text) = std::str::from_utf8(&buffer) {
-            parse_and_emit_traceback(traceback_text, emit_frame);
-            return;
-        }
-    }
-
-    // If we get here, something went wrong with reading the output
-    emit_fallback_frame(emit_frame, "<traceback_read_failed>");
-}
-
-// Helper function to emit a fallback frame with error information
-unsafe fn emit_fallback_frame(
-    emit_frame: unsafe extern "C" fn(*const RuntimeStackFrame),
-    error_msg: &str,
-) {
-    let mut function_buf = StackBuffer::new();
-    let mut file_buf = StackBuffer::new();
-    function_buf.set_from_str(error_msg);
-    file_buf.set_from_str("<crashtracker_fallback>");
-
-    let fallback_frame = RuntimeStackFrame {
-        function_name: function_buf.as_ptr(),
-        file_name: file_buf.as_ptr(),
-        line_number: 0,
-        column_number: 0,
-    };
-
-    emit_frame(&fallback_frame);
-}
-
 /// Dump Python traceback as a complete string
 ///
 /// This function captures the Python traceback via CPython's internal API
@@ -645,30 +480,42 @@ unsafe fn dump_python_traceback_as_string(
 }
 
 unsafe extern "C" fn native_runtime_stack_callback(
-    _emit_frame: unsafe extern "C" fn(*const RuntimeStackFrame),
     emit_stacktrace_string: unsafe extern "C" fn(*const c_char),
 ) {
     dump_python_traceback_as_string(emit_stacktrace_string);
-    // dump_python_traceback_via_cpython_api(emit_frame);
 }
 
-/// Register the native runtime stack collection callback
+/// Frame-based callback implementation for runtime stack collection
+///
+/// This callback collects Python stack frames individually and emits them
+/// one by one for detailed stack trace information.
+// unsafe extern "C" fn native_runtime_frame_callback(
+//     emit_frame: unsafe extern "C" fn(*const RuntimeStackFrame),
+// ) {
+//     dump_python_traceback_via_cpython_api(emit_frame);
+// }
+
+/// Register the native runtime stack collection callback (string-based)
 ///
 /// This function registers a native callback that directly collects Python runtime
-/// stack traces without requiring Python callback functions. It uses frame-by-frame
-/// collection for detailed stack information.
+/// stack traces as complete strings without requiring Python callback functions.
 ///
 /// # Returns
 /// - `CallbackResult::Ok` if registration succeeds (replaces any existing callback)
 #[pyfunction(name = "crashtracker_register_native_runtime_callback")]
 pub fn crashtracker_register_native_runtime_callback() -> CallbackResult {
-    match register_runtime_stack_callback(
+    match register_runtime_stacktrace_string_callback(
         native_runtime_stack_callback,
-        CallbackType::StacktraceString,
     ) {
         Ok(()) => CallbackResult::Ok,
         Err(e) => e.into(),
     }
+    // match register_runtime_frame_callback(
+    //     native_runtime_frame_callback,
+    // ) {
+    //     Ok(()) => CallbackResult::Ok,
+    //     Err(e) => e.into(),
+    // }
 }
 
 /// Check if a runtime callback is currently registered
