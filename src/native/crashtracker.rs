@@ -7,11 +7,12 @@ use std::sync::Once;
 use std::time::Duration;
 
 use datadog_crashtracker::{
-    is_runtime_callback_registered, register_runtime_stack_callback, CallbackError, CallbackType,
+    is_runtime_callback_registered, register_runtime_frame_callback, register_runtime_stacktrace_string_callback, CallbackError,
     CrashtrackerConfiguration, CrashtrackerReceiverConfig, Metadata, RuntimeStackFrame,
     StacktraceCollection,
 };
 use ddcommon::Endpoint;
+use ddcommon_ffi::CharSlice;
 use pyo3::prelude::*;
 
 extern "C" {
@@ -322,15 +323,12 @@ pub fn crashtracker_receiver() -> anyhow::Result<()> {
 #[derive(Debug, PartialEq, Eq)]
 pub enum CallbackResult {
     Ok,
-    NullCallback,
-    UnknownError,
+    Error,
 }
 
 impl From<CallbackError> for CallbackResult {
-    fn from(error: CallbackError) -> Self {
-        match error {
-            CallbackError::NullCallback => CallbackResult::NullCallback,
-        }
+    fn from(_error: CallbackError) -> Self {
+        CallbackResult::Error
     }
 }
 
@@ -492,8 +490,8 @@ unsafe fn parse_and_emit_traceback(
             let line_number = parse_traceback_line(line, &mut function_buf, &mut file_buf);
 
             let c_frame = RuntimeStackFrame {
-                function_name: function_buf.as_ptr(),
-                file_name: file_buf.as_ptr(),
+                function_name: CharSlice::from_raw_parts(function_buf.as_ptr(), function_buf.len),
+                file_name: CharSlice::from_raw_parts(file_buf.as_ptr(), file_buf.len),
                 line_number,
                 column_number: 0,
             };
@@ -573,8 +571,8 @@ unsafe fn emit_fallback_frame(
     file_buf.set_from_str("<crashtracker_fallback>");
 
     let fallback_frame = RuntimeStackFrame {
-        function_name: function_buf.as_ptr(),
-        file_name: file_buf.as_ptr(),
+        function_name: CharSlice::from_raw_parts(function_buf.as_ptr(), function_buf.len),
+        file_name: CharSlice::from_raw_parts(file_buf.as_ptr(), file_buf.len),
         line_number: 0,
         column_number: 0,
     };
@@ -645,26 +643,38 @@ unsafe fn dump_python_traceback_as_string(
 }
 
 unsafe extern "C" fn native_runtime_stack_callback(
-    _emit_frame: unsafe extern "C" fn(*const RuntimeStackFrame),
     emit_stacktrace_string: unsafe extern "C" fn(*const c_char),
 ) {
     dump_python_traceback_as_string(emit_stacktrace_string);
-    // dump_python_traceback_via_cpython_api(emit_frame);
 }
 
-/// Register the native runtime stack collection callback
+/// Frame-based callback implementation for runtime stack collection
+///
+/// This callback collects Python stack frames individually and emits them
+/// one by one for detailed stack trace information.
+unsafe extern "C" fn native_runtime_frame_callback(
+    emit_frame: unsafe extern "C" fn(*const RuntimeStackFrame),
+) {
+    dump_python_traceback_via_cpython_api(emit_frame);
+}
+
+/// Register the native runtime stack collection callback (string-based)
 ///
 /// This function registers a native callback that directly collects Python runtime
-/// stack traces without requiring Python callback functions. It uses frame-by-frame
-/// collection for detailed stack information.
+/// stack traces as complete strings without requiring Python callback functions.
 ///
 /// # Returns
 /// - `CallbackResult::Ok` if registration succeeds (replaces any existing callback)
 #[pyfunction(name = "crashtracker_register_native_runtime_callback")]
 pub fn crashtracker_register_native_runtime_callback() -> CallbackResult {
-    match register_runtime_stack_callback(
-        native_runtime_stack_callback,
-        CallbackType::StacktraceString,
+    // match register_runtime_stacktrace_string_callback(
+    //     native_runtime_stack_callback,
+    // ) {
+    //     Ok(()) => CallbackResult::Ok,
+    //     Err(e) => e.into(),
+    // }
+    match register_runtime_frame_callback(
+        native_runtime_frame_callback,
     ) {
         Ok(()) => CallbackResult::Ok,
         Err(e) => e.into(),
