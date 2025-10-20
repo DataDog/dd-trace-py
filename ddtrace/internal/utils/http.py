@@ -107,12 +107,12 @@ def urlunsplit(components: Tuple[str, ...], original_url: str) -> str:
     if netloc or (scheme and url[:2] != "//"):
         if url and url[:1] != "/":
             url = "/" + url
-        url = "//%s%s" % ((netloc or b""), url)
+        url = "//%s%s" % ((netloc or ""), url)
     if scheme:
         url = "%s:%s" % (scheme, url)
-    if query or (original_url and original_url[-1] in ("?", b"?")):
+    if query or (original_url and original_url[-1] == "?"):
         url = "%s?%s" % (url, query)
-    if fragment or (original_url and original_url[-1] in ("#", b"#")):
+    if fragment or (original_url and original_url[-1] == "#"):
         url = "%s#%s" % (url, fragment)
     return url
 
