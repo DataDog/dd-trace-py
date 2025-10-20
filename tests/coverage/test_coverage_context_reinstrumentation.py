@@ -94,13 +94,23 @@ def test_sequential_contexts_get_complete_coverage():
 
     # Line 2 is the function body - it MUST be in all contexts
     assert 2 in context1_covered["tests/coverage/included_path/lib.py"], "Context 1 missing lib.py line 2"
-    assert 2 in context2_covered["tests/coverage/included_path/lib.py"], "Context 2 missing lib.py line 2 - re-instrumentation failed!"
-    assert 2 in context3_covered["tests/coverage/included_path/lib.py"], "Context 3 missing lib.py line 2 - re-instrumentation failed!"
+    assert (
+        2 in context2_covered["tests/coverage/included_path/lib.py"]
+    ), "Context 2 missing lib.py line 2 - re-instrumentation failed!"
+    assert (
+        2 in context3_covered["tests/coverage/included_path/lib.py"]
+    ), "Context 3 missing lib.py line 2 - re-instrumentation failed!"
 
     # Same for in_context_lib.py
-    assert 2 in context1_covered["tests/coverage/included_path/in_context_lib.py"], "Context 1 missing in_context_lib.py line 2"
-    assert 2 in context2_covered["tests/coverage/included_path/in_context_lib.py"], "Context 2 missing in_context_lib.py line 2 - re-instrumentation failed!"
-    assert 2 in context3_covered["tests/coverage/included_path/in_context_lib.py"], "Context 3 missing in_context_lib.py line 2 - re-instrumentation failed!"
+    assert (
+        2 in context1_covered["tests/coverage/included_path/in_context_lib.py"]
+    ), "Context 1 missing in_context_lib.py line 2"
+    assert (
+        2 in context2_covered["tests/coverage/included_path/in_context_lib.py"]
+    ), "Context 2 missing in_context_lib.py line 2 - re-instrumentation failed!"
+    assert (
+        2 in context3_covered["tests/coverage/included_path/in_context_lib.py"]
+    ), "Context 3 missing in_context_lib.py line 2 - re-instrumentation failed!"
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
@@ -146,7 +156,7 @@ def test_context_with_repeated_execution_reinstruments_correctly():
     # Context 3: Execute once more
     with ModuleCodeCollector.CollectInContext() as context3:
         for i in range(15):
-            result3 = called_in_session(i, i)
+            called_in_session(i, i)
         context3_covered = _get_relpath_dict(cwd_path, context3.get_covered_lines())
 
     # Expected coverage for lib.py (lines in called_in_session function)
@@ -257,10 +267,8 @@ def test_many_sequential_contexts_no_degradation():
 
     # Verify all contexts got the same coverage for callee.py
     for idx, context_covered in enumerate(all_context_coverages):
-        assert (
-            "tests/coverage/included_path/callee.py" in context_covered
-        ), f"Context {idx} missing callee.py"
-        
+        assert "tests/coverage/included_path/callee.py" in context_covered, f"Context {idx} missing callee.py"
+
         # Check callee.py lines match (these are runtime, not import-time)
         actual_callee = context_covered["tests/coverage/included_path/callee.py"]
         if idx == 0:
@@ -269,10 +277,12 @@ def test_many_sequential_contexts_no_degradation():
         else:
             # Subsequent contexts should have at least the runtime lines
             assert expected_callee_lines.issubset(actual_callee), f"Context {idx} missing expected callee lines"
-        
+
         # Check lib.py exists and has line 2 (the function body)
         assert "tests/coverage/included_path/lib.py" in context_covered, f"Context {idx} missing lib.py"
-        assert 2 in context_covered["tests/coverage/included_path/lib.py"], f"Context {idx} missing lib.py line 2 - re-instrumentation failed!"
+        assert (
+            2 in context_covered["tests/coverage/included_path/lib.py"]
+        ), f"Context {idx} missing lib.py line 2 - re-instrumentation failed!"
 
     # Critical: Coverage should not decrease over iterations
     # All contexts should have the same runtime lines for callee.py
@@ -280,8 +290,8 @@ def test_many_sequential_contexts_no_degradation():
     last_callee = all_context_coverages[-1].get("tests/coverage/included_path/callee.py", set())
 
     # Check that expected_callee_lines are in both first and last
-    assert (
-        expected_callee_lines.issubset(first_callee) and expected_callee_lines.issubset(last_callee)
+    assert expected_callee_lines.issubset(first_callee) and expected_callee_lines.issubset(
+        last_callee
     ), f"Coverage degraded: first had {first_callee}, last had {last_callee}"
 
 
@@ -343,20 +353,26 @@ def test_context_after_session_coverage():
     assert "tests/coverage/included_path/callee.py" in context1_covered
     assert expected_context_callee_runtime.issubset(context1_covered["tests/coverage/included_path/callee.py"])
     assert 2 in context1_covered["tests/coverage/included_path/lib.py"], "Context 1 missing lib.py line 2"
-    assert 2 in context1_covered["tests/coverage/included_path/in_context_lib.py"], "Context 1 missing in_context_lib.py line 2"
+    assert (
+        2 in context1_covered["tests/coverage/included_path/in_context_lib.py"]
+    ), "Context 1 missing in_context_lib.py line 2"
 
     # Verify context 2 coverage
     assert "tests/coverage/included_path/callee.py" in context2_covered
     assert expected_context_callee_runtime.issubset(context2_covered["tests/coverage/included_path/callee.py"])
-    assert 2 in context2_covered["tests/coverage/included_path/lib.py"], "Context 2 missing lib.py line 2 - re-instrumentation failed!"
-    assert 2 in context2_covered["tests/coverage/included_path/in_context_lib.py"], "Context 2 missing in_context_lib.py line 2 - re-instrumentation failed!"
+    assert (
+        2 in context2_covered["tests/coverage/included_path/lib.py"]
+    ), "Context 2 missing lib.py line 2 - re-instrumentation failed!"
+    assert (
+        2 in context2_covered["tests/coverage/included_path/in_context_lib.py"]
+    ), "Context 2 missing in_context_lib.py line 2 - re-instrumentation failed!"
 
     # Critical: Both contexts should have the same runtime lines for callee.py
     context1_callee = context1_covered["tests/coverage/included_path/callee.py"]
     context2_callee = context2_covered["tests/coverage/included_path/callee.py"]
-    
-    assert (
-        expected_context_callee_runtime.issubset(context1_callee) and expected_context_callee_runtime.issubset(context2_callee)
+
+    assert expected_context_callee_runtime.issubset(context1_callee) and expected_context_callee_runtime.issubset(
+        context2_callee
     ), f"Context coverages differ - re-instrumentation may have failed: context1={context1_callee}, context2={context2_callee}"
 
 
@@ -410,27 +426,30 @@ def test_import_time_coverage_reinstrumentation():
 
     # The key test is that import_time_callee.py is captured in BOTH collections
     # This verifies re-instrumentation is working (previously Context 2 would be empty)
-    
+
     # Verify first collection captured the callee file
-    assert "tests/coverage/included_path/import_time_callee.py" in first_covered, \
-        "First collection missing import_time_callee.py"
+    assert (
+        "tests/coverage/included_path/import_time_callee.py" in first_covered
+    ), "First collection missing import_time_callee.py"
     first_callee = first_covered["tests/coverage/included_path/import_time_callee.py"]
     assert len(first_callee) > 0, "First collection has no lines for import_time_callee.py"
 
     # CRITICAL: Verify second collection also captured the callee file
     # This is the key test for re-instrumentation working
     # Before the fix, this would be empty or missing
-    assert "tests/coverage/included_path/import_time_callee.py" in second_covered, \
-        "Second collection missing import_time_callee.py - re-instrumentation failed!"
+    assert (
+        "tests/coverage/included_path/import_time_callee.py" in second_covered
+    ), "Second collection missing import_time_callee.py - re-instrumentation failed!"
     second_callee = second_covered["tests/coverage/included_path/import_time_callee.py"]
-    assert len(second_callee) > 0, \
-        f"Second collection has no lines for import_time_callee.py - re-instrumentation failed! Got: {second_covered}"
+    assert (
+        len(second_callee) > 0
+    ), f"Second collection has no lines for import_time_callee.py - re-instrumentation failed! Got: {second_covered}"
 
     # Verify line 2 (the import statement that triggers execution) is in both
     # This is the minimum requirement to show re-instrumentation works
     assert 2 in first_callee, f"First collection missing line 2: {first_callee}"
     assert 2 in second_callee, f"Second collection missing line 2 - re-instrumentation failed! Got: {second_callee}"
-    
+
     # With import tracking, verify both collections track dependencies
     assert "tests/coverage/included_path/import_time_callee.py" in first_covered_with_imports
     assert "tests/coverage/included_path/import_time_callee.py" in second_covered_with_imports
@@ -523,11 +542,10 @@ def test_comprehensive_reinstrumentation_with_simple_module():
 
         # Critical assertions: Contexts 1 and 2 should have identical coverage
         # Context 3 should have the same number of lines (just different branch)
-        assert (
-            len(context1_covered[module_path]) == len(context2_covered[module_path])
+        assert len(context1_covered[module_path]) == len(
+            context2_covered[module_path]
         ), f"Context 1 and 2 have different line counts: {len(context1_covered[module_path])} vs {len(context2_covered[module_path])}"
 
-        assert (
-            len(context1_covered[module_path]) == len(context3_covered[module_path])
+        assert len(context1_covered[module_path]) == len(
+            context3_covered[module_path]
         ), f"Context 1 and 3 have different line counts: {len(context1_covered[module_path])} vs {len(context3_covered[module_path])}"
-

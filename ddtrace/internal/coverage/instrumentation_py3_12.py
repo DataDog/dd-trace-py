@@ -100,7 +100,7 @@ def reset_monitoring_for_new_context():
     # restart_events() re-enables all events that were disabled by returning DISABLE
     # This resets the per-line disable state across all code objects
     sys.monitoring.restart_events()
-    
+
     # Then re-enable local events for all instrumented code objects
     # This ensures monitoring is active for the new context
     for code in _DEINSTRUMENTED_CODE_OBJECTS:
