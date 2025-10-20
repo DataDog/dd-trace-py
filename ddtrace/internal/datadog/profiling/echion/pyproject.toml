@@ -1,0 +1,126 @@
+# This file is part of "echion" which is released under MIT.
+#
+# Copyright (c) 2023 Gabriele N. Tornetta <phoenix1987@gmail.com>.
+
+[project]
+name = "echion"
+description = "In-process CPython frame stack sampler"
+authors = [
+  {name = "Gabriele N. Tornetta", email="phoenix1987@gmail.com"},
+]
+readme = "README.md"
+
+keywords = ["performance", "profiling", "testing", "development"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+]
+
+requires-python = ">=3.8"
+dependencies = [
+  "hypno~=1.0",
+]
+
+dynamic = ["version"]
+
+[project.urls]
+homepage = "https://github.com/P403n1x87/echion"
+repository = "https://github.com/P403n1x87/echion"
+issues = "https://github.com/P403n1x87/echion/issues"
+
+[project.scripts]
+echion = "echion.__main__:main"
+
+[tool.hatch.envs.tests]
+template = "tests"
+dependencies = [
+  "pytest>=5.4.2",
+  "pytest-cov>=2.8.1",
+  "austin-python~=1.7",
+  "bytecode",
+  "gevent",
+]
+
+[tool.hatch.envs.tests.scripts]
+tests = "pytest --cov=echion --cov-report=term-missing --cov-report=xml {args}"
+
+[[tool.hatch.envs.tests.matrix]]
+python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+
+[tool.hatch.envs.checks]
+detached = true
+python = "3.10"
+template = "checks"
+dependencies = [
+  "mypy~=1.0",
+  "flake8~=5.0.4",
+  "flake8-annotations~=2.9.1",
+  "flake8-black",
+  "flake8-bugbear~=22.9.23",
+  "flake8-docstrings~=1.6.0",
+  "flake8-import-order~=0.18.1",
+  "flake8-isort~=5.0.0",
+]
+
+[tool.hatch.envs.checks.scripts]
+typing = "mypy --install-types --non-interactive --show-error-codes {args} echion/ tests/"
+linting = "flake8 {args} echion/ tests/ "
+
+[tool.hatch.envs.coverage]
+detached = true
+python = "3.10"
+template = "coverage"
+dependencies = [
+  "coverage[toml]",
+  "codecov",
+]
+
+[tool.hatch.envs.coverage.scripts]
+cov = "coverage xml --fail-under=50"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+  "/.github",
+  "/docs",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["echion"]
+
+[tool.coverage.run]
+branch = true
+source = ["echion"]
+
+[tool.coverage.report]
+show_missing = true
+
+[tool.isort]
+force_single_line = true
+lines_after_imports = 2
+profile = "black"
+
+[tool.black]
+line-length = 88
+exclude = [
+  "echion/_version.py",
+]
+
+[tool.mypy]
+ignore_missing_imports = true
+
+[tool.setuptools_scm]
+write_to = "echion/_version.py"
+
+[build-system]
+requires = ["setuptools>=45", "setuptools_scm[toml]>=6.2", "wheel"]
+build-backend = "setuptools.build_meta"
