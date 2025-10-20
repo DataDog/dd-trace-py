@@ -373,7 +373,7 @@ class BedrockIntegration(BaseLLMIntegration):
         """
         if isinstance(response["text"], str):
             return [Message(content=response["text"])]
-        if isinstance(response["text"], list):
+        if isinstance(response["text"], list) and len(response["text"]) > 0:
             if isinstance(response["text"][0], str):
                 return [Message(content=str(content)) for content in response["text"]]
             if isinstance(response["text"][0], dict):
