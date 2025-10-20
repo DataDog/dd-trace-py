@@ -27,7 +27,6 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_class::<crashtracker::CrashtrackerMetadataPy>()?;
         m.add_class::<crashtracker::CrashtrackerStatus>()?;
         m.add_class::<crashtracker::CallbackResult>()?;
-        m.add_class::<crashtracker::RuntimeStackFramePy>()?;
         m.add_function(wrap_pyfunction!(crashtracker::crashtracker_init, m)?)?;
         m.add_function(wrap_pyfunction!(crashtracker::crashtracker_on_fork, m)?)?;
         m.add_function(wrap_pyfunction!(crashtracker::crashtracker_status, m)?)?;
