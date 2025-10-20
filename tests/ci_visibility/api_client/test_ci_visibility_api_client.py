@@ -8,6 +8,7 @@ from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.ext.test_visibility import _get_default_test_visibility_contrib_config
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility._api_client import AgentlessTestVisibilityAPIClient
+from ddtrace.internal.ci_visibility._api_client import CIVisibilityAPIServerError
 from ddtrace.internal.ci_visibility._api_client import EVPProxyTestVisibilityAPIClient
 from ddtrace.internal.ci_visibility._api_client import ITRData
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
@@ -220,6 +221,68 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
             assert call_args[0] == "POST"
             assert json.loads(call_args[2]) == self._get_expected_do_request_setting_payload(
                 itr_skipping_level, git_data=git_data, dd_service=dd_service, dd_env=dd_env
+            )
+
+    def test_civisibility_api_client_settings_retry_on_errors(self):
+        """Tests that the API call to the settings endpoint is retried in case of server errors."""
+        client = self._get_test_client(
+            itr_skipping_level=ITR_SKIPPING_LEVEL.TEST,
+            api_key="my_api_key",
+            dd_service=None,
+            dd_env=None,
+            git_data=self.git_data_parameters[0],
+        )
+        with mock.patch.object(
+            client,
+            "_do_request",
+            side_effect=[
+                _get_setting_api_response(status_code=500),
+                _get_setting_api_response(status_code=500),
+                _get_setting_api_response(),
+            ],
+        ) as mock_do_request:
+            with mock.patch("ddtrace.internal.utils.retry.sleep"):
+                settings = client.fetch_settings(read_from_cache=False)
+
+        assert settings == TestVisibilityAPISettings()
+
+        assert mock_do_request.call_count == 3
+        for call_args, _ in mock_do_request.call_args_list:
+            assert call_args[0] == "POST"
+            assert json.loads(call_args[2]) == self._get_expected_do_request_setting_payload(
+                ITR_SKIPPING_LEVEL.TEST, git_data=self.git_data_parameters[0], dd_service=None, dd_env=None
+            )
+
+    def test_civisibility_api_client_settings_fail_after_5_retries(self):
+        """Tests that the API call to the settings endpoint is retried in case of server errors."""
+        client = self._get_test_client(
+            itr_skipping_level=ITR_SKIPPING_LEVEL.TEST,
+            api_key="my_api_key",
+            dd_service=None,
+            dd_env=None,
+            git_data=self.git_data_parameters[0],
+        )
+        with mock.patch.object(
+            client,
+            "_do_request",
+            side_effect=[
+                _get_setting_api_response(status_code=500),
+                _get_setting_api_response(status_code=500),
+                _get_setting_api_response(status_code=500),
+                _get_setting_api_response(status_code=500),
+                _get_setting_api_response(status_code=500),
+                _get_setting_api_response(),
+            ],
+        ) as mock_do_request:
+            with mock.patch("ddtrace.internal.utils.retry.sleep"):
+                with pytest.raises(CIVisibilityAPIServerError):
+                    _ = client.fetch_settings(read_from_cache=False)
+
+        assert mock_do_request.call_count == 5
+        for call_args, _ in mock_do_request.call_args_list:
+            assert call_args[0] == "POST"
+            assert json.loads(call_args[2]) == self._get_expected_do_request_setting_payload(
+                ITR_SKIPPING_LEVEL.TEST, git_data=self.git_data_parameters[0], dd_service=None, dd_env=None
             )
 
     @pytest.mark.parametrize("client_timeout", [None, 5])
