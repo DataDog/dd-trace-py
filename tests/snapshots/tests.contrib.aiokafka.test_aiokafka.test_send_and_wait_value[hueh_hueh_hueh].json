@@ -1,0 +1,77 @@
+[[
+  {
+    "name": "kafka.consume",
+    "service": "kafka",
+    "resource": "kafka.consume",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.aiokafka",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68f63cdb00000000",
+      "component": "aiokafka",
+      "kafka.group_id": "test_group",
+      "kafka.message_key": "test_key",
+      "kafka.message_offset": "-1",
+      "kafka.partition": "0",
+      "kafka.received_message": "True",
+      "kafka.tombstone": "False",
+      "kafka.topic": "send_and_wait_value",
+      "language": "python",
+      "messaging.destination.name": "send_and_wait_value",
+      "messaging.kafka.bootstrap.servers": "['127.0.0.1:29092']",
+      "messaging.system": "kafka",
+      "pathway.hash": "15018913676636240605",
+      "runtime-id": "4551835e79bb48a392bf2f601c73142b",
+      "span.kind": "consumer"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 605
+    },
+    "duration": 6557959,
+    "start": 1760967899986740842
+  }],
+[
+  {
+    "name": "kafka.produce",
+    "service": "kafka",
+    "resource": "kafka.produce",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.aiokafka",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68f63cd800000000",
+      "component": "aiokafka",
+      "kafka.message_key": "b'test_key'",
+      "kafka.partition": "None",
+      "kafka.tombstone": "False",
+      "kafka.topic": "send_and_wait_value",
+      "language": "python",
+      "messaging.destination.name": "send_and_wait_value",
+      "messaging.kafka.bootstrap.servers": "['127.0.0.1:29092']",
+      "messaging.system": "kafka",
+      "pathway.hash": "12496240666428409309",
+      "runtime-id": "4551835e79bb48a392bf2f601c73142b",
+      "span.kind": "producer"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 605
+    },
+    "duration": 2872291,
+    "start": 1760967896968624633
+  }]]

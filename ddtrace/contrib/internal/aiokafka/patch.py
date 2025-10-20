@@ -4,6 +4,7 @@ from time import time_ns
 import aiokafka
 from wrapt import wrap_function_wrapper as _w
 
+from typing import Dict
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -40,6 +41,9 @@ config._add(
 
 def get_version() -> str:
     return getattr(aiokafka, "__version__", "")
+
+def _supported_versions() -> Dict[str, str]:
+    return {"aiokafka": ">=0.12.0"}
 
 
 def common_aiokafka_tags(topic, bootstrap_servers):
@@ -167,8 +171,6 @@ async def traced_getmany(func, instance, args, kwargs):
 
 
 async def traced_commit(func, instance, args, kwargs):
-    print(args)
-    print(kwargs)
     core.dispatch("aiokafka.commit.start", (instance, args, kwargs))
     return await func(*args, **kwargs)
 

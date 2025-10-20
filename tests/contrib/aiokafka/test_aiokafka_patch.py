@@ -1,9 +1,9 @@
-from ddtrace.contrib.aiokafka.patch import get_version
-from ddtrace.contrib.aiokafka.patch import patch
+from ddtrace.contrib.internal.aiokafka.patch import get_version
+from ddtrace.contrib.internal.aiokafka.patch import patch
 
 
 try:
-    from ddtrace.contrib.aiokafka.patch import unpatch
+    from ddtrace.contrib.internal.aiokafka.patch import unpatch
 except ImportError:
     unpatch = None
 from tests.contrib.patch import PatchTestCase

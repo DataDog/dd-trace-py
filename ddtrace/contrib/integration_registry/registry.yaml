@@ -33,6 +33,16 @@ integrations:
       min: 1.5.1
       max: 1.6.0
 
+- integration_name: aiokafka
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - aiokafka
+  tested_versions_by_dependency:
+    aiokafka:
+      min: 0.11.0
+      max: 0.12.0
+
 - integration_name: aiomysql
   is_external_package: true
   is_tested: true

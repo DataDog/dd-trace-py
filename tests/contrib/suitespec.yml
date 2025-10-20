@@ -6,6 +6,9 @@ components:
     - ddtrace/contrib/internal/aiohttp_jinja2/*
   aiopg:
     - ddtrace/contrib/internal/aiopg/*
+  aiokafka:
+    - ddtrace/contrib/internal/aiokafka/*
+    - ddtrace/ext/kafka.py
   algoliasearch:
     - ddtrace/contrib/internal/algoliasearch/*
   asgi:
@@ -245,6 +248,24 @@ suites:
     runner: riot
     services:
       - mysql
+    snapshot: true
+  aiokafka:
+    env:
+      TEST_KAFKA_HOST: kafka
+      TEST_KAFKA_PORT: '29092'
+    parallelism: 2
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@aiokafka'
+      - '@datastreams'
+      - tests/contrib/aiokafka/*
+      - tests/snapshots/tests.contrib.aiokafka.*
+    runner: riot
+    services:
+      - kafka
     snapshot: true
   aiopg:
     paths:

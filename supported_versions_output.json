@@ -28,6 +28,13 @@
         "auto-instrumented": true
     },
     {
+        "dependency": "aiokafka",
+        "integration": "aiokafka",
+        "minimum_tracer_supported": "0.11.0",
+        "max_tracer_supported": "0.12.0",
+        "auto-instrumented": true
+    },
+    {
         "dependency": "aiomysql",
         "integration": "aiomysql",
         "minimum_tracer_supported": "0.1.1",
@@ -106,7 +113,7 @@
         "minimum_tracer_supported": "5.12.2",
         "max_tracer_supported": "5.15.0",
         "pinned": "true",
-        "auto-instrumented": false
+        "auto-instrumented": true
     },
     {
         "dependency": "azure-functions",
@@ -489,7 +496,8 @@
         "dependency": "openai",
         "integration": "openai",
         "minimum_tracer_supported": "1.0.0",
-        "max_tracer_supported": "1.91.0",
+        "max_tracer_supported": "1.109.1",
+        "pinned": "true",
         "auto-instrumented": true
     },
     {
@@ -504,7 +512,7 @@
         "integration": "protobuf",
         "minimum_tracer_supported": "5.29.3",
         "max_tracer_supported": "6.32.0",
-        "auto-instrumented": false
+        "auto-instrumented": true
     },
     {
         "dependency": "psycopg",

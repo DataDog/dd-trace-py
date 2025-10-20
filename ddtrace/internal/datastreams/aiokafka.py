@@ -21,7 +21,10 @@ def dsm_aiokafka_send_start(topic, value, key, headers, span, _):
     edge_tags = ["direction:out", "topic:" + topic, "type:kafka"]
     ctx = processor().set_checkpoint(edge_tags, payload_size=payload_size, span=span)
 
-    DsmPathwayCodec.encode(ctx, headers)
+    dsm_headers = {}
+    DsmPathwayCodec.encode(ctx, dsm_headers)
+    for key, value in dsm_headers.items():
+        headers.append((key, value.encode("utf-8")))
 
 
 def dsm_aiokafka_send_completed(record_metadata):
