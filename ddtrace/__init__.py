@@ -1,4 +1,3 @@
-import os
 import sys
 
 
@@ -14,7 +13,6 @@ configure_ddtrace_logger()  # noqa: E402
 
 # Enable telemetry writer and excepthook as early as possible to ensure we capture any exceptions from initialization
 import ddtrace.internal.telemetry  # noqa: E402
-from .settings._config import config, _get_env
 from ddtrace.vendor import debtcollector
 
 from ._monkey import patch  # noqa: E402
@@ -22,6 +20,7 @@ from ._monkey import patch_all  # noqa: E402
 from .internal.compat import PYTHON_VERSION_INFO  # noqa: E402
 from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
 from .settings._config import config
+from .settings._config import _get_env
 from .version import get_version  # noqa: E402
 
 
