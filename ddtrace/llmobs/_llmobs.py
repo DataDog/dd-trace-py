@@ -771,6 +771,7 @@ class LLMObs(Service):
         dataset: Dataset,
         evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], JSONType]],
         description: str = "",
+        project_name: Optional[str] = None,
         tags: Optional[Dict[str, str]] = None,
         config: Optional[ExperimentConfigType] = None,
         summary_evaluators: Optional[
@@ -788,9 +789,14 @@ class LLMObs(Service):
         :param dataset: The dataset to run the experiment on, created with LLMObs.pull/create_dataset().
         :param evaluators: A list of evaluator functions to evaluate the task output.
                            Must accept parameters ``input_data``, ``output_data``, and ``expected_output``.
+        :param project_name: The name of the project to save the experiment to.
         :param description: A description of the experiment.
         :param tags: A dictionary of string key-value tag pairs to associate with the experiment.
         :param config: A configuration dictionary describing the experiment.
+        :param summary_evaluators: A list of summary evaluator functions to evaluate the task results and evaluations
+                                   to produce a single value.
+                                   Must accept parameters ``inputs``, ``outputs``, ``expected_outputs``,
+                                   ``evaluators_results``.
         """
         if not callable(task):
             raise TypeError("task must be a callable function.")
@@ -825,7 +831,7 @@ class LLMObs(Service):
             task,
             dataset,
             evaluators,
-            project_name=cls._project_name,
+            project_name=project_name or cls._project_name,
             tags=tags,
             description=description,
             config=config,
@@ -1564,6 +1570,45 @@ class LLMObs(Service):
         timestamp_ms: Optional[int] = None,
         metadata: Optional[Dict[str, object]] = None,
         assessment: Optional[str] = None,
+        reasoning: Optional[str] = None,
+    ) -> None:
+        """
+        Submits a custom evaluation metric for a given span. This method is deprecated and will be
+        removed in the next major version of ddtrace (4.0). Please use `LLMObs.submit_evaluation()` instead.
+        """
+        log.warning(
+            "LLMObs.submit_evaluation_for() is deprecated and will be removed in the next major "
+            "version of ddtrace (4.0). Please use LLMObs.submit_evaluation() instead."
+        )
+        return cls.submit_evaluation(
+            label=label,
+            metric_type=metric_type,
+            value=value,
+            span=span,
+            span_with_tag_value=span_with_tag_value,
+            tags=tags,
+            ml_app=ml_app,
+            timestamp_ms=timestamp_ms,
+            metadata=metadata,
+            assessment=assessment,
+            reasoning=reasoning,
+        )
+
+    @classmethod
+    def submit_evaluation(
+        cls,
+        label: str,
+        metric_type: str,
+        value: Union[str, int, float, bool],
+        span_context: Optional[Dict[str, str]] = None,
+        span: Optional[dict] = None,
+        span_with_tag_value: Optional[Dict[str, str]] = None,
+        tags: Optional[Dict[str, str]] = None,
+        ml_app: Optional[str] = None,
+        timestamp_ms: Optional[int] = None,
+        metadata: Optional[Dict[str, object]] = None,
+        assessment: Optional[str] = None,
+        reasoning: Optional[str] = None,
     ) -> None:
         """
         Submits a custom evaluation metric for a given span.
@@ -1572,6 +1617,9 @@ class LLMObs(Service):
         :param str metric_type: The type of the evaluation metric. One of "categorical", "score", "boolean".
         :param value: The value of the evaluation metric.
                       Must be a string (categorical), integer (score), float (score), or boolean (boolean).
+        :param dict span_context: A dictionary containing the span_id and trace_id of interest. This is a
+                            deprecated parameter and will be removed in the next major version of
+                            ddtrace (4.0). Please use `span` or `span_with_tag_value` instead.
         :param dict span: A dictionary of shape {'span_id': str, 'trace_id': str} uniquely identifying
                             the span associated with this evaluation.
         :param dict span_with_tag_value: A dictionary with the format {'tag_key': str, 'tag_value': str}
@@ -1583,10 +1631,18 @@ class LLMObs(Service):
         :param dict metadata: A JSON serializable dictionary of key-value metadata pairs relevant to the
                                 evaluation metric.
         :param str assessment: An assessment of the validity of this evaluation. Must be either "pass" or "fail".
+        :param str reasoning: An explanation of the evaluation result.
         """
+        if span_context is not None:
+            log.warning(
+                "The `span_context` parameter is deprecated and will be removed in the next major version of "
+                "ddtrace (4.0). Please use `span` or `span_with_tag_value` instead."
+            )
+            span = span or span_context
+
         if cls.enabled is False:
             log.debug(
-                "LLMObs.submit_evaluation_for() called when LLMObs is not enabled. ",
+                "LLMObs.submit_evaluation() called when LLMObs is not enabled. ",
                 "Evaluation metric data will not be sent.",
             )
             return
@@ -1659,6 +1715,15 @@ class LLMObs(Service):
                 log.warning("tags must be a dictionary of string key-value pairs.")
                 tags = {}
 
+            ml_app = ml_app if ml_app else config._llmobs_ml_app
+            if not ml_app:
+                error = "missing_ml_app"
+                log.warning(
+                    "ML App name is required for sending evaluation metrics. Evaluation metric data will not be sent. "
+                    "Ensure this configuration is set before running your application."
+                )
+                return
+
             evaluation_tags = {
                 "ddtrace.version": ddtrace.__version__,
                 "ml_app": ml_app,
@@ -1671,15 +1736,6 @@ class LLMObs(Service):
                     except TypeError:
                         error = "invalid_tags"
                         log.warning("Failed to parse tags. Tags for evaluation metrics must be strings.")
-
-            ml_app = ml_app if ml_app else config._llmobs_ml_app
-            if not ml_app:
-                error = "missing_ml_app"
-                log.warning(
-                    "ML App name is required for sending evaluation metrics. Evaluation metric data will not be sent. "
-                    "Ensure this configuration is set before running your application."
-                )
-                return
 
             evaluation_metric: LLMObsEvaluationMetricEvent = {
                 "join_on": join_on,
@@ -1696,7 +1752,13 @@ class LLMObs(Service):
                     error = "invalid_assessment"
                     log.warning("Failed to parse assessment. assessment must be either 'pass' or 'fail'.")
                 else:
-                    evaluation_metric["success_criteria"] = {"assessment": assessment}
+                    evaluation_metric["assessment"] = assessment
+            if reasoning:
+                if not isinstance(reasoning, str):
+                    error = "invalid_reasoning"
+                    log.warning("Failed to parse reasoning. reasoning must be a string.")
+                else:
+                    evaluation_metric["reasoning"] = reasoning
 
             if metadata:
                 if not isinstance(metadata, dict):
@@ -1710,144 +1772,6 @@ class LLMObs(Service):
             cls._instance._llmobs_eval_metric_writer.enqueue(evaluation_metric)
         finally:
             telemetry.record_llmobs_submit_evaluation(join_on, metric_type, error)
-
-    @classmethod
-    def submit_evaluation(
-        cls,
-        span_context: Dict[str, str],
-        label: str,
-        metric_type: str,
-        value: Union[str, int, float, bool],
-        tags: Optional[Dict[str, str]] = None,
-        ml_app: Optional[str] = None,
-        timestamp_ms: Optional[int] = None,
-        metadata: Optional[Dict[str, object]] = None,
-    ) -> None:
-        """
-        Submits a custom evaluation metric for a given span ID and trace ID.
-
-        :param span_context: A dictionary containing the span_id and trace_id of interest.
-        :param str label: The name of the evaluation metric.
-        :param str metric_type: The type of the evaluation metric. One of "categorical", "score", "boolean".
-        :param value: The value of the evaluation metric.
-                      Must be a string (categorical), integer (score), float (score), or boolean (boolean).
-        :param tags: A dictionary of string key-value pairs to tag the evaluation metric with.
-        :param str ml_app: The name of the ML application
-        :param int timestamp_ms: The timestamp in milliseconds when the evaluation metric result was generated.
-        :param dict metadata: A JSON serializable dictionary of key-value metadata pairs relevant to the
-                                evaluation metric.
-        """
-        if cls.enabled is False:
-            log.debug(
-                "LLMObs.submit_evaluation() called when LLMObs is not enabled. Evaluation metric data will not be sent."
-            )
-            return
-        error = None
-        try:
-            if not isinstance(span_context, dict):
-                error = "invalid_span"
-                log.warning(
-                    "span_context must be a dictionary containing both span_id and trace_id keys. "
-                    "LLMObs.export_span() can be used to generate this dictionary from a given span."
-                )
-                return
-
-            ml_app = ml_app if ml_app else config._llmobs_ml_app
-            if not ml_app:
-                error = "missing_ml_app"
-                log.warning(
-                    "ML App name is required for sending evaluation metrics. Evaluation metric data will not be sent. "
-                    "Ensure this configuration is set before running your application."
-                )
-                return
-
-            timestamp_ms = timestamp_ms if timestamp_ms else int(time.time() * 1000)
-
-            if not isinstance(timestamp_ms, int) or timestamp_ms < 0:
-                error = "invalid_timestamp"
-                log.warning("timestamp_ms must be a non-negative integer. Evaluation metric data will not be sent")
-                return
-
-            span_id = span_context.get("span_id")
-            trace_id = span_context.get("trace_id")
-            if not (span_id and trace_id):
-                error = "invalid_span"
-                log.warning(
-                    "span_id and trace_id must both be specified for the given evaluation metric to be submitted."
-                )
-                return
-            if not label:
-                error = "invalid_metric_label"
-                log.warning("label must be the specified name of the evaluation metric.")
-                return
-
-            if not metric_type or metric_type.lower() not in ("categorical", "numerical", "score", "boolean"):
-                error = "invalid_metric_type"
-                log.warning("metric_type must be one of 'categorical', 'score', or 'boolean'.")
-                return
-
-            metric_type = metric_type.lower()
-            if metric_type == "numerical":
-                error = "invalid_metric_type"
-                log.warning(
-                    "The evaluation metric type 'numerical' is unsupported. Use 'score' instead. "
-                    "Converting `numerical` metric to `score` type."
-                )
-                metric_type = "score"
-
-            if metric_type == "categorical" and not isinstance(value, str):
-                error = "invalid_metric_value"
-                log.warning("value must be a string for a categorical metric.")
-                return
-            if metric_type == "score" and not isinstance(value, (int, float)):
-                error = "invalid_metric_value"
-                log.warning("value must be an integer or float for a score metric.")
-                return
-            if metric_type == "boolean" and not isinstance(value, bool):
-                error = "invalid_metric_value"
-                log.warning("value must be a boolean for a boolean metric.")
-                return
-            if tags is not None and not isinstance(tags, dict):
-                error = "invalid_tags"
-                log.warning("tags must be a dictionary of string key-value pairs.")
-                return
-
-            # initialize tags with default values that will be overridden by user-provided tags
-            evaluation_tags = {
-                "ddtrace.version": ddtrace.__version__,
-                "ml_app": ml_app,
-            }
-
-            if tags:
-                for k, v in tags.items():
-                    try:
-                        evaluation_tags[ensure_text(k)] = ensure_text(v)
-                    except TypeError:
-                        error = "invalid_tags"
-                        log.warning("Failed to parse tags. Tags for evaluation metrics must be strings.")
-
-            evaluation_metric: LLMObsEvaluationMetricEvent = {
-                "join_on": {"span": {"span_id": span_id, "trace_id": trace_id}},
-                "label": str(label),
-                "metric_type": metric_type.lower(),
-                "timestamp_ms": timestamp_ms,
-                "{}_value".format(metric_type): value,  # type: ignore
-                "ml_app": ml_app,
-                "tags": ["{}:{}".format(k, v) for k, v in evaluation_tags.items()],
-            }
-
-            if metadata:
-                if not isinstance(metadata, dict):
-                    error = "invalid_metadata"
-                    log.warning("metadata must be json serializable dictionary.")
-                else:
-                    metadata = safe_json(metadata)
-                    if metadata and isinstance(metadata, str):
-                        evaluation_metric["metadata"] = json.loads(metadata)
-
-            cls._instance._llmobs_eval_metric_writer.enqueue(evaluation_metric)
-        finally:
-            telemetry.record_llmobs_submit_evaluation({"span": span_context}, metric_type, error)
 
     @classmethod
     def _inject_llmobs_context(cls, span_context: Context, request_headers: Dict[str, str]) -> None:
