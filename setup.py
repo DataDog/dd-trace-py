@@ -322,7 +322,12 @@ class CustomBuildRust(build_rust):
             dedup_env["PATH"] = cargo_bin + os.pathsep + os.environ["PATH"]
 
             # Run dedup_headers on the generated headers
-            include_dir = NATIVE_CRATE.absolute() / f"target{sys.version_info.major}.{sys.version_info.minor}" / "include" / "datadog"
+            include_dir = (
+                NATIVE_CRATE.absolute()
+                / f"target{sys.version_info.major}.{sys.version_info.minor}"
+                / "include"
+                / "datadog"
+            )
             if include_dir.exists():
                 subprocess.run(
                     ["dedup_headers", "common.h", "profiling.h"],
