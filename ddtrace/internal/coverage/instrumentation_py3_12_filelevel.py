@@ -6,7 +6,7 @@ were executed rather than which specific lines. It uses PY_START events which fi
 once per function call, making it much faster than LINE events which fire per line.
 
 Performance characteristics:
-- LINE events: O(lines × iterations)  
+- LINE events: O(lines × iterations)
 - PY_START events: O(functions × calls)
 
 For a file with 100 lines and 5 functions called 10 times:
@@ -43,10 +43,12 @@ _CODE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str, t.Dict[int, t.Tuple[str, t.
 _DEINSTRUMENTED_CODE_OBJECTS: t.Set[CodeType] = set()
 
 
-def instrument_for_file_coverage(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, CoverageLines]:
+def instrument_for_file_coverage(
+    code: CodeType, hook: HookType, path: str, package: str
+) -> t.Tuple[CodeType, CoverageLines]:
     """
     Instrument code for file-level coverage tracking using Python 3.12's monitoring API.
-    
+
     This uses PY_START events which fire when a function starts executing, making it
     much more efficient than line-level coverage for scenarios where you only need
     to know which files were executed.
@@ -59,7 +61,7 @@ def instrument_for_file_coverage(code: CodeType, hook: HookType, path: str, pack
 
     Returns:
         Tuple of (code object, empty CoverageLines since we don't track individual lines)
-        
+
     Note: The hook will be called with (None, path, None) to indicate file-level coverage
     """
     coverage_tool = sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID)
@@ -77,7 +79,7 @@ def instrument_for_file_coverage(code: CodeType, hook: HookType, path: str, pack
 def _py_start_event_handler(code: CodeType, instruction_offset: int) -> t.Any:
     """
     Callback for PY_START events.
-    
+
     This fires once when a function starts executing. We use this to detect that
     the file containing this code object was executed.
     """
@@ -92,7 +94,7 @@ def _py_start_event_handler(code: CodeType, instruction_offset: int) -> t.Any:
     # Report file-level coverage using line 0 as a sentinel value
     # Line 0 indicates "file was executed" without specific line information
     hook((0, path, None))
-    
+
     # Report any import dependencies (extracted at instrumentation time from bytecode)
     # This ensures import tracking works even though we don't fire on individual lines
     for line_num, import_name in import_names.items():
@@ -100,7 +102,7 @@ def _py_start_event_handler(code: CodeType, instruction_offset: int) -> t.Any:
 
     # Track this code object so we can re-enable monitoring for it later
     _DEINSTRUMENTED_CODE_OBJECTS.add(code)
-    
+
     # Return DISABLE to prevent future callbacks for this function
     # This means each function is only reported once per context
     return sys.monitoring.DISABLE
@@ -109,45 +111,45 @@ def _py_start_event_handler(code: CodeType, instruction_offset: int) -> t.Any:
 def _extract_import_names(code: CodeType, package: str) -> t.Dict[int, t.Tuple[str, t.Tuple[str, ...]]]:
     """
     Extract import information from bytecode at instrumentation time.
-    
+
     This parses IMPORT_NAME and IMPORT_FROM opcodes to track what modules are imported,
     allowing us to maintain import dependency tracking in file-level mode without
     any runtime overhead.
-    
+
     Returns:
         Dictionary mapping line numbers to (package, module_names) tuples
     """
     import_names: t.Dict[int, t.Tuple[str, t.Tuple[str, ...]]] = {}
-    
+
     # Track line numbers
     linestarts = dict(dis.findlinestarts(code))
     line = 0
-    
+
     # Track import state
     current_arg: int = 0
     previous_arg: int = 0
     _previous_previous_arg: int = 0
     current_import_name: t.Optional[str] = None
     current_import_package: t.Optional[str] = None
-    
+
     ext: list[bytes] = []
     code_iter = iter(enumerate(code.co_code))
-    
+
     try:
         while True:
             offset, opcode = next(code_iter)
             _, arg = next(code_iter)
-            
+
             if opcode == RESUME:
                 continue
-            
+
             if offset in linestarts:
                 line = linestarts[offset]
-                
+
                 # Mark that the current module depends on its own package
                 if code.co_name == "<module>" and len(import_names) == 0 and package is not None:
                     import_names[line] = (package, ("",))
-            
+
             if opcode == EXTENDED_ARG:
                 ext.append(arg)
                 continue
@@ -156,7 +158,7 @@ def _extract_import_names(code: CodeType, package: str) -> t.Dict[int, t.Tuple[s
                 previous_arg = current_arg
                 current_arg = int.from_bytes([*ext, arg], "big", signed=False)
                 ext.clear()
-            
+
             if opcode == IMPORT_NAME:
                 import_depth: int = code.co_consts[_previous_previous_arg]
                 current_import_name = code.co_names[current_arg]
@@ -164,7 +166,7 @@ def _extract_import_names(code: CodeType, package: str) -> t.Dict[int, t.Tuple[s
                 current_import_package = (
                     ".".join(package.split(".")[: -import_depth + 1]) if import_depth > 1 else package
                 )
-                
+
                 if line in import_names:
                     import_names[line] = (
                         current_import_package,
@@ -172,7 +174,7 @@ def _extract_import_names(code: CodeType, package: str) -> t.Dict[int, t.Tuple[s
                     )
                 else:
                     import_names[line] = (current_import_package, (current_import_name,))
-            
+
             if opcode == IMPORT_FROM:
                 import_from_name = f"{current_import_name}.{code.co_names[current_arg]}"
                 if line in import_names:
@@ -182,10 +184,10 @@ def _extract_import_names(code: CodeType, package: str) -> t.Dict[int, t.Tuple[s
                     )
                 else:
                     import_names[line] = (current_import_package, (import_from_name,))
-    
+
     except StopIteration:
         pass
-    
+
     return import_names
 
 
@@ -211,7 +213,7 @@ def reset_monitoring_for_new_context():
     # restart_events() re-enables all events that were disabled by returning DISABLE
     # This resets the per-function disable state across all code objects
     sys.monitoring.restart_events()
-    
+
     # Then re-enable local events for all instrumented code objects
     # This ensures monitoring is active for the new context
     for code in _DEINSTRUMENTED_CODE_OBJECTS:
@@ -224,7 +226,7 @@ def _instrument_with_py_start(
 ) -> t.Tuple[CodeType, CoverageLines]:
     """
     Enable PY_START events for the code object and all nested code objects.
-    
+
     This recursively instruments all functions in the module so that any function
     execution will trigger the file-level coverage callback.
     """
@@ -265,4 +267,3 @@ def _instrument_with_py_start(
 # File: 100 lines, 5 functions, function called 10 times in a loop
 # - LINE events: ~100 events per iteration = 1,000 total (with DISABLE)
 # - PY_START events: 5 functions × 10 calls = 50 total (20x improvement!)
-

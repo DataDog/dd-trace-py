@@ -21,6 +21,163 @@ import pytest
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
 @pytest.mark.subprocess
+def test_sequential_contexts_get_complete_coverage():
+    """
+    Test that multiple sequential coverage contexts each collect complete coverage.
+
+    This is a regression test for the re-instrumentation mechanism. Without proper
+    re-enablement of monitoring between contexts, subsequent contexts would miss
+    coverage for lines that were already executed in previous contexts.
+    """
+    import os
+    from pathlib import Path
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.installer import install
+    from tests.coverage.utils import _get_relpath_dict
+
+    cwd_path = os.getcwd()
+    include_path = Path(cwd_path + "/tests/coverage/included_path/")
+
+    install(include_paths=[include_path])
+
+    # Import the functions we'll test
+    from tests.coverage.included_path.callee import called_in_context_main
+    from tests.coverage.included_path.callee import called_in_session_main
+
+    # Context 1: Execute code and collect coverage
+    with ModuleCodeCollector.CollectInContext() as context1:
+        called_in_session_main(1, 2)
+        called_in_context_main(3, 4)
+        context1_covered = _get_relpath_dict(cwd_path, context1.get_covered_lines())
+
+    # Context 2: Execute THE SAME code and collect coverage
+    # This should get the SAME coverage as context1, not reduced coverage
+    with ModuleCodeCollector.CollectInContext() as context2:
+        called_in_session_main(1, 2)
+        called_in_context_main(3, 4)
+        context2_covered = _get_relpath_dict(cwd_path, context2.get_covered_lines())
+
+    # Context 3: One more time to ensure it works consistently
+    with ModuleCodeCollector.CollectInContext() as context3:
+        called_in_session_main(1, 2)
+        called_in_context_main(3, 4)
+        context3_covered = _get_relpath_dict(cwd_path, context3.get_covered_lines())
+
+    # Expected coverage for callee.py (the code that actually executes in the function calls)
+    # Note: lib.py and in_context_lib.py lines 1 and 5 are function definitions that only
+    # execute at import time, so they appear in context1 but not in subsequent contexts
+    expected_callee_lines = {2, 3, 5, 6, 10, 11, 13, 14}
+
+    # All three contexts should have identical coverage for the main code paths
+    assert "tests/coverage/included_path/callee.py" in context1_covered
+    assert "tests/coverage/included_path/callee.py" in context2_covered
+    assert "tests/coverage/included_path/callee.py" in context3_covered
+
+    assert (
+        context1_covered["tests/coverage/included_path/callee.py"] == expected_callee_lines
+    ), f"Context 1 callee.py mismatch: expected={expected_callee_lines} vs actual={context1_covered['tests/coverage/included_path/callee.py']}"
+
+    assert (
+        context2_covered["tests/coverage/included_path/callee.py"] == expected_callee_lines
+    ), f"Context 2 callee.py mismatch: expected={expected_callee_lines} vs actual={context2_covered['tests/coverage/included_path/callee.py']}"
+
+    assert (
+        context3_covered["tests/coverage/included_path/callee.py"] == expected_callee_lines
+    ), f"Context 3 callee.py mismatch: expected={expected_callee_lines} vs actual={context3_covered['tests/coverage/included_path/callee.py']}"
+
+    # Critical assertion: All contexts should capture function body execution
+    # The key test is that lib.py line 2 (function body) appears in ALL contexts
+    assert "tests/coverage/included_path/lib.py" in context1_covered
+    assert "tests/coverage/included_path/lib.py" in context2_covered
+    assert "tests/coverage/included_path/lib.py" in context3_covered
+
+    # Line 2 is the function body - it MUST be in all contexts
+    assert 2 in context1_covered["tests/coverage/included_path/lib.py"], "Context 1 missing lib.py line 2"
+    assert (
+        2 in context2_covered["tests/coverage/included_path/lib.py"]
+    ), "Context 2 missing lib.py line 2 - re-instrumentation failed!"
+    assert (
+        2 in context3_covered["tests/coverage/included_path/lib.py"]
+    ), "Context 3 missing lib.py line 2 - re-instrumentation failed!"
+
+    # Same for in_context_lib.py
+    assert (
+        2 in context1_covered["tests/coverage/included_path/in_context_lib.py"]
+    ), "Context 1 missing in_context_lib.py line 2"
+    assert (
+        2 in context2_covered["tests/coverage/included_path/in_context_lib.py"]
+    ), "Context 2 missing in_context_lib.py line 2 - re-instrumentation failed!"
+    assert (
+        2 in context3_covered["tests/coverage/included_path/in_context_lib.py"]
+    ), "Context 3 missing in_context_lib.py line 2 - re-instrumentation failed!"
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
+@pytest.mark.subprocess
+def test_context_with_repeated_execution_reinstruments_correctly():
+    """
+    Test that repeatedly executed code properly re-instruments between contexts.
+
+    This ensures that the DISABLE optimization (which prevents repeated callbacks for the same
+    line within a context) doesn't prevent coverage collection in subsequent contexts.
+    """
+    import os
+    from pathlib import Path
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.installer import install
+    from tests.coverage.utils import _get_relpath_dict
+
+    cwd_path = os.getcwd()
+    include_path = Path(cwd_path + "/tests/coverage/included_path/")
+
+    install(include_paths=[include_path])
+
+    # Import functions that will be called multiple times
+    from tests.coverage.included_path.lib import called_in_session
+
+    # Context 1: Execute function multiple times within the context
+    with ModuleCodeCollector.CollectInContext() as context1:
+        # Call the same function multiple times - DISABLE should prevent
+        # multiple callbacks within this context, but lines should still be recorded once
+        for i in range(10):
+            result1 = called_in_session(i, i + 1)
+            assert result1 == (i, i + 1)
+        context1_covered = _get_relpath_dict(cwd_path, context1.get_covered_lines())
+
+    # Context 2: Execute the SAME function again (multiple times)
+    with ModuleCodeCollector.CollectInContext() as context2:
+        for i in range(5):
+            result2 = called_in_session(i * 2, i * 3)
+            assert result2 == (i * 2, i * 3)
+        context2_covered = _get_relpath_dict(cwd_path, context2.get_covered_lines())
+
+    # Context 3: Execute once more
+    with ModuleCodeCollector.CollectInContext() as context3:
+        for i in range(15):
+            called_in_session(i, i)
+        context3_covered = _get_relpath_dict(cwd_path, context3.get_covered_lines())
+
+    # Expected coverage for lib.py (lines in called_in_session function)
+    expected_lib_lines = {2}
+
+    # All contexts should capture the same lines in lib.py
+    assert (
+        context1_covered.get("tests/coverage/included_path/lib.py") == expected_lib_lines
+    ), f"Context 1 lib.py coverage: {context1_covered.get('tests/coverage/included_path/lib.py')}"
+
+    assert (
+        context2_covered.get("tests/coverage/included_path/lib.py") == expected_lib_lines
+    ), f"Context 2 lib.py coverage: {context2_covered.get('tests/coverage/included_path/lib.py')}"
+
+    assert (
+        context3_covered.get("tests/coverage/included_path/lib.py") == expected_lib_lines
+    ), f"Context 3 lib.py coverage: {context3_covered.get('tests/coverage/included_path/lib.py')}"
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
+@pytest.mark.subprocess
 def test_nested_contexts_maintain_independence():
     """
     Test that nested coverage contexts maintain independence and proper re-instrumentation.
@@ -315,10 +472,10 @@ def test_comprehensive_reinstrumentation_with_simple_module():
 
         # Critical assertions: Contexts 1 and 2 should have identical coverage
         # Context 3 should have the same number of lines (just different branch)
-        assert (
-            len(context1_covered[module_path]) == len(context2_covered[module_path])
+        assert len(context1_covered[module_path]) == len(
+            context2_covered[module_path]
         ), f"Context 1 and 2 have different line counts: {len(context1_covered[module_path])} vs {len(context2_covered[module_path])}"
 
-        assert (
-            len(context1_covered[module_path]) == len(context3_covered[module_path])
+        assert len(context1_covered[module_path]) == len(
+            context3_covered[module_path]
         ), f"Context 1 and 3 have different line counts: {len(context1_covered[module_path])} vs {len(context3_covered[module_path])}"
