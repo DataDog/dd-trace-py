@@ -771,6 +771,7 @@ class LLMObs(Service):
         dataset: Dataset,
         evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], JSONType]],
         description: str = "",
+        project_name: Optional[str] = None,
         tags: Optional[Dict[str, str]] = None,
         config: Optional[ExperimentConfigType] = None,
         summary_evaluators: Optional[
@@ -788,9 +789,14 @@ class LLMObs(Service):
         :param dataset: The dataset to run the experiment on, created with LLMObs.pull/create_dataset().
         :param evaluators: A list of evaluator functions to evaluate the task output.
                            Must accept parameters ``input_data``, ``output_data``, and ``expected_output``.
+        :param project_name: The name of the project to save the experiment to.
         :param description: A description of the experiment.
         :param tags: A dictionary of string key-value tag pairs to associate with the experiment.
         :param config: A configuration dictionary describing the experiment.
+        :param summary_evaluators: A list of summary evaluator functions to evaluate the task results and evaluations
+                                   to produce a single value.
+                                   Must accept parameters ``inputs``, ``outputs``, ``expected_outputs``,
+                                   ``evaluators_results``.
         """
         if not callable(task):
             raise TypeError("task must be a callable function.")
@@ -825,7 +831,7 @@ class LLMObs(Service):
             task,
             dataset,
             evaluators,
-            project_name=cls._project_name,
+            project_name=project_name or cls._project_name,
             tags=tags,
             description=description,
             config=config,
@@ -1564,6 +1570,7 @@ class LLMObs(Service):
         timestamp_ms: Optional[int] = None,
         metadata: Optional[Dict[str, object]] = None,
         assessment: Optional[str] = None,
+        reasoning: Optional[str] = None,
     ) -> None:
         """
         Submits a custom evaluation metric for a given span. This method is deprecated and will be
@@ -1584,6 +1591,7 @@ class LLMObs(Service):
             timestamp_ms=timestamp_ms,
             metadata=metadata,
             assessment=assessment,
+            reasoning=reasoning,
         )
 
     @classmethod
@@ -1600,6 +1608,7 @@ class LLMObs(Service):
         timestamp_ms: Optional[int] = None,
         metadata: Optional[Dict[str, object]] = None,
         assessment: Optional[str] = None,
+        reasoning: Optional[str] = None,
     ) -> None:
         """
         Submits a custom evaluation metric for a given span.
@@ -1622,6 +1631,7 @@ class LLMObs(Service):
         :param dict metadata: A JSON serializable dictionary of key-value metadata pairs relevant to the
                                 evaluation metric.
         :param str assessment: An assessment of the validity of this evaluation. Must be either "pass" or "fail".
+        :param str reasoning: An explanation of the evaluation result.
         """
         if span_context is not None:
             log.warning(
@@ -1742,7 +1752,13 @@ class LLMObs(Service):
                     error = "invalid_assessment"
                     log.warning("Failed to parse assessment. assessment must be either 'pass' or 'fail'.")
                 else:
-                    evaluation_metric["success_criteria"] = {"assessment": assessment}
+                    evaluation_metric["assessment"] = assessment
+            if reasoning:
+                if not isinstance(reasoning, str):
+                    error = "invalid_reasoning"
+                    log.warning("Failed to parse reasoning. reasoning must be a string.")
+                else:
+                    evaluation_metric["reasoning"] = reasoning
 
             if metadata:
                 if not isinstance(metadata, dict):
