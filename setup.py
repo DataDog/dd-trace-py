@@ -322,7 +322,7 @@ class CustomBuildRust(build_rust):
             dedup_env["PATH"] = cargo_bin + os.pathsep + os.environ["PATH"]
 
             # Run dedup_headers on the generated headers
-            include_dir = NATIVE_CRATE.absolute() / "target" / "include" / "datadog"
+            include_dir = NATIVE_CRATE.absolute() / f"target{sys.version_info.major}.{sys.version_info.minor}" / "include" / "datadog"
             if include_dir.exists():
                 subprocess.run(
                     ["dedup_headers", "common.h", "profiling.h"],
@@ -503,7 +503,7 @@ class CleanLibraries(CleanCommand):
     @staticmethod
     def remove_rust():
         """Clean the Rust crate using cargo clean."""
-        target_dir = NATIVE_CRATE / "target"
+        target_dir = NATIVE_CRATE / f"target{sys.version_info.major}.{sys.version_info.minor}"
         if target_dir.exists():
             subprocess.run(
                 ["cargo", "clean"],
