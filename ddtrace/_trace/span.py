@@ -184,9 +184,9 @@ class Span(object):
         self.span_type = span_type
         self._span_api = span_api
 
-        self._meta: dict[str, str] = {}
+        self._meta: Dict[str, str] = {}
         self.error = 0
-        self._metrics: dict[str, NumericType] = {}
+        self._metrics: Dict[str, NumericType] = {}
 
         self._meta_struct: Dict[str, Dict[str, Any]] = {}
 
@@ -383,11 +383,11 @@ class Span(object):
         """Return the given tag or None if it doesn't exist."""
         return self._meta.get(key, None)
 
-    def get_tags(self) -> dict[str, str]:
+    def get_tags(self) -> Dict[str, str]:
         """Return all tags."""
         return self._meta.copy()
 
-    def set_tags(self, tags: dict[str, str]) -> None:
+    def set_tags(self, tags: Dict[str, str]) -> None:
         """Set a dictionary of tags on the given span. Keys and values
         must be strings (or stringable)
         """
@@ -413,7 +413,7 @@ class Span(object):
         # Ensure we do not have the same key in both meta and metrics
         self._meta.pop(key, None)
 
-    def set_metrics(self, metrics: dict[str, NumericType]) -> None:
+    def set_metrics(self, metrics: Dict[str, NumericType]) -> None:
         """Set a dictionary of metrics on the given span. Keys must be
         must be strings (or stringable). Values must be numeric.
         """
@@ -433,7 +433,7 @@ class Span(object):
         """Add an errortracking related callback to the on_finish_callback array"""
         self._on_finish_callbacks.insert(0, callback)
 
-    def get_metrics(self) -> dict[str, NumericType]:
+    def get_metrics(self) -> Dict[str, NumericType]:
         """Return all metrics."""
         return self._metrics.copy()
 

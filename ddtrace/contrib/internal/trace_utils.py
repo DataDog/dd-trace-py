@@ -617,7 +617,13 @@ def set_flattened_tags(
     # type: (...) -> None
     for prefix, value in items:
         for tag, v in _flatten(value, sep, prefix, exclude_policy):
-            span.set_tag(tag, processor(v) if processor is not None else v)
+            v = processor(v) if processor is not None else v
+            if isinstance(v, str):
+                span.set_tag(tag, v)
+            elif isinstance(v, (int, float)):
+                span.set_metric(tag, v)
+            else:
+                span.set_tag(tag, str(v))
 
 
 def extract_netloc_and_query_info_from_url(url):

@@ -2,7 +2,7 @@ from copy import deepcopy
 import os
 import re
 import sys
-from typing import Any  # noqa:F401
+from typing import Any, Pattern  # noqa:F401
 from typing import Callable  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
@@ -606,16 +606,14 @@ class Config(object):
         self._data_streams_enabled = _get_config("DD_DATA_STREAMS_ENABLED", False, asbool)
         self._http_client_tag_query_string = _get_config("DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "true")
 
-        dd_trace_obfuscation_query_string_regexp = _get_config(
+        dd_trace_obfuscation_query_string_regexp: str = _get_config(
             "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
         )
         self._global_query_string_obfuscation_disabled = dd_trace_obfuscation_query_string_regexp == ""
-        self._obfuscation_query_string_pattern = None
+        self._obfuscation_query_string_pattern: Optional[Pattern[str]] = None
         self._http_tag_query_string = True  # Default behaviour of query string tagging in http.url
         try:
-            self._obfuscation_query_string_pattern = re.compile(
-                dd_trace_obfuscation_query_string_regexp.encode("ascii")
-            )
+            self._obfuscation_query_string_pattern = re.compile(dd_trace_obfuscation_query_string_regexp)
         except Exception:
             log.warning("Invalid obfuscation pattern, disabling query string tracing", exc_info=True)
             self._http_tag_query_string = False  # Disable query string tagging if malformed obfuscation pattern

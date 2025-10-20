@@ -79,14 +79,14 @@ def test_aggregator_user_processors():
     class Proc(TraceProcessor):
         def process_trace(self, trace):
             assert len(trace) == 1
-            trace[0].set_tag("dd_processor")
+            trace[0].set_tag("dd_processor", "called")
             trace[0].set_tag("final_processor", "dd")
             return trace
 
     class UserProc(TraceProcessor):
         def process_trace(self, trace):
             assert len(trace) == 1
-            trace[0].set_tag("user_processor")
+            trace[0].set_tag("user_processor", "called")
             trace[0].set_tag("final_processor", "user")
             return trace
 
@@ -100,8 +100,8 @@ def test_aggregator_user_processors():
     with Span("span", on_finish=[aggr.on_span_finish]) as span:
         aggr.on_span_start(span)
 
-    assert span.get_tag("dd_processor")
-    assert span.get_tag("user_processor")
+    assert span.get_tag("dd_processor") == "called"
+    assert span.get_tag("user_processor") == "called"
     assert span.get_tag("final_processor") == "user"
 
 

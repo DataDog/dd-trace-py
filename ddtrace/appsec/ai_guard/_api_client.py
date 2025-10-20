@@ -105,11 +105,11 @@ class AIGuardWorkflow:
         tool_name: str,
         tool_args: Dict[Union[Text, bytes], Any],
         output: Optional[str] = None,
-        tags: Optional[dict[str, str]] = None,
+        tags: Optional[Dict[str, str]] = None,
     ) -> bool:
         return self._client.evaluate_tool(tool_name, tool_args, output=output, history=self._history, tags=tags)
 
-    def evaluate_prompt(self, role: str, content: str, tags: Optional[dict[str, str]] = None) -> bool:
+    def evaluate_prompt(self, role: str, content: str, tags: Optional[Dict[str, str]] = None) -> bool:
         return self._client.evaluate_prompt(role, content, history=self._history, tags=tags)
 
 
@@ -150,7 +150,7 @@ class AIGuardClient:
         tool_args: Dict[Union[Text, bytes], Any],
         output: Optional[str] = None,
         history: Optional[List[Evaluation]] = None,
-        tags: Optional[dict[str, str]] = None,
+        tags: Optional[Dict[str, str]] = None,
     ) -> bool:
         """Evaluate if a tool call is safe to execute.
 
@@ -188,7 +188,7 @@ class AIGuardClient:
         content: str,
         output: Optional[str] = None,
         history: Optional[List[Evaluation]] = None,
-        tags: Optional[dict[str, str]] = None,
+        tags: Optional[Dict[str, str]] = None,
     ) -> bool:
         """Evaluate if a prompt is safe to execute.
 
@@ -270,7 +270,7 @@ class AIGuardClient:
                 TELEMETRY_NAMESPACE.APPSEC, AI_GUARD.TRUNCATED_METRIC, 1, (("type", "content"),)
             )
 
-    def _evaluate(self, current: Evaluation, history: List[Evaluation], tags: dict[str, str]) -> bool:
+    def _evaluate(self, current: Evaluation, history: List[Evaluation], tags: Dict[str, str]) -> bool:
         """Send evaluation request to AI Guard service."""
         with self._tracer.trace(AI_GUARD.RESOURCE_TYPE) as span:
             if tags is not None:

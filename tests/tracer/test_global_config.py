@@ -197,7 +197,7 @@ class GlobalConfigTestCase(TestCase):
 
         @self.config.web.hooks.on("request")
         def on_web_request2(span):
-            span.set_tag("web.status", 200)
+            span.set_metric("web.status", 200)
 
         @self.config.web.hooks.on("request")
         def on_web_request3(span):

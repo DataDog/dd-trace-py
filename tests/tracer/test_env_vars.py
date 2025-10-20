@@ -8,18 +8,18 @@ import pytest
     "env_var_name,env_var_value,expected_obfuscation_config,expected_global_query_string_obfuscation_disabled,"
     "expected_http_tag_query_string",
     [
-        ("DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", "", 're.compile(b"")', True, True),
+        ("DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", "", 're.compile("")', True, True),
         (
             "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP",
             "(?i)(?:p(?:ass)?w(?:or))",
-            "re.compile('(?i)(?:p(?:ass)?w(?:or))'.encode('ascii'))",
+            "re.compile('(?i)(?:p(?:ass)?w(?:or))')",
             False,
             True,
         ),
         (
             "DD_WRONG_ENV_NAME",
             "(?i)(?:p(?:ass)?w(?:or))",
-            "re.compile(DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT.encode('ascii'))",
+            "re.compile(DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT)",
             False,
             True,
         ),

@@ -23,8 +23,8 @@ from ddtrace.internal.utils.http import w3c_get_dd_list_member as _w3c_get_dd_li
 _ContextState = Tuple[
     Optional[int],  # trace_id
     Optional[int],  # span_id
-    dict[str, str],  # _meta
-    dict[str, NumericType],  # _metrics
+    Dict[str, str],  # _meta
+    Dict[str, NumericType],  # _metrics
     List[SpanLink],  #  span_links
     Dict[str, Any],  # baggage
     bool,  # is_remote
@@ -61,15 +61,15 @@ class Context(object):
         span_id: Optional[int] = None,
         dd_origin: Optional[str] = None,
         sampling_priority: Optional[float] = None,
-        meta: Optional[dict[str, str]] = None,
-        metrics: Optional[dict[str, NumericType]] = None,
+        meta: Optional[Dict[str, str]] = None,
+        metrics: Optional[Dict[str, NumericType]] = None,
         lock: Optional[threading.RLock] = None,
         span_links: Optional[List[SpanLink]] = None,
         baggage: Optional[Dict[str, Any]] = None,
         is_remote: bool = True,
     ):
-        self._meta: dict[str, str] = meta if meta is not None else {}
-        self._metrics: dict[str, NumericType] = metrics if metrics is not None else {}
+        self._meta: Dict[str, str] = meta if meta is not None else {}
+        self._metrics: Dict[str, NumericType] = metrics if metrics is not None else {}
         self._baggage: Dict[str, Any] = baggage if baggage is not None else {}
 
         self.trace_id: Optional[int] = trace_id
