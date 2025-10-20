@@ -2,19 +2,24 @@
 OpenTelemetry API
 =================
 
-The dd-trace-py library provides an implementation of the
+The ``dd-trace-py`` library provides an implementation of the
 `OpenTelemetry API <https://opentelemetry-python.readthedocs.io/en/latest/api/index.html>`_
 for distributed tracing, metrics, and logs.
+
+**Note:** Datadog-specific configurations take precedence over OpenTelemetry settings.
+By default, telemetry data is routed to a Datadog Agent.
+The minimum supported Datadog Agent version is ``v7.33.0`` (but reccomended to use ``>=7.66`` for best performance).
 
 
 Tracing
 -------
 
-dd-trace-py supports OpenTelemetry tracing by mapping OpenTelemetry spans to Datadog spans.
-The TracerProvider sends custom Datadog payloads and is only compatible with a Datadog Agent (does not emit OTLP).
+``dd-trace-py`` supports OpenTelemetry tracing by mapping OpenTelemetry spans to Datadog spans.
+The ``TracerProvider`` sends Datadog-formatted payloads and is compatible only with the Datadog Agent
+(it does not emit OTLP).
 
 Enable OpenTelemetry tracing support by setting ``DD_TRACE_OTEL_ENABLED=true`` and using ``ddtrace.auto``
-or ``ddtrace-run``. Manual configuration is also supported via ``ddtrace.opentelemetry.TracerProvider``.
+or ``ddtrace-run``. Manual configuration is also supported through ``ddtrace.opentelemetry.TracerProvider``.
 
 For supported configurations, see `OpenTelemetry Tracing Configuration <placeholder-link>`_.
 
@@ -37,13 +42,13 @@ Usage example::
 Metrics
 -------
 
-dd-trace-py supports OpenTelemetry metrics. Metrics are sent in OTLP format and can be routed to any OTLP receiver
-(Datadog Agent, OpenTelemetry Collector, or directly to Datadog intake).
+``dd-trace-py`` supports OpenTelemetry metrics. Metrics are emitted in OTLP format and can be routed
+to any OTLP-compatible receiver (Datadog Agent, OpenTelemetry Collector, or directly to the Datadog intake).
 
 Enable metrics support by setting ``DD_METRICS_OTEL_ENABLED=true`` and using ``ddtrace.auto`` or ``ddtrace-run``.
-ddtrace automatically configures the correct providers and exporters.
+``ddtrace`` automatically configures the appropriate providers and exporters.
 
-You must install your own OTLP exporter (minimum supported version is v1.15.0)::
+You must install an OTLP exporter (minimum supported version: ``v1.15.0``)::
 
     pip install opentelemetry-exporter-otlp>=1.15.0
 
@@ -62,16 +67,17 @@ Usage example::
     counter = meter.create_counter("requests_total")
     counter.add(1, {"method": "GET"})
 
+
 Logs
 ----
 
-dd-trace-py supports OpenTelemetry logs. Logs are sent in OTLP format and can be routed to any OTLP receiver
-(Datadog Agent, OpenTelemetry Collector, or directly to Datadog intake).
+``dd-trace-py`` supports OpenTelemetry logs. Logs are emitted in OTLP format and can be routed
+to any OTLP-compatible receiver (Datadog Agent, OpenTelemetry Collector, or directly to the Datadog intake).
 
 Enable logs support by setting ``DD_LOGS_OTEL_ENABLED=true`` and using ``ddtrace.auto`` or ``ddtrace-run``.
-ddtrace automatically configures the correct providers and exporters.
+``ddtrace`` automatically configures the appropriate providers and exporters.
 
-You must install your own OTLP exporter (minimum supported version is v1.15.0)::
+You must install an OTLP exporter (minimum supported version: ``v1.15.0``)::
 
     pip install opentelemetry-exporter-otlp>=1.15.0
 
@@ -95,6 +101,7 @@ Usage example::
         # Your business logic here
         logging.info("User operation completed", extra={"status": "success"})
 
+
 Trace Mapping
 -------------
 
@@ -116,7 +123,7 @@ OpenTelemetry spans are mapped to Datadog spans. This mapping is described by th
       -
     * - ``trace_state``
       - ``meta["tracestate"]``
-      - Datadog vendor-specific data is set in trace state using the ``dd=`` prefix
+      - Datadog-specific data is stored in the trace state using the ``dd=`` prefix
     * - ``parent_span_id``
       - ``parentID``
       -
@@ -131,20 +138,19 @@ OpenTelemetry spans are mapped to Datadog spans. This mapping is described by th
       -
     * - ``end_time_unix_nano``
       - ``duration``
-      - Derived from start and end time
+      - Derived from the start and end times
     * - ``attributes[<key>]``
       - ``meta[<key>]``
-      - Datadog tags (``meta``) are set for each OpenTelemetry attribute
+      - Each OpenTelemetry attribute is stored as a Datadog tag (``meta``)
     * - ``links[]``
       - ``meta["_dd.span_links"]``
       -
     * - ``status``
       - ``error``
-      - Derived from status
+      - Derived from span status
     * - ``events[]``
       - ``meta["events"]``
-      - Note: span events are stored as ``Span.span_events`` if v0.4 API is used
-
+      - If the v0.4 API is used, span events are stored as ``Span.span_events``
 
 """  # noqa: E501
 
