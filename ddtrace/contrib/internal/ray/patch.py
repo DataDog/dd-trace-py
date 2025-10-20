@@ -208,22 +208,22 @@ def traced_submit_job(wrapped, instance, args, kwargs):
         else:
             job_name = DEFAULT_JOB_NAME
 
-    # Root span creation
     job_span = tracer.start_span("ray.job", service=job_name or DEFAULT_JOB_NAME, span_type=SpanTypes.RAY)
-    _inject_ray_span_tags_and_metrics(job_span)
-    job_span.set_tag_str(RAY_SUBMISSION_ID_TAG, submission_id)
-    if entrypoint:
-        job_span.set_tag_str(RAY_ENTRYPOINT, entrypoint)
-
-    metadata = kwargs.get("metadata", {})
-    dot_paths = flatten_metadata_dict(metadata)
-    for k, v in dot_paths.items():
-        set_tag_or_truncate(job_span, k, v)
-
-    tracer.context_provider.activate(job_span)
-    start_long_running_job(job_span)
-
     try:
+        # Root span creation
+        _inject_ray_span_tags_and_metrics(job_span)
+        job_span.set_tag_str(RAY_SUBMISSION_ID_TAG, submission_id)
+        if entrypoint:
+            job_span.set_tag_str(RAY_ENTRYPOINT, entrypoint)
+
+        metadata = kwargs.get("metadata", {})
+        dot_paths = flatten_metadata_dict(metadata)
+        for k, v in dot_paths.items():
+            set_tag_or_truncate(job_span, k, v)
+
+        tracer.context_provider.activate(job_span)
+        start_long_running_job(job_span)
+
         with tracer.trace(
             "ray.job.submit", service=job_name or DEFAULT_JOB_NAME, span_type=SpanTypes.RAY
         ) as submit_span:
@@ -232,7 +232,11 @@ def traced_submit_job(wrapped, instance, args, kwargs):
             submit_span.set_tag_str(RAY_SUBMISSION_ID_TAG, submission_id)
 
             # Inject the context of the job so that ray.job.run is its child
-            env_vars = kwargs.setdefault("runtime_env", {}).setdefault("env_vars", {})
+            runtime_env = kwargs.get("runtime_env") or {}
+            kwargs["runtime_env"] = runtime_env
+            env_vars = runtime_env.get("env_vars") or {}
+            runtime_env["env_vars"] = env_vars
+
             _TraceContext._inject(job_span.context, env_vars)
             env_vars[RAY_SUBMISSION_ID] = submission_id
             if job_name:
@@ -250,7 +254,7 @@ def traced_submit_job(wrapped, instance, args, kwargs):
         job_span.set_tag_str(RAY_JOB_STATUS, RAY_STATUS_ERROR)
         job_span.error = 1
         job_span.set_exc_info(type(e), e, e.__traceback__)
-        job_span.finish()
+        stop_long_running_job(submission_id)
         raise e
 
 

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Profiling: prevent potential deadlocks with thread pools.
