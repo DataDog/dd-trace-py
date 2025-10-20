@@ -208,7 +208,9 @@ class PatchedDistribution(Distribution):
         # but at the same time dropped support for Python 3.8. So we'd need to
         # make sure that this env var is set to install the ffi headers in the
         # right place.
-        os.environ["CARGO_TARGET_DIR"] = str(NATIVE_CRATE.absolute() / "target")
+        os.environ["CARGO_TARGET_DIR"] = str(
+            NATIVE_CRATE.absolute() / "target{sys.version_info.major}.{sys.version_info.minor}"
+        )
         self.rust_extensions = [
             RustExtension(
                 # The Python import path of your extension:
@@ -235,7 +237,9 @@ class ExtensionHashes(build_ext):
                     sources = [
                         _
                         for _ in source_path.glob("**/*")
-                        if _.is_file() and _.relative_to(source_path).parts[0] != "target"
+                        if _.is_file()
+                        and _.relative_to(source_path).parts[0]
+                        != "target{sys.version_info.major}.{sys.version_info.minor}"
                     ]
                 else:
                     sources = [Path(_) for _ in ext.sources]
