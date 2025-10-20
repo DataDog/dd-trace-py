@@ -198,3 +198,5 @@ tests/appsec/iast/fixtures/taint_sinks/not_exists.txt
 
 *.debug
 *.dSYM/
+
+src/native/target*
