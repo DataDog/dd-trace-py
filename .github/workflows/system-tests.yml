@@ -35,8 +35,6 @@ jobs:
       TEST_LIBRARY: python
       WEBLOG_VARIANT: ${{ matrix.weblog-variant }}
       CMAKE_BUILD_PARALLEL_LEVEL: 12
-      SYSTEM_TESTS_AWS_ACCESS_KEY_ID: ${{ secrets.IDM_AWS_ACCESS_KEY_ID }}
-      SYSTEM_TESTS_AWS_SECRET_ACCESS_KEY: ${{ secrets.IDM_AWS_SECRET_ACCESS_KEY }}
     steps:
       - name: Install Dependencies
         run: sudo apt-get install -y patchelf
@@ -47,7 +45,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '6be22a6418b86c3be4920790dfa121149aed2903'
+          ref: 'd5152ebefb021a4273f8d189d798c5e302986f7b'
 
       - name: Download wheels to binaries directory
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
@@ -84,8 +82,6 @@ jobs:
       TEST_LIBRARY: python
       WEBLOG_VARIANT: ${{ matrix.weblog-variant }}
       CMAKE_BUILD_PARALLEL_LEVEL: 12
-      SYSTEM_TESTS_AWS_ACCESS_KEY_ID: ${{ secrets.IDM_AWS_ACCESS_KEY_ID }}
-      SYSTEM_TESTS_AWS_SECRET_ACCESS_KEY: ${{ secrets.IDM_AWS_SECRET_ACCESS_KEY }}
     steps:
 
       - name: Checkout system tests
@@ -94,7 +90,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '6be22a6418b86c3be4920790dfa121149aed2903'
+          ref: 'd5152ebefb021a4273f8d189d798c5e302986f7b'
 
       - name: Build runner
         uses: ./.github/actions/install_runner
@@ -279,7 +275,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '6be22a6418b86c3be4920790dfa121149aed2903'
+          ref: 'd5152ebefb021a4273f8d189d798c5e302986f7b'
       - name: Download wheels to binaries directory
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
