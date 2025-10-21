@@ -8,7 +8,7 @@ for distributed tracing, metrics, and logs.
 
 **Note:** Datadog-specific configurations take precedence over OpenTelemetry settings.
 By default, telemetry data is routed to a Datadog Agent.
-The minimum supported Datadog Agent version is ``v7.33.0`` (but reccomended to use ``>=7.66`` for best performance).
+The minimum supported Datadog Agent version is ``v7.33.0`` (but recommended to use ``>=7.66`` for best performance).
 
 
 Tracing
@@ -122,7 +122,7 @@ The following environment variables are supported:
   Timeout (in milliseconds) for metric export requests.
 
 - ``OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE``
-  For the best Datadog experience, we encourage customers who bring their own OTel SDK to use **Delta Temporality** for monotonic sums, histograms, and exponential histograms.
+  For the best Datadog experience, we encourage customers to use **delta temporality** for monotonic sums, histograms, and exponential histograms.
   The default value in the Datadog SDKs is ``delta``, which differs from the OpenTelemetry specified default of ``cumulative``.
   Tracking this configuration helps understand how many customers prefer Cumulative Temporality and why.
 
