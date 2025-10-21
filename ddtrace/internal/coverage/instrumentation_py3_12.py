@@ -24,9 +24,6 @@ EMPTY_MODULE_BYTES = bytes([RESUME, 0, RETURN_CONST, 0])
 # Store: (hook, path, import_names_by_line)
 _CODE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str, t.Dict[int, t.Tuple[str, t.Optional[t.Tuple[str]]]]]] = {}
 
-# Track all instrumented code objects so we can re-enable monitoring between tests/suites
-_DEINSTRUMENTED_CODE_OBJECTS: t.Set[CodeType] = set()
-
 
 def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, CoverageLines]:
     """
@@ -60,8 +57,6 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
 def _line_event_handler(code: CodeType, line: int) -> t.Any:
     hook_data = _CODE_HOOKS.get(code)
     if hook_data is None:
-        # Track this code object so we can re-enable monitoring for it later
-        _DEINSTRUMENTED_CODE_OBJECTS.add(code)
         return sys.monitoring.DISABLE
 
     hook, path, import_names = hook_data
@@ -71,8 +66,6 @@ def _line_event_handler(code: CodeType, line: int) -> t.Any:
     import_name = import_names.get(line, None)
     hook((line, path, import_name))
 
-    # Track this code object so we can re-enable monitoring for it later
-    _DEINSTRUMENTED_CODE_OBJECTS.add(code)
     # Return DISABLE to prevent future callbacks for this specific line
     # This provides full line coverage with minimal overhead
     return sys.monitoring.DISABLE
