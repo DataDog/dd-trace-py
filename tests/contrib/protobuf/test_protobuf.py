@@ -1,11 +1,10 @@
 import importlib
 
-from wrapt import ObjectProxy
-
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.contrib.internal.protobuf.patch import patch
 from ddtrace.contrib.internal.protobuf.patch import unpatch
 from ddtrace.ext import schema as SCHEMA_TAGS
+from ddtrace.internal.compat import is_wrapted
 from tests.contrib.protobuf.schemas import message_pb2
 from tests.contrib.protobuf.schemas import other_message_pb2
 
@@ -34,10 +33,10 @@ def test_patching(protobuf):
         We unwrap the correct methods
     """
     patch()
-    assert isinstance(protobuf.internal.builder.BuildTopDescriptorsAndMessages, ObjectProxy)
+    assert is_wrapted(protobuf.internal.builder.BuildTopDescriptorsAndMessages)
 
     unpatch()
-    assert not isinstance(protobuf.internal.builder.BuildTopDescriptorsAndMessages, ObjectProxy)
+    assert not is_wrapted(protobuf.internal.builder.BuildTopDescriptorsAndMessages)
 
 
 def test_basic_schema_serialize(protobuf, tracer, test_spans):
