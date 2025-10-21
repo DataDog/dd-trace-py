@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Internal: don't use wrapt 2.x for now since 2.0 is causing issues with the psycopg contrib.
