@@ -40,7 +40,6 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     - Each line is only reported once per coverage context (test/suite)
     - No overhead for repeated line executions (e.g., in loops)
     - Full line-by-line coverage data is captured
-    - reset_monitoring_for_new_context() re-enables monitoring between contexts
     """
     coverage_tool = sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID)
     if coverage_tool is not None and coverage_tool != "datadog":
@@ -81,18 +80,6 @@ def _register_monitoring():
     sys.monitoring.register_callback(
         sys.monitoring.COVERAGE_ID, sys.monitoring.events.LINE, _line_event_handler
     )  # noqa
-
-
-def reset_monitoring_for_new_context():
-    """
-    Re-enable monitoring for all instrumented code objects.
-
-    This should be called when starting a new coverage context (e.g., per-test or per-suite).
-    It re-enables monitoring that was disabled by previous DISABLE returns.
-    """
-    # restart_events() re-enables all events that were disabled by returning DISABLE
-    # This resets the per-line disable state across all code objects
-    sys.monitoring.restart_events()
 
 
 def _instrument_all_lines_with_monitoring(
