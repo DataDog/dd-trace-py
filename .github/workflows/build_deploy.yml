@@ -117,7 +117,7 @@ jobs:
 
       - name: Check source package
         run: |
-          pip install twine readme_renderer[md]
+          pip install twine readme_renderer[md] "cmarkgfm<2025.10.20"
           twine check dist/*.tar.gz
       - name: Install source package
         env:
