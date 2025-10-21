@@ -134,14 +134,14 @@ StackRenderer::render_frame(Frame& frame)
 
     auto maybe_filename_str = string_table.lookup(frame.filename);
     if (maybe_filename_str) {
-        filename_str = **maybe_filename_str;
+        filename_str = maybe_filename_str->get();
     } else {
         filename_str = missing_filename;
     }
 
     auto maybe_name_str = string_table.lookup(frame.name);
     if (maybe_name_str) {
-        name_str = **maybe_name_str;
+        name_str = maybe_name_str->get();
     } else {
         name_str = missing_name;
     }
