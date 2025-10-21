@@ -85,6 +85,7 @@ suites:
       - '@ci_visibility'
       - '@coverage'
       - '@freezegun'
+      - '@tracing'
       - tests/contrib/unittest/*
       - tests/snapshots/tests.contrib.unittest.*
     runner: riot
