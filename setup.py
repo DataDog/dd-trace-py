@@ -591,7 +591,7 @@ class CustomBuildExt(build_ext):
                 print(f"WARNING: An error occurred while building the extension: {e}")
 
     def build_extension_cmake(self, ext: "CMakeExtension") -> None:
-        if IS_EDITABLE and self.INCREMENTAL:
+        if (IS_EDITABLE or getattr(self, "inplace", False)) and self.INCREMENTAL:
             # DEV: Rudimentary incremental build support. We copy the logic from
             # setuptools' build_ext command, best effort.
             full_path = Path(self.get_ext_fullpath(ext.name))
