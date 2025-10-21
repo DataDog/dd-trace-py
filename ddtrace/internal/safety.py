@@ -67,15 +67,20 @@ class SafeObjectProxy(wrapt.ObjectProxy):
 
     def __getattribute__(self, name):
         # type: (str) -> Any
-        if name == "__wrapped__" and not IS_312_OR_NEWER:
-            raise AttributeError("Access denied")
-
+        if name == "__wrapped__":
+            if IS_312_OR_NEWER:
+                raise AttributeError("Access denied")
+            else:
+                return super(SafeObjectProxy, self).__wrapped__
         return super(SafeObjectProxy, self).__getattribute__(name)
 
     def __getattr__(self, name):
         # type: (str) -> Any
-        if name == "__wrapped__" and IS_312_OR_NEWER:
-            raise AttributeError("Access denied")
+        if name == "__wrapped__":
+            if IS_312_OR_NEWER:
+                raise AttributeError("Access denied")
+            else:
+                return super(SafeObjectProxy, self).__wrapped__
         return type(self).safe(super(SafeObjectProxy, self).__getattr__(name))  # type: ignore
 
     def __getitem__(self, item):
@@ -103,7 +108,6 @@ class SafeObjectProxy(wrapt.ObjectProxy):
         # type: (Any) -> Optional[Any]
         """Turn an object into a safe proxy."""
         _type = type(obj)
-
         if _isinstance(obj, type):
             try:
                 if obj.__module__ == "builtins":
