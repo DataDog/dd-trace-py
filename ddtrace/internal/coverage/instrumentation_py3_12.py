@@ -101,11 +101,6 @@ def reset_monitoring_for_new_context():
     # This resets the per-line disable state across all code objects
     sys.monitoring.restart_events()
 
-    # Then re-enable local events for all instrumented code objects
-    # This ensures monitoring is active for the new context
-    for code in _DEINSTRUMENTED_CODE_OBJECTS:
-        sys.monitoring.set_local_events(sys.monitoring.COVERAGE_ID, code, sys.monitoring.events.LINE)  # noqa
-
 
 def _instrument_all_lines_with_monitoring(
     code: CodeType, hook: HookType, path: str, package: str
