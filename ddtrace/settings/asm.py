@@ -317,9 +317,11 @@ class ASMConfig(DDConfig):
 
     @property
     def _apm_opt_out(self) -> bool:
-        return (
-            self._asm_enabled or self._iast_enabled or tracer_config._sca_enabled is True
-        ) and not tracer_config._apm_tracing_enabled
+        return self._at_least_one_feature_active and not tracer_config._apm_tracing_enabled
+
+    @property
+    def _at_least_one_feature_active(self) -> bool:
+        return self._asm_enabled or self._iast_enabled or tracer_config._sca_enabled is True
 
     @property
     def _user_event_mode(self) -> str:

@@ -146,7 +146,7 @@ class TraceSamplingProcessor(TraceProcessor):
         self._apm_opt_out = value
 
     def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
-        if trace and config._apm_tracing_enabled:
+        if trace and (asm_config._at_least_one_feature_active or config._apm_tracing_enabled):
             chunk_root = trace[0]
 
             if self.apm_opt_out:
