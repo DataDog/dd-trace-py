@@ -138,8 +138,7 @@ The following environment variables are supported:
 - ``OTEL_EXPORTER_OTLP_{METRICS,LOGS}_PROTOCOL``
   OTLP protocol used for metrics or logs. Supported protocols are ``grpc`` (default) and ``http/protobuf``.
 
-**Important:** Metrics and logs are exported using the OTLP protocol and can be routed to any OTLP-compatible receiver.
-Traces, however, are sent using Datadog's custom MsgPack format and require a Datadog Agent.
+**Important:** Metrics and logs are exported using the OTLP protocol and can be routed to any OTLP-compatible receiver. See `Send OpenTelemetry Data to Datadog <https://docs.datadoghq.com/opentelemetry/setup/>`_ for more details. Traces, however, use Datadog’s custom MsgPack format and require a Datadog Agent.
 
 
 Trace Mapping
