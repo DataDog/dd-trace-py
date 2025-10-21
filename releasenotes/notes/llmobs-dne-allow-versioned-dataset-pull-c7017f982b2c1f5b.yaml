@@ -1,5 +1,5 @@
 ---
-upgrade:
+features:
   - |
     LLM Observability: Previous dataset versions can be optionally pulled by passing the ``version`` 
     argument to ``LLMObs.pull_dataset``
