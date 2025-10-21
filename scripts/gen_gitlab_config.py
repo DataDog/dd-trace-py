@@ -303,7 +303,7 @@ prechecks:
         f.write(
             """
   cache:
-    key: v2-precheck-pip-cache
+    key: v3-precheck-pip-cache
     paths:
       - .cache
 """
