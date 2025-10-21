@@ -7,9 +7,10 @@ from tests.coverage.included_path.layer3_toplevel import layer3_toplevel_functio
 def layer2_dynamic_function(b):
     # Use top-level import
     step1 = layer3_toplevel_function(b)
-
-    # Dynamic import
+    
+    # Dynamic imports - both function and constants
     from tests.coverage.included_path.layer3_dynamic import layer3_dynamic_function
-
+    from tests.coverage.included_path.constants_dynamic import OFFSET
+    
     step2 = layer3_dynamic_function(step1)
-    return step2 + 5
+    return step2 + OFFSET - 5

@@ -56,22 +56,23 @@ def test_nested_imports_toplevel_path_reinstrumentation():
         result3 = fixture_toplevel_path(3)
         context3_covered = _get_relpath_dict(cwd_path, context3.get_covered_lines())
 
-    # layer2_toplevel: layer3_toplevel(5) = 15, then layer3_dynamic(15) = (15+10)*2 = 50
-    assert result1 == 50
-    assert result2 == 80  # layer3_toplevel(10)=30, layer3_dynamic(30)=(30+10)*2=80
-    assert result3 == 38  # layer3_toplevel(3)=9, layer3_dynamic(9)=(9+10)*2=38
+    # layer2_toplevel: layer3_toplevel(5)=15, 15*DEFAULT_MULTIPLIER(3)=45, layer3_dynamic(45)=(45+10)*2=110
+    assert result1 == 110
+    assert result2 == 200  # layer3_toplevel(10)=30, 30*3=90, layer3_dynamic(90)=(90+10)*2=200
+    assert result3 == 74  # layer3_toplevel(3)=9, 9*3=27, layer3_dynamic(27)=(27+10)*2=74
 
     # Expected runtime lines (captured in all contexts)
+    # Note: constants_toplevel is imported at fixture top-level, so it appears before any context
     expected_runtime = {
         "tests/coverage/included_path/nested_fixture.py": {16, 17},
-        "tests/coverage/included_path/layer2_toplevel.py": {9, 12, 14, 15},
+        "tests/coverage/included_path/layer2_toplevel.py": {10, 13, 15, 16},  # Runtime only (imported before context)
         "tests/coverage/included_path/layer3_toplevel.py": {5, 6},
         "tests/coverage/included_path/layer3_dynamic.py": {5, 6},
     }
 
     # Expected import-time lines (only in context 1)
     expected_import_time = {
-        "tests/coverage/included_path/layer3_dynamic.py": {1, 4},  # docstring + function def
+        "tests/coverage/included_path/layer3_dynamic.py": {1, 4},  # docstring + function def (dynamically imported)
     }
 
     for file_path, expected_lines in expected_runtime.items():
@@ -148,9 +149,10 @@ def test_nested_imports_dynamic_path_reinstrumentation():
     assert result3 == 43  # layer3_toplevel(3)=9, layer3_dynamic(9)=38, return 43
 
     # Expected runtime lines (captured in all contexts)
+    # Note: constants_dynamic is imported dynamically but has no executable code, so may not appear
     expected_runtime = {
         "tests/coverage/included_path/nested_fixture.py": {23, 25, 26},
-        "tests/coverage/included_path/layer2_dynamic.py": {9, 12, 14, 15},
+        "tests/coverage/included_path/layer2_dynamic.py": {9, 12, 13, 15, 16},  # Updated: added line 13 and 16
         "tests/coverage/included_path/layer3_toplevel.py": {5, 6},
         "tests/coverage/included_path/layer3_dynamic.py": {5, 6},
     }
@@ -229,10 +231,11 @@ def test_nested_imports_mixed_path_reinstrumentation():
         context3_covered = _get_relpath_dict(cwd_path, context3.get_covered_lines())
 
     # Expected runtime lines (captured in all contexts) - mixed path uses BOTH toplevel and dynamic
+    # Note: constant-only modules don't appear in coverage as they have no executable code
     expected_runtime = {
         "tests/coverage/included_path/nested_fixture.py": {16, 17, 23, 25, 26, 31, 32, 33},
-        "tests/coverage/included_path/layer2_toplevel.py": {9, 12, 14, 15},
-        "tests/coverage/included_path/layer2_dynamic.py": {9, 12, 14, 15},
+        "tests/coverage/included_path/layer2_toplevel.py": {10, 13, 15, 16},  # Updated
+        "tests/coverage/included_path/layer2_dynamic.py": {9, 12, 13, 15, 16},  # Updated
         "tests/coverage/included_path/layer3_toplevel.py": {5, 6},
         "tests/coverage/included_path/layer3_dynamic.py": {5, 6},
     }
@@ -318,9 +321,10 @@ def test_nested_imports_interleaved_execution():
         context4_covered = _get_relpath_dict(cwd_path, context4.get_covered_lines())
 
     # Expected coverage for contexts 1 and 3 (both use toplevel path)
+    # Note: constant-only modules don't appear as they have no executable code
     expected_toplevel_runtime = {
         "tests/coverage/included_path/nested_fixture.py": {16, 17},
-        "tests/coverage/included_path/layer2_toplevel.py": {9, 12, 14, 15},
+        "tests/coverage/included_path/layer2_toplevel.py": {10, 13, 15, 16},  # Updated
         "tests/coverage/included_path/layer3_toplevel.py": {5, 6},
         "tests/coverage/included_path/layer3_dynamic.py": {5, 6},
     }
@@ -328,7 +332,7 @@ def test_nested_imports_interleaved_execution():
     # Expected coverage for contexts 2 and 4 (both use dynamic path)
     expected_dynamic_runtime = {
         "tests/coverage/included_path/nested_fixture.py": {23, 25, 26},
-        "tests/coverage/included_path/layer2_dynamic.py": {9, 12, 14, 15},
+        "tests/coverage/included_path/layer2_dynamic.py": {9, 12, 13, 15, 16},  # Updated
         "tests/coverage/included_path/layer3_toplevel.py": {5, 6},
         "tests/coverage/included_path/layer3_dynamic.py": {5, 6},
     }
@@ -345,13 +349,21 @@ def test_nested_imports_interleaved_execution():
             f"  Got: {sorted(context3_covered[file_path])}"
         )
 
-        # Context 1 may have import-time lines for layer3_dynamic (first dynamic import)
+        # Context 1 may have import-time lines for dynamically imported modules
         if file_path == "tests/coverage/included_path/layer3_dynamic.py":
-            # Context 1 captures import-time + runtime for dynamically imported module
+            # Context 1 captures import-time + runtime for layer3_dynamic (dynamically imported)
             expected_context1 = expected_lines | {1, 4}  # docstring + function def
             assert context1_covered[file_path] == expected_context1, (
                 f"{file_path}: Context 1 mismatch\n"
                 f"  Expected: {sorted(expected_context1)}\n"
+                f"  Got: {sorted(context1_covered[file_path])}"
+            )
+        elif file_path == "tests/coverage/included_path/layer2_toplevel.py":
+            # layer2_toplevel is imported at fixture top-level, so it's imported before Context 1
+            # Therefore, Context 1 won't have its import-time lines
+            assert context1_covered[file_path] == expected_lines, (
+                f"{file_path}: Context 1 mismatch\n"
+                f"  Expected: {sorted(expected_lines)}\n"
                 f"  Got: {sorted(context1_covered[file_path])}"
             )
         else:
