@@ -7,10 +7,10 @@ from ddtrace._trace.pin import Pin
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import INPUT_VALUE
-from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import NAME
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
@@ -102,6 +102,13 @@ class MCPIntegration(BaseLLMIntegration):
         output_value = {"content": processed_content, "isError": is_error}
         span._set_ctx_item(OUTPUT_VALUE, output_value)
 
+        # propagate the tool call to the client session root
+        client_session_root = _find_client_session_root(span)
+        if client_session_root:
+            client_session_root_tags = client_session_root._get_ctx_item(TAGS) or {}
+            client_session_tools_selected = client_session_root_tags.setdefault("mcp_tools_selected", set())
+            client_session_tools_selected.add(tool_name)
+
     def _llmobs_set_tags_server(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any) -> None:
         tool_arguments = get_argument_value(args, kwargs, 1, "arguments", optional=True) or {}
         tool_name = args[0] if len(args) > 0 else "unknown_tool"
@@ -142,11 +149,11 @@ class MCPIntegration(BaseLLMIntegration):
 
         client_session_root = _find_client_session_root(span)
         if client_session_root:
-            client_session_root_metadata = client_session_root._get_ctx_item(METADATA) or {}
-            client_session_root_metadata["server_name"] = getattr(server_info, "name", "")
-            client_session_root_metadata["server_version"] = getattr(server_info, "version", "")
-            client_session_root_metadata["server_title"] = getattr(server_info, "title", "")
-            client_session_root._set_ctx_item(METADATA, client_session_root_metadata)
+            client_session_root_tags = client_session_root._get_ctx_item(TAGS) or {}
+            client_session_root_tags["server_name"] = getattr(server_info, "name", "")
+            client_session_root_tags["server_version"] = getattr(server_info, "version", "")
+            client_session_root_tags["server_title"] = getattr(server_info, "title", "")
+            client_session_root._set_ctx_item(TAGS, client_session_root_tags)
 
     def _llmobs_set_tags_list_tools(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any) -> None:
         cursor = get_argument_value(args, kwargs, 0, "cursor", optional=True)
@@ -165,9 +172,9 @@ class MCPIntegration(BaseLLMIntegration):
             return
         client_session_root = _find_client_session_root(span)
         if client_session_root:
-            client_session_root_metadata = client_session_root._get_ctx_item(METADATA) or {}
-            client_session_root_metadata["mcp_num_tools"] = len(tools)
-            client_session_root._set_ctx_item(METADATA, client_session_root_metadata)
+            client_session_root_tags = client_session_root._get_ctx_item(TAGS) or {}
+            client_session_root_tags["mcp_num_tools"] = len(tools)
+            client_session_root._set_ctx_item(TAGS, client_session_root_tags)
 
     def _llmobs_set_tags_session(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any) -> None:
         read_stream = kwargs.get("read_stream", None)

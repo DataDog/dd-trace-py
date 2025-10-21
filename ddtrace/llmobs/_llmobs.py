@@ -451,7 +451,7 @@ class LLMObs(Service):
         existing_tags = span._get_ctx_item(TAGS)
         if existing_tags is not None:
             tags.update(existing_tags)
-        return ["{}:{}".format(k, v) for k, v in tags.items()]
+        return ["{}:{}".format(k, ":".join(list(v)) if isinstance(v, set) else v) for k, v in tags.items()]
 
     def _do_annotations(self, span: Span) -> None:
         # get the current span context
