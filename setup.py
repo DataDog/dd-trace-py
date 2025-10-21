@@ -584,8 +584,10 @@ class CustomBuildExt(build_ext):
                 raise RuntimeError("Not able to find native library")
 
             print(f"Built and copied Rust extension: {native_name}")
+            self.built_native = True
         else:
             print(f"Skipping Rust extension build (no changes): {native_name}")
+            self.built_native = False
 
         # Set SONAME (always do this as it's idempotent)
         if CURRENT_OS == "Linux":
@@ -619,19 +621,15 @@ class CustomBuildExt(build_ext):
             source_files.extend(dd_wrapper_dir.glob("**/*.hpp"))
             source_files.extend([dd_wrapper_dir / "CMakeLists.txt"])
 
-            # Also check if _native.so is newer (our dependency)
-            if self.output_dir:
-                native_library = self.output_dir / f"_native{self.suffix}"
-                if native_library.exists():
-                    source_files.append(native_library)
-
             # Check if any source file is newer than the wrapper library
             newest_source_time = 0
             for src_file in source_files:
                 if src_file.exists():
                     newest_source_time = max(newest_source_time, src_file.stat().st_mtime)
 
-            should_build = newest_source_time > wrapper_mtime
+            # Rebuild if source files changed OR if _native.so was rebuilt (our dependency)
+            source_files_changed = newest_source_time > wrapper_mtime
+            should_build = source_files_changed or getattr(self, "built_native", False)
 
         if should_build:
             # Build libdd_wrapper using CMake
