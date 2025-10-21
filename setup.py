@@ -92,6 +92,7 @@ IAST_DIR = HERE / "ddtrace" / "appsec" / "_iast" / "_taint_tracking"
 DDUP_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "ddup"
 STACK_V2_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack_v2"
 NATIVE_CRATE = HERE / "src" / "native"
+CARGO_TARGET_DIR = NATIVE_CRATE.absolute() / f"target{sys.version_info.major}.{sys.version_info.minor}"
 
 BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
 
@@ -208,7 +209,7 @@ class PatchedDistribution(Distribution):
         # but at the same time dropped support for Python 3.8. So we'd need to
         # make sure that this env var is set to install the ffi headers in the
         # right place.
-        os.environ["CARGO_TARGET_DIR"] = str(NATIVE_CRATE.absolute() / "target")
+        os.environ["CARGO_TARGET_DIR"] = str(CARGO_TARGET_DIR)
         self.rust_extensions = [
             RustExtension(
                 # The Python import path of your extension:
@@ -235,7 +236,9 @@ class ExtensionHashes(build_ext):
                     sources = [
                         _
                         for _ in source_path.glob("**/*")
-                        if _.is_file() and _.relative_to(source_path).parts[0] != "target"
+                        if _.is_file()
+                        and _.relative_to(source_path).parts[0]
+                        != f"target{sys.version_info.major}.{sys.version_info.minor}"
                     ]
                 else:
                     sources = [Path(_) for _ in ext.sources]
@@ -318,7 +321,7 @@ class CustomBuildRust(build_rust):
             dedup_env["PATH"] = cargo_bin + os.pathsep + os.environ["PATH"]
 
             # Run dedup_headers on the generated headers
-            include_dir = NATIVE_CRATE.absolute() / "target" / "include" / "datadog"
+            include_dir = CARGO_TARGET_DIR / "include" / "datadog"
             if include_dir.exists():
                 subprocess.run(
                     ["dedup_headers", "common.h", "profiling.h"],
@@ -499,8 +502,7 @@ class CleanLibraries(CleanCommand):
     @staticmethod
     def remove_rust():
         """Clean the Rust crate using cargo clean."""
-        target_dir = NATIVE_CRATE / "target"
-        if target_dir.exists():
+        if CARGO_TARGET_DIR.exists():
             subprocess.run(
                 ["cargo", "clean"],
                 cwd=str(NATIVE_CRATE),
