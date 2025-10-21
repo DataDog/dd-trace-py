@@ -80,6 +80,15 @@ string(TOLOWER ${PLATFORM_SUFFIX} PLATFORM_SUFFIX)
 # target output name should combine the system name and the processor this won't necessarily match the cpython way 1-1,
 # but as long as it encodes the major moving parts, it's fine
 
+if(DEFINED EXTENSION_SUFFIX)
+    # Strip the .so extension from EXTENSION_SUFFIX since we'll force .so via SUFFIX
+    string(REGEX REPLACE "\\.so$" "" EXTENSION_SUFFIX_NO_EXT "${EXTENSION_SUFFIX}")
+    set(DD_WRAPPER_TARGET_NAME "dd_wrapper${EXTENSION_SUFFIX_NO_EXT}")
+else()
+    set(DD_WRAPPER_TARGET_NAME "dd_wrapper-${PLATFORM_SUFFIX}")
+endif()
+
+set_target_properties(dd_wrapper PROPERTIES OUTPUT_NAME "${DD_WRAPPER_TARGET_NAME}")
 # Force .so extension for both Linux and macOS to match Python extension expectations
 set_target_properties(dd_wrapper PROPERTIES SUFFIX ".so")
 if(APPLE)
