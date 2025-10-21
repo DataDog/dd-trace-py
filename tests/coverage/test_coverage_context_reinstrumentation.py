@@ -298,15 +298,3 @@ def test_comprehensive_reinstrumentation_with_simple_module():
     assert (
         context3_covered[module_path] == expected_lines_false_branch
     ), f"Context 3 coverage mismatch: expected={expected_lines_false_branch} vs actual={context3_covered[module_path]}"
-
-    # Critical assertions: Contexts 1 and 2 should have identical coverage
-    # Context 3 should have the same number of lines (just different branch)
-    assert len(context1_covered[module_path]) == len(context2_covered[module_path]), (
-        f"Context 1 and 2 have different line counts: {len(context1_covered[module_path])} vs "
-        f"{len(context2_covered[module_path])}"
-    )
-
-    assert len(context1_covered[module_path]) == len(context3_covered[module_path]), (
-        f"Context 1 and 3 have different line counts: {len(context1_covered[module_path])} vs "
-        f"{len(context3_covered[module_path])}"
-    )

@@ -56,12 +56,14 @@ def test_module_imported_before_vs_during_coverage():
     # The key test is whether modules imported after install() work in both contexts
 
     # in_context_lib.py should be instrumented (imported after install)
-    if "tests/coverage/included_path/in_context_lib.py" in context1_covered:
-        assert (
-            "tests/coverage/included_path/in_context_lib.py" in context2_covered
-        ), "Context 2 missing in_context_lib.py - re-instrumentation failed!"
+    assert (
+        "tests/coverage/included_path/in_context_lib.py" in context1_covered
+    ), "Context 1 missing in_context_lib.py - module imported after install() should be tracked"
+    assert (
+        "tests/coverage/included_path/in_context_lib.py" in context2_covered
+    ), "Context 2 missing in_context_lib.py - re-instrumentation failed!"
 
-        assert 2 in context1_covered["tests/coverage/included_path/in_context_lib.py"]
-        assert (
-            2 in context2_covered["tests/coverage/included_path/in_context_lib.py"]
-        ), "Context 2 missing line 2 - re-instrumentation failed!"
+    assert 2 in context1_covered["tests/coverage/included_path/in_context_lib.py"]
+    assert (
+        2 in context2_covered["tests/coverage/included_path/in_context_lib.py"]
+    ), "Context 2 missing line 2 - re-instrumentation failed!"
