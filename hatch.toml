@@ -64,7 +64,7 @@ spelling = [
     "codespell -I docs/spelling_wordlist.txt --skip='ddwaf.h,*cassettes*,tests/tracer/fixtures/urls.txt,tests/appsec/iast/fixtures/*' {args:ddtrace/ tests/ releasenotes/ docs/}",
 ]
 typing = [
-    "mypy {args}",
+    "mypy --verbose {args}",
 ]
 security = [
     "bandit -c pyproject.toml {args:-r ddtrace/}",
