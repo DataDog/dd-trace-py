@@ -218,7 +218,6 @@ def _parse_propagation_styles(styles_str):
 
     - "datadog"
     - "b3multi"
-    - "b3" (formerly 'b3 single header')
     - "tracecontext"
     - "baggage"
     - "none"
