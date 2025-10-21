@@ -524,14 +524,6 @@ class CustomBuildExt(build_ext):
 
     def build_rust(self):
         """Build the Rust component using CustomBuildRust command."""
-        # Create and run the CustomBuildRust command
-        build_rust_cmd = CustomBuildRust(self.distribution)
-        build_rust_cmd.initialize_options()
-        build_rust_cmd.finalize_options()
-        # Propagate the inplace flag to the rust build command
-        build_rust_cmd.inplace = getattr(self, "inplace", False)
-        build_rust_cmd.run()
-
         self.suffix = sysconfig.get_config_var("EXT_SUFFIX")
         native_name = f"_native{self.suffix}"
 
@@ -542,10 +534,53 @@ class CustomBuildExt(build_ext):
 
         library = self.output_dir / native_name
 
-        if not library.exists():
-            raise RuntimeError("Not able to find native library")
+        # Determine the Rust source binary path - need to handle different architectures
+        rust_source = NATIVE_CRATE / "target" / "release" / f"lib_native{self.suffix}"
+        if not rust_source.exists():
+            # Fallback to generic .so extension for cross-platform compatibility
+            rust_source = NATIVE_CRATE / "target" / "release" / "lib_native.so"
 
-        # Set SONAME (needed for auditwheel, and alpine source build to work)
+        # Check if we need to run the Rust build by checking if sources are newer than the destination
+        should_build = True
+        if library.exists():
+            library_mtime = library.stat().st_mtime
+            
+            # Check if any Rust source files are newer than the destination library
+            cargo_files = [NATIVE_CRATE / "Cargo.toml", NATIVE_CRATE / "Cargo.lock"]
+            
+            # Get all source files (including subdirectories)
+            source_files = []
+            # Find all .rs files in the crate (including subdirectories)
+            source_files.extend(NATIVE_CRATE.glob("**/*.rs"))
+            # Add cargo files
+            source_files.extend([f for f in cargo_files if f.exists()])
+            
+            # Check if any source file is newer than the library
+            newest_source_time = 0
+            for src_file in source_files:
+                if src_file.exists():
+                    newest_source_time = max(newest_source_time, src_file.stat().st_mtime)
+            
+            # Only rebuild if source files are newer than the destination
+            should_build = newest_source_time > library_mtime
+
+        if should_build:
+            # Create and run the CustomBuildRust command
+            build_rust_cmd = CustomBuildRust(self.distribution)
+            build_rust_cmd.initialize_options()
+            build_rust_cmd.finalize_options()
+            # Propagate the inplace flag to the rust build command
+            build_rust_cmd.inplace = getattr(self, "inplace", False)
+            build_rust_cmd.run()
+
+            if not library.exists():
+                raise RuntimeError("Not able to find native library")
+            
+            print(f"Built and copied Rust extension: {native_name}")
+        else:
+            print(f"Skipping Rust extension build (no changes): {native_name}")
+
+        # Set SONAME (always do this as it's idempotent)
         if CURRENT_OS == "Linux":
             subprocess.run(["patchelf", "--set-soname", native_name, library], check=True)
         elif CURRENT_OS == "Darwin":
@@ -978,9 +1013,6 @@ if not IS_PYSTON:
                         DDUP_DIR / ".." / "dd_wrapper",
                     ],
                     optional=False,
-                    dependencies=[
-                        DDUP_DIR.parent / "libdd_wrapper",
-                    ],
                 )
             )
 
