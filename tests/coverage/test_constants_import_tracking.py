@@ -14,7 +14,7 @@ import pytest
 def test_constants_module_toplevel_import_tracked():
     """
     Test that constant-only modules imported at top-level are tracked in import-time coverage.
-    
+
     This verifies that even modules with no executable code (only constant declarations)
     appear in the import-time dependency tracking.
     """
@@ -61,9 +61,9 @@ def test_constants_module_toplevel_import_tracked():
 
     # The constants module should have its lines tracked
     constants_lines = covered_with_imports.get("tests/coverage/included_path/constants_toplevel.py", set())
-    assert len(constants_lines) > 0, (
-        f"constants_toplevel.py has no lines in import-time coverage: {covered_with_imports}"
-    )
+    assert (
+        len(constants_lines) > 0
+    ), f"constants_toplevel.py has no lines in import-time coverage: {covered_with_imports}"
 
     # Verify it includes the constant declarations (lines 4, 5, 6)
     expected_constant_lines = {4, 5, 6}
@@ -77,7 +77,7 @@ def test_constants_module_toplevel_import_tracked():
 def test_constants_module_dynamic_import_tracked():
     """
     Test that constant-only modules imported dynamically are tracked in import-time coverage.
-    
+
     This verifies that dynamically imported constant modules also appear in
     import-time dependency tracking.
     """
@@ -121,9 +121,9 @@ def test_constants_module_dynamic_import_tracked():
 
     # The constants module should have its lines tracked
     constants_lines = covered_with_imports.get("tests/coverage/included_path/constants_dynamic.py", set())
-    assert len(constants_lines) > 0, (
-        f"constants_dynamic.py has no lines in import-time coverage: {covered_with_imports}"
-    )
+    assert (
+        len(constants_lines) > 0
+    ), f"constants_dynamic.py has no lines in import-time coverage: {covered_with_imports}"
 
     # Verify it includes the constant declarations (lines 4, 5)
     expected_constant_lines = {4, 5}
@@ -138,7 +138,7 @@ def test_constants_module_dynamic_import_tracked():
 def test_constants_module_reinstrumentation():
     """
     Test that constant-only modules are properly re-instrumented between coverage collections.
-    
+
     This ensures that constant modules appear consistently in import-time coverage
     across multiple start/stop cycles (important for per-test coverage in pytest).
     """
@@ -178,12 +178,12 @@ def test_constants_module_reinstrumentation():
     )
 
     # CRITICAL: Both collections should track the constants module
-    assert "tests/coverage/included_path/constants_toplevel.py" in first_covered_with_imports, (
-        "First collection missing constants_toplevel.py"
-    )
-    assert "tests/coverage/included_path/constants_toplevel.py" in second_covered_with_imports, (
-        "Second collection missing constants_toplevel.py - re-instrumentation failed for constant modules!"
-    )
+    assert (
+        "tests/coverage/included_path/constants_toplevel.py" in first_covered_with_imports
+    ), "First collection missing constants_toplevel.py"
+    assert (
+        "tests/coverage/included_path/constants_toplevel.py" in second_covered_with_imports
+    ), "Second collection missing constants_toplevel.py - re-instrumentation failed for constant modules!"
 
     # Both should have the same lines for the constants module
     first_constants = first_covered_with_imports["tests/coverage/included_path/constants_toplevel.py"]
@@ -197,7 +197,6 @@ def test_constants_module_reinstrumentation():
 
     # Verify the constants are actually tracked
     expected_lines = {4, 5, 6}
-    assert expected_lines.issubset(second_constants), (
-        f"Expected constant lines {expected_lines} in second collection, got: {sorted(second_constants)}"
-    )
-
+    assert expected_lines.issubset(
+        second_constants
+    ), f"Expected constant lines {expected_lines} in second collection, got: {sorted(second_constants)}"
