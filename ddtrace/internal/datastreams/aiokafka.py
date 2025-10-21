@@ -16,7 +16,11 @@ def dsm_aiokafka_send_start(topic, value, key, headers, span, _):
     payload_size = 0
     payload_size += _calculate_byte_size(value)
     payload_size += _calculate_byte_size(key)
-    payload_size += _calculate_byte_size(headers)
+    try:
+        header_dict = {k: (v.decode("utf-8", errors="ignore") if isinstance(v, (bytes, bytearray)) else "" if v is None else str(v)) for k, v in headers}
+    except Exception:
+        header_dict = {}
+    payload_size += _calculate_byte_size(header_dict)
 
     edge_tags = ["direction:out", "topic:" + topic, "type:kafka"]
     ctx = processor().set_checkpoint(edge_tags, payload_size=payload_size, span=span)
@@ -37,7 +41,11 @@ def dsm_aiokafka_send_completed(record_metadata):
 def dsm_aiokafka_message_consume(instance, span, message, _):
     from . import data_streams_processor as processor
 
-    headers = {header[0]: header[1].decode("utf-8") for header in (message.headers or [])}
+    headers = {
+        key: val.decode("utf-8", errors="ignore") if isinstance(val, (bytes, bytearray))
+        else str(val)
+        for key, val in (message.headers or []) if val is not None
+    }
     group = instance._group_id
 
     payload_size = 0

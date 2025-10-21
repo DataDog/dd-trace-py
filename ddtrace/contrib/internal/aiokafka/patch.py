@@ -126,9 +126,11 @@ async def traced_getone(func, instance, args, kwargs):
     try:
         message = await func(*args, **kwargs)
         if config.aiokafka.distributed_tracing_enabled and message.headers:
-            dd_headers = {}
-            for header in message.headers:
-                dd_headers[header[0]] = header[1].decode("utf-8")
+            dd_headers = {
+                key: (val.decode("utf-8", errors="ignore") if isinstance(val, (bytes, bytearray)) else str(val))
+                for key, val in message.headers
+                if val is not None
+            }
             parent_ctx = HTTPPropagator.extract(dd_headers)
     except Exception as e:
         err = e

@@ -1166,7 +1166,7 @@ def _on_aiokafka_getone_message(_, span, message, err):
         span.set_tag_str(MESSAGE_OFFSET, str(message_offset))
 
     if err is not None:
-        span.set_exc_info(*sys.exc_info())
+        span.set_exc_info(type(err), err, err.__traceback__)
 
 
 def _on_aiokafka_getmany_message(_, span, messages):
@@ -1195,9 +1195,11 @@ def _on_aiokafka_getmany_message(_, span, messages):
         for topic_partition, records in messages.items():
             for record in records:
                 if config.aiokafka.distributed_tracing_enabled and record.headers:
-                    dd_headers = {}
-                    for header in record.headers:
-                        dd_headers[header[0]] = header[1].decode("utf-8")
+                    dd_headers = {
+                        key: (val.decode("utf-8", errors="ignore") if isinstance(val, (bytes, bytearray)) else str(val))
+                        for key, val in record.headers
+                        if val is not None
+                    }
                     context = HTTPPropagator.extract(dd_headers)
 
                     span.link_span(context)
