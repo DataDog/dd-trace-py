@@ -17,7 +17,12 @@ def dsm_aiokafka_send_start(topic, value, key, headers, span, _):
     payload_size += _calculate_byte_size(value)
     payload_size += _calculate_byte_size(key)
     try:
-        header_dict = {k: (v.decode("utf-8", errors="ignore") if isinstance(v, (bytes, bytearray)) else "" if v is None else str(v)) for k, v in headers}
+        header_dict = {
+            k: (
+                v.decode("utf-8", errors="ignore") if isinstance(v, (bytes, bytearray)) else "" if v is None else str(v)
+            )
+            for k, v in headers
+        }
     except Exception:
         header_dict = {}
     payload_size += _calculate_byte_size(header_dict)
@@ -42,9 +47,9 @@ def dsm_aiokafka_message_consume(instance, span, message, _):
     from . import data_streams_processor as processor
 
     headers = {
-        key: val.decode("utf-8", errors="ignore") if isinstance(val, (bytes, bytearray))
-        else str(val)
-        for key, val in (message.headers or []) if val is not None
+        key: val.decode("utf-8", errors="ignore") if isinstance(val, (bytes, bytearray)) else str(val)
+        for key, val in (message.headers or [])
+        if val is not None
     }
     group = instance._group_id
 
@@ -65,6 +70,7 @@ def dsm_aiokafka_message_consume(instance, span, message, _):
         processor().track_kafka_commit(
             instance._group_id, message.topic, message.partition, reported_offset, time.time()
         )
+
 
 def dsm_aiokafka_many_messages_consume(instance, span, messages):
     if messages is not None:

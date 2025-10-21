@@ -3180,11 +3180,7 @@ venv = Venv(
             },
             command="pytest {cmdargs} tests/contrib/aiokafka/",
             pys=select_pys(),
-            pkgs={
-                "pytest-asyncio": [latest],
-                "pytest-randomly": latest,
-                "aiokafka": latest,
-            },
+            pkgs={"pytest-asyncio": [latest], "pytest-randomly": latest, "aiokafka": ["~=0.9.0", latest]},
         ),
         Venv(
             name="aws_lambda",

@@ -1,10 +1,10 @@
 import os
 from time import time_ns
+from typing import Dict
 
 import aiokafka
 from wrapt import wrap_function_wrapper as _w
 
-from typing import Dict
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -42,8 +42,9 @@ config._add(
 def get_version() -> str:
     return getattr(aiokafka, "__version__", "")
 
+
 def _supported_versions() -> Dict[str, str]:
-    return {"aiokafka": ">=0.12.0"}
+    return {"aiokafka": ">=0.9.0"}
 
 
 def common_aiokafka_tags(topic, bootstrap_servers):

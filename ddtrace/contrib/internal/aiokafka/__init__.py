@@ -27,17 +27,13 @@ Global Configuration
 
    Default: ``"kafka"``
 
+.. py:data:: ddtrace.config.aiokafka["distributed_tracing_enabled"]
 
-To configure the aiokafka integration using the
-``Pin`` API::
+   Whether to enable distributed tracing between Kafka messages.
 
-    from ddtrace import Pin
-    from ddtrace import patch
+   This option can also be set with the ``DD_KAFKA_PROPAGATION_ENABLED`` environment
+   variable.
 
-    # Make sure to patch before importing confluent_kafka
-    patch(aiokafka=True)
+   Default: ``"False"``
 
-    import aiokafka
-
-    Pin.override(aiokafka, service="custom-service-name")
 """

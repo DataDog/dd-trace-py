@@ -1,16 +1,17 @@
-import logging
-import aiokafka
 from contextlib import asynccontextmanager
+import logging
 
+import aiokafka
 from aiokafka.admin import AIOKafkaAdminClient
 from aiokafka.admin import NewTopic
+
 from tests.contrib.config import KAFKA_CONFIG
 
 
 logger = logging.getLogger(__name__)
 
 GROUP_ID = "test_group"
-BOOTSTRAP_SERVERS = f"127.0.0.1:{KAFKA_CONFIG["port"]}"
+BOOTSTRAP_SERVERS = f"127.0.0.1:{KAFKA_CONFIG['port']}"
 KEY = "test_key".encode("utf-8")
 PAYLOAD = "hueh hueh hueh".encode("utf-8")
 ENABLE_AUTO_COMMIT = True
@@ -70,4 +71,3 @@ async def consumer_ctx(topics, enable_auto_commit=ENABLE_AUTO_COMMIT):
         yield consumer
     finally:
         await consumer.stop()
-

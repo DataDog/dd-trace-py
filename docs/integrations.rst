@@ -47,6 +47,12 @@ aiohttp-jinja2
 ^^^^^^^^^^^^^^
 .. automodule:: ddtrace.contrib.internal.aiohttp_jinja2
 
+.. _aiokafka:
+
+aiokafka
+^^^^^^^^
+.. automodule:: ddtrace.contrib.internal.aiokafka
+
 .. _aiomysql:
 
 aiomysql
