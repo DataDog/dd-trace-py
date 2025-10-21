@@ -1,14 +1,23 @@
 import functools
 import inspect
+from typing import Any
+from typing import Callable
+from typing import Coroutine
+from typing import Optional
+from typing import Tuple
+from typing import Union
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_cloud_faas_operation
 
 
-def create_context(context_name, pin, resource=None, headers=None):
+def create_context(
+    context_name: str, pin: Pin, resource: Optional[str] = None, headers: Optional[dict] = None
+) -> core.ExecutionContext:
     operation_name = schematize_cloud_faas_operation(
         "azure.functions.invoke", cloud_provider="azure", cloud_service="functions"
     )
@@ -25,12 +34,17 @@ def create_context(context_name, pin, resource=None, headers=None):
     )
 
 
-def wrap_function_with_tracing(func, context_factory, pre_dispatch=None, post_dispatch=None):
+def wrap_function_with_tracing(
+    func: Callable[..., Any],
+    context_factory: Callable[[Any], core.ExecutionContext],
+    pre_dispatch: Optional[Callable[[core.ExecutionContext, Any], Tuple[str, Tuple[Any, ...]]]] = None,
+    post_dispatch: Optional[Callable[[core.ExecutionContext, Any], Tuple[str, Tuple[Any, ...]]]] = None,
+) -> Union[Callable[..., Any], Callable[..., Coroutine[Any, Any, Any]]]:
     if inspect.iscoroutinefunction(func):
 
         @functools.wraps(func)
-        async def async_wrapper(*args, **kwargs):
-            with context_factory(kwargs) as ctx, ctx.span:
+        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+            with context_factory(kwargs) as ctx:
                 if pre_dispatch:
                     core.dispatch(*pre_dispatch(ctx, kwargs))
 
@@ -45,8 +59,8 @@ def wrap_function_with_tracing(func, context_factory, pre_dispatch=None, post_di
         return async_wrapper
 
     @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        with context_factory(kwargs) as ctx, ctx.span:
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        with context_factory(kwargs) as ctx:
             if pre_dispatch:
                 core.dispatch(*pre_dispatch(ctx, kwargs))
 
