@@ -512,6 +512,7 @@ venv = Venv(
                 "python-json-logger": "==2.0.7",
                 "pyfakefs": latest,
                 "pytest-benchmark": latest,
+                "wrapt": [latest, "<2.0.0"]
             },
             venvs=[
                 Venv(
