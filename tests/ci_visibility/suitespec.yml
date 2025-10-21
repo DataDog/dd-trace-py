@@ -28,6 +28,7 @@ suites:
       - '@pytest'
       - '@codeowners'
       - '@unittest'
+      - '@freezegun'
       - '@tracing'
       - tests/ci_visibility/*
       - tests/snapshots/test_api_fake_runners.*
