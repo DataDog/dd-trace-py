@@ -74,17 +74,20 @@ def test_sequential_contexts_get_complete_coverage():
     assert "tests/coverage/included_path/callee.py" in context2_covered
     assert "tests/coverage/included_path/callee.py" in context3_covered
 
-    assert (
-        context1_covered["tests/coverage/included_path/callee.py"] == expected_callee_lines
-    ), f"Context 1 callee.py mismatch: expected={expected_callee_lines} vs actual={context1_covered['tests/coverage/included_path/callee.py']}"
+    assert context1_covered["tests/coverage/included_path/callee.py"] == expected_callee_lines, (
+        f"Context 1 callee.py mismatch: expected={expected_callee_lines} vs "
+        f"actual={context1_covered['tests/coverage/included_path/callee.py']}"
+    )
 
-    assert (
-        context2_covered["tests/coverage/included_path/callee.py"] == expected_callee_lines
-    ), f"Context 2 callee.py mismatch: expected={expected_callee_lines} vs actual={context2_covered['tests/coverage/included_path/callee.py']}"
+    assert context2_covered["tests/coverage/included_path/callee.py"] == expected_callee_lines, (
+        f"Context 2 callee.py mismatch: expected={expected_callee_lines} vs "
+        f"actual={context2_covered['tests/coverage/included_path/callee.py']}"
+    )
 
-    assert (
-        context3_covered["tests/coverage/included_path/callee.py"] == expected_callee_lines
-    ), f"Context 3 callee.py mismatch: expected={expected_callee_lines} vs actual={context3_covered['tests/coverage/included_path/callee.py']}"
+    assert context3_covered["tests/coverage/included_path/callee.py"] == expected_callee_lines, (
+        f"Context 3 callee.py mismatch: expected={expected_callee_lines} vs "
+        f"actual={context3_covered['tests/coverage/included_path/callee.py']}"
+    )
 
     # Critical assertion: All contexts should capture function body execution
     # The key test is that lib.py line 2 (function body) appears in ALL contexts
@@ -156,7 +159,7 @@ def test_context_with_repeated_execution_reinstruments_correctly():
     # Context 3: Execute once more
     with ModuleCodeCollector.CollectInContext() as context3:
         for i in range(15):
-            result3 = called_in_session(i, i)
+            called_in_session(i, i)
         context3_covered = _get_relpath_dict(cwd_path, context3.get_covered_lines())
 
     # Expected coverage for lib.py (lines in called_in_session function)
@@ -373,7 +376,10 @@ def test_context_after_session_coverage():
 
     assert expected_context_callee_runtime.issubset(context1_callee) and expected_context_callee_runtime.issubset(
         context2_callee
-    ), f"Context coverages differ - re-instrumentation may have failed: context1={context1_callee}, context2={context2_callee}"
+    ), (
+        f"Context coverages differ - re-instrumentation may have failed: "
+        f"context1={context1_callee}, context2={context2_callee}"
+    )
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
@@ -404,7 +410,9 @@ def test_import_time_coverage_reinstrumentation():
     called_in_session_import_time()
     ModuleCodeCollector.stop_coverage()
 
-    first_covered = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=False))  # type: ignore[union-attr]
+    first_covered = _get_relpath_dict(
+        cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=False)  # type: ignore[union-attr]
+    )
     first_covered_with_imports = _get_relpath_dict(
         cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=True)  # type: ignore[union-attr]
     )
@@ -534,10 +542,12 @@ def test_comprehensive_reinstrumentation_with_simple_module():
 
     # Critical assertions: Contexts 1 and 2 should have identical coverage
     # Context 3 should have the same number of lines (just different branch)
-    assert len(context1_covered[module_path]) == len(
-        context2_covered[module_path]
-    ), f"Context 1 and 2 have different line counts: {len(context1_covered[module_path])} vs {len(context2_covered[module_path])}"
+    assert len(context1_covered[module_path]) == len(context2_covered[module_path]), (
+        f"Context 1 and 2 have different line counts: {len(context1_covered[module_path])} vs "
+        f"{len(context2_covered[module_path])}"
+    )
 
-    assert len(context1_covered[module_path]) == len(
-        context3_covered[module_path]
-    ), f"Context 1 and 3 have different line counts: {len(context1_covered[module_path])} vs {len(context3_covered[module_path])}"
+    assert len(context1_covered[module_path]) == len(context3_covered[module_path]), (
+        f"Context 1 and 3 have different line counts: {len(context1_covered[module_path])} vs "
+        f"{len(context3_covered[module_path])}"
+    )

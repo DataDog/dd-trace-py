@@ -21,7 +21,7 @@ def fixture_dynamic_path(value):
     """Uses dynamically imported function"""
     # Dynamic import at function level
     from tests.coverage.included_path.layer2_dynamic import layer2_dynamic_function
-    
+
     result = layer2_dynamic_function(value)
     return result
 
@@ -31,4 +31,3 @@ def fixture_mixed_path(value):
     result1 = fixture_toplevel_path(value)
     result2 = fixture_dynamic_path(value)
     return result1 + result2
-

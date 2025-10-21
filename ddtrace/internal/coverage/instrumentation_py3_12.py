@@ -53,7 +53,7 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     return _instrument_all_lines_with_monitoring(code, hook, path, package)
 
 
-def _line_event_handler(code: CodeType, line: int) -> t.Any:
+def _line_event_handler(code: CodeType, line: int) -> t.Literal[sys.monitoring.DISABLE]:
     hook_data = _CODE_HOOKS.get(code)
     if hook_data is None:
         return sys.monitoring.DISABLE
