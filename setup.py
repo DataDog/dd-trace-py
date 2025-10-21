@@ -518,6 +518,11 @@ class CustomBuildExt(build_ext):
 
     def run(self):
         self.build_rust()
+
+        # Build libdd_wrapper before building other extensions that depend on it
+        if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 14):
+            self.build_libdd_wrapper()
+
         super().run()
         for ext in self.extensions:
             self.build_extension(ext)
@@ -585,10 +590,6 @@ class CustomBuildExt(build_ext):
             subprocess.run(["patchelf", "--set-soname", native_name, library], check=True)
         elif CURRENT_OS == "Darwin":
             subprocess.run(["install_name_tool", "-id", native_name, library], check=True)
-
-        # Build libdd_wrapper as a shared library dependency (not a Python extension)
-        if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 14):
-            self.build_libdd_wrapper()
 
     def build_libdd_wrapper(self):
         """Build libdd_wrapper shared library as a dependency for profiling extensions."""
