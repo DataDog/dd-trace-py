@@ -35,6 +35,5 @@ def multi_line_function(a, b, c):
     step2 = step1 * c
     step3 = step2 - a
     step4 = step3 / (b if b != 0 else 1)
-    result = step4 ** 2
+    result = step4**2
     return result
-
