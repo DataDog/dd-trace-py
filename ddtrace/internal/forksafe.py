@@ -115,7 +115,7 @@ register(_reset_objects)
 _T = typing.TypeVar("_T")
 
 
-class ResetObject(wrapt.ObjectProxy, typing.Generic[_T]):  # type: ignore
+class ResetObject(wrapt.ObjectProxy, typing.Generic[_T]):
     """An object wrapper object that is fork-safe and resets itself after a fork.
 
     When a Python process forks, a Lock can be in any state, locked or not, by any thread. Since after fork all threads
@@ -138,16 +138,13 @@ class ResetObject(wrapt.ObjectProxy, typing.Generic[_T]):  # type: ignore
         self.__wrapped__ = self._self_wrapped_class()
 
 
-def Lock():
-    # type: (...) -> ResetObject[threading.Lock]
-    return ResetObject(threading.Lock)
+def Lock() -> threading.Lock:
+    return ResetObject(threading.Lock)  # type: ignore
 
 
-def RLock():
-    # type: (...) -> ResetObject[threading.RLock]
-    return ResetObject(threading.RLock)
+def RLock() -> threading.RLock:
+    return ResetObject(threading.RLock)  # type: ignore
 
 
-def Event():
-    # type: (...) -> ResetObject[threading.Event]
-    return ResetObject(threading.Event)
+def Event() -> threading.Event:
+    return ResetObject(threading.Event)  # type: ignore
