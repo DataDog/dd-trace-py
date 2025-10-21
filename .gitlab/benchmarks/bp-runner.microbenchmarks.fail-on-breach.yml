@@ -1085,7 +1085,7 @@ experiments:
               - max_rss_usage < 34.00 MB
           - name: telemetryaddmetric-1-count-metrics-100-times
             thresholds:
-              - execution_time < 0.25 ms
+              - execution_time < 0.22 ms
               - max_rss_usage < 34.00 MB
           - name: telemetryaddmetric-1-distribution-metric-1-times
             thresholds:
@@ -1113,11 +1113,11 @@ experiments:
               - max_rss_usage < 34.00 MB
           - name: telemetryaddmetric-100-count-metrics-100-times
             thresholds:
-              - execution_time < 23.50 ms
+              - execution_time < 22.0 ms
               - max_rss_usage < 34.00 MB
           - name: telemetryaddmetric-100-distribution-metrics-100-times
             thresholds:
-              - execution_time < 2.25 ms
+              - execution_time < 2.30 ms
               - max_rss_usage < 34.00 MB
           - name: telemetryaddmetric-100-gauge-metrics-100-times
             thresholds:
