@@ -80,16 +80,8 @@ string(TOLOWER ${PLATFORM_SUFFIX} PLATFORM_SUFFIX)
 # target output name should combine the system name and the processor this won't necessarily match the cpython way 1-1,
 # but as long as it encodes the major moving parts, it's fine
 
-if(DEFINED EXTENSION_SUFFIX)
-    # EXTENSION_SUFFIX already contains .so (both Linux and macOS Python extensions use .so) but CMake will add its own
-    # extension (.so on Linux, .dylib on macOS) So we need to strip the .so extension to avoid double extensions
-    string(REGEX REPLACE "\\.so$" "" EXTENSION_SUFFIX_NO_EXT "${EXTENSION_SUFFIX}")
-    set(DD_WRAPPER_TARGET_NAME "dd_wrapper${EXTENSION_SUFFIX_NO_EXT}")
-else()
-    set(DD_WRAPPER_TARGET_NAME "dd_wrapper-${PLATFORM_SUFFIX}")
-endif()
-
-set_target_properties(dd_wrapper PROPERTIES OUTPUT_NAME "${DD_WRAPPER_TARGET_NAME}")
+# Force .so extension for both Linux and macOS to match Python extension expectations
+set_target_properties(dd_wrapper PROPERTIES SUFFIX ".so")
 if(APPLE)
     set_target_properties(dd_wrapper PROPERTIES BUILD_RPATH "@loader_path/../../native" INSTALL_RPATH
                                                                                         "@loader_path/../../native")
