@@ -1121,7 +1121,8 @@ def test_url_in_http_with_empty_obfuscation_regex():
     from ddtrace.settings.integration import IntegrationConfig
     from ddtrace.trace import tracer
 
-    assert config._obfuscation_query_string_pattern.pattern == b"", config._obfuscation_query_string_pattern
+    assert config._obfuscation_query_string_pattern is not None
+    assert config._obfuscation_query_string_pattern.pattern == "", config._obfuscation_query_string_pattern
 
     SENSITIVE_URL = "http://weblog:7777/?application_key=123"
     config.myint = IntegrationConfig(config, "myint")

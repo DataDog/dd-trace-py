@@ -76,14 +76,11 @@ def strip_query_string(url):
     return h + fs + f
 
 
-def redact_query_string(query_string, query_string_obfuscation_pattern):
-    # type: (str, re.Pattern) -> Union[bytes, str]
-    bytes_query = query_string if isinstance(query_string, bytes) else query_string.encode("utf-8")
-    return query_string_obfuscation_pattern.sub(b"<redacted>", bytes_query)
+def redact_query_string(query_string: str, query_string_obfuscation_pattern: Pattern) -> str:
+    return query_string_obfuscation_pattern.sub("<redacted>", query_string)
 
 
-def redact_url(url, query_string_obfuscation_pattern, query_string=None):
-    # type: (str, re.Pattern, Optional[str]) -> Union[str,bytes]
+def redact_url(url: str, query_string_obfuscation_pattern: Pattern, query_string: Optional[str] = None) -> str:
     parts = parse.urlparse(url)
     redacted_query = None
 
@@ -93,32 +90,30 @@ def redact_url(url, query_string_obfuscation_pattern, query_string=None):
         redacted_query = redact_query_string(parts.query, query_string_obfuscation_pattern)
 
     if redacted_query is not None and len(parts) >= 5:
-        redacted_parts = parts[:4] + (redacted_query,) + parts[5:]  # type: Tuple[Union[str, bytes], ...]
-        bytes_redacted_parts = tuple(x if isinstance(x, bytes) else x.encode("utf-8") for x in redacted_parts)
-        return urlunsplit(bytes_redacted_parts, url)
+        redacted_parts = parts[:4] + (redacted_query,) + parts[5:]
+        return urlunsplit(redacted_parts, url)
 
     # If no obfuscation is performed, return original url
     return url
 
 
-def urlunsplit(components, original_url):
-    # type: (Tuple[bytes, ...], str) -> bytes
+def urlunsplit(components: Tuple[str, ...], original_url: str) -> str:
     """
     Adaptation from urlunsplit and urlunparse, using bytes components
     """
     scheme, netloc, url, params, query, fragment = components
     if params:
-        url = b"%s;%s" % (url, params)
-    if netloc or (scheme and url[:2] != b"//"):
-        if url and url[:1] != b"/":
-            url = b"/" + url
-        url = b"//%s%s" % ((netloc or b""), url)
+        url = "%s;%s" % (url, params)
+    if netloc or (scheme and url[:2] != "//"):
+        if url and url[:1] != "/":
+            url = "/" + url
+        url = "//%s%s" % ((netloc or ""), url)
     if scheme:
-        url = b"%s:%s" % (scheme, url)
-    if query or (original_url and original_url[-1] in ("?", b"?")):
-        url = b"%s?%s" % (url, query)
-    if fragment or (original_url and original_url[-1] in ("#", b"#")):
-        url = b"%s#%s" % (url, fragment)
+        url = "%s:%s" % (scheme, url)
+    if query or (original_url and original_url[-1] == "?"):
+        url = "%s?%s" % (url, query)
+    if fragment or (original_url and original_url[-1] == "#"):
+        url = "%s#%s" % (url, fragment)
     return url
 
 

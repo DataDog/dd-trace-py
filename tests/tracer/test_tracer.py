@@ -241,8 +241,8 @@ class TracerTestCases(TracerTestCase):
     def test_tracer_wrap_factory(self):
         def wrap_executor(tracer, fn, args, kwargs, span_name=None, service=None, resource=None, span_type=None):
             with tracer.trace("wrap.overwrite") as span:
-                span.set_tag("args", args)
-                span.set_tag("kwargs", kwargs)
+                span.set_tag("args", str(args))
+                span.set_tag("kwargs", str(kwargs))
                 return fn(*args, **kwargs)
 
         @self.tracer.wrap()
@@ -265,8 +265,8 @@ class TracerTestCases(TracerTestCase):
     def test_tracer_wrap_factory_nested(self):
         def wrap_executor(tracer, fn, args, kwargs, span_name=None, service=None, resource=None, span_type=None):
             with tracer.trace("wrap.overwrite") as span:
-                span.set_tag("args", args)
-                span.set_tag("kwargs", kwargs)
+                span.set_tag("args", str(args))
+                span.set_tag("kwargs", str(kwargs))
                 return fn(*args, **kwargs)
 
         @self.tracer.wrap()

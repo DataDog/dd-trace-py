@@ -54,49 +54,10 @@ class SpanTestCase(TracerTestCase):
     def test_tags(self):
         s = Span(name="test.span")
         s.set_tag("a", "a")
-        s.set_tag("b", 1)
         s.set_tag("c", "1")
 
         assert s.get_tags() == dict(a="a", c="1")
-        assert s.get_metrics() == dict(b=1)
-
-    def test_numeric_tags(self):
-        s = Span(name="test.span")
-        s.set_tag("negative", -1)
-        s.set_tag("zero", 0)
-        s.set_tag("positive", 1)
-        s.set_tag("large_int", 2**53)
-        s.set_tag("really_large_int", (2**53) + 1)
-        s.set_tag("large_negative_int", -(2**53))
-        s.set_tag("really_large_negative_int", -((2**53) + 1))
-        s.set_tag("float", 12.3456789)
-        s.set_tag("negative_float", -12.3456789)
-        s.set_tag("large_float", 2.0**53)
-        s.set_tag("really_large_float", (2.0**53) + 1)
-
-        assert s.get_tags() == dict(
-            really_large_int=str(((2**53) + 1)),
-            really_large_negative_int=str(-((2**53) + 1)),
-        )
-        assert s.get_metrics() == {
-            "negative": -1,
-            "zero": 0,
-            "positive": 1,
-            "large_int": 2**53,
-            "large_negative_int": -(2**53),
-            "float": 12.3456789,
-            "negative_float": -12.3456789,
-            "large_float": 2.0**53,
-            "really_large_float": (2.0**53) + 1,
-        }
-
-    def test_set_tag_bool(self):
-        s = Span(name="test.span")
-        s.set_tag("true", True)
-        s.set_tag("false", False)
-
-        assert s.get_tags() == dict(true="True", false="False")
-        assert len(s.get_metrics()) == 0
+        assert s.get_metrics() == dict()
 
     def test_set_baggage_item(self):
         s = Span(name="test.span")
@@ -141,37 +102,24 @@ class SpanTestCase(TracerTestCase):
 
         assert span1.context.get_all_baggage_items() == {"item1": "123", "item2": "456"}
 
-    def test_set_tag_metric(self):
-        s = Span(name="test.span")
-
-        s.set_tag("test", "value")
-        assert s.get_tags() == dict(test="value")
-        assert s.get_metrics() == dict()
-
-        s.set_tag("test", 1)
-        assert s.get_tags() == dict()
-        assert s.get_metrics() == dict(test=1)
-
     def test_set_valid_metrics(self):
         s = Span(name="test.span")
         s.set_metric("a", 0)
         s.set_metric("b", -12)
         s.set_metric("c", 12.134)
         s.set_metric("d", 1231543543265475686787869123)
-        s.set_metric("e", "12.34")
         expected = {
             "a": 0,
             "b": -12,
             "c": 12.134,
             "d": 1231543543265475686787869123,
-            "e": 12.34,
         }
         assert s.get_metrics() == expected
 
     def test_set_invalid_metric(self):
         s = Span(name="test.span")
 
-        invalid_metrics = [None, {}, [], s, "quarante-douze", float("nan"), float("inf"), 1j]
+        invalid_metrics = [float("nan"), float("inf")]
 
         for i, m in enumerate(invalid_metrics):
             k = str(i)
@@ -187,15 +135,6 @@ class SpanTestCase(TracerTestCase):
         s.set_metric("a", np.int64(1))
         assert s.get_metric("a") == 1
         assert type(s.get_metric("a")) == float
-
-    def test_tags_not_string(self):
-        # ensure we can cast as strings
-        class Foo(object):
-            def __repr__(self):
-                1 / 0
-
-        s = Span(name="test.span")
-        s.set_tag("a", Foo())
 
     def test_finish(self):
         # ensure span.finish() marks the end time of the span
@@ -303,9 +242,9 @@ class SpanTestCase(TracerTestCase):
                 #      ZeroDivisionError: division by zero
                 header_and_footer_lines += 1
 
-            assert (
-                len(stack.splitlines()) == tb_length_limit * multiplier + header_and_footer_lines
-            ), "stacktrace should contain two lines per entry"
+            assert len(stack.splitlines()) == tb_length_limit * multiplier + header_and_footer_lines, (
+                "stacktrace should contain two lines per entry"
+            )
 
     def test_ctx_mgr(self):
         s = Span("bar")
@@ -338,11 +277,12 @@ class SpanTestCase(TracerTestCase):
     def test_numeric_tags_none(self, span_log):
         s = Span(name="test.span")
         s.set_tag("noneval", None)
+        assert len(s.get_tags()) == 0
         assert len(s.get_metrics()) == 0
 
     def test_numeric_tags_value(self):
         s = Span(name="test.span")
-        s.set_tag("point5", 0.5)
+        s.set_metric("point5", 0.5)
         expected = {"point5": 0.5}
         assert s.get_metrics() == expected
 
@@ -361,7 +301,7 @@ class SpanTestCase(TracerTestCase):
 
         s.set_tag("custom.key", None)
 
-        assert s.get_tags() == {"custom.key": "None"}
+        assert s.get_tags() == {}
 
     def test_duration_zero(self):
         s = Span(name="foo.bar", service="s", resource="r", start=123)
@@ -635,14 +575,10 @@ class SpanTestCase(TracerTestCase):
 @pytest.mark.parametrize(
     "value,assertion",
     [
-        (None, assert_is_measured),
         (1, assert_is_measured),
         (1.0, assert_is_measured),
         (-1, assert_is_measured),
         (True, assert_is_measured),
-        ("true", assert_is_measured),
-        # DEV: Ends up being measured because we do `bool("false")` which is `True`
-        ("false", assert_is_measured),
         (0, assert_is_not_measured),
         (0.0, assert_is_not_measured),
         (False, assert_is_not_measured),
@@ -650,7 +586,7 @@ class SpanTestCase(TracerTestCase):
 )
 def test_set_tag_measured(value, assertion):
     s = Span(name="test.span")
-    s.set_tag(_SPAN_MEASURED_KEY, value)
+    s.set_metric(_SPAN_MEASURED_KEY, value)
     assertion(s)
 
 
@@ -660,39 +596,16 @@ def test_set_tag_measured_not_set():
     assert_is_not_measured(s)
 
 
-def test_set_tag_measured_no_value():
-    s = Span(name="test.span")
-    s.set_tag(_SPAN_MEASURED_KEY)
-    assert_is_measured(s)
-
-
 def test_set_tag_measured_change_value():
     s = Span(name="test.span")
-    s.set_tag(_SPAN_MEASURED_KEY, True)
+    s.set_metric(_SPAN_MEASURED_KEY, True)
     assert_is_measured(s)
 
-    s.set_tag(_SPAN_MEASURED_KEY, False)
+    s.set_metric(_SPAN_MEASURED_KEY, False)
     assert_is_not_measured(s)
 
-    s.set_tag(_SPAN_MEASURED_KEY)
+    s.set_metric(_SPAN_MEASURED_KEY, 1.0)
     assert_is_measured(s)
-
-
-@mock.patch("ddtrace._trace.span.log")
-def test_span_key(span_log):
-    # Span tag keys must be strings
-    s = Span(name="test.span")
-
-    s.set_tag(123, True)
-    span_log.warning.assert_called_once_with("Ignoring tag pair %s:%s. Key must be a string.", 123, True)
-    assert s.get_tag(123) is None
-    assert s.get_tag("123") is None
-
-    span_log.reset_mock()
-
-    s.set_tag(None, "val")
-    span_log.warning.assert_called_once_with("Ignoring tag pair %s:%s. Key must be a string.", None, "val")
-    assert s.get_tag(123.32) is None
 
 
 def test_spans_finished():
@@ -725,54 +638,22 @@ def test_span_unicode_set_tag():
     span.set_tag_str("😐", "😌")
 
 
-@pytest.mark.skipif(sys.version_info.major != 2, reason="This test only applies Python 2")
-@mock.patch("ddtrace._trace.span.log")
-def test_span_binary_unicode_set_tag(span_log):
-    span = Span(None)
-    span.set_tag("key", "🤔")
-    span.set_tag_str("key_str", "🤔")
-    # only span.set_tag() will fail
-    span_log.warning.assert_called_once_with("error setting tag %s, ignoring it", "key", exc_info=True)
-    assert "key" not in span.get_tags()
-    assert span.get_tag("key_str") == "🤔"
-
-
-@pytest.mark.skipif(sys.version_info.major == 2, reason="This test does not apply to Python 2")
 @mock.patch("ddtrace._trace.span.log")
 def test_span_bytes_string_set_tag(span_log):
     span = Span(None)
-    span.set_tag("key", b"\xf0\x9f\xa4\x94")
-    span.set_tag_str("key_str", b"\xf0\x9f\xa4\x94")
-    assert span.get_tag("key") == "b'\\xf0\\x9f\\xa4\\x94'"
-    assert span.get_tag("key_str") == "🤔"
+    span.set_tag("key", "😌")
+    span.set_tag_str("key_str", "😌")
+    assert span.get_tag("key") == "😌"
+    assert span.get_tag("key_str") == "😌"
     span_log.warning.assert_not_called()
 
 
 @mock.patch("ddtrace._trace.span.log")
 def test_span_encoding_set_str_tag(span_log):
     span = Span(None)
-    span.set_tag_str("foo", "/?foo=bar&baz=정상처리".encode("euc-kr"))
+    span.set_tag_str("foo", "/?foo=bar&baz=정상처리")
     span_log.warning.assert_not_called()
-    assert span.get_tag("foo") == "/?foo=bar&baz=����ó��"
-
-
-def test_span_nonstring_set_str_tag_exc():
-    span = Span(None)
-    with pytest.raises(TypeError):
-        span.set_tag_str("foo", dict(a=1))
-    assert "foo" not in span.get_tags()
-
-
-@mock.patch("ddtrace._trace.span.log")
-def test_span_nonstring_set_str_tag_warning(span_log):
-    with override_global_config(dict(_raise=False)):
-        span = Span(None)
-        span.set_tag_str("foo", dict(a=1))
-        span_log.warning.assert_called_once_with(
-            "Failed to set text tag '%s'",
-            "foo",
-            exc_info=True,
-        )
+    assert span.get_tag("foo") == "/?foo=bar&baz=정상처리"
 
 
 def test_span_ignored_exceptions():

@@ -47,15 +47,14 @@ def test_strip_query_string(url):
 
 @pytest.mark.parametrize("url", _url_fixtures())
 def test_redact_url_not_redacts_without_param(url):
-    res = redact_url(url, re.compile(b"\\@"), None)
-    expected_result = url if isinstance(res, str) else url.encode("utf-8")
-    assert res == expected_result
+    res = redact_url(url, re.compile("\\@"), None)
+    assert res == url
 
 
 @pytest.mark.parametrize("url", _url_fixtures())
 def test_redact_url_not_redacts_with_param(url):
     parsed_url = parse.urlparse(url)
-    assert redact_url(url, re.compile(b"\\*"), "query_string") == parse.urlunparse(
+    assert redact_url(url, re.compile("\\*"), "query_string") == parse.urlunparse(
         (
             parsed_url.scheme,
             parsed_url.netloc,
@@ -64,17 +63,17 @@ def test_redact_url_not_redacts_with_param(url):
             "query_string",
             parsed_url.fragment,
         )
-    ).encode("utf-8")
+    )
 
 
 @pytest.mark.parametrize(
     "url, regex, query_string, expected",
     (
-        ("://?&?", re.compile(b"\\?"), None, b"://?&<redacted>"),
-        ("://?&?", re.compile(b"\\?"), None, b"://?&<redacted>"),
-        ("://?x", re.compile(b"x"), None, b"://?<redacted>"),
-        ("://x", re.compile(b"x"), "x", b"://x?<redacted>"),
-        ("://y", re.compile(b"x"), "x", b"://y?<redacted>"),
+        ("://?&?", re.compile("\\?"), None, "://?&<redacted>"),
+        ("://?&?", re.compile("\\?"), None, "://?&<redacted>"),
+        ("://?x", re.compile("x"), None, "://?<redacted>"),
+        ("://x", re.compile("x"), "x", "://x?<redacted>"),
+        ("://y", re.compile("x"), "x", "://y?<redacted>"),
     ),
 )
 def test_redact_url_does_redact(url, regex, query_string, expected):

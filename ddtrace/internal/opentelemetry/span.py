@@ -42,7 +42,10 @@ def _ddmap(span, attribute, value):
     if attribute.startswith("meta") or attribute.startswith("metrics"):
         meta_key = attribute.split("'")[1] if len(attribute.split("'")) == 3 else None
         if meta_key:
-            span.set_tag(meta_key, value)
+            if isinstance(value, bytes):
+                span.set_tag(meta_key, value.decode("utf-8", errors="replace"))
+            else:
+                span.set_metric(meta_key, value)
     else:
         setattr(span, attribute, value)
     return span

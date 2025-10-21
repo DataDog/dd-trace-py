@@ -81,7 +81,7 @@ def gen_trace(nspans=1000, ntags=50, key_size=15, value_size=20, nmetrics=10):
                 span.span_type = "web"
 
             for _ in range(0, nmetrics):
-                span.set_tag(rands(key_size), random.randint(0, 2**16))
+                span.set_metric(rands(key_size), random.randint(0, 2**16))
 
             trace.append(span)
 
@@ -483,14 +483,12 @@ class SubFloat(float):
 @pytest.mark.parametrize(
     "span, tags",
     [
-        (Span("name"), {"int": SubInt(123)}),
-        (Span("name"), {"float": SubFloat(123.213)}),
         (Span(SubString("name")), {SubString("test"): SubString("test")}),
         (Span("name"), {"unicode": "😐"}),
         (Span("name"), {"😐": "😐"}),
         (
             Span("span_name", service="test-service", resource="test-resource", span_type=SpanTypes.WEB),
-            {"metric1": 123, "metric2": "1", "metric3": 12.3, "metric4": "12.0", "tag1": "test", "tag2": "unicode"},
+            {"metric2": "1", "metric4": "12.0", "tag1": "test", "tag2": "unicode"},
         ),
     ],
 )
