@@ -1,4 +1,5 @@
 def get_version() -> str:
+    return "4.0.0dev0"
     try:
         from ._version import version
 
