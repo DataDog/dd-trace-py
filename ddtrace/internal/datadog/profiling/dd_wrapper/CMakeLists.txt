@@ -114,14 +114,13 @@ if(INPLACE_LIB_INSTALL_DIR)
     set(LIB_INSTALL_DIR "${INPLACE_LIB_INSTALL_DIR}")
 endif()
 
-# If LIB_INSTALL_DIR is set, install the library. Install one directory up--ddup, crashtracker, and stackv2 are set to
-# the same relative level.
+# If LIB_INSTALL_DIR is set, install the library to the specified directory.
 if(LIB_INSTALL_DIR)
     install(
         TARGETS dd_wrapper
-        LIBRARY DESTINATION ${LIB_INSTALL_DIR}/..
-        ARCHIVE DESTINATION ${LIB_INSTALL_DIR}/..
-        RUNTIME DESTINATION ${LIB_INSTALL_DIR}/..)
+        LIBRARY DESTINATION ${LIB_INSTALL_DIR}
+        ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
+        RUNTIME DESTINATION ${LIB_INSTALL_DIR})
 endif()
 
 # Configure cppcheck

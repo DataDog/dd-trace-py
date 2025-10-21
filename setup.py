@@ -544,23 +544,23 @@ class CustomBuildExt(build_ext):
         should_build = True
         if library.exists():
             library_mtime = library.stat().st_mtime
-            
+
             # Check if any Rust source files are newer than the destination library
             cargo_files = [NATIVE_CRATE / "Cargo.toml", NATIVE_CRATE / "Cargo.lock"]
-            
+
             # Get all source files (including subdirectories)
             source_files = []
             # Find all .rs files in the crate (including subdirectories)
             source_files.extend(NATIVE_CRATE.glob("**/*.rs"))
             # Add cargo files
             source_files.extend([f for f in cargo_files if f.exists()])
-            
+
             # Check if any source file is newer than the library
             newest_source_time = 0
             for src_file in source_files:
                 if src_file.exists():
                     newest_source_time = max(newest_source_time, src_file.stat().st_mtime)
-            
+
             # Only rebuild if source files are newer than the destination
             should_build = newest_source_time > library_mtime
 
@@ -575,7 +575,7 @@ class CustomBuildExt(build_ext):
 
             if not library.exists():
                 raise RuntimeError("Not able to find native library")
-            
+
             print(f"Built and copied Rust extension: {native_name}")
         else:
             print(f"Skipping Rust extension build (no changes): {native_name}")
@@ -585,6 +585,73 @@ class CustomBuildExt(build_ext):
             subprocess.run(["patchelf", "--set-soname", native_name, library], check=True)
         elif CURRENT_OS == "Darwin":
             subprocess.run(["install_name_tool", "-id", native_name, library], check=True)
+
+        # Build libdd_wrapper as a shared library dependency (not a Python extension)
+        if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 14):
+            self.build_libdd_wrapper()
+
+    def build_libdd_wrapper(self):
+        """Build libdd_wrapper shared library as a dependency for profiling extensions."""
+        dd_wrapper_dir = DDUP_DIR.parent / "dd_wrapper"
+
+        # Determine output directory (profiling directory)
+        if IS_EDITABLE or getattr(self, "inplace", False):
+            wrapper_output_dir = Path(__file__).parent / "ddtrace" / "internal" / "datadog" / "profiling"
+        else:
+            wrapper_output_dir = (
+                Path(__file__).parent / Path(self.build_lib) / "ddtrace" / "internal" / "datadog" / "profiling"
+            )
+
+        wrapper_name = f"libdd_wrapper{self.suffix}"
+        wrapper_library = wrapper_output_dir / wrapper_name
+
+        # Check if we need to build libdd_wrapper by checking if sources are newer
+        should_build = True
+        if wrapper_library.exists():
+            wrapper_mtime = wrapper_library.stat().st_mtime
+
+            # Check dd_wrapper source files
+            source_files = []
+            source_files.extend(dd_wrapper_dir.glob("**/*.cpp"))
+            source_files.extend(dd_wrapper_dir.glob("**/*.hpp"))
+            source_files.extend([dd_wrapper_dir / "CMakeLists.txt"])
+
+            # Also check if _native.so is newer (our dependency)
+            if self.output_dir:
+                native_library = self.output_dir / f"_native{self.suffix}"
+                if native_library.exists():
+                    source_files.append(native_library)
+
+            # Check if any source file is newer than the wrapper library
+            newest_source_time = 0
+            for src_file in source_files:
+                if src_file.exists():
+                    newest_source_time = max(newest_source_time, src_file.stat().st_mtime)
+
+            should_build = newest_source_time > wrapper_mtime
+
+        if should_build:
+            # Build libdd_wrapper using CMake
+            cmake_build_dir = Path(self.build_lib.replace("lib.", "cmake."), "libdd_wrapper_build").resolve()
+            cmake_build_dir.mkdir(parents=True, exist_ok=True)
+
+            cmake_args = self._get_common_cmake_args(dd_wrapper_dir, cmake_build_dir, wrapper_output_dir, wrapper_name)
+
+            build_args = [f"--config {COMPILE_MODE}"]
+            if "CMAKE_BUILD_PARALLEL_LEVEL" not in os.environ:
+                if hasattr(self, "parallel") and self.parallel:
+                    build_args += [f"-j{self.parallel}"]
+
+            install_args = [f"--config {COMPILE_MODE}"]
+
+            cmake_command = (Path(cmake.CMAKE_BIN_DIR) / "cmake").resolve()
+            subprocess.run([cmake_command, *cmake_args], cwd=cmake_build_dir, check=True)
+            subprocess.run([cmake_command, "--build", ".", *build_args], cwd=cmake_build_dir, check=True)
+            subprocess.run([cmake_command, "--install", ".", *install_args], cwd=cmake_build_dir, check=True)
+
+            print(f"Built libdd_wrapper shared library: {wrapper_name}")
+        else:
+            print(f"Skipping libdd_wrapper build (no changes): {wrapper_name}")
 
     @staticmethod
     def try_strip_symbols(so_file):
@@ -622,6 +689,32 @@ class CustomBuildExt(build_ext):
                 self.try_strip_symbols(self.get_ext_fullpath(ext.name))
             except Exception as e:
                 print(f"WARNING: An error occurred while building the extension: {e}")
+
+    def _get_common_cmake_args(self, source_dir, build_dir, output_dir, extension_name, build_type=None):
+        """Get common CMake arguments used by both libdd_wrapper and extensions."""
+        cmake_args = [
+            f"-S{source_dir}",
+            f"-B{build_dir}",
+            f"-DPython3_ROOT_DIR={sys.prefix}",
+            f"-DPYTHON_EXECUTABLE={sys.executable}",
+            f"-DCMAKE_BUILD_TYPE={build_type or COMPILE_MODE}",
+            f"-DLIB_INSTALL_DIR={output_dir}",
+            f"-DEXTENSION_NAME={extension_name}",
+            f"-DEXTENSION_SUFFIX={self.suffix}",
+            f"-DNATIVE_EXTENSION_LOCATION={self.output_dir}",
+        ]
+
+        # Add sccache support if available
+        sccache_path = os.getenv("DD_SCCACHE_PATH")
+        if sccache_path:
+            cmake_args += [
+                f"-DCMAKE_C_COMPILER={os.getenv('DD_CC_OLD', shutil.which('cc'))}",
+                f"-DCMAKE_C_COMPILER_LAUNCHER={sccache_path}",
+                f"-DCMAKE_CXX_COMPILER={os.getenv('DD_CXX_OLD', shutil.which('c++'))}",
+                f"-DCMAKE_CXX_COMPILER_LAUNCHER={sccache_path}",
+            ]
+
+        return cmake_args
 
     def build_extension_cmake(self, ext: "CMakeExtension") -> None:
         if IS_EDITABLE and self.INCREMENTAL:
@@ -675,31 +768,12 @@ class CustomBuildExt(build_ext):
 
         # Which commands are passed to _every_ cmake invocation
         cmake_args = ext.cmake_args or []
-        cmake_args += [
-            "-S{}".format(ext.source_dir),  # cmake>=3.13
-            "-B{}".format(cmake_build_dir),  # cmake>=3.13
-            "-DPython3_ROOT_DIR={}".format(sys.prefix),
-            "-DPYTHON_EXECUTABLE={}".format(sys.executable),
-            "-DCMAKE_BUILD_TYPE={}".format(ext.build_type),
-            "-DLIB_INSTALL_DIR={}".format(output_dir),
-            "-DEXTENSION_NAME={}".format(extension_basename),
-            "-DEXTENSION_SUFFIX={}".format(self.suffix),
-            "-DNATIVE_EXTENSION_LOCATION={}".format(self.output_dir),
-        ]
+        cmake_args += self._get_common_cmake_args(
+            ext.source_dir, cmake_build_dir, output_dir, extension_basename, ext.build_type
+        )
 
         if BUILD_PROFILING_NATIVE_TESTS:
             cmake_args += ["-DBUILD_TESTING=ON"]
-
-        # If it's been enabled, also propagate sccache to the CMake build.  We have to manually set the default CC/CXX
-        # compilers here, because otherwise the way we wrap sccache will conflict with the CMake wrappers
-        sccache_path = os.getenv("DD_SCCACHE_PATH")
-        if sccache_path:
-            cmake_args += [
-                "-DCMAKE_C_COMPILER={}".format(os.getenv("DD_CC_OLD", shutil.which("cc"))),
-                "-DCMAKE_C_COMPILER_LAUNCHER={}".format(sccache_path),
-                "-DCMAKE_CXX_COMPILER={}".format(os.getenv("DD_CXX_OLD", shutil.which("c++"))),
-                "-DCMAKE_CXX_COMPILER_LAUNCHER={}".format(sccache_path),
-            ]
 
         # If this is an inplace build, propagate this fact to CMake in case it's helpful
         # In particular, this is needed for build products which are not otherwise managed
