@@ -108,7 +108,7 @@ exclude = '''
 
 [tool.black]
 line-length = 120
-target_version = ['py39', 'py310', 'py311', 'py312', 'py313', 'py314']
+target_version = ['py39', 'py310', 'py311', 'py312']
 include = '''\.py[ix]?$'''
 exclude = '''
 (
