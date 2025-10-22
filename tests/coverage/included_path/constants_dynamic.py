@@ -1,5 +1,5 @@
 """Constants module - imported dynamically"""
 
-# Module-level constants (no functions)
+# Module-level constants
 OFFSET = 10
 MULTIPLIER = 2
