@@ -27,41 +27,6 @@ from tests.utils import call_program
 from tests.utils import override_global_config
 
 
-def test_add_event(telemetry_writer, test_agent_session, mock_time):
-    """asserts that add_event queues a telemetry request with valid headers and payload"""
-    payload = {"test": "123"}
-    payload_type = "test-event"
-    # add event to the queue
-    telemetry_writer.add_event(payload, payload_type)
-    # send request to the agent
-    telemetry_writer.periodic(force_flush=True)
-
-    requests = test_agent_session.get_requests()
-    assert len(requests) == 1
-    assert requests[0]["headers"]["Content-Type"] == "application/json"
-    assert requests[0]["headers"]["DD-Client-Library-Language"] == "python"
-    assert requests[0]["headers"]["DD-Client-Library-Version"] == _pep440_to_semver()
-    assert requests[0]["headers"]["DD-Telemetry-Request-Type"] == "message-batch"
-    assert requests[0]["headers"]["DD-Telemetry-API-Version"] == "v2"
-    assert requests[0]["headers"]["DD-Telemetry-Debug-Enabled"] == "False"
-
-    events = test_agent_session.get_events(payload_type)
-    assert len(events) == 1
-    validate_request_body(events[0], payload, payload_type)
-
-
-def test_add_event_disabled_writer(telemetry_writer, test_agent_session):
-    """asserts that add_event() does not create a telemetry request when telemetry writer is disabled"""
-    payload = {"test": "123"}
-    payload_type = "test-event"
-    # ensure events are not queued when telemetry is disabled
-    telemetry_writer.add_event(payload, payload_type)
-
-    # ensure no request were sent
-    telemetry_writer.periodic(force_flush=True)
-    assert len(test_agent_session.get_events(payload_type)) == 1
-
-
 @pytest.mark.parametrize(
     "env_var,value,expected_value",
     [
@@ -92,13 +57,8 @@ def test_app_started_event_configuration_override_asm(
 def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
     """asserts that app_started() queues a valid telemetry request which is then sent by periodic()"""
     with override_global_config(dict(_telemetry_dependency_collection=False)):
-        # queue an app started event
-        event = telemetry_writer._app_started()
-        assert event is not None, "app_started() did not return an event"
-        telemetry_writer.add_event(event["payload"], "app-started")
-        # force a flush
+        # App started should be queued by the first periodic call
         telemetry_writer.periodic(force_flush=True)
-
         requests = test_agent_session.get_requests()
         assert len(requests) == 1
         assert requests[0]["headers"]["DD-Telemetry-Request-Type"] == "message-batch"
@@ -672,13 +632,10 @@ def test_app_closing_event(telemetry_writer, test_agent_session, mock_time):
     telemetry_writer.started = True
     # send app closed event
     telemetry_writer.app_shutdown()
-
-    num_requests = len(test_agent_session.get_requests())
-    assert num_requests == 1
     # ensure a valid request body was sent
     events = test_agent_session.get_events("app-closing")
     assert len(events) == 1
-    validate_request_body(events[0], {}, "app-closing", num_requests)
+    validate_request_body(events[0], {}, "app-closing", 1)
 
 
 def test_add_integration(telemetry_writer, test_agent_session, mock_time):
@@ -792,7 +749,7 @@ def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_se
     # Assert next flush contains app-heartbeat event
     for _ in range(telemetry_writer._periodic_threshold):
         telemetry_writer.periodic()
-        assert test_agent_session.get_events("app-heartbeat", filter_heartbeats=False) == []
+        assert test_agent_session.get_events(mock.ANY, filter_heartbeats=False) == []
 
     telemetry_writer.periodic()
     heartbeat_events = test_agent_session.get_events("app-heartbeat", filter_heartbeats=False)
@@ -804,7 +761,7 @@ def test_app_heartbeat_event(mock_time, telemetry_writer, test_agent_session):
     """asserts that we queue/send app-heartbeat event every 60 seconds when app_heartbeat_event() is called"""
     # Assert a maximum of one heartbeat is queued per flush
     telemetry_writer.periodic(force_flush=True)
-    events = test_agent_session.get_events("app-heartbeat", filter_heartbeats=False)
+    events = test_agent_session.get_events(mock.ANY, filter_heartbeats=False)
     assert len(events) > 0
 
 
@@ -814,7 +771,7 @@ def test_app_product_change_event(mock_time, telemetry_writer, test_agent_sessio
 
     # Assert that the default product status is disabled
     assert any(telemetry_writer._product_enablement.values()) is False
-
+    # Assert that the product status is first reported in app-started event
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, True)
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION, True)
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, True)
@@ -827,29 +784,23 @@ def test_app_product_change_event(mock_time, telemetry_writer, test_agent_sessio
     events = test_agent_session.get_events("app-product-change")
     telemetry_writer.periodic(force_flush=True)
     assert not len(events)
-
     # Assert that unchanged status doesn't generate the event
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, True)
     telemetry_writer.periodic(force_flush=True)
     events = test_agent_session.get_events("app-product-change")
     assert not len(events)
-
-    # Assert that a single event is generated
+    # Assert that product change event is sent when product status changes
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, False)
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION, False)
     telemetry_writer.periodic(force_flush=True)
     events = test_agent_session.get_events("app-product-change")
     assert len(events) == 1
-
-    # Assert that payload is as expected
     assert events[0]["request_type"] == "app-product-change"
     products = events[0]["payload"]["products"]
     version = _pep440_to_semver()
     assert products == {
         TELEMETRY_APM_PRODUCT.APPSEC.value: {"enabled": False, "version": version},
         TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION.value: {"enabled": False, "version": version},
-        TELEMETRY_APM_PRODUCT.LLMOBS.value: {"enabled": True, "version": version},
-        TELEMETRY_APM_PRODUCT.PROFILER.value: {"enabled": True, "version": version},
     }
 
 

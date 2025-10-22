@@ -1853,7 +1853,7 @@ venv = Venv(
                     ],
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.10", max_version="3.12"),
+                    pys=select_pys(min_version="3.10", max_version="3.13"),
                     pkgs={
                         "pytest": [
                             "~=6.0",
@@ -1865,37 +1865,6 @@ venv = Venv(
                         "more_itertools": "<8.11.0",
                         "httpx": "<0.28.0",
                     },
-                ),
-                Venv(
-                    name="pytest_plugin_v2",
-                    command="pytest -c /dev/null --no-ddtrace --no-cov tests/contrib/pytest {cmdargs}",
-                    pys=select_pys(min_version="3.9", max_version="3.12"),
-                    pkgs={
-                        "httpx": "<0.28.0",
-                        "msgpack": latest,
-                        "requests": latest,
-                        "hypothesis": latest,
-                    },
-                    env={
-                        "DD_AGENT_PORT": "9126",
-                    },
-                    venvs=[
-                        Venv(
-                            pkgs={
-                                "pytest": "~=6.0",
-                            },
-                        ),
-                        Venv(
-                            pkgs={
-                                "pytest": "~=7.0",
-                            },
-                        ),
-                        Venv(
-                            pkgs={
-                                "pytest": "~=8.0",
-                            },
-                        ),
-                    ],
                 ),
             ],
         ),
@@ -2759,7 +2728,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.8", max_version="3.13"),
                     pkgs={
-                        "openai": [latest, "~=1.76.2", "==1.66.0"],
+                        "openai": ["<2.0.0", "~=1.76.2", "==1.66.0"],
                         "tiktoken": latest,
                         "pillow": latest,
                     },
@@ -3466,7 +3435,8 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    command="python -m pytest {cmdargs} tests/profiling_v2/test_uwsgi.py",
+                    name="profile-v2-uwsgi",
+                    command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling_v2/test_uwsgi.py",  # noqa: E501
                     pys=select_pys(max_version="3.13"),
                     pkgs={"uwsgi": "<2.0.30"},
                 ),

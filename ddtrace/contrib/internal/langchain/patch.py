@@ -45,7 +45,7 @@ def _extract_model_name(instance: Any) -> Optional[str]:
 
 
 def _raising_dispatch(event_id: str, args: Tuple[Any, ...] = ()):
-    result = core.dispatch_with_results(event_id, args)
+    result = core.dispatch_with_results(event_id, args)  # ast-grep-ignore: core-dispatch-with-results
     if len(result) > 0:
         for event in result.values():
             # we explicitly set the exception as a value to prevent caught exceptions from leaking
