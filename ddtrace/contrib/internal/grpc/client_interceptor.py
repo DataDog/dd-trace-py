@@ -13,7 +13,7 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.grpc import constants
 from ddtrace.contrib.internal.grpc import utils
-from ddtrace.contrib.internal.grpc.utils import _should_skip_otel_channel
+from ddtrace.contrib.internal.grpc.utils import is_otlp_export
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -198,7 +198,7 @@ class _ClientInterceptor(
         if client_call_details.metadata is not None:
             metadata = list(client_call_details.metadata)
 
-        if _should_skip_otel_channel(metadata):
+        if is_otlp_export(metadata):
             return None, client_call_details
 
         tracer: Tracer = self._pin.tracer

@@ -9,10 +9,12 @@ from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.requests.constants import USER_AGENT_HEADER
 from ddtrace.contrib.internal.trace_utils import _sanitized_url
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.constants import OTEL_OTLP_EXPORTER_IDENTIFIER
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -24,14 +26,14 @@ from ddtrace.settings.asm import config as asm_config
 log = get_logger(__name__)
 
 
-def _should_skip_otel_request(request):
+def is_otlp_export(request):
     """Skip OpenTelemetry OTLP exporter requests when OTel integration is enabled."""
     if not (config._otel_logs_enabled or config._otel_metrics_enabled):
         return False
-    user_agent = request.headers.get("User-Agent", "")
-    if "otel-otlp-exporter-python" in user_agent.lower():
+    user_agent = request.headers.get(USER_AGENT_HEADER, "")
+    normalized_user_agent = user_agent.lower().replace(" ", "-")
+    if OTEL_OTLP_EXPORTER_IDENTIFIER in normalized_user_agent:
         return True
-
     return False
 
 
@@ -78,7 +80,7 @@ def _wrap_send(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     request = get_argument_value(args, kwargs, 0, "request")
-    if not request or _should_skip_otel_request(request):
+    if not request or is_otlp_export(request):
         return func(*args, **kwargs)
 
     url = _sanitized_url(request.url)

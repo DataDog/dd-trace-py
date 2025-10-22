@@ -6,9 +6,9 @@ from urllib import parse
 
 from ddtrace import config
 from ddtrace.contrib.internal.grpc import constants
-from ddtrace.contrib.internal.grpc.constants import OTEL_OTLP_EXPORTER_IDENTIFIER
 from ddtrace.contrib.internal.grpc.constants import USER_AGENT_HEADER
 from ddtrace.ext import net
+from ddtrace.internal.constants import OTEL_OTLP_EXPORTER_IDENTIFIER
 
 
 log = logging.getLogger(__name__)
@@ -118,7 +118,7 @@ def _parse_rpc_repr_string(rpc_string, module):
     return code, details
 
 
-def _should_skip_otel_channel(metadata: Any) -> bool:
+def is_otlp_export(metadata: Any) -> bool:
     """
     Determine if a gRPC channel should be skipped from ddtrace instrumentation.
     """
