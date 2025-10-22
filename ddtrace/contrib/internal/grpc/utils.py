@@ -6,6 +6,8 @@ from urllib import parse
 
 from ddtrace import config
 from ddtrace.contrib.internal.grpc import constants
+from ddtrace.contrib.internal.grpc.constants import OTEL_OTLP_EXPORTER_IDENTIFIER
+from ddtrace.contrib.internal.grpc.constants import USER_AGENT_HEADER
 from ddtrace.ext import net
 
 
