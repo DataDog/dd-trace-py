@@ -12,7 +12,7 @@
       DD_REMOTE_CONFIGURATION_REFRESH_INTERVAL: 5s
       DD_DOGSTATSD_NON_LOCAL_TRAFFIC: true
   testagent:
-    name: registry.ddbuild.io/images/mirror/dd-apm-test-agent/ddapm-test-agent:v1.34.0
+    name: registry.ddbuild.io/images/mirror/dd-apm-test-agent/ddapm-test-agent:v1.36.0
     alias: testagent
     variables:
       LOG_LEVEL: ERROR
@@ -26,6 +26,7 @@
       DD_DISABLE_ERROR_RESPONSES: true
       ENABLED_CHECKS: trace_content_length,trace_stall,meta_tracer_version_header,trace_count_header,trace_peer_service,trace_dd_service
       SNAPSHOT_IGNORED_ATTRS: span_id,trace_id,parent_id,duration,start,metrics.system.pid,metrics.system.process_id,metrics.process_id,meta.runtime-id,meta._dd.p.tid,meta.pathway.hash,metrics._dd.tracer_kr,meta._dd.parent_id,meta.kafka.cluster_id
+      VCR_PROVIDER_MAP: azure_openai=https://llmobs-test-resource.openai.azure.com/
   mongo:
     name: registry.ddbuild.io/images/mirror/mongo:6.0.5
     alias: mongo
