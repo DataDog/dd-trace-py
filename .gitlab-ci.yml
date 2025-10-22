@@ -14,7 +14,7 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "0a6430a3eb119f83fe223c140ea0f2d941f04198"
+  SYSTEM_TESTS_REF: "0dfaba5f08b37a99aa2cac0a94210242916377e7"
 
 default:
   interruptible: true
