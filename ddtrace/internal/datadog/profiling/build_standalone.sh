@@ -77,6 +77,7 @@ CLANGTIDY_CMD=${highest_clangxx/clang++/clang-tidy}
 declare -A target_dirs
 target_dirs["ddup"]="ddup"
 target_dirs["stack_v2"]="stack_v2"
+target_dirs["dd_wrapper"]="dd_wrapper"
 
 # Compiler options
 declare -A compiler_args
@@ -212,8 +213,6 @@ print_help() {
   echo "Targets:"
   echo "  all"
   echo "  all_test (default)"
-  echo "  dd_wrapper"
-  echo "  dd_wrapper_test"
   echo "  stack_v2 (also builds dd_wrapper)"
   echo "  stack_v2_test (also builds dd_wrapper_test)"
   echo "  ddup (also builds dd_wrapper)"
@@ -343,11 +342,6 @@ add_target() {
       targets+=("stack_v2")
       targets+=("ddup")
       ;;
-    dd_wrapper)
-      # `dd_wrapper` is a dependency of other targets, but the overall structure is weird when it's given explicitly
-      # so we only include it when it's called explicitly
-      targets+=("dd_wrapper")
-      ;;
     stack_v2)
       targets+=("stack_v2")
       ;;
@@ -387,7 +381,7 @@ print_ctest_args
 
 build_rust
 
-run_cmake dd_wrapper
+run_cmake "dd_wrapper"
 
 # Run cmake
 for target in "${targets[@]}"; do
