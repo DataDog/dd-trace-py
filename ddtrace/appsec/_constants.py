@@ -384,6 +384,8 @@ class EXPLOIT_PREVENTION(metaclass=Constant_Class):
         SHI: Literal["shell_injection"] = "shell_injection"
         LFI: Literal["lfi"] = "lfi"
         SSRF: Literal["ssrf"] = "ssrf"
+        SSRF_REQ: Literal["ssrf_req"] = "ssrf_req"
+        SSRF_RES: Literal["ssrf_res"] = "ssrf_res"
         SQLI: Literal["sql_injection"] = "sql_injection"
 
     class ADDRESS(metaclass=Constant_Class):
