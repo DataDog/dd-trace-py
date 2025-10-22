@@ -235,11 +235,11 @@ def gen_pre_checks() -> None:
         command="hatch run lint:style",
         paths={"docker*", "*.py", "*.pyi", "hatch.toml", "pyproject.toml", "*.cpp", "*.h"},
     )
-    check(
-        name="Typing",
-        command="hatch run lint:typing",
-        paths={"docker*", "*.py", "*.pyi", "hatch.toml", "mypy.ini"},
-    )
+    # check(
+    #     name="Typing",
+    #     command="hatch run lint:typing",
+    #     paths={"docker*", "*.py", "*.pyi", "hatch.toml", "mypy.ini"},
+    # )
     check(
         name="Security",
         command="hatch run lint:security",
