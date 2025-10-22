@@ -182,11 +182,12 @@ def gen_pre_checks() -> None:
         command="hatch run scripts:test",
         paths={"docker*", "scripts/*.py", "scripts/mkwheelhouse", "scripts/run-test-suite", "**suitespec.yml"},
     )
-    check(
-        name="Check suitespec coverage",
-        command="hatch run lint:suitespec-check",
-        paths={"*"},
-    )
+    # Disabled on 2.21 branch
+    # check(
+    #     name="Check suitespec coverage",
+    #     command="hatch run lint:suitespec-check",
+    #     paths={"*"},
+    # )
 
 
 def gen_appsec_iast_packages() -> None:
