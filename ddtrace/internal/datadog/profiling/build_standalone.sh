@@ -383,6 +383,11 @@ build_rust
 
 run_cmake "dd_wrapper"
 
+# Install dd_wrapper to the expected location so other targets can find it
+pushd ${BUILD_DIR}/dd_wrapper || { echo "Failed to enter dd_wrapper build directory"; exit 1; }
+cmake --build . --target install || { echo "dd_wrapper install failed"; exit 1; }
+popd
+
 # Run cmake
 for target in "${targets[@]}"; do
   run_cmake $target
