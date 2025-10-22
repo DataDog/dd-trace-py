@@ -91,7 +91,7 @@ def test_parse_target_from_args(mock_log, args, kwargs, result, log_warning_call
 def test_set_grpc_client_meta(host, port, calls):
     span = mock.MagicMock()
     utils.set_grpc_client_meta(span, host, port)
-    span.set_tag_str.assert_has_calls(calls)
+    span._set_tag_str.assert_has_calls(calls)
 
 
 @pytest.mark.parametrize(
@@ -125,4 +125,4 @@ def test_set_grpc_client_meta(host, port, calls):
 def test_set_grpc_method_meta(method, method_kind, calls):
     span = mock.MagicMock()
     utils.set_grpc_method_meta(span, method, method_kind)
-    span.set_tag_str.assert_has_calls(calls)
+    span._set_tag_str.assert_has_calls(calls)
