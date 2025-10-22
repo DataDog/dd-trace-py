@@ -128,7 +128,7 @@ def set_user(
             span._set_tag_str(user.SESSION_ID, session_id)
 
         if (may_block or mode == "auto") and asm_config._asm_enabled:
-            exc = core.dispatch_with_results(
+            exc = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
                 "set_user_for_asm", [tracer, user_id, mode, session_id]
             ).block_user.exception
             if exc:
