@@ -262,12 +262,7 @@ class ExtensionHashes(build_ext):
                             (
                                 ext.name,
                                 hash_digest,
-                                str(
-                                    CARGO_TARGET_DIR
-                                    / "include"
-                                    / "datadog"
-                                    / f
-                                ),
+                                str(CARGO_TARGET_DIR / "include" / "datadog" / f),
                             )
                         )
 
