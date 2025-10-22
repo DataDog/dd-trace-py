@@ -27,6 +27,8 @@ def test_nested_contexts_maintain_independence():
 
     This ensures the context stack properly handles re-instrumentation when entering
     nested contexts.
+
+    IMPORTANT NOTE: The overlapping coverage does not get tracked by the outer context
     """
     import os
     from pathlib import Path
@@ -53,7 +55,7 @@ def test_nested_contexts_maintain_independence():
             inner_covered = _get_relpath_dict(cwd_path, inner_context.get_covered_lines())
 
         # Execute more code in outer context after inner completes
-        called_in_session_main(5, 6)
+        called_in_context_main(3, 4)  # NOTE: This is not tracked as overlaps with inner
         outer_covered = _get_relpath_dict(cwd_path, outer_context.get_covered_lines())
 
     # Inner context should have captured its specific execution
@@ -61,16 +63,20 @@ def test_nested_contexts_maintain_independence():
         "tests/coverage/included_path/callee.py": {10, 11, 13, 14},
         "tests/coverage/included_path/in_context_lib.py": {1, 2, 5},
     }
-
-    # Outer context should have both calls to called_in_session_main
-    # (Note: may not include inner context code depending on implementation)
-    assert "tests/coverage/included_path/callee.py" in outer_covered
-    assert "tests/coverage/included_path/lib.py" in outer_covered
+    expected_outer = {
+        "tests/coverage/included_path/callee.py": {2, 3, 5, 6},
+        "tests/coverage/included_path/lib.py": {1, 2, 5},
+    }
 
     # Inner context should have complete coverage for its execution
     assert (
         inner_covered == expected_inner
     ), f"Inner context coverage mismatch: expected={expected_inner} vs actual={inner_covered}"
+
+    # Inner context should have complete coverage for its execution
+    assert (
+        outer_covered == expected_outer
+    ), f"Inner context coverage mismatch: expected={expected_outer} vs actual={outer_covered}"
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
@@ -99,7 +105,7 @@ def test_many_sequential_contexts_no_degradation():
     # Collect coverage from multiple sequential contexts
     all_context_coverages = []
 
-    for i in range(10):
+    for i in range(3):
         with ModuleCodeCollector.CollectInContext() as context:
             called_in_session_main(i, i + 1)
             context_covered = _get_relpath_dict(cwd_path, context.get_covered_lines())

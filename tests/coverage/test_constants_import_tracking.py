@@ -5,6 +5,7 @@ These tests verify that modules containing only constants (no executable functio
 are properly tracked in import-time coverage, which is important for the Intelligent
 Test Runner to understand code dependencies.
 """
+
 import sys
 
 import pytest
@@ -61,10 +62,6 @@ def test_constants_module_toplevel_import_tracked():
 
     # The constants module should have its lines tracked
     constants_lines = covered_with_imports.get("tests/coverage/included_path/constants_toplevel.py", set())
-    assert (
-        len(constants_lines) > 0
-    ), f"constants_toplevel.py has no lines in import-time coverage: {covered_with_imports}"
-
     # Verify it includes the constant declarations (lines 4, 5, 6)
     expected_constant_lines = {4, 5, 6}
     assert expected_constant_lines.issubset(constants_lines), (
@@ -121,10 +118,6 @@ def test_constants_module_dynamic_import_tracked():
 
     # The constants module should have its lines tracked
     constants_lines = covered_with_imports.get("tests/coverage/included_path/constants_dynamic.py", set())
-    assert (
-        len(constants_lines) > 0
-    ), f"constants_dynamic.py has no lines in import-time coverage: {covered_with_imports}"
-
     # Verify it includes the constant declarations (lines 4, 5)
     expected_constant_lines = {4, 5}
     assert expected_constant_lines.issubset(constants_lines), (
