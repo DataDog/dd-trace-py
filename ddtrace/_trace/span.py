@@ -114,7 +114,6 @@ class Span(SpanData):
         "_parent",
         "_ignored_exceptions",
         "_on_finish_callbacks",
-        "_links",
         "__weakref__",
     ]
 
@@ -154,7 +153,7 @@ class Span(SpanData):
         :param object context: the Context of the span.
         :param on_finish: list of functions called when the span finishes.
         """
-        super().__init__(name, service, resource, span_type, trace_id, span_id, parent_id, start, span_api)
+        super().__init__(name, service, resource, span_type, trace_id, span_id, parent_id, start, span_api, links)
 
         self._meta_struct: Dict[str, Dict[str, Any]] = {}
 
@@ -166,11 +165,6 @@ class Span(SpanData):
             if context
             else Context(trace_id=self.trace_id, span_id=self.span_id, is_remote=False)
         )
-
-        self._links: List[Union[SpanLink, _SpanPointer]] = []
-        if links:
-            for new_link in links:
-                self._set_link_or_append_pointer(new_link)
 
         self._parent: Optional["Span"] = None
         self._ignored_exceptions: Optional[List[Type[Exception]]] = None
@@ -642,65 +636,6 @@ class Span(SpanData):
                 flags=int(context._traceflags),
                 attributes=attributes,
             )
-
-    def set_link(
-        self,
-        trace_id: int,
-        span_id: int,
-        tracestate: Optional[str] = None,
-        flags: Optional[int] = None,
-        attributes: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        if attributes is None:
-            attributes = dict()
-
-        self._set_link_or_append_pointer(
-            SpanLink(
-                trace_id=trace_id,
-                span_id=span_id,
-                tracestate=tracestate,
-                flags=flags,
-                attributes=attributes,
-            )
-        )
-
-    def _add_span_pointer(
-        self,
-        pointer_kind: str,
-        pointer_direction: _SpanPointerDirection,
-        pointer_hash: str,
-        extra_attributes: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        # This is a Private API for now.
-
-        self._set_link_or_append_pointer(
-            _SpanPointer(
-                pointer_kind=pointer_kind,
-                pointer_direction=pointer_direction,
-                pointer_hash=pointer_hash,
-                extra_attributes=extra_attributes,
-            )
-        )
-
-    def _set_link_or_append_pointer(self, link: Union[SpanLink, _SpanPointer]) -> None:
-        if link.kind == SpanLinkKind.SPAN_POINTER.value:
-            self._links.append(link)
-            return
-
-        try:
-            existing_link_idx_with_same_span_id = [link.span_id for link in self._links].index(link.span_id)
-
-            log.debug(
-                "Span %d already linked to span %d. Overwriting existing link: %s",
-                self.span_id,
-                link.span_id,
-                str(self._links[existing_link_idx_with_same_span_id]),
-            )
-
-            self._links[existing_link_idx_with_same_span_id] = link
-
-        except ValueError:
-            self._links.append(link)
 
     def finish_with_ancestors(self) -> None:
         """Finish this span along with all (accessible) ancestors of this span.

@@ -1,5 +1,7 @@
 from typing import Any, Dict, List, Literal, Optional, Union
 
+from ddtrace._trace._span_link import SpanLink
+from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace.span import SpanEvent
 
 class DDSketch:
@@ -459,6 +461,7 @@ SpanNumeric = Union[int, float]
 SpanKey = str
 
 class SpanData:
+    # Public API
     service: SpanStr
     name: SpanStr
     resource: SpanStr
@@ -466,15 +469,17 @@ class SpanData:
     trace_id: int
     span_id: int
     parent_id: Optional[int]
-    start_ns: int
     start: float
-    duration_ns: Optional[int]
+    start_ns: int
     duration: Optional[float]
+    duration_ns: Optional[int]
     error: int
+    finished: bool
+
+    # Private API
     _span_api: SpanStr
     _events: List[SpanEvent]
-
-    finished: bool
+    _links: List[SpanLink]
 
     def __init__(
         self,
@@ -487,6 +492,7 @@ class SpanData:
         parent_id: Optional[int] = None,
         start: Optional[SpanNumeric] = None,
         span_api: SpanStr = "",
+        links: Optional[List[SpanLink]] = None,
     ): ...
     def _set_default_metrics_inner(self, key: SpanStr, value: SpanNumeric): ...
     def _set_metrics_inner(self, key: SpanStr, value: SpanNumeric): ...
@@ -505,6 +511,21 @@ class SpanData:
     # Stores the event in the span
     # This moves ownership of the underlying rust memory and leaves the event empty
     def _take_event_inner(self, event: SpanEvent): ...
+    def set_link(
+        self,
+        trace_id: int,
+        span_id: int,
+        tracestate: Optional[str] = None,
+        flags: Optional[int] = None,
+        attributes: Optional[Dict[str, Any]] = None,
+    ): ...
+    def _add_span_pointer(
+        self,
+        pointer_kind: str,
+        pointer_direction: _SpanPointerDirection,
+        pointer_hash: str,
+        extra_attributes: Optional[Dict[str, Any]] = None,
+    ): ...
 
 class SpanEventData:
     name: str
@@ -512,3 +533,26 @@ class SpanEventData:
     attributes: Dict[str, Any]
 
     def __init__(self, name: str, time_unix_nano: Optional[int], attributes: Optional[Dict[str, Any]]) -> None: ...
+
+class SpanLinkData:
+    trace_id: int
+    span_id: int
+    tracestate: str
+    flags: Optional[int]
+    attributes: Dict[str, str]
+    name: str
+    kind: str
+    _dropped_attributes: int
+
+    def __init__(
+        self,
+        trace_id: int,
+        span_id: int,
+        tracestate: Optional[str] = None,
+        flags: Optional[int] = None,
+        attributes: Optional[Dict[str, str]] = None,
+        _dropped_attributes: int = 0,
+    ) -> None: ...
+    def _get_attribute(self, key: str) -> Optional[str]: ...
+    def _set_attribute(self, key: str, value: str) -> None: ...
+    def _drop_attribute(self, key: str) -> None: ...

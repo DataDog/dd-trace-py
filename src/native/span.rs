@@ -1,3 +1,4 @@
+use core::fmt;
 use std::{
     borrow::Borrow,
     collections::HashMap,
@@ -8,14 +9,14 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use datadog_trace_utils::span::{Span as NativeSpan, SpanEvent, SpanText};
+use datadog_trace_utils::span::{Span as NativeSpan, SpanEvent, SpanLink, SpanText};
 
 use pyo3::{
     exceptions::{PyTypeError, PyValueError},
     types::{
-        IntoPyDict, PyAny, PyAnyMethods, PyBytesMethods, PyDict, PyDictMethods, PyFloat,
-        PyFloatMethods, PyInt, PyList, PyListMethods, PyModule, PyModuleMethods, PyString,
-        PyStringMethods,
+        IntoPyDict, PyAny, PyAnyMethods, PyBool, PyBoolMethods, PyBytesMethods, PyDict,
+        PyDictMethods, PyFloat, PyFloatMethods, PyFrozenSet, PyInt, PyList, PyListMethods,
+        PyModule, PyModuleMethods, PySet, PyString, PyStringMethods, PyTuple,
     },
     Bound, FromPyObject, Py, PyErr, PyResult, Python,
 };
@@ -42,6 +43,12 @@ impl PyBackedString {
             data: unsafe { NonNull::new_unchecked("" as *const str as *mut _) },
             storage: Some(py.None()),
         }
+    }
+
+    fn from_string<'py>(py: Python<'py>, s: &str) -> Self {
+        let s = PyString::new(py, s);
+        // SAFETY: s is valid UTF-8 so the conversion should normally never fail
+        Self::try_from(s).unwrap()
     }
 }
 
@@ -149,6 +156,12 @@ impl Eq for PyBackedString {}
 impl Default for PyBackedString {
     fn default() -> Self {
         Self::from_static_str("")
+    }
+}
+
+impl fmt::Debug for PyBackedString {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.deref().fmt(f)
     }
 }
 
@@ -263,7 +276,8 @@ impl SpanData {
         parent_id: Option<u64>,
         start: Option<f64>,
         span_api: PyBackedString,
-    ) {
+        links: Option<Bound<'py, PyList>>,
+    ) -> PyResult<()> {
         *self = Self {
             data: NativeSpan {
                 resource: resource.unwrap_or_else(|| name.clone_ref(py)),
@@ -286,7 +300,26 @@ impl SpanData {
             },
             duration_ns: None,
             _span_api: span_api,
+        };
+        if let Some(links) = links {
+            for e in links.iter() {
+                let link = e.downcast::<SpanLinkData>()?;
+                let mut link = link.borrow_mut();
+                self._set_link_or_append_pointer(SpanLinkData {
+                    _dropped_attributes: link._dropped_attributes,
+                    _kind: link._kind,
+                    data: SpanLink {
+                        trace_id: link.data.trace_id,
+                        trace_id_high: link.data.trace_id_high,
+                        span_id: link.data.span_id,
+                        attributes: std::mem::take(&mut link.data.attributes),
+                        tracestate: link.data.tracestate.clone_ref(py),
+                        flags: link.data.flags,
+                    },
+                })?
+            }
         }
+        Ok(())
     }
 
     // setter/getters that map
@@ -419,6 +452,72 @@ impl SpanData {
         self.data.span_events.push(std::mem::take(&mut event.data));
     }
 
+    #[pyo3(
+        signature=(
+            trace_id,
+            span_id,
+            tracestate = None,
+            flags = None,
+            attributes = None,
+        )
+    )]
+    fn set_link<'py>(
+        &mut self,
+        py: Python<'py>,
+        trace_id: u128,
+        span_id: u64,
+        tracestate: Option<PyBackedString>,
+        flags: Option<u32>,
+        attributes: Option<Bound<'py, PyDict>>,
+    ) -> PyResult<()> {
+        let mut span_link = SpanLinkData::default();
+        span_link.__init__(
+            trace_id,
+            span_id,
+            tracestate.unwrap_or_else(|| PyBackedString::py_none(py)),
+            flags,
+            attributes,
+            0,
+        )?;
+        self._set_link_or_append_pointer(span_link)
+    }
+
+    fn _add_span_pointer<'p>(
+        &mut self,
+        py: Python<'p>,
+        pointer_kind: PyBackedString,
+        pointer_direction: Bound<'p, PyAny>,
+        pointer_hash: PyBackedString,
+        extra_attributes: Option<HashMap<PyBackedString, PyBackedString>>,
+    ) -> PyResult<()> {
+        let pointer_direction: Option<PyBackedString> = pointer_direction
+            .getattr_opt(pyo3::intern!(pointer_direction.py(), "value"))?
+            .map(|v| v.extract())
+            .transpose()?;
+        let mut attributes = extra_attributes.unwrap_or_default();
+        attributes.insert(PyBackedString::from_static_str("ptr.kind"), pointer_kind);
+        attributes.insert(
+            PyBackedString::from_static_str("link.kind"),
+            PyBackedString::from_static_str("span-pointer"),
+        );
+        if let Some(pointer_direction) = pointer_direction {
+            attributes.insert(
+                PyBackedString::from_static_str("ptr.dir"),
+                pointer_direction,
+            );
+            attributes.insert(PyBackedString::from_static_str("ptr.hash"), pointer_hash);
+        }
+        self.data.span_links.push(SpanLink {
+            trace_id: 0,
+            trace_id_high: 0,
+            span_id: 0,
+            attributes,
+            tracestate: PyBackedString::py_none(py),
+            flags: 0,
+        });
+        Ok(())
+    }
+
     #[getter]
     fn get_duration(&self) -> Option<f64> {
         Some(self.duration_ns? as f64 / 1_000_000_000.0)
@@ -542,6 +641,51 @@ impl SpanData {
             .iter()
             .map(|e| SpanEventData::clone_from_datadog_span_event(py, e))
             .collect()
+    }
+
+    #[getter]
+    #[allow(non_snake_case)]
+    fn get__links<'py>(&self, py: Python<'py>) -> Vec<SpanLinkData> {
+        self.data
+            .span_links
+            .iter()
+            .map(|l| SpanLinkData {
+                data: SpanLinkData::clone_from_datadog_span_link(py, l),
+                _dropped_attributes: 0,
+                _kind: SpanLinkKind::default(),
+            })
+            .collect()
+    }
+}
+
+impl SpanData {
+    fn _set_link_or_append_pointer(&mut self, link: SpanLinkData) -> PyResult<()> {
+        if matches!(link._kind, SpanLinkKind::SpanPointer) {
+            self.data.span_links.push(link.data);
+            return Ok(());
+        }
+        let existing_link_idx_with_same_span_id = self
+            .data
+            .span_links
+            .iter()
+            .enumerate()
+            .find(|(_, l)| l.span_id == link.data.span_id)
+            .map(|(idx, _)| idx);
+        if let Some(existing_link_idx_with_same_span_id) = existing_link_idx_with_same_span_id {
+            let link_span_id = link.data.span_id;
+            let previous = std::mem::replace(
+                &mut self.data.span_links[existing_link_idx_with_same_span_id],
+                link.data,
+            );
+            // TODO: replace with logging
+            Err(PyErr::new::<PyValueError, _>(format!(
+                "Span {} already linked to span {}. Overwriting existing link: {:?}",
+                self.data.span_id, link_span_id, previous
+            )))
+        } else {
+            self.data.span_links.push(link.data);
+            Ok(())
+        }
     }
 }
 
@@ -757,8 +901,384 @@ impl SpanEventData {
     }
 }
 
+#[derive(Default, Debug, Clone, Copy, PartialEq)]
+enum SpanLinkKind {
+    SpanPointer,
+    #[default]
+    SpanLink,
+}
+
+#[pyo3::pyclass(name = "SpanLinkData", module = "ddtrace.internal._native", subclass)]
+#[derive(Default, Debug, PartialEq)]
+pub struct SpanLinkData {
+    data: SpanLink<PyBackedString>,
+    _dropped_attributes: u32,
+    _kind: SpanLinkKind,
+}
+
+impl SpanLinkData {
+    fn clone_from_datadog_span_link<'py>(
+        py: Python<'py>,
+        l: &SpanLink<PyBackedString>,
+    ) -> SpanLink<PyBackedString> {
+        SpanLink {
+            trace_id: l.trace_id,
+            trace_id_high: l.trace_id_high,
+            span_id: l.span_id,
+            attributes: l
+                .attributes
+                .iter()
+                .map(|(k, v)| (k.clone_ref(py), v.clone_ref(py)))
+                .collect(),
+            tracestate: l.tracestate.clone_ref(py),
+            flags: l.flags,
+        }
+    }
+}
+
+#[pyo3::pymethods]
+impl SpanLinkData {
+    #[new]
+    #[pyo3(signature =(
+        *_py_args,
+        **_py_kwargs,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn __new__<'py>(
+        _py_args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
+        _py_kwargs: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
+    ) -> Self {
+        Self::default()
+    }
+
+    #[pyo3(signature = (trace_id, span_id, tracestate, flags=None, attributes=None, _dropped_attributes=0))]
+    fn __init__<'p>(
+        &mut self,
+        trace_id: u128,
+        span_id: u64,
+        tracestate: PyBackedString,
+        flags: Option<u32>,
+        attributes: Option<Bound<'p, PyDict>>,
+        _dropped_attributes: u32,
+    ) -> PyResult<()> {
+        let attributes = attributes
+            .map(Self::flatten_attribute_dict)
+            .transpose()?
+            .unwrap_or_default();
+        let _kind = match attributes.get("link.kind").map(|v| v.deref()) {
+            Some("span-pointer") => SpanLinkKind::SpanPointer,
+            _ => Default::default(),
+        };
+        match _kind {
+            SpanLinkKind::SpanPointer => {}
+            SpanLinkKind::SpanLink => {
+                // Validate trace_id and span_id are not zero
+                if trace_id == 0 {
+                    return Err(PyValueError::new_err("trace_id must be > 0. Value is 0"));
+                }
+                if span_id == 0 {
+                    return Err(PyValueError::new_err("span_id must be > 0. Value is 0"));
+                }
+            }
+        };
+
+        let trace_id_high = (trace_id >> 64) as u64;
+        let trace_id_low = (trace_id & 0xFFFFFFFFFFFFFFFF) as u64;
+
+        *self = Self {
+            data: SpanLink {
+                trace_id: trace_id_low,
+                trace_id_high,
+                span_id,
+                tracestate,
+                flags: flags.unwrap_or(0),
+                attributes,
+            },
+            _dropped_attributes,
+            _kind,
+        };
+
+        Ok(())
+    }
+
+    #[getter]
+    fn get_trace_id(&self) -> u128 {
+        ((self.data.trace_id_high as u128) << 64) | (self.data.trace_id as u128)
+    }
+
+    #[setter]
+    fn set_trace_id(&mut self, value: u128) {
+        self.data.trace_id_high = (value >> 64) as u64;
+        self.data.trace_id = (value & 0xFFFFFFFFFFFFFFFF) as u64;
+    }
+
+    #[getter]
+    fn get_span_id(&self) -> u64 {
+        self.data.span_id
+    }
+
+    #[setter]
+    fn set_span_id(&mut self, value: u64) {
+        self.data.span_id = value;
+    }
+
+    #[getter]
+    fn get_tracestate(&self) -> &PyBackedString {
+        &self.data.tracestate
+    }
+
+    #[setter]
+    fn set_tracestate(&mut self, value: PyBackedString) {
+        self.data.tracestate = value;
+    }
+
+    #[getter]
+    fn get_flags(&self) -> Option<u32> {
+        if self.data.flags == 0 {
+            None
+        } else {
+            Some(self.data.flags)
+        }
+    }
+
+    #[setter]
+    fn set_flags(&mut self, value: Option<u32>) {
+        self.data.flags = value.unwrap_or(0);
+    }
+
+    #[getter]
+    fn get_attributes<'py>(&self) -> &HashMap<PyBackedString, PyBackedString> {
+        &self.data.attributes
+    }
+
+    #[setter]
+    fn set_attributes(
+        &mut self,
+        attributes: HashMap<PyBackedString, PyBackedString>,
+    ) -> PyResult<()> {
+        self.data.attributes = attributes;
+        Ok(())
+    }
+
+    #[getter]
+    #[allow(non_snake_case)]
+    fn get__dropped_attributes(&self) -> u32 {
+        self._dropped_attributes
+    }
+
+    #[setter]
+    #[allow(non_snake_case)]
+    fn set__dropped_attributes(&mut self, value: u32) {
+        self._dropped_attributes = value;
+    }
+
+    #[getter]
+    fn get_name(&self) -> Option<&PyBackedString> {
+        self.data.attributes.get("link.name")
+    }
+
+    #[setter]
+    fn set_name(&mut self, v: PyBackedString) {
+        self.data
+            .attributes
+            .insert(PyBackedString::from_static_str("link.name"), v);
+    }
+
+    #[getter]
+    fn get_kind(&self) -> Option<&PyBackedString> {
+        self.data.attributes.get("link.kind")
+    }
+
+    #[setter]
+    fn set_kind(&mut self, v: PyBackedString) {
+        self.data
+            .attributes
+            .insert(PyBackedString::from_static_str("link.kind"), v);
+    }
+
+    fn _get_attribute(&self, key: PyBackedString) -> Option<&PyBackedString> {
+        self.data.attributes.get(&key)
+    }
+
+    fn _set_attribute(&mut self, key: PyBackedString, value: PyBackedString) {
+        self.data.attributes.insert(key, value);
+    }
+
+    fn _drop_attribute(&mut self, key: PyBackedString) -> PyResult<()> {
+        let Some(_) = self.data.attributes.remove(&key) else {
+            return Err(PyErr::new::<pyo3::exceptions::PyKeyError, _>(format!(
+                "Invalid key: {}",
+                key.deref(),
+            )));
+        };
+        self._dropped_attributes += 1;
+        Ok(())
+    }
+
+    fn to_dict<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let d = PyDict::new(py);
+        eprintln!("{:?}", self);
+        d.set_item(
+            pyo3::intern!(py, "trace_id"),
+            format!("{:032x}", self.get_trace_id()),
+        )?;
+        d.set_item(
+            pyo3::intern!(py, "span_id"),
+            format!("{:016x}", self.get_span_id()),
+        )?;
+        if self._dropped_attributes > 0 {
+            d.set_item(
+                pyo3::intern!(py, "dropped_attributes_count"),
+                self._dropped_attributes,
+            )?;
+        }
+        if !self.data.attributes.is_empty() {
+            d.set_item(pyo3::intern!(py, "attributes"), &self.data.attributes)?;
+        }
+        if !self.data.tracestate.is_empty() {
+            d.set_item(pyo3::intern!(py, "tracestate"), &self.data.tracestate)?;
+        }
+        if let Some(flags) = self.get_flags() {
+            d.set_item(pyo3::intern!(py, "flags"), flags)?;
+        }
+        Ok(d)
+    }
+
+    fn __eq__<'p>(&self, other: &Bound<'p, PyAny>) -> bool {
+        let Ok(other) = other.downcast::<Self>() else {
+            return false;
+        };
+        self == other.borrow().deref()
+    }
+
+    // Pickle serialization support
+    fn __getstate__<'p>(&self, py: Python<'p>) -> PyResult<Bound<'p, PyDict>> {
+        self.to_dict(py)
+    }
+
+    fn __setstate__<'p>(&mut self, py: Python<'p>, v: Bound<'p, PyAny>) -> PyResult<()> {
+        dbg!(&v);
+        let d = v.downcast_exact::<PyDict>()?;
+        let trace_id = u128::from_str_radix(
+            d.get_item("trace_id")?
+                .ok_or_else(|| {
+                    PyErr::new::<PyValueError, _>(
+                        "missing field trace_id on span link during deserialization",
+                    )
+                })?
+                .extract()?,
+            16,
+        )?;
+        let span_id = u64::from_str_radix(
+            d.get_item("span_id")?
+                .ok_or_else(|| {
+                    PyErr::new::<PyValueError, _>(
+                        "missing field trace_id on span link during deserialization",
+                    )
+                })?
+                .extract()?,
+            16,
+        )?;
+        let tracestate = d
+            .get_item("tracestate")?
+            .map(|v| v.extract())
+            .transpose()?
+            .unwrap_or_else(|| PyBackedString::py_none(py));
+        let flags = d.get_item("flags")?.map(|v| v.extract()).transpose()?;
+        let attributes = d
+            .get_item("attributes")?
+            .map(|v| {
+                v.downcast_exact()
+                    .map(|v| v.to_owned())
+                    .map_err(PyErr::from)
+            })
+            .transpose()?;
+        let dropped_attributes = d
+            .get_item("dropped_attributes_count")?
+            .map(|v| v.extract())
+            .transpose()?
+            .unwrap_or(0);
+
+        self.__init__(
+            trace_id,
+            span_id,
+            tracestate,
+            flags,
+            attributes,
+            dropped_attributes,
+        )?;
+        Ok(())
+    }
+}
+
+impl SpanLinkData {
+    fn flatten_attribute_dict<'p>(
+        d: Bound<'p, PyDict>,
+    ) -> PyResult<HashMap<PyBackedString, PyBackedString>> {
+        let mut m = HashMap::with_capacity(d.len());
+        for (k, v) in d.iter() {
+            let k: PyBackedString = k.extract()?;
+            match v.extract() {
+                Ok(v) => {
+                    m.insert(k, v);
+                }
+                Err(_) => {
+                    Self::flatten_recurse(&mut m, k, v, 0)?;
+                }
+            }
+        }
+        Ok(m)
+    }
+
+    fn flatten_recurse<'p>(
+        m: &mut HashMap<PyBackedString, PyBackedString>,
+        k: PyBackedString,
+        v: Bound<'p, PyAny>,
+        depth: u32,
+    ) -> PyResult<()> {
+        if depth == 10 {
+            return Ok(());
+        }
+        if Self::is_sequence(&v) {
+            let Ok(it) = v.try_iter() else {
+                return Ok(());
+            };
+            for (i, item) in it.enumerate() {
+                dbg!(&k, i);
+                let value = item?;
+                let key = PyBackedString::from_string(value.py(), &format!("{}.{}", k.deref(), i));
+                Self::flatten_recurse(m, key, value, depth + 1)?;
+            }
+            return Ok(());
+        }
+        let v = if let Ok(v) = v.extract() {
+            v
+        } else if let Ok(b) = v.downcast::<PyBool>() {
+            if b.is_true() {
+                PyString::intern(v.py(), "true")
+            } else {
+                PyString::intern(v.py(), "false")
+            }
+        } else {
+            v.str()?
+        };
+        let v = PyBackedString::try_from(v)?;
+
+        m.insert(k, v);
+        Ok(())
+    }
+
+    fn is_sequence<'p>(v: &Bound<'p, PyAny>) -> bool {
+        v.is_instance_of::<PyTuple>()
+            || v.is_instance_of::<PyList>()
+            || v.is_instance_of::<PySet>()
+            || v.is_instance_of::<PyFrozenSet>()
+    }
+}
+
 pub fn register_native_span(m: &pyo3::Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SpanData>()?;
     m.add_class::<SpanEventData>()?;
+    m.add_class::<SpanLinkData>()?;
     Ok(())
 }
