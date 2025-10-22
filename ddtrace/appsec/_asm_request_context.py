@@ -232,7 +232,7 @@ def flush_waf_triggers(env: ASM_Environment) -> None:
         else:
             report_list = env.waf_triggers
         if asm_config._use_metastruct_for_triggers:
-            entry_span.set_struct_tag(APPSEC.STRUCT, {"triggers": report_list})
+            entry_span._set_struct_tag(APPSEC.STRUCT, {"triggers": report_list})
         else:
             entry_span.set_tag(APPSEC.JSON, json.dumps({"triggers": report_list}, separators=(",", ":")))
         env.waf_triggers = []
