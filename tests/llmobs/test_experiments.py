@@ -1413,6 +1413,54 @@ def test_experiment_run(llmobs, test_dataset_one_record):
     assert exp_result["expected_output"] == {"answer": "Paris"}
     assert exp.url == f"https://app.datadoghq.com/llm/experiments/{exp._id}"
 
+    project = llmobs._instance._dne_client.project_create_or_get(name="test-project")
+    assert project.get("_id") == "f0a6723e-a7e8-4efd-a94a-b892b7b6fbf9"
+    assert project.get("name") == "test-project"
+    assert exp._project_id == project.get("_id")
+    assert exp._project_name == project.get("name")
+
+
+def test_experiment_run_w_different_project(llmobs, test_dataset_one_record):
+    with mock.patch("ddtrace.llmobs._experiment.Experiment._process_record") as mock_process_record:
+        # This is to ensure that the eval event post request contains the same span/trace IDs and timestamp.
+        mock_process_record.return_value = {
+            "idx": 0,
+            "span_id": "123",
+            "trace_id": "456",
+            "timestamp": 1234567890,
+            "output": {"prompt": "What is the capital of France?"},
+            "metadata": {
+                "dataset_record_index": 0,
+                "experiment_name": "test_experiment",
+                "dataset_name": "test-dataset-123",
+            },
+            "error": {"message": None, "type": None, "stack": None},
+        }
+        exp = llmobs.experiment(
+            "test_experiment",
+            dummy_task,
+            test_dataset_one_record,
+            [dummy_evaluator],
+            project_name="new-different-project",
+        )
+        exp._tags = {"ddtrace.version": "1.2.3"}  # FIXME: this is a hack to set the tags for the experiment
+        exp_results = exp.run()
+
+    assert len(exp_results["summary_evaluations"]) == 0
+    assert len(exp_results["rows"]) == 1
+    exp_result = exp_results["rows"][0]
+    assert exp_result["idx"] == 0
+    assert exp_result["input"] == {"prompt": "What is the capital of France?"}
+    assert exp_result["output"] == {"prompt": "What is the capital of France?"}
+    assert exp_result["expected_output"] == {"answer": "Paris"}
+    assert exp.url == f"https://app.datadoghq.com/llm/experiments/{exp._id}"
+
+    project = llmobs._instance._dne_client.project_create_or_get(name="new-different-project")
+    assert project.get("_id") == "c4b49fb5-7b16-46e1-86f0-de5800e8a56c"
+    assert project.get("name") == "new-different-project"
+    assert exp._project_id == project.get("_id")
+    assert exp._project_name == project.get("name")
+
 
 def test_experiment_run_w_summary(llmobs, test_dataset_one_record):
     with mock.patch("ddtrace.llmobs._experiment.Experiment._process_record") as mock_process_record:
