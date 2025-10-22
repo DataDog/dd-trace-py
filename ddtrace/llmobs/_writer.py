@@ -3,6 +3,7 @@ import csv
 import json
 import os
 import tempfile
+import urllib
 from typing import Any
 from typing import Dict
 from typing import List
@@ -400,7 +401,16 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         if dataset_id is None or dataset_id == "":
             raise ValueError(f"unexpected dataset state, invalid ID (is None: {dataset_id is None})")
         curr_version = response_data["data"]["attributes"]["current_version"]
-        return Dataset(dataset_name, project, dataset_id, [], description, curr_version, curr_version, _dne_client=self)
+        return Dataset(
+            name=dataset_name,
+            project=project,
+            dataset_id=dataset_id,
+            records=[],
+            description=description,
+            latest_version=curr_version,
+            version=curr_version,
+            _dne_client=self,
+        )
 
     @staticmethod
     def _get_record_json(record: Union[UpdatableDatasetRecord, DatasetRecordRaw], is_update: bool) -> JSONType:
@@ -484,12 +494,14 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         dataset_id = data[0]["id"]
 
         list_base_path = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
+
+        url_options = {}
         if version:
-            list_base_path = f"{list_base_path}?filter[version]={version}"
+            url_options["filter[version]"] = version
 
         has_next_page = True
         class_records: List[DatasetRecord] = []
-        list_path = list_base_path
+        list_path = f"{list_base_path}?{urllib.parse.urlencode(url_options, safe='[]')}"
         page_num = 0
         while has_next_page:
             resp = self.request("GET", list_path, timeout=self.LIST_RECORDS_TIMEOUT)
@@ -514,17 +526,18 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             has_next_page = False
             if next_cursor:
                 has_next_page = True
-                list_path = f"{list_base_path}{'&' if version else '?'}page[cursor]={next_cursor}"
+                url_options["page[cursor]"] = next_cursor
+                list_path = f"{list_base_path}?{urllib.parse.urlencode(url_options, safe='[]')}"
                 logger.debug("next list records request path %s", list_path)
                 page_num += 1
         return Dataset(
-            dataset_name,
-            project,
-            dataset_id,
-            class_records,
-            dataset_description,
-            curr_version,
-            version or curr_version,
+            name=dataset_name,
+            project=project,
+            dataset_id=dataset_id,
+            records=class_records,
+            description=dataset_description,
+            latest_version=curr_version,
+            version=version or curr_version,
             _dne_client=self,
         )
 

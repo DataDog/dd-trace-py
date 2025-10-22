@@ -107,7 +107,7 @@ class Dataset:
     _id: str
     _records: List[DatasetRecord]
     _version: int
-    _current_version: int
+    _latest_version: int
     _dne_client: "LLMObsExperimentsClient"
     _new_records_by_record_id: Dict[str, DatasetRecordRaw]
     _updated_record_ids_to_new_fields: Dict[str, UpdatableDatasetRecord]
@@ -122,7 +122,7 @@ class Dataset:
         dataset_id: str,
         records: List[DatasetRecord],
         description: str,
-        current_version: int,
+        latest_version: int,
         version: int,
         _dne_client: "LLMObsExperimentsClient",
     ) -> None:
@@ -130,7 +130,7 @@ class Dataset:
         self.project = project
         self.description = description
         self._id = dataset_id
-        self._current_version = current_version
+        self._latest_version = latest_version
         self._version = version
         self._dne_client = _dne_client
         self._records = records
@@ -171,10 +171,10 @@ class Dataset:
                 record["record_id"] = record_id  # type: ignore
 
             # FIXME: we don't get version numbers in responses to deletion requests
-            self._current_version = new_version if new_version != -1 else self._current_version + 1
+            self._latest_version = new_version if new_version != -1 else self._latest_version + 1
             # no matter what the version was before the push, pushing will result in the dataset being on the current
             # version tracked by the backend
-            self._version = self._current_version
+            self._version = self._latest_version
         self._new_records_by_record_id = {}
         self._deleted_record_ids = []
         self._updated_record_ids_to_new_fields = {}
@@ -232,8 +232,8 @@ class Dataset:
         return f"{_get_base_url()}/llm/datasets/{self._id}"
 
     @property
-    def current_version(self) -> int:
-        return self._current_version
+    def latest_version(self) -> int:
+        return self._latest_version
 
     @property
     def version(self) -> int:
@@ -448,7 +448,7 @@ class Experiment:
                 dataset_id=self._dataset._id,
                 records=subset_records,
                 description=self._dataset.description,
-                current_version=self._dataset._current_version,
+                latest_version=self._dataset._latest_version,
                 version=self._dataset._version,
                 _dne_client=self._dataset._dne_client,
             )
