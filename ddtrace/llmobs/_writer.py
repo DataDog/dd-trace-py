@@ -3,7 +3,6 @@ import csv
 import json
 import os
 import tempfile
-import urllib
 from typing import Any
 from typing import Dict
 from typing import List
@@ -12,6 +11,7 @@ from typing import Tuple
 from typing import TypedDict
 from typing import Union
 from typing import cast
+import urllib
 from urllib.parse import quote
 from urllib.parse import urlparse
 
@@ -495,15 +495,16 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
 
         list_base_path = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
 
-        url_options = {}
-        if version:
-            url_options["filter[version]"] = version
-
         has_next_page = True
         class_records: List[DatasetRecord] = []
-        list_path = f"{list_base_path}?{urllib.parse.urlencode(url_options, safe='[]')}"
         page_num = 0
+        url_options = {}
         while has_next_page:
+            if version:
+                url_options["filter[version]"] = version
+
+            list_path = f"{list_base_path}?{urllib.parse.urlencode(url_options, safe='[]')}"
+            logger.debug("list records page %d, request path=%s", page_num, list_path)
             resp = self.request("GET", list_path, timeout=self.LIST_RECORDS_TIMEOUT)
             if resp.status != 200:
                 raise ValueError(
@@ -523,12 +524,12 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                     }
                 )
             next_cursor = records_data.get("meta", {}).get("after")
+
+            url_options = {}
             has_next_page = False
             if next_cursor:
                 has_next_page = True
                 url_options["page[cursor]"] = next_cursor
-                list_path = f"{list_base_path}?{urllib.parse.urlencode(url_options, safe='[]')}"
-                logger.debug("next list records request path %s", list_path)
                 page_num += 1
         return Dataset(
             name=dataset_name,
