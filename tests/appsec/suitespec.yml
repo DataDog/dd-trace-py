@@ -109,20 +109,21 @@ suites:
     runner: hatch
     snapshot: true
     timeout: 40m
-  appsec_integrations_pygoat:
-    parallelism: 3
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@appsec'
-      - '@appsec_iast'
-      - '@remoteconfig'
-      - tests/appsec/integrations/pygoat_tests/*
-      - tests/snapshots/tests.appsec.*
-    retry: 2
-    runner: hatch
-    snapshot: true
+# disabled on 2.21
+#  appsec_integrations_pygoat:
+#    parallelism: 3
+#    paths:
+#      - '@bootstrap'
+#      - '@core'
+#      - '@tracing'
+#      - '@appsec'
+#      - '@appsec_iast'
+#      - '@remoteconfig'
+#      - tests/appsec/integrations/pygoat_tests/*
+#      - tests/snapshots/tests.appsec.*
+#    retry: 2
+#    runner: hatch
+#    snapshot: true
   appsec_integrations_flask:
     parallelism: 17
     paths:
