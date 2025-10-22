@@ -1,5 +1,7 @@
 from contextlib import contextmanager
+from http.client import RemoteDisconnected
 import json
+import socket
 from unittest import mock
 
 import pytest
@@ -237,7 +239,7 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
             "_do_request",
             side_effect=[
                 _get_setting_api_response(status_code=500),
-                _get_setting_api_response(status_code=500),
+                TimeoutError(),
                 _get_setting_api_response(),
             ],
         ) as mock_do_request:
@@ -267,10 +269,10 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
             "_do_request",
             side_effect=[
                 _get_setting_api_response(status_code=500),
-                _get_setting_api_response(status_code=500),
-                _get_setting_api_response(status_code=500),
-                _get_setting_api_response(status_code=500),
-                _get_setting_api_response(status_code=500),
+                _get_setting_api_response(status_code=504),
+                TimeoutError(),
+                RemoteDisconnected(),
+                socket.timeout(),
                 _get_setting_api_response(),
             ],
         ) as mock_do_request:
