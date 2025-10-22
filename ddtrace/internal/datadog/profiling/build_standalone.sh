@@ -77,7 +77,6 @@ CLANGTIDY_CMD=${highest_clangxx/clang++/clang-tidy}
 declare -A target_dirs
 target_dirs["ddup"]="ddup"
 target_dirs["stack_v2"]="stack_v2"
-target_dirs["dd_wrapper"]="dd_wrapper"
 
 # Compiler options
 declare -A compiler_args
@@ -369,7 +368,6 @@ build_rust() {
     DD_COMPILE_MODE=$BUILD_MODE python3 setup.py build_rust --inplace
 }
 
-
 ### ENTRYPOINT
 # Check for basic input validity
 if [ $# -eq 0 ]; then
@@ -388,6 +386,8 @@ print_cmake_args
 print_ctest_args
 
 build_rust
+
+run_cmake dd_wrapper
 
 # Run cmake
 for target in "${targets[@]}"; do
