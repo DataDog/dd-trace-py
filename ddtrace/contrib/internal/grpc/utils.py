@@ -1,7 +1,7 @@
 import ipaddress
 import logging
 import re
-from typing import Any
+from typing import Tuple
 from urllib import parse
 
 from ddtrace import config
@@ -12,10 +12,6 @@ from ddtrace.internal.constants import OTEL_OTLP_EXPORTER_IDENTIFIER
 
 
 log = logging.getLogger(__name__)
-
-# OpenTelemetry OTLP exporter constants
-USER_AGENT_HEADER = "user-agent"
-OTEL_OTLP_EXPORTER_IDENTIFIER = "otel-otlp-exporter-python"
 
 
 def parse_method_path(method_path):
@@ -118,9 +114,9 @@ def _parse_rpc_repr_string(rpc_string, module):
     return code, details
 
 
-def is_otlp_export(metadata: Any) -> bool:
+def is_otlp_export(metadata: Tuple) -> bool:
     """
-    Determine if a gRPC channel should be skipped from ddtrace instrumentation.
+    Determine if a gRPC channel is submitting data to the OpenTelemetry OTLP exporter.
     """
     if not (config._otel_logs_enabled or config._otel_metrics_enabled):
         return False

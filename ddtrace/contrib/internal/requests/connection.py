@@ -3,6 +3,8 @@ from typing import Dict  # noqa:F401
 from typing import Optional  # noqa:F401
 from urllib import parse
 
+import requests
+
 import ddtrace
 from ddtrace import config
 from ddtrace._trace.pin import Pin
@@ -26,8 +28,8 @@ from ddtrace.settings.asm import config as asm_config
 log = get_logger(__name__)
 
 
-def is_otlp_export(request):
-    """Skip OpenTelemetry OTLP exporter requests when OTel integration is enabled."""
+def is_otlp_export(request: requests.models.Request) -> bool:
+    """Determine if a request is submitting data to the OpenTelemetry OTLP exporter."""
     if not (config._otel_logs_enabled or config._otel_metrics_enabled):
         return False
     user_agent = request.headers.get(USER_AGENT_HEADER, "")
