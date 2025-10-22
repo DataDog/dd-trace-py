@@ -755,7 +755,6 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
         if not PyDict_CheckExact(metrics):
             raise TypeError("Unhandled metrics type: %r" % type(metrics))
 
-
         d = <dict> metrics
         m = []
 
@@ -1157,7 +1156,6 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
             ret = self._pack_string(span_events)
             if ret != 0:
                 return ret
-
 
         # Filter metrics to only number values
         metrics = []
