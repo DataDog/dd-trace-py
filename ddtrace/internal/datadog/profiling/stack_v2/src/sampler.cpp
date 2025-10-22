@@ -2,6 +2,7 @@
 
 #include "thread_span_links.hpp"
 
+#include "echion/errors.h"
 #include "echion/greenlets.h"
 #include "echion/interp.h"
 #include "echion/tasks.h"
@@ -153,7 +154,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
         // Perform the sample
         for_each_interp([&](InterpreterInfo& interp) -> void {
             for_each_thread(interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
-                thread.sample(interp.id, tstate, wall_time_us);
+                (void)thread.sample(interp.id, tstate, wall_time_us);
             });
         });
 
@@ -245,9 +246,10 @@ Sampler::register_thread(uint64_t id, uint64_t native_id, const char* name)
     static bool has_errored = false;
     auto it = thread_info_map.find(id);
     if (it == thread_info_map.end()) {
-        try {
-            thread_info_map.emplace(id, std::make_unique<ThreadInfo>(id, native_id, name));
-        } catch (const ThreadInfo::Error& e) {
+        auto maybe_thread_info = ThreadInfo::create(id, native_id, name);
+        if (maybe_thread_info) {
+            thread_info_map.emplace(id, std::move(*maybe_thread_info));
+        } else {
             if (!has_errored) {
                 has_errored = true;
                 std::cerr << "Failed to register thread: " << std::hex << id << std::dec << " (" << native_id << ") "
@@ -255,9 +257,10 @@ Sampler::register_thread(uint64_t id, uint64_t native_id, const char* name)
             }
         }
     } else {
-        try {
-            it->second = std::make_unique<ThreadInfo>(id, native_id, name);
-        } catch (const ThreadInfo::Error& e) {
+        auto maybe_thread_info = ThreadInfo::create(id, native_id, name);
+        if (maybe_thread_info) {
+            it->second = std::move(*maybe_thread_info);
+        } else {
             if (!has_errored) {
                 has_errored = true;
                 std::cerr << "Failed to register thread: " << std::hex << id << std::dec << " (" << native_id << ") "
