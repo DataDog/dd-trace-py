@@ -177,7 +177,7 @@ class DataStreamsProcessor(PeriodicService):
 
         now_ns = int(now_sec * 1e9)
 
-        with self._lock:
+        with self._lock:  # type: ignore
             # Align the span into the corresponding stats bucket
             bucket_time_ns = now_ns - (now_ns % self._bucket_size_ns)
             aggr_key = (",".join(edge_tags), hash_value, parent_hash)
@@ -290,7 +290,7 @@ class DataStreamsProcessor(PeriodicService):
     def periodic(self):
         # type: () -> None
 
-        with self._lock:
+        with self._lock:  # type: ignore
             serialized_stats = self._serialize_buckets()
 
         if not serialized_stats:

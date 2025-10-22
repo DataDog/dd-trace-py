@@ -72,7 +72,7 @@ class ProbeRegistry(dict):
 
     def register(self, *probes: Probe) -> None:
         """Register a probe."""
-        with self._lock:
+        with self._lock:  # type: ignore
             for probe in probes:
                 if probe in self:
                     # Already registered.
@@ -105,7 +105,7 @@ class ProbeRegistry(dict):
 
     def set_installed(self, probe: Probe) -> None:
         """Set the installed flag for a probe."""
-        with self._lock:
+        with self._lock:  # type: ignore
             self[probe.probe_id].set_installed()
 
             # No longer pending
@@ -115,7 +115,7 @@ class ProbeRegistry(dict):
 
     def set_emitting(self, probe: Probe) -> None:
         """Set the emitting flag for a probe."""
-        with self._lock:
+        with self._lock:  # type: ignore
             entry = cast(ProbeRegistryEntry, self[probe.probe_id])
             if not entry.emitting:
                 entry.set_emitting()
@@ -123,7 +123,7 @@ class ProbeRegistry(dict):
 
     def set_error(self, probe: Probe, error_type: str, message: str) -> None:
         """Set the error message for a probe."""
-        with self._lock:
+        with self._lock:  # type: ignore
             self[probe.probe_id].set_error(error_type, message)
             self.logger.error(probe, (error_type, message))
 
@@ -140,12 +140,12 @@ class ProbeRegistry(dict):
 
     def log_probe_status(self, probe: Probe) -> None:
         """Log the status of a probe using the status logger."""
-        with self._lock:
+        with self._lock:  # type: ignore
             self._log_probe_status_unlocked(self[probe.probe_id])
 
     def log_probes_status(self) -> None:
         """Log the status of all the probes using the status logger."""
-        with self._lock:
+        with self._lock:  # type: ignore
             for entry in self.values():
                 self._log_probe_status_unlocked(entry)
 
@@ -180,7 +180,7 @@ class ProbeRegistry(dict):
         been processed yet.
         """
         unregistered_probes = []
-        with self._lock:
+        with self._lock:  # type: ignore
             for probe in probes:
                 try:
                     entry = self.pop(probe.probe_id)
@@ -201,5 +201,5 @@ class ProbeRegistry(dict):
         """Check if a probe is in the registry."""
         assert isinstance(probe, Probe), probe  # nosec
 
-        with self._lock:
+        with self._lock:  # type: ignore
             return super().__contains__(probe.probe_id)

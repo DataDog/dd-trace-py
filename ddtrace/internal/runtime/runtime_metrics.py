@@ -85,7 +85,7 @@ class RuntimeWorker(periodic.PeriodicService):
     @classmethod
     def disable(cls):
         # type: () -> None
-        with cls._lock:
+        with cls._lock:  # type: ignore
             if cls._instance is None:
                 return
 
@@ -115,7 +115,7 @@ class RuntimeWorker(periodic.PeriodicService):
     @classmethod
     def enable(cls, flush_interval=None, tracer=None, dogstatsd_url=None):
         # type: (Optional[float], Optional[ddtrace.trace.Tracer], Optional[str]) -> None
-        with cls._lock:
+        with cls._lock:  # type: ignore
             if cls._instance is not None:
                 return
             if flush_interval is None:

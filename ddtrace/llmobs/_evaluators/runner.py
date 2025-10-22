@@ -94,7 +94,7 @@ class EvaluatorRunner(PeriodicService):
         )
 
     def enqueue(self, span_event: Dict, span: Span) -> None:
-        with self._lock:
+        with self._lock:  # type: ignore
             if len(self._buffer) >= self._buffer_limit:
                 logger.warning(
                     "%r event buffer full (limit is %d), dropping event", self.__class__.__name__, self._buffer_limit
@@ -108,7 +108,7 @@ class EvaluatorRunner(PeriodicService):
         synchronously. This param is only set to `True` for when the evaluator runner is stopped by the LLM Obs
         instance on process exit and we want to block until all spans are evaluated and metrics are submitted.
         """
-        with self._lock:
+        with self._lock:  # type: ignore
             if not self._buffer:
                 return
             span_events_and_spans = self._buffer  # type: list[tuple[Dict, Span]]

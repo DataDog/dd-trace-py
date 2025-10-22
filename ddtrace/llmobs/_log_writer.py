@@ -71,7 +71,7 @@ class V2LogWriter(PeriodicService):
 
     def enqueue(self, log):
         # type: (V2LogEvent) -> None
-        with self._lock:
+        with self._lock:  # type: ignore
             if len(self._buffer) >= self._buffer_limit:
                 logger.warning("log buffer full (limit is %d), dropping log", self._buffer_limit)
                 return
@@ -87,7 +87,7 @@ class V2LogWriter(PeriodicService):
 
     def periodic(self):
         # type: () -> None
-        with self._lock:
+        with self._lock:  # type: ignore
             if not self._buffer:
                 return
             logs = self._buffer

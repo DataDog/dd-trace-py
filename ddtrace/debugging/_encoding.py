@@ -319,7 +319,7 @@ class SignalQueue(BufferedEncoder):
 
     def put_encoded(self, item: Snapshot, encoded: bytes) -> int:
         try:
-            with self._lock:
+            with self._lock:  # type: ignore
                 size = self._buffer.put(encoded)
                 self.count += 1
                 return size
@@ -329,7 +329,7 @@ class SignalQueue(BufferedEncoder):
             raise
 
     def flush(self) -> Optional[Union[bytes, bytearray]]:
-        with self._lock:
+        with self._lock:  # type: ignore
             if self.count == 0:
                 # Reclaim memory
                 self._buffer._reset()
