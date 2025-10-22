@@ -24,6 +24,17 @@ from ddtrace.settings.asm import config as asm_config
 log = get_logger(__name__)
 
 
+def _should_skip_otel_request(request):
+    """Skip OpenTelemetry OTLP exporter requests when OTel integration is enabled."""
+    if not (config._otel_logs_enabled or config._otel_metrics_enabled):
+        return False
+    user_agent = request.headers.get("User-Agent", "")
+    if "otel-otlp-exporter-python" in user_agent.lower():
+        return True
+
+    return False
+
+
 def _extract_hostname_and_path(uri):
     # type: (str) -> str
     parsed_uri = parse.urlparse(uri)
@@ -67,7 +78,7 @@ def _wrap_send(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     request = get_argument_value(args, kwargs, 0, "request")
-    if not request:
+    if not request or _should_skip_otel_request(request):
         return func(*args, **kwargs)
 
     url = _sanitized_url(request.url)

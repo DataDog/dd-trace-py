@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    otel: Prevents OpenTelemetry OTLP exporter connections from being traced by ddtrace. 
+    ddtrace internal connections (gRPC and HTTP) are now excluded from tracing to prevent circular instrumentation.
