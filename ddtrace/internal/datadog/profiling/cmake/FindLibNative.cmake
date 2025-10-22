@@ -23,7 +23,8 @@ message(WARNING "LIBRARY_NAME: ${LIBRARY_NAME}")
 
 # We expect the native extension to be built and installed the headers in the following directory. It is configured in
 # setup.py by setting CARGO_TARGET_DIR environment variable.
-set(SOURCE_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/../../../../../src/native/target/include)
+set(SOURCE_INCLUDE_DIR
+    ${CMAKE_SOURCE_DIR}/../../../../../src/native/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include)
 
 set(DEST_LIB_DIR ${CMAKE_CURRENT_BINARY_DIR})
 set(DEST_INCLUDE_DIR ${DEST_LIB_DIR}/include)

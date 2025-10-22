@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Pin to ``wrapt<2`` until we can ensure full compatibility with the breaking changes.

@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    profiling: Upgrades echion to resolve an issue where stack profiler can
+    allocate a large amount of memory unnecessarily. Resolves another issue
+    where the profiler can loop infinitely on Python 3.13.
+

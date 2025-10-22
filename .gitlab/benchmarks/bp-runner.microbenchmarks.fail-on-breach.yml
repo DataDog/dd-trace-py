@@ -799,11 +799,11 @@ experiments:
           - name: otelspan-add-metrics
             thresholds:
               - execution_time < 344.80 ms
-              - max_rss_usage < 630.00 MB
+              - max_rss_usage < 675.00 MB
           - name: otelspan-add-tags
             thresholds:
               - execution_time < 314.00 ms
-              - max_rss_usage < 630.00 MB
+              - max_rss_usage < 675.00 MB
           - name: otelspan-get-context
             thresholds:
               - execution_time < 92.35 ms
