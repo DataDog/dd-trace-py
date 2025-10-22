@@ -632,8 +632,9 @@ Examples:
             print(f"    ... and {len(files) - 5} more")
 
     # Find matching suites
-    if args.all_suites:
-        # Get all suites
+    if args.all_suites or args.venv:
+        # Get all suites when explicitly requesting all or when --venv is provided
+        # (user being explicit about what they want)
         matching_suites = get_suites()
         # Add empty matched_files for consistency
         for suite_config in matching_suites.values():
