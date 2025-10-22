@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    LLM Observability: Resolves an issue where the ``langchain`` integration would incorrectly mark Azure OpenAI calls as duplicate llm operations even if the ``openai`` integration was enabled.
+     The ``langchain`` integration will trace Azure OpenAI spans as workflow spans if there is an equivalent llm span from the ``openai`` integration. 

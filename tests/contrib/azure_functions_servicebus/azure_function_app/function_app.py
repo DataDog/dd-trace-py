@@ -3,10 +3,8 @@ import os
 import azure.functions as func
 import azure.servicebus as azure_servicebus
 
-from ddtrace import patch
+import ddtrace.auto  # noqa: F401
 
-
-patch(azure_functions=True, azure_servicebus=True, requests=True)
 
 app = func.FunctionApp()
 

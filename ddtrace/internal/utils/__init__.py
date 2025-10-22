@@ -82,7 +82,7 @@ def get_blocked() -> Optional[Dict[str, Any]]:
     # local import to avoid circular dependency
     from ddtrace.internal import core
 
-    res = core.dispatch_with_results("asm.get_blocked")
+    res = core.dispatch_with_results("asm.get_blocked")  # ast-grep-ignore: core-dispatch-with-results
     if res and res.block_config:
         return res.block_config.value
     return None

@@ -29,7 +29,9 @@ suites:
       - '@codeowners'
       - '@unittest'
       - '@freezegun'
+      - '@tracing'
       - tests/ci_visibility/*
+      - tests/snapshots/test_api_fake_runners.*
     runner: riot
     snapshot: true
   dd_coverage:
@@ -84,6 +86,7 @@ suites:
       - '@ci_visibility'
       - '@coverage'
       - '@freezegun'
+      - '@tracing'
       - tests/contrib/unittest/*
       - tests/snapshots/tests.contrib.unittest.*
     runner: riot
