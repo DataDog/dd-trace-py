@@ -62,6 +62,7 @@ TYPE = "langchain.request.type"
 ANTHROPIC_PROVIDER_NAME = "anthropic"
 BEDROCK_PROVIDER_NAME = "amazon_bedrock"
 OPENAI_PROVIDER_NAME = "openai"
+AZURE_OAI_PROVIDER_NAME = "azure"
 VERTEXAI_PROVIDER_NAME = "vertexai"
 
 ROLE_MAPPING = {
@@ -185,7 +186,7 @@ class LangChainIntegration(BaseLLMIntegration):
             # only the llm interface for Vertex AI will get instrumented
             elif model_provider.startswith(VERTEXAI_PROVIDER_NAME) and operation == "llm":
                 llmobs_integration = "vertexai"
-            elif model_provider.startswith(OPENAI_PROVIDER_NAME):
+            elif any(provider in model_provider for provider in (OPENAI_PROVIDER_NAME, AZURE_OAI_PROVIDER_NAME)):
                 llmobs_integration = "openai"
             elif operation == "chat" and model_provider.startswith(ANTHROPIC_PROVIDER_NAME):
                 llmobs_integration = "anthropic"
@@ -911,7 +912,6 @@ class LangChainIntegration(BaseLLMIntegration):
             "template": template,
             "chat_template": chat_template,
             "id": prompt_id if prompt_id is not None else "unknown",
-            "version": "0.0.0",
             "rag_context_variables": [],
             "rag_query_variables": [],
             "tags": tags,
