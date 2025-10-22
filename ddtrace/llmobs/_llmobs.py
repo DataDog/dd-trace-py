@@ -771,6 +771,7 @@ class LLMObs(Service):
         dataset: Dataset,
         evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], JSONType]],
         description: str = "",
+        project_name: Optional[str] = None,
         tags: Optional[Dict[str, str]] = None,
         config: Optional[ExperimentConfigType] = None,
         summary_evaluators: Optional[
@@ -788,9 +789,14 @@ class LLMObs(Service):
         :param dataset: The dataset to run the experiment on, created with LLMObs.pull/create_dataset().
         :param evaluators: A list of evaluator functions to evaluate the task output.
                            Must accept parameters ``input_data``, ``output_data``, and ``expected_output``.
+        :param project_name: The name of the project to save the experiment to.
         :param description: A description of the experiment.
         :param tags: A dictionary of string key-value tag pairs to associate with the experiment.
         :param config: A configuration dictionary describing the experiment.
+        :param summary_evaluators: A list of summary evaluator functions to evaluate the task results and evaluations
+                                   to produce a single value.
+                                   Must accept parameters ``inputs``, ``outputs``, ``expected_outputs``,
+                                   ``evaluators_results``.
         """
         if not callable(task):
             raise TypeError("task must be a callable function.")
@@ -825,7 +831,7 @@ class LLMObs(Service):
             task,
             dataset,
             evaluators,
-            project_name=cls._project_name,
+            project_name=project_name or cls._project_name,
             tags=tags,
             description=description,
             config=config,
