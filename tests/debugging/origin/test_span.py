@@ -1,16 +1,13 @@
 from functools import partial
 from pathlib import Path
-from types import FunctionType
 import typing as t
 
 import ddtrace
-from ddtrace.debugging._origin.span import EntrySpanWrappingContext
 from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
 from ddtrace.debugging._origin.span import SpanCodeOriginProcessorExit
 from ddtrace.debugging._session import Session
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal.safety import _isinstance
 from tests.debugging.mocking import MockSignalUploader
 from tests.utils import TracerTestCase
 
@@ -24,12 +21,7 @@ class MockSpanCodeOriginProcessorEntry(SpanCodeOriginProcessorEntry):
 
         @partial(core.on, "service_entrypoint.patch")
         def _(f: t.Callable) -> None:
-            if not _isinstance(f, FunctionType):
-                return
-
-            _f = t.cast(FunctionType, f)
-            if not EntrySpanWrappingContext.is_wrapped(_f):
-                EntrySpanWrappingContext(MockSignalUploader, _f).wrap()
+            cls.instrument_view(f)
 
     @classmethod
     def get_uploader(cls) -> MockSignalUploader:

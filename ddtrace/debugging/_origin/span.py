@@ -21,8 +21,10 @@ from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.debugging._uploader import UploaderProduct
 from ddtrace.ext import EXIT_SPAN_TYPES
 from ddtrace.internal.compat import Path
+from ddtrace.internal.forksafe import Lock
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_user_code
+from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.settings.code_origin import config as co_config
 from ddtrace.trace import Span
@@ -198,19 +200,43 @@ class EntrySpanWrappingContext(WrappingContext):
         super().__exit__(exc_type, exc_value, traceback)
 
 
-@dataclass
 class SpanCodeOriginProcessorEntry:
     __uploader__ = SignalUploader
     __context_wrapper__ = EntrySpanWrappingContext
 
     _instance: t.Optional["SpanCodeOriginProcessorEntry"] = None
 
+    _pending: t.List = []
+    _lock = Lock()
+
+    @classmethod
+    def instrument_view(cls, f):
+        if not _isinstance(f, FunctionType):
+            return
+
+        with cls._lock:
+            if cls._instance is None:
+                # Entry span code origin is not enabled, so we defer the
+                # instrumentation
+                cls._pending.append(f)
+                return
+
+        _f = t.cast(FunctionType, f)
+        if not EntrySpanWrappingContext.is_wrapped(_f):
+            log.debug("Patching entrypoint %r for code origin", f)
+            EntrySpanWrappingContext(cls.__uploader__, _f).wrap()
+
     @classmethod
     def enable(cls):
         if cls._instance is not None:
             return
 
-        cls._instance = cls()
+        with cls._lock:
+            cls._instance = cls()
+
+            # Instrument the pending views
+            while cls._pending:
+                cls.instrument_view(cls._pending.pop())
 
         # Register code origin for span with the snapshot uploader
         cls.__uploader__.register(UploaderProduct.CODE_ORIGIN_SPAN_ENTRY)
@@ -236,7 +262,6 @@ class SpanCodeOriginProcessorEntry:
         log.debug("Code Origin for Spans (entry) disabled")
 
 
-@dataclass
 class SpanCodeOriginProcessorExit(SpanProcessor):
     __uploader__ = SignalUploader
 

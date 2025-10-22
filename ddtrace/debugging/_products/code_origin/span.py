@@ -1,6 +1,5 @@
 import enum
 from functools import partial
-from types import FunctionType
 import typing as t
 
 import ddtrace.internal.core as core
@@ -34,17 +33,9 @@ def start():
     # time the tracer will notify us of entrypoints being registered.
     @partial(core.on, "service_entrypoint.patch")
     def _(f: t.Callable) -> None:
-        from ddtrace.debugging._origin.span import EntrySpanWrappingContext
         from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
-        from ddtrace.internal.safety import _isinstance
 
-        if not _isinstance(f, FunctionType):
-            return
-
-        _f = t.cast(FunctionType, f)
-        if not EntrySpanWrappingContext.is_wrapped(_f):
-            log.debug("Patching entrypoint %r for code origin", f)
-            EntrySpanWrappingContext(SpanCodeOriginProcessorEntry.__uploader__, _f).wrap()
+        SpanCodeOriginProcessorEntry.instrument_view(f)
 
     log.debug("Registered entrypoint patching hook for code origin for spans")
 
