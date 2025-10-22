@@ -1683,7 +1683,13 @@ class Contrib_TestClass_For_Threats:
                 # assert mocked.call_args_list == []
                 expected_rule_type = "command_injection" if endpoint == "shell_injection" else endpoint
                 expected_variant = (
-                    "exec" if endpoint == "command_injection" else "shell" if endpoint == "shell_injection" else "request" if endpoint == "ssrf" else None
+                    "exec"
+                    if endpoint == "command_injection"
+                    else "shell"
+                    if endpoint == "shell_injection"
+                    else "request"
+                    if endpoint == "ssrf"
+                    else None
                 )
                 matches = [t for c, n, t in telemetry_calls if c == "count" and n == "appsec.rasp.rule.match"]
                 # import delayed to get the correct version
