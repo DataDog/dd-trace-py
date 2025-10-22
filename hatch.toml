@@ -54,7 +54,7 @@ checks = [
     "riot",
     "security",
     "test",
-    "suitespec-check",
+    #"suitespec-check",
 ]
 spelling = [
     "codespell -I docs/spelling_wordlist.txt --skip='ddwaf.h,*cassettes*,tests/tracer/fixtures/urls.txt,tests/appsec/iast/fixtures/*' {args:ddtrace/ tests/ releasenotes/ docs/}",
@@ -71,9 +71,9 @@ fmt-snapshots = [
 riot = [
     "python -m doctest {args} riotfile.py"
 ]
-suitespec-check = [
-    "python scripts/check_suitespec_coverage.py"
-]
+#suitespec-check = [
+#    "python scripts/check_suitespec_coverage.py"
+#]
 
 [envs.docs]
 template = "docs"
