@@ -88,7 +88,7 @@ class FilterOrg(TraceFilter):
         # type: (List[Span]) -> Optional[List[Span]]
         for span in trace:
             if span.get_tag("organization"):
-                span.set_tag_str("organization", "not-a-real-org")
+                span._set_tag_str("organization", "not-a-real-org")
         return trace
 
 

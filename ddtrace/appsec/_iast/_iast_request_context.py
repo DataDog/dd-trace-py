@@ -56,7 +56,7 @@ def _create_and_attach_iast_report_to_span(
                     source["origin"] = origin_to_str(source["origin"])
             req_span._set_struct_tag(IAST.STRUCT, data)
         else:
-            req_span.set_tag_str(IAST.JSON, report_data._to_str(data))
+            req_span._set_tag_str(IAST.JSON, report_data._to_str(data))
     _set_metric_iast_request_tainted()
     base._set_span_tag_iast_request_tainted(req_span)
     _set_span_tag_iast_executed_sink(req_span)
@@ -64,7 +64,7 @@ def _create_and_attach_iast_report_to_span(
     base._iast_finish_request(req_span)
 
     if req_span.get_tag(_ORIGIN_KEY) is None:
-        req_span.set_tag_str(_ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
+        req_span._set_tag_str(_ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
 
 
 def _iast_end_request(ctx=None, span=None, *args, **kwargs):

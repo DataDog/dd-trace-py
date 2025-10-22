@@ -48,7 +48,7 @@ def execute(func, handler, args, kwargs):
 
             http_route = _find_route(handler.application.default_router.rules, handler.request)
             if http_route is not None and isinstance(http_route, str):
-                req_span.set_tag_str("http.route", http_route)
+                req_span._set_tag_str("http.route", http_route)
             setattr(handler.request, REQUEST_SPAN_KEY, req_span)
 
             return func(*args, **kwargs)
