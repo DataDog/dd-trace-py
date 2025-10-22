@@ -629,6 +629,8 @@ class CustomBuildExt(build_ext):
 
             # Rebuild if source files changed OR if _native.so was rebuilt (our dependency)
             source_files_changed = newest_source_time > wrapper_mtime
+            print(f"source_files_changed: {source_files_changed}")
+            print(f"built_native: {getattr(self, 'built_native', False)}")
             should_build = source_files_changed or getattr(self, "built_native", False)
 
         if should_build:
