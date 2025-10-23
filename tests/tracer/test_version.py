@@ -1,3 +1,4 @@
+import pytest
 import sys
 
 import mock
@@ -6,11 +7,13 @@ from ddtrace.version import get_version
 from tests.tracer import _version  # noqa: F401 -> we need to import it so that it can be swapped with the test module
 
 
+@pytest.mark.skip("Disabled for 3.14 branch since we are hardcoding the version")
 def test_get_version_from_version_file():
     with mock.patch.dict(sys.modules, {"ddtrace._version": sys.modules["tests.tracer._version"]}):
         assert get_version() == "my_test_version_from_generated_file"
 
 
+@pytest.mark.skip("Disabled for 3.14 branch since we are hardcoding the version")
 def test_get_version_from_importlib_metadata():
     with mock.patch.dict(sys.modules, {"ddtrace._version": None}):
         version_str = "importlib.metadata.version"
@@ -19,6 +22,7 @@ def test_get_version_from_importlib_metadata():
             mock_get_version.assert_called_with("ddtrace")
 
 
+@pytest.mark.skip("Disabled for 3.14 branch since we are hardcoding the version")
 def test_get_version_dev_fallback():
     with mock.patch.dict(sys.modules, {"ddtrace._version": None}):
         version_str = "importlib.metadata.version"
