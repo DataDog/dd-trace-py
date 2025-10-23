@@ -40,8 +40,14 @@ class SpanProbeTestCase(TracerTestCase):
         ddtrace.tracer = self.backup_tracer
         super(SpanProbeTestCase, self).tearDown()
 
+        if (uploader := MockSpanCodeOriginProcessor.get_uploader()) is not None:
+            uploader.flush()
+
         MockSpanCodeOriginProcessorEntry.disable()
         MockSpanCodeOriginProcessor.disable()
+
+        assert MockSpanCodeOriginProcessor.get_uploader() is None
+
         core.reset_listeners(event_id="service_entrypoint.patch")
 
     def test_span_origin(self):

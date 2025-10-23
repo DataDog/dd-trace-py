@@ -112,6 +112,9 @@ class MockSignalUploader(SignalUploader):
 
         return self.payloads
 
+    def flush(self) -> None:
+        self.queue.clear()
+
     @property
     def collector(self):
         return self._collector
