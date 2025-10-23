@@ -16,8 +16,8 @@ from ddtrace.contrib.internal.trace_utils import _sanitized_url
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.constants import OTEL_OTLP_EXPORTER_IDENTIFIER
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.opentelemetry.constants import OTLP_EXPORTER_HEADER_IDENTIFIER
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_argument_value
@@ -34,7 +34,7 @@ def is_otlp_export(request: requests.models.Request) -> bool:
         return False
     user_agent = request.headers.get(USER_AGENT_HEADER, "")
     normalized_user_agent = user_agent.lower().replace(" ", "-")
-    if OTEL_OTLP_EXPORTER_IDENTIFIER in normalized_user_agent:
+    if OTLP_EXPORTER_HEADER_IDENTIFIER in normalized_user_agent:
         return True
     return False
 

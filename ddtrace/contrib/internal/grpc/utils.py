@@ -8,7 +8,7 @@ from ddtrace import config
 from ddtrace.contrib.internal.grpc import constants
 from ddtrace.contrib.internal.grpc.constants import USER_AGENT_HEADER
 from ddtrace.ext import net
-from ddtrace.internal.constants import OTEL_OTLP_EXPORTER_IDENTIFIER
+from ddtrace.internal.opentelemetry.constants import OTLP_EXPORTER_HEADER_IDENTIFIER
 
 
 log = logging.getLogger(__name__)
@@ -124,6 +124,6 @@ def is_otlp_export(metadata: Tuple) -> bool:
     for key, value in metadata:
         if key == USER_AGENT_HEADER:
             normalized_value = value.lower().replace(" ", "-")
-            if OTEL_OTLP_EXPORTER_IDENTIFIER in normalized_value:
+            if OTLP_EXPORTER_HEADER_IDENTIFIER in normalized_value:
                 return True
     return False
