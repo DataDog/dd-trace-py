@@ -522,6 +522,7 @@ def test_trace_with_invalid_payload_generates_error_log():
                     0,
                     "http://localhost:8126/v0.5/traces",
                     "Invalid format: Unable to read payload len",
+                    extra={"send_to_telemetry": False},
                 )
             ]
         )
@@ -557,6 +558,7 @@ def test_trace_with_invalid_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
                     "http://localhost:8126/v0.5/traces",
                     "Invalid format: Unable to read payload len",
                     "6261645f7061796c6f6164",
+                    extra={"send_to_telemetry": False},
                 )
             ]
         )
