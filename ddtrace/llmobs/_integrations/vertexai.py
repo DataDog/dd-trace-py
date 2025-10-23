@@ -33,9 +33,9 @@ class VertexAIIntegration(BaseLLMIntegration):
         self, span: Span, provider: Optional[str] = None, model: Optional[str] = None, **kwargs: Dict[str, Any]
     ) -> None:
         if provider is not None:
-            span.set_tag_str("vertexai.request.provider", provider)
+            span._set_tag_str("vertexai.request.provider", provider)
         if model is not None:
-            span.set_tag_str("vertexai.request.model", model)
+            span._set_tag_str("vertexai.request.model", model)
 
     def _llmobs_set_tags(
         self,

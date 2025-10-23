@@ -44,7 +44,7 @@ def get_app():
         await websocket.accept()
         root_span = tracer.current_root_span()
         if root_span:
-            root_span.set_tag_str(SAMPLING_DECISION_TRACE_TAG_KEY, "-1")
+            root_span._set_tag_str(SAMPLING_DECISION_TRACE_TAG_KEY, "-1")
             root_span.context.set_baggage_item("foo", "bar")
             root_span.context.sampling_priority = 1
         await websocket.send_json({"test": "Hello WebSocket"})
