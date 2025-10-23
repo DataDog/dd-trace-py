@@ -16,6 +16,7 @@ profiling = ["dep:datadog-profiling-ffi"]
 
 [dependencies]
 anyhow = { version = "1.0", optional = true }
+ctor = "0.2"
 datadog-crashtracker = { git = "https://github.com/DataDog/libdatadog", rev = "v21.0.0", optional = true }
 datadog-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "v21.0.0" }
 datadog-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "v21.0.0" }
@@ -25,14 +26,18 @@ datadog-profiling-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "
     "cbindgen",
 ] }
 ddcommon = { git = "https://github.com/DataDog/libdatadog", rev = "v21.0.0" }
+paste = "1.0"
 pyo3 = { version = "0.25", features = ["extension-module", "anyhow"] }
 tracing = { version = "0.1", default-features = false }
 
 [build-dependencies]
+glob = "0.3"
+proc-macro2 = "1.0"
 pyo3-build-config = "0.25"
 build_common = { git = "https://github.com/DataDog/libdatadog", rev = "v21.0.0", features = [
     "cbindgen",
 ] }
+syn = { version = "2.0", features = ["full", "extra-traits", "visit"] }
 
 [lib]
 name = "_native"
