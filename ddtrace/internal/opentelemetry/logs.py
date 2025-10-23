@@ -160,7 +160,7 @@ def _import_exporter(protocol):
             )
             return None
 
-        return _dd_logs_exporter(OTLPLogExporter, protocol, "protobuf")
+        return _dd_logs_exporter(OTLPLogExporter, protocol.split("/")[0], "protobuf")
 
     except ImportError as e:
         log.warning(
