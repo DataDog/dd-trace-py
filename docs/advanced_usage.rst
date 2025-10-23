@@ -391,34 +391,16 @@ Headers tracing
 
 For a selected set of integrations, it is possible to store http headers from both requests and responses in tags.
 
-The recommended method is to use the ``DD_TRACE_HEADER_TAGS`` environment variable.
+Use the ``DD_TRACE_HEADER_TAGS`` environment variable to configure traced headers.
 
-This configuration can be provided both at the global level and at the integration level in your application code, or it
-can be set via the Datadog UI (UI functionality in beta as of version 2.5.0).
+Example::
 
-Examples::
-
-    from ddtrace import config
-
-    # Global config
-    config.trace_headers([
-        'user-agent',
-        'transfer-encoding',
-    ])
-
-    # Integration level config, e.g. 'falcon'
-    config.falcon.http.trace_headers([
-        'user-agent',
-        'some-other-header',
-    ])
+    export DD_TRACE_HEADER_TAGS="user-agent,content-type,authorization"
 
 The following rules apply:
   - headers configuration is based on a whitelist. If a header does not appear in the whitelist, it won't be traced.
   - headers configuration is case-insensitive.
-  - if you configure a specific integration, e.g. 'requests', then such configuration overrides the default global
-    configuration, only for the specific integration.
-  - if you do not configure a specific integration, then the default global configuration applies, if any.
-  - if no configuration is provided (neither global nor integration-specific), then headers are not traced.
+  - if no configuration is provided, then headers are not traced.
 
 
 Once you configure your application for tracing, you will have the headers attached to the trace as tags, with a
