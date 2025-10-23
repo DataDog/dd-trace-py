@@ -332,7 +332,8 @@ def config(
         timeline_enabled: Optional[bool] = None,
         output_filename: StringType = None,
         sample_pool_capacity: Optional[int] = None,
-        timeout: Optional[int] = None) -> None:
+        timeout: Optional[int] = None,
+) -> None:
 
     # Try to provide a ddtrace-specific default service if one is not given
     service = service or DEFAULT_SERVICE_NAME
