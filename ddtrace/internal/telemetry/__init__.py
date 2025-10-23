@@ -161,32 +161,31 @@ def validate_otel_envs():
             and otel_env not in SUPPORTED_OTEL_ENV_VARS
         ):
             _unsupported_otel_config(otel_env)
-        elif otel_env == "OTEL_LOGS_EXPORTER":
-            # check for invalid values
-            otel_value = os.environ.get(otel_env, "none").lower()
-            if otel_value != "none":
-                _invalid_otel_config(otel_env)
-            # TODO: Separate from validation
-            telemetry_writer.add_configuration(otel_env, otel_value, "env_var")
-        elif otel_env == "OTEL_METRICS_EXPORTER":
-            # defer validation to validate_and_report_otel_metrics_exporter_enabled
+        elif otel_env in ["OTEL_LOGS_EXPORTER", "OTEL_METRICS_EXPORTER"]:
+            # defer validation to validate_and_report_otel_exporter_enabled
             pass
 
 
-def validate_and_report_otel_metrics_exporter_enabled():
-    metrics_exporter_enabled = True
+def validate_and_report_otel_exporter_enabled(exporter_type: str):
+    exporter_type = exporter_type.upper()
+    exporter_env = f"OTEL_{exporter_type}_EXPORTER"
+    if exporter_type not in ["LOGS", "METRICS"]:
+        log.error(
+            "Validating invalid exporter type: %s. Exporter type must be either 'LOGS' or 'METRICS'.",
+            exporter_type,
+        )
+        return False
+    exporter_enabled = True
     user_envs = {key.upper(): value for key, value in os.environ.items()}
-    if "OTEL_METRICS_EXPORTER" in user_envs:
-        otel_value = os.environ.get("OTEL_METRICS_EXPORTER", "otlp").lower()
+    if exporter_env in user_envs:
+        otel_value = os.environ.get(exporter_env, "otlp").lower()
         if otel_value == "none":
-            metrics_exporter_enabled = False
+            exporter_enabled = False
         elif otel_value != "otlp":
-            _invalid_otel_config("OTEL_METRICS_EXPORTER")
-
+            _invalid_otel_config(exporter_env)
         # Report to configuration telemetry
-        telemetry_writer.add_configuration("OTEL_METRICS_EXPORTER", otel_value, "env_var")
-
-    return metrics_exporter_enabled
+        telemetry_writer.add_configuration(exporter_env, otel_value, "env_var")
+    return exporter_enabled
 
 
 def _hiding_otel_config(otel_env, dd_env):

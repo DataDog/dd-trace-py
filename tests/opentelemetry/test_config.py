@@ -37,9 +37,9 @@ def _global_sampling_rule():
         "OTEL_SDK_DISABLED": "True",
         "DD_TRACE_OTEL_ENABLED": "True",
     },
-    err=b"Setting OTEL_LOGS_EXPORTER to warning is not supported by ddtrace, this configuration "
-    b"will be ignored.\nTrace sampler set from always_off to parentbased_always_off; only parent based "
-    b"sampling is supported.\nFollowing style not supported by ddtrace: jaegar.\n",
+    err=b"Trace sampler set from always_off to parentbased_always_off; only parent based sampling "
+    b"is supported.\nSetting OTEL_TRACES_EXPORTER to True is not supported by ddtrace, "
+    b"this configuration will be ignored.\nFollowing style not supported by ddtrace: jaegar.\n",
 )
 def test_dd_otel_mixed_env_configuration():
     from ddtrace import config
@@ -71,9 +71,9 @@ def test_dd_otel_mixed_env_configuration():
         "service.version=1.0,testtag1=random1,testtag2=random2,testtag3=random3,testtag4=random4",
         "OTEL_SDK_DISABLED": "False",
     },
-    err=b"Setting OTEL_LOGS_EXPORTER to warning is not supported by ddtrace, this configuration will be ignored.\n"
-    b"Trace sampler set from always_off to parentbased_always_off; only parent based sampling is supported.\n"
-    b"Following style not supported by ddtrace: jaegar.\n",
+    err=b"Trace sampler set from always_off to parentbased_always_off; only parent based sampling "
+    b"is supported.\nSetting OTEL_TRACES_EXPORTER to OTLP is not supported by ddtrace, this "
+    b"configuration will be ignored.\nFollowing style not supported by ddtrace: jaegar.\n",
 )
 def test_dd_otel_missing_dd_env_configuration():
     from ddtrace import config
@@ -217,7 +217,7 @@ def test_otel_metrics_exporter_configuration_none():
     assert config._runtime_metrics_enabled is False, config._runtime_metrics_enabled
 
 
-@pytest.mark.subprocess(env={"DD_METRICS_OTEL_ENABLED": "True", "OTEL_METRICS_EXPORTER": "otlp"})
+@pytest.mark.subprocess(parametrize={"DD_METRICS_OTEL_ENABLED": ["True", None]}, env={"OTEL_METRICS_EXPORTER": "otlp"})
 def test_otel_metrics_exporter_configuration_otlp():
     from ddtrace import config
 
@@ -232,6 +232,13 @@ def test_otel_metrics_exporter_configuration_unsupported_exporter():
     from ddtrace import config
 
     assert config._runtime_metrics_enabled is False, config._runtime_metrics_enabled
+
+
+@pytest.mark.subprocess(parametrize={"DD_LOGS_OTEL_ENABLED": ["True", None]}, env={"OTEL_LOGS_EXPORTER": "otlp"})
+def test_otel_logs_exporter_configuration_otlp():
+    from ddtrace import config
+
+    assert config._otel_logs_enabled is True, config._otel_logs_enabled
 
 
 @pytest.mark.subprocess(
