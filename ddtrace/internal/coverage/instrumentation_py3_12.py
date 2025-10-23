@@ -21,10 +21,30 @@ RESUME = dis.opmap["RESUME"]
 RETURN_CONST = dis.opmap["RETURN_CONST"]
 EMPTY_MODULE_BYTES = bytes([RESUME, 0, RETURN_CONST, 0])
 
+# Store: (hook, path, import_names_by_line)
 _CODE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str, t.Dict[int, t.Tuple[str, t.Optional[t.Tuple[str]]]]]] = {}
+
+# Track all instrumented code objects so we can re-enable monitoring between tests/suites
+_DEINSTRUMENTED_CODE_OBJECTS: t.Set[CodeType] = set()
 
 
 def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, CoverageLines]:
+    """
+    Instrument code for coverage tracking using Python 3.12's monitoring API.
+
+    Args:
+        code: The code object to instrument
+        hook: The hook function to call
+        path: The file path
+        package: The package name
+
+    Note: Python 3.12+ uses an optimized approach where each line callback returns DISABLE
+    after recording. This means:
+    - Each line is only reported once per coverage context (test/suite)
+    - No overhead for repeated line executions (e.g., in loops)
+    - Full line-by-line coverage data is captured
+    - reset_monitoring_for_new_context() re-enables monitoring between contexts
+    """
     coverage_tool = sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID)
     if coverage_tool is not None and coverage_tool != "datadog":
         log.debug("Coverage tool '%s' already registered, not gathering coverage", coverage_tool)
@@ -38,9 +58,24 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
 
 
 def _line_event_handler(code: CodeType, line: int) -> t.Any:
-    hook, path, import_names = _CODE_HOOKS[code]
+    hook_data = _CODE_HOOKS.get(code)
+    if hook_data is None:
+        # Track this code object so we can re-enable monitoring for it later
+        _DEINSTRUMENTED_CODE_OBJECTS.add(code)
+        return sys.monitoring.DISABLE
+
+    hook, path, import_names = hook_data
+
+    # Report the line and then disable monitoring for this specific line
+    # This ensures each line is only reported once per context, even if executed multiple times (e.g., in loops)
     import_name = import_names.get(line, None)
-    return hook((line, path, import_name))
+    hook((line, path, import_name))
+
+    # Track this code object so we can re-enable monitoring for it later
+    _DEINSTRUMENTED_CODE_OBJECTS.add(code)
+    # Return DISABLE to prevent future callbacks for this specific line
+    # This provides full line coverage with minimal overhead
+    return sys.monitoring.DISABLE
 
 
 def _register_monitoring():
@@ -53,6 +88,23 @@ def _register_monitoring():
     sys.monitoring.register_callback(
         sys.monitoring.COVERAGE_ID, sys.monitoring.events.LINE, _line_event_handler
     )  # noqa
+
+
+def reset_monitoring_for_new_context():
+    """
+    Re-enable monitoring for all instrumented code objects.
+
+    This should be called when starting a new coverage context (e.g., per-test or per-suite).
+    It re-enables monitoring that was disabled by previous DISABLE returns.
+    """
+    # restart_events() re-enables all events that were disabled by returning DISABLE
+    # This resets the per-line disable state across all code objects
+    sys.monitoring.restart_events()
+
+    # Then re-enable local events for all instrumented code objects
+    # This ensures monitoring is active for the new context
+    for code in _DEINSTRUMENTED_CODE_OBJECTS:
+        sys.monitoring.set_local_events(sys.monitoring.COVERAGE_ID, code, sys.monitoring.events.LINE)  # noqa
 
 
 def _instrument_all_lines_with_monitoring(
