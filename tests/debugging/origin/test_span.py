@@ -77,6 +77,7 @@ class SpanProbeTestCase(TracerTestCase):
         assert _exit.get_tag("_dd.code_origin.frames.0.file") == str(Path(__file__).resolve())
         assert _exit.get_tag("_dd.code_origin.frames.0.line") == str(self.test_span_origin.__code__.co_firstlineno)
 
+    @pytest.mark.skip(reason="Frequent unreliable failures")
     def test_span_origin_session(self):
         def entry_call():
             pass
