@@ -208,7 +208,8 @@ class ProfilingConfig(DDConfig):
         default=10.0,
         help_type="Float",
         deprecations=[("api_timeout", None, "4.0.0")],
-        help="(Deprecated) The timeout in seconds before dropping events if the HTTP API does not reply. Use api_timeout_ms instead.",
+        help="(Deprecated) The timeout in seconds before dropping events if the HTTP API does not reply. "
+        "Use api_timeout_ms instead.",
     )
 
     api_timeout_ms = DDConfig.v(
