@@ -51,46 +51,62 @@ def test_nested_imports_mixed_path_reinstrumentation():
         fixture_mixed_path(10)
         context2_covered = _get_relpath_dict(cwd_path, context2.get_covered_lines())
 
-    # Expected runtime lines (captured in all contexts) - mixed path uses BOTH toplevel and dynamic
-    # Note: constant-only modules don't appear in coverage as they have no executable code
-    expected_runtime = {
-        "tests/coverage/included_path/nested_fixture.py": {16, 17, 23, 25, 26, 31, 32, 33},
-        "tests/coverage/included_path/layer2_toplevel.py": {10, 13, 15, 16},
-        "tests/coverage/included_path/layer2_dynamic.py": {9, 12, 13, 15, 16},
-        "tests/coverage/included_path/layer3_toplevel.py": {5, 6},
-        "tests/coverage/included_path/layer3_dynamic.py": {5, 6},
+    # Expected files for all contexts
+    expected_files = {
+        "tests/coverage/included_path/nested_fixture.py",
+        "tests/coverage/included_path/layer2_toplevel.py",
+        "tests/coverage/included_path/layer2_dynamic.py",
+        "tests/coverage/included_path/layer3_toplevel.py",
+        "tests/coverage/included_path/layer3_dynamic.py",
     }
 
-    # Expected import-time lines (only in context 1)
-    expected_import_time = {
-        "tests/coverage/included_path/layer2_dynamic.py": {1, 4, 7},  # docstring + import + function def
-        "tests/coverage/included_path/layer3_dynamic.py": {1, 4},  # docstring + function def
-    }
-
-    for file_path, expected_lines in expected_runtime.items():
-        # All contexts should have the file
+    # All contexts should have the files
+    for file_path in expected_files:
         assert file_path in context1_covered, f"Context 1 missing {file_path}"
         assert file_path in context2_covered, f"Context 2 missing {file_path} - re-instrumentation failed!"
 
-        # Check runtime lines are captured in context 1 and 2
-        assert context2_covered[file_path] == expected_lines, (
-            f"{file_path}: Runtime coverage mismatch\n"
-            f"  Expected: {sorted(expected_lines)}\n"
-            f"  Got: {sorted(context2_covered[file_path])}"
-        )
+    if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
+        # In file-level mode, just verify files have coverage and re-instrumentation works
+        for file_path in expected_files:
+            assert len(context1_covered[file_path]) > 0, f"Context 1 has no coverage for {file_path}"
+            assert len(context2_covered[file_path]) > 0, f"Context 2 has no coverage for {file_path}"
+    else:
+        # In line-level mode, check specific lines
+        # Expected runtime lines (captured in all contexts) - mixed path uses BOTH toplevel and dynamic
+        expected_runtime = {
+            "tests/coverage/included_path/nested_fixture.py": {16, 17, 23, 25, 26, 31, 32, 33},
+            "tests/coverage/included_path/layer2_toplevel.py": {10, 13, 15, 16},
+            "tests/coverage/included_path/layer2_dynamic.py": {9, 12, 13, 15, 16},
+            "tests/coverage/included_path/layer3_toplevel.py": {5, 6},
+            "tests/coverage/included_path/layer3_dynamic.py": {5, 6},
+        }
 
-        # Contexts should have runtime + any import-time lines
-        expected_context = expected_lines | expected_import_time.get(file_path, set())
-        assert context1_covered[file_path] == expected_context, (
-            f"{file_path}: Context 1 coverage mismatch\n"
-            f"  Expected: {sorted(expected_context)}\n"
-            f"  Got: {sorted(context1_covered[file_path])}"
-        )
+        # Expected import-time lines (only in context 1)
+        expected_import_time = {
+            "tests/coverage/included_path/layer2_dynamic.py": {1, 4, 7},  # docstring + import + function def
+            "tests/coverage/included_path/layer3_dynamic.py": {1, 4},  # docstring + function def
+        }
 
-    for file_path, expected_lines in expected_import_time.items():
-        assert not expected_lines.issubset(context2_covered[file_path]), (
-            f"{file_path}: Import time not expected in Context 2 coverage\n" f"  Got: {expected_lines}"
-        )
+        for file_path, expected_lines in expected_runtime.items():
+            # Check runtime lines are captured in context 2
+            assert context2_covered[file_path] == expected_lines, (
+                f"{file_path}: Runtime coverage mismatch\n"
+                f"  Expected: {sorted(expected_lines)}\n"
+                f"  Got: {sorted(context2_covered[file_path])}"
+            )
+
+            # Context 1 should have runtime + any import-time lines
+            expected_context = expected_lines | expected_import_time.get(file_path, set())
+            assert context1_covered[file_path] == expected_context, (
+                f"{file_path}: Context 1 coverage mismatch\n"
+                f"  Expected: {sorted(expected_context)}\n"
+                f"  Got: {sorted(context1_covered[file_path])}"
+            )
+
+        for file_path, expected_lines in expected_import_time.items():
+            assert not expected_lines.issubset(context2_covered[file_path]), (
+                f"{file_path}: Import time not expected in Context 2 coverage\n" f"  Got: {expected_lines}"
+            )
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
