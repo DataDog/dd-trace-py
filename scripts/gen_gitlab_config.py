@@ -124,6 +124,7 @@ def gen_build_docs() -> None:
             print("    PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'", file=f)
             print("    KUBERNETES_MEMORY_REQUEST: 4Gi", file=f)
             print("    KUBERNETES_MEMORY_LIMIT: 4Gi", file=f)
+            print("    DD_COMPILE_ABSEIL: 0", file=f)
             print("  script:", file=f)
             print("    - |", file=f)
             print("      hatch run docs:build", file=f)
