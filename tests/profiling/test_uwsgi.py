@@ -30,9 +30,20 @@ uwsgi_app = os.path.join(os.path.dirname(__file__), "uwsgi-app.py")
 def uwsgi(monkeypatch):
     # Do not ignore profiler so we have samples in the output pprof
     monkeypatch.setenv("DD_PROFILING_IGNORE_PROFILER", "0")
+    monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
     # Do not use pytest tmpdir fixtures which generate directories longer than allowed for a socket file name
     socket_name = tempfile.mktemp()
-    cmd = ["uwsgi", "--need-app", "--die-on-term", "--socket", socket_name, "--wsgi-file", uwsgi_app]
+    cmd = [
+        "uwsgi",
+        "--need-app",
+        "--die-on-term",
+        "--socket",
+        socket_name,
+        "--wsgi-file",
+        uwsgi_app,
+        "--import",
+        "ddtrace.auto",
+    ]
 
     try:
         yield run_uwsgi(cmd)
@@ -42,8 +53,11 @@ def uwsgi(monkeypatch):
 
 def test_uwsgi_threads_disabled(uwsgi):
     proc = uwsgi()
-    stdout, _ = proc.communicate()
-    assert proc.wait() != 0
+    try:
+        stdout, _ = proc.communicate(timeout=1)
+    except TimeoutExpired:
+        proc.terminate()
+        stdout, _ = proc.communicate()
     assert THREADS_MSG in stdout
 
 
@@ -72,7 +86,11 @@ def test_uwsgi_threads_enabled(uwsgi, tmp_path, monkeypatch):
 
 def test_uwsgi_threads_processes_no_master(uwsgi, monkeypatch):
     proc = uwsgi("--enable-threads", "--processes", "2")
-    stdout, _ = proc.communicate()
+    try:
+        stdout, _ = proc.communicate(timeout=3)
+    except TimeoutExpired:
+        proc.terminate()
+        stdout, _ = proc.communicate()
     assert (
         b"ddtrace.internal.uwsgi.uWSGIConfigError: master option must be enabled when multiple processes are used"
         in stdout

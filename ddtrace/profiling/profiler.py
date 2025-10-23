@@ -11,6 +11,7 @@ from typing import Union  # noqa:F401
 import ddtrace
 from ddtrace import config
 from ddtrace.internal import atexit
+from ddtrace.internal import forksafe
 from ddtrace.internal import service
 from ddtrace.internal import uwsgi
 from ddtrace.internal.datadog.profiling import ddup
@@ -48,6 +49,7 @@ class Profiler(object):
             uwsgi.check_uwsgi(atexit=self.stop)
         except uwsgi.uWSGIMasterProcess:
             # Do nothing, the start() method will be called in each worker subprocess
+            forksafe.register(self._profiler.start)
             return
         except uwsgi.uWSGIConfigDeprecationWarning:
             LOG.warning("uWSGI configuration deprecation warning", exc_info=True)
