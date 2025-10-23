@@ -39,9 +39,6 @@ RESUME = dis.opmap.get("RESUME", 151)
 # import_names_by_line maps line numbers to (package, modules) tuples for dependency tracking
 _CODE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str, t.Dict[int, t.Tuple[str, t.Tuple[str, ...]]]]] = {}
 
-# Track all instrumented code objects so we can re-enable monitoring between tests/suites
-_DEINSTRUMENTED_CODE_OBJECTS: t.Set[CodeType] = set()
-
 
 def instrument_for_file_coverage(
     code: CodeType, hook: HookType, path: str, package: str
@@ -85,8 +82,6 @@ def _py_start_event_handler(code: CodeType, instruction_offset: int) -> t.Any:
     """
     hook_data = _CODE_HOOKS.get(code)
     if hook_data is None:
-        # Track this code object so we can re-enable monitoring for it later
-        _DEINSTRUMENTED_CODE_OBJECTS.add(code)
         return sys.monitoring.DISABLE
 
     hook, path, import_names = hook_data
@@ -99,9 +94,6 @@ def _py_start_event_handler(code: CodeType, instruction_offset: int) -> t.Any:
     # This ensures import tracking works even though we don't fire on individual lines
     for line_num, import_name in import_names.items():
         hook((line_num, path, import_name))
-
-    # Track this code object so we can re-enable monitoring for it later
-    _DEINSTRUMENTED_CODE_OBJECTS.add(code)
 
     # Return DISABLE to prevent future callbacks for this function
     # This means each function is only reported once per context
@@ -213,12 +205,6 @@ def reset_monitoring_for_new_context():
     # restart_events() re-enables all events that were disabled by returning DISABLE
     # This resets the per-function disable state across all code objects
     sys.monitoring.restart_events()
-
-    # Then re-enable local events for all instrumented code objects
-    # This ensures monitoring is active for the new context
-    for code in _DEINSTRUMENTED_CODE_OBJECTS:
-        # Use PY_START event instead of LINE for file-level coverage
-        sys.monitoring.set_local_events(sys.monitoring.COVERAGE_ID, code, sys.monitoring.events.PY_START)
 
 
 def _instrument_with_py_start(
