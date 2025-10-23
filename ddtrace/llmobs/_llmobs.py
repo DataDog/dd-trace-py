@@ -1875,6 +1875,74 @@ class LLMObs(Service):
         cls._instance.tracer.context_provider.activate(context)
         error = cls._instance._activate_llmobs_distributed_context(request_headers, context)
         telemetry.record_activate_distributed_headers(error)
+    
+    @classmethod
+    def search_span(cls, trace_id: str, span_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Searches for a span by trace_id and span_id.
+
+        :param trace_id: The trace_id of the span to search for.
+        :param span_id: The span_id of the span to search for.
+        :return: The span data if found, None otherwise.
+        """
+        if cls.enabled is False:
+            log.warning("LLMObs.search_span() called when LLMObs is not enabled.")
+            return None
+
+        from urllib.parse import urlencode
+        from ddtrace.internal.utils.http import get_connection, Response
+
+        search_path = "/api/v2/llm-obs/v1/spans/events"
+
+        query_params = {
+            "filter[trace_id]": trace_id,
+            "filter[span_id]": span_id,
+            "page[limit]": "1",
+        }
+        query_string = urlencode(query_params)
+        full_path = f"{search_path}?{query_string}"
+
+        headers = {
+            "DD-API-KEY": config._dd_api_key,
+            "DD-APPLICATION-KEY": cls._app_key,
+        }
+
+        base_url = f"https://{config._dd_site}"
+
+        conn = get_connection(base_url, timeout=10.0)
+        try:
+            url = base_url + full_path
+            log.debug("Searching for span: trace_id=%s, span_id=%s at %s", trace_id, span_id, url)
+
+            conn.request("GET", full_path, None, headers)
+            resp = conn.getresponse()
+
+            response = Response.from_http_response(resp)
+
+            if response.status == 200:
+                log.debug("Successfully found span: trace_id=%s, span_id=%s", trace_id, span_id)
+                result = response.get_json()
+                if result and "data" in result and len(result["data"]) > 0:
+                    return result["data"][0]
+                log.debug("No spans found in response: trace_id=%s, span_id=%s", trace_id, span_id)
+                return None
+            elif response.status == 404:
+                log.debug("Span not found: trace_id=%s, span_id=%s", trace_id, span_id)
+                return None
+            else:
+                log.error(
+                    "Failed to search for span: trace_id=%s, span_id=%s, status=%d, response=%s",
+                    trace_id,
+                    span_id,
+                    response.status,
+                    response.body,
+                )
+                return None
+        except Exception as e:
+            log.error("Exception while searching for span: %s", str(e), exc_info=True)
+            return None
+        finally:
+            conn.close()
 
 
 # initialize the default llmobs instance
