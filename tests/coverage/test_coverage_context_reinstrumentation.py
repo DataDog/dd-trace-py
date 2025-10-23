@@ -220,7 +220,6 @@ def test_nested_contexts_maintain_independence():
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
 @pytest.mark.subprocess
-<<<<<<< HEAD
 def test_many_sequential_contexts_no_degradation():
     """
     Test that coverage quality doesn't degrade over many sequential contexts.
