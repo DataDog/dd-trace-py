@@ -1,0 +1,4 @@
+upgrade:
+  - |
+    profiling: this updates echion (the python stack sampler) to the latest version, which introduces opt-in support
+    for a faster memory copyfunction.
