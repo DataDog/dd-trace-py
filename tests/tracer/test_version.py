@@ -1,7 +1,7 @@
-import pytest
 import sys
 
 import mock
+import pytest
 
 from ddtrace.version import get_version
 from tests.tracer import _version  # noqa: F401 -> we need to import it so that it can be swapped with the test module
