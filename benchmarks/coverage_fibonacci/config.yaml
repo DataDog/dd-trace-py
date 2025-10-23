@@ -1,8 +1,11 @@
 # Coverage benchmark configurations for fibonacci code
 # Tests sys.monitoring.DISABLE optimization performance
+# Configurations for both line-level and file-level coverage modes
 
+# Line-level coverage configurations (original mode)
 small: &base
   fib_n_recursive: 10
+  env_dd_coverage_file_level: "false"
 
 medium:
   <<: *base
@@ -10,4 +13,17 @@ medium:
 
 large:
   <<: *base
+  fib_n_recursive: 20
+
+# File-level coverage configurations (lightweight mode)
+small_file: &base_file
+  fib_n_recursive: 10
+  env_dd_coverage_file_level: "true"
+
+medium_file:
+  <<: *base_file
+  fib_n_recursive: 15
+
+large_file:
+  <<: *base_file
   fib_n_recursive: 20
