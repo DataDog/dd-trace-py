@@ -391,7 +391,7 @@ Headers tracing
 
 For a selected set of integrations, it is possible to store http headers from both requests and responses in tags.
 
-Use the ``DD_TRACE_HEADER_TAGS`` environment variable to configure traced headers.
+Use the ``DD_TRACE_HEADER_TAGS`` environment variable to configure trace headers.
 
 Example::
 
