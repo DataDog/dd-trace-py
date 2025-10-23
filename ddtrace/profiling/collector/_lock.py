@@ -40,7 +40,7 @@ class _ProfiledLock:
     """
     
     __slots__ = (
-        "_wrapped",
+        "__wrapped__",
         "_self_tracer",
         "_self_max_nframes",
         "_self_capture_sampler",
@@ -58,7 +58,7 @@ class _ProfiledLock:
         capture_sampler: collector.CaptureSampler,
         endpoint_collection_enabled: bool,
     ) -> None:
-        self._wrapped: Any = wrapped
+        self.__wrapped__: Any = wrapped
         self._self_tracer: Optional[Tracer] = tracer
         self._self_max_nframes: int = max_nframes
         self._self_capture_sampler: collector.CaptureSampler = capture_sampler
@@ -71,10 +71,10 @@ class _ProfiledLock:
         self._self_name: Optional[str] = None
 
     def __aenter__(self, *args: Any, **kwargs: Any) -> Any:
-        return self._acquire(self._wrapped.__aenter__, *args, **kwargs)
+        return self._acquire(self.__wrapped__.__aenter__, *args, **kwargs)
 
     def __aexit__(self, *args: Any, **kwargs: Any) -> Any:
-        return self._release(self._wrapped.__aexit__, *args, **kwargs)
+        return self._release(self.__wrapped__.__aexit__, *args, **kwargs)
 
     def _acquire(self, inner_func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         if not self._self_capture_sampler.capture():
@@ -132,7 +132,7 @@ class _ProfiledLock:
                 pass  # nosec
 
     def acquire(self, *args: Any, **kwargs: Any) -> Any:
-        return self._acquire(self._wrapped.acquire, *args, **kwargs)
+        return self._acquire(self.__wrapped__.acquire, *args, **kwargs)
 
     def _release(self, inner_func: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
         # Using __slots__ makes attribute handling cleaner than with wrapt.ObjectProxy
@@ -194,13 +194,13 @@ class _ProfiledLock:
                 handle.flush_sample()
 
     def release(self, *args: Any, **kwargs: Any) -> Any:
-        return self._release(self._wrapped.release, *args, **kwargs)
+        return self._release(self.__wrapped__.release, *args, **kwargs)
 
     def __enter__(self, *args: Any, **kwargs: Any) -> Any:
-        return self._acquire(self._wrapped.__enter__, *args, **kwargs)
+        return self._acquire(self.__wrapped__.__enter__, *args, **kwargs)
 
     def __exit__(self, *args: Any, **kwargs: Any) -> None:
-        self._release(self._wrapped.__exit__, *args, **kwargs)
+        self._release(self.__wrapped__.__exit__, *args, **kwargs)
 
     def _find_self_name(self, var_dict: Dict[str, Any]) -> Optional[str]:
         for name, value in var_dict.items():
@@ -251,10 +251,10 @@ class _ProfiledLock:
     # Delegate remaining lock methods to the wrapped lock
     def locked(self) -> bool:
         """Return True if lock is currently held."""
-        return self._wrapped.locked()
+        return self.__wrapped__.locked()
     
     def __repr__(self) -> str:
-        return f"<_ProfiledLock({self._wrapped!r}) at {self._self_init_loc}>"
+        return f"<_ProfiledLock({self.__wrapped__!r}) at {self._self_init_loc}>"
     
     # Support for being used in with statements
     def __bool__(self) -> bool:
