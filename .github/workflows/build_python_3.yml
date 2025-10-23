@@ -123,7 +123,7 @@ jobs:
           # SYSTEM_VERSION_COMPAT is a workaround for versioning issue, a.k.a.
           # `platform.mac_ver()` reports incorrect MacOS version at 11.0
           # See: https://stackoverflow.com/a/65402241
-          CIBW_ENVIRONMENT_MACOS: CMAKE_BUILD_PARALLEL_LEVEL=24 SYSTEM_VERSION_COMPAT=0 DD_COMPILE_ABSEIL=0 MACOSX_DEPLOYMENT_TARGET=10.14
+          CIBW_ENVIRONMENT_MACOS: CMAKE_BUILD_PARALLEL_LEVEL=24 SYSTEM_VERSION_COMPAT=0
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: |
             mkdir ./tempwheelhouse &&
             unzip -l {wheel} | grep '\.so' &&
