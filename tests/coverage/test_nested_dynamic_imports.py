@@ -19,7 +19,7 @@ import pytest
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
-@pytest.mark.subprocess
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
 def test_nested_imports_mixed_path_reinstrumentation():
     """
     Test re-instrumentation with nested imports using both top-level and dynamic paths.
@@ -94,7 +94,7 @@ def test_nested_imports_mixed_path_reinstrumentation():
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
-@pytest.mark.subprocess
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
 def test_nested_imports_interleaved_execution():
     """
     Test re-instrumentation with interleaved execution of different import paths.
@@ -138,84 +138,115 @@ def test_nested_imports_interleaved_execution():
         fixture_dynamic_path(7)
         context4_covered = _get_relpath_dict(cwd_path, context4.get_covered_lines())
 
-    # Expected coverage for contexts 1 and 3 (both use toplevel path)
-    # Note: constant-only modules don't appear as they have no executable code
-    expected_toplevel_runtime = {
-        "tests/coverage/included_path/nested_fixture.py": {16, 17},
-        "tests/coverage/included_path/layer2_toplevel.py": {10, 13, 15, 16},  # Updated
-        "tests/coverage/included_path/layer3_toplevel.py": {5, 6},
-        "tests/coverage/included_path/layer3_dynamic.py": {5, 6},
+    # Expected files for each path
+    expected_toplevel_files = {
+        "tests/coverage/included_path/nested_fixture.py",
+        "tests/coverage/included_path/layer2_toplevel.py",
+        "tests/coverage/included_path/layer3_toplevel.py",
+        "tests/coverage/included_path/layer3_dynamic.py",
+    }
+    
+    expected_dynamic_files = {
+        "tests/coverage/included_path/nested_fixture.py",
+        "tests/coverage/included_path/layer2_dynamic.py",
+        "tests/coverage/included_path/layer3_toplevel.py",
+        "tests/coverage/included_path/layer3_dynamic.py",
     }
 
-    # Expected coverage for contexts 2 and 4 (both use dynamic path)
-    expected_dynamic_runtime = {
-        "tests/coverage/included_path/nested_fixture.py": {23, 25, 26},
-        "tests/coverage/included_path/layer2_dynamic.py": {9, 12, 13, 15, 16},  # Updated
-        "tests/coverage/included_path/layer3_toplevel.py": {5, 6},
-        "tests/coverage/included_path/layer3_dynamic.py": {5, 6},
-    }
+    if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
+        # In file-level mode, just verify files are present and re-instrumentation works
+        # Check toplevel path files (contexts 1 and 3)
+        for file_path in expected_toplevel_files:
+            assert file_path in context1_covered, f"Context 1 missing {file_path}"
+            assert file_path in context3_covered, f"Context 3 missing {file_path} - re-instrumentation failed!"
+            assert len(context1_covered[file_path]) > 0, f"Context 1 has no coverage for {file_path}"
+            assert len(context3_covered[file_path]) > 0, f"Context 3 has no coverage for {file_path}"
+        
+        # Check dynamic path files (contexts 2 and 4)
+        for file_path in expected_dynamic_files:
+            assert file_path in context2_covered, f"Context 2 missing {file_path}"
+            assert file_path in context4_covered, f"Context 4 missing {file_path} - re-instrumentation failed!"
+            assert len(context2_covered[file_path]) > 0, f"Context 2 has no coverage for {file_path}"
+            assert len(context4_covered[file_path]) > 0, f"Context 4 has no coverage for {file_path}"
+    else:
+        # In line-level mode, check specific lines
+        # Expected coverage for contexts 1 and 3 (both use toplevel path)
+        expected_toplevel_runtime = {
+            "tests/coverage/included_path/nested_fixture.py": {16, 17},
+            "tests/coverage/included_path/layer2_toplevel.py": {10, 13, 15, 16},
+            "tests/coverage/included_path/layer3_toplevel.py": {5, 6},
+            "tests/coverage/included_path/layer3_dynamic.py": {5, 6},
+        }
 
-    # Check toplevel path (contexts 1 and 3)
-    for file_path, expected_lines in expected_toplevel_runtime.items():
-        assert file_path in context1_covered, f"Context 1 missing {file_path}"
-        assert file_path in context3_covered, f"Context 3 missing {file_path} - re-instrumentation failed!"
+        # Expected coverage for contexts 2 and 4 (both use dynamic path)
+        expected_dynamic_runtime = {
+            "tests/coverage/included_path/nested_fixture.py": {23, 25, 26},
+            "tests/coverage/included_path/layer2_dynamic.py": {9, 12, 13, 15, 16},
+            "tests/coverage/included_path/layer3_toplevel.py": {5, 6},
+            "tests/coverage/included_path/layer3_dynamic.py": {5, 6},
+        }
 
-        # CRITICAL: Context 3 should have exact runtime coverage
-        assert context3_covered[file_path] == expected_lines, (
-            f"{file_path}: Context 3 runtime mismatch\n"
-            f"  Expected: {sorted(expected_lines)}\n"
-            f"  Got: {sorted(context3_covered[file_path])}"
-        )
+        # Check toplevel path (contexts 1 and 3)
+        for file_path, expected_lines in expected_toplevel_runtime.items():
+            assert file_path in context1_covered, f"Context 1 missing {file_path}"
+            assert file_path in context3_covered, f"Context 3 missing {file_path} - re-instrumentation failed!"
 
-        # Context 1 may have import-time lines for dynamically imported modules
-        if file_path == "tests/coverage/included_path/layer3_dynamic.py":
-            # Context 1 captures import-time + runtime for layer3_dynamic (dynamically imported)
-            expected_context1 = expected_lines | {1, 4}  # docstring + function def
-            assert context1_covered[file_path] == expected_context1, (
-                f"{file_path}: Context 1 mismatch\n"
-                f"  Expected: {sorted(expected_context1)}\n"
-                f"  Got: {sorted(context1_covered[file_path])}"
-            )
-        elif file_path == "tests/coverage/included_path/layer2_toplevel.py":
-            # layer2_toplevel is imported at fixture top-level, so it's imported before Context 1
-            # Therefore, Context 1 won't have its import-time lines
-            assert context1_covered[file_path] == expected_lines, (
-                f"{file_path}: Context 1 mismatch\n"
+            # CRITICAL: Context 3 should have exact runtime coverage
+            assert context3_covered[file_path] == expected_lines, (
+                f"{file_path}: Context 3 runtime mismatch\n"
                 f"  Expected: {sorted(expected_lines)}\n"
-                f"  Got: {sorted(context1_covered[file_path])}"
+                f"  Got: {sorted(context3_covered[file_path])}"
             )
-        else:
-            assert context1_covered[file_path] == expected_lines, (
-                f"{file_path}: Context 1 mismatch\n"
+
+            # Context 1 may have import-time lines for dynamically imported modules
+            if file_path == "tests/coverage/included_path/layer3_dynamic.py":
+                # Context 1 captures import-time + runtime for layer3_dynamic (dynamically imported)
+                expected_context1 = expected_lines | {1, 4}  # docstring + function def
+                assert context1_covered[file_path] == expected_context1, (
+                    f"{file_path}: Context 1 mismatch\n"
+                    f"  Expected: {sorted(expected_context1)}\n"
+                    f"  Got: {sorted(context1_covered[file_path])}"
+                )
+            elif file_path == "tests/coverage/included_path/layer2_toplevel.py":
+                # layer2_toplevel is imported at fixture top-level, so it's imported before Context 1
+                # Therefore, Context 1 won't have its import-time lines
+                assert context1_covered[file_path] == expected_lines, (
+                    f"{file_path}: Context 1 mismatch\n"
+                    f"  Expected: {sorted(expected_lines)}\n"
+                    f"  Got: {sorted(context1_covered[file_path])}"
+                )
+            else:
+                assert context1_covered[file_path] == expected_lines, (
+                    f"{file_path}: Context 1 mismatch\n"
+                    f"  Expected: {sorted(expected_lines)}\n"
+                    f"  Got: {sorted(context1_covered[file_path])}"
+                )
+
+        # Check dynamic path (contexts 2 and 4)
+        for file_path, expected_lines in expected_dynamic_runtime.items():
+            assert file_path in context2_covered, f"Context 2 missing {file_path}"
+            assert file_path in context4_covered, f"Context 4 missing {file_path} - re-instrumentation failed!"
+
+            # CRITICAL: Context 4 should have exact runtime coverage (proves re-instrumentation works)
+            assert context4_covered[file_path] == expected_lines, (
+                f"{file_path}: Context 4 runtime mismatch\n"
                 f"  Expected: {sorted(expected_lines)}\n"
-                f"  Got: {sorted(context1_covered[file_path])}"
+                f"  Got: {sorted(context4_covered[file_path])}"
             )
 
-    # Check dynamic path (contexts 2 and 4)
-    for file_path, expected_lines in expected_dynamic_runtime.items():
-        assert file_path in context2_covered, f"Context 2 missing {file_path}"
-        assert file_path in context4_covered, f"Context 4 missing {file_path} - re-instrumentation failed!"
-
-        # CRITICAL: Context 4 should have exact runtime coverage (proves re-instrumentation works)
-        assert context4_covered[file_path] == expected_lines, (
-            f"{file_path}: Context 4 runtime mismatch\n"
-            f"  Expected: {sorted(expected_lines)}\n"
-            f"  Got: {sorted(context4_covered[file_path])}"
-        )
-
-        # Context 2 is first to use dynamic path, may have import-time lines
-        # Note: layer3_dynamic was already imported in Context 1, so Context 2 won't have its import-time
-        if file_path == "tests/coverage/included_path/layer2_dynamic.py":
-            # Context 2 captures import-time for layer2_dynamic (first time it's imported)
-            expected_context2 = expected_lines | {1, 4, 7}  # docstring + import + function def
-            assert context2_covered[file_path] == expected_context2, (
-                f"{file_path}: Context 2 mismatch\n"
-                f"  Expected: {sorted(expected_context2)}\n"
-                f"  Got: {sorted(context2_covered[file_path])}"
-            )
-        else:
-            assert context2_covered[file_path] == expected_lines, (
-                f"{file_path}: Context 2 mismatch\n"
-                f"  Expected: {sorted(expected_lines)}\n"
-                f"  Got: {sorted(context2_covered[file_path])}"
-            )
+            # Context 2 is first to use dynamic path, may have import-time lines
+            # Note: layer3_dynamic was already imported in Context 1, so Context 2 won't have its import-time
+            if file_path == "tests/coverage/included_path/layer2_dynamic.py":
+                # Context 2 captures import-time for layer2_dynamic (first time it's imported)
+                expected_context2 = expected_lines | {1, 4, 7}  # docstring + import + function def
+                assert context2_covered[file_path] == expected_context2, (
+                    f"{file_path}: Context 2 mismatch\n"
+                    f"  Expected: {sorted(expected_context2)}\n"
+                    f"  Got: {sorted(context2_covered[file_path])}"
+                )
+            else:
+                assert context2_covered[file_path] == expected_lines, (
+                    f"{file_path}: Context 2 mismatch\n"
+                    f"  Expected: {sorted(expected_lines)}\n"
+                    f"  Got: {sorted(context2_covered[file_path])}"
+                )
