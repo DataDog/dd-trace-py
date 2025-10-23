@@ -41,11 +41,11 @@ endif()
 
 # Add echion
 set(ECHION_COMMIT
-    "39d74a33a3f3abe810e6a29132721871e3127472" # https://github.com/P403n1x87/echion/commit/39d74a33a3f3abe810e6a29132721871e3127472
+    "f7d3870a65082f123245f456ddef63d41de0e842" # https://github.com/kowalskithomas/echion/commit/f7d3870a65082f123245f456ddef63d41de0e842
     CACHE STRING "Commit hash of echion to use")
 FetchContent_Declare(
     echion
-    GIT_REPOSITORY "https://github.com/P403n1x87/echion.git"
+    GIT_REPOSITORY "https://github.com/kowalskithomas/echion.git"
     GIT_TAG ${ECHION_COMMIT})
 FetchContent_GetProperties(echion)
 
@@ -54,7 +54,7 @@ if(NOT echion_POPULATED)
 endif()
 
 # Specify the target C-extension that we want to build
-add_library(${EXTENSION_NAME} SHARED ${echion_SOURCE_DIR}/echion/frame.cc ${echion_SOURCE_DIR}/echion/render.cc
+add_library(${EXTENSION_NAME} SHARED ${echion_SOURCE_DIR}/echion/frame.cc ${echion_SOURCE_DIR}/echion/render.cc ${echion_SOURCE_DIR}/echion/danger.cc
                                      src/sampler.cpp src/stack_renderer.cpp src/stack_v2.cpp src/thread_span_links.cpp)
 
 # Add common config
