@@ -36,12 +36,15 @@ class Profiler(object):
 
     """
 
+    _instance: Optional["_ProfilerInstance"] = None
+
     def __init__(self, *args, **kwargs):
-        self._profiler = _ProfilerInstance(*args, **kwargs)
+        self._instance = self._profiler = _ProfilerInstance(*args, **kwargs)
 
     def start(self):
         """Start the profiler."""
-
+        if self._profiler is None:
+            return
         self._profiler.start()
 
     def stop(self, flush=True):
@@ -49,8 +52,12 @@ class Profiler(object):
 
         :param flush: Flush last profile.
         """
+        if self._profiler is None:
+            return
+
         try:
             self._profiler.stop(flush)
+            self._instance = self._profiler = None
         except service.ServiceStatusError:
             # Not a best practice, but for backward API compatibility that allowed to call `stop` multiple times.
             pass
@@ -58,6 +65,8 @@ class Profiler(object):
     def _restart_on_fork(self):
         # Be sure to stop the parent first, since it might have to e.g. unpatch functions
         # Do not flush data as we don't want to have multiple copies of the parent profile exported.
+        if self._profiler is None:
+            return
         try:
             self._profiler.stop(flush=False, join=False)
         except service.ServiceStatusError:

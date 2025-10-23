@@ -12,8 +12,6 @@ if os.getenv("_DD_TEST_IMPORT_AUTO"):
 import json
 
 from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
-from ddtrace.profiling import bootstrap
-import ddtrace.profiling.auto  # noqa:F401
 from ddtrace.trace import tracer
 from tests.webclient import PingFilter
 
@@ -23,9 +21,6 @@ tracer.configure(trace_processors=[PingFilter()])
 
 def aggressive_shutdown():
     tracer.shutdown(timeout=1)
-    if hasattr(bootstrap, "profiler"):
-        bootstrap.profiler._scheduler.stop()
-        bootstrap.profiler.stop()
 
 
 def simple_app(environ, start_response):
@@ -33,12 +28,15 @@ def simple_app(environ, start_response):
         aggressive_shutdown()
         data = b"goodbye"
     else:
+        from ddtrace.profiling.profiler import Profiler
+
         payload = {
             "profiler": {
                 # Once the scheduler is initialized, the last_export is set to a
                 # timestamp using time.time_ns()
-                "is_active": bootstrap.profiler._scheduler._last_export
-                > 0,
+                "is_active": Profiler._instance._scheduler._last_export > 0
+                if Profiler._instance is not None
+                else False,
             },
         }
         data = json.dumps(payload).encode("utf-8")
