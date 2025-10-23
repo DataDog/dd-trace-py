@@ -102,6 +102,8 @@ class TestTestVisibilityAPIClientKnownTestResponses(TestTestVisibilityAPIClientB
     def test_civisibility_api_client_known_tests_errors(self, do_request_side_effect):
         """Tests that the client correctly handles errors in the known test API response"""
         client = self._get_test_client()
-        with mock.patch.object(client, "_do_request", side_effect=[do_request_side_effect]):
+        with mock.patch.object(client, "_do_request", side_effect=do_request_side_effect), mock.patch(
+            "ddtrace.internal.utils.retry.sleep"
+        ):
             settings = client.fetch_known_tests(read_from_cache=False)
             assert settings is None
