@@ -348,7 +348,7 @@ def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
 
     def django_asgi_modifier(span, scope):
         span.name = schematize_url_operation("django.request", protocol="http", direction=SpanDirection.INBOUND)
-        span.set_tag_str(COMPONENT, config_django.integration_name)
+        span._set_tag_str(COMPONENT, config_django.integration_name)
 
     return TraceMiddleware(func(*args, **kwargs), integration_config=config_django, span_modifier=django_asgi_modifier)
 
@@ -374,7 +374,7 @@ def traced_authenticate(django, pin, func, instance, args, kwargs):
     if mode == "disabled":
         return result_user
     try:
-        result = core.dispatch_with_results(
+        result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
             "django.auth",
             (result_user, mode, kwargs, pin, _DjangoUserInfoRetriever(result_user, credentials=kwargs), config_django),
         ).user
@@ -485,7 +485,9 @@ def _patch(django):
 
 
 def wrap_wsgi_environ(wrapped, _instance, args, kwargs):
-    result = core.dispatch_with_results("django.wsgi_environ", (wrapped, _instance, args, kwargs)).wrapped_result
+    result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
+        "django.wsgi_environ", (wrapped, _instance, args, kwargs)
+    ).wrapped_result
     # if the callback is registered and runs, return the result
     if result:
         return result.value
