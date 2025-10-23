@@ -1,6 +1,8 @@
 from pathlib import Path
 import typing as t
 
+import pytest
+
 import ddtrace
 from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
 from ddtrace.debugging._origin.span import SpanCodeOriginProcessorExit
