@@ -76,6 +76,8 @@ pub struct PyTracerMetadata {
     pub service_name: Option<String>,
     pub service_env: Option<String>,
     pub service_version: Option<String>,
+    pub process_tags: Option<String>,
+    pub container_id: Option<String>,
 }
 
 #[pymethods]
@@ -88,6 +90,8 @@ impl PyTracerMetadata {
         service_name: Option<String>,
         service_env: Option<String>,
         service_version: Option<String>,
+        process_tags: Option<String>,
+        container_id: Option<String>,
     ) -> Self {
         PyTracerMetadata {
             runtime_id,
@@ -96,6 +100,8 @@ impl PyTracerMetadata {
             service_name,
             service_env,
             service_version,
+            process_tags,
+            container_id,
         }
     }
 }
@@ -118,6 +124,8 @@ pub fn store_metadata(data: &PyTracerMetadata) -> PyResult<PyAnonymousFileHandle
         service_name: data.service_name.clone(),
         service_env: data.service_env.clone(),
         service_version: data.service_version.clone(),
+        process_tags: data.process_tags.clone(),
+        container_id: data.container_id.clone(),
     };
 
     let res = store_tracer_metadata(&metadata);

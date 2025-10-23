@@ -113,6 +113,8 @@ class PyTracerMetadata:
         service_name: Optional[str],
         service_env: Optional[str],
         service_version: Optional[str],
+        process_tags: Optional[str],
+        container_id: Optional[str],
     ):
         """
         Initialize the `PyTracerMetadata`.
@@ -122,6 +124,8 @@ class PyTracerMetadata:
         :param service_name: Name of the service being instrumented.
         :param service_env: Environment of the service being instrumented.
         :param service_version: Version of the service being instrumented.
+        :param process_tags: Process tags of the application being instrumented.
+        :param container_id: Container id seen by the application.
         """
         ...
 
