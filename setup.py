@@ -412,6 +412,8 @@ class CMakeBuild(build_ext):
                 cmake_args += [
                     "-DBUILD_MACOS=ON",
                     "-DCMAKE_OSX_ARCHITECTURES={}".format(";".join(archs)),
+                    # Set macOS SDK default deployment target to 10.14 for C++17 support (if unset, may default to 10.9)
+                    "-DCMAKE_OSX_DEPLOYMENT_TARGET=10.14",
                 ]
 
         if CURRENT_OS != "Windows" and FAST_BUILD and ext.build_type:
