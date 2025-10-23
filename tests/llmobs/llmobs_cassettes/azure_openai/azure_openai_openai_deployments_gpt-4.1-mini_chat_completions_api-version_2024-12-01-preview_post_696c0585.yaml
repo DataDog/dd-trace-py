@@ -1,0 +1,112 @@
+interactions:
+- request:
+    body: '{"messages":[{"content":"Can you explain what Descartes meant by ''I think,
+      therefore I am''?","role":"user"}],"model":null,"stream":false}'
+    headers:
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept
+      : - application/json
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - gzip, deflate, zstd
+      ? !!python/object/apply:multidict._multidict.istr
+      - Connection
+      : - keep-alive
+      Content-Length:
+      - '137'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      ? !!python/object/apply:multidict._multidict.istr
+      - User-Agent
+      : - langchain-partner-python-azure-openai
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Arch
+      : - arm64
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Async
+      : - 'false'
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Lang
+      : - python
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-OS
+      : - MacOS
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Package-Version
+      : - 1.109.1
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Raw-Response
+      : - 'true'
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Runtime
+      : - CPython
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Runtime-Version
+      : - 3.11.13
+      ? !!python/object/apply:multidict._multidict.istr
+      - x-stainless-retry-count
+      : - '0'
+    method: POST
+    uri: https://llmobs-test-resource.openai.azure.com/openai/deployments/gpt-4.1-mini/chat/completions?api-version=2024-12-01-preview
+  response:
+    body:
+      string: "{\"choices\":[{\"content_filter_results\":{\"hate\":{\"filtered\":false,\"severity\":\"safe\"},\"protected_material_code\":{\"filtered\":false,\"detected\":false},\"protected_material_text\":{\"filtered\":false,\"detected\":false},\"self_harm\":{\"filtered\":false,\"severity\":\"safe\"},\"sexual\":{\"filtered\":false,\"severity\":\"safe\"},\"violence\":{\"filtered\":false,\"severity\":\"safe\"}},\"finish_reason\":\"stop\",\"index\":0,\"logprobs\":null,\"message\":{\"annotations\":[],\"content\":\"Certainly!
+        The phrase **\\\"I think, therefore I am\\\"** (originally in Latin: *Cogito,
+        ergo sum*) was coined by the French philosopher Ren\xE9 Descartes. It is a
+        fundamental element of Western philosophy and appears in his work *Meditations
+        on First Philosophy* (1641).\\n\\n**What Descartes meant:**\\n\\n1. **Starting
+        point of certainty:** Descartes was seeking an indubitable foundation for
+        knowledge. He embarked on a method of radical doubt, questioning everything
+        that could possibly be doubted\u2014his senses, the physical world, even mathematical
+        truths.\\n\\n2. **The act of thinking proves existence:** In the process of
+        doubting, he realized that the very act of doubting or thinking implies a
+        thinker. If he is doubting, then he must be thinking. If he is thinking, then
+        he must exist. Thus, the fact that he thinks is proof that he exists.\\n\\n3.
+        **Existence is confirmed through self-awareness:** This statement establishes
+        the self as a thinking thing (*res cogitans*). Descartes is not saying \\\"I
+        am a body,\\\" or \\\"I exist in the physical world,\\\" but rather affirming
+        the existence of the self as a conscious being\u2014one that thinks, doubts,
+        understands, wills, imagines, and senses.\\n\\n4. **Foundation for knowledge:**
+        From this fundamental truth, Descartes hoped to build further knowledge about
+        the world, God, and existence, by basing it on something certain and clear:
+        the existence of the self as a thinking entity.\\n\\nIn summary, **\\\"I think,
+        therefore I am\\\" means that the very act of thinking is proof enough of
+        one's existence and is the first principle of philosophy that cannot be doubted.**\",\"refusal\":null,\"role\":\"assistant\"}}],\"created\":1760724017,\"id\":\"chatcmpl-CRj2PkKuSFXMkYWzr4xxvmv5TtlQ9\",\"model\":\"gpt-4.1-mini-2025-04-14\",\"object\":\"chat.completion\",\"prompt_filter_results\":[{\"prompt_index\":0,\"content_filter_results\":{\"hate\":{\"filtered\":false,\"severity\":\"safe\"},\"jailbreak\":{\"filtered\":false,\"detected\":false},\"self_harm\":{\"filtered\":false,\"severity\":\"safe\"},\"sexual\":{\"filtered\":false,\"severity\":\"safe\"},\"violence\":{\"filtered\":false,\"severity\":\"safe\"}}}],\"system_fingerprint\":\"fp_3dcd5944f5\",\"usage\":{\"completion_tokens\":354,\"completion_tokens_details\":{\"accepted_prediction_tokens\":0,\"audio_tokens\":0,\"reasoning_tokens\":0,\"rejected_prediction_tokens\":0},\"prompt_tokens\":24,\"prompt_tokens_details\":{\"audio_tokens\":0,\"cached_tokens\":0},\"total_tokens\":378}}\n"
+    headers:
+      Content-Length:
+      - '2822'
+      Content-Type:
+      - application/json
+      Date:
+      - Fri, 17 Oct 2025 18:00:28 GMT
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      apim-request-id:
+      - ea05cb68-e4e4-4876-b0de-cca3a2bf4c63
+      azureml-model-session:
+      - d213-20251016082839
+      x-accel-buffering:
+      - 'no'
+      x-content-type-options:
+      - nosniff
+      x-ms-deployment-name:
+      - gpt-4.1-mini
+      x-ms-rai-invoked:
+      - 'true'
+      x-ms-region:
+      - East US 2
+      x-ratelimit-limit-requests:
+      - '250'
+      x-ratelimit-limit-tokens:
+      - '250000'
+      x-ratelimit-remaining-requests:
+      - '247'
+      x-ratelimit-remaining-tokens:
+      - '249962'
+      x-request-id:
+      - 33717a5b-b7e0-48d3-9347-0d8df2e5a48d
+    status:
+      code: 200
+      message: OK
+version: 1

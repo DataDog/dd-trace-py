@@ -61,9 +61,9 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         self, span: Span, provider: Optional[str] = None, model: Optional[str] = None, **kwargs: Dict[str, Any]
     ) -> None:
         if provider is not None:
-            span.set_tag_str("google_genai.request.provider", provider)
+            span._set_tag_str("google_genai.request.provider", provider)
         if model is not None:
-            span.set_tag_str("google_genai.request.model", model)
+            span._set_tag_str("google_genai.request.model", model)
 
     def _llmobs_set_tags(
         self,

@@ -88,9 +88,9 @@ def track_user(
     if span is None:
         return
     if user_id:
-        span.set_tag_str(_constants.APPSEC.USER_LOGIN_USERID, str(user_id))
+        span._set_tag_str(_constants.APPSEC.USER_LOGIN_USERID, str(user_id))
     if login:
-        span.set_tag_str(_constants.APPSEC.USER_LOGIN_USERNAME, str(login))
+        span._set_tag_str(_constants.APPSEC.USER_LOGIN_USERNAME, str(login))
     meta = metadata or {}
     usr_name = meta.pop("name", None) or meta.pop("usr.name", None)
     usr_email = meta.pop("email", None) or meta.pop("usr.email", None)
@@ -111,7 +111,7 @@ def track_user(
     if meta:
         _trace_utils.track_custom_event(None, "auth_sdk", metadata=meta)
     if not _auto:
-        span.set_tag_str(_constants.APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, _constants.LOGIN_EVENTS_MODE.SDK)
+        span._set_tag_str(_constants.APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, _constants.LOGIN_EVENTS_MODE.SDK)
         if _asm_request_context.in_asm_context():
             custom_data = {
                 "REQUEST_USER_ID": str(user_id) if user_id else None,
@@ -142,7 +142,7 @@ def track_user_id(
     if span is None:
         return
     if user_id:
-        span.set_tag_str(_constants.APPSEC.USER_LOGIN_USERID, str(user_id))
+        span._set_tag_str(_constants.APPSEC.USER_LOGIN_USERID, str(user_id))
     meta = metadata or {}
     usr_name = meta.pop("name", None) or meta.pop("usr.name", None)
     usr_email = meta.pop("email", None) or meta.pop("usr.email", None)
@@ -163,7 +163,7 @@ def track_user_id(
     if meta:
         _trace_utils.track_custom_event(None, "auth_sdk", metadata=meta)
     if not _auto:
-        span.set_tag_str(_constants.APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, _constants.LOGIN_EVENTS_MODE.SDK)
+        span._set_tag_str(_constants.APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, _constants.LOGIN_EVENTS_MODE.SDK)
         if _asm_request_context.in_asm_context():
             custom_data = {
                 "REQUEST_USER_ID": str(user_id) if user_id else None,

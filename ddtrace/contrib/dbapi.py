@@ -95,10 +95,10 @@ class TracedCursor(wrapt.ObjectProxy):
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
 
-            s.set_tag_str(COMPONENT, self._self_config.integration_name)
+            s._set_tag_str(COMPONENT, self._self_config.integration_name)
 
             # set span.kind to the type of request being performed
-            s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+            s._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
             # Security and IAST validations
             core.dispatch("db_query_check", (args, kwargs, self._self_config.integration_name, method))
@@ -295,10 +295,10 @@ class TracedConnection(wrapt.ObjectProxy):
             return method(*args, **kwargs)
 
         with pin.tracer.trace(name, service=ext_service(pin, self._self_config)) as s:
-            s.set_tag_str(COMPONENT, self._self_config.integration_name)
+            s._set_tag_str(COMPONENT, self._self_config.integration_name)
 
             # set span.kind to the type of request being performed
-            s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+            s._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)

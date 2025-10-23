@@ -145,7 +145,7 @@ def test_dbm_dddbs_peer_service_enabled():
         ), sqlcomment
 
         with tracer.trace("dbname") as dbspan_with_peer_service:
-            dbspan_with_peer_service.set_tag_str("db.name", "db-name-test")
+            dbspan_with_peer_service._set_tag_str("db.name", "db-name-test")
 
             # when dbm propagation mode is full sql comments should be generated with dbm tags and traceparent keys
             dbm_popagator = _database_monitoring._DBM_Propagator(0, "procedure")

@@ -48,7 +48,7 @@ def long_running_ray_span(
     with tracer.start_span(
         name=span_name, service=service, resource=resource, span_type=span_type, child_of=child_of, activate=activate
     ) as span:
-        span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
+        span._set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
         _inject_ray_span_tags_and_metrics(span)
         start_long_running_span(span)
 
@@ -104,10 +104,10 @@ class RaySpanManager:
         partial_version = time.time_ns()
         if span.get_metric(DD_PARTIAL_VERSION) is None:
             span.set_metric(DD_PARTIAL_VERSION, partial_version)
-            span.set_tag_str(RAY_JOB_STATUS, RAY_STATUS_RUNNING)
+            span._set_tag_str(RAY_JOB_STATUS, RAY_STATUS_RUNNING)
 
         partial_span = self._recreate_job_span(span)
-        partial_span.set_tag_str(RAY_JOB_STATUS, RAY_STATUS_RUNNING)
+        partial_span._set_tag_str(RAY_JOB_STATUS, RAY_STATUS_RUNNING)
         partial_span.set_metric(DD_PARTIAL_VERSION, partial_version)
         partial_span.finish()
 
@@ -167,7 +167,7 @@ class RaySpanManager:
             parent_id=job_span.parent_id,
             context=job_span.context,
         )
-        new_span.set_tag_str("component", RAY_COMPONENT)
+        new_span._set_tag_str("component", RAY_COMPONENT)
         new_span.start_ns = job_span.start_ns
         new_span._meta = job_span._meta.copy()
         new_span._metrics = job_span._metrics.copy()
@@ -193,10 +193,10 @@ class RaySpanManager:
             del span._metrics[DD_PARTIAL_VERSION]
 
             span.set_metric(DD_WAS_LONG_RUNNING, 1)
-            span.set_tag_str(RAY_JOB_STATUS, RAY_STATUS_FINISHED)
+            span._set_tag_str(RAY_JOB_STATUS, RAY_STATUS_FINISHED)
 
         if job_info:
-            span.set_tag_str(RAY_JOB_STATUS, job_info.status)
+            span._set_tag_str(RAY_JOB_STATUS, job_info.status)
             span.set_tag(RAY_JOB_MESSAGE, job_info.message)
 
             if str(job_info.status) == RAY_STATUS_FAILED:

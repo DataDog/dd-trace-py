@@ -249,10 +249,10 @@ def _set_sampling_tags(span: Span, sampled: bool, sample_rate: float, mechanism:
         SamplingMechanism.REMOTE_DYNAMIC_TRACE_SAMPLING_RULE,
     ):
         span.set_metric(_SAMPLING_RULE_DECISION, sample_rate)
-        span.set_tag_str(KNUTH_SAMPLE_RATE_KEY, f"{sample_rate:.6g}")
+        span._set_tag_str(KNUTH_SAMPLE_RATE_KEY, f"{sample_rate:.6g}")
     elif mechanism == SamplingMechanism.AGENT_RATE_BY_SERVICE:
         span.set_metric(_SAMPLING_AGENT_DECISION, sample_rate)
-        span.set_tag_str(KNUTH_SAMPLE_RATE_KEY, f"{sample_rate:.6g}")
+        span._set_tag_str(KNUTH_SAMPLE_RATE_KEY, f"{sample_rate:.6g}")
     # Set the sampling priority
     priorities = SAMPLING_MECHANISM_TO_PRIORITIES[mechanism]
     priority_index = _KEEP_PRIORITY_INDEX if sampled else _REJECT_PRIORITY_INDEX
@@ -263,8 +263,8 @@ def _set_sampling_tags(span: Span, sampled: bool, sample_rate: float, mechanism:
 def _inherit_sampling_tags(target: Span, source: Span):
     """Set sampling tags from source span on target span."""
     target.set_metric(SAMPLING_DECISION_MAKER_INHERITED, 1)
-    target.set_tag_str(SAMPLING_DECISION_MAKER_SERVICE, source.service)  # type: ignore[arg-type]
-    target.set_tag_str(SAMPLING_DECISION_MAKER_RESOURCE, source.resource)
+    target._set_tag_str(SAMPLING_DECISION_MAKER_SERVICE, source.service)  # type: ignore[arg-type]
+    target._set_tag_str(SAMPLING_DECISION_MAKER_RESOURCE, source.resource)
 
 
 def _get_highest_precedence_rule_matching(span: Span, rules: List[SamplingRule]) -> Optional[SamplingRule]:

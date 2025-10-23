@@ -51,8 +51,8 @@ class DynamicSpan(Signal):
         span = self._span_cm.__enter__()
 
         span.set_tags(probe.tags)  # type: ignore[arg-type]
-        span.set_tag_str(PROBE_ID_TAG_NAME, probe.probe_id)
-        span.set_tag_str(_ORIGIN_KEY, "di")
+        span._set_tag_str(PROBE_ID_TAG_NAME, probe.probe_id)
+        span._set_tag_str(_ORIGIN_KEY, "di")
 
     def exit(self, retval: t.Any, exc_info: ExcInfoType, duration: float, scope: t.Mapping[str, t.Any]) -> None:
         if self._span_cm is not None:
@@ -93,12 +93,12 @@ class SpanDecoration(LogSignal):
                     try:
                         tag_value = tag.value.render(scope, serialize)
                     except DDExpressionEvaluationError as e:
-                        span.set_tag_str(
+                        span._set_tag_str(
                             "_dd.di.%s.evaluation_error" % tag.name, ", ".join([serialize(v) for v in e.args])
                         )
                     else:
-                        span.set_tag_str(tag.name, tag_value if _isinstance(tag_value, str) else serialize(tag_value))
-                        span.set_tag_str("_dd.di.%s.probe_id" % tag.name, t.cast(Probe, probe).probe_id)
+                        span._set_tag_str(tag.name, tag_value if _isinstance(tag_value, str) else serialize(tag_value))
+                        span._set_tag_str("_dd.di.%s.probe_id" % tag.name, t.cast(Probe, probe).probe_id)
 
     def enter(self, scope: t.Mapping[str, t.Any]) -> None:
         self._decorate_span(scope)

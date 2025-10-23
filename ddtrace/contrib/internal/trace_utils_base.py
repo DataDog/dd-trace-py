@@ -111,21 +111,21 @@ def set_user(
     if span:
         if user_id:
             str_user_id = str(user_id)
-            span.set_tag_str(user.ID, str_user_id)
+            span._set_tag_str(user.ID, str_user_id)
             if propagate:
                 span.context.dd_user_id = str_user_id
 
         # All other fields are optional
         if name:
-            span.set_tag_str(user.NAME, name)
+            span._set_tag_str(user.NAME, name)
         if email:
-            span.set_tag_str(user.EMAIL, email)
+            span._set_tag_str(user.EMAIL, email)
         if scope:
-            span.set_tag_str(user.SCOPE, scope)
+            span._set_tag_str(user.SCOPE, scope)
         if role:
-            span.set_tag_str(user.ROLE, role)
+            span._set_tag_str(user.ROLE, role)
         if session_id:
-            span.set_tag_str(user.SESSION_ID, session_id)
+            span._set_tag_str(user.SESSION_ID, session_id)
 
         if (may_block or mode == "auto") and asm_config._asm_enabled:
             exc = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
@@ -144,14 +144,14 @@ def set_user(
 
 def _set_url_tag(integration_config: IntegrationConfig, span: Span, url: str, query: str) -> None:
     if not integration_config.http_tag_query_string:
-        span.set_tag_str(http.URL, strip_query_string(url))
+        span._set_tag_str(http.URL, strip_query_string(url))
     elif config._global_query_string_obfuscation_disabled:
         # TODO(munir): This case exists for backwards compatibility. To remove query strings from URLs,
         # users should set ``DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING=False``. This case should be
         # removed when config.global_query_string_obfuscation_disabled is removed (v3.0).
-        span.set_tag_str(http.URL, url)
+        span._set_tag_str(http.URL, url)
     elif getattr(config._obfuscation_query_string_pattern, "pattern", None) == b"":
         # obfuscation is disabled when DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP=""
-        span.set_tag_str(http.URL, strip_query_string(url))
+        span._set_tag_str(http.URL, strip_query_string(url))
     else:
-        span.set_tag_str(http.URL, redact_url(url, config._obfuscation_query_string_pattern, query))
+        span._set_tag_str(http.URL, redact_url(url, config._obfuscation_query_string_pattern, query))
