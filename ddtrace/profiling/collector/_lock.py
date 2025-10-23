@@ -41,13 +41,13 @@ class _ProfiledLock:
     
     __slots__ = (
         "_wrapped",
-        "_tracer",
-        "_max_nframes",
-        "_capture_sampler",
-        "_endpoint_collection_enabled",
-        "_init_loc",
-        "_acquired_at",
-        "_name",
+        "_self_tracer",
+        "_self_max_nframes",
+        "_self_capture_sampler",
+        "_self_endpoint_collection_enabled",
+        "_self_init_loc",
+        "_self_acquired_at",
+        "_self_name",
     )
     
     def __init__(
@@ -59,16 +59,16 @@ class _ProfiledLock:
         endpoint_collection_enabled: bool,
     ) -> None:
         self._wrapped: Any = wrapped
-        self._tracer: Optional[Tracer] = tracer
-        self._max_nframes: int = max_nframes
-        self._capture_sampler: collector.CaptureSampler = capture_sampler
-        self._endpoint_collection_enabled: bool = endpoint_collection_enabled
+        self._self_tracer: Optional[Tracer] = tracer
+        self._self_max_nframes: int = max_nframes
+        self._self_capture_sampler: collector.CaptureSampler = capture_sampler
+        self._self_endpoint_collection_enabled: bool = endpoint_collection_enabled
         # Frame depth: 0=__init__, 1=_profiled_allocate_lock, 2=_LockAllocatorWrapper.__call__, 3=caller
         frame: FrameType = sys._getframe(3)
         code: CodeType = frame.f_code
-        self._init_loc: str = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
-        self._acquired_at: int = 0
-        self._name: Optional[str] = None
+        self._self_init_loc: str = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
+        self._self_acquired_at: int = 0
+        self._self_name: Optional[str] = None
 
     def __aenter__(self, *args: Any, **kwargs: Any) -> Any:
         return self._acquire(self._wrapped.__aenter__, *args, **kwargs)
@@ -77,7 +77,7 @@ class _ProfiledLock:
         return self._release(self._wrapped.__aexit__, *args, **kwargs)
 
     def _acquire(self, inner_func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
-        if not self._capture_sampler.capture():
+        if not self._self_capture_sampler.capture():
             return inner_func(*args, **kwargs)
 
         start: int = time.monotonic_ns()
@@ -86,7 +86,7 @@ class _ProfiledLock:
         finally:
             try:
                 end: int = time.monotonic_ns()
-                self._acquired_at = end
+                self._self_acquired_at = end
 
                 thread_id: int
                 thread_name: str
@@ -97,9 +97,9 @@ class _ProfiledLock:
                 task_frame: Optional[FrameType]
                 task_id, task_name, task_frame = _task.get_task(thread_id)
 
-                self._maybe_update_name()
+                self._maybe_update_self_name()
                 lock_name: str = (
-                    "%s:%s" % (self._init_loc, self._name) if self._name else self._init_loc
+                    "%s:%s" % (self._self_init_loc, self._self_name) if self._self_name else self._self_init_loc
                 )
 
                 frame: FrameType
@@ -111,7 +111,7 @@ class _ProfiledLock:
                     frame = task_frame
 
                 frames: List[DDFrame]
-                frames, _ = _traceback.pyframe_to_frames(frame, self._max_nframes)
+                frames, _ = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
 
                 thread_native_id: int = _threading.get_thread_native_id(thread_id)
 
@@ -123,8 +123,8 @@ class _ProfiledLock:
                 handle.push_task_id(task_id)
                 handle.push_task_name(task_name)
 
-                if self._tracer is not None:
-                    handle.push_span(self._tracer.current_span())
+                if self._self_tracer is not None:
+                    handle.push_span(self._self_tracer.current_span())
                 for ddframe in frames:
                     handle.push_frame(ddframe.function_name, ddframe.file_name, 0, ddframe.lineno)
                 handle.flush_sample()
@@ -136,7 +136,7 @@ class _ProfiledLock:
 
     def _release(self, inner_func: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
         # Using __slots__ makes attribute handling cleaner than with wrapt.ObjectProxy
-        start: Optional[int] = getattr(self, "_acquired_at", None)
+        start: Optional[int] = getattr(self, "_self_acquired_at", None)
         try:
             # Though it should generally be avoided to call release() from
             # multiple threads, it is possible to do so. In that scenario, the
@@ -144,7 +144,7 @@ class _ProfiledLock:
             # not be propagated to the caller and to the users. The inner_func
             # will raise an RuntimeError as the threads are trying to release()
             # and unlocked lock, and the expected behavior is to propagate that.
-            del self._acquired_at
+            del self._self_acquired_at
         except AttributeError:
             # We just ignore the error, if the attribute is not found.
             pass
@@ -164,7 +164,7 @@ class _ProfiledLock:
                 task_id, task_name, task_frame = _task.get_task(thread_id)
 
                 lock_name: str = (
-                    "%s:%s" % (self._init_loc, self._name) if self._name else self._init_loc
+                    "%s:%s" % (self._self_init_loc, self._self_name) if self._self_name else self._self_init_loc
                 )
 
                 frame: FrameType
@@ -175,7 +175,7 @@ class _ProfiledLock:
                     frame = task_frame
 
                 frames: List[DDFrame]
-                frames, _ = _traceback.pyframe_to_frames(frame, self._max_nframes)
+                frames, _ = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
 
                 thread_native_id: int = _threading.get_thread_native_id(thread_id)
 
@@ -187,8 +187,8 @@ class _ProfiledLock:
                 handle.push_task_id(task_id)
                 handle.push_task_name(task_name)
 
-                if self._tracer is not None:
-                    handle.push_span(self._tracer.current_span())
+                if self._self_tracer is not None:
+                    handle.push_span(self._self_tracer.current_span())
                 for ddframe in frames:
                     handle.push_frame(ddframe.function_name, ddframe.file_name, 0, ddframe.lineno)
                 handle.flush_sample()
@@ -202,7 +202,7 @@ class _ProfiledLock:
     def __exit__(self, *args: Any, **kwargs: Any) -> None:
         self._release(self._wrapped.__exit__, *args, **kwargs)
 
-    def _find_name(self, var_dict: Dict[str, Any]) -> Optional[str]:
+    def _find_self_name(self, var_dict: Dict[str, Any]) -> Optional[str]:
         for name, value in var_dict.items():
             if name.startswith("__") or isinstance(value, ModuleType):
                 continue
@@ -211,14 +211,14 @@ class _ProfiledLock:
             if config.lock.name_inspect_dir:
                 for attribute in dir(value):
                     if not attribute.startswith("__") and getattr(value, attribute) is self:
-                        self._name = attribute
+                        self._self_name = attribute
                         return attribute
         return None
 
     # Get lock acquire/release call location and variable name the lock is assigned to
     # This function propagates ValueError if the frame depth is <= 3.
-    def _maybe_update_name(self) -> None:
-        if self._name is not None:
+    def _maybe_update_self_name(self) -> None:
+        if self._self_name is not None:
             return
         # We expect the call stack to be like this:
         # 0: this
@@ -243,10 +243,10 @@ class _ProfiledLock:
         frame = sys._getframe(3)
 
         # First, look at the local variables of the caller frame, and then the global variables
-        self._name = self._find_name(frame.f_locals) or self._find_name(frame.f_globals)
+        self._self_name = self._find_self_name(frame.f_locals) or self._find_self_name(frame.f_globals)
 
-        if not self._name:
-            self._name = ""
+        if not self._self_name:
+            self._self_name = ""
     
     # Delegate remaining lock methods to the wrapped lock
     def locked(self) -> bool:
@@ -254,7 +254,7 @@ class _ProfiledLock:
         return self._wrapped.locked()
     
     def __repr__(self) -> str:
-        return f"<_ProfiledLock({self._wrapped!r}) at {self._init_loc}>"
+        return f"<_ProfiledLock({self._wrapped!r}) at {self._self_init_loc}>"
     
     # Support for being used in with statements
     def __bool__(self) -> bool:
