@@ -18,6 +18,7 @@ Note: This runs entire test suites, not individual test files.
 
 import argparse
 import fnmatch
+import json
 import os
 import re
 import subprocess
@@ -45,6 +46,7 @@ class RiotVenv(NamedTuple):
     python_version: str
     packages: str
     suite_name: str = ""  # Track which suite this venv belongs to
+    command: str = ""  # The actual test command (e.g., pytest tests/contrib/flask/)
 
     def _normalize_package_name(self, name: str) -> List[str]:
         """Generate possible package name variations from venv name component.
@@ -223,13 +225,21 @@ class TestRunner:
                     all_packages = [f"{pkg}: {version}" for pkg, version in inst.pkgs.items()]
                     packages_info = ", ".join(all_packages) if all_packages else "standard packages"
 
+                # Extract command from the instance
+                command = ""
+                if hasattr(inst, 'cmd'):
+                    command = str(inst.cmd)
+                elif hasattr(inst, 'command'):
+                    command = str(inst.command)
+
                 venvs.append(RiotVenv(
                     number=n,
                     hash=inst.short_hash if hasattr(inst, 'short_hash') else f"hash{n}",
                     name=inst.name,
                     python_version=str(inst.py._hint) if hasattr(inst, 'py') and hasattr(inst.py, '_hint') else "3.10",
                     packages=packages_info,
-                    suite_name=suite_name
+                    suite_name=suite_name,
+                    command=command
                 ))
 
             return venvs
@@ -480,6 +490,55 @@ class TestRunner:
         print("\n🎉 All selected suites completed successfully!")
         return True
 
+    def output_suites_json(self, matching_suites: Dict[str, dict]) -> None:
+        """Output matching suites and venvs as JSON for AI agent consumption."""
+        suites_data = []
+
+        for suite_name, suite_config in matching_suites.items():
+            if suite_config.get('runner') != 'riot':
+                continue
+
+            pattern = suite_config.get('pattern', suite_name)
+            venvs = self.get_riot_venvs(pattern, suite_name=suite_name)
+
+            venvs_data = []
+            for venv in venvs:
+                venvs_data.append({
+                    "hash": venv.hash,
+                    "number": venv.number,
+                    "python_version": venv.python_version,
+                    "packages": venv.packages,
+                    "command": venv.command,
+                })
+
+            suites_data.append({
+                "name": suite_name,
+                "matched_files": suite_config.get('matched_files', []),
+                "venvs": venvs_data,
+            })
+
+        # Output JSON
+        output = {"suites": suites_data}
+        print(json.dumps(output, indent=2))
+
+    def select_venvs_by_hash(self, matching_suites: Dict[str, dict], venv_hashes: List[str]) -> List[RiotVenv]:
+        """Select specific venvs by their hashes from matching suites."""
+        selected_venvs = []
+        venv_hashes_set = set(venv_hashes)
+
+        for suite_name, suite_config in matching_suites.items():
+            if suite_config.get('runner') != 'riot':
+                continue
+
+            pattern = suite_config.get('pattern', suite_name)
+            venvs = self.get_riot_venvs(pattern, suite_name=suite_name)
+
+            for venv in venvs:
+                if venv.hash in venv_hashes_set:
+                    selected_venvs.append(venv)
+
+        return selected_venvs
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -528,6 +587,18 @@ Examples:
         help='Show all available suites regardless of file changes'
     )
 
+    parser.add_argument(
+        '--list',
+        action='store_true',
+        help='Output JSON with all matching suites and venvs (for AI agents)'
+    )
+
+    parser.add_argument(
+        '--venv',
+        action='append',
+        help='Run specific venvs (by hash) without interactive prompts. Can be used multiple times (e.g., --venv hash1 --venv hash2)'
+    )
+
     # Parse args, but handle -- separator for riot args
     if '--' in sys.argv:
         separator_idx = sys.argv.index('--')
@@ -570,8 +641,22 @@ Examples:
     else:
         matching_suites = runner.find_matching_suites(files)
 
-    # Interactive venv selection
-    selected_venvs = runner.interactive_venv_selection(matching_suites)
+    # Handle --list flag (output JSON for AI agents)
+    if args.list:
+        runner.output_suites_json(matching_suites)
+        return 0
+
+    # Determine venv selection method
+    if args.venv:
+        # Use provided venvs (no interactive prompts)
+        selected_venvs = runner.select_venvs_by_hash(matching_suites, args.venv)
+        if not selected_venvs:
+            print(f"❌ No venvs found matching hashes: {', '.join(args.venv)}")
+            return 1
+        print(f"📌 Selected {len(selected_venvs)} venv(s) from provided hashes")
+    else:
+        # Interactive venv selection
+        selected_venvs = runner.interactive_venv_selection(matching_suites)
 
     # Execute tests
     success = runner.run_tests(selected_venvs, matching_suites, riot_args=riot_args, dry_run=args.dry_run)

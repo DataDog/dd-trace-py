@@ -14,11 +14,19 @@ set(CMAKE_VERBOSE_MAKEFILE ON)
 # Custom cmake modules are in the parent directory
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 
-# Having a common target in a subdirectory like this is a hack and a mistake, but it's fiddly to change it so we haven't
-# been able to. Instead, make sure that the binary path set in the subdirectory is stable *as a string* in order to make
-# sure the caches work.
-get_filename_component(DD_WRAPPER_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/../dd_wrapper_build ABSOLUTE)
-add_subdirectory(../dd_wrapper ${DD_WRAPPER_BUILD_DIR})
+# Link against the pre-built libdd_wrapper shared library The library is built by setup.py and its location is passed
+# via NATIVE_EXTENSION_LOCATION. For standalone builds, check LIB_INSTALL_DIR first.
+if(LIB_INSTALL_DIR AND EXISTS "${LIB_INSTALL_DIR}/libdd_wrapper${EXTENSION_SUFFIX}")
+    set(DD_WRAPPER_LIB "${LIB_INSTALL_DIR}/libdd_wrapper${EXTENSION_SUFFIX}")
+else()
+    set(DD_WRAPPER_LIB "${NATIVE_EXTENSION_LOCATION}/../datadog/profiling/libdd_wrapper${EXTENSION_SUFFIX}")
+endif()
+
+# Import the pre-built library as an imported target
+add_library(dd_wrapper SHARED IMPORTED)
+set_target_properties(
+    dd_wrapper PROPERTIES IMPORTED_LOCATION "${DD_WRAPPER_LIB}" INTERFACE_INCLUDE_DIRECTORIES
+                                                                "${CMAKE_CURRENT_SOURCE_DIR}/../dd_wrapper/include")
 
 # Includes
 include(FetchContent)
@@ -41,7 +49,7 @@ endif()
 
 # Add echion
 set(ECHION_COMMIT
-    "3ebeb3e975239f252fa0d6bb739344f35eaf1657" # https://github.com/kowalskithomas/echion/commit/3ebeb3e975239f252fa0d6bb739344f35eaf1657
+    "39d74a33a3f3abe810e6a29132721871e3127472" # https://github.com/P403n1x87/echion/commit/39d74a33a3f3abe810e6a29132721871e3127472
     CACHE STRING "Commit hash of echion to use")
 FetchContent_Declare(
     echion

@@ -36,7 +36,9 @@ class CoreAPIScenario(bm.Scenario):
         def core_dispatch_with_results(loops):
             """Measure the cost to dispatch an event on the hub"""
             for _ in range(loops):
-                core.dispatch_with_results(CUSTOM_EVENT_NAME, (5, 6, 7, 8))
+                core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
+                    CUSTOM_EVENT_NAME, (5, 6, 7, 8)
+                )
 
         def context_with_data(loops):
             """Measure the cost of creating and ending a new context"""
