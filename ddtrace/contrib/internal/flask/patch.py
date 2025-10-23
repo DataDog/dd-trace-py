@@ -127,7 +127,9 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
             core.dispatch("flask.start_response", ("Flask",))
             if get_blocked():
                 # response code must be set here, or it will be too late
-                result_content = core.dispatch_with_results("flask.block.request.content", ()).block_requested
+                result_content = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
+                    "flask.block.request.content", ()
+                ).block_requested
                 if result_content:
                     _, status, response_headers = result_content.value
                     result = start_response(str(status), response_headers)
@@ -155,7 +157,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         request = _RequestType(environ)
 
         req_body = None
-        result = core.dispatch_with_results(
+        result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
             "flask.request_call_modifier",
             (
                 ctx,
@@ -455,7 +457,12 @@ def patched_add_url_rule(wrapped, instance, args, kwargs):
             #   should we do something special with these views? Change the name/resource? Add tags?
             core.dispatch("service_entrypoint.patch", (unwrap(view_func),))
             wrapped_view = wrap_view(instance, view_func, name=endpoint, resource=rule)
-        for method in kwargs.get("methods", []):
+        methods = kwargs.get("methods", ["GET"])
+        try:
+            methods = iter(methods)
+        except Exception:  # nosec
+            methods = ["GET"]
+        for method in methods:
             endpoint_collection.add_endpoint(method, rule, operation_name="flask.request")
         return wrapped(
             rule,

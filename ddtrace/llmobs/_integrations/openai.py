@@ -27,7 +27,7 @@ from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_complet
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_response
 from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
 from ddtrace.llmobs._utils import _get_attr
-from ddtrace.llmobs.utils import Document
+from ddtrace.llmobs.types import Document
 from ddtrace.trace import Span
 
 
@@ -60,21 +60,28 @@ class OpenAIIntegration(BaseLLMIntegration):
         self._user_api_key = "sk-...%s" % value[-4:]
 
     def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
-        traced_operations = ("createCompletion", "createChatCompletion", "createEmbedding", "createResponse")
+        traced_operations = (
+            "createCompletion",
+            "createChatCompletion",
+            "createEmbedding",
+            "createResponse",
+            "parseChatCompletion",
+            "parseResponse",
+        )
         if operation_id in traced_operations:
             submit_to_llmobs = True
         log.debug("Creating LLM span for openai operation: %s", operation_id)
         return super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
 
     def _set_base_span_tags(self, span: Span, **kwargs) -> None:
-        span.set_tag_str(COMPONENT, self.integration_config.integration_name)
+        span._set_tag_str(COMPONENT, self.integration_config.integration_name)
 
         client = "OpenAI"
         if self._is_provider(span, "azure"):
             client = "AzureOpenAI"
         elif self._is_provider(span, "deepseek"):
             client = "Deepseek"
-        span.set_tag_str("openai.request.provider", client)
+        span._set_tag_str("openai.request.provider", client)
 
     def _is_provider(self, span, provider):
         """Check if the traced operation is from the given provider."""
@@ -132,7 +139,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         embedding_inputs = kwargs.get("input", "")
         if isinstance(embedding_inputs, str) or isinstance(embedding_inputs[0], int):
             embedding_inputs = [embedding_inputs]
-        input_documents = []
+        input_documents: List[Document] = []
         for doc in embedding_inputs:
             input_documents.append(Document(text=str(doc)))
         span._set_ctx_items({METADATA: metadata, INPUT_DOCUMENTS: input_documents})

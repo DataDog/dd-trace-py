@@ -15,6 +15,9 @@ dependencies = [
     "types-PyYAML==6.0.12.2",
     "types-setuptools==65.6.0.0",
     "ddapm-test-agent>=1.2.0",
+    # TODO: Remove this when we are compatible with wrapt>=2
+    #       ddapm-test-agent -> vcrpy -> wrapt
+    "wrapt<2",
     "packaging==23.1",
     "pygments==2.16.1",
     "riot==0.20.1",
@@ -56,6 +59,7 @@ checks = [
     "security",
     "test",
     "suitespec-check",
+    "error-log-check",
     "sg",
     "sg-test",
 ]
@@ -76,6 +80,9 @@ riot = [
 ]
 suitespec-check = [
     "python scripts/check_suitespec_coverage.py"
+]
+error-log-check = [
+    "python scripts/check_constant_log_message.py"
 ]
 sg = [
     "ast-grep scan {args:.}",
@@ -230,7 +237,7 @@ test = [
 ]
 
 [[envs.multiple_os_tests.matrix]]
-python = ["3.13", "3.12", "3.10", "3.8"]
+python = ["3.14", "3.12", "3.10", "3.8"]
 
 [envs.snapshot_viewer]
 dev-mode = false

@@ -102,7 +102,7 @@ class AgentWriterTests(BaseTestCase):
                 for j in range(50):
                     key = "opqr012|~" + str(i) + str(j)
                     val = "stuv345!@#" + str(i) + str(j)
-                    span.set_tag_str(key, val)
+                    span._set_tag_str(key, val)
                 massive_trace.append(span)
 
             writer.write(massive_trace)
@@ -495,7 +495,7 @@ class NativeWriterTests(AgentWriterTests):
                 for j in range(50):
                     key = "opqr012|~" + str(i) + str(j)
                     val = "stuv345!@#" + str(i) + str(j)
-                    span.set_tag_str(key, val)
+                    span._set_tag_str(key, val)
                 massive_trace.append(span)
 
             writer.write(massive_trace)
@@ -1171,6 +1171,7 @@ def test_writer_telemetry_enabled_on_linux(
 
     for method_name in [
         "set_url",
+        "set_hostname",
         "set_language",
         "set_language_version",
         "set_language_interpreter",

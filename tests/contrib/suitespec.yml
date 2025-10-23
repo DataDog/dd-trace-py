@@ -18,6 +18,8 @@ components:
   aws_lambda:
     - ddtrace/contrib/internal/aws_lambda/*
     - ddtrace/ext/aws.py
+  azure_eventhubs:
+    - ddtrace/contrib/internal/azure_eventhubs/*
   azure_functions:
     - ddtrace/contrib/internal/azure_functions/*
   azure_servicebus:
@@ -226,7 +228,7 @@ suites:
       - tests/snapshots/tests.{suite}.*
     runner: riot
     services:
-      - httpbin_local
+      - httpbin
     snapshot: true
   aiomysql:
     parallelism: 2
@@ -347,6 +349,21 @@ suites:
       - tests/snapshots/tests.{suite}.*
     runner: riot
     snapshot: true
+  azure_eventhubs:
+    parallelism: 4
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@azure_eventhubs'
+      - tests/contrib/azure_eventhubs/*
+      - tests/snapshots/tests.contrib.azure_eventhubs.*
+    runner: riot
+    snapshot: true
+    services:
+      - azurite
+      - azureeventhubsemulator
   azure_functions:
     parallelism: 4
     paths:
@@ -357,10 +374,46 @@ suites:
       - '@azure_functions'
       - tests/contrib/azure_functions/*
       - tests/snapshots/tests.contrib.azure_functions.*
+    pattern: ^azure_functions$
     runner: riot
     snapshot: true
     services:
       - azurite
+  azure_functions:eventhubs:
+    parallelism: 4
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@azure_functions'
+      - '@azure_eventhubs'
+      - tests/contrib/azure_functions_eventhubs/*
+      - tests/snapshots/tests.contrib.azure_functions_eventhubs.*
+    pattern: azure_functions:eventhubs
+    runner: riot
+    snapshot: true
+    services:
+      - azurite
+      - azureeventhubsemulator
+  azure_functions:servicebus:
+    parallelism: 4
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@azure_functions'
+      - '@azure_servicebus'
+      - tests/contrib/azure_functions_servicebus/*
+      - tests/snapshots/tests.contrib.azure_functions_servicebus.*
+    pattern: azure_functions:servicebus
+    runner: riot
+    snapshot: true
+    services:
+      - azurite
+      - azuresqledge
+      - azureservicebusemulator
   azure_servicebus:
     parallelism: 4
     paths:
@@ -374,8 +427,8 @@ suites:
     runner: riot
     snapshot: true
     services:
-      - azureservicebusemulator
       - azuresqledge
+      - azureservicebusemulator
   botocore:
     parallelism: 11
     paths:
@@ -719,7 +772,7 @@ suites:
       - tests/contrib/httplib/*
     runner: riot
     services:
-      - httpbin_local
+      - httpbin
     snapshot: true
   httpx:
     parallelism: 3
@@ -733,7 +786,7 @@ suites:
       - tests/snapshots/tests.contrib.httpx.*
     runner: riot
     services:
-      - httpbin_local
+      - httpbin
     snapshot: true
   integration_registry:
     paths:
@@ -1019,8 +1072,9 @@ suites:
       - '@tracing'
       - '@ray'
       - tests/contrib/ray/*
+      - tests/snapshots/tests.contrib.ray.*
     runner: riot
-    snapshot: false
+    snapshot: true
   redis:
     parallelism: 5
     paths:
@@ -1063,7 +1117,7 @@ suites:
       - tests/contrib/requests/*
     runner: riot
     services:
-      - httpbin_local
+      - httpbin
     snapshot: true
   rq:
     parallelism: 1
@@ -1207,7 +1261,7 @@ suites:
   urllib3:
     parallelism: 1
     env:
-      TEST_HTTPBIN_HOST: httpbin-local
+      TEST_HTTPBIN_HOST: httpbin
       TEST_HTTPBIN_PORT: '8001'
     paths:
       - '@bootstrap'
@@ -1219,7 +1273,7 @@ suites:
       - tests/snapshots/tests.contrib.urllib3.*
     runner: riot
     services:
-      - httpbin_local
+      - httpbin
     snapshot: true
   vertica:
     parallelism: 1

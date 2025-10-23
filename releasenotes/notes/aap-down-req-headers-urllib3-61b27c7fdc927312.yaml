@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    AAP: This fix resolves an issue where downstream request analysis would not match headers in rules when using `requests` with `urllib3<2`.

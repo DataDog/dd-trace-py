@@ -56,6 +56,7 @@ from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.time import Time
 from ddtrace.settings._config import config
 from ddtrace.vendor.debtcollector import deprecate
+from ddtrace.vendor.debtcollector import removals
 
 
 class SpanEvent:
@@ -111,7 +112,7 @@ class Span(object):
         # Public span attributes
         "service",
         "name",
-        "_resource",
+        "resource",
         "_span_api",
         "span_id",
         "trace_id",
@@ -187,7 +188,7 @@ class Span(object):
             return
         self.name = name
         self.service = service
-        self._resource = [resource or name]
+        self.resource = resource or name
         self.span_type = span_type
         self._span_api = span_api
 
@@ -269,14 +270,6 @@ class Span(object):
     @start.setter
     def start(self, value: Union[int, float]) -> None:
         self.start_ns = int(value * 1e9)
-
-    @property
-    def resource(self) -> str:
-        return self._resource[0]
-
-    @resource.setter
-    def resource(self, value: str) -> None:
-        self._resource[0] = value
 
     @property
     def finished(self) -> bool:
@@ -414,18 +407,36 @@ class Span(object):
         except Exception:
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
 
-    def set_struct_tag(self, key: str, value: Dict[str, Any]) -> None:
+    def _set_struct_tag(self, key: str, value: Dict[str, Any]) -> None:
         """
         Set a tag key/value pair on the span meta_struct
         Currently it will only be exported with V4 encoding
         """
         self._meta_struct[key] = value
 
-    def get_struct_tag(self, key: str) -> Optional[Dict[str, Any]]:
+    @removals.remove(removal_version="4.0.0")
+    def set_struct_tag(self, key: str, value: Dict[str, Any]) -> None:
+        """
+        DEPRECATED
+
+        Set a tag key/value pair on the span meta_struct
+        Currently it will only be exported with V4 encoding
+        """
+        self._set_struct_tag(key, value)
+
+    def _get_struct_tag(self, key: str) -> Optional[Dict[str, Any]]:
         """Return the given struct or None if it doesn't exist."""
         return self._meta_struct.get(key, None)
 
-    def set_tag_str(self, key: _TagNameType, value: Text) -> None:
+    @removals.remove(removal_version="4.0.0")
+    def get_struct_tag(self, key: str) -> Optional[Dict[str, Any]]:
+        """DEPRECATED
+
+        Return the given struct or None if it doesn't exist.
+        """
+        return self._get_struct_tag(key)
+
+    def _set_tag_str(self, key: _TagNameType, value: Text) -> None:
         """Set a value for a tag. Values are coerced to unicode in Python 2 and
         str in Python 3, with decoding errors in conversion being replaced with
         U+FFFD.
@@ -436,6 +447,11 @@ class Span(object):
             if config._raise:
                 raise e
             log.warning("Failed to set text tag '%s'", key, exc_info=True)
+
+    @removals.remove(message="use Span.set_tag instead", removal_version="4.0.0")
+    def set_tag_str(self, key: _TagNameType, value: Text) -> None:
+        """Deprecated: use `set_tag` instead."""
+        self._set_tag_str(key, value)
 
     def get_tag(self, key: _TagNameType) -> Optional[Text]:
         """Return the given tag or None if it doesn't exist."""

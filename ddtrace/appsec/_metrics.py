@@ -31,7 +31,7 @@ log_extra = {"product": "appsec", "stack_limit": 4, "exec_limit": 4}
 
 
 @deduplication
-def _set_waf_error_log(msg: str, version: str, error_level: bool = True) -> None:
+def _set_waf_error_log(msg: str, version: str, action: str, error_level: bool = True) -> None:
     """used for waf configuration errors"""
     try:
         log_tags = {
@@ -47,6 +47,7 @@ def _set_waf_error_log(msg: str, version: str, error_level: bool = True) -> None
         tags = (
             ("waf_version", ddwaf_version),
             ("event_rules_version", version or UNKNOWN_VERSION),
+            ("action", action),
         )
         telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, "waf.config_errors", 1, tags=tags)
     except Exception:
@@ -80,7 +81,9 @@ def _set_waf_init_metric(info: DDWaf_info, success: bool):
             TELEMETRY_NAMESPACE.APPSEC, "waf.init", 1, tags=tags + (("success", bool_str[success]),)
         )
         if not success:
-            telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, "waf.config_errors", 1, tags=tags)
+            telemetry.telemetry_writer.add_count_metric(
+                TELEMETRY_NAMESPACE.APPSEC, "waf.config_errors", 1, tags=tags + (("action", "init"),)
+            )
     except Exception:
         extra = {"product": "appsec", "exec_limit": 6, "more_info": ":waf:init"}
         logger.warning(WARNING_TAGS.TELEMETRY_METRICS, extra=extra, exc_info=True)
@@ -91,6 +94,8 @@ _TYPES_AND_TAGS = {
     _constants.EXPLOIT_PREVENTION.TYPE.SHI: (("rule_type", "command_injection"), ("rule_variant", "shell")),
     _constants.EXPLOIT_PREVENTION.TYPE.LFI: (("rule_type", "lfi"),),
     _constants.EXPLOIT_PREVENTION.TYPE.SSRF: (("rule_type", "ssrf"),),
+    _constants.EXPLOIT_PREVENTION.TYPE.SSRF_REQ: (("rule_type", "ssrf"), ("rule_variant", "request")),
+    _constants.EXPLOIT_PREVENTION.TYPE.SSRF_RES: (("rule_type", "ssrf"), ("rule_variant", "response")),
     _constants.EXPLOIT_PREVENTION.TYPE.SQLI: (("rule_type", "sql_injection"),),
 }
 

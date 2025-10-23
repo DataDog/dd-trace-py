@@ -8,6 +8,7 @@ import mock
 import pytest
 
 from ddtrace.internal.atexit import register_on_exit_signal
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from tests.integration.utils import parametrize_with_all_encodings
 from tests.integration.utils import skip_if_native_writer
 from tests.integration.utils import skip_if_testagent
@@ -98,6 +99,7 @@ def test_uds_wrong_socket_path():
                 1,
                 "unix:///tmp/ddagent/nosockethere/{}/traces".format(encoding if encoding else "v0.5"),
                 "client error (Connect)",
+                extra={"send_to_telemetry": False},
             )
         ]
     else:
@@ -371,6 +373,7 @@ def test_trace_generates_error_logs_when_trace_agent_url_invalid():
                 1,
                 "http://localhost:8125/{}/traces".format(encoding if encoding else "v0.5"),
                 "client error (Connect)",
+                extra={"send_to_telemetry": False},
             )
         ]
     else:
@@ -530,6 +533,7 @@ def test_trace_with_invalid_payload_generates_error_log():
                     "http://localhost:8126/v0.5/traces",
                     400,
                     "Bad Request",
+                    extra={"send_to_telemetry": False},
                 )
             ]
         )
@@ -565,6 +569,7 @@ def test_trace_with_invalid_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
                     400,
                     "Bad Request",
                     "6261645f7061796c6f6164",
+                    extra={"send_to_telemetry": False},
                 )
             ]
         )
@@ -595,6 +600,7 @@ def test_trace_with_non_bytes_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
                 400,
                 "Bad Request",
                 "bad_payload",
+                extra={"send_to_telemetry": False},
             )
         ]
     )
@@ -770,13 +776,15 @@ def test_partial_flush_log():
             mock.call(
                 "Encoding %d spans. Spans processed: %d. Spans dropped by trace processors: %d. Unfinished "
                 "spans remaining in the span aggregator: %d. (trace_id: %d) (top level span: name=%s) "
-                "(partial flush triggered: %s)",
+                "(sampling_priority: %s) (sampling_mechanism: %s) (partial flush triggered: %s)",
                 2,
                 3,
                 0,
                 1,
                 t_id,
                 "2",
+                1,
+                "-0",
                 True,
             ),
         ]
@@ -809,6 +817,7 @@ def test_logging_during_tracer_init_succeeds_when_debug_logging_and_logs_injecti
     ), "stderr should not contain any exception logs"
 
 
+@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 9), reason="Python 3.8 throws a deprecation warning")
 def test_no_warnings_when_Wall():
     env = os.environ.copy()
     # Have to disable sqlite3 as coverage uses it on process shutdown

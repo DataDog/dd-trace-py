@@ -14,7 +14,6 @@ import ddtrace
 from ddtrace._trace.pin import Pin
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import _constants as asm_constants
-from ddtrace.appsec._utils import get_security
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import constants
 from ddtrace.settings.asm import config as asm_config
@@ -226,7 +225,7 @@ class Contrib_TestClass_For_Threats:
                 assert isinstance(ep.path, str)
                 assert ep.resource_name
                 assert ep.operation_name
-                if ep.method not in ("GET", "*", "POST"):
+                if ep.method not in ("GET", "*", "POST") or ep.path.startswith("/static"):
                     continue
                 path = parse(ep.path)
                 found.add(path.rstrip("/"))
@@ -235,7 +234,10 @@ class Contrib_TestClass_For_Threats:
                     if ep.method == "POST"
                     else interface.client.get(path)
                 )
-                assert self.status(response) in (200, 401), f"ep.path failed: {ep.path} -> {path}"
+                assert self.status(response) in (
+                    200,
+                    401,
+                ), f"ep.path failed: [{self.status(response)}] {ep.path} -> {path}"
                 resource = "GET" + ep.resource_name[1:] if ep.resource_name.startswith("* ") else ep.resource_name
                 assert find_resource(resource)
         assert must_found <= found
@@ -1371,6 +1373,44 @@ class Contrib_TestClass_For_Threats:
                 assert value is None
 
     @pytest.mark.parametrize("apisec_enabled", [True, False])
+    def test_api_custom_scanners(self, interface: Interface, get_entry_span_tag, apisec_enabled):
+        import base64
+        import gzip
+
+        from ddtrace.ext import http
+
+        magic_key = "weqpfdjwlekfjowekhgfjiew"
+
+        with override_global_config(
+            dict(
+                _asm_enabled=True,
+                _api_security_enabled=apisec_enabled,
+                _asm_static_rule_file=rules.RULES_CUSTOM_SCANNERS,
+            )
+        ):
+            self.update_tracer(interface)
+            response = interface.client.get("/", headers={magic_key: "A0000B1111C2222"})
+            assert self.status(response) == 200
+            assert get_entry_span_tag(http.STATUS_CODE) == "200"
+            assert asm_config._api_security_enabled == apisec_enabled
+
+            value = get_entry_span_tag("_dd.appsec.s.req.headers")
+            if apisec_enabled:
+                assert value
+                api = json.loads(gzip.decompress(base64.b64decode(value)).decode())
+                assert isinstance(api, list)
+                assert api
+                headers = api[0]
+                assert magic_key in headers
+                assert headers[magic_key][1] == {
+                    "type": "custom_type",
+                    "category": "custom_category",
+                    "custom": "custom_data",
+                }
+            else:
+                assert value is None
+
+    @pytest.mark.parametrize("apisec_enabled", [True, False])
     @pytest.mark.parametrize("priority", ["keep", "drop"])
     @pytest.mark.parametrize("delay", [0.0, 120.0])
     def test_api_security_sampling(self, interface: Interface, get_entry_span_tag, apisec_enabled, priority, delay):
@@ -1643,7 +1683,13 @@ class Contrib_TestClass_For_Threats:
                 # assert mocked.call_args_list == []
                 expected_rule_type = "command_injection" if endpoint == "shell_injection" else endpoint
                 expected_variant = (
-                    "exec" if endpoint == "command_injection" else "shell" if endpoint == "shell_injection" else None
+                    "exec"
+                    if endpoint == "command_injection"
+                    else "shell"
+                    if endpoint == "shell_injection"
+                    else "request"
+                    if endpoint == "ssrf"
+                    else None
                 )
                 matches = [t for c, n, t in telemetry_calls if c == "count" and n == "appsec.rasp.rule.match"]
                 # import delayed to get the correct version
@@ -1955,27 +2001,6 @@ class Contrib_TestClass_For_Threats:
             span_sampling_priority = entry_span()._span.context.sampling_priority
             sampling_decision = get_entry_span_tag(constants.SAMPLING_DECISION_TRACE_TAG_KEY)
             assert span_sampling_priority < 2 or sampling_decision != f"-{constants.SamplingMechanism.APPSEC}"
-
-    @pytest.mark.parametrize("rename_service", [True, False])
-    @pytest.mark.parametrize("metastruct", [True, False])
-    def test_iast(self, interface, root_span, get_tag, metastruct, rename_service):
-        from ddtrace.ext import http
-
-        with override_global_config(dict(_use_metastruct_for_iast=metastruct, _iast_use_root_span=True)):
-            url = "/rasp/command_injection/?cmds=."
-            self.update_tracer(interface)
-            response = interface.client.get(url, headers={"x-rename-service": str(rename_service).lower()})
-            assert self.status(response) == 200
-            assert get_tag(http.STATUS_CODE) == "200"
-            assert self.body(response).startswith("command_injection endpoint")
-            stack_traces = self.get_stack_trace(root_span, "vulnerability")
-            if asm_config._iast_enabled:
-                assert get_security(root_span()) is not None
-                # checking for iast stack traces
-                assert stack_traces
-            else:
-                assert get_security(root_span()) is None
-                assert stack_traces == []
 
     @pytest.mark.parametrize("endpoint", ["urlopen_request", "urlopen_string"])
     def test_api10(self, endpoint, interface, get_tag):

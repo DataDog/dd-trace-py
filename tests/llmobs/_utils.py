@@ -2,6 +2,10 @@ import os
 
 import mock
 
+from ddtrace.llmobs.types import _ErrorField
+from ddtrace.llmobs.types import _Meta
+from ddtrace.llmobs.types import _SpanField
+
 
 try:
     import vcr
@@ -226,7 +230,7 @@ def _llmobs_base_span_event(
         "start_ns": span.start_ns,
         "duration": span.duration_ns,
         "status": "error" if error else "ok",
-        "meta": {"span.kind": span_kind},
+        "meta": _Meta(span=_SpanField(kind=span_kind)),
         "metrics": {},
         "tags": _expected_llmobs_tags(span, tags=tags, error=error, session_id=session_id),
         "_dd": {
@@ -238,9 +242,7 @@ def _llmobs_base_span_event(
     if session_id:
         span_event["session_id"] = session_id
     if error:
-        span_event["meta"]["error.type"] = error
-        span_event["meta"]["error.message"] = error_message
-        span_event["meta"]["error.stack"] = error_stack
+        span_event["meta"]["error"] = _ErrorField(type=error, message=error_message or "", stack=error_stack or "")
     if span_links:
         span_event["span_links"] = mock.ANY
     return span_event
@@ -273,6 +275,8 @@ def _expected_llmobs_eval_metric_event(
     boolean_value=None,
     tags=None,
     metadata=None,
+    assessment=None,
+    reasoning=None,
 ):
     eval_metric_event = {
         "join_on": {},
@@ -297,6 +301,10 @@ def _expected_llmobs_eval_metric_event(
         eval_metric_event["boolean_value"] = boolean_value
     if tags is not None:
         eval_metric_event["tags"] = tags
+    if assessment is not None:
+        eval_metric_event["assessment"] = assessment
+    if reasoning is not None:
+        eval_metric_event["reasoning"] = reasoning
     if timestamp_ms is not None:
         eval_metric_event["timestamp_ms"] = timestamp_ms
     else:
@@ -322,7 +330,9 @@ def _completion_event():
         "duration": 12345678900,
         "status": "ok",
         "meta": {
-            "span.kind": "llm",
+            "span": {
+                "kind": "llm",
+            },
             "model_name": "ada",
             "model_provider": "openai",
             "input": {
@@ -353,7 +363,9 @@ def _chat_completion_event():
         "duration": 12345678900,
         "status": "ok",
         "meta": {
-            "span.kind": "llm",
+            "span": {
+                "kind": "llm",
+            },
             "model_name": "gpt-3.5-turbo",
             "model_provider": "openai",
             "input": {
@@ -391,7 +403,9 @@ def _chat_completion_event_with_unserializable_field():
         "duration": 12345678900,
         "status": "ok",
         "meta": {
-            "span.kind": "llm",
+            "span": {
+                "kind": "llm",
+            },
             "model_name": "gpt-3.5-turbo",
             "model_provider": "openai",
             "metadata": {"unserializable": object()},
@@ -430,7 +444,9 @@ def _large_event():
         "duration": 12345678900,
         "status": "ok",
         "meta": {
-            "span.kind": "llm",
+            "span": {
+                "kind": "llm",
+            },
             "model_name": "gpt-3.5-turbo",
             "model_provider": "openai",
             "input": {
@@ -468,7 +484,9 @@ def _oversized_llm_event():
         "duration": 12345678900,
         "status": "ok",
         "meta": {
-            "span.kind": "llm",
+            "span": {
+                "kind": "llm",
+            },
             "model_name": "gpt-3.5-turbo",
             "model_provider": "openai",
             "input": {
@@ -506,7 +524,9 @@ def _oversized_workflow_event():
         "duration": 12345678900,
         "status": "ok",
         "meta": {
-            "span.kind": "workflow",
+            "span": {
+                "kind": "workflow",
+            },
             "input": {"value": "A" * 2_600_000},
             "output": {"value": "A" * 2_600_000},
         },
@@ -526,7 +546,9 @@ def _oversized_retrieval_event():
         "duration": 12345678900,
         "status": "ok",
         "meta": {
-            "span.kind": "retrieval",
+            "span": {
+                "kind": "retrieval",
+            },
             "input": {"documents": {"content": "A" * 2_600_000}},
             "output": {"value": "A" * 2_600_000},
         },
@@ -589,7 +611,7 @@ class DummyEvaluator:
 
     def run_and_submit_evaluation(self, span):
         self.llmobs_service.submit_evaluation(
-            span_context=span,
+            span=span,
             label=self.LABEL,
             value=1.0,
             metric_type="score",
@@ -621,7 +643,9 @@ def _expected_ragas_context_precision_spans(ragas_inputs=None):
             "duration": mock.ANY,
             "status": "ok",
             "meta": {
-                "span.kind": "workflow",
+                "span": {
+                    "kind": "workflow",
+                },
                 "input": {"value": mock.ANY},
                 "output": {"value": "1.0"},
                 "metadata": {},
@@ -640,7 +664,9 @@ def _expected_ragas_context_precision_spans(ragas_inputs=None):
             "duration": mock.ANY,
             "status": "ok",
             "meta": {
-                "span.kind": "workflow",
+                "span": {
+                    "kind": "workflow",
+                },
                 "input": {"value": mock.ANY},
                 "output": {"value": mock.ANY},
                 "metadata": {},
@@ -665,7 +691,9 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             "duration": mock.ANY,
             "status": "ok",
             "meta": {
-                "span.kind": "workflow",
+                "span": {
+                    "kind": "workflow",
+                },
                 "input": {"value": mock.ANY},
                 "output": {"value": "1.0"},
                 "metadata": {
@@ -686,7 +714,9 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             "duration": mock.ANY,
             "status": "ok",
             "meta": {
-                "span.kind": "workflow",
+                "span": {
+                    "kind": "workflow",
+                },
                 "input": {"value": mock.ANY},
                 "output": {"value": mock.ANY},
                 "metadata": {},
@@ -704,7 +734,9 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             "duration": mock.ANY,
             "status": "ok",
             "meta": {
-                "span.kind": "workflow",
+                "span": {
+                    "kind": "workflow",
+                },
                 "input": {"value": mock.ANY},
                 "output": {"value": mock.ANY},
                 "metadata": {},
@@ -722,7 +754,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             "start_ns": mock.ANY,
             "duration": mock.ANY,
             "status": "ok",
-            "meta": {"span.kind": "task", "metadata": {}},
+            "meta": {"span": {"kind": "task"}, "metadata": {}},
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
             "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
@@ -736,7 +768,9 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             "duration": mock.ANY,
             "status": "ok",
             "meta": {
-                "span.kind": "workflow",
+                "span": {
+                    "kind": "workflow",
+                },
                 "input": {"value": mock.ANY},
                 "output": {"value": mock.ANY},
                 "metadata": {},
@@ -754,7 +788,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             "start_ns": mock.ANY,
             "duration": mock.ANY,
             "status": "ok",
-            "meta": {"span.kind": "task", "metadata": {}},
+            "meta": {"span": {"kind": "task"}, "metadata": {}},
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
             "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
@@ -768,7 +802,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             "duration": mock.ANY,
             "status": "ok",
             "meta": {
-                "span.kind": "task",
+                "span": {"kind": "task"},
                 "output": {"value": "1.0"},
                 "metadata": {"faithful_statements": 1, "num_statements": 1},
             },
@@ -792,7 +826,7 @@ def _expected_ragas_answer_relevancy_spans(ragas_inputs=None):
             "duration": mock.ANY,
             "status": "ok",
             "meta": {
-                "span.kind": "workflow",
+                "span": {"kind": "workflow"},
                 "input": {"value": mock.ANY},
                 "output": {"value": mock.ANY},
                 "metadata": {"answer_classifications": mock.ANY, "strictness": mock.ANY},
@@ -811,7 +845,7 @@ def _expected_ragas_answer_relevancy_spans(ragas_inputs=None):
             "duration": mock.ANY,
             "status": "ok",
             "meta": {
-                "span.kind": "workflow",
+                "span": {"kind": "workflow"},
                 "input": {"value": mock.ANY},
                 "output": {"value": mock.ANY},
                 "metadata": {},
@@ -829,7 +863,7 @@ def _expected_ragas_answer_relevancy_spans(ragas_inputs=None):
             "duration": mock.ANY,
             "status": "ok",
             "meta": {
-                "span.kind": "workflow",
+                "span": {"kind": "workflow"},
                 "input": {"value": mock.ANY},
                 "output": {"value": mock.ANY},
                 "metadata": {},

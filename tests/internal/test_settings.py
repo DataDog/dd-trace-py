@@ -647,7 +647,7 @@ def test_remoteconfig_debug_logging():
         }
 
         for _ in range(3):
-            # Attempt to set the same RC Configurations multiple times. This mimicks the behavior
+            # Attempt to set the same RC Configurations multiple times. This mimics the behavior
             # of the agent where all the current RC configurations are returned periodically.
             call_apm_tracing_rc(
                 _base_rc_config(rc_configs),
@@ -656,7 +656,12 @@ def test_remoteconfig_debug_logging():
     # Ensure APM Tracing Remote Config debug logs are generated
     expected_logs = [
         # Tracer configurations are only updated once (calls with duplicate values should be ignored)
-        mock.call("Updated tracer sampling rules via remote_config: %s", '[{"sample_rate": 0.3}]'),
+        mock.call(
+            "Updated tracer sampler (id: %s, rules: %s) sampling rules via remote_config: %s.",
+            mock.ANY,
+            mock.ANY,
+            '[{"sample_rate": 0.3}]',
+        ),
         mock.call("Updated tracer tags via remote_config: %s", {"team": "onboarding"}),
         mock.call("Tracing disabled via remote_config. Config: %s Value: %s", "_tracing_enabled", False),
         mock.call(

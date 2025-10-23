@@ -9,6 +9,10 @@ from ddtrace.settings.profiling import config
 from . import _lock
 
 
+if typing.TYPE_CHECKING:
+    import threading
+
+
 class _ProfiledThreadingLock(_lock._ProfiledLock):
     pass
 
@@ -18,7 +22,7 @@ class ThreadingLockCollector(_lock.LockCollector):
 
     PROFILED_LOCK_CLASS = _ProfiledThreadingLock
 
-    def _get_patch_target(self) -> typing.Any:
+    def _get_patch_target(self) -> typing.Type["threading.Lock"]:
         # Use the copy of threading module that the target application is using
         import threading
 
@@ -36,8 +40,8 @@ def init_stack_v2() -> None:
         _thread_set_native_id = ddtrace_threading.Thread._set_native_id  # type: ignore[attr-defined]
         _thread_bootstrap_inner = ddtrace_threading.Thread._bootstrap_inner  # type: ignore[attr-defined]
 
-        def thread_set_native_id(self, *args, **kswargs):
-            _thread_set_native_id(self, *args, **kswargs)
+        def thread_set_native_id(self, *args, **kwargs):
+            _thread_set_native_id(self, *args, **kwargs)
             stack_v2.register_thread(self.ident, self.native_id, self.name)
 
         def thread_bootstrap_inner(self, *args, **kwargs):
@@ -49,4 +53,4 @@ def init_stack_v2() -> None:
 
         # Instrument any living threads
         for thread_id, thread in ddtrace_threading._active.items():  # type: ignore[attr-defined]
-            stack_v2.register_thread(thread_id, thread.native_id, thread.name)  # type: ignore[attr-defined]
+            stack_v2.register_thread(thread_id, thread.native_id, thread.name)

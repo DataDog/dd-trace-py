@@ -87,7 +87,7 @@ def _call_asm_wrap(func, instance, *args, **kwargs):
 
 def _wrap_request(func, instance, args, kwargs):
     # Use any attached tracer if available, otherwise use the global tracer
-    if asm_config._iast_enabled or (asm_config._asm_enabled and asm_config._ep_enabled):
+    if asm_config._asm_enabled and asm_config._ep_enabled:
         func_to_call = functools.partial(_call_asm_wrap, func, instance)
     else:
         func_to_call = func
@@ -102,10 +102,10 @@ def _wrap_request(func, instance, args, kwargs):
         # Create a new span and attach to this instance (so we can retrieve/update/close later on the response)
         span = pin.tracer.trace(span_name, span_type=SpanTypes.HTTP)
 
-        span.set_tag_str(COMPONENT, config.httplib.integration_name)
+        span._set_tag_str(COMPONENT, config.httplib.integration_name)
 
         # set span.kind to the type of operation being performed
-        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         instance._datadog_span = span
 
@@ -147,10 +147,10 @@ def _wrap_putrequest(func, instance, args, kwargs):
             # Create a new span and attach to this instance (so we can retrieve/update/close later on the response)
             span = pin.tracer.trace(span_name, span_type=SpanTypes.HTTP)
 
-            span.set_tag_str(COMPONENT, config.httplib.integration_name)
+            span._set_tag_str(COMPONENT, config.httplib.integration_name)
 
             # set span.kind to the type of operation being performed
-            span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+            span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
             instance._datadog_span = span
 

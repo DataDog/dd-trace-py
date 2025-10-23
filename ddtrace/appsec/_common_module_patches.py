@@ -1,4 +1,3 @@
-# This module must not import other modules unconditionally that require iast
 import ctypes
 import io
 import json
@@ -171,7 +170,7 @@ def wrapped_request(original_request_callable, instance, args, kwargs):
         res = call_waf_callback(
             addresses,
             crop_trace="wrapped_open_ED4CF71136E15EBF",
-            rule_type=EXPLOIT_PREVENTION.TYPE.SSRF,
+            rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_REQ,
         )
         if res and _must_block(res.actions):
             raise BlockingException(get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, full_url)
@@ -195,9 +194,6 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
     """
     wrapper for open url function
     """
-    if asm_config._iast_enabled:
-        # TODO: IAST SSRF sink to be added
-        pass
     if _get_rasp_capability("ssrf"):
         try:
             from ddtrace.appsec._asm_request_context import _get_asm_context
@@ -227,7 +223,7 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
                         }
                         if use_body:
                             addresses["DOWN_RES_BODY"] = _parse_http_response_body(response)
-                        call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF)
+                        call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES)
                     return response
                 except Exception as e:
                     # api10 response handler for error responses
@@ -243,7 +239,7 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
                         if status_code is not None or response_headers is not None:
                             call_waf_callback(
                                 {"DOWN_RES_STATUS": str(status_code), "DOWN_RES_HEADERS": response_headers},
-                                rule_type=EXPLOIT_PREVENTION.TYPE.SSRF,
+                                rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES,
                             )
                     raise
         elif valid_url:
@@ -277,7 +273,7 @@ def wrapped_urllib3_make_request(original_request_callable, instance, args, kwar
         res = call_waf_callback(
             addresses,
             crop_trace="wrapped_request_D8CB81E472AF98A2",
-            rule_type=EXPLOIT_PREVENTION.TYPE.SSRF,
+            rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_REQ,
         )
         core.discard_item("full_url")
         if res and _must_block(res.actions):
@@ -290,14 +286,6 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
     wrapper for third party requests.request function
     https://requests.readthedocs.io
     """
-    if asm_config._iast_enabled:
-        from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
-
-        if is_iast_request_enabled():
-            from ddtrace.appsec._iast.taint_sinks.ssrf import _iast_report_ssrf
-
-            _iast_report_ssrf(original_request_callable, *args, **kwargs)
-
     if _get_rasp_capability("ssrf"):
         try:
             from ddtrace.appsec._asm_request_context import _get_asm_context
@@ -327,7 +315,7 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
                                 addresses["DOWN_RES_BODY"] = response.json()
                             except Exception:
                                 pass  # nosec
-                        call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF)
+                        call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES)
                     return response
                 except Exception:
                     raise

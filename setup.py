@@ -92,12 +92,13 @@ IAST_DIR = HERE / "ddtrace" / "appsec" / "_iast" / "_taint_tracking"
 DDUP_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "ddup"
 STACK_V2_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack_v2"
 NATIVE_CRATE = HERE / "src" / "native"
+CARGO_TARGET_DIR = NATIVE_CRATE.absolute() / f"target{sys.version_info.major}.{sys.version_info.minor}"
 
 BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.28.0"
+LIBDDWAF_VERSION = "1.29.0"
 
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
 # libdatadog v15.0.0 requires rust 1.78.
@@ -192,6 +193,13 @@ def is_64_bit_python():
     return sys.maxsize > (1 << 32)
 
 
+rust_features = []
+if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
+    rust_features.append("crashtracker")
+    if sys.version_info[:2] < (3, 14):
+        rust_features.append("profiling")
+
+
 class PatchedDistribution(Distribution):
     def __init__(self, attrs=None):
         super().__init__(attrs)
@@ -201,7 +209,7 @@ class PatchedDistribution(Distribution):
         # but at the same time dropped support for Python 3.8. So we'd need to
         # make sure that this env var is set to install the ffi headers in the
         # right place.
-        os.environ["CARGO_TARGET_DIR"] = str(NATIVE_CRATE.absolute() / "target")
+        os.environ["CARGO_TARGET_DIR"] = str(CARGO_TARGET_DIR)
         self.rust_extensions = [
             RustExtension(
                 # The Python import path of your extension:
@@ -211,9 +219,7 @@ class PatchedDistribution(Distribution):
                 py_limited_api="auto",
                 binding=Binding.PyO3,
                 debug=COMPILE_MODE.lower() == "debug",
-                features=(
-                    ["crashtracker", "profiling"] if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() else []
-                ),
+                features=rust_features,
             )
         ]
 
@@ -230,7 +236,9 @@ class ExtensionHashes(build_ext):
                     sources = [
                         _
                         for _ in source_path.glob("**/*")
-                        if _.is_file() and _.relative_to(source_path).parts[0] != "target"
+                        if _.is_file()
+                        and _.relative_to(source_path).parts[0]
+                        != f"target{sys.version_info.major}.{sys.version_info.minor}"
                     ]
                 else:
                     sources = [Path(_) for _ in ext.sources]
@@ -297,7 +305,7 @@ class CustomBuildRust(build_rust):
                 has_profiling_feature = True
                 break
 
-        if IS_EDITABLE:
+        if IS_EDITABLE or getattr(self, "inplace", False):
             self.inplace = True
 
         super().run()
@@ -313,7 +321,7 @@ class CustomBuildRust(build_rust):
             dedup_env["PATH"] = cargo_bin + os.pathsep + os.environ["PATH"]
 
             # Run dedup_headers on the generated headers
-            include_dir = NATIVE_CRATE.absolute() / "target" / "include" / "datadog"
+            include_dir = CARGO_TARGET_DIR / "include" / "datadog"
             if include_dir.exists():
                 subprocess.run(
                     ["dedup_headers", "common.h", "profiling.h"],
@@ -494,8 +502,7 @@ class CleanLibraries(CleanCommand):
     @staticmethod
     def remove_rust():
         """Clean the Rust crate using cargo clean."""
-        target_dir = NATIVE_CRATE / "target"
-        if target_dir.exists():
+        if CARGO_TARGET_DIR.exists():
             subprocess.run(
                 ["cargo", "clean"],
                 cwd=str(NATIVE_CRATE),
@@ -523,6 +530,8 @@ class CustomBuildExt(build_ext):
         build_rust_cmd = CustomBuildRust(self.distribution)
         build_rust_cmd.initialize_options()
         build_rust_cmd.finalize_options()
+        # Propagate the inplace flag to the rust build command
+        build_rust_cmd.inplace = getattr(self, "inplace", False)
         build_rust_cmd.run()
 
         self.suffix = sysconfig.get_config_var("EXT_SUFFIX")
@@ -961,32 +970,33 @@ if not IS_PYSTON:
         )
 
     if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
-        ext_modules.append(
-            CMakeExtension(
-                "ddtrace.internal.datadog.profiling.ddup._ddup",
-                source_dir=DDUP_DIR,
-                extra_source_dirs=[
-                    DDUP_DIR / ".." / "cmake",
-                    DDUP_DIR / ".." / "dd_wrapper",
-                ],
-                optional=False,
-                dependencies=[
-                    DDUP_DIR.parent / "libdd_wrapper",
-                ],
+        if sys.version_info < (3, 14):
+            ext_modules.append(
+                CMakeExtension(
+                    "ddtrace.internal.datadog.profiling.ddup._ddup",
+                    source_dir=DDUP_DIR,
+                    extra_source_dirs=[
+                        DDUP_DIR / ".." / "cmake",
+                        DDUP_DIR / ".." / "dd_wrapper",
+                    ],
+                    optional=False,
+                    dependencies=[
+                        DDUP_DIR.parent / "libdd_wrapper",
+                    ],
+                )
             )
-        )
 
-        ext_modules.append(
-            CMakeExtension(
-                "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
-                source_dir=STACK_V2_DIR,
-                extra_source_dirs=[
-                    STACK_V2_DIR / ".." / "cmake",
-                    STACK_V2_DIR / ".." / "dd_wrapper",
-                ],
-                optional=False,
-            ),
-        )
+            ext_modules.append(
+                CMakeExtension(
+                    "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
+                    source_dir=STACK_V2_DIR,
+                    extra_source_dirs=[
+                        STACK_V2_DIR / ".." / "cmake",
+                        STACK_V2_DIR / ".." / "dd_wrapper",
+                    ],
+                    optional=False,
+                ),
+            )
 
 
 else:

@@ -1,10 +1,16 @@
-"""This Flask application is imported on tests.appsec.appsec_utils.gunicorn_server"""
-import ddtrace.auto  # noqa: F401  # isort: skip
-import copy
+"""This Flask application is imported on tests.appsec.appsec_utils.gunicorn_flask_server"""
 import os
+
+
+if os.getenv("_USE_DDTRACE_COMMAND", False) not in ("1", "true", "True"):
+    import ddtrace.auto  # noqa: F401  # isort: skip
+    import logging
+
+    logging.warning("ddtrace.auto was imported")
+import copy
 import re
 import shlex
-import subprocess  # nosec
+import subprocess
 
 from flask import Flask
 from flask import Response
@@ -13,7 +19,6 @@ from flask import request
 import urllib3
 from wrapt import FunctionWrapper
 
-import ddtrace
 from ddtrace import tracer
 from ddtrace.appsec._iast import ddtrace_iast_flask_patch
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
@@ -97,9 +102,6 @@ from tests.appsec.iast_packages.packages.pkg_yarl import pkg_yarl
 from tests.appsec.iast_packages.packages.pkg_zipp import pkg_zipp
 import tests.appsec.integrations.flask_tests.module_with_import_errors as module_with_import_errors
 
-
-# Patch urllib3 since they are not patched automatically
-ddtrace.patch_all(urllib3=True)  # type: ignore
 
 app = Flask(__name__)
 app.register_blueprint(pkg_aiohttp)
@@ -980,10 +982,17 @@ def iast_ast_patching_non_re_search():
     return resp
 
 
-@app.route("/common-modules-patch-read", methods=["GET"])
-def test_flask_common_modules_patch_read():
-    copy_open = copy.deepcopy(open)
-    return Response(f"OK: {isinstance(copy_open, FunctionWrapper)}")
+@app.route("/common-modules-patch", methods=["GET"])
+def test_flask_common_modules_patch():
+    function = request.args.get("function")
+    copy_function = ""
+    if function == "open":
+        copy_function = copy.deepcopy(open)
+    elif function == "os_system":
+        copy_function = os.system
+    elif function == "subprocess_popen":
+        copy_function = subprocess.Popen.__init__
+    return Response(f"OK: {isinstance(copy_function, FunctionWrapper)}")
 
 
 @app.route("/returnheaders", methods=["GET"])
@@ -997,12 +1006,76 @@ def return_headers(*args, **kwargs):
 @app.route("/vulnerablerequestdownstream", methods=["GET"])
 def vulnerable_request_downstream():
     _weak_hash_vulnerability()
+    port = str(request.args.get("port", "8050"))
     # Propagate the received headers to the downstream service
     http_poolmanager = urllib3.PoolManager(num_pools=1)
     # Sending a GET request and getting back response as HTTPResponse object.
-    response = http_poolmanager.request("GET", "http://localhost:8050/returnheaders")
+    response = http_poolmanager.request("GET", f"http://localhost:{port}/returnheaders")
     http_poolmanager.clear()
     return Response(response.data)
+
+
+@app.route("/gevent-greenlet", methods=["GET"])
+def gevent_greenlet():
+    """Spawn and join a gevent Greenlet to ensure no deadlocks with IAST/gevent.
+
+    This endpoint is used by tests parametrized with Gunicorn/gevent configurations
+    to validate stability under gevent monkey-patching.
+    """
+    try:
+        import gevent
+        from gevent import Greenlet
+
+        def _noop():
+            return True
+
+        g = Greenlet(_noop)
+        g.start()
+        gevent.joinall([g])
+        ok = g.value is True
+    except Exception:
+        # If gevent is not available, still return OK to keep the test minimal
+        ok = True
+    return Response(f"OK:{ok}")
+
+
+@app.route("/socketpair", methods=["GET"])
+def socketpair_roundtrip():
+    """Exercise socket.socketpair send/recv lifecycle and return OK status."""
+    try:
+        import socket
+
+        s1, s2 = socket.socketpair()
+        try:
+            msg = b"ping"
+            s1.sendall(msg)
+            data = s2.recv(16)
+            ok = data == msg
+        finally:
+            s1.close()
+            s2.close()
+    except Exception:
+        ok = False
+    return Response(f"OK:{ok}")
+
+
+@app.route("/subprocess-popen", methods=["GET"])
+def subprocess_popen_ok():
+    """Run a trivial subprocess to ensure process lifecycle behaves under gevent."""
+    ok = True
+    try:
+        pass
+        subp = (
+            subprocess.Popen(args=["/bin/echo", "ok"])
+            if os.path.exists("/bin/echo")
+            else subprocess.Popen(args=["echo", "ok"])
+        )
+        subp.communicate()
+        rc = subp.wait()
+        ok = rc == 0
+    except Exception:
+        ok = False
+    return Response(f"OK:{ok}")
 
 
 if __name__ == "__main__":

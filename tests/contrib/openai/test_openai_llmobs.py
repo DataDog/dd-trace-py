@@ -110,7 +110,7 @@ class TestLLMObsOpenaiV1:
         )
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
-        assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span.kind"] == "llm"
+        assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span"]["kind"] == "llm"
 
     def test_completion(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
         """Ensure llmobs records are emitted for completion endpoints when configured.
@@ -197,7 +197,7 @@ class TestLLMObsOpenaiV1:
         )
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
-        assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span.kind"] == "llm"
+        assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span"]["kind"] == "llm"
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) >= (1, 60),
@@ -337,7 +337,7 @@ class TestLLMObsOpenaiV1:
         client.chat.completions.create(model=model, messages=input_messages, top_p=0.9, n=2, user="ddtrace-test")
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
-        assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span.kind"] == "llm"
+        assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span"]["kind"] == "llm"
 
     def test_chat_completion(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
         """Ensure llmobs records are emitted for chat completion endpoints when configured.
@@ -426,7 +426,7 @@ class TestLLMObsOpenaiV1:
         )
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
-        assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span.kind"] == "llm"
+        assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span"]["kind"] == "llm"
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) >= (1, 60),
@@ -2043,6 +2043,115 @@ MUL: "*"
         assert (
             span_event["meta"]["input"]["messages"][2]["tool_results"][0]["result"]
             == '{"temperature": "72°F", "conditions": "sunny", "humidity": "65%"}'
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 92), reason="Parse method only available in openai >= 1.92"
+    )
+    def test_chat_completion_parse(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+        from typing import List
+
+        from pydantic import BaseModel
+
+        class Step(BaseModel):
+            explanation: str
+            output: str
+
+        class MathResponse(BaseModel):
+            steps: List[Step]
+            final_answer: str
+
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_parse.yaml"):
+            client = openai.OpenAI()
+            resp = client.chat.completions.parse(
+                model="gpt-4o-2024-08-06",
+                messages=[
+                    {"role": "system", "content": "You are a helpful math tutor."},
+                    {"role": "user", "content": "solve 8x + 31 = 2"},
+                ],
+                response_format=MathResponse,
+            )
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name=resp.model,
+                model_provider="openai",
+                input_messages=[
+                    {"role": "system", "content": "You are a helpful math tutor."},
+                    {"role": "user", "content": "solve 8x + 31 = 2"},
+                ],
+                output_messages=[{"role": "assistant", "content": mock.ANY}],
+                metadata={"response_format": "MathResponse"},
+                token_metrics={
+                    "input_tokens": 127,
+                    "output_tokens": 93,
+                    "total_tokens": 220,
+                    "cache_read_input_tokens": 0,
+                },
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+            )
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 92), reason="Parse method only available in openai >= 1.92"
+    )
+    def test_response_parse(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+        from typing import List
+
+        from pydantic import BaseModel
+
+        class Step(BaseModel):
+            explanation: str
+            output: str
+
+        class MathResponse(BaseModel):
+            steps: List[Step]
+            final_answer: str
+
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("response_parse.yaml"):
+            client = openai.OpenAI()
+            resp = client.responses.parse(
+                model="gpt-4o-2024-08-06",
+                input="solve 8x + 31 = 2",
+                text_format=MathResponse,
+            )
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name=resp.model,
+                model_provider="openai",
+                input_messages=[
+                    {"role": "user", "content": "solve 8x + 31 = 2"},
+                ],
+                output_messages=[{"role": "assistant", "content": mock.ANY}],
+                metadata={
+                    "temperature": 1.0,
+                    "top_p": 1.0,
+                    "tool_choice": "auto",
+                    "truncation": "disabled",
+                    "text": {
+                        "format": {
+                            "name": "MathResponse",
+                            "schema_": mock.ANY,
+                            "type": "json_schema",
+                            "strict": True,
+                        },
+                        "verbosity": "medium",
+                    },
+                    "reasoning_tokens": 0,
+                },
+                token_metrics={
+                    "input_tokens": 113,
+                    "output_tokens": 99,
+                    "total_tokens": 212,
+                    "cache_read_input_tokens": 0,
+                },
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+            )
         )
 
 

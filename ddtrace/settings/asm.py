@@ -272,7 +272,6 @@ class ASMConfig(DDConfig):
 
             # Disable all features that are not supported in Lambda
             tracer_config._remote_config_enabled = False
-            self._ep_enabled = False
             self._iast_supported = False
 
         if not self._iast_supported:
@@ -309,10 +308,10 @@ class ASMConfig(DDConfig):
 
     def _eval_asm_can_be_enabled(self) -> None:
         self._asm_can_be_enabled = APPSEC_ENV not in os.environ and tracer_config._remote_config_enabled
-        self._load_modules = bool(
-            self._iast_enabled or (self._ep_enabled and (self._asm_enabled or self._asm_can_be_enabled))
-        )
+        self._load_modules = bool(self._ep_enabled and (self._asm_enabled or self._asm_can_be_enabled))
         self._asm_rc_enabled = (self._asm_enabled and tracer_config._remote_config_enabled) or self._asm_can_be_enabled
+        if APPSEC_ENV in os.environ and self._asm_enabled:
+            tracer_config._trace_resource_renaming_enabled = True
 
     @property
     def _api_security_feature_active(self) -> bool:

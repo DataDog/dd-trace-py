@@ -17,6 +17,8 @@ class DjangoSimple(bm.Scenario):
     always_create_database_spans: bool
     django_instrument_templates: bool
     native_writer: bool
+    django_minimal: bool
+    resource_renaming_enabled: bool
 
     def run(self):
         os.environ["DJANGO_SETTINGS_MODULE"] = "app"
@@ -25,6 +27,14 @@ class DjangoSimple(bm.Scenario):
         os.environ["DD_DJANGO_INSTRUMENT_DATABASES"] = "1" if self.django_instrument_databases else "0"
         os.environ["DD_DJANGO_ALWAYS_CREATE_DATABASE_SPANS"] = "1" if self.always_create_database_spans else "0"
         os.environ["DD_DJANGO_INSTRUMENT_TEMPLATES"] = "1" if self.django_instrument_templates else "0"
+
+        # Use only the minimal setting and the defaults for everything else (mostly based on the value of "minimal")
+        if self.django_minimal:
+            os.environ["DD_DJANGO_TRACING_MINIMAL"] = "1"
+            del os.environ["DD_DJANGO_INSTRUMENT_CACHES"]
+            del os.environ["DD_DJANGO_INSTRUMENT_DATABASES"]
+            del os.environ["DD_DJANGO_ALWAYS_CREATE_DATABASE_SPANS"]
+            del os.environ["DD_DJANGO_INSTRUMENT_TEMPLATES"]
 
         if self.profiler_enabled:
             os.environ.update(
@@ -40,6 +50,8 @@ class DjangoSimple(bm.Scenario):
             os.environ.update({"DD_EXCEPTION_REPLAY_ENABLED": "1"})
         if self.native_writer:
             os.environ.update({"_DD_TRACE_WRITER_NATIVE": "1"})
+        if self.resource_renaming_enabled:
+            os.environ.update({"DD_TRACE_RESOURCE_RENAMING_ENABLED": "1"})
 
         # This will not work with gevent workers as the gevent hub has not been
         # initialized when this hook is called.

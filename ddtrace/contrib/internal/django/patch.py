@@ -39,6 +39,9 @@ from ddtrace.vendor.packaging.version import parse as parse_version
 
 log = get_logger(__name__)
 
+# TODO[4.0]: Change this to True by default
+DJANGO_TRACING_MINIMAL = asbool(_get_config("DD_DJANGO_TRACING_MINIMAL", default=False))
+
 config._add(
     "django",
     dict(
@@ -49,10 +52,11 @@ config._add(
         trace_fetch_methods=asbool(os.getenv("DD_DJANGO_TRACE_FETCH_METHODS", default=False)),
         distributed_tracing_enabled=True,
         instrument_middleware=asbool(os.getenv("DD_DJANGO_INSTRUMENT_MIDDLEWARE", default=True)),
-        instrument_templates=asbool(os.getenv("DD_DJANGO_INSTRUMENT_TEMPLATES", default=True)),
-        instrument_databases=asbool(os.getenv("DD_DJANGO_INSTRUMENT_DATABASES", default=True)),
+        instrument_templates=asbool(os.getenv("DD_DJANGO_INSTRUMENT_TEMPLATES", default=not DJANGO_TRACING_MINIMAL)),
+        instrument_databases=asbool(os.getenv("DD_DJANGO_INSTRUMENT_DATABASES", default=not DJANGO_TRACING_MINIMAL)),
+        # TODO[4.0]: remove this option and make it the default behavior when databases are instrumented
         always_create_database_spans=asbool(os.getenv("DD_DJANGO_ALWAYS_CREATE_DATABASE_SPANS", default=True)),
-        instrument_caches=asbool(os.getenv("DD_DJANGO_INSTRUMENT_CACHES", default=True)),
+        instrument_caches=asbool(os.getenv("DD_DJANGO_INSTRUMENT_CACHES", default=not DJANGO_TRACING_MINIMAL)),
         trace_query_string=None,  # Default to global config
         include_user_name=asm_config._django_include_user_name,
         include_user_email=asm_config._django_include_user_email,
@@ -344,7 +348,7 @@ def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
 
     def django_asgi_modifier(span, scope):
         span.name = schematize_url_operation("django.request", protocol="http", direction=SpanDirection.INBOUND)
-        span.set_tag_str(COMPONENT, config_django.integration_name)
+        span._set_tag_str(COMPONENT, config_django.integration_name)
 
     return TraceMiddleware(func(*args, **kwargs), integration_config=config_django, span_modifier=django_asgi_modifier)
 
@@ -370,7 +374,7 @@ def traced_authenticate(django, pin, func, instance, args, kwargs):
     if mode == "disabled":
         return result_user
     try:
-        result = core.dispatch_with_results(
+        result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
             "django.auth",
             (result_user, mode, kwargs, pin, _DjangoUserInfoRetriever(result_user, credentials=kwargs), config_django),
         ).user
@@ -481,7 +485,9 @@ def _patch(django):
 
 
 def wrap_wsgi_environ(wrapped, _instance, args, kwargs):
-    result = core.dispatch_with_results("django.wsgi_environ", (wrapped, _instance, args, kwargs)).wrapped_result
+    result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
+        "django.wsgi_environ", (wrapped, _instance, args, kwargs)
+    ).wrapped_result
     # if the callback is registered and runs, return the result
     if result:
         return result.value

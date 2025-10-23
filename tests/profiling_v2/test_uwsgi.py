@@ -1,3 +1,4 @@
+from importlib.metadata import version
 import os
 import re
 import signal
@@ -153,23 +154,78 @@ def test_uwsgi_threads_processes_no_primary_lazy_apps(uwsgi, tmp_path, monkeypat
     # the child process exits.
     proc = uwsgi("--enable-threads", "--processes", "2", "--lazy-apps", "--skip-atexit")
     worker_pids = _get_worker_pids(proc.stdout, 2, 2)
+    assert len(worker_pids) == 2
+
     # Give some time to child to actually startup and output a profile
     time.sleep(3)
-    # The processes are started without a master/parent so killing one does not kill the other:
-    # Kill them all and wait until they die.
-    for pid in worker_pids:
-        os.kill(pid, signal.SIGTERM)
-    # The first worker is our child, we can wait for it "normally"
-    os.waitpid(worker_pids[0], 0)
-    # The other ones are grandchildren, we can't wait for it with `waitpid`
-    for pid in worker_pids[1:]:
-        # Wait for the uwsgi workers to all die
-        while True:
-            try:
-                os.kill(pid, 0)
-            except OSError:
-                break
+
+    # Kill master process
+    parent_pid: int = worker_pids[0]
+    os.kill(parent_pid, signal.SIGTERM)
+
+    # Wait for master to exit
+    res_pid, res_status = os.waitpid(parent_pid, 0)
+    print("")
+    print(f"INFO: Master process {parent_pid} exited with status {res_status} and pid {res_pid}")
+
+    # Attempt to kill worker proc once
+    worker_pid: int = worker_pids[1]
+    print(f"DEBUG: Checking worker {worker_pid} status after master exit:")
+    try:
+        os.kill(worker_pid, 0)
+        print(f"WARNING: Worker {worker_pid} is a zombie (will be cleaned up by init).")
+
+        os.kill(worker_pid, signal.SIGKILL)
+        print(f"WARNING: Worker {worker_pid} could not be killed with SIGKILL (will be cleaned up by init).")
+    except OSError:
+        print(f"INFO: Worker {worker_pid} was successfully killed.")
+
     for pid in worker_pids:
         profile = pprof_utils.parse_newest_profile("%s.%d" % (filename, pid))
         samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
         assert len(samples) > 0
+
+
+@pytest.mark.parametrize("lazy_flag", ["--lazy-apps", "--lazy"])
+@pytest.mark.skipif(
+    tuple(int(x) for x in version("uwsgi").split(".")) >= (2, 0, 30),
+    reason="uwsgi>=2.0.30 does not require --skip-atexit",
+)
+def test_uwsgi_require_skip_atexit_when_lazy_with_master(uwsgi, lazy_flag):
+    expected_warning = b"ddtrace.internal.uwsgi.uWSGIConfigDeprecationWarning: skip-atexit option must be set"
+
+    proc = uwsgi("--enable-threads", "--master", "--processes", "2", lazy_flag)
+    time.sleep(1)
+    proc.terminate()
+    stdout, _ = proc.communicate()
+    assert expected_warning in stdout
+
+
+@pytest.mark.parametrize("lazy_flag", ["--lazy-apps", "--lazy"])
+@pytest.mark.skipif(
+    tuple(int(x) for x in version("uwsgi").split(".")) >= (2, 0, 30),
+    reason="uwsgi>=2.0.30 does not require --skip-atexit",
+)
+def test_uwsgi_require_skip_atexit_when_lazy_without_master(uwsgi, lazy_flag):
+    expected_warning = b"ddtrace.internal.uwsgi.uWSGIConfigDeprecationWarning: skip-atexit option must be set"
+    num_workers = 2
+    proc = uwsgi("--enable-threads", "--processes", str(num_workers), lazy_flag)
+
+    worker_pids = []
+    logged_warning = 0
+    while True:
+        line = proc.stdout.readline()
+        if line == b"":
+            break
+        if expected_warning in line:
+            logged_warning += 1
+        else:
+            m = re.match(r"^spawned uWSGI worker \d+ .*\(pid: (\d+),", line.decode())
+            if m:
+                worker_pids.append(int(m.group(1)))
+
+        if logged_warning == num_workers:
+            break
+
+    for pid in worker_pids:
+        os.kill(pid, signal.SIGTERM)

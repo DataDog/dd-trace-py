@@ -1,5 +1,5 @@
 variables:
-  TESTRUNNER_IMAGE: registry.ddbuild.io/dd-trace-py:v73166438-4077fc2-testrunner-2025.08.08@sha256:456e32d2fdc19569fb34d705d1ccf193c179cc5364d1f93e60f825d189647c3d
+  TESTRUNNER_IMAGE: registry.ddbuild.io/dd-trace-py:v78900213-daaf5b5-testrunner@sha256:bf80b40852537c0eca2d8ace5ffeffa7b916bc4c412bf4a3fce2f9f8d72e7a20
 
 .testrunner:
   image:
@@ -12,7 +12,7 @@ variables:
   before_script:
     - ulimit -c unlimited
     - git config --global --add safe.directory ${CI_PROJECT_DIR}
-    - pyenv global 3.12 3.8 3.9 3.10 3.11 3.13
+    - pyenv global 3.12 3.8 3.9 3.10 3.11 3.13 3.14
     - export _CI_DD_AGENT_URL=http://${HOST_IP}:8126/
   retry: 2
   artifacts:

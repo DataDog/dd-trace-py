@@ -192,7 +192,7 @@ def _iast_django_response(wrapped, instance, args, kwargs):
         elif hasattr(instance, "_store"):
             instance._store = HeaderInjectionDict(instance._store)
     except Exception as e:
-        iast_error(f"propagation::sink_point::Error in _iast_django_response. {e}")
+        iast_error("propagation::sink_point::Error in _iast_django_response", e)
 
 
 class HeaderInjectionDict(dict):
@@ -264,7 +264,7 @@ def _iast_report_header_injection(headers_args, check_header_injection=True, che
             # Report Telemetry Metrics
             _set_metric_iast_executed_sink(HeaderInjection.vulnerability_type)
     except Exception as e:
-        iast_error(f"propagation::sink_point::Error in _iast_report_header_injection. {e}")
+        iast_error("propagation::sink_point::Error in _iast_report_header_injection", e)
 
 
 def _check_type_headers_and_report_header_injection(

@@ -35,8 +35,6 @@ jobs:
       TEST_LIBRARY: python
       WEBLOG_VARIANT: ${{ matrix.weblog-variant }}
       CMAKE_BUILD_PARALLEL_LEVEL: 12
-      SYSTEM_TESTS_AWS_ACCESS_KEY_ID: ${{ secrets.IDM_AWS_ACCESS_KEY_ID }}
-      SYSTEM_TESTS_AWS_SECRET_ACCESS_KEY: ${{ secrets.IDM_AWS_SECRET_ACCESS_KEY }}
     steps:
       - name: Install Dependencies
         run: sudo apt-get install -y patchelf
@@ -47,7 +45,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: 'e13ccb562e9e060317b173e25b1e638d89f9df3b'
+          ref: 'f3752de0abce8bd5e7625577a105eb8af53bb8ce'
 
       - name: Download wheels to binaries directory
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
@@ -84,8 +82,6 @@ jobs:
       TEST_LIBRARY: python
       WEBLOG_VARIANT: ${{ matrix.weblog-variant }}
       CMAKE_BUILD_PARALLEL_LEVEL: 12
-      SYSTEM_TESTS_AWS_ACCESS_KEY_ID: ${{ secrets.IDM_AWS_ACCESS_KEY_ID }}
-      SYSTEM_TESTS_AWS_SECRET_ACCESS_KEY: ${{ secrets.IDM_AWS_SECRET_ACCESS_KEY }}
     steps:
 
       - name: Checkout system tests
@@ -94,7 +90,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: 'e13ccb562e9e060317b173e25b1e638d89f9df3b'
+          ref: 'f3752de0abce8bd5e7625577a105eb8af53bb8ce'
 
       - name: Build runner
         uses: ./.github/actions/install_runner
@@ -217,13 +213,13 @@ jobs:
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
         run: ./run.sh APPSEC_BLOCKING_FULL_DENYLIST
 
-      - name: Run APPSEC_REQUEST_BLOCKING
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
-        run: ./run.sh APPSEC_REQUEST_BLOCKING
-
       - name: Run APPSEC_RASP
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
         run: ./run.sh APPSEC_RASP
+
+      - name: Run APPSEC_STANDALONE_RASP
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
+        run: ./run.sh APPSEC_STANDALONE_RASP
 
       - name: Run DEBUGGER_PROBES_STATUS
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-1'
@@ -279,7 +275,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: 'e13ccb562e9e060317b173e25b1e638d89f9df3b'
+          ref: 'f3752de0abce8bd5e7625577a105eb8af53bb8ce'
       - name: Download wheels to binaries directory
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:

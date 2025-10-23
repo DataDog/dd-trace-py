@@ -2,6 +2,7 @@ from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import is_dataclass
 import json
+from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -14,6 +15,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import CREWAI_APM_SPAN_NAME
+from ddtrace.llmobs._constants import DEFAULT_PROMPT_NAME
 from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
 from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
@@ -27,11 +29,15 @@ from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import VERTEXAI_APM_SPAN_NAME
+from ddtrace.llmobs.types import Message
+from ddtrace.llmobs.types import Prompt
+from ddtrace.llmobs.types import _SpanLink
 from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
 
+ValidatedPromptDict = Dict[str, Union[str, Dict[str, Any], List[str], List[Dict[str, str]], List[Message]]]
 
 STANDARD_INTEGRATION_SPAN_NAMES = (
     CREWAI_APM_SPAN_NAME,
@@ -42,50 +48,100 @@ STANDARD_INTEGRATION_SPAN_NAMES = (
 )
 
 
-def validate_prompt(prompt: dict) -> Dict[str, Union[str, dict, List[str]]]:
-    validated_prompt = {}  # type: Dict[str, Union[str, dict, List[str]]]
+def _validate_prompt(prompt: Union[Dict[str, Any], Prompt], strict_validation: bool) -> ValidatedPromptDict:
     if not isinstance(prompt, dict):
-        raise TypeError("Prompt must be a dictionary")
+        raise TypeError(f"Prompt must be a dictionary, received {type(prompt).__name__}.")
+
+    ml_app = config._llmobs_ml_app
+    prompt_id = prompt.get("id")
+    version = prompt.get("version")
+    tags = prompt.get("tags")
     variables = prompt.get("variables")
     template = prompt.get("template")
-    version = prompt.get("version")
-    prompt_id = prompt.get("id")
+    chat_template = prompt.get("chat_template")
     ctx_variable_keys = prompt.get("rag_context_variables")
-    rag_query_variable_keys = prompt.get("rag_query_variables")
-    if variables is not None:
+    query_variable_keys = prompt.get("rag_query_variables")
+
+    if strict_validation:
+        if prompt_id is None:
+            raise ValueError("'id' must be provided")
+        if template is None and chat_template is None:
+            raise ValueError("One of 'template' or 'chat_template' must be provided to annotate a prompt.")
+
+    if template and chat_template:
+        raise ValueError("Only one of 'template' or 'chat_template' can be provided, not both.")
+
+    final_prompt_id = prompt_id or f"{ml_app}_{DEFAULT_PROMPT_NAME}"
+    final_ctx_variable_keys = ctx_variable_keys or ["context"]
+    final_query_variable_keys = query_variable_keys or ["question"]
+
+    if not isinstance(final_prompt_id, str):
+        raise TypeError(f"prompt_id {final_prompt_id} must be a string, received {type(final_prompt_id).__name__}")
+
+    if not (isinstance(final_ctx_variable_keys, list) and all(isinstance(i, str) for i in final_ctx_variable_keys)):
+        raise TypeError(f"ctx_variables must be a list of strings, received {type(final_ctx_variable_keys).__name__}")
+
+    if not (isinstance(final_query_variable_keys, list) and all(isinstance(i, str) for i in final_query_variable_keys)):
+        raise TypeError(
+            f"query_variables must be a list of strings, received {type(final_query_variable_keys).__name__}"
+        )
+
+    if version and not isinstance(version, str):
+        raise TypeError(f"version: {version} must be a string, received {type(version).__name__}")
+
+    if tags:
+        if not isinstance(tags, dict):
+            raise TypeError(
+                f"tags: {tags} must be a dictionary of string key-value pairs, received {type(tags).__name__}"
+            )
+        if not all(isinstance(k, str) for k in tags):
+            raise TypeError("Keys of 'tags' must all be strings.")
+        if not all(isinstance(k, str) for k in tags.values()):
+            raise TypeError("Values of 'tags' must all be strings.")
+
+    if template and not isinstance(template, str):
+        raise TypeError(f"template: {template} must be a string, received {type(template).__name__}")
+
+    if chat_template:
+        if not isinstance(chat_template, list):
+            raise TypeError("chat_template must be a list of dictionaries with string-string key value pairs.")
+        for ct in chat_template:
+            if not (isinstance(ct, dict) and all(k in ct for k in ("role", "content"))):
+                raise TypeError(
+                    "Each 'chat_template' entry should be a string-string dictionary with role and content keys."
+                )
+
+    if variables:
         if not isinstance(variables, dict):
-            raise TypeError("Prompt variables must be a dictionary.")
-        if not any(isinstance(k, str) or isinstance(v, str) for k, v in variables.items()):
-            raise TypeError("Prompt variable keys and values must be strings.")
-        validated_prompt["variables"] = variables
-    if template is not None:
-        if not isinstance(template, str):
-            raise TypeError("Prompt template must be a string")
-        validated_prompt["template"] = template
-    if version is not None:
-        if not isinstance(version, str):
-            raise TypeError("Prompt version must be a string.")
+            raise TypeError(
+                f"variables: {variables} must be a dictionary with string keys, received {type(variables).__name__}"
+            )
+        if not all(isinstance(k, str) for k in variables):
+            raise TypeError("Keys of 'variables' must all be strings.")
+
+    final_chat_template = []
+    if chat_template:
+        for msg in chat_template:
+            final_chat_template.append(Message(role=msg["role"], content=msg["content"]))
+
+    validated_prompt: ValidatedPromptDict = {}
+    if final_prompt_id:
+        validated_prompt["id"] = final_prompt_id
+    if version:
         validated_prompt["version"] = version
-    if prompt_id is not None:
-        if not isinstance(prompt_id, str):
-            raise TypeError("Prompt id must be a string.")
-        validated_prompt["id"] = prompt_id
-    if ctx_variable_keys is not None:
-        if not isinstance(ctx_variable_keys, list):
-            raise TypeError("Prompt field `context_variable_keys` must be a list of strings.")
-        if not all(isinstance(k, str) for k in ctx_variable_keys):
-            raise TypeError("Prompt field `context_variable_keys` must be a list of strings.")
-        validated_prompt[INTERNAL_CONTEXT_VARIABLE_KEYS] = ctx_variable_keys
-    else:
-        validated_prompt[INTERNAL_CONTEXT_VARIABLE_KEYS] = ["context"]
-    if rag_query_variable_keys is not None:
-        if not isinstance(rag_query_variable_keys, list):
-            raise TypeError("Prompt field `rag_query_variables` must be a list of strings.")
-        if not all(isinstance(k, str) for k in rag_query_variable_keys):
-            raise TypeError("Prompt field `rag_query_variables` must be a list of strings.")
-        validated_prompt[INTERNAL_QUERY_VARIABLE_KEYS] = rag_query_variable_keys
-    else:
-        validated_prompt[INTERNAL_QUERY_VARIABLE_KEYS] = ["question"]
+    if variables:
+        validated_prompt["variables"] = variables
+    if template:
+        validated_prompt["template"] = template
+    if final_chat_template:
+        validated_prompt["chat_template"] = final_chat_template
+    if tags:
+        validated_prompt["tags"] = tags
+    if final_ctx_variable_keys:
+        validated_prompt[INTERNAL_CONTEXT_VARIABLE_KEYS] = final_ctx_variable_keys
+    if final_query_variable_keys:
+        validated_prompt[INTERNAL_QUERY_VARIABLE_KEYS] = final_query_variable_keys
+
     return validated_prompt
 
 
@@ -214,8 +270,10 @@ def load_data_value(value):
         return [load_data_value(item) for item in value]
     elif isinstance(value, dict):
         return {str(k): load_data_value(v) for k, v in value.items()}
+    elif isinstance(value, type):
+        return value.__name__
     elif hasattr(value, "model_dump"):
-        return value.model_dump()
+        return value.model_dump(exclude_none=True)
     elif is_dataclass(value):
         return asdict(value)
     elif isinstance(value, (int, float, str, bool)) or value is None:
@@ -243,13 +301,13 @@ def format_tool_call_arguments(tool_args: str) -> str:
 
 
 def add_span_link(span: Span, span_id: str, trace_id: str, from_io: str, to_io: str) -> None:
-    current_span_links = span._get_ctx_item(SPAN_LINKS) or []
+    current_span_links: List[_SpanLink] = span._get_ctx_item(SPAN_LINKS) or []
     current_span_links.append(
-        {
-            "span_id": span_id,
-            "trace_id": trace_id,
-            "attributes": {"from": from_io, "to": to_io},
-        }
+        _SpanLink(
+            span_id=span_id,
+            trace_id=trace_id,
+            attributes={"from": from_io, "to": to_io},
+        )
     )
     span._set_ctx_item(SPAN_LINKS, current_span_links)
 

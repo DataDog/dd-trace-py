@@ -7,7 +7,6 @@ from typing import Union
 
 from wrapt.importer import when_imported
 
-from ddtrace.appsec._listeners import load_common_appsec_modules
 from ddtrace.internal.compat import Path
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.settings._config import config
@@ -49,6 +48,7 @@ PATCH_MODULES = {
     "algoliasearch": True,
     "futures": True,
     "freezegun": False,  # deprecated, to be removed in ddtrace 4.x
+    "google_adk": True,
     "google_generativeai": True,
     "google_genai": True,
     "gevent": True,
@@ -104,6 +104,7 @@ PATCH_MODULES = {
     "yaaredis": True,
     "asyncpg": True,
     "aws_lambda": True,  # patch only in AWS Lambda environments
+    "azure_eventhubs": True,
     "azure_functions": True,
     "azure_servicebus": True,
     "tornado": False,
@@ -118,6 +119,7 @@ PATCH_MODULES = {
     "selenium": True,
     "valkey": True,
     "openai_agents": True,
+    "ray": False,
     "protobuf": config._data_streams_enabled,
 }
 
@@ -159,12 +161,15 @@ _MODULES_FOR_CONTRIB = {
     "futures": ("concurrent.futures.thread",),
     "vertica": ("vertica_python",),
     "aws_lambda": ("datadog_lambda",),
+    "azure_eventhubs": ("azure.eventhub",),
     "azure_functions": ("azure.functions",),
     "azure_servicebus": ("azure.servicebus",),
     "httplib": ("http.client",),
     "kafka": ("confluent_kafka",),
+    "google_adk": ("google.adk",),
     "google_generativeai": ("google.generativeai",),
     "google_genai": ("google.genai",),
+    "langchain": ("langchain_core",),
     "langgraph": (
         "langgraph",
         "langgraph.graph",
@@ -358,8 +363,6 @@ def _patch_all(**patch_modules: bool) -> None:
     modules.update(patch_modules)
 
     patch(raise_errors=False, **modules)
-
-    load_common_appsec_modules()
 
 
 def patch(raise_errors=True, **patch_modules):

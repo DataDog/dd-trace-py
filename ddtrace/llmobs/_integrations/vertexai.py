@@ -22,6 +22,7 @@ from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_
 from ddtrace.llmobs._integrations.google_utils import get_system_instructions_gemini_vertexai
 from ddtrace.llmobs._integrations.google_utils import llmobs_get_metadata_gemini_vertexai
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs.types import Message
 from ddtrace.trace import Span
 
 
@@ -32,9 +33,9 @@ class VertexAIIntegration(BaseLLMIntegration):
         self, span: Span, provider: Optional[str] = None, model: Optional[str] = None, **kwargs: Dict[str, Any]
     ) -> None:
         if provider is not None:
-            span.set_tag_str("vertexai.request.provider", provider)
+            span._set_tag_str("vertexai.request.provider", provider)
         if model is not None:
-            span.set_tag_str("vertexai.request.model", model)
+            span._set_tag_str("vertexai.request.model", model)
 
     def _llmobs_set_tags(
         self,
@@ -57,7 +58,7 @@ class VertexAIIntegration(BaseLLMIntegration):
             input_contents = get_argument_value(args, kwargs, 0, "contents")
         input_messages = self._extract_input_message(input_contents, history, system_instruction)
 
-        output_messages = [{"content": ""}]
+        output_messages: List[Message] = [Message(content="")]
         if response is not None:
             output_messages = self._extract_output_message(response)
             metrics = self._extract_metrics_from_response(response)
@@ -109,28 +110,28 @@ class VertexAIIntegration(BaseLLMIntegration):
 
         return metrics
 
-    def _extract_input_message(self, contents, history, system_instruction=None):
+    def _extract_input_message(self, contents, history, system_instruction=None) -> List[Message]:
         from vertexai.generative_models._generative_models import Part
 
-        messages = []
+        messages: List[Message] = []
         if system_instruction:
             for instruction in system_instruction:
-                messages.append({"content": instruction or "", "role": "system"})
+                messages.append(Message(content=instruction or "", role="system"))
         for content in history:
             messages.extend(self._extract_messages_from_content(content))
         if isinstance(contents, str):
-            messages.append({"content": contents})
+            messages.append(Message(content=contents))
             return messages
         if isinstance(contents, Part):
             message = extract_message_from_part_gemini_vertexai(contents)
             messages.append(message)
             return messages
         if not isinstance(contents, list):
-            messages.append({"content": "[Non-text content object: {}]".format(repr(contents))})
+            messages.append(Message(content="[Non-text content object: {}]".format(repr(contents))))
             return messages
         for content in contents:
             if isinstance(content, str):
-                messages.append({"content": content})
+                messages.append(Message(content=content))
                 continue
             if isinstance(content, Part):
                 message = extract_message_from_part_gemini_vertexai(content)
@@ -139,8 +140,8 @@ class VertexAIIntegration(BaseLLMIntegration):
             messages.extend(self._extract_messages_from_content(content))
         return messages
 
-    def _extract_output_message(self, generations):
-        output_messages = []
+    def _extract_output_message(self, generations) -> List[Message]:
+        output_messages: List[Message] = []
         # streamed responses will be a list of chunks
         if isinstance(generations, list):
             message_content = ""
@@ -153,7 +154,7 @@ class VertexAIIntegration(BaseLLMIntegration):
                     for message in messages:
                         message_content += message.get("content", "")
                         tool_calls.extend(message.get("tool_calls", []))
-            message = {"content": message_content, "role": role}
+            message = Message(content=message_content, role=role)
             if tool_calls:
                 message["tool_calls"] = tool_calls
             return [message]
@@ -164,14 +165,14 @@ class VertexAIIntegration(BaseLLMIntegration):
         return output_messages
 
     @staticmethod
-    def _extract_messages_from_content(content):
-        messages = []
+    def _extract_messages_from_content(content) -> List[Message]:
+        messages: List[Message] = []
         role = _get_attr(content, "role", "")
         parts = _get_attr(content, "parts", [])
         if not parts or not isinstance(parts, Iterable):
-            message = {"content": "[Non-text content object: {}]".format(repr(content))}
+            message = Message(content="[Non-text content object: {}]".format(repr(content)))
             if role:
-                message["role"] = role
+                message["role"] = str(role)
             messages.append(message)
             return messages
         for part in parts:

@@ -21,9 +21,6 @@ API_VERSION = tuple(int(x) for x in opentelemetry.version.__version__.split(".")
 
 DEFAULT_PROTOCOL = "grpc"
 DD_LOGS_PROVIDER_CONFIGURED = False
-GRPC_PORT = 4317
-HTTP_PORT = 4318
-HTTP_LOGS_ENDPOINT = "/v1/logs"
 
 
 def set_otel_logs_provider() -> None:
@@ -43,7 +40,6 @@ def set_otel_logs_provider() -> None:
     if not _initialize_logging(exporter_class, protocol, resource):
         return
 
-    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.TRACERS, "logging_provider_configured", 1, (("type", "dd"),))
     global DD_LOGS_PROVIDER_CONFIGURED
     DD_LOGS_PROVIDER_CONFIGURED = True
     # Disable log injection to prevent duplicate log attributes from being sent.
@@ -179,9 +175,9 @@ def _initialize_logging(exporter_class, protocol, resource):
     try:
         from opentelemetry.sdk._configuration import _init_logging
 
-        # Ensure logging exporter is configured to send payloads to a Datadog Agent.
-        # The default endpoint is resolved using the hostname from DD_AGENT.. and DD_TRACE_AGENT_... configs
-        os.environ["OTEL_EXPORTER_OTLP_LOGS_ENDPOINT"] = otel_config.exporter.LOGS_ENDPOINT
+        # Ensure logs exporter is configured to send payloads to a Datadog Agent.
+        if "OTEL_EXPORTER_OTLP_ENDPOINT" not in os.environ and "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT" not in os.environ:
+            os.environ["OTEL_EXPORTER_OTLP_LOGS_ENDPOINT"] = otel_config.exporter.LOGS_ENDPOINT
         _init_logging({protocol: exporter_class}, resource=resource)
         return True
     except ImportError as e:

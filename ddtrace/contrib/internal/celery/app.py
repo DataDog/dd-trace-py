@@ -97,7 +97,7 @@ def _traced_beat_function(integration_config, fn_name, resource_fn=None):
         ) as span:
             if resource_fn:
                 span.resource = resource_fn(args)
-            span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+            span._set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
             # PERF: avoid setting via Span.set_tag
             span.set_metric(_SPAN_MEASURED_KEY, 1)
 

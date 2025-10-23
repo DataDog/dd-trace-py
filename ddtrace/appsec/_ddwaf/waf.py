@@ -59,9 +59,12 @@ class DDWaf(WAF):
             key_regex=obfuscation_parameter_key_regexp, value_regex=obfuscation_parameter_value_regexp
         )
         diagnostics = ddwaf_object()
-        ruleset_map_object = ddwaf_object.from_json_bytes(ruleset_json_str)
-        if not ruleset_map_object:
-            raise ValueError("Invalid ruleset provided to DDWaf constructor")
+        ruleset_map_object = None
+        try:
+            dct = json.loads(ruleset_json_str)
+        except Exception:
+            dct = {}
+        ruleset_map_object = ddwaf_object.create_without_limits(dct)
         self._builder = py_ddwaf_builder_init(config)
         py_add_or_update_config(self._builder, ASM_DD_DEFAULT, ruleset_map_object, diagnostics)
         self._handle = py_ddwaf_builder_build_instance(self._builder)
@@ -97,11 +100,14 @@ class DDWaf(WAF):
         self._cached_version = version
         for key, value in info_struct.items():
             if isinstance(value, dict):
-                if value.get("error", False):
-                    self.report_error(f"appsec.waf.error::{action}::{key}::{value['error']}", self._cached_version)
-                elif value.get("errors", False):
+                if error := value.get("error", False):
+                    self.report_error(f"appsec.waf.error::{action}::{key}::{error}", self._cached_version, action)
+                elif errors := value.get("errors", False):
                     self.report_error(
-                        f"appsec.waf.error::{action}::{key}::{str(value['errors'])}", self._cached_version, False
+                        f"appsec.waf.error::{action}::{key}::{str(errors)}",
+                        self._cached_version,
+                        action,
+                        False,
                     )
         self._info = DDWaf_info(
             len(rules.get("loaded", [])),

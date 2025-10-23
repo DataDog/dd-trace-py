@@ -1,4 +1,3 @@
-import asyncio
 import io
 import json
 from typing import Any
@@ -171,6 +170,9 @@ def _on_lambda_parse_body(
 
 async def _on_asgi_request_parse_body(receive, headers):
     if asm_config._asm_enabled:
+        # This must not be imported globally due to 3rd party patching timeline
+        import asyncio
+
         more_body = True
         body_parts = []
         try:
@@ -309,21 +311,21 @@ def _wsgi_make_block_content(ctx, construct_url):
         resp_headers = [("content-type", ctype)]
     status = block_config.get("status_code", 403)
     try:
-        req_span.set_tag_str(RESPONSE_HEADERS + ".content-length", str(len(content)))
+        req_span._set_tag_str(RESPONSE_HEADERS + ".content-length", str(len(content)))
         if ctype is not None:
-            req_span.set_tag_str(RESPONSE_HEADERS + ".content-type", ctype)
-        req_span.set_tag_str(http.STATUS_CODE, str(status))
+            req_span._set_tag_str(RESPONSE_HEADERS + ".content-type", ctype)
+        req_span._set_tag_str(http.STATUS_CODE, str(status))
         url = construct_url(environ)
         query_string = environ.get("QUERY_STRING")
         _set_url_tag(middleware._config, req_span, url, query_string)
         if query_string and middleware._config.trace_query_string:
-            req_span.set_tag_str(http.QUERY_STRING, query_string)
+            req_span._set_tag_str(http.QUERY_STRING, query_string)
         method = environ.get("REQUEST_METHOD")
         if method:
-            req_span.set_tag_str(http.METHOD, method)
+            req_span._set_tag_str(http.METHOD, method)
         user_agent = _get_request_header_user_agent(headers, headers_are_case_sensitive=True)
         if user_agent:
-            req_span.set_tag_str(http.USER_AGENT, user_agent)
+            req_span._set_tag_str(http.USER_AGENT, user_agent)
     except Exception as e:
         log.warning("Could not set some span tags on blocked request: %s", str(e))
     resp_headers.append(("Content-Length", str(len(content))))
@@ -353,20 +355,20 @@ def _asgi_make_block_content(ctx, url):
         resp_headers = [(b"content-type", ctype.encode())]
     status = block_config.get("status_code", 403)
     try:
-        req_span.set_tag_str(RESPONSE_HEADERS + ".content-length", str(len(content)))
+        req_span._set_tag_str(RESPONSE_HEADERS + ".content-length", str(len(content)))
         if ctype is not None:
-            req_span.set_tag_str(RESPONSE_HEADERS + ".content-type", ctype)
-        req_span.set_tag_str(http.STATUS_CODE, str(status))
+            req_span._set_tag_str(RESPONSE_HEADERS + ".content-type", ctype)
+        req_span._set_tag_str(http.STATUS_CODE, str(status))
         query_string = environ.get("QUERY_STRING")
         _set_url_tag(middleware.integration_config, req_span, url, query_string)
         if query_string and middleware._config.trace_query_string:
-            req_span.set_tag_str(http.QUERY_STRING, query_string)
+            req_span._set_tag_str(http.QUERY_STRING, query_string)
         method = environ.get("REQUEST_METHOD")
         if method:
-            req_span.set_tag_str(http.METHOD, method)
+            req_span._set_tag_str(http.METHOD, method)
         user_agent = _get_request_header_user_agent(headers, headers_are_case_sensitive=True)
         if user_agent:
-            req_span.set_tag_str(http.USER_AGENT, user_agent)
+            req_span._set_tag_str(http.USER_AGENT, user_agent)
     except Exception as e:
         log.warning("Could not set some span tags on blocked request: %s", str(e))
     resp_headers.append((b"Content-Length", str(len(content)).encode()))
@@ -374,7 +376,7 @@ def _asgi_make_block_content(ctx, url):
 
 
 def _on_flask_blocked_request(span):
-    span.set_tag_str(http.STATUS_CODE, "403")
+    span._set_tag_str(http.STATUS_CODE, "403")
     request = core.find_item("flask_request")
     try:
         base_url = getattr(request, "base_url", None)
@@ -382,12 +384,12 @@ def _on_flask_blocked_request(span):
         if base_url and query_string:
             _set_url_tag(core.find_item("flask_config"), span, base_url, query_string)
         if query_string and core.find_item("flask_config").trace_query_string:
-            span.set_tag_str(http.QUERY_STRING, query_string)
+            span._set_tag_str(http.QUERY_STRING, query_string)
         if request.method is not None:
-            span.set_tag_str(http.METHOD, request.method)
+            span._set_tag_str(http.METHOD, request.method)
         user_agent = _get_request_header_user_agent(request.headers)
         if user_agent:
-            span.set_tag_str(http.USER_AGENT, user_agent)
+            span._set_tag_str(http.USER_AGENT, user_agent)
     except Exception as e:
         log.warning("Could not set some span tags on blocked request: %s", str(e))
 
