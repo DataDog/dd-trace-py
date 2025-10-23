@@ -133,7 +133,7 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
         if not is_top_level and not _is_measured(span):
             return
 
-        with self._lock:
+        with self._lock:  # type: ignore
             # Align the span into the corresponding stats bucket
             assert span.duration_ns is not None
             span_end_ns = span.start_ns + span.duration_ns
@@ -226,7 +226,7 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
     def periodic(self):
         # type: (...) -> None
 
-        with self._lock:
+        with self._lock:  # type: ignore
             serialized_stats = self._serialize_buckets()
 
         if not serialized_stats:

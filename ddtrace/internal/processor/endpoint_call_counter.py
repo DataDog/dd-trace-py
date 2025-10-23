@@ -22,7 +22,7 @@ class EndpointCallCounterProcessor(SpanProcessor):
         default_factory=dict, init=False, repr=False, compare=False
     )
     _endpoint_counts_lock: typing.ContextManager = field(
-        default_factory=forksafe.Lock, init=False, repr=False, compare=False
+        default_factory=forksafe.Lock, init=False, repr=False, compare=False  # type: ignore
     )
     _enabled: bool = field(default=False, repr=False, compare=False)
 

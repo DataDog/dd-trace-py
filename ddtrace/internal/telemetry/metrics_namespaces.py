@@ -27,7 +27,7 @@ class MetricNamespace:
 
     def flush(self):
         # type: () -> Dict
-        with self._lock:
+        with self._lock:  # type: ignore
             namespace_metrics = self._metrics_data
             self._metrics_data = {
                 TELEMETRY_TYPE_GENERATE_METRICS: defaultdict(dict),
@@ -55,7 +55,7 @@ class MetricNamespace:
         else:
             metrics_type_payload = TELEMETRY_TYPE_GENERATE_METRICS
 
-        with self._lock:
+        with self._lock:  # type: ignore
             existing_metric = self._metrics_data[metrics_type_payload][namespace_str].get(metric_id)
             if existing_metric:
                 existing_metric.add_point(value)

@@ -37,7 +37,7 @@ echo "Found RUN_ID: $RUN_ID"
 mkdir pywheels
 cd pywheels
 
-if [[ $(gh run view $RUN_ID --exit-status --json status --jq .status) != "completed" ]]; then
+if [[ $(gh run view $RUN_ID --repo DataDog/dd-trace-py --exit-status --json status --jq .status) != "completed" ]]; then
   echo "Waiting for workflow to finish"
 
   # Give time to the job to finish
