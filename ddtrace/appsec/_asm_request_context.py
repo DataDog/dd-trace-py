@@ -71,8 +71,8 @@ def report_error_on_entry_span(error: str, message: str) -> None:
     entry_span = get_entry_span()
     if not entry_span:
         return
-    entry_span.set_tag_str(APPSEC.ERROR_TYPE, error)
-    entry_span.set_tag_str(APPSEC.ERROR_MESSAGE, message)
+    entry_span._set_tag_str(APPSEC.ERROR_TYPE, error)
+    entry_span._set_tag_str(APPSEC.ERROR_MESSAGE, message)
 
 
 class ASM_Environment:
@@ -232,13 +232,13 @@ def flush_waf_triggers(env: ASM_Environment) -> None:
         else:
             report_list = env.waf_triggers
         if asm_config._use_metastruct_for_triggers:
-            entry_span.set_struct_tag(APPSEC.STRUCT, {"triggers": report_list})
+            entry_span._set_struct_tag(APPSEC.STRUCT, {"triggers": report_list})
         else:
             entry_span.set_tag(APPSEC.JSON, json.dumps({"triggers": report_list}, separators=(",", ":")))
         env.waf_triggers = []
     telemetry_results: Telemetry_result = env.telemetry
 
-    entry_span.set_tag_str(APPSEC.WAF_VERSION, ddwaf_version)
+    entry_span._set_tag_str(APPSEC.WAF_VERSION, ddwaf_version)
     if env.downstream_requests:
         update_span_metrics(entry_span, APPSEC.DOWNSTREAM_REQUESTS, env.downstream_requests)
     if telemetry_results.total_duration:
@@ -278,10 +278,10 @@ def finalize_asm_env(env: ASM_Environment) -> None:
             info = env.waf_info()
             try:
                 if info.errors:
-                    entry_span.set_tag_str(APPSEC.EVENT_RULE_ERRORS, info.errors)
+                    entry_span._set_tag_str(APPSEC.EVENT_RULE_ERRORS, info.errors)
                     extra = {"product": "appsec", "more_info": info.errors, "stack_limit": 4}
                     logger.debug("asm_context::finalize_asm_env::waf_errors", extra=extra, stack_info=True)
-                entry_span.set_tag_str(APPSEC.EVENT_RULE_VERSION, info.version)
+                entry_span._set_tag_str(APPSEC.EVENT_RULE_VERSION, info.version)
                 entry_span.set_metric(APPSEC.EVENT_RULE_LOADED, info.loaded)
                 entry_span.set_metric(APPSEC.EVENT_RULE_ERROR_COUNT, info.failed)
             except Exception:
@@ -296,7 +296,7 @@ def finalize_asm_env(env: ASM_Environment) -> None:
         if res_headers:
             _set_headers(entry_span, res_headers, kind="response")
         if env.rc_products:
-            entry_span.set_tag_str(APPSEC.RC_PRODUCTS, env.rc_products)
+            entry_span._set_tag_str(APPSEC.RC_PRODUCTS, env.rc_products)
 
     core.discard_local_item(_ASM_CONTEXT)
 

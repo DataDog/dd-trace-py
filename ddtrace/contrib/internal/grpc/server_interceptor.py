@@ -45,8 +45,8 @@ def _handle_server_exception(server_context, span):
             details = details.decode("utf-8", errors="ignore")
         else:
             details = str(details)
-        span.set_tag_str(ERROR_MSG, details)
-        span.set_tag_str(ERROR_TYPE, code)
+        span._set_tag_str(ERROR_MSG, details)
+        span._set_tag_str(ERROR_TYPE, code)
 
 
 def _wrap_response_iterator(response_iterator, server_context, span):
@@ -97,16 +97,16 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
             resource=self._handler_call_details.method,
         )
 
-        span.set_tag_str(COMPONENT, config.grpc_server.integration_name)
+        span._set_tag_str(COMPONENT, config.grpc_server.integration_name)
 
         # set span.kind tag equal to type of span
-        span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
+        span._set_tag_str(SPAN_KIND, SpanKind.SERVER)
 
         # PERF: avoid setting via Span.set_tag
         span.set_metric(_SPAN_MEASURED_KEY, 1)
 
         set_grpc_method_meta(span, self._handler_call_details.method, method_kind)
-        span.set_tag_str(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_SERVER)
+        span._set_tag_str(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_SERVER)
 
         # access server context by taking second argument as server context
         # if not found, skip using context to tag span with server state information

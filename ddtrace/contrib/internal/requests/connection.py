@@ -109,10 +109,10 @@ def _wrap_send(func, instance, args, kwargs):
 
     operation_name = schematize_url_operation("requests.request", protocol="http", direction=SpanDirection.OUTBOUND)
     with tracer.trace(operation_name, service=service, resource=f"{method} {path}", span_type=SpanTypes.HTTP) as span:
-        span.set_tag_str(COMPONENT, config.requests.integration_name)
+        span._set_tag_str(COMPONENT, config.requests.integration_name)
 
         # set span.kind to the type of operation being performed
-        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         # PERF: avoid setting via Span.set_tag
         span.set_metric(_SPAN_MEASURED_KEY, 1)
