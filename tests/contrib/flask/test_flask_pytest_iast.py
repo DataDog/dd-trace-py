@@ -21,7 +21,6 @@ def client(app):
     return app.test_client()
 
 
-@pytest.skip(reason="Not fully implemented yet")
 def test_md5_request(client):
     data = b"foobar"
     urlencoded_data = urllib.parse.urlencode({"q": data})

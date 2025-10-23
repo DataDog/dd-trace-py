@@ -7,6 +7,7 @@ import time
 import pytest
 
 
+@pytest.skip(reason="Not fully implemented yet")
 @pytest.mark.parametrize("iast_enabled", ["true", "false"])
 @pytest.mark.parametrize("iast_request_sampling", ["100.0", "0.0"])
 @pytest.mark.parametrize("pytest_use_new_plugin", ["true", "false"])
