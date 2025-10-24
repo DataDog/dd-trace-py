@@ -70,28 +70,6 @@ PathwayAggrKey = typing.Tuple[
 ]
 
 
-class SumCount:
-    """Helper class to keep track of sum and count of values."""
-
-    __slots__ = ("_sum", "_count")
-
-    def __init__(self) -> None:
-        self._sum: float = 0.0
-        self._count: int = 0
-
-    def add(self, value: float) -> None:
-        self._sum += value
-        self._count += 1
-
-    @property
-    def sum(self) -> float:
-        return self._sum
-
-    @property
-    def count(self) -> int:
-        return self._count
-
-
 class PathwayStats(object):
     """Aggregated pathway statistics."""
 
@@ -100,7 +78,7 @@ class PathwayStats(object):
     def __init__(self):
         self.full_pathway_latency = DDSketch()
         self.edge_latency = DDSketch()
-        self.payload_size = SumCount()
+        self.payload_size = DDSketch()
 
 
 PartitionKey = NamedTuple("PartitionKey", [("topic", str), ("partition", int)])
@@ -229,6 +207,7 @@ class DataStreamsProcessor(PeriodicService):
                     "ParentHash": parent_hash,
                     "PathwayLatency": stat_aggr.full_pathway_latency.to_proto(),
                     "EdgeLatency": stat_aggr.edge_latency.to_proto(),
+                    "PayloadSize": stat_aggr.payload_size.to_proto(),
                 }
                 bucket_aggr_stats.append(serialized_bucket)
             for consumer_key, offset in bucket.latest_commit_offsets.items():
@@ -294,7 +273,6 @@ class DataStreamsProcessor(PeriodicService):
 
     def periodic(self):
         # type: () -> None
-
         with self._lock:
             serialized_stats = self._serialize_buckets()
 
