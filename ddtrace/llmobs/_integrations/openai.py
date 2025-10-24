@@ -121,7 +121,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         elif operation == "embedding":
             self._llmobs_set_meta_tags_from_embedding(span, kwargs, response)
         elif operation == "response":
-            openai_set_meta_tags_from_response(span, kwargs, response)
+            openai_set_meta_tags_from_response(span, kwargs, response, self)
         update_proxy_workflow_input_output_value(span, span_kind)
         metrics = self._extract_llmobs_metrics_tags(span, response, span_kind, kwargs)
         span._set_ctx_items(
