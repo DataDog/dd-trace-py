@@ -1,5 +1,4 @@
 import itertools
-import os
 from typing import ClassVar  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
@@ -8,7 +7,6 @@ import ddtrace
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
 from ddtrace.internal.constants import EXPERIMENTAL_FEATURES
-from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.vendor.dogstatsd import DogStatsd
 
 from .. import periodic
@@ -73,7 +71,7 @@ class RuntimeWorker(periodic.PeriodicService):
     """Worker thread for collecting and writing runtime metrics to a DogStatsd client."""
 
     enabled = False
-    _instance: ClassVar[Optional[RuntimeWorker]] = None
+    _instance = None  # type: ClassVar[Optional[RuntimeWorker]]
     _lock = forksafe.Lock()
 
     def __init__(self, interval=DEFAULT_RUNTIME_METRICS_INTERVAL, tracer=None, dogstatsd_url=None) -> None:
