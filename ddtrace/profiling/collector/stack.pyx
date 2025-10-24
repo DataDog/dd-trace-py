@@ -470,6 +470,11 @@ class StackCollector(collector.PeriodicCollector):
             stack_v2.set_adaptive_sampling(config.stack.v2_adaptive_sampling)
             stack_v2.start()
 
+            from ddtrace.internal import forksafe
+            forksafe.register_before_fork(stack_v2.stop)
+            forksafe.register_after_parent(stack_v2.start)
+            forksafe.register(stack_v2.start)
+
     def _start_service(self):
         # type: (...) -> None
         # This is split in its own function to ease testing
@@ -489,6 +494,11 @@ class StackCollector(collector.PeriodicCollector):
 
         # Also tell the native thread running the v2 sampler to stop, if needed
         if self._stack_collector_v2_enabled:
+            from ddtrace.internal import forksafe
+            forksafe.unregister(stack_v2.start)
+            forksafe.unregister_parent(stack_v2.start)
+            forksafe.unregister_before_fork(stack_v2.stop)
+
             stack_v2.stop()
 
     def _compute_new_interval(self, used_wall_time_ns):

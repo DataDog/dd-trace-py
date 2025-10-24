@@ -49,7 +49,7 @@ class Profiler(object):
             uwsgi.check_uwsgi(atexit=self.stop)
         except uwsgi.uWSGIMasterProcess:
             # Do nothing, the start() method will be called in each worker subprocess
-            forksafe.register(self._profiler.start)
+            forksafe.register(self.start)
             return
         except uwsgi.uWSGIConfigDeprecationWarning:
             LOG.warning("uWSGI configuration deprecation warning", exc_info=True)

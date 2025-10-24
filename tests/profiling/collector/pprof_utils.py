@@ -135,6 +135,21 @@ class LockReleaseEvent(LockEvent):
         super().__init__(event_type=LockEventType.RELEASE, *args, **kwargs)
 
 
+def list_profiles(filename_prefix: str) -> List[pprof_pb2.Profile]:
+    files = glob.glob(filename_prefix + ".*")
+    # Sort files by creation timestamp (oldest first, newest last)
+    files.sort(key=lambda f: os.path.getctime(f))
+    filename = files[-1]
+    profiles = []
+    for filename in files:
+        with lz4.frame.open(filename) as fp:
+            serialized_data = fp.read()
+        profile = pprof_pb2.Profile()
+        profile.ParseFromString(serialized_data)
+        profiles.append(profile)
+    return profiles
+
+
 def parse_newest_profile(filename_prefix: str) -> pprof_pb2.Profile:
     """Parse the newest profile that has given filename prefix. The profiler
     outputs profile file with following naming convention:
