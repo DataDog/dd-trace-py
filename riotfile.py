@@ -3531,21 +3531,6 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="freezegun",
-            command="pytest tests/contrib/freezegun {cmdargs}",
-            pkgs={
-                "pytest-randomly": latest,
-            },
-            venvs=[
-                Venv(
-                    pys=["3.10", "3.12"],
-                    pkgs={
-                        "freezegun": ["~=1.3.0", "~=1.5.0"],
-                    },
-                ),
-            ],
-        ),
-        Venv(
             name="appsec_integrations_flask",
             command="pytest -vvv {cmdargs} tests/appsec/integrations/flask_tests/",
             pkgs={
