@@ -8,8 +8,6 @@ from typing import Tuple
 from typing import Type
 from typing import cast
 
-import wrapt
-
 import ddtrace
 from ddtrace import config
 from ddtrace._trace.pin import Pin
@@ -18,6 +16,7 @@ from ddtrace.contrib.internal.trace_utils import _convert_to_string
 from ddtrace.ext import db
 from ddtrace.ext import net
 from ddtrace.ext import sql as sqlx
+from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.cache import cached
@@ -68,7 +67,7 @@ def cursor(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
     # Don't double wrap Django database cursors:
     #   If the underlying cursor is already wrapped (e.g. by another library),
     #   we just add the Django tags to the existing Pin (if any) and return
-    if isinstance(cursor.cursor, wrapt.ObjectProxy) and not config_django.always_create_database_spans:
+    if is_wrapted(cursor.cursor) and not config_django.always_create_database_spans:
         instance = args[0]
         tags = {
             "django.db.vendor": getattr(instance, "vendor", "db"),
