@@ -1,0 +1,45 @@
+---
+description: Linting and code quality - use lint skill for formatting and validation
+globs: ["**/*.py", "**/*.c", "**/*.h", "**/*.cmake", "CMakeLists.txt"]
+alwaysApply: false
+---
+
+# Linting and Code Quality
+
+## Overview
+
+Use the **`lint` skill** for all formatting, linting, type checking, and code quality validation. It provides targeted checks with support for auto-fixing and specific file validation.
+
+**Full documentation:** `.claude/skills/lint/SKILL.md`
+
+## Key Principles
+
+1. **Always format after editing** - Use `hatch run lint:fmt -- <file>` immediately after code changes
+2. **Run comprehensive checks before committing** - Use `hatch run lint:checks` before pushing
+3. **Target specific files** - Use `-- <file>` syntax to validate only what you changed, not the entire codebase
+4. **Fix auto-fixable issues** - Use `fmt` instead of manually fixing style issues
+5. **Type check after adding types** - Use `hatch run lint:typing -- <file>` after adding type annotations
+
+## Common Workflows
+
+- **After editing a Python file**: `hatch run lint:fmt -- <file>`
+- **Type checking**: `hatch run lint:typing -- <file>`
+- **Security review**: `hatch run lint:security -- -r <dir>`
+- **Before committing**: `hatch run lint:checks` (runs all quality gates)
+- **Spelling check**: `hatch run lint:spelling -- docs/ ddtrace/`
+
+## Available Checks
+
+14 individual lint scripts available for targeted validation:
+- `fmt` - Format code (auto-fix)
+- `typing` - Type checking with mypy
+- `security` - Security audit with Bandit
+- `spelling` - Spelling validation
+- `style` - Style validation (no auto-fix)
+- `riot`, `suitespec-check`, `error-log-check` - Test infrastructure validation
+- And more (see full documentation)
+
+## Related
+
+- Full skill documentation: `.claude/skills/lint/SKILL.md`
+- Lint configuration: `hatch.toml`, `pyproject.toml`
