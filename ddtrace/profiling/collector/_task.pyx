@@ -4,8 +4,8 @@ import weakref
 
 from wrapt.importer import when_imported
 
-from .. import _asyncio
-from .. import _threading
+from ddtrace.profiling._asyncio import get_event_loop_for_thread, current_task, _task_get_name, all_tasks
+from ddtrace.profiling._threading import get_thread_name, get_thread_by_id
 from ddtrace.settings.profiling import config
 
 
@@ -88,12 +88,12 @@ cpdef get_task(thread_id):
     task_name = None
     frame = None
 
-    loop = _asyncio.get_event_loop_for_thread(thread_id)
+    loop = get_event_loop_for_thread(thread_id)
     if loop is not None:
-        task = _asyncio.current_task(loop)
+        task = current_task(loop)
         if task is not None:
             task_id = id(task)
-            task_name = _asyncio._task_get_name(task)
+            task_name = _task_get_name(task)
             frame = _asyncio_task_get_frame(task)
 
     if not is_stack_v2:
@@ -104,7 +104,7 @@ cpdef get_task(thread_id):
             gevent_thread = _gevent_tracer.gevent.thread
             task_id = gevent_thread.get_ident(_gevent_tracer.active_greenlet)
             # Greenlets might be started as Thread in gevent
-            task_name = _threading.get_thread_name(task_id)
+            task_name = get_thread_name(task_id)
             frame = _gevent_tracer.active_greenlet.gr_frame
 
     return task_id, task_name, frame
@@ -122,7 +122,7 @@ cpdef list_tasks(thread_id):
     tasks = []
 
     if not is_stack_v2 and _gevent_tracer is not None:
-        if type(_threading.get_thread_by_id(thread_id)).__name__.endswith("_MainThread"):
+        if type(get_thread_by_id(thread_id)).__name__.endswith("_MainThread"):
             # Under normal circumstances, the Hub is running in the main thread.
             # Python will only ever have a single instance of a _MainThread
             # class, so if we find it we attribute all the greenlets to it.
@@ -130,7 +130,7 @@ cpdef list_tasks(thread_id):
                 [
                     (
                         greenlet_id,
-                        _threading.get_thread_name(greenlet_id),
+                        get_thread_name(greenlet_id),
                         greenlet.gr_frame
                     )
                     for greenlet_id, greenlet in dict(_gevent_tracer.greenlets).items()
@@ -138,13 +138,13 @@ cpdef list_tasks(thread_id):
                 ]
             )
 
-    loop = _asyncio.get_event_loop_for_thread(thread_id)
+    loop = get_event_loop_for_thread(thread_id)
     if loop is not None:
         tasks.extend([
             (id(task),
-                _asyncio._task_get_name(task),
+                _task_get_name(task),
                 _asyncio_task_get_frame(task))
-            for task in _asyncio.all_tasks(loop)
+            for task in all_tasks(loop)
         ])
 
     return tasks

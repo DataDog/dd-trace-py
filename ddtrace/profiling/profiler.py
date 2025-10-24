@@ -10,21 +10,17 @@ from typing import Union  # noqa:F401
 
 import ddtrace
 from ddtrace import config
-from ddtrace.internal import atexit
-from ddtrace.internal import forksafe
 from ddtrace.internal import service
-from ddtrace.internal import uwsgi
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.module import ModuleWatchdog
-from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
-from ddtrace.profiling import collector
-from ddtrace.profiling import scheduler
+from ddtrace.profiling.collector import CollectorUnavailable
 from ddtrace.profiling.collector import asyncio
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import pytorch
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
+from ddtrace.profiling.scheduler import Scheduler
+from ddtrace.profiling.scheduler import ServerlessScheduler
 from ddtrace.settings.profiling import config as profiling_config
 from ddtrace.settings.profiling import config_str
 
@@ -42,48 +38,28 @@ class Profiler(object):
 
     """
 
+    _instance: Optional["_ProfilerInstance"] = None
+
     def __init__(self, *args, **kwargs):
-        self._profiler = _ProfilerInstance(*args, **kwargs)
+        self._instance = self._profiler = _ProfilerInstance(*args, **kwargs)
 
-    def start(self, stop_on_exit=True, profile_children=True):
-        """Start the profiler.
-
-        :param stop_on_exit: Whether to stop the profiler and flush the profile on exit.
-        :param profile_children: Whether to start a profiler in child processes.
-        """
-
-        if profile_children:
-            try:
-                uwsgi.check_uwsgi(self._restart_on_fork, atexit=self.stop if stop_on_exit else None)
-            except uwsgi.uWSGIMasterProcess:
-                # Do nothing, the start() method will be called in each worker subprocess
-                return
-            except uwsgi.uWSGIConfigDeprecationWarning:
-                LOG.warning("uWSGI configuration deprecation warning", exc_info=True)
-                # Turn off profiling in this case, this is mostly for
-                # uwsgi<2.0.30 when --skip-atexit is not set with --lazy-apps
-                # or --lazy. See uwsgi.check_uwsgi() for details.
-                return
-
+    def start(self):
+        """Start the profiler."""
+        if self._profiler is None:
+            return
         self._profiler.start()
-
-        if stop_on_exit:
-            atexit.register(self.stop)
-
-        if profile_children:
-            forksafe.register(self._restart_on_fork)
-
-        telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, True)
 
     def stop(self, flush=True):
         """Stop the profiler.
 
         :param flush: Flush last profile.
         """
-        atexit.unregister(self.stop)
+        if self._profiler is None:
+            return
+
         try:
             self._profiler.stop(flush)
-            telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, False)
+            self._instance = self._profiler = None
         except service.ServiceStatusError:
             # Not a best practice, but for backward API compatibility that allowed to call `stop` multiple times.
             pass
@@ -91,6 +67,8 @@ class Profiler(object):
     def _restart_on_fork(self):
         # Be sure to stop the parent first, since it might have to e.g. unpatch functions
         # Do not flush data as we don't want to have multiple copies of the parent profile exported.
+        if self._profiler is None:
+            return
         try:
             self._profiler.stop(flush=False, join=False)
         except service.ServiceStatusError:
@@ -149,7 +127,7 @@ class _ProfilerInstance(service.Service):
         # Non-user-supplied values
         self._collectors: List[Union[stack.StackCollector, memalloc.MemoryCollector]] = []
         self._collectors_on_import: Any = None
-        self._scheduler: Optional[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]] = None
+        self._scheduler: Optional[Union[Scheduler, ServerlessScheduler]] = None
         self._lambda_function_name: Optional[str] = os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
 
         self.__post_init__()
@@ -214,7 +192,7 @@ class _ProfilerInstance(service.Service):
                         try:
                             col.start()
                             LOG.debug("Started collector %r", col)
-                        except collector.CollectorUnavailable:
+                        except CollectorUnavailable:
                             LOG.debug("Collector %r is unavailable, disabling", col)
                             return
                         except Exception:
@@ -243,7 +221,7 @@ class _ProfilerInstance(service.Service):
                         try:
                             col.start()
                             LOG.debug("Started pytorch collector %r", col)
-                        except collector.CollectorUnavailable:
+                        except CollectorUnavailable:
                             LOG.debug("Collector %r pytorch is unavailable, disabling", col)
                             return
                         except Exception:
@@ -265,8 +243,8 @@ class _ProfilerInstance(service.Service):
         self._build_default_exporters()
 
         scheduler_class = (
-            scheduler.ServerlessScheduler if self._lambda_function_name else scheduler.Scheduler
-        )  # type: (Type[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]])
+            ServerlessScheduler if self._lambda_function_name else Scheduler
+        )  # type: (Type[Union[Scheduler, ServerlessScheduler]])
 
         self._scheduler = scheduler_class(
             before_flush=self._collectors_snapshot,
@@ -298,7 +276,7 @@ class _ProfilerInstance(service.Service):
         for col in self._collectors:
             try:
                 col.start()
-            except collector.CollectorUnavailable:
+            except CollectorUnavailable:
                 LOG.debug("Collector %r is unavailable, disabling", col)
             except Exception:
                 LOG.error("Failed to start collector %r, disabling.", col, exc_info=True)

@@ -183,6 +183,7 @@ def test_wrapt_disable_extensions() -> None:
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT"), reason="gevent is not available")
 @pytest.mark.subprocess(
     env=dict(DD_PROFILING_FILE_PATH=__file__),
+    err=None,
 )
 def test_lock_gevent_tasks() -> None:
     from gevent import monkey
