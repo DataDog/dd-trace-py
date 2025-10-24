@@ -1,7 +1,8 @@
 ---
-other:
+upgrade:
   - |
-    This change removes deprecated attributes from the `ddtrace.trace` and `ddtrace._trace` modules
-      - `Tracer.on_start_span`
-      - `Tracer.deregister_on_start_span`
-      - `ddtrace.trace.Pin`
+    tracing: The deprecated ``Tracer.on_start_span`` method has been removed.
+  - |
+    tracing: The deprecated ``Tracer.deregister_on_start_span` method has been removed.
+  - |
+    tracing: The deprecated ``ddtrace.trace.Pin`` has been removed.
