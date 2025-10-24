@@ -65,8 +65,7 @@ class VulnerabilityBase:
 
     @staticmethod
     def has_quota():
-        context = _get_iast_env()
-        if context:
+        if context := _get_iast_env():
             return context.vulnerability_budget < asm_config._iast_max_vulnerabilities_per_requests
         return False
 

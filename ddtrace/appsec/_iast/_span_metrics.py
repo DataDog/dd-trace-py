@@ -29,9 +29,8 @@ def _set_span_tag_iast_executed_sink(span):
 
 
 def get_iast_span_metrics() -> Dict:
-    env = _get_iast_env()
-    if env:
-        return env.iast_span_metrics if env else dict()
+    if env := _get_iast_env():
+        return env.iast_span_metrics
     return dict()
 
 
