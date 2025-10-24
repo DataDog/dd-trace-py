@@ -1,9 +1,10 @@
 from collections import namedtuple
 import sys
+from typing import Dict
 
 
 LineNo = namedtuple("LineNo", ["create", "acquire", "release"])
-lock_locs = {}
+lock_locs: Dict[str, LineNo] = {}
 loc_type_map = {
     "!CREATE!": "create",
     "!ACQUIRE!": "acquire",
@@ -11,7 +12,7 @@ loc_type_map = {
 }
 
 
-def get_lock_locations(path: str):
+def get_lock_locations(path: str) -> None:
     """
     The lock profiler is capable of determining where locks are created and used. In order to test this behavior, line
     numbers are compared in several tests. However, since it's cumbersome to write the tests in any way except
@@ -34,12 +35,12 @@ def get_lock_locations(path: str):
                     lock_locs[lock_name] = lock_locs[lock_name]._replace(**{field: lineno})
 
 
-def get_lock_linenos(name, with_stmt=False):
+def get_lock_linenos(name, with_stmt=False) -> LineNo:
     linenos = lock_locs.get(name, LineNo(0, 0, 0))
     if with_stmt and sys.version_info < (3, 10):
         linenos = linenos._replace(release=linenos.release + 1)
     return linenos
 
 
-def init_linenos(path):
+def init_linenos(path) -> None:
     get_lock_locations(path)

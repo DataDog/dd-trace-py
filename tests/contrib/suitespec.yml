@@ -126,7 +126,6 @@ components:
     - ddtrace/contrib/internal/molten/*
   mongo:
     - ddtrace/contrib/internal/pymongo/*
-    - ddtrace/contrib/internal/mongoengine/*
     - ddtrace/ext/mongo.py
   mysql:
     - ddtrace/contrib/internal/mysql/*
@@ -882,18 +881,6 @@ suites:
       - tests/contrib/molten/*
     runner: riot
     snapshot: true
-  mongoengine:
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@contrib'
-      - '@tracing'
-      - '@mongo'
-      - tests/contrib/mongoengine/*
-    runner: riot
-    snapshot: true
-    services:
-      - mongo
   mysqlpython:
     paths:
       - '@bootstrap'
@@ -921,15 +908,6 @@ suites:
       - tests/snapshots/tests.opentelemetry.*
     runner: riot
     snapshot: true
-  opentracer:
-    parallelism: 1
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@opentracer'
-      - tests/opentracer/*
-    runner: riot
   protobuf:
     parallelism: 1
     paths:
