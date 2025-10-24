@@ -495,6 +495,7 @@ venv = Venv(
                 "python-json-logger": "==2.0.7",
                 "pyfakefs": latest,
                 "pytest-benchmark": latest,
+                "wrapt": [latest, "<2.0.0"],
             },
             venvs=[
                 Venv(
@@ -1561,22 +1562,6 @@ venv = Venv(
                             pys=select_pys(),
                         ),
                     ],
-                ),
-            ],
-        ),
-        Venv(
-            name="mongoengine",
-            command="pytest {cmdargs} tests/contrib/mongoengine",
-            pkgs={
-                # pymongo v4.9.0 introduced breaking changes that are not yet supported by mongoengine
-                "pymongo": "<4.9.0",
-                "pytest-randomly": latest,
-            },
-            venvs=[
-                Venv(
-                    # mongoengine added support for Python 3.9/3.10 in 0.24
-                    pys=select_pys(),
-                    pkgs={"mongoengine": ["~=0.24.0", "~=0.24", latest]},
                 ),
             ],
         ),

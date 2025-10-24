@@ -599,16 +599,6 @@ integrations:
       min: 1.0.2
       max: 1.0.2
 
-- integration_name: mongoengine
-  is_external_package: true
-  is_tested: true
-  dependency_names:
-  - mongoengine
-  tested_versions_by_dependency:
-    mongoengine:
-      min: 0.24.2
-      max: 0.29.1
-
 - integration_name: mysql
   is_external_package: true
   is_tested: true

@@ -91,8 +91,6 @@ components:
   opentelemetry:
     - ddtrace/opentelemetry/*
     - ddtrace/internal/opentelemetry/*
-  opentracer:
-    - ddtrace/opentracer/*
   profiling:
     - ddtrace/profiling/*
     - ddtrace/internal/datadog/profiling/*

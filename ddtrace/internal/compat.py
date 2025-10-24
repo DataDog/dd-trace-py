@@ -8,6 +8,8 @@ from typing import Tuple  # noqa:F401
 from typing import Type  # noqa:F401
 from typing import Union  # noqa:F401
 
+import wrapt
+
 
 __all__ = [
     "maybe_stringify",
@@ -126,3 +128,14 @@ def __getattr__(name: str) -> Any:
         return globals()[name]
     except KeyError:
         raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+
+
+if hasattr(wrapt, "BaseObjectProxy"):
+    # This must be used for wrapt version >= 2.0.0
+    wrapt_class: type = wrapt.BaseObjectProxy
+else:
+    wrapt_class = wrapt.ObjectProxy
+
+
+def is_wrapted(o: object) -> bool:
+    return isinstance(o, wrapt_class)

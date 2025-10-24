@@ -458,13 +458,6 @@
         "auto-instrumented": true
     },
     {
-        "dependency": "mongoengine",
-        "integration": "mongoengine",
-        "minimum_tracer_supported": "0.24.2",
-        "max_tracer_supported": "0.29.1",
-        "auto-instrumented": true
-    },
-    {
         "dependency": "mysql-connector-python",
         "integration": "mysql",
         "minimum_tracer_supported": "8.0.5",
