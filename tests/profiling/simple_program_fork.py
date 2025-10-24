@@ -27,7 +27,6 @@ if child_pid == 0:
     lock.acquire()
     lock.release()
     print(f"{os.getpid()}:end", flush=True)
-    sys.exit(0)
 else:
     # Parent process
     print(f"{os.getpid()}:child_pid={child_pid}", flush=True)
