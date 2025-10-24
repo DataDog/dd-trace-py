@@ -120,6 +120,12 @@ def pytest_addoption(parser):
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
+
+    # Disable module cloning in test runs
+    import ddtrace.bootstrap.cloning as cloning
+
+    cloning.enabled = False
+
     if is_enabled(config):
         _disable_telemetry_dependency_collection()
         _versioned_pytest_configure(config)
