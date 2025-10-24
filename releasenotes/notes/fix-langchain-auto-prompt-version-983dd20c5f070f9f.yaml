@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    langchain: This fix resolves an issue where auto instrumented prompt templates incorrectly included a
+    ``version`` field. The version field is now omitted unless explicitly set by the user.
