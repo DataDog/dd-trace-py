@@ -3617,7 +3617,6 @@ def test_inject_context_without_sampling_priority_inactive_trace():
                 "Sampling decision not available. Downstream spans will not inherit a sampling priority"
                 ": args=(context=%s, ...) detected span context=%s",
                 span.context,
-                None,
                 span.context,
             )
         ]
