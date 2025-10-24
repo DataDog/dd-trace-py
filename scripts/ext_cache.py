@@ -37,6 +37,7 @@ def try_restore_from_cache():
         for d in matches:
             if d.is_file():
                 print(f"Restoring {d.resolve()} to {target_dir.resolve()} directory")
+                target_dir.mkdir(parents=True, exist_ok=True)
                 shutil.copy(d.resolve(), target_dir.resolve())
                 # check that the file is indeed copied
                 if (target_dir / d.name).exists():

@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    profiling: Add support for ``threading.RLock`` (reentrant lock) profiling. The Lock profiler now tracks both ``threading.Lock`` and ``threading.RLock`` usage, providing comprehensive lock contention visibility for Python applications.
