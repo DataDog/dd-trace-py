@@ -334,7 +334,10 @@ class Debugger(Service):
                 self._probe_registry.set_emitting(probe)
 
             log.debug("[%s][P: %s] Debugger. Report signal %s", os.getpid(), os.getppid(), signal)
-            self.__uploader__.get_collector().push(signal)
+            if (collector := self.__uploader__.get_collector()) is None:
+                log.error("No collector available to push signal %s", signal)
+                return
+            collector.push(signal)
 
         except Exception:
             log.error("Failed to execute probe hook", exc_info=True)
@@ -474,6 +477,7 @@ class Debugger(Service):
 
     def _probe_wrapping_hook(self, module: ModuleType) -> None:
         probes = self._probe_registry.get_pending(module.__name__)
+        collector = self.__uploader__.get_collector()
         for probe in probes:
             if not isinstance(probe, FunctionLocationMixin):
                 continue
@@ -500,9 +504,13 @@ class Debugger(Service):
                     function,
                 )
             else:
+                if collector is None:
+                    log.error("No signal collector available")
+                    self._probe_registry.set_error(probe, "NoCollector", "No signal collector available")
+                    continue
                 context = DebuggerWrappingContext(
                     function,
-                    collector=self.__uploader__.get_collector(),
+                    collector=collector,
                     registry=self._probe_registry,
                     tracer=self._tracer,
                     probe_meter=self._probe_meter,
