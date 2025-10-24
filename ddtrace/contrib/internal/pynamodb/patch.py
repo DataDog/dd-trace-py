@@ -69,11 +69,11 @@ def patched_api_call(original_func, instance, args, kwargs):
         service=trace_utils.ext_service(pin, config.pynamodb, "pynamodb"),
         span_type=SpanTypes.HTTP,
     ) as span:
-        span.set_tag_str(COMPONENT, config.pynamodb.integration_name)
-        span.set_tag_str(db.SYSTEM, "dynamodb")
+        span._set_tag_str(COMPONENT, config.pynamodb.integration_name)
+        span._set_tag_str(db.SYSTEM, "dynamodb")
 
         # set span.kind to the type of operation being performed
-        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         # PERF: avoid setting via Span.set_tag
         span.set_metric(_SPAN_MEASURED_KEY, 1)
@@ -84,8 +84,8 @@ def patched_api_call(original_func, instance, args, kwargs):
 
             if args[1] and "TableName" in args[1]:
                 table_name = args[1]["TableName"]
-                span.set_tag_str("table_name", table_name)
-                span.set_tag_str("tablename", table_name)
+                span._set_tag_str("table_name", table_name)
+                span._set_tag_str("tablename", table_name)
                 span.resource = span.resource + " " + table_name
 
         except ArgumentError:
