@@ -49,13 +49,19 @@ def test_repr():
 
 
 def test_patch():
+    from ddtrace.profiling.collector._lock import _LockAllocatorWrapper
+    
     lock = threading.Lock
     collector = collector_threading.ThreadingLockCollector()
     collector.start()
     assert lock == collector._original
-    # wrapt makes this true
-    assert lock == threading.Lock
+    # After patching, threading.Lock is replaced with our wrapper
+    # The old reference (lock) points to the original builtin Lock class
+    assert lock != threading.Lock  # They're different after patching
+    assert isinstance(threading.Lock, _LockAllocatorWrapper)  # threading.Lock is now wrapped
+    assert callable(threading.Lock)  # and it's callable
     collector.stop()
+    # After stopping, everything is restored
     assert lock == threading.Lock
     assert collector._original == threading.Lock
 
@@ -105,68 +111,8 @@ def test_user_threads_have_native_id():
     p.stop()
 
 
-@pytest.mark.subprocess(
-    env=dict(WRAPT_DISABLE_EXTENSIONS="True", DD_PROFILING_FILE_PATH=__file__),
-)
-def test_wrapt_disable_extensions():
-    import os
-    import threading
-
-    from ddtrace.internal.datadog.profiling import ddup
-    from ddtrace.profiling.collector import _lock
-    from ddtrace.profiling.collector import threading as collector_threading
-    from tests.profiling.collector import pprof_utils
-    from tests.profiling.collector.lock_utils import get_lock_linenos
-    from tests.profiling.collector.lock_utils import init_linenos
-
-    assert ddup.is_available, "ddup is not available"
-
-    # Set up the ddup exporter
-    test_name = "test_wrapt_disable_extensions"
-    pprof_prefix = "/tmp" + os.sep + test_name
-    output_filename = pprof_prefix + "." + str(os.getpid())
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
-    ddup.start()
-
-    init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
-
-    # WRAPT_DISABLE_EXTENSIONS is a flag that can be set to disable the C extension
-    # for wrapt. It's not set by default in dd-trace-py, but it can be set by
-    # users. This test checks that the collector works even if the flag is set.
-    assert os.environ.get("WRAPT_DISABLE_EXTENSIONS")
-    assert _lock.WRAPT_C_EXT is False
-
-    with collector_threading.ThreadingLockCollector(capture_pct=100):
-        th_lock = threading.Lock()  # !CREATE! test_wrapt_disable_extensions
-        with th_lock:  # !ACQUIRE! !RELEASE! test_wrapt_disable_extensions
-            pass
-
-    ddup.upload()
-
-    expected_filename = "test_threading.py"
-
-    linenos = get_lock_linenos("test_wrapt_disable_extensions", with_stmt=True)
-
-    profile = pprof_utils.parse_newest_profile(output_filename)
-    pprof_utils.assert_lock_events(
-        profile,
-        expected_acquire_events=[
-            pprof_utils.LockAcquireEvent(
-                caller_name="<module>",
-                filename=expected_filename,
-                linenos=linenos,
-                lock_name="th_lock",
-            )
-        ],
-        expected_release_events=[
-            pprof_utils.LockReleaseEvent(
-                caller_name="<module>",
-                filename=expected_filename,
-                linenos=linenos,
-                lock_name="th_lock",
-            )
-        ],
-    )
+# test_wrapt_disable_extensions was removed as wrapt is no longer used in lock profiling.
+# The lock profiler now uses a simple delegating wrapper with __slots__ for better performance.
 
 
 # This test has to be run in a subprocess because it calls gevent.monkey.patch_all()
