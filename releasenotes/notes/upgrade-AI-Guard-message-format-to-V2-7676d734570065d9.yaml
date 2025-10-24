@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    Upgrade AI Guard message format to V2
