@@ -80,9 +80,12 @@ def _try_parse_json(value: dict, attribute: str) -> Any:
 
 
 def _try_format_json(value: Any) -> str:
-    if isinstance(value, str):
-        return value
-    return json.dumps(value)
+    if not value:
+        return ""
+    try:
+        return json.dumps(value)
+    except Exception:
+        return str(value)
 
 
 def _get_message_text(msg: Any) -> str:
