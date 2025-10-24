@@ -5,12 +5,12 @@ from unittest import mock
 import pytest
 import valkey
 import valkey.asyncio
-from wrapt import ObjectProxy
 
 from ddtrace import tracer
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.valkey.patch import patch
 from ddtrace.contrib.internal.valkey.patch import unpatch
+from ddtrace.internal.compat import is_wrapted
 from tests.utils import override_config
 
 from ..config import VALKEY_CONFIG
@@ -53,13 +53,13 @@ def test_patching():
     When unpatching  valkey library
         We unwrap the correct methods
     """
-    assert isinstance(valkey.asyncio.client.Valkey.execute_command, ObjectProxy)
-    assert isinstance(valkey.asyncio.client.Valkey.pipeline, ObjectProxy)
-    assert isinstance(valkey.asyncio.client.Pipeline.pipeline, ObjectProxy)
+    assert is_wrapted(valkey.asyncio.client.Valkey.execute_command)
+    assert is_wrapted(valkey.asyncio.client.Valkey.pipeline)
+    assert is_wrapted(valkey.asyncio.client.Pipeline.pipeline)
     unpatch()
-    assert not isinstance(valkey.asyncio.client.Valkey.execute_command, ObjectProxy)
-    assert not isinstance(valkey.asyncio.client.Valkey.pipeline, ObjectProxy)
-    assert not isinstance(valkey.asyncio.client.Pipeline.pipeline, ObjectProxy)
+    assert not is_wrapted(valkey.asyncio.client.Valkey.execute_command)
+    assert not is_wrapted(valkey.asyncio.client.Valkey.pipeline)
+    assert not is_wrapted(valkey.asyncio.client.Pipeline.pipeline)
 
 
 @pytest.mark.snapshot(wait_for_num_traces=1)

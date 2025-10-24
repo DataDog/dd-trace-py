@@ -3,12 +3,13 @@ import os
 import uuid
 
 import pytest
-from wrapt import ObjectProxy
 import yaaredis
 
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.yaaredis.patch import patch
 from ddtrace.contrib.internal.yaaredis.patch import unpatch
+from ddtrace.internal.compat import is_wrapted
+from tests.opentracer.utils import init_tracer
 from tests.utils import override_config
 
 from ..config import REDIS_CONFIG
@@ -36,17 +37,17 @@ def test_patching():
     When unpatching yaaredis library
         We unwrap the correct methods
     """
-    assert isinstance(yaaredis.client.StrictRedis.execute_command, ObjectProxy)
-    assert isinstance(yaaredis.client.StrictRedis.pipeline, ObjectProxy)
-    assert isinstance(yaaredis.pipeline.StrictPipeline.execute, ObjectProxy)
-    assert isinstance(yaaredis.pipeline.StrictPipeline.immediate_execute_command, ObjectProxy)
+    assert is_wrapted(yaaredis.client.StrictRedis.execute_command)
+    assert is_wrapted(yaaredis.client.StrictRedis.pipeline)
+    assert is_wrapted(yaaredis.pipeline.StrictPipeline.execute)
+    assert is_wrapted(yaaredis.pipeline.StrictPipeline.immediate_execute_command)
 
     unpatch()
 
-    assert not isinstance(yaaredis.client.StrictRedis.execute_command, ObjectProxy)
-    assert not isinstance(yaaredis.client.StrictRedis.pipeline, ObjectProxy)
-    assert not isinstance(yaaredis.pipeline.StrictPipeline.execute, ObjectProxy)
-    assert not isinstance(yaaredis.pipeline.StrictPipeline.immediate_execute_command, ObjectProxy)
+    assert not is_wrapted(yaaredis.client.StrictRedis.execute_command)
+    assert not is_wrapted(yaaredis.client.StrictRedis.pipeline)
+    assert not is_wrapted(yaaredis.pipeline.StrictPipeline.execute)
+    assert not is_wrapted(yaaredis.pipeline.StrictPipeline.immediate_execute_command)
 
 
 @pytest.mark.asyncio

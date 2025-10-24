@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    CI Visibility: This fix resolves performance issue affecting coverage collection for Python 3.12+
