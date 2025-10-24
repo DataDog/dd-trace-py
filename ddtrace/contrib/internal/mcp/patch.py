@@ -182,7 +182,7 @@ async def traced_client_session_list_tools(mcp, pin: Pin, func, instance, args: 
 @with_traced_module
 async def traced_client_session_aenter(mcp, pin: Pin, func, instance, args: tuple, kwargs: dict):
     integration: MCPIntegration = mcp._datadog_integration
-    span = integration.trace(pin, instance.__class__.__name__, submit_to_llmobs=True)
+    span = integration.trace(pin, instance.__class__.__name__, submit_to_llmobs=True, type="client_session")
 
     setattr(instance, "_dd_span", span)
     try:

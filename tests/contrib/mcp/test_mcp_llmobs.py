@@ -1,4 +1,5 @@
 import asyncio
+import importlib
 import json
 import os
 from textwrap import dedent
@@ -66,7 +67,19 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, mock_tracer, llmobs_events, m
 
     # asserting the remaining spans
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
-        all_spans[0], span_kind="workflow", input_value=mock.ANY, tags={"service": "mcptest", "ml_app": "<ml-app-name>"}
+        all_spans[0],
+        span_kind="workflow",
+        input_value=mock.ANY,
+        tags={
+            "service": "mcptest",
+            "ml_app": "<ml-app-name>",
+            "server_name": "TestServer",
+            "server_version": importlib.metadata.version("mcp"),
+            "server_title": None,
+            "mcp_num_tools": 6,
+            "mcp_tools_selected": "calculator",
+        },
+        metadata=mock.ANY,
     )
 
     assert llmobs_events[1] == _expected_llmobs_non_llm_span_event(
