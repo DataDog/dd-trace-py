@@ -9,7 +9,6 @@ from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.yaaredis.patch import patch
 from ddtrace.contrib.internal.yaaredis.patch import unpatch
 from ddtrace.internal.compat import is_wrapted
-from tests.opentracer.utils import init_tracer
 from tests.utils import override_config
 
 from ..config import REDIS_CONFIG
