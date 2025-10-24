@@ -302,14 +302,6 @@
         "auto-instrumented": false
     },
     {
-        "dependency": "freezegun",
-        "integration": "freezegun",
-        "minimum_tracer_supported": "1.3.1",
-        "max_tracer_supported": "1.5.2",
-        "pinned": "true",
-        "auto-instrumented": false
-    },
-    {
         "dependency": "gevent",
         "integration": "gevent",
         "minimum_tracer_supported": "20.12.1",
