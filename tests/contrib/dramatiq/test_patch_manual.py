@@ -1,6 +1,6 @@
 import unittest
 
-import wrapt
+from ddtrace.internal.compat import is_wrapted
 
 
 class DramatiqPatchTest(unittest.TestCase):
@@ -27,9 +27,9 @@ class DramatiqPatchTest(unittest.TestCase):
         assert msg.args == (1, 2)
 
         # Check patch/unpatch outcome
-        assert isinstance(dramatiq.Actor.send_with_options, wrapt.ObjectProxy)
+        assert is_wrapted(dramatiq.Actor.send_with_options)
         unpatch()
-        assert not isinstance(dramatiq.Actor.send_with_options, wrapt.ObjectProxy)
+        assert not is_wrapted(dramatiq.Actor.send_with_options)
 
     def test_patch_after_import(self):
         import dramatiq
@@ -55,6 +55,6 @@ class DramatiqPatchTest(unittest.TestCase):
         assert msg.args == (3, 4)
 
         # Check patch/unpatch behavior
-        assert isinstance(dramatiq.Actor.send_with_options, wrapt.ObjectProxy)
+        assert is_wrapted(dramatiq.Actor.send_with_options)
         unpatch()
-        assert not isinstance(dramatiq.Actor.send_with_options, wrapt.ObjectProxy)
+        assert not is_wrapted(dramatiq.Actor.send_with_options)
