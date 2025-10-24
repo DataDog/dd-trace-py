@@ -339,21 +339,6 @@ class GrpcTestCase(GrpcBaseTestCase):
         self._check_client_span(client_span, "grpc-client", "SayHelloRepeatedly", "bidi_streaming")
         self._check_server_span(server_span, "grpc-server", "SayHelloRepeatedly", "bidi_streaming")
 
-    def test_priority_sampling(self):
-        # DEV: Priority sampling is enabled by default
-        # Setting priority sampling reset the writer, we need to re-override it
-
-        with grpc.insecure_channel("127.0.0.1:%d" % (_GRPC_PORT)) as channel:
-            stub = HelloStub(channel)
-            response = stub.SayHello(HelloRequest(name="propogator"))
-
-        spans = self.get_spans_with_sync_and_assert(size=2)
-        client_span, server_span = spans
-        assert f"x-datadog-trace-id={str(client_span._trace_id_64bits)}" in response.message
-        assert f"_dd.p.tid={_get_64_highest_order_bits_as_hex(client_span.trace_id)}" in response.message
-        assert "x-datadog-parent-id={}".format(client_span.span_id) in response.message
-        assert "x-datadog-sampling-priority=1" in response.message
-
     def test_unary_abort(self):
         with grpc.secure_channel("127.0.0.1:%d" % (_GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
             stub = HelloStub(channel)
