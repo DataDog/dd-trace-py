@@ -29,8 +29,7 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     try:
         import snowflake.connector as c
     except AttributeError:
@@ -41,7 +40,7 @@ def get_version():
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"snowflake": ">=2.3.0"}
+    return {"snowflake": ">=2.4.6"}
 
 
 class _SFTracedCursor(TracedCursor):

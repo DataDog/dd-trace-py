@@ -10,11 +10,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ddtrace"
-dynamic = ["version"]
+version = "4.0.0dev0"
+# XXX don't merge this to main
+# dynamic = ["version"]
 description = "Datadog APM client library"
 readme = "README.md"
 license = { text = "LICENSE.BSD3" }
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 authors = [
     { name = "Datadog, Inc.", email = "dev@datadoghq.com" },
 ]
@@ -106,7 +108,7 @@ exclude = '''
 
 [tool.black]
 line-length = 120
-target_version = ['py37', 'py38', 'py39', 'py310', 'py311', 'py312']
+target_version = ['py39', 'py310', 'py311', 'py312']
 include = '''\.py[ix]?$'''
 exclude = '''
 (

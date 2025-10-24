@@ -44,9 +44,7 @@ def _(asyncio):
     elif hasattr(asyncio.Task, "all_tasks"):
         globals()["all_tasks"] = asyncio.Task.all_tasks
 
-    if hasattr(asyncio.Task, "get_name"):
-        # `get_name` is only available in Python ≥ 3.8
-        globals()["_task_get_name"] = lambda task: task.get_name()
+    globals()["_task_get_name"] = lambda task: task.get_name()
 
     if THREAD_LINK is None:
         THREAD_LINK = _threading._ThreadLink()

@@ -84,7 +84,7 @@ suites:
     env:
       DD_TRACE_AGENT_URL: ''
     # `riot list --hash-only profile$ | wc -1` = 19
-    parallelism: 19
+    parallelism: 16
     paths:
       - '@bootstrap'
       - '@core'
@@ -97,7 +97,7 @@ suites:
     env:
       DD_TRACE_AGENT_URL: ''
     # `riot list --hash-only profile-v2$ | wc -1` = 19
-    parallelism: 19
+    parallelism: 16
     paths:
       - '@bootstrap'
       - '@core'

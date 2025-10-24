@@ -35,13 +35,12 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(pynamodb, "__version__", "")
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"pynamodb": ">=5.0"}
+    return {"pynamodb": ">=5.5.1"}
 
 
 def patch():
