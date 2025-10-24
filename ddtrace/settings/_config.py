@@ -99,7 +99,6 @@ INTEGRATION_CONFIGS = frozenset(
         "pyodbc",
         "dramatiq",
         "flask",
-        "google_generativeai",
         "google_genai",
         "google_adk",
         "urllib3",
