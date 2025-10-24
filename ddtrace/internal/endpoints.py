@@ -115,7 +115,7 @@ class HttpEndPointsCollection(metaclass=Singleton):
             self.reset()
             return res
         else:
-            batch = tuple([self.endpoints.pop() for _ in range(max_length)])
+            batch = tuple(self.endpoints.pop() for _ in range(max_length))
             res = {
                 "is_first": self.is_first,
                 "endpoints": [dataclasses.asdict(ep, dict_factory=_dict_factory) for ep in batch],

@@ -107,6 +107,52 @@ def test_flush_with_partial_batch(collection):
     assert len(collection.endpoints) == 0
 
 
+def test_partial_flush_with_concurrent_modification(collection):
+    """Test that partial flush (max_length < size) is safe from race conditions."""
+    for i in range(10):
+        collection.add_endpoint("GET", f"/api/endpoint{i}")
+
+    assert len(collection.endpoints) == 10
+
+    flush_completed = threading.Event()
+    flush_result = {}
+    exception_caught = []
+
+    def flush_thread():
+        try:
+            # Partial flush - this should trigger the else branch at line 118
+            result = collection.flush(max_length=5)
+            flush_result["data"] = result
+            flush_completed.set()
+        except Exception as e:
+            exception_caught.append(e)
+            flush_completed.set()
+
+    def add_thread():
+        sleep(0.001)
+        # Try to modify the set while flush might be iterating
+        for i in range(10, 15):
+            collection.add_endpoint("POST", f"/api/new{i}")
+            sleep(0.001)
+
+    t1 = threading.Thread(target=flush_thread)
+    t2 = threading.Thread(target=add_thread)
+
+    t1.start()
+    t2.start()
+
+    t1.join(timeout=2.0)
+    t2.join(timeout=2.0)
+
+    assert flush_completed.is_set(), "Flush did not complete"
+    assert len(exception_caught) == 0, f"Exception occurred during flush: {exception_caught}"
+    assert "data" in flush_result, "Flush did not return a result"
+
+    result = flush_result["data"]
+    assert len(result["endpoints"]) == 5
+    assert "is_first" in result
+
+
 def test_http_endpoint_hash_consistency(collection):
     """Test that HttpEndPoint hashing works correctly for set operations."""
     collection.add_endpoint("GET", "/api/test")
