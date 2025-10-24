@@ -129,24 +129,16 @@ StackRenderer::render_frame(Frame& frame)
     // some defaults.
     static constexpr std::string_view missing_filename = "<unknown file>";
     static constexpr std::string_view missing_name = "<unknown function>";
-    std::string_view filename_str;
+
+    auto line = frame.location.line;
+
     std::string_view name_str;
-
-    auto maybe_filename_str = string_table.lookup(frame.filename);
-    if (maybe_filename_str) {
-        filename_str = maybe_filename_str->get();
-    } else {
-        filename_str = missing_filename;
-    }
-
     auto maybe_name_str = string_table.lookup(frame.name);
     if (maybe_name_str) {
         name_str = maybe_name_str->get();
     } else {
         name_str = missing_name;
     }
-
-    auto line = frame.location.line;
 
     // DEV: Echion pushes a dummy frame containing task name, and its line
     // number is set to 0.
@@ -157,6 +149,14 @@ StackRenderer::render_frame(Frame& frame)
         }
         // And return early to avoid pushing task name as a frame
         return;
+    }
+
+    std::string_view filename_str;
+    auto maybe_filename_str = string_table.lookup(frame.filename);
+    if (maybe_filename_str) {
+        filename_str = maybe_filename_str->get();
+    } else {
+        filename_str = missing_filename;
     }
 
     ddup_push_frame(sample, name_str, filename_str, 0, line);
