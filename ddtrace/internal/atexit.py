@@ -18,6 +18,7 @@ log = logging.getLogger(__name__)
 
 register = atexit.register
 unregister = atexit.unregister
+_ncallbacks = atexit._ncallbacks
 
 
 # registers a function to be called when an exit signal (TERM or INT) or received.
