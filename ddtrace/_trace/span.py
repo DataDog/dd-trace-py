@@ -54,6 +54,7 @@ from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.time import Time
 from ddtrace.settings._config import config
+from ddtrace.vendor.debtcollector import removals
 
 
 class SpanEvent:
