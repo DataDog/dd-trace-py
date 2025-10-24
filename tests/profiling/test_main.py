@@ -58,14 +58,37 @@ def test_call_script_pprof_output(tmp_path, monkeypatch):
 @pytest.mark.skipif(sys.platform == "win32", reason="fork only available on Unix")
 def test_fork(tmp_path, monkeypatch):
     filename = str(tmp_path / "pprof")
-    monkeypatch.setenv("DD_PROFILING_API_TIMEOUT", "0.1")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
     monkeypatch.setenv("DD_PROFILING_CAPTURE_PCT", "100")
     stdout, stderr, exitcode, pid = call_program(
         "python", os.path.join(os.path.dirname(__file__), "simple_program_fork.py")
     )
     assert exitcode == 0
-    child_pid = stdout.decode().strip()
+
+    # Separate parent and child stdout by PID
+    parent_lines = []
+    child_lines = []
+    child_pid = None
+
+    # First pass: extract child PID from parent's output
+    for line in stdout.decode().strip().split("\n"):
+        if "child_pid=" in line:
+            child_pid = int(line.split("child_pid=")[1].split(":")[0])
+            break
+
+    assert child_pid is not None, f"Could not extract child PID from output: {stdout.decode()}"
+
+    # Second pass: separate lines by PID
+    for line in stdout.decode().strip().split("\n"):
+        if ":" in line:
+            line_pid = int(line.split(":")[0])
+            if line_pid == pid:
+                parent_lines.append(line)
+            elif line_pid == child_pid:
+                child_lines.append(line)
+
+    print(parent_lines)
+    print(child_lines)
     utils.check_pprof_file(filename + "." + str(pid))
     utils.check_pprof_file(filename + "." + str(child_pid), sample_type="lock-release")
 
