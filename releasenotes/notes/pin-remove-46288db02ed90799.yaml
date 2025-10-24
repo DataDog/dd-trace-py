@@ -1,0 +1,7 @@
+---
+other:
+  - |
+    This change removes deprecated attributes from the `ddtrace.trace` and `ddtrace._trace` modules
+      - `Tracer.on_start_span`
+      - `Tracer.deregister_on_start_span`
+      - `ddtrace.trace.Pin`
