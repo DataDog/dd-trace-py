@@ -110,6 +110,14 @@ def _add_file_handler(
     return ddtrace_file_handler
 
 
+def set_log_formatting():
+    # type: () -> None
+    """Sets the log format for the ddtrace logger."""
+    ddtrace_logger = logging.getLogger("ddtrace")
+    for handler in ddtrace_logger.handlers:
+        handler.setFormatter(logging.Formatter(DD_LOG_FORMAT))
+
+
 def get_log_injection_state(raw_config: Optional[str]) -> bool:
     """Returns the current log injection state."""
     if raw_config:
