@@ -1,3 +1,4 @@
+import _thread
 import glob
 import os
 import threading
@@ -5,6 +6,7 @@ from typing import Callable
 from typing import List
 from typing import Optional
 from typing import Type
+from typing import Union
 import uuid
 
 import mock
@@ -25,9 +27,11 @@ from tests.profiling.collector.pprof_utils import pprof_pb2
 
 
 # Type aliases for supported classes
-LockClassType = Type[threading.Lock] | Type[threading.RLock]
-LockClassInst = threading.Lock | threading.RLock
-CollectorClassType = Type[ThreadingLockCollector] | Type[ThreadingRLockCollector]
+LockClassType = Union[Type[threading.Lock], Type[threading.RLock]]
+CollectorClassType = Union[Type[ThreadingLockCollector], Type[ThreadingRLockCollector]]
+# threading.Lock and threading.RLock are factory functions that return _thread types.
+# We reference the underlying _thread types directly to avoid creating instances at import time.
+LockClassInst = Union[_thread.LockType, _thread.RLock]
 
 # Module-level globals for testing global lock profiling
 _test_global_lock: LockClassInst
@@ -117,8 +121,10 @@ def test_wrapt_disable_extensions() -> None:
     from ddtrace.profiling.collector import _lock
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
     from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.lock_utils import LineNo
     from tests.profiling.collector.lock_utils import get_lock_linenos
     from tests.profiling.collector.lock_utils import init_linenos
+    from tests.profiling.collector.pprof_utils import pprof_pb2
 
     assert ddup.is_available, "ddup is not available"
 
