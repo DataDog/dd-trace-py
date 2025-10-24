@@ -55,7 +55,8 @@ standard_blocklist = [
     "secrets",
 ]
 expanded_blocklist = standard_blocklist + [
-    "importlib.metadata",
+    # wrapt 2.0 is importing importlib.metada
+    # "importlib.metadata",
 ]
 
 

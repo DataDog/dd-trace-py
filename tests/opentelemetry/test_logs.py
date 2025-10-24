@@ -200,7 +200,6 @@ def test_otel_logs_exporter_auto_configured_http():
 
     from opentelemetry._logs import get_logger_provider
 
-    from ddtrace.internal.opentelemetry.logs import HTTP_LOGS_ENDPOINT
     from tests.opentelemetry.test_logs import decode_logs_request
     from tests.opentelemetry.test_logs import extract_log_correlation_attributes
 
@@ -217,7 +216,7 @@ def test_otel_logs_exporter_auto_configured_http():
         request_body = None
         for call in mock_request.call_args_list:
             method, url = call[0][:2]
-            if method == "POST" and HTTP_LOGS_ENDPOINT in url:
+            if method == "POST" and "/v1/logs" in url:
                 request_body = call[1].get("data", None)
                 break
         assert request_body is not None, (

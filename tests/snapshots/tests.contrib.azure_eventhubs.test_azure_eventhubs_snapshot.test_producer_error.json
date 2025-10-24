@@ -1,0 +1,35 @@
+[[
+  {
+    "name": "azure.eventhubs.send",
+    "service": "azure_eventhubs",
+    "resource": "eh1",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 1,
+    "meta": {
+      "_dd.base_service": "tests.contrib.azure_eventhubs",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68de959d00000000",
+      "component": "azure_eventhubs",
+      "error.message": "'EventData' object is not iterable",
+      "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/azure_eventhubs/patch.py\", line 178, in _patched_send_batch\n    return wrapped(*args, **kwargs)\n  File \"/home/bits/project/.riot/venv_py31113_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_azureeventhub~5120_pytest-asyncio0237/lib/python3.11/site-packages/azure/eventhub/_producer_client.py\", line 752, in send_batch\n    batch, pid, pkey = self._batch_preparer(\n                       ^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31113_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_azureeventhub~5120_pytest-asyncio0237/lib/python3.11/site-packages/azure/eventhub/_producer_client.py\", line 293, in _batch_preparer\n    to_send_batch._load_events(  # pylint:disable=protected-access\n  File \"/home/bits/project/.riot/venv_py31113_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_azureeventhub~5120_pytest-asyncio0237/lib/python3.11/site-packages/azure/eventhub/_common.py\", line 622, in _load_events\n    for event_data in events:\nTypeError: 'EventData' object is not iterable\n",
+      "error.type": "builtins.TypeError",
+      "language": "python",
+      "messaging.destination.name": "eh1",
+      "messaging.operation": "send",
+      "messaging.system": "eventhubs",
+      "network.destination.name": "localhost",
+      "runtime-id": "4c5dce7cb1e143eebcef58cc3a343eb4",
+      "span.kind": "producer"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 1052
+    },
+    "duration": 513833833,
+    "start": 1759417757369834012
+  }]]

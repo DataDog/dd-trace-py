@@ -205,20 +205,18 @@ async def traced_client_session_aexit(mcp, pin: Pin, func, instance, args: tuple
             span.set_exc_info(*sys.exc_info())
         raise
     finally:
-        if not span:
-            return
-
-        integration.llmobs_set_tags(
-            span,
-            args=[],
-            kwargs=dict(
-                read_stream=_get_attr(instance, "_read_stream", None),
-                write_stream=_get_attr(instance, "_write_stream", None),
-            ),
-            response=None,
-            operation="session",
-        )
-        span.finish()
+        if span:
+            integration.llmobs_set_tags(
+                span,
+                args=[],
+                kwargs=dict(
+                    read_stream=_get_attr(instance, "_read_stream", None),
+                    write_stream=_get_attr(instance, "_write_stream", None),
+                ),
+                response=None,
+                operation="session",
+            )
+            span.finish()
 
 
 def patch():

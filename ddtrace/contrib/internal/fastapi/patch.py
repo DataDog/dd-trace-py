@@ -3,7 +3,6 @@ from typing import Dict
 
 import fastapi
 import fastapi.routing
-from wrapt import ObjectProxy
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
@@ -12,6 +11,7 @@ from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.internal.starlette.patch import _trace_background_tasks
 from ddtrace.contrib.internal.starlette.patch import traced_handler
 from ddtrace.contrib.internal.starlette.patch import traced_route_init
+from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.telemetry import get_config as _get_config
@@ -93,16 +93,16 @@ def patch():
     _w("fastapi.applications", "FastAPI.build_middleware_stack", wrap_middleware_stack)
     _w("fastapi.routing", "serialize_response", traced_serialize_response)
 
-    if not isinstance(fastapi.BackgroundTasks.add_task, ObjectProxy):
+    if not is_wrapted(fastapi.BackgroundTasks.add_task):
         _w("fastapi", "BackgroundTasks.add_task", _trace_background_tasks(fastapi))
     # We need to check that Starlette instrumentation hasn't already patched these
-    if not isinstance(fastapi.routing.APIRoute.__init__, ObjectProxy):
+    if not is_wrapted(fastapi.routing.APIRoute.__init__):
         _w("fastapi.routing", "APIRoute.__init__", traced_route_init)
 
-    if not isinstance(fastapi.routing.APIRoute.handle, ObjectProxy):
+    if not is_wrapted(fastapi.routing.APIRoute.handle):
         _w("fastapi.routing", "APIRoute.handle", traced_handler)
 
-    if not isinstance(fastapi.routing.Mount.handle, ObjectProxy):
+    if not is_wrapted(fastapi.routing.Mount.handle):
         _w("starlette.routing", "Mount.handle", traced_handler)
 
     if asm_config._iast_enabled:
@@ -121,11 +121,11 @@ def unpatch():
     _u(fastapi.routing, "serialize_response")
 
     # We need to check that Starlette instrumentation hasn't already unpatched these
-    if isinstance(fastapi.routing.APIRoute.handle, ObjectProxy):
+    if is_wrapted(fastapi.routing.APIRoute.handle):
         _u(fastapi.routing.APIRoute, "handle")
 
-    if isinstance(fastapi.routing.Mount.handle, ObjectProxy):
+    if is_wrapted(fastapi.routing.Mount.handle):
         _u(fastapi.routing.Mount, "handle")
 
-    if isinstance(fastapi.BackgroundTasks.add_task, ObjectProxy):
+    if is_wrapted(fastapi.BackgroundTasks.add_task):
         _u(fastapi.BackgroundTasks, "add_task")

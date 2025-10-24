@@ -1,0 +1,35 @@
+id: pep765-control-flow-in-finally
+message: Control flow statement in finally block (PEP 765)
+severity: warning
+language: python
+rule:
+  any:
+    - kind: return_statement
+      inside:
+        stopBy:
+          any:
+            - kind: function_definition
+            - kind: lambda
+        kind: finally_clause
+    - kind: break_statement
+      inside:
+        stopBy:
+          any:
+            - kind: for_statement
+            - kind: while_statement
+        kind: finally_clause
+    - kind: continue_statement
+      inside:
+        stopBy:
+          any:
+            - kind: for_statement
+            - kind: while_statement
+        kind: finally_clause
+note: |
+  PEP 765: Control flow statements (return, break, continue) in finally blocks
+  emit a SyntaxWarning in Python 3.14 and will become a SyntaxError in future versions.
+
+  These statements can cause surprising exception-swallowing behavior and are
+  difficult to debug. Refactor to use explicit control flow outside the finally block.
+
+  Refactor the code to return before the finally block or use a different control flow pattern.

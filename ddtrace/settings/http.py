@@ -78,6 +78,8 @@ class HttpConfig(object):
         return self._header_tag_name(header_name) is not None
 
     def __repr__(self):
-        return "<{} traced_headers={} trace_query_string={}>".format(
-            self.__class__.__name__, self._header_tags.keys(), self.trace_query_string
+        return (
+            f"<{self.__class__.__name__} "
+            f"traced_headers={self._header_tags.keys()} "
+            f"trace_query_string={self.trace_query_string}>"
         )

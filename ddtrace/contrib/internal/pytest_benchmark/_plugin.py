@@ -18,11 +18,11 @@ class _PytestBenchmarkPlugin:
             if span is None:
                 return
 
-            span.set_tag_str(TEST_TYPE, "benchmark")
-            span.set_tag_str(BENCHMARK_INFO, "Time")
+            span._set_tag_str(TEST_TYPE, "benchmark")
+            span._set_tag_str(BENCHMARK_INFO, "Time")
             for span_path, tag in PLUGIN_METRICS.items():
                 if hasattr(stat_object, tag):
                     if tag == PLUGIN_OUTLIERS:
-                        span.set_tag_str(span_path, getattr(stat_object, tag))
+                        span._set_tag_str(span_path, getattr(stat_object, tag))
                         continue
                     span.set_tag(span_path, getattr(stat_object, tag))

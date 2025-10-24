@@ -62,6 +62,7 @@ TYPE = "langchain.request.type"
 ANTHROPIC_PROVIDER_NAME = "anthropic"
 BEDROCK_PROVIDER_NAME = "amazon_bedrock"
 OPENAI_PROVIDER_NAME = "openai"
+AZURE_OAI_PROVIDER_NAME = "azure"
 VERTEXAI_PROVIDER_NAME = "vertexai"
 GEMINI_PROVIDER_NAME = "google_palm"
 
@@ -189,7 +190,7 @@ class LangChainIntegration(BaseLLMIntegration):
             # only the llm interface for Gemini will get instrumented
             elif model_provider.startswith(GEMINI_PROVIDER_NAME) and operation == "llm":
                 llmobs_integration = "google_generativeai"
-            elif model_provider.startswith(OPENAI_PROVIDER_NAME):
+            elif any(provider in model_provider for provider in (OPENAI_PROVIDER_NAME, AZURE_OAI_PROVIDER_NAME)):
                 llmobs_integration = "openai"
             elif operation == "chat" and model_provider.startswith(ANTHROPIC_PROVIDER_NAME):
                 llmobs_integration = "anthropic"
@@ -777,9 +778,9 @@ class LangChainIntegration(BaseLLMIntegration):
     ) -> None:
         """Set base level tags that should be present on all LangChain spans (if they are not None)."""
         if provider is not None:
-            span.set_tag_str(PROVIDER, provider)
+            span._set_tag_str(PROVIDER, provider)
         if model is not None:
-            span.set_tag_str(MODEL, model)
+            span._set_tag_str(MODEL, model)
 
     def _extract_tool_call_args_from_inputs(self, tool_inputs: Dict[str, Any]) -> Tuple[str, str, str]:
         """
@@ -915,7 +916,6 @@ class LangChainIntegration(BaseLLMIntegration):
             "template": template,
             "chat_template": chat_template,
             "id": prompt_id if prompt_id is not None else "unknown",
-            "version": "0.0.0",
             "rag_context_variables": [],
             "rag_query_variables": [],
             "tags": tags,

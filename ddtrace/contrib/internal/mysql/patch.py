@@ -10,6 +10,7 @@ from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.internal.trace_utils import _convert_to_string
 from ddtrace.ext import db
 from ddtrace.ext import net
+from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
@@ -62,7 +63,7 @@ def patch():
 
 
 def unpatch():
-    if isinstance(mysql.connector.connect, wrapt.ObjectProxy):
+    if is_wrapted(mysql.connector.connect):
         mysql.connector.connect = mysql.connector.connect.__wrapped__
         if hasattr(mysql.connector, "Connect"):
             mysql.connector.Connect = mysql.connector.connect

@@ -35,6 +35,6 @@ class TraceCiVisibilityFilter(TraceFilter):
         _set_sampling_tags(local_root, True, 1.0, SamplingMechanism.DEFAULT)
         for span in trace:
             span.set_tags(self._tags)
-            span.set_tag_str(ci.LIBRARY_VERSION, ddtrace.__version__)
+            span._set_tag_str(ci.LIBRARY_VERSION, ddtrace.__version__)
 
         return trace

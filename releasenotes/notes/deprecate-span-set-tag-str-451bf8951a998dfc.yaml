@@ -1,0 +1,5 @@
+---
+deprecations:
+  - |
+    tracing: ``Span.set_tag_str`` is deprecated and will be removed in version 4.0.0.
+            As an alternative to ``Span.set_tag_str``, you can use ``Span.set_tag`` instead.

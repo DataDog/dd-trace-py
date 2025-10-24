@@ -29,6 +29,8 @@ from ddtrace.settings.profiling import config as profiling_config
 from ddtrace.settings.profiling import config_str
 
 
+# TODO(vlad): add type annotations
+
 LOG = logging.getLogger(__name__)
 
 
@@ -223,6 +225,7 @@ class _ProfilerInstance(service.Service):
 
             self._collectors_on_import = [
                 ("threading", lambda _: start_collector(threading.ThreadingLockCollector)),
+                ("threading", lambda _: start_collector(threading.ThreadingRLockCollector)),
                 ("asyncio", lambda _: start_collector(asyncio.AsyncioLockCollector)),
             ]
 

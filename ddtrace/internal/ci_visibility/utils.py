@@ -68,7 +68,7 @@ def _add_start_end_source_file_path_data_to_span(
     start_line, end_line = get_source_lines_for_test_method(test_method_object)
     if not start_line or not end_line:
         log.debug("Tried to collect source start/end lines for test method %s but an exception was raised", test_name)
-    span.set_tag_str(test.SOURCE_FILE, source_file_path)
+    span._set_tag_str(test.SOURCE_FILE, source_file_path)
     if start_line:
         span.set_tag(test.SOURCE_START, start_line)
     if end_line:

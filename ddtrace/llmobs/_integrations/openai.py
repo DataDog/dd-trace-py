@@ -60,21 +60,28 @@ class OpenAIIntegration(BaseLLMIntegration):
         self._user_api_key = "sk-...%s" % value[-4:]
 
     def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
-        traced_operations = ("createCompletion", "createChatCompletion", "createEmbedding", "createResponse")
+        traced_operations = (
+            "createCompletion",
+            "createChatCompletion",
+            "createEmbedding",
+            "createResponse",
+            "parseChatCompletion",
+            "parseResponse",
+        )
         if operation_id in traced_operations:
             submit_to_llmobs = True
         log.debug("Creating LLM span for openai operation: %s", operation_id)
         return super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
 
     def _set_base_span_tags(self, span: Span, **kwargs) -> None:
-        span.set_tag_str(COMPONENT, self.integration_config.integration_name)
+        span._set_tag_str(COMPONENT, self.integration_config.integration_name)
 
         client = "OpenAI"
         if self._is_provider(span, "azure"):
             client = "AzureOpenAI"
         elif self._is_provider(span, "deepseek"):
             client = "Deepseek"
-        span.set_tag_str("openai.request.provider", client)
+        span._set_tag_str("openai.request.provider", client)
 
     def _is_provider(self, span, provider):
         """Check if the traced operation is from the given provider."""

@@ -483,12 +483,12 @@ def _traced_ossystem(module, pin, wrapped, instance, args, kwargs):
             return wrapped(*args, **kwargs)
 
         with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=shellcmd.binary, span_type=SpanTypes.SYSTEM) as span:
-            span.set_tag_str(COMMANDS.SHELL, shellcmd.as_string())
+            span._set_tag_str(COMMANDS.SHELL, shellcmd.as_string())
             if shellcmd.truncated:
-                span.set_tag_str(COMMANDS.TRUNCATED, "yes")
-            span.set_tag_str(COMMANDS.COMPONENT, "os")
+                span._set_tag_str(COMMANDS.TRUNCATED, "yes")
+            span._set_tag_str(COMMANDS.COMPONENT, "os")
             ret = wrapped(*args, **kwargs)
-            span.set_tag_str(COMMANDS.EXIT_CODE, str(ret))
+            span._set_tag_str(COMMANDS.EXIT_CODE, str(ret))
             return ret
     else:
         return wrapped(*args, **kwargs)
@@ -508,7 +508,7 @@ def _traced_fork(module, pin, wrapped, instance, args, kwargs):
 
     with pin.tracer.trace(COMMANDS.SPAN_NAME, resource="fork", span_type=SpanTypes.SYSTEM) as span:
         span.set_tag(COMMANDS.EXEC, ["os.fork"])
-        span.set_tag_str(COMMANDS.COMPONENT, "os")
+        span._set_tag_str(COMMANDS.COMPONENT, "os")
         return wrapped(*args, **kwargs)
 
 
@@ -537,12 +537,12 @@ def _traced_osspawn(module, pin, wrapped, instance, args, kwargs):
     with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=shellcmd.binary, span_type=SpanTypes.SYSTEM) as span:
         span.set_tag(COMMANDS.EXEC, shellcmd.as_list())
         if shellcmd.truncated:
-            span.set_tag_str(COMMANDS.TRUNCATED, "true")
-        span.set_tag_str(COMMANDS.COMPONENT, "os")
+            span._set_tag_str(COMMANDS.TRUNCATED, "true")
+        span._set_tag_str(COMMANDS.COMPONENT, "os")
 
         ret = wrapped(*args, **kwargs)
         if mode == os.P_WAIT:
-            span.set_tag_str(COMMANDS.EXIT_CODE, str(ret))
+            span._set_tag_str(COMMANDS.EXIT_CODE, str(ret))
         return ret
 
 
@@ -602,16 +602,16 @@ def _traced_subprocess_wait(module, pin, wrapped, instance, args, kwargs):
 
         with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=binary, span_type=SpanTypes.SYSTEM) as span:
             if core.find_item(COMMANDS.CTX_SUBP_IS_SHELL):
-                span.set_tag_str(COMMANDS.SHELL, core.find_item(COMMANDS.CTX_SUBP_LINE))
+                span._set_tag_str(COMMANDS.SHELL, core.find_item(COMMANDS.CTX_SUBP_LINE))
             else:
                 span.set_tag(COMMANDS.EXEC, core.find_item(COMMANDS.CTX_SUBP_LINE))
 
             truncated = core.find_item(COMMANDS.CTX_SUBP_TRUNCATED)
             if truncated:
-                span.set_tag_str(COMMANDS.TRUNCATED, "yes")
-            span.set_tag_str(COMMANDS.COMPONENT, "subprocess")
+                span._set_tag_str(COMMANDS.TRUNCATED, "yes")
+            span._set_tag_str(COMMANDS.COMPONENT, "subprocess")
             ret = wrapped(*args, **kwargs)
-            span.set_tag_str(COMMANDS.EXIT_CODE, str(ret))
+            span._set_tag_str(COMMANDS.EXIT_CODE, str(ret))
             return ret
     else:
         return wrapped(*args, **kwargs)

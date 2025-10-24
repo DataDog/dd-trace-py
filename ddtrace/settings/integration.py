@@ -134,7 +134,7 @@ class IntegrationConfig(AttrDict):
     def __repr__(self):
         cls = self.__class__
         keys = ", ".join(self.keys())
-        return "{}.{}({})".format(cls.__module__, cls.__name__, keys)
+        return f"{cls.__module__}.{cls.__name__}({keys})"
 
     def copy(self):
         new_instance = self.__class__(self.global_config, self.integration_name)

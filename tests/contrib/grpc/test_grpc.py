@@ -612,6 +612,43 @@ class GrpcTestCase(GrpcBaseTestCase):
         assert client_span.name == "grpc.client.request", "Expected 'grpc.client.request', got %s" % client_span.name
         assert server_span.name == "grpc.server.request", "Expected 'grpc.server.request', got %s" % server_span.name
 
+    def test_span_parent_is_maintained(self):
+        with self.tracer.trace("root") as _:
+            with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
+                stub = HelloStub(channel)
+                _ = stub.SayHello(HelloRequest(name="test"))
+
+        spans = self.get_spans_with_sync_and_assert(size=3)
+        root = spans[0]
+        client = spans[1]
+        server = spans[2]
+        assert root.span_id == client.parent_id
+        assert client.span_id == server.parent_id
+
+    def test_active_span_doesnt_leak_with_future(self):
+        with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
+            stub = HelloStub(channel)
+            future = stub.SayHello.future(HelloRequest(name="test"))
+            assert self.tracer.current_span() is None
+            # wait so that we don't cancel the request
+            future.result()
+
+        self.get_spans_with_sync_and_assert(size=2)
+
+    def test_span_active_in_custom_interceptor(self):
+        # add an interceptor that raises a custom exception and check error tags
+        # are added to spans
+        interceptor = _SpanActivationClientInterceptor(self.tracer)
+        with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
+            intercept_channel = grpc.intercept_channel(channel, interceptor)
+            stub = HelloStub(intercept_channel)
+            stub.SayHello(HelloRequest(name="test"))
+
+        spans = self.get_spans_with_sync_and_assert(size=2)
+        client_span = spans[0]
+
+        assert client_span.get_tag("custom_interceptor_worked")
+
 
 class _CustomException(Exception):
     pass
@@ -686,3 +723,21 @@ def test_method_service(patch_grpc):
         channel.unary_unary("/pkg.Servicer/Handler")(b"request")
     finally:
         server.stop(None)
+
+
+class _SpanActivationClientInterceptor(grpc.UnaryUnaryClientInterceptor):
+    def __init__(self, tracer) -> None:
+        super().__init__()
+        self.tracer = tracer
+
+    def _intercept_call(self, continuation, client_call_details, request_or_iterator):
+        # allow computation to complete
+        span = self.tracer.current_span()
+        assert span is not None
+
+        span.set_tag("custom_interceptor_worked")
+
+        return continuation(client_call_details, request_or_iterator)
+
+    def intercept_unary_unary(self, continuation, client_call_details, request):
+        return self._intercept_call(continuation, client_call_details, request)

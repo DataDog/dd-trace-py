@@ -74,13 +74,13 @@ def _on_flask_patch(flask_version):
             iast_funcs.wrap_function(
                 "werkzeug.datastructures",
                 "EnvironHeaders.__getitem__",
-                functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
+                functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER, False),
             )
             # Since werkzeug 3.1.0 get doesn't call to __getitem__
             iast_funcs.wrap_function(
                 "werkzeug.datastructures",
                 "EnvironHeaders.get",
-                functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
+                functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER, False),
             )
             _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
             _set_metric_iast_instrumented_source(OriginType.HEADER)
@@ -88,7 +88,7 @@ def _on_flask_patch(flask_version):
             iast_funcs.wrap_function(
                 "werkzeug.datastructures",
                 "ImmutableMultiDict.__getitem__",
-                functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
+                functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER, False),
             )
             _set_metric_iast_instrumented_source(OriginType.PARAMETER)
 
@@ -116,7 +116,7 @@ def _on_flask_patch(flask_version):
                 iast_funcs.wrap_function(
                     "werkzeug._internal",
                     "_DictAccessorProperty.__get__",
-                    functools.partial(if_iast_taint_returned_object_for, OriginType.QUERY),
+                    functools.partial(if_iast_taint_returned_object_for, OriginType.QUERY, False),
                 )
                 _set_metric_iast_instrumented_source(OriginType.QUERY)
 
@@ -166,7 +166,7 @@ def _on_django_patch():
             iast_funcs.wrap_function(
                 "django.http.request",
                 "QueryDict.__getitem__",
-                functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
+                functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER, False),
             )
             iast_funcs.wrap_function("django.utils.shlex", "quote", cmdi_sanitizer)
 
@@ -337,11 +337,11 @@ def if_iast_taint_yield_tuple_for(origins, wrapped, instance, args, kwargs):
             yield key, value
 
 
-def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
+def if_iast_taint_returned_object_for(origin, override_pyobject_tainted, wrapped, instance, args, kwargs):
     value = wrapped(*args, **kwargs)
     if is_iast_request_enabled():
         try:
-            if not is_pyobject_tainted(value):
+            if not is_pyobject_tainted(value) or override_pyobject_tainted:
                 name = str(args[0]) if len(args) else "http.request.body"
                 if origin == OriginType.HEADER and name.lower() in ["cookie", "cookies"]:
                     origin = OriginType.COOKIE
@@ -390,12 +390,12 @@ def _on_iast_fastapi_patch():
         iast_funcs.wrap_function(
             "starlette.datastructures",
             "QueryParams.__getitem__",
-            functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
+            functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER, False),
         )
         iast_funcs.wrap_function(
             "starlette.datastructures",
             "QueryParams.get",
-            functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
+            functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER, False),
         )
         _set_metric_iast_instrumented_source(OriginType.PARAMETER)
 
@@ -410,12 +410,12 @@ def _on_iast_fastapi_patch():
         iast_funcs.wrap_function(
             "starlette.datastructures",
             "Headers.__getitem__",
-            functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
+            functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER, False),
         )
         iast_funcs.wrap_function(
             "starlette.datastructures",
             "Headers.get",
-            functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
+            functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER, False),
         )
         _set_metric_iast_instrumented_source(OriginType.HEADER)
 
@@ -436,12 +436,12 @@ def _on_iast_fastapi_patch():
         iast_funcs.wrap_function(
             "starlette.datastructures",
             "FormData.__getitem__",
-            functools.partial(if_iast_taint_returned_object_for, OriginType.BODY),
+            functools.partial(if_iast_taint_returned_object_for, OriginType.BODY, True),
         )
         iast_funcs.wrap_function(
             "starlette.datastructures",
             "FormData.get",
-            functools.partial(if_iast_taint_returned_object_for, OriginType.BODY),
+            functools.partial(if_iast_taint_returned_object_for, OriginType.BODY, True),
         )
         iast_funcs.wrap_function(
             "starlette.datastructures",

@@ -49,7 +49,7 @@ class TestLongRunningSpan(TracerTestCase):
         """Test basic lifecycle of a long running span"""
 
         span = self.tracer.start_span("test.long.running", service="test-service")
-        span.set_tag_str("ray.submission_id", "test-submission-123")
+        span._set_tag_str("ray.submission_id", "test-submission-123")
 
         start_long_running_span(span)
 
@@ -76,7 +76,7 @@ class TestLongRunningSpan(TracerTestCase):
     def test_not_long_running_span(self):
         """Test when a potential long running span lasts less then register_treshold"""
         span = self.tracer.start_span("test.not.long.running", service="test-service")
-        span.set_tag_str("ray.submission_id", "test-submission-123")
+        span._set_tag_str("ray.submission_id", "test-submission-123")
 
         start_long_running_span(span)
 
@@ -103,10 +103,10 @@ class TestLongRunningSpan(TracerTestCase):
         submission_id = "test-multi-submission-999"
 
         span1 = self.tracer.start_span("test.span1", service="test-service")
-        span1.set_tag_str("ray.submission_id", submission_id)
+        span1._set_tag_str("ray.submission_id", submission_id)
 
         span2 = self.tracer.start_span("test.span2", service="test-service")
-        span2.set_tag_str("ray.submission_id", submission_id)
+        span2._set_tag_str("ray.submission_id", submission_id)
 
         start_long_running_span(span1)
         start_long_running_span(span2)
@@ -136,11 +136,11 @@ class TestLongRunningSpan(TracerTestCase):
         """Test parent/child relationships with mixed long-running and non-long-running spans."""
         submission_id = "test-parent-child-hierarchy-456"
         parent_span = self.tracer.start_span(name="test.long.parent", service="test-service")
-        parent_span.set_tag_str("ray.submission_id", submission_id)
+        parent_span._set_tag_str("ray.submission_id", submission_id)
         start_long_running_span(parent_span)
 
         child1 = self.tracer.start_span(name="test.child1.long", service="test-service", child_of=parent_span)
-        child1.set_tag_str("ray.submission_id", submission_id)
+        child1._set_tag_str("ray.submission_id", submission_id)
         start_long_running_span(child1)
 
         time.sleep(3)
@@ -154,7 +154,7 @@ class TestLongRunningSpan(TracerTestCase):
         self.assertIsNone(child2.get_metric("_dd.partial_version"))
 
         child3 = self.tracer.start_span(name="test.child3.long", service="test-service", child_of=parent_span)
-        child3.set_tag_str("ray.submission_id", submission_id)
+        child3._set_tag_str("ray.submission_id", submission_id)
         start_long_running_span(child3)
 
         with _ray_span_manager._lock:

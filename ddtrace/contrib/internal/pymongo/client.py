@@ -137,16 +137,16 @@ def _datadog_trace_operation(operation, wrapped):
         service=trace_utils.ext_service(pin, config.pymongo),
     )
 
-    span.set_tag_str(COMPONENT, config.pymongo.integration_name)
+    span._set_tag_str(COMPONENT, config.pymongo.integration_name)
 
     # set span.kind to the operation type being performed
-    span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+    span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
     # PERF: avoid setting via Span.set_tag
     span.set_metric(_SPAN_MEASURED_KEY, 1)
-    span.set_tag_str(mongox.DB, cmd.db)
-    span.set_tag_str(mongox.COLLECTION, cmd.coll)
-    span.set_tag_str(db.SYSTEM, mongox.SERVICE)
+    span._set_tag_str(mongox.DB, cmd.db)
+    span._set_tag_str(mongox.COLLECTION, cmd.coll)
+    span._set_tag_str(db.SYSTEM, mongox.SERVICE)
     span.set_tags(cmd.tags)
 
     # set `mongodb.query` tag and resource for span
@@ -260,16 +260,16 @@ def _trace_cmd(cmd, socket_instance, address):
         service=trace_utils.ext_service(pin, config.pymongo),
     )
 
-    s.set_tag_str(COMPONENT, config.pymongo.integration_name)
-    s.set_tag_str(db.SYSTEM, mongox.SERVICE)
+    s._set_tag_str(COMPONENT, config.pymongo.integration_name)
+    s._set_tag_str(db.SYSTEM, mongox.SERVICE)
 
     # set span.kind to the type of operation being performed
-    s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+    s._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
     # PERF: avoid setting via Span.set_tag
     s.set_metric(_SPAN_MEASURED_KEY, 1)
     if cmd.db:
-        s.set_tag_str(mongox.DB, cmd.db)
+        s._set_tag_str(mongox.DB, cmd.db)
     if cmd:
         s.set_tag(mongox.COLLECTION, cmd.coll)
         s.set_tags(cmd.tags)
@@ -314,8 +314,8 @@ def normalize_filter(f=None):
 def set_address_tags(span, address):
     # the address is only set after the cursor is done.
     if address:
-        span.set_tag_str(netx.TARGET_HOST, address[0])
-        span.set_tag_str(netx.SERVER_ADDRESS, address[0])
+        span._set_tag_str(netx.TARGET_HOST, address[0])
+        span._set_tag_str(netx.SERVER_ADDRESS, address[0])
         span.set_tag(netx.TARGET_PORT, address[1])
 
 
@@ -343,7 +343,9 @@ def set_query_rowcount(docs, span):
 
 def _dbm_dispatch(span, args, kwargs):
     # dispatch DBM
-    result = core.dispatch_with_results("pymongo.execute", (config.pymongo, span, args, kwargs)).result
+    result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
+        "pymongo.execute", (config.pymongo, span, args, kwargs)
+    ).result
     if result:
         span, args, kwargs = result.value
     return span, args, kwargs

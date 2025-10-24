@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    tracing: ``Tracer.on_start_span`` and ``Tracer.deregister_on_start_span`` are deprecated and will be removed in v4.0.0 with no planned replacement.

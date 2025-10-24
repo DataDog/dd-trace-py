@@ -3,10 +3,9 @@ from time import sleep
 
 from mock.mock import ANY
 
+from ddtrace.internal.telemetry.constants import TELEMETRY_EVENT_TYPE
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
-from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_DISTRIBUTION
-from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
 from tests.utils import override_global_config
 
 
@@ -14,11 +13,11 @@ def _assert_metric(
     test_agent,
     expected_metrics,
     namespace=TELEMETRY_NAMESPACE.TRACERS,
-    type_paypload=TELEMETRY_TYPE_GENERATE_METRICS,
+    type_payload=TELEMETRY_EVENT_TYPE.METRICS,
 ):
     assert len(expected_metrics) > 0, "expected_metrics should not be empty"
     test_agent.telemetry_writer.periodic(force_flush=True)
-    metrics_events = test_agent.get_events(type_paypload)
+    metrics_events = test_agent.get_events(type_payload.value)
     assert len(metrics_events) > 0, "captured metrics events should not be empty"
 
     metrics = []
@@ -291,7 +290,7 @@ def test_send_appsec_distributions_metric(telemetry_writer, test_agent_session, 
         test_agent_session,
         expected_series,
         namespace=TELEMETRY_NAMESPACE.APPSEC,
-        type_paypload=TELEMETRY_TYPE_DISTRIBUTION,
+        type_payload=TELEMETRY_EVENT_TYPE.DISTRIBUTIONS,
     )
 
 
@@ -312,7 +311,7 @@ def test_send_metric_flush_and_distributions_series_is_restarted(telemetry_write
         test_agent_session,
         expected_series,
         namespace=TELEMETRY_NAMESPACE.APPSEC,
-        type_paypload=TELEMETRY_TYPE_DISTRIBUTION,
+        type_payload=TELEMETRY_EVENT_TYPE.DISTRIBUTIONS,
     )
 
     expected_series = [
@@ -329,7 +328,7 @@ def test_send_metric_flush_and_distributions_series_is_restarted(telemetry_write
         test_agent_session,
         expected_series,
         namespace=TELEMETRY_NAMESPACE.APPSEC,
-        type_paypload=TELEMETRY_TYPE_DISTRIBUTION,
+        type_payload=TELEMETRY_EVENT_TYPE.DISTRIBUTIONS,
     )
 
 

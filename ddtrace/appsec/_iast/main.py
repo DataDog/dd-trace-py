@@ -85,9 +85,6 @@ def patch_iast():
         # CMDI sanitizers
         iast_funcs.wrap_function("shlex", "quote", cmdi_sanitizer)
 
-        # SSRF validators
-        iast_funcs.wrap_function("django.utils.http", "url_has_allowed_host_and_scheme", ssrf_validator)
-
         # SQL sanitizers
         iast_funcs.wrap_function("mysql.connector.conversion", "MySQLConverter.escape", sqli_sanitizer)
         iast_funcs.wrap_function("pymysql.connections", "Connection.escape_string", sqli_sanitizer)
@@ -95,6 +92,9 @@ def patch_iast():
 
         # Header Injection sanitizers
         iast_funcs.wrap_function("werkzeug.utils", "_str_header_value", header_injection_sanitizer)
+
+        # Path Traversal sanitizers
+        iast_funcs.wrap_function("werkzeug.utils", "secure_filename", path_traversal_sanitizer)
 
         # Header Injection validators
         # Header injection for > Django 3.2
@@ -110,8 +110,9 @@ def patch_iast():
         # Unvalidated Redirect validators
         iast_funcs.wrap_function("django.utils.http", "url_has_allowed_host_and_scheme", unvalidated_redirect_validator)
 
-        # Path Traversal sanitizers
-        iast_funcs.wrap_function("werkzeug.utils", "secure_filename", path_traversal_sanitizer)
+        # SSRF validators
+        iast_funcs.wrap_function("django.utils.http", "url_has_allowed_host_and_scheme", ssrf_validator)
+        iast_funcs.wrap_function("urllib.parse", "urlparse", ssrf_validator)
 
         # TODO: werkzeug.utils.safe_join propagation doesn't work because normpath which is not yet supported by IAST
         #  iast_funcs.wrap_function("werkzeug.utils", "safe_join", path_traversal_sanitizer)

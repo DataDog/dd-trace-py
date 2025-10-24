@@ -2,9 +2,8 @@ from typing import Any
 from typing import Dict
 from typing import Optional
 
-import wrapt
-
 import ddtrace
+from ddtrace.internal.compat import is_wrapted
 from ddtrace.settings.asm import config as asm_config
 
 from ..internal.logger import get_logger
@@ -104,7 +103,7 @@ class Pin(object):
         if hasattr(obj, "__getddpin__"):
             return obj.__getddpin__()
 
-        pin_name = _DD_PIN_PROXY_NAME if isinstance(obj, wrapt.ObjectProxy) else _DD_PIN_NAME
+        pin_name = _DD_PIN_PROXY_NAME if is_wrapted(obj) else _DD_PIN_NAME
         pin = getattr(obj, pin_name, None)
         # detect if the PIN has been inherited from a class
         if pin is not None and pin._target != id(obj):
@@ -167,7 +166,7 @@ class Pin(object):
             if hasattr(obj, "__setddpin__"):
                 return obj.__setddpin__(self)
 
-            pin_name = _DD_PIN_PROXY_NAME if isinstance(obj, wrapt.ObjectProxy) else _DD_PIN_NAME
+            pin_name = _DD_PIN_PROXY_NAME if is_wrapted(obj) else _DD_PIN_NAME
 
             # set the target reference; any get_from, clones and retarget the new PIN
             self._target = id(obj)
@@ -180,7 +179,7 @@ class Pin(object):
     def remove_from(self, obj: Any) -> None:
         # Remove pin from the object.
         try:
-            pin_name = _DD_PIN_PROXY_NAME if isinstance(obj, wrapt.ObjectProxy) else _DD_PIN_NAME
+            pin_name = _DD_PIN_PROXY_NAME if is_wrapted(obj) else _DD_PIN_NAME
 
             pin = Pin.get_from(obj)
             if pin is not None:

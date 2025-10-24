@@ -92,6 +92,7 @@ def taint_structure(main_obj, source_key, source_value, override_pyobject_tainte
     if not main_obj:
         return main_obj
 
+    result = None
     main_res = []
     try:
         # fifo contains tuple (pre/post:bool, source key, object to taint,
@@ -137,7 +138,8 @@ def taint_structure(main_obj, source_key, source_value, override_pyobject_tainte
         log.debug("taint_structure error", exc_info=True)
         pass
     finally:
-        return main_res[0] if main_res else main_obj
+        result = main_res[0] if main_res else main_obj
+    return result
 
 
 # Lazy Tainting

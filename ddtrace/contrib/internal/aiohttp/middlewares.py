@@ -97,7 +97,7 @@ def finish_request_span(request, response):
     if trace_query_string is None:
         trace_query_string = config._http.trace_query_string
     if trace_query_string:
-        request_span.set_tag_str(http.QUERY_STRING, request.query_string)
+        request_span._set_tag_str(http.QUERY_STRING, request.query_string)
 
     # The match info object provided by aiohttp's default (and only) router
     # has a `route` attribute, but routers are susceptible to being replaced/hand-rolled

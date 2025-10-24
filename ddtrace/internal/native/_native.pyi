@@ -393,7 +393,7 @@ class logger:
         """
         Set the log level for the logger.
 
-        :param level: Log level ("trace", "debug", "info", "warn", or "error")
+        :param level: Log level ("trace", "debug", "info", "warning", or "error")
         :raises ValueError: If log level is invalid
         """
         ...
@@ -441,4 +441,13 @@ class SerializationError(Exception):
     Raised when there is an error serializing trace payload.
     """
 
+    ...
+
+def ffande_process_config(config_bytes: bytes) -> Optional[bool]:
+    """
+    Process feature flagging and experimentation configuration rules.
+
+    :param config_bytes: Raw bytes containing the configuration data
+    :return: True if processing was successful, False otherwise, None on error
+    """
     ...

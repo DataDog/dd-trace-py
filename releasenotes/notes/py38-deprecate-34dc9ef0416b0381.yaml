@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    Support for ddtrace with Python 3.8 is deprecated and will be removed in version 4.0.0.

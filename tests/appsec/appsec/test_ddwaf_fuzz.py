@@ -3,6 +3,7 @@ import sys
 from hypothesis import given
 from hypothesis import strategies as st
 import pytest
+from requests.structures import CaseInsensitiveDict
 
 from ddtrace.appsec._ddwaf.ddwaf_types import _observator
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_object
@@ -53,6 +54,19 @@ class _AnyObject:
     ],
 )
 def test_small_objects(obj, res):
+    dd_obj = ddwaf_object(obj)
+    assert dd_obj.struct == res
+
+
+@pytest.mark.parametrize(
+    ["obj", "res"],
+    [
+        (CaseInsensitiveDict({"SomeHeader": "SomeValue"}), {"SomeHeader": "SomeValue"}),
+        (range(1, 4), [1, 2, 3]),
+        ((1, 2, 3), [1, 2, 3]),
+    ],
+)
+def test_mappings_and_sequences(obj, res):
     dd_obj = ddwaf_object(obj)
     assert dd_obj.struct == res
 
