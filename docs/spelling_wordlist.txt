@@ -4,6 +4,7 @@ adk
 agentless
 aiobotocore
 aiohttp
+aiokafka
 aiomysql
 aiopg
 aioredis
@@ -203,6 +204,7 @@ namespace
 NeedsAppKey
 NSight
 obfuscator
+observability
 ObjectProxy
 oce
 openai

@@ -58,6 +58,7 @@ PATCH_MODULES = {
     "kafka": True,
     "langgraph": True,
     "litellm": True,
+    "aiokafka": True,
     "mongoengine": True,
     "mysql": True,
     "mysqldb": True,

@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    aiokafka: Introduces automatic instrumentation of the ``aiokafka`` package
