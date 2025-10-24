@@ -83,6 +83,7 @@ pub struct PyTracerMetadata {
 #[pymethods]
 impl PyTracerMetadata {
     #[new]
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         runtime_id: Option<String>,
         tracer_version: String,
