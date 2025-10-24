@@ -9,8 +9,24 @@ then
     CMD=bash
 fi
 
+# If we are in a worktree inside of the container then git/setuptools_scm doesn't work right
+# we need to tell setuptools_scm what the version is manually
+if git rev-parse --is-inside-work-tree > /dev/null 2>&1
+then
+    if command -v uv > /dev/null 2>&1
+    then
+        version=$(uvx --from=setuptools_scm --quiet setuptools-scm)
+    else
+        version=$(git describe --tags --abbrev=0 --match "v[0-9]*" | sed 's/^v//')
+    fi
+
+    export SETUPTOOLS_SCM_PRETEND_VERSION_FOR_DDTRACE="${version}"
+fi
+
 docker compose run \
        -e DD_TRACE_AGENT_URL \
+       -e SETUPTOOLS_SCM_PRETEND_VERSION \
+       -e SETUPTOOLS_SCM_PRETEND_VERSION_FOR_DDTRACE \
        --rm \
        -i \
        testrunner \
