@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    CI Visibility: This fix resolves an issue where code imported at module level but not executed during a test would
+    not be considered by Test Impact Analysis as impacting the test. For example, a test using a constant imported from
+    some other module would not count the constant definition among its impacting lines, because the constant definition
+    is not executed during the test, but rather when the module was imported. With this change, code executed at import
+    time is also included among the impacted lines of a test.
