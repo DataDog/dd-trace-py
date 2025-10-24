@@ -54,9 +54,9 @@ def _create_and_attach_iast_report_to_span(
             for source in data.get("sources", []):
                 if isinstance(source.get("origin"), OriginType):
                     source["origin"] = origin_to_str(source["origin"])
-            req_span.set_struct_tag(IAST.STRUCT, data)
+            req_span._set_struct_tag(IAST.STRUCT, data)
         else:
-            req_span.set_tag_str(IAST.JSON, report_data._to_str(data))
+            req_span._set_tag_str(IAST.JSON, report_data._to_str(data))
     _set_metric_iast_request_tainted()
     base._set_span_tag_iast_request_tainted(req_span)
     _set_span_tag_iast_executed_sink(req_span)
@@ -64,7 +64,7 @@ def _create_and_attach_iast_report_to_span(
     base._iast_finish_request(req_span)
 
     if req_span.get_tag(_ORIGIN_KEY) is None:
-        req_span.set_tag_str(_ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
+        req_span._set_tag_str(_ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
 
 
 def _iast_end_request(ctx=None, span=None, *args, **kwargs):
@@ -82,7 +82,7 @@ def _iast_end_request(ctx=None, span=None, *args, **kwargs):
             return
 
         if asm_config._iast_enabled:
-            existing_data = req_span.get_tag(IAST.JSON) or req_span.get_struct_tag(IAST.STRUCT)
+            existing_data = req_span.get_tag(IAST.JSON) or req_span._get_struct_tag(IAST.STRUCT)
             if existing_data is None:
                 if req_span.get_metric(IAST.ENABLED) is None:
                     if not base.is_iast_request_enabled():

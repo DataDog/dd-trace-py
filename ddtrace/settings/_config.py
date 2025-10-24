@@ -157,7 +157,6 @@ INTEGRATION_CONFIGS = frozenset(
         "aiopg",
         "dogpile_cache",
         "pylibmc",
-        "mongoengine",
         "httpx",
         "httplib",
         "rq",

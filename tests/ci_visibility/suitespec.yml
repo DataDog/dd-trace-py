@@ -27,6 +27,7 @@ suites:
       - '@codeowners'
       - '@unittest'
       - tests/ci_visibility/*
+      - tests/snapshots/test_api_fake_runners.*
     runner: riot
     snapshot: true
   dd_coverage:
