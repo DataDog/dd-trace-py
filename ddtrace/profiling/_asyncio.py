@@ -1,8 +1,11 @@
 # -*- encoding: utf-8 -*-
 from functools import partial
 import sys
-from types import ModuleType  # noqa:F401
-import typing  # noqa:F401
+from types import ModuleType
+import typing
+
+if typing.TYPE_CHECKING:
+    import asyncio
 
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
 from ddtrace.internal.datadog.profiling import stack_v2
@@ -17,15 +20,15 @@ from . import _threading
 THREAD_LINK = None  # type: typing.Optional[_threading._ThreadLink]
 
 
-def current_task(loop=None):
+def current_task(loop: asyncio.EventLoop | None = None) -> asyncio.Task | None:
     return None
 
 
-def all_tasks(loop=None):
+def all_tasks(loop: asyncio.EventLoop | None = None) -> typing.List[asyncio.Task] | None:
     return []
 
 
-def _task_get_name(task):
+def _task_get_name(task: asyncio.Task) -> str:
     return "Task-%d" % id(task)
 
 
@@ -61,6 +64,7 @@ def _(asyncio):
                 stack_v2.track_asyncio_loop(typing.cast(int, ddtrace_threading.current_thread().ident), loop)
             return f(*args, **kwargs)
         finally:
+            assert THREAD_LINK is not None
             THREAD_LINK.clear_threads(set(sys._current_frames().keys()))
             if loop is not None:
                 THREAD_LINK.link_object(loop)
@@ -73,10 +77,14 @@ def _(asyncio):
                 return f(*args, **kwargs)
             finally:
                 children = get_argument_value(args, kwargs, 1, "children")
+                assert children is not None
+
                 # Pass an invalid positional index for 'loop'
                 loop = get_argument_value(args, kwargs, -1, "loop")
+
                 # Link the parent gathering task to the gathered children
                 parent = globals()["current_task"](loop)
+
                 for child in children:
                     stack_v2.link_tasks(parent, child)
 
