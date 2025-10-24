@@ -288,24 +288,45 @@ class _ProfiledLock:
             pass  # nosec
 
     def _find_name(self, var_dict: Dict[str, Any]) -> Optional[str]:
+        import sys
+        print(f"[DEBUG] _find_name called with {len(var_dict)} vars", file=sys.stderr)
+        sys.stderr.flush()
+
+        # DEBUG: Let's see what's in the frame
+        print(f"[DEBUG] Searching for lock name in {len(var_dict)} variables", file=sys.stderr)
+        print(f"[DEBUG] self type: {type(self)}, self id: {id(self)}", file=sys.stderr)
+
         for name, value in var_dict.items():
             if name.startswith("__") or isinstance(value, ModuleType):
                 continue
+
+            # DEBUG: Check each variable
+            print(f"[DEBUG] Checking {name}: type={type(value)}, id={id(value)}, is match={value is self}", file=sys.stderr)
+            
             if value is self:
                 return name
             if config.lock.name_inspect_dir:
                 for attribute in dir(value):
                     try:
                         if not attribute.startswith("__") and getattr(value, attribute) is self:
+                            print(f"[DEBUG] ✅ FOUND ATTRIBUTE MATCH: {attribute} on {name}", file=sys.stderr)
                             return attribute
                     except AttributeError:
+                        print(f"vlad2: AttributeError: {attribute}", file=sys.stderr)
                         # Accessing unset attributes in __slots__ raises AttributeError.
                         pass
+        print(f"[DEBUG] ❌ NO MATCH FOUND", file=sys.stderr)
         return None
 
     def _update_name(self) -> None:
         """Get lock variable name from the caller's frame."""
+        import sys
+        print(f"[DEBUG] _update_name called, current name: {getattr(self, 'name', 'NOT SET')}", file=sys.stderr)
+        sys.stderr.flush()  # Force flush
+
         if self.name is not None:
+            print(f"[DEBUG] name already set, returning", file=sys.stderr)
+            sys.stderr.flush()
             return
 
         try:
@@ -325,7 +346,13 @@ class _ProfiledLock:
 
             # First, look at the local variables of the caller frame, and then the global variables
             frame = sys._getframe(CALLER_FRAME_INDEX)
+            print(f"[DEBUG] Got frame {CALLER_FRAME_INDEX}: {frame.f_code.co_name} in {frame.f_code.co_filename}:{frame.f_lineno}", file=sys.stderr)
+            sys.stderr.flush()
+
             self.name = self._find_name(frame.f_locals) or self._find_name(frame.f_globals) or ""
+
+            print(f"[DEBUG] After lookup, name = '{self.name}'", file=sys.stderr)
+            sys.stderr.flush()
         except AssertionError:
             if config.enable_asserts:
                 raise
