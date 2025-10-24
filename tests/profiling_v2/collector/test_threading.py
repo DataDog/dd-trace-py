@@ -1,7 +1,6 @@
 import glob
 import os
 import threading
-from typing import Any
 from typing import Callable
 from typing import List
 from typing import Optional
@@ -18,11 +17,11 @@ from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling.collector.threading import ThreadingLockCollector
 from ddtrace.profiling.collector.threading import ThreadingRLockCollector
 from tests.profiling.collector import pprof_utils
-from tests.profiling.collector.pprof_utils import pprof_pb2
 from tests.profiling.collector import test_collector
 from tests.profiling.collector.lock_utils import LineNo
 from tests.profiling.collector.lock_utils import get_lock_linenos
 from tests.profiling.collector.lock_utils import init_linenos
+from tests.profiling.collector.pprof_utils import pprof_pb2
 
 
 # Type aliases for supported classes
@@ -32,8 +31,12 @@ CollectorClassType = Type[ThreadingLockCollector] | Type[ThreadingRLockCollector
 
 # Module-level globals for testing global lock profiling
 _test_global_lock: LockClassInst
+
+
 class TestBar:
     ...
+
+
 _test_global_bar_instance: TestBar
 
 init_linenos(__file__)
@@ -171,9 +174,7 @@ def test_wrapt_disable_extensions() -> None:
 
 # This test has to be run in a subprocess because it calls gevent.monkey.patch_all()
 # which affects the whole process.
-@pytest.mark.skipif(
-    not os.getenv("DD_PROFILE_TEST_GEVENT"), reason="gevent is not available"
-)
+@pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT"), reason="gevent is not available")
 @pytest.mark.subprocess(
     env=dict(DD_PROFILING_FILE_PATH=__file__),
 )
@@ -216,7 +217,9 @@ def test_lock_gevent_tasks() -> None:
         expected_filename: str = "test_threading.py"
         linenos: LineNo = get_lock_linenos(test_name)
 
-        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename) # pyright: ignore[reportInvalidTypeForm]
+        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(
+            output_filename
+        )  # pyright: ignore[reportInvalidTypeForm]
         pprof_utils.assert_lock_events(
             profile,
             expected_acquire_events=[
@@ -263,9 +266,7 @@ def test_lock_gevent_tasks() -> None:
 
 # This test has to be run in a subprocess because it calls gevent.monkey.patch_all()
 # which affects the whole process.
-@pytest.mark.skipif(
-    not os.getenv("DD_PROFILE_TEST_GEVENT"), reason="gevent is not available"
-)
+@pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT"), reason="gevent is not available")
 @pytest.mark.subprocess(
     env=dict(DD_PROFILING_FILE_PATH=__file__),
 )

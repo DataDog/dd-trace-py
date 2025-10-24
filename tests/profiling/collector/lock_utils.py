@@ -1,6 +1,5 @@
-from ast import Name
-import sys
 from collections import namedtuple
+import sys
 from typing import Dict
 
 
