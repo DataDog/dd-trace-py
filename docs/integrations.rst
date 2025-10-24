@@ -368,13 +368,6 @@ Molten
 .. automodule:: ddtrace.contrib.internal.molten
 
 
-.. _mongoengine:
-
-Mongoengine
-^^^^^^^^^^^
-.. automodule:: ddtrace.contrib.internal.mongoengine
-
-
 .. _mysql-connector:
 
 mysql-connector

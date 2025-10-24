@@ -1,5 +1,5 @@
 Dependency,Version Specifier,Python Version
-bytecode @ git+https://github.com/MatthieuDartiailh/bytecode.git,,python_version>='3.14.0rc1'
+bytecode,>=0.17.0,python_version>='3.14.0'
 bytecode,>=0.16.0,python_version>='3.13.0'
 bytecode,>=0.15.1,python_version~='3.12.0'
 bytecode,>=0.14.0,python_version~='3.11.0'

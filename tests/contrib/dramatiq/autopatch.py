@@ -1,4 +1,4 @@
-import wrapt
+from ddtrace.internal.compat import is_wrapted
 
 
 if __name__ == "__main__":
@@ -15,5 +15,5 @@ if __name__ == "__main__":
 
     # now dramatiq should be patched
     actor = broker.get_actor("add_numbers")
-    assert isinstance(dramatiq.Actor.send_with_options, wrapt.ObjectProxy)
+    assert is_wrapted(dramatiq.Actor.send_with_options)
     print("Test success")
