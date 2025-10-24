@@ -6,7 +6,6 @@ from grpc.framework.foundation import logging_pool
 import pytest
 
 from ddtrace._trace.pin import Pin
-from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
