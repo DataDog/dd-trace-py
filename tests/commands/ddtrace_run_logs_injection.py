@@ -4,7 +4,6 @@ import logging
 if __name__ == "__main__":
     # Ensure if module is patched then default log formatter is set up for logs
     ddtrace_logger = logging.getLogger("ddtrace")
-    print(ddtrace_logger.handlers)
     if logging._datadog_patch:
         assert (
             "[dd.service=%(dd.service)s dd.env=%(dd.env)s dd.version=%(dd.version)s"
