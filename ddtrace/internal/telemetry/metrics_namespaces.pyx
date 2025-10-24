@@ -4,9 +4,9 @@ import time
 from typing import Optional
 from typing import Tuple
 
-from ddtrace.internal import forksafe
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.constants import TELEMETRY_EVENT_TYPE
+from ddtrace.internal.threads import Lock
 
 
 MetricTagType = Optional[Tuple[Tuple[str, str], ...]]
@@ -27,7 +27,7 @@ cdef class MetricNamespace:
     cdef readonly object _distributions_key
 
     def __cinit__(self):
-        self._metrics_data_lock = forksafe.Lock()
+        self._metrics_data_lock = Lock()
         self._metrics_data = {}
         # Initialize cached enum references
         self._metrics_key = TELEMETRY_EVENT_TYPE.METRICS

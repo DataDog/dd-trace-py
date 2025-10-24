@@ -39,10 +39,7 @@ def test_call_script_gevent():
 
 
 def test_call_script_pprof_output(tmp_path):
-    """This checks if the pprof output and atexit register work correctly.
-
-    The script does not run for one minute, so if the `stop_on_exit` flag is broken, this test will fail.
-    """
+    """This checks if the pprof output and atexit register work correctly."""
     filename = str(tmp_path / "pprof")
     env = os.environ.copy()
     env["DD_PROFILING_OUTPUT_PPROF"] = filename
