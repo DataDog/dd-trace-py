@@ -17,8 +17,6 @@ from ddtrace._trace.tracer import Tracer
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling.collector.threading import ThreadingLockCollector
 from ddtrace.profiling.collector.threading import ThreadingRLockCollector
-from ddtrace.profiling.collector.threading import ThreadingLockCollector
-from ddtrace.profiling.collector.threading import ThreadingRLockCollector
 from tests.profiling.collector import pprof_utils
 from tests.profiling.collector.pprof_utils import pprof_pb2
 from tests.profiling.collector import test_collector
@@ -100,7 +98,6 @@ def test_patch(
     assert lock == collector._original
     # wrapt makes this true
     assert lock == lock_class
-    assert lock == lock_class
     collector.stop()
     assert lock == lock_class
     assert collector._original == lock_class
@@ -115,7 +112,6 @@ def test_wrapt_disable_extensions() -> None:
 
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import _lock
-    from ddtrace.profiling.collector.threading import ThreadingLockCollector
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import get_lock_linenos
@@ -182,7 +178,6 @@ def test_wrapt_disable_extensions() -> None:
     env=dict(DD_PROFILING_FILE_PATH=__file__),
 )
 def test_lock_gevent_tasks() -> None:
-def test_lock_gevent_tasks() -> None:
     from gevent import monkey
 
     monkey.patch_all()
@@ -192,7 +187,6 @@ def test_lock_gevent_tasks() -> None:
     import threading
 
     from ddtrace.internal.datadog.profiling import ddup
-    from ddtrace.profiling.collector.threading import ThreadingLockCollector
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import get_lock_linenos
@@ -359,97 +353,6 @@ def test_rlock_gevent_tasks() -> None:
     validate_and_cleanup()
 
 
-# This test has to be run in a subprocess because it calls gevent.monkey.patch_all()
-# which affects the whole process.
-@pytest.mark.skipif(not TESTING_GEVENT, reason="gevent is not available")
-@pytest.mark.subprocess(
-    env=dict(DD_PROFILING_FILE_PATH=__file__),
-)
-def test_rlock_gevent_tasks() -> None:
-    from gevent import monkey
-
-    monkey.patch_all()
-
-    import glob
-    import os
-    import threading
-    from typing import Any
-
-    from ddtrace.internal.datadog.profiling import ddup
-    from ddtrace.profiling.collector.threading import ThreadingRLockCollector
-    from tests.profiling.collector import pprof_utils
-    from tests.profiling.collector.lock_utils import get_lock_linenos
-    from tests.profiling.collector.lock_utils import init_linenos
-
-    assert ddup.is_available, "ddup is not available"
-
-    # Set up the ddup exporter
-    test_name: str = "test_rlock_gevent_tasks"
-    pprof_prefix: str = "/tmp" + os.sep + test_name
-    output_filename: str = pprof_prefix + "." + str(os.getpid())
-    ddup.config(
-        env="test", service=test_name, version="my_version", output_filename=pprof_prefix
-    )  # pyright: ignore[reportCallIssue]
-    ddup.start()
-
-    init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
-
-    def play_with_lock() -> None:
-        lock: threading.RLock = threading.RLock()  # !CREATE! test_rlock_gevent_tasks
-        lock.acquire()  # !ACQUIRE! test_rlock_gevent_tasks
-        lock.release()  # !RELEASE! test_rlock_gevent_tasks
-
-    def validate_and_cleanup() -> None:
-        ddup.upload()  # pyright: ignore[reportCallIssue]
-
-        expected_filename: str = "test_threading.py"
-        linenos: Any = get_lock_linenos(test_name)
-
-        profile: Any = pprof_utils.parse_newest_profile(output_filename)
-        pprof_utils.assert_lock_events(
-            profile,
-            expected_acquire_events=[
-                pprof_utils.LockAcquireEvent(
-                    caller_name="play_with_lock",
-                    filename=expected_filename,
-                    linenos=linenos,
-                    lock_name="lock",
-                    # TODO: With stack_v2, the way we trace gevent greenlets has
-                    # changed, and we'd need to expose an API to get the task_id,
-                    # task_name, and task_frame.
-                    # task_id=t.ident,
-                    # task_name="foobar",
-                ),
-            ],
-            expected_release_events=[
-                pprof_utils.LockReleaseEvent(
-                    caller_name="play_with_lock",
-                    filename=expected_filename,
-                    linenos=linenos,
-                    lock_name="lock",
-                    # TODO: With stack_v2, the way we trace gevent greenlets has
-                    # changed, and we'd need to expose an API to get the task_id,
-                    # task_name, and task_frame.
-                    # task_id=t.ident,
-                    # task_name="foobar",
-                ),
-            ],
-        )
-
-        for f in glob.glob(pprof_prefix + ".*"):
-            try:
-                os.remove(f)
-            except Exception as e:
-                print("Error removing file: {}".format(e))
-
-    with ThreadingRLockCollector(capture_pct=100):
-        t: threading.Thread = threading.Thread(name="foobar", target=play_with_lock)
-        t.start()
-        t.join()
-
-    validate_and_cleanup()
-
-
 class BaseThreadingLockCollectorTest:
     # These should be implemented by child classes
     @property
@@ -502,7 +405,6 @@ class BaseThreadingLockCollectorTest:
             lock.release()
 
             # Try this way too
-            Foobar(self.lock_class)
             Foobar(self.lock_class)
 
     def test_lock_events(self):
@@ -1073,7 +975,6 @@ class BaseThreadingLockCollectorTest:
 
 class TestThreadingLockCollector(BaseThreadingLockCollectorTest):
     """Test Lock profiling"""
-    """Test Lock profiling"""
 
     @property
     def collector_class(self) -> Type[ThreadingLockCollector]:
@@ -1085,7 +986,6 @@ class TestThreadingLockCollector(BaseThreadingLockCollectorTest):
 
 
 class TestThreadingRLockCollector(BaseThreadingLockCollectorTest):
-    """Test RLock profiling"""
     """Test RLock profiling"""
 
     @property
