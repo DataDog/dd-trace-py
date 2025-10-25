@@ -504,3 +504,62 @@ def test_otel_trace_log_correlation():
     assert (
         int(attributes["span_id"], 16) == span_context.span_id
     ), f"Expected span_id_hex to be set to {attributes['span_id']} but found: {span_context.span_id}"
+
+
+@pytest.mark.skipif(
+    EXPORTER_VERSION < MINIMUM_SUPPORTED_VERSION,
+    reason=f"OpenTelemetry exporter version {MINIMUM_SUPPORTED_VERSION} is required to export logs",
+)
+@pytest.mark.snapshot()
+@pytest.mark.subprocess(ddtrace_run=True, env={"DD_LOGS_OTEL_ENABLED": "true"})
+def test_otel_logs_does_not_generate_client_grpc_spans():
+    """
+    Test that OpenTelemetry grpc logs exporter does not generate client grpc spans.
+    """
+    from logging import getLogger
+
+    from opentelemetry._logs import get_logger_provider
+
+    from tests.opentelemetry.test_logs import create_mock_grpc_server
+
+    logger = getLogger()
+    mock_service, server = create_mock_grpc_server()
+
+    try:
+        server.start()
+        logger.error("test_otel_logs_grpc")
+        get_logger_provider().force_flush()
+    finally:
+        server.stop(0)
+
+    assert mock_service.received_requests, "Expected gRPC log export requests but received none"
+
+
+@pytest.mark.skipif(
+    EXPORTER_VERSION < MINIMUM_SUPPORTED_VERSION,
+    reason=f"OpenTelemetry exporter version {MINIMUM_SUPPORTED_VERSION} is required to export logs",
+)
+@pytest.mark.snapshot()
+@pytest.mark.subprocess(
+    ddtrace_run=True, env={"DD_LOGS_OTEL_ENABLED": "true", "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf"}
+)
+def test_otel_logs_does_not_generate_client_http_spans():
+    """Test that OpenTelemetry http logs exporter does not generate client spans."""
+    from logging import getLogger
+    from unittest.mock import Mock
+    from unittest.mock import patch
+
+    from opentelemetry._logs import get_logger_provider
+
+    logger = getLogger()
+    with patch("requests.sessions.Session.request") as mock_request:
+        mock_request.return_value = Mock(status_code=200)
+
+        logger.error("test_otel_logs_http")
+        get_logger_provider().force_flush()
+
+        log_request_found = any(
+            len(call[0]) >= 2 and call[0][0] == "POST" and "/v1/logs" in call[0][1]
+            for call in mock_request.call_args_list
+        )
+        assert log_request_found, f"Expected HTTP log export request but found none: {mock_request.call_args_list}"
