@@ -13,11 +13,8 @@ from ddtestpy.ddtrace_interface import register_tracer_interface
 import ddtrace
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.coverage.installer import install
+from ddtrace.trace import Span
 from ddtrace.trace import TraceFilter
-
-
-if t.TYPE_CHECKING:
-    from ddtrace.trace import Span
 
 
 class TraceForwarder(TraceFilter):
