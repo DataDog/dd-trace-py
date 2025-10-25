@@ -1,4 +1,3 @@
-from itertools import groupby
 import json
 import os
 from pathlib import Path
@@ -165,12 +164,19 @@ def _report_coverage_to_span(
 
 def segments(lines: Iterable[int]) -> List[Tuple[int, int, int, int, int]]:
     """Extract the relevant report data for a single file."""
+    sorted_lines = sorted(lines)
     _segments = []
-    for _key, g in groupby(enumerate(sorted(lines)), lambda x: x[1] - x[0]):
-        group = list(g)
-        start = group[0][1]
-        end = group[-1][1]
-        _segments.append((start, 0, end, 0, -1))
+    if not sorted_lines:
+        return _segments
+
+    start = end = sorted_lines[0]
+    for line in sorted_lines[1:]:
+        if line == end + 1:
+            end = line
+        else:
+            _segments.append((start, 0, end, 0, -1))
+            start = end = line
+    _segments.append((start, 0, end, 0, -1))
 
     return _segments
 
@@ -181,7 +187,7 @@ def _lines(coverage: Coverage, context: Optional[str]) -> Dict[str, List[Tuple[i
 
     return {
         k: segments(v.keys()) if isinstance(v, dict) else segments(v)  # type: ignore
-        for k, v in list(coverage._collector.data.items())
+        for k, v in coverage._collector.data.items()
     }
 
 
