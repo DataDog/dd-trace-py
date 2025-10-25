@@ -1,5 +1,6 @@
 # Utility functions for testing crashtracker in subprocesses
 from contextlib import contextmanager
+import json
 import os
 import random
 import time
@@ -171,6 +172,50 @@ def get_crash_ping(test_agent_client: TestAgentClient) -> TestAgentRequest:
 
     assert crash_ping is not None, "Could not find crash ping with 'is_crash_ping:true' tag"
     return crash_ping
+
+
+def get_errors_intake_crash_report(test_agent_client: TestAgentClient) -> TestAgentRequest:
+    """Wait for and retrieve a crash report from the errors intake endpoint."""
+    for _ in range(5):
+        errors_messages = test_agent_client.error_intake_messages()
+        for message in errors_messages:
+            body = message.get("body", b"")
+            if isinstance(body, str):
+                body = body.encode("utf-8")
+            try:
+                if isinstance(message.get("body"), bytes):
+                    data = json.loads(message["body"].decode("utf-8"))
+                else:
+                    data = json.loads(message["body"])
+                if "is_crash:true" in data.get("ddtags", ""):
+                    return message
+            except (json.JSONDecodeError, KeyError, TypeError):
+                continue
+        time.sleep(0.2)
+
+    raise AssertionError("Could not find errors intake crash report with 'is_crash: true'")
+
+
+def get_errors_intake_crash_ping(test_agent_client: TestAgentClient) -> TestAgentRequest:
+    """Wait for and retrieve a crash ping from the errors intake endpoint."""
+    for _ in range(5):
+        errors_messages = test_agent_client.error_intake_messages()
+        for message in errors_messages:
+            body = message.get("body", b"")
+            if isinstance(body, str):
+                body = body.encode("utf-8")
+            try:
+                if isinstance(message.get("body"), bytes):
+                    data = json.loads(message["body"].decode("utf-8"))
+                else:
+                    data = json.loads(message["body"])
+                if "is_crash_ping:true" in data.get("ddtags", ""):
+                    return message
+            except (json.JSONDecodeError, KeyError, TypeError):
+                continue
+        time.sleep(0.2)
+
+    raise AssertionError("Could not find errors intake crash ping with 'is_crash: false' and 'is_crash_ping:true' tag")
 
 
 @contextmanager

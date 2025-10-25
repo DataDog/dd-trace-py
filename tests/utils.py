@@ -1180,6 +1180,15 @@ class TestAgentClient:
             reqs.append(req)
         return reqs
 
+    def error_intake_messages(self) -> List[TestAgentRequest]:
+        reqs = []
+        for req in self.requests():
+            # Filter requests to the errors intake endpoint
+            if req["url"].endswith("/evp_proxy/v4/api/v2/errorsintake"):
+                req["body"] = base64.b64decode(req["body"])
+                reqs.append(req)
+        return reqs
+
     def clear(self) -> None:
         status, body = self._request("GET", self._url("/test/session/clear"))
         assert status == 200, (
