@@ -71,6 +71,7 @@ class DDTraceInterface(TracerInterface):
             yield TraceContext(root_span.trace_id, root_span.span_id)
 
     def enable_coverage_collection(self, workspace_path: Path) -> None:
+        self.workspace_path = workspace_path
         install(include_paths=[workspace_path], collect_import_time_coverage=True)
         ModuleCodeCollector.start_coverage()
 
