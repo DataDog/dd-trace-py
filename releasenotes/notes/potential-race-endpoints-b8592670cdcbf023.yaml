@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix a potential race condition in ``endpoints.py``.
