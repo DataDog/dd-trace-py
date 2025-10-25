@@ -21,9 +21,7 @@ if os.getenv("DD_USE_DDTESTPY", "false").lower() in ("true", "1"):
         if _is_option_true("no-ddtrace", early_config, args):
             return False
 
-        return _is_option_true("ddtrace", early_config, args) or (
-            tracer_interface_instance and tracer_interface_instance.should_enable_test_optimization()
-        )
+        return _is_option_true("ddtrace", early_config, args)
 
     @pytest.hookimpl(tryfirst=True, hookwrapper=True)
     def pytest_load_initial_conftests(
@@ -89,4 +87,5 @@ if os.getenv("DD_USE_DDTESTPY", "false").lower() in ("true", "1"):
             ddtrace_interface._should_enable_trace_collection = True
 
 else:
-    from ddtrace.contrib.internal.pytest.plugin import *
+    # If DD_USE_DDTESTPY is not enabled, behave like the old pytest plugin.
+    from ddtrace.contrib.internal.pytest.plugin import *  # noqa: F403

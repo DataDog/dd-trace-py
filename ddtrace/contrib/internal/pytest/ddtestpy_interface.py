@@ -10,6 +10,9 @@ from ddtestpy.ddtrace_interface import TraceContext
 from ddtestpy.ddtrace_interface import TracerInterface
 from ddtestpy.ddtrace_interface import register_tracer_interface
 
+import ddtrace
+from ddtrace.internal.coverage.code import ModuleCodeCollector
+from ddtrace.internal.coverage.installer import install
 from ddtrace.trace import TraceFilter
 
 
@@ -53,13 +56,9 @@ class DDTraceInterface(TracerInterface):
         return self._should_enable_trace_collection
 
     def enable_trace_collection(self, push_span: PushSpanProtocol) -> None:
-        import ddtrace
-
         ddtrace.tracer.configure(trace_processors=[TraceForwarder(push_span)])
 
     def disable_trace_collection(self) -> None:
-        import ddtrace
-
         ddtrace.tracer.configure(trace_processors=[])
 
     @contextmanager
@@ -75,9 +74,6 @@ class DDTraceInterface(TracerInterface):
             yield TraceContext(root_span.trace_id, root_span.span_id)
 
     def enable_coverage_collection(self, workspace_path: Path) -> None:
-        from ddtrace.internal.coverage.code import ModuleCodeCollector
-        from ddtrace.internal.coverage.installer import install
-
         install(include_paths=[workspace_path], collect_import_time_coverage=True)
         ModuleCodeCollector.start_coverage()
 
