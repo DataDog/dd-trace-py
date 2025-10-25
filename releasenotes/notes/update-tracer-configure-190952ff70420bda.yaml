@@ -1,0 +1,9 @@
+---
+deprecations:
+  - |
+    tracing: The following tracer.configure() parameters have been deprecated:
+    - `trace_processors` - use `tracer.processors` property instead
+    - `apm_tracing_disabled` - use `tracer.configure(apm_tracing_enabled=...)` instead  
+    - `context_provider` - use `tracer.context_provider` property instead
+
+    These will be removed in ddtrace 4.0.0. Other configure() parameters remain supported.

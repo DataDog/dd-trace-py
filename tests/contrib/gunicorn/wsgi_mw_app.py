@@ -18,7 +18,7 @@ from ddtrace.trace import tracer
 from tests.webclient import PingFilter
 
 
-tracer.configure(trace_processors=[PingFilter()])
+tracer.processors = [PingFilter()]
 
 
 def aggressive_shutdown():
