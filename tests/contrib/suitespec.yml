@@ -31,9 +31,6 @@ components:
   bottle:
     - ddtrace/contrib/bottle.py
     - ddtrace/contrib/internal/bottle/*
-  cassandra:
-    - ddtrace/contrib/internal/cassandra/*
-    - ddtrace/ext/cassandra.py
   celery:
     - ddtrace/contrib/celery.py
     - ddtrace/contrib/internal/celery/*
@@ -129,7 +126,6 @@ components:
     - ddtrace/contrib/internal/molten/*
   mongo:
     - ddtrace/contrib/internal/pymongo/*
-    - ddtrace/contrib/internal/mongoengine/*
     - ddtrace/ext/mongo.py
   mysql:
     - ddtrace/contrib/internal/mysql/*
@@ -459,19 +455,6 @@ suites:
       - tests/contrib/bottle/*
     runner: riot
     snapshot: true
-  cassandra:
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@contrib'
-      - '@tracing'
-      - '@cassandra'
-      - tests/contrib/cassandra/*
-    runner: riot
-    snapshot: true
-    parallelism: 2
-    services:
-      - cassandra
   celery:
     env:
       DD_DISABLE_ERROR_RESPONSES: true
@@ -898,18 +881,6 @@ suites:
       - tests/contrib/molten/*
     runner: riot
     snapshot: true
-  mongoengine:
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@contrib'
-      - '@tracing'
-      - '@mongo'
-      - tests/contrib/mongoengine/*
-    runner: riot
-    snapshot: true
-    services:
-      - mongo
   mysqlpython:
     paths:
       - '@bootstrap'
@@ -937,15 +908,6 @@ suites:
       - tests/snapshots/tests.opentelemetry.*
     runner: riot
     snapshot: true
-  opentracer:
-    parallelism: 1
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@opentracer'
-      - tests/opentracer/*
-    runner: riot
   protobuf:
     parallelism: 1
     paths:

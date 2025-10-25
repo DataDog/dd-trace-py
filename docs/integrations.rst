@@ -110,13 +110,6 @@ Bottle
 .. automodule:: ddtrace.contrib.bottle
 
 
-.. _cassandra:
-
-Cassandra
-^^^^^^^^^
-.. automodule:: ddtrace.contrib.internal.cassandra
-
-
 .. _celery:
 
 Celery
@@ -373,13 +366,6 @@ MariaDB
 Molten
 ^^^^^^
 .. automodule:: ddtrace.contrib.internal.molten
-
-
-.. _mongoengine:
-
-Mongoengine
-^^^^^^^^^^^
-.. automodule:: ddtrace.contrib.internal.mongoengine
 
 
 .. _mysql-connector:
