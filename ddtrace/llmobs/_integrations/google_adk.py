@@ -28,7 +28,7 @@ class GoogleAdkIntegration(BaseLLMIntegration):
     def _set_base_span_tags(
         self, span: Span, model: Optional[Any] = None, provider: Optional[Any] = None, **kwargs
     ) -> None:
-        span.set_tag_str(COMPONENT, self._integration_name)
+        span._set_tag_str(COMPONENT, self._integration_name)
         if model:
             span.set_tag("google_adk.request.model", model)
         if provider:

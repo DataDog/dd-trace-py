@@ -52,10 +52,9 @@ from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.time import Time
 from ddtrace.settings._config import config
-from ddtrace.vendor.debtcollector import deprecate
+from ddtrace.vendor.debtcollector import removals
 
 
 class SpanEvent:
@@ -406,18 +405,36 @@ class Span(object):
         except Exception:
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
 
-    def set_struct_tag(self, key: str, value: Dict[str, Any]) -> None:
+    def _set_struct_tag(self, key: str, value: Dict[str, Any]) -> None:
         """
         Set a tag key/value pair on the span meta_struct
         Currently it will only be exported with V4 encoding
         """
         self._meta_struct[key] = value
 
-    def get_struct_tag(self, key: str) -> Optional[Dict[str, Any]]:
+    @removals.remove(removal_version="4.0.0")
+    def set_struct_tag(self, key: str, value: Dict[str, Any]) -> None:
+        """
+        DEPRECATED
+
+        Set a tag key/value pair on the span meta_struct
+        Currently it will only be exported with V4 encoding
+        """
+        self._set_struct_tag(key, value)
+
+    def _get_struct_tag(self, key: str) -> Optional[Dict[str, Any]]:
         """Return the given struct or None if it doesn't exist."""
         return self._meta_struct.get(key, None)
 
-    def set_tag_str(self, key: _TagNameType, value: Text) -> None:
+    @removals.remove(removal_version="4.0.0")
+    def get_struct_tag(self, key: str) -> Optional[Dict[str, Any]]:
+        """DEPRECATED
+
+        Return the given struct or None if it doesn't exist.
+        """
+        return self._get_struct_tag(key)
+
+    def _set_tag_str(self, key: _TagNameType, value: Text) -> None:
         """Set a value for a tag. Values are coerced to unicode in Python 2 and
         str in Python 3, with decoding errors in conversion being replaced with
         U+FFFD.
@@ -428,6 +445,11 @@ class Span(object):
             if config._raise:
                 raise e
             log.warning("Failed to set text tag '%s'", key, exc_info=True)
+
+    @removals.remove(message="use Span.set_tag instead", removal_version="4.0.0")
+    def set_tag_str(self, key: _TagNameType, value: Text) -> None:
+        """Deprecated: use `set_tag` instead."""
+        self._set_tag_str(key, value)
 
     def get_tag(self, key: _TagNameType) -> Optional[Text]:
         """Return the given tag or None if it doesn't exist."""
@@ -606,8 +628,6 @@ class Span(object):
         self,
         exception: BaseException,
         attributes: Optional[Dict[str, _AttributeValueType]] = None,
-        timestamp: Optional[int] = None,
-        escaped: bool = False,
     ) -> None:
         """
         Records an exception as a span event. Multiple exceptions can be recorded on a span.
@@ -619,23 +639,6 @@ class Span(object):
         :param timestamp: Deprecated.
         :param escaped: Deprecated.
         """
-        if escaped:
-            deprecate(
-                prefix="The escaped argument is deprecated for record_exception",
-                message="""If an exception exits the scope of the span, it will automatically be
-                reported in the span tags.""",
-                category=DDTraceDeprecationWarning,
-                removal_version="4.0.0",
-            )
-        if timestamp is not None:
-            deprecate(
-                prefix="The timestamp argument is deprecated for record_exception",
-                message="""The timestamp of the span event should correspond to the time when the
-                error is recorded which is set automatically.""",
-                category=DDTraceDeprecationWarning,
-                removal_version="4.0.0",
-            )
-
         tb = self._get_traceback(type(exception), exception, exception.__traceback__)
 
         attrs: Dict[str, _AttributeValueType] = {
@@ -822,18 +825,6 @@ class Span(object):
             self.finish()
         except Exception:
             log.exception("error closing trace")
-
-    def _pprint(self) -> str:
-        # Although Span._pprint has been internal to ddtrace since v1.0.0, it is still
-        # used to debug spans in the wild. Introducing a deprecation warning here to
-        # give users a chance to migrate to __repr__ before we remove it.
-        deprecate(
-            prefix="The _pprint method is deprecated for __repr__",
-            message="""Use __repr__ instead.""",
-            category=DDTraceDeprecationWarning,
-            removal_version="4.0.0",
-        )
-        return self.__repr__()
 
     def __repr__(self) -> str:
         """Return a detailed string representation of a span."""
