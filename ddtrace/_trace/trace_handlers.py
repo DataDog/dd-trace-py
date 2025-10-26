@@ -1263,6 +1263,7 @@ def listen():
         "azure.servicebus.patched_producer_schedule",
         "azure.servicebus.patched_producer_send",
         "psycopg.patched_connect",
+        "dramatiq.Actor.send_with_options",
     ):
         core.on(f"context.started.{context_name}", _start_span)
 
