@@ -31,7 +31,7 @@ variables:
 
     capture-hardware-software-info.sh
 
-    if [[ $SCENARIO =~ ^flask_* || $SCENARIO =~ ^django_* ]];
+    if [[ $SCENARIO =~ ^flask_* || $SCENARIO =~ ^django_* || $SCENARIO =~ ^startup* ]];
     then
       BP_SCENARIO=$SCENARIO bp-runner "${CI_PROJECT_DIR:-.}/.gitlab/benchmarks/bp-runner.yml" --debug -t
     else
@@ -153,6 +153,7 @@ microbenchmarks:
         - "core_api"
         - "otel_span"
         - "otel_sdk_span"
+        - "startup"
         - "appsec_iast_aspects"
         - "appsec_iast_aspects_ospath"
         - "appsec_iast_aspects_re_module"
@@ -174,9 +175,7 @@ microbenchmarks:
         - "packages_update_imported_dependencies"
         - "recursive_computation"
         - "telemetry_add_metric"
-        # They take a long time to run, and now need the agent running
-        # TODO: Make benchmarks faster, or run less frequently, or as macrobenchmarks
-        # - "startup"
+
 
 benchmarks-pr-comment:
   image: $MICROBENCHMARKS_CI_IMAGE
