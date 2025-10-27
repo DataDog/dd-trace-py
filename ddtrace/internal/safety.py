@@ -67,29 +67,34 @@ class SafeObjectProxy(wrapt.ObjectProxy):
 
     def __getattribute__(self, name):
         # type: (str) -> Any
-        if name == "__wrapped__" and not IS_312_OR_NEWER:
-            raise AttributeError("Access denied")
-
+        if name == "__wrapped__":
+            if not IS_312_OR_NEWER:
+                raise AttributeError("Access denied")
+            else:
+                return super(SafeObjectProxy, self).__wrapped__
         return super(SafeObjectProxy, self).__getattribute__(name)
 
     def __getattr__(self, name):
         # type: (str) -> Any
-        if name == "__wrapped__" and IS_312_OR_NEWER:
-            raise AttributeError("Access denied")
-        return type(self).safe(super(SafeObjectProxy, self).__getattr__(name))
+        if name == "__wrapped__":
+            if IS_312_OR_NEWER:
+                raise AttributeError("Access denied")
+            else:
+                return super(SafeObjectProxy, self).__wrapped__
+        return type(self).safe(super(SafeObjectProxy, self).__getattr__(name))  # type: ignore
 
     def __getitem__(self, item):
         # type: (Any) -> Any
-        return type(self).safe(super(SafeObjectProxy, self).__getitem__(item))
+        return type(self).safe(super(SafeObjectProxy, self).__getitem__(item))  # type: ignore
 
     def __iter__(self):
         # type: () -> Any
-        return iter(type(self).safe(_) for _ in super(SafeObjectProxy, self).__iter__())
+        return iter(type(self).safe(_) for _ in super(SafeObjectProxy, self).__iter__())  # type: ignore
 
     def items(self):
         # type: () -> Iterator[Tuple[Any, Any]]
         return (
-            (type(self).safe(k), type(self).safe(v)) for k, v in super(SafeObjectProxy, self).__getattr__("items")()
+            (type(self).safe(k), type(self).safe(v)) for k, v in super(SafeObjectProxy, self).__getattr__("items")()  # type: ignore
         )
 
     # Custom object representations might cause side-effects
@@ -103,7 +108,6 @@ class SafeObjectProxy(wrapt.ObjectProxy):
         # type: (Any) -> Optional[Any]
         """Turn an object into a safe proxy."""
         _type = type(obj)
-
         if _isinstance(obj, type):
             try:
                 if obj.__module__ == "builtins":
