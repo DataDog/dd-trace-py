@@ -2688,6 +2688,21 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="featureflags",
+            command="pytest {cmdargs} tests/featureflags",
+            pys=select_pys(),
+            pkgs={
+                "pytest-randomly": latest,
+                "mock": latest,
+            },
+            venvs=[
+                Venv(
+                    # Test against different versions of openfeature-sdk (0.5.0+ for submodule imports)
+                    pkgs={"openfeature-sdk": ["~=0.5.0", "~=0.6.0", "~=0.7.0", latest]},
+                ),
+            ],
+        ),
+        Venv(
             name="asyncio",
             command="pytest {cmdargs} tests/contrib/asyncio",
             pkgs={

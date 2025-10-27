@@ -204,6 +204,8 @@ ddtrace/opentelemetry/                             @DataDog/apm-sdk-capabilities
 ddtrace/internal/opentelemetry                     @DataDog/apm-sdk-capabilities-python
 ddtrace/opentracer/                                @DataDog/apm-sdk-capabilities-python
 ddtrace/propagation/                               @DataDog/apm-sdk-capabilities-python
+ddtrace/featureflags/                              @DataDog/asm-python @DataDog/apm-core-python
+tests/featureflags/                                @DataDog/asm-python @DataDog/apm-core-python
 ddtrace/settings/_opentelemetry.py                 @DataDog/apm-sdk-capabilities-python
 
 ddtrace/internal/sampling.py                       @DataDog/apm-sdk-capabilities-python

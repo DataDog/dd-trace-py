@@ -82,6 +82,9 @@ components:
     - ddtrace/internal/datastreams/*
     - ddtrace/data_streams.py
     - ddtrace/ext/schema.py
+  featureflags:
+    - ddtrace/featureflags/*
+    - tests/featureflags/*
   git:
     - ddtrace/ext/git.py
   lib_injection:
@@ -231,6 +234,14 @@ suites:
       - tests/runtime/*
     runner: riot
     skip: true
+  featureflags:
+    parallelism: 1
+    paths:
+      - '@featureflags'
+      - '@remoteconfig'
+      - '@core'
+    runner: riot
+    pattern: ^featureflags$
   telemetry:
     parallelism: 1
     paths:
