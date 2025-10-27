@@ -472,8 +472,12 @@ class StackCollector(collector.PeriodicCollector):
 
             from ddtrace.internal import forksafe
             forksafe.register_before_fork(stack_v2.stop)
-            forksafe.register_after_parent(stack_v2.start)
-            forksafe.register(stack_v2.start)
+            forksafe.register_after_parent(self._stack_v2_fork_restart)
+            forksafe.register(self._stack_v2_fork_restart)
+
+    def _stack_v2_fork_restart(self) -> None:
+        threading.init_stack_v2()
+        stack_v2.start()
 
     def _start_service(self):
         # type: (...) -> None
@@ -495,8 +499,8 @@ class StackCollector(collector.PeriodicCollector):
         # Also tell the native thread running the v2 sampler to stop, if needed
         if self._stack_collector_v2_enabled:
             from ddtrace.internal import forksafe
-            forksafe.unregister(stack_v2.start)
-            forksafe.unregister_parent(stack_v2.start)
+            forksafe.unregister(self._stack_v2_fork_restart)
+            forksafe.unregister_parent(self._stack_v2_fork_restart)
             forksafe.unregister_before_fork(stack_v2.stop)
 
             stack_v2.stop()
