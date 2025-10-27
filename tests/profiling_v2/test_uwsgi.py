@@ -163,9 +163,8 @@ def test_uwsgi_threads_processes_no_primary_lazy_apps(uwsgi, tmp_path, monkeypat
 
     # Send Ctrl+C to the process group
     os.killpg(os.getpgid(proc.pid), signal.SIGINT)
+    proc.kill()
     proc.wait()
-
-    print(proc.stdout.read())
 
     for pid in worker_pids:
         assert sum(
