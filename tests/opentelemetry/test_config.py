@@ -234,7 +234,7 @@ def test_otel_metrics_exporter_configuration_unsupported_exporter():
     assert config._runtime_metrics_enabled is False, config._runtime_metrics_enabled
 
 
-@pytest.mark.subprocess(parametrize={"DD_LOGS_OTEL_ENABLED": ["True", None]}, env={"OTEL_LOGS_EXPORTER": "otlp"})
+@pytest.mark.subprocess(parametrize={"OTEL_LOGS_EXPORTER": ["otlp", None]}, env={"DD_LOGS_OTEL_ENABLED": "true"})
 def test_otel_logs_exporter_configuration_otlp():
     from ddtrace import config
 

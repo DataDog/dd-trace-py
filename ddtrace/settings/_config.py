@@ -534,9 +534,6 @@ class Config(object):
         self._telemetry_heartbeat_interval = _get_config("DD_TELEMETRY_HEARTBEAT_INTERVAL", 60, float)
         self._telemetry_dependency_collection = _get_config("DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED", True, asbool)
 
-        self._runtime_metrics_enabled = _get_config(
-            "DD_RUNTIME_METRICS_ENABLED", False, asbool
-        ) and validate_and_report_otel_exporter_enabled("metrics")
         self._runtime_metrics_runtime_id_enabled = _get_config(
             ["DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED", "DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED"], False, asbool
         )
@@ -629,11 +626,17 @@ class Config(object):
             "DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", True, asbool
         )
         self._otel_trace_enabled = _get_config("DD_TRACE_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
-        self._otel_metrics_enabled = _get_config(
-            "DD_METRICS_OTEL_ENABLED", validate_and_report_otel_exporter_enabled("metrics"), asbool, "OTEL_SDK_DISABLED"
+
+        otel_metrics_exporter_enabled = validate_and_report_otel_exporter_enabled("metrics")
+        otel_logs_exporter_enabled = validate_and_report_otel_exporter_enabled("logs")
+        self._runtime_metrics_enabled = (
+            _get_config("DD_RUNTIME_METRICS_ENABLED", False, asbool) and otel_metrics_exporter_enabled
         )
-        self._otel_logs_enabled = _get_config(
-            "DD_LOGS_OTEL_ENABLED", validate_and_report_otel_exporter_enabled("logs"), asbool, "OTEL_SDK_DISABLED"
+        self._otel_metrics_enabled = (
+            _get_config("DD_METRICS_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED") and otel_metrics_exporter_enabled
+        )
+        self._otel_logs_enabled = (
+            _get_config("DD_LOGS_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED") and otel_logs_exporter_enabled
         )
         if self._otel_trace_enabled or self._otel_logs_enabled or self._otel_metrics_enabled:
             # Replaces the default otel api runtime context with DDRuntimeContext
