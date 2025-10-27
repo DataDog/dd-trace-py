@@ -50,9 +50,8 @@ jobs:
                 "$GITHUB_REF_NAME" =~ ^[0-9]+\.x$ ]]; then
             LIBRARY_VERSION=$(setuptools-scm --strip-dev)
           else
-            pip install .
             # All else, maintain the dev version
-            LIBRARY_VERSION=$(python -c 'from ddtrace.version import get_version; print(get_version())')
+            LIBRARY_VERSION=$(grep '^version = ' pyproject.toml | tr -d '"' | cut -d' ' -f3)
           fi
 
           echo "${LIBRARY_VERSION}" | tee version.txt
