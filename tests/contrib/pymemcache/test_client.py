@@ -14,6 +14,7 @@ from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.pymemcache.client import WrappedClient
 from ddtrace.contrib.internal.pymemcache.patch import patch
 from ddtrace.contrib.internal.pymemcache.patch import unpatch
+from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
@@ -43,7 +44,7 @@ class PymemcacheClientTestCase(PymemcacheClientTestCaseMixin):
     def test_patch(self):
         assert issubclass(pymemcache.client.base.Client, wrapt.ObjectProxy)
         client = self.make_client([])
-        self.assertIsInstance(client, wrapt.ObjectProxy)
+        self.assertTrue(is_wrapted(client))
 
     def test_unpatch(self):
         unpatch()
@@ -298,7 +299,7 @@ class PymemcacheHashClientTestCase(PymemcacheClientTestCaseMixin):
             assert client.client_class == WrappedClient
         assert len(client.clients)
         for _c in client.clients.values():
-            assert isinstance(_c, wrapt.ObjectProxy)
+            assert is_wrapted(_c)
 
     def test_delete_many_found(self):
         """
