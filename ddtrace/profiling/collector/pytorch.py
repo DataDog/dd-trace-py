@@ -31,9 +31,9 @@ class _WrappedTorchProfiler(wrapt.ObjectProxy):
 class MLProfilerCollector(collector.CaptureSamplerCollector):
     """Record ML framework (i.e. pytorch) profiler usage."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
-        self.tracer = None
+        self.tracer: typing.Union[Tracer, None] = None
         # Holds the pytorch profiler object which is wrapped by this class
         self._original: typing.Any = None
 
