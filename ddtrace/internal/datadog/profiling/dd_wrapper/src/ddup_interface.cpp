@@ -1,8 +1,6 @@
 #include "ddup_interface.hpp"
 
-#include "code_provenance.hpp"
 #include "libdatadog_helpers.hpp"
-#include "profile.hpp"
 #include "sample.hpp"
 #include "sample_manager.hpp"
 #include "uploader.hpp"
@@ -12,6 +10,10 @@
 #include <iostream>
 #include <unistd.h>
 #include <unordered_map>
+
+// Forward declaration of helper function from sample.cpp
+extern ddog_prof_ManagedStringId
+intern_string_to_id(std::string_view str);
 
 // State
 bool is_ddup_initialized = false; // NOLINT (cppcoreguidelines-avoid-non-const-global-variables)
@@ -239,6 +241,12 @@ ddup_push_task_name(Datadog::Sample* sample, std::string_view task_name) // cppc
 }
 
 void
+ddup_push_task_name_id(Datadog::Sample* sample, uint32_t task_name_id) // cppcheck-suppress unusedFunction
+{
+    sample->push_task_name_id(task_name_id);
+}
+
+void
 ddup_push_span_id(Datadog::Sample* sample, uint64_t span_id) // cppcheck-suppress unusedFunction
 {
     sample->push_span_id(span_id);
@@ -284,6 +292,23 @@ ddup_push_frame(Datadog::Sample* sample, // cppcheck-suppress unusedFunction
                 int64_t line)
 {
     sample->push_frame(_name, _filename, address, line);
+}
+
+void
+ddup_push_frame_ids(Datadog::Sample* sample, // cppcheck-suppress unusedFunction
+                    uint32_t name_id,
+                    uint32_t filename_id,
+                    uint64_t address,
+                    int64_t line)
+{
+    sample->push_frame_ids(
+      ddog_prof_ManagedStringId{ name_id }, ddog_prof_ManagedStringId{ filename_id }, address, line);
+}
+
+uint32_t
+ddup_intern_string(std::string_view str) // cppcheck-suppress unusedFunction
+{
+    return intern_string_to_id(str).value;
 }
 
 void

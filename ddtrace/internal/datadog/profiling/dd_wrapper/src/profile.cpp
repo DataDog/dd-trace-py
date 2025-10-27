@@ -2,6 +2,7 @@
 
 #include "libdatadog_helpers.hpp"
 
+#include <datadog/common.h>
 #include <functional>
 #include <iostream>
 
@@ -201,7 +202,7 @@ Datadog::Profile::collect(const ddog_prof_Sample& sample, int64_t endtime_ns)
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     const std::lock_guard<std::mutex> lock(profile_mtx);
     auto res = ddog_prof_Profile_add(&cur_profile, sample, endtime_ns);
-    if (!res.ok) {          // NOLINT (cppcoreguidelines-pro-type-union-access)
+    if (res.tag == DDOG_PROF_PROFILE_RESULT_ERR) {
         auto err = res.err; // NOLINT (cppcoreguidelines-pro-type-union-access)
         if (!already_warned) {
             already_warned = true;

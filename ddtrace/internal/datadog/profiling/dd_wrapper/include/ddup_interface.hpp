@@ -52,8 +52,13 @@ extern "C"
                               int64_t thread_id,
                               int64_t thread_native_id,
                               std::string_view thread_name);
+    void ddup_push_threadinfo_id(Datadog::Sample* sample,
+                                 int64_t thread_id,
+                                 int64_t thread_native_id,
+                                 uint32_t thread_name_id);
     void ddup_push_task_id(Datadog::Sample* sample, int64_t task_id);
     void ddup_push_task_name(Datadog::Sample* sample, std::string_view task_name);
+    void ddup_push_task_name_id(Datadog::Sample* sample, uint32_t task_name_id);
     void ddup_push_span_id(Datadog::Sample* sample, uint64_t span_id);
     void ddup_push_local_root_span_id(Datadog::Sample* sample, uint64_t local_root_span_id);
     void ddup_push_trace_type(Datadog::Sample* sample, std::string_view trace_type);
@@ -65,6 +70,14 @@ extern "C"
                          std::string_view _filename,
                          uint64_t address,
                          int64_t line);
+    // Optimized version that takes pre-interned string IDs directly
+    void ddup_push_frame_ids(Datadog::Sample* sample,
+                             uint32_t name_id,
+                             uint32_t filename_id,
+                             uint64_t address,
+                             int64_t line);
+    // Helper to intern a string and return its ID (for use by stack_v2 caching)
+    uint32_t ddup_intern_string(std::string_view str);
     void ddup_push_absolute_ns(Datadog::Sample* sample, int64_t timestamp_ns);
     void ddup_push_monotonic_ns(Datadog::Sample* sample, int64_t monotonic_ns);
     void ddup_flush_sample(Datadog::Sample* sample);

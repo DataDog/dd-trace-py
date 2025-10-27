@@ -4,7 +4,65 @@
 
 #include "echion/strings.h"
 
+#include <unordered_map>
+
+// Forward declare ddup interface functions
+extern "C"
+{
+    uint32_t ddup_intern_string(std::string_view str);
+    void ddup_push_frame_ids(Datadog::Sample* sample,
+                             uint32_t name_id,
+                             uint32_t filename_id,
+                             uint64_t address,
+                             int64_t line);
+}
+
 using namespace Datadog;
+
+// Thread-local cache for StringTable::Key → ddog_prof_ManagedStringId
+// This avoids costly string_table lookups + libdatadog interning by caching the final IDs
+namespace {
+struct StringTableKeyCache
+{
+    static constexpr size_t MAX_CACHE_SIZE = 10000;
+    std::unordered_map<StringTable::Key, uint32_t> cache;
+
+    uint32_t get_or_intern(StringTable::Key key)
+    {
+        // Fast path: check if we've already interned this key
+        auto it = cache.find(key);
+        if (it != cache.end()) {
+            return it->second;
+        }
+
+        // Slow path: look up the string in the string table and intern it to libdatadog
+        auto maybe_str = string_table.lookup(key);
+        if (!maybe_str) {
+            // Key not found in string table, return invalid ID
+            return 0;
+        }
+
+        std::string_view str = maybe_str->get();
+
+        // Intern the string to libdatadog and get the ID
+        auto id = ddup_intern_string(str);
+
+        // Add to cache if not too large and ID is valid
+        if (id != 0 && cache.size() < MAX_CACHE_SIZE) {
+            cache.emplace(key, id);
+        }
+
+        return id;
+    }
+};
+
+static StringTableKeyCache&
+get_string_table_key_cache()
+{
+    thread_local StringTableKeyCache cache;
+    return cache;
+}
+} // anonymous namespace
 
 void
 StackRenderer::render_message(std::string_view msg)
@@ -122,44 +180,30 @@ StackRenderer::render_frame(Frame& frame)
         return;
     }
 
-    // Ordinarily we could just call frame_cache->lookup() here, but our
-    // underlying frame is owned by the LRUCache, which may have cleaned it up,
-    // causing the table keys to be garbage.  Since individual frames in
-    // the stack may be bad, this isn't a failable condition.  Instead, populate
-    // some defaults.
-    static constexpr std::string_view missing_filename = "<unknown file>";
-    static constexpr std::string_view missing_name = "<unknown function>";
-    std::string_view filename_str;
-    std::string_view name_str;
-
-    auto maybe_filename_str = string_table.lookup(frame.filename);
-    if (maybe_filename_str) {
-        filename_str = maybe_filename_str->get();
-    } else {
-        filename_str = missing_filename;
-    }
-
-    auto maybe_name_str = string_table.lookup(frame.name);
-    if (maybe_name_str) {
-        name_str = maybe_name_str->get();
-    } else {
-        name_str = missing_name;
-    }
-
     auto line = frame.location.line;
+
+    auto& cache = get_string_table_key_cache();
 
     // DEV: Echion pushes a dummy frame containing task name, and its line
     // number is set to 0.
     if (line == 0) {
         if (!pushed_task_name) {
-            ddup_push_task_name(sample, name_str);
+            // For task names, we still need to look up the string since ddup_push_task_name takes string_view
+            auto name_id = cache.get_or_intern(frame.name);
+            ddup_push_task_name_id(sample, name_id);
             pushed_task_name = true;
         }
         // And return early to avoid pushing task name as a frame
         return;
     }
 
-    ddup_push_frame(sample, name_str, filename_str, 0, line);
+    // Optimized path: use cached Key → ManagedStringId mapping to avoid costly lookups
+    // Cache lookups are fast, and string_table lookups + libdatadog interning only happen once per unique Key
+    auto name_id = cache.get_or_intern(frame.name);
+    auto filename_id = cache.get_or_intern(frame.filename);
+
+    // Push the frame with pre-interned IDs (no string lookups or re-interning needed!)
+    ddup_push_frame_ids(sample, name_id, filename_id, 0, line);
 }
 
 void

@@ -1,11 +1,95 @@
 #include "sample.hpp"
 
-#include "code_provenance.hpp"
+#include "libdatadog_helpers.hpp"
 
 #include <algorithm>
 #include <chrono>
+#include <datadog/profiling.h>
+#include <map>
+#include <string>
 #include <string_view>
-#include <thread>
+
+static ddog_prof_ManagedStringStorage*
+managed_string_storage()
+{
+    static ddog_prof_ManagedStringStorage string_storage_value;
+    static bool initialized = false;
+    if (!initialized) {
+        std::cerr << "creating string storage" << std::endl;
+        auto result = ddog_prof_ManagedStringStorage_new();
+        if (result.tag == DDOG_PROF_MANAGED_STRING_STORAGE_NEW_RESULT_ERR) {
+            auto err = result.err; // NOLINT (cppcoreguidelines-pro-type-union-access)
+            auto errmsg = Datadog::err_to_msg(&err, "Error creating managed string storage");
+            std::cerr << "couldn't create string storage: " << errmsg << std::endl;
+            ddog_Error_drop(&err);
+            return nullptr;
+        }
+
+        std::cerr << "created string storage" << std::endl;
+        string_storage_value = result.ok;
+        initialized = true;
+    }
+
+    return &string_storage_value;
+}
+
+// Thread-local cache to avoid repeated FFI calls for string interning
+// Uses std::map with transparent comparison for zero-allocation string_view lookups
+struct StringIdCache
+{
+    static constexpr size_t MAX_CACHE_SIZE = 10000;
+    // std::less<> provides transparent comparison allowing string_view lookups without allocation
+    std::map<std::string, ddog_prof_ManagedStringId, std::less<>> cache;
+
+    ddog_prof_ManagedStringId get_or_intern(std::string_view str, std::string& errmsg)
+    {
+        // Fast path: transparent lookup with string_view (no temporary string allocation)
+        auto it = cache.find(str);
+        if (it != cache.end()) {
+            return it->second;
+        }
+
+        // Slow path: intern the string via FFI
+        auto maybe_id = ddog_prof_ManagedStringStorage_intern(*managed_string_storage(), Datadog::to_slice(str));
+        if (maybe_id.tag == DDOG_PROF_MANAGED_STRING_STORAGE_INTERN_RESULT_ERR) {
+            auto err = maybe_id.err; // NOLINT (cppcoreguidelines-pro-type-union-access)
+            errmsg = Datadog::err_to_msg(&err, "Error interning string");
+            ddog_Error_drop(&err);
+            return { 0 }; // Return invalid ID on error
+        }
+
+        auto id = maybe_id.ok; // NOLINT (cppcoreguidelines-pro-type-union-access)
+
+        // Add to cache if not too large
+        if (cache.size() < MAX_CACHE_SIZE) {
+            cache.emplace(std::string(str), id);
+        }
+
+        return id;
+    }
+};
+
+static StringIdCache&
+get_string_id_cache()
+{
+    thread_local StringIdCache cache;
+    return cache;
+}
+
+// Public function to intern a string and return the ID
+// This is used by the optimized Key-based path where interning happens in stack_v2
+ddog_prof_ManagedStringId
+intern_string_to_id(std::string_view str)
+{
+    auto maybe_id = ddog_prof_ManagedStringStorage_intern(*managed_string_storage(), Datadog::to_slice(str));
+    if (maybe_id.tag == DDOG_PROF_MANAGED_STRING_STORAGE_INTERN_RESULT_ERR) {
+        auto err = maybe_id.err; // NOLINT (cppcoreguidelines-pro-type-union-access)
+        std::cerr << "Error interning string: " << Datadog::err_to_msg(&err, "intern") << std::endl;
+        ddog_Error_drop(&err);
+        return { 0 };
+    }
+    return maybe_id.ok; // NOLINT (cppcoreguidelines-pro-type-union-access)
+}
 
 Datadog::internal::StringArena::StringArena()
 {
@@ -56,18 +140,30 @@ void
 Datadog::Sample::push_frame_impl(std::string_view name, std::string_view filename, uint64_t address, int64_t line)
 {
     static const ddog_prof_Mapping null_mapping = { 0, 0, 0, to_slice(""), { 0 }, to_slice(""), { 0 } };
-    name = string_storage.insert(name);
-    filename = string_storage.insert(filename);
+
+    auto& cache = get_string_id_cache();
+
+    auto name_id = cache.get_or_intern(name, errmsg);
+    if (name_id.value == 0 && !name.empty()) {
+        std::cerr << "error interning name: " << errmsg << std::endl;
+        return;
+    }
+
+    auto filename_id = cache.get_or_intern(filename, errmsg);
+    if (filename_id.value == 0 && !filename.empty()) {
+        std::cerr << "error interning filename: " << errmsg << std::endl;
+        return;
+    }
 
     const ddog_prof_Location loc = {
         .mapping = null_mapping, // No support for mappings in Python
         .function = {
-          .name = to_slice(name),
-          .name_id = { 0 },
+          .name = {},
+          .name_id = name_id,
           .system_name = {}, // No support for system_name in Python
-          .system_name_id = { 0 },
-          .filename = to_slice(filename),
-          .filename_id = { 0 },
+          .system_name_id = {}, // No support for system_name in Python
+          .filename = {},
+          .filename_id = filename_id,
         },
         .address = address,
         .line = line,
@@ -87,6 +183,44 @@ Datadog::Sample::push_frame(std::string_view name, std::string_view filename, ui
     }
 }
 
+void
+Datadog::Sample::push_frame_impl_ids(ddog_prof_ManagedStringId name_id,
+                                     ddog_prof_ManagedStringId filename_id,
+                                     uint64_t address,
+                                     int64_t line)
+{
+    static const ddog_prof_Mapping null_mapping = { 0, 0, 0, to_slice(""), { 0 }, to_slice(""), { 0 } };
+
+    const ddog_prof_Location loc = {
+        .mapping = null_mapping, // No support for mappings in Python
+        .function = {
+          .name = {},
+          .name_id = name_id,
+          .system_name = {}, // No support for system_name in Python
+          .system_name_id = {}, // No support for system_name in Python
+          .filename = {},
+          .filename_id = filename_id,
+        },
+        .address = address,
+        .line = line,
+    };
+
+    locations.emplace_back(loc);
+}
+
+void
+Datadog::Sample::push_frame_ids(ddog_prof_ManagedStringId name_id,
+                                ddog_prof_ManagedStringId filename_id,
+                                uint64_t address,
+                                int64_t line)
+{
+    if (locations.size() <= max_nframes) {
+        push_frame_impl_ids(name_id, filename_id, address, line);
+    } else {
+        ++dropped_frames;
+    }
+}
+
 bool
 Datadog::Sample::push_label(const ExportLabelKey key, std::string_view val)
 {
@@ -100,11 +234,23 @@ Datadog::Sample::push_label(const ExportLabelKey key, std::string_view val)
         return true;
     }
 
-    // Otherwise, persist the val string and add the label
-    val = string_storage.insert(val);
+    auto& cache = get_string_id_cache();
+
+    auto val_id = cache.get_or_intern(val, errmsg);
+    if (val_id.value == 0) {
+        std::cerr << "error interning value: " << errmsg << std::endl;
+        return false;
+    }
+
+    auto key_id = cache.get_or_intern(key_sv, errmsg);
+    if (key_id.value == 0) {
+        std::cerr << "error interning key: " << errmsg << std::endl;
+        return false;
+    }
+
     auto& label = labels.emplace_back();
-    label.key = to_slice(key_sv);
-    label.str = to_slice(val);
+    label.key_id = key_id;
+    label.str_id = val_id;
     return true;
 }
 
@@ -134,7 +280,6 @@ Datadog::Sample::clear_buffers()
     labels.clear();
     locations.clear();
     dropped_frames = 0;
-    string_storage.reset();
 }
 
 bool
@@ -212,7 +357,8 @@ Datadog::Sample::push_exceptioninfo(std::string_view exception_type, int64_t cou
 }
 
 bool
-Datadog::Sample::push_acquire(int64_t acquire_time, int64_t count) // NOLINT (bugprone-easily-swappable-parameters)
+Datadog::Sample::push_acquire(int64_t acquire_time,
+                              int64_t count) // NOLINT (bugprone-easily-swappable-parameters)
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     if (0U != (type_mask & SampleType::LockAcquire)) {
@@ -228,7 +374,8 @@ Datadog::Sample::push_acquire(int64_t acquire_time, int64_t count) // NOLINT (bu
 }
 
 bool
-Datadog::Sample::push_release(int64_t lock_time, int64_t count) // NOLINT (bugprone-easily-swappable-parameters)
+Datadog::Sample::push_release(int64_t lock_time,
+                              int64_t count) // NOLINT (bugprone-easily-swappable-parameters)
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     if (0U != (type_mask & SampleType::LockRelease)) {
@@ -392,6 +539,21 @@ Datadog::Sample::push_task_name(std::string_view task_name)
             already_warned = true;
             std::cerr << "bad push" << std::endl;
         }
+        return false;
+    }
+    return true;
+}
+
+bool
+Datadog::Sample::push_task_name_id(uint32_t task_name_id)
+{
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
+    if (!push_label(ExportLabelKey::task_name, task_name_id)) {
+        if (!already_warned) {
+            already_warned = true;
+            std::cerr << "bad push" << std::endl;
+        }
+
         return false;
     }
     return true;

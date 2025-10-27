@@ -4,9 +4,13 @@
 #include "profile.hpp"
 #include "types.hpp"
 
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <vector>
+
+// StringTable::Key from echion - using a typedef to avoid depending on echion headers
+using StringTableKey = uint32_t;
 
 extern "C"
 {
@@ -83,9 +87,6 @@ class Sample
     // Additional metadata
     int64_t endtime_ns = 0; // end of the event
 
-    // Backing memory for string copies
-    internal::StringArena string_storage{};
-
   public:
     // Helpers
     bool push_label(ExportLabelKey key, std::string_view val);
@@ -109,6 +110,7 @@ class Sample
     bool push_threadinfo(int64_t thread_id, int64_t thread_native_id, std::string_view thread_name);
     bool push_task_id(int64_t task_id);
     bool push_task_name(std::string_view task_name);
+    bool push_task_name_id(uint32_t task_name_id);
     bool push_span_id(uint64_t span_id);
     bool push_local_root_span_id(uint64_t local_root_span_id);
     bool push_trace_type(std::string_view trace_type);
@@ -130,6 +132,17 @@ class Sample
                     uint64_t address,          // for ddog_prof_Location
                     int64_t line               // for ddog_prof_Location
     );
+
+    // Optimized version that takes pre-interned string IDs directly
+    void push_frame_ids(ddog_prof_ManagedStringId name_id,
+                        ddog_prof_ManagedStringId filename_id,
+                        uint64_t address,
+                        int64_t line);
+
+    void push_frame_impl_ids(ddog_prof_ManagedStringId name_id,
+                             ddog_prof_ManagedStringId filename_id,
+                             uint64_t address,
+                             int64_t line);
 
     // Flushes the current buffer, clearing it
     bool flush_sample(bool reverse_locations = false);
