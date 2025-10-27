@@ -1,0 +1,134 @@
+stages:
+  - trigger
+  - wait
+
+variables:
+  GIT_STRATEGY: none
+  IMAGE_URL: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
+  API_URL: "https://gitlab.ddbuild.io/api/v4/projects/${CI_PROJECT_ID}/pipeline"
+
+discover_and_trigger:
+  stage: trigger
+  image: ${IMAGE_URL}
+  tags: ["arch:amd64"]
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  script:
+    - |
+      # Configure gh cli authentication
+      if [ -z ${GH_TOKEN} ]; then
+        # Use dd-octo-sts to get GitHub token
+        dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read > token
+        gh auth login --with-token < token
+        rm token
+      fi
+
+      REPO="datadog/dd-trace-py"
+
+      readarray -t VERSIONS < <(
+        gh api repos/$REPO/tags --paginate \
+        | jq -r '
+          [.[].name
+           | sub("^v";"")
+           | capture("^(?<maj>\\d+)\\.(?<min>\\d+)(?:\\.\\d+)?$")?        # keep only x.y[.z] numeric tags
+           | "\(.maj).\(.min)"]                                           # reduce to x.y
+          | unique                                                        # dedupe minors
+          | sort_by( (split(".")|map(tonumber)) )                         # numeric sort by major, then minor asc
+          | . as $minors
+          | ($minors | map(split(".")[0]) | unique | map(tonumber)) as $majors
+          | ($majors[-1]) as $curMaj
+          | ($majors[-2]) as $prevMaj
+          | ($minors | map(select((split(".")[0]|tonumber)==$curMaj))) as $curMajMinors
+          | [
+              $curMajMinors[-1],                                         # current minor
+              $curMajMinors[-2],                                         # previous minor
+              ($minors | map(select((split(".")[0]|tonumber)==$prevMaj)))[-1]  # latest from past major
+            ]
+          | .[]'
+      )
+
+      BRANCHES=("main" "${VERSIONS[@]}")
+      echo "Discovered branches: ${BRANCHES[*]}"
+      echo "[" > triggered.json
+      SEP=""
+      for BRANCH in "${BRANCHES[@]}"; do
+        echo "Triggering $BRANCH..."
+        PIPELINE=$(curl -sS -v --request POST \
+          --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
+          --form "ref=$BRANCH" \
+          "${API_URL}" )
+
+        echo ">>> RAW RESPONSE for $BRANCH:"
+        echo "$PIPELINE"
+
+        ID=$(echo "$PIPELINE" | jq -r .id)
+        WEB_URL=$(echo "$PIPELINE" | jq -r .web_url)
+
+        echo "$SEP{\"branch\":\"$BRANCH\",\"id\":$ID,\"url\":\"$WEB_URL\"}" >> triggered.json
+        SEP=","
+        echo "  → triggered pipeline #$ID at $WEB_URL"
+      done
+      echo "]" >> triggered.json
+
+  artifacts:
+    paths:
+      - triggered.json
+    expire_in: 1 day
+
+wait_for_downstreams:
+  stage: wait
+  image: ${IMAGE_URL}
+  tags: ["arch:amd64"]
+  script: |
+    set -euo pipefail
+
+    jq -c '.[]' triggered.json | while read item; do
+      BRANCH=$(echo "$item" | jq -r .branch)
+      ID=$(echo "$item" | jq -r .id)
+      URL=$(echo "$item" | jq -r .url)
+
+      echo "⏳ Waiting for $BRANCH → pipeline #$ID"
+      STATUS=""
+      while true; do
+        STATUS=$(curl -sS --header "JOB-TOKEN: $CI_JOB_TOKEN" \
+          "${API_URL}/${ID}" | jq -r .status)
+        case "$STATUS" in
+          running|pending)
+            echo "  [$BRANCH] status: $STATUS"
+            sleep 30
+            ;;
+          success)
+            echo "✅ [$BRANCH] succeeded"
+            break
+            ;;
+          failed|canceled)
+            echo "❌ [$BRANCH] failed ($STATUS) — see $URL"
+            echo "$BRANCH:$STATUS" >> failures.txt
+            break
+            ;;
+          *)
+            echo "⚠️ [$BRANCH] unexpected status: $STATUS"
+            break
+            ;;
+        esac
+      done
+    done
+
+    if [ -f failures.txt ]; then
+      echo
+      echo "Summary of failures:"
+      cat failures.txt
+      exit 1
+    else
+      echo "🎉 All downstream pipelines succeeded!"
+    fi
+
+  needs:
+    - job: discover_and_trigger
+  artifacts:
+    when: always
+    paths:
+      - triggered.json
+      - failures.txt
+    expire_in: 1 day
