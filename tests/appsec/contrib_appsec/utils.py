@@ -86,7 +86,7 @@ class Contrib_TestClass_For_Threats:
         raise NotImplementedError
 
     def get_stack_trace(self, entry_span, namespace):
-        appsec_traces = entry_span().get_struct_tag(asm_constants.STACK_TRACE.TAG) or {}
+        appsec_traces = entry_span()._get_struct_tag(asm_constants.STACK_TRACE.TAG) or {}
         stacks = appsec_traces.get(namespace, [])
         return stacks
 

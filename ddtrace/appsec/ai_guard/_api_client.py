@@ -1,4 +1,5 @@
 """AI Guard client for security evaluation of agentic AI workflows."""
+
 import json
 from typing import Any
 from typing import Dict
@@ -256,7 +257,7 @@ class AIGuardClient:
 
             return evaluation
 
-        span.set_struct_tag(
+        span._set_struct_tag(
             AI_GUARD.STRUCT,
             {
                 "history": [truncate_content(e) for e in history],
