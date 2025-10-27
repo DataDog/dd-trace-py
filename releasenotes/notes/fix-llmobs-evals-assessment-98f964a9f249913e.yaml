@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    LLM Observability: Corrected the description of the ``assessment`` argument in ``submit_evaluation()``.
+     ``assessment`` now refers to whether the evaluation itself passes or fails according to your application, rather than the validity of the evaluation result.
