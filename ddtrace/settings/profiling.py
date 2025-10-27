@@ -85,6 +85,31 @@ def _parse_profiling_enabled(raw: str) -> bool:
     return False
 
 
+def _parse_v2_enabled(raw: str) -> bool:
+    if sys.version_info >= (3, 14):
+        return False
+
+    # Parse the boolean value
+    raw_lc = raw.lower()
+    enabled = raw_lc in ("1", "true", "yes", "on")
+
+    # Warn if user explicitly disabled v2 profiler (v1 is deprecated)
+    if raw_lc in ("false", "0", "no", "off"):
+        from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+        from ddtrace.vendor.debtcollector import deprecate
+
+        deprecate(
+            "Setting DD_PROFILING_STACK_V2_ENABLED=false is deprecated",
+            message="The v1 stack profiler is deprecated and will be removed in a future version. "
+            "Please migrate to the v2 stack profiler by removing DD_PROFILING_STACK_V2_ENABLED=false "
+            "or setting it to true.",
+            category=DDTraceDeprecationWarning,
+            removal_version="4.0.0",
+        )
+
+    return enabled
+
+
 def _update_git_metadata_tags(tags):
     """
     Update profiler tags with git metadata
@@ -261,6 +286,7 @@ class ProfilingConfigStack(DDConfig):
     _v2_enabled = DDConfig.v(
         bool,
         "v2_enabled",
+        parser=_parse_v2_enabled,
         # Not yet supported on 3.14
         default=sys.version_info < (3, 14),
         help_type="Boolean",
@@ -396,20 +422,6 @@ if config.stack.v2_enabled and not stack_v2_is_available:
         "Failed to load stack_v2 module (%s), falling back to v1 stack sampler" % msg,
     )
     config.stack.v2_enabled = False
-
-# Warn if user explicitly disabled v2 profiler (v1 is deprecated)
-if os.environ.get("DD_PROFILING_STACK_V2_ENABLED", "").lower() in ("false", "0", "no", "off"):
-    from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-    from ddtrace.vendor.debtcollector import deprecate
-
-    deprecate(
-        "Setting DD_PROFILING_STACK_V2_ENABLED=false is deprecated",
-        message="The v1 stack profiler is deprecated and will be removed in a future version. "
-        "Please migrate to the v2 stack profiler by removing DD_PROFILING_STACK_V2_ENABLED=false "
-        "or setting it to true.",
-        category=DDTraceDeprecationWarning,
-        removal_version="4.0.0",
-    )
 
 # Enrich tags with git metadata and DD_TAGS
 config.tags = _enrich_tags(config.tags)
