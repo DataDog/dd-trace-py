@@ -370,3 +370,24 @@ def test_weak_hash_deduplication_cache(iast_context_contextmanager_deduplication
             else:
                 assert span_report is not None, f"Failed at iteration {i}. span_report {span_report}"
                 assert len(span_report.vulnerabilities) == 1, f"Failed at iteration {i}"
+
+
+def test_parametrized_weak_hash_no_exception():
+    """Verify that parametrized_weak_hash doesn't raise any exceptions."""
+    try:
+        parametrized_weak_hash("md5", "hexdigest")
+    except Exception as e:
+        pytest.fail(f"parametrized_weak_hash raised an exception: {e}")
+
+
+@mock.patch("ddtrace.appsec._iast.taint_sinks.weak_hash.is_iast_request_enabled")
+@mock.patch("ddtrace.appsec._iast.taint_sinks.weak_hash.increment_iast_span_metric")
+def test_weak_hash_out_of_context(mock_is_iast_request_enabled, mock_increment_iast_span_metric, iast_context_defaults):
+    mock_is_iast_request_enabled.return_value = True
+    mock_increment_iast_span_metric.side_effect = Exception(
+        "increment_iast_span_metric should not be called in this test"
+    )
+    try:
+        parametrized_weak_hash("md5", "hexdigest")
+    except Exception as e:
+        pytest.fail(f"parametrized_weak_hash raised an exception: {e}")
