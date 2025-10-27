@@ -405,7 +405,7 @@ if os.environ.get("DD_PROFILING_STACK_V2_ENABLED", "").lower() in ("false", "0",
     deprecate(
         "Setting DD_PROFILING_STACK_V2_ENABLED=false is deprecated",
         message="The v1 stack profiler is deprecated and will be removed in a future version. "
-        "Please migrate to the v2 stack profiler by removing DD_PROFILING_STACK_V2_ENABLED or setting it to true.",
+        "Please migrate to the v2 stack profiler by removing DD_PROFILING_STACK_V2_ENABLED=false or setting it to true.",
         category=DDTraceDeprecationWarning,
         removal_version="4.0.0",
     )
