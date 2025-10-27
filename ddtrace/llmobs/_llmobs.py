@@ -1630,7 +1630,7 @@ class LLMObs(Service):
                                     If not set, the current time will be used.
         :param dict metadata: A JSON serializable dictionary of key-value metadata pairs relevant to the
                                 evaluation metric.
-        :param str assessment: An assessment of the validity of this evaluation. Must be either "pass" or "fail".
+        :param str assessment: An assessment of this evaluation. Must be either "pass" or "fail".
         :param str reasoning: An explanation of the evaluation result.
         """
         if span_context is not None:
