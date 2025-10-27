@@ -7,6 +7,7 @@ import sysconfig
 import typing as t
 
 from ddtrace.internal import gitmetadata
+from ddtrace.internal.packages import Distribution
 from ddtrace.internal.packages import _package_for_root_module_mapping
 
 
@@ -17,19 +18,19 @@ class Library:
         name: str,
         version: str,
         paths: t.Set[str],
-    ):
+    ) -> None:
         self.kind = kind
         self.name = name
         self.version = version
         self.paths = paths
 
-    def to_dict(self):
+    def to_dict(self) -> t.Dict[str, t.Any]:
         return {"kind": self.kind, "name": self.name, "version": self.version, "paths": list(self.paths)}
 
 
 class CodeProvenance:
-    def __init__(self):
-        self.libraries = []
+    def __init__(self) -> None:
+        self.libraries: t.List[Library] = []
 
         python_stdlib = Library(
             kind="standard library",
@@ -65,7 +66,7 @@ class CodeProvenance:
 
         self.libraries.append(python_stdlib)
 
-        module_to_distribution = _package_for_root_module_mapping()
+        module_to_distribution: t.Dict[str, Distribution] = _package_for_root_module_mapping() or {}
 
         libraries: t.Dict[str, Library] = {}
 
@@ -98,10 +99,10 @@ class CodeProvenance:
 
         self.libraries.extend(libraries.values())
 
-    def to_dict(self):
+    def to_dict(self) -> t.Dict[str, t.Any]:
         return {"v1": [lib.to_dict() for lib in self.libraries]}
 
 
-def json_str_to_export():
+def json_str_to_export() -> str:
     cp = CodeProvenance()
     return json.dumps(cp.to_dict())
