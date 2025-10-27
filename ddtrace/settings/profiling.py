@@ -397,6 +397,19 @@ if config.stack.v2_enabled and not stack_v2_is_available:
     )
     config.stack.v2_enabled = False
 
+# Warn if user explicitly disabled v2 profiler (v1 is deprecated)
+if os.environ.get("DD_PROFILING_STACK_V2_ENABLED", "").lower() in ("false", "0", "no", "off"):
+    from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+    from ddtrace.vendor.debtcollector import deprecate
+
+    deprecate(
+        "Setting DD_PROFILING_STACK_V2_ENABLED=false is deprecated",
+        message="The v1 stack profiler is deprecated and will be removed in a future version. "
+        "Please migrate to the v2 stack profiler by removing DD_PROFILING_STACK_V2_ENABLED or setting it to true.",
+        category=DDTraceDeprecationWarning,
+        removal_version="4.0.0",
+    )
+
 # Enrich tags with git metadata and DD_TAGS
 config.tags = _enrich_tags(config.tags)
 
