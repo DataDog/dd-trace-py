@@ -38,8 +38,8 @@ def tracer_config(__init__, app, args, kwargs):
     # extract extra settings
     # TODO: Remove `FILTERS` from supported settings
     trace_processors = settings.get("settings", {}).get("FILTERS")
-
-    tracer.processors = trace_processors
+    if trace_processors:
+        tracer.processors = trace_processors
     tracer.context_provider = context_provider
     tracer._wrap_executor = decorators.wrap_executor
     # TODO: Remove `enabled`, `hostname` and `port` settings in v4.0
