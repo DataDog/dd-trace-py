@@ -1,0 +1,3 @@
+deprecations:
+  - |
+    LLM Observability: ``LLMObs.submit_evaluation_for()`` has been removed. Please use ``LLMObs.submit_evaluation()`` instead for submitting evaluations.
