@@ -9,6 +9,7 @@ from ddtrace.llmobs._integrations.utils import _est_tokens
 from ddtrace.llmobs._utils import safe_json
 from tests.contrib.openai.utils import chat_completion_custom_functions
 from tests.contrib.openai.utils import chat_completion_input_description
+from tests.contrib.openai.utils import get_mock_response_mcp_tool_call
 from tests.contrib.openai.utils import get_openai_vcr
 from tests.contrib.openai.utils import mock_openai_chat_completions_response
 from tests.contrib.openai.utils import mock_openai_completions_response
@@ -2148,6 +2149,97 @@ MUL: "*"
                     "input_tokens": 113,
                     "output_tokens": 99,
                     "total_tokens": 212,
+                    "cache_read_input_tokens": 0,
+                },
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+            )
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 80),
+        reason="Full OpenAI MCP support only available with openai >= 1.80",
+    )
+    @mock.patch("openai._base_client.SyncAPIClient.post")
+    def test_response_mcp_tool_call(
+        self, mock_response_post, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+    ):
+        mock_response_post.return_value = get_mock_response_mcp_tool_call()
+
+        client = openai.OpenAI()
+        client.responses.create(
+            model="gpt-5",
+            tools=[
+                {
+                    "type": "mcp",
+                    "server_label": "dice_roller",
+                    "server_description": "Public dice-roller MCP server for testing.",
+                    "server_url": "https://dice-rolling-mcp.vercel.app/sse",
+                    "require_approval": "never",
+                },
+            ],
+            input="Roll 2d4+1",
+        )
+
+        traces = mock_tracer.pop_traces()
+        assert len(traces[0]) == 2
+
+        response_span = traces[0][0]
+        tool_span = traces[0][1]
+
+        assert mock_llmobs_writer.enqueue.call_count == 2
+
+        mock_llmobs_writer.enqueue.call_args_list[0].assert_called_with(
+            _expected_llmobs_non_llm_span_event(
+                tool_span,
+                "tool",
+                input_value=safe_json(
+                    {"notation": "2d4+1", "label": "2d4+1 roll", "verbose": True},
+                    ensure_ascii=False,
+                ),
+                output_value="You rolled 2d4+1 for 2d4+1 roll:\n🎲 Total: 8\n📊 Breakdown: 2d4:[3,4] + 1",
+                metadata={},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+            )
+        )
+        assert tool_span.parent_id == response_span.span_id
+
+        mock_llmobs_writer.enqueue.call_args_list[1].assert_called_with(
+            _expected_llmobs_llm_span_event(
+                response_span,
+                model_name="gpt-5-2025-08-07",
+                model_provider="openai",
+                input_messages=[{"role": "user", "content": "Roll 2d4+1"}],
+                output_messages=[
+                    {
+                        "role": "assistant",
+                        "content": "You rolled 2d4+1:\n- Total: 8\n- Breakdown: 2d4 → [3, 4] + 1",
+                        "tool_calls": [
+                            {
+                                "name": "dice_roll",
+                                "type": "function_call",
+                                "tool_id": "mcp_0f873afd7ff4f5b30168ffa1f7ddec81a0a114abda192da6b3",
+                                "arguments": {"notation": "2d4+1", "label": "2d4+1 roll", "verbose": True},
+                            }
+                        ],
+                        "tool_results": [
+                            {
+                                "tool_id": "mcp_0f873afd7ff4f5b30168ffa1f7ddec81a0a114abda192da6b3",
+                                "result": "You rolled 2d4+1 for 2d4+1 roll:\n🎲 Total: 8\n📊 Breakdown: 2d4:[3,4] + 1",
+                            }
+                        ],
+                    }
+                ],
+                metadata={
+                    "temperature": 1.0,
+                    "top_p": 1.0,
+                    "parallel_tool_calls": True,
+                    "tool_choice": "auto",
+                    "reasoning_effort": "medium",
+                },
+                token_metrics={
+                    "input_tokens": 642,
+                    "output_tokens": 206,
+                    "total_tokens": 848,
                     "cache_read_input_tokens": 0,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
