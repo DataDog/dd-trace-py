@@ -57,6 +57,8 @@ from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import EXPERIMENT_CSV_FIELD_MAX_SIZE
 from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
 from ddtrace.llmobs._constants import EXPERIMENT_ID_KEY
+from ddtrace.llmobs._constants import EXPERIMENT_RUN_ID_KEY
+from ddtrace.llmobs._constants import EXPERIMENT_RUN_ITERATION_KEY
 from ddtrace.llmobs._constants import EXPERIMENTS_INPUT
 from ddtrace.llmobs._constants import EXPERIMENTS_OUTPUT
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
@@ -785,6 +787,7 @@ class LLMObs(Service):
                 ]
             ]
         ] = None,
+        runs: Optional[int] = 1,
     ) -> Experiment:
         """Initializes an Experiment to run a task on a Dataset and evaluators.
 
@@ -801,6 +804,8 @@ class LLMObs(Service):
                                    to produce a single value.
                                    Must accept parameters ``inputs``, ``outputs``, ``expected_outputs``,
                                    ``evaluators_results``.
+        :param runs: The number of times to run the experiment, or, run the task for every dataset record the defined
+                     number of times.
         """
         if not callable(task):
             raise TypeError("task must be a callable function.")
@@ -841,6 +846,7 @@ class LLMObs(Service):
             config=config,
             _llmobs_instance=cls._instance,
             summary_evaluators=summary_evaluators,
+            runs=runs,
         )
 
     @classmethod
@@ -1310,6 +1316,8 @@ class LLMObs(Service):
         session_id: Optional[str] = None,
         ml_app: Optional[str] = None,
         experiment_id: Optional[str] = None,
+        run_id: Optional[str] = None,
+        run_iteration: Optional[int] = None,
     ) -> Span:
         """
         Trace an LLM experiment, only used internally by the experiments SDK.
@@ -1327,6 +1335,12 @@ class LLMObs(Service):
         # Set experiment_id in baggage if provided
         if experiment_id:
             span.context.set_baggage_item(EXPERIMENT_ID_KEY, experiment_id)
+
+        if run_id:
+            span.context.set_baggage_item(EXPERIMENT_RUN_ID_KEY, run_id)
+
+        if run_iteration:
+            span.context.set_baggage_item(EXPERIMENT_RUN_ITERATION_KEY, run_iteration)
 
         return span
 
