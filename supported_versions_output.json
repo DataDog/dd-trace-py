@@ -106,7 +106,7 @@
         "minimum_tracer_supported": "5.12.2",
         "max_tracer_supported": "5.15.0",
         "pinned": "true",
-        "auto-instrumented": false
+        "auto-instrumented": true
     },
     {
         "dependency": "azure-functions",
@@ -489,7 +489,8 @@
         "dependency": "openai",
         "integration": "openai",
         "minimum_tracer_supported": "1.0.0",
-        "max_tracer_supported": "1.91.0",
+        "max_tracer_supported": "1.109.1",
+        "pinned": "true",
         "auto-instrumented": true
     },
     {
