@@ -148,6 +148,8 @@ CLAUDE.local.md
 .riot/venv*
 .riot/requirements/*.in
 
+# Auto-generated version file
+ddtrace/_version.py
 
 # Benchmarks
 artifacts/

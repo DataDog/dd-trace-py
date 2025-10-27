@@ -7,7 +7,9 @@ def get_version() -> str:
         from importlib.metadata import version as ilm_version
 
         try:
-            return ilm_version("ddtrace")
+            version = ilm_version("ddtrace")
+            print(version)
+            return version
         except ModuleNotFoundError:
             # package is not installed
             return "dev"
