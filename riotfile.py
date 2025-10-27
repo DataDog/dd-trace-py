@@ -1753,7 +1753,6 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.8", max_version="3.9"),
                     pkgs={
-                        "legacy-cgi": latest,
                         "pyramid": [
                             "~=1.10",
                             "~=2.0",
@@ -1766,7 +1765,6 @@ venv = Venv(
                     # FIXME[python-3.12]: blocked on venusian release https://github.com/Pylons/venusian/issues/85
                     pys=select_pys(min_version="3.10", max_version="3.12"),
                     pkgs={
-                        "legacy-cgi": latest,
                         "pyramid": [latest],
                     },
                 ),
@@ -1775,6 +1773,7 @@ venv = Venv(
                     # FIXME[python-3.12]: blocked on venusian release https://github.com/Pylons/venusian/issues/85
                     pys=select_pys(min_version="3.13"),
                     pkgs={
+                        "legacy-cgi": latest,
                         "pyramid": [latest],
                     },
                 ),
@@ -2173,7 +2172,7 @@ venv = Venv(
             venvs=[
                 # Older Python's don't need legacy-cgi
                 Venv(
-                    pys=select_pys(min_version="3.8", max_version="3.13"),
+                    pys=select_pys(min_version="3.8", max_version="3.12"),
                 ),
                 Venv(
                     pys=select_pys(min_version="3.13"),
