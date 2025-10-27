@@ -1,8 +1,12 @@
 # -*- encoding: utf-8 -*-
 from functools import partial
 import sys
-from types import ModuleType  # noqa:F401
-import typing  # noqa:F401
+from types import ModuleType  # noqa: F401
+import typing
+
+
+if typing.TYPE_CHECKING:
+    import asyncio
 
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
 from ddtrace.internal.datadog.profiling import stack_v2
@@ -17,15 +21,17 @@ from . import _threading
 THREAD_LINK = None  # type: typing.Optional[_threading._ThreadLink]
 
 
-def current_task(loop=None):
+def current_task(loop: typing.Union["asyncio.AbstractEventLoop", None] = None) -> typing.Union["asyncio.Task", None]:
     return None
 
 
-def all_tasks(loop=None):
+def all_tasks(
+    loop: typing.Union["asyncio.AbstractEventLoop", None] = None,
+) -> typing.Union[typing.List["asyncio.Task"], None]:
     return []
 
 
-def _task_get_name(task):
+def _task_get_name(task: "asyncio.Task") -> str:
     return "Task-%d" % id(task)
 
 
@@ -53,12 +59,13 @@ def _(asyncio):
 
     @partial(wrap, sys.modules["asyncio.events"].BaseDefaultEventLoopPolicy.set_event_loop)
     def _(f, args, kwargs):
-        loop = get_argument_value(args, kwargs, 1, "loop")
+        loop = typing.cast("asyncio.AbstractEventLoop", get_argument_value(args, kwargs, 1, "loop"))
         try:
             if init_stack_v2:
                 stack_v2.track_asyncio_loop(typing.cast(int, ddtrace_threading.current_thread().ident), loop)
             return f(*args, **kwargs)
         finally:
+            assert THREAD_LINK is not None  # nosec: assert is used for typing
             THREAD_LINK.clear_threads(set(sys._current_frames().keys()))
             if loop is not None:
                 THREAD_LINK.link_object(loop)
@@ -71,10 +78,14 @@ def _(asyncio):
                 return f(*args, **kwargs)
             finally:
                 children = get_argument_value(args, kwargs, 1, "children")
+                assert children is not None  # nosec: assert is used for typing
+
                 # Pass an invalid positional index for 'loop'
                 loop = get_argument_value(args, kwargs, -1, "loop")
+
                 # Link the parent gathering task to the gathered children
                 parent = globals()["current_task"](loop)
+
                 for child in children:
                     stack_v2.link_tasks(parent, child)
 
@@ -88,7 +99,7 @@ def _(asyncio):
         stack_v2.init_asyncio(asyncio.tasks._current_tasks, scheduled_tasks, eager_tasks)  # type: ignore[attr-defined]
 
 
-def get_event_loop_for_thread(thread_id):
+def get_event_loop_for_thread(thread_id: int) -> typing.Union["asyncio.AbstractEventLoop", None]:
     global THREAD_LINK
 
     return THREAD_LINK.get_object(thread_id) if THREAD_LINK is not None else None

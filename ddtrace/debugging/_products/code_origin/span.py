@@ -1,9 +1,15 @@
 import enum
+from functools import partial
+import typing as t
 
+import ddtrace.internal.core as core
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.products import manager as product_manager
 from ddtrace.settings._core import ValueSource
 from ddtrace.settings.code_origin import config
 
+
+log = get_logger(__name__)
 
 CO_ENABLED = "DD_CODE_ORIGIN_FOR_SPANS_ENABLED"
 DI_PRODUCT_KEY = "dynamic-instrumentation"
@@ -23,18 +29,26 @@ def _start():
 
 
 def start():
-    if config.span.enabled:
+    # We need to instrument the entrypoints on boot because this is the only
+    # time the tracer will notify us of entrypoints being registered.
+    @partial(core.on, "service_entrypoint.patch")
+    def _(f: t.Callable) -> None:
         from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
+
+        SpanCodeOriginProcessorEntry.instrument_view(f)
+
+    log.debug("Registered entrypoint patching hook for code origin for spans")
+
+    if config.span.enabled:
         from ddtrace.debugging._origin.span import SpanCodeOriginProcessorExit
 
-        SpanCodeOriginProcessorEntry.enable()
         SpanCodeOriginProcessorExit.enable()
+
+        _start()
     # If dynamic instrumentation is enabled, and code origin for spans is not explicitly disabled,
     # we'll enable entry spans only.
     elif product_manager.is_enabled(DI_PRODUCT_KEY) and config.value_source(CO_ENABLED) == ValueSource.DEFAULT:
-        from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
-
-        SpanCodeOriginProcessorEntry.enable()
+        _start()
 
 
 def restart(join=False):
