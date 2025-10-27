@@ -85,6 +85,27 @@ def _parse_profiling_enabled(raw: str) -> bool:
     return False
 
 
+def _parse_api_timeout_ms(raw: str) -> int:
+    # Check if the deprecated DD_PROFILING_API_TIMEOUT is set (in seconds)
+    deprecated_timeout = os.environ.get("DD_PROFILING_API_TIMEOUT")
+    if deprecated_timeout is not None:
+        from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+        from ddtrace.vendor.debtcollector import deprecate
+
+        deprecate(
+            "DD_PROFILING_API_TIMEOUT is deprecated",
+            message="DD_PROFILING_API_TIMEOUT (in seconds) is deprecated and will be removed in version 4.0.0. "
+            "Please use DD_PROFILING_API_TIMEOUT_MS (in milliseconds) instead.",
+            category=DDTraceDeprecationWarning,
+            removal_version="4.0.0",
+        )
+        # Convert seconds to milliseconds
+        return int(float(deprecated_timeout) * 1000)
+
+    # Otherwise, use the raw value (in milliseconds)
+    return int(raw)
+
+
 def _update_git_metadata_tags(tags):
     """
     Update profiler tags with git metadata
@@ -202,19 +223,10 @@ class ProfilingConfig(DDConfig):
         "statistics. Must be greater than 0 and lesser or equal to 100",
     )
 
-    api_timeout = DDConfig.v(
-        float,
-        "api_timeout",
-        default=10.0,
-        help_type="Float",
-        deprecations=[("api_timeout", None, "4.0.0")],
-        help="(Deprecated) The timeout in seconds before dropping events if the HTTP API does not reply. "
-        "Use api_timeout_ms instead.",
-    )
-
     api_timeout_ms = DDConfig.v(
         int,
         "api_timeout_ms",
+        parser=_parse_api_timeout_ms,
         default=10000,
         help_type="Integer",
         help="The timeout in milliseconds before dropping events if the HTTP API does not reply",
