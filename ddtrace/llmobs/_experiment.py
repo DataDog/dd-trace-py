@@ -1,5 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
+import itertools
 import sys
 import traceback
 from typing import TYPE_CHECKING
@@ -311,6 +312,12 @@ class Dataset:
         return pd.DataFrame(data=records_list, columns=pd.MultiIndex.from_tuples(column_tuples))
 
 
+class _ExperimentRunInfo:
+    def __init__(self, run_interation: int):
+        self._id = uuid.uuid4()
+        self._run_iteration = run_interation
+
+
 class Experiment:
     def __init__(
         self,
@@ -330,6 +337,7 @@ class Experiment:
                 ]
             ]
         ] = None,
+        runs: Optional[int] = None,
     ) -> None:
         self.name = name
         self._task = task
@@ -340,6 +348,7 @@ class Experiment:
         self._tags: Dict[str, str] = tags or {}
         self._tags["ddtrace.version"] = str(ddtrace.__version__)
         self._config: Dict[str, JSONType] = config or {}
+        self._runs: int = runs or 1
         self._llmobs_instance = _llmobs_instance
 
         if not project_name:
@@ -372,18 +381,23 @@ class Experiment:
             self._config,
             convert_tags_dict_to_list(self._tags),
             self._description,
+            self._runs,
         )
         self._id = experiment_id
         self._tags["experiment_id"] = str(experiment_id)
         self._run_name = experiment_run_name
-        task_results = self._run_task(jobs, raise_errors, sample_size)
-        evaluations = self._run_evaluators(task_results, raise_errors=raise_errors)
-        summary_evals = self._run_summary_evaluators(task_results, evaluations, raise_errors)
-        experiment_results = self._merge_results(task_results, evaluations, summary_evals)
-        experiment_evals = self._generate_metrics_from_exp_results(experiment_results)
-        self._llmobs_instance._dne_client.experiment_eval_post(
-            self._id, experiment_evals, convert_tags_dict_to_list(self._tags)
-        )
+        for run_iteration in range(self._runs):
+            run = _ExperimentRunInfo(run_iteration)
+            self._tags["run_id"] = str(run._id)
+            self._tags["run_iteration"] = str(run._run_iteration)
+            task_results = self._run_task(jobs, run, raise_errors, sample_size)
+            evaluations = self._run_evaluators(task_results, raise_errors=raise_errors)
+            summary_evals = self._run_summary_evaluators(task_results, evaluations, raise_errors)
+            experiment_results = self._merge_results(task_results, evaluations, summary_evals)
+            experiment_evals = self._generate_metrics_from_exp_results(experiment_results)
+            self._llmobs_instance._dne_client.experiment_eval_post(
+                self._id, experiment_evals, convert_tags_dict_to_list(self._tags)
+            )
 
         return experiment_results
 
@@ -392,11 +406,13 @@ class Experiment:
         # FIXME: will not work for subdomain orgs
         return f"{_get_base_url()}/llm/experiments/{self._id}"
 
-    def _process_record(self, idx_record: Tuple[int, DatasetRecord]) -> Optional[TaskResult]:
+    def _process_record(self, idx_record: Tuple[int, DatasetRecord], run: _ExperimentRunInfo) -> Optional[TaskResult]:
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return None
         idx, record = idx_record
-        with self._llmobs_instance._experiment(name=self._task.__name__, experiment_id=self._id) as span:
+        with self._llmobs_instance._experiment(
+            name=self._task.__name__, experiment_id=self._id, run_id=str(run._id), run_iteration=run._run_iteration
+        ) as span:
             span_context = self._llmobs_instance.export_span(span=span)
             if span_context:
                 span_id = span_context.get("span_id", "")
@@ -436,7 +452,9 @@ class Experiment:
                 },
             }
 
-    def _run_task(self, jobs: int, raise_errors: bool = False, sample_size: Optional[int] = None) -> List[TaskResult]:
+    def _run_task(
+        self, jobs: int, run: _ExperimentRunInfo, raise_errors: bool = False, sample_size: Optional[int] = None
+    ) -> List[TaskResult]:
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return []
         if sample_size is not None and sample_size < len(self._dataset):
@@ -456,7 +474,9 @@ class Experiment:
             subset_dataset = self._dataset
         task_results = []
         with ThreadPoolExecutor(max_workers=jobs) as executor:
-            for result in executor.map(self._process_record, enumerate(subset_dataset)):
+            for result in executor.map(
+                self._process_record, enumerate(subset_dataset), itertools.repeat(run, len(subset_dataset))
+            ):
                 if not result:
                     continue
                 task_results.append(result)
