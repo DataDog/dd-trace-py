@@ -1,6 +1,5 @@
 #include "thread_span_links.hpp"
 
-#include <iostream>
 #include <mutex>
 #include <optional>
 #include <stdint.h>
