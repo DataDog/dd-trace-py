@@ -8,6 +8,7 @@ suite from the perspective of Test Visibility data.
 The plugin is only instantiated and added if the pytest-bdd plugin itself is installed and enabled, because the hook
 implementations will cause errors unless the hookspecs are added by the original plugin.
 """
+
 from pathlib import Path
 import sys
 
@@ -72,7 +73,7 @@ class _PytestBddSubPlugin:
             child_of=feature_span,
             activate=True,
         )
-        span.set_tag_str("component", "pytest_bdd")
+        span._set_tag_str("component", "pytest_bdd")
 
         span.set_tag(test.FRAMEWORK, FRAMEWORK)
         span.set_tag(test.FRAMEWORK_VERSION, self.framework_version)

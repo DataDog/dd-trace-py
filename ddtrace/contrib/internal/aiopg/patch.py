@@ -10,6 +10,7 @@ from ddtrace.contrib.internal.aiopg.connection import AIOTracedConnection
 from ddtrace.contrib.internal.psycopg.connection import patch_conn as psycopg_patch_conn
 from ddtrace.contrib.internal.psycopg.extensions import _patch_extensions
 from ddtrace.contrib.internal.psycopg.extensions import _unpatch_extensions
+from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.wrappers import unwrap as _u
 
@@ -63,7 +64,7 @@ def _extensions_register_type(func, _, args, kwargs):
 
     # register_type performs a c-level check of the object
     # type so we must be sure to pass in the actual db connection
-    if scope and isinstance(scope, wrapt.ObjectProxy):
+    if scope and is_wrapted(scope):
         scope = scope.__wrapped__._conn
 
     return func(obj, scope) if scope else func(obj)
