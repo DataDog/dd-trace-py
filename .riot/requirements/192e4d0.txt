@@ -22,7 +22,7 @@ pastedeploy==3.1.0
 plaster==1.1.2
 plaster-pastedeploy==1.0.1
 pluggy==1.5.0
-pserve-test-app @ file:///Users/brett.langdon/datadog/dd-trace-py/.worktrees/APMLP-579/pin.deps/tests/contrib/pyramid/pserve_app
+pserve-test-app @ file://tests/contrib/pyramid/pserve_app.riot/requirements
 pyramid==2.0.2
 pytest==8.3.5
 pytest-cov==5.0.0
