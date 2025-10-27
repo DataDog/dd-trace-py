@@ -1,0 +1,6 @@
+---
+deprecations:
+  - |
+    profiling: The V1 stack profiler is deprecated and will be removed in 4.0.
+    V2 has been enabled by default since v2.20.0.
+    ``DD_PROFILING_STACK_V2_ENABLED=false`` will no longer have an effect.
