@@ -1,0 +1,89 @@
+stages:
+  - setup
+  - execute
+
+variables:
+  GIT_STRATEGY: none
+
+setup:
+  stage: setup
+  image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
+  tags: ["arch:amd64"]
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  script: |
+    # Configure gh cli authentication
+    if [ -z ${GH_TOKEN} ]
+    then
+      # Use dd-octo-sts to get GitHub token
+      dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read > token
+      gh auth login --with-token < token
+      rm token
+    fi
+
+
+    REPO="datadog/dd-trace-py"
+
+    readarray -t VERSIONS < <(
+      gh api repos/$REPO/tags --paginate \
+      | jq -r '
+        [.[].name
+         | sub("^v";"")
+         | capture("^(?<maj>\\d+)\\.(?<min>\\d+)(?:\\.\\d+)?$")?        # keep only x.y[.z] numeric tags
+         | "\(.maj).\(.min)"]                                           # reduce to x.y
+        | unique                                                        # dedupe minors
+        | sort_by( (split(".")|map(tonumber)) )                         # numeric sort by major, then minor asc
+        | . as $minors
+        | ($minors | map(split(".")[0]) | unique | map(tonumber)) as $majors
+        | ($majors[-1]) as $curMaj
+        | ($majors[-2]) as $prevMaj
+        | ($minors | map(select((split(".")[0]|tonumber)==$curMaj))) as $curMajMinors
+        | [
+            $curMajMinors[-1],                                         # current minor
+            $curMajMinors[-2],                                         # previous minor
+            ($minors | map(select((split(".")[0]|tonumber)==$prevMaj)))[-1]  # latest from past major
+          ]
+        | .[]'
+    )
+
+    # Output discovered versions for debugging
+    echo "Discovered versions:"
+    echo "  Current: ${VERSIONS[0]}"
+    echo "  Last minor: ${VERSIONS[1]}"
+    echo "  Last major: ${VERSIONS[2]}"
+
+    echo "CURRENT_MINOR_VERSION=${VERSIONS[0]}" >> variables.env
+    echo "PREVIOUS_MINOR_VERSION=${VERSIONS[1]}" >> variables
+    echo "PREVIOUS_MAJOR_VERSION=${VERSIONS[2]}" >> variables.env
+  artifacts:
+    reports:
+      dotenv: variables.env
+
+"main":
+  stage: execute
+  trigger:
+    project: $CI_PROJCET_PATH
+    branch: "main"
+    strategy: depend
+
+"current release":
+  stage: execute
+  trigger:
+    project: $CI_PROJCET_PATH
+    branch: "${VERSIONS[0]}"
+    strategy: depend
+
+"previous release":
+  stage: execute
+  trigger:
+    project: $CI_PROJCET_PATH
+    branch: "${VERSIONS[1]}"
+    strategy: depend
+
+"previous major release":
+  stage: execute
+  trigger:
+    project: $CI_PROJCET_PATH
+    branch: "${VERSIONS[2]}"
+    strategy: depend
