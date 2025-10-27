@@ -1558,49 +1558,11 @@ class LLMObs(Service):
         span._set_ctx_item(key, existing_value)
 
     @classmethod
-    def submit_evaluation_for(
-        cls,
-        label: str,
-        metric_type: str,
-        value: Union[str, int, float, bool],
-        span: Optional[dict] = None,
-        span_with_tag_value: Optional[Dict[str, str]] = None,
-        tags: Optional[Dict[str, str]] = None,
-        ml_app: Optional[str] = None,
-        timestamp_ms: Optional[int] = None,
-        metadata: Optional[Dict[str, object]] = None,
-        assessment: Optional[str] = None,
-        reasoning: Optional[str] = None,
-    ) -> None:
-        """
-        Submits a custom evaluation metric for a given span. This method is deprecated and will be
-        removed in the next major version of ddtrace (4.0). Please use `LLMObs.submit_evaluation()` instead.
-        """
-        log.warning(
-            "LLMObs.submit_evaluation_for() is deprecated and will be removed in the next major "
-            "version of ddtrace (4.0). Please use LLMObs.submit_evaluation() instead."
-        )
-        return cls.submit_evaluation(
-            label=label,
-            metric_type=metric_type,
-            value=value,
-            span=span,
-            span_with_tag_value=span_with_tag_value,
-            tags=tags,
-            ml_app=ml_app,
-            timestamp_ms=timestamp_ms,
-            metadata=metadata,
-            assessment=assessment,
-            reasoning=reasoning,
-        )
-
-    @classmethod
     def submit_evaluation(
         cls,
         label: str,
         metric_type: str,
         value: Union[str, int, float, bool],
-        span_context: Optional[Dict[str, str]] = None,
         span: Optional[dict] = None,
         span_with_tag_value: Optional[Dict[str, str]] = None,
         tags: Optional[Dict[str, str]] = None,
@@ -1617,9 +1579,6 @@ class LLMObs(Service):
         :param str metric_type: The type of the evaluation metric. One of "categorical", "score", "boolean".
         :param value: The value of the evaluation metric.
                       Must be a string (categorical), integer (score), float (score), or boolean (boolean).
-        :param dict span_context: A dictionary containing the span_id and trace_id of interest. This is a
-                            deprecated parameter and will be removed in the next major version of
-                            ddtrace (4.0). Please use `span` or `span_with_tag_value` instead.
         :param dict span: A dictionary of shape {'span_id': str, 'trace_id': str} uniquely identifying
                             the span associated with this evaluation.
         :param dict span_with_tag_value: A dictionary with the format {'tag_key': str, 'tag_value': str}
@@ -1633,13 +1592,6 @@ class LLMObs(Service):
         :param str assessment: An assessment of this evaluation. Must be either "pass" or "fail".
         :param str reasoning: An explanation of the evaluation result.
         """
-        if span_context is not None:
-            log.warning(
-                "The `span_context` parameter is deprecated and will be removed in the next major version of "
-                "ddtrace (4.0). Please use `span` or `span_with_tag_value` instead."
-            )
-            span = span or span_context
-
         if cls.enabled is False:
             log.debug(
                 "LLMObs.submit_evaluation() called when LLMObs is not enabled. ",
