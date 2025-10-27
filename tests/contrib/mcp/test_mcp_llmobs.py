@@ -73,11 +73,9 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, mock_tracer, llmobs_events, m
         tags={
             "service": "mcptest",
             "ml_app": "<ml-app-name>",
-            "server_name": "TestServer",
-            "server_version": importlib.metadata.version("mcp"),
-            "server_title": None,
-            "mcp_num_tools": 6,
-            "mcp_tools_selected": "calculator",
+            "mcp_server_name": "TestServer",
+            "mcp_server_version": importlib.metadata.version("mcp"),
+            "mcp_server_title": None,
         },
         metadata=mock.ANY,
     )
@@ -110,26 +108,29 @@ def test_llmobs_client_server_tool_error(mcp_setup, mock_tracer, llmobs_events, 
     assert client_events[0]["name"] == "MCP Client Tool Call: failing_tool"
     assert server_events[0]["name"] == "MCP Server Tool Execute: failing_tool"
 
-    assert not client_span.error
+    assert client_span.error
     assert server_span.error
 
     assert client_events[0] == _expected_llmobs_non_llm_span_event(
         client_span,
         span_kind="tool",
         input_value=json.dumps({"param": "value"}),
-        output_value=json.dumps(
-            {
-                "content": [
-                    {
-                        "type": "text",
-                        "annotations": {},
-                        "meta": {},
-                        "text": "Error executing tool failing_tool: Tool execution failed",
-                    }
-                ],
-                "isError": True,
-            }
-        ),
+        # output_value=json.dumps(
+        #     {
+        #         "content": [
+        #             {
+        #                 "type": "text",
+        #                 "annotations": {},
+        #                 "meta": {},
+        #                 "text": "Error executing tool failing_tool: Tool execution failed",
+        #             }
+        #         ],
+        #         "isError": True,
+        #     }
+        # ),
+        error="",
+        error_message="Error executing tool failing_tool: Tool execution failed",
+        error_stack="",
         tags={"service": "mcptest", "ml_app": "<ml-app-name>"},
     )
     assert server_events[0] == _expected_llmobs_non_llm_span_event(

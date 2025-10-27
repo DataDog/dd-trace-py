@@ -9,6 +9,7 @@ import mcp
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace._trace.span import Span
+from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.internal.trace_utils import activate_distributed_headers
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
@@ -109,15 +110,22 @@ def traced_send_request(mcp, pin: Pin, func, instance, args: tuple, kwargs: dict
 
 @with_traced_module
 async def traced_call_tool(mcp, pin: Pin, func, instance, args: tuple, kwargs: dict):
-    integration = mcp._datadog_integration
+    integration: MCPIntegration = mcp._datadog_integration
 
-    span = integration.trace(pin, CLIENT_TOOL_CALL_OPERATION_NAME, submit_to_llmobs=True)
+    span: Span = integration.trace(pin, CLIENT_TOOL_CALL_OPERATION_NAME, submit_to_llmobs=True)
 
     try:
         result = await func(*args, **kwargs)
+
+        if getattr(result, "isError", False):
+            content = getattr(result, "content", [])
+            span.error = 1
+            span.set_tag(ERROR_MSG, getattr(content[0], "text", ""))
+
         integration.llmobs_set_tags(
             span, args=args, kwargs=kwargs, response=result, operation=CLIENT_TOOL_CALL_OPERATION_NAME
         )
+
         return result
     except Exception:
         integration.llmobs_set_tags(

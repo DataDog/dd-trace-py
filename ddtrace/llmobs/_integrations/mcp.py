@@ -102,13 +102,6 @@ class MCPIntegration(BaseLLMIntegration):
         output_value = {"content": processed_content, "isError": is_error}
         span._set_ctx_item(OUTPUT_VALUE, output_value)
 
-        # propagate the tool call to the client session root
-        client_session_root = _find_client_session_root(span)
-        if client_session_root:
-            client_session_root_tags = client_session_root._get_ctx_item(TAGS) or {}
-            client_session_tools_selected = client_session_root_tags.setdefault("mcp_tools_selected", set())
-            client_session_tools_selected.add(tool_name)
-
     def _llmobs_set_tags_server(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any) -> None:
         tool_arguments = get_argument_value(args, kwargs, 1, "arguments", optional=True) or {}
         tool_name = args[0] if len(args) > 0 else "unknown_tool"
@@ -150,9 +143,9 @@ class MCPIntegration(BaseLLMIntegration):
         client_session_root = _find_client_session_root(span)
         if client_session_root:
             client_session_root_tags = client_session_root._get_ctx_item(TAGS) or {}
-            client_session_root_tags["server_name"] = getattr(server_info, "name", "")
-            client_session_root_tags["server_version"] = getattr(server_info, "version", "")
-            client_session_root_tags["server_title"] = getattr(server_info, "title", "")
+            client_session_root_tags["mcp_server_name"] = getattr(server_info, "name", "")
+            client_session_root_tags["mcp_server_version"] = getattr(server_info, "version", "")
+            client_session_root_tags["mcp_server_title"] = getattr(server_info, "title", "")
             client_session_root._set_ctx_item(TAGS, client_session_root_tags)
 
     def _llmobs_set_tags_list_tools(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any) -> None:
@@ -166,15 +159,6 @@ class MCPIntegration(BaseLLMIntegration):
                 OUTPUT_VALUE: safe_json(response),
             }
         )
-
-        tools = getattr(response, "tools", [])
-        if not tools:
-            return
-        client_session_root = _find_client_session_root(span)
-        if client_session_root:
-            client_session_root_tags = client_session_root._get_ctx_item(TAGS) or {}
-            client_session_root_tags["mcp_num_tools"] = len(tools)
-            client_session_root._set_ctx_item(TAGS, client_session_root_tags)
 
     def _llmobs_set_tags_session(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any) -> None:
         read_stream = kwargs.get("read_stream", None)

@@ -55,9 +55,10 @@ def _expected_llmobs_tags(span, error=None, tags=None, session_id=None):
         "ddtrace.version:{}".format(ddtrace.__version__),
         "language:python",
     ]
-    if error:
+    if error is not None:
         expected_tags.append("error:1")
-        expected_tags.append("error_type:{}".format(error))
+        if error:
+            expected_tags.append("error_type:{}".format(error))
     else:
         expected_tags.append("error:0")
     if session_id:
@@ -229,7 +230,7 @@ def _llmobs_base_span_event(
         "name": _get_span_name(span),
         "start_ns": span.start_ns,
         "duration": span.duration_ns,
-        "status": "error" if error else "ok",
+        "status": "error" if error is not None else "ok",
         "meta": _Meta(span=_SpanField(kind=span_kind)),
         "metrics": {},
         "tags": _expected_llmobs_tags(span, tags=tags, error=error, session_id=session_id),
@@ -241,7 +242,7 @@ def _llmobs_base_span_event(
     }
     if session_id:
         span_event["session_id"] = session_id
-    if error:
+    if error is not None:
         span_event["meta"]["error"] = _ErrorField(type=error, message=error_message or "", stack=error_stack or "")
     if span_links:
         span_event["span_links"] = mock.ANY
