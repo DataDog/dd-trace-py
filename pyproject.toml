@@ -10,9 +10,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ddtrace"
-version = "4.0.0dev0"
-# XXX don't merge this to main
-# dynamic = ["version"]
+# DEV: to directly override the version specifier, comment this...
+#dynamic = ["version"]
+# ...and uncomment this
+version = "4.0.0.dev0"
 description = "Datadog APM client library"
 readme = "README.md"
 license = { text = "LICENSE.BSD3" }

@@ -51,7 +51,7 @@ jobs:
             LIBRARY_VERSION=$(setuptools-scm --strip-dev)
           else
             # All else, maintain the dev version
-            LIBRARY_VERSION=$(setuptools-scm)
+            LIBRARY_VERSION=$(grep '^version = ' pyproject.toml | tr -d '"' | cut -d' ' -f3)
           fi
 
           echo "${LIBRARY_VERSION}" | tee version.txt
