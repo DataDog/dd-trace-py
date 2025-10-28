@@ -457,16 +457,18 @@ class TraceMiddleware:
             except BlockingException as e:
                 set_blocked(e.args[0])
                 return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
-            except Exception as exc:
-                (exc_type, exc_val, exc_tb) = sys.exc_info()
-                span.set_exc_info(exc_type, exc_val, exc_tb)
-                self.handle_exception_span(exc, span)
-                raise
             except BaseException as exception:
-                # managing python 3.11+ BaseExceptionGroup with compatible code for 3.10 and below
+                # Check for BlockingException in BaseExceptionGroup (Python 3.11+)
                 if exc := find_exception(exception, BlockingException):
                     set_blocked(exc.args[0])
                     return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
+
+                # Log regular exceptions
+                if isinstance(exception, Exception):
+                    (exc_type, exc_val, exc_tb) = sys.exc_info()
+                    span.set_exc_info(exc_type, exc_val, exc_tb)
+                    self.handle_exception_span(exception, span)
+
                 raise
             finally:
                 core.dispatch("web.request.final_tags", (span,))
