@@ -260,7 +260,8 @@ class _ListHook(_EndpointHook):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
         if not resp:
             return
-        span.set_metric("openai.response.count", len(resp.data or []))
+        if hasattr(resp, "data"):
+            span.set_metric("openai.response.count", len(resp.data or []))
         return resp
 
 
