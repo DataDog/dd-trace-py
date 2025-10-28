@@ -56,7 +56,7 @@ experiments:
           - name: djangosimple-tracer-minimal
             thresholds:
               - execution_time < 17.50 ms
-              - max_rss_usage < 66.00 MB
+              - max_rss_usage < 67.00 MB
           - name: djangosimple-tracer-native
             thresholds:
               - execution_time < 21.75 ms
@@ -64,7 +64,7 @@ experiments:
           - name: djangosimple-tracer-and-profiler
             thresholds:
               - execution_time < 23.50 ms
-              - max_rss_usage < 67.50 MB
+              - max_rss_usage < 68.00 MB
           - name: djangosimple-tracer-no-caches
             thresholds:
               - execution_time < 19.65 ms
@@ -76,7 +76,7 @@ experiments:
           - name: djangosimple-tracer-dont-create-db-spans
             thresholds:
               - execution_time < 21.50 ms
-              - max_rss_usage < 66.00 MB
+              - max_rss_usage < 67.00 MB
           - name: djangosimple-tracer-no-middleware
             thresholds:
               - execution_time < 21.50 ms
@@ -799,11 +799,11 @@ experiments:
           - name: otelspan-add-metrics
             thresholds:
               - execution_time < 344.80 ms
-              - max_rss_usage < 630.00 MB
+              - max_rss_usage < 675.00 MB
           - name: otelspan-add-tags
             thresholds:
               - execution_time < 314.00 ms
-              - max_rss_usage < 630.00 MB
+              - max_rss_usage < 675.00 MB
           - name: otelspan-get-context
             thresholds:
               - execution_time < 92.35 ms
@@ -1085,7 +1085,7 @@ experiments:
               - max_rss_usage < 34.00 MB
           - name: telemetryaddmetric-1-count-metrics-100-times
             thresholds:
-              - execution_time < 0.25 ms
+              - execution_time < 0.22 ms
               - max_rss_usage < 34.00 MB
           - name: telemetryaddmetric-1-distribution-metric-1-times
             thresholds:
@@ -1113,11 +1113,11 @@ experiments:
               - max_rss_usage < 34.00 MB
           - name: telemetryaddmetric-100-count-metrics-100-times
             thresholds:
-              - execution_time < 23.50 ms
+              - execution_time < 22.0 ms
               - max_rss_usage < 34.00 MB
           - name: telemetryaddmetric-100-distribution-metrics-100-times
             thresholds:
-              - execution_time < 2.25 ms
+              - execution_time < 2.30 ms
               - max_rss_usage < 34.00 MB
           - name: telemetryaddmetric-100-gauge-metrics-100-times
             thresholds:

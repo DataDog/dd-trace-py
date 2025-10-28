@@ -7,7 +7,6 @@ from typing import Union
 
 from wrapt.importer import when_imported
 
-from ddtrace.appsec._listeners import load_common_appsec_modules
 from ddtrace.internal.compat import Path
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.settings._config import config
@@ -58,7 +57,6 @@ PATCH_MODULES = {
     "kafka": True,
     "langgraph": True,
     "litellm": True,
-    "mongoengine": True,
     "mysql": True,
     "mysqldb": True,
     "pymysql": True,
@@ -362,8 +360,6 @@ def _patch_all(**patch_modules: bool) -> None:
     modules.update(patch_modules)
 
     patch(raise_errors=False, **modules)
-
-    load_common_appsec_modules()
 
 
 def patch(raise_errors=True, **patch_modules):

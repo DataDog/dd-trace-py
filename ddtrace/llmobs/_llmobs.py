@@ -669,8 +669,12 @@ class LLMObs(Service):
             self._llmobs_context_provider.activate(llmobs_ctx)
 
     @classmethod
-    def pull_dataset(cls, dataset_name: str, project_name: Optional[str] = None) -> Dataset:
-        ds = cls._instance._dne_client.dataset_get_with_records(dataset_name, (project_name or cls._project_name))
+    def pull_dataset(
+        cls, dataset_name: str, project_name: Optional[str] = None, version: Optional[int] = None
+    ) -> Dataset:
+        ds = cls._instance._dne_client.dataset_get_with_records(
+            dataset_name, (project_name or cls._project_name), version
+        )
         return ds
 
     @classmethod
@@ -771,6 +775,7 @@ class LLMObs(Service):
         dataset: Dataset,
         evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], JSONType]],
         description: str = "",
+        project_name: Optional[str] = None,
         tags: Optional[Dict[str, str]] = None,
         config: Optional[ExperimentConfigType] = None,
         summary_evaluators: Optional[
@@ -788,9 +793,14 @@ class LLMObs(Service):
         :param dataset: The dataset to run the experiment on, created with LLMObs.pull/create_dataset().
         :param evaluators: A list of evaluator functions to evaluate the task output.
                            Must accept parameters ``input_data``, ``output_data``, and ``expected_output``.
+        :param project_name: The name of the project to save the experiment to.
         :param description: A description of the experiment.
         :param tags: A dictionary of string key-value tag pairs to associate with the experiment.
         :param config: A configuration dictionary describing the experiment.
+        :param summary_evaluators: A list of summary evaluator functions to evaluate the task results and evaluations
+                                   to produce a single value.
+                                   Must accept parameters ``inputs``, ``outputs``, ``expected_outputs``,
+                                   ``evaluators_results``.
         """
         if not callable(task):
             raise TypeError("task must be a callable function.")
@@ -825,7 +835,7 @@ class LLMObs(Service):
             task,
             dataset,
             evaluators,
-            project_name=cls._project_name,
+            project_name=project_name or cls._project_name,
             tags=tags,
             description=description,
             config=config,
@@ -1624,7 +1634,7 @@ class LLMObs(Service):
                                     If not set, the current time will be used.
         :param dict metadata: A JSON serializable dictionary of key-value metadata pairs relevant to the
                                 evaluation metric.
-        :param str assessment: An assessment of the validity of this evaluation. Must be either "pass" or "fail".
+        :param str assessment: An assessment of this evaluation. Must be either "pass" or "fail".
         :param str reasoning: An explanation of the evaluation result.
         """
         if span_context is not None:

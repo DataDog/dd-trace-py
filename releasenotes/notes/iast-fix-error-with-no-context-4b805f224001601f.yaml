@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    IAST: Fixed an issue where using weak hashing or cipher algorithms outside of a request context 
+    (e.g., during application startup) could raise an unhandled exception. The fix ensures proper error 
+    handling when IAST operations are performed without an active request context.

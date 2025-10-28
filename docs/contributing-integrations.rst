@@ -204,7 +204,6 @@ are not yet any expected spans stored for it, so we need to create some.
 
     mongo:
     - ddtrace/contrib/internal/pymongo/*
-    - ddtrace/contrib/internal/mongoengine/*
     - ddtrace/ext/mongo.py
 
 15. Add a `suite` for your integration in `tests/contrib/suitespec.yml`. This defines test configuration

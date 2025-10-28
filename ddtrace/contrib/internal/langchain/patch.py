@@ -5,7 +5,6 @@ from typing import Optional
 from typing import Tuple
 
 import langchain_core
-import wrapt
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
@@ -14,6 +13,7 @@ from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.internal import core
+from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
@@ -45,7 +45,7 @@ def _extract_model_name(instance: Any) -> Optional[str]:
 
 
 def _raising_dispatch(event_id: str, args: Tuple[Any, ...] = ()):
-    result = core.dispatch_with_results(event_id, args)
+    result = core.dispatch_with_results(event_id, args)  # ast-grep-ignore: core-dispatch-with-results
     if len(result) > 0:
         for event in result.values():
             # we explicitly set the exception as a value to prevent caught exceptions from leaking
@@ -320,10 +320,13 @@ def traced_chat_stream(langchain_core, pin, func, instance, args, kwargs):
         integration.record_instance(instance, span)
 
     def _on_span_finished(span: Span, streamed_chunks):
-        joined_chunks = streamed_chunks[0]
-        for chunk in streamed_chunks[1:]:
-            joined_chunks += chunk  # base message types support __add__ for concatenation
         kwargs["_dd.identifying_params"] = instance._identifying_params
+        if len(streamed_chunks):
+            joined_chunks = streamed_chunks[0]
+            for chunk in streamed_chunks[1:]:
+                joined_chunks += chunk  # base message types support __add__ for concatenation
+        else:
+            joined_chunks = []
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=joined_chunks, operation="chat")
 
     return shared_stream(
@@ -587,11 +590,11 @@ def patched_embeddings_init_subclass(func, instance, args, kwargs):
 
     try:
         embed_documents = getattr(cls, "embed_documents", None)
-        if embed_documents and not isinstance(embed_documents, wrapt.ObjectProxy):
+        if embed_documents and not is_wrapted(embed_documents):
             wrap(cls, "embed_documents", traced_embedding(langchain_core))
 
         embed_query = getattr(cls, "embed_query", None)
-        if embed_query and not isinstance(embed_query, wrapt.ObjectProxy):
+        if embed_query and not is_wrapted(embed_query):
             wrap(cls, "embed_query", traced_embedding(langchain_core))
     except Exception:
         log.warning("Unable to patch LangChain Embeddings class %s", str(cls))
@@ -603,7 +606,7 @@ def patched_vectorstore_init_subclass(func, instance, args, kwargs):
 
     try:
         method = getattr(cls, "similarity_search", None)
-        if method and not isinstance(method, wrapt.ObjectProxy):
+        if method and not is_wrapted(method):
             wrap(cls, "similarity_search", traced_similarity_search(langchain_core))
     except Exception:
         log.warning("Unable to patch LangChain VectorStore class %s", str(cls))
