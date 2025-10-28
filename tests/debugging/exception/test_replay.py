@@ -57,18 +57,6 @@ def test_exception_replay_config_enabled(monkeypatch):
     assert er_config.enabled
 
 
-def test_exception_replay_config_enabled_deprecated(monkeypatch):
-    monkeypatch.setenv("DD_EXCEPTION_DEBUGGING_ENABLED", "1")
-
-    er_config = ExceptionReplayConfig()
-    assert er_config.enabled
-
-    monkeypatch.setenv("DD_EXCEPTION_REPLAY_ENABLED", "false")
-
-    er_config = ExceptionReplayConfig()
-    assert not er_config.enabled
-
-
 def test_exception_chain_ident():
     def a(v, d=None):
         if not v:
