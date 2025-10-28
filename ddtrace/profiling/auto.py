@@ -7,4 +7,3 @@ log = get_logger(__name__)
 log.debug("Enabling the profiler by auto import")
 
 start_profiler = sitecustomize.start_profiler
-# sitecustomize.start_profiler()
