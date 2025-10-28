@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix the Python Detector regular expression so it also detects paths ending with only the major version number.
