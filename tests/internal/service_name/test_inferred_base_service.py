@@ -8,9 +8,9 @@ from unittest.mock import patch
 
 import pytest
 
+from ddtrace.settings._inferred_base_service import PythonDetector
 from ddtrace.settings._inferred_base_service import _module_exists
 from ddtrace.settings._inferred_base_service import detect_service
-from ddtrace.settings._inferred_base_service import PythonDetector
 
 
 @pytest.fixture
