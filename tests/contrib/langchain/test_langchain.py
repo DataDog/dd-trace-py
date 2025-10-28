@@ -539,3 +539,17 @@ def test_base_tool_invoke_non_json_serializable_config(langchain_core):
     )
 
     calculator.invoke("2", config={"unserializable": object()})
+
+
+@pytest.mark.snapshot(ignores=["meta.error.stack", "meta.error.message"])
+def test_streamed_chat_model_with_no_output(langchain_openai, openai_url):
+    from openai import APITimeoutError
+
+    chat_model = langchain_openai.ChatOpenAI(base_url=openai_url, timeout=0.0001)
+
+    result = chat_model.stream("Hello, my name is")
+    try:
+        next(result)
+    except Exception as e:
+        if not isinstance(e, APITimeoutError):
+            assert False, f"Expected APITimeoutError, got {e}"
