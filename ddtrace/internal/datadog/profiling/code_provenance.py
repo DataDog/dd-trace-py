@@ -105,8 +105,8 @@ class CodeProvenance:
 
 # Initialize once at import to avoid reinitializing this in every child process.
 # This can add up and show up as a significant overhead.
-_code_provenance_instance = CodeProvenance()
+CODE_PROVENANCE_JSON_STR = json.dumps(CodeProvenance().to_dict())
 
 
 def json_str_to_export() -> str:
-    return json.dumps(_code_provenance_instance.to_dict())
+    return CODE_PROVENANCE_JSON_STR
