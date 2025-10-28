@@ -104,7 +104,9 @@ class CodeProvenance:
 
 
 # Initialize once at import to avoid reinitializing this in every child process.
-# This can add up and show up as a significant overhead.
+# This can add up and show up as a significant overhead, especially in a service
+# with many packages installed, and many short lived child processes serving
+# requests.
 CODE_PROVENANCE_JSON_STR = json.dumps(CodeProvenance().to_dict())
 
 
