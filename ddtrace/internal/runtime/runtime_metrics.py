@@ -123,14 +123,13 @@ class RuntimeWorker(periodic.PeriodicService):
     @classmethod
     def enable(
         cls,
-        flush_interval: Optional[float] = DEFAULT_RUNTIME_METRICS_INTERVAL,
         tracer: Optional[ddtrace.trace.Tracer] = None,
         dogstatsd_url: Optional[str] = None,
     ) -> None:
         with cls._lock:
             if cls._instance is not None:
                 return
-            runtime_worker = cls(flush_interval, tracer, dogstatsd_url)
+            runtime_worker = cls(DEFAULT_RUNTIME_METRICS_INTERVAL, tracer, dogstatsd_url)
             runtime_worker.start()
 
             forksafe.register(cls._restart)
