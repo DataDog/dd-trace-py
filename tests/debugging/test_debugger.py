@@ -743,7 +743,7 @@ def test_debugger_function_probe_duration(duration):
 
 
 def test_debugger_condition_eval_then_rate_limit(stuff):
-    with debugger(upload_flush_interval=float("inf")) as d:
+    with debugger(upload_interval_seconds=float("inf")) as d:
         d.add_probes(
             create_snapshot_line_probe(
                 probe_id="foo",
@@ -771,7 +771,7 @@ def test_debugger_condition_eval_then_rate_limit(stuff):
 
 
 def test_debugger_condition_eval_error_get_reported_once(stuff):
-    with debugger(upload_flush_interval=float("inf")) as d:
+    with debugger(upload_interval_seconds=float("inf")) as d:
         d.add_probes(
             create_snapshot_line_probe(
                 probe_id="foo",
@@ -889,7 +889,7 @@ def test_debugger_lambda_fuction_access_locals(stuff):
 
 
 def test_debugger_log_line_probe_generate_messages(stuff):
-    with debugger(upload_flush_interval=float("inf")) as d:
+    with debugger(upload_interval_seconds=float("inf")) as d:
         d.add_probes(
             create_log_line_probe(
                 probe_id="foo",
@@ -1073,7 +1073,7 @@ class SpanProbeTestCase(TracerTestCase):
 
 
 def test_debugger_modified_probe(stuff):
-    with debugger(upload_flush_interval=float("inf")) as d:
+    with debugger(upload_interval_seconds=float("inf")) as d:
         d.add_probes(
             create_log_line_probe(
                 probe_id="foo",
@@ -1131,7 +1131,7 @@ def test_debugger_continue_wrapping_after_first_failure():
 def test_debugger_redacted_identifiers():
     import tests.submod.stuff as stuff
 
-    with debugger(upload_flush_interval=float("inf")) as d:
+    with debugger(upload_interval_seconds=float("inf")) as d:
         d.add_probes(
             create_snapshot_line_probe(
                 probe_id="foo",
@@ -1230,7 +1230,7 @@ def test_debugger_redacted_identifiers():
 def test_debugger_redaction_excluded_identifiers():
     import tests.submod.stuff as stuff
 
-    with debugger(upload_flush_interval=float("inf"), redaction_excluded_identifiers=frozenset(["token"])) as d:
+    with debugger(upload_interval_seconds=float("inf"), redaction_excluded_identifiers=frozenset(["token"])) as d:
         d.add_probes(
             create_snapshot_line_probe(
                 probe_id="foo",
