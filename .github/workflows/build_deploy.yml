@@ -50,8 +50,12 @@ jobs:
                 "$GITHUB_REF_NAME" =~ ^[0-9]+\.x$ ]]; then
             LIBRARY_VERSION=$(setuptools-scm --strip-dev)
           else
-            # All else, maintain the dev version
+            # use version string explicitly set in the project metadata, if exists
             LIBRARY_VERSION=$(grep '^version = ' pyproject.toml | tr -d '"' | cut -d' ' -f3)
+            if [[ -z $LIBRARY_VERSION ]]; then
+              # All else, maintain the dev version
+              LIBRARY_VERSION=$(setuptools-scm)
+            fi
           fi
 
           echo "${LIBRARY_VERSION}" | tee version.txt
