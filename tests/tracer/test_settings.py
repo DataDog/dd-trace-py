@@ -208,6 +208,8 @@ def test_x_datadog_tags(env, expected):
 @pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 9), reason="Additional deprecation warning under Python 3.8")
 @pytest.mark.subprocess()
 def test_config_exception_deprecation():
+    import warnings
+
     with warnings.catch_warnings(record=True) as warns:
         warnings.simplefilter("default")
 
@@ -224,6 +226,8 @@ def test_config_exception_deprecation():
 @pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 9), reason="Additional deprecation warning under Python 3.8")
 @pytest.mark.subprocess()
 def test_http_config_deprecation():
+    import warnings
+
     with warnings.catch_warnings(record=True) as warns:
         warnings.simplefilter("default")
 
@@ -239,6 +243,8 @@ def test_http_config_deprecation():
 @pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 9), reason="Additional deprecation warning under Python 3.8")
 @pytest.mark.subprocess()
 def test_hooks_deprecation():
+    import warnings
+
     with warnings.catch_warnings(record=True) as warns:
         warnings.simplefilter("default")
 
@@ -254,6 +260,8 @@ def test_hooks_deprecation():
 @pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 9), reason="Additional deprecation warning under Python 3.8")
 @pytest.mark.subprocess()
 def test_integration_config_deprecation():
+    import warnings
+
     with warnings.catch_warnings(record=True) as warns:
         warnings.simplefilter("default")
 
