@@ -286,40 +286,117 @@ def _patched_endpoint(openai, patch_hook):
     return patched_endpoint(openai)
 
 
+class _TracedAsyncPaginator:
+    """Wrapper for AsyncPaginator objects to enable tracing for both await and async for usage."""
+
+    def __init__(self, paginator, pin, integration, patch_hook, instance, args, kwargs):
+        self._paginator = paginator
+        self._pin = pin
+        self._integration = integration
+        self._patch_hook = patch_hook
+        self._instance = instance
+        self._args = args
+        self._kwargs = kwargs
+
+    def __aiter__(self):
+        async def _traced_aiter():
+            g = _traced_endpoint(
+                self._patch_hook, self._integration, self._instance, self._pin, self._args, self._kwargs
+            )
+            g.send(None)
+            err = None
+            completed = False
+            try:
+                iterator = self._paginator.__aiter__()
+                # Fetch first item to trigger trace completion before iteration starts.
+                # This ensures the span is recorded even if iteration stops early.
+                first_item = await iterator.__anext__()
+                try:
+                    g.send((None, None))
+                    completed = True
+                except StopIteration:
+                    completed = True
+                yield first_item
+                async for item in iterator:
+                    yield item
+            except StopAsyncIteration:
+                pass
+            except BaseException as e:
+                err = e
+                raise
+            finally:
+                if not completed:
+                    try:
+                        g.send((None, err))
+                    except StopIteration:
+                        pass
+
+        return _traced_aiter()
+
+    def __await__(self):
+        async def _trace_and_await():
+            g = _traced_endpoint(
+                self._patch_hook, self._integration, self._instance, self._pin, self._args, self._kwargs
+            )
+            g.send(None)
+            resp, err = None, None
+            try:
+                resp = await self._paginator
+            except BaseException as e:
+                err = e
+                raise
+            finally:
+                try:
+                    g.send((resp, err))
+                except StopIteration as e:
+                    if err is None:
+                        return e.value
+            return resp
+
+        return _trace_and_await().__await__()
+
+
 def _patched_endpoint_async(openai, patch_hook):
-    # Same as _patched_endpoint but async
     @with_traced_module
-    async def patched_endpoint(openai, pin, func, instance, args, kwargs):
+    def patched_endpoint(openai, pin, func, instance, args, kwargs):
         if (
             patch_hook is _endpoint_hooks._ChatCompletionWithRawResponseHook
             or patch_hook is _endpoint_hooks._CompletionWithRawResponseHook
         ):
             kwargs[OPENAI_WITH_RAW_RESPONSE_ARG] = True
-            return await func(*args, **kwargs)
+            return func(*args, **kwargs)
         if kwargs.pop(OPENAI_WITH_RAW_RESPONSE_ARG, False) and kwargs.get("stream", False):
-            return await func(*args, **kwargs)
+            return func(*args, **kwargs)
 
-        integration = openai._datadog_integration
-        g = _traced_endpoint(patch_hook, integration, instance, pin, args, kwargs)
-        g.send(None)
-        resp, err = None, None
-        override_return = None
-        try:
-            resp = await func(*args, **kwargs)
-        except BaseException as e:
-            err = e
-            raise
-        finally:
+        result = func(*args, **kwargs)
+        # Detect AsyncPaginator objects (have both __aiter__ and __await__).
+        # These must be returned directly (not awaited) to preserve iteration behavior.
+        if hasattr(result, "__aiter__") and hasattr(result, "__await__"):
+            return _TracedAsyncPaginator(result, pin, openai._datadog_integration, patch_hook, instance, args, kwargs)
+
+        async def async_wrapper():
+            integration = openai._datadog_integration
+            g = _traced_endpoint(patch_hook, integration, instance, pin, args, kwargs)
+            g.send(None)
+            resp, err = None, None
+            override_return = None
             try:
-                g.send((resp, err))
-            except StopIteration as e:
-                if err is None:
-                    # This return takes priority over `return resp`
-                    override_return = e.value
+                resp = await result
+            except BaseException as e:
+                err = e
+                raise
+            finally:
+                try:
+                    g.send((resp, err))
+                except StopIteration as e:
+                    if err is None:
+                        override_return = e.value
 
-        if override_return is not None:
-            return override_return
-        return resp
+            if override_return is not None:
+                return override_return
+            return resp
+
+        return async_wrapper()
 
     return patched_endpoint(openai)
 
