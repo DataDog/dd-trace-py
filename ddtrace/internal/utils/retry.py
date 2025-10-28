@@ -67,7 +67,7 @@ def retry_on_exceptions(
                     return f(*args, **kwargs)
                 except Exception as e:
                     if not isinstance(e, exceptions):
-                        raise  # Not a retriable exception, don't keep retrying
+                        raise  # Not a retriable exception, don't keep retrying.
                     sleep(delay)
 
             # Last chance to succeed. If it fails, we don't catch the exception.
