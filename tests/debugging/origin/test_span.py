@@ -1,3 +1,4 @@
+from functools import partial
 from pathlib import Path
 import typing as t
 
@@ -15,6 +16,14 @@ from tests.utils import TracerTestCase
 
 class MockSpanCodeOriginProcessorEntry(SpanCodeOriginProcessorEntry):
     __uploader__ = MockSignalUploader
+
+    @classmethod
+    def enable(cls):
+        super().enable()
+
+        @partial(core.on, "service_entrypoint.patch")
+        def _(f: t.Callable) -> None:
+            cls.instrument_view(f)
 
     @classmethod
     def get_uploader(cls) -> MockSignalUploader:
