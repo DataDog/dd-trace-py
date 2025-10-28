@@ -1,5 +1,3 @@
-import warnings
-
 import pytest
 
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
