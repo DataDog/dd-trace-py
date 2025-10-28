@@ -1,5 +1,6 @@
 [build]
 rustflags = ["-C", "relocation-model=pic"]
+incremental = false
 
 [target.'cfg(target_os = "windows")']
 rustflags = [
