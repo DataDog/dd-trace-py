@@ -393,7 +393,7 @@ class logger:
         """
         Set the log level for the logger.
 
-        :param level: Log level ("trace", "debug", "info", "warn", or "error")
+        :param level: Log level ("trace", "debug", "info", "warning", or "error")
         :raises ValueError: If log level is invalid
         """
         ...

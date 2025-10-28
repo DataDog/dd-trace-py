@@ -46,7 +46,7 @@ RAGAS_AVAILABLE = os.getenv("RAGAS_AVAILABLE", False)
 
 def run_llmobs_trace_filter(dummy_tracer):
     with dummy_tracer.trace("span1", span_type=SpanTypes.LLM) as span:
-        span.set_tag_str(SPAN_KIND, "llm")
+        span._set_tag_str(SPAN_KIND, "llm")
     return dummy_tracer._span_aggregator.writer.pop()
 
 
@@ -1879,7 +1879,7 @@ def test_submit_evaluation_enqueues_writer_with_assessment(llmobs, mock_llmobs_e
         tags={"foo": "bar", "bee": "baz", "ml_app": "ml_app_override"},
         ml_app="ml_app_override",
         metadata={"foo": ["bar", "baz"]},
-        assessment="pass",
+        assessment="fail",
     )
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
         _expected_llmobs_eval_metric_event(
@@ -1891,7 +1891,7 @@ def test_submit_evaluation_enqueues_writer_with_assessment(llmobs, mock_llmobs_e
             categorical_value="high",
             tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
             metadata={"foo": ["bar", "baz"]},
-            assessment="pass",
+            assessment="fail",
         )
     )
     mock_llmobs_eval_metric_writer.reset()

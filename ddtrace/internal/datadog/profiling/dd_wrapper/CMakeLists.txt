@@ -81,8 +81,7 @@ string(TOLOWER ${PLATFORM_SUFFIX} PLATFORM_SUFFIX)
 # but as long as it encodes the major moving parts, it's fine
 
 if(DEFINED EXTENSION_SUFFIX)
-    # EXTENSION_SUFFIX already contains .so (both Linux and macOS Python extensions use .so) but CMake will add its own
-    # extension (.so on Linux, .dylib on macOS) So we need to strip the .so extension to avoid double extensions
+    # Strip the .so extension from EXTENSION_SUFFIX since we'll force .so via SUFFIX
     string(REGEX REPLACE "\\.so$" "" EXTENSION_SUFFIX_NO_EXT "${EXTENSION_SUFFIX}")
     set(DD_WRAPPER_TARGET_NAME "dd_wrapper${EXTENSION_SUFFIX_NO_EXT}")
 else()
@@ -90,6 +89,8 @@ else()
 endif()
 
 set_target_properties(dd_wrapper PROPERTIES OUTPUT_NAME "${DD_WRAPPER_TARGET_NAME}")
+# Force .so extension for both Linux and macOS to match Python extension expectations
+set_target_properties(dd_wrapper PROPERTIES SUFFIX ".so")
 if(APPLE)
     set_target_properties(dd_wrapper PROPERTIES BUILD_RPATH "@loader_path/../../native" INSTALL_RPATH
                                                                                         "@loader_path/../../native")
@@ -114,14 +115,13 @@ if(INPLACE_LIB_INSTALL_DIR)
     set(LIB_INSTALL_DIR "${INPLACE_LIB_INSTALL_DIR}")
 endif()
 
-# If LIB_INSTALL_DIR is set, install the library. Install one directory up--ddup, crashtracker, and stackv2 are set to
-# the same relative level.
+# If LIB_INSTALL_DIR is set, install the library to the specified directory.
 if(LIB_INSTALL_DIR)
     install(
         TARGETS dd_wrapper
-        LIBRARY DESTINATION ${LIB_INSTALL_DIR}/..
-        ARCHIVE DESTINATION ${LIB_INSTALL_DIR}/..
-        RUNTIME DESTINATION ${LIB_INSTALL_DIR}/..)
+        LIBRARY DESTINATION ${LIB_INSTALL_DIR}
+        ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
+        RUNTIME DESTINATION ${LIB_INSTALL_DIR})
 endif()
 
 # Configure cppcheck

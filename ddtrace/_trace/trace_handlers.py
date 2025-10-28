@@ -187,8 +187,8 @@ def _finish_span(
 
 
 def _set_web_frameworks_tags(ctx, span, int_config):
-    span.set_tag_str(COMPONENT, int_config.integration_name)
-    span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
+    span._set_tag_str(COMPONENT, int_config.integration_name)
+    span._set_tag_str(SPAN_KIND, SpanKind.SERVER)
     # PERF: avoid setting via Span.set_tag
     span.set_metric(_SPAN_MEASURED_KEY, 1)
 
@@ -223,7 +223,7 @@ def _on_web_framework_finish_request(
     )
     _set_inferred_proxy_tags(span, status_code)
     for tk, tv in core.get_item("additional_tags", default=dict()).items():
-        span.set_tag_str(tk, tv)
+        span._set_tag_str(tk, tv)
 
     if finish:
         span.finish()
@@ -308,7 +308,7 @@ def _maybe_start_http_response_span(ctx: core.ExecutionContext) -> None:
         request_span, middleware._config, status_code=status_code, response_headers=ctx.get_item("environ")
     )
     if ctx.get_item("start_span", False):
-        request_span.set_tag_str(http.STATUS_MSG, status_msg)
+        request_span._set_tag_str(http.STATUS_MSG, status_msg)
         _start_span(
             ctx,
             call_trace=False,
@@ -320,9 +320,9 @@ def _maybe_start_http_response_span(ctx: core.ExecutionContext) -> None:
 def _on_request_prepare(ctx, start_response):
     middleware = ctx.get_item("middleware")
     req_span = ctx.get_item("req_span")
-    req_span.set_tag_str(COMPONENT, middleware._config.integration_name)
+    req_span._set_tag_str(COMPONENT, middleware._config.integration_name)
     # set span.kind to the type of operation being performed
-    req_span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
+    req_span._set_tag_str(SPAN_KIND, SpanKind.SERVER)
     if hasattr(middleware, "_request_call_modifier"):
         modifier = middleware._request_call_modifier
         args = [ctx]
@@ -336,7 +336,7 @@ def _on_request_prepare(ctx, start_response):
         else middleware._application_span_name
     )
 
-    app_span.set_tag_str(COMPONENT, middleware._config.integration_name)
+    app_span._set_tag_str(COMPONENT, middleware._config.integration_name)
     ctx.set_item("app_span", app_span)
 
     if hasattr(middleware, "_wrapped_start_response"):
@@ -385,7 +385,7 @@ def _on_request_complete(ctx, closing_iterable, app_is_iterator):
         activate=True,
     )
 
-    resp_span.set_tag_str(COMPONENT, middleware._config.integration_name)
+    resp_span._set_tag_str(COMPONENT, middleware._config.integration_name)
 
     modifier = (
         middleware._response_call_modifier
@@ -401,7 +401,7 @@ def _on_response_prepared(resp_span, response):
     if hasattr(response, "__class__"):
         resp_class = getattr(response.__class__, "__name__", None)
         if resp_class:
-            resp_span.set_tag_str("result_class", resp_class)
+            resp_span._set_tag_str("result_class", resp_class)
 
 
 def _on_request_prepared(middleware, req_span, url, request_headers, environ):
@@ -416,19 +416,19 @@ def _on_request_prepared(middleware, req_span, url, request_headers, environ):
 
 def _set_flask_request_tags(request, span, flask_config):
     try:
-        span.set_tag_str(COMPONENT, flask_config.integration_name)
+        span._set_tag_str(COMPONENT, flask_config.integration_name)
 
         if span.name.split(".")[-1] == "request":
-            span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
+            span._set_tag_str(SPAN_KIND, SpanKind.SERVER)
 
         # DEV: This name will include the blueprint name as well (e.g. `bp.index`)
         if not span.get_tag(FLASK_ENDPOINT) and request.endpoint:
             span.resource = " ".join((request.method, request.endpoint))
-            span.set_tag_str(FLASK_ENDPOINT, request.endpoint)
+            span._set_tag_str(FLASK_ENDPOINT, request.endpoint)
 
         if not span.get_tag(FLASK_URL_RULE) and request.url_rule and request.url_rule.rule:
             span.resource = " ".join((request.method, request.url_rule.rule))
-            span.set_tag_str(FLASK_URL_RULE, request.url_rule.rule)
+            span._set_tag_str(FLASK_URL_RULE, request.url_rule.rule)
 
         if not span.get_tag(FLASK_VIEW_ARGS) and request.view_args and flask_config.get("collect_view_args"):
             for k, v in request.view_args.items():
@@ -487,7 +487,7 @@ def _on_flask_render(template, flask_config):
     name = maybe_stringify(getattr(template, "name", None) or flask_config.get("template_default_name"))
     if name is not None:
         span.resource = name
-        span.set_tag_str("flask.template_name", name)
+        span._set_tag_str("flask.template_name", name)
 
 
 def _on_request_span_modifier(
@@ -504,7 +504,7 @@ def _on_request_span_modifier(
     # PERF: avoid setting via Span.set_tag
     span.set_metric(_SPAN_MEASURED_KEY, 1)
 
-    span.set_tag_str(flask_version, flask_version_str)
+    span._set_tag_str(flask_version, flask_version_str)
 
 
 def _on_request_span_modifier_post(ctx, flask_config, request, req_body):
@@ -589,7 +589,7 @@ def _on_django_func_wrapped(_unused1, _unused2, _unused3, ctx, ignored_excs):
 
 def _on_django_block_request(ctx: core.ExecutionContext, metadata: Dict[str, str], django_config, url: str, query: str):
     for tk, tv in metadata.items():
-        ctx.span.set_tag_str(tk, tv)
+        ctx.span._set_tag_str(tk, tv)
     _set_url_tag(django_config, ctx.span, url, query)
 
 
@@ -717,8 +717,8 @@ def _on_botocore_patched_bedrock_api_call_started(ctx, request_params):
     integration = ctx.get_item("bedrock_integration")
     integration._tag_proxy_request(ctx)
 
-    span.set_tag_str("bedrock.request.model_provider", ctx.get_item("model_provider"))
-    span.set_tag_str("bedrock.request.model", ctx.get_item("model_name"))
+    span._set_tag_str("bedrock.request.model_provider", ctx.get_item("model_provider"))
+    span._set_tag_str("bedrock.request.model", ctx.get_item("model_name"))
 
     if "n" in request_params:
         ctx.set_item("num_generations", str(request_params["n"]))
@@ -749,7 +749,7 @@ def _after_job_execution(ctx, job_failed, span_tags):
         if job_failed:
             span.error = 1
         for k in span_tags.keys():
-            span.set_tag_str(k, span_tags[k])
+            span._set_tag_str(k, span_tags[k])
 
 
 def _on_end_of_traced_method_in_fork(ctx):
@@ -859,26 +859,26 @@ def _set_span_pointer(span: "Span", span_pointer_description: _SpanPointerDescri
 
 
 def _set_azure_function_tags(span, azure_functions_config, function_name, trigger, span_kind):
-    span.set_tag_str(COMPONENT, azure_functions_config.integration_name)
-    span.set_tag_str(SPAN_KIND, span_kind)
-    span.set_tag_str("aas.function.name", function_name)  # codespell:ignore
-    span.set_tag_str("aas.function.trigger", trigger)  # codespell:ignore
+    span._set_tag_str(COMPONENT, azure_functions_config.integration_name)
+    span._set_tag_str(SPAN_KIND, span_kind)
+    span._set_tag_str("aas.function.name", function_name)  # codespell:ignore
+    span._set_tag_str("aas.function.trigger", trigger)  # codespell:ignore
 
 
 def _set_azure_messaging_tags(ctx, entity_name, operation, system, fully_qualified_namespace, message_id, batch_count):
     span = ctx.span
-    span.set_tag_str(MESSAGING_DESTINATION_NAME, entity_name)
-    span.set_tag_str(MESSAGING_OPERATION, operation)
-    span.set_tag_str(MESSAGING_SYSTEM, system)
+    span._set_tag_str(MESSAGING_DESTINATION_NAME, entity_name)
+    span._set_tag_str(MESSAGING_OPERATION, operation)
+    span._set_tag_str(MESSAGING_SYSTEM, system)
 
     if fully_qualified_namespace is not None:
-        span.set_tag_str(net.TARGET_NAME, fully_qualified_namespace)
+        span._set_tag_str(net.TARGET_NAME, fully_qualified_namespace)
 
     if batch_count is not None:
-        span.set_tag_str(MESSAGING_BATCH_COUNT, batch_count)
+        span._set_tag_str(MESSAGING_BATCH_COUNT, batch_count)
 
     if message_id is not None:
-        span.set_tag_str(MESSAGING_MESSAGE_ID, message_id)
+        span._set_tag_str(MESSAGING_MESSAGE_ID, message_id)
 
 
 def _on_azure_functions_request_span_modifier(ctx, azure_functions_config, req):
@@ -943,8 +943,8 @@ def _on_azure_message_modifier(
     ctx, azure_config, operation, system, entity_name, fully_qualified_namespace, message_id, batch_count
 ):
     span = ctx.span
-    span.set_tag_str(COMPONENT, azure_config.integration_name)
-    span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+    span._set_tag_str(COMPONENT, azure_config.integration_name)
+    span._set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
 
     _set_azure_messaging_tags(ctx, entity_name, operation, system, fully_qualified_namespace, message_id, batch_count)
 
@@ -960,17 +960,17 @@ def _on_router_match(route):
     MOLTEN_ROUTE = "molten.route"
 
     if not req_span.get_tag(MOLTEN_ROUTE):
-        req_span.set_tag_str(MOLTEN_ROUTE, route.name)
+        req_span._set_tag_str(MOLTEN_ROUTE, route.name)
     if not req_span.get_tag(http.ROUTE):
-        req_span.set_tag_str(http.ROUTE, route.template)
+        req_span._set_tag_str(http.ROUTE, route.template)
 
 
 def _set_websocket_message_tags_on_span(websocket_span: Span, message: Mapping[str, Any]):
     if "text" in message:
-        websocket_span.set_tag_str(websocket.MESSAGE_TYPE, "text")
+        websocket_span._set_tag_str(websocket.MESSAGE_TYPE, "text")
         websocket_span.set_metric(websocket.MESSAGE_LENGTH, len(message["text"].encode("utf-8")))
     elif "binary" in message:
-        websocket_span.set_tag_str(websocket.MESSAGE_TYPE, "binary")
+        websocket_span._set_tag_str(websocket.MESSAGE_TYPE, "binary")
         websocket_span.set_metric(websocket.MESSAGE_LENGTH, len(message["bytes"]))
 
 
@@ -987,10 +987,10 @@ def _set_client_ip_tags(scope: Mapping[str, Any], span: Span):
     client = scope.get("client")
     if len(client) >= 1:  # type: ignore[arg-type]
         client_ip = client[0]  # type: ignore[index]
-        span.set_tag_str(net.TARGET_HOST, client_ip)
+        span._set_tag_str(net.TARGET_HOST, client_ip)
         try:
             is_valid_ip(client_ip)
-            span.set_tag_str("network.client.ip", client_ip)
+            span._set_tag_str("network.client.ip", client_ip)
         except ValueError as e:
             log.debug("Could not validate client IP address for websocket send message: %s", str(e))
 
@@ -1005,9 +1005,9 @@ def _on_asgi_websocket_receive_message(ctx, scope, message):
     span = ctx.span
     integration_config = ctx.get_item("integration_config")
 
-    span.set_tag_str(COMPONENT, integration_config.integration_name)
-    span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
-    span.set_tag_str(websocket.RECEIVE_DURATION_TYPE, "blocking")
+    span._set_tag_str(COMPONENT, integration_config.integration_name)
+    span._set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
+    span._set_tag_str(websocket.RECEIVE_DURATION_TYPE, "blocking")
 
     _set_websocket_message_tags_on_span(span, message)
 
@@ -1036,8 +1036,8 @@ def _on_asgi_websocket_send_message(ctx, scope, message):
     span = ctx.span
     integration_config = ctx.get_item("integration_config")
 
-    span.set_tag_str(COMPONENT, integration_config.integration_name)
-    span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+    span._set_tag_str(COMPONENT, integration_config.integration_name)
+    span._set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
     _set_client_ip_tags(scope, span)
     _set_websocket_message_tags_on_span(span, message)
 
@@ -1061,8 +1061,8 @@ def _on_asgi_websocket_close_message(ctx, scope, message):
     span = ctx.span
     integration_config = ctx.get_item("integration_config")
 
-    span.set_tag_str(COMPONENT, integration_config.integration_name)
-    span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+    span._set_tag_str(COMPONENT, integration_config.integration_name)
+    span._set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
 
     _set_client_ip_tags(scope, span)
 
@@ -1090,8 +1090,8 @@ def _on_asgi_websocket_disconnect_message(ctx, scope, message):
     span = ctx.span
     integration_config = ctx.get_item("integration_config")
 
-    span.set_tag_str(COMPONENT, integration_config.integration_name)
-    span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
+    span._set_tag_str(COMPONENT, integration_config.integration_name)
+    span._set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
 
     _set_websocket_close_tags(span, message)
 
@@ -1119,7 +1119,7 @@ def _on_asgi_request(ctx: core.ExecutionContext) -> None:
     ctx.set_item("req_span", span)
 
     if scope["type"] == "websocket":
-        span.set_tag_str("http.upgraded", "websocket")
+        span._set_tag_str("http.upgraded", "websocket")
 
     if "datadog" not in scope:
         scope["datadog"] = {"request_spans": [span]}
