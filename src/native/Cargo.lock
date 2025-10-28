@@ -487,6 +487,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "ctor"
+version = "0.2.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32a2785755761f3ddc1492979ce1e48d2c00d09311c39e4466429188f3dd6501"
+dependencies = [
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "data-pipeline"
 version = "21.0.0"
 source = "git+https://github.com/DataDog/libdatadog?rev=v21.0.0#4e1d7bb865885b48b4671fabc6643f0b5386f832"
@@ -771,6 +781,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "build_common",
+ "ctor",
  "data-pipeline",
  "datadog-crashtracker",
  "datadog-ddsketch",
@@ -778,8 +789,12 @@ dependencies = [
  "datadog-log",
  "datadog-profiling-ffi",
  "ddcommon",
+ "glob",
+ "paste",
+ "proc-macro2",
  "pyo3",
  "pyo3-build-config",
+ "syn",
  "tracing",
 ]
 
