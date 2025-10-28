@@ -10,6 +10,7 @@ import pytest
 
 from ddtrace.settings._inferred_base_service import _module_exists
 from ddtrace.settings._inferred_base_service import detect_service
+from ddtrace.settings._inferred_base_service import PythonDetector
 
 
 @pytest.fixture
@@ -240,3 +241,36 @@ def test_get_service(cmd, default, expected, testdir):
     )
 
     assert "AssertionError" not in result.stderr, "AssertionError found in stderr"
+
+
+@pytest.mark.parametrize(
+    "command,should_match,expected_capture",
+    [
+        ("python", True, "python"),
+        ("python3", True, "python3"),
+        ("python3.11", True, "python3.11"),
+        ("/usr/local/bin/python", True, "/python"),
+        ("/usr/local/bin/python3", True, "/python3"),
+        ("/usr/local/bin/python3.11", True, "/python3.11"),
+        ("python2", True, "python2"),
+        ("python3.9", True, "python3.9"),
+        ("/python", True, "/python"),
+        ("/python3", True, "/python3"),
+        ("python.py", False, None),  # Should not match .py files
+        ("/path/to/python.py", False, None),  # Should not match .py files
+        ("not-python", False, None),  # Should not match
+        ("pythonic", False, None),  # Should not match
+    ],
+)
+def test_python_detector_pattern_matching(command, should_match, expected_capture):
+    """Test that the PythonDetector regex pattern correctly matches various Python executable formats."""
+    detector = PythonDetector(dict(os.environ))
+
+    match = detector.pattern.search(command)
+
+    if should_match:
+        assert match is not None, f"Expected '{command}' to match but it didn't"
+        # The full match should contain the expected capture
+        assert expected_capture in match.group(0), f"Expected capture '{expected_capture}' not found in match '{match.group(0)}'"
+    else:
+        assert match is None, f"Expected '{command}' not to match but it did: {match.group(0) if match else None}"
