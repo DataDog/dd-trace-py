@@ -1,0 +1,5 @@
+---
+upgrade:
+  - |
+    LLM Observability: Public-facing APIs, including ``LLMObs.annotate()``, ``LLMObs.export_span()``, and ``LLMObs.submit_evaluation()`` now raise exceptions instead of logging. This does not affect auto-instrumentation.
+
