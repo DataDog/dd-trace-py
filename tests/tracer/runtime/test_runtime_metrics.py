@@ -165,7 +165,7 @@ class TestRuntimeWorker(TracerTestCase):
                             with self.start_span(
                                 "query", service="db", span_type=SpanTypes.SQL, child_of=child.context
                             ):
-                                time.sleep(interval * 4)
+                                time.sleep(4)
                                 # Get the mocked socket for inspection later
                                 statsd_socket = RuntimeWorker._instance._dogstatsd_client.socket
                                 received = [s.args[0].decode("utf-8") for s in statsd_socket.send.mock_calls]
