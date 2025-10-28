@@ -1,9 +1,6 @@
 import os
 from typing import Optional  # noqa:F401
 
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.vendor.debtcollector import deprecate
-
 from .._hooks import Hooks
 from ..internal.utils.attrdict import AttrDict
 from .http import HttpConfig
