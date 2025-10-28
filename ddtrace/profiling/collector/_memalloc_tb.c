@@ -301,14 +301,14 @@ traceback_to_tuple(traceback_t* tb)
 
         frame_t* frame = &tb->frames[nframe];
 
-        PyTuple_SET_ITEM(frame_tuple, 0, frame->filename);
         Py_INCREF(frame->filename);
+        PyTuple_SET_ITEM(frame_tuple, 0, frame->filename);
         PyTuple_SET_ITEM(frame_tuple, 1, PyLong_FromUnsignedLong(frame->lineno));
-        PyTuple_SET_ITEM(frame_tuple, 2, frame->name);
         Py_INCREF(frame->name);
+        PyTuple_SET_ITEM(frame_tuple, 2, frame->name);
         /* Class name */
-        PyTuple_SET_ITEM(frame_tuple, 3, empty_string);
         Py_INCREF(empty_string);
+        PyTuple_SET_ITEM(frame_tuple, 3, empty_string);
 
         // Try to set the class.  If we cannot (e.g., if the sofile is reloaded
         // without module initialization), then this will result in an error if
