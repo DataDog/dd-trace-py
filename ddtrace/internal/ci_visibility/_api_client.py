@@ -29,6 +29,8 @@ from ddtrace.internal.ci_visibility.constants import SKIPPABLE_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import SUITE
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.constants import TEST_MANAGEMENT_TESTS_ENDPOINT
+from ddtrace.internal.ci_visibility.errors import CIVisibilityAPIClientError
+from ddtrace.internal.ci_visibility.errors import CIVisibilityAPIServerError
 from ddtrace.internal.ci_visibility.errors import CIVisibilityAuthenticationException
 from ddtrace.internal.ci_visibility.git_data import GitData
 from ddtrace.internal.ci_visibility.telemetry.api_request import APIRequestMetricNames
@@ -51,7 +53,7 @@ from ddtrace.internal.utils.http import ConnectionType
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
 from ddtrace.internal.utils.http import verify_url
-from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
+from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter_on_exceptions
 from ddtrace.internal.utils.time import StopWatch
 
 
@@ -70,32 +72,6 @@ _CONFIGURATIONS_TYPE = t.Dict[str, t.Union[str, t.Dict[str, str]]]
 _KNOWN_TESTS_TYPE = t.Set[TestId]
 
 _NETWORK_ERRORS = (TimeoutError, socket.timeout, RemoteDisconnected)
-
-
-class TestVisibilitySettingsError(Exception):
-    __test__ = False
-    pass
-
-
-class TestVisibilitySkippableItemsError(Exception):
-    __test__ = False
-    pass
-
-
-class CIVisibilityAPIError(Exception):
-    def __init__(self, status: int) -> None:
-        self.status = status
-
-    def __str__(self) -> str:
-        return f"Error calling Test Optimization API (status: {self.status})"
-
-
-class CIVisibilityAPIClientError(CIVisibilityAPIError):
-    pass
-
-
-class CIVisibilityAPIServerError(CIVisibilityAPIError):
-    pass
 
 
 _RETRIABLE_ERRORS = (*_NETWORK_ERRORS, CIVisibilityAPIServerError)
@@ -320,7 +296,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             if conn is not None:
                 conn.close()
 
-    @fibonacci_backoff_with_jitter(attempts=5, until=lambda e: not isinstance(e, _RETRIABLE_ERRORS))
+    @fibonacci_backoff_with_jitter_on_exceptions(attempts=5, exceptions=_RETRIABLE_ERRORS)
     def _do_request_with_telemetry(
         self,
         method: str,

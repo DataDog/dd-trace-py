@@ -10,7 +10,6 @@ from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.ext.test_visibility import _get_default_test_visibility_contrib_config
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility._api_client import AgentlessTestVisibilityAPIClient
-from ddtrace.internal.ci_visibility._api_client import CIVisibilityAPIServerError
 from ddtrace.internal.ci_visibility._api_client import EVPProxyTestVisibilityAPIClient
 from ddtrace.internal.ci_visibility._api_client import ITRData
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
@@ -277,7 +276,7 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
             ],
         ) as mock_do_request:
             with mock.patch("ddtrace.internal.utils.retry.sleep"):
-                with pytest.raises(CIVisibilityAPIServerError):
+                with pytest.raises(socket.timeout):  # raises the last exception
                     _ = client.fetch_settings(read_from_cache=False)
 
         assert mock_do_request.call_count == 5
