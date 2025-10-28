@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    profiling: This fixes a memory safety issue in memory profiler traceback
-    serialization that could cause segmentation faults.
