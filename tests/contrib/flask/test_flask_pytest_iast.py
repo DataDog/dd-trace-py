@@ -3,7 +3,6 @@
 This test suite is actually used as fixture in end-to-end test
 for pytest IAST integration.
 """
-
 import urllib.parse
 
 import pytest

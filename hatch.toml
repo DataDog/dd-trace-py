@@ -15,9 +15,6 @@ dependencies = [
     "types-PyYAML==6.0.12.2",
     "types-setuptools==65.6.0.0",
     "ddapm-test-agent>=1.2.0",
-    # TODO: Remove this when we are compatible with wrapt>=2
-    #       ddapm-test-agent -> vcrpy -> wrapt
-    "wrapt<2",
     "packaging==23.1",
     "pygments==2.16.1",
     "riot==0.20.1",

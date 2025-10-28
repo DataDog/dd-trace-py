@@ -3,11 +3,11 @@ import os
 
 import aredis
 import pytest
-from wrapt import ObjectProxy
 
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.aredis.patch import patch
 from ddtrace.contrib.internal.aredis.patch import unpatch
+from ddtrace.internal.compat import is_wrapted
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
 from tests.utils import override_config
@@ -37,17 +37,17 @@ def test_patching():
     When unpatching aredis library
         We unwrap the correct methods
     """
-    assert isinstance(aredis.client.StrictRedis.execute_command, ObjectProxy)
-    assert isinstance(aredis.client.StrictRedis.pipeline, ObjectProxy)
-    assert isinstance(aredis.pipeline.StrictPipeline.execute, ObjectProxy)
-    assert isinstance(aredis.pipeline.StrictPipeline.immediate_execute_command, ObjectProxy)
+    assert is_wrapted(aredis.client.StrictRedis.execute_command)
+    assert is_wrapted(aredis.client.StrictRedis.pipeline)
+    assert is_wrapted(aredis.pipeline.StrictPipeline.execute)
+    assert is_wrapted(aredis.pipeline.StrictPipeline.immediate_execute_command)
 
     unpatch()
 
-    assert not isinstance(aredis.client.StrictRedis.execute_command, ObjectProxy)
-    assert not isinstance(aredis.client.StrictRedis.pipeline, ObjectProxy)
-    assert not isinstance(aredis.pipeline.StrictPipeline.execute, ObjectProxy)
-    assert not isinstance(aredis.pipeline.StrictPipeline.immediate_execute_command, ObjectProxy)
+    assert not is_wrapted(aredis.client.StrictRedis.execute_command)
+    assert not is_wrapted(aredis.client.StrictRedis.pipeline)
+    assert not is_wrapted(aredis.pipeline.StrictPipeline.execute)
+    assert not is_wrapted(aredis.pipeline.StrictPipeline.immediate_execute_command)
 
 
 @pytest.mark.asyncio

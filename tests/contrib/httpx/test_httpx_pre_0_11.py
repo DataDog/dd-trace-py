@@ -1,12 +1,12 @@
 import httpx
 import pytest
-from wrapt import ObjectProxy
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.httpx.patch import HTTPX_VERSION
 from ddtrace.contrib.internal.httpx.patch import patch
 from ddtrace.contrib.internal.httpx.patch import unpatch
+from ddtrace.internal.compat import is_wrapted
 from ddtrace.settings.http import HttpConfig
 from tests.utils import override_config
 from tests.utils import override_http_config
@@ -45,9 +45,9 @@ def test_patching():
     When unpatching httpx library
         We unwrap the correct methods
     """
-    assert isinstance(httpx.Client.send, ObjectProxy)
+    assert is_wrapted(httpx.Client.send)
     unpatch()
-    assert not isinstance(httpx.Client.send, ObjectProxy)
+    assert not is_wrapted(httpx.Client.send)
 
 
 @pytest.mark.asyncio
