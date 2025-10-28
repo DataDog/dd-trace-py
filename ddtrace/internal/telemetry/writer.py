@@ -159,7 +159,6 @@ class TelemetryWriter(PeriodicService):
         self._integrations_queue: Dict[str, Dict] = dict()
         self._namespace = MetricNamespace()
         self._logs: Set[Dict[str, Any]] = set()
-        self._forked: bool = False
         self._events_queue: List[Dict[str, Any]] = []
         self._configuration_queue: List[Dict] = []
         self._imported_dependencies: Dict[str, str] = dict()
@@ -278,7 +277,7 @@ class TelemetryWriter(PeriodicService):
 
     def _report_app_started(self, register_app_shutdown: bool = True) -> Optional[Dict[str, Any]]:
         """Sent when TelemetryWriter is enabled or forks"""
-        if self._forked or self.started:
+        if forksafe.is_fork_child() or self.started:
             # app-started events should only be sent by the main process
             return None
         #  List of configurations to be collected
@@ -619,7 +618,7 @@ class TelemetryWriter(PeriodicService):
         if deps := self._report_dependencies():
             events.append(self._get_event({"dependencies": deps}, TELEMETRY_EVENT_TYPE.DEPENDENCIES_LOADED))
 
-        if shutting_down and not self._forked:
+        if shutting_down and not forksafe.is_fork_child():
             events.append(self._get_event({}, TELEMETRY_EVENT_TYPE.SHUTDOWN))
 
         # Always include a heartbeat to keep RC connections alive
@@ -673,9 +672,6 @@ class TelemetryWriter(PeriodicService):
         return events
 
     def _fork_writer(self) -> None:
-        self._forked = True
-        # Avoid sending duplicate events.
-        # Queued events should be sent in the main process.
         self.reset_queues()  # TODO: Handle in product protocol
 
     def _restart_sequence(self) -> None:

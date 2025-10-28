@@ -29,6 +29,9 @@ _soft = True
 # Flag to determine, from the parent process, if fork has been called
 _forked = False
 
+# Flag to determine if the current process is a fork child
+_fork_child = False
+
 
 def set_forked():
     global _forked
@@ -38,6 +41,16 @@ def set_forked():
 
 def has_forked():
     return _forked
+
+
+def set_fork_child() -> None:
+    global _fork_child
+
+    _fork_child = True
+
+
+def is_fork_child() -> bool:
+    return _fork_child
 
 
 def run_hooks(registry):
@@ -64,6 +77,7 @@ register_before_fork = functools.partial(register_hook, _registry_before_fork)
 register = functools.partial(register_hook, _registry)
 register_after_parent = functools.partial(register_hook, _registry_after_parent)
 
+register(set_fork_child)
 register_after_parent(set_forked)
 
 
