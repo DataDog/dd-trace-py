@@ -36,6 +36,22 @@ def test_model_list(api_key_in_env, request_api_key, openai, openai_vcr, snapsho
 
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
+def test_model_list_pagination(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_model_list_pagination",
+        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta.openai.request.user"],
+    ):
+        with openai_vcr.use_cassette("model_list.yaml"):
+            client = openai.OpenAI(api_key=request_api_key)
+            count = 0
+            for model in client.models.list():
+                count += 1
+                if count >= 2:
+                    break
+            assert count >= 2
+
+
+@pytest.mark.parametrize("api_key_in_env", [True, False])
 async def test_model_alist(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_model_list",
@@ -44,6 +60,22 @@ async def test_model_alist(api_key_in_env, request_api_key, openai, openai_vcr, 
         with openai_vcr.use_cassette("model_alist.yaml"):
             client = openai.AsyncOpenAI(api_key=request_api_key)
             await client.models.list()
+
+
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+async def test_model_alist_pagination(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_model_alist_pagination",
+        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta.openai.request.user"],
+    ):
+        with openai_vcr.use_cassette("model_alist.yaml"):
+            client = openai.AsyncOpenAI(api_key=request_api_key)
+            count = 0
+            async for model in client.models.list():
+                count += 1
+                if count >= 2:
+                    break
+            assert count >= 2
 
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
