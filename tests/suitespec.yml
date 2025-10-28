@@ -83,7 +83,7 @@ components:
     - ddtrace/internal/datastreams/*
     - ddtrace/data_streams.py
     - ddtrace/ext/schema.py
-  featureflags:
+  openfeature:
     - ddtrace/openfeature/*
     - tests/openfeature/*
   git:
@@ -235,7 +235,7 @@ suites:
       - tests/runtime/*
     runner: riot
     skip: true
-  featureflags:
+  openfeature:
     parallelism: 1
     paths:
       - '@openfeature'
