@@ -41,7 +41,7 @@ dependencies = [
     "legacy-cgi>=2.0.0; python_version>='3.13.0'",
     "opentelemetry-api>=1",
     "protobuf>=3",
-    "wrapt>=1,<2",
+    "wrapt>=1",
 ]
 
 [project.optional-dependencies]
@@ -165,6 +165,8 @@ exclude-modules = '''
   | ^tests.(contrib|vendor)
   # avoid sitecustomize modules as they start services
   | ddtrace.bootstrap.sitecustomize
+  | ddtrace.openfeature
+  | ddtrace.internal.openfeature._provider
   | ddtrace.profiling.bootstrap.sitecustomize
   | ddtrace.profiling.auto
   # also ignore preload module to avoid exception after moving ddtrace.tracing module

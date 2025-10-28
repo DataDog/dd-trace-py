@@ -294,6 +294,11 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
     ModuleCodeCollector has a tangible impact on the time it takes to load modules, so it should only be installed if
     coverage collection is requested by the backend.
     """
+    # Disable module cloning in test runs as early as possible
+    import ddtrace.bootstrap.cloning as cloning
+
+    cloning.enabled = False
+
     take_over_logger_stream_handler()
 
     # Log early initialization details
