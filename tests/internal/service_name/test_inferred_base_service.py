@@ -271,6 +271,8 @@ def test_python_detector_pattern_matching(command, should_match, expected_captur
     if should_match:
         assert match is not None, f"Expected '{command}' to match but it didn't"
         # The full match should contain the expected capture
-        assert expected_capture in match.group(0), f"Expected capture '{expected_capture}' not found in match '{match.group(0)}'"
+        assert expected_capture in match.group(
+            0
+        ), f"Expected capture '{expected_capture}' not found in match '{match.group(0)}'"
     else:
         assert match is None, f"Expected '{command}' not to match but it did: {match.group(0) if match else None}"
