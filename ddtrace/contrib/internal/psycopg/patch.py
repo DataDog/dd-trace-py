@@ -76,8 +76,7 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return ""
 
 
@@ -85,11 +84,10 @@ PATCHED_VERSIONS = {}
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"psycopg": ">=3.0.0", "psycopg2": ">=2.8.0"}
+    return {"psycopg": ">=3.0.0", "psycopg2": ">=2.9.10"}
 
 
-def get_versions():
-    # type: () -> List[str]
+def get_versions() -> List[str]:
     return PATCHED_VERSIONS
 
 
