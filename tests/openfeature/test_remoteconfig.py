@@ -1,4 +1,4 @@
-from ddtrace.featureflags._remoteconfiguration import featureflag_rc_callback
+from ddtrace.internal.openfeature._remoteconfiguration import featureflag_rc_callback
 from ddtrace.internal.remoteconfig import ConfigMetadata
 from ddtrace.internal.remoteconfig import Payload
 

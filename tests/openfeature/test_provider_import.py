@@ -15,12 +15,12 @@ def cleanup_modules():
     original_modules = sys.modules.copy()
     yield
     # Restore original modules after test
-    modules_to_remove = [key for key in list(sys.modules.keys()) if key.startswith("ddtrace.featureflags")]
+    modules_to_remove = [key for key in list(sys.modules.keys()) if key.startswith("ddtrace.openfeature")]
     for module in modules_to_remove:
         sys.modules.pop(module, None)
     # Restore any modules that were removed
     for key, value in original_modules.items():
-        if key.startswith("ddtrace.featureflags") and key not in sys.modules:
+        if key.startswith("ddtrace.openfeature") and key not in sys.modules:
             sys.modules[key] = value
 
 
@@ -33,7 +33,7 @@ class TestProviderImportWithoutOpenFeature:
         """
         # Remove openfeature from sys.modules to simulate it not being installed
         modules_to_remove = [
-            key for key in sys.modules.keys() if key.startswith("openfeature") or key == "ddtrace.featureflags"
+            key for key in sys.modules.keys() if key.startswith("openfeature") or key == "ddtrace.openfeature"
         ]
         removed_modules = {}
         for module in modules_to_remove:
@@ -51,7 +51,7 @@ class TestProviderImportWithoutOpenFeature:
         try:
             with mock.patch("builtins.__import__", side_effect=mock_import):
                 # This should not raise ImportError
-                from ddtrace.featureflags import DataDogProvider
+                from ddtrace.openfeature import DataDogProvider
 
                 # Importing should succeed
                 assert DataDogProvider is not None
@@ -67,7 +67,7 @@ class TestProviderImportWithoutOpenFeature:
         """
         # Remove openfeature from sys.modules to simulate it not being installed
         modules_to_remove = [
-            key for key in sys.modules.keys() if key.startswith("openfeature") or key == "ddtrace.featureflags"
+            key for key in sys.modules.keys() if key.startswith("openfeature") or key == "ddtrace.openfeature"
         ]
         removed_modules = {}
         for module in modules_to_remove:
@@ -84,7 +84,7 @@ class TestProviderImportWithoutOpenFeature:
 
         try:
             with mock.patch("builtins.__import__", side_effect=mock_import):
-                from ddtrace.featureflags import DataDogProvider
+                from ddtrace.openfeature import DataDogProvider
 
                 # Instantiate the provider - should not raise an exception
                 # This tests that the stub provider works and logs an error message
@@ -106,16 +106,16 @@ class TestProviderImportWithoutOpenFeature:
         import importlib
 
         # Remove any cached modules
-        modules_to_remove = [key for key in list(sys.modules.keys()) if key.startswith("ddtrace.featureflags")]
+        modules_to_remove = [key for key in list(sys.modules.keys()) if key.startswith("ddtrace.openfeature")]
         for module in modules_to_remove:
             sys.modules.pop(module, None)
 
         # Now import fresh
-        import ddtrace.featureflags
+        import ddtrace.openfeature
 
-        importlib.reload(ddtrace.featureflags)
+        importlib.reload(ddtrace.openfeature)
 
-        provider = ddtrace.featureflags.DataDogProvider()
+        provider = ddtrace.openfeature.DataDogProvider()
 
         # Should have proper methods when openfeature is available
         assert hasattr(provider, "get_metadata")

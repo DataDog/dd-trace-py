@@ -2688,8 +2688,8 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="featureflags",
-            command="pytest {cmdargs} tests/featureflags",
+            name="openfeature",
+            command="pytest {cmdargs} tests/openfeature",
             pys=select_pys(),
             pkgs={
                 "pytest-randomly": latest,

@@ -1,8 +1,8 @@
 """Tests for FFAndE (Feature Flagging and Experimentation) product."""
 import json
 
-from ddtrace.internal.ffande._native import is_available
-from ddtrace.internal.ffande._native import process_ffe_configuration
+from ddtrace.internal.openfeature._native import is_available
+from ddtrace.internal.openfeature._native import process_ffe_configuration
 
 
 def test_native_module_available():

@@ -8,7 +8,7 @@ from typing import Any
 from typing import Dict
 from typing import Optional
 
-from ddtrace.featureflags._config import _set_ffe_config
+from ddtrace.internal.openfeature._config import _set_ffe_config
 
 
 class VariationType(Enum):

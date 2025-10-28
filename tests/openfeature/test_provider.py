@@ -7,11 +7,11 @@ from openfeature.exception import ErrorCode
 from openfeature.flag_evaluation import Reason
 import pytest
 
-from ddtrace.featureflags import DataDogProvider
-from ddtrace.featureflags._config import _set_ffe_config
-from ddtrace.featureflags._ffe_mock import AssignmentReason
-from ddtrace.featureflags._ffe_mock import VariationType
-from ddtrace.featureflags._ffe_mock import mock_process_ffe_configuration
+from ddtrace.internal.openfeature._config import _set_ffe_config
+from ddtrace.internal.openfeature._ffe_mock import AssignmentReason
+from ddtrace.internal.openfeature._ffe_mock import VariationType
+from ddtrace.internal.openfeature._ffe_mock import mock_process_ffe_configuration
+from ddtrace.openfeature import DataDogProvider
 
 
 @pytest.fixture

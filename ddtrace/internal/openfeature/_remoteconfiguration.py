@@ -9,8 +9,8 @@ import json
 import os
 import typing as t
 
-from ddtrace.featureflags._ffe_mock import mock_process_ffe_configuration
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.openfeature._ffe_mock import mock_process_ffe_configuration
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
 from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisher

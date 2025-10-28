@@ -1,17 +1,16 @@
-from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version
 import typing
 
-from ddtrace.featureflags._remoteconfiguration import enable_featureflags_rc as enable_featureflags_rc
 from ddtrace.internal.logger import get_logger
 
 
 log = get_logger(__name__)
 
-try:
-    pkg_version = version("openfeature-sdk")
-    from ddtrace.featureflags._provider import DataDogProvider as DataDogProvider
-except PackageNotFoundError:
+pkg_version = version("openfeature-sdk")
+
+if pkg_version:
+    from ddtrace.internal.openfeature._provider import DataDogProvider as DataDogProvider
+else:
     # OpenFeature SDK is not installed - provide stub implementation
     class DataDogProvider:  # type: ignore[no-redef]
         """

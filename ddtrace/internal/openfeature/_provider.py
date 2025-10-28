@@ -16,13 +16,13 @@ from openfeature.flag_evaluation import FlagResolutionDetails
 from openfeature.flag_evaluation import Reason
 from openfeature.provider import Metadata
 
-from ddtrace.featureflags import enable_featureflags_rc
-from ddtrace.featureflags._config import _get_ffe_config
-from ddtrace.featureflags._ffe_mock import AssignmentReason
-from ddtrace.featureflags._ffe_mock import EvaluationError
-from ddtrace.featureflags._ffe_mock import VariationType
-from ddtrace.featureflags._ffe_mock import mock_get_assignment
-from ddtrace.featureflags._remoteconfiguration import disable_featureflags_rc
+from ddtrace.internal.openfeature._config import _get_ffe_config
+from ddtrace.internal.openfeature._ffe_mock import AssignmentReason
+from ddtrace.internal.openfeature._ffe_mock import EvaluationError
+from ddtrace.internal.openfeature._ffe_mock import VariationType
+from ddtrace.internal.openfeature._ffe_mock import mock_get_assignment
+from ddtrace.internal.openfeature._remoteconfiguration import disable_featureflags_rc
+from ddtrace.internal.openfeature._remoteconfiguration import enable_featureflags_rc
 
 
 # Handle different import paths between openfeature-sdk versions
