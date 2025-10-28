@@ -50,7 +50,7 @@ def trace_render(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     with tracer.trace("pyramid.render", span_type=SpanTypes.TEMPLATE) as span:
-        span.set_tag_str(COMPONENT, config.pyramid.integration_name)
+        span._set_tag_str(COMPONENT, config.pyramid.integration_name)
 
         return func(*args, **kwargs)
 
@@ -104,7 +104,7 @@ def trace_tween_factory(handler, registry):
                     # set request tags
                     if request.matched_route:
                         req_span.resource = "{} {}".format(request.method, request.matched_route.name)
-                        req_span.set_tag_str("pyramid.route.name", request.matched_route.name)
+                        req_span._set_tag_str("pyramid.route.name", request.matched_route.name)
                     # set response tags
                     if response:
                         status = response.status_code

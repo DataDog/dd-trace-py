@@ -345,7 +345,7 @@ def patched_convert(openai, pin, func, instance, args, kwargs):
         return func(*args, **kwargs)
     if headers.get("openai-organization"):
         org_name = headers.get("openai-organization")
-        span.set_tag_str("openai.organization.name", org_name)
+        span._set_tag_str("openai.organization.name", org_name)
 
     # Gauge total rate limit
     if headers.get("x-ratelimit-limit-requests"):

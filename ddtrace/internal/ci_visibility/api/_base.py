@@ -170,9 +170,9 @@ class TestVisibilityItemBase(abc.ABC):
         for tag, tag_value in self._tags.items():
             try:
                 if isinstance(tag_value, str):
-                    self._span.set_tag_str(tag, tag_value)
+                    self._span._set_tag_str(tag, tag_value)
                 elif isinstance(tag_value, bool):
-                    self._span.set_tag_str(tag, "true" if tag_value else "false")
+                    self._span._set_tag_str(tag, "true" if tag_value else "false")
                 else:
                     self._span.set_tag(tag, tag_value)
             except Exception as e:
@@ -517,7 +517,7 @@ class TestVisibilityItemBase(abc.ABC):
         if self._span is None:
             return
         if self._coverage_data:
-            self._span.set_struct_tag(
+            self._span._set_struct_tag(
                 COVERAGE_TAG_NAME, self._coverage_data.build_payload(self._session_settings.workspace_path)
             )
 
