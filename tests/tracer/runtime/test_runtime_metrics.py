@@ -20,8 +20,8 @@ from tests.utils import call_program
 
 
 @contextlib.contextmanager
-def runtime_metrics_service(tracer=None, flush_interval=None):
-    RuntimeWorker.enable(tracer=tracer, flush_interval=flush_interval)
+def runtime_metrics_service(tracer=None):
+    RuntimeWorker.enable(tracer=tracer)
     assert RuntimeWorker._instance is not None
     assert RuntimeWorker._instance.status == ServiceStatus.RUNNING
 
@@ -151,9 +151,7 @@ class TestRuntimeWorker(TracerTestCase):
         # Mock socket.socket to hijack the dogstatsd socket
         with mock.patch("socket.socket") as sock:
             sock.return_value.getsockopt.return_value = 0
-            # configure tracer for runtime metrics
-            interval = 1.0 / 4
-            with runtime_metrics_service(tracer=self.tracer, flush_interval=interval):
+            with runtime_metrics_service(tracer=self.tracer):
                 self.tracer.set_tags({"env": "tests.dog"})
 
                 with self.override_global_tracer(self.tracer):
