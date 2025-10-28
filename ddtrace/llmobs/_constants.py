@@ -44,10 +44,8 @@ CACHE_WRITE_INPUT_TOKENS_METRIC_KEY = "cache_write_input_tokens"
 CACHE_READ_INPUT_TOKENS_METRIC_KEY = "cache_read_input_tokens"
 BILLABLE_CHARACTER_COUNT_METRIC_KEY = "billable_character_count"
 
-EVP_PROXY_AGENT_BASE_PATH = "/evp_proxy/v2"
 EVAL_ENDPOINT = "/api/intake/llm-obs/v2/eval-metric"
 SPAN_ENDPOINT = "/api/v2/llmobs"
-EVP_SUBDOMAIN_HEADER_NAME = "X-Datadog-EVP-Subdomain"
 SPAN_SUBDOMAIN_NAME = "llmobs-intake"
 EVAL_SUBDOMAIN_NAME = "api"
 EXP_SUBDOMAIN_NAME = "api"
@@ -57,9 +55,6 @@ AGENTLESS_EXP_BASE_URL = "https://{}".format(EXP_SUBDOMAIN_NAME)
 
 # from https://docs.datadoghq.com/getting_started/site/#access-the-datadog-site
 DD_SITES_NEEDING_APP_SUBDOMAIN = {"datadoghq.com", "datadoghq.eu", "ddog-gov.com"}
-
-EVP_PAYLOAD_SIZE_LIMIT = 5 << 20  # 5MB (actual limit is 5.1MB)
-EVP_EVENT_SIZE_LIMIT = 5_000_000  # 5MB LLM Obs event size limit
 
 EXPERIMENT_CSV_FIELD_MAX_SIZE = 10 * 1024 * 1024
 

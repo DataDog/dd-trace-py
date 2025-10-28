@@ -11,10 +11,10 @@ from ddtrace.internal.ci_visibility._api_client import AgentlessTestVisibilityAP
 from ddtrace.internal.ci_visibility._api_client import EVPProxyTestVisibilityAPIClient
 from ddtrace.internal.ci_visibility._api_client import ITRData
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
-from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_BASE_PATH
-from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_BASE_PATH_V4
 from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
 from ddtrace.internal.ci_visibility.git_data import GitData
+from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
+from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH_V4
 from ddtrace.settings._config import Config
 from tests.ci_visibility.api_client._util import _AGENTLESS
 from tests.ci_visibility.api_client._util import _EVP_PROXY
