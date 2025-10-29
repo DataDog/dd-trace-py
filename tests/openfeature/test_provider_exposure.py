@@ -1,0 +1,224 @@
+"""
+Tests for exposure event reporting in DataDogProvider.
+"""
+
+from unittest import mock
+
+from openfeature.evaluation_context import EvaluationContext
+import pytest
+
+from ddtrace.internal.openfeature._config import _set_ffe_config
+from ddtrace.internal.openfeature._ffe_mock import AssignmentReason
+from ddtrace.internal.openfeature._ffe_mock import VariationType
+from ddtrace.internal.openfeature._ffe_mock import mock_process_ffe_configuration
+from ddtrace.openfeature import DataDogProvider
+
+
+@pytest.fixture
+def provider():
+    """Create a DataDogProvider instance for testing."""
+    return DataDogProvider()
+
+
+@pytest.fixture
+def evaluation_context():
+    """Create a sample evaluation context with targeting_key."""
+    return EvaluationContext(targeting_key="user-123", attributes={"email": "test@example.com", "tier": "premium"})
+
+
+@pytest.fixture(autouse=True)
+def clear_config():
+    """Clear FFE configuration before and after each test."""
+    _set_ffe_config(None)
+    yield
+    _set_ffe_config(None)
+
+
+class TestExposureReporting:
+    """Test that exposure events are reported correctly."""
+
+    @mock.patch("ddtrace.internal.openfeature._provider.get_exposure_writer")
+    def test_exposure_reported_on_successful_resolution(self, mock_get_writer, provider, evaluation_context):
+        """Test that exposure event is reported on successful flag resolution."""
+        # Setup mock writer
+        mock_writer = mock.Mock()
+        mock_get_writer.return_value = mock_writer
+
+        # Setup flag config
+        config = {
+            "flags": {
+                "test-flag": {
+                    "enabled": True,
+                    "variation_type": VariationType.BOOLEAN.value,
+                    "value": True,
+                    "variation_key": "on",
+                    "reason": AssignmentReason.STATIC.value,
+                }
+            }
+        }
+        mock_process_ffe_configuration(config)
+
+        # Resolve flag
+        result = provider.resolve_boolean_details("test-flag", False, evaluation_context)
+
+        # Verify flag resolved successfully
+        assert result.value is True
+
+        # Verify exposure event was enqueued
+        mock_writer.enqueue.assert_called_once()
+
+        # Verify exposure event structure
+        exposure_event = mock_writer.enqueue.call_args[0][0]
+        assert exposure_event["flag"]["key"] == "test-flag"
+        assert exposure_event["variant"]["key"] == "on"
+        assert exposure_event["allocation"]["key"] == "on"
+        assert exposure_event["subject"]["id"] == "user-123"
+        assert "timestamp" in exposure_event
+
+    @mock.patch("ddtrace.internal.openfeature.writer.get_exposure_writer")
+    def test_no_exposure_on_flag_not_found(self, mock_get_writer, provider, evaluation_context):
+        """Test that no exposure event is reported when flag is not found."""
+        mock_writer = mock.Mock()
+        mock_get_writer.return_value = mock_writer
+
+        _set_ffe_config(None)
+
+        # Resolve non-existent flag
+        result = provider.resolve_boolean_details("non-existent-flag", False, evaluation_context)
+
+        # Verify default value returned
+        assert result.value is False
+
+        # Verify no exposure event was reported
+        mock_writer.enqueue.assert_not_called()
+
+    @mock.patch("ddtrace.internal.openfeature.writer.get_exposure_writer")
+    def test_no_exposure_on_disabled_flag(self, mock_get_writer, provider, evaluation_context):
+        """Test that no exposure event is reported when flag is disabled."""
+        mock_writer = mock.Mock()
+        mock_get_writer.return_value = mock_writer
+
+        config = {
+            "flags": {
+                "disabled-flag": {
+                    "enabled": False,
+                    "variation_type": VariationType.BOOLEAN.value,
+                    "value": True,
+                }
+            }
+        }
+        mock_process_ffe_configuration(config)
+
+        result = provider.resolve_boolean_details("disabled-flag", False, evaluation_context)
+
+        # Verify default value returned
+        assert result.value is False
+
+        # Verify no exposure event was reported
+        mock_writer.enqueue.assert_not_called()
+
+    @mock.patch("ddtrace.internal.openfeature.writer.get_exposure_writer")
+    def test_no_exposure_on_type_mismatch(self, mock_get_writer, provider, evaluation_context):
+        """Test that no exposure event is reported on type mismatch error."""
+        mock_writer = mock.Mock()
+        mock_get_writer.return_value = mock_writer
+
+        config = {
+            "flags": {
+                "string-flag": {
+                    "enabled": True,
+                    "variation_type": VariationType.STRING.value,
+                    "value": "hello",
+                }
+            }
+        }
+        mock_process_ffe_configuration(config)
+
+        result = provider.resolve_boolean_details("string-flag", False, evaluation_context)
+
+        # Verify error occurred
+        assert result.value is False
+
+        # Verify no exposure event was reported
+        mock_writer.enqueue.assert_not_called()
+
+    @mock.patch("ddtrace.internal.openfeature.writer.get_exposure_writer")
+    def test_no_exposure_without_targeting_key(self, mock_get_writer, provider):
+        """Test that no exposure event is reported without targeting_key in context."""
+        mock_writer = mock.Mock()
+        mock_get_writer.return_value = mock_writer
+
+        # Context without targeting_key
+        context = EvaluationContext(attributes={"email": "test@example.com"})
+
+        config = {
+            "flags": {
+                "test-flag": {
+                    "enabled": True,
+                    "variation_type": VariationType.BOOLEAN.value,
+                    "value": True,
+                    "variation_key": "on",
+                }
+            }
+        }
+        mock_process_ffe_configuration(config)
+
+        result = provider.resolve_boolean_details("test-flag", False, context)
+
+        # Verify flag resolved successfully
+        assert result.value is True
+
+        # Verify no exposure event was reported (missing targeting_key)
+        mock_writer.enqueue.assert_not_called()
+
+    @mock.patch("ddtrace.internal.openfeature._provider.get_exposure_writer")
+    def test_exposure_with_different_flag_types(self, mock_get_writer, provider, evaluation_context):
+        """Test exposure reporting works for all flag types."""
+        mock_writer = mock.Mock()
+        mock_get_writer.return_value = mock_writer
+
+        # Test string flag
+        config = {
+            "flags": {
+                "string-flag": {
+                    "enabled": True,
+                    "variation_type": VariationType.STRING.value,
+                    "value": "variant-a",
+                    "variation_key": "a",
+                }
+            }
+        }
+        mock_process_ffe_configuration(config)
+
+        provider.resolve_string_details("string-flag", "default", evaluation_context)
+
+        assert mock_writer.enqueue.call_count == 1
+        exposure_event = mock_writer.enqueue.call_args[0][0]
+        assert exposure_event["flag"]["key"] == "string-flag"
+        assert exposure_event["variant"]["key"] == "a"
+
+    @mock.patch("ddtrace.internal.openfeature.writer.get_exposure_writer")
+    def test_exposure_reporting_failure_does_not_affect_resolution(self, mock_get_writer, provider, evaluation_context):
+        """Test that exposure reporting failure doesn't break flag resolution."""
+        # Make writer raise an exception
+        mock_writer = mock.Mock()
+        mock_writer.enqueue.side_effect = Exception("Writer error")
+        mock_get_writer.return_value = mock_writer
+
+        config = {
+            "flags": {
+                "test-flag": {
+                    "enabled": True,
+                    "variation_type": VariationType.BOOLEAN.value,
+                    "value": True,
+                    "variation_key": "on",
+                }
+            }
+        }
+        mock_process_ffe_configuration(config)
+
+        # Should not raise despite writer error
+        result = provider.resolve_boolean_details("test-flag", False, evaluation_context)
+
+        # Verify flag still resolved successfully
+        assert result.value is True

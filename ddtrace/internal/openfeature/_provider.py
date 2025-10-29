@@ -1,8 +1,8 @@
 """
-Feature Flagging and Experimentation (FFAndE) product module.
+Feature Flagging and Experimentation (FFE) product module.
 
 This module handles Feature Flag configuration rules from Remote Configuration
-and forwards the raw bytes to the native FFAndE processor.
+and forwards the raw bytes to the native FFE processor.
 """
 
 import datetime
@@ -16,13 +16,19 @@ from openfeature.flag_evaluation import FlagResolutionDetails
 from openfeature.flag_evaluation import Reason
 from openfeature.provider import Metadata
 
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.openfeature._config import _get_ffe_config
+from ddtrace.internal.openfeature._exposure import build_exposure_event
 from ddtrace.internal.openfeature._ffe_mock import AssignmentReason
 from ddtrace.internal.openfeature._ffe_mock import EvaluationError
 from ddtrace.internal.openfeature._ffe_mock import VariationType
 from ddtrace.internal.openfeature._ffe_mock import mock_get_assignment
 from ddtrace.internal.openfeature._remoteconfiguration import disable_featureflags_rc
 from ddtrace.internal.openfeature._remoteconfiguration import enable_featureflags_rc
+from ddtrace.internal.openfeature.writer import get_exposure_writer
+from ddtrace.internal.openfeature.writer import start_exposure_writer
+from ddtrace.internal.openfeature.writer import stop_exposure_writer
+from ddtrace.internal.service import ServiceStatusError
 
 
 # Handle different import paths between openfeature-sdk versions
@@ -35,6 +41,7 @@ else:
 
 
 T = typing.TypeVar("T", covariant=True)
+logger = get_logger(__name__)
 
 
 class DataDogProvider(AbstractProvider):
@@ -42,7 +49,7 @@ class DataDogProvider(AbstractProvider):
     Datadog OpenFeature Provider.
 
     Implements the OpenFeature provider interface for Datadog's
-    Feature Flags and Experimentation (FFAndE) product.
+    Feature Flags and Experimentation (FFE) product.
     """
 
     def __init__(self, *args: typing.Any, **kwargs: typing.Any):
@@ -61,6 +68,9 @@ class DataDogProvider(AbstractProvider):
         """
         enable_featureflags_rc()
 
+        # Start the exposure writer for reporting
+        start_exposure_writer()
+
     def shutdown(self) -> None:
         """
         Shutdown the provider and disable remote configuration.
@@ -68,6 +78,11 @@ class DataDogProvider(AbstractProvider):
         Called by the OpenFeature SDK when the provider is being replaced or shutdown.
         """
         disable_featureflags_rc()
+        try:
+            # Stop the exposure writer
+            stop_exposure_writer()
+        except ServiceStatusError:
+            logger.debug("Exposure writer already stopped:", exc_info=True)
 
     def resolve_boolean_details(
         self,
@@ -156,6 +171,14 @@ class DataDogProvider(AbstractProvider):
             }
             reason = reason_map.get(result.reason, Reason.UNKNOWN)
 
+            # Report exposure event
+            self._report_exposure(
+                flag_key=flag_key,
+                variant_key=result.variation_key,
+                allocation_key=result.variation_key,
+                evaluation_context=evaluation_context,
+            )
+
             # Success - return resolved value
             return FlagResolutionDetails(
                 value=result.value.value,
@@ -187,3 +210,27 @@ class DataDogProvider(AbstractProvider):
                 error_code=ErrorCode.GENERAL,
                 error_message=f"Unexpected error during flag evaluation: {str(e)}",
             )
+
+    def _report_exposure(
+        self,
+        flag_key: str,
+        variant_key: typing.Optional[str],
+        allocation_key: typing.Optional[str],
+        evaluation_context: typing.Optional[EvaluationContext],
+    ) -> None:
+        """
+        Report a feature flag exposure event to the EVP proxy intake.
+        """
+        try:
+            exposure_event = build_exposure_event(
+                flag_key=flag_key,
+                variant_key=variant_key,
+                allocation_key=allocation_key,
+                evaluation_context=evaluation_context,
+            )
+
+            if exposure_event:
+                writer = get_exposure_writer()
+                writer.enqueue(exposure_event)
+        except Exception as e:
+            logger.debug("Failed to report exposure event: %s", e, exc_info=True)

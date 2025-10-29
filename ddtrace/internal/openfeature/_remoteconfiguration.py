@@ -1,8 +1,8 @@
 """
-FFAndE (Feature Flagging and Experimentation) product implementation.
+FFE (Feature Flagging and Experimentation) product implementation.
 
 This product receives feature flag configuration rules from Remote Configuration
-and processes them through the native FFAndE processor.
+and processes them through the native FFE processor.
 """
 import enum
 import json
@@ -24,15 +24,15 @@ log = get_logger(__name__)
 FFE_FLAGS_PRODUCT = "FFE_FLAGS"
 
 
-class FFAndECapabilities(enum.IntFlag):
-    """FFAndE Remote Configuration capabilities."""
+class FFECapabilities(enum.IntFlag):
+    """FFE Remote Configuration capabilities."""
 
     FFE_FLAG_CONFIGURATION_RULES = 1 << 46
 
 
-class FFAndEAdapter(PubSub):
+class FFEAdapter(PubSub):
     """
-    FFAndE Remote Configuration adapter.
+    FFE Remote Configuration adapter.
 
     Receives feature flag configuration rules and forwards raw bytes to native processor.
     """
@@ -83,12 +83,12 @@ def featureflag_rc_callback(payloads: t.Sequence[Payload]) -> None:
 
 def enable_featureflags_rc() -> None:
     log.debug("[%s][P: %s] Register ASM Remote Config Callback", os.getpid(), os.getppid())
-    feature_flag_rc = FFAndEAdapter(featureflag_rc_callback)
+    feature_flag_rc = FFEAdapter(featureflag_rc_callback)
     remoteconfig_poller.register(
         FFE_FLAGS_PRODUCT,
         feature_flag_rc,
         restart_on_fork=True,
-        capabilities=[FFAndECapabilities.FFE_FLAG_CONFIGURATION_RULES],
+        capabilities=[FFECapabilities.FFE_FLAG_CONFIGURATION_RULES],
     )
 
 
