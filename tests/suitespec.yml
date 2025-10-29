@@ -122,7 +122,6 @@ components:
     - ddtrace/internal/settings/__init__.py
     - ddtrace/internal/settings/_config.py
     - ddtrace/internal/settings/http.py
-    - ddtrace/internal/settings/exceptions.py
     - ddtrace/internal/settings/integration.py
     - ddtrace/internal/_encoding.py*
     - ddtrace/internal/_tagset.py*
