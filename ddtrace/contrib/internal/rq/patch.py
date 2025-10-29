@@ -1,9 +1,9 @@
 from typing import Dict
 
 from ddtrace import config
-from ddtrace import trace_utils
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
