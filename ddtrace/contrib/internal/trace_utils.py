@@ -38,10 +38,10 @@ from ddtrace.internal.compat import ip_is_global
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.core.event_hub import dispatch
 from ddtrace.internal.logger import get_logger
-import ddtrace.internal.utils.wrappers
-from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.asm import config as asm_config
+import ddtrace.internal.utils.wrappers
+from ddtrace.propagation.http import HTTPPropagator
 
 
 if TYPE_CHECKING:  # pragma: no cover

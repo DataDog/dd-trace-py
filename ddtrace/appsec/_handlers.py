@@ -23,9 +23,9 @@ from ddtrace.internal import core
 from ddtrace.internal import telemetry
 from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils import http as http_utils
 from ddtrace.internal.utils.http import parse_form_multipart
-from ddtrace.internal.settings.asm import config as asm_config
 import ddtrace.vendor.xmltodict as xmltodict
 
 

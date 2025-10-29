@@ -1,4 +1,3 @@
-import _io
 from builtins import bytearray as builtin_bytearray
 from builtins import bytes as builtin_bytes
 import codecs
@@ -17,6 +16,8 @@ from typing import Optional
 from typing import Text
 from typing import Tuple
 from typing import Union
+
+import _io
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._logs import iast_propagation_error_log

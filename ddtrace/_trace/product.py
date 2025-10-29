@@ -6,9 +6,9 @@ import typing as t
 from envier import En
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings.http import _HttpConfig
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
-from ddtrace.internal.settings.http import _HttpConfig
 
 
 log = get_logger(__name__)

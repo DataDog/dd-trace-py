@@ -10,11 +10,11 @@ from ddtrace.ext.git import REPOSITORY_URL
 from ddtrace.internal import compat
 from ddtrace.internal import gitmetadata
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.telemetry import report_configuration
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.utils.formats import parse_tags_str
-from ddtrace.internal.settings._core import DDConfig
 
 
 logger = get_logger(__name__)

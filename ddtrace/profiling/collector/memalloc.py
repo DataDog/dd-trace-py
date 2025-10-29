@@ -21,9 +21,9 @@ except ImportError:
     _memalloc = None  # type: ignore[assignment]
 
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.settings.profiling import config
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
-from ddtrace.internal.settings.profiling import config
 
 
 LOG = logging.getLogger(__name__)

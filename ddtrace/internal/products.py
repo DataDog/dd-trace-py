@@ -9,13 +9,13 @@ from typing import Protocol  # noqa:F401
 
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.telemetry import report_configuration
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.uwsgi import check_uwsgi
 from ddtrace.internal.uwsgi import uWSGIConfigDeprecationWarning
 from ddtrace.internal.uwsgi import uWSGIConfigError
 from ddtrace.internal.uwsgi import uWSGIMasterProcess
-from ddtrace.internal.settings._core import DDConfig
 
 
 log = get_logger(__name__)

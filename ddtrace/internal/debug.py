@@ -10,11 +10,11 @@ from typing import Union  # noqa:F401
 
 import ddtrace
 from ddtrace.internal.packages import get_distributions
+from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.cache import callonce
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import LogWriter
-from ddtrace.internal.settings._agent import config as agent_config
-from ddtrace.internal.settings.asm import config as asm_config
 
 from .logger import get_logger
 

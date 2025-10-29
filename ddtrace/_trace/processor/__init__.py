@@ -26,11 +26,11 @@ from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
 from ddtrace.internal.service import ServiceStatusError
+from ddtrace.internal.settings._config import config
+from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import create_trace_writer
-from ddtrace.internal.settings._config import config
-from ddtrace.internal.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)

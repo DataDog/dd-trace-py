@@ -12,8 +12,8 @@ from ddtrace.ext.test import TEST_SESSION_NAME
 from ddtrace.internal.ci_visibility.constants import MODULE_TYPE
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE
-from ddtrace.internal.utils.time import StopWatch
 from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.utils.time import StopWatch
 from ddtrace.vendor.dogstatsd import DogStatsd  # noqa:F401
 
 from .. import service

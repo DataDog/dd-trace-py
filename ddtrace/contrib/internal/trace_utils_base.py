@@ -8,13 +8,13 @@ from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings._config import config
+from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.settings.integration import _IntegrationConfig
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.http import normalize_header_name
 from ddtrace.internal.utils.http import redact_url
 from ddtrace.internal.utils.http import strip_query_string
-from ddtrace.internal.settings._config import config
-from ddtrace.internal.settings.asm import config as asm_config
-from ddtrace.internal.settings.integration import _IntegrationConfig
 
 
 log = get_logger(__name__)

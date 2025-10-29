@@ -19,11 +19,11 @@ from ddtrace.ext import sql as sqlx
 from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.settings.integration import _IntegrationConfig
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.wrapping import is_wrapped_with
 from ddtrace.internal.wrapping import wrap
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
-from ddtrace.internal.settings.integration import _IntegrationConfig
 
 
 log = get_logger(__name__)

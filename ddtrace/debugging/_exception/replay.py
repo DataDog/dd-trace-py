@@ -19,9 +19,9 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
 from ddtrace.internal.rate_limiter import RateLimitExceeded
-from ddtrace.internal.utils.time import HourGlass
 from ddtrace.internal.settings._config import config as global_config
 from ddtrace.internal.settings.exception_replay import config
+from ddtrace.internal.utils.time import HourGlass
 from ddtrace.trace import Span
 
 

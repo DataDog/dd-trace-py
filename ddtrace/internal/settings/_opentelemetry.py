@@ -1,9 +1,9 @@
 import typing as t
 
-from ddtrace.internal.telemetry import get_config
-from ddtrace.internal.telemetry import report_configuration
 from ddtrace.internal.settings._agent import get_agent_hostname
 from ddtrace.internal.settings._core import DDConfig
+from ddtrace.internal.telemetry import get_config
+from ddtrace.internal.telemetry import report_configuration
 
 
 def _derive_endpoint(config: "ExporterConfig"):
