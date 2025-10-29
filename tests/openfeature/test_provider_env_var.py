@@ -157,7 +157,7 @@ class TestProviderConfigDisabled:
             # Should not raise, just skip shutdown
             provider.shutdown()
 
-    def test_provider_disabled_logs_error(self):
+    def test_provider_disabled_logs_warning(self):
         """Provider should log an error when disabled."""
         from unittest.mock import patch
 
@@ -166,8 +166,7 @@ class TestProviderConfigDisabled:
             with patch("ddtrace.internal.openfeature._provider.logger") as mock_logger:
                 _ = DataDogProvider()
 
-                # Verify error was logged
-                mock_logger.error.assert_called_once()
-                call_args = mock_logger.error.call_args
+                mock_logger.warning.assert_called_once()
+                call_args = mock_logger.warning.call_args
                 assert "experimental flagging provider is not enabled" in call_args[0][0]
                 assert "DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED" in call_args[0][0]
