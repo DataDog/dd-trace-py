@@ -11,32 +11,32 @@ from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
+from ddtrace._logger import get_log_injection_state
+from ddtrace.internal import gitmetadata
+from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_DEFAULT
+from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_IGNORE
+from ddtrace.internal.constants import _PROPAGATION_STYLE_DEFAULT
+from ddtrace.internal.constants import _PROPAGATION_STYLE_NONE
+from ddtrace.internal.constants import DEFAULT_BUFFER_SIZE
+from ddtrace.internal.constants import DEFAULT_MAX_PAYLOAD_SIZE
+from ddtrace.internal.constants import DEFAULT_PROCESSING_INTERVAL
+from ddtrace.internal.constants import DEFAULT_REUSE_CONNECTIONS
+from ddtrace.internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
+from ddtrace.internal.constants import DEFAULT_TIMEOUT
+from ddtrace.internal.constants import PROPAGATION_STYLE_ALL
+from ddtrace.internal.logger import get_logger
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
+from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry import validate_and_report_otel_metrics_exporter_enabled
 from ddtrace.internal.telemetry import validate_otel_envs
 from ddtrace.internal.utils.cache import cachedmethod
+from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils.formats import parse_tags_str
 
-from .._logger import get_log_injection_state
-from ..internal import gitmetadata
-from ..internal.constants import _PROPAGATION_BEHAVIOR_DEFAULT
-from ..internal.constants import _PROPAGATION_BEHAVIOR_IGNORE
-from ..internal.constants import _PROPAGATION_STYLE_DEFAULT
-from ..internal.constants import _PROPAGATION_STYLE_NONE
-from ..internal.constants import DEFAULT_BUFFER_SIZE
-from ..internal.constants import DEFAULT_MAX_PAYLOAD_SIZE
-from ..internal.constants import DEFAULT_PROCESSING_INTERVAL
-from ..internal.constants import DEFAULT_REUSE_CONNECTIONS
-from ..internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
-from ..internal.constants import DEFAULT_TIMEOUT
-from ..internal.constants import PROPAGATION_STYLE_ALL
-from ..internal.logger import get_logger
-from ..internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from ..internal.serverless import in_aws_lambda
-from ..internal.telemetry import get_config as _get_config
-from ..internal.utils.formats import asbool
-from ..internal.utils.formats import parse_tags_str
 from ._inferred_base_service import detect_service
 from .endpoint_config import fetch_config_from_endpoint
 from .http import HttpConfig

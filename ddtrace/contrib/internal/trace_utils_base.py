@@ -10,7 +10,7 @@ from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.asm import config as asm_config
-from ddtrace.internal.settings.integration import _IntegrationConfig
+from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.http import normalize_header_name
 from ddtrace.internal.utils.http import redact_url
@@ -142,7 +142,7 @@ def set_user(
         )
 
 
-def _set_url_tag(integration_config: _IntegrationConfig, span: Span, url: str, query: str) -> None:
+def _set_url_tag(integration_config: IntegrationConfig, span: Span, url: str, query: str) -> None:
     if not integration_config.http_tag_query_string:
         span._set_tag_str(http.URL, strip_query_string(url))
     elif config._global_query_string_obfuscation_disabled:

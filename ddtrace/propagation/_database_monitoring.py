@@ -10,9 +10,9 @@ from ddtrace.internal.settings.peer_service import PeerServiceConfig
 from ddtrace.vendor.sqlcommenter import generate_sql_comment as _generate_sql_comment
 
 from ..internal import compat
+from ..internal.settings._database_monitoring import dbm_config
 from ..internal.utils import get_argument_value
 from ..internal.utils import set_argument_value
-from ..settings._database_monitoring import dbm_config
 
 
 if TYPE_CHECKING:

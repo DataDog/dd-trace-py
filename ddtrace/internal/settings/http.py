@@ -3,9 +3,9 @@ from typing import Mapping  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 
-from ..internal.logger import get_logger
-from ..internal.utils.cache import cachedmethod
-from ..internal.utils.http import normalize_header_name
+from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.cache import cachedmethod
+from ddtrace.internal.utils.http import normalize_header_name
 
 
 log = get_logger(__name__)

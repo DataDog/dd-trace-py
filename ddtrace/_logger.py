@@ -127,8 +127,7 @@ def get_log_injection_state(raw_config: Optional[str]) -> bool:
 def _configure_ddtrace_native_logger():
     try:
         from ddtrace.internal.native._native import logger
-
-        from .settings._config import config
+        from ddtrace.internal.settings._config import config
 
         if config._trace_writer_native:
             backend = get_config("_DD_NATIVE_LOGGING_BACKEND", "file", report_telemetry=True)
