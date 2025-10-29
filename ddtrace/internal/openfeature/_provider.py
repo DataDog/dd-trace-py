@@ -8,6 +8,7 @@ and forwards the raw bytes to the native FFE processor.
 import datetime
 from importlib.metadata import version
 import json
+import os
 import typing
 
 from openfeature.evaluation_context import EvaluationContext
@@ -29,6 +30,7 @@ from ddtrace.internal.openfeature.writer import get_exposure_writer
 from ddtrace.internal.openfeature.writer import start_exposure_writer
 from ddtrace.internal.openfeature.writer import stop_exposure_writer
 from ddtrace.internal.service import ServiceStatusError
+from ddtrace.internal.utils.formats import asbool
 
 
 # Handle different import paths between openfeature-sdk versions
@@ -43,6 +45,9 @@ else:
 T = typing.TypeVar("T", covariant=True)
 logger = get_logger(__name__)
 
+# Environment variable to enable the experimental flagging provider
+FFE_PRODUCT_ENV_VAR = "DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED"
+
 
 class DataDogProvider(AbstractProvider):
     """
@@ -56,6 +61,14 @@ class DataDogProvider(AbstractProvider):
         super().__init__(*args, **kwargs)
         self._metadata = Metadata(name="Datadog")
 
+        # Check if experimental flagging provider is enabled
+        self._enabled = asbool(os.getenv(FFE_PRODUCT_ENV_VAR, "false"))
+        if not self._enabled:
+            logger.error(
+                "openfeature: experimental flagging provider is not enabled, " "please set %s=true to enable it",
+                FFE_PRODUCT_ENV_VAR,
+            )
+
     def get_metadata(self) -> Metadata:
         """Returns provider metadata."""
         return self._metadata
@@ -66,6 +79,9 @@ class DataDogProvider(AbstractProvider):
 
         Called by the OpenFeature SDK when the provider is set.
         """
+        if not self._enabled:
+            return
+
         enable_featureflags_rc()
 
         # Start the exposure writer for reporting
@@ -77,6 +93,9 @@ class DataDogProvider(AbstractProvider):
 
         Called by the OpenFeature SDK when the provider is being replaced or shutdown.
         """
+        if not self._enabled:
+            return
+
         disable_featureflags_rc()
         try:
             # Stop the exposure writer
@@ -139,6 +158,14 @@ class DataDogProvider(AbstractProvider):
         - Returns default value with DEFAULT reason when flag not found
         - Returns error with error_code and error_message on errors
         """
+        # If provider is not enabled, return default value
+        if not self._enabled:
+            return FlagResolutionDetails(
+                value=default_value,
+                reason=Reason.DISABLED,
+                variant=None,
+            )
+
         try:
             config_raw = _get_ffe_config()
             # Parse JSON config if it's a string

@@ -15,8 +15,9 @@ from ddtrace.openfeature import DataDogProvider
 
 
 @pytest.fixture
-def provider():
+def provider(monkeypatch):
     """Create a DataDogProvider instance for testing."""
+    monkeypatch.setenv("DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED", "true")
     return DataDogProvider()
 
 

@@ -22,8 +22,10 @@ def clear_config():
 
 
 @pytest.fixture
-def setup_openfeature():
+def setup_openfeature(monkeypatch):
     """Set up OpenFeature API with DataDogProvider."""
+    monkeypatch.setenv("DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED", "true")
+
     # Set the provider
     api.set_provider(DataDogProvider())
 
@@ -335,8 +337,10 @@ class TestOpenFeatureE2EMultipleFlags:
 class TestOpenFeatureE2EProviderLifecycle:
     """End-to-end tests for provider lifecycle."""
 
-    def test_provider_initialization_and_shutdown(self):
+    def test_provider_initialization_and_shutdown(self, monkeypatch):
         """Test provider initialization and shutdown lifecycle."""
+        monkeypatch.setenv("DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED", "true")
+
         # Set provider
         provider = DataDogProvider()
         api.set_provider(provider)
@@ -361,8 +365,10 @@ class TestOpenFeatureE2EProviderLifecycle:
         # Shutdown should not raise
         api.shutdown()
 
-    def test_multiple_clients_same_provider(self):
+    def test_multiple_clients_same_provider(self, monkeypatch):
         """Test multiple clients using the same provider."""
+        monkeypatch.setenv("DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED", "true")
+
         api.set_provider(DataDogProvider())
 
         config = {
