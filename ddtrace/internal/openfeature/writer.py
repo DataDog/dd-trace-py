@@ -7,6 +7,7 @@ import json
 from typing import Any
 from typing import Dict
 from typing import List
+from typing import Optional
 from typing import TypedDict
 
 from ddtrace.internal import forksafe
@@ -59,9 +60,9 @@ class ExposureWriter(PeriodicService):
 
     def __init__(
         self,
-        interval: float = None,
+        interval: Optional[float] = None,
         timeout: float = DEFAULT_TIMEOUT,
-        enabled: bool = None,
+        enabled: Optional[bool] = None,
     ) -> None:
         # Read configuration from settings
         if enabled is None:
@@ -211,7 +212,7 @@ class ExposureWriter(PeriodicService):
 
 
 # Global singleton writer instance
-_EXPOSURE_WRITER: ExposureWriter = None
+_EXPOSURE_WRITER: Optional[ExposureWriter] = None
 
 
 def get_exposure_writer() -> ExposureWriter:

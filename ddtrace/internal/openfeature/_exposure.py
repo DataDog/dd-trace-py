@@ -51,7 +51,7 @@ def build_exposure_event(
         allocation_key = variant_key
 
     # Build the exposure event
-    exposure_event = {
+    exposure_event: ExposureEvent = {
         "timestamp": int(time.time() * 1000),  # milliseconds since epoch
         "allocation": {"key": allocation_key},
         "flag": {"key": flag_key},
@@ -83,7 +83,7 @@ def _build_subject(evaluation_context: Optional[EvaluationContext]) -> Optional[
         logger.debug("evaluation_context missing targeting_key for subject.id")
         return None
 
-    subject = {"id": subject_id}
+    subject: Dict[str, Any] = {"id": subject_id}
 
     # Add optional subject type if available in attributes
     attributes = evaluation_context.attributes or {}
