@@ -224,3 +224,205 @@ class TestExposureReporting:
 
         # Verify flag still resolved successfully
         assert result.value is True
+
+
+class TestExposureConnectionErrors:
+    """Test exposure reporting with various connection errors."""
+
+    @mock.patch("ddtrace.internal.openfeature._provider.get_exposure_writer")
+    def test_exposure_writer_connection_timeout(self, mock_get_writer, provider, evaluation_context):
+        """Test that flag resolution continues when exposure writer times out."""
+        # Setup writer that raises timeout error
+        mock_writer = mock.Mock()
+        mock_writer.enqueue.side_effect = TimeoutError("Connection timeout")
+        mock_get_writer.return_value = mock_writer
+
+        config = {
+            "flags": {
+                "test-flag": {
+                    "enabled": True,
+                    "variation_type": VariationType.BOOLEAN.value,
+                    "value": True,
+                    "variation_key": "on",
+                }
+            }
+        }
+        mock_process_ffe_configuration(config)
+
+        # Should not raise despite timeout
+        result = provider.resolve_boolean_details("test-flag", False, evaluation_context)
+
+        # Flag resolution should succeed
+        assert result.value is True
+
+    @mock.patch("ddtrace.internal.openfeature._provider.get_exposure_writer")
+    def test_exposure_writer_connection_refused(self, mock_get_writer, provider, evaluation_context):
+        """Test that flag resolution continues when connection is refused."""
+        mock_writer = mock.Mock()
+        mock_writer.enqueue.side_effect = ConnectionRefusedError("Connection refused")
+        mock_get_writer.return_value = mock_writer
+
+        config = {
+            "flags": {
+                "test-flag": {
+                    "enabled": True,
+                    "variation_type": VariationType.STRING.value,
+                    "value": "success",
+                }
+            }
+        }
+        mock_process_ffe_configuration(config)
+
+        result = provider.resolve_string_details("test-flag", "default", evaluation_context)
+
+        assert result.value == "success"
+
+    @mock.patch("ddtrace.internal.openfeature._provider.get_exposure_writer")
+    def test_exposure_writer_network_error(self, mock_get_writer, provider, evaluation_context):
+        """Test that flag resolution continues with network errors."""
+        mock_writer = mock.Mock()
+        mock_writer.enqueue.side_effect = OSError("Network is unreachable")
+        mock_get_writer.return_value = mock_writer
+
+        config = {
+            "flags": {
+                "network-flag": {
+                    "enabled": True,
+                    "variation_type": VariationType.INTEGER.value,
+                    "value": 42,
+                }
+            }
+        }
+        mock_process_ffe_configuration(config)
+
+        result = provider.resolve_integer_details("network-flag", 0, evaluation_context)
+
+        assert result.value == 42
+
+    @mock.patch("ddtrace.internal.openfeature._provider.get_exposure_writer")
+    def test_exposure_writer_buffer_full(self, mock_get_writer, provider, evaluation_context):
+        """Test handling when exposure writer buffer is full."""
+        mock_writer = mock.Mock()
+        mock_writer.enqueue.side_effect = Exception("Buffer full")
+        mock_get_writer.return_value = mock_writer
+
+        config = {
+            "flags": {
+                "buffer-flag": {
+                    "enabled": True,
+                    "variation_type": VariationType.BOOLEAN.value,
+                    "value": True,
+                }
+            }
+        }
+        mock_process_ffe_configuration(config)
+
+        # Multiple evaluations should all succeed
+        for _ in range(10):
+            result = provider.resolve_boolean_details("buffer-flag", False, evaluation_context)
+            assert result.value is True
+
+    @mock.patch("ddtrace.internal.openfeature._provider.get_exposure_writer")
+    def test_exposure_writer_returns_none(self, mock_get_writer, provider, evaluation_context):
+        """Test handling when get_exposure_writer returns None."""
+        mock_get_writer.return_value = None
+
+        config = {
+            "flags": {
+                "none-writer-flag": {
+                    "enabled": True,
+                    "variation_type": VariationType.BOOLEAN.value,
+                    "value": True,
+                }
+            }
+        }
+        mock_process_ffe_configuration(config)
+
+        # Should not crash
+        result = provider.resolve_boolean_details("none-writer-flag", False, evaluation_context)
+
+        assert result.value is True
+
+    @mock.patch("ddtrace.internal.openfeature._provider.get_exposure_writer")
+    def test_exposure_writer_intermittent_failures(self, mock_get_writer, provider, evaluation_context):
+        """Test handling of intermittent exposure writer failures."""
+        mock_writer = mock.Mock()
+        # Alternate between success and failure
+        call_count = [0]
+
+        def side_effect_fn(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] % 2 == 0:
+                raise ConnectionError("Intermittent failure")
+
+        mock_writer.enqueue.side_effect = side_effect_fn
+        mock_get_writer.return_value = mock_writer
+
+        config = {
+            "flags": {
+                "intermittent-flag": {
+                    "enabled": True,
+                    "variation_type": VariationType.STRING.value,
+                    "value": "stable",
+                }
+            }
+        }
+        mock_process_ffe_configuration(config)
+
+        # Multiple evaluations should all succeed despite intermittent failures
+        for _ in range(5):
+            result = provider.resolve_string_details("intermittent-flag", "default", evaluation_context)
+            assert result.value == "stable"
+
+    @mock.patch("ddtrace.internal.openfeature._provider.get_exposure_writer")
+    def test_exposure_build_event_returns_none(self, mock_get_writer, provider):
+        """Test when build_exposure_event returns None (e.g., missing targeting_key)."""
+        mock_writer = mock.Mock()
+        mock_get_writer.return_value = mock_writer
+
+        config = {
+            "flags": {
+                "no-context-flag": {
+                    "enabled": True,
+                    "variation_type": VariationType.BOOLEAN.value,
+                    "value": True,
+                    "variation_key": "on",
+                }
+            }
+        }
+        mock_process_ffe_configuration(config)
+
+        # Resolve without evaluation context (no targeting_key)
+        result = provider.resolve_boolean_details("no-context-flag", False, None)
+
+        # Flag should still resolve
+        assert result.value is True
+
+        # No exposure should be enqueued
+        mock_writer.enqueue.assert_not_called()
+
+    @mock.patch("ddtrace.internal.openfeature._provider.get_exposure_writer")
+    def test_exposure_writer_generic_exception(self, mock_get_writer, provider, evaluation_context):
+        """Test that generic exceptions in exposure writer are handled gracefully."""
+        mock_writer = mock.Mock()
+        mock_writer.enqueue.side_effect = Exception("Generic error")
+        mock_get_writer.return_value = mock_writer
+
+        config = {
+            "flags": {
+                "exception-flag": {
+                    "enabled": True,
+                    "variation_type": VariationType.BOOLEAN.value,
+                    "value": True,
+                    "variation_key": "on",
+                }
+            }
+        }
+        mock_process_ffe_configuration(config)
+
+        result = provider.resolve_boolean_details("exception-flag", False, evaluation_context)
+
+        # Flag should resolve successfully despite exception
+        assert result.value is True
+        # Verify writer.enqueue was called (even though it raised)
+        mock_writer.enqueue.assert_called()

@@ -80,8 +80,11 @@ class DataDogProvider(AbstractProvider):
 
         enable_featureflags_rc()
 
-        # Start the exposure writer for reporting
-        start_exposure_writer()
+        try:
+            # Start the exposure writer for reporting
+            start_exposure_writer()
+        except ServiceStatusError:
+            logger.debug("Exposure writer is already running", exc_info=True)
 
     def shutdown(self) -> None:
         """
@@ -97,7 +100,7 @@ class DataDogProvider(AbstractProvider):
             # Stop the exposure writer
             stop_exposure_writer()
         except ServiceStatusError:
-            logger.debug("Exposure writer already stopped:", exc_info=True)
+            logger.debug("Exposure writer has already stopped", exc_info=True)
 
     def resolve_boolean_details(
         self,
