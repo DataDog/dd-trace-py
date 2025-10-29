@@ -487,7 +487,7 @@ class TestOpenFeatureE2ERemoteConfigScenarios:
         _set_ffe_config(None)
 
         # Mock logger to verify warning is logged
-        with patch("ddtrace.internal.openfeature._provider.logger") as mock_logger:
+        with patch("ddtrace.internal.openfeature._provider.logger"):
             result = client.get_boolean_value("unconfigured-flag", False)
 
             # Should return default value
