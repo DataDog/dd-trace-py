@@ -25,3 +25,19 @@ class CIVisibilityProcessError(CIVisibilityError):
 
 class CIVisibilityAuthenticationException(Exception):
     pass
+
+
+class CIVisibilityAPIError(Exception):
+    def __init__(self, status: int) -> None:
+        self.status = status
+
+    def __str__(self) -> str:
+        return f"Error calling Test Optimization API (status: {self.status})"
+
+
+class CIVisibilityAPIClientError(CIVisibilityAPIError):
+    pass
+
+
+class CIVisibilityAPIServerError(CIVisibilityAPIError):
+    pass

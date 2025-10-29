@@ -2550,6 +2550,21 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="openfeature",
+            command="pytest {cmdargs} tests/openfeature",
+            pys=select_pys(),
+            pkgs={
+                "pytest-randomly": latest,
+                "mock": latest,
+            },
+            venvs=[
+                Venv(
+                    # Test against different versions of openfeature-sdk (0.5.0+ for submodule imports)
+                    pkgs={"openfeature-sdk": ["~=0.5.0", "~=0.6.0", "~=0.7.0", latest]},
+                ),
+            ],
+        ),
+        Venv(
             name="asyncio",
             command="pytest {cmdargs} tests/contrib/asyncio",
             pkgs={
@@ -3396,21 +3411,6 @@ venv = Venv(
                             name="selenium-pytest",
                         ),
                     ],
-                ),
-            ],
-        ),
-        Venv(
-            name="freezegun",
-            command="pytest tests/contrib/freezegun {cmdargs}",
-            pkgs={
-                "pytest-randomly": latest,
-            },
-            venvs=[
-                Venv(
-                    pys=["3.10", "3.12"],
-                    pkgs={
-                        "freezegun": ["~=1.3.0", "~=1.5.0"],
-                    },
                 ),
             ],
         ),
