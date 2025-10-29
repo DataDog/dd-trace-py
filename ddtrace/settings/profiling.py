@@ -116,6 +116,10 @@ def _enrich_tags(tags) -> t.Dict[str, str]:
 class ProfilingConfig(DDConfig):
     __prefix__ = "dd.profiling"
 
+    # Nested configs that need metadata synchronization in reload_from_env()
+    # Update this list when adding new nested configs via .include()
+    _NESTED_CONFIGS = ["stack", "lock", "memory", "heap", "pytorch"]
+
     # Note that the parser here has a side-effect, since SSI has changed the once-truthy value of the envvar to
     # truthy + "auto", which has a special meaning.
     enabled = DDConfig.v(
@@ -126,6 +130,51 @@ class ProfilingConfig(DDConfig):
         help_type="Boolean",
         help="Enable Datadog profiling when using ``ddtrace-run``",
     )
+
+    def reload_from_env(self):
+        """Reload configuration from environment variables in-place.
+
+        This method updates the existing config object with fresh values from
+        environment variables, preserving all existing references to this object.
+        This is critical for maintaining consistency across modules that have
+        already imported this config instance.
+        """
+        # Create a temporary new config to read fresh environment variables
+        new_config = ProfilingConfig()
+
+        # Copy all configuration values using the DDConfig items iterator
+        # This properly handles nested configs (stack, lock, memory, heap, pytorch)
+        for name, env_var in type(self).items(recursive=True):
+            # Get the value from the new config
+            new_value = new_config
+            for part in name.split("."):
+                new_value = getattr(new_value, part)
+
+            # Set the value on self
+            current = self
+            parts = name.split(".")
+            for part in parts[:-1]:
+                current = getattr(current, part)
+            setattr(current, parts[-1], new_value)
+
+        # Explicitly update derived fields that depend on other config values
+        # These are defined with DDConfig.d() and need to be recalculated
+        # stack.v2_enabled depends on stack._v2_enabled and stack.enabled
+        self.stack.v2_enabled = new_config.stack.v2_enabled
+        # heap.sample_size is derived from heap._sample_size and system memory
+        self.heap.sample_size = new_config.heap.sample_size
+
+        # Update internal tracking attributes for root config
+        self._value_source = new_config._value_source
+        self.config_id = new_config.config_id
+
+        # Update internal tracking attributes for nested configs
+        # This ensures value_source() and config_id work correctly for nested settings
+        for nested_name in self._NESTED_CONFIGS:
+            nested_config = getattr(self, nested_name)
+            new_nested_config = getattr(new_config, nested_name)
+            nested_config._value_source = new_nested_config._value_source
+            nested_config.config_id = new_nested_config.config_id
 
     agentless = DDConfig.v(
         bool,
@@ -420,3 +469,52 @@ def config_str(config):
     configured_features.append("CAP" + str(config.capture_pct))
     configured_features.append("MAXF" + str(config.max_frames))
     return "_".join(configured_features)
+
+
+def _reload_config_after_fork():
+    """Reload configuration after fork to respect child process environment.
+
+    This is critical for multi-worker servers like Gunicorn where:
+    1. Parent process may have DD_PROFILING_ENABLED=true
+    2. Child workers want DD_PROFILING_ENABLED=false
+    3. Environment variables are changed after fork
+
+    The config is re-read from environment variables in the child process.
+    Instead of creating a new instance, we reload the existing instance in-place
+    to preserve all existing references to the config object.
+    """
+    global config
+
+    # Store old value for logging
+    old_enabled = config.enabled
+
+    # Reload config in-place from environment variables
+    # This preserves all existing references to the config object
+    config.reload_from_env()
+
+    # Re-check ddup availability
+    global ddup_is_available
+    if not ddup_is_available:
+        config.enabled = False
+
+    # Re-check stack_v2 availability
+    global stack_v2_is_available
+    if config.stack.v2_enabled and not stack_v2_is_available:
+        config.stack.v2_enabled = False
+
+    # Enrich tags again
+    config.tags = _enrich_tags(config.tags)
+
+    if old_enabled != config.enabled:
+        logger.debug(
+            "Profiling config changed after fork (PID=%d): enabled=%s -> %s",
+            os.getpid(),
+            old_enabled,
+            config.enabled,
+        )
+
+
+# Register fork hook (executed before profiler restart hooks)
+from ddtrace.internal import forksafe
+
+forksafe.register(_reload_config_after_fork)
