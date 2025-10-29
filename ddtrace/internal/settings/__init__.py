@@ -1,6 +1,5 @@
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-
-from ..vendor.debtcollector import deprecate
+from ddtrace.vendor.debtcollector import deprecate
 
 
 def __getattr__(name):
