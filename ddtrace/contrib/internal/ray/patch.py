@@ -71,6 +71,7 @@ RAY_SERVICE_NAME = os.environ.get(RAY_JOB_NAME)
 RAY_MODULE_DENYLIST = {
     "ray.dag",
     "ray.experimental",
+    "ray.data._internal",
 }
 
 
@@ -492,6 +493,10 @@ def inject_tracing_into_actor_class(wrapped, instance, args, kwargs):
 
     # Skip tracing for certain ray modules
     if any(module_name.startswith(denied_module) for denied_module in RAY_MODULE_DENYLIST):
+        return cls
+
+    # Actor beginning with _ are considered internal and will not be traced
+    if class_name.startswith("_"):
         return cls
 
     # Determine if the class is a JobSupervisor
