@@ -3,6 +3,7 @@ from contextvars import ContextVar
 from copy import deepcopy
 from inspect import getmodule
 import os
+import sys
 from types import CodeType
 from types import ModuleType
 import typing as t
@@ -230,6 +231,11 @@ class ModuleCodeCollector(ModuleWatchdog):
 
             if self.is_import_coverage:
                 ctx_is_import_coverage.set(self.is_import_coverage)
+
+            # For Python 3.12+, re-enable monitoring that was disabled by previous contexts
+            # This ensures each test/suite gets accurate coverage data
+            if sys.version_info >= (3, 12):
+                sys.monitoring.restart_events()
 
             return self
 

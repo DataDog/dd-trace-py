@@ -63,11 +63,11 @@ def create_inferred_proxy_span_if_headers_exist(ctx, headers, child_of, tracer) 
 
 
 def set_inferred_proxy_span_tags(span, proxy_context) -> Span:
-    span.set_tag_str(COMPONENT, supported_proxies[proxy_context["proxy_system_name"]]["component"])
+    span._set_tag_str(COMPONENT, supported_proxies[proxy_context["proxy_system_name"]]["component"])
 
-    span.set_tag_str(http.METHOD, proxy_context["method"])
-    span.set_tag_str(http.URL, f"{proxy_context['domain_name']}{proxy_context['path']}")
-    span.set_tag_str("stage", proxy_context["stage"])
+    span._set_tag_str(http.METHOD, proxy_context["method"])
+    span._set_tag_str(http.URL, f"{proxy_context['domain_name']}{proxy_context['path']}")
+    span._set_tag_str("stage", proxy_context["stage"])
 
     span.set_metric("_dd.inferred_span", 1)
     return span

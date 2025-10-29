@@ -125,7 +125,7 @@ class _DBM_Propagator(object):
             dbm_tags[DBM_PEER_SERVICE_KEY] = peer_service
 
         if dbm_config.propagation_mode == "full":
-            db_span.set_tag_str(DBM_TRACE_INJECTED_TAG, "true")
+            db_span._set_tag_str(DBM_TRACE_INJECTED_TAG, "true")
             dbm_tags[DBM_TRACE_PARENT_KEY] = db_span.context._traceparent
 
         sql_comment = self.comment_generator(**dbm_tags)

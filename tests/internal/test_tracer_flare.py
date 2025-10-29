@@ -848,3 +848,35 @@ class TracerFlareSubscriberTests(TestCase):
         assert (
             self.tracer_flare_sub.current_request_start == original_request_start
         ), "Original request should not have been updated with newer request start time"
+
+
+def test_native_logs(tmp_path):
+    """
+    Validate that the flare collects native logs if native writer is enabled.
+    The native logs cannot be collected with Pyfakefs so we use tmp_path.
+    """
+    import os
+
+    from ddtrace import config
+    from ddtrace.internal.native._native import logger as native_logger
+
+    config._trace_writer_native = True
+    flare = Flare(
+        trace_agent_url=TRACE_AGENT_URL,
+        flare_dir=tmp_path,
+        ddconfig={"config": "testconfig"},
+    )
+
+    flare.prepare("DEBUG")
+
+    native_logger.log("debug", "debug log")
+
+    native_flare_file_path = tmp_path / f"tracer_native_{os.getpid()}.log"
+    assert os.path.exists(native_flare_file_path)
+
+    with open(native_flare_file_path, "r") as file:
+        assert "debug log" in file.readline()
+
+    # Sends request to testagent
+    # This just validates the request params
+    flare.send(MOCK_FLARE_SEND_REQUEST)

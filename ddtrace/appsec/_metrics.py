@@ -94,6 +94,8 @@ _TYPES_AND_TAGS = {
     _constants.EXPLOIT_PREVENTION.TYPE.SHI: (("rule_type", "command_injection"), ("rule_variant", "shell")),
     _constants.EXPLOIT_PREVENTION.TYPE.LFI: (("rule_type", "lfi"),),
     _constants.EXPLOIT_PREVENTION.TYPE.SSRF: (("rule_type", "ssrf"),),
+    _constants.EXPLOIT_PREVENTION.TYPE.SSRF_REQ: (("rule_type", "ssrf"), ("rule_variant", "request")),
+    _constants.EXPLOIT_PREVENTION.TYPE.SSRF_RES: (("rule_type", "ssrf"), ("rule_variant", "response")),
     _constants.EXPLOIT_PREVENTION.TYPE.SQLI: (("rule_type", "sql_injection"),),
 }
 
