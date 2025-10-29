@@ -6,7 +6,6 @@ import tempfile
 import pytest
 
 import ddtrace
-from ddtrace.internal.compat import PYTHON_VERSION_INFO
 
 from ..utils import BaseTestCase
 from ..utils import override_env

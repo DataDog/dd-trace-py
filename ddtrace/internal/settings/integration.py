@@ -3,8 +3,6 @@ from typing import Optional  # noqa:F401
 
 from ddtrace._hooks import Hooks
 from ddtrace.internal.utils.attrdict import AttrDict
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.vendor.debtcollector import deprecate
 
 from .http import HttpConfig
 

@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from ddtrace.internal.settings._inferred_base_service import PythonDetectoe
+from ddtrace.internal.settings._inferred_base_service import PythonDetector
 from ddtrace.internal.settings._inferred_base_service import _module_exists
 from ddtrace.internal.settings._inferred_base_service import detect_service
 
