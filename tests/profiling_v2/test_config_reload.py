@@ -10,6 +10,7 @@ These tests ensure that reload_from_env() correctly handles:
 Related: Fork config reload after environment variable changes
 """
 import os
+
 import pytest
 
 
@@ -22,11 +23,12 @@ class TestReloadFromEnvDerivedFields:
         When stack.enabled changes, v2_enabled should be recalculated.
         """
         # Initial state: stack enabled
-        os.environ['DD_PROFILING_ENABLED'] = 'true'
-        os.environ['DD_PROFILING_STACK_ENABLED'] = 'true'
-        os.environ['DD_PROFILING_STACK_V2_ENABLED'] = 'true'
+        os.environ["DD_PROFILING_ENABLED"] = "true"
+        os.environ["DD_PROFILING_STACK_ENABLED"] = "true"
+        os.environ["DD_PROFILING_STACK_V2_ENABLED"] = "true"
 
         from ddtrace.settings.profiling import ProfilingConfig
+
         config = ProfilingConfig()
 
         # Verify initial state
@@ -35,7 +37,7 @@ class TestReloadFromEnvDerivedFields:
         assert config.stack.v2_enabled is True, "Derived: True AND True = True"
 
         # Change environment: disable stack
-        os.environ['DD_PROFILING_STACK_ENABLED'] = 'false'
+        os.environ["DD_PROFILING_STACK_ENABLED"] = "false"
 
         # Reload config
         config.reload_from_env()
@@ -51,10 +53,11 @@ class TestReloadFromEnvDerivedFields:
         When heap.enabled=False, sample_size should be 0
         """
         # Initial state: heap enabled
-        os.environ['DD_PROFILING_ENABLED'] = 'true'
-        os.environ['DD_PROFILING_HEAP_ENABLED'] = 'true'
+        os.environ["DD_PROFILING_ENABLED"] = "true"
+        os.environ["DD_PROFILING_HEAP_ENABLED"] = "true"
 
         from ddtrace.settings.profiling import ProfilingConfig
+
         config = ProfilingConfig()
 
         # Verify initial state
@@ -63,7 +66,7 @@ class TestReloadFromEnvDerivedFields:
         assert initial_sample_size > 0, "Sample size should be > 0 when heap is enabled"
 
         # Change environment: disable heap
-        os.environ['DD_PROFILING_HEAP_ENABLED'] = 'false'
+        os.environ["DD_PROFILING_HEAP_ENABLED"] = "false"
 
         # Reload config
         config.reload_from_env()
@@ -78,20 +81,21 @@ class TestReloadFromEnvDerivedFields:
         when environment changes affect multiple configs.
         """
         # Initial state: all enabled
-        os.environ['DD_PROFILING_ENABLED'] = 'true'
-        os.environ['DD_PROFILING_STACK_ENABLED'] = 'true'
-        os.environ['DD_PROFILING_STACK_V2_ENABLED'] = 'true'
-        os.environ['DD_PROFILING_HEAP_ENABLED'] = 'true'
+        os.environ["DD_PROFILING_ENABLED"] = "true"
+        os.environ["DD_PROFILING_STACK_ENABLED"] = "true"
+        os.environ["DD_PROFILING_STACK_V2_ENABLED"] = "true"
+        os.environ["DD_PROFILING_HEAP_ENABLED"] = "true"
 
         from ddtrace.settings.profiling import ProfilingConfig
+
         config = ProfilingConfig()
 
         assert config.stack.v2_enabled is True
         assert config.heap.sample_size > 0
 
         # Change environment: disable both
-        os.environ['DD_PROFILING_STACK_ENABLED'] = 'false'
-        os.environ['DD_PROFILING_HEAP_ENABLED'] = 'false'
+        os.environ["DD_PROFILING_STACK_ENABLED"] = "false"
+        os.environ["DD_PROFILING_HEAP_ENABLED"] = "false"
 
         # Reload config
         config.reload_from_env()
@@ -110,28 +114,33 @@ class TestReloadFromEnvMetadata:
         This ensures value_source() API returns accurate information.
         """
         # Initial state with default
-        if 'DD_PROFILING_STACK_ENABLED' in os.environ:
-            del os.environ['DD_PROFILING_STACK_ENABLED']
+        if "DD_PROFILING_STACK_ENABLED" in os.environ:
+            del os.environ["DD_PROFILING_STACK_ENABLED"]
 
         from ddtrace.settings.profiling import ProfilingConfig
+
         config = ProfilingConfig()
 
         # Initial value_source might be 'default'
-        initial_source = config.stack.value_source('DD_PROFILING_STACK_ENABLED')
+        config.stack.value_source("DD_PROFILING_STACK_ENABLED")
 
         # Change environment: set explicit value
-        os.environ['DD_PROFILING_STACK_ENABLED'] = 'false'
+        os.environ["DD_PROFILING_STACK_ENABLED"] = "false"
 
         # Reload config
         config.reload_from_env()
 
         # Verify value_source is updated
-        new_source = config.stack.value_source('DD_PROFILING_STACK_ENABLED')
+        new_source = config.stack.value_source("DD_PROFILING_STACK_ENABLED")
         # After reload, source should reflect the environment variable
         # Note: The exact value depends on DDConfig implementation
         # but it should be updated from the new config
-        assert new_source in ['env_var', 'default', 'fleet_stable_config', 'local_stable_config'], \
-            f"value_source() should return a valid source type, got: {new_source}"
+        assert new_source in [
+            "env_var",
+            "default",
+            "fleet_stable_config",
+            "local_stable_config",
+        ], f"value_source() should return a valid source type, got: {new_source}"
 
     def test_all_nested_configs_metadata_synchronized(self):
         """
@@ -141,9 +150,10 @@ class TestReloadFromEnvMetadata:
         This is a regression test to ensure that when a new nested config
         is added to _NESTED_CONFIGS, the metadata synchronization works.
         """
-        os.environ['DD_PROFILING_ENABLED'] = 'true'
+        os.environ["DD_PROFILING_ENABLED"] = "true"
 
         from ddtrace.settings.profiling import ProfilingConfig
+
         config = ProfilingConfig()
 
         # Store initial metadata state
@@ -151,8 +161,8 @@ class TestReloadFromEnvMetadata:
         for nested_name in ProfilingConfig._NESTED_CONFIGS:
             nested = getattr(config, nested_name)
             initial_metadata[nested_name] = {
-                '_value_source': id(nested._value_source),
-                'config_id': nested.config_id,
+                "_value_source": id(nested._value_source),
+                "config_id": nested.config_id,
             }
 
         # Reload config (even without env change, metadata should be fresh)
@@ -164,10 +174,11 @@ class TestReloadFromEnvMetadata:
 
             # _value_source should be a new dict instance
             new_value_source_id = id(nested._value_source)
-            old_value_source_id = initial_metadata[nested_name]['_value_source']
+            old_value_source_id = initial_metadata[nested_name]["_value_source"]
 
-            assert new_value_source_id != old_value_source_id, \
-                f"{nested_name}._value_source should be updated with new dict instance"
+            assert (
+                new_value_source_id != old_value_source_id
+            ), f"{nested_name}._value_source should be updated with new dict instance"
 
     def test_nested_configs_list_completeness(self):
         """
@@ -181,19 +192,20 @@ class TestReloadFromEnvMetadata:
 
         # Expected nested configs based on .include() calls in the code
         # These should match the ProfilingConfig.include() calls at the bottom of profiling.py
-        expected_nested_configs = ['stack', 'lock', 'memory', 'heap', 'pytorch']
+        expected_nested_configs = ["stack", "lock", "memory", "heap", "pytorch"]
 
         actual_nested_configs = ProfilingConfig._NESTED_CONFIGS
 
-        assert set(actual_nested_configs) == set(expected_nested_configs), \
-            f"_NESTED_CONFIGS mismatch! Expected: {expected_nested_configs}, Got: {actual_nested_configs}. " \
+        assert set(actual_nested_configs) == set(expected_nested_configs), (
+            f"_NESTED_CONFIGS mismatch! Expected: {expected_nested_configs}, Got: {actual_nested_configs}. "
             "If you added a new nested config via .include(), add it to _NESTED_CONFIGS."
+        )
 
 
 class TestReloadFromEnvIntegration:
     """Integration tests for reload_from_env() in fork scenarios"""
 
-    @pytest.mark.skipif(not hasattr(os, 'fork'), reason="Fork not available on this platform")
+    @pytest.mark.skipif(not hasattr(os, "fork"), reason="Fork not available on this platform")
     def test_fork_scenario_config_reload(self):
         """
         Integration test simulating a fork scenario where child process
@@ -205,8 +217,8 @@ class TestReloadFromEnvIntegration:
         3. Metadata is synchronized
         4. Import references are preserved
         """
-        import sys
         import subprocess
+        import sys
 
         code = """
 import os
@@ -259,14 +271,12 @@ else:  # Parent process
     sys.exit(exit_code)
 """
 
-        result = subprocess.run([sys.executable, '-c', code],
-                                capture_output=True, timeout=5)
+        result = subprocess.run([sys.executable, "-c", code], capture_output=True, timeout=5)
 
         output = result.stdout.decode()
         stderr = result.stderr.decode()
 
-        assert result.returncode == 0, \
-            f"Fork integration test failed!\nStdout:\n{output}\nStderr:\n{stderr}"
+        assert result.returncode == 0, f"Fork integration test failed!\nStdout:\n{output}\nStderr:\n{stderr}"
 
         assert b"PARENT: stack.enabled=True" in result.stdout
         assert b"CHILD: stack.enabled=False" in result.stdout
@@ -280,10 +290,11 @@ class TestReloadFromEnvRobustness:
         Test that calling reload_from_env() multiple times is safe
         and produces consistent results.
         """
-        os.environ['DD_PROFILING_ENABLED'] = 'true'
-        os.environ['DD_PROFILING_STACK_ENABLED'] = 'true'
+        os.environ["DD_PROFILING_ENABLED"] = "true"
+        os.environ["DD_PROFILING_STACK_ENABLED"] = "true"
 
         from ddtrace.settings.profiling import ProfilingConfig
+
         config = ProfilingConfig()
 
         # Call reload multiple times
@@ -304,9 +315,10 @@ class TestReloadFromEnvRobustness:
         Test that reload_from_env() preserves the object identity
         of the config instance (in-place update).
         """
-        os.environ['DD_PROFILING_ENABLED'] = 'true'
+        os.environ["DD_PROFILING_ENABLED"] = "true"
 
         from ddtrace.settings.profiling import ProfilingConfig
+
         config = ProfilingConfig()
 
         original_id = id(config)
@@ -322,10 +334,10 @@ class TestReloadFromEnvRobustness:
         """Clean up environment variables after tests"""
         # Clean up to avoid affecting other tests
         env_vars = [
-            'DD_PROFILING_ENABLED',
-            'DD_PROFILING_STACK_ENABLED',
-            'DD_PROFILING_STACK_V2_ENABLED',
-            'DD_PROFILING_HEAP_ENABLED',
+            "DD_PROFILING_ENABLED",
+            "DD_PROFILING_STACK_ENABLED",
+            "DD_PROFILING_STACK_V2_ENABLED",
+            "DD_PROFILING_HEAP_ENABLED",
         ]
         for var in env_vars:
             if var in os.environ:

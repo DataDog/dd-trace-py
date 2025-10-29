@@ -563,6 +563,7 @@ def _reload_config_after_fork():
 
 
 # Register fork hook (executed before profiler restart hooks)
-from ddtrace.internal import forksafe
+from ddtrace.internal import forksafe  # noqa:  E402
+
 
 forksafe.register(_reload_config_after_fork)
