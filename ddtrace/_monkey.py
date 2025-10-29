@@ -7,7 +7,6 @@ from typing import Union
 
 from wrapt.importer import when_imported
 
-from ddtrace.appsec._listeners import load_common_appsec_modules
 from ddtrace.internal.compat import Path
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.settings._config import config
@@ -39,7 +38,6 @@ PATCH_MODULES = {
     "boto": True,
     "botocore": True,
     "bottle": True,
-    "cassandra": True,
     "celery": True,
     "consul": True,
     "ddtrace_api": True,
@@ -59,7 +57,6 @@ PATCH_MODULES = {
     "kafka": True,
     "langgraph": True,
     "litellm": True,
-    "mongoengine": True,
     "mysql": True,
     "mysqldb": True,
     "pymysql": True,
@@ -156,7 +153,6 @@ _MODULES_FOR_CONTRIB = {
         "psycopg2",
     ),
     "snowflake": ("snowflake.connector",),
-    "cassandra": ("cassandra.cluster",),
     "dogpile_cache": ("dogpile.cache",),
     "mysqldb": ("MySQLdb",),
     "futures": ("concurrent.futures.thread",),
@@ -335,7 +331,7 @@ def patch_all(**patch_modules: bool) -> None:
 
     :param dict patch_modules: Override whether particular modules are patched or not.
 
-        >>> _patch_all(redis=False, cassandra=False)
+        >>> _patch_all(redis=False)
     """
     deprecate(
         "patch_all is deprecated and will be removed in a future version of the tracer.",
@@ -364,8 +360,6 @@ def _patch_all(**patch_modules: bool) -> None:
     modules.update(patch_modules)
 
     patch(raise_errors=False, **modules)
-
-    load_common_appsec_modules()
 
 
 def patch(raise_errors=True, **patch_modules):

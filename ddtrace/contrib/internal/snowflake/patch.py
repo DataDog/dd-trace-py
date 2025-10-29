@@ -29,8 +29,7 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     try:
         import snowflake.connector as c
     except AttributeError:
@@ -41,13 +40,13 @@ def get_version():
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"snowflake": ">=2.3.0"}
+    return {"snowflake": ">=2.4.6"}
 
 
 class _SFTracedCursor(TracedCursor):
     def _set_post_execute_tags(self, span):
         super(_SFTracedCursor, self)._set_post_execute_tags(span)
-        span.set_tag_str("sfqid", self.__wrapped__.sfqid)
+        span._set_tag_str("sfqid", self.__wrapped__.sfqid)
 
 
 def patch():

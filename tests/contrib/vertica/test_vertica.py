@@ -1,5 +1,4 @@
 import pytest
-import wrapt
 
 import ddtrace
 from ddtrace import config
@@ -9,10 +8,10 @@ from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.internal.vertica.patch import patch
 from ddtrace.contrib.internal.vertica.patch import unpatch
+from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.settings._config import _deepmerge
 from tests.contrib.config import VERTICA_CONFIG
-from tests.opentracer.utils import init_tracer
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -63,8 +62,8 @@ class TestVerticaPatching(TracerTestCase):
         import vertica_python
 
         # use a patched method from each class as indicators
-        assert isinstance(vertica_python.Connection.cursor, wrapt.ObjectProxy)
-        assert isinstance(vertica_python.vertica.cursor.Cursor.execute, wrapt.ObjectProxy)
+        assert is_wrapted(vertica_python.Connection.cursor)
+        assert is_wrapted(vertica_python.vertica.cursor.Cursor.execute)
 
     def test_patch_after_import(self):
         """Patching _after_ the import will not work because we hook into
@@ -78,8 +77,8 @@ class TestVerticaPatching(TracerTestCase):
 
         import vertica_python
 
-        assert not isinstance(vertica_python.vertica.connection.Connection.cursor, wrapt.ObjectProxy)
-        assert not isinstance(vertica_python.vertica.cursor.Cursor.execute, wrapt.ObjectProxy)
+        assert not is_wrapted(vertica_python.vertica.connection.Connection.cursor)
+        assert not is_wrapted(vertica_python.vertica.cursor.Cursor.execute)
 
         patch()
 
@@ -91,33 +90,33 @@ class TestVerticaPatching(TracerTestCase):
         with mock_patch("vertica_python.connect", return_value=mock_conn):
             conn = vertica_python.connect()
             cursor = conn.cursor()
-            assert not isinstance(cursor, wrapt.ObjectProxy)
+            assert not is_wrapted(cursor)
 
     def test_idempotent_patch(self):
         patch()
         patch()
         import vertica_python
 
-        assert not isinstance(vertica_python.Connection.cursor.__wrapped__, wrapt.ObjectProxy)
-        assert not isinstance(vertica_python.vertica.cursor.Cursor.execute.__wrapped__, wrapt.ObjectProxy)
-        assert isinstance(vertica_python.Connection.cursor, wrapt.ObjectProxy)
-        assert isinstance(vertica_python.vertica.cursor.Cursor.execute, wrapt.ObjectProxy)
+        assert not is_wrapted(vertica_python.Connection.cursor.__wrapped__)
+        assert not is_wrapted(vertica_python.vertica.cursor.Cursor.execute.__wrapped__)
+        assert is_wrapted(vertica_python.Connection.cursor)
+        assert is_wrapted(vertica_python.vertica.cursor.Cursor.execute)
 
     def test_unpatch_before_import(self):
         patch()
         unpatch()
         import vertica_python
 
-        assert not isinstance(vertica_python.Connection.cursor, wrapt.ObjectProxy)
-        assert not isinstance(vertica_python.vertica.cursor.Cursor.execute, wrapt.ObjectProxy)
+        assert not is_wrapted(vertica_python.Connection.cursor)
+        assert not is_wrapted(vertica_python.vertica.cursor.Cursor.execute)
 
     def test_unpatch_after_import(self):
         patch()
         import vertica_python
 
         unpatch()
-        assert not isinstance(vertica_python.Connection.cursor, wrapt.ObjectProxy)
-        assert not isinstance(vertica_python.vertica.cursor.Cursor.execute, wrapt.ObjectProxy)
+        assert not is_wrapted(vertica_python.Connection.cursor)
+        assert not is_wrapted(vertica_python.vertica.cursor.Cursor.execute)
 
 
 @pytest.mark.usefixtures("test_tracer", "test_conn")
@@ -366,37 +365,6 @@ class TestVertica(TracerTestCase):
         assert spans[0].resource == query
         assert spans[1].name == "vertica.query"
         assert spans[1].resource == "COMMIT;"
-
-    def test_opentracing(self):
-        """Ensure OpenTracing works with vertica."""
-        conn, cur = self.test_conn
-
-        ot_tracer = init_tracer("vertica_svc", self.test_tracer)
-
-        with ot_tracer.start_active_span("vertica_execute"):
-            cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
-            conn.close()
-
-        spans = self.test_tracer.pop()
-        assert len(spans) == 2
-        ot_span, dd_span = spans
-
-        # confirm the parenting
-        assert ot_span.parent_id is None
-        assert dd_span.parent_id == ot_span.span_id
-
-        assert_is_measured(dd_span)
-        assert dd_span.service == "vertica"
-        assert dd_span.span_type == "sql"
-        assert dd_span.name == "vertica.query"
-        assert dd_span.get_metric("db.row_count") == -1
-        query = "INSERT INTO test_table (a, b) VALUES (1, 'aa');"
-        assert dd_span.resource == query
-        assert dd_span.get_tag("out.host") == "127.0.0.1"
-        assert dd_span.get_tag("span.kind") == "client"
-        assert dd_span.get_metric("network.destination.port") == 5433
-        assert dd_span.get_tag("db.system") == "vertica"
-        assert dd_span.get_tag("component") == "vertica"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"), use_pytest=True)
     @pytest.mark.usefixtures("test_tracer", "test_conn")

@@ -97,7 +97,7 @@ class _PytestBddPlugin:
                 child_of=feature_span,
                 activate=True,
             )
-            span.set_tag_str("component", "pytest_bdd")
+            span._set_tag_str("component", "pytest_bdd")
 
             span.set_tag(test.FRAMEWORK, FRAMEWORK)
             span.set_tag(test.FRAMEWORK_VERSION, self.framework_version)

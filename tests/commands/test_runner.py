@@ -6,6 +6,7 @@ import tempfile
 import pytest
 
 import ddtrace
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 
 from ..utils import BaseTestCase
 from ..utils import override_env
@@ -197,13 +198,6 @@ class DdtraceRunTest(BaseTestCase):
         out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_argv.py", "foo", "bar"])
         assert out.startswith(b"Test success")
 
-    def test_got_app_name(self):
-        """
-        apps run with ddtrace-run have a proper app name
-        """
-        out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_app_name.py"])
-        assert out.startswith(b"ddtrace_run_app_name.py")
-
     def test_global_trace_tags(self):
         """Ensure global tags are passed in from environment"""
         with self.override_env(dict(DD_TRACE_GLOBAL_TAGS="a:True,b:0,c:C")):
@@ -212,7 +206,7 @@ class DdtraceRunTest(BaseTestCase):
 
     def test_logs_injection(self):
         """Ensure logs injection works"""
-        with self.override_env(dict(DD_LOGS_INJECTION="true")):
+        with self.override_env(dict(DD_TAGS="service:my-service,env:my-env,version:my-version")):
             out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_logs_injection.py"])
             assert out.startswith(b"Test success"), out.decode()
 
@@ -522,6 +516,7 @@ def test_ddtrace_run_and_auto_sitecustomize():
     assert final_modules - starting_modules == set(["ddtrace.auto"])
 
 
+@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 10), reason="ddtrace under Python 3.9 is deprecated")
 @pytest.mark.subprocess(env=dict(DD_TRACE_GLOBAL_TAGS="a:True"), err=None)
 def test_global_trace_tags_deprecation_warning():
     """Ensure DD_TRACE_GLOBAL_TAGS deprecation warning shows"""
@@ -531,12 +526,12 @@ def test_global_trace_tags_deprecation_warning():
         warnings.simplefilter("always")
         import ddtrace.auto  # noqa: F401
 
-        assert len(warns) == 1
-        warning_message = str(warns[0].message)
+        assert len(warns) >= 1
+        warning_messages = [str(warn.message) for warn in warns]
         assert (
-            warning_message
-            == "DD_TRACE_GLOBAL_TAGS is deprecated and will be removed in version '4.0.0': Please migrate to using DD_TAGS instead"  # noqa: E501
-        ), warning_message
+            "DD_TRACE_GLOBAL_TAGS is deprecated and will be removed in version '4.0.0': Please migrate to using "
+            "DD_TAGS instead" in warning_messages
+        ), warning_messages
 
 
 @pytest.mark.subprocess(ddtrace_run=False, err="")

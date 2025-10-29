@@ -3,23 +3,23 @@ import sys
 
 import psycopg
 import pytest
-import wrapt
 
 from ddtrace.contrib.internal.psycopg.patch import patch
 from ddtrace.contrib.internal.psycopg.patch import unpatch
+from ddtrace.internal.compat import is_wrapted
 
 
 @pytest.fixture(autouse=True)
 def patch_psycopg():
     patch()
-    assert isinstance(psycopg.connect, wrapt.ObjectProxy)
-    assert isinstance(psycopg.Cursor, wrapt.ObjectProxy)
-    assert isinstance(psycopg.AsyncCursor, wrapt.ObjectProxy)
+    assert is_wrapted(psycopg.connect)
+    assert is_wrapted(psycopg.Cursor)
+    assert is_wrapted(psycopg.AsyncCursor)
 
     # check if Connection connect methods are patched
     try:
-        assert isinstance(psycopg.Connection.connect, wrapt.ObjectProxy)
-        assert isinstance(psycopg.AsyncConnection.connect, wrapt.ObjectProxy)
+        assert is_wrapted(psycopg.Connection.connect)
+        assert is_wrapted(psycopg.AsyncConnection.connect)
     except AttributeError:
         if sys.version_info >= (3, 11):
             # Python 3.11 is throwing an AttributeError when accessing a BoundMethod

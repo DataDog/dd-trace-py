@@ -3,13 +3,12 @@ import os
 
 import aredis
 import pytest
-from wrapt import ObjectProxy
 
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.aredis.patch import patch
 from ddtrace.contrib.internal.aredis.patch import unpatch
+from ddtrace.internal.compat import is_wrapted
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
-from tests.opentracer.utils import init_tracer
 from tests.utils import override_config
 
 from ..config import REDIS_CONFIG
@@ -37,17 +36,17 @@ def test_patching():
     When unpatching aredis library
         We unwrap the correct methods
     """
-    assert isinstance(aredis.client.StrictRedis.execute_command, ObjectProxy)
-    assert isinstance(aredis.client.StrictRedis.pipeline, ObjectProxy)
-    assert isinstance(aredis.pipeline.StrictPipeline.execute, ObjectProxy)
-    assert isinstance(aredis.pipeline.StrictPipeline.immediate_execute_command, ObjectProxy)
+    assert is_wrapted(aredis.client.StrictRedis.execute_command)
+    assert is_wrapted(aredis.client.StrictRedis.pipeline)
+    assert is_wrapted(aredis.pipeline.StrictPipeline.execute)
+    assert is_wrapted(aredis.pipeline.StrictPipeline.immediate_execute_command)
 
     unpatch()
 
-    assert not isinstance(aredis.client.StrictRedis.execute_command, ObjectProxy)
-    assert not isinstance(aredis.client.StrictRedis.pipeline, ObjectProxy)
-    assert not isinstance(aredis.pipeline.StrictPipeline.execute, ObjectProxy)
-    assert not isinstance(aredis.pipeline.StrictPipeline.immediate_execute_command, ObjectProxy)
+    assert not is_wrapted(aredis.client.StrictRedis.execute_command)
+    assert not is_wrapted(aredis.client.StrictRedis.pipeline)
+    assert not is_wrapted(aredis.pipeline.StrictPipeline.execute)
+    assert not is_wrapted(aredis.pipeline.StrictPipeline.immediate_execute_command)
 
 
 @pytest.mark.asyncio
@@ -183,19 +182,6 @@ if __name__ == "__main__":
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (err.decode(), out.decode())
     assert err == b"", err.decode()
-
-
-@pytest.mark.asyncio
-async def test_opentracing(tracer, snapshot_context):
-    """Ensure OpenTracing works with redis."""
-
-    with snapshot_context():
-        r = aredis.StrictRedis(port=REDIS_CONFIG["port"])
-        pin = Pin.get_from(r)
-        ot_tracer = init_tracer("redis_svc", pin.tracer)
-
-        with ot_tracer.start_active_span("redis_get"):
-            await r.get("cheese")
 
 
 @pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_REDIS_RESOURCE_ONLY_COMMAND="false"))

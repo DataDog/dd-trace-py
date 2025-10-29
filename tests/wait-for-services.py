@@ -195,7 +195,7 @@ if __name__ == "__main__":
         "cassandra": check_cassandra,
         "ddagent": check_agent,
         "elasticsearch": check_elasticsearch,
-        "httpbin_local": check_httpbin,
+        "httpbin": check_httpbin,
         "moto": check_moto,
         "mysql": check_mysql,
         "opensearch": check_opensearch,

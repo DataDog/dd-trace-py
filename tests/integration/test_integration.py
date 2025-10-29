@@ -8,6 +8,7 @@ import mock
 import pytest
 
 from ddtrace.internal.atexit import register_on_exit_signal
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from tests.integration.utils import parametrize_with_all_encodings
 from tests.integration.utils import skip_if_native_writer
 from tests.integration.utils import skip_if_testagent
@@ -807,8 +808,8 @@ def test_logging_during_tracer_init_succeeds_when_debug_logging_and_logs_injecti
     assert out == b"", "an empty program should generate no logs under ddtrace-run"
 
     assert (
-        b"[dd.service=ddtrace_subprocess_dir dd.env= dd.version= dd.trace_id=0 dd.span_id=0]" in err
-    ), "stderr should contain debug output when DD_TRACE_DEBUG is set"
+        b"[dd.service=ddtrace_subprocess_dir dd.env= dd.version= dd.trace_id=0 dd.span_id=0]" not in err
+    ), "stderr should not contain debug output when DD_TRACE_DEBUG is set"
 
     assert b"KeyError: 'dd.service'" not in err, "stderr should not contain any exception logs"
     assert (
@@ -816,6 +817,7 @@ def test_logging_during_tracer_init_succeeds_when_debug_logging_and_logs_injecti
     ), "stderr should not contain any exception logs"
 
 
+@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 10), reason="ddtrace under Python 3.9 is deprecated")
 def test_no_warnings_when_Wall():
     env = os.environ.copy()
     # Have to disable sqlite3 as coverage uses it on process shutdown

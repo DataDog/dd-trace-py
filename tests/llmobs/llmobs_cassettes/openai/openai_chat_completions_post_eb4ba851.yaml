@@ -1,0 +1,154 @@
+interactions:
+- request:
+    body: '{"messages":[{"content":"Hello, my name is","role":"user"}],"model":"gpt-3.5-turbo","stream":true}'
+    headers:
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept
+      : - application/json
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - gzip, deflate, zstd
+      ? !!python/object/apply:multidict._multidict.istr
+      - Connection
+      : - keep-alive
+      Content-Length:
+      - '98'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      ? !!python/object/apply:multidict._multidict.istr
+      - User-Agent
+      : - OpenAI/Python 1.109.1
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Arch
+      : - arm64
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Async
+      : - 'false'
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Lang
+      : - python
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-OS
+      : - MacOS
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Package-Version
+      : - 1.109.1
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Runtime
+      : - CPython
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Runtime-Version
+      : - 3.10.13
+      ? !!python/object/apply:multidict._multidict.istr
+      - x-stainless-read-timeout
+      : - '0.0001'
+      ? !!python/object/apply:multidict._multidict.istr
+      - x-stainless-retry-count
+      : - '0'
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: 'data: {"id":"chatcmpl-CTDgOzn7iu7WvRbPx6d7DKv4jisZ1","object":"chat.completion.chunk","created":1761080144,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"role":"assistant","content":"","refusal":null},"logprobs":null,"finish_reason":null}],"obfuscation":"GHVuj"}
+
+
+        data: {"id":"chatcmpl-CTDgOzn7iu7WvRbPx6d7DKv4jisZ1","object":"chat.completion.chunk","created":1761080144,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"content":"Assistant"},"logprobs":null,"finish_reason":null}],"obfuscation":"x2EMmcLlO3ecwG"}
+
+
+        data: {"id":"chatcmpl-CTDgOzn7iu7WvRbPx6d7DKv4jisZ1","object":"chat.completion.chunk","created":1761080144,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"content":"."},"logprobs":null,"finish_reason":null}],"obfuscation":"TQ802v"}
+
+
+        data: {"id":"chatcmpl-CTDgOzn7iu7WvRbPx6d7DKv4jisZ1","object":"chat.completion.chunk","created":1761080144,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"content":"
+        How"},"logprobs":null,"finish_reason":null}],"obfuscation":"XKe"}
+
+
+        data: {"id":"chatcmpl-CTDgOzn7iu7WvRbPx6d7DKv4jisZ1","object":"chat.completion.chunk","created":1761080144,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"content":"
+        can"},"logprobs":null,"finish_reason":null}],"obfuscation":"kcL"}
+
+
+        data: {"id":"chatcmpl-CTDgOzn7iu7WvRbPx6d7DKv4jisZ1","object":"chat.completion.chunk","created":1761080144,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"content":"
+        I"},"logprobs":null,"finish_reason":null}],"obfuscation":"iYfTx"}
+
+
+        data: {"id":"chatcmpl-CTDgOzn7iu7WvRbPx6d7DKv4jisZ1","object":"chat.completion.chunk","created":1761080144,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"content":"
+        assist"},"logprobs":null,"finish_reason":null}],"obfuscation":""}
+
+
+        data: {"id":"chatcmpl-CTDgOzn7iu7WvRbPx6d7DKv4jisZ1","object":"chat.completion.chunk","created":1761080144,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"content":"
+        you"},"logprobs":null,"finish_reason":null}],"obfuscation":"3qp"}
+
+
+        data: {"id":"chatcmpl-CTDgOzn7iu7WvRbPx6d7DKv4jisZ1","object":"chat.completion.chunk","created":1761080144,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"content":"
+        today"},"logprobs":null,"finish_reason":null}],"obfuscation":"Q"}
+
+
+        data: {"id":"chatcmpl-CTDgOzn7iu7WvRbPx6d7DKv4jisZ1","object":"chat.completion.chunk","created":1761080144,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"content":"?"},"logprobs":null,"finish_reason":null}],"obfuscation":"rxGZdS"}
+
+
+        data: {"id":"chatcmpl-CTDgOzn7iu7WvRbPx6d7DKv4jisZ1","object":"chat.completion.chunk","created":1761080144,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"stop"}],"obfuscation":"q"}
+
+
+        data: [DONE]
+
+
+        '
+    headers:
+      CF-RAY:
+      - 9923a8557c58310c-IAD
+      Connection:
+      - keep-alive
+      Content-Type:
+      - text/event-stream; charset=utf-8
+      Date:
+      - Tue, 21 Oct 2025 20:55:44 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=BNW6cRDCKHu3RmqDR.YwTVZBl0oaF1KmyP7rFJOVJh8-1761080144-1.0.1.1-Em.1pj_MusLdRZAzfxs.tpO51tHRIUprKfWcjhgW3dWoSXLap2PB6YRiem.DU.MG8NVyMIQkwW6W_JUxa_NnHFenF.ejDJXGieRs0VvP6cs;
+        path=/; expires=Tue, 21-Oct-25 21:25:44 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=ue2PaSkW.MPXEVwGniK0_bY41_Ri3BTQdhJbM_FzhWo-1761080144466-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-staging
+      openai-processing-ms:
+      - '134'
+      openai-project:
+      - proj_gt6TQZPRbZfoY2J9AQlEJMpd
+      openai-version:
+      - '2020-10-01'
+      x-envoy-upstream-service-time:
+      - '151'
+      x-openai-proxy-wasm:
+      - v0.1
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '50000000'
+      x-ratelimit-remaining-requests:
+      - '9999'
+      x-ratelimit-remaining-tokens:
+      - '49999993'
+      x-ratelimit-reset-requests:
+      - 6ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_396d9ab42a15454bbc29de5853e2bad7
+    status:
+      code: 200
+      message: OK
+version: 1

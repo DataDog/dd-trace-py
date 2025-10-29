@@ -3515,22 +3515,6 @@ def test_http_propagator_baggage_extract(headers):
     assert context._baggage == {"key1": "val1", "key2": "val2", "foo": "bar", "x": "y"}
 
 
-@pytest.mark.subprocess(
-    env=dict(DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED="True"),
-    parametrize=dict(DD_TRACE_PROPAGATION_EXTRACT_FIRST=["True", "False"]),
-)
-def test_opentracer_propagator_baggage_extract():
-    from ddtrace.propagation.http import HTTPPropagator
-
-    headers = {
-        "x-datadog-trace-id": "1234",
-        "x-datadog-parent-id": "5678",
-        "http_ot_baggage_key1": "value1",
-    }
-    context = HTTPPropagator.extract(headers)
-    assert context._baggage == {"key1": "value1"}
-
-
 def test_baggage_span_tags_default():
     headers = {"baggage": "user.id=123,correlation_id=abc,region=us-east"}
     context = HTTPPropagator.extract(headers)
