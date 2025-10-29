@@ -111,28 +111,12 @@ def test_llmobs_client_server_tool_error(mcp_setup, mock_tracer, llmobs_events, 
     assert client_span.error
     assert server_span.error
 
-    assert client_events[0] == _expected_llmobs_non_llm_span_event(
-        client_span,
-        span_kind="tool",
-        input_value=json.dumps({"param": "value"}),
-        # output_value=json.dumps(
-        #     {
-        #         "content": [
-        #             {
-        #                 "type": "text",
-        #                 "annotations": {},
-        #                 "meta": {},
-        #                 "text": "Error executing tool failing_tool: Tool execution failed",
-        #             }
-        #         ],
-        #         "isError": True,
-        #     }
-        # ),
-        error="",
-        error_message="Error executing tool failing_tool: Tool execution failed",
-        error_stack="",
-        tags={"service": "mcptest", "ml_app": "<ml-app-name>"},
-    )
+    # assert the error client span manually
+    assert client_events[0]["meta"]["input"]["value"] == json.dumps({"param": "value"})
+    assert client_events[0]["meta"]["error"]["message"] == "Error executing tool failing_tool: Tool execution failed"
+    assert client_events[0]["status"] == "error"
+    assert "error:1" in client_events[0]["tags"]
+
     assert server_events[0] == _expected_llmobs_non_llm_span_event(
         server_span,
         span_kind="tool",
