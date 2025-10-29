@@ -8,7 +8,6 @@ and forwards the raw bytes to the native FFE processor.
 import datetime
 from importlib.metadata import version
 import json
-import os
 import typing
 
 from openfeature.evaluation_context import EvaluationContext
@@ -30,7 +29,7 @@ from ddtrace.internal.openfeature.writer import get_exposure_writer
 from ddtrace.internal.openfeature.writer import start_exposure_writer
 from ddtrace.internal.openfeature.writer import stop_exposure_writer
 from ddtrace.internal.service import ServiceStatusError
-from ddtrace.internal.utils.formats import asbool
+from ddtrace.settings.openfeature import config as ffe_config
 
 
 # Handle different import paths between openfeature-sdk versions
@@ -44,9 +43,6 @@ else:
 
 T = typing.TypeVar("T", covariant=True)
 logger = get_logger(__name__)
-
-# Environment variable to enable the experimental flagging provider
-FFE_PRODUCT_ENV_VAR = "DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED"
 
 
 class DataDogProvider(AbstractProvider):
@@ -62,11 +58,11 @@ class DataDogProvider(AbstractProvider):
         self._metadata = Metadata(name="Datadog")
 
         # Check if experimental flagging provider is enabled
-        self._enabled = asbool(os.getenv(FFE_PRODUCT_ENV_VAR, "false"))
+        self._enabled = ffe_config.experimental_flagging_provider_enabled
         if not self._enabled:
             logger.error(
-                "openfeature: experimental flagging provider is not enabled, " "please set %s=true to enable it",
-                FFE_PRODUCT_ENV_VAR,
+                "openfeature: experimental flagging provider is not enabled, "
+                "please set DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED=true to enable it",
             )
 
     def get_metadata(self) -> Metadata:

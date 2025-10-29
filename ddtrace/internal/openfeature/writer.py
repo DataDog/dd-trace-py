@@ -4,7 +4,6 @@ Writer for Feature Flag Exposure events to EVP proxy intake.
 
 import atexit
 import json
-import os
 from typing import Any
 from typing import Dict
 from typing import List
@@ -17,6 +16,7 @@ from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.settings._agent import config as agent_config
+from ddtrace.settings.openfeature import config as ffe_config
 
 
 logger = get_logger(__name__)
@@ -53,10 +53,6 @@ class ExposureWriter(PeriodicService):
 
     Sends exposure events to the Datadog Agent's EVP proxy endpoint at
     /evp_proxy/v2/api/v2/exposures
-
-    Configuration via environment variables:
-    - DD_FFE_INTAKE_ENABLED: Enable/disable exposure reporting (default: True)
-    - DD_FFE_INTAKE_HEARTBEAT_INTERVAL: Flush interval in seconds (default: 1.0)
     """
 
     RETRY_ATTEMPTS = 3
@@ -67,12 +63,12 @@ class ExposureWriter(PeriodicService):
         timeout: float = DEFAULT_TIMEOUT,
         enabled: bool = None,
     ) -> None:
-        # Read configuration from environment
+        # Read configuration from settings
         if enabled is None:
-            enabled = os.getenv("DD_FFE_INTAKE_ENABLED", "true").lower() in ("true", "1", "yes")
+            enabled = ffe_config.ffe_intake_enabled
 
         if interval is None:
-            interval = float(os.getenv("DD_FFE_INTAKE_HEARTBEAT_INTERVAL", str(DEFAULT_INTERVAL)))
+            interval = ffe_config.ffe_intake_heartbeat_interval
 
         super(ExposureWriter, self).__init__(interval=interval)
         self._lock = forksafe.RLock()

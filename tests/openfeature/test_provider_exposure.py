@@ -12,13 +12,14 @@ from ddtrace.internal.openfeature._ffe_mock import AssignmentReason
 from ddtrace.internal.openfeature._ffe_mock import VariationType
 from ddtrace.internal.openfeature._ffe_mock import mock_process_ffe_configuration
 from ddtrace.openfeature import DataDogProvider
+from tests.utils import override_global_config
 
 
 @pytest.fixture
-def provider(monkeypatch):
+def provider():
     """Create a DataDogProvider instance for testing."""
-    monkeypatch.setenv("DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED", "true")
-    return DataDogProvider()
+    with override_global_config({"experimental_flagging_provider_enabled": True}):
+        yield DataDogProvider()
 
 
 @pytest.fixture

@@ -11,6 +11,7 @@ from ddtrace.internal.openfeature._ffe_mock import AssignmentReason
 from ddtrace.internal.openfeature._ffe_mock import VariationType
 from ddtrace.internal.openfeature._ffe_mock import mock_process_ffe_configuration
 from ddtrace.openfeature import DataDogProvider
+from tests.utils import override_global_config
 
 
 @pytest.fixture(autouse=True)
@@ -22,20 +23,19 @@ def clear_config():
 
 
 @pytest.fixture
-def setup_openfeature(monkeypatch):
+def setup_openfeature():
     """Set up OpenFeature API with DataDogProvider."""
-    monkeypatch.setenv("DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED", "true")
+    with override_global_config({"experimental_flagging_provider_enabled": True}):
+        # Set the provider
+        api.set_provider(DataDogProvider())
 
-    # Set the provider
-    api.set_provider(DataDogProvider())
+        # Get a client
+        client = api.get_client()
 
-    # Get a client
-    client = api.get_client()
+        yield client
 
-    yield client
-
-    # Cleanup
-    api.shutdown()
+        # Cleanup
+        api.shutdown()
 
 
 class TestOpenFeatureE2EBooleanFlags:
@@ -337,12 +337,11 @@ class TestOpenFeatureE2EMultipleFlags:
 class TestOpenFeatureE2EProviderLifecycle:
     """End-to-end tests for provider lifecycle."""
 
-    def test_provider_initialization_and_shutdown(self, monkeypatch):
+    def test_provider_initialization_and_shutdown(self):
         """Test provider initialization and shutdown lifecycle."""
-        monkeypatch.setenv("DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED", "true")
-
-        # Set provider
-        provider = DataDogProvider()
+        with override_global_config({"experimental_flagging_provider_enabled": True}):
+            # Set provider
+            provider = DataDogProvider()
         api.set_provider(provider)
 
         # Get client and use it
@@ -365,11 +364,10 @@ class TestOpenFeatureE2EProviderLifecycle:
         # Shutdown should not raise
         api.shutdown()
 
-    def test_multiple_clients_same_provider(self, monkeypatch):
+    def test_multiple_clients_same_provider(self):
         """Test multiple clients using the same provider."""
-        monkeypatch.setenv("DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED", "true")
-
-        api.set_provider(DataDogProvider())
+        with override_global_config({"experimental_flagging_provider_enabled": True}):
+            api.set_provider(DataDogProvider())
 
         config = {
             "flags": {

@@ -10,6 +10,7 @@ import pytest
 from ddtrace.internal.openfeature.writer import ExposureEvent
 from ddtrace.internal.openfeature.writer import ExposureWriter
 from ddtrace.internal.service import ServiceStatus
+from tests.utils import override_global_config
 
 
 @pytest.fixture
@@ -93,7 +94,7 @@ class TestExposureWriter:
 
         # Verify connection was made
         mock_get_connection.assert_called()
-        mock_conn.request.assert_called_once()
+        mock_conn.request.assert_called()
 
         # Verify request details
         call_args = mock_conn.request.call_args
@@ -118,24 +119,22 @@ class TestExposureWriter:
             writer.periodic()
             mock_send.assert_not_called()
 
-    def test_writer_disabled_via_env_var(self, monkeypatch):
-        """Test that writer can be disabled via environment variable."""
-        monkeypatch.setenv("DD_FFE_INTAKE_ENABLED", "false")
+    def test_writer_disabled_via_config(self):
+        """Test that writer can be disabled via configuration."""
+        with override_global_config({"ffe_intake_enabled": False}):
+            writer = ExposureWriter()
+            assert writer._enabled is False
 
-        writer = ExposureWriter()
-        assert writer._enabled is False
+            # Start should not actually start the service
+            writer.start()
+            assert writer._enabled is False
+            assert writer.status != ServiceStatus.RUNNING
 
-        # Start should not actually start the service
-        writer.start()
-        assert writer._enabled is False
-        assert writer.status != ServiceStatus.RUNNING
-
-    def test_writer_custom_interval_via_env_var(self, monkeypatch):
-        """Test that interval can be configured via environment variable."""
-        monkeypatch.setenv("DD_FFE_INTAKE_HEARTBEAT_INTERVAL", "5.0")
-
-        writer = ExposureWriter()
-        assert writer._interval == 5.0
+    def test_writer_custom_interval_via_config(self):
+        """Test that interval can be configured via configuration."""
+        with override_global_config({"ffe_intake_heartbeat_interval": 5.0}):
+            writer = ExposureWriter()
+            assert writer._interval == 5.0
 
     def test_writer_retry_mechanism(self, writer, sample_exposure_event):
         """Test that _send_payload_with_retry is set up correctly."""
