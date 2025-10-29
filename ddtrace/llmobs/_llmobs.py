@@ -320,8 +320,21 @@ class LLMObs(Service):
                 Message(content=safe_json(span._get_ctx_item(INPUT_VALUE), ensure_ascii=False) or "", role="")
             ]
 
-        if span.context.get_baggage_item(EXPERIMENT_ID_KEY):
+        experiment_id = span.context.get_baggage_item(EXPERIMENT_ID_KEY)
+        if experiment_id:
             _dd_attrs["scope"] = "experiments"
+            # the children spans of an experiment span should be tagged by the experiment ID as well
+            if not span.get_tag("experiment_id"):
+                span.set_tag("experiment_id", experiment_id)
+
+            run_id = span.context.get_baggage_item(EXPERIMENT_RUN_ID_KEY)
+            if run_id and not span.get_tag("run_id"):
+                span.set_tag("run_id", run_id)
+
+            run_iteration = span.context.get_baggage_item(EXPERIMENT_RUN_ITERATION_KEY)
+            if run_iteration and not span.get_tag("run_iteration"):
+                span.set_tag("run_iteration", run_iteration)
+
             if span_kind == "experiment":
                 expected_output = span._get_ctx_item(EXPERIMENT_EXPECTED_OUTPUT)
                 if expected_output:
