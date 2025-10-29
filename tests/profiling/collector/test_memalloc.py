@@ -8,8 +8,8 @@ import pytest
 
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.event import DDFrame
-from ddtrace.settings.profiling import ProfilingConfig
-from ddtrace.settings.profiling import _derive_default_heap_sample_size
+from ddtrace.internal.settings.profiling import ProfilingConfig
+from ddtrace.internal.settings.profiling import _derive_default_heap_sample_size
 
 
 try:

@@ -34,7 +34,7 @@ from ddtrace.internal.ci_visibility.recorder import _extract_repository_name_fro
 from ddtrace.internal.ci_visibility.recorder import _is_item_itr_skippable
 from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabilities
 from ddtrace.internal.utils.http import Response
-from ddtrace.settings._config import Config
+from ddtrace.internal.settings._config import Config
 from ddtrace.trace import Span
 from tests.ci_visibility.api_client._util import _make_fqdn_suite_ids
 from tests.ci_visibility.api_client._util import _make_fqdn_test_ids

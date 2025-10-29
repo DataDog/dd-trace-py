@@ -7,7 +7,7 @@ import ddtrace
 from ddtrace.appsec._ai_guard import init_ai_guard
 from ddtrace.contrib.internal.langchain.patch import patch
 from ddtrace.contrib.internal.langchain.patch import unpatch
-from ddtrace.settings.asm import ai_guard_config
+from ddtrace.internal.settings.asm import ai_guard_config
 from tests.utils import override_env
 
 
