@@ -189,7 +189,7 @@ def override_global_config(values):
     for key, value in values.items():
         if key in asm_config_keys:
             setattr(asm_config, key, value)
-    # If ddtrace.settings.asm.config has changed, check _asm_can_be_enabled again
+    # If ddtrace.internal.settings.asm.config has changed, check _asm_can_be_enabled again
     asm_config._eval_asm_can_be_enabled()
     from ddtrace.appsec._processor import AppSecSpanProcessor
 

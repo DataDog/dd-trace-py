@@ -511,7 +511,7 @@ def test_set_http_meta(
             assert span.get_tag(tag) == value
 
 
-@mock.patch("ddtrace.settings._config.log")
+@mock.patch("ddtrace.internal.settings._config.log")
 @pytest.mark.parametrize(
     "error_codes,status_code,error,log_call",
     [

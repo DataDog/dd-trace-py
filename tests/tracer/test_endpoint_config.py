@@ -179,6 +179,6 @@ def test_set_config_endpoint_retries(caplog):
     ), mock.patch.object(
         HTTPConnection, "getresponse", new=mock_getresponse_enabled_after_4_retries
     ), mock.patch(
-        "ddtrace.settings.endpoint_config._get_retries", return_value=5
+        "ddtrace.internal.settings.endpoint_config._get_retries", return_value=5
     ):
         assert fetch_config_from_endpoint() == {"dd_iast_enabled": True}

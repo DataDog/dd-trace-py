@@ -59,7 +59,7 @@ class GlobalConfigTestCase(TestCase):
 
         assert isinstance(e.value, AttributeError)
         assert e.value.args[0] == (
-            "<class 'ddtrace.settings._config.Config'> object has no attribute "
+            "<class 'ddtrace.internal.settings._config.Config'> object has no attribute "
             "integration_that_does_not_exist, integration_that_does_not_exist is not a valid configuration"
         )
 

@@ -96,7 +96,7 @@ def test_peer_service_enablement(schema_peer_enabled):
     schema_version, env_enabled, expected = schema_peer_enabled
 
     with mock.patch.dict(os.environ, {"DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED": env_enabled}):
-        with mock.patch("ddtrace.settings.peer_service.SCHEMA_VERSION", schema_version):
+        with mock.patch("ddtrace.internal.settings.peer_service.SCHEMA_VERSION", schema_version):
             assert PeerServiceConfig().set_defaults_enabled == expected
 
 

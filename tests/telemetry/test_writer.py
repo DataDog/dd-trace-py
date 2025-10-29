@@ -80,9 +80,9 @@ def test_app_started_event_configuration_override(test_agent_session, run_python
 # most configurations are reported when ddtrace.auto is imported
 import ddtrace.auto
 # report configurations not used by ddtrace.auto
-import ddtrace.settings.symbol_db
-import ddtrace.settings.dynamic_instrumentation
-import ddtrace.settings.exception_replay
+import ddtrace.internal.settings.symbol_db
+import ddtrace.internal.settings.dynamic_instrumentation
+import ddtrace.internal.settings.exception_replay
     """
 
     env = os.environ.copy()

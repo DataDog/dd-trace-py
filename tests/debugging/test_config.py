@@ -15,19 +15,19 @@ def debugger_config(**kwargs):
         from ddtrace.internal.settings._config import Config
         import ddtrace.internal.settings.dynamic_instrumentation
 
-        old_config = ddtrace.settings.dynamic_instrumentation.ddconfig
-        old_di_config = ddtrace.settings.dynamic_instrumentation.config.__dict__
+        old_config = ddtrace.internal.settings.dynamic_instrumentation.ddconfig
+        old_di_config = ddtrace.internal.settings.dynamic_instrumentation.config.__dict__
 
         try:
-            ddtrace.settings.dynamic_instrumentation.ddconfig = Config()
+            ddtrace.internal.settings.dynamic_instrumentation.ddconfig = Config()
             new_config = DynamicInstrumentationConfig()
-            ddtrace.settings.dynamic_instrumentation.config.__dict__ = new_config.__dict__
+            ddtrace.internal.settings.dynamic_instrumentation.config.__dict__ = new_config.__dict__
 
-            yield ddtrace.settings.dynamic_instrumentation.config
+            yield ddtrace.internal.settings.dynamic_instrumentation.config
 
         finally:
-            ddtrace.settings.dynamic_instrumentation.config.__dict__ = old_di_config
-            ddtrace.settings.dynamic_instrumentation.ddconfig = old_config
+            ddtrace.internal.settings.dynamic_instrumentation.config.__dict__ = old_di_config
+            ddtrace.internal.settings.dynamic_instrumentation.ddconfig = old_config
 
 
 def test_tags():
