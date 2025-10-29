@@ -21,6 +21,7 @@ from ddtrace._trace.pin import Pin
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.django.user import _DjangoUserInfoRetriever
 from ddtrace.internal import core
+from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.core.event_hub import ResultType
 from ddtrace.internal.endpoints import endpoint_collection
@@ -252,7 +253,7 @@ def _instrument_view(django, view, path=None):
     for name in list(request_method_list or _DEFAULT_METHODS) + list(lifecycle_methods):
         try:
             func = getattr(view, name, None)
-            if not func or isinstance(func, wrapt.ObjectProxy):
+            if not func or is_wrapted(func):
                 continue
 
             resource = "{0}.{1}".format(func_name(view), name)
@@ -269,7 +270,7 @@ def _instrument_view(django, view, path=None):
             try:
                 func = getattr(response_cls, name, None)
                 # Do not wrap if the method does not exist or is already wrapped
-                if not func or isinstance(func, wrapt.ObjectProxy):
+                if not func or is_wrapted(func):
                     continue
 
                 resource = "{0}.{1}".format(func_name(response_cls), name)
@@ -279,7 +280,7 @@ def _instrument_view(django, view, path=None):
                 log.debug("Failed to instrument Django response %r function %s", response_cls, name, exc_info=True)
 
     # If the view itself is not wrapped, wrap it
-    if not isinstance(view, wrapt.ObjectProxy):
+    if not is_wrapted(view):
         view = utils.DjangoViewProxy(
             view, traced_func(django, "django.view", resource=func_name(view), ignored_excs=[django.http.Http404])
         )
