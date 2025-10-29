@@ -21,11 +21,11 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.internal.compat import ensure_text
+from ddtrace.internal.settings._config import Config
+from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.internal.settings._config import Config
-from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.trace import Context
 from ddtrace.trace import Span
 from tests.appsec.utils import asm_context

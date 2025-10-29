@@ -2,8 +2,8 @@ import logging
 
 import pytest
 
-from ddtrace.propagation._database_monitoring import default_sql_injector
 from ddtrace.internal.settings import _database_monitoring
+from ddtrace.propagation._database_monitoring import default_sql_injector
 from tests.utils import override_env
 
 

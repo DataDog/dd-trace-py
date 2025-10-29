@@ -3,8 +3,8 @@ import pytest
 
 from ddtrace.internal import agent
 from ddtrace.internal.agent import info
-from ddtrace.internal.utils.http import verify_url
 from ddtrace.internal.settings._agent import is_ipv6_hostname
+from ddtrace.internal.utils.http import verify_url
 
 
 @pytest.mark.parametrize(

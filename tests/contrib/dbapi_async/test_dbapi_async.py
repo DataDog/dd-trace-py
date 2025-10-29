@@ -5,9 +5,9 @@ from ddtrace._trace.pin import Pin
 from ddtrace.contrib.dbapi_async import FetchTracedAsyncCursor
 from ddtrace.contrib.dbapi_async import TracedAsyncConnection
 from ddtrace.contrib.dbapi_async import TracedAsyncCursor
-from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.internal.settings._config import Config
 from ddtrace.internal.settings.integration import IntegrationConfig
+from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.trace import Span  # noqa:F401
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.asyncio.utils import mark_asyncio
