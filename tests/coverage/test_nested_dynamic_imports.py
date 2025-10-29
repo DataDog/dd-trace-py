@@ -161,7 +161,7 @@ def test_nested_imports_interleaved_execution():
         "tests/coverage/included_path/layer3_toplevel.py",
         "tests/coverage/included_path/layer3_dynamic.py",
     }
-    
+
     expected_dynamic_files = {
         "tests/coverage/included_path/nested_fixture.py",
         "tests/coverage/included_path/layer2_dynamic.py",
@@ -177,7 +177,7 @@ def test_nested_imports_interleaved_execution():
             assert file_path in context3_covered, f"Context 3 missing {file_path} - re-instrumentation failed!"
             assert len(context1_covered[file_path]) > 0, f"Context 1 has no coverage for {file_path}"
             assert len(context3_covered[file_path]) > 0, f"Context 3 has no coverage for {file_path}"
-        
+
         # Check dynamic path files (contexts 2 and 4)
         for file_path in expected_dynamic_files:
             assert file_path in context2_covered, f"Context 2 missing {file_path}"

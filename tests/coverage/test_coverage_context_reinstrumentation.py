@@ -89,17 +89,20 @@ def test_sequential_contexts_with_no_overlap():
         expected_callee_lines_context = {10, 11, 13, 14}
         expected_callee_lines_session = {2, 3, 5, 6}
 
-        assert (
-            both_contexts_covered["tests/coverage/included_path/callee.py"] == expected_callee_lines_both
-        ), f"Context 1 callee.py mismatch: expected={expected_callee_lines_both} vs actual={both_contexts_covered['tests/coverage/included_path/callee.py']}"
+        assert both_contexts_covered["tests/coverage/included_path/callee.py"] == expected_callee_lines_both, (
+            f"Context 1 callee.py mismatch: expected={expected_callee_lines_both} vs "
+            f"actual={both_contexts_covered['tests/coverage/included_path/callee.py']}"
+        )
 
-        assert (
-            context_context_covered["tests/coverage/included_path/callee.py"] == expected_callee_lines_context
-        ), f"Context 2 callee.py mismatch: expected={expected_callee_lines_context} vs actual={context_context_covered['tests/coverage/included_path/callee.py']}"
+        assert context_context_covered["tests/coverage/included_path/callee.py"] == expected_callee_lines_context, (
+            f"Context 2 callee.py mismatch: expected={expected_callee_lines_context} vs "
+            f"actual={context_context_covered['tests/coverage/included_path/callee.py']}"
+        )
 
-        assert (
-            session_context_covered["tests/coverage/included_path/callee.py"] == expected_callee_lines_session
-        ), f"Context 3 callee.py mismatch: expected={expected_callee_lines_session} vs actual={session_context_covered['tests/coverage/included_path/callee.py']}"
+        assert session_context_covered["tests/coverage/included_path/callee.py"] == expected_callee_lines_session, (
+            f"Context 3 callee.py mismatch: expected={expected_callee_lines_session} vs "
+            f"actual={session_context_covered['tests/coverage/included_path/callee.py']}"
+        )
 
         # Critical assertion: All contexts should capture function body execution
         # The key test is that lib.py line 2 (function body) appears in ALL contexts
@@ -227,15 +230,18 @@ def test_nested_contexts_maintain_independence():
 
     if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
         # In file-level mode, just verify the right files were executed
-        expected_inner_files = {"tests/coverage/included_path/callee.py", "tests/coverage/included_path/in_context_lib.py"}
+        expected_inner_files = {
+            "tests/coverage/included_path/callee.py",
+            "tests/coverage/included_path/in_context_lib.py",
+        }
         expected_outer_files = {"tests/coverage/included_path/callee.py", "tests/coverage/included_path/lib.py"}
 
-        assert set(inner_covered.keys()) == expected_inner_files, (
-            f"Inner context files mismatch: expected={expected_inner_files} vs actual={set(inner_covered.keys())}"
-        )
-        assert set(outer_covered.keys()) == expected_outer_files, (
-            f"Outer context files mismatch: expected={expected_outer_files} vs actual={set(outer_covered.keys())}"
-        )
+        assert (
+            set(inner_covered.keys()) == expected_inner_files
+        ), f"Inner context files mismatch: expected={expected_inner_files} vs actual={set(inner_covered.keys())}"
+        assert (
+            set(outer_covered.keys()) == expected_outer_files
+        ), f"Outer context files mismatch: expected={expected_outer_files} vs actual={set(outer_covered.keys())}"
 
         # Verify files have coverage data
         assert len(inner_covered["tests/coverage/included_path/callee.py"]) > 0
@@ -304,12 +310,12 @@ def test_many_sequential_contexts_no_degradation():
     if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
         # In file-level mode, just verify the files were executed in all contexts
         for idx, context_covered in enumerate(all_context_coverages):
-            assert len(context_covered["tests/coverage/included_path/callee.py"]) > 0, (
-                f"Context {idx} missing callee.py coverage - re-instrumentation failed!"
-            )
-            assert len(context_covered["tests/coverage/included_path/lib.py"]) > 0, (
-                f"Context {idx} missing lib.py coverage - re-instrumentation failed!"
-            )
+            assert (
+                len(context_covered["tests/coverage/included_path/callee.py"]) > 0
+            ), f"Context {idx} missing callee.py coverage - re-instrumentation failed!"
+            assert (
+                len(context_covered["tests/coverage/included_path/lib.py"]) > 0
+            ), f"Context {idx} missing lib.py coverage - re-instrumentation failed!"
     else:
         # In line-level mode, check specific lines
         expected_callee_lines = {2, 3, 5, 6}
@@ -402,12 +408,12 @@ def test_context_after_session_coverage():
 
         assert "tests/coverage/included_path/lib.py" in context2_covered
         assert "tests/coverage/included_path/in_context_lib.py" in context2_covered
-        assert len(context2_covered["tests/coverage/included_path/lib.py"]) > 0, (
-            "Context 2 missing lib.py - re-instrumentation failed!"
-        )
-        assert len(context2_covered["tests/coverage/included_path/in_context_lib.py"]) > 0, (
-            "Context 2 missing in_context_lib.py - re-instrumentation failed!"
-        )
+        assert (
+            len(context2_covered["tests/coverage/included_path/lib.py"]) > 0
+        ), "Context 2 missing lib.py - re-instrumentation failed!"
+        assert (
+            len(context2_covered["tests/coverage/included_path/in_context_lib.py"]) > 0
+        ), "Context 2 missing in_context_lib.py - re-instrumentation failed!"
     else:
         # In line-level mode, check specific lines
         # Session should have captured called_in_session_main (runtime lines)
@@ -520,15 +526,18 @@ def test_comprehensive_reinstrumentation_with_simple_module():
         expected_lines_false_branch = {11, 12, 17, 18, 19, 20, 25, 28, 29, 34, 35, 36, 37, 38, 39}
 
         # Verify contexts 1 and 2 captured the true branch
-        assert (
-            context1_covered[module_path] == expected_lines_true_branch
-        ), f"Context 1 coverage mismatch: expected={expected_lines_true_branch} vs actual={context1_covered[module_path]}"
+        assert context1_covered[module_path] == expected_lines_true_branch, (
+            f"Context 1 coverage mismatch: expected={expected_lines_true_branch} vs "
+            f"actual={context1_covered[module_path]}"
+        )
 
-        assert (
-            context2_covered[module_path] == expected_lines_true_branch
-        ), f"Context 2 coverage mismatch: expected={expected_lines_true_branch} vs actual={context2_covered[module_path]}"
+        assert context2_covered[module_path] == expected_lines_true_branch, (
+            f"Context 2 coverage mismatch: expected={expected_lines_true_branch} vs "
+            f"actual={context2_covered[module_path]}"
+        )
 
         # Verify context 3 captured the false branch
-        assert (
-            context3_covered[module_path] == expected_lines_false_branch
-        ), f"Context 3 coverage mismatch: expected={expected_lines_false_branch} vs actual={context3_covered[module_path]}"
+        assert context3_covered[module_path] == expected_lines_false_branch, (
+            f"Context 3 coverage mismatch: expected={expected_lines_false_branch} vs "
+            f"actual={context3_covered[module_path]}"
+        )
