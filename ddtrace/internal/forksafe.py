@@ -139,12 +139,12 @@ class ResetObject(wrapt.ObjectProxy, typing.Generic[_T]):
 
 
 def Lock() -> threading.Lock:
-    return ResetObject(threading.Lock)
+    return ResetObject(threading.Lock)  # type: ignore
 
 
 def RLock() -> threading.RLock:
-    return ResetObject(threading.RLock)
+    return ResetObject(threading.RLock)  # type: ignore
 
 
 def Event() -> threading.Event:
-    return ResetObject(threading.Event)
+    return ResetObject(threading.Event)  # type: ignore

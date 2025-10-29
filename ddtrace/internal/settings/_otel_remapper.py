@@ -5,9 +5,9 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
-from ddtrace.constants import ENV_KEY
-from ddtrace.constants import VERSION_KEY
-from ddtrace.internal.logger import get_logger
+from ..constants import ENV_KEY
+from ..constants import VERSION_KEY
+from ..internal.logger import get_logger
 
 
 log = get_logger(__name__)
