@@ -83,50 +83,11 @@ class _ProfiledLock(wrapt.ObjectProxy):
         try:
             return inner_func(*args, **kwargs)
         finally:
+            end: int = time.monotonic_ns()
+            self._self_acquired_at = end
             try:
-                end: int = time.monotonic_ns()
-                self._self_acquired_at = end
-
-                thread_id: int
-                thread_name: str
-                thread_id, thread_name = _current_thread()
-
-                task_id: Optional[int]
-                task_name: Optional[str]
-                task_frame: Optional[FrameType]
-                task_id, task_name, task_frame = _task.get_task(thread_id)
-
                 self._maybe_update_self_name()
-                lock_name: str = (
-                    "%s:%s" % (self._self_init_loc, self._self_name) if self._self_name else self._self_init_loc
-                )
-
-                frame: FrameType
-                if task_frame is None:
-                    # If we can't get the task frame, we use the caller frame. We expect acquire/release or
-                    # __enter__/__exit__ to be on the stack, so we go back 2 frames.
-                    frame = sys._getframe(2)
-                else:
-                    frame = task_frame
-
-                frames: List[DDFrame]
-                frames, _ = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
-
-                thread_native_id: int = _threading.get_thread_native_id(thread_id)
-
-                handle: ddup.SampleHandle = ddup.SampleHandle()
-                handle.push_monotonic_ns(end)
-                handle.push_lock_name(lock_name)
-                handle.push_acquire(end - start, 1)  # AFAICT, capture_pct does not adjust anything here
-                handle.push_threadinfo(thread_id, thread_native_id, thread_name)
-                handle.push_task_id(task_id)
-                handle.push_task_name(task_name)
-
-                if self._self_tracer is not None:
-                    handle.push_span(self._self_tracer.current_span())
-                for ddframe in frames:
-                    handle.push_frame(ddframe.function_name, ddframe.file_name, 0, ddframe.lineno)
-                handle.flush_sample()
+                self._push_lock_sample(start, end, is_acquire=True)
             except Exception:
                 pass  # nosec
 
@@ -151,50 +112,12 @@ class _ProfiledLock(wrapt.ObjectProxy):
         except AttributeError:
             # We just ignore the error, if the attribute is not found.
             pass
+
         try:
             return inner_func(*args, **kwargs)
         finally:
             if start is not None:
-                end: int = time.monotonic_ns()
-
-                thread_id: int
-                thread_name: str
-                thread_id, thread_name = _current_thread()
-
-                task_id: Optional[int]
-                task_name: Optional[str]
-                task_frame: Optional[FrameType]
-                task_id, task_name, task_frame = _task.get_task(thread_id)
-
-                lock_name: str = (
-                    "%s:%s" % (self._self_init_loc, self._self_name) if self._self_name else self._self_init_loc
-                )
-
-                frame: FrameType
-                if task_frame is None:
-                    # See the comments in _acquire
-                    frame = sys._getframe(2)
-                else:
-                    frame = task_frame
-
-                frames: List[DDFrame]
-                frames, _ = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
-
-                thread_native_id: int = _threading.get_thread_native_id(thread_id)
-
-                handle: ddup.SampleHandle = ddup.SampleHandle()
-                handle.push_monotonic_ns(end)
-                handle.push_lock_name(lock_name)
-                handle.push_release(end - start, 1)  # AFAICT, capture_pct does not adjust anything here
-                handle.push_threadinfo(thread_id, thread_native_id, thread_name)
-                handle.push_task_id(task_id)
-                handle.push_task_name(task_name)
-
-                if self._self_tracer is not None:
-                    handle.push_span(self._self_tracer.current_span())
-                for ddframe in frames:
-                    handle.push_frame(ddframe.function_name, ddframe.file_name, 0, ddframe.lineno)
-                handle.flush_sample()
+                self._push_lock_sample(start, end=time.monotonic_ns(), is_acquire=False)
 
     def release(self, *args: Any, **kwargs: Any) -> Any:
         return self._release(self.__wrapped__.release, *args, **kwargs)
@@ -204,6 +127,56 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
     def __exit__(self, *args: Any, **kwargs: Any) -> None:
         self._release(self.__wrapped__.__exit__, *args, **kwargs)
+
+    def _push_lock_sample(self, start: int, end: int, is_acquire: bool) -> None:
+        """Helper method to push lock profiling data to ddup.
+        
+        Args:
+            start: Start timestamp in nanoseconds
+            end: End timestamp in nanoseconds
+            is_acquire: True for acquire operations, False for release operations
+        """
+        thread_id: int
+        thread_name: str
+        thread_id, thread_name = _current_thread()
+
+        task_id: Optional[int]
+        task_name: Optional[str]
+        task_frame: Optional[FrameType]
+        task_id, task_name, task_frame = _task.get_task(thread_id)
+
+        lock_name: str = (
+            "%s:%s" % (self._self_init_loc, self._self_name) if self._self_name else self._self_init_loc
+        )
+
+        # If we can't get the task frame, we use the caller frame.
+        # Call stack: 0: _push_lock_sample, 1: _acquire/_release, 2: acquire/release/__enter__/__exit__, 3: caller
+        frame: FrameType = task_frame or sys._getframe(3)
+
+        frames: List[DDFrame]
+        frames, _ = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
+
+        thread_native_id: int = _threading.get_thread_native_id(thread_id)
+
+        handle: ddup.SampleHandle = ddup.SampleHandle()
+        handle.push_monotonic_ns(end)
+        handle.push_lock_name(lock_name)
+        
+        duration_ns: int = end - start
+        if is_acquire:
+            handle.push_acquire(duration_ns, 1)  # AFAICT, capture_pct does not adjust anything here
+        else:
+            handle.push_release(duration_ns, 1)  # AFAICT, capture_pct does not adjust anything here
+        
+        handle.push_threadinfo(thread_id, thread_native_id, thread_name)
+        handle.push_task_id(task_id)
+        handle.push_task_name(task_name)
+
+        if self._self_tracer is not None:
+            handle.push_span(self._self_tracer.current_span())
+        for ddframe in frames:
+            handle.push_frame(ddframe.function_name, ddframe.file_name, 0, ddframe.lineno)
+        handle.flush_sample()
 
     def _find_self_name(self, var_dict: Dict[str, Any]) -> Optional[str]:
         for name, value in var_dict.items():
