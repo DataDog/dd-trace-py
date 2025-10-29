@@ -60,7 +60,9 @@ def build_libddwaf_filename() -> str:
             ARCHI = "x86"
     TRANSLATE_ARCH = {"amd64": "x64", "i686": "x86_64", "x86": "win32"}
     ARCHITECTURE = TRANSLATE_ARCH.get(ARCHI, ARCHI)
-    return os.path.join(_DIRNAME, "appsec", "_ddwaf", "libddwaf", ARCHITECTURE, "lib", "libddwaf." + FILE_EXTENSION)
+    return os.path.join(
+        _DIRNAME, "..", "appsec", "_ddwaf", "libddwaf", ARCHITECTURE, "lib", "libddwaf." + FILE_EXTENSION
+    )
 
 
 class ASMConfig(DDConfig):
