@@ -1,3 +1,4 @@
+import _io
 from collections import namedtuple
 from enum import Enum
 import functools
@@ -20,8 +21,6 @@ from typing import Sequence
 from typing import Text
 from typing import Tuple
 import urllib.parse
-
-import _io
 
 
 def methodcaller(*args, **kwargs):
