@@ -2,9 +2,9 @@ import warnings
 
 import pytest
 
-from ddtrace.settings._config import Config
-from ddtrace.settings.http import HttpConfig
-from ddtrace.settings.integration import IntegrationConfig
+from ddtrace.internal.settings._config import Config
+from ddtrace.internal.settings.http import HttpConfig
+from ddtrace.internal.settings.integration import IntegrationConfig
 from tests.utils import BaseTestCase
 from tests.utils import override_env
 

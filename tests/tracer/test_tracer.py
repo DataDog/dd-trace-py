@@ -37,7 +37,7 @@ from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import LogWriter
-from ddtrace.settings._config import Config
+from ddtrace.internal.settings._config import Config
 from ddtrace.trace import Context
 from ddtrace.trace import tracer as global_tracer
 from tests.subprocesstest import run_in_subprocess

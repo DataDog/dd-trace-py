@@ -6,7 +6,7 @@ import logging
 from unittest import mock
 
 from ddtrace.internal.http import HTTPConnection
-from ddtrace.settings.endpoint_config import fetch_config_from_endpoint
+from ddtrace.internal.settings.endpoint_config import fetch_config_from_endpoint
 from tests.utils import override_env
 
 

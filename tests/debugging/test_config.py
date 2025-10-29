@@ -3,8 +3,8 @@ from contextlib import contextmanager
 import pytest
 
 from ddtrace.internal.utils.formats import parse_tags_str
-from ddtrace.settings._agent import config as agent_config
-from ddtrace.settings.dynamic_instrumentation import DynamicInstrumentationConfig
+from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings.dynamic_instrumentation import DynamicInstrumentationConfig
 from ddtrace.version import get_version
 from tests.utils import override_env
 
@@ -12,8 +12,8 @@ from tests.utils import override_env
 @contextmanager
 def debugger_config(**kwargs):
     with override_env(kwargs, replace_os_env=True):
-        from ddtrace.settings._config import Config
-        import ddtrace.settings.dynamic_instrumentation
+        from ddtrace.internal.settings._config import Config
+        import ddtrace.internal.settings.dynamic_instrumentation
 
         old_config = ddtrace.settings.dynamic_instrumentation.ddconfig
         old_di_config = ddtrace.settings.dynamic_instrumentation.config.__dict__

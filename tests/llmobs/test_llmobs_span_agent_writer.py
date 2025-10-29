@@ -5,7 +5,7 @@ import mock
 from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.llmobs._constants import SPAN_ENDPOINT
 from ddtrace.llmobs._writer import LLMObsSpanWriter
-from ddtrace.settings._agent import config as agent_config
+from ddtrace.internal.settings._agent import config as agent_config
 from tests.llmobs._utils import _chat_completion_event
 from tests.llmobs._utils import _completion_event
 from tests.llmobs._utils import _large_event
