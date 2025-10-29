@@ -55,14 +55,14 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, mock_tracer, llmobs_events, m
                 "isError": False,
             }
         ),
-        tags={"service": "mcptest", "ml_app": "<ml-app-name>"},
+        tags={"service": "mcptest", "ml_app": "<ml-app-name>", "mcp_tool_kind": "client"},
     )
     assert server_events[0] == _expected_llmobs_non_llm_span_event(
         server_span,
         span_kind="tool",
         input_value=json.dumps({"operation": "add", "a": 20, "b": 22}),
         output_value=json.dumps([{"type": "text", "annotations": {}, "meta": {}, "text": '{\n  "result": 42\n}'}]),
-        tags={"service": "mcptest", "ml_app": "<ml-app-name>"},
+        tags={"service": "mcptest", "ml_app": "<ml-app-name>", "mcp_tool_kind": "server"},
     )
 
     # asserting the remaining spans
@@ -113,6 +113,19 @@ def test_llmobs_client_server_tool_error(mcp_setup, mock_tracer, llmobs_events, 
 
     # assert the error client span manually
     assert client_events[0]["meta"]["input"]["value"] == json.dumps({"param": "value"})
+    assert client_events[0]["meta"]["output"]["value"] == json.dumps(
+        {
+            "content": [
+                {
+                    "type": "text",
+                    "annotations": {},
+                    "meta": {},
+                    "text": "Error executing tool failing_tool: Tool execution failed",
+                }
+            ],
+            "isError": True,
+        }
+    )
     assert client_events[0]["meta"]["error"]["message"] == "Error executing tool failing_tool: Tool execution failed"
     assert client_events[0]["status"] == "error"
     assert "error:1" in client_events[0]["tags"]
@@ -121,7 +134,7 @@ def test_llmobs_client_server_tool_error(mcp_setup, mock_tracer, llmobs_events, 
         server_span,
         span_kind="tool",
         input_value=json.dumps({"param": "value"}),
-        tags={"service": "mcptest", "ml_app": "<ml-app-name>"},
+        tags={"service": "mcptest", "ml_app": "<ml-app-name>", "mcp_tool_kind": "server"},
         error="mcp.server.fastmcp.exceptions.ToolError",
         error_message="Error executing tool failing_tool: Tool execution failed",
         error_stack=mock.ANY,
