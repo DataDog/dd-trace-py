@@ -53,14 +53,6 @@ if crashtracker_config.enabled:
     except Exception:
         log.error("failed to enable crashtracking", exc_info=True)
 
-
-if profiling_config.enabled:
-    log.debug("profiler enabled via environment variable")
-    try:
-        import ddtrace.profiling.auto  # noqa: F401
-    except Exception:
-        log.error("failed to enable profiling", exc_info=True)
-
 if config._runtime_metrics_enabled:
     RuntimeWorker.enable()
 

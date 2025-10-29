@@ -1,6 +1,5 @@
 from __future__ import absolute_import
 
-import threading
 import typing
 
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
@@ -8,6 +7,10 @@ from ddtrace.internal.datadog.profiling import stack_v2
 from ddtrace.settings.profiling import config
 
 from . import _lock
+
+
+if typing.TYPE_CHECKING:
+    import threading
 
 
 class _ProfiledThreadingLock(_lock._ProfiledLock):
@@ -23,13 +26,15 @@ class ThreadingLockCollector(_lock.LockCollector):
 
     PROFILED_LOCK_CLASS = _ProfiledThreadingLock
 
-    def _get_patch_target(self) -> typing.Type[threading.Lock]:
+    def _get_patch_target(self) -> typing.Type["threading.Lock"]:
+        # Use the copy of threading module that the target application is using
+        import threading
+
         return threading.Lock
 
-    def _set_patch_target(
-        self,
-        value: typing.Any,
-    ) -> None:
+    def _set_patch_target(self, value: typing.Any) -> None:
+        import threading
+
         threading.Lock = value
 
 
