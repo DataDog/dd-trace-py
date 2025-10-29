@@ -73,8 +73,9 @@ jobs:
         run: apk add git gcc g++ musl-dev libffi-dev openssl-dev bash rust cargo make cmake patchelf
 
       - name: Check source package
+        # https://github.com/theacodes/cmarkgfm/issues/84
         run: |
-          pip install twine readme_renderer[md]
+          pip install twine readme_renderer[md] "cmarkgfm<2025.10.20"
           twine check dist/*.tar.gz
       - name: Install source package
         env:

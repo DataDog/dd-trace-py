@@ -40,7 +40,7 @@ dependencies = [
     "opentelemetry-api>=1",
     "protobuf>=3",
     "typing_extensions",
-    "wrapt>=1",
+    "wrapt>=1,<2",
 ]
 
 [project.optional-dependencies]
