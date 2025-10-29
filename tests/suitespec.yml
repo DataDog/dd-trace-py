@@ -84,6 +84,9 @@ components:
     - ddtrace/internal/datastreams/*
     - ddtrace/data_streams.py
     - ddtrace/ext/schema.py
+  openfeature:
+    - ddtrace/openfeature/*
+    - tests/openfeature/*
   git:
     - ddtrace/ext/git.py
   lib_injection:
@@ -231,6 +234,14 @@ suites:
       - tests/runtime/*
     runner: riot
     skip: true
+  openfeature:
+    parallelism: 1
+    paths:
+      - '@openfeature'
+      - '@remoteconfig'
+      - '@core'
+    runner: riot
+    pattern: ^openfeature$
   telemetry:
     parallelism: 1
     paths:
