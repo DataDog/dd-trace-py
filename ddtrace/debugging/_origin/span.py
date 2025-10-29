@@ -26,7 +26,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.wrapping.context import WrappingContext
-from ddtrace.settings.code_origin import config as co_config
+from ddtrace.internal.settings.code_origin import config as co_config
 from ddtrace.trace import Span
 
 

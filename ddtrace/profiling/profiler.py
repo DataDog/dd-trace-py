@@ -25,8 +25,8 @@ from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import pytorch
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
-from ddtrace.settings.profiling import config as profiling_config
-from ddtrace.settings.profiling import config_str
+from ddtrace.internal.settings.profiling import config as profiling_config
+from ddtrace.internal.settings.profiling import config_str
 
 
 # TODO(vlad): add type annotations

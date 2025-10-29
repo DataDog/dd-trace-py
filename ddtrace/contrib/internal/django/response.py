@@ -36,7 +36,7 @@ from ddtrace.internal.utils import set_blocked
 from ddtrace.internal.wrapping import is_wrapped_with
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
-from ddtrace.settings.integration import _IntegrationConfig
+from ddtrace.internal.settings.integration import _IntegrationConfig
 
 from . import utils
 

@@ -21,8 +21,8 @@ from ddtrace.internal.constants import AI_GUARD_MAX_CONTENT_SIZE
 from ddtrace.internal.constants import AI_GUARD_MAX_HISTORY_LENGTH
 from ddtrace.internal.constants import DD_APPLICATION_KEY
 from ddtrace.internal.serverless import in_aws_lambda
-from ddtrace.settings._config import config as tracer_config
-from ddtrace.settings._core import DDConfig
+from ddtrace.internal.settings._config import config as tracer_config
+from ddtrace.internal.settings._core import DDConfig
 
 
 def _validate_non_negative_int(r: int) -> None:

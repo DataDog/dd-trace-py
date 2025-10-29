@@ -71,8 +71,8 @@ from ddtrace.internal.test_visibility._atr_mixins import AutoTestRetriesSettings
 from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabilities
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
-from ddtrace.settings._agent import config as agent_config
-from ddtrace.settings.integration import _IntegrationConfig
+from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings.integration import _IntegrationConfig
 from ddtrace.trace import Span
 from ddtrace.trace import TraceFilter
 from ddtrace.trace import Tracer

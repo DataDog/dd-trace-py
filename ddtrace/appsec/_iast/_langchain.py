@@ -5,7 +5,7 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
 
 
 def langchain_listen(core):

@@ -40,12 +40,12 @@ from ddtrace.internal.core.event_hub import dispatch
 from ddtrace.internal.logger import get_logger
 import ddtrace.internal.utils.wrappers
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.settings._config import config
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings._config import config
+from ddtrace.internal.settings.asm import config as asm_config
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace.settings.integration import _IntegrationConfig  # noqa:F401
+    from ddtrace.internal.settings.integration import _IntegrationConfig  # noqa:F401
     from ddtrace.trace import Span  # noqa:F401
     from ddtrace.trace import Tracer  # noqa:F401
 

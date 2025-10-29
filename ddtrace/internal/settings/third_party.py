@@ -1,4 +1,4 @@
-from ddtrace.settings._core import DDConfig
+from ddtrace.internal.settings._core import DDConfig
 
 
 class ThirdPartyDetectionConfig(DDConfig):

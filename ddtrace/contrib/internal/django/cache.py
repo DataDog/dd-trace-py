@@ -17,7 +17,7 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.wrapping import is_wrapped_with
 from ddtrace.internal.wrapping import wrap
-from ddtrace.settings.integration import _IntegrationConfig
+from ddtrace.internal.settings.integration import _IntegrationConfig
 
 from . import utils
 

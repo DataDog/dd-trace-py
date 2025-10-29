@@ -15,7 +15,7 @@ from ddtrace.appsec._iast._logs import iast_instrumentation_ast_patching_debug_l
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import origin
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
 
 from .visitor import AstVisitor
 

@@ -6,7 +6,7 @@ import ddtrace
 from ddtrace import config as dd_config
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
-from ddtrace.settings.peer_service import PeerServiceConfig
+from ddtrace.internal.settings.peer_service import PeerServiceConfig
 from ddtrace.vendor.sqlcommenter import generate_sql_comment as _generate_sql_comment
 
 from ..internal import compat

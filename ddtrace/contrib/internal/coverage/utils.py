@@ -3,7 +3,7 @@ from typing import List
 
 from ddtrace.contrib.internal.coverage.data import _original_sys_argv_command
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.settings._config import _get_config
+from ddtrace.internal.settings._config import _get_config
 
 
 def is_coverage_loaded() -> bool:

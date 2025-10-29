@@ -11,7 +11,7 @@ from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
-from ddtrace.settings._config import _get_config
+from ddtrace.internal.settings._config import _get_config
 from ddtrace.trace import tracer
 
 

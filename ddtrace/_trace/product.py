@@ -8,7 +8,7 @@ from envier import En
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
-from ddtrace.settings.http import _HttpConfig
+from ddtrace.internal.settings.http import _HttpConfig
 
 
 log = get_logger(__name__)
@@ -38,7 +38,7 @@ def post_preload():
 
 def start():
     if _config.enabled:
-        from ddtrace.settings._config import config
+        from ddtrace.internal.settings._config import config
 
         if config._trace_methods:
             from ddtrace.internal.tracemethods import _install_trace_methods

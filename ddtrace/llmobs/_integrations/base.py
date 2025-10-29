@@ -14,7 +14,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._llmobs import LLMObs
-from ddtrace.settings.integration import _IntegrationConfig
+from ddtrace.internal.settings.integration import _IntegrationConfig
 from ddtrace.trace import Span
 
 

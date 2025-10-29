@@ -13,7 +13,7 @@ from ddtrace.internal.datadog.profiling import stack_v2
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.wrapping import wrap
-from ddtrace.settings.profiling import config
+from ddtrace.internal.settings.profiling import config
 
 from . import _threading
 

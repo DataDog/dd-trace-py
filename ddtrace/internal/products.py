@@ -15,7 +15,7 @@ from ddtrace.internal.uwsgi import check_uwsgi
 from ddtrace.internal.uwsgi import uWSGIConfigDeprecationWarning
 from ddtrace.internal.uwsgi import uWSGIConfigError
 from ddtrace.internal.uwsgi import uWSGIMasterProcess
-from ddtrace.settings._core import DDConfig
+from ddtrace.internal.settings._core import DDConfig
 
 
 log = get_logger(__name__)

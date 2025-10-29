@@ -6,8 +6,8 @@ from ddtrace.internal import gitmetadata
 from ddtrace.internal.compat import Path
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.utils.config import get_application_name
-from ddtrace.settings._agent import config as agent_config
-from ddtrace.settings._core import DDConfig
+from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings._core import DDConfig
 from ddtrace.version import get_version
 
 

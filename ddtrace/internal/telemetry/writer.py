@@ -18,8 +18,8 @@ from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.utils.http import get_connection
-from ddtrace.settings._agent import config as agent_config
-from ddtrace.settings._telemetry import config
+from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings._telemetry import config
 
 from ...internal import atexit
 from ...internal import forksafe

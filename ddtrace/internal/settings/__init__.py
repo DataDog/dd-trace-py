@@ -17,7 +17,7 @@ def __getattr__(name):
             category=DDTraceDeprecationWarning,
         )
         if name == "ConfigException":
-            from ddtrace.settings.exceptions import ConfigException
+            from ddtrace.internal.settings.exceptions import ConfigException
 
             return ConfigException
         elif name == "HttpConfig":

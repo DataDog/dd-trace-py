@@ -25,7 +25,7 @@ from ddtrace.profiling import collector
 from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _traceback
 from ddtrace.profiling.event import DDFrame
-from ddtrace.settings.profiling import config
+from ddtrace.internal.settings.profiling import config
 from ddtrace.trace import Tracer
 
 

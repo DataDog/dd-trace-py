@@ -33,8 +33,8 @@ from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.importlib import func_name
-from ddtrace.settings.asm import config as asm_config
-from ddtrace.settings.integration import _IntegrationConfig
+from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.settings.integration import _IntegrationConfig
 from ddtrace.vendor.packaging.version import parse as parse_version
 
 

@@ -24,7 +24,7 @@ from ddtrace.internal.test_visibility.api import InternalTest
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.inspection import undecorated
-from ddtrace.settings._config import _get_config
+from ddtrace.internal.settings._config import _get_config
 
 
 log = get_logger(__name__)
