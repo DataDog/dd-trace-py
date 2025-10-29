@@ -10,6 +10,7 @@ from typing import Optional
 from openfeature.evaluation_context import EvaluationContext
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.openfeature.writer import ExposureEvent
 
 
 logger = get_logger(__name__)
@@ -20,7 +21,7 @@ def build_exposure_event(
     variant_key: Optional[str],
     allocation_key: Optional[str],
     evaluation_context: Optional[EvaluationContext],
-) -> Optional[Dict[str, Any]]:
+) -> Optional[ExposureEvent]:
     """
     Build an exposure event payload following the exposure.json schema.
 
@@ -29,9 +30,6 @@ def build_exposure_event(
         variant_key: The variant key returned by the evaluation
         allocation_key: The allocation key (same as variant_key in basic cases)
         evaluation_context: The evaluation context with subject information
-
-    Returns:
-        Dictionary matching the exposure.json schema, or None if required data is missing
     """
     # Validate required fields
     if not flag_key:
