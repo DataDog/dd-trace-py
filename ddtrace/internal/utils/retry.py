@@ -90,6 +90,6 @@ def fibonacci_backoff_with_jitter_on_exceptions(
     attempts: int, exceptions: t.Tuple[t.Type[BaseException], ...]
 ) -> t.Callable:
     return retry_on_exceptions(
-        after=[random.uniform(0, 1.618**i) for i in range(attempts - 1)],
+        after=[random.uniform(0, 1.618**i) for i in range(attempts - 1)],  # nosec
         exceptions=exceptions,
     )
