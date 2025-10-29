@@ -4,10 +4,7 @@ The azure_functions integration traces all http requests to your Azure Function 
 Enabling
 ~~~~~~~~
 
-Use :func:`patch()<ddtrace.patch>` to manually enable the integration::
-
-    from ddtrace import patch
-    patch(azure_functions=True)
+The azure_functions integration is enabled by default when using :ref:`import ddtrace.auto<ddtraceauto>`.
 
 
 Global Configuration

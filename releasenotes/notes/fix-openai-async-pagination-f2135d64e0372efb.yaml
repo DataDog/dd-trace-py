@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    openai: This fix resolves an issue where using async iteration with paginated methods (e.g., ``async for model in client.models.list()``) caused a ``TypeError: 'async for' requires an object with __aiter__ method, got coroutine``. See `issue #14574 <https://github.com/DataDog/dd-trace-py/issues/14574>`_.

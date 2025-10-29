@@ -11,7 +11,6 @@ to be run at specific points during pytest execution. The most important hooks u
         expected failures.
 
 """
-
 import os
 from typing import Dict  # noqa:F401
 
@@ -120,9 +119,6 @@ def pytest_addoption(parser):
 
 
 def pytest_configure(config):
-    # Prevent ddtrace.auto from triggering module cloning
-    os.environ["DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE"] = "0"
-
     config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
     if is_enabled(config):
         _disable_telemetry_dependency_collection()

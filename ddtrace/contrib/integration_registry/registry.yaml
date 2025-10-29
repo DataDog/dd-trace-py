@@ -193,7 +193,7 @@ integrations:
   tested_versions_by_dependency:
     bottle:
       min: 0.12.25
-      max: 0.13.2
+      max: 0.13.4
 
 - integration_name: cassandra
   is_external_package: true
@@ -647,7 +647,7 @@ integrations:
   tested_versions_by_dependency:
     openai:
       min: 1.0.0
-      max: 1.91.0
+      max: 1.109.1
 
 - integration_name: openai_agents
   is_external_package: true

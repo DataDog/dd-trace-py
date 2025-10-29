@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    openai: Adds support for tracing the ``parse()`` methods for structured outputs on ``chat.completions`` 
+    and ``responses`` endpoints (available in OpenAI SDK >= 1.92.0).
+  - |
+    LLM Observability: The OpenAI integration now submits LLM spans to LLM Observability for ``parse()`` 
+    methods used for structured outputs.

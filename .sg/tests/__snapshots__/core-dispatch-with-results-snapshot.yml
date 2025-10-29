@@ -1,0 +1,117 @@
+id: core-dispatch-with-results
+snapshots:
+  ? |
+    # Using dispatch_with_results in a chain
+    value = core.dispatch_with_results("my.event", (x,)).result.value
+    print(value)
+  : labels:
+    - source: core.dispatch_with_results("my.event", (x,))
+      style: primary
+      start: 49
+      end: 93
+  core.dispatch_with_results("my.event", (arg1, arg2)):
+    labels:
+    - source: core.dispatch_with_results("my.event", (arg1, arg2))
+      style: primary
+      start: 0
+      end: 52
+  ? |
+    data = core.dispatch_with_results("my.event", (arg1, arg2))
+    if data.result_key:
+        process(data.result_key.value)
+  : labels:
+    - source: core.dispatch_with_results("my.event", (arg1, arg2))
+      style: primary
+      start: 7
+      end: 59
+  dispatch_with_results("my.event", (arg1,)):
+    labels:
+    - source: dispatch_with_results("my.event", (arg1,))
+      style: primary
+      start: 0
+      end: 42
+  event_hub.dispatch_with_results("my.event", ()):
+    labels:
+    - source: event_hub.dispatch_with_results("my.event", ())
+      style: primary
+      start: 0
+      end: 47
+  ? |
+    from ddtrace.internal import core
+    result = core.dispatch_with_results("my.event", (arg1, arg2))
+  : labels:
+    - source: core.dispatch_with_results("my.event", (arg1, arg2))
+      style: primary
+      start: 43
+      end: 95
+  from ddtrace.internal.core import dispatch, dispatch_with_results:
+    labels:
+    - source: from ddtrace.internal.core import dispatch, dispatch_with_results
+      style: primary
+      start: 0
+      end: 65
+  from ddtrace.internal.core import dispatch, dispatch_with_results, on:
+    labels:
+    - source: from ddtrace.internal.core import dispatch, dispatch_with_results, on
+      style: primary
+      start: 0
+      end: 69
+  from ddtrace.internal.core import dispatch_with_results:
+    labels:
+    - source: from ddtrace.internal.core import dispatch_with_results
+      style: primary
+      start: 0
+      end: 55
+  ? |
+    from ddtrace.internal.core import dispatch_with_results
+    result = dispatch_with_results("my.event", (arg1,))
+  : labels:
+    - source: from ddtrace.internal.core import dispatch_with_results
+      style: primary
+      start: 0
+      end: 55
+  from ddtrace.internal.core import dispatch_with_results as dwr:
+    labels:
+    - source: from ddtrace.internal.core import dispatch_with_results as dwr
+      style: primary
+      start: 0
+      end: 62
+  from ddtrace.internal.core import dispatch_with_results, on:
+    labels:
+    - source: from ddtrace.internal.core import dispatch_with_results, on
+      style: primary
+      start: 0
+      end: 59
+  from ddtrace.internal.core.event_hub import dispatch, dispatch_with_results:
+    labels:
+    - source: from ddtrace.internal.core.event_hub import dispatch, dispatch_with_results
+      style: primary
+      start: 0
+      end: 75
+  from ddtrace.internal.core.event_hub import dispatch_with_results:
+    labels:
+    - source: from ddtrace.internal.core.event_hub import dispatch_with_results
+      style: primary
+      start: 0
+      end: 65
+  ? |
+    from ddtrace.internal.core.event_hub import dispatch_with_results
+    result = dispatch_with_results("my.event", ())
+  : labels:
+    - source: from ddtrace.internal.core.event_hub import dispatch_with_results
+      style: primary
+      start: 0
+      end: 65
+  from ddtrace.internal.core.event_hub import dispatch_with_results as dwr:
+    labels:
+    - source: from ddtrace.internal.core.event_hub import dispatch_with_results as dwr
+      style: primary
+      start: 0
+      end: 72
+  ? |
+    result = core.dispatch_with_results("my.event", (arg1, arg2)).result_key.value
+  : labels:
+    - source: core.dispatch_with_results("my.event", (arg1, arg2))
+      style: primary
+      start: 9
+      end: 61

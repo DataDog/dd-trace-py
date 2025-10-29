@@ -512,6 +512,7 @@ venv = Venv(
                 "python-json-logger": "==2.0.7",
                 "pyfakefs": latest,
                 "pytest-benchmark": latest,
+                "wrapt": [latest, "<2.0.0"],
             },
             venvs=[
                 Venv(
@@ -2687,6 +2688,21 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="openfeature",
+            command="pytest {cmdargs} tests/openfeature",
+            pys=select_pys(),
+            pkgs={
+                "pytest-randomly": latest,
+                "mock": latest,
+            },
+            venvs=[
+                Venv(
+                    # Test against different versions of openfeature-sdk (0.5.0+ for submodule imports)
+                    pkgs={"openfeature-sdk": ["~=0.5.0", "~=0.6.0", "~=0.7.0", latest]},
+                ),
+            ],
+        ),
+        Venv(
             name="asyncio",
             command="pytest {cmdargs} tests/contrib/asyncio",
             pkgs={
@@ -2728,7 +2744,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.8", max_version="3.13"),
                     pkgs={
-                        "openai": [latest, "~=1.76.2", "==1.66.0"],
+                        "openai": ["<2.0.0", "~=1.76.2", "==1.66.0"],
                         "tiktoken": latest,
                         "pillow": latest,
                     },
@@ -3435,7 +3451,8 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    command="python -m pytest {cmdargs} tests/profiling_v2/test_uwsgi.py",
+                    name="profile-v2-uwsgi",
+                    command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling_v2/test_uwsgi.py",  # noqa: E501
                     pys=select_pys(max_version="3.13"),
                     pkgs={"uwsgi": "<2.0.30"},
                 ),
