@@ -6,7 +6,7 @@ import typing as t
 from envier import En
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.settings.http import _HttpConfig
+from ddtrace.internal.settings.http import HttpConfig
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
 
@@ -183,7 +183,7 @@ def _apply_config_change(config_name, config_value, dd_config):
             tracer.enabled = True
             log.debug("Tracing enabled via remote_config. Config: %s Value: %s", config_name, config_value)
     elif config_name == "_trace_http_header_tags":
-        dd_config._http = _HttpConfig(header_tags=config_value)
+        dd_config._http = HttpConfig(header_tags=config_value)
         log.debug("Updated HTTP header tags configuration via remote_config: %s", config_value)
     elif config_name == "_logs_injection":
         log.debug("Updated logs injection configuration via remote_config: %s", config_value)
