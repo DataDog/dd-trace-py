@@ -25,7 +25,7 @@ logger = get_logger(__name__)
 EVP_PROXY_AGENT_BASE_PATH = "/evp_proxy/v2"
 EXPOSURE_ENDPOINT = "/api/v2/exposures"
 EVP_SUBDOMAIN_HEADER_NAME = "X-Datadog-EVP-Subdomain"
-EXPOSURE_SUBDOMAIN_NAME = "feature-flag-intake"
+EXPOSURE_SUBDOMAIN_NAME = "event-platform-intake"
 
 # Buffer and payload limits
 BUFFER_LIMIT = 1000
@@ -135,7 +135,7 @@ class ExposureWriter(PeriodicService):
 
         with self._lock:
             if len(self._buffer) >= BUFFER_LIMIT:
-                logger.warning("ExposureWriter event buffer full (limit is %d), dropping event", BUFFER_LIMIT)
+                logger.debug("ExposureWriter event buffer full (limit is %d), dropping event", BUFFER_LIMIT)
                 return
 
             if self._buffer_size + event_size > PAYLOAD_SIZE_LIMIT:
@@ -164,7 +164,7 @@ class ExposureWriter(PeriodicService):
         try:
             self._send_payload_with_retry(payload, len(events))
         except Exception:
-            logger.error("failed to send %d exposure events to %s", len(events), self._intake, exc_info=True)
+            logger.debug("failed to send %d exposure events to %s", len(events), self._intake, exc_info=True)
 
     def _encode(self, events: List[ExposureEvent]) -> bytes:
         """
@@ -175,7 +175,7 @@ class ExposureWriter(PeriodicService):
             logger.debug("encoded %d exposure events to be sent", len(events))
             return encoded
         except (TypeError, ValueError):
-            logger.error("failed to encode %d exposure events", len(events), exc_info=True)
+            logger.debug("failed to encode %d exposure events", len(events), exc_info=True)
             return b""
 
     def _send_payload(self, payload: bytes, num_events: int):
@@ -187,7 +187,7 @@ class ExposureWriter(PeriodicService):
             conn.request("POST", self._endpoint, payload, self._headers)
             resp = conn.getresponse()
             if resp.status >= 300:
-                logger.error(
+                logger.debug(
                     "failed to send %d exposure events to %s, got response code %d, status: %s",
                     num_events,
                     self._url,
@@ -198,7 +198,7 @@ class ExposureWriter(PeriodicService):
                 logger.debug("sent %d exposure events to %s", num_events, self._url)
             return Response.from_http_response(resp)
         except Exception:
-            logger.error("failed to send %d exposure events to %s", num_events, self._intake, exc_info=True)
+            logger.debug("failed to send %d exposure events to %s", num_events, self._intake, exc_info=True)
             raise
         finally:
             conn.close()

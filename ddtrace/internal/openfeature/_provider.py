@@ -60,7 +60,7 @@ class DataDogProvider(AbstractProvider):
         # Check if experimental flagging provider is enabled
         self._enabled = ffe_config.experimental_flagging_provider_enabled
         if not self._enabled:
-            logger.error(
+            logger.warning(
                 "openfeature: experimental flagging provider is not enabled, "
                 "please set DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED=true to enable it",
             )

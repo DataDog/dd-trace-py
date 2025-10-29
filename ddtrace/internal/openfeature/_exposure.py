@@ -33,7 +33,7 @@ def build_exposure_event(
     """
     # Validate required fields
     if not flag_key:
-        logger.warning("Cannot build exposure event: flag_key is required")
+        logger.debug("Cannot build exposure event: flag_key is required")
         return None
 
     if not variant_key:

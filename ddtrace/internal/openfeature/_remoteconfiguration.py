@@ -78,7 +78,7 @@ def featureflag_rc_callback(payloads: t.Sequence[Payload]) -> None:
             mock_process_ffe_configuration(payload.content)
             log.debug("Processing FFE config ID: %s, size: %d bytes", payload.metadata.id, len(config_bytes))
         except Exception as e:
-            log.error("Error processing FFE config payload: %s", e, exc_info=True)
+            log.debug("Error processing FFE config payload: %s", e, exc_info=True)
 
 
 def enable_featureflags_rc() -> None:
