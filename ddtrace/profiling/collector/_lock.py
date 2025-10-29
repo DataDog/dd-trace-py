@@ -127,8 +127,10 @@ class _ProfiledLock(wrapt.ObjectProxy):
                 for ddframe in frames:
                     handle.push_frame(ddframe.function_name, ddframe.file_name, 0, ddframe.lineno)
                 handle.flush_sample()
-            except Exception:
-                pass  # nosec
+            except Exception as e:
+                # _maybe_update_self_name throws AssertionError exceptions which need to propagate
+                if type(e) is AssertionError:
+                    raise e
 
     def acquire(self, *args: Any, **kwargs: Any) -> Any:
         return self._acquire(self.__wrapped__.acquire, *args, **kwargs)
