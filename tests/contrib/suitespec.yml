@@ -54,7 +54,7 @@ components:
     - ddtrace/ext/test.py
     - ddtrace/ext/user.py
     - ddtrace/propagation/*
-    - ddtrace/settings/_database_monitoring.py
+    - ddtrace/internal/settings/_database_monitoring.py
     - tests/contrib/patch.py
     - tests/contrib/config.py
     - tests/contrib/__init__.py
