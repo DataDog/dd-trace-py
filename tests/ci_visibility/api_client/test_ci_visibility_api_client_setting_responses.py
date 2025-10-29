@@ -141,6 +141,6 @@ class TestTestVisibilityAPIClientSettingResponses(TestTestVisibilityAPIClientBas
         client = self._get_test_client()
         with mock.patch.object(client, "_do_request", side_effect=[do_request_side_effect] * 5), pytest.raises(
             expected_exception
-        ), mock.patch("ddtrace.internal.utils.retry.sleep"):
+        ), mock.patch("ddtrace.internal.ci_visibility.utils.sleep"):
             settings = client.fetch_settings(read_from_cache=False)
             assert settings is None

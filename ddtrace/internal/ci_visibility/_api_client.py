@@ -46,6 +46,7 @@ from ddtrace.internal.ci_visibility.telemetry.itr import record_skippable_count
 from ddtrace.internal.ci_visibility.telemetry.test_management import TEST_MANAGEMENT_TELEMETRY
 from ddtrace.internal.ci_visibility.telemetry.test_management import record_test_management_tests_count
 from ddtrace.internal.ci_visibility.utils import combine_url_path
+from ddtrace.internal.ci_visibility.utils import fibonacci_backoff_with_jitter_on_exceptions
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
@@ -53,7 +54,6 @@ from ddtrace.internal.utils.http import ConnectionType
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
 from ddtrace.internal.utils.http import verify_url
-from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter_on_exceptions
 from ddtrace.internal.utils.time import StopWatch
 
 

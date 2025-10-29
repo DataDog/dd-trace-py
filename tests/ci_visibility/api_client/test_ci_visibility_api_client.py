@@ -242,7 +242,7 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
                 _get_setting_api_response(),
             ],
         ) as mock_do_request:
-            with mock.patch("ddtrace.internal.utils.retry.sleep"):
+            with mock.patch("ddtrace.internal.ci_visibility.utils.sleep"):
                 settings = client.fetch_settings(read_from_cache=False)
 
         assert settings == TestVisibilityAPISettings()
@@ -275,7 +275,7 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
                 _get_setting_api_response(),
             ],
         ) as mock_do_request:
-            with mock.patch("ddtrace.internal.utils.retry.sleep"):
+            with mock.patch("ddtrace.internal.ci_visibility.utils.sleep"):
                 with pytest.raises(socket.timeout):  # raises the last exception
                     _ = client.fetch_settings(read_from_cache=False)
 
