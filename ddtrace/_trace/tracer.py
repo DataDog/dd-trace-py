@@ -322,7 +322,7 @@ class Tracer(object):
         if appsec_enabled is not None:
             asm_config._asm_enabled = appsec_enabled
         if appsec_enabled_origin:
-            asm_config._asm_enabled_origin = appsec_enabled_origin  # type: ignore[assignment]
+            asm_config._asm_enabled_origin = appsec_enabled_origin
 
         if iast_enabled is not None:
             asm_config._iast_enabled = iast_enabled

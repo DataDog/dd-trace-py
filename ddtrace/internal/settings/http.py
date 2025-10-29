@@ -62,8 +62,7 @@ class HttpConfig(object):
             #  Host on the request defaults to http.request.headers.host
             self._header_tags.setdefault(normalized_header_name, "")
 
-        # Mypy can't catch cached method's invalidate()
-        self._header_tag_name.cache_clear()  # type: ignore[attr-defined]
+        self._header_tag_name.cache_clear()
 
         return self
 
