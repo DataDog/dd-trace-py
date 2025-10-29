@@ -1,10 +1,14 @@
 import ipaddress
 import logging
 import re
+from typing import Tuple
 from urllib import parse
 
+from ddtrace import config
 from ddtrace.contrib.internal.grpc import constants
+from ddtrace.contrib.internal.grpc.constants import USER_AGENT_HEADER
 from ddtrace.ext import net
+from ddtrace.internal.opentelemetry.constants import OTLP_EXPORTER_HEADER_IDENTIFIER
 
 
 log = logging.getLogger(__name__)
@@ -28,31 +32,31 @@ def set_grpc_method_meta(span, method, method_kind):
     method_path = method
     method_package_service, method_package, method_service, method_name = parse_method_path(method_path)
     if method_package_service is not None:
-        span.set_tag_str(constants.GRPC_METHOD_PACKAGE_SERVICE_KEY, method_package_service)
+        span._set_tag_str(constants.GRPC_METHOD_PACKAGE_SERVICE_KEY, method_package_service)
     if method_path is not None:
-        span.set_tag_str(constants.GRPC_METHOD_PATH_KEY, method_path)
+        span._set_tag_str(constants.GRPC_METHOD_PATH_KEY, method_path)
     if method_package is not None:
-        span.set_tag_str(constants.GRPC_METHOD_PACKAGE_KEY, method_package)
+        span._set_tag_str(constants.GRPC_METHOD_PACKAGE_KEY, method_package)
     if method_service is not None:
-        span.set_tag_str(constants.GRPC_METHOD_SERVICE_KEY, method_service)
+        span._set_tag_str(constants.GRPC_METHOD_SERVICE_KEY, method_service)
     if method_name is not None:
-        span.set_tag_str(constants.GRPC_METHOD_NAME_KEY, method_name)
+        span._set_tag_str(constants.GRPC_METHOD_NAME_KEY, method_name)
     if method_kind is not None:
-        span.set_tag_str(constants.GRPC_METHOD_KIND_KEY, method_kind)
+        span._set_tag_str(constants.GRPC_METHOD_KIND_KEY, method_kind)
 
 
 def set_grpc_client_meta(span, host, port):
     if host:
-        span.set_tag_str(constants.GRPC_HOST_KEY, host)
+        span._set_tag_str(constants.GRPC_HOST_KEY, host)
         try:
             ipaddress.ip_address(host)
         except ValueError:
-            span.set_tag_str(net.PEER_HOSTNAME, host)
+            span._set_tag_str(net.PEER_HOSTNAME, host)
         else:
-            span.set_tag_str(net.TARGET_IP, host)
+            span._set_tag_str(net.TARGET_IP, host)
     if port:
-        span.set_tag_str(net.TARGET_PORT, str(port))
-    span.set_tag_str(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_CLIENT)
+        span._set_tag_str(net.TARGET_PORT, str(port))
+    span._set_tag_str(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_CLIENT)
 
 
 def _parse_target_from_args(args, kwargs):
@@ -108,3 +112,18 @@ def _parse_rpc_repr_string(rpc_string, module):
 
     # Return the status code and details
     return code, details
+
+
+def is_otlp_export(metadata: Tuple) -> bool:
+    """
+    Determine if a gRPC channel is submitting data to the OpenTelemetry OTLP exporter.
+    """
+    if not (config._otel_logs_enabled or config._otel_metrics_enabled):
+        return False
+
+    for key, value in metadata:
+        if key == USER_AGENT_HEADER:
+            normalized_value = value.lower().replace(" ", "-")
+            if OTLP_EXPORTER_HEADER_IDENTIFIER in normalized_value:
+                return True
+    return False

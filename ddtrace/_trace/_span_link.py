@@ -94,8 +94,8 @@ class SpanLink:
 
     def to_dict(self):
         d = {
-            "trace_id": "{:032x}".format(self.trace_id),
-            "span_id": "{:016x}".format(self.span_id),
+            "trace_id": f"{self.trace_id:032x}",
+            "span_id": f"{self.span_id:016x}",
         }
         if self.attributes:
             d["attributes"] = {}

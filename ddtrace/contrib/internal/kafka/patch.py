@@ -184,31 +184,31 @@ def traced_produce(func, instance, args, kwargs):
         cluster_id = _get_cluster_id(instance, topic)
         core.set_item("kafka_cluster_id", cluster_id)
         if cluster_id:
-            span.set_tag_str(kafkax.CLUSTER_ID, cluster_id)
+            span._set_tag_str(kafkax.CLUSTER_ID, cluster_id)
 
         core.dispatch("kafka.produce.start", (instance, args, kwargs, isinstance(instance, _SerializingProducer), span))
 
-        span.set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
-        span.set_tag_str(COMPONENT, config.kafka.integration_name)
-        span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
-        span.set_tag_str(kafkax.TOPIC, topic)
+        span._set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
+        span._set_tag_str(COMPONENT, config.kafka.integration_name)
+        span._set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+        span._set_tag_str(kafkax.TOPIC, topic)
         if topic:
             # Should fall back to broker id if topic is not provided but it is not readily available here
-            span.set_tag_str(MESSAGING_DESTINATION_NAME, topic)
+            span._set_tag_str(MESSAGING_DESTINATION_NAME, topic)
 
         if _SerializingProducer is not None and isinstance(instance, _SerializingProducer):
             serialized_key = serialize_key(instance, topic, message_key, headers)
             if serialized_key is not None:
-                span.set_tag_str(kafkax.MESSAGE_KEY, serialized_key)
+                span._set_tag_str(kafkax.MESSAGE_KEY, serialized_key)
         else:
-            span.set_tag_str(kafkax.MESSAGE_KEY, message_key)
+            span._set_tag_str(kafkax.MESSAGE_KEY, message_key)
 
         span.set_tag(kafkax.PARTITION, partition)
-        span.set_tag_str(kafkax.TOMBSTONE, str(value is None))
+        span._set_tag_str(kafkax.TOMBSTONE, str(value is None))
         # PERF: avoid setting via Span.set_tag
         span.set_metric(_SPAN_MEASURED_KEY, 1)
         if instance._dd_bootstrap_servers is not None:
-            span.set_tag_str(kafkax.HOST_LIST, instance._dd_bootstrap_servers)
+            span._set_tag_str(kafkax.HOST_LIST, instance._dd_bootstrap_servers)
 
         # inject headers with Datadog tags if trace propagation is enabled
         if config.kafka.distributed_tracing_enabled:
@@ -272,19 +272,19 @@ def _instrument_message(messages, pin, start_ns, instance, err):
                 core.set_item("kafka_topic", str(first_message.topic()))
                 core.dispatch("kafka.consume.start", (instance, first_message, span))
 
-        span.set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
-        span.set_tag_str(COMPONENT, config.kafka.integration_name)
-        span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
+        span._set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
+        span._set_tag_str(COMPONENT, config.kafka.integration_name)
+        span._set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
         if cluster_id:
-            span.set_tag_str(kafkax.CLUSTER_ID, cluster_id)
-        span.set_tag_str(kafkax.RECEIVED_MESSAGE, str(first_message is not None))
-        span.set_tag_str(kafkax.GROUP_ID, instance._group_id)
+            span._set_tag_str(kafkax.CLUSTER_ID, cluster_id)
+        span._set_tag_str(kafkax.RECEIVED_MESSAGE, str(first_message is not None))
+        span._set_tag_str(kafkax.GROUP_ID, instance._group_id)
         if first_message is not None:
             message_key = first_message.key() or ""
             message_offset = first_message.offset() or -1
             topic = str(first_message.topic())
-            span.set_tag_str(kafkax.TOPIC, topic)
-            span.set_tag_str(MESSAGING_DESTINATION_NAME, topic)
+            span._set_tag_str(kafkax.TOPIC, topic)
+            span._set_tag_str(MESSAGING_DESTINATION_NAME, topic)
 
             # If this is a deserializing consumer, do not set the key as a tag since we
             # do not have the serialization function
@@ -293,14 +293,14 @@ def _instrument_message(messages, pin, start_ns, instance, err):
                 or isinstance(message_key, str)
                 or isinstance(message_key, bytes)
             ):
-                span.set_tag_str(kafkax.MESSAGE_KEY, message_key)
+                span._set_tag_str(kafkax.MESSAGE_KEY, message_key)
             span.set_tag(kafkax.PARTITION, first_message.partition())
             is_tombstone = False
             try:
                 is_tombstone = len(first_message) == 0
             except TypeError:  # https://github.com/confluentinc/confluent-kafka-python/issues/1192
                 pass
-            span.set_tag_str(kafkax.TOMBSTONE, str(is_tombstone))
+            span._set_tag_str(kafkax.TOMBSTONE, str(is_tombstone))
             span.set_tag(kafkax.MESSAGE_OFFSET, message_offset)
         # PERF: avoid setting via Span.set_tag
         span.set_metric(_SPAN_MEASURED_KEY, 1)

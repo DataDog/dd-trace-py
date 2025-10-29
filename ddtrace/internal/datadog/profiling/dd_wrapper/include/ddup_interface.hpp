@@ -25,6 +25,7 @@ extern "C"
     void ddup_config_timeline(bool enable);
     void ddup_config_output_filename(std::string_view filename);
     void ddup_config_sample_pool_capacity(uint64_t capacity);
+    void ddup_config_set_max_timeout_ms(uint64_t max_timeout_ms);
 
     void ddup_config_user_tag(std::string_view key, std::string_view val);
     void ddup_config_sample_type(unsigned int type);
