@@ -156,7 +156,10 @@ class CIVisibility(Service):
     enabled = False
 
     def __init__(
-        self, tracer: Optional[Tracer] = None, config: Optional[_IntegrationConfig] = None, service: Optional[str] = None
+        self,
+        tracer: Optional[Tracer] = None,
+        config: Optional[_IntegrationConfig] = None,
+        service: Optional[str] = None,
     ) -> None:
         super().__init__()
 

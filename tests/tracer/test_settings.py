@@ -2,7 +2,6 @@ import warnings
 
 import pytest
 
-from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.settings._config import Config
 from ddtrace.settings.http import HttpConfig
 from ddtrace.settings.integration import IntegrationConfig

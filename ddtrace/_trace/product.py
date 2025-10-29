@@ -6,11 +6,9 @@ import typing as t
 from envier import En
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.settings.http import _HttpConfig
-from ddtrace.vendor.debtcollector import deprecate
 
 
 log = get_logger(__name__)
