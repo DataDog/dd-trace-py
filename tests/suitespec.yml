@@ -55,6 +55,7 @@ components:
     - ddtrace/internal/gitmetadata.py
     - ddtrace/internal/glob_matching.py
     - ddtrace/internal/logger.py
+    - ddtrace/_logger.py
     - ddtrace/internal/hostname.py
     - ddtrace/internal/http.py
     - ddtrace/internal/bytecode_injection/*
@@ -76,6 +77,7 @@ components:
     - ddtrace/__init__.py
     - ddtrace/py.typed
     - ddtrace/version.py
+    - ddtrace/_version.py
     - ddtrace/settings/_config.py
     - src/native/*
   datastreams:
