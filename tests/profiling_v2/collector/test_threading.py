@@ -979,6 +979,32 @@ class BaseThreadingLockCollectorTest:
         with pytest.raises(AssertionError):
             pprof_utils.parse_newest_profile(self.output_filename)
 
+    def test_assertion_error_suppressed_in_acquire(self) -> None:
+        """Ensure that AssertionError exceptions is propagated in the `_acquire` method."""
+
+        with self.collector_class(capture_pct=100):
+            lock = self.lock_class()
+
+            # Patch _maybe_update_self_name to raise AssertionError
+            lock._maybe_update_self_name = mock.Mock(side_effect=AssertionError("test: unexpected frame in stack"))
+
+            with pytest.raises(AssertionError):
+                # acquire() will propagate AssertionError if _maybe_update_self_name raises it
+                lock.acquire()
+
+    def test_other_exceptions_are_suppressed(self) -> None:
+        """Ensure that non - AssertionError exceptions are silently suppressed in the `_acquire` method."""
+
+        with self.collector_class(capture_pct=100):
+            lock = self.lock_class()
+
+            # Patch _maybe_update_self_name to raise RuntimeError
+            lock._maybe_update_self_name = mock.Mock(side_effect=RuntimeError("Some profiling error"))
+
+            # RuntimeError should be caught and suppressed - lock operations should succeed
+            lock.acquire()
+            lock.release()
+
 
 class TestThreadingLockCollector(BaseThreadingLockCollectorTest):
     """Test Lock profiling"""
