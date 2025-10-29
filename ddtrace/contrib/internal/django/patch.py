@@ -30,7 +30,7 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings.asm import config as asm_config
-from ddtrace.internal.settings.integration import _IntegrationConfig
+from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
@@ -88,7 +88,7 @@ config._add(
 )
 
 # PERF: cache the getattr lookup for the Django config
-config_django: _IntegrationConfig = cast(_IntegrationConfig, config.django)
+config_django: IntegrationConfig = cast(IntegrationConfig, config.django)
 
 
 def get_version():

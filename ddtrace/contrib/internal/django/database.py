@@ -19,7 +19,7 @@ from ddtrace.ext import sql as sqlx
 from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.internal.settings.integration import _IntegrationConfig
+from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.wrapping import is_wrapped_with
 from ddtrace.internal.wrapping import wrap
@@ -30,7 +30,7 @@ log = get_logger(__name__)
 
 
 # PERF: cache the getattr lookup for the Django config
-config_django: _IntegrationConfig = cast(_IntegrationConfig, config.django)
+config_django: IntegrationConfig = cast(IntegrationConfig, config.django)
 
 
 DB_CONN_ATTR_BY_TAG = {
@@ -118,9 +118,9 @@ def get_conn_service_name(alias: str) -> Optional[str]:
 
 
 @cached()
-def get_conn_config(vendor: str) -> _IntegrationConfig:
+def get_conn_config(vendor: str) -> IntegrationConfig:
     prefix = sqlx.normalize_vendor(vendor)
-    return _IntegrationConfig(
+    return IntegrationConfig(
         config_django.global_config,
         "django-database",
         _default_service=config.django._default_service,

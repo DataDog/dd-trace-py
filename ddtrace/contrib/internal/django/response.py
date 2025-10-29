@@ -29,7 +29,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
-from ddtrace.internal.settings.integration import _IntegrationConfig
+from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import http as http_utils
@@ -44,7 +44,7 @@ from . import utils
 log = get_logger(__name__)
 
 # PERF: cache the getattr lookup for the Django config
-config_django: _IntegrationConfig = cast(_IntegrationConfig, config.django)
+config_django: IntegrationConfig = cast(IntegrationConfig, config.django)
 
 
 def _gather_block_metadata(request, request_headers, ctx: core.ExecutionContext):

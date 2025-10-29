@@ -12,7 +12,7 @@ from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
-from ddtrace.internal.settings.integration import _IntegrationConfig
+from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.internal.wrapping import is_wrapped
@@ -24,7 +24,7 @@ log = get_logger(__name__)
 
 
 # PERF: cache the getattr lookup for the Django config
-config_django: _IntegrationConfig = cast(_IntegrationConfig, ddtrace.config.django)
+config_django: IntegrationConfig = cast(IntegrationConfig, ddtrace.config.django)
 
 
 def traced_middleware_wrapper(mw_path: str, hook: str) -> FunctionType:
