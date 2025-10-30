@@ -1,0 +1,67 @@
+id: core-dispatch-with-results
+message: Avoid using `dispatch_with_results()` - use `core.dispatch()` instead
+severity: warning
+language: python
+ignores:
+  - "ddtrace/internal/core/__init__.py"
+  - "ddtrace/internal/core/event_hub.py"
+  - "tests/internal/test_context_events_api.py"
+rule:
+  any:
+    # Match function calls to dispatch_with_results
+    - pattern: core.dispatch_with_results($$$ARGS)
+    - pattern: dispatch_with_results($$$ARGS)
+    - pattern: event_hub.dispatch_with_results($$$ARGS)
+    # Match imports of dispatch_with_results
+    - pattern: from ddtrace.internal.core import dispatch_with_results
+    - pattern: from ddtrace.internal.core import dispatch_with_results as $ALIAS
+    - pattern: from ddtrace.internal.core import $$$IMPORTS, dispatch_with_results
+    - pattern: from ddtrace.internal.core import $$$IMPORTS, dispatch_with_results as $ALIAS
+    - pattern: from ddtrace.internal.core import dispatch_with_results, $$$IMPORTS
+    - pattern: from ddtrace.internal.core import dispatch_with_results as $ALIAS, $$$IMPORTS
+    - pattern: from ddtrace.internal.core.event_hub import dispatch_with_results
+    - pattern: from ddtrace.internal.core.event_hub import dispatch_with_results as $ALIAS
+    - pattern: from ddtrace.internal.core.event_hub import $$$IMPORTS, dispatch_with_results
+    - pattern: from ddtrace.internal.core.event_hub import $$$IMPORTS, dispatch_with_results as $ALIAS
+    - pattern: from ddtrace.internal.core.event_hub import dispatch_with_results, $$$IMPORTS
+    - pattern: from ddtrace.internal.core.event_hub import dispatch_with_results as $ALIAS, $$$IMPORTS
+constraints:
+  # Exclude the implementation files where it's defined or exported
+  ALIAS:
+    regex: ".*"
+note: |
+  Avoid using `dispatch_with_results()` to prevent tight coupling between dispatched events
+  and potential listeners. This function creates explicit dependencies that make the code
+  harder to maintain and understand.
+
+  Prefer managing state/context via core.ExecutionContext using `core.set_item()` and
+  `core.get_item()`:
+
+  Before:
+    result = core.dispatch_with_results("my.event", (arg1, arg2)).result_key.value
+
+  After:
+    core.dispatch("my.event", (arg1, arg2))
+    result = core.get_item("result_key")
+
+  Alternatively, pass mutable state in the dispatch call:
+
+    data = {}
+    core.dispatch("my.event", (data,))
+    if data.get("result"):
+        # do something with data["result"]
+
+  To interrupt application flow, use try/except around dispatch calls:
+
+    try:
+        core.dispatch("my.event", (args,))
+    except MyException:
+        # handle interruption
+        pass
+
+  Note: try/except will block all other listeners from running after the exception is raised.
+
+  This rule does not apply to:
+  - The implementation in ddtrace/internal/core/event_hub.py
+  - The export in ddtrace/internal/core/__init__.py
+  - Test files and benchmarks

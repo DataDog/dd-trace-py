@@ -88,7 +88,7 @@ pub mod logger {
             "trace" => LogEventLevel::Trace,
             "debug" => LogEventLevel::Debug,
             "info" => LogEventLevel::Info,
-            "warn" => LogEventLevel::Warn,
+            "warning" => LogEventLevel::Warn,
             "error" => LogEventLevel::Error,
             other => return Err(PyValueError::new_err(format!("Invalid log level: {other}"))),
         };
@@ -102,7 +102,7 @@ pub mod logger {
             "trace" => trace!("{}", message),
             "debug" => debug!("{}", message),
             "info" => info!("{}", message),
-            "warn" => warn!("{}", message),
+            "warning" => warn!("{}", message),
             "error" => error!("{}", message),
             other => return Err(PyValueError::new_err(format!("Invalid log level: {other}"))),
         }

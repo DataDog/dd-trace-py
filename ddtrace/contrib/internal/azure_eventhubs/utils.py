@@ -18,6 +18,7 @@ from ddtrace.ext import azure_eventhubs as azure_eventhubsx
 from ddtrace.internal import core
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.trace import Context
 
 
 def create_context(
@@ -62,7 +63,7 @@ def handle_event_hubs_event_data_context(
                 span.link_span(parent_context)
 
 
-def extract_context(event_data: Union[EventData, AmqpAnnotatedMessage]):
+def extract_context(event_data: Union[EventData, AmqpAnnotatedMessage]) -> Context:
     msg = event_data if isinstance(event_data, AmqpAnnotatedMessage) else event_data._message
     return HTTPPropagator.extract(msg.application_properties)
 

@@ -21,6 +21,7 @@
       "actor.ip": "8.8.4.4",
       "appsec.blocked": "true",
       "appsec.event": "true",
+      "http.endpoint": "/",
       "http.method": "GET",
       "http.request.headers.accept": "text/html",
       "http.request.headers.accept-encoding": "gzip, deflate",

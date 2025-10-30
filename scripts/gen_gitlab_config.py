@@ -199,6 +199,8 @@ def gen_build_docs() -> None:
             ".readthedocs.yml",
         }
     ):
+        date_str = datetime.datetime.now().strftime("%Y-%m")
+
         with TESTS_GEN.open("a") as f:
             print("build_docs:", file=f)
             print("  extends: .testrunner", file=f)
@@ -212,7 +214,7 @@ def gen_build_docs() -> None:
             print("      hatch run docs:build", file=f)
             print("      mkdir -p /tmp/docs", file=f)
             print("  cache:", file=f)
-            print("    key: v2-build_docs-pip-cache", file=f)
+            print(f"    key: build_docs-pip-cache-{date_str}", file=f)
             print("    paths:", file=f)
             print("      - .cache", file=f)
             print("  artifacts:", file=f)

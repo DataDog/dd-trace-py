@@ -19,7 +19,7 @@ from tests.utils import TracerTestCase
 from tests.utils import snapshot
 
 
-# host:port of httpbin_local container
+# host:port of httpbin container
 HOST = HTTPBIN_CONFIG["host"]
 PORT = HTTPBIN_CONFIG["port"]
 SOCKET = "{}:{}".format(HOST, PORT)
