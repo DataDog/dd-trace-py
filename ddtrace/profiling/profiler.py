@@ -74,7 +74,6 @@ class Profiler(object):
 
             print(f"{os.getpid()}: registering atexit with stop_on_exit")
             atexit.register(self.stop)
-            print(f"{os.getpid()}: _ncallbacks: {atexit._ncallbacks()}")
 
         if profile_children:
             forksafe.register(self._restart_on_fork)
@@ -103,7 +102,6 @@ class Profiler(object):
     def _restart_on_fork(self):
         import os
 
-        print(f"{os.getpid()}: _ncallbacks: {atexit._ncallbacks()}")
         # Be sure to stop the parent first, since it might have to e.g. unpatch functions
         # Do not flush data as we don't want to have multiple copies of the parent profile exported.
         try:
