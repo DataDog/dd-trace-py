@@ -112,6 +112,17 @@ def _line_event_handler(code: CodeType, line: int) -> t.Literal[sys.monitoring.D
     return sys.monitoring.DISABLE
 
 
+def _register_monitoring():
+    """
+    Register the coverage tool with the monitoring system.
+
+    This sets up the appropriate callback based on the coverage mode.
+    """
+    sys.monitoring.use_tool_id(sys.monitoring.COVERAGE_ID, "datadog")
+    event = sys.monitoring.events.PY_START if _USE_FILE_LEVEL_COVERAGE else sys.monitoring.events.LINE
+    sys.monitoring.register_callback(sys.monitoring.COVERAGE_ID, event, _line_event_handler)
+
+
 def _instrument_with_line_events(
     code: CodeType, hook: HookType, path: str, package: str
 ) -> t.Tuple[CodeType, CoverageLines]:
@@ -170,19 +181,6 @@ def _instrument_with_py_start(
     lines = CoverageLines()
     lines.add(0)
     return code, lines
-
-
-def _register_monitoring():
-    """
-    Register the coverage tool with the monitoring system.
-
-    This sets up the appropriate callback based on the coverage mode.
-    """
-    sys.monitoring.use_tool_id(sys.monitoring.COVERAGE_ID, "datadog")
-
-    event = sys.monitoring.events.PY_START if _USE_FILE_LEVEL_COVERAGE else sys.monitoring.events.LINE
-
-    sys.monitoring.register_callback(sys.monitoring.COVERAGE_ID, event, _line_event_handler)
 
 
 def _extract_lines_and_imports(
