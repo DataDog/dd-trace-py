@@ -170,7 +170,7 @@ class Block_config:
         self.grpc_status_code: int = grpc_status_code
         self.status_code: int = status_code
         self.type: str = type
-        self.location = location
+        self.location = location.replace(APPSEC.SECURITY_RESPONSE_ID, block_id)
         self.content_type: str = "application/json"
 
 
