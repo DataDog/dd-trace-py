@@ -6,7 +6,7 @@ Only supports tracing for the synchronous client.
 ::
 
     from ddtrace import patch
-    from ddtrace._trace import Pin
+    from ddtrace._trace.pin import Pin
     import consul
 
     # If not patched yet, you can patch consul specifically

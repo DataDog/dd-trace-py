@@ -53,7 +53,7 @@ Instance Configuration
 To configure particular aredis instances use the :class:`Pin <ddtrace.trace.Pin>` API::
 
     import aredis
-    from ddtrace._trace import Pin
+    from ddtrace._trace.pin import Pin
 
     client = aredis.StrictRedis(host="localhost", port=6379)
 

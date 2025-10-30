@@ -8,7 +8,7 @@ using the patch method that **must be called before** importing sqlalchemy::
 
     # patch before importing `create_engine`
     from ddtrace import patch
-    from ddtrace._trace import Pin
+    from ddtrace._trace.pin import Pin
     patch(sqlalchemy=True)
 
     # use SQLAlchemy as usual

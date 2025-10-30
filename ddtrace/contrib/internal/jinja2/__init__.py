@@ -16,7 +16,7 @@ Auto instrumentation is available using the ``patch``. The following is an examp
 The library can be configured globally and per instance, using the Configuration API::
 
     from ddtrace import config
-    from ddtrace._trace import Pin
+    from ddtrace._trace.pin import Pin
 
     # Change service name globally
     config.jinja2['service_name'] = 'jinja-templates'

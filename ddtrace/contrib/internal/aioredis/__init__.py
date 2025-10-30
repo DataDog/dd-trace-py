@@ -55,7 +55,7 @@ To configure the aioredis integration on a per-instance basis use the
 ``Pin`` API::
 
     import aioredis
-    from ddtrace._trace import Pin
+    from ddtrace._trace.pin import Pin
 
     myaioredis = aioredis.Aioredis()
     Pin.override(myaioredis, service="myaioredis")

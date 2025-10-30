@@ -38,7 +38,7 @@ To configure the MCP integration on a per-instance basis use the
 ``Pin`` API::
 
     import mcp
-    from ddtrace._trace import Pin
+    from ddtrace._trace.pin import Pin
 
     Pin.override(mcp, service="my-mcp-service")
 """  # noqa: E501

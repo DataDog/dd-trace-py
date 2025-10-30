@@ -41,7 +41,7 @@ Instance Configuration
 To configure the integration on an per-connection basis use the
 ``Pin`` API::
 
-    from ddtrace._trace import Pin
+    from ddtrace._trace.pin import Pin
     import pyodbc
 
     # This will report a span with the default settings

@@ -9,7 +9,7 @@ network calls. Pymongo 3.0 and greater are the currently supported versions.
     # Be sure to import pymongo and not pymongo.MongoClient directly,
     # otherwise you won't have access to the patched version
     from ddtrace import patch
-    from ddtrace._trace import Pin
+    from ddtrace._trace.pin import Pin
     import pymongo
 
     # If not patched yet, you can patch pymongo specifically

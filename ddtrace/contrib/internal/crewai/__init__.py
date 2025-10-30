@@ -37,7 +37,7 @@ To configure the CrewAI integration on a per-instance basis use the
 ``Pin`` API::
 
     import crewai
-    from ddtrace._trace import Pin
+    from ddtrace._trace.pin import Pin
 
     Pin.override(crewai, service="my-crewai-service")
 """  # noqa: E501

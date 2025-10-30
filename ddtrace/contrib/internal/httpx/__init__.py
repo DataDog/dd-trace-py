@@ -60,7 +60,7 @@ Instance Configuration
 To configure particular ``httpx`` client instances use the :class:`Pin <ddtrace.trace.Pin>` API::
 
     import httpx
-    from ddtrace._trace import Pin
+    from ddtrace._trace.pin import Pin
 
     client = httpx.Client()
     # Override service name for this instance

@@ -5,7 +5,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 
-from .._trace import Pin
+from .._trace.pin import Pin
 from ..constants import _SPAN_MEASURED_KEY
 from ..constants import SPAN_KIND
 from ..ext import SpanKind
