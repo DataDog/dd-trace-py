@@ -1,0 +1,35 @@
+[[
+  {
+    "name": "grpc",
+    "service": "grpc-server",
+    "resource": "/opentelemetry.proto.collector.logs.v1.LogsService/Export",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "grpc",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68f8d7df00000000",
+      "component": "grpc_server",
+      "grpc.method.kind": "unary",
+      "grpc.method.name": "Export",
+      "grpc.method.package": "opentelemetry.proto.collector.logs.v1",
+      "grpc.method.path": "/opentelemetry.proto.collector.logs.v1.LogsService/Export",
+      "grpc.method.service": "LogsService",
+      "language": "python",
+      "rpc.service": "opentelemetry.proto.collector.logs.v1.LogsService",
+      "runtime-id": "f889b527dbdc40afa921bb54a08f8c90",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 32526
+    },
+    "duration": 31000,
+    "start": 1761138655401326000
+  }]]

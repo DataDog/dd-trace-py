@@ -36,8 +36,8 @@ class PythonDetector:
         # - Starts with an optional directory (anything before the last '/' or '')
         # - Ends with the expected command name, possibly followed by a version
         # - Ensures that it does not end with .py
-        # - Match /python, /python3.7, etc.
-        self.pattern = r"(^|/)(?!.*\.py$)(" + re.escape("python") + r"(\d+\.\d+)?$)"
+        # - Match /python, /python3, /python3.7, etc.
+        self.pattern = re.compile(r"(^|/)(?!.*\.py$)(" + re.escape("python") + r"(\d+(\.\d+)?)?$)")
 
     def detect(self, args: List[str], skip_args_preceded_by_flags=True) -> Optional[ServiceMetadata]:
         """
@@ -127,7 +127,7 @@ class PythonDetector:
 
     def matches(self, command: str) -> bool:
         # Returns if the command matches the regex pattern for finding python executables / commands.
-        return bool(re.search(self.pattern, command))
+        return bool(self.pattern.search(command))
 
 
 def detect_service(args: List[str]) -> Optional[str]:
