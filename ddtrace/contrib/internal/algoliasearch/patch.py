@@ -37,13 +37,12 @@ except ImportError:
     algoliasearch_version = VERSION = V0
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return VERSION
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"algoliasearch": ">=2.5.0"}
+    return {"algoliasearch": ">=2.6.3"}
 
 
 def patch():

@@ -19,11 +19,11 @@ from ddtrace.internal.dist_computing.utils import in_ray_job
 from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native
 from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings.asm import ai_guard_config
+from ddtrace.internal.settings.asm import config as asm_config
 import ddtrace.internal.utils.http
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
-from ddtrace.settings._agent import config as agent_config
-from ddtrace.settings.asm import ai_guard_config
-from ddtrace.settings.asm import config as asm_config
 
 from ...constants import _KEEP_SPANS_RATE_KEY
 from .. import compat

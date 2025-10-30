@@ -3,9 +3,6 @@
 #include "sampler.hpp"
 #include "thread_span_links.hpp"
 
-#include <mutex>
-#include <unordered_map>
-
 using namespace Datadog;
 
 static PyObject*

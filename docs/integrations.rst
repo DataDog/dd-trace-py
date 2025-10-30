@@ -110,13 +110,6 @@ Bottle
 .. automodule:: ddtrace.contrib.bottle
 
 
-.. _cassandra:
-
-Cassandra
-^^^^^^^^^
-.. automodule:: ddtrace.contrib.internal.cassandra
-
-
 .. _celery:
 
 Celery
@@ -214,13 +207,6 @@ Flask
 Flask Cache
 ^^^^^^^^^^^
 .. automodule:: ddtrace.contrib.flask_cache
-
-
-.. _freezegun:
-
-FreezeGun
-^^^^^^^^^
-.. automodule:: ddtrace.contrib.internal.freezegun
 
 
 .. _futures:
@@ -367,13 +353,6 @@ MariaDB
 Molten
 ^^^^^^
 .. automodule:: ddtrace.contrib.internal.molten
-
-
-.. _mongoengine:
-
-Mongoengine
-^^^^^^^^^^^
-.. automodule:: ddtrace.contrib.internal.mongoengine
 
 
 .. _mysql-connector:

@@ -20,12 +20,12 @@ from typing import Type
 import wrapt
 
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.settings.profiling import config
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
 from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _traceback
 from ddtrace.profiling.event import DDFrame
-from ddtrace.settings.profiling import config
 from ddtrace.trace import Tracer
 
 
@@ -256,7 +256,7 @@ class FunctionWrapper(wrapt.FunctionWrapper):
     # Override the __get__ method: whatever happens, _allocate_lock is always considered by Python like a "static"
     # method, even when used as a class attribute. Python never tried to "bind" it to a method, because it sees it is a
     # builtin function. Override default wrapt behavior here that tries to detect bound method.
-    def __get__(self, instance: Any, owner: Optional[Type] = None) -> FunctionWrapper:
+    def __get__(self, instance: Any, owner: Optional[Type] = None) -> FunctionWrapper:  # type: ignore
         return self
 
 

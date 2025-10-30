@@ -12,7 +12,7 @@ from ddtrace.appsec._trace_utils import _asm_manual_keep
 import ddtrace.constants as constants
 from ddtrace.internal import logger as ddlogger
 from ddtrace.internal.service import Service
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
 
 
 log = ddlogger.get_logger(__name__)

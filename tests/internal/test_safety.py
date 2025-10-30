@@ -68,7 +68,8 @@ def test_safe_eval_property():
 def test_safe_collection(_type):
     # Ensure that all the items within a collection are wrapped by a safe object
     # proxy.
-    assert all(isinstance(_, SafeObjectProxy) for _ in SafeObjectProxy.safe(_type([UnsafeObject()] * 10)))
+    iterator = SafeObjectProxy.safe(_type([UnsafeObject()] * 10))
+    assert all(isinstance(_, SafeObjectProxy) for _ in iterator)
 
 
 def test_safe_dict():
