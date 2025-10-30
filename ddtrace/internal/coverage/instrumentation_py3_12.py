@@ -172,11 +172,6 @@ def _instrument_with_py_start(
     return code, lines
 
 
-# ============================================================================
-# SHARED UTILITIES
-# ============================================================================
-
-
 def _register_monitoring():
     """
     Register the coverage tool with the monitoring system.
@@ -222,7 +217,7 @@ def _extract_lines_and_imports(
     current_import_name: t.Optional[str] = None
     current_import_package: str = package  # Initialize with package, never None
 
-    ext: list[int] = []
+    ext: list[bytes] = []
     code_iter = iter(enumerate(code.co_code))
 
     try:
