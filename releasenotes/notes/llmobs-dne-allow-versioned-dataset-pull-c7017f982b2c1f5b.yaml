@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    LLM Observability: Previous dataset versions can be optionally pulled by passing the ``version`` 
+    argument to ``LLMObs.pull_dataset``
+  - |
+    LLM Observability: Datasets have new properties ``version`` and ``latest_version`` to provide information on the
+    version of the dataset that is being worked with and the latest global version of the dataset, respectively
