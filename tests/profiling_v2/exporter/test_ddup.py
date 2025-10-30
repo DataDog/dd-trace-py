@@ -46,7 +46,7 @@ def test_tags_propagated():
 
     from ddtrace.profiling.profiler import Profiler  # noqa: I001
     from ddtrace.internal.datadog.profiling import ddup
-    from ddtrace.settings.profiling import config
+    from ddtrace.internal.settings.profiling import config
 
     # DD_PROFILING_TAGS should override DD_TAGS
     assert config.tags["hello"] == "python"

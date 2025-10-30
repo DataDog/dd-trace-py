@@ -22,7 +22,7 @@ include Tracing Spans and the AppSec WAF.
 
 Integrations should avoid exposing a public API unless it is absolutely necessary. Users should be able to configure
 the integration by setting environment variables or using the Pin API. For cases where a public API is necessary, integrations
-should expose the API in ``ddtrace.contrib.<integration_name>.py``. 
+should expose the API in ``ddtrace.contrib.<integration_name>.py``.
 
 Integrations should define a ``ddtrace.contrib.internal.<integration>.__init__.py`` module that contains a doc string describing the integration
 and it's supported configurations. This module should be referenced in the ``docs/integrations.rst`` file.
@@ -37,7 +37,7 @@ into the runtime execution of third-party libraries. The essential task of writi
 the functions in the third-party library that would serve as useful entrypoints and wrapping them with ``wrap_function_wrapper``.
 There are exceptions, but this is generally a useful starting point.
 
-The Pin API in ``ddtrace.trace.Pin`` is used to configure the instrumentation at runtime. It provides a ``Pin`` class
+The Pin API in ``ddtrace._trace.pin.Pin`` is used to configure the instrumentation at runtime. It provides a ``Pin`` class
 that can store configuration data in memory in a manner that is accessible from within functions wrapped by Wrapt.
 ``Pin`` objects are most often used for storing configuration data scoped to a given integration, such as
 enable/disable flags and service name overrides.
@@ -204,7 +204,6 @@ are not yet any expected spans stored for it, so we need to create some.
 
     mongo:
     - ddtrace/contrib/internal/pymongo/*
-    - ddtrace/contrib/internal/mongoengine/*
     - ddtrace/ext/mongo.py
 
 15. Add a `suite` for your integration in `tests/contrib/suitespec.yml`. This defines test configuration

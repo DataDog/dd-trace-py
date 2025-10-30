@@ -12,7 +12,7 @@ from ddtrace.internal.packages import filename_to_package  # noqa: F401
 from ddtrace.internal.packages import is_stdlib  # noqa: F401
 from ddtrace.internal.packages import is_third_party  # noqa: F401
 from ddtrace.internal.packages import is_user_code  # noqa: F401
-from ddtrace.settings.errortracking import config
+from ddtrace.internal.settings.errortracking import config
 
 
 INSTRUMENTED_FILE_PATHS = []

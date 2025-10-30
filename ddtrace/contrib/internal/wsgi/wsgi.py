@@ -12,7 +12,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Optional  # noqa:F401
 
     from ddtrace._trace.pin import Pin  # noqa:F401
-    from ddtrace.settings._config import Config  # noqa:F401
+    from ddtrace.internal.settings._config import Config  # noqa:F401
     from ddtrace.trace import Span  # noqa:F401
     from ddtrace.trace import Tracer  # noqa:F401
 

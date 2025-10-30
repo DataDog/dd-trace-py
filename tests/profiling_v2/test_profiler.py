@@ -149,7 +149,7 @@ def test_profiler_serverless(monkeypatch):
     assert p.tags["functionname"] == "foobar"
 
 
-@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 9), reason="Python 3.8 throws a deprecation warning")
+@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 10), reason="ddtrace under Python 3.9 is deprecated")
 @pytest.mark.subprocess()
 def test_profiler_ddtrace_deprecation():
     """
@@ -189,8 +189,8 @@ def test_libdd_failure_telemetry_logging():
         failure_msg="mock failure message",
         is_available=False,
     ), mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_log") as mock_add_log:
+        from ddtrace.internal.settings.profiling import config  # noqa:F401
         from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
-        from ddtrace.settings.profiling import config  # noqa:F401
 
         mock_add_log.assert_called_once()
         call_args = mock_add_log.call_args
@@ -240,8 +240,8 @@ def test_stack_v2_failure_telemetry_logging():
         failure_msg="mock failure message",
         is_available=False,
     ), mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_log") as mock_add_log:
+        from ddtrace.internal.settings.profiling import config  # noqa: F401
         from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
-        from ddtrace.settings.profiling import config  # noqa: F401
 
         mock_add_log.assert_called_once()
         call_args = mock_add_log.call_args

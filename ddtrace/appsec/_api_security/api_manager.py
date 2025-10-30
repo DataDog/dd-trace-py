@@ -16,7 +16,7 @@ import ddtrace.constants as constants
 from ddtrace.ext import http
 from ddtrace.internal import logger as ddlogger
 from ddtrace.internal.service import Service
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
 
 
 log = ddlogger.get_logger(__name__)

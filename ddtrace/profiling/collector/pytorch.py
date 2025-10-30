@@ -8,9 +8,9 @@ import typing
 import wrapt
 
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.settings.profiling import config
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
-from ddtrace.settings.profiling import config
 from ddtrace.trace import Tracer
 
 

@@ -21,8 +21,8 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.forksafe import RLock
 from ddtrace.internal.logger import get_logger
-from ddtrace.settings._config import config
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings._config import config
+from ddtrace.internal.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)

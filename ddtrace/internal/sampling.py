@@ -26,7 +26,7 @@ from ddtrace.internal.constants import SAMPLING_MECHANISM_TO_PRIORITIES
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.glob_matching import GlobMatcher
 from ddtrace.internal.logger import get_logger
-from ddtrace.settings._config import config
+from ddtrace.internal.settings._config import config
 
 from .rate_limiter import RateLimiter
 

@@ -886,7 +886,7 @@ import openai
 import ddtrace
 from tests.contrib.openai.conftest import FilterOrg
 from tests.contrib.openai.test_openai_v1 import get_openai_vcr
-pin = ddtrace.trace.Pin.get_from(openai)
+pin = ddtrace._trace.pin.Pin.get_from(openai)
 pin.tracer.configure(trace_processors=[FilterOrg()])
 with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
     client = openai.OpenAI()
@@ -927,7 +927,7 @@ import openai
 import ddtrace
 from tests.contrib.openai.conftest import FilterOrg
 from tests.contrib.openai.test_openai_v1 import get_openai_vcr
-pin = ddtrace.trace.Pin.get_from(openai)
+pin = ddtrace._trace.pin.Pin.get_from(openai)
 pin.tracer.configure(trace_processors=[FilterOrg()])
 async def task():
     with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
@@ -1130,7 +1130,7 @@ import openai
 import ddtrace
 from tests.contrib.openai.conftest import FilterOrg
 from tests.contrib.openai.test_openai_v1 import get_openai_vcr
-pin = ddtrace.trace.Pin.get_from(openai)
+pin = ddtrace._trace.pin.Pin.get_from(openai)
 pin.tracer.configure(trace_processors=[FilterOrg()])
 with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
     client = openai.OpenAI()

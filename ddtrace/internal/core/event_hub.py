@@ -6,7 +6,7 @@ from typing import Dict
 from typing import Optional
 from typing import Tuple
 
-from ddtrace.settings._config import config
+from ddtrace.internal.settings._config import config
 
 
 _listeners: Dict[str, Dict[Any, Callable[..., Any]]] = {}

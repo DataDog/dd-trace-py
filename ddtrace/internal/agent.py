@@ -4,7 +4,7 @@ import typing as t
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import ForksafeAwakeablePeriodicService
-from ddtrace.settings._agent import config
+from ddtrace.internal.settings._agent import config
 
 from .utils.http import get_connection
 

@@ -30,10 +30,10 @@ from ddtrace.internal.remoteconfig import PayloadType
 from ddtrace.internal.remoteconfig._pubsub import PubSub
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.service import ServiceStatus
+from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.utils.version import _pep440_to_semver
-from ddtrace.settings._agent import config as agent_config
-from ddtrace.settings._core import DDConfig
 
 
 log = get_logger(__name__)

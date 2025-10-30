@@ -8,7 +8,7 @@ from ddtrace.appsec.ai_guard import AIGuardAbortError
 from ddtrace.appsec.ai_guard import AIGuardClientError
 from ddtrace.appsec.ai_guard import Prompt
 from ddtrace.appsec.ai_guard import ToolCall
-from ddtrace.settings.asm import ai_guard_config
+from ddtrace.internal.settings.asm import ai_guard_config
 from tests.appsec.ai_guard.utils import assert_ai_guard_span
 from tests.appsec.ai_guard.utils import assert_mock_execute_request_call
 from tests.appsec.ai_guard.utils import find_ai_guard_span

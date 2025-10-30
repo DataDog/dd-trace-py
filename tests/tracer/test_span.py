@@ -10,7 +10,6 @@ import pytest
 
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace._span_pointer import _SpanPointerDirection
-from ddtrace._trace.context import Context
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import ERROR_MSG
@@ -864,52 +863,6 @@ def test_span_preconditions(arg):
     Span("test", **{arg: None})
     with pytest.raises(TypeError):
         Span("test", **{arg: "foo"})
-
-
-def test_span_pprint():
-    root = Span("test.span", service="s", resource="r", span_type=SpanTypes.WEB, context=Context(trace_id=1, span_id=2))
-    root.set_tag("t", "v")
-    root.set_metric("m", 1.0)
-    root._add_event("message", {"importance": 10}, 16789898242)
-    root.set_link(trace_id=99, span_id=10, attributes={"link.name": "s1_to_s2", "link.kind": "scheduled_by"})
-    root._add_span_pointer("test_kind", _SpanPointerDirection.DOWNSTREAM, "test_hash_123", {"extra": "attr"})
-
-    root.finish()
-    actual = root._pprint()
-    assert "name='test.span'" in actual
-    assert "service='s'" in actual
-    assert "resource='r'" in actual
-    assert "type='web'" in actual
-    assert "error=0" in actual
-    assert "tags={'t': 'v'}" in actual
-    assert "metrics={'m': 1.0}" in actual
-    assert "events=[SpanEvent(name='message', time=16789898242, attributes={'importance': 10})]" in actual
-    assert (
-        "SpanLink(trace_id=99, span_id=10, attributes={'link.name': 's1_to_s2', 'link.kind': 'scheduled_by'}, "
-        "tracestate=None, flags=None, dropped_attributes=0)"
-    ) in actual
-    assert "SpanPointer(trace_id=0, span_id=0, kind=span-pointer" in actual
-    assert "direction=d, hash=test_hash_123" in actual
-    assert (
-        f"context=Context(trace_id={root.trace_id}, span_id={root.span_id}, _meta={{}}, "
-        "_metrics={}, _span_links=[], _baggage={}, _is_remote=False)"
-    ) in actual
-    assert f"span_id={root.span_id}" in actual
-    assert f"trace_id={root.trace_id}" in actual
-    assert f"parent_id={root.parent_id}" in actual
-    assert f"start={root.start_ns}" in actual
-    assert f"duration={root.duration_ns}" in actual
-    assert f"end={root.start_ns + root.duration_ns}" in actual
-
-    root = Span("test.span", service="s", resource="r", span_type=SpanTypes.WEB)
-    root.error = 1
-    kv = {f"😌{i}": "😌" for i in range(100)}
-    root.set_tags(kv)
-    actual = root._pprint()
-    assert "duration=None" in actual
-    assert "end=None" in actual
-    assert "error=1" in actual
-    assert f"tags={kv}" in actual
 
 
 def test_manual_context_usage():

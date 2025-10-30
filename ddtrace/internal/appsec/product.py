@@ -1,5 +1,5 @@
-from ddtrace.settings.asm import ai_guard_config
-from ddtrace.settings.asm import config
+from ddtrace.internal.settings.asm import ai_guard_config
+from ddtrace.internal.settings.asm import config
 
 
 requires = ["remote-configuration"]

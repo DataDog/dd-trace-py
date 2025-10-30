@@ -13,7 +13,7 @@ from ddtrace.appsec._iast.sampling.vulnerability_detection import should_process
 from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
 
 from ..._constants import IAST
 from ..._constants import IAST_SPAN_TAGS

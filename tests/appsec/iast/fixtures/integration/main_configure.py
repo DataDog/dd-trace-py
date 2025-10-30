@@ -5,7 +5,7 @@ import sys
 
 import ddtrace.auto  # noqa: F401
 from ddtrace.ext import SpanTypes
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.trace import tracer
 
 

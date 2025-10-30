@@ -11,13 +11,13 @@ from ddtrace.contrib.internal.django.user import _DjangoUserInfoRetriever
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.internal.wrapping import is_wrapped
 from ddtrace.internal.wrapping import is_wrapped_with
 from ddtrace.internal.wrapping import wrap
-from ddtrace.settings.asm import config as asm_config
-from ddtrace.settings.integration import IntegrationConfig
 
 
 log = get_logger(__name__)

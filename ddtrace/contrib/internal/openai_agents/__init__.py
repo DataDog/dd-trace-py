@@ -37,7 +37,7 @@ To configure the OpenAI Agents integration on a per-instance basis use the
 ``Pin`` API::
 
     import agents
-    from ddtrace.trace import Pin
+    from ddtrace._trace.pin import Pin
 
     Pin.override(agents, service="my-agents-service")
 """  # noqa: E501

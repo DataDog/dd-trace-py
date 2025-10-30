@@ -55,14 +55,7 @@ cpdef get_thread_native_id(thread_id):
     if thread is None:
         return thread_id
 
-    try:
-        # We prioritize using native ids since we expect them to be surely unique for a program. This is less true
-        # for hashes since they are relative to the memory address which can easily be the same across different
-        # objects.
-        return thread.native_id
-    except AttributeError:
-        # Python < 3.8
-        return hash(thread)
+    return thread.native_id
 
 
 # cython does not play well with mypy

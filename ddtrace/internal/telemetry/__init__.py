@@ -8,16 +8,16 @@ import os
 import typing as t
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings._core import FLEET_CONFIG
+from ddtrace.internal.settings._core import FLEET_CONFIG_IDS
+from ddtrace.internal.settings._core import LOCAL_CONFIG
+from ddtrace.internal.settings._core import DDConfig
+from ddtrace.internal.settings._otel_remapper import ENV_VAR_MAPPINGS
+from ddtrace.internal.settings._otel_remapper import SUPPORTED_OTEL_ENV_VARS
+from ddtrace.internal.settings._otel_remapper import parse_otel_env
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.settings._agent import config as agent_config
-from ddtrace.settings._core import FLEET_CONFIG
-from ddtrace.settings._core import FLEET_CONFIG_IDS
-from ddtrace.settings._core import LOCAL_CONFIG
-from ddtrace.settings._core import DDConfig
-from ddtrace.settings._otel_remapper import ENV_VAR_MAPPINGS
-from ddtrace.settings._otel_remapper import SUPPORTED_OTEL_ENV_VARS
-from ddtrace.settings._otel_remapper import parse_otel_env
 
 
 log = get_logger(__name__)

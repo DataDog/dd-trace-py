@@ -15,7 +15,7 @@ from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
 def _child_check(q: Queue):
     """Subprocess entrypoint: report tracer and IAST env status back to parent via Queue."""
     try:
-        from ddtrace.settings.asm import config as asm_config
+        from ddtrace.internal.settings.asm import config as asm_config
         from ddtrace.trace import tracer
 
         text = "text_to_taint"

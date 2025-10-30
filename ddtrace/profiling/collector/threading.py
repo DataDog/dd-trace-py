@@ -5,7 +5,7 @@ import typing
 
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
 from ddtrace.internal.datadog.profiling import stack_v2
-from ddtrace.settings.profiling import config
+from ddtrace.internal.settings.profiling import config
 
 from . import _lock
 

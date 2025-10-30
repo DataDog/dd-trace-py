@@ -28,7 +28,7 @@ To configure the Vertica integration on an instance-per-instance basis use the
 ``Pin`` API::
 
     from ddtrace import patch
-    from ddtrace.trace import Pin
+    from ddtrace._trace.pin import Pin
     patch(vertica=True)
 
     import vertica_python

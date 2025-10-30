@@ -1,8 +1,8 @@
 import base64
 import enum
 
-from ddtrace.settings._config import config
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings._config import config
+from ddtrace.internal.settings.asm import config as asm_config
 
 
 class Flags(enum.IntFlag):

@@ -11,10 +11,10 @@ from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._llmobs import LLMObs
-from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.trace import Span
 
 

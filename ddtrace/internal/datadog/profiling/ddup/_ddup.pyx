@@ -18,7 +18,7 @@ from ddtrace.internal.datadog.profiling._types import StringType
 from ddtrace.internal.datadog.profiling.code_provenance import json_str_to_export
 from ddtrace.internal.datadog.profiling.util import sanitize_string
 from ddtrace.internal.runtime import get_runtime_id
-from ddtrace.settings._agent import config as agent_config
+from ddtrace.internal.settings._agent import config as agent_config
 
 
 ctypedef void (*func_ptr_t)(string_view)

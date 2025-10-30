@@ -10,7 +10,7 @@ from typing import Optional
 
 from ddtrace._trace.span import Span
 from ddtrace.constants import _SAMPLING_LIMIT_DECISION
-from ddtrace.settings._config import config
+from ddtrace.internal.settings._config import config
 
 from ..constants import ENV_KEY
 from ..internal.constants import MAX_UINT_64BITS

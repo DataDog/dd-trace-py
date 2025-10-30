@@ -769,7 +769,7 @@ class PytestTestCase(PytestTestCaseBase):
             """
             import pytest
             import ddtrace
-            from ddtrace.trace import Pin
+            from ddtrace._trace.pin import Pin
 
             def test_service(ddtracer):
                 with ddtracer.trace("SPAN2") as span2:
@@ -4557,7 +4557,7 @@ class PytestTestCase(PytestTestCaseBase):
             def test_dependency_collection_disabled():
                 # Check that the config is set to disable telemetry dependency collection
                 # The pytest plugin should have done this earlier in the process
-                from ddtrace.settings._telemetry import config as telemetry_config
+                from ddtrace.internal.settings._telemetry import config as telemetry_config
                 assert telemetry_config.DEPENDENCY_COLLECTION is False, "Dependency collection should be disabled"
         """
         )

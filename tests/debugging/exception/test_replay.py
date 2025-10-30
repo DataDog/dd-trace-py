@@ -8,7 +8,7 @@ import ddtrace
 from ddtrace.debugging._exception import replay
 from ddtrace.internal.packages import _third_party_packages
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
-from ddtrace.settings.exception_replay import ExceptionReplayConfig
+from ddtrace.internal.settings.exception_replay import ExceptionReplayConfig
 from tests.debugging.mocking import exception_replay
 from tests.utils import TracerTestCase
 from tests.utils import override_third_party_packages

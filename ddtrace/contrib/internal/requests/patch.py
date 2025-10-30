@@ -8,8 +8,8 @@ from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.settings.asm import config as asm_config
 
 from .connection import _wrap_send
 from .session import TracedSession
@@ -31,13 +31,12 @@ _w(TracedSession, "send", _wrap_send)
 Pin(_config=config.requests).onto(TracedSession)
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(requests, "__version__", "")
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"requests": ">=2.20.0"}
+    return {"requests": ">=2.25.1"}
 
 
 def patch():

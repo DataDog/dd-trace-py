@@ -8,7 +8,7 @@ from ddtrace.internal.constants import COLLECTOR_MAX_SIZE_PER_SPAN
 from ddtrace.internal.constants import SPAN_EVENTS_HAS_EXCEPTION
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
-from ddtrace.settings.errortracking import config
+from ddtrace.internal.settings.errortracking import config
 
 
 log = get_logger(__name__)

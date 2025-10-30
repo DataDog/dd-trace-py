@@ -221,3 +221,26 @@ def format_stack(stack_info, limit) -> str:
         return stack_info
     stack_str = "\n".join(stack[-2 * limit :])
     return f"{stack[0]}\n{stack_str}"
+
+
+class LogInjectionState(object):
+    # Log injection is disabled
+    DISABLED = "false"
+    # Log injection is enabled, but not yet configured
+    ENABLED = "true"
+    # Log injection is enabled and configured for structured logging
+    # This value is deprecated, but kept for backwards compatibility
+    STRUCTURED = "structured"
+
+
+def get_log_injection_state(raw_config: Optional[str]) -> bool:
+    if raw_config:
+        normalized = raw_config.lower().strip()
+        if normalized == LogInjectionState.STRUCTURED or normalized in ("true", "1"):
+            return True
+        elif normalized not in ("false", "0"):
+            logging.warning(
+                "Invalid log injection state '%s'. Expected 'true', 'false', or 'structured'. Defaulting to 'false'.",
+                normalized,
+            )
+    return False
