@@ -3,12 +3,14 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
+from ddtrace._trace.pin import Pin
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import NAME
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
@@ -17,12 +19,31 @@ from ddtrace.trace import Span
 
 log = get_logger(__name__)
 
+MCP_SPAN_TYPE = "_ml_obs.mcp_span_type"
+
 SERVER_TOOL_CALL_OPERATION_NAME = "server_tool_call"
 CLIENT_TOOL_CALL_OPERATION_NAME = "client_tool_call"
 
 
+def _find_client_session_root(span: Optional[Span]) -> Optional[Span]:
+    while span is not None:
+        if span._get_ctx_item(MCP_SPAN_TYPE) == "client_session":
+            return span
+        span = span._parent
+    return None
+
+
 class MCPIntegration(BaseLLMIntegration):
     _integration_name = "mcp"
+
+    def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs) -> Span:
+        span = super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
+
+        mcp_span_type = kwargs.get("type", None)
+        if mcp_span_type:
+            span._set_ctx_item(MCP_SPAN_TYPE, mcp_span_type)
+
+        return span
 
     def _parse_mcp_text_content(self, item: Any) -> Dict[str, Any]:
         """Parse MCP TextContent fields, extracting only non-None values."""
@@ -69,7 +90,7 @@ class MCPIntegration(BaseLLMIntegration):
             }
         )
 
-        if span.error or response is None:
+        if response is None:
             return
 
         # Tool response is `mcp.types.CallToolResult` type
@@ -80,6 +101,10 @@ class MCPIntegration(BaseLLMIntegration):
         ]
         output_value = {"content": processed_content, "isError": is_error}
         span._set_ctx_item(OUTPUT_VALUE, output_value)
+
+        existing_tags = span._get_ctx_item(TAGS) or {}
+        existing_tags["mcp_tool_kind"] = "client"
+        span._set_ctx_item(TAGS, existing_tags)
 
     def _llmobs_set_tags_server(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any) -> None:
         tool_arguments = get_argument_value(args, kwargs, 1, "arguments", optional=True) or {}
@@ -94,6 +119,10 @@ class MCPIntegration(BaseLLMIntegration):
             }
         )
 
+        existing_tags = span._get_ctx_item(TAGS) or {}
+        existing_tags["mcp_tool_kind"] = "server"
+        span._set_ctx_item(TAGS, existing_tags)
+
         if span.error or response is None:
             return
 
@@ -107,7 +136,25 @@ class MCPIntegration(BaseLLMIntegration):
         span._set_ctx_item(OUTPUT_VALUE, output_value)
 
     def _llmobs_set_tags_initialize(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any) -> None:
-        span._set_ctx_items({NAME: "MCP Client Initialize", SPAN_KIND: "task", OUTPUT_VALUE: safe_json(response)})
+        span._set_ctx_items(
+            {
+                NAME: "MCP Client Initialize",
+                SPAN_KIND: "task",
+                OUTPUT_VALUE: safe_json(response),
+            }
+        )
+
+        server_info = getattr(response, "serverInfo", None)
+        if not server_info:
+            return
+
+        client_session_root = _find_client_session_root(span)
+        if client_session_root:
+            client_session_root_tags = client_session_root._get_ctx_item(TAGS) or {}
+            client_session_root_tags["mcp_server_name"] = getattr(server_info, "name", "")
+            client_session_root_tags["mcp_server_version"] = getattr(server_info, "version", "")
+            client_session_root_tags["mcp_server_title"] = getattr(server_info, "title", "")
+            client_session_root._set_ctx_item(TAGS, client_session_root_tags)
 
     def _llmobs_set_tags_list_tools(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any) -> None:
         cursor = get_argument_value(args, kwargs, 0, "cursor", optional=True)
