@@ -6,10 +6,6 @@ This module supports two modes:
 2. File-level coverage: Tracks which files are executed (PY_START events)
 
 The mode is controlled by the _DD_COVERAGE_FILE_LEVEL environment variable.
-
-Performance characteristics:
-- LINE events: O(lines × iterations) - more detailed but higher overhead
-- PY_START events: O(functions × calls) - less detail but much faster
 """
 
 import dis
@@ -39,8 +35,10 @@ EMPTY_MODULE_BYTES = bytes([RESUME, 0, RETURN_CONST, 0])
 # Check if file-level coverage is requested
 _USE_FILE_LEVEL_COVERAGE = os.environ.get("_DD_COVERAGE_FILE_LEVEL", "").lower() == "true"
 
+EVENT = sys.monitoring.events.PY_START if _USE_FILE_LEVEL_COVERAGE else sys.monitoring.events.LINE
+
 # Store: (hook, path, import_names_by_line)
-_CODE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str, t.Dict[int, t.Tuple[str, t.Tuple[str, ...]]]]] = {}
+_CODE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str, t.Dict[int, t.Tuple[str, t.Optional[t.Tuple[str]]]]]] = {}
 
 
 def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, CoverageLines]:
@@ -73,18 +71,13 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
         log.debug("Registering %s coverage tool", mode)
         _register_monitoring()
 
-    if _USE_FILE_LEVEL_COVERAGE:
-        return _instrument_with_py_start(code, hook, path, package)
-    else:
-        return _instrument_with_line_events(code, hook, path, package)
+    return _instrument_with_monitoring(code, hook, path, package)
 
 
-def _line_event_handler(code: CodeType, line: int) -> t.Literal[sys.monitoring.DISABLE]:
+def _event_handler(code: CodeType, line: int) -> t.Literal[sys.monitoring.DISABLE]:
     """
-    Callback for LINE events (line-level coverage mode).
-
-    This fires once per line execution and reports the specific line number.
-    Returns sys.monitoring.DISABLE to prevent future callbacks for this line.
+    Callback for LINE/PY_START events.
+    Returns sys.monitoring.DISABLE to improve performance.
     """
     hook_data = _CODE_HOOKS.get(code)
     if hook_data is None:
@@ -107,8 +100,7 @@ def _line_event_handler(code: CodeType, line: int) -> t.Literal[sys.monitoring.D
         import_name = import_names.get(line, None)
         hook((line, path, import_name))
 
-    # Return DISABLE to prevent future callbacks for this specific line
-    # This provides full line coverage with minimal overhead
+    # Return DISABLE to prevent future callbacks for this specific line/code
     return sys.monitoring.DISABLE
 
 
@@ -119,21 +111,21 @@ def _register_monitoring():
     This sets up the appropriate callback based on the coverage mode.
     """
     sys.monitoring.use_tool_id(sys.monitoring.COVERAGE_ID, "datadog")
-    event = sys.monitoring.events.PY_START if _USE_FILE_LEVEL_COVERAGE else sys.monitoring.events.LINE
-    sys.monitoring.register_callback(sys.monitoring.COVERAGE_ID, event, _line_event_handler)
+    sys.monitoring.register_callback(sys.monitoring.COVERAGE_ID, EVENT, _event_handler)
 
 
-def _instrument_with_line_events(
+def _instrument_with_monitoring(
     code: CodeType, hook: HookType, path: str, package: str
 ) -> t.Tuple[CodeType, CoverageLines]:
     """
-    Instrument code using LINE events for detailed line-by-line coverage.
+    Instrument code using either LINE events for detailed line-by-line coverage or PY_START for file-level.
     """
-    # Enable local line events for the code object
-    sys.monitoring.set_local_events(sys.monitoring.COVERAGE_ID, code, sys.monitoring.events.LINE)  # noqa
+    # Enable local line/py_start events for the code object
+    sys.monitoring.set_local_events(sys.monitoring.COVERAGE_ID, code, EVENT)  # noqa
 
+    track_lines = not _USE_FILE_LEVEL_COVERAGE
     # Extract import names and collect line numbers
-    lines, import_names = _extract_lines_and_imports(code, package)
+    lines, import_names = _extract_lines_and_imports(code, package, track_lines=track_lines)
 
     # Recursively instrument nested code objects
     for nested_code in (_ for _ in code.co_consts if isinstance(_, CodeType)):
@@ -143,43 +135,20 @@ def _instrument_with_line_events(
     # Register the hook and argument for the code object
     _CODE_HOOKS[code] = (hook, path, import_names)
 
-    # Special case for empty modules (eg: __init__.py ):
-    # Make sure line 0 is marked as executable, and add package dependency
-    if not lines and code.co_name == "<module>" and code.co_code == EMPTY_MODULE_BYTES:
+    if _USE_FILE_LEVEL_COVERAGE:
+        # Return CoverageLines with line 0 as sentinel to indicate file-level coverage
+        # Line 0 means "file was instrumented/executed" without specific line details
+        lines = CoverageLines()
         lines.add(0)
-        if package is not None:
-            import_names[0] = (package, ("",))
+        return code, lines
+    else:
+        # Special case for empty modules (eg: __init__.py ):
+        # Make sure line 0 is marked as executable, and add package dependency
+        if not lines and code.co_name == "<module>" and code.co_code == EMPTY_MODULE_BYTES:
+            lines.add(0)
+            if package is not None:
+                import_names[0] = (package, ("",))
 
-    return code, lines
-
-
-def _instrument_with_py_start(
-    code: CodeType, hook: HookType, path: str, package: str
-) -> t.Tuple[CodeType, CoverageLines]:
-    """
-    Instrument code using PY_START events for file-level coverage.
-
-    This recursively instruments all functions in the module so that any function
-    execution will trigger the file-level coverage callback.
-    """
-    # Enable local PY_START events for this code object
-    sys.monitoring.set_local_events(sys.monitoring.COVERAGE_ID, code, sys.monitoring.events.PY_START)
-
-    # Extract import information from bytecode (zero runtime cost!)
-    # This allows us to track import dependencies without LINE events
-    _, import_names = _extract_lines_and_imports(code, package, track_lines=False)
-
-    # Register the hook for this code object with import tracking
-    _CODE_HOOKS[code] = (hook, path, import_names)
-
-    # Recursively instrument nested code objects (functions, classes, etc.)
-    for nested_code in (_ for _ in code.co_consts if isinstance(_, CodeType)):
-        _, _ = instrument_all_lines(nested_code, hook, path, package)
-
-    # Return CoverageLines with line 0 as sentinel to indicate file-level coverage
-    # Line 0 means "file was instrumented/executed" without specific line details
-    lines = CoverageLines()
-    lines.add(0)
     return code, lines
 
 

@@ -1,14 +1,11 @@
 """
-Comprehensive tests for import dependency tracking.
+Tests for import dependency tracking.
 
 These tests ensure that import-time dependencies are correctly tracked across
 different scenarios. They serve as regression tests to catch issues if the
 import tracking mechanism is refactored in the future.
 
-## Test Coverage
-
 All tests run in BOTH file-level and line-level modes (parametrized):
-- 7 test scenarios × 2 modes = 14 test runs total
 
 ### What These Tests Verify
 
@@ -19,24 +16,7 @@ All tests run in BOTH file-level and line-level modes (parametrized):
 5. **Internal data structures**:
    - `_import_names_by_path` is populated correctly
    - `_import_time_name_to_path` maps names to paths
-6. **No false positives**: Non-imported modules are not tracked
-7. **include_imported flag**: Dependencies only included when requested
-
-### Critical for Future Refactoring
-
-If you refactor the import tracking mechanism, these tests will catch:
-- ❌ Missing import dependencies
-- ❌ False positive dependencies
-- ❌ Broken transitive dependency resolution
-- ❌ Context isolation issues
-- ❌ Data structure corruption
-
-### Key Insight for File-Level Mode
-
-File-level coverage achieves import tracking via **bytecode analysis**:
-- IMPORT_NAME and IMPORT_FROM opcodes are parsed at instrumentation time
-- Import info is reported when PY_START fires (zero runtime cost!)
-- This maintains full import dependency tracking without LINE events
+6. **include_imported flag**: Dependencies only included when requested
 """
 
 import sys

@@ -5,8 +5,6 @@ import sys
 if sys.version_info >= (3, 14):
     from ddtrace.internal.coverage.instrumentation_py3_14 import instrument_all_lines  # noqa
 elif sys.version_info >= (3, 12):
-    # Python 3.12+ supports both line-level and file-level coverage in the same module
-    # The mode is controlled by the _DD_COVERAGE_FILE_LEVEL environment variable
     from ddtrace.internal.coverage.instrumentation_py3_12 import instrument_all_lines  # noqa
 elif sys.version_info >= (3, 11):
     from ddtrace.internal.coverage.instrumentation_py3_11 import instrument_all_lines  # noqa
