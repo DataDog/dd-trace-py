@@ -79,23 +79,6 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
         return _instrument_with_line_events(code, hook, path, package)
 
 
-def instrument_for_file_coverage(
-    code: CodeType, hook: HookType, path: str, package: str
-) -> t.Tuple[CodeType, CoverageLines]:
-    """
-    Alias for instrument_all_lines with file-level mode.
-
-    This function exists for backwards compatibility and explicit file-level instrumentation.
-    It delegates to instrument_all_lines which will use the appropriate mode.
-    """
-    return instrument_all_lines(code, hook, path, package)
-
-
-# ============================================================================
-# LINE EVENT MODE (Line-level coverage)
-# ============================================================================
-
-
 def _line_event_handler(code: CodeType, line: int) -> t.Literal[sys.monitoring.DISABLE]:
     """
     Callback for LINE events (line-level coverage mode).
@@ -109,10 +92,20 @@ def _line_event_handler(code: CodeType, line: int) -> t.Literal[sys.monitoring.D
 
     hook, path, import_names = hook_data
 
-    # Report the line and then disable monitoring for this specific line
-    # This ensures each line is only reported once per context, even if executed multiple times (e.g., in loops)
-    import_name = import_names.get(line, None)
-    hook((line, path, import_name))
+    if _USE_FILE_LEVEL_COVERAGE:
+        # Report file-level coverage using line 0 as a sentinel value
+        # Line 0 indicates "file was executed" without specific line information
+        hook((0, path, None))
+
+        # Report any import dependencies (extracted at instrumentation time from bytecode)
+        # This ensures import tracking works even though we don't fire on individual lines
+        for line_num, import_name in import_names.items():
+            hook((line_num, path, import_name))
+    else:
+        # Report the line and then disable monitoring for this specific line
+        # This ensures each line is only reported once per context, even if executed multiple times (e.g., in loops)
+        import_name = import_names.get(line, None)
+        hook((line, path, import_name))
 
     # Return DISABLE to prevent future callbacks for this specific line
     # This provides full line coverage with minimal overhead
@@ -147,38 +140,6 @@ def _instrument_with_line_events(
             import_names[0] = (package, ("",))
 
     return code, lines
-
-
-# ============================================================================
-# PY_START EVENT MODE (File-level coverage)
-# ============================================================================
-
-
-def _py_start_event_handler(code: CodeType, instruction_offset: int) -> t.Literal[sys.monitoring.DISABLE]:
-    """
-    Callback for PY_START events (file-level coverage mode).
-
-    This fires once when a function starts executing. We use this to detect that
-    the file containing this code object was executed.
-    """
-    hook_data = _CODE_HOOKS.get(code)
-    if hook_data is None:
-        return sys.monitoring.DISABLE
-
-    hook, path, import_names = hook_data
-
-    # Report file-level coverage using line 0 as a sentinel value
-    # Line 0 indicates "file was executed" without specific line information
-    hook((0, path, None))
-
-    # Report any import dependencies (extracted at instrumentation time from bytecode)
-    # This ensures import tracking works even though we don't fire on individual lines
-    for line_num, import_name in import_names.items():
-        hook((line_num, path, import_name))
-
-    # Return DISABLE to prevent future callbacks for this function
-    # This means each function is only reported once per context
-    return sys.monitoring.DISABLE
 
 
 def _instrument_with_py_start(
@@ -224,14 +185,9 @@ def _register_monitoring():
     """
     sys.monitoring.use_tool_id(sys.monitoring.COVERAGE_ID, "datadog")
 
-    if _USE_FILE_LEVEL_COVERAGE:
-        # Register the PY_START callback (file-level mode)
-        sys.monitoring.register_callback(
-            sys.monitoring.COVERAGE_ID, sys.monitoring.events.PY_START, _py_start_event_handler
-        )
-    else:
-        # Register the LINE callback (line-level mode)
-        sys.monitoring.register_callback(sys.monitoring.COVERAGE_ID, sys.monitoring.events.LINE, _line_event_handler)
+    event = sys.monitoring.events.PY_START if _USE_FILE_LEVEL_COVERAGE else sys.monitoring.events.LINE
+
+    sys.monitoring.register_callback(sys.monitoring.COVERAGE_ID, event, _line_event_handler)
 
 
 def _extract_lines_and_imports(
