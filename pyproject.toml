@@ -10,7 +10,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ddtrace"
+# DEV: to directly override the version specifier, comment this...
 dynamic = ["version"]
+# ...and uncomment this
+# version = "4.0.0.dev0"
 description = "Datadog APM client library"
 readme = "README.md"
 license = { text = "LICENSE.BSD3" }
@@ -165,6 +168,8 @@ exclude-modules = '''
   | ^tests.(contrib|vendor)
   # avoid sitecustomize modules as they start services
   | ddtrace.bootstrap.sitecustomize
+  | ddtrace.openfeature
+  | ddtrace.internal.openfeature._provider
   | ddtrace.profiling.bootstrap.sitecustomize
   | ddtrace.profiling.auto
   # also ignore preload module to avoid exception after moving ddtrace.tracing module

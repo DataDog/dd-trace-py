@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    ray: This fix resolves an issue where long-running job spans could remain unfinished when an exception occurred during job submission. 

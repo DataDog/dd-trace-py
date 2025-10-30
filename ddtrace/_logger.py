@@ -110,14 +110,6 @@ def _add_file_handler(
     return ddtrace_file_handler
 
 
-def set_log_formatting():
-    # type: () -> None
-    """Sets the log format for the ddtrace logger."""
-    ddtrace_logger = logging.getLogger("ddtrace")
-    for handler in ddtrace_logger.handlers:
-        handler.setFormatter(logging.Formatter(DD_LOG_FORMAT))
-
-
 def get_log_injection_state(raw_config: Optional[str]) -> bool:
     """Returns the current log injection state."""
     if raw_config:
@@ -136,8 +128,9 @@ def _configure_ddtrace_native_logger():
     try:
         from ddtrace.internal.native._native import logger
 
-        native_writer_enabled = get_config("_DD_TRACE_WRITER_NATIVE", False, asbool, report_telemetry=True)
-        if native_writer_enabled:
+        from .settings._config import config
+
+        if config._trace_writer_native:
             backend = get_config("_DD_NATIVE_LOGGING_BACKEND", "file", report_telemetry=True)
             kwargs = {"output": backend}
             if backend == "file":
@@ -148,6 +141,6 @@ def _configure_ddtrace_native_logger():
                 kwargs["max_files"] = get_config("_DD_NATIVE_LOGGING_FILE_ROTATION_LEN", 1, int, report_telemetry=True)
 
             logger.configure(**kwargs)
-            logger.set_log_level(get_config("_DD_NATIVE_LOGGING_LOG_LEVEL", "warn", report_telemetry=True))
+            logger.set_log_level(get_config("_DD_NATIVE_LOGGING_LOG_LEVEL", "warning", report_telemetry=True))
     except Exception:
         log.warning("Failed to initialize native logger", exc_info=True)
