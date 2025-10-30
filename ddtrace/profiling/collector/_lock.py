@@ -238,11 +238,11 @@ class _ProfiledLock(wrapt.ObjectProxy):
         if config.enable_asserts:
             frame: FrameType = sys._getframe(1)
             if frame.f_code.co_name not in ACQUIRE_RELEASE_CO_NAMES:
-                raise AssertionError("Unexpected frame %s" % frame.f_code.co_name)
+                raise AssertionError(f"Unexpected frame in stack: '{frame.f_code.co_name}'")
 
             frame = sys._getframe(2)
             if frame.f_code.co_name not in ENTER_EXIT_CO_NAMES:
-                raise AssertionError("Unexpected frame %s" % frame.f_code.co_name)
+                raise AssertionError(f"Unexpected frame in stack: '{frame.f_code.co_name}'")
 
         # First, look at the local variables of the caller frame, and then the global variables
         frame = sys._getframe(3)
