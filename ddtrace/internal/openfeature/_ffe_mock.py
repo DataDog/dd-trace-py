@@ -97,8 +97,7 @@ def mock_get_assignment(
     if not flag or not flag.get("enabled", True):
         return None
 
-    # Handle both enum objects and string values for variation_type
-    variation_type_raw = flag["variation_type"]
+    variation_type_raw = flag["variationType"]
     if isinstance(variation_type_raw, str):
         found_type = VariationType(variation_type_raw)
     else:
@@ -111,15 +110,13 @@ def mock_get_assignment(
             found=found_type,
         )
 
-    # Handle both enum objects and string values for reason
     reason_raw = flag.get("reason", AssignmentReason.STATIC)
     if isinstance(reason_raw, str):
         reason = AssignmentReason(reason_raw)
     else:
         reason = reason_raw
 
-    # Build assignment
-    value = flag["value"]
+    value = list(flag["variations"].values())[0]['value']
     assignment_value = AssignmentValue(variation_type=found_type, value=value)
     return Assignment(
         value=assignment_value,

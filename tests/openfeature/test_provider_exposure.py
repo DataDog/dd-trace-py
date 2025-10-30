@@ -51,8 +51,8 @@ class TestExposureReporting:
             "flags": {
                 "test-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {'true': {'key': 'true', 'value': True}, 'false': {'key': 'false', 'value': False}},
                     "variation_key": "on",
                     "reason": AssignmentReason.STATIC.value,
                 }
@@ -104,8 +104,8 @@ class TestExposureReporting:
             "flags": {
                 "disabled-flag": {
                     "enabled": False,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {'true': {'key': 'true', 'value': True}, 'false': {'key': 'false', 'value': False}},
                 }
             }
         }
@@ -129,8 +129,8 @@ class TestExposureReporting:
             "flags": {
                 "string-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.STRING.value,
-                    "value": "hello",
+                    "variationType": VariationType.STRING.value,
+                    "variations": {'hello': {'key': 'hello', 'value': 'hello'}, 'world': {'key': 'world', 'value': 'world'}},
                 }
             }
         }
@@ -157,8 +157,8 @@ class TestExposureReporting:
             "flags": {
                 "test-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {'true': {'key': 'true', 'value': True}, 'false': {'key': 'false', 'value': False}},
                     "variation_key": "on",
                 }
             }
@@ -184,8 +184,8 @@ class TestExposureReporting:
             "flags": {
                 "string-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.STRING.value,
-                    "value": "variant-a",
+                    "variationType": VariationType.STRING.value,
+                    "variations": {'a': {'key': 'a', 'value': 'variant-a'}, 'b': {'key': 'b', 'value': 'variant-b'}},
                     "variation_key": "a",
                 }
             }
@@ -211,8 +211,8 @@ class TestExposureReporting:
             "flags": {
                 "test-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {'true': {'key': 'true', 'value': True}, 'false': {'key': 'false', 'value': False}},
                     "variation_key": "on",
                 }
             }
@@ -241,8 +241,8 @@ class TestExposureConnectionErrors:
             "flags": {
                 "test-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {'true': {'key': 'true', 'value': True}, 'false': {'key': 'false', 'value': False}},
                     "variation_key": "on",
                 }
             }
@@ -266,8 +266,8 @@ class TestExposureConnectionErrors:
             "flags": {
                 "test-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.STRING.value,
-                    "value": "success",
+                    "variationType": VariationType.STRING.value,
+                    "variations": {'success': {'key': 'success', 'value': 'success'}, 'failure': {'key': 'failure', 'value': 'failure'}},
                 }
             }
         }
@@ -288,8 +288,8 @@ class TestExposureConnectionErrors:
             "flags": {
                 "network-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.INTEGER.value,
-                    "value": 42,
+                    "variationType": VariationType.INTEGER.value,
+                    "variations": {'default': {'key': 'default', 'value': 42}},
                 }
             }
         }
@@ -310,8 +310,8 @@ class TestExposureConnectionErrors:
             "flags": {
                 "buffer-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {'true': {'key': 'true', 'value': True}, 'false': {'key': 'false', 'value': False}},
                 }
             }
         }
@@ -331,8 +331,8 @@ class TestExposureConnectionErrors:
             "flags": {
                 "none-writer-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {'true': {'key': 'true', 'value': True}, 'false': {'key': 'false', 'value': False}},
                 }
             }
         }
@@ -362,8 +362,8 @@ class TestExposureConnectionErrors:
             "flags": {
                 "intermittent-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.STRING.value,
-                    "value": "stable",
+                    "variationType": VariationType.STRING.value,
+                    "variations": {'stable': {'key': 'stable', 'value': 'stable'}, 'unstable': {'key': 'unstable', 'value': 'unstable'}},
                 }
             }
         }
@@ -384,8 +384,8 @@ class TestExposureConnectionErrors:
             "flags": {
                 "no-context-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {'true': {'key': 'true', 'value': True}, 'false': {'key': 'false', 'value': False}},
                     "variation_key": "on",
                 }
             }
@@ -412,8 +412,8 @@ class TestExposureConnectionErrors:
             "flags": {
                 "exception-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {'true': {'key': 'true', 'value': True}, 'false': {'key': 'false', 'value': False}},
                     "variation_key": "on",
                 }
             }

@@ -69,8 +69,8 @@ class TestBooleanFlagResolution:
             "flags": {
                 "test-bool-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {'true': {'key': 'true', 'value': True}, 'false': {'key': 'false', 'value': False}},
                     "variation_key": "on",
                     "reason": AssignmentReason.STATIC.value,
                 }
@@ -103,8 +103,8 @@ class TestBooleanFlagResolution:
             "flags": {
                 "disabled-flag": {
                     "enabled": False,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {'true': {'key': 'true', 'value': True}, 'false': {'key': 'false', 'value': False}},
                 }
             }
         }
@@ -121,8 +121,8 @@ class TestBooleanFlagResolution:
             "flags": {
                 "string-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.STRING.value,
-                    "value": "hello",
+                    "variationType": VariationType.STRING.value,
+                    "variations": {'hello': {'key': 'hello', 'value': 'hello'}},
                 }
             }
         }
@@ -145,8 +145,8 @@ class TestStringFlagResolution:
             "flags": {
                 "test-string-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.STRING.value,
-                    "value": "variant-a",
+                    "variationType": VariationType.STRING.value,
+                    "variations": {'a': {'key': 'a', 'value': 'variant-a'}},
                     "variation_key": "a",
                     "reason": AssignmentReason.TARGETING_MATCH.value,
                 }
@@ -180,8 +180,8 @@ class TestIntegerFlagResolution:
             "flags": {
                 "test-int-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.INTEGER.value,
-                    "value": 42,
+                    "variationType": VariationType.INTEGER.value,
+                    "variations": {'int-variant': {'key': 'int-variant', 'value': 42}},
                     "variation_key": "int-variant",
                     "reason": AssignmentReason.SPLIT.value,
                 }
@@ -202,8 +202,8 @@ class TestIntegerFlagResolution:
             "flags": {
                 "bool-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {'true': {'key': 'true', 'value': True}, 'false': {'key': 'false', 'value': False}},
                 }
             }
         }
@@ -225,8 +225,8 @@ class TestFloatFlagResolution:
             "flags": {
                 "test-float-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.NUMERIC.value,
-                    "value": 3.14159,
+                    "variationType": VariationType.NUMERIC.value,
+                    "variations": {'pi': {'key': 'pi', 'value': 3.14159}},
                     "variation_key": "pi",
                     "reason": AssignmentReason.STATIC.value,
                 }
@@ -259,8 +259,8 @@ class TestObjectFlagResolution:
             "flags": {
                 "test-object-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.JSON.value,
-                    "value": {"key": "value", "nested": {"foo": "bar"}},
+                    "variationType": VariationType.JSON.value,
+                    "variations": {'obj-variant': {'key': 'obj-variant', 'value': {"key": "value", "nested": {"foo": "bar"}}}},
                     "variation_key": "obj-variant",
                     "reason": AssignmentReason.TARGETING_MATCH.value,
                 }
@@ -280,8 +280,8 @@ class TestObjectFlagResolution:
             "flags": {
                 "test-list-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.JSON.value,
-                    "value": [1, 2, 3, "four"],
+                    "variationType": VariationType.JSON.value,
+                    "variations": {'list-variant': {'key': 'list-variant', 'value': [1, 2, 3, "four"]}},
                     "variation_key": "list-variant",
                     "reason": AssignmentReason.STATIC.value,
                 }
@@ -315,8 +315,8 @@ class TestEvaluationContext:
             "flags": {
                 "test-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {'true': {'key': 'true', 'value': True}, 'false': {'key': 'false', 'value': False}},
                 }
             }
         }
@@ -332,8 +332,8 @@ class TestEvaluationContext:
             "flags": {
                 "test-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.STRING.value,
-                    "value": "no-context",
+                    "variationType": VariationType.STRING.value,
+                    "variations": {'default': {'key': 'default', 'value': 'no-context'}},
                 }
             }
         }
@@ -353,8 +353,8 @@ class TestReasonMapping:
             "flags": {
                 "static-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {'true': {'key': 'true', 'value': True}, 'false': {'key': 'false', 'value': False}},
                     "reason": AssignmentReason.STATIC.value,
                 }
             }
@@ -370,8 +370,8 @@ class TestReasonMapping:
             "flags": {
                 "targeting-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {'true': {'key': 'true', 'value': True}, 'false': {'key': 'false', 'value': False}},
                     "reason": AssignmentReason.TARGETING_MATCH.value,
                 }
             }
@@ -387,8 +387,8 @@ class TestReasonMapping:
             "flags": {
                 "split-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {'true': {'key': 'true', 'value': True}, 'false': {'key': 'false', 'value': False}},
                     "reason": AssignmentReason.SPLIT.value,
                 }
             }
@@ -408,8 +408,8 @@ class TestErrorHandling:
             "flags": {
                 "success-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {'true': {'key': 'true', 'value': True}, 'false': {'key': 'false', 'value': False}},
                 }
             }
         }
@@ -426,8 +426,8 @@ class TestErrorHandling:
             "flags": {
                 "wrong-type-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.STRING.value,
-                    "value": "string",
+                    "variationType": VariationType.STRING.value,
+                    "variations": {'default': {'key': 'default', 'value': 'string'}},
                 }
             }
         }
@@ -445,8 +445,8 @@ class TestErrorHandling:
             "flags": {
                 "error-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.INTEGER.value,
-                    "value": 123,
+                    "variationType": VariationType.INTEGER.value,
+                    "variations": {'default': {'key': 'default', 'value': 123}},
                 }
             }
         }
@@ -467,8 +467,8 @@ class TestVariantHandling:
             "flags": {
                 "variant-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.STRING.value,
-                    "value": "variant-value",
+                    "variationType": VariationType.STRING.value,
+                    "variations": {'my-variant-key': {'key': 'my-variant-key', 'value': 'variant-value'}},
                     "variation_key": "my-variant-key",
                 }
             }
@@ -494,8 +494,8 @@ class TestVariantHandling:
             "flags": {
                 "no-variant-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {'true': {'key': 'true', 'value': True}, 'false': {'key': 'false', 'value': False}},
                     # No variation_key specified
                 }
             }
@@ -516,18 +516,18 @@ class TestComplexScenarios:
             "flags": {
                 "flag1": {
                     "enabled": True,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {'true': {'key': 'true', 'value': True}, 'false': {'key': 'false', 'value': False}},
                 },
                 "flag2": {
                     "enabled": True,
-                    "variation_type": VariationType.STRING.value,
-                    "value": "value2",
+                    "variationType": VariationType.STRING.value,
+                    "variations": {'v2': {'key': 'v2', 'value': 'value2'}},
                 },
                 "flag3": {
                     "enabled": False,
-                    "variation_type": VariationType.INTEGER.value,
-                    "value": 3,
+                    "variationType": VariationType.INTEGER.value,
+                    "variations": {'default': {'key': 'default', 'value': 3}},
                 },
             }
         }
@@ -562,8 +562,8 @@ class TestFlagKeyCornerCases:
             "flags": {
                 "機能フラグ": {
                     "enabled": True,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {'有効': {'key': '有効', 'value': True}, '無効': {'key': '無効', 'value': False}},
                     "variation_key": "有効",
                 }
             }
@@ -581,8 +581,8 @@ class TestFlagKeyCornerCases:
             "flags": {
                 "feature-🚀-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.STRING.value,
-                    "value": "rocket-enabled",
+                    "variationType": VariationType.STRING.value,
+                    "variations": {'rocket': {'key': 'rocket', 'value': 'rocket-enabled'}},
                 }
             }
         }
@@ -608,8 +608,8 @@ class TestFlagKeyCornerCases:
                 "flags": {
                     flag_key: {
                         "enabled": True,
-                        "variation_type": VariationType.BOOLEAN.value,
-                        "value": True,
+                        "variationType": VariationType.BOOLEAN.value,
+                        "variations": {'true': {'key': 'true', 'value': True}, 'false': {'key': 'false', 'value': False}},
                     }
                 }
             }
@@ -624,8 +624,8 @@ class TestFlagKeyCornerCases:
             "flags": {
                 "flag with spaces": {
                     "enabled": True,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {'true': {'key': 'true', 'value': True}, 'false': {'key': 'false', 'value': False}},
                 }
             }
         }
@@ -649,8 +649,8 @@ class TestFlagKeyCornerCases:
             "flags": {
                 long_key: {
                     "enabled": True,
-                    "variation_type": VariationType.INTEGER.value,
-                    "value": 42,
+                    "variationType": VariationType.INTEGER.value,
+                    "variations": {'default': {'key': 'default', 'value': 42}},
                 }
             }
         }
@@ -666,8 +666,8 @@ class TestFlagKeyCornerCases:
             "flags": {
                 "флаг-функции": {
                     "enabled": True,
-                    "variation_type": VariationType.STRING.value,
-                    "value": "включено",
+                    "variationType": VariationType.STRING.value,
+                    "variations": {'включено': {'key': 'включено', 'value': 'включено'}},
                 }
             }
         }
@@ -683,8 +683,8 @@ class TestFlagKeyCornerCases:
             "flags": {
                 "علامة-الميزة": {
                     "enabled": True,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {'true': {'key': 'true', 'value': True}, 'false': {'key': 'false', 'value': False}},
                 }
             }
         }
@@ -700,8 +700,8 @@ class TestFlagKeyCornerCases:
             "flags": {
                 "feature-日本語-русский-عربي-🚀": {
                     "enabled": True,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {'true': {'key': 'true', 'value': True}, 'false': {'key': 'false', 'value': False}},
                 }
             }
         }
@@ -721,8 +721,8 @@ class TestInvalidFlagData:
             "flags": {
                 "null-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.STRING.value,
-                    "value": None,
+                    "variationType": VariationType.STRING.value,
+                    "variations": {'default': {'key': 'default', 'value': None}},
                 }
             }
         }
@@ -739,8 +739,8 @@ class TestInvalidFlagData:
         config = {
             "flags": {
                 "incomplete-flag": {
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {'true': {'key': 'true', 'value': True}, 'false': {'key': 'false', 'value': False}},
                 }
             }
         }
@@ -751,14 +751,14 @@ class TestInvalidFlagData:
         # Should not crash, return default
         assert result.value is False or result.value is True  # Implementation dependent
 
-    def test_flag_with_invalid_variation_type(self, provider):
+    def test_flag_with_invalid_variationType(self, provider):
         """Should handle flag with invalid variation type."""
         config = {
             "flags": {
                 "invalid-type-flag": {
                     "enabled": True,
-                    "variation_type": "INVALID_TYPE",
-                    "value": True,
+                    "variationType": "INVALID_TYPE",
+                    "variations": {'default': {'key': 'default', 'value': True}},
                 }
             }
         }
