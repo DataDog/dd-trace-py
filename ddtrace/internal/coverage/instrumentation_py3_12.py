@@ -204,17 +204,16 @@ def _extract_lines_and_imports(
     lines = CoverageLines()
     import_names: t.Dict[int, t.Tuple[str, t.Tuple[str, ...]]] = {}
 
-    # Track line numbers
-    linestarts = dict(dis.findlinestarts(code))
-    line: t.Optional[int] = None
-
-    # Track import state - need to look at previous arguments to get import depth
+    # The previous two arguments are kept in order to track the depth of the IMPORT_NAME
+    # For example, from ...package import module
     current_arg: int = 0
     previous_arg: int = 0
     _previous_previous_arg: int = 0
     current_import_name: t.Optional[str] = None
     current_import_package: t.Optional[str] = None
 
+    # Track line numbers
+    linestarts = dict(dis.findlinestarts(code))
     line: t.Optional[int] = None
 
     ext: list[bytes] = []
