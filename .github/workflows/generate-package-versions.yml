@@ -87,6 +87,8 @@ jobs:
           pip install riot==0.20.1
           pip install PyYAML
           pip install ddtrace
+          # Install latest pip-tools from main branch for Python 3.14 compatibility
+          pip install --upgrade git+https://github.com/jazzband/pip-tools.git@main
 
       - name: Run regenerate-riot-latest
         run: scripts/regenerate-riot-latest.sh
