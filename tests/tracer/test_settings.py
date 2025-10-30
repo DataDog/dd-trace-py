@@ -1,5 +1,3 @@
-import warnings
-
 import pytest
 
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
@@ -178,47 +176,6 @@ class TestIntegrationConfig(BaseTestCase):
 
         assert self.integration_config.get_analytics_sample_rate() == 1
 
-    def test_app_analytics_deprecation(self):
-        warnings.simplefilter("always")
-        with warnings.catch_warnings(record=True) as warns:
-            IntegrationConfig(self.config, "test")
-        assert len(warns) == 0
-
-        with warnings.catch_warnings(record=True) as warns:
-            self.integration_config.analytics_enabled
-        assert (
-            "analytics_enabled is deprecated and will be removed in version '4.0.0': Controlling ingestion via analytics is no longer supported. See https://docs.datadoghq.com/tracing/legacy_app_analytics/?code-lang=python#migrate-to-the-new-configuration-options"  # noqa:E501
-            in str(warns[0].message)
-        )
-
-        with warnings.catch_warnings(record=True) as warns:
-            self.integration_config.analytics_enabled = True
-        assert (
-            "analytics_enabled is deprecated and will be removed in version '4.0.0': Controlling ingestion via analytics is no longer supported. See https://docs.datadoghq.com/tracing/legacy_app_analytics/?code-lang=python#migrate-to-the-new-configuration-options"  # noqa:E501
-            in str(warns[0].message)
-        )
-
-        with warnings.catch_warnings(record=True) as warns:
-            self.integration_config.analytics_sample_rate
-        assert (
-            "analytics_sample_rate is deprecated and will be removed in version '4.0.0': Controlling ingestion via analytics is no longer supported. See https://docs.datadoghq.com/tracing/legacy_app_analytics/?code-lang=python#migrate-to-the-new-configuration-options"  # noqa:E501
-            in str(warns[0].message)
-        )
-
-        with warnings.catch_warnings(record=True) as warns:
-            self.integration_config.analytics_sample_rate = 0.5
-        assert (
-            "analytics_sample_rate is deprecated and will be removed in version '4.0.0': Controlling ingestion via analytics is no longer supported. See https://docs.datadoghq.com/tracing/legacy_app_analytics/?code-lang=python#migrate-to-the-new-configuration-options"  # noqa:E501
-            in str(warns[0].message)
-        )
-
-        with warnings.catch_warnings(record=True) as warns:
-            self.integration_config.get_analytics_sample_rate()
-        assert (
-            "get_analytics_sample_rate is deprecated and will be removed in version '4.0.0': Controlling ingestion via analytics is no longer supported. See https://docs.datadoghq.com/tracing/legacy_app_analytics/?code-lang=python#migrate-to-the-new-configuration-options"  # noqa:E501
-            in str(warns[0].message)
-        )
-
 
 def test_environment_header_tags():
     with override_env(dict(DD_TRACE_HEADER_TAGS="Host:http.host,User-agent:http.user_agent")):
@@ -246,7 +203,7 @@ def test_x_datadog_tags(env, expected):
         assert expected == (_._x_datadog_tags_max_length, _._x_datadog_tags_enabled)
 
 
-@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 9), reason="Additional deprecation warning under Python 3.8")
+@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 10), reason="ddtrace under Python 3.9 is deprecated")
 @pytest.mark.subprocess()
 def test_config_exception_deprecation():
     import warnings
@@ -264,7 +221,7 @@ def test_config_exception_deprecation():
         assert "4.0.0" in str(warn.message)  # TODO: update the version
 
 
-@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 9), reason="Additional deprecation warning under Python 3.8")
+@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 10), reason="ddtrace under Python 3.9 is deprecated")
 @pytest.mark.subprocess()
 def test_http_config_deprecation():
     import warnings
@@ -281,7 +238,7 @@ def test_http_config_deprecation():
         assert "4.0.0" in str(warn.message)  # TODO: update the version
 
 
-@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 9), reason="Additional deprecation warning under Python 3.8")
+@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 10), reason="ddtrace under Python 3.9 is deprecated")
 @pytest.mark.subprocess()
 def test_hooks_deprecation():
     import warnings
@@ -298,7 +255,7 @@ def test_hooks_deprecation():
         assert "4.0.0" in str(warn.message)  # TODO: update the version
 
 
-@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 9), reason="Additional deprecation warning under Python 3.8")
+@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 10), reason="ddtrace under Python 3.9 is deprecated")
 @pytest.mark.subprocess()
 def test_integration_config_deprecation():
     import warnings
