@@ -29,6 +29,10 @@ from ddtrace.settings.profiling import config
 from ddtrace.trace import Tracer
 
 
+ACQUIRE_RELEASE_CO_NAMES: List[str] = ["_acquire", "_release"]
+ENTER_EXIT_CO_NAMES: List[str] = ["acquire", "release", "__enter__", "__exit__", "__aenter__", "__aexit__"]
+
+
 def _current_thread() -> Tuple[int, str]:
     thread_id: int = _thread.get_ident()
     return thread_id, _threading.get_thread_name(thread_id)
@@ -202,26 +206,16 @@ class _ProfiledLock(wrapt.ObjectProxy):
         # 3: caller frame
         if config.enable_asserts:
             frame: FrameType = sys._getframe(1)
-            # TODO: replace dict with list
-            if frame.f_code.co_name not in {"_acquire", "_release"}:
+            if frame.f_code.co_name not in ACQUIRE_RELEASE_CO_NAMES:
                 raise AssertionError("Unexpected frame %s" % frame.f_code.co_name)
+
             frame = sys._getframe(2)
-            if frame.f_code.co_name not in {
-                "acquire",
-                "release",
-                "__enter__",
-                "__exit__",
-                "__aenter__",
-                "__aexit__",
-            }:
+            if frame.f_code.co_name not in ENTER_EXIT_CO_NAMES:
                 raise AssertionError("Unexpected frame %s" % frame.f_code.co_name)
-        frame = sys._getframe(3)
 
         # First, look at the local variables of the caller frame, and then the global variables
-        self._self_name = self._find_self_name(frame.f_locals) or self._find_self_name(frame.f_globals)
-
-        if not self._self_name:
-            self._self_name = ""
+        frame = sys._getframe(3)
+        self._self_name = self._find_self_name(frame.f_locals) or self._find_self_name(frame.f_globals) or ""
 
 
 class FunctionWrapper(wrapt.FunctionWrapper):
