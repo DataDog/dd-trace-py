@@ -17,18 +17,7 @@ DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] 
 DEFAULT_FILE_SIZE_BYTES = 15 << 20  # 15 MB
 
 
-class LogInjectionState(object):
-    # Log injection is disabled
-    DISABLED = "false"
-    # Log injection is enabled, but not yet configured
-    ENABLED = "true"
-    # Log injection is enabled and configured for structured logging
-    # This value is deprecated, but kept for backwards compatibility
-    STRUCTURED = "structured"
-
-
-def configure_ddtrace_logger():
-    # type: () -> None
+def configure_ddtrace_logger() -> None:
     """Configures ddtrace log levels and file paths.
 
     Customization is possible with the environment variables:
@@ -110,34 +99,12 @@ def _add_file_handler(
     return ddtrace_file_handler
 
 
-def set_log_formatting():
-    # type: () -> None
-    """Sets the log format for the ddtrace logger."""
-    ddtrace_logger = logging.getLogger("ddtrace")
-    for handler in ddtrace_logger.handlers:
-        handler.setFormatter(logging.Formatter(DD_LOG_FORMAT))
-
-
-def get_log_injection_state(raw_config: Optional[str]) -> bool:
-    """Returns the current log injection state."""
-    if raw_config:
-        normalized = raw_config.lower().strip()
-        if normalized == LogInjectionState.STRUCTURED or normalized in ("true", "1"):
-            return True
-        elif normalized not in ("false", "0"):
-            logging.warning(
-                "Invalid log injection state '%s'. Expected 'true', 'false', or 'structured'. Defaulting to 'false'.",
-                normalized,
-            )
-    return False
-
-
 def _configure_ddtrace_native_logger():
     try:
         from ddtrace.internal.native._native import logger
+        from ddtrace.internal.settings._config import config
 
-        native_writer_enabled = get_config("_DD_TRACE_WRITER_NATIVE", False, asbool, report_telemetry=True)
-        if native_writer_enabled:
+        if config._trace_writer_native:
             backend = get_config("_DD_NATIVE_LOGGING_BACKEND", "file", report_telemetry=True)
             kwargs = {"output": backend}
             if backend == "file":
@@ -148,6 +115,6 @@ def _configure_ddtrace_native_logger():
                 kwargs["max_files"] = get_config("_DD_NATIVE_LOGGING_FILE_ROTATION_LEN", 1, int, report_telemetry=True)
 
             logger.configure(**kwargs)
-            logger.set_log_level(get_config("_DD_NATIVE_LOGGING_LOG_LEVEL", "warn", report_telemetry=True))
+            logger.set_log_level(get_config("_DD_NATIVE_LOGGING_LOG_LEVEL", "warning", report_telemetry=True))
     except Exception:
         log.warning("Failed to initialize native logger", exc_info=True)

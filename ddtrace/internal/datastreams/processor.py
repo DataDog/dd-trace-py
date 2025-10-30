@@ -19,9 +19,9 @@ from ddtrace.internal import compat
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.native import DDSketch
+from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings._config import config
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
-from ddtrace.settings._agent import config as agent_config
-from ddtrace.settings._config import config
 from ddtrace.version import get_version
 
 from .._encoding import packb
@@ -495,7 +495,7 @@ class DataStreamsCtx:
         parent_hash = self.hash
         hash_value = self._compute_hash(tags, parent_hash)
         if span:
-            span.set_tag_str("pathway.hash", str(hash_value))
+            span._set_tag_str("pathway.hash", str(hash_value))
         edge_latency_sec = max(now_sec - self.current_edge_start_sec, 0.0)
         pathway_latency_sec = max(now_sec - self.pathway_start_sec, 0.0)
         self.hash = hash_value

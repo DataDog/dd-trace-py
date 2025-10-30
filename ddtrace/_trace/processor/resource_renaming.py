@@ -7,7 +7,7 @@ from ddtrace._trace.processor import SpanProcessor
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal.logger import get_logger
-from ddtrace.settings._config import config
+from ddtrace.internal.settings._config import config
 
 
 log = get_logger(__name__)
@@ -74,4 +74,4 @@ class ResourceRenamingProcessor(SpanProcessor):
         if not route or config._trace_resource_renaming_always_simplified_endpoint:
             url = span.get_tag(http.URL)
             endpoint = self._compute_simplified_endpoint(url)
-            span.set_tag_str(http.ENDPOINT, endpoint)
+            span._set_tag_str(http.ENDPOINT, endpoint)

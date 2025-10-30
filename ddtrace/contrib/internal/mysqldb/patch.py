@@ -18,10 +18,10 @@ from ddtrace.ext import net
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
-from ddtrace.settings.asm import config as asm_config
 
 
 config._add(
@@ -102,10 +102,10 @@ def _connect(func, instance, args, kwargs):
         with pin.tracer.trace(
             "MySQLdb.connection.connect", service=ext_service(pin, config.mysqldb), span_type=SpanTypes.SQL
         ) as span:
-            span.set_tag_str(COMPONENT, config.mysqldb.integration_name)
+            span._set_tag_str(COMPONENT, config.mysqldb.integration_name)
 
             # set span.kind to the type of operation being performed
-            span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+            span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
             # PERF: avoid setting via Span.set_tag
             span.set_metric(_SPAN_MEASURED_KEY, 1)

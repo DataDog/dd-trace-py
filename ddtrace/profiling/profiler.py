@@ -16,6 +16,8 @@ from ddtrace.internal import service
 from ddtrace.internal import uwsgi
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.settings.profiling import config as profiling_config
+from ddtrace.internal.settings.profiling import config_str
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.profiling import collector
@@ -25,9 +27,9 @@ from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import pytorch
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
-from ddtrace.settings.profiling import config as profiling_config
-from ddtrace.settings.profiling import config_str
 
+
+# TODO(vlad): add type annotations
 
 LOG = logging.getLogger(__name__)
 
@@ -181,6 +183,7 @@ class _ProfilerInstance(service.Service):
             timeline_enabled=profiling_config.timeline_enabled,
             output_filename=profiling_config.output_pprof,
             sample_pool_capacity=profiling_config.sample_pool_capacity,
+            timeout=profiling_config.api_timeout_ms,
         )
         ddup.start()
 
@@ -223,6 +226,7 @@ class _ProfilerInstance(service.Service):
 
             self._collectors_on_import = [
                 ("threading", lambda _: start_collector(threading.ThreadingLockCollector)),
+                ("threading", lambda _: start_collector(threading.ThreadingRLockCollector)),
                 ("asyncio", lambda _: start_collector(asyncio.AsyncioLockCollector)),
             ]
 

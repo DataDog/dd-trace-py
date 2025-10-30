@@ -16,7 +16,7 @@ from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import _constants as asm_constants
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import constants
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
 import tests.appsec.rules as rules
 from tests.utils import DummyTracer
 from tests.utils import override_env
@@ -144,7 +144,7 @@ class Contrib_TestClass_For_Threats:
             response = interface.client.get("/")
             assert self.status(response) == 200, "healthcheck failed"
             assert self.body(response) == "ok ASM"
-            from ddtrace.settings.asm import config as asm_config
+            from ddtrace.internal.settings.asm import config as asm_config
 
             assert asm_config._asm_enabled is asm_enabled
             assert get_entry_span_tag("http.status_code") == "200"
@@ -1683,7 +1683,13 @@ class Contrib_TestClass_For_Threats:
                 # assert mocked.call_args_list == []
                 expected_rule_type = "command_injection" if endpoint == "shell_injection" else endpoint
                 expected_variant = (
-                    "exec" if endpoint == "command_injection" else "shell" if endpoint == "shell_injection" else None
+                    "exec"
+                    if endpoint == "command_injection"
+                    else "shell"
+                    if endpoint == "shell_injection"
+                    else "request"
+                    if endpoint == "ssrf"
+                    else None
                 )
                 matches = [t for c, n, t in telemetry_calls if c == "count" and n == "appsec.rasp.rule.match"]
                 # import delayed to get the correct version

@@ -1,5 +1,7 @@
 import wrapt
 
+from ddtrace.internal.compat import is_wrapted
+
 
 def get_psycopg2_extensions(psycopg_module):
     _extensions = [
@@ -36,7 +38,7 @@ def _extensions_register_type(func, _, args, kwargs):
 
     # register_type performs a c-level check of the object
     # type so we must be sure to pass in the actual db connection
-    if scope and isinstance(scope, wrapt.ObjectProxy):
+    if scope and is_wrapted(scope):
         scope = scope.__wrapped__
 
     return func(obj, scope) if scope else func(obj)
@@ -50,7 +52,7 @@ def _extensions_quote_ident(func, _, args, kwargs):
 
     # register_type performs a c-level check of the object
     # type so we must be sure to pass in the actual db connection
-    if scope and isinstance(scope, wrapt.ObjectProxy):
+    if scope and is_wrapted(scope):
         scope = scope.__wrapped__
 
     return func(obj, scope) if scope else func(obj)
@@ -72,7 +74,7 @@ class AdapterWrapper(wrapt.ObjectProxy):
 
         # prepare performs a c-level check of the object type so
         # we must be sure to pass in the actual db connection
-        if isinstance(conn, wrapt.ObjectProxy):
+        if is_wrapted(conn):
             conn = conn.__wrapped__
 
         return func(conn, *args[1:], **kwargs)
@@ -82,7 +84,7 @@ def _patch_extensions(_extensions):
     # we must patch extensions all the time (it's pretty harmless) so split
     # from global patching of connections. must be idempotent.
     for _, module, func, wrapper in _extensions:
-        if not hasattr(module, func) or isinstance(getattr(module, func), wrapt.ObjectProxy):
+        if not hasattr(module, func) or is_wrapted(getattr(module, func)):
             continue
         wrapt.wrap_function_wrapper(module, func, wrapper)
 

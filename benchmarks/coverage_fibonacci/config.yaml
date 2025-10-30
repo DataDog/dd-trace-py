@@ -1,0 +1,13 @@
+# Coverage benchmark configurations for fibonacci code
+# Tests sys.monitoring.DISABLE optimization performance
+
+small: &base
+  fib_n_recursive: 10
+
+medium:
+  <<: *base
+  fib_n_recursive: 15
+
+large:
+  <<: *base
+  fib_n_recursive: 20

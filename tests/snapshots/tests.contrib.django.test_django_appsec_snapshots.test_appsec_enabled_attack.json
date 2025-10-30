@@ -29,6 +29,7 @@
       "django.response.class": "django.http.response.HttpResponseNotFound",
       "django.user.is_authenticated": "False",
       "http.client_ip": "127.0.0.1",
+      "http.endpoint": "/.git",
       "http.method": "GET",
       "http.request.headers.accept": "*/*",
       "http.request.headers.accept-encoding": "gzip, deflate",

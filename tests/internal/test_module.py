@@ -7,6 +7,7 @@ from warnings import warn
 import mock
 import pytest
 
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import origin
 import tests.test_module
@@ -428,6 +429,7 @@ def test_module_watchdog_namespace_import():
         ModuleWatchdog.uninstall()
 
 
+@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 10), reason="ddtrace under Python 3.9 is deprecated")
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env=dict(

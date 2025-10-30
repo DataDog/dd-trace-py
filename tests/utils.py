@@ -40,6 +40,9 @@ from ddtrace.internal.packages import filename_to_package
 from ddtrace.internal.packages import is_third_party
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.schema import SCHEMA_VERSION
+from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings._database_monitoring import dbm_config
+from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.writer import AgentWriter
@@ -48,9 +51,6 @@ from ddtrace.internal.writer import NativeWriter
 from ddtrace.propagation._database_monitoring import listen as dbm_config_listen
 from ddtrace.propagation._database_monitoring import unlisten as dbm_config_unlisten
 from ddtrace.propagation.http import _DatadogMultiHeader
-from ddtrace.settings._agent import config as agent_config
-from ddtrace.settings._database_monitoring import dbm_config
-from ddtrace.settings.asm import config as asm_config
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
 from tests.subprocesstest import SubprocessTestCase
@@ -189,7 +189,7 @@ def override_global_config(values):
     for key, value in values.items():
         if key in asm_config_keys:
             setattr(asm_config, key, value)
-    # If ddtrace.settings.asm.config has changed, check _asm_can_be_enabled again
+    # If ddtrace.internal.settings.asm.config has changed, check _asm_can_be_enabled again
     asm_config._eval_asm_can_be_enabled()
     from ddtrace.appsec._processor import AppSecSpanProcessor
 

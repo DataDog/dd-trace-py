@@ -8,7 +8,7 @@ from ddtrace.internal.constants import COLLECTOR_MAX_SIZE_PER_SPAN
 from ddtrace.internal.constants import SPAN_EVENTS_HAS_EXCEPTION
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
-from ddtrace.settings.errortracking import config
+from ddtrace.internal.settings.errortracking import config
 
 
 log = get_logger(__name__)
@@ -23,7 +23,7 @@ def _add_span_events(span: Span) -> None:
     """
     span_exc_events = list(HandledExceptionCollector.get_exception_events(span.span_id).values())
     if span_exc_events:
-        span.set_tag_str(SPAN_EVENTS_HAS_EXCEPTION, "true")
+        span._set_tag_str(SPAN_EVENTS_HAS_EXCEPTION, "true")
         span._events.extend(span_exc_events)
     HandledExceptionCollector.clear_exception_events(span.span_id)
 

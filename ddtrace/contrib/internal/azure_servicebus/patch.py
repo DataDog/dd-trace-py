@@ -9,8 +9,8 @@ from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import azure_servicebus as azure_servicebusx
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.settings._config import _get_config
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.settings._config import _get_config
 
 from .utils import create_context
 from .utils import dispatch_message_modifier
@@ -97,7 +97,7 @@ def _patched_add_message(wrapped, instance, args, kwargs):
     fully_qualified_namespace = instance._dd_fully_qualified_namespace
     operation_name = f"{azure_servicebusx.CLOUD}.{azure_servicebusx.SERVICE}.{azure_servicebusx.CREATE}"
 
-    with create_context("azure.servicebus.patched_producer_batch", pin, operation_name, resource_name) as ctx, ctx.span:
+    with create_context("azure.servicebus.patched_producer_batch", pin, operation_name, resource_name) as ctx:
         dispatch_message_modifier(
             ctx, args, kwargs, azure_servicebusx.CREATE, resource_name, fully_qualified_namespace, "message"
         )
@@ -113,7 +113,7 @@ def _patched_send_messages(wrapped, instance, args, kwargs):
     fully_qualified_namespace = instance.fully_qualified_namespace
     operation_name = f"{azure_servicebusx.CLOUD}.{azure_servicebusx.SERVICE}.{azure_servicebusx.SEND}"
 
-    with create_context("azure.servicebus.patched_producer_send", pin, operation_name, resource_name) as ctx, ctx.span:
+    with create_context("azure.servicebus.patched_producer_send", pin, operation_name, resource_name) as ctx:
         dispatch_message_modifier(
             ctx, args, kwargs, azure_servicebusx.SEND, resource_name, fully_qualified_namespace, "message"
         )
@@ -129,7 +129,7 @@ async def _patched_send_messages_async(wrapped, instance, args, kwargs):
     fully_qualified_namespace = instance.fully_qualified_namespace
     operation_name = f"{azure_servicebusx.CLOUD}.{azure_servicebusx.SERVICE}.{azure_servicebusx.SEND}"
 
-    with create_context("azure.servicebus.patched_producer_send", pin, operation_name, resource_name) as ctx, ctx.span:
+    with create_context("azure.servicebus.patched_producer_send", pin, operation_name, resource_name) as ctx:
         dispatch_message_modifier(
             ctx, args, kwargs, azure_servicebusx.SEND, resource_name, fully_qualified_namespace, "message"
         )
@@ -145,9 +145,7 @@ def _patched_schedule_messages(wrapped, instance, args, kwargs):
     fully_qualified_namespace = instance.fully_qualified_namespace
     operation_name = f"{azure_servicebusx.CLOUD}.{azure_servicebusx.SERVICE}.{azure_servicebusx.SEND}"
 
-    with create_context(
-        "azure.servicebus.patched_producer_schedule", pin, operation_name, resource_name
-    ) as ctx, ctx.span:
+    with create_context("azure.servicebus.patched_producer_schedule", pin, operation_name, resource_name) as ctx:
         dispatch_message_modifier(
             ctx, args, kwargs, azure_servicebusx.SEND, resource_name, fully_qualified_namespace, "messages"
         )
@@ -163,9 +161,7 @@ async def _patched_schedule_messages_async(wrapped, instance, args, kwargs):
     fully_qualified_namespace = instance.fully_qualified_namespace
     operation_name = f"{azure_servicebusx.CLOUD}.{azure_servicebusx.SERVICE}.{azure_servicebusx.SEND}"
 
-    with create_context(
-        "azure.servicebus.patched_producer_schedule", pin, operation_name, resource_name
-    ) as ctx, ctx.span:
+    with create_context("azure.servicebus.patched_producer_schedule", pin, operation_name, resource_name) as ctx:
         dispatch_message_modifier(
             ctx, args, kwargs, azure_servicebusx.SEND, resource_name, fully_qualified_namespace, "messages"
         )

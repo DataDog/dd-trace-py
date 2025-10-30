@@ -35,6 +35,22 @@ def test_model_list(api_key_in_env, request_api_key, openai, openai_vcr, snapsho
 
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
+def test_model_list_pagination(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_model_list_pagination",
+        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta.openai.request.user"],
+    ):
+        with openai_vcr.use_cassette("model_list.yaml"):
+            client = openai.OpenAI(api_key=request_api_key)
+            count = 0
+            for model in client.models.list():
+                count += 1
+                if count >= 2:
+                    break
+            assert count >= 2
+
+
+@pytest.mark.parametrize("api_key_in_env", [True, False])
 async def test_model_alist(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_model_list",
@@ -43,6 +59,22 @@ async def test_model_alist(api_key_in_env, request_api_key, openai, openai_vcr, 
         with openai_vcr.use_cassette("model_alist.yaml"):
             client = openai.AsyncOpenAI(api_key=request_api_key)
             await client.models.list()
+
+
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+async def test_model_alist_pagination(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_model_alist_pagination",
+        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta.openai.request.user"],
+    ):
+        with openai_vcr.use_cassette("model_alist.yaml"):
+            client = openai.AsyncOpenAI(api_key=request_api_key)
+            count = 0
+            async for model in client.models.list():
+                count += 1
+                if count >= 2:
+                    break
+            assert count >= 2
 
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
@@ -828,7 +860,7 @@ import openai
 import ddtrace
 from tests.contrib.openai.conftest import FilterOrg
 from tests.contrib.openai.test_openai_v1 import get_openai_vcr
-pin = ddtrace.trace.Pin.get_from(openai)
+pin = ddtrace._trace.pin.Pin.get_from(openai)
 pin.tracer.configure(trace_processors=[FilterOrg()])
 with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
     client = openai.OpenAI()
@@ -869,7 +901,7 @@ import openai
 import ddtrace
 from tests.contrib.openai.conftest import FilterOrg
 from tests.contrib.openai.test_openai_v1 import get_openai_vcr
-pin = ddtrace.trace.Pin.get_from(openai)
+pin = ddtrace._trace.pin.Pin.get_from(openai)
 pin.tracer.configure(trace_processors=[FilterOrg()])
 async def task():
     with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
@@ -1072,7 +1104,7 @@ import openai
 import ddtrace
 from tests.contrib.openai.conftest import FilterOrg
 from tests.contrib.openai.test_openai_v1 import get_openai_vcr
-pin = ddtrace.trace.Pin.get_from(openai)
+pin = ddtrace._trace.pin.Pin.get_from(openai)
 pin.tracer.configure(trace_processors=[FilterOrg()])
 with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
     client = openai.OpenAI()

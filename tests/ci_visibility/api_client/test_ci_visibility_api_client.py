@@ -1,5 +1,7 @@
 from contextlib import contextmanager
+from http.client import RemoteDisconnected
 import json
+import socket
 from unittest import mock
 
 import pytest
@@ -15,7 +17,7 @@ from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_BASE_PATH_V4
 from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
 from ddtrace.internal.ci_visibility.git_data import GitData
-from ddtrace.settings._config import Config
+from ddtrace.internal.settings._config import Config
 from tests.ci_visibility.api_client._util import _AGENTLESS
 from tests.ci_visibility.api_client._util import _EVP_PROXY
 from tests.ci_visibility.api_client._util import TestTestVisibilityAPIClientBase
@@ -220,6 +222,68 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
             assert call_args[0] == "POST"
             assert json.loads(call_args[2]) == self._get_expected_do_request_setting_payload(
                 itr_skipping_level, git_data=git_data, dd_service=dd_service, dd_env=dd_env
+            )
+
+    def test_civisibility_api_client_settings_retry_on_errors(self):
+        """Tests that the API call to the settings endpoint is retried in case of server errors."""
+        client = self._get_test_client(
+            itr_skipping_level=ITR_SKIPPING_LEVEL.TEST,
+            api_key="my_api_key",
+            dd_service=None,
+            dd_env=None,
+            git_data=self.git_data_parameters[0],
+        )
+        with mock.patch.object(
+            client,
+            "_do_request",
+            side_effect=[
+                _get_setting_api_response(status_code=500),
+                TimeoutError(),
+                _get_setting_api_response(),
+            ],
+        ) as mock_do_request:
+            with mock.patch("ddtrace.internal.ci_visibility.utils.sleep"):
+                settings = client.fetch_settings(read_from_cache=False)
+
+        assert settings == TestVisibilityAPISettings()
+
+        assert mock_do_request.call_count == 3
+        for call_args, _ in mock_do_request.call_args_list:
+            assert call_args[0] == "POST"
+            assert json.loads(call_args[2]) == self._get_expected_do_request_setting_payload(
+                ITR_SKIPPING_LEVEL.TEST, git_data=self.git_data_parameters[0], dd_service=None, dd_env=None
+            )
+
+    def test_civisibility_api_client_settings_fail_after_5_retries(self):
+        """Tests that the API call to the settings endpoint is retried in case of server errors."""
+        client = self._get_test_client(
+            itr_skipping_level=ITR_SKIPPING_LEVEL.TEST,
+            api_key="my_api_key",
+            dd_service=None,
+            dd_env=None,
+            git_data=self.git_data_parameters[0],
+        )
+        with mock.patch.object(
+            client,
+            "_do_request",
+            side_effect=[
+                _get_setting_api_response(status_code=500),
+                _get_setting_api_response(status_code=504),
+                TimeoutError(),
+                RemoteDisconnected(),
+                socket.timeout(),
+                _get_setting_api_response(),
+            ],
+        ) as mock_do_request:
+            with mock.patch("ddtrace.internal.ci_visibility.utils.sleep"):
+                with pytest.raises(socket.timeout):  # raises the last exception
+                    _ = client.fetch_settings(read_from_cache=False)
+
+        assert mock_do_request.call_count == 5
+        for call_args, _ in mock_do_request.call_args_list:
+            assert call_args[0] == "POST"
+            assert json.loads(call_args[2]) == self._get_expected_do_request_setting_payload(
+                ITR_SKIPPING_LEVEL.TEST, git_data=self.git_data_parameters[0], dd_service=None, dd_env=None
             )
 
     @pytest.mark.parametrize("client_timeout", [None, 5])
@@ -427,7 +491,7 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_base_url",
             return_value=EVP_PROXY_AGENT_BASE_PATH,
         ), mock.patch(
-            "ddtrace.settings._agent.config.trace_agent_url", return_value="http://shouldntbeused:6218"
+            "ddtrace.internal.settings._agent.config.trace_agent_url", return_value="http://shouldntbeused:6218"
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.ddtrace.tracer._span_aggregator.writer.intake_url",
             "http://patchedagenturl:6218",
@@ -536,7 +600,7 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
         ), mock.patch(
             "ddtrace.internal.agent.info", return_value=agent_info_response
         ), mock.patch(
-            "ddtrace.settings._agent.config.trace_agent_url",
+            "ddtrace.internal.settings._agent.config.trace_agent_url",
             new_callable=mock.PropertyMock,
             return_value="http://shouldntbeused:6218",
         ), mock.patch(
