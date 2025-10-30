@@ -183,6 +183,12 @@ class DataDogProvider(AbstractProvider):
 
             # Flag not found or disabled - return default
             if result is None:
+                self._report_exposure(
+                    flag_key=flag_key,
+                    variant_key=None,
+                    allocation_key=None,
+                    evaluation_context=evaluation_context,
+                )
                 return FlagResolutionDetails(
                     value=default_value,
                     reason=Reason.DEFAULT,

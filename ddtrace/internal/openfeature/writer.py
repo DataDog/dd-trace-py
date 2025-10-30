@@ -10,6 +10,7 @@ from typing import List
 from typing import Optional
 from typing import TypedDict
 
+from ddtrace import config
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
@@ -46,6 +47,35 @@ class ExposureEvent(TypedDict):
     flag: Dict[str, str]
     variant: Dict[str, str]
     subject: Dict[str, Any]
+
+
+class GeoContext(TypedDict, total=False):
+    """
+    Geographic context information.
+    """
+
+    country_iso_code: str
+    country: str
+
+
+class Context(TypedDict, total=False):
+    """
+    Context information for batched exposures.
+    """
+
+    geo: GeoContext
+    service: str
+    version: str
+    env: str
+
+
+class BatchedExposures(TypedDict, total=False):
+    """
+    Batched exposure events with context.
+    """
+
+    context: Context
+    exposures: List[ExposureEvent]
 
 
 class ExposureWriter(PeriodicService):
@@ -132,7 +162,6 @@ class ExposureWriter(PeriodicService):
             return
 
         event_size = len(json.dumps(event).encode("utf-8"))
-
         with self._lock:
             if len(self._buffer) >= BUFFER_LIMIT:
                 logger.debug("ExposureWriter event buffer full (limit is %d), dropping event", BUFFER_LIMIT)
@@ -168,10 +197,24 @@ class ExposureWriter(PeriodicService):
 
     def _encode(self, events: List[ExposureEvent]) -> bytes:
         """
-        Encode events to JSON bytes.
+        Encode events to JSON bytes wrapped in batch structure with context.
         """
         try:
-            encoded = json.dumps(events).encode("utf-8")
+            # Build context from global config
+            context: Context = {}
+            if config.service:
+                context["service"] = config.service
+            if config.env:
+                context["env"] = config.env
+            if config.version:
+                context["version"] = config.version
+
+            # Build batched payload
+            batched: BatchedExposures = {"exposures": events}
+            if context:
+                batched["context"] = context
+
+            encoded = json.dumps(batched).encode("utf-8")
             logger.debug("encoded %d exposure events to be sent", len(events))
             return encoded
         except (TypeError, ValueError):

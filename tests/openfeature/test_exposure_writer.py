@@ -61,10 +61,11 @@ class TestExposureWriter:
         assert encoded is not None
         assert len(encoded) > 0
 
-        # Verify it's valid JSON
+        # Verify it's valid JSON with batch structure
         decoded = json.loads(encoded)
-        assert len(decoded) == 1
-        assert decoded[0]["flag"]["key"] == "test-flag"
+        assert "exposures" in decoded
+        assert len(decoded["exposures"]) == 1
+        assert decoded["exposures"][0]["flag"]["key"] == "test-flag"
 
     def test_buffer_limit(self, writer, sample_exposure_event):
         """Test that buffer respects the limit."""

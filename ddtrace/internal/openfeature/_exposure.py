@@ -23,7 +23,10 @@ def build_exposure_event(
     evaluation_context: Optional[EvaluationContext],
 ) -> Optional[ExposureEvent]:
     """
-    Build an exposure event payload following the exposure.json schema.
+    Build an exposure event that will be batched and sent with context.
+
+    Individual events are collected and sent in batches with shared context
+    (service, env, version) to the EVP proxy intake endpoint.
 
     Args:
         flag_key: The feature flag key
@@ -36,9 +39,8 @@ def build_exposure_event(
         logger.debug("Cannot build exposure event: flag_key is required")
         return None
 
-    if not variant_key:
-        logger.debug("Cannot build exposure event: variant_key is required")
-        return None
+    if variant_key is None:
+        variant_key = ""
 
     # Build subject from evaluation context
     subject = _build_subject(evaluation_context)

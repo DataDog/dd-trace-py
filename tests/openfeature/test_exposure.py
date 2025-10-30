@@ -61,7 +61,7 @@ class TestBuildExposureEvent:
         assert event is None
 
     def test_build_exposure_event_missing_variant_key(self):
-        """Test that None is returned when variant_key is missing."""
+        """Test that empty string is used when variant_key is None."""
         context = EvaluationContext(targeting_key="user-123")
 
         event = build_exposure_event(
@@ -71,7 +71,9 @@ class TestBuildExposureEvent:
             evaluation_context=context,
         )
 
-        assert event is None
+        assert event is not None
+        assert event["variant"]["key"] == ""
+        assert event["allocation"]["key"] == "allocation-1"
 
     def test_build_exposure_event_missing_subject(self):
         """Test that None is returned when subject cannot be built."""
