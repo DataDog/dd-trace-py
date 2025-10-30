@@ -20,10 +20,10 @@ from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
 from ddtrace._trace.types import _MetaDictType
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.internal import core
+from ddtrace.internal.settings._config import config
+from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
-from ddtrace.settings._config import config
-from ddtrace.settings.asm import config as asm_config
 
 from ..constants import AUTO_KEEP
 from ..constants import AUTO_REJECT

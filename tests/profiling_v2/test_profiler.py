@@ -189,8 +189,8 @@ def test_libdd_failure_telemetry_logging():
         failure_msg="mock failure message",
         is_available=False,
     ), mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_log") as mock_add_log:
+        from ddtrace.internal.settings.profiling import config  # noqa:F401
         from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
-        from ddtrace.settings.profiling import config  # noqa:F401
 
         mock_add_log.assert_called_once()
         call_args = mock_add_log.call_args
@@ -240,8 +240,8 @@ def test_stack_v2_failure_telemetry_logging():
         failure_msg="mock failure message",
         is_available=False,
     ), mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_log") as mock_add_log:
+        from ddtrace.internal.settings.profiling import config  # noqa: F401
         from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
-        from ddtrace.settings.profiling import config  # noqa: F401
 
         mock_add_log.assert_called_once()
         call_args = mock_add_log.call_args

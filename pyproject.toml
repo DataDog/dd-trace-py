@@ -168,6 +168,8 @@ exclude-modules = '''
   | ^tests.(contrib|vendor)
   # avoid sitecustomize modules as they start services
   | ddtrace.bootstrap.sitecustomize
+  | ddtrace.openfeature
+  | ddtrace.internal.openfeature._provider
   | ddtrace.profiling.bootstrap.sitecustomize
   | ddtrace.profiling.auto
   # also ignore preload module to avoid exception after moving ddtrace.tracing module

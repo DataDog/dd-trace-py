@@ -12,7 +12,7 @@ from ddtrace.appsec._processor import AppSecSpanProcessor  # noqa: F401
 from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal import constants
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
 from tests.appsec.integrations.django_tests.utils import _aux_appsec_get_root_span
 import tests.appsec.rules as rules
 from tests.utils import override_global_config

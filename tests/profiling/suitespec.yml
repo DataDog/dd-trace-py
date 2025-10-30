@@ -30,7 +30,7 @@ components:
     - ddtrace/profiling/*
     - ddtrace/internal/datadog/profiling/*
     - ddtrace/internal/processor/endpoint_call_counter.py
-    - ddtrace/settings/profiling.py
+    - ddtrace/internal/settings/profiling.py
   core:
     - ddtrace/internal/__init__.py
     - ddtrace/internal/_exceptions.py
@@ -73,7 +73,7 @@ components:
     - ddtrace/__init__.py
     - ddtrace/py.typed
     - ddtrace/version.py
-    - ddtrace/settings/_config.py
+    - ddtrace/internal/settings/_config.py
     - src/native/*
   bootstrap:
     - ddtrace/bootstrap/*

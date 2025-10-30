@@ -14,7 +14,7 @@ from ddtrace.internal.ci_visibility.git_client import METADATA_UPLOAD_STATUS
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.recorder import CIVisibility
 from ddtrace.internal.ci_visibility.recorder import CIVisibilityTracer
-from ddtrace.settings._config import Config
+from ddtrace.internal.settings._config import Config
 from tests.utils import DummyCIVisibilityWriter
 from tests.utils import override_env
 
