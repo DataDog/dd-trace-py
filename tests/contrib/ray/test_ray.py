@@ -278,3 +278,22 @@ class TestRayIntegration(TracerTestCase):
             current_value = ray.get(counter_actor.increment.remote(1, y=2))
 
             assert current_value == 3, f"Unexpected result: {current_value}"
+
+
+class TestRayWithoutInit(TracerTestCase):
+    def tearDown(self):
+        if ray.is_initialized():
+            ray.shutdown()
+        super().tearDown()
+
+    @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_task_without_init", ignores=RAY_SNAPSHOT_IGNORES)
+    def test_task_without_init(self):
+        """Test that tracing works when Ray auto-initializes without explicit ray.init()"""
+
+        @ray.remote
+        def add_one(x):
+            return x + 1
+
+        futures = [add_one.remote(i) for i in range(2)]
+        results = ray.get(futures)
+        assert results == [1, 2], f"Unexpected results: {results}"
