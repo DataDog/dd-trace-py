@@ -1130,7 +1130,9 @@ def _on_asgi_request(ctx: core.ExecutionContext) -> None:
         scope["datadog"]["request_spans"].append(span)
 
 
-def _on_aiokafka_send_start(_, send_value, send_key, headers, span, partition):
+def _on_aiokafka_send_start(_, send_value, send_key, headers, ctx, partition):
+    span = ctx.span
+
     span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
     span.set_tag_str(MESSAGE_KEY, str(send_key))
     span.set_tag_str(PARTITION, str(partition))
@@ -1166,7 +1168,9 @@ def _on_aiokafka_getone_message(_, span, message, err):
         span.set_exc_info(type(err), err, err.__traceback__)
 
 
-def _on_aiokafka_getmany_message(_, span, messages):
+def _on_aiokafka_getmany_message(_, ctx, messages):
+    span = ctx.span
+
     span.set_tag_str(RECEIVED_MESSAGE, str(messages is not None))
     span.set_metric(_SPAN_MEASURED_KEY, 1)
 
@@ -1383,6 +1387,7 @@ def listen():
 
     # Special/extra handling before calling _finish_span
     core.on("context.ended.django.cache", _on_django_cache)
+    core.on("aiokafka.send.completed", _finish_span)
 
 
 listen()

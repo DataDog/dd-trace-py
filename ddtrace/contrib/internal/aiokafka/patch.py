@@ -89,25 +89,22 @@ async def traced_send(func, instance, args, kwargs):
         service=trace_utils.ext_service(None, config.aiokafka),
         tags=common_aiokafka_tags(topic, bootstrap_servers),
     ) as ctx:
-        span = ctx.span
-        core.dispatch("aiokafka.send.start", (topic, value, key, headers, span, partition))
+        core.dispatch("aiokafka.send.start", (topic, value, key, headers, ctx, partition))
         args, kwargs = set_argument_value(args, kwargs, 5, "headers", headers, override_unset=True)
 
         try:
             result = await func(*args, **kwargs)
         except BaseException as e:
-            span.set_exc_info(type(e), e, e.__traceback__)
-            span.finish()
+            core.dispatch("aiokafka.send.completed", (ctx, (type(e), e, e.__traceback__), None))
             raise e
 
         def sent_callback(future):
             try:
                 result = future.result()
-                core.dispatch("aiokafka.send.completed", (result,))
+                print("here")
+                core.dispatch("aiokafka.send.completed", (ctx, None, result))
             except Exception as e:
-                span.set_exc_info(type(e), e, e.__traceback__)
-            finally:
-                span.finish()
+                core.dispatch("aiokafka.send.completed", (ctx, (type(e), e, e.__traceback__), None))
 
         result.add_done_callback(sent_callback)
         return result
@@ -165,10 +162,9 @@ async def traced_getmany(func, instance, args, kwargs):
         service=trace_utils.ext_service(None, config.aiokafka),
         tags=common_consume_aiokafka_tags(None, bootstrap_servers, group_id),
     ) as ctx:
-        span = ctx.span
         messages = await func(*args, **kwargs)
 
-        core.dispatch("aiokafka.getmany.message", (instance, span, messages))
+        core.dispatch("aiokafka.getmany.message", (instance, ctx, messages))
 
         return messages
 

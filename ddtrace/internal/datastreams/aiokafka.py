@@ -10,8 +10,10 @@ from ddtrace.internal.utils import get_argument_value
 INT_TYPES = (int,)
 
 
-def dsm_aiokafka_send_start(topic, value, key, headers, span, _):
+def dsm_aiokafka_send_start(topic, value, key, headers, span_ctx, _):
     from . import data_streams_processor as processor
+
+    span = span_ctx.span
 
     payload_size = 0
     payload_size += _calculate_byte_size(value)
@@ -36,15 +38,17 @@ def dsm_aiokafka_send_start(topic, value, key, headers, span, _):
         headers.append((key, value.encode("utf-8")))
 
 
-def dsm_aiokafka_send_completed(record_metadata):
+def dsm_aiokafka_send_completed(_ctx, _error_tuple, record_metadata):
     from . import data_streams_processor as processor
 
     reported_offset = record_metadata.offset if isinstance(record_metadata.offset, INT_TYPES) else -1
     processor().track_kafka_produce(record_metadata.topic, record_metadata.partition, reported_offset, time.time())
 
 
-def dsm_aiokafka_message_consume(instance, span, message, _):
+def dsm_aiokafka_message_consume(instance, span_ctx, message, _):
     from . import data_streams_processor as processor
+
+    span = span_ctx.span
 
     headers = {
         key: val.decode("utf-8", errors="ignore") if isinstance(val, (bytes, bytearray)) else str(val)
@@ -72,11 +76,11 @@ def dsm_aiokafka_message_consume(instance, span, message, _):
         )
 
 
-def dsm_aiokafka_many_messages_consume(instance, span, messages):
+def dsm_aiokafka_many_messages_consume(instance, ctx, messages):
     if messages is not None:
         for _, records in messages.items():
             for record in records:
-                dsm_aiokafka_message_consume(instance, span, record, None)
+                dsm_aiokafka_message_consume(instance, ctx, record, None)
 
 
 def dsm_aiokafka_messsage_commit(instance, args, kwargs):
