@@ -16,7 +16,7 @@ from ..ext import SpanKind
 from ..ext import SpanTypes
 from ..ext import db
 from ..ext import sql
-from ..trace import Pin
+from .._trace import Pin
 from .internal.trace_utils import ext_service
 from .internal.trace_utils import iswrapped
 

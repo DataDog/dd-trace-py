@@ -53,7 +53,7 @@ Instance Configuration
 To configure particular yaaredis instances use the :class:`Pin <ddtrace.trace.Pin>` API::
 
     import yaaredis
-    from ddtrace.trace import Pin
+    from ddtrace._trace import Pin
 
     client = yaaredis.StrictRedis(host="localhost", port=6379)
 

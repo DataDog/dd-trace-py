@@ -41,7 +41,7 @@ Instance Configuration
 To configure the mysql integration on an per-connection basis use the
 ``Pin`` API::
 
-    from ddtrace.trace import Pin
+    from ddtrace._trace import Pin
     # Make sure to import mysql.connector and not the 'connect' function,
     # otherwise you won't have access to the patched version
     import mysql.connector

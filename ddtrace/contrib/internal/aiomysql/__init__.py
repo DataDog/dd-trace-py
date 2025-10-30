@@ -19,7 +19,7 @@ Instance Configuration
 To configure the integration on an per-connection basis use the
 ``Pin`` API::
 
-    from ddtrace.trace import Pin
+    from ddtrace._trace import Pin
     import asyncio
     import aiomysql
 

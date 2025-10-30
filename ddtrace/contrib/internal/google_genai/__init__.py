@@ -41,7 +41,7 @@ To configure the Google GenAI integration on a per-instance basis use the
 ``Pin`` API::
 
     from google import genai
-    from ddtrace.trace import Pin
+    from ddtrace._trace import Pin
 
     Pin.override(genai, service="my-google-genai-service")
 """

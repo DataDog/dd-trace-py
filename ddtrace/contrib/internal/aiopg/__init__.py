@@ -2,7 +2,7 @@
 Instrument aiopg to report a span for each executed Postgres queries::
 
     from ddtrace import patch
-    from ddtrace.trace import Pin
+    from ddtrace._trace import Pin
     import aiopg
 
     # If not patched yet, you can patch aiopg specifically

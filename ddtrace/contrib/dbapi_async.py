@@ -9,7 +9,7 @@ from ..constants import _SPAN_MEASURED_KEY
 from ..constants import SPAN_KIND
 from ..ext import SpanKind
 from ..ext import SpanTypes
-from ..trace import Pin
+from .._trace import Pin
 from .dbapi import TracedConnection
 from .dbapi import TracedCursor
 from .internal.trace_utils import ext_service

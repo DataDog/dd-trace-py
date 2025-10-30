@@ -31,6 +31,6 @@ To configure the LangGraph integration on a per-instance basis use the
 ``Pin`` API::
 
     import langgraph
-    from ddtrace.trace import Pin
+    from ddtrace._trace import Pin
     Pin.override(langgraph, service="my-langgraph-service")
 """
