@@ -1,6 +1,5 @@
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-
-from ..vendor.debtcollector import deprecate
+from ddtrace.vendor.debtcollector import deprecate
 
 
 def __getattr__(name):
@@ -18,7 +17,7 @@ def __getattr__(name):
             category=DDTraceDeprecationWarning,
         )
         if name == "ConfigException":
-            from ddtrace.settings.exceptions import ConfigException
+            from ddtrace.internal.settings.exceptions import ConfigException
 
             return ConfigException
         elif name == "HttpConfig":

@@ -9,7 +9,7 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
-from ..internal.logger import get_logger
+from ddtrace.internal.logger import get_logger
 
 
 log = get_logger(__name__)

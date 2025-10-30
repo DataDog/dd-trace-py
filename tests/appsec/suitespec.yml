@@ -2,7 +2,7 @@
 components:
   appsec:
     - ddtrace/appsec/*
-    - ddtrace/settings/asm.py
+    - ddtrace/internal/settings/asm.py
   appsec_iast:
     - ddtrace/appsec/iast/*
   urllib:

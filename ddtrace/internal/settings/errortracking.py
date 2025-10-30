@@ -1,7 +1,7 @@
 import sys
 import typing as t
 
-from ddtrace.settings._core import DDConfig
+from ddtrace.internal.settings._core import DDConfig
 
 
 def parse_modules(value: t.Union[str, None]) -> t.List[str]:

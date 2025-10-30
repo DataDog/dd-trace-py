@@ -17,7 +17,7 @@ from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_handle_capsule
 from ddtrace.appsec._utils import _observator
 from ddtrace.appsec._utils import unpatching_popen
 from ddtrace.internal.logger import get_logger
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
 
 
 DDWafRulesType = Union[None, int, str, List[Any], Dict[str, Any]]
