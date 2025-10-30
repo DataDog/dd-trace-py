@@ -11,7 +11,6 @@ from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
-from ddtrace._logger import get_log_injection_state
 from ddtrace.internal import gitmetadata
 from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_DEFAULT
 from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_IGNORE
@@ -24,6 +23,7 @@ from ddtrace.internal.constants import DEFAULT_REUSE_CONNECTIONS
 from ddtrace.internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 from ddtrace.internal.constants import DEFAULT_TIMEOUT
 from ddtrace.internal.constants import PROPAGATION_STYLE_ALL
+from ddtrace.internal.logger import get_log_injection_state
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.serverless import in_aws_lambda
