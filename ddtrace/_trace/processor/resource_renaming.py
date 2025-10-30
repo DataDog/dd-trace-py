@@ -7,7 +7,7 @@ from ddtrace._trace.processor import SpanProcessor
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal.logger import get_logger
-from ddtrace.settings._config import config
+from ddtrace.internal.settings._config import config
 
 
 log = get_logger(__name__)

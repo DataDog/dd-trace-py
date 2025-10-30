@@ -1,6 +1,6 @@
 from typing import List
 
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
 
 
 def _get_source_index(sources: List, source) -> int:

@@ -15,12 +15,12 @@ from ddtrace.internal import core
 from ddtrace.internal._threads import periodic_threads
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.datadog.profiling import stack_v2
+from ddtrace.internal.settings.profiling import config
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
 from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _traceback
 from ddtrace.profiling.collector import threading
-from ddtrace.settings.profiling import config
 
 
 LOG = logging.getLogger(__name__)
@@ -180,24 +180,22 @@ ELIF UNAME_SYSNAME != "Windows":
         PyObject* PyException_GetTraceback(PyObject* exc)
         PyObject* Py_TYPE(PyObject* ob)
 
-    IF PY_VERSION_HEX >= 0x03080000:
-        # Python 3.8
-        cdef extern from "<internal/pycore_pystate.h>":
+    cdef extern from "<internal/pycore_pystate.h>":
 
-            cdef struct pyinterpreters:
-                PyThread_type_lock mutex
+        cdef struct pyinterpreters:
+            PyThread_type_lock mutex
 
-            ctypedef struct _PyRuntimeState:
-                pyinterpreters interpreters
+        ctypedef struct _PyRuntimeState:
+            pyinterpreters interpreters
 
-            cdef extern _PyRuntimeState _PyRuntime
+        cdef extern _PyRuntimeState _PyRuntime
 
-        IF PY_VERSION_HEX >= 0x03090000:
-            # Needed for accessing _PyGC_FINALIZED when we build with -DPy_BUILD_CORE
-            cdef extern from "<internal/pycore_gc.h>":
-                pass
-            cdef extern from "<Python.h>":
-                PyObject* PyThreadState_GetFrame(PyThreadState* tstate)
+    IF PY_VERSION_HEX >= 0x03090000:
+        # Needed for accessing _PyGC_FINALIZED when we build with -DPy_BUILD_CORE
+        cdef extern from "<internal/pycore_gc.h>":
+            pass
+        cdef extern from "<Python.h>":
+            PyObject* PyThreadState_GetFrame(PyThreadState* tstate)
 ELSE:
     FEATURES['stack-exceptions'] = False
 
