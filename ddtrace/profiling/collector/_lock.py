@@ -129,7 +129,8 @@ class _ProfiledLock(wrapt.ObjectProxy):
                 handle.flush_sample()
             except Exception as e:
                 # _maybe_update_self_name throws AssertionError exceptions which need to propagate
-                if type(e) is AssertionError:
+                # (but only if assertions are enabled)
+                if config.enable_asserts and type(e) is AssertionError:
                     raise e
 
     def acquire(self, *args: Any, **kwargs: Any) -> Any:
