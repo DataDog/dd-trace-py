@@ -35,7 +35,6 @@ from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.serverless import has_aws_lambda_agent_extension
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.settings._config import Config
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import LogWriter
 from ddtrace.trace import Context
@@ -1030,50 +1029,6 @@ def test_tracer_runtime_tags_cross_execution(tracer):
         pass
     assert span.get_tag("runtime-id") is not None
     assert span.get_metric(PID) is not None
-
-
-def test_start_span_hooks():
-    t = DummyTracer()
-
-    result = {}
-
-    with pytest.warns(DDTraceDeprecationWarning):
-
-        @t.on_start_span
-        def store_span(span):
-            result["span"] = span
-
-    try:
-        span = t.start_span("hello")
-
-        assert span == result["span"]
-        span.finish()
-    finally:
-        # Cleanup after the test is done
-        # DEV: Since we use the core API for these hooks,
-        #      they are not isolated to a single tracer instance
-        with pytest.warns(DDTraceDeprecationWarning):
-            t.deregister_on_start_span(store_span)
-
-
-def test_deregister_start_span_hooks():
-    t = DummyTracer()
-
-    result = {}
-
-    with pytest.warns(DDTraceDeprecationWarning):
-
-        @t.on_start_span
-        def store_span(span):
-            result["span"] = span
-
-    with pytest.warns(DDTraceDeprecationWarning):
-        t.deregister_on_start_span(store_span)
-
-    with t.start_span("hello"):
-        pass
-
-    assert result == {}
 
 
 @pytest.mark.subprocess(parametrize={"DD_TRACE_ENABLED": ["true", "false"]})
