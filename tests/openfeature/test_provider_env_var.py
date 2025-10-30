@@ -35,7 +35,10 @@ class TestProviderConfigEnabled:
                     "test-flag": {
                         "enabled": True,
                         "variationType": VariationType.BOOLEAN.value,
-                        "variations": {'true': {'key': 'true', 'value': True}, 'false': {'key': 'false', 'value': False}},
+                        "variations": {
+                            "true": {"key": "true", "value": True},
+                            "false": {"key": "false", "value": False},
+                        },
                         "variation_key": "on",
                         "reason": AssignmentReason.STATIC.value,
                     }
@@ -59,7 +62,10 @@ class TestProviderConfigEnabled:
                     "test-flag": {
                         "enabled": True,
                         "variationType": VariationType.STRING.value,
-                        "variations": {'test': {'key': 'test', 'value': 'test-value'}, 'default': {'key': 'default', 'value': 'default-value'}},
+                        "variations": {
+                            "test": {"key": "test", "value": "test-value"},
+                            "default": {"key": "default", "value": "default-value"},
+                        },
                     }
                 }
             }
@@ -84,7 +90,10 @@ class TestProviderConfigDisabled:
                     "test-flag": {
                         "enabled": True,
                         "variationType": VariationType.BOOLEAN.value,
-                        "variations": {'true': {'key': 'true', 'value': True}, 'false': {'key': 'false', 'value': False}},
+                        "variations": {
+                            "true": {"key": "true", "value": True},
+                            "false": {"key": "false", "value": False},
+                        },
                     }
                 }
             }

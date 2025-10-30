@@ -51,7 +51,7 @@ class TestOpenFeatureE2EBooleanFlags:
                 "enable-new-feature": {
                     "enabled": True,
                     "variationType": VariationType.BOOLEAN.value,
-                    "variations": {'true': {'key': 'true', 'value': True}, 'false': {'key': 'false', 'value': False}},
+                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                     "variation_key": "on",
                     "reason": AssignmentReason.STATIC.value,
                 }
@@ -82,7 +82,7 @@ class TestOpenFeatureE2EBooleanFlags:
                 "premium-feature": {
                     "enabled": True,
                     "variationType": VariationType.BOOLEAN.value,
-                    "variations": {'true': {'key': 'true', 'value': True}, 'false': {'key': 'false', 'value': False}},
+                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                     "variation_key": "premium",
                     "reason": AssignmentReason.TARGETING_MATCH.value,
                 }
@@ -107,7 +107,7 @@ class TestOpenFeatureE2EBooleanFlags:
                 "detailed-flag": {
                     "enabled": True,
                     "variationType": VariationType.BOOLEAN.value,
-                    "variations": {'true': {'key': 'true', 'value': True}, 'false': {'key': 'false', 'value': False}},
+                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                     "variation_key": "variant-a",
                     "reason": AssignmentReason.SPLIT.value,
                 }
@@ -135,7 +135,10 @@ class TestOpenFeatureE2EStringFlags:
                 "api-endpoint": {
                     "enabled": True,
                     "variationType": VariationType.STRING.value,
-                    "variations": {'true': {'key': 'true', 'value': "https://api.production.com"}, 'false': {'key': 'false', 'value': False}},
+                    "variations": {
+                        "true": {"key": "true", "value": "https://api.production.com"},
+                        "false": {"key": "false", "value": False},
+                    },
                     "variation_key": "production",
                     "reason": AssignmentReason.STATIC.value,
                 }
@@ -169,7 +172,7 @@ class TestOpenFeatureE2ENumericFlags:
                 "max-connections": {
                     "enabled": True,
                     "variationType": VariationType.INTEGER.value,
-                    "variations": {'false': {'key': 'false', 'value': 100}, 'true': {'key': 'true', 'value': True}},
+                    "variations": {"false": {"key": "false", "value": 100}, "true": {"key": "true", "value": True}},
                     "variation_key": "high",
                     "reason": AssignmentReason.TARGETING_MATCH.value,
                 }
@@ -190,7 +193,7 @@ class TestOpenFeatureE2ENumericFlags:
                 "sampling-rate": {
                     "enabled": True,
                     "variationType": VariationType.NUMERIC.value,
-                    "variations": {'false': {'key': 'false', 'value': 0.75}, 'true': {'key': 'true', 'value': True}},
+                    "variations": {"false": {"key": "false", "value": 0.75}, "true": {"key": "true", "value": True}},
                     "variation_key": "medium",
                     "reason": AssignmentReason.SPLIT.value,
                 }
@@ -215,7 +218,10 @@ class TestOpenFeatureE2EObjectFlags:
                 "feature-config": {
                     "enabled": True,
                     "variationType": VariationType.JSON.value,
-                    "variations": {'true': {'key': 'true', 'value': {"timeout": 30, "retries": 3, "endpoints": ["api1", "api2"]}}, 'false': {'key': 'false', 'value': False}},
+                    "variations": {
+                        "true": {"key": "true", "value": {"timeout": 30, "retries": 3, "endpoints": ["api1", "api2"]}},
+                        "false": {"key": "false", "value": False},
+                    },
                     "variation_key": "config-v2",
                     "reason": AssignmentReason.STATIC.value,
                 }
@@ -238,7 +244,7 @@ class TestOpenFeatureE2EObjectFlags:
                 "allowed-regions": {
                     "enabled": True,
                     "variationType": VariationType.JSON.value,
-                    "variations": {'global': {'key': 'global', 'value': ["us-east-1", "eu-west-1", "ap-south-1"]}},
+                    "variations": {"global": {"key": "global", "value": ["us-east-1", "eu-west-1", "ap-south-1"]}},
                     "variation_key": "global",
                     "reason": AssignmentReason.TARGETING_MATCH.value,
                 }
@@ -265,7 +271,7 @@ class TestOpenFeatureE2EErrorHandling:
                 "string-flag": {
                     "enabled": True,
                     "variationType": VariationType.STRING.value,
-                    "variations": {'hello': {'key': 'hello', 'value': 'hello'}},
+                    "variations": {"hello": {"key": "hello", "value": "hello"}},
                 }
             }
         }
@@ -286,7 +292,7 @@ class TestOpenFeatureE2EErrorHandling:
                 "disabled-feature": {
                     "enabled": False,
                     "variationType": VariationType.BOOLEAN.value,
-                    "variations": {'true': {'key': 'true', 'value': True}, 'false': {'key': 'false', 'value': False}},
+                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                 }
             }
         }
@@ -309,17 +315,17 @@ class TestOpenFeatureE2EMultipleFlags:
                 "feature-a": {
                     "enabled": True,
                     "variationType": VariationType.BOOLEAN.value,
-                    "variations": {'true': {'key': 'true', 'value': True}, 'false': {'key': 'false', 'value': False}},
+                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                 },
                 "feature-b": {
                     "enabled": True,
                     "variationType": VariationType.STRING.value,
-                    "variations": {'b': {'key': 'b', 'value': 'variant-b'}},
+                    "variations": {"b": {"key": "b", "value": "variant-b"}},
                 },
                 "feature-c": {
                     "enabled": True,
                     "variationType": VariationType.INTEGER.value,
-                    "variations": {'default': {'key': 'default', 'value': 42}},
+                    "variations": {"default": {"key": "default", "value": 42}},
                 },
             }
         }
@@ -352,7 +358,7 @@ class TestOpenFeatureE2EProviderLifecycle:
                 "lifecycle-flag": {
                     "enabled": True,
                     "variationType": VariationType.BOOLEAN.value,
-                    "variations": {'true': {'key': 'true', 'value': True}, 'false': {'key': 'false', 'value': False}},
+                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                 }
             }
         }
@@ -374,7 +380,7 @@ class TestOpenFeatureE2EProviderLifecycle:
                 "shared-flag": {
                     "enabled": True,
                     "variationType": VariationType.STRING.value,
-                    "variations": {'default': {'key': 'default', 'value': 'shared-value'}},
+                    "variations": {"default": {"key": "default", "value": "shared-value"}},
                 }
             }
         }
@@ -406,7 +412,7 @@ class TestOpenFeatureE2ERealWorldScenarios:
                 "new-ui": {
                     "enabled": True,
                     "variationType": VariationType.BOOLEAN.value,
-                    "variations": {'true': {'key': 'true', 'value': True}, 'false': {'key': 'false', 'value': False}},
+                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                     "variation_key": "new-ui-enabled",
                     "reason": AssignmentReason.TARGETING_MATCH.value,
                 }
@@ -428,14 +434,19 @@ class TestOpenFeatureE2ERealWorldScenarios:
                 "database-config": {
                     "enabled": True,
                     "variationType": VariationType.JSON.value,
-                    "variations": {'production-db': {'key': 'production-db', 'value': {"host": "db.production.com", "port": 5432, "pool_size": 20, "timeout": 30}}},
+                    "variations": {
+                        "production-db": {
+                            "key": "production-db",
+                            "value": {"host": "db.production.com", "port": 5432, "pool_size": 20, "timeout": 30},
+                        }
+                    },
                     "variation_key": "production-db",
                     "reason": AssignmentReason.STATIC.value,
                 },
                 "cache-ttl": {
                     "enabled": True,
                     "variationType": VariationType.INTEGER.value,
-                    "variations": {'1hour': {'key': '1hour', 'value': 3600}},
+                    "variations": {"1hour": {"key": "1hour", "value": 3600}},
                     "variation_key": "1hour",
                     "reason": AssignmentReason.STATIC.value,
                 },
@@ -459,7 +470,10 @@ class TestOpenFeatureE2ERealWorldScenarios:
                 "button-color": {
                     "enabled": True,
                     "variationType": VariationType.STRING.value,
-                    "variations": {'variant-b': {'key': 'variant-b', 'value': 'blue'}, 'variant-a': {'key': 'variant-a', 'value': 'red'}},
+                    "variations": {
+                        "variant-b": {"key": "variant-b", "value": "blue"},
+                        "variant-a": {"key": "variant-a", "value": "red"},
+                    },
                     "variation_key": "variant-b",
                     "reason": AssignmentReason.SPLIT.value,
                 }
@@ -541,7 +555,7 @@ class TestOpenFeatureE2ERemoteConfigScenarios:
                 "late-flag": {
                     "enabled": True,
                     "variationType": VariationType.BOOLEAN.value,
-                    "variations": {'true': {'key': 'true', 'value': True}, 'false': {'key': 'false', 'value': False}},
+                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                 }
             }
         }
@@ -561,7 +575,7 @@ class TestOpenFeatureE2ERemoteConfigScenarios:
                 "dynamic-flag": {
                     "enabled": True,
                     "variationType": VariationType.STRING.value,
-                    "variations": {'v1': {'key': 'v1', 'value': 'version1'}},
+                    "variations": {"v1": {"key": "v1", "value": "version1"}},
                 }
             }
         }
@@ -576,7 +590,7 @@ class TestOpenFeatureE2ERemoteConfigScenarios:
                 "dynamic-flag": {
                     "enabled": True,
                     "variationType": VariationType.STRING.value,
-                    "variations": {'v2': {'key': 'v2', 'value': 'version2'}},
+                    "variations": {"v2": {"key": "v2", "value": "version2"}},
                 }
             }
         }

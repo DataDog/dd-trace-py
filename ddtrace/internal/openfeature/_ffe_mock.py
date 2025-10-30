@@ -116,7 +116,7 @@ def mock_get_assignment(
     else:
         reason = reason_raw
 
-    value = list(flag["variations"].values())[0]['value']
+    value = list(flag["variations"].values())[0]["value"]
     assignment_value = AssignmentValue(variation_type=found_type, value=value)
     return Assignment(
         value=assignment_value,

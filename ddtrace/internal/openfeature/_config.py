@@ -1,5 +1,6 @@
 from typing import Mapping
 
+
 FFE_CONFIG: Mapping = {}
 
 
