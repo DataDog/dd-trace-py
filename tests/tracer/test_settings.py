@@ -1,9 +1,8 @@
 import pytest
 
-from ddtrace.internal.compat import PYTHON_VERSION_INFO
-from ddtrace.settings._config import Config
-from ddtrace.settings.http import HttpConfig
-from ddtrace.settings.integration import IntegrationConfig
+from ddtrace.internal.settings._config import Config
+from ddtrace.internal.settings.http import HttpConfig
+from ddtrace.internal.settings.integration import IntegrationConfig
 from tests.utils import BaseTestCase
 from tests.utils import override_env
 
@@ -201,72 +200,3 @@ def test_x_datadog_tags(env, expected):
     with override_env(env):
         _ = Config()
         assert expected == (_._x_datadog_tags_max_length, _._x_datadog_tags_enabled)
-
-
-@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 10), reason="ddtrace under Python 3.9 is deprecated")
-@pytest.mark.subprocess()
-def test_config_exception_deprecation():
-    import warnings
-
-    with warnings.catch_warnings(record=True) as warns:
-        warnings.simplefilter("default")
-
-        from ddtrace.settings import ConfigException  # noqa: F401
-
-        assert len(warns) == 1
-        warn = warns[0]
-
-        assert issubclass(warn.category, DeprecationWarning)
-        assert "ddtrace.settings.ConfigException is deprecated" in str(warn.message)
-        assert "4.0.0" in str(warn.message)  # TODO: update the version
-
-
-@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 10), reason="ddtrace under Python 3.9 is deprecated")
-@pytest.mark.subprocess()
-def test_http_config_deprecation():
-    import warnings
-
-    with warnings.catch_warnings(record=True) as warns:
-        warnings.simplefilter("default")
-
-        from ddtrace.settings import HttpConfig  # noqa: F401
-
-        assert len(warns) == 1
-        warn = warns[0]
-        assert issubclass(warn.category, DeprecationWarning)
-        assert "ddtrace.settings.HttpConfig is deprecated" in str(warn.message)
-        assert "4.0.0" in str(warn.message)  # TODO: update the version
-
-
-@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 10), reason="ddtrace under Python 3.9 is deprecated")
-@pytest.mark.subprocess()
-def test_hooks_deprecation():
-    import warnings
-
-    with warnings.catch_warnings(record=True) as warns:
-        warnings.simplefilter("default")
-
-        from ddtrace.settings import Hooks  # noqa: F401
-
-        assert len(warns) == 1
-        warn = warns[0]
-        assert issubclass(warn.category, DeprecationWarning)
-        assert "ddtrace.settings.Hooks is deprecated" in str(warn.message)
-        assert "4.0.0" in str(warn.message)  # TODO: update the version
-
-
-@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 10), reason="ddtrace under Python 3.9 is deprecated")
-@pytest.mark.subprocess()
-def test_integration_config_deprecation():
-    import warnings
-
-    with warnings.catch_warnings(record=True) as warns:
-        warnings.simplefilter("default")
-
-        from ddtrace.settings import IntegrationConfig  # noqa: F401
-
-        assert len(warns) == 1
-        warn = warns[0]
-        assert issubclass(warn.category, DeprecationWarning)
-        assert "ddtrace.settings.IntegrationConfig is deprecated" in str(warn.message)
-        assert "4.0.0" in str(warn.message)  # TODO: update the version
