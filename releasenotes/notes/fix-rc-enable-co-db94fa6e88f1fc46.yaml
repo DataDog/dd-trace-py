@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    code origin: ensure that code location information is added to entry spans
+    when Code Origin is enabled remotely.

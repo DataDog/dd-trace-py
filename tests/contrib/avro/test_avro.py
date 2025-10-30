@@ -2,13 +2,13 @@ from avro.datafile import DataFileReader
 from avro.datafile import DataFileWriter
 from avro.io import DatumReader
 from avro.io import DatumWriter
-from wrapt import ObjectProxy
 
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.contrib.internal.avro.patch import patch
 from ddtrace.contrib.internal.avro.patch import unpatch
 from ddtrace.ext import schema as SCHEMA_TAGS
+from ddtrace.internal.compat import is_wrapted
 
 
 OPENAPI_USER_SCHEMA_DEF = (
@@ -35,13 +35,13 @@ def test_patching(avro):
         We unwrap the correct methods
     """
     patch()
-    assert isinstance(avro.io.DatumReader.read, ObjectProxy)
-    assert isinstance(avro.io.DatumWriter.write, ObjectProxy)
+    assert is_wrapted(avro.io.DatumReader.read)
+    assert is_wrapted(avro.io.DatumWriter.write)
 
     unpatch()
 
-    assert not isinstance(avro.io.DatumReader.read, ObjectProxy)
-    assert not isinstance(avro.io.DatumWriter.write, ObjectProxy)
+    assert not is_wrapted(avro.io.DatumReader.read)
+    assert not is_wrapted(avro.io.DatumWriter.write)
 
 
 def test_basic_schema_serialize(avro, tracer, test_spans):
