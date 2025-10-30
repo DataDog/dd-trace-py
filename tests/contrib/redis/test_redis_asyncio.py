@@ -5,11 +5,11 @@ from unittest import mock
 import pytest
 import redis
 import redis.asyncio
-from wrapt import ObjectProxy
 
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.redis.patch import patch
 from ddtrace.contrib.internal.redis.patch import unpatch
+from ddtrace.internal.compat import is_wrapted
 from ddtrace.trace import tracer
 from tests.utils import override_config
 
@@ -53,13 +53,13 @@ def test_patching():
     When unpatching  redis library
         We unwrap the correct methods
     """
-    assert isinstance(redis.asyncio.client.Redis.execute_command, ObjectProxy)
-    assert isinstance(redis.asyncio.client.Redis.pipeline, ObjectProxy)
-    assert isinstance(redis.asyncio.client.Pipeline.pipeline, ObjectProxy)
+    assert is_wrapted(redis.asyncio.client.Redis.execute_command)
+    assert is_wrapted(redis.asyncio.client.Redis.pipeline)
+    assert is_wrapted(redis.asyncio.client.Pipeline.pipeline)
     unpatch()
-    assert not isinstance(redis.asyncio.client.Redis.execute_command, ObjectProxy)
-    assert not isinstance(redis.asyncio.client.Redis.pipeline, ObjectProxy)
-    assert not isinstance(redis.asyncio.client.Pipeline.pipeline, ObjectProxy)
+    assert not is_wrapted(redis.asyncio.client.Redis.execute_command)
+    assert not is_wrapted(redis.asyncio.client.Redis.pipeline)
+    assert not is_wrapted(redis.asyncio.client.Pipeline.pipeline)
 
 
 @pytest.mark.snapshot(wait_for_num_traces=1)

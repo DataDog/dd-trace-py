@@ -11,6 +11,7 @@ from typing import Tuple
 from typing import TypedDict
 from typing import Union
 from typing import cast
+import urllib
 from urllib.parse import quote
 from urllib.parse import urlparse
 
@@ -400,7 +401,16 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         if dataset_id is None or dataset_id == "":
             raise ValueError(f"unexpected dataset state, invalid ID (is None: {dataset_id is None})")
         curr_version = response_data["data"]["attributes"]["current_version"]
-        return Dataset(dataset_name, project, dataset_id, [], description, curr_version, _dne_client=self)
+        return Dataset(
+            name=dataset_name,
+            project=project,
+            dataset_id=dataset_id,
+            records=[],
+            description=description,
+            latest_version=curr_version,
+            version=curr_version,
+            _dne_client=self,
+        )
 
     @staticmethod
     def _get_record_json(record: Union[UpdatableDatasetRecord, DatasetRecordRaw], is_update: bool) -> JSONType:
@@ -458,10 +468,14 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         new_record_ids: List[str] = [r["id"] for r in data] if data else []
         return new_version, new_record_ids
 
-    def dataset_get_with_records(self, dataset_name: str, project_name: Optional[str] = None) -> Dataset:
+    def dataset_get_with_records(
+        self, dataset_name: str, project_name: Optional[str] = None, version: Optional[int] = None
+    ) -> Dataset:
         project = self.project_create_or_get(project_name)
         project_id = project.get("_id")
-        logger.debug("getting records with project ID %s for %s", project_id, project_name)
+        logger.debug(
+            "getting records with project ID %s for %s, version: %s", project_id, project_name, str(version) or "latest"
+        )
 
         path = f"/api/unstable/llm-obs/v1/{project_id}/datasets?filter[name]={quote(dataset_name)}"
         resp = self.request("GET", path)
@@ -480,11 +494,17 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         dataset_id = data[0]["id"]
 
         list_base_path = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
+
         has_next_page = True
         class_records: List[DatasetRecord] = []
-        list_path = list_base_path
         page_num = 0
+        url_options = {}
         while has_next_page:
+            if version:
+                url_options["filter[version]"] = version
+
+            list_path = f"{list_base_path}?{urllib.parse.urlencode(url_options, safe='[]')}"
+            logger.debug("list records page %d, request path=%s", page_num, list_path)
             resp = self.request("GET", list_path, timeout=self.LIST_RECORDS_TIMEOUT)
             if resp.status != 200:
                 raise ValueError(
@@ -504,14 +524,22 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                     }
                 )
             next_cursor = records_data.get("meta", {}).get("after")
+
+            url_options = {}
             has_next_page = False
             if next_cursor:
                 has_next_page = True
-                list_path = f"{list_base_path}?page[cursor]={next_cursor}"
-                logger.debug("next list records request path %s", list_path)
+                url_options["page[cursor]"] = next_cursor
                 page_num += 1
         return Dataset(
-            dataset_name, project, dataset_id, class_records, dataset_description, curr_version, _dne_client=self
+            name=dataset_name,
+            project=project,
+            dataset_id=dataset_id,
+            records=class_records,
+            description=dataset_description,
+            latest_version=curr_version,
+            version=version or curr_version,
+            _dne_client=self,
         )
 
     def dataset_bulk_upload(self, dataset_id: str, records: List[DatasetRecord]):

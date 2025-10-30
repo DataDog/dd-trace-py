@@ -172,6 +172,8 @@ class Tracer(object):
             service_name=config.service or None,
             service_env=config.env or None,
             service_version=config.version or None,
+            process_tags=None,
+            container_id=None,
         )
         try:
             self._config_on_disk = store_metadata(metadata)

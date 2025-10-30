@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(python:*)",
+      "Bash(./scripts/events/generate_stub.py:*)",
+      "Bash(hatch run lint:typing:*)",
+      "Bash(./scripts/ddtest:*)",
+      "mcp__github__search_pull_requests",
+      "mcp__github__get_pull_request",
+      "mcp__atlassian__getJiraIssue",
+      "mcp__github__get_pull_request_review_comments",
+      "Bash(riot list:*)",
+      "Read(//Users/brett.langdon/datadog/riot/**)",
+      "Bash(hatch run docs:*)",
+      "Bash(cargo:*)",
+      "Bash(source:*)",
+      "Bash(pip install:*)",
+      "WebFetch(domain:ast-grep.github.io)",
+      "Bash(git grep:*)",
+      "Bash(ast-grep scan:*)",
+      "Bash(hatch run lint:sg:*)",
+      "Bash(awk:*)",
+      "mcp__github__pull_request_read",
+      "WebFetch(domain:github.com)",
+      "Skill(run-tests)",
+      "Bash(scripts/run-tests:*)"
+    ],
+    "deny": []
+  }
+}

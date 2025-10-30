@@ -212,7 +212,7 @@ class DdtraceRunTest(BaseTestCase):
 
     def test_logs_injection(self):
         """Ensure logs injection works"""
-        with self.override_env(dict(DD_LOGS_INJECTION="true")):
+        with self.override_env(dict(DD_TAGS="service:my-service,env:my-env,version:my-version")):
             out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_logs_injection.py"])
             assert out.startswith(b"Test success"), out.decode()
 

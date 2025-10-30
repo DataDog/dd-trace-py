@@ -10,6 +10,7 @@ from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
+from ddtrace.ext import http
 from tests.utils import override_global_config
 
 
@@ -251,3 +252,88 @@ class TestApiSecurityManager:
 
             assert len(mock_environment.entry_span._meta) == 0
             api_manager._metrics._report_api_security.assert_called_with(True, 0)
+
+    def test_should_collect_schema_route_fallbacks_to_endpoint(self, mock_environment):
+        """Test that _should_collect_schema falls back to endpoint tags when route is missing."""
+        with override_global_config(
+            values=dict(
+                _asm_enabled=True,
+                _api_security_enabled=True,
+                _apm_tracing_enabled=True,
+                _api_security_parse_response_body=True,
+            )
+        ):
+            manager = APIManager()
+            manager._appsec_processor = MagicMock()
+            manager._asm_context = MagicMock()
+            manager._metrics = MagicMock()
+
+            mock_environment.entry_span.get_tag = lambda name: "/span-endpoint" if name == http.ENDPOINT else None
+            mock_environment.waf_addresses = {
+                SPAN_DATA_NAMES.REQUEST_ROUTE: None,
+                SPAN_DATA_NAMES.REQUEST_METHOD: "GET",
+                SPAN_DATA_NAMES.RESPONSE_STATUS: 200,
+            }
+
+            # First request should collect
+            assert manager._should_collect_schema(mock_environment, USER_KEEP)
+            # Sencond one should discarded
+            assert not manager._should_collect_schema(mock_environment, USER_KEEP)
+
+    def test_should_collect_schema_route_missing_computes_endpoint(self, mock_environment):
+        """Test that _should_collect_schema computes the endpoint value when route and endpoint tags are missing."""
+        with override_global_config(
+            values=dict(
+                _asm_enabled=True,
+                _api_security_enabled=True,
+                _apm_tracing_enabled=True,
+                _api_security_parse_response_body=True,
+            )
+        ):
+            manager = APIManager()
+            manager._appsec_processor = MagicMock()
+            manager._asm_context = MagicMock()
+            manager._metrics = MagicMock()
+
+            def get_tag(name):
+                return "https://ddtrace.dog/span-endpoint" if name == http.URL else None
+
+            mock_environment.entry_span.get_tag = get_tag
+            mock_environment.waf_addresses = {
+                SPAN_DATA_NAMES.REQUEST_ROUTE: None,
+                SPAN_DATA_NAMES.REQUEST_METHOD: "GET",
+                SPAN_DATA_NAMES.RESPONSE_STATUS: 200,
+            }
+
+            # First request should collect
+            assert manager._should_collect_schema(mock_environment, USER_KEEP)
+            # Sencond one should be discarded
+            assert not manager._should_collect_schema(mock_environment, USER_KEEP)
+
+    @pytest.mark.parametrize("status_code", [404, "404"])
+    def test_should_not_collect_schema_on_404(self, mock_environment, status_code):
+        """Test that _should_collect_schema computes the endpoint value when route and endpoint tags are missing."""
+        with override_global_config(
+            values=dict(
+                _asm_enabled=True,
+                _api_security_enabled=True,
+                _apm_tracing_enabled=True,
+                _api_security_parse_response_body=True,
+            )
+        ):
+            manager = APIManager()
+            manager._appsec_processor = MagicMock()
+            manager._asm_context = MagicMock()
+            manager._metrics = MagicMock()
+
+            def get_tag(name):
+                return "https://ddtrace.dog/span-endpoint" if name == http.URL else None
+
+            mock_environment.entry_span.get_tag = get_tag
+            mock_environment.waf_addresses = {
+                SPAN_DATA_NAMES.REQUEST_ROUTE: None,
+                SPAN_DATA_NAMES.REQUEST_METHOD: "GET",
+                SPAN_DATA_NAMES.RESPONSE_STATUS: status_code,
+            }
+
+            assert not manager._should_collect_schema(mock_environment, USER_KEEP)

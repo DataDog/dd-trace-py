@@ -512,6 +512,7 @@ venv = Venv(
                 "python-json-logger": "==2.0.7",
                 "pyfakefs": latest,
                 "pytest-benchmark": latest,
+                "wrapt": [latest, "<2.0.0"],
             },
             venvs=[
                 Venv(
@@ -2683,6 +2684,21 @@ venv = Venv(
                     # v1.15.0 introduced support for logs
                     pkgs={"opentelemetry-exporter-otlp": ["~=1.15.0", latest]},
                     env={"SDK_EXPORTER_INSTALLED": "1"},
+                ),
+            ],
+        ),
+        Venv(
+            name="openfeature",
+            command="pytest {cmdargs} tests/openfeature",
+            pys=select_pys(),
+            pkgs={
+                "pytest-randomly": latest,
+                "mock": latest,
+            },
+            venvs=[
+                Venv(
+                    # Test against different versions of openfeature-sdk (0.5.0+ for submodule imports)
+                    pkgs={"openfeature-sdk": ["~=0.5.0", "~=0.6.0", "~=0.7.0", latest]},
                 ),
             ],
         ),

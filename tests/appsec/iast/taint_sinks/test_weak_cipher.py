@@ -1,3 +1,5 @@
+from unittest import mock
+
 import pytest
 
 from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
@@ -215,3 +217,18 @@ def test_weak_cipher_secure_multiple_calls_error(iast_context_defaults):
     span_report = get_iast_reporter()
 
     assert span_report is None
+
+
+@mock.patch("ddtrace.appsec._iast.taint_sinks.weak_hash.is_iast_request_enabled")
+@mock.patch("ddtrace.appsec._iast.taint_sinks.weak_hash.increment_iast_span_metric")
+def test_weak_cipher_out_of_context(
+    mock_is_iast_request_enabled, mock_increment_iast_span_metric, iast_context_defaults
+):
+    mock_is_iast_request_enabled.return_value = True
+    mock_increment_iast_span_metric.side_effect = Exception(
+        "increment_iast_span_metric should not be called in this test"
+    )
+    try:
+        cryptography_algorithm("Blowfish")
+    except Exception as e:
+        pytest.fail(f"parametrized_weak_hash raised an exception: {e}")

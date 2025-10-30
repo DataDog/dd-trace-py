@@ -58,6 +58,11 @@ def test_get_distributions():
             importlib_pkgs.add("importlib-resources")
         else:
             importlib_pkgs.add(name)
+        # Fix for last zope namespace changes
+        for sub in ["interface", "event"]:
+            if f"zope-{sub}" in pkg_resources_ws and f"zope.{sub}" in importlib_pkgs:
+                pkg_resources_ws.discard(f"zope-{sub}")
+                importlib_pkgs.discard(f"zope.{sub}")
 
     # assert that pkg_resources and importlib.metadata return the same packages
     assert pkg_resources_ws == importlib_pkgs

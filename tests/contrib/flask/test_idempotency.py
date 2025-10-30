@@ -2,12 +2,12 @@ import unittest
 
 import flask
 import mock
-import wrapt
 
 from ddtrace.contrib.internal.flask.patch import _u
 from ddtrace.contrib.internal.flask.patch import _w
 from ddtrace.contrib.internal.flask.patch import patch
 from ddtrace.contrib.internal.flask.patch import unpatch
+from ddtrace.internal.compat import is_wrapted
 
 
 class FlaskIdempotencyTestCase(unittest.TestCase):
@@ -17,11 +17,11 @@ class FlaskIdempotencyTestCase(unittest.TestCase):
 
     def assert_is_patched(self):
         self.assertTrue(flask._datadog_patch)
-        self.assertTrue(isinstance(flask.render_template, wrapt.ObjectProxy))
+        self.assertTrue(is_wrapted(flask.render_template))
 
     def assert_is_not_patched(self):
         self.assertFalse(flask._datadog_patch)
-        self.assertFalse(isinstance(flask.render_template, wrapt.ObjectProxy))
+        self.assertFalse(is_wrapted(flask.render_template))
 
     def test_datadog_patch(self):
         # If we have been patching/testing in other files,

@@ -213,8 +213,6 @@ print_help() {
   echo "Targets:"
   echo "  all"
   echo "  all_test (default)"
-  echo "  dd_wrapper"
-  echo "  dd_wrapper_test"
   echo "  stack_v2 (also builds dd_wrapper)"
   echo "  stack_v2_test (also builds dd_wrapper_test)"
   echo "  ddup (also builds dd_wrapper)"
@@ -344,11 +342,6 @@ add_target() {
       targets+=("stack_v2")
       targets+=("ddup")
       ;;
-    dd_wrapper)
-      # `dd_wrapper` is a dependency of other targets, but the overall structure is weird when it's given explicitly
-      # so we only include it when it's called explicitly
-      targets+=("dd_wrapper")
-      ;;
     stack_v2)
       targets+=("stack_v2")
       ;;
@@ -369,7 +362,6 @@ build_rust() {
     DD_COMPILE_MODE=$BUILD_MODE python3 setup.py build_rust --inplace
 }
 
-
 ### ENTRYPOINT
 # Check for basic input validity
 if [ $# -eq 0 ]; then
@@ -388,6 +380,13 @@ print_cmake_args
 print_ctest_args
 
 build_rust
+
+run_cmake "dd_wrapper"
+
+# Install dd_wrapper to the expected location so other targets can find it
+pushd ${BUILD_DIR}/dd_wrapper || { echo "Failed to enter dd_wrapper build directory"; exit 1; }
+cmake --build . --target install || { echo "dd_wrapper install failed"; exit 1; }
+popd
 
 # Run cmake
 for target in "${targets[@]}"; do

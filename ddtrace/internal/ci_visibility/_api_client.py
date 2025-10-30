@@ -29,6 +29,8 @@ from ddtrace.internal.ci_visibility.constants import SKIPPABLE_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import SUITE
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.constants import TEST_MANAGEMENT_TESTS_ENDPOINT
+from ddtrace.internal.ci_visibility.errors import CIVisibilityAPIClientError
+from ddtrace.internal.ci_visibility.errors import CIVisibilityAPIServerError
 from ddtrace.internal.ci_visibility.errors import CIVisibilityAuthenticationException
 from ddtrace.internal.ci_visibility.git_data import GitData
 from ddtrace.internal.ci_visibility.telemetry.api_request import APIRequestMetricNames
@@ -44,6 +46,7 @@ from ddtrace.internal.ci_visibility.telemetry.itr import record_skippable_count
 from ddtrace.internal.ci_visibility.telemetry.test_management import TEST_MANAGEMENT_TELEMETRY
 from ddtrace.internal.ci_visibility.telemetry.test_management import record_test_management_tests_count
 from ddtrace.internal.ci_visibility.utils import combine_url_path
+from ddtrace.internal.ci_visibility.utils import fibonacci_backoff_with_jitter_on_exceptions
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
@@ -71,14 +74,7 @@ _KNOWN_TESTS_TYPE = t.Set[TestId]
 _NETWORK_ERRORS = (TimeoutError, socket.timeout, RemoteDisconnected)
 
 
-class TestVisibilitySettingsError(Exception):
-    __test__ = False
-    pass
-
-
-class TestVisibilitySkippableItemsError(Exception):
-    __test__ = False
-    pass
+_RETRIABLE_ERRORS = (*_NETWORK_ERRORS, CIVisibilityAPIServerError)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -300,6 +296,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             if conn is not None:
                 conn.close()
 
+    @fibonacci_backoff_with_jitter_on_exceptions(attempts=5, exceptions=_RETRIABLE_ERRORS)
     def _do_request_with_telemetry(
         self,
         method: str,
@@ -342,7 +339,9 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                 error_type = ERROR_TYPES.CODE_4XX if response.status < 500 else ERROR_TYPES.CODE_5XX
                 if response.status == 403:
                     raise CIVisibilityAuthenticationException()
-                raise ValueError("API response status code: %d", response.status)
+                if response.status >= 500:
+                    raise CIVisibilityAPIServerError(response.status)
+                raise CIVisibilityAPIClientError(response.status)
             try:
                 sw.stop()  # Stop the timer before parsing the response
                 response_body = response.body
