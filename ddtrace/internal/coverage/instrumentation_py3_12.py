@@ -215,11 +215,12 @@ def _extract_lines_and_imports(
     previous_arg: int = 0
     _previous_previous_arg: int = 0
     current_import_name: t.Optional[str] = None
-    current_import_package: str = package  # Initialize with package, never None
+    current_import_package: t.Optional[str] = None
+
+    line: t.Optional[int] = None
 
     ext: list[bytes] = []
     code_iter = iter(enumerate(code.co_code))
-
     try:
         while True:
             offset, opcode = next(code_iter)
@@ -239,20 +240,20 @@ def _extract_lines_and_imports(
                     if code.co_name == "<module>" and len(lines) == 1 and package is not None:
                         import_names[line] = (package, ("",))
 
-            if opcode == EXTENDED_ARG:
+            if opcode is EXTENDED_ARG:
                 ext.append(arg)
                 continue
             else:
                 _previous_previous_arg = previous_arg
                 previous_arg = current_arg
-                current_arg = int.from_bytes(bytes([*ext, arg]), "big", signed=False)
+                current_arg = int.from_bytes([*ext, arg], "big", signed=False)
                 ext.clear()
 
             if opcode == IMPORT_NAME and line is not None:
                 import_depth: int = code.co_consts[_previous_previous_arg]
-                current_import_name = code.co_names[current_arg]
+                current_import_name: str = code.co_names[current_arg]
                 # Adjust package name if the import is relative and a parent (ie: if depth is more than 1)
-                current_import_package = (
+                current_import_package: str = (
                     ".".join(package.split(".")[: -import_depth + 1]) if import_depth > 1 else package
                 )
 
