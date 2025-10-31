@@ -50,7 +50,7 @@ def test_sequential_contexts_with_no_overlap():
         called_in_context_main(3, 4)
         both_contexts_covered = _get_relpath_dict(cwd_path, both_contexts.get_covered_lines())
 
-    # Context 3: Execute only the context code
+    # Context 2: Execute only the context code
     with ModuleCodeCollector.CollectInContext() as context_context:
         called_in_context_main(3, 4)
         context_context_covered = _get_relpath_dict(cwd_path, context_context.get_covered_lines())
