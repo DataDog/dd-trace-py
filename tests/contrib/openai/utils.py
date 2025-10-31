@@ -3,6 +3,7 @@ import os
 import openai
 import vcr
 
+
 mock_openai_completions_response = openai.types.Completion(
     id="chatcmpl-B7PuLoKEQgMd5DQzzN9i4mBJ7OwwO",
     choices=[
@@ -160,13 +161,11 @@ response_tool_function_expected_output_streamed = [
 
 
 def get_mock_response_mcp_tool_call():
-    from openai.types.responses import (
-        Response,
-        ResponseOutputMessage,
-        ResponseOutputText,
-        ResponseReasoningItem,
-        ResponseTextConfig,
-    )
+    from openai.types.responses import Response
+    from openai.types.responses import ResponseOutputMessage
+    from openai.types.responses import ResponseOutputText
+    from openai.types.responses import ResponseReasoningItem
+    from openai.types.responses import ResponseTextConfig
     from openai.types.responses.response_output_item import McpCall
     from openai.types.responses.response_output_item import McpListTools
     from openai.types.responses.response_output_item import McpListToolsTool
@@ -218,7 +217,10 @@ def get_mock_response_mcp_tool_call():
                         },
                         name="dice_roll",
                         annotations={"read_only": False},
-                        description="Roll dice using standard notation. IMPORTANT: For D&D advantage use '2d20kh1' (NOT '2d20')",
+                        description=(
+                            "Roll dice using standard notation. "
+                            "IMPORTANT: For D&D advantage use '2d20kh1' (NOT '2d20')"
+                        ),
                     ),
                 ],
                 type="mcp_list_tools",

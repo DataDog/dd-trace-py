@@ -639,7 +639,8 @@ def openai_get_output_messages_from_response(
     response: Optional[Any], integration: Any = None
 ) -> Tuple[List[Message], List[ToolDefinition]]:
     """
-    Parses the output to openai responses api into a list of output messages and a list of MCP tool definitions returned from the MCP server.
+    Parses the output to openai responses api into a list of output messages and a list of
+    MCP tool definitions returned from the MCP server.
 
     Args:
         response: An OpenAI response object or dictionary containing output messages

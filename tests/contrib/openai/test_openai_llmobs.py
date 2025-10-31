@@ -2209,7 +2209,10 @@ MUL: "*"
             output_messages=[
                 {
                     "role": "reasoning",
-                    "content": '{"summary": [], "encrypted_content": null, "id": "rs_0f873afd7ff4f5b30168ffa1f5d91c81a0890e78a4873fbc1b"}',
+                    "content": (
+                        '{"summary": [], "encrypted_content": null, '
+                        '"id": "rs_0f873afd7ff4f5b30168ffa1f5d91c81a0890e78a4873fbc1b"}'
+                    ),
                 },
                 {
                     "tool_calls": [
@@ -2250,13 +2253,20 @@ MUL: "*"
             tool_definitions=[
                 {
                     "name": "dice_roll",
-                    "description": "Roll dice using standard notation. IMPORTANT: For D&D advantage use '2d20kh1' (NOT '2d20')",
+                    "description": (
+                        "Roll dice using standard notation. "
+                        "IMPORTANT: For D&D advantage use '2d20kh1' (NOT '2d20')"
+                    ),
                     "schema": {
                         "type": "object",
                         "properties": {
                             "notation": {
                                 "type": "string",
-                                "description": 'Dice notation. Examples: "1d20+5" (basic), "2d20kh1" (advantage), "2d20kl1" (disadvantage), "4d6kh3" (stats), "3d6!" (exploding), "4d6r1" (reroll 1s), "5d10>7" (successes)',
+                                "description": (
+                                    'Dice notation. Examples: "1d20+5" (basic), "2d20kh1" (advantage), '
+                                    '"2d20kl1" (disadvantage), "4d6kh3" (stats), "3d6!" (exploding), '
+                                    '"4d6r1" (reroll 1s), "5d10>7" (successes)'
+                                ),
                             },
                             "label": {
                                 "type": "string",
