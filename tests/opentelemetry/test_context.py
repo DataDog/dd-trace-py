@@ -11,6 +11,9 @@ import pytest
 import ddtrace
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.constants import MANUAL_KEEP_KEY
+from ddtrace.internal.opentelemetry.logs import MINIMUM_SUPPORTED_VERSION
+
+from .test_logs import EXPORTER_VERSION
 
 
 @pytest.mark.snapshot(wait_for_num_traces=1)
@@ -204,3 +207,26 @@ def test_otel_baggage_removal_propagation_to_ddtrace(oteltracer):
             assert ddspan.context.get_baggage_item("key4") == "value4"
             assert ddspan.context.get_baggage_item("key1") is None
             assert ddspan.context.get_baggage_item("key2") is None
+
+
+@pytest.mark.skipif(
+    EXPORTER_VERSION < MINIMUM_SUPPORTED_VERSION,
+    reason=f"OpenTelemetry exporter version {MINIMUM_SUPPORTED_VERSION} is required to export logs",
+)
+@pytest.mark.subprocess(
+    env={"DD_TRACE_OTEL_ENABLED": "true", "DD_LOGS_OTEL_ENABLED": "true", "DD_METRICS_OTEL_ENABLED": "true"},
+    ddtrace_run=True,
+    err=None,
+)
+def test_providers_are_set():
+    from opentelemetry._logs import get_logger_provider
+    from opentelemetry.metrics import get_meter_provider
+    from opentelemetry.trace import get_tracer_provider
+
+    tracer_provider = get_tracer_provider()
+    meter_provider = get_meter_provider()
+    logger_provider = get_logger_provider()
+
+    assert tracer_provider.get_tracer(__name__) is not None, "Tracer is not set"
+    assert meter_provider.get_meter(__name__) is not None, "Meter is not set"
+    assert logger_provider.get_logger(__name__) is not None, "Logger is not set"

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    opentelemetry: Fixes an issue where enabling OTLP metrics and logs support would trigger a circular import resulting in neither metrics nor logs being exported.
+    With this fix, opentelemetry metrics, logs and traces are no longer lazily initialized and are configured when ddtrace is loaded.
