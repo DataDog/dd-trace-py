@@ -2254,8 +2254,7 @@ MUL: "*"
                 {
                     "name": "dice_roll",
                     "description": (
-                        "Roll dice using standard notation. "
-                        "IMPORTANT: For D&D advantage use '2d20kh1' (NOT '2d20')"
+                        "Roll dice using standard notation. " "IMPORTANT: For D&D advantage use '2d20kh1' (NOT '2d20')"
                     ),
                     "schema": {
                         "type": "object",
