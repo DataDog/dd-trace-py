@@ -43,6 +43,8 @@ pub mod ffe {
         #[pyo3(get)]
         variant: Option<Str>,
         #[pyo3(get)]
+        allocation_key: Option<Str>,
+        #[pyo3(get)]
         flag_metadata: HashMap<Str, Str>,
         #[pyo3(get)]
         do_log: bool,
@@ -116,16 +118,10 @@ pub mod ffe {
             let context = match context.extract::<EvaluationContext>() {
                 Ok(context) => context,
                 Err(err) => {
-                    return Ok(ResolutionDetails {
-                        value: None,
-                        error_code: Some(ErrorCode::InvalidContext),
-                        error_message: Some(Str::from(err.to_string())),
-                        reason: Some(Reason::Error),
-                        variant: None,
-                        flag_metadata: HashMap::new(),
-                        do_log: false,
-                        extra_logging: None,
-                    })
+                    return Ok(ResolutionDetails::error(
+                        ErrorCode::InvalidContext,
+                        err.to_string(),
+                    ))
                 }
             };
 
@@ -144,7 +140,10 @@ pub mod ffe {
                     error_message: None,
                     reason: Some(assignment.reason.into()),
                     variant: Some(assignment.variation_key),
-                    flag_metadata: HashMap::new(),
+                    allocation_key: Some(assignment.allocation_key.clone()),
+                    flag_metadata: [("allocation_key".into(), assignment.allocation_key)]
+                        .into_iter()
+                        .collect(),
                     do_log: assignment.do_log,
                     extra_logging: Some(assignment.extra_logging),
                 },
@@ -173,6 +172,7 @@ pub mod ffe {
                 error_message: None,
                 reason: Some(reason.into()),
                 variant: None,
+                allocation_key: None,
                 flag_metadata: HashMap::new(),
                 do_log: false,
                 extra_logging: None,
@@ -186,6 +186,7 @@ pub mod ffe {
                 error_message: Some(message.into()),
                 reason: Some(Reason::Error),
                 variant: None,
+                allocation_key: None,
                 flag_metadata: HashMap::new(),
                 do_log: false,
                 extra_logging: None,

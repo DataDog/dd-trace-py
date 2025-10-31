@@ -138,8 +138,8 @@ def get_assignment(
     # Convert native ResolutionDetails to Assignment
     return Assignment(
         value=AssignmentValue(variation_type=expected_type, value=details.value),
-        variation_key=details.variant or "default",
-        allocation_key=details.variant or "default",
+        variation_key=details.variant or "",
+        allocation_key=details.allocation_key or "",
         reason=details.reason,  # Pass native ffe.Reason directly
         do_log=details.do_log,
         extra_logging=details.extra_logging or {},
