@@ -125,112 +125,42 @@ def test_nested_imports_interleaved_execution():
         fixture_dynamic_path(7)
         context4_covered = _get_relpath_dict(cwd_path, context4.get_covered_lines())
 
-    # Expected files for each path
-    expected_toplevel_files = {
-        "tests/coverage/included_path/nested_fixture.py",
-        "tests/coverage/included_path/layer2_toplevel.py",
-        "tests/coverage/included_path/layer3_toplevel.py",
-        "tests/coverage/included_path/layer3_dynamic.py",
+    # Define expected coverage with line numbers (works for both file-level and line-level modes)
+    # Context 1: First toplevel execution (includes import-time lines for layer3_dynamic)
+    expected_context1 = {
+        "tests/coverage/included_path/nested_fixture.py": {16, 17},
+        "tests/coverage/included_path/layer2_toplevel.py": {10, 13, 15, 16},
+        "tests/coverage/included_path/layer3_toplevel.py": {5, 6},
+        "tests/coverage/included_path/layer3_dynamic.py": {1, 4, 5, 6},  # import-time + runtime
     }
 
-    # Context 2 includes constants_dynamic (first dynamic path execution)
-    expected_dynamic_files_context2 = {
-        "tests/coverage/included_path/nested_fixture.py",
-        "tests/coverage/included_path/layer2_dynamic.py",
-        "tests/coverage/included_path/layer3_toplevel.py",
-        "tests/coverage/included_path/layer3_dynamic.py",
-        "tests/coverage/included_path/constants_dynamic.py",
-    }
-    
-    # Context 4 doesn't re-execute constants_dynamic
-    expected_dynamic_files_context4 = {
-        "tests/coverage/included_path/nested_fixture.py",
-        "tests/coverage/included_path/layer2_dynamic.py",
-        "tests/coverage/included_path/layer3_toplevel.py",
-        "tests/coverage/included_path/layer3_dynamic.py",
+    # Context 2: First dynamic execution (includes import-time lines for layer2_dynamic and constants_dynamic)
+    expected_context2 = {
+        "tests/coverage/included_path/nested_fixture.py": {23, 25, 26},
+        "tests/coverage/included_path/layer2_dynamic.py": {1, 4, 7, 9, 12, 13, 15, 16},  # import-time + runtime
+        "tests/coverage/included_path/layer3_toplevel.py": {5, 6},
+        "tests/coverage/included_path/layer3_dynamic.py": {5, 6},
+        "tests/coverage/included_path/constants_dynamic.py": {1, 4, 5},  # module-level constants
     }
 
-    if file_level_mode:
-        # In file-level mode, use utility to verify files are present
-        assert_coverage_matches(context1_covered, expected_toplevel_files, file_level_mode, "Context 1")
-        assert_coverage_matches(context3_covered, expected_toplevel_files, file_level_mode, "Context 3")
-        assert_coverage_matches(context2_covered, expected_dynamic_files_context2, file_level_mode, "Context 2")
-        assert_coverage_matches(context4_covered, expected_dynamic_files_context4, file_level_mode, "Context 4")
-    else:
-        # In line-level mode, check specific lines
-        # Expected coverage for contexts 1 and 3 (both use toplevel path)
-        expected_toplevel_runtime = {
-            "tests/coverage/included_path/nested_fixture.py": {16, 17},
-            "tests/coverage/included_path/layer2_toplevel.py": {10, 13, 15, 16},
-            "tests/coverage/included_path/layer3_toplevel.py": {5, 6},
-            "tests/coverage/included_path/layer3_dynamic.py": {5, 6},
-        }
+    # Context 3: Second toplevel execution (runtime only - re-instrumentation test)
+    expected_context3 = {
+        "tests/coverage/included_path/nested_fixture.py": {16, 17},
+        "tests/coverage/included_path/layer2_toplevel.py": {10, 13, 15, 16},
+        "tests/coverage/included_path/layer3_toplevel.py": {5, 6},
+        "tests/coverage/included_path/layer3_dynamic.py": {5, 6},
+    }
 
-        # Expected coverage for context 4 (no constants_dynamic - not re-executed)
-        expected_dynamic_runtime_context4 = {
-            "tests/coverage/included_path/nested_fixture.py": {23, 25, 26},
-            "tests/coverage/included_path/layer2_dynamic.py": {9, 12, 13, 15, 16},
-            "tests/coverage/included_path/layer3_toplevel.py": {5, 6},
-            "tests/coverage/included_path/layer3_dynamic.py": {5, 6},
-        }
+    # Context 4: Second dynamic execution (runtime only, no constants_dynamic - re-instrumentation test)
+    expected_context4 = {
+        "tests/coverage/included_path/nested_fixture.py": {23, 25, 26},
+        "tests/coverage/included_path/layer2_dynamic.py": {9, 12, 13, 15, 16},
+        "tests/coverage/included_path/layer3_toplevel.py": {5, 6},
+        "tests/coverage/included_path/layer3_dynamic.py": {5, 6},
+    }
 
-        # CRITICAL: Context 3 should have exact runtime coverage (re-instrumentation test)
-        assert_coverage_matches(context3_covered, expected_toplevel_runtime, file_level_mode, "Context 3")
-        
-        # CRITICAL: Context 4 should have exact runtime coverage (re-instrumentation test)
-        assert_coverage_matches(context4_covered, expected_dynamic_runtime_context4, file_level_mode, "Context 4")
-
-        # Check context 1 (may have import-time lines)
-        for file_path, expected_lines in expected_toplevel_runtime.items():
-            assert file_path in context1_covered, f"Context 1 missing {file_path}"
-
-            # Context 1 may have import-time lines for dynamically imported modules
-            if file_path == "tests/coverage/included_path/layer3_dynamic.py":
-                # Context 1 captures import-time + runtime for layer3_dynamic (dynamically imported)
-                expected_context1 = expected_lines | {1, 4}  # docstring + function def
-                assert context1_covered[file_path] == expected_context1, (
-                    f"{file_path}: Context 1 mismatch\n"
-                    f"  Expected: {sorted(expected_context1)}\n"
-                    f"  Got: {sorted(context1_covered[file_path])}"
-                )
-            elif file_path == "tests/coverage/included_path/layer2_toplevel.py":
-                # layer2_toplevel is imported at fixture top-level, so it's imported before Context 1
-                # Therefore, Context 1 won't have its import-time lines
-                assert context1_covered[file_path] == expected_lines, (
-                    f"{file_path}: Context 1 mismatch\n"
-                    f"  Expected: {sorted(expected_lines)}\n"
-                    f"  Got: {sorted(context1_covered[file_path])}"
-                )
-            else:
-                assert context1_covered[file_path] == expected_lines, (
-                    f"{file_path}: Context 1 mismatch\n"
-                    f"  Expected: {sorted(expected_lines)}\n"
-                    f"  Got: {sorted(context1_covered[file_path])}"
-                )
-
-        # Check context 2 (may have import-time lines, first dynamic path execution)
-        for file_path, expected_lines in expected_dynamic_runtime_context4.items():
-            assert file_path in context2_covered, f"Context 2 missing {file_path}"
-
-            # Context 2 is first to use dynamic path, may have import-time lines
-            # Note: layer3_dynamic was already imported in Context 1, so Context 2 won't have its import-time
-            if file_path == "tests/coverage/included_path/layer2_dynamic.py":
-                # Context 2 captures import-time for layer2_dynamic (first time it's imported)
-                expected_context2 = expected_lines | {1, 4, 7}  # docstring + import + function def
-                assert context2_covered[file_path] == expected_context2, (
-                    f"{file_path}: Context 2 mismatch\n"
-                    f"  Expected: {sorted(expected_context2)}\n"
-                    f"  Got: {sorted(context2_covered[file_path])}"
-                )
-            else:
-                assert context2_covered[file_path] == expected_lines, (
-                    f"{file_path}: Context 2 mismatch\n"
-                    f"  Expected: {sorted(expected_lines)}\n"
-                    f"  Got: {sorted(context2_covered[file_path])}"
-                )
-        
-        # Context 2 also has constants_dynamic (first time it's imported)
-        assert "tests/coverage/included_path/constants_dynamic.py" in context2_covered
-        assert context2_covered["tests/coverage/included_path/constants_dynamic.py"] == {1, 4, 5}, (
-            "Context 2 constants_dynamic.py mismatch"
-        )
+    # Use same dicts for both modes - utility function extracts what it needs
+    assert_coverage_matches(context1_covered, expected_context1, file_level_mode, "Context 1")
+    assert_coverage_matches(context2_covered, expected_context2, file_level_mode, "Context 2")
+    assert_coverage_matches(context3_covered, expected_context3, file_level_mode, "Context 3")
+    assert_coverage_matches(context4_covered, expected_context4, file_level_mode, "Context 4")
