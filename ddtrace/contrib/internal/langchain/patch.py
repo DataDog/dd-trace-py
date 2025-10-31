@@ -693,3 +693,5 @@ def unpatch():
     unwrap(langchain_core.prompts.base.BasePromptTemplate, "ainvoke")
     unwrap(langchain_core.embeddings.Embeddings, "__init_subclass__")
     unwrap(langchain_core.vectorstores.VectorStore, "__init_subclass__")
+
+    core.dispatch("langchain.unpatch", tuple())

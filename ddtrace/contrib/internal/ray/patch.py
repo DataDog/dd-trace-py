@@ -153,10 +153,11 @@ def traced_submit_task(wrapped, instance, args, kwargs):
     # This is done under a lock as multiple task could be submit at the same time
     # and thus try to modify the signature as the same time
     with instance._inject_lock:
-        if instance._function_signature is None:
+        if not getattr(instance._function, "_dd_trace_wrapped", False):
             instance._function = _wrap_remote_function_execution(instance._function)
             instance._function.__signature__ = _inject_dd_trace_ctx_kwarg(instance._function)
             instance._function_signature = extract_signature(instance._function)
+            instance._function._dd_trace_wrapped = True
 
     with tracer.trace(
         "task.submit",
@@ -171,7 +172,11 @@ def traced_submit_task(wrapped, instance, args, kwargs):
             if config.ray.trace_args_kwargs:
                 set_tag_or_truncate(span, RAY_TASK_ARGS, kwargs.get("args", {}))
                 set_tag_or_truncate(span, RAY_TASK_KWARGS, kwargs.get("kwargs", {}))
-            _inject_context_in_kwargs(span.context, kwargs)
+
+            # Check if signature has the trace context parameter
+            has_trace_ctx = DD_RAY_TRACE_CTX in inspect.signature(instance._function).parameters
+            if has_trace_ctx:
+                _inject_context_in_kwargs(span.context, kwargs)
 
             resp = wrapped(*args, **kwargs)
 
