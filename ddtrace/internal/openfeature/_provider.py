@@ -171,7 +171,7 @@ class DataDogProvider(AbstractProvider):
             result = get_assignment(
                 config,
                 flag_key=flag_key,
-                subject=evaluation_context,
+                context=evaluation_context,
                 expected_type=variation_type,
                 now=datetime.datetime.now(),
             )
@@ -197,7 +197,7 @@ class DataDogProvider(AbstractProvider):
             self._report_exposure(
                 flag_key=flag_key,
                 variant_key=result.variation_key,
-                allocation_key=result.variation_key,
+                allocation_key=result.allocation_key,
                 evaluation_context=evaluation_context,
             )
 
@@ -209,19 +209,25 @@ class DataDogProvider(AbstractProvider):
             )
 
         except EvaluationError as e:
+            # Map native error code to OpenFeature error code
+            if e.error_code is not None:
+                openfeature_error_code = self._map_error_code_to_openfeature(e.error_code)
+            else:
+                openfeature_error_code = ErrorCode.GENERAL
+
             # Type mismatch error
             if e.kind == "TYPE_MISMATCH":
                 return FlagResolutionDetails(
                     value=default_value,
                     reason=Reason.ERROR,
-                    error_code=ErrorCode.TYPE_MISMATCH,
+                    error_code=openfeature_error_code,
                     error_message=f"Expected {e.expected}, but flag is {e.found}",
                 )
             # Other evaluation errors
             return FlagResolutionDetails(
                 value=default_value,
                 reason=Reason.ERROR,
-                error_code=ErrorCode.GENERAL,
+                error_code=openfeature_error_code,
                 error_message=str(e),
             )
         except Exception as e:
@@ -287,3 +293,22 @@ class DataDogProvider(AbstractProvider):
             return Reason.STALE
         else:
             return Reason.UNKNOWN
+
+    def _map_error_code_to_openfeature(self, native_error_code) -> ErrorCode:
+        """Map native ffe.ErrorCode to OpenFeature ErrorCode."""
+        if native_error_code == ffe.ErrorCode.TypeMismatch:
+            return ErrorCode.TYPE_MISMATCH
+        elif native_error_code == ffe.ErrorCode.ParseError:
+            return ErrorCode.PARSE_ERROR
+        elif native_error_code == ffe.ErrorCode.FlagNotFound:
+            return ErrorCode.FLAG_NOT_FOUND
+        elif native_error_code == ffe.ErrorCode.TargetingKeyMissing:
+            return ErrorCode.TARGETING_KEY_MISSING
+        elif native_error_code == ffe.ErrorCode.InvalidContext:
+            return ErrorCode.INVALID_CONTEXT
+        elif native_error_code == ffe.ErrorCode.ProviderNotReady:
+            return ErrorCode.PROVIDER_NOT_READY
+        elif native_error_code == ffe.ErrorCode.General:
+            return ErrorCode.GENERAL
+        else:
+            return ErrorCode.GENERAL

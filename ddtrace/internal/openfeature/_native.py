@@ -44,11 +44,19 @@ class Assignment:
 class EvaluationError(Exception):
     """Error raised during flag evaluation."""
 
-    def __init__(self, kind: str, *, expected: Optional[VariationType] = None, found: Optional[VariationType] = None):
+    def __init__(
+        self,
+        kind: str,
+        *,
+        expected: Optional[VariationType] = None,
+        found: Optional[VariationType] = None,
+        error_code: ffe.ErrorCode = None,
+    ):
         super().__init__(kind)
         self.kind = kind
         self.expected = expected
         self.found = found
+        self.error_code = error_code
 
 
 def process_ffe_configuration(config):
@@ -73,13 +81,12 @@ def process_ffe_configuration(config):
             e,
             exc_info=True,
         )
-        raise
 
 
 def get_assignment(
     configuration,
     flag_key: str,
-    subject: Any,
+    context: Any,
     expected_type: VariationType,
     now: Any,
 ) -> Optional[Assignment]:
@@ -89,7 +96,7 @@ def get_assignment(
     Args:
         configuration: Native ffe.Configuration object
         flag_key: The flag key to evaluate
-        subject: The evaluation context
+        context: The evaluation context
         expected_type: Expected variation type
         now: Current datetime (ignored, native uses system time)
 
@@ -102,25 +109,19 @@ def get_assignment(
     if configuration is None:
         return None
 
-    # Convert evaluation context to dict
-    context_dict = {}
-    if subject is not None:
-        if hasattr(subject, "targeting_key"):
-            context_dict["targetingKey"] = subject.targeting_key
-        if hasattr(subject, "attributes") and subject.attributes:
-            context_dict.update(subject.attributes)
-
-    # Direct native call: config.resolve_value(flag_key, FlagType, context_dict)
-    details = configuration.resolve_value(flag_key, expected_type, context_dict)
+    details = configuration.resolve_value(flag_key, expected_type, context)
 
     # Handle errors from native
     if details.error_code is not None:
-        if details.error_code == ffe.ErrorCode.TypeMismatch:
-            raise EvaluationError("TYPE_MISMATCH", expected=expected_type, found=expected_type)
-        elif details.error_code == ffe.ErrorCode.FlagNotFound:
+        if details.error_code == ffe.ErrorCode.FlagNotFound:
             return None
         else:
-            raise EvaluationError(details.error_message or "Unknown error")
+            raise EvaluationError(
+                details.error_message or "Unknown error",
+                expected=expected_type,
+                found=expected_type,
+                error_code=details.error_code,
+            )
 
     # Return None if no value
     if details.value is None:
