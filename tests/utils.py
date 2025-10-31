@@ -166,6 +166,7 @@ def override_global_config(values):
         "_telemetry_dependency_collection",
         "_dd_site",
         "_dd_api_key",
+        "_dd_app_key",
         "_llmobs_enabled",
         "_llmobs_sample_rate",
         "_llmobs_ml_app",

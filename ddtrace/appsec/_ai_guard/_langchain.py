@@ -1,15 +1,15 @@
 import json
 from typing import Any
-from typing import Dict
 from typing import List
-from typing import Optional
 from typing import Sequence
+import uuid
 
 from ddtrace.appsec.ai_guard import AIGuardAbortError
 from ddtrace.appsec.ai_guard import AIGuardClient
-from ddtrace.appsec.ai_guard import Prompt
+from ddtrace.appsec.ai_guard import Function
+from ddtrace.appsec.ai_guard import Message
+from ddtrace.appsec.ai_guard import Options
 from ddtrace.appsec.ai_guard import ToolCall
-from ddtrace.appsec.ai_guard._api_client import Evaluation
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 import ddtrace.internal.logger as ddlogger
@@ -61,12 +61,12 @@ def _langchain_unpatch():
 
 def _langchain_agent_plan(client: AIGuardClient, func, instance, args, kwargs):
     action = func(*args, **kwargs)
-    return _handle_agent_action_result(client, action, kwargs)
+    return _handle_agent_action_result(client, action, args, kwargs)
 
 
 async def _langchain_agent_aplan(client: AIGuardClient, func, instance, args, kwargs):
     action = await func(*args, **kwargs)
-    return _handle_agent_action_result(client, action, kwargs)
+    return _handle_agent_action_result(client, action, args, kwargs)
 
 
 def _try_parse_json(value: dict, attribute: str) -> Any:
@@ -77,6 +77,15 @@ def _try_parse_json(value: dict, attribute: str) -> Any:
         return json.loads(json_str)
     except Exception:
         return {attribute: json_str}
+
+
+def _try_format_json(value: Any) -> str:
+    if not value:
+        return ""
+    try:
+        return json.dumps(value)
+    except Exception:
+        return str(value)
 
 
 def _get_message_text(msg: Any) -> str:
@@ -91,7 +100,7 @@ def _get_message_text(msg: Any) -> str:
     return "".join(block if isinstance(block, str) else block["text"] for block in blocks)
 
 
-def _convert_messages(messages: list[Any]) -> list[Evaluation]:
+def _convert_messages(messages: list[Any]) -> list[Message]:
     from langchain_core.messages import ChatMessage
     from langchain_core.messages import HumanMessage
     from langchain_core.messages import SystemMessage
@@ -99,63 +108,94 @@ def _convert_messages(messages: list[Any]) -> list[Evaluation]:
     from langchain_core.messages.function import FunctionMessage
     from langchain_core.messages.tool import ToolMessage
 
-    result: List[Evaluation] = []
-    tool_calls: Dict[str, ToolCall] = dict()
-    function_call: Optional[ToolCall] = None
+    result: List[Message] = []
     for message in messages:
         try:
             if isinstance(message, HumanMessage):
-                result.append(Prompt(role="user", content=_get_message_text(message)))
+                result.append(Message(role="user", content=_get_message_text(message)))
             elif isinstance(message, SystemMessage):
-                result.append(Prompt(role="system", content=_get_message_text(message)))
+                result.append(Message(role="system", content=_get_message_text(message)))
             elif isinstance(message, ChatMessage):
-                result.append(Prompt(role=message.role, content=_get_message_text(message)))
+                result.append(Message(role=message.role, content=_get_message_text(message)))
             elif isinstance(message, AIMessage):
-                for call in message.tool_calls:
-                    tool_call = ToolCall(tool_name=call["name"], tool_args=call["args"])
-                    result.append(tool_call)
-                    if call["id"]:
-                        tool_calls[call["id"]] = tool_call
+                if len(message.tool_calls) > 0:
+                    tool_calls = [
+                        ToolCall(
+                            id=call.get("id", ""),
+                            function=Function(
+                                name=call.get("name", ""), arguments=_try_format_json(call.get("args", {}))
+                            ),
+                        )
+                        for call in message.tool_calls
+                    ]
+                    result.append(Message(role="assistant", tool_calls=tool_calls))
                 if "function_call" in message.additional_kwargs:
-                    call = message.additional_kwargs["function_call"]
-                    function_call = ToolCall(tool_name=call.get("name"), tool_args=_try_parse_json(call, "arguments"))
-                    result.append(function_call)
+                    function_call = message.additional_kwargs["function_call"]
+                    tool_call = ToolCall(
+                        id="",
+                        function=Function(name=function_call.get("name"), arguments=function_call.get("arguments")),
+                    )
+                    result.append(Message(role="assistant", tool_calls=[tool_call]))
                 if message.content:
-                    result.append(Prompt(role="assistant", content=_get_message_text(message)))
+                    result.append(Message(role="assistant", content=_get_message_text(message)))
             elif isinstance(message, ToolMessage):
-                current_call = tool_calls.get(message.tool_call_id)
-                if current_call:
-                    current_call["output"] = _get_message_text(message)
+                result.append(
+                    Message(role="tool", tool_call_id=message.tool_call_id, content=_get_message_text(message))
+                )
             elif isinstance(message, FunctionMessage):
-                if function_call and function_call["tool_name"] == message.name:
-                    function_call["output"] = _get_message_text(message)
-                    function_call = None
+                result.append(Message(role="tool", tool_call_id="", content=_get_message_text(message)))
         except Exception:
             logger.debug("Failed to convert message", exc_info=True)
 
     return result
 
 
-def _handle_agent_action_result(client: AIGuardClient, result, kwargs):
+def _handle_agent_action_result(client: AIGuardClient, result, args, kwargs):
     try:
         from langchain_core.agents import AgentAction
-        from langchain_core.agents import AgentFinish
+        from langchain_core.agents import AgentActionMessageLog
     except ImportError:
         from langchain.agents import AgentAction
-        from langchain.agents import AgentFinish
+        from langchain.agents import AgentActionMessageLog
 
     for action in result if isinstance(result, Sequence) else [result]:
         if isinstance(action, AgentAction) and action.tool:
             try:
-                history = _convert_messages(kwargs["chat_history"]) if "chat_history" in kwargs else []
-                if "input" in kwargs:
+                chat_history = kwargs["chat_history"] if "chat_history" in kwargs else []
+                messages = _convert_messages(chat_history)
+                prompt = kwargs["input"] if "input" in kwargs else None
+                if prompt:
                     # TODO we are assuming user prompt
-                    history.append(Prompt(role="user", content=kwargs["input"]))
-                tool_name = action.tool
-                tool_input = action.tool_input
-                if not client.evaluate_tool(tool_name, tool_input, history=history):
-                    blocked_message = f"Tool call '{tool_name}' was blocked due to security policies."
-                    return AgentFinish(return_values={"output": blocked_message}, log=blocked_message)
+                    messages.append(Message(role="user", content=prompt))
+                intermediate_steps = get_argument_value(args, kwargs, 0, "intermediate_steps")
+                if intermediate_steps:
+                    for intermediate_step, output in intermediate_steps:
+                        if isinstance(intermediate_step, AgentActionMessageLog):
+                            tool_call_id = str(uuid.uuid4())
+                            tool_call = ToolCall(
+                                id=tool_call_id,
+                                function=Function(
+                                    name=intermediate_step.tool,
+                                    arguments=_try_format_json(intermediate_step.tool_input),
+                                ),
+                            )
+                            messages.append(Message(role="assistant", tool_calls=[tool_call]))
+
+                            tool_output = str(output) if output else ""
+                            if tool_output:
+                                messages.append(Message(role="tool", tool_call_id=tool_call_id, content=tool_output))
+                messages.append(
+                    Message(
+                        role="assistant",
+                        tool_calls=[
+                            ToolCall(
+                                id="",
+                                function=Function(name=action.tool, arguments=_try_format_json(action.tool_input)),
+                            )
+                        ],
+                    )
+                )
+                client.evaluate(messages, Options(block=True))
             except AIGuardAbortError:
                 raise
             except Exception:
@@ -173,8 +213,10 @@ def _langchain_chatmodel_generate_before(client: AIGuardClient, message_lists):
 
 
 def _langchain_llm_generate_before(client: AIGuardClient, prompts):
+    from langchain_core.messages import HumanMessage
+
     for prompt in prompts:
-        result = _evaluate_langchain_prompt(client, prompt)
+        result = _evaluate_langchain_messages(client, [HumanMessage(content=prompt)])
         if result:
             return result
     return None
@@ -187,9 +229,11 @@ def _langchain_chatmodel_stream_before(client: AIGuardClient, instance, args, kw
 
 
 def _langchain_llm_stream_before(client: AIGuardClient, instance, args, kwargs):
+    from langchain_core.messages import HumanMessage
+
     input_arg = get_argument_value(args, kwargs, 0, "input")
     prompt = instance._convert_input(input_arg).to_string()
-    return _evaluate_langchain_prompt(client, prompt)
+    return _evaluate_langchain_messages(client, [HumanMessage(content=prompt)])
 
 
 def _evaluate_langchain_messages(client: AIGuardClient, messages):
@@ -197,25 +241,10 @@ def _evaluate_langchain_messages(client: AIGuardClient, messages):
 
     # only call evaluator when the last message is an actual user prompt
     if len(messages) > 0 and isinstance(messages[-1], HumanMessage):
-        history = _convert_messages(messages)
-        prompt = history.pop(-1)
         try:
-            role, content = (prompt["role"], prompt["content"])  # type: ignore[typeddict-item]
-            if not client.evaluate_prompt(role, content, history=history):
-                return AIGuardAbortError()
+            client.evaluate(_convert_messages(messages), Options(block=True))
         except AIGuardAbortError as e:
             return e
         except Exception:
             logger.debug("Failed to evaluate chat model prompt", exc_info=True)
-    return None
-
-
-def _evaluate_langchain_prompt(client: AIGuardClient, prompt):
-    try:
-        if not client.evaluate_prompt("user", prompt):
-            return AIGuardAbortError()
-    except AIGuardAbortError as e:
-        return e
-    except Exception:
-        logger.debug("Failed to evaluate llm prompt", exc_info=True)
     return None
