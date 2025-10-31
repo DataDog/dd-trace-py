@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    opentelemetry: Adds default configurations for the OpenTelemetry Metrics API implementation to improve the Datadog user experience.
+    This includes the following configurations:
+    - ``OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`` is set to the default Datadog Agent endpoint, or localhost if not found
+    - ``OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE`` is set to ``delta``
+    - ``OTEL_METRIC_EXPORT_INTERVAL`` is set to ``10000``
+    - ``OTEL_METRIC_EXPORT_TIMEOUT`` is set to ``7500``

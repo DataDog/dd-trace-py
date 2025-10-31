@@ -11,8 +11,8 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Mapping  # noqa:F401
     from typing import Optional  # noqa:F401
 
+    from ddtrace._trace.pin import Pin  # noqa:F401
     from ddtrace.settings._config import Config  # noqa:F401
-    from ddtrace.trace import Pin  # noqa:F401
     from ddtrace.trace import Span  # noqa:F401
     from ddtrace.trace import Tracer  # noqa:F401
 
@@ -118,7 +118,9 @@ class _DDWSGIMiddlewareBase(object):
             ctx.set_item("wsgi.construct_url", construct_url)
 
             def blocked_view():
-                result = core.dispatch_with_results("wsgi.block.started", (ctx, construct_url)).status_headers_content
+                result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
+                    "wsgi.block.started", (ctx, construct_url)
+                ).status_headers_content
                 if result:
                     status, headers, content = result.value
                 else:
@@ -137,7 +139,7 @@ class _DDWSGIMiddlewareBase(object):
             if not_blocked:
                 core.dispatch("wsgi.request.prepare", (ctx, start_response))
                 try:
-                    closing_iterable = self.app(environ, ctx.get_item("intercept_start_response"))
+                    closing_iterable = self.app(environ, ctx.find_item("intercept_start_response"))
                 except BlockingException as e:
                     set_blocked(e.args[0])
                     content, status, headers = blocked_view()
@@ -160,13 +162,13 @@ class _DDWSGIMiddlewareBase(object):
                     raise
                 else:
                     if get_blocked():
-                        _, _, content = core.dispatch_with_results(
+                        _, _, content = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
                             "wsgi.block.started", (ctx, construct_url)
                         ).status_headers_content.value or (None, None, "")
                         closing_iterable = [content]
                     core.dispatch("wsgi.app.success", (ctx, closing_iterable))
 
-            result = core.dispatch_with_results(
+            result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
                 "wsgi.request.complete", (ctx, closing_iterable, self.app_is_iterator)
             ).traced_iterable
 

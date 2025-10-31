@@ -278,7 +278,7 @@ def cached_test_recipe(expensive, cheap, witness, cache_size):
     witness.assert_called_with("Foo")
     assert witness.call_count == 1
 
-    cheap.invalidate()
+    cheap.cache_clear()
 
     for i in range(cache_size >> 1):
         cheap("Foo%d" % i)
@@ -289,17 +289,6 @@ def cached_test_recipe(expensive, cheap, witness, cache_size):
         cheap("Foo%d" % i)
 
     assert witness.call_count == 1 + cache_size
-
-    MAX_FOO = "Foo%d" % (cache_size - 1)
-
-    cheap("last drop")  # Forces least frequent elements out of the cache
-    assert witness.call_count == 2 + cache_size
-
-    cheap(MAX_FOO)  # Check MAX_FOO was dropped
-    assert witness.call_count == 3 + cache_size
-
-    cheap("last drop")  # Check last drop was retained
-    assert witness.call_count == 3 + cache_size
 
 
 def test_cached():

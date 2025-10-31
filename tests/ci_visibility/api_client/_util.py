@@ -176,7 +176,7 @@ class TestTestVisibilityAPIClientBase:
         self,
         itr_skipping_level: ITR_SKIPPING_LEVEL = ITR_SKIPPING_LEVEL.TEST,
         requests_mode: REQUESTS_MODE = _AGENTLESS,
-        git_data: GitData = None,
+        git_data: t.Optional[GitData] = None,
         api_key: t.Optional[str] = "my_api_key",
         dd_site: t.Optional[str] = None,
         agentless_url: t.Optional[str] = None,
@@ -215,7 +215,7 @@ class TestTestVisibilityAPIClientBase:
     def _get_expected_do_request_setting_payload(
         self,
         itr_skipping_level: ITR_SKIPPING_LEVEL = ITR_SKIPPING_LEVEL.TEST,
-        git_data: GitData = None,
+        git_data: t.Optional[GitData] = None,
         dd_service: t.Optional[str] = None,
         dd_env: t.Optional[str] = None,
     ):
@@ -246,7 +246,7 @@ class TestTestVisibilityAPIClientBase:
     def _get_expected_do_request_skippable_payload(
         self,
         itr_skipping_level: ITR_SKIPPING_LEVEL = ITR_SKIPPING_LEVEL.TEST,
-        git_data: GitData = None,
+        git_data: t.Optional[GitData] = None,
         dd_service: t.Optional[str] = None,
         dd_env: t.Optional[str] = None,
     ):
@@ -275,7 +275,7 @@ class TestTestVisibilityAPIClientBase:
 
     def _get_expected_do_request_tests_payload(
         self,
-        repository_url: str = None,
+        repository_url: t.Optional[str] = None,
         dd_service: t.Optional[str] = None,
         dd_env: t.Optional[str] = None,
     ):

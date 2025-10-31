@@ -22,7 +22,7 @@ from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.snapshot import Snapshot
-from ddtrace.debugging._uploader import LogsIntakeUploaderV1
+from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
 
 
@@ -157,7 +157,7 @@ class ExplorationSignalCollector(SignalCollector):
         return self._probes or [None]
 
 
-class NoopLogsIntakeUploader(LogsIntakeUploaderV1):
+class NoopSignalUploader(SignalUploader):
     __collector__ = ExplorationSignalCollector
     _count = 0
 
@@ -184,7 +184,7 @@ class LightProbeRegistry(_debugger.ProbeRegistry):
 
 class ExplorationDebugger(Debugger):
     __rc__ = NoopDebuggerRC
-    __uploader__ = NoopLogsIntakeUploader
+    __uploader__ = NoopSignalUploader
     __watchdog__ = ModuleCollector
     __logger__ = NoopProbeStatusLogger
 

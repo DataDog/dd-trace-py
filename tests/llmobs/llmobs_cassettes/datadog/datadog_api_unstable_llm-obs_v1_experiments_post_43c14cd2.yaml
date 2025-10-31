@@ -1,0 +1,47 @@
+interactions:
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"name": "test_experiment",
+      "description": "", "dataset_id": "0969efc9-f104-45cc-b955-25b329e91293", "project_id":
+      "f0a6723e-a7e8-4efd-a94a-b892b7b6fbf9", "dataset_version": 1, "config": {"models":
+      ["gpt-4.1"]}, "metadata": {"tags": []}, "ensure_unique": true}}}'
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '309'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.3
+    method: POST
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/experiments
+  response:
+    body:
+      string: '{"data":{"id":"f962eb96-d87e-4597-8592-743d65d9b479","type":"experiments","attributes":{"author":{"id":"de473b30-eb9f-11e9-a77a-c7405862b8bd"},"config":{"models":["gpt-4.1"]},"created_at":"2025-09-09T04:34:51.113245891Z","dataset_id":"0969efc9-f104-45cc-b955-25b329e91293","dataset_version":1,"description":"","experiment":"test_experiment","metadata":{"tags":[]},"name":"test_experiment-1757392491113","project_id":"f0a6723e-a7e8-4efd-a94a-b892b7b6fbf9","updated_at":"2025-09-09T04:34:51.113245973Z"}}}'
+    headers:
+      content-length:
+      - '503'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Tue, 09 Sep 2025 04:34:51 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

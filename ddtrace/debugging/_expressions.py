@@ -39,6 +39,7 @@ from typing import Optional
 from typing import Tuple
 from typing import Union
 
+from bytecode import BinaryOp
 from bytecode import Bytecode
 from bytecode import Compare
 from bytecode import Instr
@@ -99,6 +100,9 @@ def get_local(_locals: Mapping[str, Any], name: str) -> Any:
 
 
 class DDCompiler:
+    def __init__(self):
+        self._lambda_level = 0
+
     @classmethod
     def __getmember__(cls, o, a):
         return object.__getattribute__(o, a)
@@ -128,7 +132,12 @@ class DDCompiler:
         return FunctionType(abstract_code.to_code(), {}, name, (), None)
 
     def _make_lambda(self, ast: DDASTType) -> Callable[[Any, Any], Any]:
-        return self._make_function(ast, ("_dd_it", "_dd_key", "_dd_value", "_locals"), "<lambda>")
+        self._lambda_level += 1
+        try:
+            return self._make_function(ast, ("_dd_it", "_dd_key", "_dd_value", "_locals"), "<lambda>")
+        finally:
+            assert self._lambda_level > 0  # nosec
+            self._lambda_level -= 1
 
     def _compile_direct_predicate(self, ast: DDASTType) -> Optional[List[Instr]]:
         # direct_predicate       =>  {"<direct_predicate_type>": <predicate>}
@@ -248,6 +257,9 @@ class DDCompiler:
                 return None
 
             if arg in {"@it", "@key", "@value"}:
+                if self._lambda_level <= 0:
+                    msg = f"Invalid use of {arg} outside of lambda"
+                    raise ValueError(msg)
                 return [Instr("LOAD_FAST", f"_dd_{arg[1:]}")]
 
             return self._call_function(
@@ -290,7 +302,12 @@ class DDCompiler:
                 raise ValueError("Invalid argument: %r" % a)
             if cb is None:
                 raise ValueError("Invalid argument: %r" % b)
-            return cv + ca + cb + [Instr("BUILD_SLICE", 2), Instr("BINARY_SUBSCR")]
+
+            if PY >= (3, 14):
+                subscr_instruction = Instr("BINARY_OP", BinaryOp.SUBSCR)
+            else:
+                subscr_instruction = Instr("BINARY_SUBSCR")
+            return cv + ca + cb + [Instr("BUILD_SLICE", 2), subscr_instruction]
 
         if _type == "filter":
             a, b = args

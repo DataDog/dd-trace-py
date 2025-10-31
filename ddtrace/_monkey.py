@@ -1,13 +1,13 @@
 import importlib
 import os
-import threading
 from types import ModuleType
 from typing import TYPE_CHECKING  # noqa:F401
+from typing import Set
 from typing import Union
 
 from wrapt.importer import when_imported
 
-from ddtrace.appsec._listeners import load_common_appsec_modules
+from ddtrace.internal.compat import Path
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.settings._config import config
 from ddtrace.vendor.debtcollector import deprecate
@@ -48,6 +48,7 @@ PATCH_MODULES = {
     "algoliasearch": True,
     "futures": True,
     "freezegun": False,  # deprecated, to be removed in ddtrace 4.x
+    "google_adk": True,
     "google_generativeai": True,
     "google_genai": True,
     "gevent": True,
@@ -103,6 +104,7 @@ PATCH_MODULES = {
     "yaaredis": True,
     "asyncpg": True,
     "aws_lambda": True,  # patch only in AWS Lambda environments
+    "azure_eventhubs": True,
     "azure_functions": True,
     "azure_servicebus": True,
     "tornado": False,
@@ -117,6 +119,7 @@ PATCH_MODULES = {
     "selenium": True,
     "valkey": True,
     "openai_agents": True,
+    "ray": False,
     "protobuf": config._data_streams_enabled,
 }
 
@@ -129,7 +132,6 @@ CONTRIB_DEPENDENCIES = {
 }
 
 
-_LOCK = threading.Lock()
 _PATCHED_MODULES = set()
 
 # Module names that need to be patched for a given integration. If the module
@@ -159,15 +161,19 @@ _MODULES_FOR_CONTRIB = {
     "futures": ("concurrent.futures.thread",),
     "vertica": ("vertica_python",),
     "aws_lambda": ("datadog_lambda",),
+    "azure_eventhubs": ("azure.eventhub",),
     "azure_functions": ("azure.functions",),
     "azure_servicebus": ("azure.servicebus",),
     "httplib": ("http.client",),
     "kafka": ("confluent_kafka",),
+    "google_adk": ("google.adk",),
     "google_generativeai": ("google.generativeai",),
     "google_genai": ("google.genai",),
+    "langchain": ("langchain_core",),
     "langgraph": (
         "langgraph",
         "langgraph.graph",
+        "langgraph.prebuilt",
     ),
     "openai_agents": ("agents",),
 }
@@ -292,6 +298,7 @@ def _on_import_factory(module, path_f, raise_errors=True, patch_indicator=True):
                 "failed to enable ddtrace support for %s: %s",
                 module,
                 str(e),
+                exc_info=True,
             )
             telemetry.telemetry_writer.add_integration(module, False, PATCH_MODULES.get(module) is True, str(e))
             telemetry.telemetry_writer.add_count_metric(
@@ -357,8 +364,6 @@ def _patch_all(**patch_modules: bool) -> None:
 
     patch(raise_errors=False, **modules)
 
-    load_common_appsec_modules()
-
 
 def patch(raise_errors=True, **patch_modules):
     # type: (bool, Union[List[str], bool]) -> None
@@ -372,7 +377,7 @@ def patch(raise_errors=True, **patch_modules):
     contribs = {c: patch_indicator for c, patch_indicator in patch_modules.items() if patch_indicator}
     for contrib, patch_indicator in contribs.items():
         # Check if we have the requested contrib.
-        if not os.path.isfile(os.path.join(os.path.dirname(__file__), "contrib", "internal", contrib, "patch.py")):
+        if not (Path(__file__).parent / "contrib" / "internal" / contrib / "patch.py").exists():
             if raise_errors:
                 raise ModuleNotFoundException(f"{contrib} does not have automatic instrumentation")
         modules_to_patch = _MODULES_FOR_CONTRIB.get(contrib, (contrib,))
@@ -388,8 +393,7 @@ def patch(raise_errors=True, **patch_modules):
             )
 
         # manually add module to patched modules
-        with _LOCK:
-            _PATCHED_MODULES.add(contrib)
+        _PATCHED_MODULES.add(contrib)
 
     log.info(
         "Configured ddtrace instrumentation for %s integration(s). The following modules have been patched: %s",
@@ -398,8 +402,6 @@ def patch(raise_errors=True, **patch_modules):
     )
 
 
-def _get_patched_modules():
-    # type: () -> List[str]
+def _get_patched_modules() -> Set[str]:
     """Get the list of patched modules"""
-    with _LOCK:
-        return sorted(_PATCHED_MODULES)
+    return _PATCHED_MODULES

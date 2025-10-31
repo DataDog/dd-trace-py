@@ -44,7 +44,7 @@ def test_buffer_limit(mock_writer_logs):
 @mock.patch("ddtrace.llmobs._writer.LLMObsEvalMetricWriter._send_payload")
 def test_send_categorical_metrics(mock_send_payload, mock_writer_logs):
     llmobs_eval_metric_writer = LLMObsEvalMetricWriter(1, 1, is_agentless=False)
-    llmobs_eval_metric_writer.enqueue(_categorical_metric_event())
+    llmobs_eval_metric_writer.enqueue(_categorical_metric_event(label="toxicity", value="very"))
     llmobs_eval_metric_writer.periodic()
     mock_writer_logs.debug.assert_called_with("encoded %d LLMObs %s events to be sent", 1, "evaluation_metric")
 
@@ -52,7 +52,7 @@ def test_send_categorical_metrics(mock_send_payload, mock_writer_logs):
 @mock.patch("ddtrace.llmobs._writer.LLMObsEvalMetricWriter._send_payload")
 def test_send_score_metric(mock_send_payload, mock_writer_logs):
     llmobs_eval_metric_writer = LLMObsEvalMetricWriter(1, 1, is_agentless=False)
-    llmobs_eval_metric_writer.enqueue(_score_metric_event())
+    llmobs_eval_metric_writer.enqueue(_score_metric_event(label="sentiment", value=0.9))
     llmobs_eval_metric_writer.periodic()
     mock_writer_logs.debug.assert_called_with("encoded %d LLMObs %s events to be sent", 1, "evaluation_metric")
 
@@ -63,11 +63,11 @@ def test_send_timed_events(mock_send_payload, mock_writer_logs):
     llmobs_eval_metric_writer.start()
     mock_writer_logs.reset_mock()
 
-    llmobs_eval_metric_writer.enqueue(_score_metric_event())
+    llmobs_eval_metric_writer.enqueue(_score_metric_event(label="sentiment", value=0.9))
     time.sleep(0.1)
     mock_writer_logs.debug.assert_called_with("encoded %d LLMObs %s events to be sent", 1, "evaluation_metric")
     mock_writer_logs.reset_mock()
-    llmobs_eval_metric_writer.enqueue(_categorical_metric_event())
+    llmobs_eval_metric_writer.enqueue(_categorical_metric_event(label="toxicity", value="very"))
     time.sleep(0.1)
     mock_writer_logs.debug.assert_called_with("encoded %d LLMObs %s events to be sent", 1, "evaluation_metric")
     llmobs_eval_metric_writer.stop()
@@ -77,7 +77,7 @@ def test_send_timed_events(mock_send_payload, mock_writer_logs):
 def test_send_multiple_events(mock_send_payload, mock_writer_logs):
     llmobs_eval_metric_writer = LLMObsEvalMetricWriter(1, 1, is_agentless=False)
     mock_writer_logs.reset_mock()
-    llmobs_eval_metric_writer.enqueue(_score_metric_event())
-    llmobs_eval_metric_writer.enqueue(_categorical_metric_event())
+    llmobs_eval_metric_writer.enqueue(_score_metric_event(label="sentiment", value=0.9))
+    llmobs_eval_metric_writer.enqueue(_categorical_metric_event(label="toxicity", value="very"))
     llmobs_eval_metric_writer.periodic()
     mock_writer_logs.debug.assert_called_with("encoded %d LLMObs %s events to be sent", 2, "evaluation_metric")

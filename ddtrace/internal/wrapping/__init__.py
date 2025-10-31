@@ -4,14 +4,9 @@ from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import Optional  # noqa:F401
+from typing import Protocol  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import cast  # noqa:F401
-
-
-try:
-    from typing import Protocol  # noqa:F401
-except ImportError:
-    from typing_extensions import Protocol  # type: ignore[assignment]
 
 import bytecode as bc
 from bytecode import Instr
@@ -267,6 +262,38 @@ def wrap(f, wrapper):
     wf.__dd_wrapped__ = wrapped
 
     return wf
+
+
+def is_wrapped(f: FunctionType) -> bool:
+    """Check if a function is wrapped with any wrapper."""
+    try:
+        wf = cast(WrappedFunction, f)
+        inner = cast(FunctionType, wf.__dd_wrapped__)
+
+        # Sanity check
+        assert inner.__name__ == "<wrapped>", "Wrapper has wrapped function"  # nosec
+        return True
+    except AttributeError:
+        return False
+
+
+def is_wrapped_with(f: FunctionType, wrapper: Wrapper) -> bool:
+    """Check if a function is wrapped with a specific wrapper."""
+    try:
+        wf = cast(WrappedFunction, f)
+        inner = cast(FunctionType, wf.__dd_wrapped__)
+
+        # Sanity check
+        assert inner.__name__ == "<wrapped>", "Wrapper has wrapped function"  # nosec
+
+        if wrapper in f.__code__.co_consts:
+            return True
+
+        # This is not the correct wrapping layer. Try with the next one.
+        return is_wrapped_with(inner, wrapper)
+
+    except AttributeError:
+        return False
 
 
 def unwrap(wf, wrapper):

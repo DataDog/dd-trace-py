@@ -13,9 +13,10 @@ except ImportError:
 
 import pytest
 
-from ddtrace._version import __version__ as host_ddtrace_version
+from ddtrace.version import get_version
 
 
+HOST_DDTRACE_VERSION = get_version()
 LIBS_INJECTION_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../lib-injection"))
 LIBS_INJECTION_SRC_DIR = os.path.join(LIBS_INJECTION_DIR, "sources")
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
@@ -100,7 +101,7 @@ def ddtrace_injection_artifact():
         # 5. Write the ddtrace version file
         version_file_path = os.path.join(sources_dir_in_session_tmp, "version")
         with open(version_file_path, "w") as f:
-            f.write(host_ddtrace_version)
+            f.write(HOST_DDTRACE_VERSION)
 
         yield sources_dir_in_session_tmp
 
@@ -182,18 +183,12 @@ def test_venv(ddtrace_injection_artifact):
 def mock_telemetry_forwarder(tmp_path):
     def _setup(env, python_executable):
         telemetry_output_file = tmp_path / "telemetry.json"
-        forwarder_script_file = tmp_path / "forwarder.py"
-        # Create a mock forwarder script. This script will be executed by sitecustomize.py
+        forwarder_script_file = tmp_path / "forwarder.sh"
+        # Create a mock forwarder shell script. This script will be executed by sitecustomize.py
         # and will write the telemetry payload to a file that we can inspect.
         forwarder_script_file.write_text(
-            f"""#!{python_executable}
-import sys
-import os
-
-telemetry_output_file = r'{telemetry_output_file}'
-if telemetry_output_file:
-    with open(telemetry_output_file, "w", encoding="utf-8") as f:
-        f.write(sys.stdin.read())
+            f"""#!/bin/sh
+cat > "{telemetry_output_file}"
 """
         )
         os.chmod(forwarder_script_file, 0o755)

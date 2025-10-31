@@ -1,4 +1,4 @@
-from ddtrace.trace import Pin
+from ddtrace._trace.pin import Pin
 
 
 # DBM Shared Tests

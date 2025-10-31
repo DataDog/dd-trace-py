@@ -82,7 +82,7 @@ class DatadogSampler:
 
     SAMPLE_DEBUG_MESSAGE = (
         "Sampling decision applied to %s: sampled=%s sample_rate=%s sampling_mechanism=%s "
-        "matched_trace_sampling_rule=%s agent_sampled=%s"
+        "matched_trace_sampling_rule=%s agent_sampled=%s rules=%s sampler_id=%s"
     )
 
     def __init__(
@@ -91,7 +91,6 @@ class DatadogSampler:
         rate_limit: Optional[int] = None,
         rate_limit_window: float = 1e9,
         rate_limit_always_on: bool = False,
-        agent_based_samplers: Optional[Dict[str, RateSampler]] = None,
     ):
         """
         Constructor for DatadogSampler sampler
@@ -102,8 +101,6 @@ class DatadogSampler:
         :param rate_limit_window: The time window in nanoseconds for the rate limit, default is 1 second
         :param rate_limit_always_on: If set to `True`, the rate limit is always applied, even if no sampling rules
             are provided.
-        :param agent_based_samplers: A dictionary of service-based samplers, mapping a key in the format
-            `service:<service>,env:<env>` to a :class:`RateSampler` instance.
         """
         # Set sampling rules
         global_sampling_rules = config._trace_sampling_rules
@@ -112,7 +109,7 @@ class DatadogSampler:
         else:
             self.rules: List[SamplingRule] = rules or []
         # Set Agent based samplers
-        self._agent_based_samplers = agent_based_samplers or {}
+        self._agent_based_samplers: Dict = {}
         # Set rate limiter
         self._rate_limit_always_on: bool = rate_limit_always_on
         if rate_limit is None:
@@ -135,41 +132,25 @@ class DatadogSampler:
 
     def __str__(self):
         rates = {key: sampler.sample_rate for key, sampler in self._agent_based_samplers.items()}
-        return "{}(agent_rates={!r}, limiter={!r}, rules={!r}), rate_limit_always_on={!r}".format(
-            self.__class__.__name__,
-            rates,
-            self.limiter,
-            self.rules,
-            self._rate_limit_always_on,
+        return (
+            f"{self.__class__.__name__}(agent_rates={rates!r}, limiter={self.limiter!r}, "
+            f"rules={self.rules!r}), rate_limit_always_on={self._rate_limit_always_on!r}"
         )
 
     __repr__ = __str__
 
     def set_sampling_rules(self, rules: str) -> None:
         """Sets the trace sampling rules from a JSON string"""
-        if not rules:
-            self.rules = []
-            return
-
         sampling_rules = []
-        json_rules = []
         try:
             json_rules = json.loads(rules)
-        except JSONDecodeError:
-            if config._raise:
-                raise ValueError("Unable to parse DD_TRACE_SAMPLING_RULES={}".format(rules))
-        for rule in json_rules:
-            if "sample_rate" not in rule:
-                if config._raise:
-                    raise KeyError("No sample_rate provided for sampling rule: {}".format(json.dumps(rule)))
-                continue
-            try:
+            for rule in json_rules:
+                if "sample_rate" not in rule:
+                    log.error("No sample_rate provided for sampling rule: %s. Skipping.", rule)
+                    continue
                 sampling_rules.append(SamplingRule(**rule))
-            except ValueError as e:
-                if config._raise:
-                    raise ValueError("Error creating sampling rule {}: {}".format(json.dumps(rule), e))
-
-        # Sort the sampling_rules list using a lambda function as the key
+        except (JSONDecodeError, ValueError):
+            log.error("Failed to apply all sampling rules. Rules=%s, Applied=%s", rules, sampling_rules, exc_info=True)
         self.rules = sorted(sampling_rules, key=lambda rule: PROVENANCE_ORDER.index(rule.provenance))
 
     def sample(self, span: Span) -> bool:
@@ -213,7 +194,9 @@ class DatadogSampler:
             sample_rate,
             sampling_mechanism,
             matched_rule,
-            agent_sampler is not None,
+            str(agent_sampler) if agent_sampler is not None else "None",
+            str(self.rules) if self.rules is not None else "None",
+            id(self),
         )
         return sampled
 

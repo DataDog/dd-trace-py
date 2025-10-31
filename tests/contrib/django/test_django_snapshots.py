@@ -8,6 +8,7 @@ import django
 import pytest
 
 from tests.utils import _build_env
+from tests.utils import override_config
 from tests.utils import package_installed
 from tests.utils import snapshot
 from tests.webclient import Client
@@ -151,26 +152,34 @@ def test_404_exceptions(client):
 
 
 @pytest.fixture()
-def psycopg2_patched(transactional_db):
+def always_create_database_spans():
+    # Default value
+    yield True
+
+
+@pytest.fixture()
+def psycopg2_patched(always_create_database_spans: bool, transactional_db):
     from django.db import connections
 
     from ddtrace.contrib.internal.psycopg.patch import patch
     from ddtrace.contrib.internal.psycopg.patch import unpatch
 
-    patch()
+    with override_config("django", {"always_create_database_spans": always_create_database_spans}):
+        patch()
 
-    # # force recreate connection to ensure psycopg2 patching has occurred
-    del connections["postgres"]
-    connections["postgres"].close()
-    connections["postgres"].connect()
+        # # force recreate connection to ensure psycopg2 patching has occurred
+        del connections["postgres"]
+        connections["postgres"].close()
+        connections["postgres"].connect()
 
-    yield
+        yield
 
-    unpatch()
+        unpatch()
 
 
 @pytest.mark.django_db
-def test_psycopg2_query_default(client, snapshot_context, psycopg2_patched):
+@pytest.mark.parametrize("always_create_database_spans", (True, False))
+def test_psycopg2_query_default(always_create_database_spans: bool, client, snapshot_context, psycopg2_patched):
     """Execute a psycopg2 query on a Django database wrapper.
 
     If we use @snapshot decorator in a Django snapshot test, the first test adds DB creation traces
@@ -193,7 +202,7 @@ def test_psycopg2_query_default(client, snapshot_context, psycopg2_patched):
 
 
 @pytest.fixture()
-def psycopg3_patched(transactional_db):
+def psycopg3_patched(always_create_database_spans: bool, transactional_db):
     # If Django version >= 4.2.0, check if psycopg3 is installed,
     # as we test Django>=4.2 with psycopg2 solely installed and not psycopg3 to ensure both work.
     if django.VERSION < (4, 2, 0):
@@ -204,21 +213,23 @@ def psycopg3_patched(transactional_db):
         from ddtrace.contrib.internal.psycopg.patch import patch
         from ddtrace.contrib.internal.psycopg.patch import unpatch
 
-        patch()
+        with override_config("django", {"always_create_database_spans": always_create_database_spans}):
+            patch()
 
-        # # force recreate connection to ensure psycopg3 patching has occurred
-        del connections["postgres"]
-        connections["postgres"].close()
-        connections["postgres"].connect()
+            # # force recreate connection to ensure psycopg3 patching has occurred
+            del connections["postgres"]
+            connections["postgres"].close()
+            connections["postgres"].connect()
 
-        yield
+            yield
 
-        unpatch()
+            unpatch()
 
 
 @pytest.mark.django_db
 @pytest.mark.skipif(django.VERSION < (4, 2, 0), reason="Psycopg3 not supported in django<4.2")
-def test_psycopg3_query_default(client, snapshot_context, psycopg3_patched):
+@pytest.mark.parametrize("always_create_database_spans", (True, False))
+def test_psycopg3_query_default(always_create_database_spans: bool, client, snapshot_context, psycopg3_patched):
     """Execute a psycopg3 query on a Django database wrapper.
 
     If we use @snapshot decorator in a Django snapshot test, the first test adds DB creation traces
@@ -251,7 +262,8 @@ def test_psycopg3_query_default(client, snapshot_context, psycopg3_patched):
 )
 @pytest.mark.parametrize("django_asgi", ["application", "channels_application"])
 def test_asgi_200(django_asgi):
-    with daphne_client(django_asgi) as (client, _):
+    env = {"TEST_INCLUDE_ASYNC_ONLY_MIDDLEWARE": "1"}
+    with daphne_client(django_asgi, additional_env=env) as (client, _):
         resp = client.get("/", timeout=10)
         assert resp.status_code == 200
         assert resp.content == b"Hello, test app."

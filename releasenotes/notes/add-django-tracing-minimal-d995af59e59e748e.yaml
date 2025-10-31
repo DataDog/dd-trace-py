@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    django: This introduces the ``DD_DJANGO_TRACING_MINIMAL`` environment variable for performance-sensitive applications.
+    When enabled, this disables Django ORM, cache, and template instrumentation while keeping middleware instrumentation enabled.
+    This significantly reduces overhead by removing Django-specific spans while preserving visibility into the underlying
+    database drivers, cache clients, and other integrations. For example, with this enabled, Django ORM query spans are
+    disabled but database driver spans (e.g., psycopg, MySQLdb) will still be created. To enable minimal tracing,
+    set ``DD_DJANGO_TRACING_MINIMAL=true``.

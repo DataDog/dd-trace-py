@@ -7,12 +7,16 @@ from json import JSONDecodeError
 import os
 import socket
 import typing as t
+from typing import TypedDict  # noqa:F401
 from uuid import uuid4
 
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.ext.test_visibility._test_visibility_base import TestId
 from ddtrace.ext.test_visibility._test_visibility_base import TestModuleId
 from ddtrace.ext.test_visibility._test_visibility_base import TestSuiteId
+from ddtrace.internal.ci_visibility._api_responses_cache import _get_normalized_cache_key
+from ddtrace.internal.ci_visibility._api_responses_cache import _read_from_cache
+from ddtrace.internal.ci_visibility._api_responses_cache import _write_to_cache
 from ddtrace.internal.ci_visibility.constants import AGENTLESS_API_KEY_HEADER_NAME
 from ddtrace.internal.ci_visibility.constants import AGENTLESS_DEFAULT_SITE
 from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_BASE_PATH
@@ -25,6 +29,8 @@ from ddtrace.internal.ci_visibility.constants import SKIPPABLE_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import SUITE
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.constants import TEST_MANAGEMENT_TESTS_ENDPOINT
+from ddtrace.internal.ci_visibility.errors import CIVisibilityAPIClientError
+from ddtrace.internal.ci_visibility.errors import CIVisibilityAPIServerError
 from ddtrace.internal.ci_visibility.errors import CIVisibilityAuthenticationException
 from ddtrace.internal.ci_visibility.git_data import GitData
 from ddtrace.internal.ci_visibility.telemetry.api_request import APIRequestMetricNames
@@ -40,6 +46,7 @@ from ddtrace.internal.ci_visibility.telemetry.itr import record_skippable_count
 from ddtrace.internal.ci_visibility.telemetry.test_management import TEST_MANAGEMENT_TELEMETRY
 from ddtrace.internal.ci_visibility.telemetry.test_management import record_test_management_tests_count
 from ddtrace.internal.ci_visibility.utils import combine_url_path
+from ddtrace.internal.ci_visibility.utils import fibonacci_backoff_with_jitter_on_exceptions
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
@@ -49,12 +56,6 @@ from ddtrace.internal.utils.http import get_connection
 from ddtrace.internal.utils.http import verify_url
 from ddtrace.internal.utils.time import StopWatch
 
-
-# TypedDict was added to typing in python 3.8
-try:
-    from typing import TypedDict  # noqa:F401
-except ImportError:
-    from typing_extensions import TypedDict
 
 log = get_logger(__name__)
 
@@ -73,14 +74,7 @@ _KNOWN_TESTS_TYPE = t.Set[TestId]
 _NETWORK_ERRORS = (TimeoutError, socket.timeout, RemoteDisconnected)
 
 
-class TestVisibilitySettingsError(Exception):
-    __test__ = False
-    pass
-
-
-class TestVisibilitySkippableItemsError(Exception):
-    __test__ = False
-    pass
+_RETRIABLE_ERRORS = (*_NETWORK_ERRORS, CIVisibilityAPIServerError)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -302,22 +296,42 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             if conn is not None:
                 conn.close()
 
+    @fibonacci_backoff_with_jitter_on_exceptions(attempts=5, exceptions=_RETRIABLE_ERRORS)
     def _do_request_with_telemetry(
         self,
         method: str,
         endpoint: str,
-        payload: str,
+        payload: t.Dict,
         metric_names: APIRequestMetricNames,
         timeout: t.Optional[float] = None,
+        read_from_cache: bool = True,
     ) -> t.Any:
-        """Performs a request with telemetry submitted according to given names"""
+        """
+        Performs a request with telemetry submitted according to given names.
+        Also uses the api responses cache layer.
+        """
+        str_payload = json.dumps(payload)
+
+        # Check cache first
+        cache_key = ""
+        # Generate cache key using payload without the dynamic UUID
+        if "data" in payload and "attributes" in payload["data"]:
+            cache_key = _get_normalized_cache_key(method, endpoint, payload)
+
+        if read_from_cache:
+            cached_response = _read_from_cache(cache_key)
+            if cached_response is not None:
+                log.debug("RESPONSE CACHE: Using cached response with key: %s", cache_key)
+                # Return cached response (no telemetry recorded for cache hits)
+                return cached_response
+
         sw = StopWatch()
         sw.start()
         error_type: t.Optional[ERROR_TYPES] = None
         response_bytes: t.Optional[int] = None
         try:
             try:
-                response = self._do_request(method, endpoint, payload, timeout=timeout)
+                response = self._do_request(method, endpoint, str_payload, timeout=timeout)
             except _NETWORK_ERRORS:
                 error_type = ERROR_TYPES.TIMEOUT
                 raise
@@ -325,19 +339,28 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                 error_type = ERROR_TYPES.CODE_4XX if response.status < 500 else ERROR_TYPES.CODE_5XX
                 if response.status == 403:
                     raise CIVisibilityAuthenticationException()
-                raise ValueError("API response status code: %d", response.status)
+                if response.status >= 500:
+                    raise CIVisibilityAPIServerError(response.status)
+                raise CIVisibilityAPIClientError(response.status)
             try:
                 sw.stop()  # Stop the timer before parsing the response
-                response_bytes = len(response.body)
-                parsed = json.loads(response.body)
-                return parsed
+                response_body = response.body
+                if response_body is not None:
+                    response_bytes = len(response_body)
+                    parsed = json.loads(response_body)
+                    # Cache successful response
+                    _write_to_cache(cache_key, parsed)
+                    return parsed
+                else:
+                    error_type = ERROR_TYPES.BAD_JSON
+                    raise ValueError("Response body is None")
             except JSONDecodeError:
                 error_type = ERROR_TYPES.BAD_JSON
                 raise
         finally:
             record_api_request(metric_names, sw.elapsed() * 1000, response_bytes=response_bytes, error=error_type)
 
-    def fetch_settings(self) -> TestVisibilityAPISettings:
+    def fetch_settings(self, read_from_cache: bool = True) -> TestVisibilityAPISettings:
         """Fetches settings from the test visibility API endpoint
 
         This raises encountered exceptions because fetch_settings may be used multiple times during a session.
@@ -367,7 +390,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         }
 
         parsed_response = self._do_request_with_telemetry(
-            "POST", SETTING_ENDPOINT, json.dumps(payload), metric_names, timeout=self._timeout
+            "POST", SETTING_ENDPOINT, payload, metric_names, timeout=self._timeout, read_from_cache=read_from_cache
         )
 
         if "errors" in parsed_response:
@@ -445,7 +468,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         return api_settings
 
     def fetch_skippable_items(
-        self, timeout: t.Optional[float] = None, ignore_test_parameters: bool = False
+        self, timeout: t.Optional[float] = None, ignore_test_parameters: bool = False, read_from_cache: bool = True
     ) -> t.Optional[ITRData]:
         if timeout is None:
             timeout = DEFAULT_ITR_SKIPPABLE_TIMEOUT
@@ -474,7 +497,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
 
         try:
             skippable_response: _SkippableResponse = self._do_request_with_telemetry(
-                "POST", SKIPPABLE_ENDPOINT, json.dumps(payload), metric_names, timeout
+                "POST", SKIPPABLE_ENDPOINT, payload, metric_names, timeout, read_from_cache=read_from_cache
             )
         except Exception:  # noqa: E722
             return None
@@ -517,7 +540,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             skippable_items=items_to_skip,
         )
 
-    def fetch_known_tests(self) -> t.Optional[t.Set[TestId]]:
+    def fetch_known_tests(self, read_from_cache: bool = True) -> t.Optional[t.Set[TestId]]:
         metric_names = APIRequestMetricNames(
             count=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST.value,
             duration=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST_MS.value,
@@ -542,7 +565,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
 
         try:
             parsed_response = self._do_request_with_telemetry(
-                "POST", KNOWN_TESTS_ENDPOINT, json.dumps(payload), metric_names
+                "POST", KNOWN_TESTS_ENDPOINT, payload, metric_names, read_from_cache=read_from_cache
             )
         except Exception:  # noqa: E722
             return None
@@ -574,7 +597,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
 
         return known_test_ids
 
-    def fetch_test_management_tests(self) -> t.Optional[t.Dict[TestId, TestProperties]]:
+    def fetch_test_management_tests(self, read_from_cache: bool = True) -> t.Optional[t.Dict[TestId, TestProperties]]:
         metric_names = APIRequestMetricNames(
             count=TEST_MANAGEMENT_TELEMETRY.REQUEST.value,
             duration=TEST_MANAGEMENT_TELEMETRY.REQUEST_MS.value,
@@ -597,7 +620,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
 
         try:
             parsed_response = self._do_request_with_telemetry(
-                "POST", TEST_MANAGEMENT_TESTS_ENDPOINT, json.dumps(payload), metric_names
+                "POST", TEST_MANAGEMENT_TESTS_ENDPOINT, payload, metric_names, read_from_cache=read_from_cache
             )
         except Exception:  # noqa: E722
             return None

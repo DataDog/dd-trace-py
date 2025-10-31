@@ -17,6 +17,18 @@ class TestOpenaiPatch(PatchTestCase.Base):
     __unpatch_func__ = unpatch
     __get_version__ = get_version
 
+    def _assert_wrapped_if_exists(self, obj, attr_name):
+        if hasattr(obj, attr_name):
+            self.assert_wrapped(getattr(obj, attr_name))
+
+    def _assert_not_wrapped_if_exists(self, obj, attr_name):
+        if hasattr(obj, attr_name):
+            self.assert_not_wrapped(getattr(obj, attr_name))
+
+    def _assert_not_double_wrapped_if_exists(self, obj, attr_name):
+        if hasattr(obj, attr_name):
+            self.assert_not_double_wrapped(getattr(obj, attr_name))
+
     def assert_module_patched(self, openai):
         if OPENAI_VERSION >= (1, 8, 0):
             self.assert_wrapped(openai._base_client.SyncAPIClient._process_response)
@@ -61,6 +73,12 @@ class TestOpenaiPatch(PatchTestCase.Base):
         self.assert_wrapped(openai.resources.files.AsyncFiles.list)
         self.assert_wrapped(openai.resources.files.AsyncFiles.delete)
         self.assert_wrapped(openai.resources.files.AsyncFiles.retrieve_content)
+        # openai >= 1.92.0 introduced parse methods
+        self._assert_wrapped_if_exists(openai.resources.chat.Completions, "parse")
+        self._assert_wrapped_if_exists(openai.resources.chat.AsyncCompletions, "parse")
+        if hasattr(openai.resources, "responses"):
+            self._assert_wrapped_if_exists(openai.resources.responses.Responses, "parse")
+            self._assert_wrapped_if_exists(openai.resources.responses.AsyncResponses, "parse")
 
     def assert_not_module_patched(self, openai):
         if OPENAI_VERSION >= (1, 8, 0):
@@ -106,6 +124,12 @@ class TestOpenaiPatch(PatchTestCase.Base):
         self.assert_not_wrapped(openai.resources.files.AsyncFiles.list)
         self.assert_not_wrapped(openai.resources.files.AsyncFiles.delete)
         self.assert_not_wrapped(openai.resources.files.AsyncFiles.retrieve_content)
+        # openai >= 1.92.0 introduced parse methods
+        self._assert_not_wrapped_if_exists(openai.resources.chat.Completions, "parse")
+        self._assert_not_wrapped_if_exists(openai.resources.chat.AsyncCompletions, "parse")
+        if hasattr(openai.resources, "responses"):
+            self._assert_not_wrapped_if_exists(openai.resources.responses.Responses, "parse")
+            self._assert_not_wrapped_if_exists(openai.resources.responses.AsyncResponses, "parse")
 
     def assert_not_module_double_patched(self, openai):
         if OPENAI_VERSION >= (1, 8, 0):
@@ -151,3 +175,9 @@ class TestOpenaiPatch(PatchTestCase.Base):
         self.assert_not_double_wrapped(openai.resources.files.AsyncFiles.list)
         self.assert_not_double_wrapped(openai.resources.files.AsyncFiles.delete)
         self.assert_not_double_wrapped(openai.resources.files.AsyncFiles.retrieve_content)
+        # openai >= 1.92.0 introduced parse methods
+        self._assert_not_double_wrapped_if_exists(openai.resources.chat.Completions, "parse")
+        self._assert_not_double_wrapped_if_exists(openai.resources.chat.AsyncCompletions, "parse")
+        if hasattr(openai.resources, "responses"):
+            self._assert_not_double_wrapped_if_exists(openai.resources.responses.Responses, "parse")
+            self._assert_not_double_wrapped_if_exists(openai.resources.responses.AsyncResponses, "parse")

@@ -1,7 +1,7 @@
 import pytest
 
 from tests.appsec.appsec_utils import flask_server
-from tests.appsec.appsec_utils import gunicorn_server
+from tests.appsec.appsec_utils import gunicorn_flask_server
 from tests.appsec.integrations.flask_tests.utils import _PORT
 from tests.appsec.integrations.flask_tests.utils import _request_200
 
@@ -92,7 +92,7 @@ def test_multiple_requests():
     """we want to validate context is working correctly among multiple request and no race condition creating and
     destroying contexts
     """
-    with gunicorn_server(remote_configuration_enabled="false", iast_enabled="true", port=_PORT) as context:
+    with gunicorn_flask_server(remote_configuration_enabled="false", iast_enabled="true", port=_PORT) as context:
         _, client, pid = context
 
         _request_200(

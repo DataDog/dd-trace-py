@@ -5,7 +5,7 @@ import ddtrace
 from ddtrace.debugging._origin.span import SpanCodeOriginProcessorExit
 from ddtrace.debugging._probe.model import ProbeEvalTiming
 from ddtrace.internal import core
-from tests.debugging.mocking import MockLogsIntakeUploaderV1
+from tests.debugging.mocking import MockSignalUploader
 from tests.debugging.mocking import debugger
 from tests.debugging.utils import create_snapshot_function_probe
 from tests.debugging.utils import create_trigger_function_probe
@@ -13,11 +13,11 @@ from tests.utils import TracerTestCase
 
 
 class MockSpanCodeOriginProcessor(SpanCodeOriginProcessorExit):
-    __uploader__ = MockLogsIntakeUploaderV1
+    __uploader__ = MockSignalUploader
 
     @classmethod
-    def get_uploader(cls) -> MockLogsIntakeUploaderV1:
-        return t.cast(MockLogsIntakeUploaderV1, cls.__uploader__._instance)
+    def get_uploader(cls) -> MockSignalUploader:
+        return t.cast(MockSignalUploader, cls.__uploader__._instance)
 
 
 class SpanProbeTestCase(TracerTestCase):

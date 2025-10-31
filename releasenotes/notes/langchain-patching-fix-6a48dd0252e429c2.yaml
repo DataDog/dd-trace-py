@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    langchain: Resolves an issue where langchain patching would throw an ``ImportError`` for when using ``langchain_core>=0.3.76``.

@@ -1,4 +1,5 @@
 #pragma once
+#include "context/taint_engine_context.h"
 #include "initializer/initializer.h"
 
 PyObject*

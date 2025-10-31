@@ -1,0 +1,32 @@
+[[
+  {
+    "name": "redis.command",
+    "service": "redis",
+    "resource": "SET\nGET",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "redis",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.redis",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68b8917800000000",
+      "component": "redis",
+      "db.system": "redis",
+      "language": "python",
+      "redis.raw_command": "SET a 1\nGET a",
+      "runtime-id": "73c800bba8084530a15a15dbcea1a8bc",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 4422,
+      "redis.pipeline_length": 2
+    },
+    "duration": 1411000,
+    "start": 1756926328130176000
+  }]]

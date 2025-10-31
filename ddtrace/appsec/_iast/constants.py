@@ -14,6 +14,7 @@ VULN_HEADER_INJECTION = "HEADER_INJECTION"
 VULN_UNVALIDATED_REDIRECT = "UNVALIDATED_REDIRECT"
 VULN_CODE_INJECTION = "CODE_INJECTION"
 VULN_XSS = "XSS"
+VULN_UNTRUSTED_SERIALIZATION = "UNTRUSTED_SERIALIZATION"
 VULN_SSRF = "SSRF"
 VULN_STACKTRACE_LEAK = "STACKTRACE_LEAK"
 
@@ -71,8 +72,6 @@ DEFAULT_PATH_TRAVERSAL_FUNCTIONS = {
         "rmdir",
         "listdir",
     },
-    "pickle": {"load"},
-    "_pickle": {"load"},
     "posix": {
         "mkdir",
         "remove",
@@ -89,6 +88,41 @@ DEFAULT_PATH_TRAVERSAL_FUNCTIONS = {
     "tarfile": {"open"},
     "zipfile": {"ZipFile"},
 }
+
+DEFAULT_COMMAND_INJECTION_FUNCTIONS = {
+    "subprocess": {"Popen", "Popen.wait", "run"},
+    "os": {
+        "system",
+        "spawnl",
+        "spawnlp",
+        "spawnv",
+        "spawnvp",
+        "spawnvp",
+    },
+    "posix": {
+        "system",
+    },
+}
+
+DEFAULT_SSRF_FUNCTIONS = {
+    "requests.api": {"get", "post", "put"},
+    "urllib3": {
+        "request",
+    },
+    "urllib3._request_methods": {
+        "request",
+    },
+    "http.client": {
+        "request",
+    },
+    "urllib.request": {
+        "urlopen",
+    },
+    "webbrowser": {
+        "open",
+    },
+}
+
 DBAPI_SQLITE = "sqlite"
 DBAPI_PSYCOPG = "psycopg"
 DBAPI_MYSQL = "mysql"

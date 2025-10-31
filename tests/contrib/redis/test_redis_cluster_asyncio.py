@@ -2,9 +2,10 @@
 import pytest
 import redis
 
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.redis.patch import patch
 from ddtrace.contrib.internal.redis.patch import unpatch
-from ddtrace.trace import Pin
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from tests.contrib.config import REDISCLUSTER_CONFIG
 from tests.utils import DummyTracer
 from tests.utils import assert_is_measured
@@ -87,7 +88,8 @@ async def test_unicode(traced_redis_cluster):
 
 
 @pytest.mark.skipif(
-    redis.VERSION < (4, 3, 2), reason="redis.asyncio.cluster pipeline is not implemented in redis<4.3.2"
+    redis.VERSION < (4, 3, 2) or PYTHON_VERSION_INFO >= (3, 14),
+    reason="redis.asyncio.cluster pipeline is not implemented in redis<4.3.2. This test also fails under Python 3.14",
 )
 @pytest.mark.asyncio
 async def test_pipeline(traced_redis_cluster):
@@ -113,6 +115,43 @@ async def test_pipeline(traced_redis_cluster):
     assert span.get_tag("redis.raw_command") == "SET blah 32\nRPUSH foo éé\nHGETALL xxx"
     assert span.get_tag("component") == "redis"
     assert span.get_metric("redis.pipeline_length") == 3
+
+
+@pytest.mark.skipif(PYTHON_VERSION_INFO >= (3, 14), reason="fails under Python 3.14")
+@pytest.mark.snapshot(wait_for_num_traces=1)
+@pytest.mark.asyncio
+async def test_pipeline_command_stack_count_matches_metric(redis_cluster):
+    patch()
+    try:
+        async with redis_cluster.pipeline(transaction=False) as p:
+            p.set("a", 1)
+            p.get("a")
+            await p.execute()
+    finally:
+        unpatch()
+
+
+@pytest.mark.skipif(PYTHON_VERSION_INFO >= (3, 14), reason="fails under Python 3.14")
+@pytest.mark.asyncio
+async def test_pipeline_command_stack_parity_when_visible(traced_redis_cluster):
+    cluster, test_spans = traced_redis_cluster
+    async with cluster.pipeline(transaction=False) as p:
+        p.set("a", 1)
+        p.get("a")
+        queued = None
+        if hasattr(p, "command_stack"):
+            queued = len(p.command_stack)
+        elif hasattr(p, "_command_stack"):
+            queued = len(p._command_stack)
+        await p.execute()
+
+    traces = test_spans.pop_traces()
+    spans = traces[0]
+    span = spans[0]
+    assert span.resource == "SET\nGET"
+    assert span.get_metric("redis.pipeline_length") == 2
+    if queued is not None:
+        assert span.get_metric("redis.pipeline_length") == queued
 
 
 @pytest.mark.skipif(redis.VERSION < (4, 3, 0), reason="redis.asyncio.cluster is not implemented in redis<4.3.0")
@@ -164,9 +203,9 @@ def test_default_service_name_v1():
 
     import redis
 
+    from ddtrace._trace.pin import Pin
     from ddtrace.contrib.internal.redis.patch import patch
     from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-    from ddtrace.trace import Pin
     from tests.contrib.config import REDISCLUSTER_CONFIG
     from tests.utils import DummyTracer
     from tests.utils import TracerSpanContainer
@@ -211,8 +250,8 @@ def test_user_specified_service_v0():
     import redis
 
     from ddtrace import config
+    from ddtrace._trace.pin import Pin
     from ddtrace.contrib.internal.redis.patch import patch
-    from ddtrace.trace import Pin
     from tests.contrib.config import REDISCLUSTER_CONFIG
     from tests.utils import DummyTracer
     from tests.utils import TracerSpanContainer
@@ -260,8 +299,8 @@ def test_user_specified_service_v1():
     import redis
 
     from ddtrace import config
+    from ddtrace._trace.pin import Pin
     from ddtrace.contrib.internal.redis.patch import patch
-    from ddtrace.trace import Pin
     from tests.contrib.config import REDISCLUSTER_CONFIG
     from tests.utils import DummyTracer
     from tests.utils import TracerSpanContainer
@@ -304,8 +343,8 @@ def test_env_user_specified_rediscluster_service_v0():
 
     import redis
 
+    from ddtrace._trace.pin import Pin
     from ddtrace.contrib.internal.redis.patch import patch
-    from ddtrace.trace import Pin
     from tests.contrib.config import REDISCLUSTER_CONFIG
     from tests.utils import DummyTracer
     from tests.utils import TracerSpanContainer
@@ -345,8 +384,8 @@ def test_env_user_specified_rediscluster_service_v1():
 
     import redis
 
+    from ddtrace._trace.pin import Pin
     from ddtrace.contrib.internal.redis.patch import patch
-    from ddtrace.trace import Pin
     from tests.contrib.config import REDISCLUSTER_CONFIG
     from tests.utils import DummyTracer
     from tests.utils import TracerSpanContainer
@@ -391,8 +430,8 @@ def test_service_precedence_v0():
     import redis
 
     from ddtrace import config
+    from ddtrace._trace.pin import Pin
     from ddtrace.contrib.internal.redis.patch import patch
-    from ddtrace.trace import Pin
     from tests.contrib.config import REDISCLUSTER_CONFIG
     from tests.utils import DummyTracer
     from tests.utils import TracerSpanContainer
@@ -436,8 +475,8 @@ def test_service_precedence_v1():
     import redis
 
     from ddtrace import config
+    from ddtrace._trace.pin import Pin
     from ddtrace.contrib.internal.redis.patch import patch
-    from ddtrace.trace import Pin
     from tests.contrib.config import REDISCLUSTER_CONFIG
     from tests.utils import DummyTracer
     from tests.utils import TracerSpanContainer

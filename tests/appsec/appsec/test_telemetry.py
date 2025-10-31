@@ -15,9 +15,8 @@ from ddtrace.appsec._remoteconfiguration import enable_asm
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.telemetry.constants import TELEMETRY_EVENT_TYPE
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
-from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_DISTRIBUTION
-from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
 from ddtrace.trace import tracer
 import tests.appsec.rules as rules
 from tests.appsec.utils import asm_context
@@ -38,7 +37,7 @@ def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked
     # this function and make the tests flaky. That's why we exclude the "enabled" metric from this assert
     generate_metrics = [
         m
-        for m in metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE.APPSEC.value]
+        for m in metrics_result[TELEMETRY_EVENT_TYPE.METRICS][TELEMETRY_NAMESPACE.APPSEC.value]
         if m["metric"] != "enabled"
     ]
     assert (
@@ -76,7 +75,7 @@ def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked
 
 
 def _assert_distributions_metrics(metrics_result, is_rule_triggered=False, is_blocked_request=False):
-    distributions_metrics = metrics_result[TELEMETRY_TYPE_DISTRIBUTION][TELEMETRY_NAMESPACE.APPSEC.value]
+    distributions_metrics = metrics_result[TELEMETRY_EVENT_TYPE.DISTRIBUTIONS][TELEMETRY_NAMESPACE.APPSEC.value]
 
     assert len(distributions_metrics) == 2, "Expected 2 distributions_metrics"
     for metric in distributions_metrics:
@@ -101,8 +100,8 @@ def test_metrics_when_appsec_doesnt_runs(telemetry_writer, tracer):
                 rules.Config(),
             )
     metrics_data = telemetry_writer._namespace.flush()
-    assert len(metrics_data[TELEMETRY_TYPE_GENERATE_METRICS]) == 0
-    assert len(metrics_data[TELEMETRY_TYPE_DISTRIBUTION]) == 0
+    assert len(metrics_data[TELEMETRY_EVENT_TYPE.METRICS]) == 0
+    assert len(metrics_data[TELEMETRY_EVENT_TYPE.DISTRIBUTIONS]) == 0
 
 
 def test_metrics_when_appsec_runs(telemetry_writer, tracer):
@@ -185,7 +184,7 @@ def test_log_metric_error_ddwaf_timeout(telemetry_writer, tracer):
     list_metrics_logs = list(telemetry_writer._logs)
     assert len(list_metrics_logs) == 0
 
-    generate_metrics = telemetry_writer._namespace.flush()[TELEMETRY_TYPE_GENERATE_METRICS][
+    generate_metrics = telemetry_writer._namespace.flush()[TELEMETRY_EVENT_TYPE.METRICS][
         TELEMETRY_NAMESPACE.APPSEC.value
     ]
 
@@ -228,7 +227,7 @@ def test_log_metric_error_ddwaf_internal_error(telemetry_writer):
             assert len(list_telemetry_logs) == 0
             assert span.get_tag("_dd.appsec.waf.error") == "-3"
             metrics_result = telemetry_writer._namespace.flush()
-            list_telemetry_metrics = metrics_result.get(TELEMETRY_TYPE_GENERATE_METRICS, {}).get(
+            list_telemetry_metrics = metrics_result.get(TELEMETRY_EVENT_TYPE.METRICS, {}).get(
                 TELEMETRY_NAMESPACE.APPSEC.value, {}
             )
             error_metrics = [m for m in list_telemetry_metrics if m["metric"] == "waf.error"]
@@ -272,34 +271,48 @@ def test_log_metric_error_ddwaf_update_deduplication_timelapse(telemetry_writer)
 
 
 @pytest.mark.parametrize(
-    "environment,appsec_enabled,rc_enabled,expected_result,expected_origin",
+    "environment,appsec_enabled,rc_enabled,expected_result,ssi_enabled,expected_origin",
     (
-        ({}, False, False, 0, APPSEC.ENABLED_ORIGIN_UNKNOWN),
-        ({APPSEC_ENV: "true"}, True, False, 1, APPSEC.ENABLED_ORIGIN_ENV),
-        ({}, True, False, 1, APPSEC.ENABLED_ORIGIN_UNKNOWN),
-        ({}, True, True, 1, APPSEC.ENABLED_ORIGIN_UNKNOWN),
-        ({}, False, True, 1, APPSEC.ENABLED_ORIGIN_RC),
-        ({APPSEC_ENV: "true"}, False, True, 1, APPSEC.ENABLED_ORIGIN_ENV),
+        ({}, False, False, 0, False, APPSEC.ENABLED_ORIGIN_UNKNOWN),
+        ({APPSEC_ENV: "true"}, True, False, 1, False, APPSEC.ENABLED_ORIGIN_ENV),
+        ({APPSEC_ENV: "true", "_DD_PY_SSI_INJECT": "1"}, True, False, 1, True, APPSEC.ENABLED_ORIGIN_SSI),
+        ({}, True, False, 1, False, APPSEC.ENABLED_ORIGIN_UNKNOWN),
+        ({}, True, True, 1, False, APPSEC.ENABLED_ORIGIN_UNKNOWN),
+        ({}, False, True, 1, False, APPSEC.ENABLED_ORIGIN_RC),
+        ({"_DD_PY_SSI_INJECT": "true"}, False, True, 1, True, APPSEC.ENABLED_ORIGIN_RC),
+        ({APPSEC_ENV: "true"}, True, True, 1, False, APPSEC.ENABLED_ORIGIN_ENV),
+        # 0 because RC should not change the value if env var is set
+        ({APPSEC_ENV: "true"}, False, True, 0, False, APPSEC.ENABLED_ORIGIN_ENV),
+        # SSI set but AppSec disabled and no RC: origin remains UNKNOWN and value 0
+        ({"_DD_PY_SSI_INJECT": "1"}, False, False, 0, True, APPSEC.ENABLED_ORIGIN_UNKNOWN),
+        # APPSEC_ENV present with value "false" still counts as ENV origin by implementation
+        ({APPSEC_ENV: "false"}, True, False, 1, False, APPSEC.ENABLED_ORIGIN_ENV),
+        # APPSEC_ENV present with empty value still counts as ENV origin by implementation
+        ({APPSEC_ENV: ""}, True, False, 1, False, APPSEC.ENABLED_ORIGIN_ENV),
+        # APPSEC_ENV present and SSI set but AppSec disabled: not enabled => origin ENV and value 0
+        ({APPSEC_ENV: "true", "_DD_PY_SSI_INJECT": "1"}, False, False, 0, True, APPSEC.ENABLED_ORIGIN_ENV),
     ),
 )
 def test_appsec_enabled_metric(
-    environment, appsec_enabled, rc_enabled, expected_result, expected_origin, telemetry_writer, tracer
+    environment, appsec_enabled, rc_enabled, expected_result, ssi_enabled, expected_origin, telemetry_writer, tracer
 ):
     """Test that an internal error is logged when the WAF returns an internal error."""
-    # Restore defaults.
-    tracer.configure(appsec_enabled=appsec_enabled, appsec_enabled_origin=APPSEC.ENABLED_ORIGIN_UNKNOWN)
-    telemetry_writer._flush_configuration_queue()
+    # Restore defaults and enabling telemetry appsec service
+    with override_global_config({"_asm_enabled": True, "_lib_was_injected": False}):
+        tracer.configure(appsec_enabled=appsec_enabled, appsec_enabled_origin=APPSEC.ENABLED_ORIGIN_UNKNOWN)
+    telemetry_writer._report_configurations()
 
     # Start the test
-    with override_env(environment), override_global_config(dict(_asm_enabled=appsec_enabled)):
+    with override_env(environment), override_global_config(
+        dict(_asm_enabled=appsec_enabled, _remote_config_enabled=rc_enabled, _lib_was_injected=ssi_enabled)
+    ):
         tracer.configure(appsec_enabled=appsec_enabled)
-        AppSecSpanProcessor()
         if rc_enabled:
             enable_asm(tracer)
 
         telemetry_writer._dispatch()
 
-        metrics_result = telemetry_writer._flush_configuration_queue()
+        metrics_result = telemetry_writer._report_configurations()
         assert metrics_result == [
             {"name": "DD_APPSEC_ENABLED", "origin": expected_origin, "seq_id": ANY, "value": expected_result}
         ]

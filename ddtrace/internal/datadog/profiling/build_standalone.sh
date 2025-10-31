@@ -5,6 +5,7 @@ set -euo pipefail
 MY_DIR=$(dirname $(realpath $0))
 MY_NAME="$0"
 BUILD_DIR="build"
+BUILD_MODE="Debug"
 
 ### Compiler discovery
 # Initialize variables to store the highest versions
@@ -103,6 +104,8 @@ cmake_args=(
   -DCMAKE_VERBOSE_MAKEFILE=ON
   -DLIB_INSTALL_DIR=$(realpath $MY_DIR)/lib
   -DPython3_ROOT_DIR=$(python3 -c "import sysconfig; print(sysconfig.get_config_var('prefix'))")
+  -DNATIVE_EXTENSION_LOCATION=$(realpath $MY_DIR)/../../native
+  -DEXTENSION_SUFFIX=$(python3 -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))")
 )
 
 # Initial build targets; start out empty
@@ -210,8 +213,6 @@ print_help() {
   echo "Targets:"
   echo "  all"
   echo "  all_test (default)"
-  echo "  dd_wrapper"
-  echo "  dd_wrapper_test"
   echo "  stack_v2 (also builds dd_wrapper)"
   echo "  stack_v2_test (also builds dd_wrapper_test)"
   echo "  ddup (also builds dd_wrapper)"
@@ -316,6 +317,7 @@ add_build_mode() {
   case "$1" in
     Debug|Release|RelWithDebInfo)
       cmake_args+=(-DCMAKE_BUILD_TYPE=$1)
+      BUILD_MODE=$1
       ;;
     ""|--)
       cmake_args+=(-DCMAKE_BUILD_TYPE=Debug)
@@ -340,11 +342,6 @@ add_target() {
       targets+=("stack_v2")
       targets+=("ddup")
       ;;
-    dd_wrapper)
-      # `dd_wrapper` is a dependency of other targets, but the overall structure is weird when it's given explicitly
-      # so we only include it when it's called explicitly
-      targets+=("dd_wrapper")
-      ;;
     stack_v2)
       targets+=("stack_v2")
       ;;
@@ -361,9 +358,9 @@ add_target() {
 #Build rust dependencies
 build_rust() {
     echo "Building Rust dependencies"
-    python3 build_libnative.py --crate ./src/native --release --features profiling
+    pip3 install cmake setuptools_rust cython
+    DD_COMPILE_MODE=$BUILD_MODE python3 setup.py build_rust --inplace
 }
-
 
 ### ENTRYPOINT
 # Check for basic input validity
@@ -383,6 +380,13 @@ print_cmake_args
 print_ctest_args
 
 build_rust
+
+run_cmake "dd_wrapper"
+
+# Install dd_wrapper to the expected location so other targets can find it
+pushd ${BUILD_DIR}/dd_wrapper || { echo "Failed to enter dd_wrapper build directory"; exit 1; }
+cmake --build . --target install || { echo "dd_wrapper install failed"; exit 1; }
+popd
 
 # Run cmake
 for target in "${targets[@]}"; do

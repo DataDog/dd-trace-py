@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING  # noqa:F401
 import pytest
 
 import ddtrace
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
@@ -20,7 +21,6 @@ from ddtrace.contrib.internal.sqlite3.patch import TracedSQLiteCursor
 from ddtrace.contrib.internal.sqlite3.patch import patch
 from ddtrace.contrib.internal.sqlite3.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from ddtrace.trace import Pin
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured

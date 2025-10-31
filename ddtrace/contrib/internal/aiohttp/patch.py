@@ -6,6 +6,7 @@ import wrapt
 from yarl import URL
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.contrib.internal.trace_utils import extract_netloc_and_query_info_from_url
@@ -24,7 +25,6 @@ from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.trace import Pin
 
 
 log = get_logger(__name__)
@@ -101,10 +101,10 @@ async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwar
             HTTPPropagator.inject(span.context, headers)
             kwargs["headers"] = headers
 
-        span.set_tag_str(COMPONENT, config.aiohttp_client.integration_name)
+        span._set_tag_str(COMPONENT, config.aiohttp_client.integration_name)
 
         # set span.kind tag equal to type of request
-        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         # Params can be included separate of the URL so the URL has to be constructed
         # with the passed params.

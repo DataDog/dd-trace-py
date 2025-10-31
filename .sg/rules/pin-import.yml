@@ -1,0 +1,25 @@
+id: pin-import-deprecated
+message: Use `ddtrace._trace.pin.Pin` instead of deprecated `ddtrace.trace.Pin`
+severity: error
+language: python
+rule:
+  any:
+    # Match import statements from ddtrace.trace that contain Pin
+    - pattern: from ddtrace.trace import Pin
+    - pattern: from ddtrace.trace import Pin as $ALIAS
+    - pattern: from ddtrace.trace import $$$IMPORTS, Pin
+    - pattern: from ddtrace.trace import $$$IMPORTS, Pin as $ALIAS
+    - pattern: from ddtrace.trace import Pin, $$$IMPORTS
+    - pattern: from ddtrace.trace import Pin as $ALIAS, $$$IMPORTS
+    # Match: ddtrace.trace.Pin usage
+    - pattern: ddtrace.trace.Pin
+    # Match: trace.Pin usage (after "from ddtrace import trace")
+    - pattern: trace.Pin
+    # Match: import ddtrace.trace.Pin
+    - pattern: import ddtrace.trace.Pin
+note: |
+  The `ddtrace.trace.Pin` import is deprecated. Use `ddtrace._trace.pin.Pin` instead:
+
+  - Change `from ddtrace.trace import Pin` to `from ddtrace._trace.pin import Pin`
+  - Change `import ddtrace.trace.Pin` to `from ddtrace._trace.pin import Pin`
+  - Change `ddtrace.trace.Pin` usage to `Pin` after importing from the new location

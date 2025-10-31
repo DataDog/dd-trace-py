@@ -1,2 +1,6 @@
+CLOUD = "azure"
 SERVICE = "servicebus"
-PRODUCE = "azure.servicebus.send"
+
+SEND = "send"
+CREATE = "create"
+RECEIVE = "receive"

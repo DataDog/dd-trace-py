@@ -65,8 +65,9 @@ class VulnerabilityBase:
 
     @staticmethod
     def has_quota():
-        context = _get_iast_env()
-        return context.vulnerability_budget < asm_config._iast_max_vulnerabilities_per_requests
+        if context := _get_iast_env():
+            return context.vulnerability_budget < asm_config._iast_max_vulnerabilities_per_requests
+        return False
 
     @classmethod
     @taint_sink_deduplication
@@ -132,12 +133,19 @@ class VulnerabilityBase:
 
     @staticmethod
     def _rel_path(file_name: str) -> str:
-        if file_name.startswith(PURELIB_PATH):
-            return os.path.relpath(file_name, start=PURELIB_PATH)
-        if file_name.startswith(STDLIB_PATH):
-            return os.path.relpath(file_name, start=STDLIB_PATH)
-        if file_name.startswith(CWD):
-            return os.path.relpath(file_name, start=CWD)
+        file_name_norm = file_name.replace("\\", "/")
+        if file_name_norm.startswith(PURELIB_PATH):
+            return os.path.relpath(file_name_norm, start=PURELIB_PATH)
+
+        if file_name_norm.startswith(STDLIB_PATH):
+            return os.path.relpath(file_name_norm, start=STDLIB_PATH)
+        if file_name_norm.startswith(CWD):
+            return os.path.relpath(file_name_norm, start=CWD)
+        # If the path contains site-packages anywhere, return 'site-packages/<rest>'
+        # Normalize separators to forward slashes for consistency
+        if (idx := file_name_norm.find("/site-packages/")) != -1:
+            print(f"file_name_norm({idx}): {file_name_norm}")
+            return file_name_norm[idx:]
         return ""
 
     @classmethod
@@ -155,7 +163,7 @@ class VulnerabilityBase:
     ):
         if isinstance(evidence_value, IAST.TEXT_TYPES):
             if isinstance(evidence_value, (bytes, bytearray)):
-                evidence_value = evidence_value.decode("utf-8")
+                evidence_value = evidence_value.decode("utf-8", "ignore")
             evidence = Evidence(value=evidence_value, dialect=dialect)
         else:
             log.debug("Unexpected evidence_value type: %s", type(evidence_value))

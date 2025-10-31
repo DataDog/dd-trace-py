@@ -3,9 +3,9 @@ import unittest
 import dramatiq
 import pytest
 
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.dramatiq.patch import patch
 from ddtrace.contrib.internal.dramatiq.patch import unpatch
-from ddtrace.trace import Pin
 from tests.utils import DummyTracer
 from tests.utils import snapshot
 

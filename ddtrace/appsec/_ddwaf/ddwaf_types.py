@@ -1,3 +1,5 @@
+from collections.abc import Mapping
+from collections.abc import Sequence
 import ctypes
 import ctypes.util
 from enum import IntEnum
@@ -105,7 +107,7 @@ class ddwaf_object(ctypes.Structure):
 
     def __init__(
         self,
-        struct: DDWafRulesType = None,
+        struct: Optional[DDWafRulesType] = None,
         observator: _observator = _observator(),  # noqa : B008
         max_objects: int = DDWAF_MAX_CONTAINER_SIZE,
         max_depth: int = DDWAF_MAX_CONTAINER_DEPTH,
@@ -128,7 +130,7 @@ class ddwaf_object(ctypes.Structure):
             ddwaf_object_string(self, truncate_string(struct))
         elif isinstance(struct, float):
             ddwaf_object_float(self, struct)
-        elif isinstance(struct, list):
+        elif isinstance(struct, Sequence):
             if max_depth <= 0:
                 observator.set_container_depth(DDWAF_MAX_CONTAINER_DEPTH)
                 max_objects = 0
@@ -145,7 +147,7 @@ class ddwaf_object(ctypes.Structure):
                     max_string_length=max_string_length,
                 )
                 ddwaf_object_array_add(array, obj)
-        elif isinstance(struct, dict):
+        elif isinstance(struct, Mapping):
             if max_depth <= 0:
                 observator.set_container_depth(DDWAF_MAX_CONTAINER_DEPTH)
                 max_objects = 0

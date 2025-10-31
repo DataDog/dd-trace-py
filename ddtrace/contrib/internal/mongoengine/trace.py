@@ -2,7 +2,7 @@
 # project
 import wrapt
 
-import ddtrace
+from ddtrace._trace.pin import Pin
 
 # keep the TracedMongoClient import to avoid breaking the public api
 from ddtrace.contrib.internal.pymongo.client import TracedMongoClient  # noqa: F401
@@ -23,14 +23,14 @@ class WrappedConnect(wrapt.ObjectProxy):
 
     def __init__(self, connect):
         super(WrappedConnect, self).__init__(connect)
-        ddtrace.trace.Pin(_SERVICE).onto(self)
+        Pin(_SERVICE).onto(self)
 
     def __call__(self, *args, **kwargs):
         client = self.__wrapped__(*args, **kwargs)
-        pin = ddtrace.trace.Pin.get_from(self)
+        pin = Pin.get_from(self)
         if pin:
             tracer = pin.tracer
-            pp = ddtrace.trace.Pin(service=pin.service)
+            pp = Pin(service=pin.service)
             if tracer is not None:
                 pp._tracer = tracer
             pp.onto(client)

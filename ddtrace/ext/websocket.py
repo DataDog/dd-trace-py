@@ -1,0 +1,6 @@
+MESSAGE_TYPE = "websocket.message.type"
+MESSAGE_LENGTH = "websocket.message.length"
+MESSAGE_FRAMES = "websocket.message.frames"
+CLOSE_CODE = "websocket.close.code"
+CLOSE_REASON = "websocket.close.reason"
+RECEIVE_DURATION_TYPE = "websocket.duration.style"

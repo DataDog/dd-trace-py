@@ -14,9 +14,11 @@ Prerequisites
 
 1. Figure out the version of the library that you’re working on releasing.
 
-2. Ensure the CI is green on the branch on which the release will be based.
+2. Update the pinned system-tests version with `scripts/update-system-tests-version.py` and commit the result
 
-3. Ensure there are no SLO breaches on the release branch (``main`` for new major/minor, ``major.minor`` branch for patch releases). See section below for details.
+3. Ensure the CI is green on the branch on which the release will be based.
+
+4. Ensure there are no SLO breaches on the release branch (``main`` for new major/minor, ``major.minor`` branch for patch releases). See section below for details.
 
 Pre-Release Performance Gates
 -----------------------------

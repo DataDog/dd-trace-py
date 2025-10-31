@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: MCP integration also traces ``ClientSession`` contexts, ``ClientSession.initialize``, and ``ClientSession.list_tools``.

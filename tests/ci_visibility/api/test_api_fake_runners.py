@@ -272,12 +272,8 @@ class FakeApiRunnersSnapshotTestCase(TracerTestCase):
                 mock_ci_env=True,
             ),
             replace_os_env=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_settings",
-            return_value=TestVisibilityAPISettings(False, False, False, False, False),
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
         ):
+            # The fake runner handles its own ITR mocking internally
             subprocess.run(["python", "fake_runner_mix_fail_itr_suite_level.py"])
 
     @snapshot(ignores=SNAPSHOT_IGNORES)

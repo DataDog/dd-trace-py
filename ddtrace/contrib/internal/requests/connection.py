@@ -1,8 +1,13 @@
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
 from typing import Optional  # noqa:F401
 from urllib import parse
 
+import requests
+
 import ddtrace
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -10,16 +15,28 @@ from ddtrace.contrib.internal.trace_utils import _sanitized_url
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.constants import USER_AGENT_HEADER
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.opentelemetry.constants import OTLP_EXPORTER_HEADER_IDENTIFIER
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.trace import Pin
 
 
 log = get_logger(__name__)
+
+
+def is_otlp_export(request: requests.models.Request) -> bool:
+    """Determine if a request is submitting data to the OpenTelemetry OTLP exporter."""
+    if not (config._otel_logs_enabled or config._otel_metrics_enabled):
+        return False
+    user_agent = request.headers.get(USER_AGENT_HEADER, "")
+    normalized_user_agent = user_agent.lower().replace(" ", "-")
+    if OTLP_EXPORTER_HEADER_IDENTIFIER in normalized_user_agent:
+        return True
+    return False
 
 
 def _extract_hostname_and_path(uri):
@@ -65,7 +82,7 @@ def _wrap_send(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     request = get_argument_value(args, kwargs, 0, "request")
-    if not request:
+    if not request or is_otlp_export(request):
         return func(*args, **kwargs)
 
     url = _sanitized_url(request.url)
@@ -75,7 +92,11 @@ def _wrap_send(func, instance, args, kwargs):
     hostname, path = _extract_hostname_and_path(url)
     host_without_port = hostname.split(":")[0] if hostname is not None else None
 
-    cfg = ddtrace.trace.Pin._get_config(instance)
+    cfg: Dict[str, Any] = {}
+    pin = Pin.get_from(instance)
+    if pin:
+        cfg = pin._config
+
     service = None
     if cfg["split_by_domain"] and hostname:
         service = hostname
@@ -88,17 +109,13 @@ def _wrap_send(func, instance, args, kwargs):
 
     operation_name = schematize_url_operation("requests.request", protocol="http", direction=SpanDirection.OUTBOUND)
     with tracer.trace(operation_name, service=service, resource=f"{method} {path}", span_type=SpanTypes.HTTP) as span:
-        span.set_tag_str(COMPONENT, config.requests.integration_name)
+        span._set_tag_str(COMPONENT, config.requests.integration_name)
 
         # set span.kind to the type of operation being performed
-        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         # PERF: avoid setting via Span.set_tag
         span.set_metric(_SPAN_MEASURED_KEY, 1)
-
-        # Configure trace search sample rate
-        # DEV: analytics enabled on per-session basis
-        cfg = Pin._get_config(instance)
 
         # propagate distributed tracing headers
         if cfg.get("distributed_tracing"):

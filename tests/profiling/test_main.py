@@ -12,7 +12,7 @@ from . import utils
 
 def test_call_script(monkeypatch):
     # Set a very short timeout to exit fast
-    monkeypatch.setenv("DD_PROFILING_API_TIMEOUT", "0.1")
+    monkeypatch.setenv("DD_PROFILING_API_TIMEOUT_MS", "100")
     monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
     stdout, stderr, exitcode, _ = call_program(
         "ddtrace-run", sys.executable, os.path.join(os.path.dirname(__file__), "simple_program.py")
@@ -28,7 +28,7 @@ def test_call_script(monkeypatch):
 
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT", False), reason="Not testing gevent")
 def test_call_script_gevent(monkeypatch):
-    monkeypatch.setenv("DD_PROFILING_API_TIMEOUT", "0.1")
+    monkeypatch.setenv("DD_PROFILING_API_TIMEOUT_MS", "100")
     stdout, stderr, exitcode, pid = call_program(
         sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_gevent.py")
     )
@@ -58,7 +58,7 @@ def test_call_script_pprof_output(tmp_path, monkeypatch):
 @pytest.mark.skipif(sys.platform == "win32", reason="fork only available on Unix")
 def test_fork(tmp_path, monkeypatch):
     filename = str(tmp_path / "pprof")
-    monkeypatch.setenv("DD_PROFILING_API_TIMEOUT", "0.1")
+    monkeypatch.setenv("DD_PROFILING_API_TIMEOUT_MS", "100")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
     monkeypatch.setenv("DD_PROFILING_CAPTURE_PCT", "100")
     stdout, stderr, exitcode, pid = call_program(
@@ -73,7 +73,7 @@ def test_fork(tmp_path, monkeypatch):
 @pytest.mark.skipif(sys.platform == "win32", reason="fork only available on Unix")
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT", False), reason="Not testing gevent")
 def test_fork_gevent(monkeypatch):
-    monkeypatch.setenv("DD_PROFILING_API_TIMEOUT", "0.1")
+    monkeypatch.setenv("DD_PROFILING_API_TIMEOUT_MS", "100")
     stdout, stderr, exitcode, pid = call_program("python", os.path.join(os.path.dirname(__file__), "gevent_fork.py"))
     assert exitcode == 0
 

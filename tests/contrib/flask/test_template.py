@@ -1,8 +1,8 @@
 import flask
 
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.flask.patch import flask_version
 from ddtrace.contrib.internal.flask.patch import unpatch
-from ddtrace.trace import Pin
 
 from . import BaseFlaskTestCase
 

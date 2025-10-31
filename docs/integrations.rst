@@ -237,6 +237,13 @@ gevent
 .. automodule:: ddtrace.contrib.internal.gevent
 
 
+.. _google_adk:
+
+google-adk
+^^^^^^^^^^^^
+.. automodule:: ddtrace.contrib.internal.google_adk
+
+
 .. _google_genai:
 
 google-genai
@@ -483,6 +490,13 @@ protobuf
 psycopg
 ^^^^^^^
 .. automodule:: ddtrace.contrib.internal.psycopg
+
+
+.. _ray:
+
+Ray
+^^^
+.. automodule:: ddtrace.contrib.internal.ray
 
 
 .. _redis:

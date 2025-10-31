@@ -87,10 +87,11 @@ def post_preload():
 def start():
     """
     Start the IAST product.
-
-    Currently a no-op as all initialization happens in post_preload().
     """
-    pass
+    if asm_config._iast_enabled:
+        from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
+
+        AppSecIastSpanProcessor.enable()
 
 
 def restart(join=False):

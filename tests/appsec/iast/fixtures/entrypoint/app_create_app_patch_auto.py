@@ -1,4 +1,3 @@
-import ddtrace.appsec._iast.auto  # noqa: I001,F401
 from .views import create_app_patch_all
 
 

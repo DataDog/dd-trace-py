@@ -1,6 +1,7 @@
 import itertools
 import math
 import os
+import sys
 import typing as t
 
 from ddtrace.ext.git import COMMIT_SHA
@@ -64,6 +65,9 @@ def _check_for_stack_v2_available():
 
 
 def _parse_profiling_enabled(raw: str) -> bool:
+    if sys.version_info >= (3, 14):
+        return False
+
     # Try to derive whether we're enabled via DD_INJECTION_ENABLED
     # - Are we injected (DD_INJECTION_ENABLED set)
     # - Is profiling enabled ("profiler" in the list)
@@ -79,6 +83,52 @@ def _parse_profiling_enabled(raw: str) -> bool:
 
     # If it wasn't enabled, then disable it
     return False
+
+
+def _parse_v2_enabled(raw: str) -> bool:
+    if sys.version_info >= (3, 14):
+        return False
+
+    # Parse the boolean value
+    raw_lc = raw.lower()
+    enabled = raw_lc in ("1", "true", "yes", "on")
+
+    # Warn if user explicitly disabled v2 profiler (v1 is deprecated)
+    if raw_lc in ("false", "0", "no", "off"):
+        from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+        from ddtrace.vendor.debtcollector import deprecate
+
+        deprecate(
+            "Setting DD_PROFILING_STACK_V2_ENABLED=false is deprecated",
+            message="The v1 stack profiler is deprecated and will be removed in a future version. "
+            "Please migrate to the v2 stack profiler by removing DD_PROFILING_STACK_V2_ENABLED=false "
+            "or setting it to true.",
+            category=DDTraceDeprecationWarning,
+            removal_version="4.0.0",
+        )
+
+    return enabled
+
+
+def _parse_api_timeout_ms(raw: str) -> int:
+    # Check if the deprecated DD_PROFILING_API_TIMEOUT is set (in seconds)
+    deprecated_timeout = os.environ.get("DD_PROFILING_API_TIMEOUT")
+    if deprecated_timeout is not None:
+        from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+        from ddtrace.vendor.debtcollector import deprecate
+
+        deprecate(
+            "DD_PROFILING_API_TIMEOUT is deprecated",
+            message="DD_PROFILING_API_TIMEOUT (in seconds) is deprecated and will be removed in version 4.0.0. "
+            "Please use DD_PROFILING_API_TIMEOUT_MS (in milliseconds) instead.",
+            category=DDTraceDeprecationWarning,
+            removal_version="4.0.0",
+        )
+        # Convert seconds to milliseconds
+        return int(float(deprecated_timeout) * 1000)
+
+    # Otherwise, use the raw value (in milliseconds)
+    return int(raw)
 
 
 def _update_git_metadata_tags(tags):
@@ -198,12 +248,13 @@ class ProfilingConfig(DDConfig):
         "statistics. Must be greater than 0 and lesser or equal to 100",
     )
 
-    api_timeout = DDConfig.v(
-        float,
-        "api_timeout",
-        default=10.0,
-        help_type="Float",
-        help="The timeout in seconds before dropping events if the HTTP API does not reply",
+    api_timeout_ms = DDConfig.v(
+        int,
+        "api_timeout_ms",
+        parser=_parse_api_timeout_ms,
+        default=10000,
+        help_type="Integer",
+        help="The timeout in milliseconds before dropping events if the HTTP API does not reply",
     )
 
     timeline_enabled = DDConfig.v(
@@ -257,7 +308,9 @@ class ProfilingConfigStack(DDConfig):
     _v2_enabled = DDConfig.v(
         bool,
         "v2_enabled",
-        default=True,
+        parser=_parse_v2_enabled,
+        # Not yet supported on 3.14
+        default=sys.version_info < (3, 14),
         help_type="Boolean",
         help="Whether to enable the v2 stack profiler. Also enables the libdatadog collector.",
     )
@@ -370,12 +423,14 @@ ddup_failure_msg, ddup_is_available = _check_for_ddup_available()
 
 # We need to check if ddup is available, and turn off profiling if it is not.
 if not ddup_is_available:
-    msg = ddup_failure_msg or "libdd not available"
-    logger.warning("Failed to load ddup module (%s), disabling profiling", msg)
-    telemetry_writer.add_log(
-        TELEMETRY_LOG_LEVEL.ERROR,
-        "Failed to load ddup module (%s), disabling profiling" % ddup_failure_msg,
-    )
+    # We know it is not supported on 3.14, so don't report the error, but still disable
+    if sys.version_info < (3, 14):
+        msg = ddup_failure_msg or "libdd not available"
+        logger.warning("Failed to load ddup module (%s), disabling profiling", msg)
+        telemetry_writer.add_log(
+            TELEMETRY_LOG_LEVEL.ERROR,
+            "Failed to load ddup module (%s), disabling profiling" % ddup_failure_msg,
+        )
     config.enabled = False
 
 # We also need to check if stack_v2 module is available, and turn if off

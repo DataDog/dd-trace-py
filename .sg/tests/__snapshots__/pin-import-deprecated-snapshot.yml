@@ -1,0 +1,94 @@
+id: pin-import-deprecated
+snapshots:
+  ddtrace.trace.Pin.get_from(service):
+    labels:
+    - source: ddtrace.trace.Pin
+      style: primary
+      start: 0
+      end: 17
+  ? |-
+    from ddtrace import trace
+    trace.Pin.get_from(service)
+  : labels:
+    - source: trace.Pin
+      style: primary
+      start: 26
+      end: 35
+  from ddtrace.trace import Pin:
+    labels:
+    - source: from ddtrace.trace import Pin
+      style: primary
+      start: 0
+      end: 29
+  from ddtrace.trace import Pin as PinAlias:
+    labels:
+    - source: from ddtrace.trace import Pin as PinAlias
+      style: primary
+      start: 0
+      end: 41
+  from ddtrace.trace import Pin as PinAlias, Span:
+    labels:
+    - source: from ddtrace.trace import Pin as PinAlias, Span
+      style: primary
+      start: 0
+      end: 47
+  from ddtrace.trace import Pin as PinAlias, Span, Tracer:
+    labels:
+    - source: from ddtrace.trace import Pin as PinAlias, Span, Tracer
+      style: primary
+      start: 0
+      end: 55
+  from ddtrace.trace import Pin, Span:
+    labels:
+    - source: from ddtrace.trace import Pin, Span
+      style: primary
+      start: 0
+      end: 35
+  from ddtrace.trace import Pin, Span, Tracer:
+    labels:
+    - source: from ddtrace.trace import Pin, Span, Tracer
+      style: primary
+      start: 0
+      end: 43
+  from ddtrace.trace import Span, Pin:
+    labels:
+    - source: from ddtrace.trace import Span, Pin
+      style: primary
+      start: 0
+      end: 35
+  from ddtrace.trace import Span, Pin as PinAlias:
+    labels:
+    - source: from ddtrace.trace import Span, Pin as PinAlias
+      style: primary
+      start: 0
+      end: 47
+  from ddtrace.trace import Span, Pin, Tracer:
+    labels:
+    - source: from ddtrace.trace import Span, Pin, Tracer
+      style: primary
+      start: 0
+      end: 43
+  from ddtrace.trace import Span, Tracer, Pin:
+    labels:
+    - source: from ddtrace.trace import Span, Tracer, Pin
+      style: primary
+      start: 0
+      end: 43
+  from ddtrace.trace import Span, Tracer, Pin as PinAlias:
+    labels:
+    - source: from ddtrace.trace import Span, Tracer, Pin as PinAlias
+      style: primary
+      start: 0
+      end: 55
+  from ddtrace.trace import Span, Tracer, Pin as PinAlias, Context:
+    labels:
+    - source: from ddtrace.trace import Span, Tracer, Pin as PinAlias, Context
+      style: primary
+      start: 0
+      end: 64
+  import ddtrace.trace.Pin:
+    labels:
+    - source: import ddtrace.trace.Pin
+      style: primary
+      start: 0
+      end: 24

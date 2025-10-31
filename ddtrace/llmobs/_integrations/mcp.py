@@ -45,12 +45,16 @@ class MCPIntegration(BaseLLMIntegration):
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
-        span._set_ctx_item(SPAN_KIND, "tool")
-
         if operation == CLIENT_TOOL_CALL_OPERATION_NAME:
             self._llmobs_set_tags_client(span, args, kwargs, response)
         elif operation == SERVER_TOOL_CALL_OPERATION_NAME:
             self._llmobs_set_tags_server(span, args, kwargs, response)
+        elif operation == "initialize":
+            self._llmobs_set_tags_initialize(span, args, kwargs, response)
+        elif operation == "list_tools":
+            self._llmobs_set_tags_list_tools(span, args, kwargs, response)
+        elif operation == "session":
+            self._llmobs_set_tags_session(span, args, kwargs, response)
 
     def _llmobs_set_tags_client(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any) -> None:
         tool_arguments = get_argument_value(args, kwargs, 1, "arguments", optional=True) or {}
@@ -59,6 +63,7 @@ class MCPIntegration(BaseLLMIntegration):
 
         span._set_ctx_items(
             {
+                SPAN_KIND: "tool",
                 NAME: span_name,
                 INPUT_VALUE: tool_arguments,
             }
@@ -83,6 +88,7 @@ class MCPIntegration(BaseLLMIntegration):
 
         span._set_ctx_items(
             {
+                SPAN_KIND: "tool",
                 NAME: span_name,
                 INPUT_VALUE: tool_arguments,
             }
@@ -99,3 +105,30 @@ class MCPIntegration(BaseLLMIntegration):
             output_value = safe_json(response)
 
         span._set_ctx_item(OUTPUT_VALUE, output_value)
+
+    def _llmobs_set_tags_initialize(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any) -> None:
+        span._set_ctx_items({NAME: "MCP Client Initialize", SPAN_KIND: "task", OUTPUT_VALUE: safe_json(response)})
+
+    def _llmobs_set_tags_list_tools(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any) -> None:
+        cursor = get_argument_value(args, kwargs, 0, "cursor", optional=True)
+
+        span._set_ctx_items(
+            {
+                NAME: "MCP Client List Tools",
+                SPAN_KIND: "task",
+                INPUT_VALUE: safe_json({"cursor": cursor}),
+                OUTPUT_VALUE: safe_json(response),
+            }
+        )
+
+    def _llmobs_set_tags_session(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any) -> None:
+        read_stream = kwargs.get("read_stream", None)
+        write_stream = kwargs.get("write_stream", None)
+
+        span._set_ctx_items(
+            {
+                NAME: "MCP Client Session",
+                SPAN_KIND: "workflow",
+                INPUT_VALUE: safe_json({"read_stream": read_stream, "write_stream": write_stream}),
+            }
+        )

@@ -5,10 +5,10 @@ import pytest
 import valkey
 
 import ddtrace
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.valkey.patch import patch
 from ddtrace.contrib.internal.valkey.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from ddtrace.trace import Pin
 from tests.opentracer.utils import init_tracer
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase

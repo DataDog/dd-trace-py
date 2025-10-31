@@ -1,0 +1,60 @@
+[[
+  {
+    "name": "postgres.query",
+    "service": "postgres",
+    "resource": "SELECT 1",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.asyncpg",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68b05c4c00000000",
+      "component": "asyncpg",
+      "db.system": "postgresql",
+      "language": "python",
+      "runtime-id": "affe257e588347a08dc9aba7c5237c9f",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 5029
+    },
+    "duration": 225917,
+    "start": 1756388428735309501
+  }],
+[
+  {
+    "name": "postgres.query",
+    "service": "postgres",
+    "resource": "SELECT pg_advisory_unlock_all();\nCLOSE ALL;\nUNLISTEN *;\nRESET ALL;",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.asyncpg",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68b05c4c00000000",
+      "component": "asyncpg",
+      "db.system": "postgresql",
+      "language": "python",
+      "runtime-id": "affe257e588347a08dc9aba7c5237c9f",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 5029
+    },
+    "duration": 152500,
+    "start": 1756388428735899668
+  }]]

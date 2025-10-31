@@ -7,12 +7,7 @@ from types import FrameType
 from types import FunctionType
 from types import TracebackType
 import typing as t
-
-
-try:
-    from typing import Protocol  # noqa:F401
-except ImportError:
-    from typing_extensions import Protocol  # type: ignore[assignment]
+from typing import Protocol  # noqa:F401
 
 import bytecode
 from bytecode import Bytecode
@@ -72,8 +67,8 @@ CONTEXT_HEAD = Assembly()
 CONTEXT_RETURN = Assembly()
 CONTEXT_FOOT = Assembly()
 
-if sys.version_info >= (3, 14):
-    raise NotImplementedError("Python >= 3.14 is not supported yet")
+if sys.version_info >= (3, 15):
+    raise NotImplementedError("Python >= 3.15 is not supported yet")
 elif sys.version_info >= (3, 13):
     CONTEXT_HEAD.parse(
         r"""
@@ -485,7 +480,16 @@ class _UniversalWrappingContext(BaseWrappingContext):
 
     @classmethod
     def is_wrapped(cls, f: FunctionType) -> bool:
-        return hasattr(f, "__dd_context_wrapped__")
+        try:
+            # Check that we have actual bytecode wrapping. The presence of the
+            # __dd_context_wrapped__ attribute is not enough, as this could be
+            # copied over from an object state cloning.
+            if sys.version_info >= (3, 11):
+                return f.__dd_context_wrapped__.__enter__ in f.__code__.co_consts  # type: ignore
+            else:
+                return f.__dd_context_wrapped__ in f.__code__.co_consts  # type: ignore
+        except AttributeError:
+            return False
 
     @classmethod
     def extract(cls, f: FunctionType) -> "_UniversalWrappingContext":

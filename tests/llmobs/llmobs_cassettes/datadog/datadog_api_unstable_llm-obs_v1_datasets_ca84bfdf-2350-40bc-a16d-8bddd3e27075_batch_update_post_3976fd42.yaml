@@ -1,0 +1,48 @@
+interactions:
+- request:
+    body: '{"data": {"type": "datasets", "id": "ca84bfdf-2350-40bc-a16d-8bddd3e27075",
+      "attributes": {"insert_records": [], "update_records": [{"input": null, "expected_output":
+      "", "metadata": null, "id": "aa99d47a-bb38-4733-b30b-3a9ced3b7bce"}], "delete_records":
+      []}}}'
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '260'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.3
+    method: POST
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/ca84bfdf-2350-40bc-a16d-8bddd3e27075/batch_update
+  response:
+    body:
+      string: '{"data":[{"id":"d1ea65b8-030f-4556-b04b-d99e77c63e8b","type":"datasets","attributes":{"author":{"id":"de473b30-eb9f-11e9-a77a-c7405862b8bd"},"created_at":"2025-09-09T04:33:16.753720048Z","dataset_id":"ca84bfdf-2350-40bc-a16d-8bddd3e27075","expected_output":"","input":{"prompt":"What
+        is the capital of France?"},"updated_at":"2025-09-09T04:33:16.753720121Z","version":2}}]}'
+    headers:
+      content-length:
+      - '373'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Tue, 09 Sep 2025 04:33:16 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

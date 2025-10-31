@@ -1,11 +1,10 @@
-import sys
 from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
 
-import wrapt
-
+from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
+from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
 from ddtrace.llmobs._integrations.google_utils import GOOGLE_GENAI_DEFAULT_MODEL_ROLE
 from ddtrace.llmobs._utils import _get_attr
 
@@ -13,7 +12,6 @@ from ddtrace.llmobs._utils import _get_attr
 def _join_chunks(chunks: List[Any]) -> Optional[Dict[str, Any]]:
     """
     Consolidates streamed response GenerateContentResponse chunks into a single dictionary representing the response.
-
     All chunks should have the same role since one generation call produces consistent content type.
     """
     if not chunks:
@@ -58,61 +56,23 @@ def _join_chunks(chunks: List[Any]) -> Optional[Dict[str, Any]]:
         return None
 
 
-class BaseTracedGoogleGenAIStreamResponse(wrapt.ObjectProxy):
-    def __init__(self, wrapped, integration, span, args, kwargs):
-        super().__init__(wrapped)
-        self._self_dd_span = span
-        self._self_chunks = []
-        self._self_args = args
-        self._self_kwargs = kwargs
-        self._self_dd_integration = integration
+class BaseGoogleGenAIStreamHandler:
+    def finalize_stream(self, exception=None):
+        self.integration.llmobs_set_tags(
+            self.primary_span,
+            args=self.request_args,
+            kwargs=self.request_kwargs,
+            response=_join_chunks(self.chunks),
+            operation="llm",
+        )
+        self.primary_span.finish()
 
 
-class TracedGoogleGenAIStreamResponse(BaseTracedGoogleGenAIStreamResponse):
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        try:
-            chunk = self.__wrapped__.__next__()
-            self._self_chunks.append(chunk)
-            return chunk
-        except StopIteration:
-            self._self_dd_integration.llmobs_set_tags(
-                self._self_dd_span,
-                args=self._self_args,
-                kwargs=self._self_kwargs,
-                response=_join_chunks(self._self_chunks),
-                operation="llm",
-            )
-            self._self_dd_span.finish()
-            raise
-        except Exception:
-            self._self_dd_span.set_exc_info(*sys.exc_info())
-            self._self_dd_span.finish()
-            raise
+class GoogleGenAIStreamHandler(BaseGoogleGenAIStreamHandler, StreamHandler):
+    def process_chunk(self, chunk, iterator=None):
+        self.chunks.append(chunk)
 
 
-class TracedAsyncGoogleGenAIStreamResponse(BaseTracedGoogleGenAIStreamResponse):
-    def __aiter__(self):
-        return self
-
-    async def __anext__(self):
-        try:
-            chunk = await self.__wrapped__.__anext__()
-            self._self_chunks.append(chunk)
-            return chunk
-        except StopAsyncIteration:
-            self._self_dd_integration.llmobs_set_tags(
-                self._self_dd_span,
-                args=self._self_args,
-                kwargs=self._self_kwargs,
-                response=_join_chunks(self._self_chunks),
-                operation="llm",
-            )
-            self._self_dd_span.finish()
-            raise
-        except Exception:
-            self._self_dd_span.set_exc_info(*sys.exc_info())
-            self._self_dd_span.finish()
-            raise
+class GoogleGenAIAsyncStreamHandler(BaseGoogleGenAIStreamHandler, AsyncStreamHandler):
+    async def process_chunk(self, chunk, iterator=None):
+        self.chunks.append(chunk)

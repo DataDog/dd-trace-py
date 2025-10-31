@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    AAP: This fix resolves an issue where stream endpoints with daphne/django where unresponsive due to an asyncio error.

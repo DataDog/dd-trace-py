@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: Fixes an issue where Exception Replay would sometimes
+    fail to capture snapshots when enabled via remote configuration.

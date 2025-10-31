@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    libinjection: allow python module executed with ``-m`` entries in the denylist.

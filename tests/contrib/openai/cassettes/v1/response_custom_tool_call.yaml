@@ -1,0 +1,105 @@
+interactions:
+- request:
+    body: '{"input":"Use the math_exp tool to add four plus four.","model":"gpt-5","tools":[{"type":"custom","name":"math_exp","description":"Creates
+      valid mathematical expressions","format":{"type":"grammar","syntax":"lark","definition":"\n        start:
+      expr\n        expr: term (SP ADD SP term)* -> add\n        | term\n        term:
+      factor (SP MUL SP factor)* -> mul\n        | factor\n        factor: INT\n        SP:
+      \" \"\n        ADD: \"+\"\n        MUL: \"*\"\n        %import common.INT\n        "}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '500'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.91.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.91.0
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.11
+    method: POST
+    uri: https://api.openai.com/v1/responses
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA4xUXW/bNhR9968gBAzY2riQFcmS/TCgmx86oO0CpMFQLIVwRV05bEhRI68ye1n+
+        e0HKMqUlw/Zi+J7D+6FzPx4XjEWijrYsMmi7cl1AnuBlUlcJL1abdQUJFOnmMisSDlWNcZ7xTcNh
+        vVnnwIsqunABdPUVOY1BdGtxwLlBIKxLcNwqz7K8WBdx7jlLQL11PlyrTiJhPThVwO/3Rvetq6oB
+        adHDaIw20Za1vZQeEO3oWNZIIKSds5ZMz0nodoYrOJS6p66nkvQ9PidJa1lykPNwStcoXbH7jpbZ
+        MomTbBkXyzg/CeAjRlv2+4Ixxh79b1DWjrrmdRanTtciTxOs+Aqw2iRpyl/U1YegY4eDsmB1K9p9
+        oGyvFJijS/vFY08XL6XnxMf8fF0khcsPvObpJl1VVbyCCrL/zs97S1oFeSZl/EsnPemelqc63N93
+        xWf7083u6vPXj++u/9g0v/36159IBxM8RDtIGaXsNUsD3oLyhSiguxIPXTR88oKxL74HHRiQEuW8
+        g2T6YX46gw9C97YcR3So6tzhzmjVUcmB32F5j8cpF7TfnsSNsGm08WUqrEWvTnVOeuK8F6eeRBYa
+        pGMpamxJNAJnk2zRPAiOJQ14BD3p6LQk2uBsDQhVhwao9/jqTXxCDxRqa7RREOxJE/276ahED2gq
+        bQUdJ59yrnpQ8k4LjvO6HGGfj/t8VkLrarTciM4to6N/9mfBsgeQomaun6iABAfJ8NAZtNZv7dn9
+        2fdMUu0NOMHPj322RrRiTHbbjoQlMLT1KQLorC0jNIp9f33F3u527PrK2z+8YssfGdR1ePy3J4Lt
+        LNccTtp49w837537gAwBVC+nAQYqIIO9Zb98/BTA66stu43Y7aT4t7udw15PsQ837x32aop9J1Sn
+        DTGuldLtm1nYqUj22BIcnEASzH10Ip7+97aR7kqp953RlRuE+Ax207E0fcth7EQtLFRyPPO9hT2G
+        mfVbH07yKttcPCcmh/4xHBh+h3XwjGfj/c9Tn+TZS8xLgc9LP/HO1rPopAlkoNPL9Lw6vZ3vuEKC
+        GghchqfF0zcAAAD//wMAtxAgsngHAAA=
+    headers:
+      CF-RAY:
+      - 972ad85b7fefc942-IAD
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 21 Aug 2025 14:33:32 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=G7bjch5x1Todcb0Gu9nayz0bBGGnE2IZl7nhjCTjDuE-1755786812-1.0.1.1-YO8UMu1dHwkNmJ9yA3wWlJ_.h6qvgJb.5Y.Uzz.MjHf1WEXtbg_93NuyaiEeFUje_5Z0sKYk4jvbWMJkx2nwmnKlhgY7N1v8UL4Qzr.p7TI;
+        path=/; expires=Thu, 21-Aug-25 15:03:32 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=xW34AolqPK2QSJ_rXrCmy7hO5U8DIRUefqk8mtN48YA-1755786812729-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-staging
+      openai-processing-ms:
+      - '9839'
+      openai-project:
+      - proj_gt6TQZPRbZfoY2J9AQlEJMpd
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-envoy-upstream-service-time:
+      - '9853'
+      x-request-id:
+      - req_5b10ddfab4e1ea8e01f65920dc68c145
+    status:
+      code: 200
+      message: OK
+version: 1

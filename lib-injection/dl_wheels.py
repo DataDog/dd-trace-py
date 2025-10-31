@@ -42,7 +42,7 @@ if pip_version < MIN_PIP_VERSION:
     )
 
 # Supported Python versions lists all python versions that can install at least one version of the ddtrace library.
-supported_versions = ["2.7", "3.6", "3.7", "3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+supported_versions = ["2.7", "3.6", "3.7", "3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
 supported_arches = ["aarch64", "x86_64", "i686"]
 supported_platforms = ["musllinux_1_2", "manylinux2014"]
 

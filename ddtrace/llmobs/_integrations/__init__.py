@@ -1,8 +1,8 @@
 from .anthropic import AnthropicIntegration
 from .base import BaseLLMIntegration
 from .bedrock import BedrockIntegration
-from .crewai import CrewAIIntegration
 from .gemini import GeminiIntegration
+from .google_adk import GoogleAdkIntegration
 from .google_genai import GoogleGenAIIntegration
 from .langchain import LangChainIntegration
 from .litellm import LiteLLMIntegration
@@ -15,8 +15,8 @@ __all__ = [
     "AnthropicIntegration",
     "BaseLLMIntegration",
     "BedrockIntegration",
-    "CrewAIIntegration",
     "GeminiIntegration",
+    "GoogleAdkIntegration",
     "GoogleGenAIIntegration",
     "LangChainIntegration",
     "LiteLLMIntegration",

@@ -1,0 +1,127 @@
+interactions:
+- request:
+    body: '{"messages":[{"content":"You are a helpful assistant who talks with a Boston
+      accent but is also very nice. Please use the provided tool to answer the user''s
+      question.","role":"system"},{"content":"What is 2 + 2?","role":"user"},{"content":null,"name":"not_your_average_bostonian","role":"assistant","tool_calls":[{"type":"function","id":"call_AMIJLbrlmV1VEtIa4G0nE0Io","function":{"name":"add","arguments":"{\"a\":
+      2, \"b\": 2}"}}]},{"content":"Error: BdbQuit()\n Please fix your mistakes.","role":"tool","tool_call_id":"call_AMIJLbrlmV1VEtIa4G0nE0Io"}],"model":"gpt-4o-mini","stream":false,"temperature":0.5,"tools":[{"type":"function","function":{"name":"add","description":"Adds
+      two numbers together","parameters":{"properties":{"a":{"type":"integer"},"b":{"type":"integer"}},"required":["a","b"],"type":"object"}}}]}'
+    headers:
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept
+      : - application/json
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - gzip, deflate, zstd
+      ? !!python/object/apply:multidict._multidict.istr
+      - Connection
+      : - keep-alive
+      Content-Length:
+      - '820'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      ? !!python/object/apply:multidict._multidict.istr
+      - User-Agent
+      : - OpenAI/Python 1.99.9
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Arch
+      : - arm64
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Async
+      : - 'false'
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Lang
+      : - python
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-OS
+      : - MacOS
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Package-Version
+      : - 1.99.9
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Runtime
+      : - CPython
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Runtime-Version
+      : - 3.10.15
+      ? !!python/object/apply:multidict._multidict.istr
+      - x-stainless-retry-count
+      : - '0'
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-C4rSZ3oQTCQb59Lu0iR5tIGnUmBBL\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1755274847,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": null,\n        \"tool_calls\": [\n          {\n
+        \           \"id\": \"call_iCOm6DD573YR20VIOuY97fZo\",\n            \"type\":
+        \"function\",\n            \"function\": {\n              \"name\": \"add\",\n
+        \             \"arguments\": \"{\\\"a\\\":2,\\\"b\\\":2}\"\n            }\n
+        \         }\n        ],\n        \"refusal\": null,\n        \"annotations\":
+        []\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"tool_calls\"\n
+        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 123,\n    \"completion_tokens\":
+        17,\n    \"total_tokens\": 140,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_34a54ae93c\"\n}\n"
+    headers:
+      CF-RAY:
+      - 96fa056fefbea2d1-IAD
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Fri, 15 Aug 2025 16:20:47 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=E.VTP3QQ7CRUQ7MDsRX4st_bKFLJtn2M.smSRahys2Y-1755274847-1.0.1.1-.O6eZyJajorVF4Ngh7VIdvtdBoRL_5CG0eKna.iD.j6QAGVQtfyktMAFtn1gGb28B44vz2imi8lOmSVvIg7fl_i7SL5M2OdI5Tb5__2j.wc;
+        path=/; expires=Fri, 15-Aug-25 16:50:47 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=mfYy648c.NqsxEkCXkggbhAdFYINoDzqVDIc7LMIeY4-1755274847795-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '718'
+      openai-project:
+      - proj_6cMiry5CHgK3zKotG0LtMb9H
+      openai-version:
+      - '2020-10-01'
+      x-envoy-upstream-service-time:
+      - '737'
+      x-ratelimit-limit-requests:
+      - '30000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '29999'
+      x-ratelimit-remaining-tokens:
+      - '149999945'
+      x-ratelimit-reset-requests:
+      - 2ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_41974b45b797466f8d716a8464ff2e7b
+    status:
+      code: 200
+      message: OK
+version: 1

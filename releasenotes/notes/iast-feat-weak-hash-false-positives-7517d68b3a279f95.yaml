@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Code Security (IAST): Reduce false positives if md5 or sha1 functions have the parameter `usedforsecurity=False`.

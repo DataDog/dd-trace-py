@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    AAP: This extends downstream request analysis (API10) to the requests package.
+    Previously, downstream request analysis was only supported in the standard cpython api (urllib).

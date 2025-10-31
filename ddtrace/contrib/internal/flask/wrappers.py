@@ -2,12 +2,12 @@ import flask
 from wrapt import function_wrapper
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib import trace_utils
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.importlib import func_name
-from ddtrace.trace import Pin
 
 
 log = get_logger(__name__)
@@ -45,7 +45,9 @@ def _wrap_call(
         tags=tags,
     ) as ctx, ctx.span:
         if do_dispatch:
-            dispatch = core.dispatch_with_results("flask.wrapped_view", (kwargs,))
+            dispatch = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
+                "flask.wrapped_view", (kwargs,)
+            )
 
             # Appsec blocks the request
             result = dispatch.callbacks

@@ -4,12 +4,13 @@ from typing import List
 from typing import NamedTuple
 from typing import Optional
 
+from ddtrace.appsec._iast._iast_request_context_base import _get_iast_context_id
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking import TaintRange
 from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
 from ddtrace.appsec._iast._taint_tracking import set_ranges
-from ddtrace.appsec._iast._taint_tracking._taint_objects_base import taint_pyobject_with_ranges
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject_with_ranges
 from tests.appsec.iast.iast_utils import TEXT_TYPE
 from tests.appsec.iast.iast_utils import _iast_patched_module
 
@@ -69,6 +70,7 @@ def _to_tainted_string_with_origin(text: TEXT_TYPE) -> TEXT_TYPE:
     if not isinstance(text, (str, bytes, bytearray)):
         return text
 
+    context_id = _get_iast_context_id()
     # CAVEAT: the sequences ":+-" and "-+:" can be escaped with  "::++--" and "--+*::"
     elements = re.split(r"(\:\+-<[0-9a-zA-Z\-]+>|<[0-9a-zA-Z\-]+>-\+\:)", text)
 
@@ -102,7 +104,7 @@ def _to_tainted_string_with_origin(text: TEXT_TYPE) -> TEXT_TYPE:
                             Source(name=id_evidence, value=new_text[start:], origin=OriginType.PARAMETER),
                         )
                     )
-    set_ranges(new_text, tuple(ranges))
+    set_ranges(new_text, tuple(ranges), context_id)
     return new_text
 
 

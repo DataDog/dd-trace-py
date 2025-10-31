@@ -11,6 +11,7 @@ from ddtrace.appsec._iast.constants import VULN_INSECURE_HASHING_TYPE
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from tests.appsec.iast.conftest import iast_context
 from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import hashlib_new
+from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import parametrized_safe_weak_hash
 from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import parametrized_weak_hash
 from tests.appsec.iast.iast_utils import get_line_and_hash
 
@@ -81,6 +82,27 @@ def test_weak_hash_hashlib(iast_context_defaults, hash_func, method):
     assert list(span_report.vulnerabilities)[0].location.line == line
     assert list(span_report.vulnerabilities)[0].evidence.value == hash_func
     assert list(span_report.vulnerabilities)[0].hash == hash_value
+
+
+@pytest.mark.skipif(sys.version_info < (3, 9), reason="usedforsecurity was introduced in 3.9")
+@pytest.mark.parametrize(
+    "hash_func,method",
+    [
+        ("md5", "hexdigest"),
+        ("md5", "digest"),
+        ("sha1", "digest"),
+        ("sha1", "hexdigest"),
+    ],
+)
+@pytest.mark.parametrize(
+    "usedforsecurity",
+    [True, False],
+)
+def test_safe_weak_hash_hashlib(iast_context_defaults, hash_func, method, usedforsecurity):
+    parametrized_safe_weak_hash(hash_func, method, usedforsecurity)
+
+    span_report = get_iast_reporter()
+    assert (span_report is None) is not usedforsecurity
 
 
 @pytest.mark.parametrize(
@@ -348,3 +370,24 @@ def test_weak_hash_deduplication_cache(iast_context_contextmanager_deduplication
             else:
                 assert span_report is not None, f"Failed at iteration {i}. span_report {span_report}"
                 assert len(span_report.vulnerabilities) == 1, f"Failed at iteration {i}"
+
+
+def test_parametrized_weak_hash_no_exception():
+    """Verify that parametrized_weak_hash doesn't raise any exceptions."""
+    try:
+        parametrized_weak_hash("md5", "hexdigest")
+    except Exception as e:
+        pytest.fail(f"parametrized_weak_hash raised an exception: {e}")
+
+
+@mock.patch("ddtrace.appsec._iast.taint_sinks.weak_hash.is_iast_request_enabled")
+@mock.patch("ddtrace.appsec._iast.taint_sinks.weak_hash.increment_iast_span_metric")
+def test_weak_hash_out_of_context(mock_is_iast_request_enabled, mock_increment_iast_span_metric, iast_context_defaults):
+    mock_is_iast_request_enabled.return_value = True
+    mock_increment_iast_span_metric.side_effect = Exception(
+        "increment_iast_span_metric should not be called in this test"
+    )
+    try:
+        parametrized_weak_hash("md5", "hexdigest")
+    except Exception as e:
+        pytest.fail(f"parametrized_weak_hash raised an exception: {e}")

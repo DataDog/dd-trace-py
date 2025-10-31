@@ -1,0 +1,5 @@
+features:
+  - |
+    azure_servicebus: Add distributed tracing support for sending batches with Azure Service Bus producers.
+  - |
+    azure_functions: Use span links to connect Service Bus trigger consumers to the producers that send the messages.

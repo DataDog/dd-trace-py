@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""This Flask application is imported on tests.appsec.appsec_utils.gunicorn_server"""
+"""This Flask application is imported on tests.appsec.appsec_utils.gunicorn_flask_server"""
 
 import importlib
 import os

@@ -4,6 +4,7 @@ from typing import Dict
 import pymongo
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -17,7 +18,6 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.wrapping import unwrap as _u
 from ddtrace.internal.wrapping import wrap as _w
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
-from ddtrace.trace import Pin
 from ddtrace.vendor.sqlcommenter import _generate_comment_from_metadata as _generate_comment_from_metadata
 
 from ....internal.schema import schematize_service_name
@@ -138,11 +138,11 @@ def traced_get_socket(func, args, kwargs):
         service=trace_utils.ext_service(pin, config.pymongo),
         span_type=SpanTypes.MONGODB,
     ) as span:
-        span.set_tag_str(COMPONENT, config.pymongo.integration_name)
-        span.set_tag_str(db.SYSTEM, mongo.SERVICE)
+        span._set_tag_str(COMPONENT, config.pymongo.integration_name)
+        span._set_tag_str(db.SYSTEM, mongo.SERVICE)
 
         # set span.kind tag equal to type of operation being performed
-        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         with func(*args, **kwargs) as sock_info:
             set_address_tags(span, sock_info.address)

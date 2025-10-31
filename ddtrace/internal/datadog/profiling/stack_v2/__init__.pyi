@@ -1,0 +1,9 @@
+import asyncio
+
+def register_thread(id: int, native_id: int, name: str) -> None: ...  # noqa: A002
+def unregister_thread(name: str) -> None: ...
+def track_asyncio_loop(thread_id: int, loop: asyncio.AbstractEventLoop) -> None: ...
+def link_tasks(parent: asyncio.AbstractEventLoop, child: asyncio.Task) -> None: ...
+
+is_available: bool
+failure_msg: str

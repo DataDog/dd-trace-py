@@ -4,6 +4,7 @@ import aiomysql
 import wrapt
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import dbapi
@@ -19,7 +20,6 @@ from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
-from ddtrace.trace import Pin
 
 
 config._add(
@@ -82,10 +82,10 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             resource=resource,
             span_type=SpanTypes.SQL,
         ) as s:
-            s.set_tag_str(COMPONENT, config.aiomysql.integration_name)
+            s._set_tag_str(COMPONENT, config.aiomysql.integration_name)
 
             # set span.kind to the type of request being performed
-            s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+            s._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
             # PERF: avoid setting via Span.set_tag
             s.set_metric(_SPAN_MEASURED_KEY, 1)
@@ -93,7 +93,9 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             s.set_tags(extra_tags)
 
             # dispatch DBM
-            result = core.dispatch_with_results("aiomysql.execute", (config.aiomysql, s, args, kwargs)).result
+            result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
+                "aiomysql.execute", (config.aiomysql, s, args, kwargs)
+            ).result
             if result:
                 s, args, kwargs = result.value
 

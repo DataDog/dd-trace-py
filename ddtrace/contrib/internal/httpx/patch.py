@@ -6,6 +6,7 @@ from wrapt import BoundFunctionWrapper
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.trace_utils import distributed_tracing_enabled
@@ -23,7 +24,6 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.trace import Pin
 
 
 HTTPX_VERSION = parse_version(httpx.__version__)
@@ -127,10 +127,10 @@ async def _wrapped_async_send(
 
     operation_name = schematize_url_operation("http.request", protocol="http", direction=SpanDirection.OUTBOUND)
     with pin.tracer.trace(operation_name, service=_get_service_name(pin, req), span_type=SpanTypes.HTTP) as span:
-        span.set_tag_str(COMPONENT, config.httpx.integration_name)
+        span._set_tag_str(COMPONENT, config.httpx.integration_name)
 
         # set span.kind to the operation type being performed
-        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         _init_span(span, req)
         resp = None
@@ -156,10 +156,10 @@ def _wrapped_sync_send(
 
     operation_name = schematize_url_operation("http.request", protocol="http", direction=SpanDirection.OUTBOUND)
     with pin.tracer.trace(operation_name, service=_get_service_name(pin, req), span_type=SpanTypes.HTTP) as span:
-        span.set_tag_str(COMPONENT, config.httpx.integration_name)
+        span._set_tag_str(COMPONENT, config.httpx.integration_name)
 
         # set span.kind to the operation type being performed
-        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         _init_span(span, req)
         resp = None

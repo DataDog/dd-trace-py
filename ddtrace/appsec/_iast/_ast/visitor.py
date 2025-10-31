@@ -14,8 +14,10 @@ from typing import Tuple  # noqa:F401
 
 from ..._constants import IAST
 from .._metrics import _set_metric_iast_instrumented_propagation
+from ..constants import DEFAULT_COMMAND_INJECTION_FUNCTIONS
 from ..constants import DEFAULT_PATH_TRAVERSAL_FUNCTIONS
 from ..constants import DEFAULT_SOURCE_IO_FUNCTIONS
+from ..constants import DEFAULT_SSRF_FUNCTIONS
 from ..constants import DEFAULT_WEAK_RANDOMNESS_FUNCTIONS
 
 
@@ -134,6 +136,8 @@ _ASPECTS_SPEC: Dict[Text, Any] = {
     "taint_sinks": {
         "weak_randomness": DEFAULT_WEAK_RANDOMNESS_FUNCTIONS,
         "path_traversal": DEFAULT_PATH_TRAVERSAL_FUNCTIONS,
+        "cmd_injection": DEFAULT_COMMAND_INJECTION_FUNCTIONS,
+        "ssrf": DEFAULT_SSRF_FUNCTIONS,
         # These explicitly WON'T be replaced by taint_sink_function:
         "disabled": {
             "__new__",
@@ -182,6 +186,8 @@ class AstVisitor(ast.NodeTransformer):
         self._taint_sink_replace_any = self._merge_dicts(
             _ASPECTS_SPEC["taint_sinks"]["weak_randomness"],
             *[functions for module, functions in _ASPECTS_SPEC["taint_sinks"]["path_traversal"].items()],
+            *[functions for module, functions in _ASPECTS_SPEC["taint_sinks"]["cmd_injection"].items()],
+            *[functions for module, functions in _ASPECTS_SPEC["taint_sinks"]["ssrf"].items()],
         )
         self._source_replace_any = self._merge_dicts(
             *[functions for module, functions in _ASPECTS_SPEC["sources"]["io"].items()],
@@ -190,6 +196,7 @@ class AstVisitor(ast.NodeTransformer):
         self._taint_sink_replace_disabled = _ASPECTS_SPEC["taint_sinks"]["disabled"]
 
         self.update_location(filename, module_name)
+        self.allowed_replacements = {CODE_TYPE_FIRST_PARTY, CODE_TYPE_SITE_PACKAGES}
 
     def update_location(self, filename: str = "", module_name: str = ""):
         self.filename = filename
@@ -604,7 +611,7 @@ class AstVisitor(ast.NodeTransformer):
                         call_node.func = self._attr_node(call_node, SOURCES_FUNCTION_REPLACEMENT)
                         self.ast_modified = call_modified = True
 
-        if self.codetype == CODE_TYPE_FIRST_PARTY:
+        if self.codetype in self.allowed_replacements:
             # Function replacement case
             if isinstance(call_node.func, ast.Name):
                 aspect = self._should_replace_with_taint_sink(call_node, True)

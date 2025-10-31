@@ -11,8 +11,8 @@ from pymongo.message import _Query
 from wrapt import ObjectProxy
 
 # project
-import ddtrace
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -27,7 +27,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.trace import Pin
 
 from .parse import parse_msg
 from .parse import parse_query
@@ -63,7 +62,7 @@ def _trace_mongo_client_init(func, args, kwargs):
         pin.onto(client._topology)
 
     def __getddpin__(client):
-        return ddtrace.trace.Pin.get_from(client._topology)
+        return Pin.get_from(client._topology)
 
     # Set a pin on the mongoclient pin on the topology object
     # This allows us to pass the same pin to the server objects
@@ -105,7 +104,7 @@ def _trace_topology_select_server(func, args, kwargs):
     # Ensure the pin used on the traced mongo client is passed down to the topology instance
     # This allows us to pass the same pin in traced server objects.
     topology_instance = get_argument_value(args, kwargs, 0, "self")
-    pin = ddtrace.trace.Pin.get_from(topology_instance)
+    pin = Pin.get_from(topology_instance)
 
     if pin is not None:
         pin.onto(server)
@@ -127,7 +126,7 @@ def _datadog_trace_operation(operation, wrapped):
             log.exception("error parsing query")
 
     # Gets the pin from the mogno client (through the topology object)
-    pin = ddtrace.trace.Pin.get_from(wrapped)
+    pin = Pin.get_from(wrapped)
     # if we couldn't parse or shouldn't trace the message, just go.
     if not cmd or not pin or not pin.enabled():
         return None
@@ -138,16 +137,16 @@ def _datadog_trace_operation(operation, wrapped):
         service=trace_utils.ext_service(pin, config.pymongo),
     )
 
-    span.set_tag_str(COMPONENT, config.pymongo.integration_name)
+    span._set_tag_str(COMPONENT, config.pymongo.integration_name)
 
     # set span.kind to the operation type being performed
-    span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+    span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
     # PERF: avoid setting via Span.set_tag
     span.set_metric(_SPAN_MEASURED_KEY, 1)
-    span.set_tag_str(mongox.DB, cmd.db)
-    span.set_tag_str(mongox.COLLECTION, cmd.coll)
-    span.set_tag_str(db.SYSTEM, mongox.SERVICE)
+    span._set_tag_str(mongox.DB, cmd.db)
+    span._set_tag_str(mongox.COLLECTION, cmd.coll)
+    span._set_tag_str(db.SYSTEM, mongox.SERVICE)
     span.set_tags(cmd.tags)
 
     # set `mongodb.query` tag and resource for span
@@ -220,7 +219,7 @@ def _trace_socket_command(func, args, kwargs):
     except Exception:
         log.exception("error parsing spec. skipping trace")
 
-    pin = ddtrace.trace.Pin.get_from(socket_instance)
+    pin = Pin.get_from(socket_instance)
     # skip tracing if we don't have a piece of data we need
     if not dbname or not cmd or not pin or not pin.enabled():
         return func(*args, **kwargs)
@@ -241,7 +240,7 @@ def _trace_socket_write_command(func, args, kwargs):
     except Exception:
         log.exception("error parsing msg")
 
-    pin = ddtrace.trace.Pin.get_from(socket_instance)
+    pin = Pin.get_from(socket_instance)
     # if we couldn't parse it, don't try to trace it.
     if not cmd or not pin or not pin.enabled():
         return func(*args, **kwargs)
@@ -254,23 +253,23 @@ def _trace_socket_write_command(func, args, kwargs):
 
 
 def _trace_cmd(cmd, socket_instance, address):
-    pin = ddtrace.trace.Pin.get_from(socket_instance)
+    pin = Pin.get_from(socket_instance)
     s = pin.tracer.trace(
         schematize_database_operation("pymongo.cmd", database_provider="mongodb"),
         span_type=SpanTypes.MONGODB,
         service=trace_utils.ext_service(pin, config.pymongo),
     )
 
-    s.set_tag_str(COMPONENT, config.pymongo.integration_name)
-    s.set_tag_str(db.SYSTEM, mongox.SERVICE)
+    s._set_tag_str(COMPONENT, config.pymongo.integration_name)
+    s._set_tag_str(db.SYSTEM, mongox.SERVICE)
 
     # set span.kind to the type of operation being performed
-    s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+    s._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
     # PERF: avoid setting via Span.set_tag
     s.set_metric(_SPAN_MEASURED_KEY, 1)
     if cmd.db:
-        s.set_tag_str(mongox.DB, cmd.db)
+        s._set_tag_str(mongox.DB, cmd.db)
     if cmd:
         s.set_tag(mongox.COLLECTION, cmd.coll)
         s.set_tags(cmd.tags)
@@ -315,8 +314,8 @@ def normalize_filter(f=None):
 def set_address_tags(span, address):
     # the address is only set after the cursor is done.
     if address:
-        span.set_tag_str(netx.TARGET_HOST, address[0])
-        span.set_tag_str(netx.SERVER_ADDRESS, address[0])
+        span._set_tag_str(netx.TARGET_HOST, address[0])
+        span._set_tag_str(netx.SERVER_ADDRESS, address[0])
         span.set_tag(netx.TARGET_PORT, address[1])
 
 
@@ -344,7 +343,9 @@ def set_query_rowcount(docs, span):
 
 def _dbm_dispatch(span, args, kwargs):
     # dispatch DBM
-    result = core.dispatch_with_results("pymongo.execute", (config.pymongo, span, args, kwargs)).result
+    result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
+        "pymongo.execute", (config.pymongo, span, args, kwargs)
+    ).result
     if result:
         span, args, kwargs = result.value
     return span, args, kwargs

@@ -70,6 +70,7 @@ from ddtrace.internal.service import Service
 from ddtrace.internal.test_visibility._atr_mixins import AutoTestRetriesSettings
 from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabilities
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.trace import Span
@@ -166,6 +167,10 @@ class CIVisibility(Service):
                 log.debug("Using DD CI context provider: test traces may be incomplete, telemetry may be inaccurate")
                 # Create a new CI tracer, using a specific URL if provided (only useful when testing the tracer itself)
                 self.tracer = CIVisibilityTracer()
+
+                if ci_dd_tags := os.getenv("_CI_DD_TAGS"):
+                    log.debug("Using _CI_DD_TAGS for CI Visibility tracer: %s", ci_dd_tags)
+                    self.tracer._tags.update(parse_tags_str(ci_dd_tags))
 
                 env_agent_url = os.getenv("_CI_DD_AGENT_URL")
                 if env_agent_url is not None:
@@ -373,7 +378,7 @@ class CIVisibility(Service):
 
             # The most recent API response overrides the first one
             try:
-                settings = self._api_client.fetch_settings()
+                settings = self._api_client.fetch_settings(read_from_cache=False)
             except Exception:
                 log.warning(
                     "Error checking Intelligent Test Runner API after git metadata upload,"
@@ -581,6 +586,10 @@ class CIVisibility(Service):
         log.debug("Enabling %s", cls.__name__)
         if cls._instance is not None:
             log.debug("%s already enabled", cls.__name__)
+            return
+
+        if not telemetry.get_config("DD_CIVISIBILITY_ENABLED", True, asbool):
+            cls.enabled = False
             return
 
         if ddconfig._ci_visibility_agentless_enabled:

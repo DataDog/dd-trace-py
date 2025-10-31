@@ -10,6 +10,7 @@ from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
+from ddtrace.ext import http
 from tests.utils import override_global_config
 
 
@@ -36,12 +37,12 @@ class TestApiSecurityManager:
     def mock_environment(self):
         # Create a mock environment with required attributes
         env = MagicMock()
-        root_span = MagicMock(spec=Span)
-        root_span._meta = {}
+        entry_span = MagicMock(spec=Span)
+        entry_span._meta = {}
         env.span = MagicMock(spec=Span)
-        env.span._local_root = root_span
+        env.entry_span = entry_span
         env.span.context.sampling_priority = None
-        root_span.context.sampling_priority = None
+        entry_span.context.sampling_priority = None
         env.waf_addresses = {}
         env.blocked = None
         return env
@@ -71,8 +72,8 @@ class TestApiSecurityManager:
         """Test that _schema_callback exits early when schema data is already collected in the span.
         Expects that _should_collect_schema is not called.
         """
-        root_span = mock_environment.span._local_root
-        root_span._meta = {api_manager.COLLECTED[0][1]: "some_value"}
+        entry_span = mock_environment.entry_span
+        entry_span._meta = {api_manager.COLLECTED[0][1]: "some_value"}
 
         api_manager._schema_callback(mock_environment)
         api_manager._should_collect_schema.assert_not_called()
@@ -82,8 +83,8 @@ class TestApiSecurityManager:
         """Test that _schema_callback doesn't collect schema when sampling priority indicates rejection.
         Expects that _should_collect_schema is called but call_waf_callback is not called.
         """
-        root_span = mock_environment.span._local_root
-        root_span.context.sampling_priority = sampling_priority
+        entry_span = mock_environment.entry_span
+        entry_span.context.sampling_priority = sampling_priority
 
         api_manager._should_collect_schema.return_value = False
         api_manager._schema_callback(mock_environment)
@@ -96,8 +97,8 @@ class TestApiSecurityManager:
         """Test that _schema_callback properly processes schemas when sampling priority indicates keep.
         Expects schema collection to occur and metadata to be added to the root span.
         """
-        root_span = mock_environment.span._local_root
-        root_span.context.sampling_priority = sampling_priority
+        entry_span = mock_environment.entry_span
+        entry_span.context.sampling_priority = sampling_priority
 
         mock_waf_result = MagicMock()
         mock_waf_result.api_security = {"_dd.appsec.s.req.body": {"type": "object"}}
@@ -114,8 +115,8 @@ class TestApiSecurityManager:
         api_manager._asm_context.call_waf_callback.assert_called_once()
         api_manager._metrics._report_api_security.assert_called_with(True, 1)
 
-        assert len(root_span._meta) == 1
-        assert "_dd.appsec.s.req.body" in root_span._meta
+        assert len(entry_span._meta) == 1
+        assert "_dd.appsec.s.req.body" in entry_span._meta
 
     @pytest.mark.parametrize("should_collect_return", [True, False, None])
     @pytest.mark.parametrize("sampling_priority", [USER_REJECT, AUTO_REJECT, AUTO_KEEP, USER_KEEP])
@@ -138,7 +139,7 @@ class TestApiSecurityManager:
         api_manager._asm_context.call_waf_callback.return_value = mock_waf_result
 
         api_manager._should_collect_schema.return_value = should_collect_return
-        mock_environment.span._local_root.context.sampling_priority = sampling_priority
+        mock_environment.entry_span.context.sampling_priority = sampling_priority
 
         with override_global_config(values=dict(_apm_tracing_enabled=False)):
             with patch("ddtrace.appsec._api_security.api_manager._asm_manual_keep") as mock_keep:
@@ -146,7 +147,7 @@ class TestApiSecurityManager:
 
                 # Verify manual keep was called only if should_collect_schema returns True
                 if should_collect_return:
-                    mock_keep.assert_called_once_with(mock_environment.span._local_root)
+                    mock_keep.assert_called_once_with(mock_environment.entry_span)
                 else:
                     mock_keep.assert_not_called()
 
@@ -195,9 +196,9 @@ class TestApiSecurityManager:
         ]:
             assert call_arg in call_args
 
-        root_span = mock_environment.span._local_root
+        entry_span = mock_environment.entry_span
         # Verify all schemas are stored in span metadata
-        assert len(root_span._meta) == 7
+        assert len(entry_span._meta) == 7
         for meta in [
             "_dd.appsec.s.req.body",
             "_dd.appsec.s.req.headers",
@@ -207,7 +208,7 @@ class TestApiSecurityManager:
             "_dd.appsec.s.res.headers",
             "_dd.appsec.s.res.body",
         ]:
-            assert meta in root_span._meta
+            assert meta in entry_span._meta
 
         api_manager._metrics._report_api_security.assert_called_with(True, 7)
 
@@ -228,8 +229,8 @@ class TestApiSecurityManager:
                 api_manager._schema_callback(mock_environment)
 
             mock_log.warning.assert_called_once()
-            root_span = mock_environment.span._local_root
-            assert len(root_span._meta) == 0
+            entry_span = mock_environment.entry_span
+            assert len(entry_span._meta) == 0
             api_manager._metrics._report_api_security.assert_called_with(True, 0)
 
     def test_schema_callback_parse_response_body_disabled(self, api_manager, mock_environment, caplog):
@@ -249,5 +250,90 @@ class TestApiSecurityManager:
             call_args = api_manager._asm_context.call_waf_callback.call_args[0][0]
             assert "RESPONSE_BODY" not in call_args
 
-            assert len(mock_environment.span._local_root._meta) == 0
+            assert len(mock_environment.entry_span._meta) == 0
             api_manager._metrics._report_api_security.assert_called_with(True, 0)
+
+    def test_should_collect_schema_route_fallbacks_to_endpoint(self, mock_environment):
+        """Test that _should_collect_schema falls back to endpoint tags when route is missing."""
+        with override_global_config(
+            values=dict(
+                _asm_enabled=True,
+                _api_security_enabled=True,
+                _apm_tracing_enabled=True,
+                _api_security_parse_response_body=True,
+            )
+        ):
+            manager = APIManager()
+            manager._appsec_processor = MagicMock()
+            manager._asm_context = MagicMock()
+            manager._metrics = MagicMock()
+
+            mock_environment.entry_span.get_tag = lambda name: "/span-endpoint" if name == http.ENDPOINT else None
+            mock_environment.waf_addresses = {
+                SPAN_DATA_NAMES.REQUEST_ROUTE: None,
+                SPAN_DATA_NAMES.REQUEST_METHOD: "GET",
+                SPAN_DATA_NAMES.RESPONSE_STATUS: 200,
+            }
+
+            # First request should collect
+            assert manager._should_collect_schema(mock_environment, USER_KEEP)
+            # Sencond one should discarded
+            assert not manager._should_collect_schema(mock_environment, USER_KEEP)
+
+    def test_should_collect_schema_route_missing_computes_endpoint(self, mock_environment):
+        """Test that _should_collect_schema computes the endpoint value when route and endpoint tags are missing."""
+        with override_global_config(
+            values=dict(
+                _asm_enabled=True,
+                _api_security_enabled=True,
+                _apm_tracing_enabled=True,
+                _api_security_parse_response_body=True,
+            )
+        ):
+            manager = APIManager()
+            manager._appsec_processor = MagicMock()
+            manager._asm_context = MagicMock()
+            manager._metrics = MagicMock()
+
+            def get_tag(name):
+                return "https://ddtrace.dog/span-endpoint" if name == http.URL else None
+
+            mock_environment.entry_span.get_tag = get_tag
+            mock_environment.waf_addresses = {
+                SPAN_DATA_NAMES.REQUEST_ROUTE: None,
+                SPAN_DATA_NAMES.REQUEST_METHOD: "GET",
+                SPAN_DATA_NAMES.RESPONSE_STATUS: 200,
+            }
+
+            # First request should collect
+            assert manager._should_collect_schema(mock_environment, USER_KEEP)
+            # Sencond one should be discarded
+            assert not manager._should_collect_schema(mock_environment, USER_KEEP)
+
+    @pytest.mark.parametrize("status_code", [404, "404"])
+    def test_should_not_collect_schema_on_404(self, mock_environment, status_code):
+        """Test that _should_collect_schema computes the endpoint value when route and endpoint tags are missing."""
+        with override_global_config(
+            values=dict(
+                _asm_enabled=True,
+                _api_security_enabled=True,
+                _apm_tracing_enabled=True,
+                _api_security_parse_response_body=True,
+            )
+        ):
+            manager = APIManager()
+            manager._appsec_processor = MagicMock()
+            manager._asm_context = MagicMock()
+            manager._metrics = MagicMock()
+
+            def get_tag(name):
+                return "https://ddtrace.dog/span-endpoint" if name == http.URL else None
+
+            mock_environment.entry_span.get_tag = get_tag
+            mock_environment.waf_addresses = {
+                SPAN_DATA_NAMES.REQUEST_ROUTE: None,
+                SPAN_DATA_NAMES.REQUEST_METHOD: "GET",
+                SPAN_DATA_NAMES.RESPONSE_STATUS: status_code,
+            }
+
+            assert not manager._should_collect_schema(mock_environment, USER_KEEP)

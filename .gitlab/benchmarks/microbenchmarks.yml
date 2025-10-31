@@ -127,7 +127,7 @@ candidate:
     - pipeline: $PARENT_PIPELINE_ID
       job: download_ddtrace_artifacts
   script: |
-    cp pywheels/*-cp39-cp39-manylinux_*_x86_64*.whl ./
+    cp pywheels/*-cp39-cp39-manylinux*_x86_64*.whl ./
     echo "CANDIDATE_WHL=$(ls *.whl | head -n 1)" | tee candidate.env
     echo "CANDIDATE_BRANCH=${CI_COMMIT_REF_NAME}" | tee -a candidate.env
     echo "CANDIDATE_COMMIT_SHA=${CI_COMMIT_SHA}" | tee -a candidate.env

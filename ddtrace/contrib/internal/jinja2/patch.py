@@ -5,13 +5,13 @@ import jinja2
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.trace import Pin
 
 from .constants import DEFAULT_TEMPLATE_NAME
 
@@ -67,7 +67,7 @@ def _wrap_render(wrapped, instance, args, kwargs):
 
     template_name = str(instance.name or DEFAULT_TEMPLATE_NAME)
     with pin.tracer.trace("jinja2.render", pin.service, span_type=SpanTypes.TEMPLATE) as span:
-        span.set_tag_str(COMPONENT, config.jinja2.integration_name)
+        span._set_tag_str(COMPONENT, config.jinja2.integration_name)
 
         # PERF: avoid setting via Span.set_tag
         span.set_metric(_SPAN_MEASURED_KEY, 1)
@@ -75,7 +75,7 @@ def _wrap_render(wrapped, instance, args, kwargs):
             return wrapped(*args, **kwargs)
         finally:
             span.resource = template_name
-            span.set_tag_str("jinja2.template_name", template_name)
+            span._set_tag_str("jinja2.template_name", template_name)
 
 
 def _wrap_compile(wrapped, instance, args, kwargs):
@@ -92,10 +92,10 @@ def _wrap_compile(wrapped, instance, args, kwargs):
         try:
             return wrapped(*args, **kwargs)
         finally:
-            span.set_tag_str(COMPONENT, config.jinja2.integration_name)
+            span._set_tag_str(COMPONENT, config.jinja2.integration_name)
 
             span.resource = template_name
-            span.set_tag_str("jinja2.template_name", template_name)
+            span._set_tag_str("jinja2.template_name", template_name)
 
 
 def _wrap_load_template(wrapped, instance, args, kwargs):
@@ -111,6 +111,6 @@ def _wrap_load_template(wrapped, instance, args, kwargs):
             return template
         finally:
             span.resource = template_name
-            span.set_tag_str("jinja2.template_name", template_name)
+            span._set_tag_str("jinja2.template_name", template_name)
             if template:
-                span.set_tag_str("jinja2.template_path", template.filename)
+                span._set_tag_str("jinja2.template_path", template.filename)

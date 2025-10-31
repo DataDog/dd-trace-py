@@ -1,0 +1,12 @@
+---
+features:
+  - |
+    Django: Added the ``DD_DJANGO_ALWAYS_CREATE_DATABASE_SPANS`` config option (default: ``true``).
+
+    When enabled, the Django integration always generates a database span for every operation,
+    even if the underlying database engine is already instrumented. This ensures complete coverage
+    but may produce duplicate spans and extra overhead.
+
+    When disabled, spans are only created if the database engine is not instrumented.
+
+    To avoid multiple spans per database call, we recommend disabling this option. ``DD_DJANGO_ALWAYS_CREATE_DATABASE_SPANS=false``

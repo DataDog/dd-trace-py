@@ -48,6 +48,8 @@ SpanAggrKey = Tuple[
     str,  # type
     int,  # http status code
     bool,  # synthetics request
+    str,  # http method
+    str,  # http endpoint
 ]
 
 
@@ -73,8 +75,10 @@ def _span_aggr_key(span: Span) -> SpanAggrKey:
     resource = span.resource or ""
     _type = span.span_type or ""
     status_code = span.get_tag("http.status_code") or 0
+    method = span.get_tag("http.method") or ""
+    endpoint = span.get_tag("http.endpoint") or span.get_tag("http.route") or ""
     synthetics = span.context.dd_origin == "synthetics"
-    return span.name, service, resource, _type, int(status_code), synthetics
+    return (span.name, service, resource, _type, int(status_code), synthetics, method, endpoint)
 
 
 class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
@@ -157,12 +161,14 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
             serialized_bucket_keys.append(bucket_time_ns)
 
             for aggr_key, stat_aggr in bucket.items():
-                name, service, resource, _type, http_status, synthetics = aggr_key
+                name, service, resource, _type, http_status, synthetics, http_method, http_endpoint = aggr_key
                 serialized_bucket = {
                     "Name": compat.ensure_text(name),
                     "Resource": compat.ensure_text(resource),
                     "Synthetics": synthetics,
                     "HTTPStatusCode": http_status,
+                    "HTTPMethod": http_method,
+                    "HTTPEndpoint": http_endpoint,
                     "Hits": stat_aggr.hits,
                     "TopLevelHits": stat_aggr.top_level_hits,
                     "Duration": stat_aggr.duration,

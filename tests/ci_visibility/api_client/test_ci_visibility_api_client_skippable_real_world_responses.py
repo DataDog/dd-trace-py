@@ -53,7 +53,7 @@ class TestTestVisibilityAPIClientSkippableRealWorldResponses(TestTestVisibilityA
         )
         client = self._get_test_client(itr_skipping_level=ITR_SKIPPING_LEVEL.SUITE)
         with mock.patch.object(client, "_do_request", return_value=Response(200, skippable_response)):
-            actual_skippable_items = client.fetch_skippable_items()
+            actual_skippable_items = client.fetch_skippable_items(read_from_cache=False)
             assert actual_skippable_items == expected_skippable_items
 
     def test_civisibility_api_client_skippable_real_flask_scenario_test_level_with_parameters(self):
@@ -4394,7 +4394,7 @@ class TestTestVisibilityAPIClientSkippableRealWorldResponses(TestTestVisibilityA
         )
         client = self._get_test_client()
         with mock.patch.object(client, "_do_request", return_value=Response(200, skippable_response)):
-            actual_skippable_items = client.fetch_skippable_items()
+            actual_skippable_items = client.fetch_skippable_items(read_from_cache=False)
             assert actual_skippable_items == expected_skippable_items
 
     def test_civisibility_api_client_skippable_real_flask_scenario_test_level_without_parameters(self):
@@ -5419,5 +5419,5 @@ class TestTestVisibilityAPIClientSkippableRealWorldResponses(TestTestVisibilityA
         )
         client = self._get_test_client()
         with mock.patch.object(client, "_do_request", return_value=Response(200, skippable_response)):
-            actual_skippable_items = client.fetch_skippable_items(ignore_test_parameters=True)
+            actual_skippable_items = client.fetch_skippable_items(ignore_test_parameters=True, read_from_cache=False)
             assert actual_skippable_items == expected_skippable_items

@@ -36,7 +36,7 @@ def update_stepfunction_input(ctx: core.ExecutionContext, params: Any) -> None:
 
     input_obj["_datadog"] = {}
     core.dispatch("botocore.stepfunctions.update_input", [ctx, None, None, input_obj, None])
-    updated_input_obj = ctx.get_item(BOTOCORE_STEPFUNCTIONS_INPUT_KEY)
+    updated_input_obj = ctx.find_item(BOTOCORE_STEPFUNCTIONS_INPUT_KEY)
     if updated_input_obj:
         input_json_str = json.dumps(updated_input_obj)
         params["input"] = input_json_str

@@ -44,7 +44,7 @@ def _find_tag_value_from_tags(tags, tag_key):
 
 
 def _get_tags_from_span_event(event: LLMObsSpanEvent):
-    span_kind = event.get("meta", {}).get("span.kind", "")
+    span_kind = event.get("meta", {}).get("span", {}).get("kind", "")
     integration = _find_tag_value_from_tags(event.get("tags", []), "integration")
     ml_app = _find_tag_value_from_tags(event.get("tags", []), "ml_app")
     autoinstrumented = integration is not None

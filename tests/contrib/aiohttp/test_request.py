@@ -10,7 +10,7 @@ from tests.utils import override_global_config
 from .app.web import setup_app
 
 
-async def test_full_request(patched_app_tracer, aiohttp_client, loop):
+async def test_full_request(patched_app_tracer, aiohttp_client):
     app, tracer = patched_app_tracer
     client = await aiohttp_client(app)
     # it should create a root span when there is a handler hit
@@ -31,7 +31,7 @@ async def test_full_request(patched_app_tracer, aiohttp_client, loop):
     assert "GET /" == request_span.resource
 
 
-async def test_full_request_w_mem_leak_prevention_flag(patched_app_tracer, aiohttp_client, loop):
+async def test_full_request_w_mem_leak_prevention_flag(patched_app_tracer, aiohttp_client):
     config.aiohttp.disable_stream_timing_for_mem_leak = True
     try:
         app, tracer = patched_app_tracer
@@ -58,7 +58,7 @@ async def test_full_request_w_mem_leak_prevention_flag(patched_app_tracer, aioht
         config.aiohttp.disable_stream_timing_for_mem_leak = False
 
 
-async def test_stream_request(patched_app_tracer, aiohttp_client, loop):
+async def test_stream_request(patched_app_tracer, aiohttp_client):
     app, tracer = patched_app_tracer
     async with await aiohttp_client(app) as client:
         response = await client.request("GET", "/stream/")
@@ -68,7 +68,7 @@ async def test_stream_request(patched_app_tracer, aiohttp_client, loop):
     assert abs(0.5 - request_span.duration) < 0.05
 
 
-async def test_multiple_full_request(patched_app_tracer, aiohttp_client, loop):
+async def test_multiple_full_request(patched_app_tracer, aiohttp_client):
     app, tracer = patched_app_tracer
     client = await aiohttp_client(app)
 
@@ -96,7 +96,7 @@ async def test_multiple_full_request(patched_app_tracer, aiohttp_client, loop):
     assert 1 == len(traces[0])
 
 
-async def test_user_specified_service(tracer, aiohttp_client, loop):
+async def test_user_specified_service(tracer, aiohttp_client):
     """
     When a service name is specified by the user
         The aiohttp integration should use it as the service name
@@ -114,7 +114,7 @@ async def test_user_specified_service(tracer, aiohttp_client, loop):
         assert request_span.service == "mysvc"
 
 
-async def test_http_request_header_tracing(patched_app_tracer, aiohttp_client, loop):
+async def test_http_request_header_tracing(patched_app_tracer, aiohttp_client):
     app, tracer = patched_app_tracer
     client = await aiohttp_client(app)
 
@@ -133,7 +133,7 @@ async def test_http_request_header_tracing(patched_app_tracer, aiohttp_client, l
     assert request_span.get_tag("span.kind") == "server"
 
 
-async def test_http_response_header_tracing(patched_app_tracer, aiohttp_client, loop):
+async def test_http_response_header_tracing(patched_app_tracer, aiohttp_client):
     app, tracer = patched_app_tracer
     client = await aiohttp_client(app)
 

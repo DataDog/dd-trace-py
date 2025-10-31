@@ -20,6 +20,7 @@ from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_
 from ddtrace.llmobs._integrations.google_utils import get_system_instructions_gemini_vertexai
 from ddtrace.llmobs._integrations.google_utils import llmobs_get_metadata_gemini_vertexai
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs.types import Message
 from ddtrace.trace import Span
 
 
@@ -30,9 +31,9 @@ class GeminiIntegration(BaseLLMIntegration):
         self, span: Span, provider: Optional[str] = None, model: Optional[str] = None, **kwargs: Dict[str, Any]
     ) -> None:
         if provider is not None:
-            span.set_tag_str("google_generativeai.request.provider", str(provider))
+            span._set_tag_str("google_generativeai.request.provider", str(provider))
         if model is not None:
-            span.set_tag_str("google_generativeai.request.model", str(model))
+            span._set_tag_str("google_generativeai.request.model", str(model))
 
     def _llmobs_set_tags(
         self,
@@ -47,9 +48,9 @@ class GeminiIntegration(BaseLLMIntegration):
 
         system_instruction = get_system_instructions_gemini_vertexai(instance)
         input_contents = get_argument_value(args, kwargs, 0, "contents")
-        input_messages = self._extract_input_message(input_contents, system_instruction)
+        input_messages: List[Message] = self._extract_input_message(input_contents, system_instruction)
 
-        output_messages = [{"content": ""}]
+        output_messages: List[Message] = [Message(content="")]
         if response is not None:
             output_messages = self._extract_output_message(response)
 
@@ -66,30 +67,30 @@ class GeminiIntegration(BaseLLMIntegration):
         )
 
     def _extract_input_message(self, contents, system_instruction=None):
-        messages = []
+        messages: List[Message] = []
         if system_instruction:
             for instruction in system_instruction:
-                messages.append({"content": instruction or "", "role": "system"})
+                messages.append(Message(content=instruction or "", role="system"))
         if isinstance(contents, str):
-            messages.append({"content": contents})
+            messages.append(Message(content=contents))
             return messages
         if isinstance(contents, dict):
-            message = {"content": contents.get("text", "")}
+            message = Message(content=contents.get("text", ""))
             if contents.get("role", None):
                 message["role"] = contents["role"]
             messages.append(message)
             return messages
         if not isinstance(contents, list):
-            messages.append({"content": "[Non-text content object: {}]".format(repr(contents))})
+            messages.append(Message(content="[Non-text content object: {}]".format(repr(contents))))
             return messages
         for content in contents:
             if isinstance(content, str):
-                messages.append({"content": content})
+                messages.append(Message(content=content))
                 continue
             role = _get_attr(content, "role", None)
             parts = _get_attr(content, "parts", [])
             if not parts or not isinstance(parts, Iterable):
-                message = {"content": "[Non-text content object: {}]".format(repr(content))}
+                message = Message(content="[Non-text content object: {}]".format(repr(content)))
                 if role:
                     message["role"] = role
                 messages.append(message)

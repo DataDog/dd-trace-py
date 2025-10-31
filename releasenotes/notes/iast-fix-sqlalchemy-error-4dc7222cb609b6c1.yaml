@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Code Security: Fixed a crash in the taint-aware modulo aspect when formatting SQLAlchemy objects whose 
+    __repr__ can raise (e.g., inside complex CASE expressions).

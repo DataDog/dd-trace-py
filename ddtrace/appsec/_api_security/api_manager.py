@@ -4,12 +4,16 @@ import gzip
 import json
 import time
 from typing import Optional
+from typing import Union
 
 from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
+from ddtrace._trace.processor.resource_renaming import SimplifiedEndpointComputer
+from ddtrace.appsec._asm_request_context import ASM_Environment
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._trace_utils import _asm_manual_keep
 import ddtrace.constants as constants
+from ddtrace.ext import http
 from ddtrace.internal import logger as ddlogger
 from ddtrace.internal.service import Service
 from ddtrace.settings.asm import config as asm_config
@@ -77,13 +81,12 @@ class APIManager(Service):
 
         log.debug("%s initialized", self.__class__.__name__)
         self._hashtable: collections.OrderedDict[int, float] = collections.OrderedDict()
+        self.simplified_endpoint_computer = SimplifiedEndpointComputer()
 
-        from ddtrace.appsec import _processor as appsec_processor
         import ddtrace.appsec._asm_request_context as _asm_request_context
         import ddtrace.appsec._metrics as _metrics
 
         self._asm_context = _asm_request_context
-        self._appsec_processor = appsec_processor
         self._metrics = _metrics
 
     def _stop_service(self) -> None:
@@ -93,7 +96,7 @@ class APIManager(Service):
     def _start_service(self) -> None:
         self._asm_context.add_context_callback(self._schema_callback, global_callback=True)
 
-    def _should_collect_schema(self, env, priority: int) -> Optional[bool]:
+    def _should_collect_schema(self, env: ASM_Environment, priority: int) -> Optional[bool]:
         """
         Rate limit per route.
 
@@ -106,8 +109,17 @@ class APIManager(Service):
             return False
 
         method = env.waf_addresses.get(SPAN_DATA_NAMES.REQUEST_METHOD)
+        status: Union[str, int] = env.waf_addresses.get(SPAN_DATA_NAMES.RESPONSE_STATUS)  # type: ignore[assignment]
+        is_404 = status == "404" or status == 404
+
         route = env.waf_addresses.get(SPAN_DATA_NAMES.REQUEST_ROUTE)
-        status = env.waf_addresses.get(SPAN_DATA_NAMES.RESPONSE_STATUS)
+        if route is None and env.blocked is None and not is_404:
+            endpoint = env.entry_span.get_tag(http.ENDPOINT)
+            if endpoint is None:
+                url = env.entry_span.get_tag(http.URL)
+                endpoint = self.simplified_endpoint_computer.from_url(url)
+            route = endpoint
+
         # Framework is not fully supported
         if method is None or route is None or status is None:
             log.debug(
@@ -133,7 +145,7 @@ class APIManager(Service):
     def _schema_callback(self, env):
         if env.span is None or not asm_config._api_security_feature_active:
             return
-        root = env.span._local_root or env.span
+        root = env.entry_span
         collected = self.BLOCK_COLLECTED if env.blocked else self.COLLECTED
         if not root or any(meta_name in root._meta for _, meta_name, _ in collected):
             return

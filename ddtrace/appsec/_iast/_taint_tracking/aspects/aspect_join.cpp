@@ -7,7 +7,7 @@ aspect_join_str(PyObject* sep,
                 PyObject* result,
                 PyObject* iterable_str,
                 size_t len_iterable,
-                const TaintRangeMapTypePtr& tx_taint_map)
+                const TaintedObjectMapTypePtr& tx_taint_map)
 {
     // This is the special case for unicode str and unicode iterable_str.
     // The iterable elements string will be split into 1 char-length strings.
@@ -60,7 +60,7 @@ aspect_join_str(PyObject* sep,
 }
 
 PyObject*
-aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, const TaintRangeMapTypePtr& tx_taint_map)
+aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, const TaintedObjectMapTypePtr& tx_taint_map)
 {
     const size_t& len_sep = get_pyobject_size(sep);
 
@@ -187,7 +187,7 @@ api_join_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
         return nullptr;
     }
     TRY_CATCH_ASPECT("join_aspect", return result, , {
-        const auto ctx_map = Initializer::get_tainting_map();
+        auto ctx_map = taint_engine_context->get_tainted_object_map_from_list_of_pyobjects({ sep, arg0 });
         if (not ctx_map or ctx_map->empty() or get_pyobject_size(result) == 0) {
             // Empty result cannot have taint ranges
             if (decref_arg0) {

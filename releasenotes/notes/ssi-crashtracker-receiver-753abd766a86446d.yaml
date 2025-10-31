@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    ssi, crashtracker: This fix resolves an issue where crashtracker receiver
+    binary was not available in an injected environment.
+

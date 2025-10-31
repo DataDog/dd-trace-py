@@ -15,6 +15,7 @@ import wrapt
 
 # 3p
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 
 # project
 from ddtrace.constants import _SPAN_MEASURED_KEY
@@ -28,7 +29,6 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.trace import Pin
 
 
 log = get_logger(__name__)
@@ -312,11 +312,11 @@ def _trace(func, p, method_name, *args, **kwargs):
         resource=method_name,
         span_type=SpanTypes.CACHE,
     ) as span:
-        span.set_tag_str(COMPONENT, config.pymemcache.integration_name)
-        span.set_tag_str(db.SYSTEM, memcachedx.DBMS_NAME)
+        span._set_tag_str(COMPONENT, config.pymemcache.integration_name)
+        span._set_tag_str(db.SYSTEM, memcachedx.DBMS_NAME)
 
         # set span.kind to the type of operation being performed
-        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         # PERF: avoid setting via Span.set_tag
         span.set_metric(_SPAN_MEASURED_KEY, 1)
@@ -328,7 +328,7 @@ def _trace(func, p, method_name, *args, **kwargs):
             if config.pymemcache.command_enabled:
                 vals = _get_query_string(args)
                 query = "{}{}{}".format(method_name, " " if vals else "", vals)
-                span.set_tag_str(memcachedx.QUERY, query)
+                span._set_tag_str(memcachedx.QUERY, query)
         except Exception:
             log.debug("Error setting relevant pymemcache tags")
 

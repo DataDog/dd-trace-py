@@ -27,13 +27,23 @@ endif()
 
 target_link_libraries(native_tests ${NATIVE_TEST_LIBRARIES})
 
+# Enable ASan for native tests to detect memory errors at runtime. option(NATIVE_TEST_ASAN "Enable AddressSanitizer for
+# native tests" ON) if(NATIVE_TEST_ASAN AND NOT MSVC) target_compile_options(native_tests PRIVATE -fsanitize=address
+# -fno-omit-frame-pointer) target_link_options(native_tests PRIVATE -fsanitize=address) endif()
+
 # Discover tests
 include(GoogleTest)
 gtest_discover_tests(native_tests)
 
+# replace gtest_discover_tests to use ASan for native tests to detect memory errors at runtime. gtest_discover_tests(
+# native_tests DISCOVERY_MODE PRE_TEST PROPERTIES ENVIRONMENT
+# "ASAN_OPTIONS=detect_leaks=0:halt_on_error=1:abort_on_error=1;LSAN_OPTIONS=verbosity=1:log_threads=1")
+
 add_custom_target(
     test_valgrind
-    COMMAND valgrind --leak-check=full --suppressions=../../../../../scripts/iast/valgrind-python.supp
-            --show-reachable=yes ${CMAKE_BINARY_DIR}/tests/native_tests --gtest_filter=-TestTimer.*
+    COMMAND
+        PYTHONMALLOC=malloc valgrind --track-origins=yes --leak-check=full
+        --suppressions=../../../../../scripts/iast/valgrind-python.supp --show-reachable=yes
+        ${CMAKE_BINARY_DIR}/tests/native_tests --gtest_filter=-TestTimer.*
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tests)
 add_dependencies(test_valgrind native_tests)

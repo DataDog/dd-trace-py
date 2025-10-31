@@ -1,33 +1,72 @@
+import importlib
 import json
 from operator import itemgetter
 import os
 import sys
 
-import langchain
-from langchain_core.messages import AIMessage
-from langchain_core.messages import HumanMessage
 import mock
-import pinecone as pinecone_
 import pytest
 
 from ddtrace import patch
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs
 from ddtrace.trace import Span
-from tests.contrib.langchain.utils import get_request_vcr
 from tests.contrib.langchain.utils import mock_langchain_chat_generate_response
 from tests.contrib.langchain.utils import mock_langchain_llm_generate_response
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
+from tests.llmobs._utils import iterate_stream
+from tests.llmobs._utils import next_stream
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
 
 
-PINECONE_VERSION = parse_version(pinecone_.__version__)
+# Multi-message prompt template test constants
+
+PROMPT_TEMPLATE_EXPECTED_CHAT_TEMPLATE = [
+    {"role": "system", "content": "You are a {role} assistant."},
+    {"role": "system", "content": "Your expertise is in {domain}."},
+    {"role": "system", "content": "Additional context: {context}"},
+    {"role": "user", "content": "I'm a user seeking help."},
+    {"role": "user", "content": "Please help with {task}"},
+    {"role": "user", "content": "Specifically, I need {specific_help}"},
+    {"role": "assistant", "content": "I understand your request."},
+    {"role": "assistant", "content": "I'll help you with {task}."},
+    {"role": "assistant", "content": "Let me provide {output_type}"},
+    {"role": "developer", "content": "Make it {style} and under {limit} words"},
+]
+
+
+def _create_multi_message_prompt_template(langchain_core, metadata=None):
+    """Helper function to create multi-message ChatPromptTemplate with mixed input types."""
+    from langchain_core.messages import AIMessage
+    from langchain_core.messages import HumanMessage
+    from langchain_core.messages import SystemMessage
+    from langchain_core.prompts import AIMessagePromptTemplate
+    from langchain_core.prompts import ChatMessagePromptTemplate
+    from langchain_core.prompts import HumanMessagePromptTemplate
+    from langchain_core.prompts import SystemMessagePromptTemplate
+
+    messages = [
+        SystemMessage(content="You are a {role} assistant."),  # while this has handlebars, it is not a template
+        ("system", "Your expertise is in {domain}."),
+        SystemMessagePromptTemplate.from_template("Additional context: {context}"),
+        HumanMessage(content="I'm a user seeking help."),
+        ("human", "Please help with {task}"),
+        HumanMessagePromptTemplate.from_template("Specifically, I need {specific_help}"),
+        AIMessage(content="I understand your request."),
+        ("ai", "I'll help you with {task}."),
+        AIMessagePromptTemplate.from_template("Let me provide {output_type}"),
+        ChatMessagePromptTemplate.from_template("Make it {style} and under {limit} words", role="developer"),
+    ]
+
+    template = langchain_core.prompts.ChatPromptTemplate.from_messages(messages=messages)
+    template.metadata = metadata
+    return template
 
 
 def _expected_langchain_llmobs_llm_span(
-    span, input_role=None, mock_io=False, mock_token_metrics=False, span_links=False, metadata=None
+    span, input_role=None, mock_io=False, mock_token_metrics=False, span_links=False, metadata=None, prompt=None
 ):
     provider = span.get_tag("langchain.request.provider")
 
@@ -53,6 +92,7 @@ def _expected_langchain_llmobs_llm_span(
         token_metrics=metrics,
         tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
         span_links=span_links,
+        prompt=prompt,
     )
 
 
@@ -69,17 +109,19 @@ def _expected_langchain_llmobs_chain_span(span, input_value=None, output_value=N
     )
 
 
-def test_llmobs_openai_llm(langchain_openai, llmobs_events, tracer, openai_completion):
-    llm = langchain_openai.OpenAI()
+def test_llmobs_openai_llm(langchain_openai, llmobs_events, tracer, openai_url):
+    llm = langchain_openai.OpenAI(base_url=openai_url, max_tokens=256)
     llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
 
     span = tracer.pop_traces()[0][0]
     assert len(llmobs_events) == 1
-    assert llmobs_events[0] == _expected_langchain_llmobs_llm_span(span, mock_token_metrics=True)
+    assert llmobs_events[0] == _expected_langchain_llmobs_llm_span(
+        span, mock_token_metrics=True, metadata={"max_tokens": 256, "temperature": 0.7}
+    )
 
 
 @mock.patch("langchain_core.language_models.llms.BaseLLM._generate_helper")
-def test_llmobs_openai_llm_proxy(mock_generate, langchain_openai, llmobs_events, tracer, openai_completion):
+def test_llmobs_openai_llm_proxy(mock_generate, langchain_openai, llmobs_events, tracer):
     mock_generate.return_value = mock_langchain_llm_generate_response
     llm = langchain_openai.OpenAI(base_url="http://localhost:4000", model="gpt-3.5-turbo")
     llm.invoke("What is the capital of France?")
@@ -96,12 +138,12 @@ def test_llmobs_openai_llm_proxy(mock_generate, langchain_openai, llmobs_events,
     llm.invoke("What is the capital of France?")
     span = tracer.pop_traces()[0][0]
     assert len(llmobs_events) == 2
-    assert llmobs_events[1]["meta"]["span.kind"] == "llm"
+    assert llmobs_events[1]["meta"]["span"]["kind"] == "llm"
 
 
-def test_llmobs_openai_chat_model(langchain_openai, llmobs_events, tracer, openai_chat_completion):
-    chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
-    chat_model.invoke([HumanMessage(content="When do you use 'who' instead of 'whom'?")])
+def test_llmobs_openai_chat_model(langchain_core, langchain_openai, llmobs_events, tracer, openai_url):
+    chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url=openai_url)
+    chat_model.invoke([langchain_core.messages.HumanMessage(content="When do you use 'who' instead of 'whom'?")])
 
     span = tracer.pop_traces()[0][0]
     assert len(llmobs_events) == 1
@@ -113,9 +155,16 @@ def test_llmobs_openai_chat_model(langchain_openai, llmobs_events, tracer, opena
     )
 
 
-def test_llmobs_openai_chat_model_no_usage(langchain_openai, llmobs_events, tracer, openai_chat_completion_no_usage):
-    chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
-    chat_model.invoke([HumanMessage(content="When do you use 'who' instead of 'whom'?")])
+def test_llmobs_openai_chat_model_no_usage(langchain_core, langchain_openai, llmobs_events, openai_url):
+    if parse_version(importlib.metadata.version("langchain_openai")) < (0, 2, 0):
+        pytest.skip("langchain-openai <0.2.0 does not support stream_usage=False")
+    chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url=openai_url, stream_usage=False)
+
+    response = chat_model.stream(
+        [langchain_core.messages.HumanMessage(content="When do you use 'who' instead of 'whom'?")]
+    )
+    for _ in response:
+        pass
 
     assert len(llmobs_events) == 1
     assert llmobs_events[0]["metrics"].get("input_tokens") is None
@@ -124,10 +173,10 @@ def test_llmobs_openai_chat_model_no_usage(langchain_openai, llmobs_events, trac
 
 
 @mock.patch("langchain_core.language_models.chat_models.BaseChatModel._generate_with_cache")
-def test_llmobs_openai_chat_model_proxy(mock_generate, langchain_openai, llmobs_events, tracer, openai_chat_completion):
+def test_llmobs_openai_chat_model_proxy(mock_generate, langchain_core, langchain_openai, llmobs_events, tracer):
     mock_generate.return_value = mock_langchain_chat_generate_response
     chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url="http://localhost:4000")
-    chat_model.invoke([HumanMessage(content="What is the capital of France?")])
+    chat_model.invoke([langchain_core.messages.HumanMessage(content="What is the capital of France?")])
 
     span = tracer.pop_traces()[0][0]
     assert len(llmobs_events) == 1
@@ -139,17 +188,210 @@ def test_llmobs_openai_chat_model_proxy(mock_generate, langchain_openai, llmobs_
 
     # span created from request with non-proxy URL should result in an LLM span
     chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url="http://localhost:8000")
-    chat_model.invoke([HumanMessage(content="What is the capital of France?")])
+    chat_model.invoke([langchain_core.messages.HumanMessage(content="What is the capital of France?")])
     span = tracer.pop_traces()[0][0]
     assert len(llmobs_events) == 2
-    assert llmobs_events[1]["meta"]["span.kind"] == "llm"
+    assert llmobs_events[1]["meta"]["span"]["kind"] == "llm"
+
+
+def test_llmobs_string_prompt_template_invoke(langchain_core, langchain_openai, openai_url, llmobs_events, tracer):
+    template_string = "You are a helpful assistant. Please answer this question: {question}"
+    variable_dict = {"question": "What is machine learning?"}
+    prompt_template = langchain_core.prompts.PromptTemplate(
+        input_variables=list(variable_dict.keys()),
+        template=template_string,
+        metadata={"test_type": "basic_invoke", "author": "test_suite"},
+    )
+    llm = langchain_openai.OpenAI(base_url=openai_url)
+    chain = prompt_template | llm
+    chain.invoke(variable_dict)
+
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+    assert len(llmobs_events) == 2
+    actual_prompt = llmobs_events[1]["meta"]["input"]["prompt"]
+    assert actual_prompt["id"] == "test_langchain_llmobs.prompt_template"
+    assert actual_prompt["template"] == template_string
+    assert actual_prompt["variables"] == variable_dict
+    # Check that metadata from the prompt template is preserved
+    assert "tags" in actual_prompt
+    assert actual_prompt["tags"] == {"test_type": "basic_invoke", "author": "test_suite"}
+
+
+def test_llmobs_string_prompt_template_direct_invoke(
+    langchain_core, langchain_openai, openai_url, llmobs_events, tracer
+):
+    """Test StringPromptTemplate (PromptTemplate) with variable name detection using direct invoke (no chains)."""
+    template_string = "Good {time_of_day}, {name}! How are you doing today?"
+    variable_dict = {"name": "Alice", "time_of_day": "morning"}
+    greeting_template = langchain_core.prompts.PromptTemplate(
+        input_variables=list(variable_dict.keys()),
+        template=template_string,
+        metadata={"test_type": "direct_invoke", "interaction": "greeting", "not_string_1": True, "not_string_2": 10},
+    )
+    llm = langchain_openai.OpenAI(base_url=openai_url)
+
+    # Direct invoke on template first, then pass to LLM (no chain)
+    prompt_value = greeting_template.invoke(variable_dict)
+    llm.invoke(prompt_value)
+
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+    assert len(llmobs_events) == 1  # Only LLM span, prompt template invoke doesn't create LLMObs event by itself
+
+    # The prompt should be attached to the LLM span
+    actual_prompt = llmobs_events[0]["meta"]["input"]["prompt"]
+    assert actual_prompt["id"] == "test_langchain_llmobs.greeting_template"
+    assert actual_prompt["template"] == template_string
+    assert actual_prompt["variables"] == variable_dict
+    # Check that metadata from the prompt template is preserved
+    assert "tags" in actual_prompt
+    assert actual_prompt["tags"] == {"test_type": "direct_invoke", "interaction": "greeting"}
+
+
+def test_llmobs_string_prompt_template_invoke_chat_model(
+    langchain_core, langchain_openai, openai_url, llmobs_events, tracer
+):
+    template_string = "You are a helpful assistant. Please answer this question: {question}"
+    variable_dict = {"question": "What is machine learning?"}
+    prompt_template = langchain_core.prompts.PromptTemplate(
+        input_variables=list(variable_dict.keys()), template=template_string
+    )
+    chat_model = langchain_openai.ChatOpenAI(base_url=openai_url)
+    chain = prompt_template | chat_model
+    chain.invoke(variable_dict)
+
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+    assert len(llmobs_events) == 2
+    actual_prompt = llmobs_events[1]["meta"]["input"]["prompt"]
+    assert actual_prompt["id"] == "test_langchain_llmobs.prompt_template"
+    assert actual_prompt["template"] == template_string
+    assert actual_prompt["variables"] == variable_dict
+
+
+def test_llmobs_string_prompt_template_single_variable_string_input(
+    langchain_core, langchain_openai, openai_url, llmobs_events, tracer
+):
+    template_string = "Write a creative story about {topic}."
+    single_variable_template = langchain_core.prompts.PromptTemplate(
+        input_variables=["topic"], template=template_string
+    )
+    llm = langchain_openai.OpenAI(base_url=openai_url)
+    chain = single_variable_template | llm
+
+    # Pass string input directly instead of dict for single variable template
+    string_input = "time travel"
+    chain.invoke(string_input)
+
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+    assert len(llmobs_events) == 2
+    actual_prompt = llmobs_events[1]["meta"]["input"]["prompt"]
+    assert actual_prompt["id"] == "test_langchain_llmobs.single_variable_template"
+    assert actual_prompt["template"] == template_string
+    # Should convert string input to dict format with single variable
+    assert actual_prompt["variables"] == {"topic": "time travel"}
+
+
+def test_llmobs_multi_message_prompt_template_sync_chain(
+    langchain_core, langchain_openai, openai_url, llmobs_events, tracer
+):
+    test_metadata = {"template_type": "multi_message", "test_scenario": "sync_chain", "message_count": 10}
+    multi_message_template = _create_multi_message_prompt_template(langchain_core, metadata=test_metadata)
+    llm = langchain_openai.ChatOpenAI(base_url=openai_url)
+    chain = multi_message_template | llm
+
+    variable_dict = {
+        "domain": "creative writing",
+        "context": "focus on storytelling",
+        "task": "writing a short story",
+        "specific_help": "character development",
+        "output_type": "guidance",
+        "style": "engaging",
+        "limit": "100",
+    }
+
+    chain.invoke(variable_dict)
+
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+    assert len(llmobs_events) == 2
+
+    # Verify the prompt structure in the LLM span
+    actual_prompt = llmobs_events[1]["meta"]["input"]["prompt"]
+    assert actual_prompt["id"] == "test_langchain_llmobs.multi_message_template"
+    assert actual_prompt["variables"] == variable_dict
+    assert actual_prompt.get("template") is None
+    assert actual_prompt["chat_template"] == PROMPT_TEMPLATE_EXPECTED_CHAT_TEMPLATE
+    # Check that metadata from the multi-message prompt template is preserved
+    assert "tags" in actual_prompt
+    assert actual_prompt["tags"] == {k: v for k, v in test_metadata.items() if isinstance(v, str)}
+
+
+def test_llmobs_multi_message_prompt_template_sync_direct_invoke(
+    langchain_core, langchain_openai, openai_url, llmobs_events, tracer
+):
+    multi_message_template = _create_multi_message_prompt_template(langchain_core)
+    llm = langchain_openai.ChatOpenAI(base_url=openai_url)
+
+    variable_dict = {
+        "domain": "data analysis",
+        "context": "focus on accuracy",
+        "task": "analyzing datasets",
+        "specific_help": "statistical methods",
+        "output_type": "insights",
+        "style": "detailed",
+        "limit": "150",
+    }
+
+    # Test direct invoke on template then LLM (no chain)
+    prompt_value = multi_message_template.invoke(variable_dict)
+    llm.invoke(prompt_value)
+
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+    assert len(llmobs_events) == 1  # Only LLM span for direct invoke
+
+    # Verify the prompt structure
+    actual_prompt = llmobs_events[0]["meta"]["input"]["prompt"]
+    assert actual_prompt["id"] == "test_langchain_llmobs.multi_message_template"
+    assert actual_prompt["variables"] == variable_dict
+    assert actual_prompt.get("template") is None
+    assert actual_prompt["chat_template"] == PROMPT_TEMPLATE_EXPECTED_CHAT_TEMPLATE
+
+
+@pytest.mark.asyncio
+async def test_llmobs_multi_message_prompt_template_async_direct_invoke(
+    langchain_core, langchain_openai, openai_url, llmobs_events, tracer
+):
+    multi_message_template = _create_multi_message_prompt_template(langchain_core)
+    llm = langchain_openai.ChatOpenAI(base_url=openai_url)
+
+    variable_dict = {
+        "domain": "software engineering",
+        "context": "focus on best practices",
+        "task": "code review",
+        "specific_help": "performance optimization",
+        "output_type": "recommendations",
+        "style": "thorough",
+        "limit": "200",
+    }
+
+    # Test direct async invoke on template then LLM
+    prompt_value = await multi_message_template.ainvoke(variable_dict)
+    await llm.ainvoke(prompt_value)
+
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+    assert len(llmobs_events) == 1  # Only LLM span for direct invoke
+
+    # Verify the prompt structure
+    actual_prompt = llmobs_events[0]["meta"]["input"]["prompt"]
+    assert actual_prompt["id"] == "test_langchain_llmobs.multi_message_template"
+    assert actual_prompt["variables"] == variable_dict
+    assert actual_prompt.get("template") is None
+    assert actual_prompt["chat_template"] == PROMPT_TEMPLATE_EXPECTED_CHAT_TEMPLATE
 
 
 def test_llmobs_chain(langchain_core, langchain_openai, openai_url, llmobs_events, tracer):
     prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
         [("system", "You are world class technical documentation writer."), ("user", "{input}")]
     )
-    chain = prompt | langchain_openai.OpenAI(base_url=openai_url)
+    chain = prompt | langchain_openai.OpenAI(base_url=openai_url, max_tokens=256)
     chain.invoke({"input": "Can you explain what an LLM chain is?"})
 
     llmobs_events.sort(key=lambda span: span["start_ns"])
@@ -164,6 +406,17 @@ def test_llmobs_chain(langchain_core, langchain_openai, openai_url, llmobs_event
         trace[1],
         mock_token_metrics=True,
         span_links=True,
+        metadata={"max_tokens": 256, "temperature": 0.7},
+        prompt={
+            "id": "test_langchain_llmobs.prompt",
+            "chat_template": [
+                {"content": "You are world class technical documentation writer.", "role": "system"},
+                {"content": "{input}", "role": "user"},
+            ],
+            "variables": {"input": "Can you explain what an LLM chain is?"},
+            "_dd_context_variable_keys": ["context"],
+            "_dd_query_variable_keys": ["question"],
+        },
     )
 
 
@@ -198,23 +451,36 @@ def test_llmobs_chain_nested(langchain_core, langchain_openai, openai_url, llmob
         trace[2],
         mock_token_metrics=True,
         span_links=True,
+        prompt={
+            "id": "langchain.unknown_prompt_template",
+            "chat_template": [{"content": "what is the city {person} is from?", "role": "user"}],
+            "variables": {"person": "Spongebob Squarepants", "language": "Spanish"},
+            "_dd_context_variable_keys": ["context"],
+            "_dd_query_variable_keys": ["question"],
+        },
     )
     assert llmobs_events[3] == _expected_langchain_llmobs_llm_span(
         trace[3],
         mock_token_metrics=True,
         span_links=True,
+        prompt={
+            "id": "test_langchain_llmobs.prompt2",
+            "chat_template": [{"content": "what country is the city {city} in? respond in {language}", "role": "user"}],
+            "variables": {"city": mock.ANY, "language": "Spanish"},
+            "_dd_context_variable_keys": ["context"],
+            "_dd_query_variable_keys": ["question"],
+        },
     )
 
 
 @pytest.mark.skipif(sys.version_info >= (3, 11), reason="Python <3.11 required")
-def test_llmobs_chain_batch(langchain_core, langchain_openai, llmobs_events, tracer):
+def test_llmobs_chain_batch(langchain_core, langchain_openai, llmobs_events, tracer, openai_url):
     prompt = langchain_core.prompts.ChatPromptTemplate.from_template("Tell me a short joke about {topic}")
     output_parser = langchain_core.output_parsers.StrOutputParser()
-    model = langchain_openai.ChatOpenAI()
+    model = langchain_openai.ChatOpenAI(base_url=openai_url)
     chain = {"topic": langchain_core.runnables.RunnablePassthrough()} | prompt | model | output_parser
 
-    with get_request_vcr().use_cassette("lcel_openai_chain_batch.yaml"):
-        chain.batch(inputs=["chickens", "pigs"])
+    chain.batch(inputs=["chickens", "pigs"])
 
     llmobs_events.sort(key=lambda span: span["start_ns"])
     trace = tracer.pop_traces()[0]
@@ -232,12 +498,26 @@ def test_llmobs_chain_batch(langchain_core, langchain_openai, llmobs_events, tra
             input_role="user",
             mock_token_metrics=True,
             span_links=True,
+            prompt={
+                "id": "langchain.unknown_prompt_template",
+                "chat_template": [{"content": "Tell me a short joke about {topic}", "role": "user"}],
+                "variables": {"topic": "chickens"},
+                "_dd_context_variable_keys": ["context"],
+                "_dd_query_variable_keys": ["question"],
+            },
         )
         assert llmobs_events[2] == _expected_langchain_llmobs_llm_span(
             trace[2],
             input_role="user",
             mock_token_metrics=True,
             span_links=True,
+            prompt={
+                "id": "langchain.unknown_prompt_template",
+                "chat_template": [{"content": "Tell me a short joke about {topic}", "role": "user"}],
+                "variables": {"topic": "pigs"},
+                "_dd_context_variable_keys": ["context"],
+                "_dd_query_variable_keys": ["question"],
+            },
         )
     except AssertionError:
         assert llmobs_events[1] == _expected_langchain_llmobs_llm_span(
@@ -245,12 +525,26 @@ def test_llmobs_chain_batch(langchain_core, langchain_openai, llmobs_events, tra
             input_role="user",
             mock_token_metrics=True,
             span_links=True,
+            prompt={
+                "id": "langchain.unknown_prompt_template",
+                "chat_template": [{"content": "Tell me a short joke about {topic}", "role": "user"}],
+                "variables": {"topic": "chickens"},
+                "_dd_context_variable_keys": ["context"],
+                "_dd_query_variable_keys": ["question"],
+            },
         )
         assert llmobs_events[2] == _expected_langchain_llmobs_llm_span(
             trace[1],
             input_role="user",
             mock_token_metrics=True,
             span_links=True,
+            prompt={
+                "id": "langchain.unknown_prompt_template",
+                "chat_template": [{"content": "Tell me a short joke about {topic}", "role": "user"}],
+                "variables": {"topic": "pigs"},
+                "_dd_context_variable_keys": ["context"],
+                "_dd_query_variable_keys": ["question"],
+            },
         )
 
 
@@ -268,8 +562,8 @@ def test_llmobs_chain_schema_io(langchain_core, langchain_openai, openai_url, ll
         {
             "ability": "world capitals",
             "history": [
-                HumanMessage(content="Can you be my science teacher instead?"),
-                AIMessage(content="Yes"),
+                langchain_core.messages.HumanMessage(content="Can you be my science teacher instead?"),
+                langchain_core.messages.AIMessage(content="Yes"),
             ],
             "input": "What's the powerhouse of the cell?",
         }
@@ -300,10 +594,20 @@ def test_llmobs_chain_schema_io(langchain_core, langchain_openai, openai_url, ll
     )
 
 
-def test_llmobs_anthropic_chat_model(langchain_anthropic, llmobs_events, tracer):
-    chat = langchain_anthropic.ChatAnthropic(temperature=0, model="claude-3-opus-20240229", max_tokens=15)
-    with get_request_vcr().use_cassette("anthropic_chat_completion_sync.yaml"):
-        chat.invoke("When do you use 'whom' instead of 'who'?")
+def test_llmobs_anthropic_chat_model(langchain_anthropic, llmobs_events, tracer, anthropic_url):
+    kwargs = dict(
+        temperature=0,
+        max_tokens=15,
+        model_name="claude-3-opus-20240229",
+    )
+
+    if "anthropic_api_url" in langchain_anthropic.ChatAnthropic.__fields__:
+        kwargs["anthropic_api_url"] = anthropic_url
+    else:
+        kwargs["base_url"] = anthropic_url
+
+    chat = langchain_anthropic.ChatAnthropic(**kwargs)
+    chat.invoke("When do you use 'whom' instead of 'who'?")
 
     span = tracer.pop_traces()[0][0]
     assert len(llmobs_events) == 1
@@ -315,13 +619,27 @@ def test_llmobs_anthropic_chat_model(langchain_anthropic, llmobs_events, tracer)
     )
 
 
-def test_llmobs_embedding_query(langchain_openai, llmobs_events, tracer):
-    if langchain_openai is None:
-        pytest.skip("langchain_openai not installed which is required for this test.")
-    embedding_model = langchain_openai.embeddings.OpenAIEmbeddings()
-    with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536):
-        with get_request_vcr().use_cassette("openai_embedding_query.yaml"):
-            embedding_model.embed_query("hello world")
+def test_llmobs_embedding_documents(langchain_openai, llmobs_events, tracer, openai_url):
+    embedding_model = langchain_openai.embeddings.OpenAIEmbeddings(base_url=openai_url)
+    embedding_model.embed_documents(["hello world", "goodbye world"])
+
+    trace = tracer.pop_traces()[0]
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0] == _expected_llmobs_llm_span_event(
+        trace[0],
+        span_kind="embedding",
+        model_name="text-embedding-ada-002",
+        model_provider="openai",
+        input_documents=[{"text": "hello world"}, {"text": "goodbye world"}],
+        output_value="[2 embedding(s) returned with size 1536]",
+        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
+    )
+
+
+def test_llmobs_embedding_query(langchain_openai, llmobs_events, tracer, openai_url):
+    embedding_model = langchain_openai.embeddings.OpenAIEmbeddings(base_url=openai_url)
+    embedding_model.embed_query("hello world")
+
     trace = tracer.pop_traces()[0]
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
@@ -335,47 +653,9 @@ def test_llmobs_embedding_query(langchain_openai, llmobs_events, tracer):
     )
 
 
-def test_llmobs_embedding_documents(langchain_community, llmobs_events, tracer):
-    if langchain_community is None:
-        pytest.skip("langchain-community not installed which is required for this test.")
-    embedding_model = langchain_community.embeddings.FakeEmbeddings(size=1536)
-    embedding_model.embed_documents(["hello world", "goodbye world"])
-
-    trace = tracer.pop_traces()[0]
-    span = trace[0] if isinstance(trace, list) else trace
-    assert len(llmobs_events) == 1
-    assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-        span,
-        span_kind="embedding",
-        model_name="",
-        model_provider="fake",
-        input_documents=[{"text": "hello world"}, {"text": "goodbye world"}],
-        output_value="[2 embedding(s) returned with size 1536]",
-        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
-    )
-
-
-def test_llmobs_similarity_search(langchain_openai, langchain_pinecone, llmobs_events, tracer):
-    import pinecone
-
-    if langchain_pinecone is None:
-        pytest.skip("langchain_pinecone not installed which is required for this test.")
-    embedding_model = langchain_openai.OpenAIEmbeddings(model="text-embedding-ada-002")
-    with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[[0.0] * 1536]):
-        with get_request_vcr().use_cassette("openai_pinecone_similarity_search.yaml"):
-            if PINECONE_VERSION <= (2, 2, 4):
-                pinecone.init(
-                    api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
-                    environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
-                )
-                index = pinecone.Index(index_name="langchain-retrieval")
-            else:
-                pc = pinecone.Pinecone(
-                    api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
-                )
-                index = pc.Index(name="langchain-retrieval")
-            vector_db = langchain_pinecone.PineconeVectorStore(index, embedding_model, "text")
-            vector_db.similarity_search("Evolution", 1)
+def test_llmobs_vectorstore_similarity_search(langchain_in_memory_vectorstore, llmobs_events, tracer):
+    vectorstore = langchain_in_memory_vectorstore
+    vectorstore.similarity_search("France", k=1)
 
     trace = tracer.pop_traces()[0]
     assert len(llmobs_events) == 2
@@ -383,7 +663,7 @@ def test_llmobs_similarity_search(langchain_openai, langchain_pinecone, llmobs_e
     expected_span = _expected_llmobs_non_llm_span_event(
         trace[0],
         "retrieval",
-        input_value="Evolution",
+        input_value="France",
         output_documents=[{"text": mock.ANY, "id": mock.ANY, "name": mock.ANY}],
         output_value="[1 document(s) retrieved]",
         tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
@@ -392,9 +672,7 @@ def test_llmobs_similarity_search(langchain_openai, langchain_pinecone, llmobs_e
     assert llmobs_events[0] == expected_span
 
 
-def test_llmobs_chat_model_tool_calls(langchain_openai, llmobs_events, tracer, openai_chat_completion_tools):
-    import langchain_core.tools
-
+def test_llmobs_chat_model_tool_calls(langchain_core, langchain_openai, llmobs_events, tracer, openai_url):
     @langchain_core.tools.tool
     def add(a: int, b: int) -> int:
         """Adds a and b.
@@ -404,9 +682,9 @@ def test_llmobs_chat_model_tool_calls(langchain_openai, llmobs_events, tracer, o
         """
         return a + b
 
-    llm = langchain_openai.ChatOpenAI(model="gpt-3.5-turbo-0125", temperature=0.7)
+    llm = langchain_openai.ChatOpenAI(model="gpt-3.5-turbo-0125", temperature=0.7, base_url=openai_url)
     llm_with_tools = llm.bind_tools([add])
-    llm_with_tools.invoke([HumanMessage(content="What is the sum of 1 and 2?")])
+    llm_with_tools.invoke([langchain_core.messages.HumanMessage(content="What is the sum of 1 and 2?")])
 
     span = tracer.pop_traces()[0][0]
     assert len(llmobs_events) == 1
@@ -418,7 +696,7 @@ def test_llmobs_chat_model_tool_calls(langchain_openai, llmobs_events, tracer, o
         output_messages=[
             {
                 "role": "assistant",
-                "content": "Hello world!",
+                "content": "",
                 "tool_calls": [
                     {
                         "name": "add",
@@ -434,15 +712,13 @@ def test_llmobs_chat_model_tool_calls(langchain_openai, llmobs_events, tracer, o
     )
 
 
-def test_llmobs_base_tool_invoke(llmobs_events, tracer):
+def test_llmobs_base_tool_invoke(langchain_core, llmobs_events, tracer):
     from math import pi
-
-    from langchain_core.tools import StructuredTool
 
     def circumference_tool(radius: float) -> float:
         return float(radius) * 2.0 * pi
 
-    calculator = StructuredTool.from_function(
+    calculator = langchain_core.tools.StructuredTool.from_function(
         func=circumference_tool,
         name="Circumference calculator",
         description="Use this tool when you need to calculate a circumference using the radius of a circle",
@@ -470,25 +746,17 @@ def test_llmobs_base_tool_invoke(llmobs_events, tracer):
     )
 
 
-def test_llmobs_streamed_chain(langchain_core, langchain_openai, llmobs_events, tracer, streamed_response_responder):
-    client = streamed_response_responder(
-        module="openai",
-        client_class_key="OpenAI",
-        http_client_key="http_client",
-        endpoint_path=["chat", "completions"],
-        file="lcel_openai_chat_streamed_response.txt",
-    )
-
+@pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
+def test_llmobs_streamed_chain(langchain_core, langchain_openai, llmobs_events, tracer, openai_url, consume_stream):
     prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
         [("system", "You are a world class technical documentation writer."), ("user", "{input}")]
     )
-    llm = langchain_openai.ChatOpenAI(model="gpt-4o", client=client, temperature=0.7)
+    llm = langchain_openai.ChatOpenAI(model="gpt-4o", base_url=openai_url, temperature=0.7, max_tokens=256)
     parser = langchain_core.output_parsers.StrOutputParser()
 
     chain = prompt | llm | parser
 
-    for _ in chain.stream({"input": "how can langsmith help with testing?"}):
-        pass
+    consume_stream(chain.stream({"input": "how can langsmith help with testing?"}))
 
     trace = tracer.pop_traces()[0]
     assert len(llmobs_events) == 2
@@ -496,7 +764,7 @@ def test_llmobs_streamed_chain(langchain_core, langchain_openai, llmobs_events, 
     assert llmobs_events[0] == _expected_langchain_llmobs_chain_span(
         trace[0],
         input_value=json.dumps({"input": "how can langsmith help with testing?"}),
-        output_value="Python is\n\nthe best!",
+        output_value=mock.ANY,
         span_links=True,
     )
     assert llmobs_events[1] == _expected_llmobs_llm_span_event(
@@ -507,28 +775,19 @@ def test_llmobs_streamed_chain(langchain_core, langchain_openai, llmobs_events, 
             {"content": "You are a world class technical documentation writer.", "role": "SystemMessage"},
             {"content": "how can langsmith help with testing?", "role": "HumanMessage"},
         ],
-        output_messages=[{"content": "Python is\n\nthe best!", "role": "assistant"}],
-        metadata={"temperature": 0.7},
+        output_messages=[{"content": mock.ANY, "role": "assistant"}],
+        metadata={"temperature": 0.7, "max_tokens": 256},
         token_metrics={},
         tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
         span_links=True,
     )
 
 
-def test_llmobs_streamed_llm(langchain_openai, llmobs_events, tracer, streamed_response_responder):
-    client = streamed_response_responder(
-        module="openai",
-        client_class_key="OpenAI",
-        http_client_key="http_client",
-        endpoint_path=["completions"],
-        file="lcel_openai_llm_streamed_response.txt",
-    )
+@pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
+def test_llmobs_streamed_llm(langchain_openai, llmobs_events, tracer, openai_url, consume_stream):
+    llm = langchain_openai.OpenAI(base_url=openai_url, n=1, seed=1, logprobs=None, logit_bias=None)
 
-    llm = langchain_openai.OpenAI(client=client)
-
-    for _ in llm.stream("Hello!"):
-        pass
-
+    consume_stream(llm.stream("What is 2+2?\n\n"))
     span = tracer.pop_traces()[0][0]
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
@@ -536,9 +795,9 @@ def test_llmobs_streamed_llm(langchain_openai, llmobs_events, tracer, streamed_r
         model_name=span.get_tag("langchain.request.model"),
         model_provider=span.get_tag("langchain.request.provider"),
         input_messages=[
-            {"content": "Hello!"},
+            {"content": "What is 2+2?\n\n"},
         ],
-        output_messages=[{"content": "\n\nPython is cool!"}],
+        output_messages=[{"content": "The answer is 4."}],
         metadata={"temperature": 0.7, "max_tokens": 256},
         token_metrics={},
         tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
@@ -554,8 +813,8 @@ def test_llmobs_non_ascii_completion(langchain_openai, openai_url, llmobs_events
     assert actual_llmobs_span_event["meta"]["input"]["messages"][0]["content"] == "안녕,\n 지금 몇 시야?"
 
 
-def test_llmobs_set_tags_with_none_response(langchain_openai, llmobs_events, tracer):
-    integration = langchain._datadog_integration
+def test_llmobs_set_tags_with_none_response(langchain_core):
+    integration = langchain_core._datadog_integration
     integration._llmobs_set_tags(
         span=Span("test_span", service="test_service"),
         args=[],
@@ -577,12 +836,17 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
     )
 
     openai_env_config = dict(
-        OPENAI_API_KEY="testing",
+        OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "testing"),
         DD_API_KEY="<not-a-real-key>",
     )
 
+    azure_openai_env_config = dict(
+        OPENAI_API_VERSION="2024-12-01-preview",
+        AZURE_OPENAI_API_KEY=os.getenv("AZURE_OPENAI_API_KEY", "testing"),
+    )
+
     anthropic_env_config = dict(
-        ANTHROPIC_API_KEY="testing",
+        ANTHROPIC_API_KEY=os.getenv("ANTHROPIC_API_KEY", "testing"),
         DD_API_KEY="<not-a-real-key>",
     )
 
@@ -608,8 +872,8 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
             call_args = call.args[0]
 
             assert (
-                call_args["meta"]["span.kind"] == span_kind
-            ), f"Span kind is {call_args['meta']['span.kind']} but expected {span_kind}"
+                call_args["meta"]["span"]["kind"] == span_kind
+            ), f"Span kind is {call_args['meta']['span']['kind']} but expected {span_kind}"
             if span_kind == "workflow":
                 assert len(call_args["meta"]["input"]["value"]) > 0
                 assert len(call_args["meta"]["output"]["value"]) > 0
@@ -621,89 +885,38 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
                 assert len(call_args["meta"]["output"]["value"]) > 0
 
     @staticmethod
-    def _call_bedrock_chat_model(ChatBedrock, HumanMessage):
-        chat = ChatBedrock(
-            model_id="amazon.titan-tg1-large",
-            model_kwargs={"maxTokenCount": 50, "temperature": 0},
-        )
-        messages = [HumanMessage(content="summarize the plot to the lord of the rings in a dozen words")]
-        with get_request_vcr().use_cassette("bedrock_amazon_chat_invoke.yaml"):
-            chat.invoke(messages)
-
-    @staticmethod
-    def _call_bedrock_llm(BedrockLLM):
-        llm = BedrockLLM(
-            model_id="amazon.titan-tg1-large",
-            region_name="us-east-1",
-            model_kwargs={"temperature": 0.0, "topP": 0.9, "stopSequences": [], "maxTokenCount": 50},
-        )
-
-        with get_request_vcr().use_cassette("bedrock_amazon_invoke.yaml"):
-            llm.invoke("can you explain what Datadog is to someone not in the tech industry?")
-
-    @staticmethod
     def _call_openai_llm(OpenAI):
-        llm = OpenAI()
-        with get_request_vcr().use_cassette("openai_completion_sync.yaml"):
-            llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
+        llm = OpenAI(base_url="http://localhost:9126/vcr/openai")
+        llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
+
+    @staticmethod
+    def _call_azure_openai_chat(AzureChatOpenAI):
+        llm = AzureChatOpenAI(azure_endpoint="http://localhost:9126/vcr/azure_openai", deployment_name="gpt-4.1-mini")
+        llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
 
     @staticmethod
     def _call_openai_embedding(OpenAIEmbeddings):
-        embedding = OpenAIEmbeddings()
+        embedding = OpenAIEmbeddings(base_url="http://localhost:9126/vcr/openai")
         with mock.patch("langchain_openai.embeddings.base.tiktoken.encoding_for_model") as mock_encoding_for_model:
             mock_encoding = mock.MagicMock()
             mock_encoding_for_model.return_value = mock_encoding
             mock_encoding.encode.return_value = [0.0] * 1536
-            with get_request_vcr().use_cassette("openai_embedding_query_integration.yaml"):
-                embedding.embed_query("hello world")
+            embedding.embed_query("hello world")
 
     @staticmethod
     def _call_anthropic_chat(Anthropic):
-        llm = Anthropic(model="claude-3-opus-20240229", max_tokens=15)
-        with get_request_vcr().use_cassette("anthropic_chat_completion_sync.yaml"):
-            llm.invoke("When do you use 'whom' instead of 'who'?")
+        kwargs = dict(
+            model="claude-3-opus-20240229",
+            max_tokens=15,
+        )
 
-    @run_in_subprocess(env_overrides=bedrock_env_config)
-    def test_llmobs_with_chat_model_bedrock_enabled(self):
-        from langchain_aws import ChatBedrock
-        from langchain_core.messages import HumanMessage
+        if "anthropic_api_url" in Anthropic.__fields__:
+            kwargs["anthropic_api_url"] = "http://localhost:9126/vcr/anthropic"
+        else:
+            kwargs["base_url"] = "http://localhost:9126/vcr/anthropic"
 
-        patch(langchain=True, botocore=True)
-        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
-
-        self._call_bedrock_chat_model(ChatBedrock, HumanMessage)
-
-        self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
-
-    @run_in_subprocess(env_overrides=bedrock_env_config)
-    def test_llmobs_with_chat_model_bedrock_disabled(self):
-        from langchain_aws import ChatBedrock
-        from langchain_core.messages import HumanMessage
-
-        patch(langchain=True)
-        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
-
-        self._call_bedrock_chat_model(ChatBedrock, HumanMessage)
-
-        self._assert_trace_structure_from_writer_call_args(["llm"])
-
-    @run_in_subprocess(env_overrides=bedrock_env_config)
-    def test_llmobs_with_llm_model_bedrock_enabled(self):
-        from langchain_aws import BedrockLLM
-
-        patch(langchain=True, botocore=True)
-        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
-        self._call_bedrock_llm(BedrockLLM)
-        self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
-
-    @run_in_subprocess(env_overrides=bedrock_env_config)
-    def test_llmobs_with_llm_model_bedrock_disabled(self):
-        from langchain_aws import BedrockLLM
-
-        patch(langchain=True)
-        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
-        self._call_bedrock_llm(BedrockLLM)
-        self._assert_trace_structure_from_writer_call_args(["llm"])
+        llm = Anthropic(**kwargs)
+        llm.invoke("When do you use 'whom' instead of 'who'?")
 
     @run_in_subprocess(env_overrides=openai_env_config)
     def test_llmobs_with_openai_enabled(self):
@@ -712,6 +925,15 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         patch(langchain=True, openai=True)
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
         self._call_openai_llm(OpenAI)
+        self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
+
+    @run_in_subprocess(env_overrides=azure_openai_env_config)
+    def test_llmobs_with_openai_enabled_azure(self):
+        from langchain_openai import AzureChatOpenAI
+
+        patch(langchain=True, openai=True)
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        self._call_azure_openai_chat(AzureChatOpenAI)
         self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
 
     @run_in_subprocess(env_overrides=openai_env_config)
@@ -727,6 +949,26 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         assert langchain_span["meta"]["input"]["value"] == '[{"content": "안녕,\\n 지금 몇 시야?"}]'
 
     @run_in_subprocess(env_overrides=openai_env_config)
+    def test_llmobs_langchain_with_embedding_model_openai_enabled(self):
+        patch(openai=True, langchain=True)
+
+        from langchain_openai import OpenAIEmbeddings
+
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        self._call_openai_embedding(OpenAIEmbeddings)
+        self._assert_trace_structure_from_writer_call_args(["workflow", "embedding"])
+
+    @run_in_subprocess(env_overrides=openai_env_config)
+    def test_llmobs_langchain_with_embedding_model_openai_disabled(self):
+        patch(langchain=True)
+
+        from langchain_openai import OpenAIEmbeddings
+
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        self._call_openai_embedding(OpenAIEmbeddings)
+        self._assert_trace_structure_from_writer_call_args(["embedding"])
+
+    @run_in_subprocess(env_overrides=openai_env_config)
     def test_llmobs_with_openai_disabled(self):
         from langchain_openai import OpenAI
 
@@ -736,26 +978,15 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         self._call_openai_llm(OpenAI)
         self._assert_trace_structure_from_writer_call_args(["llm"])
 
-    @run_in_subprocess(env_overrides=openai_env_config)
-    def test_llmobs_langchain_with_embedding_model_openai_enabled(self):
-        import langchain  # noqa: F401
-        from langchain_openai import OpenAIEmbeddings
-
-        patch(langchain=True, openai=True)
-
-        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
-        self._call_openai_embedding(OpenAIEmbeddings)
-        self._assert_trace_structure_from_writer_call_args(["workflow", "embedding"])
-
-    @run_in_subprocess(env_overrides=openai_env_config)
-    def test_llmobs_langchain_with_embedding_model_openai_disabled(self):
-        import langchain  # noqa: F401
-        from langchain_openai import OpenAIEmbeddings
+    @run_in_subprocess(env_overrides=azure_openai_env_config)
+    def test_llmobs_with_openai_disabled_azure(self):
+        from langchain_openai import AzureChatOpenAI
 
         patch(langchain=True)
+
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
-        self._call_openai_embedding(OpenAIEmbeddings)
-        self._assert_trace_structure_from_writer_call_args(["embedding"])
+        self._call_azure_openai_chat(AzureChatOpenAI)
+        self._assert_trace_structure_from_writer_call_args(["llm"])
 
     @run_in_subprocess(env_overrides=anthropic_env_config)
     def test_llmobs_with_anthropic_enabled(self):

@@ -11,6 +11,7 @@ from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.internal.packages import get_version_for_package
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
@@ -31,13 +32,13 @@ except ImportError:
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.contrib.internal.wsgi.wsgi import _DDWSGIMiddlewareBase
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.trace import Pin
 
 from .wrappers import _wrap_call_with_pin_check
 from .wrappers import get_current_app
@@ -126,7 +127,9 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
             core.dispatch("flask.start_response", ("Flask",))
             if get_blocked():
                 # response code must be set here, or it will be too late
-                result_content = core.dispatch_with_results("flask.block.request.content", ()).block_requested
+                result_content = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
+                    "flask.block.request.content", ()
+                ).block_requested
                 if result_content:
                     _, status, response_headers = result_content.value
                     result = start_response(str(status), response_headers)
@@ -154,7 +157,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         request = _RequestType(environ)
 
         req_body = None
-        result = core.dispatch_with_results(
+        result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
             "flask.request_call_modifier",
             (
                 ctx,
@@ -454,7 +457,13 @@ def patched_add_url_rule(wrapped, instance, args, kwargs):
             #   should we do something special with these views? Change the name/resource? Add tags?
             core.dispatch("service_entrypoint.patch", (unwrap(view_func),))
             wrapped_view = wrap_view(instance, view_func, name=endpoint, resource=rule)
-
+        methods = kwargs.get("methods", ["GET"])
+        try:
+            methods = iter(methods)
+        except Exception:  # nosec
+            methods = ["GET"]
+        for method in methods:
+            endpoint_collection.add_endpoint(method, rule, operation_name="flask.request")
         return wrapped(
             rule,
             endpoint=endpoint,

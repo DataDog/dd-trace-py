@@ -13,6 +13,7 @@ from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.google_utils import GOOGLE_GENAI_DEFAULT_MODEL_ROLE
 from ddtrace.llmobs._integrations.google_utils import extract_embedding_metrics_google_genai
@@ -21,7 +22,9 @@ from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_
 from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model_name
 from ddtrace.llmobs._integrations.google_utils import normalize_contents_google_genai
 from ddtrace.llmobs._utils import _get_attr
-from ddtrace.llmobs.utils import Document
+from ddtrace.llmobs.types import Document
+from ddtrace.llmobs.types import Message
+from ddtrace.llmobs.types import ToolDefinition
 
 
 # https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/content-generation-parameters
@@ -40,7 +43,6 @@ GENERATE_METADATA_PARAMS = [
     "response_mime_type",
     "safety_settings",
     "automatic_function_calling",
-    "tools",
 ]
 
 EMBED_METADATA_PARAMS = [
@@ -59,9 +61,9 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         self, span: Span, provider: Optional[str] = None, model: Optional[str] = None, **kwargs: Dict[str, Any]
     ) -> None:
         if provider is not None:
-            span.set_tag_str("google_genai.request.provider", provider)
+            span._set_tag_str("google_genai.request.provider", provider)
         if model is not None:
-            span.set_tag_str("google_genai.request.model", model)
+            span._set_tag_str("google_genai.request.model", model)
 
     def _llmobs_set_tags(
         self,
@@ -72,6 +74,8 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         operation: str = "",
     ) -> None:
         provider_name, model_name = extract_provider_and_model_name(kwargs=kwargs)
+        if response is not None:
+            model_name = getattr(response, "model_version", "") or model_name
         span._set_ctx_items(
             {
                 SPAN_KIND: operation,
@@ -94,6 +98,9 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
                 METRICS: extract_generation_metrics_google_genai(response),
             }
         )
+        tools = self._extract_tools(config)
+        if tools:
+            span._set_ctx_item(TOOL_DEFINITIONS, tools)
 
     def _llmobs_set_tags_from_embedding(self, span, args, kwargs, response):
         config = kwargs.get("config")
@@ -106,8 +113,8 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             }
         )
 
-    def _extract_input_messages(self, args: List[Any], kwargs: Dict[str, Any], config) -> List[Dict[str, Any]]:
-        messages = []
+    def _extract_input_messages(self, args: List[Any], kwargs: Dict[str, Any], config) -> List[Message]:
+        messages: List[Message] = []
 
         system_instruction = _get_attr(config, "system_instruction", None)
         if system_instruction is not None:
@@ -118,24 +125,24 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
 
         return messages
 
-    def _extract_messages_from_contents(self, contents, default_role: str) -> List[Dict[str, Any]]:
-        messages = []
+    def _extract_messages_from_contents(self, contents, default_role: str) -> List[Message]:
+        messages: List[Message] = []
         for content in normalize_contents_google_genai(contents):
             role = content.get("role") or default_role
             for part in content.get("parts", []):
                 messages.append(extract_message_from_part_google_genai(part, role))
         return messages
 
-    def _extract_output_messages(self, response) -> List[Dict[str, Any]]:
+    def _extract_output_messages(self, response) -> List[Message]:
         if not response:
-            return [{"content": "", "role": GOOGLE_GENAI_DEFAULT_MODEL_ROLE}]
+            return [Message(content="", role=GOOGLE_GENAI_DEFAULT_MODEL_ROLE)]
         messages = []
         candidates = _get_attr(response, "candidates", [])
         for candidate in candidates:
             content = _get_attr(candidate, "content", None)
             if not content:
                 continue
-            parts = _get_attr(content, "parts", [])
+            parts = _get_attr(content, "parts", []) or []
             role = _get_attr(content, "role", GOOGLE_GENAI_DEFAULT_MODEL_ROLE)
             for part in parts:
                 message = extract_message_from_part_google_genai(part, role)
@@ -152,7 +159,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
     def _extract_embedding_input_documents(self, args, kwargs, config) -> List[Document]:
         contents = kwargs.get("contents")
         messages = self._extract_messages_from_contents(contents, "user")
-        documents = [Document(text=str(message["content"])) for message in messages]
+        documents = [Document(text=str(message.get("content", ""))) for message in messages]
         return documents
 
     def _extract_metadata(self, config, params) -> Dict[str, Any]:
@@ -162,3 +169,41 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         for param in params:
             metadata[param] = _get_attr(config, param, None)
         return metadata
+
+    def _function_declaration_to_tool_definition(self, function_declaration) -> ToolDefinition:
+        schema = _get_attr(function_declaration, "parameters", {}) or {}
+        if hasattr(schema, "model_dump"):
+            schema = schema.model_dump(exclude_none=True)
+        else:
+            schema = {"value": repr(schema)}
+
+        return ToolDefinition(
+            name=str(_get_attr(function_declaration, "name", "") or ""),
+            description=str(_get_attr(function_declaration, "description", "") or ""),
+            schema=schema,
+        )
+
+    def _extract_tools(self, config) -> List[ToolDefinition]:
+        try:
+            from google.genai.types import FunctionDeclaration
+        except ImportError:
+            FunctionDeclaration = None
+        tool_definitions = []
+        tools = _get_attr(config, "tools", []) or []
+        for tool in tools:
+            if (
+                callable(tool)
+                and FunctionDeclaration is not None
+                and hasattr(FunctionDeclaration, "from_callable_with_api_option")
+            ):
+                function_declaration = FunctionDeclaration.from_callable_with_api_option(
+                    callable=tool, api_option="GEMINI_API"
+                )
+                tool_definition_info = self._function_declaration_to_tool_definition(function_declaration)
+                tool_definitions.append(tool_definition_info)
+            else:
+                function_declarations = _get_attr(tool, "function_declarations", []) or []
+                for function_declaration in function_declarations:
+                    tool_definition_info = self._function_declaration_to_tool_definition(function_declaration)
+                    tool_definitions.append(tool_definition_info)
+        return tool_definitions

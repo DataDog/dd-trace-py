@@ -1,0 +1,5 @@
+---
+deprecations:
+  - |
+    vertica: The vertica integration is deprecated and will be removed in a future version, around
+    the same time that ddtrace drops support for Python 3.9.

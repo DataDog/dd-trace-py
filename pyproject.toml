@@ -10,7 +10,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ddtrace"
+# DEV: to directly override the version specifier, comment this...
 dynamic = ["version"]
+# ...and uncomment this
+# version = "4.0.0.dev0"
 description = "Datadog APM client library"
 readme = "README.md"
 license = { text = "LICENSE.BSD3" }
@@ -29,18 +32,18 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
+    "bytecode>=0.17.0; python_version>='3.14.0'",
     "bytecode>=0.16.0; python_version>='3.13.0'",
     "bytecode>=0.15.1; python_version~='3.12.0'",
     "bytecode>=0.14.0; python_version~='3.11.0'",
     "bytecode>=0.13.0; python_version<'3.11'",
     "envier~=0.6.1",
-    "importlib_metadata<=6.5.0; python_version<'3.8'",
     "legacy-cgi>=2.0.0; python_version>='3.13.0'",
     "opentelemetry-api>=1",
     "protobuf>=3",
-    "typing_extensions",
     "wrapt>=1",
 ]
 
@@ -95,7 +98,9 @@ write_to = "ddtrace/_version.py"
 max-line-length = 120
 exclude = '''
 (
-  .venv*
+  \.worktrees/
+  | .venv*
+  | \.sg
   | \.riot
   | ddtrace/profiling/
   | test_ci_visibility_api_client_skippable_real_world_responses\.py
@@ -108,7 +113,9 @@ target_version = ['py37', 'py38', 'py39', 'py310', 'py311', 'py312']
 include = '''\.py[ix]?$'''
 exclude = '''
 (
-  .venv*
+  \.worktrees/
+  | .venv*
+  | \.sg
   | \.riot/
   | ddtrace/appsec/_ddwaf.pyx$
   | ddtrace/internal/_encoding.pyx$
@@ -148,8 +155,10 @@ exclude = [
   ".ddriot",
   ".ddtox",
   ".riot",
+  ".sg",
   ".tox",
   ".venv",
+  ".worktrees",
 ]
 
 [tool.slotscheck]
@@ -159,6 +168,8 @@ exclude-modules = '''
   | ^tests.(contrib|vendor)
   # avoid sitecustomize modules as they start services
   | ddtrace.bootstrap.sitecustomize
+  | ddtrace.openfeature
+  | ddtrace.internal.openfeature
   | ddtrace.profiling.bootstrap.sitecustomize
   | ddtrace.profiling.auto
   # also ignore preload module to avoid exception after moving ddtrace.tracing module
@@ -190,6 +201,7 @@ exclude-modules = '''
   | ddtrace.internal.coverage.instrumentation_py3_11
   | ddtrace.internal.coverage.instrumentation_py3_12
   | ddtrace.internal.coverage.instrumentation_py3_13
+  | ddtrace.internal.coverage.instrumentation_py3_14
 )
 '''
 
@@ -217,9 +229,11 @@ exclude = [
     ".ddriot",
     ".venv*",
     ".git",
+    ".worktrees",
     "__pycache__",
     ".eggs",
     "*.egg",
+    ".sg",
     "build",
     "ddtrace/__init__.py",
     "ddtrace/vendor/*",

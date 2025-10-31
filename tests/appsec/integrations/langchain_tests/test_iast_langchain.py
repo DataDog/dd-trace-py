@@ -29,9 +29,11 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.appsec._iast.constants import VULN_CMDI
 from tests.appsec.iast.conftest import iast_span_defaults  # noqa: F401
+from tests.appsec.iast.iast_utils import _iast_patched_module
 
 
 TEST_FILE = "tests/appsec/integrations/langchain_tests/test_iast_langchain.py"
+mod = _iast_patched_module("langchain_experimental.llm_bash.bash")
 
 
 def test_prompt_template_format(iast_span_defaults):  # noqa: F811

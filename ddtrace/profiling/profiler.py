@@ -29,6 +29,8 @@ from ddtrace.settings.profiling import config as profiling_config
 from ddtrace.settings.profiling import config_str
 
 
+# TODO(vlad): add type annotations
+
 LOG = logging.getLogger(__name__)
 
 
@@ -55,6 +57,12 @@ class Profiler(object):
                 uwsgi.check_uwsgi(self._restart_on_fork, atexit=self.stop if stop_on_exit else None)
             except uwsgi.uWSGIMasterProcess:
                 # Do nothing, the start() method will be called in each worker subprocess
+                return
+            except uwsgi.uWSGIConfigDeprecationWarning:
+                LOG.warning("uWSGI configuration deprecation warning", exc_info=True)
+                # Turn off profiling in this case, this is mostly for
+                # uwsgi<2.0.30 when --skip-atexit is not set with --lazy-apps
+                # or --lazy. See uwsgi.check_uwsgi() for details.
                 return
 
         self._profiler.start()
@@ -175,6 +183,7 @@ class _ProfilerInstance(service.Service):
             timeline_enabled=profiling_config.timeline_enabled,
             output_filename=profiling_config.output_pprof,
             sample_pool_capacity=profiling_config.sample_pool_capacity,
+            timeout=profiling_config.api_timeout_ms,
         )
         ddup.start()
 
@@ -217,6 +226,7 @@ class _ProfilerInstance(service.Service):
 
             self._collectors_on_import = [
                 ("threading", lambda _: start_collector(threading.ThreadingLockCollector)),
+                ("threading", lambda _: start_collector(threading.ThreadingRLockCollector)),
                 ("asyncio", lambda _: start_collector(asyncio.AsyncioLockCollector)),
             ]
 

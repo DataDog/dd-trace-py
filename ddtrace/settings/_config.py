@@ -14,6 +14,7 @@ from typing import Union  # noqa:F401
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry import validate_and_report_otel_metrics_exporter_enabled
 from ddtrace.internal.telemetry import validate_otel_envs
 from ddtrace.internal.utils.cache import cachedmethod
 
@@ -100,6 +101,7 @@ INTEGRATION_CONFIGS = frozenset(
         "flask",
         "google_generativeai",
         "google_genai",
+        "google_adk",
         "urllib3",
         "subprocess",
         "kafka",
@@ -118,6 +120,7 @@ INTEGRATION_CONFIGS = frozenset(
         "sanic",
         "snowflake",
         "pymemcache",
+        "azure_eventhubs",
         "azure_functions",
         "azure_servicebus",
         "protobuf",
@@ -197,6 +200,7 @@ INTEGRATION_CONFIGS = frozenset(
         "yaaredis",
         "openai_agents",
         "mcp",
+        "ray",
     }
 )
 
@@ -313,31 +317,14 @@ class _ConfigItem:
         if val is not self._default_value:
             self._env_value = val
 
-    def set_value_source(self, value: Any, source: _ConfigSource) -> None:
+    def set_value(self, value: Any, source: _ConfigSource) -> None:
         if source == "code":
             self._code_value = value
         elif source == "remote_config":
             self._rc_value = value
         else:
             log.warning("Invalid source: %s", source)
-
-    def get_value_source(self, source: _ConfigSource) -> _JSONType:
-        if source == "code":
-            return self._code_value
-        elif source == "remote_config":
-            return self._rc_value
-        elif source == "env_var":
-            return self._env_value
-        elif source == "default":
-            return self._default_value
-        else:
-            log.warning("Invalid source: %s", source)
-
-    def set_code(self, value: _JSONType) -> None:
-        self._code_value = value
-
-    def unset_rc(self) -> None:
-        self._rc_value = None
+        telemetry_writer.add_configuration(self._name, self.value(), self.source())
 
     def value(self) -> _JSONType:
         if self._rc_value is not None:
@@ -358,13 +345,9 @@ class _ConfigItem:
         return "default"
 
     def __repr__(self):
-        return "<{} name={} default={} env_value={} user_value={} remote_config_value={}>".format(
-            self.__class__.__name__,
-            self._name,
-            self._default_value,
-            self._env_value,
-            self._code_value,
-            self._rc_value,
+        return (
+            f"<{self.__class__.__name__} name={self._name} default={self._default_value} "
+            f"env_value={self._env_value} user_value={self._code_value} remote_config_value={self._rc_value}>"
         )
 
 
@@ -428,7 +411,7 @@ class Config(object):
             self._error_statuses = value
             self._error_ranges = get_error_ranges(value)
             # Mypy can't catch cached method's invalidate()
-            self.is_error_code.invalidate()  # type: ignore[attr-defined]
+            self.is_error_code.cache_clear()  # type: ignore[attr-defined]
 
         @property
         def error_ranges(self):
@@ -491,6 +474,9 @@ class Config(object):
         )
         self._trace_writer_log_err_payload = _get_config("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False, asbool)
 
+        # Use the NativeWriter instead of the AgentWriter
+        self._trace_writer_native = _get_config("_DD_TRACE_WRITER_NATIVE", False, asbool)
+
         # TODO: Remove the configurations below. ddtrace.internal.agent.config should be used instead.
         self._trace_agent_url = _get_config("DD_TRACE_AGENT_URL")
         self._agent_timeout_seconds = _get_config("DD_TRACE_AGENT_TIMEOUT_SECONDS", DEFAULT_TIMEOUT, float)
@@ -548,8 +534,9 @@ class Config(object):
         self._telemetry_heartbeat_interval = _get_config("DD_TELEMETRY_HEARTBEAT_INTERVAL", 60, float)
         self._telemetry_dependency_collection = _get_config("DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED", True, asbool)
 
-        self._runtime_metrics_enabled = _get_config(
-            "DD_RUNTIME_METRICS_ENABLED", False, asbool, "OTEL_METRICS_EXPORTER"
+        self._runtime_metrics_enabled = (
+            _get_config("DD_RUNTIME_METRICS_ENABLED", False, asbool)
+            and validate_and_report_otel_metrics_exporter_enabled()
         )
         self._runtime_metrics_runtime_id_enabled = _get_config(
             ["DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED", "DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED"], False, asbool
@@ -642,21 +629,22 @@ class Config(object):
         self._test_visibility_early_flake_detection_enabled = _get_config(
             "DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", True, asbool
         )
-        self._otel_enabled = _get_config("DD_TRACE_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
-        self._otel_metrics_enabled = _get_config("DD_METRICS_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
-        if self._otel_enabled:
+        self._otel_trace_enabled = _get_config("DD_TRACE_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
+        self._otel_metrics_enabled = (
+            _get_config("DD_METRICS_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
+            and validate_and_report_otel_metrics_exporter_enabled()
+        )
+        self._otel_logs_enabled = _get_config("DD_LOGS_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
+        if self._otel_trace_enabled or self._otel_logs_enabled or self._otel_metrics_enabled:
             # Replaces the default otel api runtime context with DDRuntimeContext
             # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
             os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
-        self._subscriptions = []  # type: List[Tuple[List[str], Callable[[Config, List[str]], None]]]
+        self._otel_enabled = self._otel_trace_enabled or self._otel_metrics_enabled or self._otel_logs_enabled
 
         self._trace_methods = _get_config("DD_TRACE_METHODS")
 
-        self._telemetry_install_id = _get_config("DD_INSTRUMENTATION_INSTALL_ID")
-        self._telemetry_install_type = _get_config("DD_INSTRUMENTATION_INSTALL_TYPE")
-        self._telemetry_install_time = _get_config("DD_INSTRUMENTATION_INSTALL_TYPE")
-
         self._dd_api_key = _get_config("DD_API_KEY")
+        self._dd_app_key = _get_config("DD_APP_KEY", report_telemetry=False)
         self._dd_site = _get_config("DD_SITE", "datadoghq.com")
 
         self._llmobs_enabled = _get_config("DD_LLMOBS_ENABLED", False, asbool)
@@ -673,6 +661,23 @@ class Config(object):
         self._inject_enabled = _get_config("DD_INJECTION_ENABLED")
         self._inferred_proxy_services_enabled = _get_config("DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", False, asbool)
         self._trace_safe_instrumentation_enabled = _get_config("DD_TRACE_SAFE_INSTRUMENTATION_ENABLED", False, asbool)
+
+        # Resource renaming
+        self._trace_resource_renaming_enabled = _get_config(
+            "DD_TRACE_RESOURCE_RENAMING_ENABLED", default=False, modifier=asbool
+        )
+        self._trace_resource_renaming_always_simplified_endpoint = _get_config(
+            "DD_TRACE_RESOURCE_RENAMING_ALWAYS_SIMPLIFIED_ENDPOINT", default=False, modifier=asbool
+        )
+
+        # Long-running span interval configurations
+        # Only supported for Ray spans for now
+        self._long_running_flush_interval = _get_config(
+            "DD_TRACE_EXPERIMENTAL_LONG_RUNNING_FLUSH_INTERVAL", default=120.0, modifier=float
+        )
+        self._long_running_initial_flush_interval = _get_config(
+            "DD_TRACE_EXPERIMENTAL_LONG_RUNNING_INITIAL_FLUSH_INTERVAL", default=10.0, modifier=float
+        )
 
     def __getattr__(self, name) -> Any:
         if name in self._config:
@@ -776,56 +781,19 @@ class Config(object):
         rc_configs = ", ".join(self._config.keys())
         return f"{cls.__module__}.{cls.__name__} integration_configs={integrations} rc_configs={rc_configs}"
 
-    def _subscribe(self, items, handler):
-        # type: (List[str], Callable[[Config, List[str]], None]) -> None
-        self._subscriptions.append((items, handler))
-
-    def _notify_subscribers(self, changed_items):
-        # type: (List[str]) -> None
-        for sub_items, sub_handler in self._subscriptions:
-            sub_updated_items = [i for i in changed_items if i in sub_items]
-            if sub_updated_items:
-                sub_handler(self, sub_updated_items)
-
     def __setattr__(self, key, value):
         # type: (str, Any) -> None
         if key in ("_config", "_from_endpoint"):
             return super(self.__class__, self).__setattr__(key, value)
         elif key in self._config:
-            self._set_config_items([(key, value, "code")])
+            self._config[key].set_value(value, "code")
             return None
         else:
             return super(self.__class__, self).__setattr__(key, value)
 
-    def _set_config_items(self, items):
-        # type: (List[Tuple[str, Any, _ConfigSource]]) -> None
-        item_names = []
-        for key, value, origin in items:
-            item = self._config[key]
-            if item.get_value_source(origin) == value:
-                # No change in config value, no need to notify subscribers or report telemetry
-                continue
-            item_names.append(key)
-            item.set_value_source(value, origin)
-            telemetry_writer.add_configuration(item._name, item.value(), item.source())
-        self._notify_subscribers(item_names)
-
     def _reset(self):
         # type: () -> None
         self._config = _default_config()
-
-    def _get_source(self, item):
-        # type: (str) -> str
-        return self._config[item].source()
-
-    def _format_tags(self, tags: List[Union[str, Dict]]) -> Dict[str, str]:
-        if not tags:
-            return {}
-        if isinstance(tags[0], Dict):
-            pairs = [(item["header"], item["tag_name"]) for item in tags]  # type: ignore[index]
-        else:
-            pairs = [t.split(":") for t in tags]  # type: ignore[union-attr,misc]
-        return {k: v for k, v in pairs}
 
     def _lower(self, value):
         return value.lower()

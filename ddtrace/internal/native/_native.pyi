@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import Dict, List, Literal, Optional
 
 class DDSketch:
     def __init__(self): ...
@@ -113,6 +113,8 @@ class PyTracerMetadata:
         service_name: Optional[str],
         service_env: Optional[str],
         service_version: Optional[str],
+        process_tags: Optional[str],
+        container_id: Optional[str],
     ):
         """
         Initialize the `PyTracerMetadata`.
@@ -122,6 +124,8 @@ class PyTracerMetadata:
         :param service_name: Name of the service being instrumented.
         :param service_env: Environment of the service being instrumented.
         :param service_version: Version of the service being instrumented.
+        :param process_tags: Process tags of the application being instrumented.
+        :param container_id: Container id seen by the application.
         """
         ...
 
@@ -137,5 +141,317 @@ def store_metadata(data: PyTracerMetadata) -> PyAnonymousFileHandle:
     """
     Create an anonymous file storing the tracer configuration.
     :param data: The tracer configuration to store.
+    """
+    ...
+
+class TraceExporter:
+    """
+    TraceExporter is a class responsible for exporting traces to the Agent.
+    """
+
+    def __init__(self):
+        """
+        Initialize a TraceExporter.
+        """
+        ...
+    def send(self, data: bytes, trace_count: int) -> str:
+        """
+        Send a trace payload to the Agent.
+        :param data: The msgpack encoded trace payload to send.
+        :param trace_count: The number of traces in the data payload.
+        """
+        ...
+    def shutdown(self, timeout_ns: int) -> None:
+        """
+        Shutdown the TraceExporter, releasing any resources and ensuring all pending stats are sent.
+        This method should be called before the application exits to ensure proper cleanup.
+        :param timeout_ns: The maximum time to wait for shutdown in nanoseconds.
+        """
+        ...
+    def drop(self) -> None:
+        """
+        Drop the TraceExporter, releasing any resources without sending pending stats.
+        """
+        ...
+    def run_worker(self) -> None:
+        """
+        Start the rust worker threads.
+        This starts the runtime required to process rust async tasks including stats and telemetry sending.
+        The runtime will also be created when calling `send`,
+        this method can be used to start the runtime before sending any traces.
+        """
+        ...
+    def stop_worker(self) -> None:
+        """
+        Stop the rust worker threads.
+        This stops the async runtime and must be called before forking to avoid deadlocks after forking.
+        This should be called even if `run_worker` hasn't been called as the runtime will be started
+        when calling `send`.
+        """
+        ...
+    def debug(self) -> str:
+        """
+        Returns a string representation of the exporter.
+        Should only be used for debugging.
+        """
+        ...
+
+class TraceExporterBuilder:
+    """
+    TraceExporterBuilder is a class responsible for building a TraceExporter.
+    """
+
+    def __init__(self):
+        """
+        Initialize a TraceExporterBuilder.
+        """
+        ...
+    def set_hostname(self, hostname: str) -> TraceExporterBuilder:
+        """
+        Set the hostname of the TraceExporter.
+        :param hostname: The hostname to set for the TraceExporter.
+        """
+        ...
+    def set_url(self, url: str) -> TraceExporterBuilder:
+        """
+        Set the agent url of the TraceExporter.
+        :param url: The URL of the agent to send traces to.
+        """
+        ...
+    def set_dogstatsd_url(self, url: str) -> TraceExporterBuilder:
+        """
+        Set the DogStatsD URL of the TraceExporter.
+        :param url: The URL of the DogStatsD endpoint.
+        """
+        ...
+    def set_env(self, env: str) -> TraceExporterBuilder:
+        """
+        Set the env of the TraceExporter.
+        :param env: The environment name (e.g., 'prod', 'staging', 'dev').
+        """
+        ...
+    def set_app_version(self, version: str) -> TraceExporterBuilder:
+        """
+        Set the app version of the TraceExporter.
+        :param version: The version string of the application.
+        """
+        ...
+    def set_service(self, service: str) -> TraceExporterBuilder:
+        """
+        Set the service name of the TraceExporter.
+        :param version: The version string of the application.
+        """
+        ...
+    def set_git_commit_sha(self, git_commit_sha: str) -> TraceExporterBuilder:
+        """
+        Set the git commit sha of the TraceExporter.
+        :param git_commit_sha: The git commit SHA of the current code version.
+        """
+        ...
+    def set_tracer_version(self, version: str) -> TraceExporterBuilder:
+        """
+        Set the tracer version of the TraceExporter.
+        :param version: The version string of the tracer.
+        """
+        ...
+    def set_language(self, language: str) -> TraceExporterBuilder:
+        """
+        Set the language of the TraceExporter.
+        :param language: The programming language being traced (e.g., 'python').
+        """
+        ...
+    def set_language_version(self, version: str) -> TraceExporterBuilder:
+        """
+        Set the language version of the TraceExporter.
+        :param version: The version string of the programming language.
+        """
+        ...
+    def set_language_interpreter(self, interpreter: str) -> TraceExporterBuilder:
+        """
+        Set the language interpreter of the TraceExporter.
+        :param vendor: The language interpreter.
+        """
+        ...
+    def set_language_interpreter_vendor(self, vendor: str) -> TraceExporterBuilder:
+        """
+        Set the language interpreter vendor of the TraceExporter.
+        :param vendor: The vendor of the language interpreter.
+        """
+        ...
+    def set_test_session_token(self, token: str) -> TraceExporterBuilder:
+        """
+        Set the test session token for the TraceExporter.
+        :param token: The test session token to use for authentication.
+        """
+        ...
+    def set_input_format(self, input_format: str) -> TraceExporterBuilder:
+        """
+        Set the input format for the trace data.
+        :param input_format: The format to use for input traces (supported values are "v0.4" and "v0.5").
+        :raises ValueError: If input_format is not a supported value.
+        """
+        ...
+    def set_output_format(self, output_format: str) -> TraceExporterBuilder:
+        """
+        Set the output format for the trace data.
+        :param output_format: The format to use for output traces (supported values are "v0.4" and "v0.5").
+        :raises ValueError: If output_format is not a supported value.
+        """
+        ...
+    def set_client_computed_top_level(self) -> TraceExporterBuilder:
+        """
+        Set the header indicating the tracer has computed the top-level tag
+        """
+        ...
+    def set_client_computed_stats(self) -> TraceExporterBuilder:
+        """
+        Set the header indicating the tracer has already computed stats.
+        This should not be used along with `enable_stats`.
+        The main use is to opt-out trace metrics.
+        """
+        ...
+    def enable_stats(self, bucket_size_ns: int) -> TraceExporterBuilder:
+        """
+        Enable stats computation in the TraceExporter
+        :param bucket_size_ns: The size of stats bucket in nanoseconds.
+        """
+        ...
+    def enable_telemetry(
+        self,
+        heartbeat_ms: int,
+        runtime_id: str,
+    ) -> TraceExporterBuilder:
+        """
+        Emit telemetry in the TraceExporter
+        :param heartbeat: The flush interval for telemetry metrics in milliseconds.
+        :param runtime_id: The runtime id to use for telemetry.
+        """
+        ...
+    def enable_health_metrics(self) -> TraceExporterBuilder:
+        """
+        Enable health metrics in the TraceExporter
+        """
+        ...
+    def build(self) -> TraceExporter:
+        """
+        Build and return a TraceExporter instance with the configured settings.
+        This method consumes the builder, so it cannot be used again after calling build.
+        :return: A configured TraceExporter instance.
+        :raises ValueError: If the builder has already been consumed or if required settings are missing.
+        """
+        ...
+    def debug(self) -> str:
+        """
+        Returns a string representation of the exporter.
+        Should only be used for debugging.
+        """
+        ...
+
+class AgentError(Exception):
+    """
+    Raised when there is an error in agent response processing.
+    """
+
+    ...
+
+class BuilderError(Exception):
+    """
+    Raised when there is an error in the TraceExporterBuilder configuration.
+    """
+
+    ...
+
+class logger:
+    """
+    Native logging module for configuring and managing log output.
+    """
+
+    @staticmethod
+    def configure(
+        output: Literal["stdout", "stderr", "file"] = "stdout",
+        path: Optional[str] = None,
+        max_files: Optional[int] = None,
+        max_size_bytes: Optional[int] = None,
+    ) -> None:
+        """
+        Configure the logger with the specified output destination.
+
+        :param output: Output destination ("stdout", "stderr", or "file")
+        :param path: File path (required if output is "file")
+        :param max_files: Maximum number of log files to keep (for file output)
+        :param max_size_bytes: Maximum size of each log file in bytes (for file output)
+        :raises ValueError: If configuration is invalid
+        """
+        ...
+    @staticmethod
+    def disable(output: str) -> None:
+        """
+        Disable logging output by type.
+
+        :param output: Output type to disable ("file", "stdout", or "stderr")
+        :raises ValueError: If output type is invalid
+        """
+        ...
+    @staticmethod
+    def set_log_level(level: str) -> None:
+        """
+        Set the log level for the logger.
+
+        :param level: Log level ("trace", "debug", "info", "warning", or "error")
+        :raises ValueError: If log level is invalid
+        """
+        ...
+    @staticmethod
+    def log(level: str, message: str) -> None:
+        """
+        Logs messages
+
+        :param level: Log level ("trace", "debug", "info", "warn", or "error")
+        :param message: message to be displayed in the log.
+        :raises ValueError: If log level is invalid
+        """
+        ...
+
+class DeserializationError(Exception):
+    """
+    Raised when there is an error deserializing trace payload.
+    """
+
+    ...
+
+class IoError(Exception):
+    """
+    Raised when there is an I/O error during trace processing.
+    """
+
+    ...
+
+class NetworkError(Exception):
+    """
+    Raised when there is a network-related error during trace processing.
+    """
+
+    ...
+
+class RequestError(Exception):
+    """
+    Raised when the agent responds with an error code.
+    """
+
+    ...
+
+class SerializationError(Exception):
+    """
+    Raised when there is an error serializing trace payload.
+    """
+
+    ...
+
+def ffande_process_config(config_bytes: bytes) -> Optional[bool]:
+    """
+    Process feature flagging and experimentation configuration rules.
+
+    :param config_bytes: Raw bytes containing the configuration data
+    :return: True if processing was successful, False otherwise, None on error
     """
     ...

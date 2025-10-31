@@ -17,11 +17,22 @@ static char** cached_packages = NULL;
 static size_t cached_packages_count = 0;
 
 /* Static Lists */
-static const char* static_allowlist[] = {
-    "jinja2.",     "pygments.",       "multipart.", "sqlalchemy.",     "python_multipart.",
-    "attrs.",      "jsonschema.",     "s3fs.",      "mysql.",          "pymysql.",
-    "markupsafe.", "werkzeug.utils.", "langchain.", "langchain_core.", "django.http.response."
-};
+static const char* static_allowlist[] = { "jinja2.",
+                                          "pygments.",
+                                          "multipart.",
+                                          "sqlalchemy.",
+                                          "python_multipart.",
+                                          "attrs.",
+                                          "jsonschema.",
+                                          "s3fs.",
+                                          "mysql.",
+                                          "pymysql.",
+                                          "markupsafe.",
+                                          "werkzeug.utils.",
+                                          "langchain.",
+                                          "langchain_core.",
+                                          "django.http.response.",
+                                          "langchain_experimental." };
 static const size_t static_allowlist_count = sizeof(static_allowlist) / sizeof(static_allowlist[0]);
 
 static const char* static_denylist[] = {

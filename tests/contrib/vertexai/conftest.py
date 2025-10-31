@@ -2,10 +2,10 @@ import mock
 from mock import PropertyMock
 import pytest
 
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.vertexai.patch import patch
 from ddtrace.contrib.internal.vertexai.patch import unpatch
 from ddtrace.llmobs import LLMObs
-from ddtrace.trace import Pin
 from tests.contrib.vertexai.utils import MockAsyncPredictionServiceClient
 from tests.contrib.vertexai.utils import MockPredictionServiceClient
 from tests.utils import DummyTracer

@@ -73,7 +73,7 @@ def test_fstring_tainted_bytes(bytes_string):
     rises this error
         ValueError: iast::propagation::native::Invalid or empty source_value
     in this function call
-        set_ranges_from_values(pyobject, pyobject_len, source_name, source_value, source_origin)
+        taint_pyobject(pyobject, pyobject_len, source_name, source_value, source_origin)
     """
     string_input = taint_pyobject(
         pyobject=bytes_string, source_name="foo", source_value=bytes_string, source_origin=OriginType.PARAMETER

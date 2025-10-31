@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Fix crash in memory profiling when garbage collection is triggered
+    while sampling a PyObject_Realloc call, which can lead to accessing freed memory.

@@ -14,6 +14,7 @@ from grpc.aio._typing import ResponseType
 import wrapt
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin  # noqa:F401
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
@@ -26,7 +27,6 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
-from ddtrace.trace import Pin  # noqa:F401
 from ddtrace.trace import Span  # noqa:F401
 
 
@@ -101,9 +101,9 @@ def _handle_server_exception(
             details = details.decode("utf-8", errors="ignore")
         else:
             details = str(details)
-        span.set_tag_str(ERROR_MSG, details)
+        span._set_tag_str(ERROR_MSG, details)
     if hasattr(servicer_context, "code") and servicer_context.code() != 0 and servicer_context.code() in _INT2CODE:
-        span.set_tag_str(ERROR_TYPE, str(_INT2CODE[servicer_context.code()]))
+        span._set_tag_str(ERROR_TYPE, str(_INT2CODE[servicer_context.code()]))
 
 
 async def _wrap_aio_stream_response(
@@ -189,16 +189,16 @@ def _create_span(pin, method, invocation_metadata, method_kind):
         resource=method,
     )
 
-    span.set_tag_str(COMPONENT, config.grpc_aio_server.integration_name)
+    span._set_tag_str(COMPONENT, config.grpc_aio_server.integration_name)
 
     # set span.kind to the type of operation being performed
-    span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
+    span._set_tag_str(SPAN_KIND, SpanKind.SERVER)
 
     # PERF: avoid setting via Span.set_tag
     span.set_metric(_SPAN_MEASURED_KEY, 1)
 
     set_grpc_method_meta(span, method, method_kind)
-    span.set_tag_str(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_SERVER)
+    span._set_tag_str(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_SERVER)
 
     if pin.tags:
         span.set_tags(pin.tags)

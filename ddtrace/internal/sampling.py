@@ -16,6 +16,9 @@ from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
 from ddtrace.internal.constants import _KEEP_PRIORITY_INDEX
 from ddtrace.internal.constants import _REJECT_PRIORITY_INDEX
 from ddtrace.internal.constants import MAX_UINT_64BITS
+from ddtrace.internal.constants import SAMPLING_DECISION_MAKER_INHERITED
+from ddtrace.internal.constants import SAMPLING_DECISION_MAKER_RESOURCE
+from ddtrace.internal.constants import SAMPLING_DECISION_MAKER_SERVICE
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SAMPLING_HASH_MODULO
 from ddtrace.internal.constants import SAMPLING_KNUTH_FACTOR
@@ -42,6 +45,8 @@ class PriorityCategory(object):
 SAMPLING_MECHANISM_CONSTANTS = {
     "-{}".format(value) for name, value in vars(SamplingMechanism).items() if name.isupper()
 }
+
+KNUTH_SAMPLE_RATE_KEY = "_dd.p.ksr"
 
 SpanSamplingRules = TypedDict(
     "SpanSamplingRules",
@@ -232,11 +237,6 @@ def _check_unsupported_pattern(string: str) -> None:
             raise ValueError("Unsupported Glob pattern found, character:%r is not supported" % char)
 
 
-def is_single_span_sampled(span):
-    # type: (Span) -> bool
-    return span.get_metric(_SINGLE_SPAN_SAMPLING_MECHANISM) == SamplingMechanism.SPAN_SAMPLING_RULE
-
-
 def _set_sampling_tags(span: Span, sampled: bool, sample_rate: float, mechanism: int) -> None:
     # Set the sampling mechanism once but never overwrite an existing tag
     if not span.context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
@@ -249,13 +249,22 @@ def _set_sampling_tags(span: Span, sampled: bool, sample_rate: float, mechanism:
         SamplingMechanism.REMOTE_DYNAMIC_TRACE_SAMPLING_RULE,
     ):
         span.set_metric(_SAMPLING_RULE_DECISION, sample_rate)
+        span._set_tag_str(KNUTH_SAMPLE_RATE_KEY, f"{sample_rate:.6g}")
     elif mechanism == SamplingMechanism.AGENT_RATE_BY_SERVICE:
         span.set_metric(_SAMPLING_AGENT_DECISION, sample_rate)
+        span._set_tag_str(KNUTH_SAMPLE_RATE_KEY, f"{sample_rate:.6g}")
     # Set the sampling priority
     priorities = SAMPLING_MECHANISM_TO_PRIORITIES[mechanism]
     priority_index = _KEEP_PRIORITY_INDEX if sampled else _REJECT_PRIORITY_INDEX
 
     span.context.sampling_priority = priorities[priority_index]
+
+
+def _inherit_sampling_tags(target: Span, source: Span):
+    """Set sampling tags from source span on target span."""
+    target.set_metric(SAMPLING_DECISION_MAKER_INHERITED, 1)
+    target._set_tag_str(SAMPLING_DECISION_MAKER_SERVICE, source.service)  # type: ignore[arg-type]
+    target._set_tag_str(SAMPLING_DECISION_MAKER_RESOURCE, source.resource)
 
 
 def _get_highest_precedence_rule_matching(span: Span, rules: List[SamplingRule]) -> Optional[SamplingRule]:

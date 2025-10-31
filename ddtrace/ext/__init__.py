@@ -17,6 +17,8 @@ class SpanTypes(object):
     SYSTEM = "system"
     LLM = "llm"
     VALKEY = "valkey"
+    WEBSOCKET = "websocket"
+    RAY = "ray"
 
 
 class SpanKind(object):
@@ -25,6 +27,11 @@ class SpanKind(object):
     PRODUCER = "producer"
     CONSUMER = "consumer"
     INTERNAL = "internal"
+
+
+class SpanLinkKind(object):
+    EXECUTED = "executed_by"
+    RESUMING = "resuming"
 
 
 EXIT_SPAN_TYPES = frozenset(

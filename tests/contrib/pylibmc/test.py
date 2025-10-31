@@ -5,13 +5,12 @@ from unittest.case import SkipTest
 # 3p
 import pylibmc
 
+# project
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.pylibmc.client import TracedClient
 from ddtrace.contrib.internal.pylibmc.patch import patch
 from ddtrace.contrib.internal.pylibmc.patch import unpatch
 from ddtrace.ext import memcached
-
-# project
-from ddtrace.trace import Pin
 from tests.contrib.config import MEMCACHED_CONFIG as cfg
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase

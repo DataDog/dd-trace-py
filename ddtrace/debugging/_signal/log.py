@@ -5,6 +5,7 @@ import typing as t
 from ddtrace.debugging._probe.model import FunctionLocationMixin
 from ddtrace.debugging._probe.model import LineLocationMixin
 from ddtrace.debugging._signal.model import Signal
+from ddtrace.debugging._signal.model import SignalTrack
 
 
 @dataclass
@@ -15,6 +16,9 @@ class LogSignal(Signal):
     data. For example, all the collected errors from expression evaluations
     (e.g. conditions) might need to be reported.
     """
+
+    __type__ = "snapshot"
+    __track__: t.ClassVar[SignalTrack] = SignalTrack.LOGS
 
     @property
     @abc.abstractmethod
@@ -61,6 +65,7 @@ class LogSignal(Signal):
             "evaluationErrors": [{"expr": e.expr, "message": e.message} for e in self.errors],
             "probe": self._probe_details(),
             "language": "python",
+            "type": self.__type__,
         }
         full_data.update(self.data)
 

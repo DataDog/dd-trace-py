@@ -1,0 +1,39 @@
+[[
+  {
+    "name": "postgres.query",
+    "service": "postgres",
+    "resource": "select 'one' as x",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.django",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "689f9ed400000000",
+      "component": "psycopg",
+      "db.application": "None",
+      "db.name": "test_postgres",
+      "db.system": "postgresql",
+      "db.user": "postgres",
+      "django.db.alias": "postgres",
+      "django.db.vendor": "postgresql",
+      "language": "python",
+      "out.host": "127.0.0.1",
+      "runtime-id": "f0d4b94a202a415496244aa08360304d",
+      "server.address": "127.0.0.1",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.row_count": 1,
+      "network.destination.port": 5432,
+      "process_id": 426
+    },
+    "duration": 256292,
+    "start": 1755291348453980512
+  }]]

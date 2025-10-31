@@ -11,5 +11,7 @@ def iast_create_context():
         dict(_iast_enabled=True, _iast_is_testing=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
     ):
         _start_iast_context_and_oce()
-        yield
-        _end_iast_context_and_oce()
+        try:
+            yield
+        finally:
+            _end_iast_context_and_oce()

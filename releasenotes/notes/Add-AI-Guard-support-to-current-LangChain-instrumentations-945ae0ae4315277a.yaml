@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    ai_guard: add AI Guard evaluations support to LangChain instrumentation

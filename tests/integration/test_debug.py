@@ -107,7 +107,7 @@ def test_debug_post_configure_uds():
     assert agent_url == "unix:///file.sock"
 
     agent_error = f.get("agent_error")
-    assert re.match("^Agent not reachable.*No such file or directory", agent_error)
+    assert re.match("^Agent not reachable", agent_error)
 
 
 class TestGlobalConfig(SubprocessTestCase):

@@ -5,15 +5,16 @@ import pymysql
 import wrapt
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.internal.trace_utils import _convert_to_string
 from ddtrace.ext import db
 from ddtrace.ext import net
+from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
-from ddtrace.trace import Pin
 
 
 config._add(
@@ -52,7 +53,7 @@ def patch():
 
 
 def unpatch():
-    if isinstance(pymysql.connect, wrapt.ObjectProxy):
+    if is_wrapted(pymysql.connect):
         pymysql.connect = pymysql.connect.__wrapped__
     pymysql._datadog_patch = False
 

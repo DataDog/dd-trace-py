@@ -25,6 +25,19 @@ AGENT_INPUT = (
     "luxury 4/5 star resorts)"
 )
 
+FETCH_CONCEPT_TOOL_DEFINITION = {
+    "name": "fetch_concept",
+    "description": "Fetch an expert explanation for a concept",
+    "schema": {
+        "json": {
+            "type": "object",
+            "properties": {"concept": {"type": "string", "description": "The concept to explain"}},
+            "required": ["concept"],
+        },
+    },
+}
+
+
 bedrock_converse_args_with_system_and_tool = {
     "system": "You are an expert swe that is to use the tool fetch_concept",
     "user_message": "Explain the concept of distributed tracing in a simple way",

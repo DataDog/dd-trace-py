@@ -1,0 +1,76 @@
+ruleDirs:
+  - .sg/rules
+
+testConfigs:
+  - testDir: .sg/tests
+
+utilDirs:
+  - .sg/utils
+
+# Exclude common directories and files from scanning
+ignoreFiles:
+  # Version control and git worktrees
+  - .git/**/*
+  - .worktrees/**/*
+
+  # Virtual environments and package managers
+  - .venv*/**/*
+  - venv/**/*
+  - .riot/venv*/**/*
+  - .tox/**/*
+  - .ddtox/**/*
+  - .ddriot/**/*
+  - env/**/*
+  - ENV/**/*
+
+  # Build and distribution
+  - build/**/*
+  - dist/**/*
+  - .eggs/**/*
+  - "*.egg-info/**/*"
+  - __pycache__/**/*
+  - "*.py[cod]"
+  - "*$py.class"
+
+  # Vendor and generated code
+  - ddtrace/vendor/**/*
+  - ddtrace/appsec/_iast/_taint_tracking/_vendor/**/*
+
+  # Compiled extensions
+  - "*.so"
+  - "*.dylib"
+  - "*.a"
+  - "*.c"
+  - "*.cpp"
+
+  # IDE and editor files
+  - .idea/**/*
+  - .vscode/**/*
+  - .cursor/**/*
+  - .windsurf/**/*
+  - "*.swp"
+
+  # Test and coverage
+  - htmlcov/**/*
+  - .coverage*
+  - .pytest_cache/**/*
+  - .hypothesis/**/*
+  - test-results/**/*
+
+  # Generated protobuf files
+  - "tests/profiling/collector/pprof_*pb2.py"
+  - "tests/contrib/grpc/hello_pb2.py"
+  - "tests/lib-injection/dd-lib-python-init-test-protobuf-old/addressbook_pb2.py"
+
+  # Benchmark and artifacts
+  - artifacts/**/*
+  - .benchmarks/**/*
+
+  # Documentation build
+  - docs/_build/**/*
+  - _readthedocs/**/*
+
+  # Miscellaneous
+  - .DS_Store
+  - "*.log"
+  - CLAUDE.local.md

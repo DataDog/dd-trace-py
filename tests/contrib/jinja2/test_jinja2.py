@@ -4,9 +4,9 @@ import os.path
 # 3rd party
 import jinja2
 
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.jinja2.patch import patch
 from ddtrace.contrib.internal.jinja2.patch import unpatch
-from ddtrace.trace import Pin
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_is_not_measured
@@ -135,7 +135,10 @@ class Jinja2Test(TracerTestCase):
         loader = jinja2.loaders.FileSystemLoader(TMPL_DIR)
         env = jinja2.Environment(loader=loader)
 
-        cfg = Pin._get_config(env)
+        cfg = {}
+        pin = Pin.get_from(env)
+        if pin:
+            cfg = pin._config
         cfg["service_name"] = "renderer"
 
         t = env.get_template("template.html")

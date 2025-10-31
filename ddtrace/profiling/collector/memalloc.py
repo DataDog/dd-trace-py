@@ -1,10 +1,17 @@
 # -*- encoding: utf-8 -*-
-from collections import namedtuple
 import logging
 import os
 import threading
-import typing  # noqa:F401
+from types import TracebackType
+from typing import List
+from typing import NamedTuple
 from typing import Optional
+from typing import Set
+from typing import Tuple
+from typing import Type
+from typing import cast
+
+from ddtrace.profiling.event import DDFrame
 
 
 try:
@@ -21,13 +28,19 @@ from ddtrace.settings.profiling import config
 
 LOG = logging.getLogger(__name__)
 
-MemorySample = namedtuple(
-    "MemorySample",
-    ("frames", "size", "count", "in_use_size", "alloc_size", "thread_id"),
-)
+
+class MemorySample(NamedTuple):
+    frames: List[DDFrame]
+    size: int
+    count: (  # pyright: ignore[reportIncompatibleMethodOverride] (count is a method of tuple)
+        int  # type: ignore[assignment]
+    )
+    in_use_size: int
+    alloc_size: int
+    thread_id: int
 
 
-class MemoryCollector(collector.PeriodicCollector):
+class MemoryCollector:
     """Memory allocation collector."""
 
     def __init__(
@@ -35,15 +48,15 @@ class MemoryCollector(collector.PeriodicCollector):
         max_nframe: Optional[int] = None,
         heap_sample_size: Optional[int] = None,
         ignore_profiler: Optional[bool] = None,
-    ):
-        super().__init__()
-        # TODO make this dynamic based on the 1. interval and 2. the max number of events allowed in the Recorder
-        self.max_nframe: int = max_nframe if max_nframe is not None else config.max_frames
-        self.heap_sample_size: int = heap_sample_size if heap_sample_size is not None else config.heap.sample_size
-        self.ignore_profiler: bool = ignore_profiler if ignore_profiler is not None else config.ignore_profiler
+    ) -> None:
+        self.max_nframe = cast(int, max_nframe if max_nframe is not None else config.max_frames)
+        self.heap_sample_size = cast(
+            int,
+            heap_sample_size if heap_sample_size is not None else config.heap.sample_size,  # pyright: ignore
+        )
+        self.ignore_profiler = cast(bool, ignore_profiler if ignore_profiler is not None else config.ignore_profiler)
 
-    def _start_service(self):
-        # type: (...) -> None
+    def start(self) -> None:
         """Start collecting memory profiles."""
         if _memalloc is None:
             raise collector.CollectorUnavailable
@@ -57,19 +70,28 @@ class MemoryCollector(collector.PeriodicCollector):
             _memalloc.stop()
             _memalloc.start(self.max_nframe, self.heap_sample_size)
 
-        super(MemoryCollector, self)._start_service()
+    def __enter__(self) -> None:
+        self.start()
 
-    @staticmethod
-    def on_shutdown():
-        # type: () -> None
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ) -> None:
+        self.stop()
+
+    def join(self) -> None:
+        pass
+
+    def stop(self) -> None:
         if _memalloc is not None:
             try:
                 _memalloc.stop()
             except RuntimeError:
                 LOG.debug("Failed to stop memalloc profiling on shutdown", exc_info=True)
 
-    def _get_thread_id_ignore_set(self):
-        # type: () -> typing.Set[int]
+    def _get_thread_id_ignore_set(self) -> Set[int]:
         # This method is not perfect and prone to race condition in theory, but very little in practice.
         # Anyhow it's not a big deal — it's a best effort feature.
         return {
@@ -78,12 +100,14 @@ class MemoryCollector(collector.PeriodicCollector):
             if getattr(thread, "_ddtrace_profiling_ignore", False) and thread.ident is not None
         }
 
-    def snapshot(self):
+    def snapshot(self) -> Tuple[MemorySample, ...]:
         thread_id_ignore_set = self._get_thread_id_ignore_set()
 
         try:
+            if _memalloc is None:
+                raise ValueError("Memalloc is not initialized")
             events = _memalloc.heap()
-        except RuntimeError:
+        except (RuntimeError, ValueError):
             # DEV: This can happen if either _memalloc has not been started or has been stopped.
             LOG.debug("Unable to collect heap events from process %d", os.getpid(), exc_info=True)
             return tuple()
@@ -112,19 +136,22 @@ class MemoryCollector(collector.PeriodicCollector):
                     # DEV: This might happen if the memalloc sofile is unlinked and relinked without module
                     #      re-initialization.
                     LOG.debug("Invalid state detected in memalloc module, suppressing profile")
+
         return tuple()
 
-    def test_snapshot(self):
+    def test_snapshot(self) -> Tuple[MemorySample, ...]:
         thread_id_ignore_set = self._get_thread_id_ignore_set()
 
         try:
+            if _memalloc is None:
+                raise ValueError("Memalloc is not initialized")
             events = _memalloc.heap()
-        except RuntimeError:
+        except (RuntimeError, ValueError):
             # DEV: This can happen if either _memalloc has not been started or has been stopped.
             LOG.debug("Unable to collect heap events from process %d", os.getpid(), exc_info=True)
             return tuple()
 
-        samples = []
+        samples: List[MemorySample] = []
         for event in events:
             (frames, thread_id), in_use_size, alloc_size, count = event
 
@@ -135,5 +162,5 @@ class MemoryCollector(collector.PeriodicCollector):
 
         return tuple(samples)
 
-    def collect(self):
+    def collect(self) -> Tuple[MemorySample, ...]:
         return tuple()

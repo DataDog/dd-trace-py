@@ -14,6 +14,22 @@ _MODEL_TYPE_IDENTIFIERS = (
     "default-prompt-router/",
 )
 
+_AI21 = "ai21"
+_AMAZON = "amazon"
+_ANTHROPIC = "anthropic"
+_COHERE = "cohere"
+_META = "meta"
+_STABILITY = "stability"
+_MODEL_PROVIDERS = (_AI21, _AMAZON, _ANTHROPIC, _COHERE, _META, _STABILITY)
+
+
+def _fallback_provider(original_model_id: str) -> str:
+    """If the original model ID contains a known model provider, return it, otherwise fallback to custom."""
+    for provider in _MODEL_PROVIDERS:
+        if provider in original_model_id:
+            return provider
+    return "custom"
+
 
 def parse_model_id(model_id: str):
     """Best effort to extract and return the model provider and model name from the bedrock model ID.
@@ -31,22 +47,25 @@ def parse_model_id(model_id: str):
         h. Default prompt router: ARN prefix + "default-prompt-router/{prompt-id}"
     If model provider cannot be inferred from the model_id formatting, then default to "custom"
     """
+    original_model_id = model_id
+
     if not model_id.startswith("arn:aws"):
         model_meta = model_id.split(".")
         if len(model_meta) < 2:
-            return "custom", model_meta[0]
+            return _fallback_provider(original_model_id), model_meta[0]
         return model_meta[-2], model_meta[-1]
     for identifier in _MODEL_TYPE_IDENTIFIERS:
         if identifier not in model_id:
             continue
         model_id = model_id.rsplit(identifier, 1)[-1]
-        if identifier in ("foundation-model/", "custom-model/"):
+        if identifier in ("foundation-model/", "custom-model/", "inference-profile/"):
             model_meta = model_id.split(".")
             if len(model_meta) < 2:
-                return "custom", model_id
+                return _fallback_provider(original_model_id), model_id
             return model_meta[-2], model_meta[-1]
-        return "custom", model_id
-    return "custom", "custom"
+        return _fallback_provider(original_model_id), model_id
+
+    return _fallback_provider(original_model_id), "custom"
 
 
 def normalize_input_tokens(usage_metrics: dict) -> None:

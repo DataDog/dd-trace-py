@@ -1,0 +1,162 @@
+id: pep765-control-flow-in-finally
+snapshots:
+  ? |
+    def bar():
+        try:
+            do_something()
+        finally:
+            cleanup()
+            return 42
+  : labels:
+    - source: return 42
+      style: primary
+      start: 82
+      end: 91
+    - source: |-
+        finally:
+                cleanup()
+                return 42
+      style: secondary
+      start: 47
+      end: 91
+  ? |
+    def foo():
+        try:
+            result = compute()
+        finally:
+            return result
+  : labels:
+    - source: return result
+      style: primary
+      start: 68
+      end: 81
+    - source: |-
+        finally:
+                return result
+      style: secondary
+      start: 51
+      end: 81
+  ? |
+    for item in items:
+        try:
+            process(item)
+        finally:
+            break
+  : labels:
+    - source: break
+      style: primary
+      start: 71
+      end: 76
+    - source: |-
+        finally:
+                break
+      style: secondary
+      start: 54
+      end: 76
+  ? |
+    for item in items:
+        try:
+            process(item)
+        finally:
+            continue
+  : labels:
+    - source: continue
+      style: primary
+      start: 71
+      end: 79
+    - source: |-
+        finally:
+                continue
+      style: secondary
+      start: 54
+      end: 79
+  ? |
+    try:
+        do_something()
+    finally:
+        return None
+  : labels:
+    - source: return None
+      style: primary
+      start: 37
+      end: 48
+    - source: |-
+        finally:
+            return None
+      style: secondary
+      start: 24
+      end: 48
+  ? |
+    try:
+        x = 1
+    finally:
+        if condition:
+            return x
+  : labels:
+    - source: return x
+      style: primary
+      start: 50
+      end: 58
+    - source: |-
+        finally:
+            if condition:
+                return x
+      style: secondary
+      start: 15
+      end: 58
+  ? |
+    try:
+        x = compute()
+    except Exception:
+        pass
+    finally:
+        return x
+  : labels:
+    - source: return x
+      style: primary
+      start: 63
+      end: 71
+    - source: |-
+        finally:
+            return x
+      style: secondary
+      start: 50
+      end: 71
+  ? |
+    while condition:
+        try:
+            do_something()
+        finally:
+            if error:
+                break
+  : labels:
+    - source: break
+      style: primary
+      start: 92
+      end: 97
+    - source: |-
+        finally:
+                if error:
+                    break
+      style: secondary
+      start: 53
+      end: 97
+  ? |
+    while condition:
+        try:
+            do_something()
+        finally:
+            if skip:
+                continue
+  : labels:
+    - source: continue
+      style: primary
+      start: 91
+      end: 99
+    - source: |-
+        finally:
+                if skip:
+                    continue
+      style: secondary
+      start: 53
+      end: 99

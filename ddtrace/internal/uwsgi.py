@@ -11,6 +11,15 @@ class uWSGIConfigError(Exception):
     """
 
 
+class uWSGIConfigDeprecationWarning(DeprecationWarning):
+    """uWSGI configuration deprecation warning.
+
+    This is raised when uwsgi configuration is incompatible with the library,
+    and future versions of the library plans to raise an error and stop
+    supporting the configuration.
+    """
+
+
 class uWSGIMasterProcess(Exception):
     """The process is uWSGI master process."""
 
@@ -32,6 +41,17 @@ def check_uwsgi(worker_callback: Optional[Callable] = None, atexit: Optional[Cal
     if not (uwsgi.opt.get("enable-threads") or int(uwsgi.opt.get("threads") or 0)):
         msg = "enable-threads option must be set to true, or a positive number of threads must be set"
         raise uWSGIConfigError(msg)
+
+    if (
+        hasattr(uwsgi, "version_info")
+        and uwsgi.version_info < (2, 0, 30)
+        and (uwsgi.opt.get("lazy-apps") or uwsgi.opt.get("lazy"))
+        and not uwsgi.opt.get("skip-atexit")
+    ):
+        msg = "skip-atexit option must be set when lazy-apps or lazy is set for \
+            uwsgi<2.0.30, see https://github.com/unbit/uwsgi/pull/2726. We plan \
+            to raise an error in ddtrace 4.x release."
+        raise uWSGIConfigDeprecationWarning(msg)
 
     # If uwsgi has more than one process, it is running in prefork operational mode: uwsgi is going to fork multiple
     # sub-processes.

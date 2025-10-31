@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -32,8 +33,10 @@ class IntegrationUpdateOrchestrator:
                 return True
             except FileExistsError:
                 time.sleep(0.5)
-            except Exception:
+            except Exception as e:
+                print(f"Error acquiring lock {lock_file_path}: {e}", file=sys.stderr)
                 return False
+        print(f"Timeout acquiring lock {lock_file_path}", file=sys.stderr)
         return False
 
     def _release_lock(self, lock_file_path):
@@ -46,6 +49,15 @@ class IntegrationUpdateOrchestrator:
         """Ensures the integration registry tools venv is created and up to date."""
         tooling_python = os.path.join(self.tooling_env_path, "bin", "python")
         pip_timeout = 20
+
+        # If tooling python does not exist, the venv is either missing or corrupted.
+        # If the directory exists, remove it to ensure a clean slate for venv creation.
+        if os.path.exists(self.tooling_env_path):
+            try:
+                shutil.rmtree(self.tooling_env_path)
+            except OSError as e:
+                print(f"Error removing tooling venv '{self.tooling_env_path}': {e}", file=sys.stderr)
+                return False
 
         if os.path.exists(tooling_python):
             try:
@@ -136,6 +148,13 @@ class IntegrationUpdateOrchestrator:
         updater_succeeded = False
 
         try:
+            # Remove potentially stale venv lock file
+            if os.path.exists(self.venv_lock_file_path):
+                try:
+                    os.remove(self.venv_lock_file_path)
+                except OSError:
+                    pass
+
             # Setup Tooling Venv
             try:
                 if not self._acquire_lock(self.venv_lock_file_path):

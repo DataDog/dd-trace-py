@@ -12,18 +12,21 @@
       DD_REMOTE_CONFIGURATION_REFRESH_INTERVAL: 5s
       DD_DOGSTATSD_NON_LOCAL_TRAFFIC: true
   testagent:
-    name: registry.ddbuild.io/images/mirror/dd-apm-test-agent/ddapm-test-agent:v1.29.1
+    name: registry.ddbuild.io/images/mirror/dd-apm-test-agent/ddapm-test-agent:v1.36.0
     alias: testagent
     variables:
       LOG_LEVEL: ERROR
       SNAPSHOT_DIR: ${CI_PROJECT_DIR}/tests/snapshots
       SNAPSHOT_CI: 1
+      VCR_CI_MODE: true
+      OTLP_GRPC_PORT: 4136
       VCR_CASSETTES_DIRECTORY: ${CI_PROJECT_DIR}/tests/llmobs/llmobs_cassettes
       PORT: 9126
       DD_POOL_TRACE_CHECK_FAILURES: true
       DD_DISABLE_ERROR_RESPONSES: true
       ENABLED_CHECKS: trace_content_length,trace_stall,meta_tracer_version_header,trace_count_header,trace_peer_service,trace_dd_service
       SNAPSHOT_IGNORED_ATTRS: span_id,trace_id,parent_id,duration,start,metrics.system.pid,metrics.system.process_id,metrics.process_id,meta.runtime-id,meta._dd.p.tid,meta.pathway.hash,metrics._dd.tracer_kr,meta._dd.parent_id,meta.kafka.cluster_id
+      VCR_PROVIDER_MAP: azure_openai=https://llmobs-test-resource.openai.azure.com/
   mongo:
     name: registry.ddbuild.io/images/mirror/mongo:6.0.5
     alias: mongo
@@ -48,9 +51,9 @@
       KAFKA_PROCESS_ROLES: controller,broker
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-  httpbin_local:
+  httpbin:
     name: registry.ddbuild.io/images/mirror/mccutchen/go-httpbin:v2.14.1
-    alias: httpbin-local
+    alias: httpbin
     variables:
       PORT: 8001
   memcached:
@@ -121,9 +124,13 @@
     alias: moto
     variables:
       MOTO_PORT: 3000
-  azurite:
-    name: registry.ddbuild.io/images/mirror/azure-storage/azurite:3.34.0
-    alias: azurite
+  azureeventhubsemulator:
+    name: registry.ddbuild.io/images/mirror/azure-messaging/eventhubs-emulator:2.1.0
+    alias: azureeventhubsemulator
+    variables:
+      ACCEPT_EULA: "Y"
+      BLOB_SERVER: azurite
+      METADATA_SERVER: azurite
   azureservicebusemulator:
     name: registry.ddbuild.io/images/mirror/azure-messaging/servicebus-emulator:1.1.2
     alias: azureservicebusemulator
@@ -137,3 +144,6 @@
     variables:
       ACCEPT_EULA: "Y"
       MSSQL_SA_PASSWORD: "Localtestpass1!"
+  azurite:
+    name: registry.ddbuild.io/images/mirror/azure-storage/azurite:3.34.0
+    alias: azurite

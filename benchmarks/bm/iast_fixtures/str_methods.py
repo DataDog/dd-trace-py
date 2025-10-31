@@ -971,6 +971,10 @@ def do_modulo(template: Text, parameter) -> Text:
     return template % parameter
 
 
+def do_modulo_function(template: Text, parameter_function) -> Text:
+    return template % parameter_function()
+
+
 def do_replace(text: Text, old: Text, new: Text, count=-1) -> Text:
     return text.replace(old, new, count)
 

@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    google-adk: Adds APM tracing and LLM Observability support for the Google ADK library (google-adk). Support includes APM tracing and LLM Observability for agent runs, tool calls, and code execution.

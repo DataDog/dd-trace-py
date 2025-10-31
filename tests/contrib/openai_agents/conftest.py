@@ -5,14 +5,15 @@ from agents import GuardrailFunctionOutput
 from agents import WebSearchTool
 from agents import function_tool
 from agents import input_guardrail
+from agents import output_guardrail
 from openai.types.responses.web_search_tool_param import UserLocation
 import pytest
 import vcr
 
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.openai_agents.patch import patch
 from ddtrace.contrib.internal.openai_agents.patch import unpatch
 from ddtrace.llmobs import LLMObs as llmobs_service
-from ddtrace.trace import Pin
 from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.utils import DummyTracer
 from tests.utils import override_global_config
@@ -120,14 +121,26 @@ def weather_agent(web_search):
 
 
 @input_guardrail
-async def simple_guardrail(
+async def simple_input_guardrail(
     context,
     agent,
     inp,
 ):
     return GuardrailFunctionOutput(
         output_info="dummy",
-        tripwire_triggered="safe" not in inp,
+        tripwire_triggered=False,
+    )
+
+
+@output_guardrail
+async def simple_output_guardrail(
+    context,
+    agent,
+    inp,
+):
+    return GuardrailFunctionOutput(
+        output_info="dummy",
+        tripwire_triggered=False,
     )
 
 
@@ -135,9 +148,11 @@ async def simple_guardrail(
 def simple_agent_with_guardrail():
     """An agent with addition tools and a guardrail"""
     yield Agent(
-        name="Simple Agent",
+        name="Simple Agent with Guardrails",
         instructions="You are a helpful assistant specialized in addition calculations.",
-        input_guardrails=[simple_guardrail],
+        input_guardrails=[simple_input_guardrail],
+        output_guardrails=[simple_output_guardrail],
+        tools=[add],
         model="gpt-4o",
     )
 

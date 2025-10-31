@@ -7,6 +7,7 @@ from warnings import warn
 import mock
 import pytest
 
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import origin
 import tests.test_module
@@ -428,6 +429,7 @@ def test_module_watchdog_namespace_import():
         ModuleWatchdog.uninstall()
 
 
+@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 9), reason="Python 3.8 throws a deprecation warning")
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env=dict(
@@ -585,6 +587,7 @@ def test_public_modules_in_ddtrace_contrib():
         "ddtrace.contrib.cherrypy",
         "ddtrace.contrib.requests",
         "ddtrace.contrib.pyramid",
+        "ddtrace.contrib.ray",
     }
 
 

@@ -17,7 +17,7 @@ index_aspect(PyObject* result_o,
              const PyObject* candidate_text,
              PyObject* idx,
              const TaintRangeRefs& ranges,
-             const TaintRangeMapTypePtr& tx_map)
+             const TaintedObjectMapTypePtr& tx_map)
 {
     TaintRangeRefs ranges_to_set;
 
@@ -81,7 +81,7 @@ api_index_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
     }
 
     TRY_CATCH_ASPECT("index_aspect", return result_o, , {
-        const auto tx_map = Initializer::get_tainting_map();
+        const auto tx_map = taint_engine_context->get_tainted_object_map(candidate_text);
         if (tx_map == nullptr or tx_map->empty()) {
             return result_o;
         }

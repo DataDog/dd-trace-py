@@ -3,10 +3,10 @@ import os
 import mock
 import pytest
 
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.google_generativeai.patch import patch
 from ddtrace.contrib.internal.google_generativeai.patch import unpatch
 from ddtrace.llmobs import LLMObs
-from ddtrace.trace import Pin
 from tests.contrib.google_generativeai.utils import MockGenerativeModelAsyncClient
 from tests.contrib.google_generativeai.utils import MockGenerativeModelClient
 from tests.utils import DummyTracer

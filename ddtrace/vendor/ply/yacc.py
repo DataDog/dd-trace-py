@@ -3177,7 +3177,7 @@ class ParserReflect(object):
                     for g in parsed_g:
                         grammar.append((name, g))
                 except SyntaxError as e:
-                    self.log.error(str(e))
+                    self.log.error(str(e), extra={"send_to_telemetry": False})
                     self.error = True
 
                 # Looks like a valid grammar rule
@@ -3351,7 +3351,7 @@ def yacc(method='LALR', debug=yaccdebug, module=None, tabmodule=tab_module, star
         else:
             grammar.set_start(start)
     except GrammarError as e:
-        errorlog.error(str(e))
+        errorlog.error(str(e), extra={"send_to_telemetry": False})
         errors = True
 
     if errors:

@@ -1,0 +1,218 @@
+interactions:
+- request:
+    body: '{"messages":[{"content":"You are a helpful assistant specialized in addition
+      calculations.","role":"system"},{"role":"user","content":"What is the sum of
+      1 and 2?"}],"model":"gpt-4o","store":true,"stream":false,"tools":[{"type":"function","function":{"name":"add","description":"Add
+      two numbers together","parameters":{"properties":{"a":{"title":"A","type":"integer"},"b":{"title":"B","type":"integer"}},"required":["a","b"],"title":"add_args","type":"object","additionalProperties":false}}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '493'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - Agents/Python 0.0.16
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - async:asyncio
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.82.0
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.15
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAAwAAAP//jFNNb9swDL37Vwg8J4MT56P1se0tGLZu2IZiKQxGoh11siRIctEsyH8f
+        bCe2k2ZAfTAEPj7y8VHaR4yBFJAy4FsMvLRqfH9XPtpq8mDw1zJ5rTb280psE/PzZZfc/4BRzTCb
+        F+LhxPrETWkVBWl0C3NHGKiuOlnOF7fT5GYyb4DSCFI1rbBhPDPjaTydjeObcbw4ErdGcvKQst8R
+        Y4ztm38tUQt6g5TFo1OkJO+xIEi7JMbAGVVHAL2XPqAOMOpBbnQgXavWlVIDIBijMo5K9Y3bbz84
+        9z6hUtmK/u4eHr/5N1p9f6q+Fn7+9CU4sRv0a0vvbCMorzTv/BngXTy9aMYYaCzbYYS4oDEG6Iqq
+        JB1qybBfA64hnYzWsFlDOj3AWfohunZ+HjjgKK88qvfWoNYmYK2w8eb5iBy6NShTWGc2/oIKudTS
+        bzNH6JvphiZHJyGNBKjO9gjWmdKGLJg/1DRdztui0N+yHpwsj2AwAVUfv52OrlTLBAWUzZq7m8WR
+        b0n0zP6GYSWkGQDRYPL3Yq7VbqeXuvhI+R7gnGwgkVlHQvLzgfs0R/Ub/F9a53EjGDy5V8kpC5Jc
+        vQ1BOVaqfR7gdz5QmeVSF+Ssk80bgdxmeZIsZjHO4hiiQ/QPAAD//wMAht+SdiwEAAA=
+    headers:
+      CF-RAY:
+      - 97974774bd1182ce-IAD
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 03 Sep 2025 18:23:36 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=i0dRyPGoL0ewtcxMnd16fU.CeEGg1X.TdHPz7f1dvWI-1756923816-1.0.1.1-eGHy8sF897htRdWAiQD1H3yqGgIua3xzJ9suJU5jF1AJclsBr9kpEkM5q37tcCawX_iKtmxWSaLUgq1lau.bTtV9HsKgdr4NihPwU8UCzzk;
+        path=/; expires=Wed, 03-Sep-25 18:53:36 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=pvGsQbaaFQ8a6UjFTs5nJ76m5ggBprksuccV5073VSs-1756923816539-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '918'
+      openai-project:
+      - proj_6cMiry5CHgK3zKotG0LtMb9H
+      openai-version:
+      - '2020-10-01'
+      x-envoy-upstream-service-time:
+      - '934'
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '30000000'
+      x-ratelimit-remaining-requests:
+      - '9999'
+      x-ratelimit-remaining-tokens:
+      - '29999974'
+      x-ratelimit-reset-requests:
+      - 6ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_963dc39feb8b46749e3c69c202c591dc
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"content":"You are a helpful assistant specialized in addition
+      calculations.","role":"system"},{"role":"user","content":"What is the sum of
+      1 and 2?"},{"role":"assistant","tool_calls":[{"id":"call_KezyDQRsxeKSYuPgs5YOtrdy","type":"function","function":{"name":"add","arguments":"{\"a\":1,\"b\":2}"}}]},{"role":"tool","tool_call_id":"call_KezyDQRsxeKSYuPgs5YOtrdy","content":"3"}],"model":"gpt-4o","store":true,"stream":false,"tools":[{"type":"function","function":{"name":"add","description":"Add
+      two numbers together","parameters":{"properties":{"a":{"title":"A","type":"integer"},"b":{"title":"B","type":"integer"}},"required":["a","b"],"title":"add_args","type":"object","additionalProperties":false}}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '721'
+      content-type:
+      - application/json
+      cookie:
+      - __cf_bm=i0dRyPGoL0ewtcxMnd16fU.CeEGg1X.TdHPz7f1dvWI-1756923816-1.0.1.1-eGHy8sF897htRdWAiQD1H3yqGgIua3xzJ9suJU5jF1AJclsBr9kpEkM5q37tcCawX_iKtmxWSaLUgq1lau.bTtV9HsKgdr4NihPwU8UCzzk;
+        _cfuvid=pvGsQbaaFQ8a6UjFTs5nJ76m5ggBprksuccV5073VSs-1756923816539-0.0.1.1-604800000
+      host:
+      - api.openai.com
+      user-agent:
+      - Agents/Python 0.0.16
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - async:asyncio
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.82.0
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.15
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAAwAAAP//jJJPb9swDMXv/hSEznFhO82f5rh1Ow7r1sswFIYi0bY6WdREudhQ5LsP
+        ctLY2VpgFx/446Mfn/icAQijxQ6E6mRUvbf5+3f93c/hyy1L/kR3zedH8/XpVn78UH3jm3uxSAra
+        P6KKL6orRb23GA25I1YBZcQ0tdys1jfVcluuR9CTRptkrY/5NeVVUV3nxTYv1idhR0Yhix18zwAA
+        nsdvsug0/hI7KBYvlR6ZZYtid24CEIFsqgjJbDhKF8VigopcRDe6vu8QeOiBGihBOg0VGIbl1bw9
+        YDOwTG7dYO0MSOcoyrTtaPThRA5na5ZaH2jPf0lFY5zhrg4omVyywZG8GOkhA3gYIxguthI+UO9j
+        HekHjr8ri1MEYgp9RpcnGClKO6ufwcW8WmOUxvIsRKGk6lBP0ilxOWhDM5DNtv7XzWuzj5sb1/7P
+        +AkohT6irn1AbdTlxlNbwHSTb7WdUx4NC8bwZBTW0WBIL6GxkYM9novg3xyxrxvjWgw+mOPNNL5W
+        +6bcbFer9UZkh+wPAAAA//8DAOCdP8Q8AwAA
+    headers:
+      CF-RAY:
+      - 9797477dad5e82ce-IAD
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 03 Sep 2025 18:23:37 GMT
+      Server:
+      - cloudflare
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '429'
+      openai-project:
+      - proj_6cMiry5CHgK3zKotG0LtMb9H
+      openai-version:
+      - '2020-10-01'
+      x-envoy-upstream-service-time:
+      - '434'
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '30000000'
+      x-ratelimit-remaining-requests:
+      - '9999'
+      x-ratelimit-remaining-tokens:
+      - '29999971'
+      x-ratelimit-reset-requests:
+      - 6ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_0217d1309a6e447aafb11a343de2de18
+    status:
+      code: 200
+      message: OK
+version: 1

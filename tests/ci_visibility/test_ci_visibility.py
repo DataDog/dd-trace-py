@@ -357,6 +357,8 @@ def test_ci_visibility_service_enable_with_itr_enabled(_do_request):
     ), _dummy_noop_git_client(), mock.patch(
         "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"
     ), mock.patch(
+        "ddtrace.internal.ci_visibility._api_responses_cache._is_response_cache_enabled", return_value=False
+    ), mock.patch(
         "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
     ):
         _do_request.return_value = Response(
@@ -406,6 +408,8 @@ def test_ci_visibility_service_enable_with_itr_disabled_in_env(_do_request, agen
             DD_CIVISIBILITY_AGENTLESS_ENABLED=agentless_enabled_str,
             DD_CIVISIBILITY_ITR_ENABLED="0",
         )
+    ), mock.patch(
+        "ddtrace.internal.ci_visibility._api_responses_cache._is_response_cache_enabled", return_value=False
     ), _dummy_noop_git_client(), mock.patch(
         "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
     ):
@@ -954,7 +958,11 @@ class TestUploadGitMetadata:
     def test_upload_git_metadata_upload_unnecessary(self, api_key, requests_mode):
         with mock.patch.object(
             CIVisibilityGitClient, "_get_latest_commits", mock.Mock(side_effect=[["latest1", "latest2"]])
-        ), mock.patch.object(CIVisibilityGitClient, "_search_commits", mock.Mock(side_effect=[["latest1", "latest2"]])):
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility._api_responses_cache._is_response_cache_enabled", return_value=False
+        ), mock.patch.object(
+            CIVisibilityGitClient, "_search_commits", mock.Mock(side_effect=[["latest1", "latest2"]])
+        ):
             git_client = CIVisibilityGitClient(api_key, requests_mode)
             git_client.upload_git_metadata()
             assert git_client.wait_for_metadata_upload_status() == METADATA_UPLOAD_STATUS.UNNECESSARY
@@ -1149,6 +1157,8 @@ def test_fetch_tests_to_skip_custom_configurations(dd_ci_visibility_agentless_ur
         "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
     ), mock.patch(
         "ddtrace.internal.ci_visibility._api_client.uuid4", return_value="checkoutmyuuid4"
+    ), mock.patch(
+        "ddtrace.internal.ci_visibility._api_responses_cache._is_response_cache_enabled", return_value=False
     ):
         mock_build_packfiles.return_value.__enter__.return_value = "myprefix", _GitSubprocessDetails("", "", 10, 0)
         CIVisibility.enable(service="test-service")
@@ -1218,6 +1228,109 @@ def test_civisibility_enable_respects_passed_in_tracer():
         assert CIVisibility._instance.tracer._span_aggregator.partial_flush_enabled is False
         assert CIVisibility._instance.tracer._span_aggregator.partial_flush_min_spans == 100
         CIVisibility.disable()
+
+
+def test_ci_visibility_service_disabled_by_dd_civisibility_enabled_false():
+    """Test that CI Visibility is disabled when DD_CIVISIBILITY_ENABLED is set to false."""
+    with _ci_override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            DD_CIVISIBILITY_ENABLED="false",
+        )
+    ), _dummy_noop_git_client(), mock.patch(
+        "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_settings",
+        return_value=TestVisibilityAPISettings(False, False, False, False),
+    ):
+        with _patch_dummy_writer():
+            dummy_tracer = DummyTracer()
+            CIVisibility.enable(tracer=dummy_tracer, service="test-service")
+            assert not CIVisibility.enabled
+            assert CIVisibility._instance is None
+
+
+def test_ci_visibility_service_disabled_by_dd_civisibility_enabled_0():
+    """Test that CI Visibility is disabled when DD_CIVISIBILITY_ENABLED is set to 0."""
+    with _ci_override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            DD_CIVISIBILITY_ENABLED="0",
+        )
+    ), _dummy_noop_git_client(), mock.patch(
+        "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_settings",
+        return_value=TestVisibilityAPISettings(False, False, False, False),
+    ):
+        with _patch_dummy_writer():
+            dummy_tracer = DummyTracer()
+            CIVisibility.enable(tracer=dummy_tracer, service="test-service")
+            assert not CIVisibility.enabled
+            assert CIVisibility._instance is None
+
+
+def test_ci_visibility_service_enabled_by_dd_civisibility_enabled_true():
+    """Test that CI Visibility is enabled when DD_CIVISIBILITY_ENABLED is set to true."""
+    with _ci_override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            DD_CIVISIBILITY_ENABLED="true",
+        )
+    ), _dummy_noop_git_client(), mock.patch(
+        "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_settings",
+        return_value=TestVisibilityAPISettings(False, False, False, False),
+    ):
+        with _patch_dummy_writer():
+            dummy_tracer = DummyTracer()
+            CIVisibility.enable(tracer=dummy_tracer, service="test-service")
+            assert CIVisibility.enabled
+            assert CIVisibility._instance is not None
+            assert CIVisibility._instance.tracer == dummy_tracer
+            assert CIVisibility._instance._service == "test-service"
+            CIVisibility.disable()
+
+
+def test_ci_visibility_service_enabled_by_dd_civisibility_enabled_1():
+    """Test that CI Visibility is enabled when DD_CIVISIBILITY_ENABLED is set to 1."""
+    with _ci_override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            DD_CIVISIBILITY_ENABLED="1",
+        )
+    ), _dummy_noop_git_client(), mock.patch(
+        "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_settings",
+        return_value=TestVisibilityAPISettings(False, False, False, False),
+    ):
+        with _patch_dummy_writer():
+            dummy_tracer = DummyTracer()
+            CIVisibility.enable(tracer=dummy_tracer, service="test-service")
+            assert CIVisibility.enabled
+            assert CIVisibility._instance is not None
+            assert CIVisibility._instance.tracer == dummy_tracer
+            assert CIVisibility._instance._service == "test-service"
+            CIVisibility.disable()
+
+
+def test_ci_visibility_service_enabled_by_default_when_dd_civisibility_enabled_not_set():
+    """Test that CI Visibility is enabled by default when DD_CIVISIBILITY_ENABLED is not set."""
+    with _ci_override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+        )
+    ), _dummy_noop_git_client(), mock.patch(
+        "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_settings",
+        return_value=TestVisibilityAPISettings(False, False, False, False),
+    ):
+        with _patch_dummy_writer():
+            dummy_tracer = DummyTracer()
+            CIVisibility.enable(tracer=dummy_tracer, service="test-service")
+            assert CIVisibility.enabled
+            assert CIVisibility._instance is not None
+            assert CIVisibility._instance.tracer == dummy_tracer
+            assert CIVisibility._instance._service == "test-service"
+            CIVisibility.disable()
 
 
 class TestIsITRSkippable:

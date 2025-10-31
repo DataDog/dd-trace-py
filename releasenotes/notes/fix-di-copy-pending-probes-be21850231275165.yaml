@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: fix an issue that prevented multiple probes on the
+    same location from being instrumented.

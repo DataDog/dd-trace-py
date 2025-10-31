@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Upgrades echion to pick up critical bug fixes and performance
+    improvements.

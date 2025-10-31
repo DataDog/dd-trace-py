@@ -25,10 +25,7 @@ _PACKAGE_DISTRIBUTIONS: t.Optional[t.Mapping[str, t.List[str]]] = None
 @callonce
 def get_distributions() -> t.Mapping[str, str]:
     """returns the mapping from distribution name to version for all distributions in a python path"""
-    try:
-        import importlib.metadata as importlib_metadata
-    except ImportError:
-        import importlib_metadata  # type: ignore[no-redef]
+    import importlib.metadata as importlib_metadata
 
     pkgs = {}
     for dist in importlib_metadata.distributions():
@@ -47,10 +44,7 @@ def get_package_distributions() -> t.Mapping[str, t.List[str]]:
     """a mapping of importable package names to their distribution name(s)"""
     global _PACKAGE_DISTRIBUTIONS
     if _PACKAGE_DISTRIBUTIONS is None:
-        try:
-            import importlib.metadata as importlib_metadata
-        except ImportError:
-            import importlib_metadata  # type: ignore[no-redef]
+        import importlib.metadata as importlib_metadata
 
         # Prefer the official API if available, otherwise fallback to the vendored version
         if hasattr(importlib_metadata, "packages_distributions"):
@@ -89,13 +83,9 @@ def get_module_distribution_versions(module_name: str) -> t.Optional[t.Tuple[str
 
 
 @cached(maxsize=1024)
-def get_version_for_package(name):
-    # type: (str) -> str
+def get_version_for_package(name: str) -> str:
     """returns the version of a package"""
-    try:
-        import importlib.metadata as importlib_metadata
-    except ImportError:
-        import importlib_metadata  # type: ignore[no-redef]
+    import importlib.metadata as importlib_metadata
 
     try:
         return importlib_metadata.version(name)
@@ -107,6 +97,21 @@ def _effective_root(rel_path: Path, parent: Path) -> str:
     base = rel_path.parts[0]
     root = parent / base
     return base if root.is_dir() and (root / "__init__.py").exists() else "/".join(rel_path.parts[:2])
+
+
+# DEV: Since we can't lock on sys.path, these operations can be racy.
+_SYS_PATH_HASH: t.Optional[int] = None
+_RESOLVED_SYS_PATH: t.List[Path] = []
+
+
+def resolve_sys_path() -> t.List[Path]:
+    global _SYS_PATH_HASH, _RESOLVED_SYS_PATH
+
+    if (h := hash(tuple(sys.path))) != _SYS_PATH_HASH:
+        _SYS_PATH_HASH = h
+        _RESOLVED_SYS_PATH = [Path(_).resolve() for _ in sys.path]
+
+    return _RESOLVED_SYS_PATH
 
 
 def _root_module(path: Path) -> str:
@@ -122,7 +127,7 @@ def _root_module(path: Path) -> str:
     # Try to resolve the root module using sys.path. We keep the shortest
     # relative path as the one more likely to give us the root module.
     min_relative_path = max_parent_path = None
-    for parent_path in (Path(_).resolve() for _ in sys.path):
+    for parent_path in resolve_sys_path():
         try:
             relative = path.relative_to(parent_path)
             if min_relative_path is None or len(relative.parents) < len(min_relative_path.parents):
@@ -149,10 +154,7 @@ def _root_module(path: Path) -> str:
 
 @callonce
 def _package_for_root_module_mapping() -> t.Optional[t.Dict[str, Distribution]]:
-    try:
-        import importlib.metadata as importlib_metadata
-    except ImportError:
-        import importlib_metadata as importlib_metadata  # type: ignore[no-redef]
+    import importlib.metadata as importlib_metadata
 
     namespaces: t.Dict[str, bool] = {}
 
@@ -253,7 +255,9 @@ platlib_path = Path(sysconfig.get_path("platlib")).resolve()
 
 @cached(maxsize=256)
 def is_stdlib(path: Path) -> bool:
-    rpath = path.resolve()
+    rpath = path
+    if not rpath.is_absolute() or rpath.is_symlink():
+        rpath = rpath.resolve()
 
     return (rpath.is_relative_to(stdlib_path) or rpath.is_relative_to(platstdlib_path)) and not (
         rpath.is_relative_to(purelib_path) or rpath.is_relative_to(platlib_path)
@@ -290,10 +294,7 @@ def _(path: str) -> bool:
 @cached(maxsize=256)
 def is_distribution_available(name: str) -> bool:
     """Determine if a distribution is available in the current environment."""
-    try:
-        import importlib.metadata as importlib_metadata
-    except ImportError:
-        import importlib_metadata  # type: ignore[no-redef]
+    import importlib.metadata as importlib_metadata
 
     try:
         importlib_metadata.distribution(name)
@@ -317,10 +318,7 @@ def _packages_distributions() -> t.Mapping[str, t.List[str]]:
     >>> all(isinstance(dist, collections.abc.Sequence) for dist in pkgs.values())
     True
     """
-    try:
-        import importlib.metadata as importlib_metadata
-    except ImportError:
-        import importlib_metadata  # type: ignore[no-redef]
+    import importlib.metadata as importlib_metadata
 
     pkg_to_dist = collections.defaultdict(list)
     for dist in importlib_metadata.distributions():

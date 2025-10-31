@@ -6,6 +6,7 @@ import wrapt
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -14,7 +15,6 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.trace import Pin
 
 
 log = get_logger(__name__)
@@ -254,7 +254,7 @@ async def sanic_http_routing_after(request, route, kwargs, handler):
         pattern = route.pattern
 
     span.resource = "{} {}".format(request.method, pattern)
-    span.set_tag_str("sanic.route.name", route.name)
+    span._set_tag_str("sanic.route.name", route.name)
 
 
 async def sanic_http_lifecycle_response(request, response):

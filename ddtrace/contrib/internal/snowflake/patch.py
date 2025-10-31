@@ -4,6 +4,7 @@ from typing import Dict
 import wrapt
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.dbapi import TracedCursor
 from ddtrace.contrib.internal.trace_utils import unwrap
@@ -11,7 +12,6 @@ from ddtrace.ext import db
 from ddtrace.ext import net
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.trace import Pin
 
 
 config._add(
@@ -47,7 +47,7 @@ def _supported_versions() -> Dict[str, str]:
 class _SFTracedCursor(TracedCursor):
     def _set_post_execute_tags(self, span):
         super(_SFTracedCursor, self)._set_post_execute_tags(span)
-        span.set_tag_str("sfqid", self.__wrapped__.sfqid)
+        span._set_tag_str("sfqid", self.__wrapped__.sfqid)
 
 
 def patch():

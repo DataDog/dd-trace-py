@@ -1,0 +1,99 @@
+[[
+  {
+    "name": "azure.functions.invoke",
+    "service": "test-func",
+    "resource": "POST /api/topicsendmessagesingle",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "serverless",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68c335e600000000",
+      "aas.function.name": "topic_send_single_message",
+      "aas.function.trigger": "Http",
+      "component": "azure_functions",
+      "http.method": "POST",
+      "http.route": "/api/topicsendmessagesingle",
+      "http.status_code": "200",
+      "http.url": "http://0.0.0.0:7071/api/topicsendmessagesingle",
+      "http.useragent": "python-httpx/x.xx.x",
+      "language": "python",
+      "runtime-id": "cfaf2c798e854cfb946379a60687ba05",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 11181
+    },
+    "duration": 1027043376,
+    "start": 1757623782242818133
+  },
+     {
+       "name": "azure.servicebus.send",
+       "service": "azure_servicebus",
+       "resource": "topic.1",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "worker",
+       "meta": {
+         "_dd.base_service": "test-func",
+         "component": "azure_servicebus",
+         "messaging.destination.name": "topic.1",
+         "messaging.message_id": "267837d3-0aa8-4585-bee6-e3a36d51452e",
+         "messaging.operation": "send",
+         "messaging.system": "servicebus",
+         "network.destination.name": "localhost",
+         "span.kind": "producer"
+       },
+       "metrics": {
+         "_dd.top_level": 1
+       },
+       "duration": 29630209,
+       "start": 1757623782749328633
+     }],
+[
+  {
+    "name": "azure.functions.invoke",
+    "service": "test-func",
+    "resource": "ServiceBus servicebustopic",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "serverless",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68c335e600000000",
+      "aas.function.name": "servicebustopic",
+      "aas.function.trigger": "ServiceBus",
+      "component": "azure_functions",
+      "language": "python",
+      "messaging.destination.name": "topic.1",
+      "messaging.message_id": "267837d3-0aa8-4585-bee6-e3a36d51452e",
+      "messaging.operation": "receive",
+      "messaging.system": "servicebus",
+      "network.destination.name": "localhost",
+      "runtime-id": "cfaf2c798e854cfb946379a60687ba05",
+      "span.kind": "consumer"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 11181
+    },
+    "span_links": [
+      {
+        "trace_id": 0,
+        "span_id": 2,
+        "tracestate": "dd=s:1;t.dm:-0;t.tid:68c335e600000000",
+        "flags": 2147483649,
+        "trace_id_high": 7548936662361833472
+      }
+    ],
+    "duration": 1049708,
+    "start": 1757623782932002342
+  }]]

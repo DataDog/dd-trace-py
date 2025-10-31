@@ -7,6 +7,7 @@ import boto.connection
 import wrapt
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace._trace.utils_botocore.span_tags import _derive_peer_hostname
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
@@ -21,7 +22,6 @@ from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap
-from ddtrace.trace import Pin
 
 
 # Original boto client class
@@ -94,10 +94,10 @@ def patched_query_request(original_func, instance, args, kwargs):
         service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
         span_type=SpanTypes.HTTP,
     ) as span:
-        span.set_tag_str(COMPONENT, config.boto.integration_name)
+        span._set_tag_str(COMPONENT, config.boto.integration_name)
 
         # set span.kind to the type of request being performed
-        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         # PERF: avoid setting via Span.set_tag
         span.set_metric(_SPAN_MEASURED_KEY, 1)
@@ -124,6 +124,7 @@ def patched_query_request(original_func, instance, args, kwargs):
         if region_name:
             meta[aws.REGION] = region_name
             meta[aws.AWSREGION] = region_name
+            meta[aws.PARTITION] = aws.get_aws_partition(region_name)
 
             if in_aws_lambda():
                 # Derive the peer hostname now that we have both service and region.
@@ -136,7 +137,7 @@ def patched_query_request(original_func, instance, args, kwargs):
         # Original func returns a boto.connection.HTTPResponse object
         result = original_func(*args, **kwargs)
         span.set_tag(http.STATUS_CODE, result.status)
-        span.set_tag_str(http.METHOD, result._method)
+        span._set_tag_str(http.METHOD, result._method)
 
         return result
 
@@ -192,6 +193,7 @@ def patched_auth_request(original_func, instance, args, kwargs):
         if region_name:
             meta[aws.REGION] = region_name
             meta[aws.AWSREGION] = region_name
+            meta[aws.PARTITION] = aws.get_aws_partition(region_name)
 
             if in_aws_lambda():
                 # Derive the peer hostname
@@ -204,12 +206,12 @@ def patched_auth_request(original_func, instance, args, kwargs):
         # Original func returns a boto.connection.HTTPResponse object
         result = original_func(*args, **kwargs)
         span.set_tag(http.STATUS_CODE, result.status)
-        span.set_tag_str(http.METHOD, result._method)
+        span._set_tag_str(http.METHOD, result._method)
 
-        span.set_tag_str(COMPONENT, config.boto.integration_name)
+        span._set_tag_str(COMPONENT, config.boto.integration_name)
 
         # set span.kind to the type of request being performed
-        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         return result
 

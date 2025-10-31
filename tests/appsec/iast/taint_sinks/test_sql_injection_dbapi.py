@@ -2,13 +2,13 @@ from unittest import mock
 
 import pytest
 
+from ddtrace._trace.pin import Pin
 from ddtrace.appsec._iast import load_iast
 from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.contrib.dbapi import TracedCursor
 from ddtrace.settings._config import Config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.integration import IntegrationConfig
-from ddtrace.trace import Pin
 from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
 from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 from tests.utils import TracerTestCase
@@ -27,8 +27,8 @@ class TestTracedCursor(TracerTestCase):
             )
         ):
             _start_iast_context_and_oce()
-        self.cursor = mock.Mock()
-        self.cursor.execute.__name__ = "execute"
+            self.cursor = mock.Mock()
+            self.cursor.execute.__name__ = "execute"
 
     def tearDown(self):
         with override_global_config(

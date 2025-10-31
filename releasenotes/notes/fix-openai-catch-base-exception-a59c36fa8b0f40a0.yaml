@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    openai: Resolves an issue in the OpenAI integration where ``asyncio.CancelledError`` was not caught or re-raised.

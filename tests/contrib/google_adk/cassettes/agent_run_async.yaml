@@ -1,0 +1,158 @@
+interactions:
+  - request:
+      body:
+        '{"contents": [{"parts": [{"text": "First, call the search_docs tool with
+        query ''test''. Then call multiply with a=5 and b=3. Finally, execute Python
+        code to print the result."}], "role": "user"}], "systemInstruction": {"parts":
+        [{"text": "You are a test agent. When needed: (1) plan, (2) search, (3) write
+        short Python to compute results. Be concise.\n\nYou are an agent. Your internal
+        name is \"test_agent\".\n\n The description about you is \"Test agent for ADK
+        integration testing\""}], "role": "user"}, "tools": [{"functionDeclarations":
+        [{"description": "A tiny search tool stub.", "name": "search_docs", "parameters":
+        {"properties": {"query": {"type": "STRING"}}, "type": "OBJECT"}}, {"description":
+        "Simple arithmetic tool.", "name": "multiply", "parameters": {"properties":
+        {"a": {"type": "INTEGER"}, "b": {"type": "INTEGER"}}, "type": "OBJECT"}}]}],
+        "generationConfig": {}}'
+      headers:
+        accept:
+          - '*/*'
+        accept-encoding:
+          - gzip, deflate
+        connection:
+          - keep-alive
+        content-length:
+          - '881'
+        content-type:
+          - application/json
+        host:
+          - generativelanguage.googleapis.com
+        user-agent:
+          - google-genai-sdk/1.36.0 gl-python/3.12.11 google-adk/1.0.0 gl-python/3.12.11
+      method: POST
+      uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent
+    response:
+      body:
+        string: !!binary |
+          H4sIAAAAAAAC/51V246jRhB9n68Y+ZVssDEYiLQPgG0uBnO/mCiKMLQxNnRjaIzxav89zMzOrme1
+          ipTwgJpzqqpPFVKdL0/Pz5M0gVmRJRi0kz+e/xyR5+cvr+8XDkEMIB6Jd2gE66TBP2Lfni8P5zHk
+          0MEUFwhKSVl+SP7Gw6QCIz5pQdKkx78zlLaT334OSpq8/UXyyFw60Awv+aNoPPmJ//rh++vHshN8
+          RF1+xG6RwwR3zasK6aquhUzBRcVtF1Jy9+uNgpkwbDmq6LhqyxrWQT97a3UlXRk/tWiDqk1t50+d
+          TOvmSFgnWocIMqbleNYYHLu6t/R0VpYDVqVrXmW2n0FbDy8w8LJpRnJWn4k+rHXdtNEKmuWZECgI
+          5etqEd08ljLKFXEl6Y7uC4eS4o0AbcKX2KIpYeQHFNzudEJWVT08tap8PyYr7HNMMN9DdUuVAm2r
+          OHb4+MZnYtdX97uw0rX7DnS9MM0r4iCURs4zhY92p2Cv7YC8sWlPoJbVjb0soyYcgCZUcmzN2dlg
+          +bjH5RnBSDht4ws7m+WeWwxMvWaqRqmnxMGNyBwZvHuVy2J7YqChVMC5KIOq9tdGwNlZIuMIgAwP
+          hXapuY46REKQL7CqlkpWdlUVFvV0WTJ4SjTB8tgTgdHAoadNg70ond4sStoOGkmUXUiyd12aA7vl
+          tSqx0W5mmgbPhVt/Y4oLXd5tlgpHmBcyINZTWV9G+4vhWxXPpIYXJML0KFeEJVHGzEpRuM4OUtTa
+          Kz1QbG4ph/pVkveaCnoMVs1wEq0kLxVyyQjzuR7Qi3tbyY4b3q7y5dzkAkn1qSgZEdi6pdLYB9Gx
+          ZDtdI01wRcer73ZEyxStDfx2oyB9t+rj9TIXmXtPntxKxdHiyskaWSpp53j0QTFPZmp5c0RaaXqb
+          h2IYJ9MQKUXpjZIgs0ADYAUu79cJNM5CvD1wWyoLW4JOFxHTW0pnGfJ0htv1NRHiRFuhPQgad348
+          rz3ScyMfXDh6hxnpHoe8Gjh8pXq7mKeBI2r0kUXp7OC69al3CM06X5mm9Y+0SeJjnQmz9EBqtaNe
+          nA3e7Mlhe3RmJKFyooFCcoZ6Mu1K9ezmUGdYsxt6kKMMegWRc1RmrplU3STrK1Dkkx4LgokWXc9t
+          eUqZpmvR9W6k7ucmGVlFDb0jaSksJNZHzNqhtK9PN6ExhMFI01YnbCfgMq3MXEEq5413DabCyUN1
+          KlbdnI1dl/e7U0VmzJXfllJV8EZiqcSevonhaTDITa2MOSwX0ieC1S0hKL3+8+fHrfFhR/zPTVZ1
+          JS7qcvgva2w/wvOf418yRpz596329KvzXz9qTRpUvulCGSjfm/3e6ORQwKI9OiBpEXwJcz3T+i59
+          UsAM3EZ4+vR+wWvpSdcmOTAATka7SL73NKkbVNXYQ2cAJdS92sWMp9+qPdjLh4D5t8YnGOGk/EDR
+          9Dv3ULhdjtcW5aPvPFjS2GVSFvjVE7xV5D38hfGCj7reZ/H0MLJ3W/iokZotnr4N7W2OAWja4m1g
+          OajGEX6ifmc+jSpf75s0oK0RbIGavUQsOF1NzGIv0tUwM84W10L2k3CePH19+gcd9w4feAcAAA==
+      headers:
+        Alt-Svc:
+          - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+        Content-Encoding:
+          - gzip
+        Content-Type:
+          - application/json; charset=UTF-8
+        Date:
+          - Tue, 16 Sep 2025 01:52:43 GMT
+        Server:
+          - scaffolding on HTTPServer2
+        Server-Timing:
+          - gfet4t7; dur=4674
+        Transfer-Encoding:
+          - chunked
+        Vary:
+          - Origin
+          - X-Origin
+          - Referer
+        X-Content-Type-Options:
+          - nosniff
+        X-Frame-Options:
+          - SAMEORIGIN
+        X-XSS-Protection:
+          - '0'
+      status:
+        code: 200
+        message: OK
+  - request:
+      body:
+        '{"contents": [{"parts": [{"text": "First, call the search_docs tool with
+        query ''test''. Then call multiply with a=5 and b=3. Finally, execute Python
+        code to print the result."}], "role": "user"}, {"parts": [{"thoughtSignature":
+        "CvIFAdHtim8N6CazUpKHt5WWs82iu8mN7MPfLkTFIECv5UcP4M2pOJYU0RdJu3oAFaJuo-_Z4GZ1rM87Ezs401llytICvgmdQUdnQLWqnVTd0d_8PwdBUnpLLOQoEnOlk-A2nnGvE6XxT72MlE-v_4u4wiR2CZKAnQ-UC7irlnXUV2nNYL-GIILWjsIGzhaEtU85V3bnIN2lA4QItZR9Zx9dBuwmzzAELJzYeuwA0gm-fAlMg95iUoYjVbJYeGKQ4TA2Dmx7qDXrWyeJAmGZP371yPUtwtlkonXAjNZq711gTSiy5pF5mrHp0-fSX_goM9SvGliNj5nMHmeRqHyIIwvrAtdkC_ZXeedtyiJqp8u2fXAVg6tIIlHdlummWip0Dl5t0-rVDhw-VMrnyw4OM7qHuLr6l4QVrCBGSn_7zLC3eQs9JmaQoY1OOM98WNUKOB6LGYKDH8-Oq_V-F0GLDXbqMUPm95cMTVaA0hGm-PC2M1PcoWFdfCXsQELVHQ8DGWLvCGbJIewteEryjBPaglH_D5A33LV46zsmGRSWxvGqkrgA_2wcBCMXeNSlHrQfBRPGQcFoJASBRTpzQX4G24Jy9NKHoLYEwZFDgB5zw_jSmItX6v8GJ_lHcuRT4fHOjOcPT3o_Pccx3WBWZa0WoHilTbJIn56oye7A8gwFanMkAZNf8N2dWs-4c6X5wPHuPMG01tsFvaAZaJEobeVrS3hkFT_TSXUeq84Yt5CzZW9IVR9mITYZ94eRBJ4h7oc1fSSpjwR-JPkv5rsUh4O_thpdA1cf_JpRIqRKtKb_yNhR1_-I8BMoW_1ow_culIkSgnL57OuywegodnTi-g82dOF5cIKaFveHGjLZAAOo6uw8N92H0cFBSTx_LUgO_XPipnTh_PH7n-Fht7QWCbpjxArMAyMccsL-QRV8dJldSACl3rTvV0AjTopcBmu37ZSS9Uujm_d5v9NlCmi9MaPI-b4xBWjyM_KpHrTv78W4j-7LPAVlTw==",
+        "functionCall": {"args": {"query": "test"}, "name": "search_docs"}}, {"functionCall":
+        {"args": {"b": 3, "a": 5}, "name": "multiply"}}], "role": "model"}, {"parts":
+        [{"functionResponse": {"name": "search_docs", "response": {"results": ["Found
+        reference for: test"]}}}, {"functionResponse": {"name": "multiply", "response":
+        {"product": 15}}}], "role": "user"}], "systemInstruction": {"parts": [{"text":
+        "You are a test agent. When needed: (1) plan, (2) search, (3) write short Python
+        to compute results. Be concise.\n\nYou are an agent. Your internal name is \"test_agent\".\n\n
+        The description about you is \"Test agent for ADK integration testing\""}],
+        "role": "user"}, "tools": [{"functionDeclarations": [{"description": "A tiny
+        search tool stub.", "name": "search_docs", "parameters": {"properties": {"query":
+        {"type": "STRING"}}, "type": "OBJECT"}}, {"description": "Simple arithmetic
+        tool.", "name": "multiply", "parameters": {"properties": {"a": {"type": "INTEGER"},
+        "b": {"type": "INTEGER"}}, "type": "OBJECT"}}]}], "generationConfig": {}}'
+      headers:
+        accept:
+          - '*/*'
+        accept-encoding:
+          - gzip, deflate
+        connection:
+          - keep-alive
+        content-length:
+          - '2288'
+        content-type:
+          - application/json
+        host:
+          - generativelanguage.googleapis.com
+        user-agent:
+          - google-genai-sdk/1.36.0 gl-python/3.12.11 google-adk/1.0.0 gl-python/3.12.11
+      method: POST
+      uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent
+    response:
+      body:
+        string: !!binary |
+          H4sIAAAAAAAC/3VRwWrCQBC95yvCnlrQ0gipbW9Fe5BWKjUUQaRMk1EXN7tpdgSD+O8dN4kmtt1D
+          djPz5s2bN3vP90UMOpEJEFrx6M854vt79z3mjCbUxIk6xMEMcjpjy7NvvBmy3OqYpNEDUKpVXOU1
+          pMhxgTuMP7OC1kaLziUI8pX9o9jJSlx5lktNV0F4LS4wB++/v/N7cW4ocqMcYcrEqiY71ACxlFra
+          9TuCZZ0Mm0Zvk5NeIXWCOw7fenUDRy22FlY4RgI2F06DsGiTZhSZDeqB2Tpze+FDydZYRgsQ3Fd5
+          MgSqXdvvd34R2yG3laq5pcYCeUpQkorjKNHzLGpYzw3aumov3L3wKldKoz4wt7J0ZIUpe9Tt3YRd
+          luEIRY42M9riKDki+vHrCF7kbPg1pWC8mXzfRUXxZIR38H4AtuT8QocCAAA=
+      headers:
+        Alt-Svc:
+          - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+        Content-Encoding:
+          - gzip
+        Content-Type:
+          - application/json; charset=UTF-8
+        Date:
+          - Tue, 16 Sep 2025 01:52:45 GMT
+        Server:
+          - scaffolding on HTTPServer2
+        Server-Timing:
+          - gfet4t7; dur=2046
+        Transfer-Encoding:
+          - chunked
+        Vary:
+          - Origin
+          - X-Origin
+          - Referer
+        X-Content-Type-Options:
+          - nosniff
+        X-Frame-Options:
+          - SAMEORIGIN
+        X-XSS-Protection:
+          - '0'
+      status:
+        code: 200
+        message: OK
+version: 1

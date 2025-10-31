@@ -1,4 +1,3 @@
-from ctypes import c_char
 from dataclasses import asdict
 import json
 import os
@@ -46,7 +45,7 @@ class PublisherSubscriberConnector:
 
     def __init__(self):
         try:
-            self.data = get_mp_context().Array(c_char, SHARED_MEMORY_SIZE, lock=False)
+            self.data = get_mp_context().Array("c", SHARED_MEMORY_SIZE, lock=False)
         except FileNotFoundError:
             log.warning(
                 "Unable to create shared memory. Features relying on remote configuration will not work as expected."

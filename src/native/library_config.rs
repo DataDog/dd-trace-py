@@ -42,7 +42,13 @@ impl PyConfigurator {
             &ProcessInfo::detect_global("python".to_string()),
         );
         match res_config {
-            Ok(config) => {
+            datadog_library_config::LoggedResult::Ok(config, logs) => {
+                // Previously, `libdatadog` printed debug logs to stderr. However,
+                // in v21.0.0, we changed the behavior to buffer them and return
+                // them in the logs returned by this `LoggedResult`.
+                for log_msg in logs.iter() {
+                    eprintln!("{}", log_msg);
+                }
                 let list = PyList::empty(py);
                 for c in config.iter() {
                     let dict = PyDict::new(py);
@@ -54,7 +60,7 @@ impl PyConfigurator {
                 }
                 Ok(list.into())
             }
-            Err(e) => {
+            datadog_library_config::LoggedResult::Err(e) => {
                 let err_msg = format!("Failed to get configuration: {e:?}");
                 Err(PyException::new_err(err_msg))
             }
@@ -70,11 +76,14 @@ pub struct PyTracerMetadata {
     pub service_name: Option<String>,
     pub service_env: Option<String>,
     pub service_version: Option<String>,
+    pub process_tags: Option<String>,
+    pub container_id: Option<String>,
 }
 
 #[pymethods]
 impl PyTracerMetadata {
     #[new]
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         runtime_id: Option<String>,
         tracer_version: String,
@@ -82,6 +91,8 @@ impl PyTracerMetadata {
         service_name: Option<String>,
         service_env: Option<String>,
         service_version: Option<String>,
+        process_tags: Option<String>,
+        container_id: Option<String>,
     ) -> Self {
         PyTracerMetadata {
             runtime_id,
@@ -90,6 +101,8 @@ impl PyTracerMetadata {
             service_name,
             service_env,
             service_version,
+            process_tags,
+            container_id,
         }
     }
 }
@@ -112,6 +125,8 @@ pub fn store_metadata(data: &PyTracerMetadata) -> PyResult<PyAnonymousFileHandle
         service_name: data.service_name.clone(),
         service_env: data.service_env.clone(),
         service_version: data.service_version.clone(),
+        process_tags: data.process_tags.clone(),
+        container_id: data.container_id.clone(),
     };
 
     let res = store_tracer_metadata(&metadata);

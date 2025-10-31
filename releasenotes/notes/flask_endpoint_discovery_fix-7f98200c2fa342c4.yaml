@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    AAP: This fix resolves an issue where the endpoint discovery feature could generate a crash for flask at startup.

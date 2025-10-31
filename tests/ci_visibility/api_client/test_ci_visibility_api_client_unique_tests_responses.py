@@ -1,4 +1,5 @@
 """NOTE: this lives in its own file simply because some of the test variables are unwieldy"""
+
 from http.client import RemoteDisconnected
 import socket
 import textwrap
@@ -67,7 +68,7 @@ class TestTestVisibilityAPIClientKnownTestResponses(TestTestVisibilityAPIClientB
         """Tests that the client correctly returns known tests from API response"""
         client = self._get_test_client()
         with mock.patch.object(client, "_do_request", return_value=known_test_response):
-            assert client.fetch_known_tests() == expected_tests
+            assert client.fetch_known_tests(read_from_cache=False) == expected_tests
 
     @pytest.mark.parametrize(
         "do_request_side_effect",
@@ -101,6 +102,8 @@ class TestTestVisibilityAPIClientKnownTestResponses(TestTestVisibilityAPIClientB
     def test_civisibility_api_client_known_tests_errors(self, do_request_side_effect):
         """Tests that the client correctly handles errors in the known test API response"""
         client = self._get_test_client()
-        with mock.patch.object(client, "_do_request", side_effect=[do_request_side_effect]):
-            settings = client.fetch_known_tests()
+        with mock.patch.object(client, "_do_request", side_effect=[do_request_side_effect] * 5), mock.patch(
+            "ddtrace.internal.utils.retry.sleep"
+        ):
+            settings = client.fetch_known_tests(read_from_cache=False)
             assert settings is None

@@ -34,6 +34,7 @@ from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.serverless import has_aws_lambda_agent_extension
 from ddtrace.internal.serverless import in_aws_lambda
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import LogWriter
 from ddtrace.settings._config import Config
@@ -1036,9 +1037,11 @@ def test_start_span_hooks():
 
     result = {}
 
-    @t.on_start_span
-    def store_span(span):
-        result["span"] = span
+    with pytest.warns(DDTraceDeprecationWarning):
+
+        @t.on_start_span
+        def store_span(span):
+            result["span"] = span
 
     try:
         span = t.start_span("hello")
@@ -1049,7 +1052,8 @@ def test_start_span_hooks():
         # Cleanup after the test is done
         # DEV: Since we use the core API for these hooks,
         #      they are not isolated to a single tracer instance
-        t.deregister_on_start_span(store_span)
+        with pytest.warns(DDTraceDeprecationWarning):
+            t.deregister_on_start_span(store_span)
 
 
 def test_deregister_start_span_hooks():
@@ -1057,11 +1061,14 @@ def test_deregister_start_span_hooks():
 
     result = {}
 
-    @t.on_start_span
-    def store_span(span):
-        result["span"] = span
+    with pytest.warns(DDTraceDeprecationWarning):
 
-    t.deregister_on_start_span(store_span)
+        @t.on_start_span
+        def store_span(span):
+            result["span"] = span
+
+    with pytest.warns(DDTraceDeprecationWarning):
+        t.deregister_on_start_span(store_span)
 
     with t.start_span("hello"):
         pass
@@ -1894,30 +1901,6 @@ def test_finish_span_with_ancestors(tracer):
     assert span1.finished
     assert span2.finished
     assert span3.finished
-
-
-def test_ctx_api(tracer):
-    from ddtrace.internal import core
-
-    assert core.get_item("key") is None
-
-    with tracer.trace("root") as span:
-        v = core.get_item("my.val")
-        assert v is None
-
-        core.set_item("appsec.key", "val", span=span)
-        core.set_items({"appsec.key2": "val2", "appsec.key3": "val3"}, span=span)
-        assert core.get_item("appsec.key", span=span) == "val"
-        assert core.get_item("appsec.key2", span=span) == "val2"
-        assert core.get_item("appsec.key3", span=span) == "val3"
-        assert core.get_items(["appsec.key"], span=span) == ["val"]
-        assert core.get_items(["appsec.key", "appsec.key2", "appsec.key3"], span=span) == ["val", "val2", "val3"]
-
-        with tracer.trace("child") as childspan:
-            assert core.get_item("appsec.key", span=childspan) == "val"
-
-    assert core.get_item("appsec.key") is None
-    assert core.get_items(["appsec.key"]) == [None]
 
 
 @pytest.mark.parametrize("sca_enabled", ["true", "false"])

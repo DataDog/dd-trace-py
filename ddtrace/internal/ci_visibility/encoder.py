@@ -264,6 +264,11 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
             for span in item
             if COVERAGE_TAG_NAME in span.get_tags() or span.get_struct_tag(COVERAGE_TAG_NAME) is not None
         ]
+        # Also include session span for parent session ID lookup, even if it doesn't have coverage data
+        session_span = next((span for span in item if span.get_tag(EVENT_TYPE) == SESSION_TYPE), None)
+        if session_span and session_span not in spans_with_coverage:
+            spans_with_coverage.append(session_span)
+
         if not spans_with_coverage:
             raise NoEncodableSpansError()
         return super(CIVisibilityCoverageEncoderV02, self).put(spans_with_coverage)
@@ -294,11 +299,12 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
         )
 
     def _build_data(self, traces: List[List[Span]]) -> Optional[bytes]:
+        new_parent_session_span_id = self._get_parent_session(traces)
         normalized_covs = [
-            self._convert_span(span)
+            self._convert_span(span, new_parent_session_span_id=new_parent_session_span_id)
             for trace in traces
             for span in trace
-            if (COVERAGE_TAG_NAME in span.get_tags() or span.get_struct_tag(COVERAGE_TAG_NAME) is not None)
+            if (COVERAGE_TAG_NAME in span.get_tags() or span._get_struct_tag(COVERAGE_TAG_NAME) is not None)
         ]
         if not normalized_covs:
             return None
@@ -318,14 +324,14 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
         # DEV: new_parent_session_span_id is unused here, but it is used in super class
         files: dict[str, Any] = {}
 
-        files_struct_tag_value = span.get_struct_tag(COVERAGE_TAG_NAME)
+        files_struct_tag_value = span._get_struct_tag(COVERAGE_TAG_NAME)
         if files_struct_tag_value is not None and "files" in files_struct_tag_value:
             files = files_struct_tag_value["files"]
         elif COVERAGE_TAG_NAME in span.get_tags():
             files = json.loads(str(span.get_tag(COVERAGE_TAG_NAME)))["files"]
 
         converted_span = {
-            "test_session_id": int(span.get_tag(SESSION_ID) or "1"),
+            "test_session_id": new_parent_session_span_id or int(span.get_tag(SESSION_ID) or "1"),
             "test_suite_id": int(span.get_tag(SUITE_ID) or "1"),
             "files": files,
         }

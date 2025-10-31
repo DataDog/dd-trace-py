@@ -34,9 +34,9 @@ from ddtrace.appsec._iast.secure_marks.validators import header_injection_valida
 from ddtrace.appsec._iast.secure_marks.validators import ssrf_validator
 from ddtrace.appsec._iast.secure_marks.validators import unvalidated_redirect_validator
 from ddtrace.appsec._iast.taint_sinks.code_injection import patch as code_injection_patch
-from ddtrace.appsec._iast.taint_sinks.command_injection import patch as command_injection_patch
 from ddtrace.appsec._iast.taint_sinks.header_injection import patch as header_injection_patch
 from ddtrace.appsec._iast.taint_sinks.insecure_cookie import patch as insecure_cookie_patch
+from ddtrace.appsec._iast.taint_sinks.untrusted_serialization import patch as unstrusted_serialization_patch
 from ddtrace.appsec._iast.taint_sinks.unvalidated_redirect import patch as unvalidated_redirect_patch
 from ddtrace.appsec._iast.taint_sinks.weak_cipher import patch as weak_cipher_patch
 from ddtrace.appsec._iast.taint_sinks.weak_hash import patch as weak_hash_patch
@@ -66,9 +66,9 @@ def patch_iast():
     # sink points
     if asm_config._iast_sink_points_enabled:
         code_injection_patch()
-        command_injection_patch()
         header_injection_patch()
         insecure_cookie_patch()
+        unstrusted_serialization_patch()
         unvalidated_redirect_patch()
         weak_cipher_patch()
         weak_hash_patch()
@@ -85,9 +85,6 @@ def patch_iast():
         # CMDI sanitizers
         iast_funcs.wrap_function("shlex", "quote", cmdi_sanitizer)
 
-        # SSRF validators
-        iast_funcs.wrap_function("django.utils.http", "url_has_allowed_host_and_scheme", ssrf_validator)
-
         # SQL sanitizers
         iast_funcs.wrap_function("mysql.connector.conversion", "MySQLConverter.escape", sqli_sanitizer)
         iast_funcs.wrap_function("pymysql.connections", "Connection.escape_string", sqli_sanitizer)
@@ -95,6 +92,9 @@ def patch_iast():
 
         # Header Injection sanitizers
         iast_funcs.wrap_function("werkzeug.utils", "_str_header_value", header_injection_sanitizer)
+
+        # Path Traversal sanitizers
+        iast_funcs.wrap_function("werkzeug.utils", "secure_filename", path_traversal_sanitizer)
 
         # Header Injection validators
         # Header injection for > Django 3.2
@@ -110,8 +110,9 @@ def patch_iast():
         # Unvalidated Redirect validators
         iast_funcs.wrap_function("django.utils.http", "url_has_allowed_host_and_scheme", unvalidated_redirect_validator)
 
-        # Path Traversal sanitizers
-        iast_funcs.wrap_function("werkzeug.utils", "secure_filename", path_traversal_sanitizer)
+        # SSRF validators
+        iast_funcs.wrap_function("django.utils.http", "url_has_allowed_host_and_scheme", ssrf_validator)
+        iast_funcs.wrap_function("urllib.parse", "urlparse", ssrf_validator)
 
         # TODO: werkzeug.utils.safe_join propagation doesn't work because normpath which is not yet supported by IAST
         #  iast_funcs.wrap_function("werkzeug.utils", "safe_join", path_traversal_sanitizer)

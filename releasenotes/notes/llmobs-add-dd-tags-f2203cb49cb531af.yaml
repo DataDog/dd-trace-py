@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: Properly parse ``DD_TAGS`` onto LLM Observability span events' tags.

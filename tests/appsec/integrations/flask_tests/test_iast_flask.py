@@ -2,6 +2,7 @@ import json
 import traceback
 
 from flask import request
+from flask_babel import Babel
 import pytest
 
 from ddtrace.appsec._constants import IAST
@@ -56,6 +57,11 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             super(FlaskAppSecIASTEnabledTestCase, self).setUp()
             self.tracer.configure(iast_enabled=True)
             oce.reconfigure()
+
+            # Initialize Flask-Babel
+            self.babel = Babel(self.app)
+            self.app.config["BABEL_DEFAULT_LOCALE"] = "en"
+            self.app.config["BABEL_TRANSLATION_DIRECTORIES"] = "translations"
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_http_request_path_parameter(self):
@@ -1963,6 +1969,58 @@ Lorem Ipsum Foobar
                 ]
             }
             assert vulnerability["location"]["path"] == "tests/contrib/flask/test_templates/test_insecure.html"
+
+    def test_flask_xss_trans_template(self):
+        # Add a route path function that the template will use
+        @self.app.route("/search")
+        def search():
+            return "search page"
+
+        @self.app.route("/xss/trans-template/", methods=["GET"])
+        def xss_view_trans_template():
+            from flask import render_template
+            from flask import request
+
+            user_input = request.args.get("input", "")
+
+            # label test_flask_xss_trans_template
+            return render_template(
+                "test_trans_insecure.html",
+                user_input=user_input,
+                request=request,  # Make request available in the template
+            )
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+                _iast_deduplication_enabled=False,
+                _iast_request_sampling=100.0,
+            )
+        ):
+            resp = self.client.get("/xss/trans-template/?input=<script>alert('XSS')</script>")
+            assert resp.status_code == 200
+            # The response should contain the translated text and escaped user input
+            assert b'Click <a href="/search">here</a> to search' in resp.data
+            # The user input should be escaped in the response
+            assert b"<div><script>alert('XSS')</script></div>" in resp.data
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+            loaded = load_iast_report(root_span)
+            assert loaded["sources"] == [
+                {"origin": "http.request.parameter", "name": "input", "value": "<script>alert('XSS')</script>"}
+            ]
+
+            line, hash_value = get_line_and_hash("test_flask_xss_trans_template", VULN_XSS, filename=TEST_FILE_PATH)
+            vulnerability = loaded["vulnerabilities"][0]
+            assert vulnerability["type"] == VULN_XSS
+            assert vulnerability["evidence"] == {
+                "valueParts": [
+                    {"value": "<script>alert('XSS')</script>", "source": 0},
+                ]
+            }
+            assert vulnerability["location"]["path"] == "tests/contrib/flask/test_templates/test_trans_insecure.html"
 
     def test_flask_iast_sampling(self):
         @self.app.route("/appsec/iast_sampling/", methods=["GET"])

@@ -3,9 +3,6 @@
 #include "sampler.hpp"
 #include "thread_span_links.hpp"
 
-#include <mutex>
-#include <unordered_map>
-
 using namespace Datadog;
 
 static PyObject*
@@ -73,7 +70,10 @@ stack_v2_thread_register(PyObject* self, PyObject* args)
         return NULL;
     }
 
+    Py_BEGIN_ALLOW_THREADS;
     Sampler::get().register_thread(id, native_id, name);
+    Py_END_ALLOW_THREADS;
+
     Py_RETURN_NONE;
 }
 
@@ -87,8 +87,11 @@ stack_v2_thread_unregister(PyObject* self, PyObject* args)
         return NULL;
     }
 
+    Py_BEGIN_ALLOW_THREADS;
     Sampler::get().unregister_thread(id);
     ThreadSpanLinks::get_instance().unlink_span(id);
+    Py_END_ALLOW_THREADS;
+
     Py_RETURN_NONE;
 }
 
@@ -122,7 +125,9 @@ _stack_v2_link_span(PyObject* self, PyObject* args, PyObject* kwargs)
         span_type = empty_string.c_str();
     }
 
+    Py_BEGIN_ALLOW_THREADS;
     ThreadSpanLinks::get_instance().link_span(thread_id, span_id, local_root_span_id, std::string(span_type));
+    Py_END_ALLOW_THREADS;
 
     Py_RETURN_NONE;
 }
@@ -140,7 +145,9 @@ stack_v2_track_asyncio_loop(PyObject* self, PyObject* args)
         return NULL;
     }
 
+    Py_BEGIN_ALLOW_THREADS;
     Sampler::get().track_asyncio_loop(thread_id, loop);
+    Py_END_ALLOW_THREADS;
 
     Py_RETURN_NONE;
 }
@@ -172,7 +179,9 @@ stack_v2_link_tasks(PyObject* self, PyObject* args)
         return NULL;
     }
 
+    Py_BEGIN_ALLOW_THREADS;
     Sampler::get().link_tasks(parent, child);
+    Py_END_ALLOW_THREADS;
 
     Py_RETURN_NONE;
 }
@@ -201,17 +210,18 @@ track_greenlet(PyObject* Py_UNUSED(m), PyObject* args)
     if (!PyArg_ParseTuple(args, "lOO", &greenlet_id, &name, &frame))
         return NULL;
 
-    StringTable::Key greenlet_name;
-
-    try {
-        greenlet_name = string_table.key(name);
-    } catch (StringTable::Error&) {
+    auto maybe_greenlet_name = string_table.key(name);
+    if (!maybe_greenlet_name) {
         // We failed to get this task but we keep going
         PyErr_SetString(PyExc_RuntimeError, "Failed to get greenlet name from the string table");
         return NULL;
     }
 
+    auto greenlet_name = *maybe_greenlet_name;
+
+    Py_BEGIN_ALLOW_THREADS;
     Sampler::get().track_greenlet(greenlet_id, greenlet_name, frame);
+    Py_END_ALLOW_THREADS;
 
     Py_RETURN_NONE;
 }
@@ -223,7 +233,9 @@ untrack_greenlet(PyObject* Py_UNUSED(m), PyObject* args)
     if (!PyArg_ParseTuple(args, "l", &greenlet_id))
         return NULL;
 
+    Py_BEGIN_ALLOW_THREADS;
     Sampler::get().untrack_greenlet(greenlet_id);
+    Py_END_ALLOW_THREADS;
 
     Py_RETURN_NONE;
 }
@@ -236,7 +248,9 @@ link_greenlets(PyObject* Py_UNUSED(m), PyObject* args)
     if (!PyArg_ParseTuple(args, "ll", &child, &parent))
         return NULL;
 
+    Py_BEGIN_ALLOW_THREADS;
     Sampler::get().link_greenlets(parent, child);
+    Py_END_ALLOW_THREADS;
 
     Py_RETURN_NONE;
 }
@@ -250,7 +264,9 @@ update_greenlet_frame(PyObject* Py_UNUSED(m), PyObject* args)
     if (!PyArg_ParseTuple(args, "lO", &greenlet_id, &frame))
         return NULL;
 
+    Py_BEGIN_ALLOW_THREADS;
     Sampler::get().update_greenlet_frame(greenlet_id, frame);
+    Py_END_ALLOW_THREADS;
 
     Py_RETURN_NONE;
 }

@@ -1,0 +1,140 @@
+[[
+  {
+    "name": "azure.functions.invoke",
+    "service": "test-func",
+    "resource": "POST /api/queuesendmessagebatch",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "serverless",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68c332cc00000000",
+      "aas.function.name": "queue_send_message_batch",
+      "aas.function.trigger": "Http",
+      "component": "azure_functions",
+      "http.method": "POST",
+      "http.route": "/api/queuesendmessagebatch",
+      "http.status_code": "200",
+      "http.url": "http://0.0.0.0:7071/api/queuesendmessagebatch",
+      "http.useragent": "python-httpx/x.xx.x",
+      "language": "python",
+      "runtime-id": "cdda564dbbdd46eeb80690f69af5be5e",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 7094
+    },
+    "duration": 1025611292,
+    "start": 1757622988816079169
+  },
+     {
+       "name": "azure.servicebus.create",
+       "service": "azure_servicebus",
+       "resource": "queue.1",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "worker",
+       "meta": {
+         "_dd.base_service": "test-func",
+         "component": "azure_servicebus",
+         "messaging.destination.name": "queue.1",
+         "messaging.message_id": "a2755684-08f2-45b8-94a0-ac41b0d28172",
+         "messaging.operation": "create",
+         "messaging.system": "servicebus",
+         "network.destination.name": "localhost",
+         "span.kind": "producer"
+       },
+       "metrics": {
+         "_dd.top_level": 1
+       },
+       "duration": 1518542,
+       "start": 1757622989320127210
+     },
+     {
+       "name": "azure.servicebus.create",
+       "service": "azure_servicebus",
+       "resource": "queue.1",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "worker",
+       "meta": {
+         "_dd.base_service": "test-func",
+         "_dd.p.tid": "68c332cc00000000",
+         "component": "azure_servicebus",
+         "messaging.destination.name": "queue.1",
+         "messaging.message_id": "14789e1b-8a6b-450f-9d06-3184a828fc1d",
+         "messaging.operation": "create",
+         "messaging.system": "servicebus",
+         "network.destination.name": "localhost",
+         "span.kind": "producer"
+       },
+       "metrics": {
+         "_dd.top_level": 1
+       },
+       "duration": 273042,
+       "start": 1757622989322330252
+     },
+     {
+       "name": "azure.servicebus.send",
+       "service": "azure_servicebus",
+       "resource": "queue.1",
+       "trace_id": 0,
+       "span_id": 4,
+       "parent_id": 1,
+       "type": "worker",
+       "meta": {
+         "_dd.base_service": "test-func",
+         "_dd.p.tid": "68c332cc00000000",
+         "component": "azure_servicebus",
+         "messaging.batch_count": "2",
+         "messaging.destination.name": "queue.1",
+         "messaging.operation": "send",
+         "messaging.system": "servicebus",
+         "network.destination.name": "localhost",
+         "span.kind": "producer"
+       },
+       "metrics": {
+         "_dd.top_level": 1
+       },
+       "duration": 9228666,
+       "start": 1757622989322707169
+     }],
+[
+  {
+    "name": "azure.functions.invoke",
+    "service": "test-func",
+    "resource": "ServiceBus servicebusqueue",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "serverless",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68c332cd00000000",
+      "aas.function.name": "servicebusqueue",
+      "aas.function.trigger": "ServiceBus",
+      "component": "azure_functions",
+      "language": "python",
+      "messaging.batch_count": "2",
+      "messaging.destination.name": "queue.1",
+      "messaging.operation": "receive",
+      "messaging.system": "servicebus",
+      "network.destination.name": "localhost",
+      "runtime-id": "cdda564dbbdd46eeb80690f69af5be5e",
+      "span.kind": "consumer"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 7094
+    },
+    "duration": 180542,
+    "start": 1757622989513373419
+  }]]

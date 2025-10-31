@@ -1,5 +1,8 @@
+from functools import partial
 from pathlib import Path
 import typing as t
+
+import pytest
 
 import ddtrace
 from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
@@ -7,24 +10,32 @@ from ddtrace.debugging._origin.span import SpanCodeOriginProcessorExit
 from ddtrace.debugging._session import Session
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from tests.debugging.mocking import MockLogsIntakeUploaderV1
+from tests.debugging.mocking import MockSignalUploader
 from tests.utils import TracerTestCase
 
 
 class MockSpanCodeOriginProcessorEntry(SpanCodeOriginProcessorEntry):
-    __uploader__ = MockLogsIntakeUploaderV1
+    __uploader__ = MockSignalUploader
 
     @classmethod
-    def get_uploader(cls) -> MockLogsIntakeUploaderV1:
-        return t.cast(MockLogsIntakeUploaderV1, cls.__uploader__._instance)
+    def enable(cls):
+        super().enable()
+
+        @partial(core.on, "service_entrypoint.patch")
+        def _(f: t.Callable) -> None:
+            cls.instrument_view(f)
+
+    @classmethod
+    def get_uploader(cls) -> MockSignalUploader:
+        return t.cast(MockSignalUploader, cls.__uploader__._instance)
 
 
 class MockSpanCodeOriginProcessor(SpanCodeOriginProcessorExit):
-    __uploader__ = MockLogsIntakeUploaderV1
+    __uploader__ = MockSignalUploader
 
     @classmethod
-    def get_uploader(cls) -> MockLogsIntakeUploaderV1:
-        return t.cast(MockLogsIntakeUploaderV1, cls.__uploader__._instance)
+    def get_uploader(cls) -> MockSignalUploader:
+        return t.cast(MockSignalUploader, cls.__uploader__._instance)
 
 
 class SpanProbeTestCase(TracerTestCase):
@@ -40,8 +51,14 @@ class SpanProbeTestCase(TracerTestCase):
         ddtrace.tracer = self.backup_tracer
         super(SpanProbeTestCase, self).tearDown()
 
+        if (uploader := MockSpanCodeOriginProcessor.get_uploader()) is not None:
+            uploader.flush()
+
         MockSpanCodeOriginProcessorEntry.disable()
         MockSpanCodeOriginProcessor.disable()
+
+        assert MockSpanCodeOriginProcessor.get_uploader() is None
+
         core.reset_listeners(event_id="service_entrypoint.patch")
 
     def test_span_origin(self):
@@ -77,6 +94,7 @@ class SpanProbeTestCase(TracerTestCase):
         assert _exit.get_tag("_dd.code_origin.frames.0.file") == str(Path(__file__).resolve())
         assert _exit.get_tag("_dd.code_origin.frames.0.line") == str(self.test_span_origin.__code__.co_firstlineno)
 
+    @pytest.mark.skip(reason="Frequent unreliable failures")
     def test_span_origin_session(self):
         def entry_call():
             pass

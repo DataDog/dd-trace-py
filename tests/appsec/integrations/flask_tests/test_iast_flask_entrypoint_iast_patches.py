@@ -91,6 +91,7 @@ def test_ddtrace_iast_flask_patch_iast_disabled():
         del sys.modules["tests.appsec.iast.fixtures.entrypoint.app_main_patched"]
 
 
+@pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="APPSEC-59493: Test not compatible with Python 3.8")
 @pytest.mark.subprocess(err=None)
 def test_ddtrace_iast_flask_no_patch():
     import dis
@@ -122,7 +123,6 @@ def test_ddtrace_iast_flask_no_patch():
         del sys.modules["tests.appsec.iast.fixtures.entrypoint.app"]
 
 
-@pytest.mark.skip(reason="TODO: tests.appsec.iast.fixtures.entrypoint.views is cached for some reason")
 @pytest.mark.subprocess(err=None)
 def test_ddtrace_iast_flask_app_create_app_patch_auto():
     import dis
