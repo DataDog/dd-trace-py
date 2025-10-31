@@ -66,6 +66,17 @@ class TestRayIntegration(TracerTestCase):
         results = ray.get(futures)
         assert results == [1, 2], f"Unexpected results: {results}"
 
+    @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_task_error", ignores=RAY_SNAPSHOT_IGNORES)
+    def test_task_error(self):
+        @ray.remote
+        def add_one(x):
+            raise ValueError("foo")
+            return 0
+
+        futures = [add_one.remote(i) for i in range(2)]  # Reduced from 4 to 2 tasks
+        with pytest.raises(ValueError):
+            ray.get(futures)
+
     @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_simple_actor", ignores=RAY_SNAPSHOT_IGNORES)
     def test_simple_actor(self):
         @ray.remote
