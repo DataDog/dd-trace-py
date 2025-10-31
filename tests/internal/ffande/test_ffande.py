@@ -16,16 +16,16 @@ def test_process_ffe_configuration_success():
     config_bytes = json.dumps(config).encode("utf-8")
 
     result = process_ffe_configuration(config_bytes)
-    assert result is True
+    assert result is not None
 
 
 def test_process_ffe_configuration_empty():
     """Test FFE configuration with empty bytes."""
     result = process_ffe_configuration(b"")
-    assert result is False
+    assert result is None
 
 
 def test_process_ffe_configuration_invalid_utf8():
     """Test FFE configuration with invalid UTF-8."""
     result = process_ffe_configuration(b"\xFF\xFE\xFD")
-    assert result is False
+    assert result is None
