@@ -4,7 +4,6 @@
 #include <iostream>
 #include <string>
 #include <string_view>
-#include <variant>
 
 extern "C"
 {
@@ -12,6 +11,9 @@ extern "C"
 }
 
 namespace Datadog {
+
+ddog_prof_StringId2
+intern_string(std::string_view s);
 
 // There's currently no need to offer custom tags, so there's no interface for
 // it.  Instead, tags are keyed and populated based on this table, then
@@ -138,6 +140,92 @@ add_tag(ddog_Vec_Tag& tags, const ExportTagKey key, std::string_view val, std::s
 
     return add_tag(tags, key_sv, val, errmsg);
 }
+
+namespace internal {
+
+ddog_prof_ProfilesDictionaryHandle
+get_profiles_dictionary();
+
+// Decreases the refcount on the Profiles Dictionary handle.
+// This should be called before the process exits.
+// Note that this may not free it immediately if something else
+// (e.g. the Profile object) still holds a reference to it.
+void
+release_profiles_dictionary();
+
+// Reset cached interned strings (required after fork)
+void
+reset_interned_strings();
+
+// Reset tag and label key caches (required after fork)
+void
+reset_key_caches();
+
+// Fork-safe cached interning for tag and label keys
+// Must come after enum definitions to know the sizes
+
+// Caches for interned tag and label keys
+// Use ddog_prof_StringId2 directly to avoid circular dependency with sample.hpp
+inline std::array<ddog_prof_StringId2, static_cast<size_t>(ExportTagKey::Length_)>&
+get_tag_key_cache()
+{
+    static std::array<ddog_prof_StringId2, static_cast<size_t>(ExportTagKey::Length_)> cache{};
+    return cache;
+}
+
+inline std::array<ddog_prof_StringId2, static_cast<size_t>(ExportLabelKey::Length_)>&
+get_label_key_cache()
+{
+    static std::array<ddog_prof_StringId2, static_cast<size_t>(ExportLabelKey::Length_)> cache{};
+    return cache;
+}
+
+inline void
+reset_key_caches()
+{
+    auto& tag_cache = get_tag_key_cache();
+    auto& label_cache = get_label_key_cache();
+    tag_cache.fill(nullptr);
+    label_cache.fill(nullptr);
+}
+
+inline ddog_prof_StringId2
+to_interned_string(ExportTagKey key)
+{
+    auto& cache = internal::get_tag_key_cache();
+    const auto idx = static_cast<size_t>(key);
+
+    if (idx >= cache.size()) {
+        return nullptr;
+    }
+
+    // Check cache first
+    if (cache[idx] == nullptr) {
+        cache[idx] = intern_string(to_string(key));
+    }
+
+    return cache[idx];
+}
+
+inline ddog_prof_StringId2
+to_interned_string(ExportLabelKey key)
+{
+    auto& cache = internal::get_label_key_cache();
+    const auto idx = static_cast<size_t>(key);
+
+    if (idx >= cache.size()) {
+        return nullptr;
+    }
+
+    // Check cache first
+    if (cache[idx] == nullptr) {
+        cache[idx] = intern_string(to_string(key));
+    }
+
+    return cache[idx];
+}
+
+} // namespace internal
 
 // Keep macros from propagating
 #undef X_STR
