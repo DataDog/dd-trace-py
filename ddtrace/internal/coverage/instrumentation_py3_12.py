@@ -17,6 +17,7 @@ import typing as t
 from ddtrace.internal.bytecode_injection import HookType
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+from ddtrace.internal.utils.formats import asbool
 
 
 log = get_logger(__name__)
@@ -33,7 +34,7 @@ RETURN_CONST = dis.opmap["RETURN_CONST"]
 EMPTY_MODULE_BYTES = bytes([RESUME, 0, RETURN_CONST, 0])
 
 # Check if file-level coverage is requested
-_USE_FILE_LEVEL_COVERAGE = os.environ.get("_DD_COVERAGE_FILE_LEVEL", "").lower() == "true"
+_USE_FILE_LEVEL_COVERAGE = asbool(os.getenv("_DD_COVERAGE_FILE_LEVEL", "false"))
 
 EVENT = sys.monitoring.events.PY_START if _USE_FILE_LEVEL_COVERAGE else sys.monitoring.events.LINE
 

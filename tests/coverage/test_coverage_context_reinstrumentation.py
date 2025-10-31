@@ -34,9 +34,11 @@ def test_sequential_contexts_with_no_overlap():
     from ddtrace.internal.coverage.code import ModuleCodeCollector
     from ddtrace.internal.coverage.installer import install
     from tests.coverage.utils import _get_relpath_dict
+    from tests.coverage.utils import assert_coverage_matches
 
     cwd_path = os.getcwd()
     include_path = Path(cwd_path + "/tests/coverage/included_path/")
+    file_level_mode = os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true"
 
     install(include_paths=[include_path])
 
@@ -60,63 +62,39 @@ def test_sequential_contexts_with_no_overlap():
         called_in_session_main(1, 2)
         session_context_covered = _get_relpath_dict(cwd_path, session_context.get_covered_lines())
 
-    # All three contexts should have coverage for the callee.py file
-    assert "tests/coverage/included_path/callee.py" in both_contexts_covered
-    assert "tests/coverage/included_path/callee.py" in context_context_covered
-    assert "tests/coverage/included_path/callee.py" in session_context_covered
+    # Define expected coverage for each context
+    # Context 1 executes both functions, so it covers all three files
+    expected_both_contexts = {
+        "tests/coverage/included_path/callee.py": {2, 3, 5, 6, 10, 11, 13, 14},
+        "tests/coverage/included_path/lib.py": {1, 2, 5},
+        "tests/coverage/included_path/in_context_lib.py": {1, 2, 5},
+    }
 
-    if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
-        # In file-level mode, we only verify the files were executed
-        # The key test is that each context captures the right files
-        assert len(both_contexts_covered["tests/coverage/included_path/callee.py"]) > 0
-        assert len(context_context_covered["tests/coverage/included_path/callee.py"]) > 0
-        assert len(session_context_covered["tests/coverage/included_path/callee.py"]) > 0
+    # Context 2 executes only called_in_context_main, so it covers callee.py and in_context_lib.py
+    expected_context_context = {
+        "tests/coverage/included_path/callee.py": {10, 11, 13, 14},
+        "tests/coverage/included_path/in_context_lib.py": {2},
+    }
 
-        # Check that the right library files are present
-        assert "tests/coverage/included_path/lib.py" in both_contexts_covered
-        assert "tests/coverage/included_path/lib.py" not in context_context_covered
-        assert "tests/coverage/included_path/lib.py" in session_context_covered
+    # Context 3 executes only called_in_session_main, so it covers callee.py and lib.py
+    expected_session_context = {
+        "tests/coverage/included_path/callee.py": {2, 3, 5, 6},
+        "tests/coverage/included_path/lib.py": {2},
+    }
 
-        assert "tests/coverage/included_path/in_context_lib.py" in both_contexts_covered
-        assert "tests/coverage/included_path/in_context_lib.py" in context_context_covered
-        assert "tests/coverage/included_path/in_context_lib.py" not in session_context_covered
-    else:
-        # In line-level mode, check specific lines
-        # Expected coverage for callee.py (the code that actually executes in the function calls)
-        # Note: lib.py and in_context_lib.py lines 1 and 5 are function definitions that only
-        # execute at import time, so they appear in context_both but not in subsequent contexts
-        expected_callee_lines_both = {2, 3, 5, 6, 10, 11, 13, 14}
-        expected_callee_lines_context = {10, 11, 13, 14}
-        expected_callee_lines_session = {2, 3, 5, 6}
+    # Use utility function to verify coverage matches expectations
+    assert_coverage_matches(both_contexts_covered, expected_both_contexts, file_level_mode, "Context 1 (both)")
+    assert_coverage_matches(context_context_covered, expected_context_context, file_level_mode, "Context 2 (context)")
+    assert_coverage_matches(session_context_covered, expected_session_context, file_level_mode, "Context 3 (session)")
 
-        assert both_contexts_covered["tests/coverage/included_path/callee.py"] == expected_callee_lines_both, (
-            f"Context 1 callee.py mismatch: expected={expected_callee_lines_both} vs "
-            f"actual={both_contexts_covered['tests/coverage/included_path/callee.py']}"
-        )
-
-        assert context_context_covered["tests/coverage/included_path/callee.py"] == expected_callee_lines_context, (
-            f"Context 2 callee.py mismatch: expected={expected_callee_lines_context} vs "
-            f"actual={context_context_covered['tests/coverage/included_path/callee.py']}"
-        )
-
-        assert session_context_covered["tests/coverage/included_path/callee.py"] == expected_callee_lines_session, (
-            f"Context 3 callee.py mismatch: expected={expected_callee_lines_session} vs "
-            f"actual={session_context_covered['tests/coverage/included_path/callee.py']}"
-        )
-
-        # Critical assertion: All contexts should capture function body execution
-        # The key test is that lib.py line 2 (function body) appears in ALL contexts
-        assert "tests/coverage/included_path/lib.py" in both_contexts_covered
-        assert "tests/coverage/included_path/lib.py" not in context_context_covered
-        assert "tests/coverage/included_path/lib.py" in session_context_covered
-
-        # Line 2 is the function body - it MUST be in all contexts
+    if not file_level_mode:
+        # In line-level mode, add critical re-instrumentation checks
+        # Line 2 is the function body - it MUST be present in contexts that execute the function
         assert 2 in both_contexts_covered["tests/coverage/included_path/lib.py"], "Context 1 missing lib.py line 2"
         assert (
             2 in session_context_covered["tests/coverage/included_path/lib.py"]
         ), "Context 3 missing lib.py line 2 - re-instrumentation failed!"
 
-        # Same for in_context_lib.py
         assert (
             2 in both_contexts_covered["tests/coverage/included_path/in_context_lib.py"]
         ), "Context 1 missing in_context_lib.py line 2"
@@ -140,9 +118,11 @@ def test_context_with_repeated_execution_reinstruments_correctly():
     from ddtrace.internal.coverage.code import ModuleCodeCollector
     from ddtrace.internal.coverage.installer import install
     from tests.coverage.utils import _get_relpath_dict
+    from tests.coverage.utils import assert_coverage_matches
 
     cwd_path = os.getcwd()
     include_path = Path(cwd_path + "/tests/coverage/included_path/")
+    file_level_mode = os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true"
 
     install(include_paths=[include_path])
 
@@ -166,23 +146,10 @@ def test_context_with_repeated_execution_reinstruments_correctly():
         context2_covered = _get_relpath_dict(cwd_path, context2.get_covered_lines())
 
     # Verify both contexts captured lib.py
-    assert "tests/coverage/included_path/lib.py" in context1_covered
-    assert "tests/coverage/included_path/lib.py" in context2_covered
+    expected_coverage = {"tests/coverage/included_path/lib.py": {2}}
 
-    if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
-        # In file-level mode, just verify the file was executed in both contexts
-        assert len(context1_covered["tests/coverage/included_path/lib.py"]) > 0
-        assert len(context2_covered["tests/coverage/included_path/lib.py"]) > 0
-    else:
-        # In line-level mode, check specific lines
-        expected_lib_lines = {2}
-        assert (
-            context1_covered.get("tests/coverage/included_path/lib.py") == expected_lib_lines
-        ), f"Context 1 lib.py coverage: {context1_covered.get('tests/coverage/included_path/lib.py')}"
-
-        assert (
-            context2_covered.get("tests/coverage/included_path/lib.py") == expected_lib_lines
-        ), f"Context 2 lib.py coverage: {context2_covered.get('tests/coverage/included_path/lib.py')}"
+    assert_coverage_matches(context1_covered, expected_coverage, file_level_mode, "Context 1")
+    assert_coverage_matches(context2_covered, expected_coverage, file_level_mode, "Context 2")
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
@@ -202,9 +169,11 @@ def test_nested_contexts_maintain_independence():
     from ddtrace.internal.coverage.code import ModuleCodeCollector
     from ddtrace.internal.coverage.installer import install
     from tests.coverage.utils import _get_relpath_dict
+    from tests.coverage.utils import assert_coverage_matches
 
     cwd_path = os.getcwd()
     include_path = Path(cwd_path + "/tests/coverage/included_path/")
+    file_level_mode = os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true"
 
     install(include_paths=[include_path])
 
@@ -224,50 +193,19 @@ def test_nested_contexts_maintain_independence():
         called_in_context_main(3, 4)  # NOTE: This is not tracked as overlaps with inner
         outer_covered = _get_relpath_dict(cwd_path, outer_context.get_covered_lines())
 
-    # Verify both contexts captured their respective files
-    assert "tests/coverage/included_path/callee.py" in inner_covered
-    assert "tests/coverage/included_path/callee.py" in outer_covered
+    # Define expected coverage based on mode
+    expected_inner = {
+        "tests/coverage/included_path/callee.py": {10, 11, 13, 14},
+        "tests/coverage/included_path/in_context_lib.py": {1, 2, 5},
+    }
+    expected_outer = {
+        "tests/coverage/included_path/callee.py": {2, 3, 5, 6},
+        "tests/coverage/included_path/lib.py": {1, 2, 5},
+    }
 
-    if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
-        # In file-level mode, just verify the right files were executed
-        expected_inner_files = {
-            "tests/coverage/included_path/callee.py",
-            "tests/coverage/included_path/in_context_lib.py",
-        }
-        expected_outer_files = {"tests/coverage/included_path/callee.py", "tests/coverage/included_path/lib.py"}
-
-        assert (
-            set(inner_covered.keys()) == expected_inner_files
-        ), f"Inner context files mismatch: expected={expected_inner_files} vs actual={set(inner_covered.keys())}"
-        assert (
-            set(outer_covered.keys()) == expected_outer_files
-        ), f"Outer context files mismatch: expected={expected_outer_files} vs actual={set(outer_covered.keys())}"
-
-        # Verify files have coverage data
-        assert len(inner_covered["tests/coverage/included_path/callee.py"]) > 0
-        assert len(inner_covered["tests/coverage/included_path/in_context_lib.py"]) > 0
-        assert len(outer_covered["tests/coverage/included_path/callee.py"]) > 0
-        assert len(outer_covered["tests/coverage/included_path/lib.py"]) > 0
-    else:
-        # In line-level mode, check specific lines
-        expected_inner = {
-            "tests/coverage/included_path/callee.py": {10, 11, 13, 14},
-            "tests/coverage/included_path/in_context_lib.py": {1, 2, 5},
-        }
-        expected_outer = {
-            "tests/coverage/included_path/callee.py": {2, 3, 5, 6},
-            "tests/coverage/included_path/lib.py": {1, 2, 5},
-        }
-
-        # Inner context should have complete coverage for its execution
-        assert (
-            inner_covered == expected_inner
-        ), f"Inner context coverage mismatch: expected={expected_inner} vs actual={inner_covered}"
-
-        # Outer context should have complete coverage for its execution
-        assert (
-            outer_covered == expected_outer
-        ), f"Outer context coverage mismatch: expected={expected_outer} vs actual={outer_covered}"
+    # Use utility function to assert based on coverage mode
+    assert_coverage_matches(inner_covered, expected_inner, file_level_mode, "Inner context")
+    assert_coverage_matches(outer_covered, expected_outer, file_level_mode, "Outer context")
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
@@ -285,9 +223,11 @@ def test_many_sequential_contexts_no_degradation():
     from ddtrace.internal.coverage.code import ModuleCodeCollector
     from ddtrace.internal.coverage.installer import install
     from tests.coverage.utils import _get_relpath_dict
+    from tests.coverage.utils import assert_coverage_matches
 
     cwd_path = os.getcwd()
     include_path = Path(cwd_path + "/tests/coverage/included_path/")
+    file_level_mode = os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true"
 
     install(include_paths=[include_path])
 
@@ -302,46 +242,35 @@ def test_many_sequential_contexts_no_degradation():
             context_covered = _get_relpath_dict(cwd_path, context.get_covered_lines())
         all_context_coverages.append(context_covered)
 
-    # Verify all contexts got coverage for the files
+    # Expected coverage: calls called_in_session_main, so should have callee.py and lib.py
+    expected_files = {"tests/coverage/included_path/callee.py", "tests/coverage/included_path/lib.py"}
+    expected_callee_runtime_lines = {2, 3, 5, 6}
+
+    # Verify all contexts got complete coverage
     for idx, context_covered in enumerate(all_context_coverages):
-        assert "tests/coverage/included_path/callee.py" in context_covered, f"Context {idx} missing callee.py"
-        assert "tests/coverage/included_path/lib.py" in context_covered, f"Context {idx} missing lib.py"
-
-    if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
-        # In file-level mode, just verify the files were executed in all contexts
-        for idx, context_covered in enumerate(all_context_coverages):
-            assert (
-                len(context_covered["tests/coverage/included_path/callee.py"]) > 0
-            ), f"Context {idx} missing callee.py coverage - re-instrumentation failed!"
-            assert (
-                len(context_covered["tests/coverage/included_path/lib.py"]) > 0
-            ), f"Context {idx} missing lib.py coverage - re-instrumentation failed!"
-    else:
-        # In line-level mode, check specific lines
-        expected_callee_lines = {2, 3, 5, 6}
-
-        for idx, context_covered in enumerate(all_context_coverages):
-            # Check callee.py lines match (these are runtime, not import-time)
+        if file_level_mode:
+            # In file-level mode, verify the expected files are present
+            assert_coverage_matches(context_covered, expected_files, file_level_mode, f"Context {idx}")
+        else:
+            # In line-level mode, check that runtime lines are present (may have import-time lines too)
             actual_callee = context_covered["tests/coverage/included_path/callee.py"]
-            if idx == 0:
-                # First context includes import lines
-                assert expected_callee_lines.issubset(actual_callee), f"Context {idx} missing expected callee lines"
-            else:
-                # Subsequent contexts should have at least the runtime lines
-                assert expected_callee_lines.issubset(actual_callee), f"Context {idx} missing expected callee lines"
+            assert expected_callee_runtime_lines.issubset(
+                actual_callee
+            ), f"Context {idx} missing expected callee lines: {expected_callee_runtime_lines}"
 
-            # Check lib.py exists and has line 2 (the function body)
+            # Check lib.py exists and has line 2 (the function body) - critical re-instrumentation check
             assert (
                 2 in context_covered["tests/coverage/included_path/lib.py"]
             ), f"Context {idx} missing lib.py line 2 - re-instrumentation failed!"
 
+    if not file_level_mode:
         # Critical: Coverage should not decrease over iterations
         # All contexts should have the same runtime lines for callee.py
         first_callee = all_context_coverages[0].get("tests/coverage/included_path/callee.py", set())
         last_callee = all_context_coverages[-1].get("tests/coverage/included_path/callee.py", set())
 
         # Check that expected_callee_lines are in both first and last
-        assert expected_callee_lines.issubset(first_callee) and expected_callee_lines.issubset(
+        assert expected_callee_runtime_lines.issubset(first_callee) and expected_callee_runtime_lines.issubset(
             last_callee
         ), f"Coverage degraded: first had {first_callee}, last had {last_callee}"
 
@@ -361,9 +290,11 @@ def test_context_after_session_coverage():
     from ddtrace.internal.coverage.code import ModuleCodeCollector
     from ddtrace.internal.coverage.installer import install
     from tests.coverage.utils import _get_relpath_dict
+    from tests.coverage.utils import assert_coverage_matches
 
     cwd_path = os.getcwd()
     include_path = Path(cwd_path + "/tests/coverage/included_path/")
+    file_level_mode = os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true"
 
     install(include_paths=[include_path])
 
@@ -389,69 +320,55 @@ def test_context_after_session_coverage():
         called_in_context_main(9, 10)
         context2_covered = _get_relpath_dict(cwd_path, context2.get_covered_lines())
 
-    # Verify all coverages have the expected files
-    assert "tests/coverage/included_path/callee.py" in session_covered
-    assert "tests/coverage/included_path/callee.py" in context1_covered
-    assert "tests/coverage/included_path/callee.py" in context2_covered
+    # Define expected coverage
+    # Session only calls called_in_session_main, so it should have callee.py and lib.py
+    expected_session = {
+        "tests/coverage/included_path/callee.py": {2, 3, 5, 6},
+        "tests/coverage/included_path/lib.py": {1, 2, 5},
+    }
 
-    if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
-        # In file-level mode, verify the right files were executed
-        # Session should have lib.py
-        assert "tests/coverage/included_path/lib.py" in session_covered
-        assert len(session_covered["tests/coverage/included_path/lib.py"]) > 0
+    # Both contexts call both functions, so should have all three files
+    expected_context = {
+        "tests/coverage/included_path/callee.py": {2, 3, 5, 6, 10, 11, 13, 14},
+        "tests/coverage/included_path/lib.py": {2},
+        "tests/coverage/included_path/in_context_lib.py": {2},
+    }
 
-        # Both contexts should have lib.py and in_context_lib.py
-        assert "tests/coverage/included_path/lib.py" in context1_covered
-        assert "tests/coverage/included_path/in_context_lib.py" in context1_covered
-        assert len(context1_covered["tests/coverage/included_path/lib.py"]) > 0
-        assert len(context1_covered["tests/coverage/included_path/in_context_lib.py"]) > 0
-
-        assert "tests/coverage/included_path/lib.py" in context2_covered
-        assert "tests/coverage/included_path/in_context_lib.py" in context2_covered
-        assert (
-            len(context2_covered["tests/coverage/included_path/lib.py"]) > 0
-        ), "Context 2 missing lib.py - re-instrumentation failed!"
-        assert (
-            len(context2_covered["tests/coverage/included_path/in_context_lib.py"]) > 0
-        ), "Context 2 missing in_context_lib.py - re-instrumentation failed!"
+    # Use utility to verify coverage (with subset check for session since it may have import-time lines)
+    if file_level_mode:
+        # In file-level mode, verify files are present
+        assert_coverage_matches(session_covered, expected_session, file_level_mode, "Session")
+        assert_coverage_matches(context1_covered, expected_context, file_level_mode, "Context 1")
+        assert_coverage_matches(context2_covered, expected_context, file_level_mode, "Context 2")
     else:
-        # In line-level mode, check specific lines
-        # Session should have captured called_in_session_main (runtime lines)
-        expected_session_runtime = {2, 3, 5, 6}
-
-        # Contexts should have both functions (runtime lines)
-        expected_context_callee_runtime = {2, 3, 5, 6, 10, 11, 13, 14}
-
-        # Verify session coverage
-        assert expected_session_runtime.issubset(session_covered["tests/coverage/included_path/callee.py"])
+        # In line-level mode, check that expected runtime lines are present
+        # Session may have import-time lines, so use subset check
+        expected_session_runtime = expected_session["tests/coverage/included_path/callee.py"]
+        assert expected_session_runtime.issubset(
+            session_covered["tests/coverage/included_path/callee.py"]
+        ), f"Session missing expected lines: {expected_session_runtime}"
         assert 2 in session_covered["tests/coverage/included_path/lib.py"], "Session missing lib.py line 2"
 
-        # Verify context 1 coverage
-        assert expected_context_callee_runtime.issubset(context1_covered["tests/coverage/included_path/callee.py"])
+        # Contexts should have exact coverage
+        expected_context_callee_runtime = expected_context["tests/coverage/included_path/callee.py"]
+        assert expected_context_callee_runtime.issubset(
+            context1_covered["tests/coverage/included_path/callee.py"]
+        ), f"Context 1 missing expected lines: {expected_context_callee_runtime}"
         assert 2 in context1_covered["tests/coverage/included_path/lib.py"], "Context 1 missing lib.py line 2"
         assert (
             2 in context1_covered["tests/coverage/included_path/in_context_lib.py"]
         ), "Context 1 missing in_context_lib.py line 2"
 
-        # Verify context 2 coverage
-        assert expected_context_callee_runtime.issubset(context2_covered["tests/coverage/included_path/callee.py"])
+        # Context 2 is the critical re-instrumentation check
+        assert expected_context_callee_runtime.issubset(
+            context2_covered["tests/coverage/included_path/callee.py"]
+        ), f"Context 2 missing expected lines: {expected_context_callee_runtime}"
         assert (
             2 in context2_covered["tests/coverage/included_path/lib.py"]
         ), "Context 2 missing lib.py line 2 - re-instrumentation failed!"
         assert (
             2 in context2_covered["tests/coverage/included_path/in_context_lib.py"]
         ), "Context 2 missing in_context_lib.py line 2 - re-instrumentation failed!"
-
-        # Critical: Both contexts should have the same runtime lines for callee.py
-        context1_callee = context1_covered["tests/coverage/included_path/callee.py"]
-        context2_callee = context2_covered["tests/coverage/included_path/callee.py"]
-
-        assert expected_context_callee_runtime.issubset(context1_callee) and expected_context_callee_runtime.issubset(
-            context2_callee
-        ), (
-            f"Context coverages differ - re-instrumentation may have failed: "
-            f"context1={context1_callee}, context2={context2_callee}"
-        )
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
@@ -469,9 +386,11 @@ def test_comprehensive_reinstrumentation_with_simple_module():
     from ddtrace.internal.coverage.code import ModuleCodeCollector
     from ddtrace.internal.coverage.installer import install
     from tests.coverage.utils import _get_relpath_dict
+    from tests.coverage.utils import assert_coverage_matches
 
     cwd_path = os.getcwd()
     include_path = Path(cwd_path + "/tests/coverage/included_path/")
+    file_level_mode = os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true"
 
     install(include_paths=[include_path])
 
@@ -506,38 +425,15 @@ def test_comprehensive_reinstrumentation_with_simple_module():
 
     module_path = "tests/coverage/included_path/reinstrumentation_test_module.py"
 
-    # All contexts should have coverage for the module
-    assert module_path in context1_covered, f"Context 1 missing {module_path}"
-    assert module_path in context2_covered, f"Context 2 missing {module_path}"
-    assert module_path in context3_covered, f"Context 3 missing {module_path}"
+    # Expected lines for context 1 and 2 (same branch in function_with_branches)
+    expected_lines_true_branch = {11, 12, 17, 18, 19, 20, 25, 26, 29, 34, 35, 36, 37, 38, 39}
 
-    if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
-        # In file-level mode, we only verify the file was executed
-        # All three contexts should have the file (line 0 sentinel)
-        assert len(context1_covered[module_path]) > 0, "Context 1 has no coverage"
-        assert len(context2_covered[module_path]) > 0, "Context 2 has no coverage - re-instrumentation failed!"
-        assert len(context3_covered[module_path]) > 0, "Context 3 has no coverage - re-instrumentation failed!"
-    else:
-        # In line-level mode, verify specific lines
-        # Expected lines for context 1 and 2 (same branch in function_with_branches)
-        expected_lines_true_branch = {11, 12, 17, 18, 19, 20, 25, 26, 29, 34, 35, 36, 37, 38, 39}
+    # Expected lines for context 3 (false branch in function_with_branches)
+    expected_lines_false_branch = {11, 12, 17, 18, 19, 20, 25, 28, 29, 34, 35, 36, 37, 38, 39}
 
-        # Expected lines for context 3 (false branch in function_with_branches)
-        expected_lines_false_branch = {11, 12, 17, 18, 19, 20, 25, 28, 29, 34, 35, 36, 37, 38, 39}
+    # Verify contexts 1 and 2 captured the true branch
+    assert_coverage_matches(context1_covered, {module_path: expected_lines_true_branch}, file_level_mode, "Context 1")
+    assert_coverage_matches(context2_covered, {module_path: expected_lines_true_branch}, file_level_mode, "Context 2")
 
-        # Verify contexts 1 and 2 captured the true branch
-        assert context1_covered[module_path] == expected_lines_true_branch, (
-            f"Context 1 coverage mismatch: expected={expected_lines_true_branch} vs "
-            f"actual={context1_covered[module_path]}"
-        )
-
-        assert context2_covered[module_path] == expected_lines_true_branch, (
-            f"Context 2 coverage mismatch: expected={expected_lines_true_branch} vs "
-            f"actual={context2_covered[module_path]}"
-        )
-
-        # Verify context 3 captured the false branch
-        assert context3_covered[module_path] == expected_lines_false_branch, (
-            f"Context 3 coverage mismatch: expected={expected_lines_false_branch} vs "
-            f"actual={context3_covered[module_path]}"
-        )
+    # Verify context 3 captured the false branch
+    assert_coverage_matches(context3_covered, {module_path: expected_lines_false_branch}, file_level_mode, "Context 3")
