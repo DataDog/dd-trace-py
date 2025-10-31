@@ -7,7 +7,6 @@ and forwards the raw bytes to the native FFE processor.
 
 import datetime
 from importlib.metadata import version
-import json
 import typing
 
 from openfeature.evaluation_context import EvaluationContext
@@ -17,12 +16,12 @@ from openfeature.flag_evaluation import Reason
 from openfeature.provider import Metadata
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native._native import ffe
 from ddtrace.internal.openfeature._config import _get_ffe_config
 from ddtrace.internal.openfeature._exposure import build_exposure_event
-from ddtrace.internal.openfeature._ffe_mock import AssignmentReason
-from ddtrace.internal.openfeature._ffe_mock import EvaluationError
-from ddtrace.internal.openfeature._ffe_mock import VariationType
-from ddtrace.internal.openfeature._ffe_mock import mock_get_assignment
+from ddtrace.internal.openfeature._native import EvaluationError
+from ddtrace.internal.openfeature._native import VariationType
+from ddtrace.internal.openfeature._native import get_assignment
 from ddtrace.internal.openfeature._remoteconfiguration import disable_featureflags_rc
 from ddtrace.internal.openfeature._remoteconfiguration import enable_featureflags_rc
 from ddtrace.internal.openfeature.writer import get_exposure_writer
@@ -108,7 +107,7 @@ class DataDogProvider(AbstractProvider):
         default_value: bool,
         evaluation_context: typing.Optional[EvaluationContext] = None,
     ) -> FlagResolutionDetails[bool]:
-        return self._resolve_details(flag_key, default_value, evaluation_context, VariationType.BOOLEAN)
+        return self._resolve_details(flag_key, default_value, evaluation_context, VariationType.Boolean)
 
     def resolve_string_details(
         self,
@@ -116,7 +115,7 @@ class DataDogProvider(AbstractProvider):
         default_value: str,
         evaluation_context: typing.Optional[EvaluationContext] = None,
     ) -> FlagResolutionDetails[str]:
-        return self._resolve_details(flag_key, default_value, evaluation_context, VariationType.STRING)
+        return self._resolve_details(flag_key, default_value, evaluation_context, VariationType.String)
 
     def resolve_integer_details(
         self,
@@ -124,7 +123,7 @@ class DataDogProvider(AbstractProvider):
         default_value: int,
         evaluation_context: typing.Optional[EvaluationContext] = None,
     ) -> FlagResolutionDetails[int]:
-        return self._resolve_details(flag_key, default_value, evaluation_context, VariationType.INTEGER)
+        return self._resolve_details(flag_key, default_value, evaluation_context, VariationType.Integer)
 
     def resolve_float_details(
         self,
@@ -132,7 +131,7 @@ class DataDogProvider(AbstractProvider):
         default_value: float,
         evaluation_context: typing.Optional[EvaluationContext] = None,
     ) -> FlagResolutionDetails[float]:
-        return self._resolve_details(flag_key, default_value, evaluation_context, VariationType.NUMERIC)
+        return self._resolve_details(flag_key, default_value, evaluation_context, VariationType.Float)
 
     def resolve_object_details(
         self,
@@ -140,14 +139,14 @@ class DataDogProvider(AbstractProvider):
         default_value: typing.Union[dict, list],
         evaluation_context: typing.Optional[EvaluationContext] = None,
     ) -> FlagResolutionDetails[typing.Union[dict, list]]:
-        return self._resolve_details(flag_key, default_value, evaluation_context, VariationType.JSON)
+        return self._resolve_details(flag_key, default_value, evaluation_context, VariationType.Object)
 
     def _resolve_details(
         self,
         flag_key: str,
         default_value: typing.Any,
         evaluation_context: typing.Optional[EvaluationContext] = None,
-        variation_type: VariationType = VariationType.BOOLEAN,
+        variation_type: VariationType = VariationType.Boolean,
     ) -> FlagResolutionDetails[T]:
         """
         Core resolution logic for all flag types.
@@ -166,17 +165,13 @@ class DataDogProvider(AbstractProvider):
             )
 
         try:
-            config_raw = _get_ffe_config()
-            # Parse JSON config if it's a string
-            if isinstance(config_raw, str):
-                config = json.loads(config_raw) if config_raw else None
-            else:
-                config = config_raw
+            # Get the native Configuration object
+            config = _get_ffe_config()
 
-            result = mock_get_assignment(
+            result = get_assignment(
                 config,
                 flag_key=flag_key,
-                subject=evaluation_context,
+                context=evaluation_context,
                 expected_type=variation_type,
                 now=datetime.datetime.now(),
             )
@@ -195,19 +190,14 @@ class DataDogProvider(AbstractProvider):
                     variant=None,
                 )
 
-            # Map AssignmentReason to OpenFeature Reason
-            reason_map = {
-                AssignmentReason.STATIC: Reason.STATIC,
-                AssignmentReason.TARGETING_MATCH: Reason.TARGETING_MATCH,
-                AssignmentReason.SPLIT: Reason.SPLIT,
-            }
-            reason = reason_map.get(result.reason, Reason.UNKNOWN)
+            # Map native ffe.Reason to OpenFeature Reason
+            reason = self._map_reason_to_openfeature(result.reason)
 
             # Report exposure event
             self._report_exposure(
                 flag_key=flag_key,
                 variant_key=result.variation_key,
-                allocation_key=result.variation_key,
+                allocation_key=result.allocation_key,
                 evaluation_context=evaluation_context,
             )
 
@@ -219,19 +209,25 @@ class DataDogProvider(AbstractProvider):
             )
 
         except EvaluationError as e:
+            # Map native error code to OpenFeature error code
+            if e.error_code is not None:
+                openfeature_error_code = self._map_error_code_to_openfeature(e.error_code)
+            else:
+                openfeature_error_code = ErrorCode.GENERAL
+
             # Type mismatch error
             if e.kind == "TYPE_MISMATCH":
                 return FlagResolutionDetails(
                     value=default_value,
                     reason=Reason.ERROR,
-                    error_code=ErrorCode.TYPE_MISMATCH,
+                    error_code=openfeature_error_code,
                     error_message=f"Expected {e.expected}, but flag is {e.found}",
                 )
             # Other evaluation errors
             return FlagResolutionDetails(
                 value=default_value,
                 reason=Reason.ERROR,
-                error_code=ErrorCode.GENERAL,
+                error_code=openfeature_error_code,
                 error_message=str(e),
             )
         except Exception as e:
@@ -266,3 +262,53 @@ class DataDogProvider(AbstractProvider):
                 writer.enqueue(exposure_event)
         except Exception as e:
             logger.debug("Failed to report exposure event: %s", e, exc_info=True)
+
+    def _map_reason_to_openfeature(self, native_reason) -> Reason:
+        """Map native ffe.Reason to OpenFeature Reason."""
+        # Handle string reasons from fallback dict implementation
+        if isinstance(native_reason, str):
+            string_map = {
+                "STATIC": Reason.STATIC,
+                "TARGETING_MATCH": Reason.TARGETING_MATCH,
+                "SPLIT": Reason.SPLIT,
+            }
+            return string_map.get(native_reason, Reason.UNKNOWN)
+
+        # Map native ffe.Reason enum to OpenFeature Reason
+        if native_reason == ffe.Reason.Static:
+            return Reason.STATIC
+        elif native_reason == ffe.Reason.TargetingMatch:
+            return Reason.TARGETING_MATCH
+        elif native_reason == ffe.Reason.Split:
+            return Reason.SPLIT
+        elif native_reason == ffe.Reason.Default:
+            return Reason.DEFAULT
+        elif native_reason == ffe.Reason.Cached:
+            return Reason.CACHED
+        elif native_reason == ffe.Reason.Disabled:
+            return Reason.DISABLED
+        elif native_reason == ffe.Reason.Error:
+            return Reason.ERROR
+        elif native_reason == ffe.Reason.Stale:
+            return Reason.STALE
+        else:
+            return Reason.UNKNOWN
+
+    def _map_error_code_to_openfeature(self, native_error_code) -> ErrorCode:
+        """Map native ffe.ErrorCode to OpenFeature ErrorCode."""
+        if native_error_code == ffe.ErrorCode.TypeMismatch:
+            return ErrorCode.TYPE_MISMATCH
+        elif native_error_code == ffe.ErrorCode.ParseError:
+            return ErrorCode.PARSE_ERROR
+        elif native_error_code == ffe.ErrorCode.FlagNotFound:
+            return ErrorCode.FLAG_NOT_FOUND
+        elif native_error_code == ffe.ErrorCode.TargetingKeyMissing:
+            return ErrorCode.TARGETING_KEY_MISSING
+        elif native_error_code == ffe.ErrorCode.InvalidContext:
+            return ErrorCode.INVALID_CONTEXT
+        elif native_error_code == ffe.ErrorCode.ProviderNotReady:
+            return ErrorCode.PROVIDER_NOT_READY
+        elif native_error_code == ffe.ErrorCode.General:
+            return ErrorCode.GENERAL
+        else:
+            return ErrorCode.GENERAL

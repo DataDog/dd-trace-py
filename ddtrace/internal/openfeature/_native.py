@@ -1,51 +1,146 @@
 """
-Native interface for FFAndE (Feature Flagging and Experimentation) processing.
+Native interface for FFE (Feature Flagging and Experimentation) processing.
 
 This module provides the interface to the PyO3 native function that processes
 feature flag configuration rules.
 """
+
+from dataclasses import dataclass
+import json
+from typing import Any
+from typing import Dict
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native._native import ffe
+from ddtrace.internal.openfeature._config import _set_ffe_config
 
 
 log = get_logger(__name__)
 
-is_available = True
-
-try:
-    from ddtrace.internal.native._native import ffande_process_config
-except ImportError:
-    is_available = False
-    log.debug("FFAndE native module not available, feature flag processing disabled")
-
-    # Provide a no-op fallback
-    def ffande_process_config(config_bytes: bytes) -> Optional[bool]:
-        """Fallback implementation when native module is not available."""
-        log.warning("FFE native module not available, ignoring configuration")
-        return None
+VariationType = ffe.FlagType
 
 
-def process_ffe_configuration(config_bytes: bytes) -> bool:
+@dataclass
+class AssignmentValue:
+    """Wrapper for flag values."""
+
+    variation_type: VariationType
+    value: Any
+
+
+@dataclass
+class Assignment:
+    """Assignment result from flag evaluation."""
+
+    value: AssignmentValue
+    variation_key: str
+    allocation_key: str
+    reason: Any  # Native ffe.Reason or fallback string
+    do_log: bool
+    extra_logging: Dict[str, str]
+
+
+class EvaluationError(Exception):
+    """Error raised during flag evaluation."""
+
+    def __init__(
+        self,
+        kind: str,
+        *,
+        expected: Optional[VariationType] = None,
+        found: Optional[VariationType] = None,
+        error_code: ffe.ErrorCode = ffe.ErrorCode.General,
+    ):
+        super().__init__(kind)
+        self.kind = kind
+        self.expected = expected
+        self.found = found
+        self.error_code = error_code
+
+
+def process_ffe_configuration(config):
     """
-    Process feature flag configuration by forwarding raw bytes to native function.
+    Process FFE configuration and store as native Configuration object.
+
+    Converts a dict config to JSON bytes and creates a native Configuration.
 
     Args:
-        config_bytes: Raw bytes from Remote Configuration payload
+        config: Configuration dict in format {"flags": {...}} or wrapped format
+    """
+    try:
+        config_json = json.dumps(config)
+        config_bytes = config_json.encode("utf-8")
+        native_config = ffe.Configuration(config_bytes)
+        _set_ffe_config(native_config)
+    except ValueError as e:
+        log.debug(
+            "Failed to parse FFE configuration. The native library expects complete server format with: "
+            "key, enabled, variationType, defaultVariation, variations (with type), and allocations fields. "
+            "Error: %s",
+            e,
+            exc_info=True,
+        )
+
+
+def get_assignment(
+    configuration,
+    flag_key: str,
+    context: Any,
+    expected_type: VariationType,
+    now: Any,
+) -> Optional[Assignment]:
+    """
+    Thin wrapper around native resolve_value that converts types.
+
+    Args:
+        configuration: Native ffe.Configuration object
+        flag_key: The flag key to evaluate
+        context: The evaluation context
+        expected_type: Expected variation type
+        now: Current datetime (ignored, native uses system time)
 
     Returns:
-        True if processing was successful, False otherwise
-    """
-    if not is_available:
-        log.debug("FFAndE native module not available, skipping configuration")
-        return False
+        Assignment object or None if flag not found/disabled
 
-    try:
-        result = ffande_process_config(config_bytes)
-        if result is None:
-            log.debug("FFAndE native processing returned None")
-            return False
-        return result
-    except Exception as e:
-        log.debug("Error processing FFE configuration: %s", e, exc_info=True)
-        return False
+    Raises:
+        EvaluationError: On type mismatch or other evaluation errors
+    """
+    if configuration is None:
+        return None
+
+    # Convert evaluation context to dict for native FFE
+    context_dict = {}
+    if context is not None:
+        if hasattr(context, "targeting_key") and context.targeting_key:
+            context_dict["targetingKey"] = context.targeting_key
+        if hasattr(context, "attributes") and context.attributes:
+            context_dict.update(context.attributes)
+
+    details = configuration.resolve_value(flag_key, expected_type, context_dict)
+
+    # Handle errors from native
+    if details.error_code is not None:
+        if details.error_code == ffe.ErrorCode.FlagNotFound:
+            return None
+        else:
+            raise EvaluationError(
+                details.error_message or "Unknown error",
+                expected=expected_type,
+                found=expected_type,
+                error_code=details.error_code,
+            )
+
+    # Return None if no value
+    if details.value is None:
+        return None
+
+    # Convert native ResolutionDetails to Assignment
+    return Assignment(
+        value=AssignmentValue(variation_type=expected_type, value=details.value),
+        variation_key=details.variant or "",
+        allocation_key=details.allocation_key or "",
+        reason=details.reason,  # Pass native ffe.Reason directly
+        do_log=details.do_log,
+        extra_logging=details.extra_logging or {},
+    )
