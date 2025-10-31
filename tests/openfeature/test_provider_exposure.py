@@ -10,6 +10,10 @@ import pytest
 from ddtrace.internal.openfeature._config import _set_ffe_config
 from ddtrace.internal.openfeature._native import process_ffe_configuration
 from ddtrace.openfeature import DataDogProvider
+from tests.openfeature.config_helpers import create_boolean_flag
+from tests.openfeature.config_helpers import create_config
+from tests.openfeature.config_helpers import create_integer_flag
+from tests.openfeature.config_helpers import create_string_flag
 from tests.utils import override_global_config
 
 
@@ -46,20 +50,80 @@ class TestExposureReporting:
 
         # Setup flag config
         config = {
+            "id": "1",
+            "createdAt": "2025-10-30T18:36:06.108540853Z",
+            "format": "SERVER",
+            "environment": {
+                "name": "staging"
+            },
             "flags": {
-                "test-flag": {
+                "alberto-flag": {
+                    "key": "alberto-flag",
                     "enabled": True,
                     "variationType": "BOOLEAN",
-                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
-                    "variation_key": "on",
-                    "reason": "STATIC",
+                    "variations": {
+                        "false": {
+                            "key": "false",
+                            "value": True
+                        },
+                        "true": {
+                            "key": "true",
+                            "value": True
+                        }
+                    },
+                    "allocations": [
+                        {
+                            "key": "ffd4e06b-f2de-45cf-aa19-92cf6c768e61",
+                            "rules": [
+                                {
+                                    "conditions": [
+                                        {
+                                            "operator": "ONE_OF",
+                                            "attribute": "a",
+                                            "value": [
+                                                "b"
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ],
+                            "startAt": "2025-10-29T15:15:23.936522Z",
+                            "endAt": "9999-12-31T23:59:59Z",
+                            "splits": [
+                                {
+                                    "shards": [
+
+                                    ],
+                                    "variationKey": "true",
+                                    "extraLogging": "None"
+                                }
+                            ],
+                            "doLog": True
+                        },
+                        {
+                            "key": "allocation-default",
+                            "rules": [
+
+                            ],
+                            "splits": [
+                                {
+                                    "shards": [
+
+                                    ],
+                                    "variationKey": "true",
+                                    "extraLogging": "None"
+                                }
+                            ],
+                            "doLog": True
+                        }
+                    ]
                 }
             }
         }
         process_ffe_configuration(config)
 
         # Resolve flag
-        result = provider.resolve_boolean_details("test-flag", False, evaluation_context)
+        result = provider.resolve_boolean_details("alberto-flag", False, evaluation_context)
 
         # Verify flag resolved successfully
         assert result.value is True
@@ -69,9 +133,9 @@ class TestExposureReporting:
 
         # Verify exposure event structure
         exposure_event = mock_writer.enqueue.call_args[0][0]
-        assert exposure_event["flag"]["key"] == "test-flag"
-        assert exposure_event["variant"]["key"] == "on"
-        assert exposure_event["allocation"]["key"] == "on"
+        assert exposure_event["flag"]["key"] == "alberto-flag"
+        assert exposure_event["variant"]["key"] == "true"
+        assert exposure_event["allocation"]["key"] == "true"
         assert exposure_event["subject"]["id"] == "user-123"
         assert "timestamp" in exposure_event
 
@@ -98,15 +162,7 @@ class TestExposureReporting:
         mock_writer = mock.Mock()
         mock_get_writer.return_value = mock_writer
 
-        config = {
-            "flags": {
-                "disabled-flag": {
-                    "enabled": False,
-                    "variationType": "BOOLEAN",
-                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
-                }
-            }
-        }
+        config = create_config(create_boolean_flag("disabled-flag", enabled=False, default_value=False))
         process_ffe_configuration(config)
 
         result = provider.resolve_boolean_details("disabled-flag", False, evaluation_context)
@@ -123,18 +179,7 @@ class TestExposureReporting:
         mock_writer = mock.Mock()
         mock_get_writer.return_value = mock_writer
 
-        config = {
-            "flags": {
-                "string-flag": {
-                    "enabled": True,
-                    "variationType": "STRING",
-                    "variations": {
-                        "hello": {"key": "hello", "value": "hello"},
-                        "world": {"key": "world", "value": "world"},
-                    },
-                }
-            }
-        }
+        config = create_config(create_string_flag("string-flag", "hello", enabled=True))
         process_ffe_configuration(config)
 
         result = provider.resolve_boolean_details("string-flag", False, evaluation_context)
@@ -154,16 +199,7 @@ class TestExposureReporting:
         # Context without targeting_key
         context = EvaluationContext(attributes={"email": "test@example.com"})
 
-        config = {
-            "flags": {
-                "test-flag": {
-                    "enabled": True,
-                    "variationType": "BOOLEAN",
-                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
-                    "variation_key": "on",
-                }
-            }
-        }
+        config = create_config(create_boolean_flag("test-flag", enabled=True, default_value=True))
         process_ffe_configuration(config)
 
         result = provider.resolve_boolean_details("test-flag", False, context)
@@ -181,16 +217,7 @@ class TestExposureReporting:
         mock_get_writer.return_value = mock_writer
 
         # Test string flag
-        config = {
-            "flags": {
-                "string-flag": {
-                    "enabled": True,
-                    "variationType": "STRING",
-                    "variations": {"a": {"key": "a", "value": "variant-a"}, "b": {"key": "b", "value": "variant-b"}},
-                    "variation_key": "a",
-                }
-            }
-        }
+        config = create_config(create_string_flag("string-flag", "variant-a", enabled=True))
         process_ffe_configuration(config)
 
         provider.resolve_string_details("string-flag", "default", evaluation_context)
@@ -198,7 +225,7 @@ class TestExposureReporting:
         assert mock_writer.enqueue.call_count == 1
         exposure_event = mock_writer.enqueue.call_args[0][0]
         assert exposure_event["flag"]["key"] == "string-flag"
-        assert exposure_event["variant"]["key"] == "a"
+        assert exposure_event["variant"]["key"] == "variant-a"
 
     @mock.patch("ddtrace.internal.openfeature.writer.get_exposure_writer")
     def test_exposure_reporting_failure_does_not_affect_resolution(self, mock_get_writer, provider, evaluation_context):
@@ -208,16 +235,7 @@ class TestExposureReporting:
         mock_writer.enqueue.side_effect = Exception("Writer error")
         mock_get_writer.return_value = mock_writer
 
-        config = {
-            "flags": {
-                "test-flag": {
-                    "enabled": True,
-                    "variationType": "BOOLEAN",
-                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
-                    "variation_key": "on",
-                }
-            }
-        }
+        config = create_config(create_boolean_flag("test-flag", enabled=True, default_value=True))
         process_ffe_configuration(config)
 
         # Should not raise despite writer error
@@ -238,16 +256,7 @@ class TestExposureConnectionErrors:
         mock_writer.enqueue.side_effect = TimeoutError("Connection timeout")
         mock_get_writer.return_value = mock_writer
 
-        config = {
-            "flags": {
-                "test-flag": {
-                    "enabled": True,
-                    "variationType": "BOOLEAN",
-                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
-                    "variation_key": "on",
-                }
-            }
-        }
+        config = create_config(create_boolean_flag("test-flag", enabled=True, default_value=True))
         process_ffe_configuration(config)
 
         # Should not raise despite timeout
@@ -263,18 +272,7 @@ class TestExposureConnectionErrors:
         mock_writer.enqueue.side_effect = ConnectionRefusedError("Connection refused")
         mock_get_writer.return_value = mock_writer
 
-        config = {
-            "flags": {
-                "test-flag": {
-                    "enabled": True,
-                    "variationType": "STRING",
-                    "variations": {
-                        "success": {"key": "success", "value": "success"},
-                        "failure": {"key": "failure", "value": "failure"},
-                    },
-                }
-            }
-        }
+        config = create_config(create_string_flag("test-flag", "success", enabled=True))
         process_ffe_configuration(config)
 
         result = provider.resolve_string_details("test-flag", "default", evaluation_context)
@@ -288,15 +286,7 @@ class TestExposureConnectionErrors:
         mock_writer.enqueue.side_effect = OSError("Network is unreachable")
         mock_get_writer.return_value = mock_writer
 
-        config = {
-            "flags": {
-                "network-flag": {
-                    "enabled": True,
-                    "variationType": "INTEGER",
-                    "variations": {"default": {"key": "default", "value": 42}},
-                }
-            }
-        }
+        config = create_config(create_integer_flag("network-flag", 42, enabled=True))
         process_ffe_configuration(config)
 
         result = provider.resolve_integer_details("network-flag", 0, evaluation_context)
@@ -310,15 +300,7 @@ class TestExposureConnectionErrors:
         mock_writer.enqueue.side_effect = Exception("Buffer full")
         mock_get_writer.return_value = mock_writer
 
-        config = {
-            "flags": {
-                "buffer-flag": {
-                    "enabled": True,
-                    "variationType": "BOOLEAN",
-                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
-                }
-            }
-        }
+        config = create_config(create_boolean_flag("buffer-flag", enabled=True, default_value=True))
         process_ffe_configuration(config)
 
         # Multiple evaluations should all succeed
@@ -331,15 +313,7 @@ class TestExposureConnectionErrors:
         """Test handling when get_exposure_writer returns None."""
         mock_get_writer.return_value = None
 
-        config = {
-            "flags": {
-                "none-writer-flag": {
-                    "enabled": True,
-                    "variationType": "BOOLEAN",
-                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
-                }
-            }
-        }
+        config = create_config(create_boolean_flag("none-writer-flag", enabled=True, default_value=True))
         process_ffe_configuration(config)
 
         # Should not crash
@@ -362,18 +336,7 @@ class TestExposureConnectionErrors:
         mock_writer.enqueue.side_effect = side_effect_fn
         mock_get_writer.return_value = mock_writer
 
-        config = {
-            "flags": {
-                "intermittent-flag": {
-                    "enabled": True,
-                    "variationType": "STRING",
-                    "variations": {
-                        "stable": {"key": "stable", "value": "stable"},
-                        "unstable": {"key": "unstable", "value": "unstable"},
-                    },
-                }
-            }
-        }
+        config = create_config(create_string_flag("intermittent-flag", "stable", enabled=True))
         process_ffe_configuration(config)
 
         # Multiple evaluations should all succeed despite intermittent failures
@@ -387,16 +350,7 @@ class TestExposureConnectionErrors:
         mock_writer = mock.Mock()
         mock_get_writer.return_value = mock_writer
 
-        config = {
-            "flags": {
-                "no-context-flag": {
-                    "enabled": True,
-                    "variationType": "BOOLEAN",
-                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
-                    "variation_key": "on",
-                }
-            }
-        }
+        config = create_config(create_boolean_flag("no-context-flag", enabled=True, default_value=True))
         process_ffe_configuration(config)
 
         # Resolve without evaluation context (no targeting_key)
@@ -415,16 +369,7 @@ class TestExposureConnectionErrors:
         mock_writer.enqueue.side_effect = Exception("Generic error")
         mock_get_writer.return_value = mock_writer
 
-        config = {
-            "flags": {
-                "exception-flag": {
-                    "enabled": True,
-                    "variationType": "BOOLEAN",
-                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
-                    "variation_key": "on",
-                }
-            }
-        }
+        config = create_config(create_boolean_flag("exception-flag", enabled=True, default_value=True))
         process_ffe_configuration(config)
 
         result = provider.resolve_boolean_details("exception-flag", False, evaluation_context)

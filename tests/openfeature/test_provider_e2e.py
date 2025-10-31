@@ -9,6 +9,12 @@ import pytest
 from ddtrace.internal.openfeature._config import _set_ffe_config
 from ddtrace.internal.openfeature._native import process_ffe_configuration
 from ddtrace.openfeature import DataDogProvider
+from tests.openfeature.config_helpers import create_boolean_flag
+from tests.openfeature.config_helpers import create_config
+from tests.openfeature.config_helpers import create_float_flag
+from tests.openfeature.config_helpers import create_integer_flag
+from tests.openfeature.config_helpers import create_json_flag
+from tests.openfeature.config_helpers import create_string_flag
 from tests.utils import override_global_config
 
 
@@ -44,17 +50,7 @@ class TestOpenFeatureE2EBooleanFlags:
         client = setup_openfeature
 
         # Configure flag
-        config = {
-            "flags": {
-                "enable-new-feature": {
-                    "enabled": True,
-                    "variationType": "BOOLEAN",
-                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
-                    "variation_key": "on",
-                    "reason": "STATIC",
-                }
-            }
-        }
+        config = create_config(create_boolean_flag("enable-new-feature", enabled=True, default_value=True))
         process_ffe_configuration(config)
 
         # Evaluate flag
@@ -75,17 +71,7 @@ class TestOpenFeatureE2EBooleanFlags:
         """Test boolean flag evaluation with evaluation context."""
         client = setup_openfeature
 
-        config = {
-            "flags": {
-                "premium-feature": {
-                    "enabled": True,
-                    "variationType": "BOOLEAN",
-                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
-                    "variation_key": "premium",
-                    "reason": "TARGETING_MATCH",
-                }
-            }
-        }
+        config = create_config(create_boolean_flag("premium-feature", enabled=True, default_value=True))
         process_ffe_configuration(config)
 
         context = EvaluationContext(
@@ -100,24 +86,13 @@ class TestOpenFeatureE2EBooleanFlags:
         """Test getting boolean flag details."""
         client = setup_openfeature
 
-        config = {
-            "flags": {
-                "detailed-flag": {
-                    "enabled": True,
-                    "variationType": "BOOLEAN",
-                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
-                    "variation_key": "variant-a",
-                    "reason": "SPLIT",
-                }
-            }
-        }
+        config = create_config(create_boolean_flag("detailed-flag", enabled=True, default_value=True))
         process_ffe_configuration(config)
 
         details = client.get_boolean_details("detailed-flag", False)
 
         assert details.value is True
-        assert details.variant == "variant-a"
-        assert details.reason == "SPLIT"
+        assert details.variant == "true"
         assert details.error_code is None
 
 
@@ -128,20 +103,7 @@ class TestOpenFeatureE2EStringFlags:
         """Test string flag evaluation."""
         client = setup_openfeature
 
-        config = {
-            "flags": {
-                "api-endpoint": {
-                    "enabled": True,
-                    "variationType": "STRING",
-                    "variations": {
-                        "true": {"key": "true", "value": "https://api.production.com"},
-                        "false": {"key": "false", "value": False},
-                    },
-                    "variation_key": "production",
-                    "reason": "STATIC",
-                }
-            }
-        }
+        config = create_config(create_string_flag("api-endpoint", "https://api.production.com", enabled=True))
         process_ffe_configuration(config)
 
         result = client.get_string_value("api-endpoint", "https://api.staging.com")
@@ -165,17 +127,7 @@ class TestOpenFeatureE2ENumericFlags:
         """Test integer flag evaluation."""
         client = setup_openfeature
 
-        config = {
-            "flags": {
-                "max-connections": {
-                    "enabled": True,
-                    "variationType": "INTEGER",
-                    "variations": {"false": {"key": "false", "value": 100}, "true": {"key": "true", "value": True}},
-                    "variation_key": "high",
-                    "reason": "TARGETING_MATCH",
-                }
-            }
-        }
+        config = create_config(create_integer_flag("max-connections", 100, enabled=True))
         process_ffe_configuration(config)
 
         result = client.get_integer_value("max-connections", 10)
@@ -186,17 +138,7 @@ class TestOpenFeatureE2ENumericFlags:
         """Test float flag evaluation."""
         client = setup_openfeature
 
-        config = {
-            "flags": {
-                "sampling-rate": {
-                    "enabled": True,
-                    "variationType": "NUMERIC",
-                    "variations": {"false": {"key": "false", "value": 0.75}, "true": {"key": "true", "value": True}},
-                    "variation_key": "medium",
-                    "reason": "SPLIT",
-                }
-            }
-        }
+        config = create_config(create_float_flag("sampling-rate", 0.75, enabled=True))
         process_ffe_configuration(config)
 
         result = client.get_float_value("sampling-rate", 0.5)
@@ -211,20 +153,9 @@ class TestOpenFeatureE2EObjectFlags:
         """Test object flag evaluation with dict."""
         client = setup_openfeature
 
-        config = {
-            "flags": {
-                "feature-config": {
-                    "enabled": True,
-                    "variationType": "JSON",
-                    "variations": {
-                        "true": {"key": "true", "value": {"timeout": 30, "retries": 3, "endpoints": ["api1", "api2"]}},
-                        "false": {"key": "false", "value": False},
-                    },
-                    "variation_key": "config-v2",
-                    "reason": "STATIC",
-                }
-            }
-        }
+        config = create_config(
+            create_json_flag("feature-config", {"timeout": 30, "retries": 3, "endpoints": ["api1", "api2"]}, enabled=True)
+        )
         process_ffe_configuration(config)
 
         result = client.get_object_value("feature-config", {})
@@ -237,17 +168,9 @@ class TestOpenFeatureE2EObjectFlags:
         """Test object flag evaluation with list."""
         client = setup_openfeature
 
-        config = {
-            "flags": {
-                "allowed-regions": {
-                    "enabled": True,
-                    "variationType": "JSON",
-                    "variations": {"global": {"key": "global", "value": ["us-east-1", "eu-west-1", "ap-south-1"]}},
-                    "variation_key": "global",
-                    "reason": "TARGETING_MATCH",
-                }
-            }
-        }
+        config = create_config(
+            create_json_flag("allowed-regions", ["us-east-1", "eu-west-1", "ap-south-1"], enabled=True)
+        )
         process_ffe_configuration(config)
 
         result = client.get_object_value("allowed-regions", [])
@@ -264,15 +187,7 @@ class TestOpenFeatureE2EErrorHandling:
         """Test that type mismatch returns default value."""
         client = setup_openfeature
 
-        config = {
-            "flags": {
-                "string-flag": {
-                    "enabled": True,
-                    "variationType": "STRING",
-                    "variations": {"hello": {"key": "hello", "value": "hello"}},
-                }
-            }
-        }
+        config = create_config(create_string_flag("string-flag", "hello", enabled=True))
         process_ffe_configuration(config)
 
         # Try to get as boolean (type mismatch)
@@ -285,15 +200,7 @@ class TestOpenFeatureE2EErrorHandling:
         """Test that disabled flag returns default value."""
         client = setup_openfeature
 
-        config = {
-            "flags": {
-                "disabled-feature": {
-                    "enabled": False,
-                    "variationType": "BOOLEAN",
-                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
-                }
-            }
-        }
+        config = create_config(create_boolean_flag("disabled-feature", enabled=False, default_value=False))
         process_ffe_configuration(config)
 
         result = client.get_boolean_value("disabled-feature", False)
@@ -308,25 +215,11 @@ class TestOpenFeatureE2EMultipleFlags:
         """Test evaluating multiple flags in sequence."""
         client = setup_openfeature
 
-        config = {
-            "flags": {
-                "feature-a": {
-                    "enabled": True,
-                    "variationType": "BOOLEAN",
-                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
-                },
-                "feature-b": {
-                    "enabled": True,
-                    "variationType": "STRING",
-                    "variations": {"b": {"key": "b", "value": "variant-b"}},
-                },
-                "feature-c": {
-                    "enabled": True,
-                    "variationType": "INTEGER",
-                    "variations": {"default": {"key": "default", "value": 42}},
-                },
-            }
-        }
+        config = create_config(
+            create_boolean_flag("feature-a", enabled=True, default_value=True),
+            create_string_flag("feature-b", "variant-b", enabled=True),
+            create_integer_flag("feature-c", 42, enabled=True)
+        )
         process_ffe_configuration(config)
 
         result_a = client.get_boolean_value("feature-a", False)
@@ -351,15 +244,7 @@ class TestOpenFeatureE2EProviderLifecycle:
         # Get client and use it
         client = api.get_client()
 
-        config = {
-            "flags": {
-                "lifecycle-flag": {
-                    "enabled": True,
-                    "variationType": "BOOLEAN",
-                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
-                }
-            }
-        }
+        config = create_config(create_boolean_flag("lifecycle-flag", enabled=True, default_value=True))
         process_ffe_configuration(config)
 
         result = client.get_boolean_value("lifecycle-flag", False)
@@ -373,15 +258,7 @@ class TestOpenFeatureE2EProviderLifecycle:
         with override_global_config({"experimental_flagging_provider_enabled": True}):
             api.set_provider(DataDogProvider())
 
-        config = {
-            "flags": {
-                "shared-flag": {
-                    "enabled": True,
-                    "variationType": "STRING",
-                    "variations": {"default": {"key": "default", "value": "shared-value"}},
-                }
-            }
-        }
+        config = create_config(create_string_flag("shared-flag", "shared-value", enabled=True))
         process_ffe_configuration(config)
 
         # Get multiple clients
@@ -405,17 +282,7 @@ class TestOpenFeatureE2ERealWorldScenarios:
         client = setup_openfeature
 
         # Feature is enabled for premium users
-        config = {
-            "flags": {
-                "new-ui": {
-                    "enabled": True,
-                    "variationType": "BOOLEAN",
-                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
-                    "variation_key": "new-ui-enabled",
-                    "reason": "TARGETING_MATCH",
-                }
-            }
-        }
+        config = create_config(create_boolean_flag("new-ui", enabled=True, default_value=True))
         process_ffe_configuration(config)
 
         premium_context = EvaluationContext(targeting_key="user-premium", attributes={"tier": "premium"})
@@ -427,29 +294,14 @@ class TestOpenFeatureE2ERealWorldScenarios:
         """Test using flags for configuration management."""
         client = setup_openfeature
 
-        config = {
-            "flags": {
-                "database-config": {
-                    "enabled": True,
-                    "variationType": "JSON",
-                    "variations": {
-                        "production-db": {
-                            "key": "production-db",
-                            "value": {"host": "db.production.com", "port": 5432, "pool_size": 20, "timeout": 30},
-                        }
-                    },
-                    "variation_key": "production-db",
-                    "reason": "STATIC",
-                },
-                "cache-ttl": {
-                    "enabled": True,
-                    "variationType": "INTEGER",
-                    "variations": {"1hour": {"key": "1hour", "value": 3600}},
-                    "variation_key": "1hour",
-                    "reason": "STATIC",
-                },
-            }
-        }
+        config = create_config(
+            create_json_flag(
+                "database-config",
+                {"host": "db.production.com", "port": 5432, "pool_size": 20, "timeout": 30},
+                enabled=True
+            ),
+            create_integer_flag("cache-ttl", 3600, enabled=True)
+        )
         process_ffe_configuration(config)
 
         db_config = client.get_object_value("database-config", {})
@@ -463,27 +315,13 @@ class TestOpenFeatureE2ERealWorldScenarios:
         """Test A/B testing scenario with variants."""
         client = setup_openfeature
 
-        config = {
-            "flags": {
-                "button-color": {
-                    "enabled": True,
-                    "variationType": "STRING",
-                    "variations": {
-                        "variant-b": {"key": "variant-b", "value": "blue"},
-                        "variant-a": {"key": "variant-a", "value": "red"},
-                    },
-                    "variation_key": "variant-b",
-                    "reason": "SPLIT",
-                }
-            }
-        }
+        config = create_config(create_string_flag("button-color", "blue", enabled=True))
         process_ffe_configuration(config)
 
         details = client.get_string_details("button-color", "red")
 
         assert details.value == "blue"
-        assert details.variant == "variant-b"
-        assert details.reason == "SPLIT"
+        assert details.variant == "blue"
 
 
 class TestOpenFeatureE2ERemoteConfigScenarios:
@@ -512,9 +350,8 @@ class TestOpenFeatureE2ERemoteConfigScenarios:
         """Test flag evaluation with empty remote config."""
         client = setup_openfeature
 
-        # Set empty config
-        config = {"flags": {}}
-        process_ffe_configuration(config)
+        # Set empty config (native library doesn't accept truly empty configs, so we just clear it)
+        _set_ffe_config(None)
 
         result = client.get_boolean_value("any-flag", True)
 
@@ -548,15 +385,7 @@ class TestOpenFeatureE2ERemoteConfigScenarios:
         assert result1 is False
 
         # Now remote config arrives
-        config = {
-            "flags": {
-                "late-flag": {
-                    "enabled": True,
-                    "variationType": "BOOLEAN",
-                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
-                }
-            }
-        }
+        config = create_config(create_boolean_flag("late-flag", enabled=True, default_value=True))
         process_ffe_configuration(config)
 
         # Second evaluation should use the flag value
@@ -568,30 +397,14 @@ class TestOpenFeatureE2ERemoteConfigScenarios:
         client = setup_openfeature
 
         # Initial config
-        config1 = {
-            "flags": {
-                "dynamic-flag": {
-                    "enabled": True,
-                    "variationType": "STRING",
-                    "variations": {"v1": {"key": "v1", "value": "version1"}},
-                }
-            }
-        }
+        config1 = create_config(create_string_flag("dynamic-flag", "version1", enabled=True))
         process_ffe_configuration(config1)
 
         result1 = client.get_string_value("dynamic-flag", "default")
         assert result1 == "version1"
 
         # Update config
-        config2 = {
-            "flags": {
-                "dynamic-flag": {
-                    "enabled": True,
-                    "variationType": "STRING",
-                    "variations": {"v2": {"key": "v2", "value": "version2"}},
-                }
-            }
-        }
+        config2 = create_config(create_string_flag("dynamic-flag", "version2", enabled=True))
         process_ffe_configuration(config2)
 
         result2 = client.get_string_value("dynamic-flag", "default")
@@ -601,18 +414,22 @@ class TestOpenFeatureE2ERemoteConfigScenarios:
         """Test handling of malformed remote config data."""
         client = setup_openfeature
 
-        # Malformed config (missing required fields)
-        config = {
-            "flags": {
-                "malformed-flag": {
-                    "enabled": True,
-                    # Missing variationType and value
+        # Malformed config (missing required fields) - native library will reject this
+        # So we test that the system handles missing config gracefully
+        try:
+            config = {
+                "flags": {
+                    "malformed-flag": {
+                        "enabled": True,
+                        # Missing variationType and value
+                    }
                 }
             }
-        }
+            process_ffe_configuration(config)
+        except ValueError:
+            # Expected - native library rejects malformed config
+            pass
 
-        # Should not crash when processing malformed config
-        process_ffe_configuration(config)
+        # With no valid config, should return default
         result = client.get_boolean_value("malformed-flag", False)
-        # Should return default
-        assert result is False or result is True  # Implementation dependent
+        assert result is False

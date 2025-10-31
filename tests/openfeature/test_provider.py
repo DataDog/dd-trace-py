@@ -10,6 +10,12 @@ import pytest
 from ddtrace.internal.openfeature._config import _set_ffe_config
 from ddtrace.internal.openfeature._native import process_ffe_configuration
 from ddtrace.openfeature import DataDogProvider
+from tests.openfeature.config_helpers import create_boolean_flag
+from tests.openfeature.config_helpers import create_config
+from tests.openfeature.config_helpers import create_float_flag
+from tests.openfeature.config_helpers import create_integer_flag
+from tests.openfeature.config_helpers import create_json_flag
+from tests.openfeature.config_helpers import create_string_flag
 from tests.utils import override_global_config
 
 
@@ -63,24 +69,13 @@ class TestBooleanFlagResolution:
 
     def test_resolve_boolean_flag_success(self, provider):
         """Should resolve boolean flag and return correct value."""
-        config = {
-            "flags": {
-                "test-bool-flag": {
-                    "enabled": True,
-                    "variationType": "BOOLEAN",
-                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
-                    "variation_key": "on",
-                    "reason": "STATIC",
-                }
-            }
-        }
+        config = create_config(create_boolean_flag("test-bool-flag", enabled=True, default_value=True))
         process_ffe_configuration(config)
 
         result = provider.resolve_boolean_details("test-bool-flag", False)
 
         assert result.value is True
-        assert result.reason == Reason.STATIC
-        assert result.variant == "on"
+        assert result.variant == "true"
         assert result.error_code is None
         assert result.error_message is None
 
@@ -97,15 +92,7 @@ class TestBooleanFlagResolution:
 
     def test_resolve_boolean_flag_disabled(self, provider):
         """Should return default value when flag is disabled."""
-        config = {
-            "flags": {
-                "disabled-flag": {
-                    "enabled": False,
-                    "variationType": "BOOLEAN",
-                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
-                }
-            }
-        }
+        config = create_config(create_boolean_flag("disabled-flag", enabled=False, default_value=False))
         process_ffe_configuration(config)
 
         result = provider.resolve_boolean_details("disabled-flag", False)
@@ -115,15 +102,7 @@ class TestBooleanFlagResolution:
 
     def test_resolve_boolean_flag_type_mismatch(self, provider):
         """Should return error when flag type doesn't match."""
-        config = {
-            "flags": {
-                "string-flag": {
-                    "enabled": True,
-                    "variationType": "STRING",
-                    "variations": {"hello": {"key": "hello", "value": "hello"}},
-                }
-            }
-        }
+        config = create_config(create_string_flag("string-flag", "hello", enabled=True))
         process_ffe_configuration(config)
 
         result = provider.resolve_boolean_details("string-flag", False)
@@ -139,17 +118,7 @@ class TestStringFlagResolution:
 
     def test_resolve_string_flag_success(self, provider):
         """Should resolve string flag and return correct value."""
-        config = {
-            "flags": {
-                "test-string-flag": {
-                    "enabled": True,
-                    "variationType": "STRING",
-                    "variations": {"a": {"key": "a", "value": "variant-a"}},
-                    "variation_key": "a",
-                    "reason": "TARGETING_MATCH",
-                }
-            }
-        }
+        config = create_config(create_string_flag("test-string-flag", "variant-a", enabled=True))
         process_ffe_configuration(config)
 
         result = provider.resolve_string_details("test-string-flag", "default")
@@ -174,17 +143,7 @@ class TestIntegerFlagResolution:
 
     def test_resolve_integer_flag_success(self, provider):
         """Should resolve integer flag and return correct value."""
-        config = {
-            "flags": {
-                "test-int-flag": {
-                    "enabled": True,
-                    "variationType": "INTEGER",
-                    "variations": {"int-variant": {"key": "int-variant", "value": 42}},
-                    "variation_key": "int-variant",
-                    "reason": "SPLIT",
-                }
-            }
-        }
+        config = create_config(create_integer_flag("test-int-flag", 42, enabled=True))
         process_ffe_configuration(config)
 
         result = provider.resolve_integer_details("test-int-flag", 0)
@@ -219,17 +178,7 @@ class TestFloatFlagResolution:
 
     def test_resolve_float_flag_success(self, provider):
         """Should resolve float flag and return correct value."""
-        config = {
-            "flags": {
-                "test-float-flag": {
-                    "enabled": True,
-                    "variationType": "NUMERIC",
-                    "variations": {"pi": {"key": "pi", "value": 3.14159}},
-                    "variation_key": "pi",
-                    "reason": "STATIC",
-                }
-            }
-        }
+        config = create_config(create_float_flag("test-float-flag", 3.14159, enabled=True))
         process_ffe_configuration(config)
 
         result = provider.resolve_float_details("test-float-flag", 0.0)
@@ -253,19 +202,7 @@ class TestObjectFlagResolution:
 
     def test_resolve_object_flag_dict_success(self, provider):
         """Should resolve object flag (dict) and return correct value."""
-        config = {
-            "flags": {
-                "test-object-flag": {
-                    "enabled": True,
-                    "variationType": "JSON",
-                    "variations": {
-                        "obj-variant": {"key": "obj-variant", "value": {"key": "value", "nested": {"foo": "bar"}}}
-                    },
-                    "variation_key": "obj-variant",
-                    "reason": "TARGETING_MATCH",
-                }
-            }
-        }
+        config = create_config(create_json_flag("test-object-flag", {"key": "value", "nested": {"foo": "bar"}}, enabled=True))
         process_ffe_configuration(config)
 
         result = provider.resolve_object_details("test-object-flag", {})
@@ -276,17 +213,7 @@ class TestObjectFlagResolution:
 
     def test_resolve_object_flag_list_success(self, provider):
         """Should resolve object flag (list) and return correct value."""
-        config = {
-            "flags": {
-                "test-list-flag": {
-                    "enabled": True,
-                    "variationType": "JSON",
-                    "variations": {"list-variant": {"key": "list-variant", "value": [1, 2, 3, "four"]}},
-                    "variation_key": "list-variant",
-                    "reason": "STATIC",
-                }
-            }
-        }
+        config = create_config(create_json_flag("test-list-flag", [1, 2, 3, "four"], enabled=True))
         process_ffe_configuration(config)
 
         result = provider.resolve_object_details("test-list-flag", [])
@@ -349,16 +276,7 @@ class TestReasonMapping:
 
     def test_static_reason(self, provider):
         """Should map STATIC reason correctly."""
-        config = {
-            "flags": {
-                "static-flag": {
-                    "enabled": True,
-                    "variationType": "BOOLEAN",
-                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
-                    "reason": "STATIC",
-                }
-            }
-        }
+        config = create_config(create_boolean_flag("static-flag", enabled=True, default_value=True))
         process_ffe_configuration(config)
 
         result = provider.resolve_boolean_details("static-flag", False)
@@ -366,16 +284,7 @@ class TestReasonMapping:
 
     def test_targeting_match_reason(self, provider):
         """Should map TARGETING_MATCH reason correctly."""
-        config = {
-            "flags": {
-                "targeting-flag": {
-                    "enabled": True,
-                    "variationType": "BOOLEAN",
-                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
-                    "reason": "TARGETING_MATCH",
-                }
-            }
-        }
+        config = create_config(create_boolean_flag("targeting-flag", enabled=True, default_value=True))
         process_ffe_configuration(config)
 
         result = provider.resolve_boolean_details("targeting-flag", False)
@@ -383,16 +292,7 @@ class TestReasonMapping:
 
     def test_split_reason(self, provider):
         """Should map SPLIT reason correctly."""
-        config = {
-            "flags": {
-                "split-flag": {
-                    "enabled": True,
-                    "variationType": "BOOLEAN",
-                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
-                    "reason": "SPLIT",
-                }
-            }
-        }
+        config = create_config(create_boolean_flag("split-flag", enabled=True, default_value=True))
         process_ffe_configuration(config)
 
         result = provider.resolve_boolean_details("split-flag", False)
@@ -463,16 +363,7 @@ class TestVariantHandling:
 
     def test_variant_populated_on_success(self, provider):
         """Variant should be populated with variation_key on success."""
-        config = {
-            "flags": {
-                "variant-flag": {
-                    "enabled": True,
-                    "variationType": "STRING",
-                    "variations": {"my-variant-key": {"key": "my-variant-key", "value": "variant-value"}},
-                    "variation_key": "my-variant-key",
-                }
-            }
-        }
+        config = create_config(create_string_flag("variant-flag", "variant-value", enabled=True))
         process_ffe_configuration(config)
 
         result = provider.resolve_string_details("variant-flag", "default")
@@ -563,8 +454,7 @@ class TestFlagKeyCornerCases:
                 "機能フラグ": {
                     "enabled": True,
                     "variationType": "BOOLEAN",
-                    "variations": {"有効": {"key": "有効", "value": True}, "無効": {"key": "無効", "value": False}},
-                    "variation_key": "有効",
+                    "variations": {"有効": {"key": "有効", "value": True}, "無効": {"key": "無効", "value": False}}
                 }
             }
         }

@@ -109,7 +109,15 @@ def get_assignment(
     if configuration is None:
         return None
 
-    details = configuration.resolve_value(flag_key, expected_type, context)
+    # Convert evaluation context to dict for native FFE
+    context_dict = {}
+    if context is not None:
+        if hasattr(context, "targeting_key") and context.targeting_key:
+            context_dict["targetingKey"] = context.targeting_key
+        if hasattr(context, "attributes") and context.attributes:
+            context_dict.update(context.attributes)
+
+    details = configuration.resolve_value(flag_key, expected_type, context_dict)
 
     # Handle errors from native
     if details.error_code is not None:

@@ -9,6 +9,9 @@ import pytest
 from ddtrace.internal.openfeature._config import _set_ffe_config
 from ddtrace.internal.openfeature._native import process_ffe_configuration
 from ddtrace.openfeature import DataDogProvider
+from tests.openfeature.config_helpers import create_boolean_flag
+from tests.openfeature.config_helpers import create_config
+from tests.openfeature.config_helpers import create_string_flag
 from tests.utils import override_global_config
 
 
@@ -28,45 +31,20 @@ class TestProviderConfigEnabled:
         with override_global_config({"experimental_flagging_provider_enabled": True}):
             provider = DataDogProvider()
 
-            config = {
-                "flags": {
-                    "test-flag": {
-                        "enabled": True,
-                        "variationType": "BOOLEAN",
-                        "variations": {
-                            "true": {"key": "true", "value": True},
-                            "false": {"key": "false", "value": False},
-                        },
-                        "variation_key": "on",
-                        "reason": "STATIC",
-                    }
-                }
-            }
+            config = create_config(create_boolean_flag("test-flag", enabled=True, default_value=True))
             process_ffe_configuration(config)
 
             result = provider.resolve_boolean_details("test-flag", False)
 
             assert result.value is True
-            assert result.reason == Reason.STATIC
-            assert result.variant == "on"
+            assert result.variant == "true"
 
     def test_provider_enabled_with_true_value(self):
         """Provider should be enabled when set to True."""
         with override_global_config({"experimental_flagging_provider_enabled": True}):
             provider = DataDogProvider()
 
-            config = {
-                "flags": {
-                    "test-flag": {
-                        "enabled": True,
-                        "variationType": "STRING",
-                        "variations": {
-                            "test": {"key": "test", "value": "test-value"},
-                            "default": {"key": "default", "value": "default-value"},
-                        },
-                    }
-                }
-            }
+            config = create_config(create_string_flag("test-flag", "test-value", enabled=True))
             process_ffe_configuration(config)
 
             result = provider.resolve_string_details("test-flag", "default")
@@ -83,18 +61,7 @@ class TestProviderConfigDisabled:
         with override_global_config({"experimental_flagging_provider_enabled": False}):
             provider = DataDogProvider()
 
-            config = {
-                "flags": {
-                    "test-flag": {
-                        "enabled": True,
-                        "variationType": "BOOLEAN",
-                        "variations": {
-                            "true": {"key": "true", "value": True},
-                            "false": {"key": "false", "value": False},
-                        },
-                    }
-                }
-            }
+            config = create_config(create_boolean_flag("test-flag", enabled=True, default_value=True))
             process_ffe_configuration(config)
 
             result = provider.resolve_boolean_details("test-flag", False)
