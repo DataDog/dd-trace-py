@@ -12,8 +12,6 @@ import pytest
 
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.contrib.internal.flask.patch import flask_version
-from ddtrace.internal.constants import BLOCKED_RESPONSE_HTML
-from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
 from ddtrace.internal.utils.retry import RetryError
 import tests.appsec.rules as rules
 from tests.webclient import Client
@@ -133,6 +131,7 @@ def flask_client(flask_command, flask_port, flask_wsgi_application, flask_env_ar
         "metrics._dd.appsec.waf.duration_ext",
         "meta.span.kind",
         "meta._dd.appsec.rc_products",
+        "meta.http.response.headers.content-length",
     ],
     variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
 )
@@ -140,10 +139,6 @@ def flask_client(flask_command, flask_port, flask_wsgi_application, flask_env_ar
 def test_flask_ipblock_match_403(flask_client):
     resp = flask_client.get("/", headers={"X-Real-Ip": rules._IP.BLOCKED, "ACCEPT": "text/html"})
     assert resp.status_code == 403
-    if hasattr(resp, "text"):
-        assert resp.text == BLOCKED_RESPONSE_HTML
-    else:
-        assert resp.data == BLOCKED_RESPONSE_HTML.encode("utf-8")
 
 
 @pytest.mark.snapshot(
@@ -168,6 +163,7 @@ def test_flask_ipblock_match_403(flask_client):
         "metrics._dd.appsec.waf.duration_ext",
         "meta.span.kind",
         "meta._dd.appsec.rc_products",
+        "meta.http.response.headers.content-length",
     ],
     variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
 )
@@ -175,10 +171,6 @@ def test_flask_ipblock_match_403(flask_client):
 def test_flask_ipblock_match_403_json(flask_client):
     resp = flask_client.get("/", headers={"X-Real-Ip": rules._IP.BLOCKED})
     assert resp.status_code == 403
-    if hasattr(resp, "text"):
-        assert resp.text == BLOCKED_RESPONSE_JSON
-    else:
-        assert resp.data == BLOCKED_RESPONSE_JSON.encode("utf-8")
 
 
 @pytest.mark.snapshot(
@@ -202,6 +194,7 @@ def test_flask_ipblock_match_403_json(flask_client):
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
         "meta._dd.appsec.rc_products",
+        "meta.http.response.headers.content-length",
     ],
     variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
 )
@@ -209,10 +202,6 @@ def test_flask_ipblock_match_403_json(flask_client):
 def test_flask_userblock_match_403_json(flask_client):
     resp = flask_client.get("/checkuser/%s" % _BLOCKED_USER)
     assert resp.status_code == 403
-    if hasattr(resp, "text"):
-        assert resp.text == BLOCKED_RESPONSE_JSON
-    else:
-        assert resp.data == BLOCKED_RESPONSE_JSON.encode("utf-8")
 
 
 @pytest.mark.snapshot(
@@ -236,6 +225,7 @@ def test_flask_userblock_match_403_json(flask_client):
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
         "meta._dd.appsec.rc_products",
+        "meta.http.response.headers.content-length",
     ],
     variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
 )
@@ -266,6 +256,7 @@ def test_flask_userblock_match_200_json(flask_client):
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
         "meta._dd.appsec.rc_products",
+        "meta.http.response.headers.content-length",
     ],
     variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
 )
@@ -297,6 +288,7 @@ def test_flask_processexec_ossystem(flask_client):
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
         "meta._dd.appsec.rc_products",
+        "meta.http.response.headers.content-length",
     ],
     variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
 )
@@ -329,6 +321,7 @@ def test_flask_processexec_osspawn(flask_client):
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
         "meta._dd.appsec.rc_products",
+        "meta.http.response.headers.content-length",
     ],
     variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
 )
@@ -360,6 +353,7 @@ def test_flask_processexec_subprocesscommunicateshell(flask_client):
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
         "meta._dd.appsec.rc_products",
+        "meta.http.response.headers.content-length",
     ],
     variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
 )

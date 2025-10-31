@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import contextlib
+import re
 
 import pytest
 
@@ -54,8 +55,11 @@ def test_request_block_request_callable(client, test_spans, tracer):
         )
         # Should not block by IP, but the block callable is called directly inside that view
         assert result.status_code == 403
-        as_bytes = bytes(constants.BLOCKED_RESPONSE_JSON, "utf-8")
-        assert result.content == as_bytes
+        body = result.content.decode()
+        body_parsed = re.sub(
+            r'"security_response_id":"[-0-9a-z]+"', r'"security_response_id":"[security_response_id]"', body
+        )
+        assert body_parsed == constants.BLOCKED_RESPONSE_JSON
         assert root.get_tag(http.STATUS_CODE) == "403"
         assert root.get_tag(http.URL) == "http://testserver/appsec/block/"
         assert root.get_tag(http.METHOD) == "GET"
@@ -116,8 +120,11 @@ def test_request_userblock_403(client, test_spans, tracer):
             client, test_spans, tracer, url="/appsec/checkuser/%s/" % _BLOCKED_USER
         )
         assert result.status_code == 403
-        as_bytes = bytes(constants.BLOCKED_RESPONSE_JSON, "utf-8")
-        assert result.content == as_bytes
+        body = result.content.decode()
+        body_parsed = re.sub(
+            r'"security_response_id":"[-0-9a-z]+"', r'"security_response_id":"[security_response_id]"', body
+        )
+        assert body_parsed == constants.BLOCKED_RESPONSE_JSON, (body_parsed, constants.BLOCKED_RESPONSE_JSON)
         assert root.get_tag(http.STATUS_CODE) == "403"
         assert root.get_tag(http.URL) == "http://testserver/appsec/checkuser/%s/" % _BLOCKED_USER
         assert root.get_tag(http.METHOD) == "GET"
