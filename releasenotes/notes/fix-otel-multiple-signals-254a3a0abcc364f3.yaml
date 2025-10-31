@@ -1,5 +1,4 @@
 ---
 fixes:
   - |
-opentelemetry: Fixed circular import when enabling multiple OpenTelemetry signals (metrics + logs) simultaneously. 
-   OpenTelemetry providers now initialize directly during ddtrace bootstrap instead of using lazy module hooks.
+    opentelemetry: Fixed circular import when enabling multiple OpenTelemetry signals (metrics + logs) simultaneously. 

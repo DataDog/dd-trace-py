@@ -65,24 +65,24 @@ if config._runtime_metrics_enabled:
     RuntimeWorker.enable()
 
 
-if config._otel_trace_enabled:
-    from opentelemetry.trace import set_tracer_provider
+@ModuleWatchdog.after_module_imported("opentelemetry")
+def _otel_signals(_):
+    if config._otel_trace_enabled:
+        from opentelemetry.trace import set_tracer_provider
 
-    from ddtrace.opentelemetry import TracerProvider
+        from ddtrace.opentelemetry import TracerProvider
 
-    set_tracer_provider(TracerProvider())
+        set_tracer_provider(TracerProvider())
 
+    if config._otel_logs_enabled:
+        from ddtrace.internal.opentelemetry.logs import set_otel_logs_provider
 
-if config._otel_metrics_enabled:
-    from ddtrace.internal.opentelemetry.metrics import set_otel_meter_provider
+        set_otel_logs_provider()
 
-    set_otel_meter_provider()
+    if config._otel_metrics_enabled:
+        from ddtrace.internal.opentelemetry.metrics import set_otel_meter_provider
 
-
-if config._otel_logs_enabled:
-    from ddtrace.internal.opentelemetry.logs import set_otel_logs_provider
-
-    set_otel_logs_provider()
+        set_otel_meter_provider()
 
 
 if config._llmobs_enabled:

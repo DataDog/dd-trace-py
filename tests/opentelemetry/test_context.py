@@ -215,7 +215,7 @@ def test_otel_baggage_removal_propagation_to_ddtrace(oteltracer):
 )
 @pytest.mark.subprocess(
     env={"DD_TRACE_OTEL_ENABLED": "true", "DD_LOGS_OTEL_ENABLED": "true", "DD_METRICS_OTEL_ENABLED": "true"},
-    ddtrace_run=True
+    ddtrace_run=True,
 )
 def test_providers_are_set():
     from opentelemetry._logs import get_logger_provider
