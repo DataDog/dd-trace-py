@@ -53,72 +53,31 @@ class TestExposureReporting:
             "id": "1",
             "createdAt": "2025-10-30T18:36:06.108540853Z",
             "format": "SERVER",
-            "environment": {
-                "name": "staging"
-            },
+            "environment": {"name": "staging"},
             "flags": {
                 "alberto-flag": {
                     "key": "alberto-flag",
                     "enabled": True,
                     "variationType": "BOOLEAN",
-                    "variations": {
-                        "false": {
-                            "key": "false",
-                            "value": True
-                        },
-                        "true": {
-                            "key": "true",
-                            "value": True
-                        }
-                    },
+                    "variations": {"false": {"key": "false", "value": True}, "true": {"key": "true", "value": True}},
                     "allocations": [
                         {
                             "key": "ffd4e06b-f2de-45cf-aa19-92cf6c768e61",
-                            "rules": [
-                                {
-                                    "conditions": [
-                                        {
-                                            "operator": "ONE_OF",
-                                            "attribute": "a",
-                                            "value": [
-                                                "b"
-                                            ]
-                                        }
-                                    ]
-                                }
-                            ],
+                            "rules": [{"conditions": [{"operator": "ONE_OF", "attribute": "a", "value": ["b"]}]}],
                             "startAt": "2025-10-29T15:15:23.936522Z",
                             "endAt": "9999-12-31T23:59:59Z",
-                            "splits": [
-                                {
-                                    "shards": [
-
-                                    ],
-                                    "variationKey": "true",
-                                    "extraLogging": "None"
-                                }
-                            ],
-                            "doLog": True
+                            "splits": [{"shards": [], "variationKey": "true", "extraLogging": "None"}],
+                            "doLog": True,
                         },
                         {
                             "key": "allocation-default",
-                            "rules": [
-
-                            ],
-                            "splits": [
-                                {
-                                    "shards": [
-
-                                    ],
-                                    "variationKey": "true",
-                                    "extraLogging": "None"
-                                }
-                            ],
-                            "doLog": True
-                        }
-                    ]
+                            "rules": [],
+                            "splits": [{"shards": [], "variationKey": "true", "extraLogging": "None"}],
+                            "doLog": True,
+                        },
+                    ],
                 }
-            }
+            },
         }
         process_ffe_configuration(config)
 

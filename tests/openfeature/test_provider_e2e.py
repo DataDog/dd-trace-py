@@ -154,7 +154,9 @@ class TestOpenFeatureE2EObjectFlags:
         client = setup_openfeature
 
         config = create_config(
-            create_json_flag("feature-config", {"timeout": 30, "retries": 3, "endpoints": ["api1", "api2"]}, enabled=True)
+            create_json_flag(
+                "feature-config", {"timeout": 30, "retries": 3, "endpoints": ["api1", "api2"]}, enabled=True
+            )
         )
         process_ffe_configuration(config)
 
@@ -218,7 +220,7 @@ class TestOpenFeatureE2EMultipleFlags:
         config = create_config(
             create_boolean_flag("feature-a", enabled=True, default_value=True),
             create_string_flag("feature-b", "variant-b", enabled=True),
-            create_integer_flag("feature-c", 42, enabled=True)
+            create_integer_flag("feature-c", 42, enabled=True),
         )
         process_ffe_configuration(config)
 
@@ -298,9 +300,9 @@ class TestOpenFeatureE2ERealWorldScenarios:
             create_json_flag(
                 "database-config",
                 {"host": "db.production.com", "port": 5432, "pool_size": 20, "timeout": 30},
-                enabled=True
+                enabled=True,
             ),
-            create_integer_flag("cache-ttl", 3600, enabled=True)
+            create_integer_flag("cache-ttl", 3600, enabled=True),
         )
         process_ffe_configuration(config)
 

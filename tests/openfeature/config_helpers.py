@@ -17,7 +17,9 @@ def create_boolean_flag(flag_key, enabled=True, default_value=True):
             {
                 "key": "allocation-default",
                 "rules": [],
-                "splits": [{"shards": [], "variationKey": "true" if default_value else "false", "extraLogging": "None"}],
+                "splits": [
+                    {"shards": [], "variationKey": "true" if default_value else "false", "extraLogging": "None"}
+                ],
                 "doLog": True,
             }
         ],
@@ -102,10 +104,10 @@ def create_json_flag(flag_key, value, enabled=True):
 def create_config(*flags):
     """
     Create a complete FFE configuration with proper server format.
-    
+
     Args:
         *flags: Flag dictionaries created by create_*_flag functions
-    
+
     Returns:
         Complete configuration dict
     """
@@ -116,8 +118,8 @@ def create_config(*flags):
         "environment": {"name": "test"},
         "flags": {},
     }
-    
+
     for flag in flags:
         config["flags"][flag["key"]] = flag
-    
+
     return config
