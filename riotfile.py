@@ -88,6 +88,55 @@ def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYT
     return [version_to_str(version) for version in SUPPORTED_PYTHON_VERSIONS if min_version <= version <= max_version]
 
 
+def create_allocator_venvs() -> List[Venv]:
+    """Create venv(s) for all allocator types."""
+    def find_jemalloc_path() -> str:
+        """Find available jemalloc library path, return empty string if not found."""
+        import ctypes
+
+        # Try common jemalloc library names across different systems
+        jemalloc_names: List[str] = [
+            "libjemalloc.so.2",  # Ubuntu/Debian
+            "libjemalloc.so.1",  # Older versions
+            "libjemalloc.so",  # Generic
+            "libjemalloc.dylib",  # macOS (though less common)
+        ]
+
+        for lib_name in jemalloc_names:
+            try:
+                # Try to load jemalloc library (OSError is raised if not found)
+                ctypes.CDLL(lib_name)
+                return lib_name
+            except (OSError, AttributeError):
+                # Library not found or ctypes issue - try next name
+                continue
+
+        # If no jemalloc library found, return empty string
+        return ""
+
+    # standard allocators
+    venvs: List[Venv] = [
+        # Venv(
+        #     env={
+        #         "PYTHONMALLOC": [
+        #             "malloc",
+        #             "pymalloc",
+        #             "malloc_debug",
+        #             "pymalloc_debug",
+        #         ],
+        #     },
+        # )
+    ]
+
+    jemalloc_path: str = find_jemalloc_path()
+     if jemalloc_path:
+         venvs.append(Venv(
+             env={"PYTHONMALLOC": "malloc", "LD_PRELOAD": jemalloc_path},
+         ))
+
+     return venvs
+
+
 # Common venv configurations for appsec threats testing
 _appsec_threats_iast_variants = [
     Venv(
@@ -3532,21 +3581,10 @@ venv = Venv(
                 Venv(
                     name="profile-v2-memalloc",
                     command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling_v2/collector/test_memalloc.py",  # noqa: E501
-                    # skipping v3.14 for now due to an unstable `lz4 ` lib issue: https://gitlab.ddbuild.io/DataDog/apm-reliability/dd-trace-py/-/jobs/1163312347
-                    pys=select_pys(max_version="3.13"),
-                    venvs=[
-                        # standard allocators
-                        Venv(
-                            env={
-                                "PYTHONMALLOC": [
-                                    "malloc",
-                                    "pymalloc",
-                                    "malloc_debug",
-                                    "pymalloc_debug",
-                                ],
-                            },
-                        ),
-                    ],
+                    pys=select_pys(
+                        max_version="3.13"
+                    ),  # skipping v3.14 for now due to an unstable `lz4 ` lib issue: https://gitlab.ddbuild.io/DataDog/apm-reliability/dd-trace-py/-/jobs/1163312347
+                     venvs=create_allocator_venvs(),
                 ),
             ],
         ),
