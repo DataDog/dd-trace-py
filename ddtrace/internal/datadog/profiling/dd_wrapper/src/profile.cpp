@@ -2,6 +2,7 @@
 
 #include "libdatadog_helpers.hpp"
 
+#include <datadog/profiling.h>
 #include <functional>
 #include <iostream>
 
@@ -55,7 +56,28 @@ Datadog::Profile::reset_profile()
         ddog_Error_drop(&err);
         return false;
     }
+
+    auto set_dictionary_res =
+      ddog_prof_Profile_set_profiles_dictionary(&cur_profile, Datadog::internal::get_profiles_dictionary());
+    if (set_dictionary_res.tag != DDOG_VOID_RESULT_OK) {
+        auto err = set_dictionary_res.err;
+        if (!already_warned) {
+            already_warned = true;
+            const std::string errmsg = err_to_msg(&err, "Error setting profiles dictionary");
+            std::cerr << errmsg << std::endl;
+        }
+        ddog_Error_drop(&err);
+        return false;
+    }
+
     return true;
+}
+
+void
+Datadog::Profile::cleanup()
+{
+    // Clear the profile before using it
+    ddog_prof_Profile_drop(&cur_profile);
 }
 
 void
@@ -185,6 +207,19 @@ Datadog::Profile::one_time_init(SampleType type, unsigned int _max_nframes)
         return;
     }
 
+    auto set_dictionary_res =
+      ddog_prof_Profile_set_profiles_dictionary(&cur_profile, Datadog::internal::get_profiles_dictionary());
+    if (set_dictionary_res.tag != DDOG_VOID_RESULT_OK) {
+        auto err = set_dictionary_res.err;
+        if (!already_warned) {
+            already_warned = true;
+            const std::string errmsg = err_to_msg(&err, "Error setting profiles dictionary");
+            std::cerr << errmsg << std::endl;
+        }
+        ddog_Error_drop(&err);
+        return;
+    }
+
     // We're done. Don't do this again.
     first_time.store(false);
 }
@@ -196,11 +231,11 @@ Datadog::Profile::val()
 }
 
 bool
-Datadog::Profile::collect(const ddog_prof_Sample& sample, int64_t endtime_ns)
+Datadog::Profile::collect(const ddog_prof_Sample2& sample, int64_t endtime_ns)
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     const std::lock_guard<std::mutex> lock(profile_mtx);
-    auto res = ddog_prof_Profile_add(&cur_profile, sample, endtime_ns);
+    auto res = ddog_prof_Profile_add2(&cur_profile, sample, endtime_ns);
     if (!res.ok) {          // NOLINT (cppcoreguidelines-pro-type-union-access)
         auto err = res.err; // NOLINT (cppcoreguidelines-pro-type-union-access)
         if (!already_warned) {

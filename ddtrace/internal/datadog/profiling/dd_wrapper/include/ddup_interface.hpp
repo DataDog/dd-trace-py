@@ -14,6 +14,13 @@ class Sample;
 extern "C"
 {
 #endif
+
+    using string_id_t = std::add_pointer<void>::type;
+    using function_id_t = std::add_pointer<void>::type;
+
+    string_id_t ddup_intern_string(std::string_view s);
+    function_id_t ddup_intern_function(string_id_t name, string_id_t filename);
+
     void ddup_config_env(std::string_view dd_env);
     void ddup_config_service(std::string_view service);
     void ddup_config_version(std::string_view version);
@@ -32,6 +39,7 @@ extern "C"
 
     bool ddup_is_initialized();
     void ddup_start();
+    void ddup_cleanup();
     void ddup_set_runtime_id(std::string_view runtime_id);
     void ddup_profile_set_endpoints(std::unordered_map<int64_t, std::string_view> span_ids_to_endpoints);
     void ddup_profile_add_endpoint_counts(std::unordered_map<std::string_view, int64_t> trace_endpoints_to_counts);
@@ -66,6 +74,7 @@ extern "C"
                          std::string_view _filename,
                          uint64_t address,
                          int64_t line);
+    void ddup_push_frame_id(Datadog::Sample* sample, function_id_t function_id, uint64_t address, int64_t line);
     void ddup_push_absolute_ns(Datadog::Sample* sample, int64_t timestamp_ns);
     void ddup_push_monotonic_ns(Datadog::Sample* sample, int64_t monotonic_ns);
     void ddup_flush_sample(Datadog::Sample* sample);
