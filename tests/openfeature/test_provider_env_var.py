@@ -7,9 +7,8 @@ from openfeature.flag_evaluation import Reason
 import pytest
 
 from ddtrace.internal.openfeature._config import _set_ffe_config
-from ddtrace.internal.openfeature._ffe_mock import AssignmentReason
-from ddtrace.internal.openfeature._ffe_mock import VariationType
-from ddtrace.internal.openfeature._ffe_mock import mock_process_ffe_configuration
+from ddtrace.internal.openfeature._native import VariationType
+from ddtrace.internal.openfeature._native import process_ffe_configuration
 from ddtrace.openfeature import DataDogProvider
 from tests.utils import override_global_config
 
@@ -34,17 +33,17 @@ class TestProviderConfigEnabled:
                 "flags": {
                     "test-flag": {
                         "enabled": True,
-                        "variationType": VariationType.BOOLEAN.value,
+                        "variationType": "BOOLEAN",
                         "variations": {
                             "true": {"key": "true", "value": True},
                             "false": {"key": "false", "value": False},
                         },
                         "variation_key": "on",
-                        "reason": AssignmentReason.STATIC.value,
+                        "reason": "STATIC",
                     }
                 }
             }
-            mock_process_ffe_configuration(config)
+            process_ffe_configuration(config)
 
             result = provider.resolve_boolean_details("test-flag", False)
 
@@ -61,7 +60,7 @@ class TestProviderConfigEnabled:
                 "flags": {
                     "test-flag": {
                         "enabled": True,
-                        "variationType": VariationType.STRING.value,
+                        "variationType": "STRING",
                         "variations": {
                             "test": {"key": "test", "value": "test-value"},
                             "default": {"key": "default", "value": "default-value"},
@@ -69,7 +68,7 @@ class TestProviderConfigEnabled:
                     }
                 }
             }
-            mock_process_ffe_configuration(config)
+            process_ffe_configuration(config)
 
             result = provider.resolve_string_details("test-flag", "default")
 
@@ -89,7 +88,7 @@ class TestProviderConfigDisabled:
                 "flags": {
                     "test-flag": {
                         "enabled": True,
-                        "variationType": VariationType.BOOLEAN.value,
+                        "variationType": "BOOLEAN",
                         "variations": {
                             "true": {"key": "true", "value": True},
                             "false": {"key": "false", "value": False},
@@ -97,7 +96,7 @@ class TestProviderConfigDisabled:
                     }
                 }
             }
-            mock_process_ffe_configuration(config)
+            process_ffe_configuration(config)
 
             result = provider.resolve_boolean_details("test-flag", False)
 

@@ -7,9 +7,8 @@ from openfeature.evaluation_context import EvaluationContext
 import pytest
 
 from ddtrace.internal.openfeature._config import _set_ffe_config
-from ddtrace.internal.openfeature._ffe_mock import AssignmentReason
-from ddtrace.internal.openfeature._ffe_mock import VariationType
-from ddtrace.internal.openfeature._ffe_mock import mock_process_ffe_configuration
+from ddtrace.internal.openfeature._native import VariationType
+from ddtrace.internal.openfeature._native import process_ffe_configuration
 from ddtrace.openfeature import DataDogProvider
 from tests.utils import override_global_config
 
@@ -50,14 +49,14 @@ class TestOpenFeatureE2EBooleanFlags:
             "flags": {
                 "enable-new-feature": {
                     "enabled": True,
-                    "variationType": VariationType.BOOLEAN.value,
+                    "variationType": "BOOLEAN",
                     "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                     "variation_key": "on",
-                    "reason": AssignmentReason.STATIC.value,
+                    "reason": "STATIC",
                 }
             }
         }
-        mock_process_ffe_configuration(config)
+        process_ffe_configuration(config)
 
         # Evaluate flag
         result = client.get_boolean_value("enable-new-feature", False)
@@ -81,14 +80,14 @@ class TestOpenFeatureE2EBooleanFlags:
             "flags": {
                 "premium-feature": {
                     "enabled": True,
-                    "variationType": VariationType.BOOLEAN.value,
+                    "variationType": "BOOLEAN",
                     "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                     "variation_key": "premium",
-                    "reason": AssignmentReason.TARGETING_MATCH.value,
+                    "reason": "TARGETING_MATCH",
                 }
             }
         }
-        mock_process_ffe_configuration(config)
+        process_ffe_configuration(config)
 
         context = EvaluationContext(
             targeting_key="user-123", attributes={"tier": "premium", "email": "test@example.com"}
@@ -106,14 +105,14 @@ class TestOpenFeatureE2EBooleanFlags:
             "flags": {
                 "detailed-flag": {
                     "enabled": True,
-                    "variationType": VariationType.BOOLEAN.value,
+                    "variationType": "BOOLEAN",
                     "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                     "variation_key": "variant-a",
-                    "reason": AssignmentReason.SPLIT.value,
+                    "reason": "SPLIT",
                 }
             }
         }
-        mock_process_ffe_configuration(config)
+        process_ffe_configuration(config)
 
         details = client.get_boolean_details("detailed-flag", False)
 
@@ -134,17 +133,17 @@ class TestOpenFeatureE2EStringFlags:
             "flags": {
                 "api-endpoint": {
                     "enabled": True,
-                    "variationType": VariationType.STRING.value,
+                    "variationType": "STRING",
                     "variations": {
                         "true": {"key": "true", "value": "https://api.production.com"},
                         "false": {"key": "false", "value": False},
                     },
                     "variation_key": "production",
-                    "reason": AssignmentReason.STATIC.value,
+                    "reason": "STATIC",
                 }
             }
         }
-        mock_process_ffe_configuration(config)
+        process_ffe_configuration(config)
 
         result = client.get_string_value("api-endpoint", "https://api.staging.com")
 
@@ -171,14 +170,14 @@ class TestOpenFeatureE2ENumericFlags:
             "flags": {
                 "max-connections": {
                     "enabled": True,
-                    "variationType": VariationType.INTEGER.value,
+                    "variationType": "INTEGER",
                     "variations": {"false": {"key": "false", "value": 100}, "true": {"key": "true", "value": True}},
                     "variation_key": "high",
-                    "reason": AssignmentReason.TARGETING_MATCH.value,
+                    "reason": "TARGETING_MATCH",
                 }
             }
         }
-        mock_process_ffe_configuration(config)
+        process_ffe_configuration(config)
 
         result = client.get_integer_value("max-connections", 10)
 
@@ -192,14 +191,14 @@ class TestOpenFeatureE2ENumericFlags:
             "flags": {
                 "sampling-rate": {
                     "enabled": True,
-                    "variationType": VariationType.NUMERIC.value,
+                    "variationType": "NUMERIC",
                     "variations": {"false": {"key": "false", "value": 0.75}, "true": {"key": "true", "value": True}},
                     "variation_key": "medium",
-                    "reason": AssignmentReason.SPLIT.value,
+                    "reason": "SPLIT",
                 }
             }
         }
-        mock_process_ffe_configuration(config)
+        process_ffe_configuration(config)
 
         result = client.get_float_value("sampling-rate", 0.5)
 
@@ -217,17 +216,17 @@ class TestOpenFeatureE2EObjectFlags:
             "flags": {
                 "feature-config": {
                     "enabled": True,
-                    "variationType": VariationType.JSON.value,
+                    "variationType": "JSON",
                     "variations": {
                         "true": {"key": "true", "value": {"timeout": 30, "retries": 3, "endpoints": ["api1", "api2"]}},
                         "false": {"key": "false", "value": False},
                     },
                     "variation_key": "config-v2",
-                    "reason": AssignmentReason.STATIC.value,
+                    "reason": "STATIC",
                 }
             }
         }
-        mock_process_ffe_configuration(config)
+        process_ffe_configuration(config)
 
         result = client.get_object_value("feature-config", {})
 
@@ -243,14 +242,14 @@ class TestOpenFeatureE2EObjectFlags:
             "flags": {
                 "allowed-regions": {
                     "enabled": True,
-                    "variationType": VariationType.JSON.value,
+                    "variationType": "JSON",
                     "variations": {"global": {"key": "global", "value": ["us-east-1", "eu-west-1", "ap-south-1"]}},
                     "variation_key": "global",
-                    "reason": AssignmentReason.TARGETING_MATCH.value,
+                    "reason": "TARGETING_MATCH",
                 }
             }
         }
-        mock_process_ffe_configuration(config)
+        process_ffe_configuration(config)
 
         result = client.get_object_value("allowed-regions", [])
 
@@ -270,12 +269,12 @@ class TestOpenFeatureE2EErrorHandling:
             "flags": {
                 "string-flag": {
                     "enabled": True,
-                    "variationType": VariationType.STRING.value,
+                    "variationType": "STRING",
                     "variations": {"hello": {"key": "hello", "value": "hello"}},
                 }
             }
         }
-        mock_process_ffe_configuration(config)
+        process_ffe_configuration(config)
 
         # Try to get as boolean (type mismatch)
         result = client.get_boolean_value("string-flag", False)
@@ -291,12 +290,12 @@ class TestOpenFeatureE2EErrorHandling:
             "flags": {
                 "disabled-feature": {
                     "enabled": False,
-                    "variationType": VariationType.BOOLEAN.value,
+                    "variationType": "BOOLEAN",
                     "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                 }
             }
         }
-        mock_process_ffe_configuration(config)
+        process_ffe_configuration(config)
 
         result = client.get_boolean_value("disabled-feature", False)
 
@@ -314,22 +313,22 @@ class TestOpenFeatureE2EMultipleFlags:
             "flags": {
                 "feature-a": {
                     "enabled": True,
-                    "variationType": VariationType.BOOLEAN.value,
+                    "variationType": "BOOLEAN",
                     "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                 },
                 "feature-b": {
                     "enabled": True,
-                    "variationType": VariationType.STRING.value,
+                    "variationType": "STRING",
                     "variations": {"b": {"key": "b", "value": "variant-b"}},
                 },
                 "feature-c": {
                     "enabled": True,
-                    "variationType": VariationType.INTEGER.value,
+                    "variationType": "INTEGER",
                     "variations": {"default": {"key": "default", "value": 42}},
                 },
             }
         }
-        mock_process_ffe_configuration(config)
+        process_ffe_configuration(config)
 
         result_a = client.get_boolean_value("feature-a", False)
         result_b = client.get_string_value("feature-b", "default")
@@ -357,12 +356,12 @@ class TestOpenFeatureE2EProviderLifecycle:
             "flags": {
                 "lifecycle-flag": {
                     "enabled": True,
-                    "variationType": VariationType.BOOLEAN.value,
+                    "variationType": "BOOLEAN",
                     "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                 }
             }
         }
-        mock_process_ffe_configuration(config)
+        process_ffe_configuration(config)
 
         result = client.get_boolean_value("lifecycle-flag", False)
         assert result is True
@@ -379,12 +378,12 @@ class TestOpenFeatureE2EProviderLifecycle:
             "flags": {
                 "shared-flag": {
                     "enabled": True,
-                    "variationType": VariationType.STRING.value,
+                    "variationType": "STRING",
                     "variations": {"default": {"key": "default", "value": "shared-value"}},
                 }
             }
         }
-        mock_process_ffe_configuration(config)
+        process_ffe_configuration(config)
 
         # Get multiple clients
         client1 = api.get_client("client1")
@@ -411,14 +410,14 @@ class TestOpenFeatureE2ERealWorldScenarios:
             "flags": {
                 "new-ui": {
                     "enabled": True,
-                    "variationType": VariationType.BOOLEAN.value,
+                    "variationType": "BOOLEAN",
                     "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                     "variation_key": "new-ui-enabled",
-                    "reason": AssignmentReason.TARGETING_MATCH.value,
+                    "reason": "TARGETING_MATCH",
                 }
             }
         }
-        mock_process_ffe_configuration(config)
+        process_ffe_configuration(config)
 
         premium_context = EvaluationContext(targeting_key="user-premium", attributes={"tier": "premium"})
 
@@ -433,7 +432,7 @@ class TestOpenFeatureE2ERealWorldScenarios:
             "flags": {
                 "database-config": {
                     "enabled": True,
-                    "variationType": VariationType.JSON.value,
+                    "variationType": "JSON",
                     "variations": {
                         "production-db": {
                             "key": "production-db",
@@ -441,18 +440,18 @@ class TestOpenFeatureE2ERealWorldScenarios:
                         }
                     },
                     "variation_key": "production-db",
-                    "reason": AssignmentReason.STATIC.value,
+                    "reason": "STATIC",
                 },
                 "cache-ttl": {
                     "enabled": True,
-                    "variationType": VariationType.INTEGER.value,
+                    "variationType": "INTEGER",
                     "variations": {"1hour": {"key": "1hour", "value": 3600}},
                     "variation_key": "1hour",
-                    "reason": AssignmentReason.STATIC.value,
+                    "reason": "STATIC",
                 },
             }
         }
-        mock_process_ffe_configuration(config)
+        process_ffe_configuration(config)
 
         db_config = client.get_object_value("database-config", {})
         cache_ttl = client.get_integer_value("cache-ttl", 600)
@@ -469,17 +468,17 @@ class TestOpenFeatureE2ERealWorldScenarios:
             "flags": {
                 "button-color": {
                     "enabled": True,
-                    "variationType": VariationType.STRING.value,
+                    "variationType": "STRING",
                     "variations": {
                         "variant-b": {"key": "variant-b", "value": "blue"},
                         "variant-a": {"key": "variant-a", "value": "red"},
                     },
                     "variation_key": "variant-b",
-                    "reason": AssignmentReason.SPLIT.value,
+                    "reason": "SPLIT",
                 }
             }
         }
-        mock_process_ffe_configuration(config)
+        process_ffe_configuration(config)
 
         details = client.get_string_details("button-color", "red")
 
@@ -516,7 +515,7 @@ class TestOpenFeatureE2ERemoteConfigScenarios:
 
         # Set empty config
         config = {"flags": {}}
-        mock_process_ffe_configuration(config)
+        process_ffe_configuration(config)
 
         result = client.get_boolean_value("any-flag", True)
 
@@ -554,12 +553,12 @@ class TestOpenFeatureE2ERemoteConfigScenarios:
             "flags": {
                 "late-flag": {
                     "enabled": True,
-                    "variationType": VariationType.BOOLEAN.value,
+                    "variationType": "BOOLEAN",
                     "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                 }
             }
         }
-        mock_process_ffe_configuration(config)
+        process_ffe_configuration(config)
 
         # Second evaluation should use the flag value
         result2 = client.get_boolean_value("late-flag", False)
@@ -574,12 +573,12 @@ class TestOpenFeatureE2ERemoteConfigScenarios:
             "flags": {
                 "dynamic-flag": {
                     "enabled": True,
-                    "variationType": VariationType.STRING.value,
+                    "variationType": "STRING",
                     "variations": {"v1": {"key": "v1", "value": "version1"}},
                 }
             }
         }
-        mock_process_ffe_configuration(config1)
+        process_ffe_configuration(config1)
 
         result1 = client.get_string_value("dynamic-flag", "default")
         assert result1 == "version1"
@@ -589,12 +588,12 @@ class TestOpenFeatureE2ERemoteConfigScenarios:
             "flags": {
                 "dynamic-flag": {
                     "enabled": True,
-                    "variationType": VariationType.STRING.value,
+                    "variationType": "STRING",
                     "variations": {"v2": {"key": "v2", "value": "version2"}},
                 }
             }
         }
-        mock_process_ffe_configuration(config2)
+        process_ffe_configuration(config2)
 
         result2 = client.get_string_value("dynamic-flag", "default")
         assert result2 == "version2"
@@ -614,7 +613,7 @@ class TestOpenFeatureE2ERemoteConfigScenarios:
         }
 
         # Should not crash when processing malformed config
-        mock_process_ffe_configuration(config)
+        process_ffe_configuration(config)
         result = client.get_boolean_value("malformed-flag", False)
         # Should return default
         assert result is False or result is True  # Implementation dependent

@@ -8,9 +8,8 @@ from openfeature.evaluation_context import EvaluationContext
 import pytest
 
 from ddtrace.internal.openfeature._config import _set_ffe_config
-from ddtrace.internal.openfeature._ffe_mock import AssignmentReason
-from ddtrace.internal.openfeature._ffe_mock import VariationType
-from ddtrace.internal.openfeature._ffe_mock import mock_process_ffe_configuration
+from ddtrace.internal.openfeature._native import VariationType
+from ddtrace.internal.openfeature._native import process_ffe_configuration
 from ddtrace.openfeature import DataDogProvider
 from tests.utils import override_global_config
 
@@ -51,14 +50,14 @@ class TestExposureReporting:
             "flags": {
                 "test-flag": {
                     "enabled": True,
-                    "variationType": VariationType.BOOLEAN.value,
+                    "variationType": "BOOLEAN",
                     "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                     "variation_key": "on",
-                    "reason": AssignmentReason.STATIC.value,
+                    "reason": "STATIC",
                 }
             }
         }
-        mock_process_ffe_configuration(config)
+        process_ffe_configuration(config)
 
         # Resolve flag
         result = provider.resolve_boolean_details("test-flag", False, evaluation_context)
@@ -104,12 +103,12 @@ class TestExposureReporting:
             "flags": {
                 "disabled-flag": {
                     "enabled": False,
-                    "variationType": VariationType.BOOLEAN.value,
+                    "variationType": "BOOLEAN",
                     "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                 }
             }
         }
-        mock_process_ffe_configuration(config)
+        process_ffe_configuration(config)
 
         result = provider.resolve_boolean_details("disabled-flag", False, evaluation_context)
 
@@ -129,7 +128,7 @@ class TestExposureReporting:
             "flags": {
                 "string-flag": {
                     "enabled": True,
-                    "variationType": VariationType.STRING.value,
+                    "variationType": "STRING",
                     "variations": {
                         "hello": {"key": "hello", "value": "hello"},
                         "world": {"key": "world", "value": "world"},
@@ -137,7 +136,7 @@ class TestExposureReporting:
                 }
             }
         }
-        mock_process_ffe_configuration(config)
+        process_ffe_configuration(config)
 
         result = provider.resolve_boolean_details("string-flag", False, evaluation_context)
 
@@ -160,13 +159,13 @@ class TestExposureReporting:
             "flags": {
                 "test-flag": {
                     "enabled": True,
-                    "variationType": VariationType.BOOLEAN.value,
+                    "variationType": "BOOLEAN",
                     "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                     "variation_key": "on",
                 }
             }
         }
-        mock_process_ffe_configuration(config)
+        process_ffe_configuration(config)
 
         result = provider.resolve_boolean_details("test-flag", False, context)
 
@@ -187,13 +186,13 @@ class TestExposureReporting:
             "flags": {
                 "string-flag": {
                     "enabled": True,
-                    "variationType": VariationType.STRING.value,
+                    "variationType": "STRING",
                     "variations": {"a": {"key": "a", "value": "variant-a"}, "b": {"key": "b", "value": "variant-b"}},
                     "variation_key": "a",
                 }
             }
         }
-        mock_process_ffe_configuration(config)
+        process_ffe_configuration(config)
 
         provider.resolve_string_details("string-flag", "default", evaluation_context)
 
@@ -214,13 +213,13 @@ class TestExposureReporting:
             "flags": {
                 "test-flag": {
                     "enabled": True,
-                    "variationType": VariationType.BOOLEAN.value,
+                    "variationType": "BOOLEAN",
                     "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                     "variation_key": "on",
                 }
             }
         }
-        mock_process_ffe_configuration(config)
+        process_ffe_configuration(config)
 
         # Should not raise despite writer error
         result = provider.resolve_boolean_details("test-flag", False, evaluation_context)
@@ -244,13 +243,13 @@ class TestExposureConnectionErrors:
             "flags": {
                 "test-flag": {
                     "enabled": True,
-                    "variationType": VariationType.BOOLEAN.value,
+                    "variationType": "BOOLEAN",
                     "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                     "variation_key": "on",
                 }
             }
         }
-        mock_process_ffe_configuration(config)
+        process_ffe_configuration(config)
 
         # Should not raise despite timeout
         result = provider.resolve_boolean_details("test-flag", False, evaluation_context)
@@ -269,7 +268,7 @@ class TestExposureConnectionErrors:
             "flags": {
                 "test-flag": {
                     "enabled": True,
-                    "variationType": VariationType.STRING.value,
+                    "variationType": "STRING",
                     "variations": {
                         "success": {"key": "success", "value": "success"},
                         "failure": {"key": "failure", "value": "failure"},
@@ -277,7 +276,7 @@ class TestExposureConnectionErrors:
                 }
             }
         }
-        mock_process_ffe_configuration(config)
+        process_ffe_configuration(config)
 
         result = provider.resolve_string_details("test-flag", "default", evaluation_context)
 
@@ -294,12 +293,12 @@ class TestExposureConnectionErrors:
             "flags": {
                 "network-flag": {
                     "enabled": True,
-                    "variationType": VariationType.INTEGER.value,
+                    "variationType": "INTEGER",
                     "variations": {"default": {"key": "default", "value": 42}},
                 }
             }
         }
-        mock_process_ffe_configuration(config)
+        process_ffe_configuration(config)
 
         result = provider.resolve_integer_details("network-flag", 0, evaluation_context)
 
@@ -316,12 +315,12 @@ class TestExposureConnectionErrors:
             "flags": {
                 "buffer-flag": {
                     "enabled": True,
-                    "variationType": VariationType.BOOLEAN.value,
+                    "variationType": "BOOLEAN",
                     "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                 }
             }
         }
-        mock_process_ffe_configuration(config)
+        process_ffe_configuration(config)
 
         # Multiple evaluations should all succeed
         for _ in range(10):
@@ -337,12 +336,12 @@ class TestExposureConnectionErrors:
             "flags": {
                 "none-writer-flag": {
                     "enabled": True,
-                    "variationType": VariationType.BOOLEAN.value,
+                    "variationType": "BOOLEAN",
                     "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                 }
             }
         }
-        mock_process_ffe_configuration(config)
+        process_ffe_configuration(config)
 
         # Should not crash
         result = provider.resolve_boolean_details("none-writer-flag", False, evaluation_context)
@@ -368,7 +367,7 @@ class TestExposureConnectionErrors:
             "flags": {
                 "intermittent-flag": {
                     "enabled": True,
-                    "variationType": VariationType.STRING.value,
+                    "variationType": "STRING",
                     "variations": {
                         "stable": {"key": "stable", "value": "stable"},
                         "unstable": {"key": "unstable", "value": "unstable"},
@@ -376,7 +375,7 @@ class TestExposureConnectionErrors:
                 }
             }
         }
-        mock_process_ffe_configuration(config)
+        process_ffe_configuration(config)
 
         # Multiple evaluations should all succeed despite intermittent failures
         for _ in range(5):
@@ -393,13 +392,13 @@ class TestExposureConnectionErrors:
             "flags": {
                 "no-context-flag": {
                     "enabled": True,
-                    "variationType": VariationType.BOOLEAN.value,
+                    "variationType": "BOOLEAN",
                     "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                     "variation_key": "on",
                 }
             }
         }
-        mock_process_ffe_configuration(config)
+        process_ffe_configuration(config)
 
         # Resolve without evaluation context (no targeting_key)
         result = provider.resolve_boolean_details("no-context-flag", False, None)
@@ -421,13 +420,13 @@ class TestExposureConnectionErrors:
             "flags": {
                 "exception-flag": {
                     "enabled": True,
-                    "variationType": VariationType.BOOLEAN.value,
+                    "variationType": "BOOLEAN",
                     "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                     "variation_key": "on",
                 }
             }
         }
-        mock_process_ffe_configuration(config)
+        process_ffe_configuration(config)
 
         result = provider.resolve_boolean_details("exception-flag", False, evaluation_context)
 
