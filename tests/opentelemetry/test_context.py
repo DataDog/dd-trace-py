@@ -215,8 +215,7 @@ def test_otel_baggage_removal_propagation_to_ddtrace(oteltracer):
 )
 @pytest.mark.subprocess(
     env={"DD_TRACE_OTEL_ENABLED": "true", "DD_LOGS_OTEL_ENABLED": "true", "DD_METRICS_OTEL_ENABLED": "true"},
-    ddtrace_run=True,
-    err=None,
+    ddtrace_run=True
 )
 def test_providers_are_set():
     from opentelemetry._logs import get_logger_provider
@@ -227,6 +226,6 @@ def test_providers_are_set():
     meter_provider = get_meter_provider()
     logger_provider = get_logger_provider()
 
-    assert tracer_provider.get_tracer(__name__) is not None, "Tracer is not set"
-    assert meter_provider.get_meter(__name__) is not None, "Meter is not set"
-    assert logger_provider.get_logger(__name__) is not None, "Logger is not set"
+    assert tracer_provider.get_tracer(__name__) is not None
+    assert meter_provider.get_meter(__name__) is not None
+    assert logger_provider.get_logger(__name__) is not None
