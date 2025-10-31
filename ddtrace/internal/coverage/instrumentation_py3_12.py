@@ -25,7 +25,9 @@ EMPTY_MODULE_BYTES = bytes([RESUME, 0, RETURN_CONST, 0])
 _CODE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str, t.Dict[int, t.Tuple[str, t.Optional[t.Tuple[str]]]]]] = {}
 
 
-def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, CoverageLines]:
+def instrument_all_lines(
+    code: CodeType, hook: HookType, path: str, package: str, file_level: bool = False
+) -> t.Tuple[CodeType, CoverageLines]:
     """
     Instrument code for coverage tracking using Python 3.12's monitoring API.
 
@@ -34,6 +36,8 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
         hook: The hook function to call
         path: The file path
         package: The package name
+        file_level: For Python 3.12, this uses the monitoring API which tracks all lines.
+                     The parameter is kept for API consistency but doesn't affect behavior.
 
     Note: Python 3.12+ uses an optimized approach where each line callback returns DISABLE
     after recording. This means:
@@ -50,7 +54,7 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
         log.debug("Registering code coverage tool")
         _register_monitoring()
 
-    return _instrument_all_lines_with_monitoring(code, hook, path, package)
+    return _instrument_all_lines_with_monitoring(code, hook, path, package, file_level)
 
 
 def _line_event_handler(code: CodeType, line: int) -> t.Literal[sys.monitoring.DISABLE]:
@@ -83,7 +87,7 @@ def _register_monitoring():
 
 
 def _instrument_all_lines_with_monitoring(
-    code: CodeType, hook: HookType, path: str, package: str
+    code: CodeType, hook: HookType, path: str, package: str, file_level: bool = False
 ) -> t.Tuple[CodeType, CoverageLines]:
     # Enable local line events for the code object
     sys.monitoring.set_local_events(sys.monitoring.COVERAGE_ID, code, sys.monitoring.events.LINE)  # noqa
@@ -168,7 +172,7 @@ def _instrument_all_lines_with_monitoring(
 
     # Recursively instrument nested code objects
     for nested_code in (_ for _ in code.co_consts if isinstance(_, CodeType)):
-        _, nested_lines = instrument_all_lines(nested_code, hook, path, package)
+        _, nested_lines = instrument_all_lines(nested_code, hook, path, package, file_level)
         lines.update(nested_lines)
 
     # Register the hook and argument for the code object

@@ -7,6 +7,7 @@ from types import CodeType
 import typing as t
 
 from ddtrace.internal.bytecode_injection import HookType
+from ddtrace.internal.bytecode_injection.core import find_lines_to_instrument
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
 
@@ -248,7 +249,46 @@ def trap_call(trap_index: int, arg_index: int) -> t.Tuple[Instruction, ...]:
 SKIP_LINES = frozenset([dis.opmap["END_ASYNC_FOR"]])
 
 
-def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, CoverageLines]:
+def should_instrument_line(
+    code: CodeType,
+    offset: int,
+    lines_to_instrument: t.Optional[t.Set[int]],
+) -> bool:
+    """
+    Determine if a bytecode offset should be instrumented.
+
+    Args:
+        code: The code object
+        offset: The bytecode offset to check
+        lines_to_instrument: Set of line offsets to instrument (file-level mode),
+                            or None for full coverage (instrument all lines)
+
+    Returns:
+        True if the offset should be instrumented, False otherwise
+    """
+    # Always skip lines with opcodes in SKIP_LINES
+    if code.co_code[offset] in SKIP_LINES:
+        return False
+
+    # lines_to_instrument is None -> Full instrumentation, return True
+    # offset in lines_to_instrument -> File-Level instrumentation
+    return lines_to_instrument is None or offset in lines_to_instrument
+
+
+def instrument_all_lines(
+    code: CodeType, hook: HookType, path: str, package: str, file_level: bool = False
+) -> t.Tuple[CodeType, CoverageLines]:
+    """
+    Instrument code for coverage tracking.
+
+    Args:
+        code: The code object to instrument
+        hook: The hook function to call
+        path: The file path
+        package: The package name
+        file_level: If True, only instrument first line + import lines (minimal overhead).
+                     If False, instrument all executable lines (full coverage).
+    """
     # TODO[perf]: Check if we really need to << and >> everywhere
     trap_func, trap_arg = hook, path
 
@@ -282,6 +322,9 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     if code.co_name == "<module>" and line_starts == {0: 0} and code.co_code == EMPTY_BYTECODE:
         line_starts = {2: 0}
 
+    # Pre-compute lines to instrument for file-level mode (optimization to avoid recomputing)
+    lines_to_instrument = find_lines_to_instrument(code, line_starts, resume_offset) if file_level else None
+
     # The previous two arguments are kept in order to track the depth of the IMPORT_NAME
     # For example, from ...package import module
     current_arg: int = 0
@@ -301,7 +344,7 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
 
             if original_offset in line_starts and original_offset > resume_offset:
                 line = line_starts[original_offset]
-                if code.co_code[original_offset] not in SKIP_LINES:
+                if should_instrument_line(code, original_offset, lines_to_instrument):
                     # Inject trap call at the beginning of the line. Keep
                     # track of location and size of the trap call
                     # instructions. We need this to adjust the location
@@ -459,7 +502,9 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     # Instrument nested code objects recursively
     for original_offset, nested_code in enumerate(code.co_consts):
         if isinstance(nested_code, CodeType):
-            new_consts[original_offset], nested_lines = instrument_all_lines(nested_code, trap_func, trap_arg, package)
+            new_consts[original_offset], nested_lines = instrument_all_lines(
+                nested_code, trap_func, trap_arg, package, file_level
+            )
             seen_lines.update(nested_lines)
 
     return (

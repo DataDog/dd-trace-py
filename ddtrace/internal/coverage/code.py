@@ -20,6 +20,7 @@ from ddtrace.internal.packages import platstdlib_path
 from ddtrace.internal.packages import purelib_path
 from ddtrace.internal.packages import stdlib_path
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.inspection import resolved_code_origin
 
 
@@ -30,6 +31,10 @@ _original_exec = exec
 ctx_covered: ContextVar[t.List[t.DefaultDict[str, CoverageLines]]] = ContextVar("ctx_covered", default=[])
 ctx_is_import_coverage = ContextVar("ctx_is_import_coverage", default=False)
 ctx_coverage_enabled = ContextVar("ctx_coverage_enabled", default=False)
+
+
+def _is_file_level_coverage_enabled():
+    return asbool(os.getenv("_DD_COVERAGE_FILE_LEVEL", "false"))
 
 
 def _get_ctx_covered_lines() -> t.DefaultDict[str, CoverageLines]:
@@ -380,7 +385,9 @@ class ModuleCodeCollector(ModuleWatchdog):
             return code
         self.seen.add((code, code.co_filename))
 
-        new_code, lines = instrument_all_lines(code, self.hook, code.co_filename, package)
+        new_code, lines = instrument_all_lines(
+            code, self.hook, code.co_filename, package, file_level=_is_file_level_coverage_enabled()
+        )
         self.seen.add((new_code, code.co_filename))
         # Keep note of all the lines that have been instrumented. These will be
         # the ones that can be covered.
