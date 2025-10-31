@@ -16,11 +16,12 @@ from openfeature.flag_evaluation import Reason
 from openfeature.provider import Metadata
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native._native import ffe
 from ddtrace.internal.openfeature._config import _get_ffe_config
 from ddtrace.internal.openfeature._exposure import build_exposure_event
-from ddtrace.internal.openfeature._native import EvaluationError, get_assignment, VariationType
-
-from ddtrace.internal.native._native import ffe
+from ddtrace.internal.openfeature._native import EvaluationError
+from ddtrace.internal.openfeature._native import VariationType
+from ddtrace.internal.openfeature._native import get_assignment
 from ddtrace.internal.openfeature._remoteconfiguration import disable_featureflags_rc
 from ddtrace.internal.openfeature._remoteconfiguration import enable_featureflags_rc
 from ddtrace.internal.openfeature.writer import get_exposure_writer
@@ -266,7 +267,7 @@ class DataDogProvider(AbstractProvider):
                 "SPLIT": Reason.SPLIT,
             }
             return string_map.get(native_reason, Reason.UNKNOWN)
-        
+
         # Map native ffe.Reason enum to OpenFeature Reason
         if native_reason == ffe.Reason.Static:
             return Reason.STATIC

@@ -5,18 +5,12 @@ This product receives feature flag configuration rules from Remote Configuration
 and processes them through the native FFE processor.
 """
 import enum
-import json
 import os
 import typing as t
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.openfeature._config import _set_ffe_config
 from ddtrace.internal.openfeature._native import process_ffe_configuration
 from ddtrace.internal.remoteconfig import Payload
-
-
-from ddtrace.internal.native._native import ffe
-
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
 from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisher
 from ddtrace.internal.remoteconfig._pubsub import PubSub
@@ -75,9 +69,6 @@ def featureflag_rc_callback(payloads: t.Sequence[Payload]) -> None:
             continue
 
         try:
-            print("PAYLOAD")
-            print(payload.content)
-            print(type(payload.content))
             process_ffe_configuration(payload.content)
             log.debug("Processing FFE config ID: %s, size: %d bytes", payload.metadata.id, len(payload.content))
         except Exception as e:

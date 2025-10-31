@@ -8,7 +8,6 @@ from openfeature.evaluation_context import EvaluationContext
 import pytest
 
 from ddtrace.internal.openfeature._config import _set_ffe_config
-from ddtrace.internal.openfeature._native import VariationType
 from ddtrace.internal.openfeature._native import process_ffe_configuration
 from ddtrace.openfeature import DataDogProvider
 from tests.utils import override_global_config
