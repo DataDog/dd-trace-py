@@ -2207,7 +2207,10 @@ MUL: "*"
             model_provider="openai",
             input_messages=[{"role": "user", "content": "Roll 2d4+1"}],
             output_messages=[
-                {'role': 'reasoning', 'content': '{"summary": [], "encrypted_content": null, "id": "rs_0f873afd7ff4f5b30168ffa1f5d91c81a0890e78a4873fbc1b"}'},
+                {
+                    "role": "reasoning",
+                    "content": '{"summary": [], "encrypted_content": null, "id": "rs_0f873afd7ff4f5b30168ffa1f5d91c81a0890e78a4873fbc1b"}',
+                },
                 {
                     "tool_calls": [
                         {
@@ -2223,14 +2226,20 @@ MUL: "*"
                             "type": "mcp_tool_result",
                             "tool_id": "mcp_0f873afd7ff4f5b30168ffa1f7ddec81a0a114abda192da6b3",
                             "result": "You rolled 2d4+1 for 2d4+1 roll:\n🎲 Total: 8\n📊 Breakdown: 2d4:[3,4] + 1",
-
                         }
                     ],
                     "role": "assistant",
                 },
-                {'role': 'assistant', 'content': 'You rolled 2d4+1:\n- Total: 8\n- Breakdown: 2d4 → [3, 4] + 1'}
+                {"role": "assistant", "content": "You rolled 2d4+1:\n- Total: 8\n- Breakdown: 2d4 → [3, 4] + 1"},
             ],
-            metadata={'temperature': 1.0, 'top_p': 1.0, 'tool_choice': 'auto', 'truncation': 'disabled', 'text': {'format': {'type': 'text'}, 'verbosity': 'medium'}, 'reasoning_tokens': 128},
+            metadata={
+                "temperature": 1.0,
+                "top_p": 1.0,
+                "tool_choice": "auto",
+                "truncation": "disabled",
+                "text": {"format": {"type": "text"}, "verbosity": "medium"},
+                "reasoning_tokens": 128,
+            },
             token_metrics={
                 "input_tokens": 642,
                 "output_tokens": 206,
@@ -2243,30 +2252,27 @@ MUL: "*"
                     "name": "dice_roll",
                     "description": "Roll dice using standard notation. IMPORTANT: For D&D advantage use '2d20kh1' (NOT '2d20')",
                     "schema": {
-                    "type": "object",
-                    "properties": {
-                        "notation": {
-                        "type": "string",
-                        "description": 'Dice notation. Examples: "1d20+5" (basic), "2d20kh1" (advantage), "2d20kl1" (disadvantage), "4d6kh3" (stats), "3d6!" (exploding), "4d6r1" (reroll 1s), "5d10>7" (successes)'
+                        "type": "object",
+                        "properties": {
+                            "notation": {
+                                "type": "string",
+                                "description": 'Dice notation. Examples: "1d20+5" (basic), "2d20kh1" (advantage), "2d20kl1" (disadvantage), "4d6kh3" (stats), "3d6!" (exploding), "4d6r1" (reroll 1s), "5d10>7" (successes)',
+                            },
+                            "label": {
+                                "type": "string",
+                                "description": 'Optional label e.g., "Attack roll", "Fireball damage"',
+                            },
+                            "verbose": {
+                                "type": "boolean",
+                                "description": "Show detailed breakdown of individual dice results",
+                            },
                         },
-                        "label": {
-                        "type": "string",
-                        "description": 'Optional label e.g., "Attack roll", "Fireball damage"'
-                        },
-                        "verbose": {
-                        "type": "boolean",
-                        "description": "Show detailed breakdown of individual dice results"
-                        }
+                        "required": ["notation"],
+                        "additionalProperties": False,
+                        "$schema": "http://json-schema.org/draft-07/schema#",
                     },
-                    "required": [
-                        "notation"
-                    ],
-                    "additionalProperties": False,
-                    "$schema": "http://json-schema.org/draft-07/schema#"
-                    }
-
                 }
-            ]
+            ],
         )
 
 

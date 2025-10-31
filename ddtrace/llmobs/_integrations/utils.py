@@ -635,7 +635,9 @@ def _openai_parse_input_response_messages(
     return processed, tool_call_ids
 
 
-def openai_get_output_messages_from_response(response: Optional[Any], integration: Any = None) -> Tuple[List[Message], List[ToolDefinition]]:
+def openai_get_output_messages_from_response(
+    response: Optional[Any], integration: Any = None
+) -> Tuple[List[Message], List[ToolDefinition]]:
     """
     Parses the output to openai responses api into a list of output messages and a list of MCP tool definitions returned from the MCP server.
 
@@ -658,7 +660,9 @@ def openai_get_output_messages_from_response(response: Optional[Any], integratio
     return processed_messages, mcp_tool_definitions
 
 
-def _openai_parse_output_response_messages(messages: List[Any], integration: Any = None) -> Tuple[List[Message], List[ToolCall], List[ToolDefinition]]:
+def _openai_parse_output_response_messages(
+    messages: List[Any], integration: Any = None
+) -> Tuple[List[Message], List[ToolCall], List[ToolDefinition]]:
     """
     Parses output messages from the openai responses api into a list of processed messages
     and a list of tool call outputs and a list of MCP tool definitions.
@@ -779,7 +783,9 @@ def openai_get_metadata_from_response(
     return metadata
 
 
-def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], response: Optional[Any], integration: Any = None) -> None:
+def openai_set_meta_tags_from_response(
+    span: Span, kwargs: Dict[str, Any], response: Optional[Any], integration: Any = None
+) -> None:
     """Extract input/output tags from response and set them as temporary "_ml_obs.meta.*" tags."""
     input_data = kwargs.get("input", [])
     input_messages = openai_get_input_messages_from_response_input(input_data)
@@ -834,7 +840,9 @@ def _openai_get_tool_definitions(tools: List[Any]) -> List[ToolDefinition]:
             tool_definition = ToolDefinition(
                 name=str(_get_attr(tool, "name", "")),
                 description=str(_get_attr(tool, "description", "")),
-                schema=_get_attr(tool, "parameters", {}) or _get_attr(tool, "format", {}) or _get_attr(tool, "input_schema", {}),
+                schema=_get_attr(tool, "parameters", {})
+                or _get_attr(tool, "format", {})
+                or _get_attr(tool, "input_schema", {}),
             )
         if not any(tool_definition.values()):
             continue
