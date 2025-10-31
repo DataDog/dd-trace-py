@@ -58,11 +58,12 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
     ddup_push_threadinfo(sample, static_cast<int64_t>(thread_id), static_cast<int64_t>(native_id), name);
     ddup_push_walltime(sample, thread_state.wall_time_ns, 1);
 
-    const std::optional<Span> active_span = ThreadSpanLinks::get_instance().get_active_span_from_thread_id(thread_id);
-    if (active_span) {
-        ddup_push_span_id(sample, active_span->span_id);
-        ddup_push_local_root_span_id(sample, active_span->local_root_span_id);
-        ddup_push_trace_type(sample, std::string_view(active_span->span_type));
+    auto maybe_active_span = ThreadSpanLinks::get_instance().get_active_span_from_thread_id(thread_id);
+    if (maybe_active_span) {
+        const auto& active_span = maybe_active_span->get();
+        ddup_push_span_id(sample, active_span.span_id);
+        ddup_push_local_root_span_id(sample, active_span.local_root_span_id);
+        ddup_push_trace_type(sample, std::string_view(active_span.span_type));
     }
 }
 
@@ -96,12 +97,12 @@ StackRenderer::render_task_begin(std::string task_name, bool on_cpu)
         ddup_push_monotonic_ns(sample, thread_state.now_time_ns);
 
         // We also want to make sure the tid -> span_id mapping is present in the sample for the task
-        const std::optional<Span> active_span =
-          ThreadSpanLinks::get_instance().get_active_span_from_thread_id(thread_state.id);
-        if (active_span) {
-            ddup_push_span_id(sample, active_span->span_id);
-            ddup_push_local_root_span_id(sample, active_span->local_root_span_id);
-            ddup_push_trace_type(sample, std::string_view(active_span->span_type));
+        const auto maybe_active_span = ThreadSpanLinks::get_instance().get_active_span_from_thread_id(thread_state.id);
+        if (maybe_active_span) {
+            const auto& active_span = maybe_active_span->get();
+            ddup_push_span_id(sample, active_span.span_id);
+            ddup_push_local_root_span_id(sample, active_span.local_root_span_id);
+            ddup_push_trace_type(sample, std::string_view(active_span.span_type));
         }
 
         pushed_task_name = true;

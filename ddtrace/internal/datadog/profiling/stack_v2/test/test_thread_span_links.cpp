@@ -30,7 +30,7 @@ set()
         if (!thing) {
             continue;
         }
-        s = thing->span_type;
+        s = thing->get().span_type;
     }
     return s;
 }

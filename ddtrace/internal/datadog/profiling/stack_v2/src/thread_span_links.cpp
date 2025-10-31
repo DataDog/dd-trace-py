@@ -21,15 +21,15 @@ ThreadSpanLinks::link_span(uint64_t thread_id, uint64_t span_id, uint64_t local_
     }
 }
 
-const std::optional<Span>
+const std::optional<std::reference_wrapper<Span>>
 ThreadSpanLinks::get_active_span_from_thread_id(uint64_t thread_id)
 {
     std::lock_guard<std::mutex> lock(mtx);
 
-    std::optional<Span> span;
+    std::optional<std::reference_wrapper<Span>> span;
     auto it = thread_id_to_span.find(thread_id);
     if (it != thread_id_to_span.end()) {
-        span = *(it->second);
+        span = std::ref(*(it->second));
     }
     return span;
 }
