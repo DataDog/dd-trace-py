@@ -50,7 +50,7 @@ class EvaluationError(Exception):
         *,
         expected: Optional[VariationType] = None,
         found: Optional[VariationType] = None,
-        error_code: ffe.ErrorCode = None,
+        error_code: ffe.ErrorCode = ffe.ErrorCode.General,
     ):
         super().__init__(kind)
         self.kind = kind
