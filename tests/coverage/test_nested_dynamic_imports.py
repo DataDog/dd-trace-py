@@ -62,7 +62,7 @@ def test_nested_imports_mixed_path_reinstrumentation():
         "tests/coverage/included_path/layer3_dynamic.py": {1, 4, 5, 6},
         "tests/coverage/included_path/constants_dynamic.py": {1, 4, 5},
     }
-    
+
     # Expected coverage for context 2 (constants_dynamic not re-executed - Python caches modules)
     expected_context2 = {
         "tests/coverage/included_path/nested_fixture.py": {16, 17, 23, 25, 26, 31, 32, 33},
@@ -75,7 +75,6 @@ def test_nested_imports_mixed_path_reinstrumentation():
     # Use same dict for both modes - utility function extracts what it needs
     assert_coverage_matches(context1_covered, expected_context1, file_level_mode, "Context 1")
     assert_coverage_matches(context2_covered, expected_context2, file_level_mode, "Context 2")
-
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
