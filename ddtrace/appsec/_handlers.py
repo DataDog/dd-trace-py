@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 import io
 import json
 from typing import Any
@@ -8,19 +9,26 @@ from typing import Union
 from ddtrace._trace.span import Span
 from ddtrace.appsec._asm_request_context import _call_waf
 from ddtrace.appsec._asm_request_context import _call_waf_first
+from ddtrace.appsec._asm_request_context import _get_asm_context
+from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._asm_request_context import set_body_response
+from ddtrace.appsec._asm_request_context import should_analyze_body_response
+from ddtrace.appsec._common_module_patches import _get_rasp_capability
 from ddtrace.appsec._constants import APPSEC
+from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._http_utils import extract_cookies_from_headers
 from ddtrace.appsec._http_utils import normalize_headers
 from ddtrace.appsec._http_utils import parse_http_body
+from ddtrace.appsec._metrics import _report_rasp_skipped
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.trace_utils_base import _get_request_header_user_agent
 from ddtrace.contrib.internal.trace_utils_base import _set_url_tag
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal import telemetry
+from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import http as http_utils
@@ -394,6 +402,71 @@ def _on_flask_blocked_request(span):
         log.warning("Could not set some span tags on blocked request: %s", str(e))
 
 
+# urllib3
+
+
+def _on_urllib3_make_request_collect_headers(request_headers):
+    if not _get_rasp_capability("ssrf"):
+        return
+    full_url = core.get_item("downstream_request_full_url")
+    if full_url is not None:
+        use_body = core.get_item("downstream_request_use_body", False)
+        method = core.get_item("request_method")
+
+        headers = request_headers
+        if not isinstance(headers, Mapping):
+            headers = {}
+
+        addresses = {EXPLOIT_PREVENTION.ADDRESS.SSRF: full_url, "DOWN_REQ_METHOD": method, "DOWN_REQ_HEADERS": headers}
+        content_type = headers.get("Content-Type", None) or headers.get("content-type", None)
+        if use_body and content_type == "application/json":
+            body = core.get_item("request_body")
+            try:
+                addresses["DOWN_REQ_BODY"] = json.loads(body)
+            except Exception:
+                pass  # nosec
+        res = call_waf_callback(
+            addresses,
+            rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_REQ,
+        )
+        blocked = get_blocked()
+        if res and blocked:
+            raise BlockingException(blocked, EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, full_url)
+
+
+def _on_downstream_request_start(ctx: core.ExecutionContext):
+    if _get_rasp_capability("ssrf"):
+        url = ctx.get_item("downstream_request_full_url") or ctx.get_item("request_url")
+        is_url_valid = isinstance(url, str) and bool(url)
+        if is_url_valid and (asm_ctx := _get_asm_context()):
+            use_body = should_analyze_body_response(asm_ctx)
+            core.set_items(
+                {
+                    "downstream_request_full_url": url,
+                    "downstream_request_use_body": use_body,
+                }
+            )
+        elif is_url_valid:
+            _report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SSRF, False)
+
+
+def _on_downstream_request_finish(ctx: core.ExecutionContext, exc_info):
+    use_body = core.find_item("downstream_request_use_body", False)
+    response = core.find_item("response")
+    if response.__class__.__name__ == "Response":
+        addresses = {
+            "DOWN_RES_STATUS": str(response.status_code),
+            "DOWN_RES_HEADERS": dict(response.headers),
+        }
+        if use_body:
+            try:
+                addresses["DOWN_RES_BODY"] = response.json()
+            except Exception:
+                pass  # nosec
+        call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES)
+    return response
+
+
 def _on_start_response_blocked(ctx, flask_config, response_headers, status):
     trace_utils.set_http_meta(ctx["req_span"], flask_config, status_code=status, response_headers=response_headers)
 
@@ -435,3 +508,7 @@ def listen():
 
     core.on("wsgi.block.started", _wsgi_make_block_content, "status_headers_content")
     core.on("asgi.block.started", _asgi_make_block_content, "status_headers_content")
+
+    core.on("urllib3._make_request.collect_headers", _on_urllib3_make_request_collect_headers)
+    core.on("context.started.urllib3.urlopen", _on_downstream_request_start)
+    core.on("context.ended.urllib3.urlopen", _on_downstream_request_finish)

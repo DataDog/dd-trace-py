@@ -154,9 +154,9 @@ def _build_headers(lst: Iterable[Tuple[str, str]]) -> Dict[str, Union[str, List[
 def wrapped_request(original_request_callable, instance, args, kwargs):
     from ddtrace.appsec._asm_request_context import call_waf_callback
 
-    full_url = core.get_item("full_url")
+    full_url = core.get_item("downstream_request_full_url")
     if full_url is not None:
-        use_body = core.get_item("use_body", False)
+        use_body = core.get_item("downstream_request_use_body", False)
         method = args[0] if len(args) > 0 else kwargs.get("method", None)
         body = args[2] if len(args) > 2 else kwargs.get("body", None)
         headers = args[3] if len(args) > 3 else kwargs.get("headers", {})
@@ -211,7 +211,9 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
         valid_url = isinstance(url, str) and bool(url)
         if valid_url and url and (ctx := _get_asm_context()):
             use_body = should_analyze_body_response(ctx)
-            with core.context_with_data("url_open_analysis", full_url=url, use_body=use_body):
+            with core.context_with_data(
+                "url_open_analysis", downstream_request_full_url=url, downstream_request_use_body=use_body
+            ):
                 # API10, doing all request calls in HTTPConnection.request
                 try:
                     response = original_open_callable(*args, **kwargs)
@@ -247,40 +249,6 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
     return original_open_callable(*args, **kwargs)
 
 
-def _parse_headers_urllib3(headers):
-    try:
-        return dict(headers)
-    except Exception:
-        return {}
-
-
-def wrapped_urllib3_make_request(original_request_callable, instance, args, kwargs):
-    from ddtrace.appsec._asm_request_context import call_waf_callback
-
-    full_url = core.get_item("full_url")
-    if full_url is not None:
-        use_body = core.get_item("use_body", False)
-        method = args[1] if len(args) > 1 else kwargs.get("method", None)
-        body = args[3] if len(args) > 3 else kwargs.get("body", None)
-        headers = _parse_headers_urllib3(args[4] if len(args) > 4 else kwargs.get("headers", {}))
-        addresses = {EXPLOIT_PREVENTION.ADDRESS.SSRF: full_url, "DOWN_REQ_METHOD": method, "DOWN_REQ_HEADERS": headers}
-        content_type = headers.get("Content-Type", None) or headers.get("content-type", None)
-        if use_body and content_type == "application/json":
-            try:
-                addresses["DOWN_REQ_BODY"] = json.loads(body)
-            except Exception:
-                pass  # nosec
-        res = call_waf_callback(
-            addresses,
-            crop_trace="wrapped_request_D8CB81E472AF98A2",
-            rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_REQ,
-        )
-        core.discard_item("full_url")
-        if res and _must_block(res.actions):
-            raise BlockingException(get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, full_url)
-    return original_request_callable(*args, **kwargs)
-
-
 def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, kwargs):
     """
     wrapper for third party requests.request function
@@ -301,7 +269,9 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
         valid_url = isinstance(url, str) and bool(url)
         if valid_url and url and (ctx := _get_asm_context()):
             use_body = should_analyze_body_response(ctx)
-            with core.context_with_data("url_open_analysis", full_url=url, use_body=use_body):
+            with core.context_with_data(
+                "url_open_analysis", downstream_request_full_url=url, downstream_request_use_body=use_body
+            ):
                 # API10, doing all request calls in HTTPConnection.request
                 try:
                     response = original_request_callable(*args, **kwargs)

@@ -49,9 +49,9 @@ def patch():
     _w("requests", "Session.send", _wrap_send)
     # IAST needs to wrap this function because `Session.send` is too late
     if asm_config._load_modules:
-        from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_request
+        from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_request_asm
 
-        _w("requests", "Session.request", _wrap_request)
+        _w("requests", "Session.request", _wrap_request_asm)
     Pin(_config=config.requests).onto(requests.Session)
 
 
