@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    opentelemetry: Fixed circular import when enabling multiple OpenTelemetry signals (metrics + logs) simultaneously. 
