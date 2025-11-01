@@ -1222,68 +1222,91 @@ class HTTPPropagator(object):
         :param dict headers: HTTP headers to extract tracing attributes.
         :return: New `Context` with propagated attributes.
         """
-        context = Context()
+        # Fast path: empty or no extraction config
         if not headers or not config._propagation_style_extract:
-            return context
+            return Context()
+
         try:
             style = ""
+            # Normalize header keys once
             normalized_headers = {name.lower(): v for name, v in headers.items()}
-            # tracer configured to extract first only
-            if config._propagation_extract_first:
-                # loop through the extract propagation styles specified in order, return whatever context we get first
-                for prop_style in config._propagation_style_extract:
-                    propagator = _PROP_STYLES[prop_style]
-                    context = propagator._extract(normalized_headers)
-                    style = prop_style
-                    if context:
-                        _record_http_telemetry("context_header_style.extracted", prop_style)
-                    if config._propagation_http_baggage_enabled is True:
-                        _attach_baggage_to_context(normalized_headers, context)
-                    break
+            prop_styles = config._propagation_style_extract
 
-            # loop through all extract propagation styles
+            # Short-circuit: first-only extraction mode
+            if config._propagation_extract_first:
+                for ps in prop_styles:
+                    # baggage handled later
+                    if ps == _PROPAGATION_STYLE_BAGGAGE:
+                        continue
+                    context = _PROP_STYLES[ps]._extract(normalized_headers)
+                    style = ps
+                    if context:
+                        _record_http_telemetry("context_header_style.extracted", ps)
+                        if config._propagation_http_baggage_enabled:
+                            _attach_baggage_to_context(normalized_headers, context)
+                        break
+                else:
+                    context = Context()
             else:
-                contexts, styles_w_ctx = HTTPPropagator._extract_configured_contexts_avail(normalized_headers)
-                # check that styles_w_ctx is not empty
+                # Multi-style extraction: collect all contexts in a single tight loop
+                contexts = []
+                styles_w_ctx = []
+                append = contexts.append
+                append_style = styles_w_ctx.append
+                for ps in prop_styles:
+                    if ps == _PROPAGATION_STYLE_BAGGAGE:
+                        continue
+                    c = _PROP_STYLES[ps]._extract(normalized_headers)
+                    if c:
+                        _record_http_telemetry("context_header_style.extracted", ps)
+                        append(c)
+                        append_style(ps)
                 if styles_w_ctx:
                     style = styles_w_ctx[0]
-
+                # Context resolution: fast-path single, else resolve
                 if contexts:
-                    context = HTTPPropagator._resolve_contexts(contexts, styles_w_ctx, normalized_headers)
-                    if config._propagation_http_baggage_enabled is True:
+                    if len(contexts) == 1:
+                        context = contexts[0]
+                    else:
+                        context = HTTPPropagator._resolve_contexts(contexts, styles_w_ctx, normalized_headers)
+                    if config._propagation_http_baggage_enabled:
                         _attach_baggage_to_context(normalized_headers, context)
+                else:
+                    context = Context()
 
-            # baggage headers are handled separately from the other propagation styles
-            if _PROPAGATION_STYLE_BAGGAGE in config._propagation_style_extract:
+            # Baggage extraction, always handled last, only once
+            baggage_context = None
+            if _PROPAGATION_STYLE_BAGGAGE in prop_styles:
                 baggage_context = _BaggageHeader._extract(normalized_headers)
                 if baggage_context._baggage != {}:
-                    # Record telemetry for successful baggage extraction
                     _record_http_telemetry("context_header_style.extracted", _PROPAGATION_STYLE_BAGGAGE)
                     if context:
                         context._baggage = baggage_context.get_all_baggage_items()
                     else:
                         context = baggage_context
 
+                    # Tagging of baggage keys, single pass
                     if config._baggage_tag_keys:
-                        raw_keys = [k.strip() for k in config._baggage_tag_keys if k.strip()]
-                        # wildcard: tag all baggage keys
-                        if "*" in raw_keys:
+                        keys = [k.strip() for k in config._baggage_tag_keys if k.strip()]
+                        if "*" in keys:
                             tag_keys = baggage_context.get_all_baggage_items().keys()
                         else:
-                            tag_keys = raw_keys
+                            tag_keys = keys
+                        meta = context._meta
+                        bag_dict = baggage_context.get_all_baggage_items()
+                        for k in tag_keys:
+                            v = bag_dict.get(k)
+                            if v is not None:
+                                prefixed = BAGGAGE_TAG_PREFIX + k
+                                if prefixed not in meta:
+                                    meta[prefixed] = v
 
-                        for stripped_key in tag_keys:
-                            if (value := baggage_context.get_baggage_item(stripped_key)) is not None:
-                                prefixed_key = BAGGAGE_TAG_PREFIX + stripped_key
-                                if prefixed_key not in context._meta:
-                                    context._meta[prefixed_key] = value
-
+            # Propagation behavior: restart, done last for correctness
             if config._propagation_behavior_extract == _PROPAGATION_BEHAVIOR_RESTART:
                 link = HTTPPropagator._context_to_span_link(context, style, "propagation_behavior_extract")
                 context = Context(baggage=context.get_all_baggage_items(), span_links=[link] if link else [])
 
             return context
-
         except Exception:
             log.debug("error while extracting context propagation headers", exc_info=True)
-        return Context()
+            return Context()
