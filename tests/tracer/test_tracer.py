@@ -1186,7 +1186,7 @@ def test_filters(tracer, test_spans):
         def process_trace(self, trace):
             return None
 
-    tracer.configure(trace_processors=[FilterAll()])
+    tracer.processors = [FilterAll()]
 
     with tracer.trace("root"):
         with tracer.trace("child"):
@@ -1205,7 +1205,7 @@ def test_filters(tracer, test_spans):
                 s.set_tag(self.key, self.value)
             return trace
 
-    tracer.configure(trace_processors=[FilterMutate("boop", "beep")])
+    tracer.processors = [FilterMutate("boop", "beep")]
 
     with tracer.trace("root"):
         with tracer.trace("child"):
@@ -1218,7 +1218,7 @@ def test_filters(tracer, test_spans):
     assert s2.get_tag("boop") == "beep"
 
     # Test multiple filters
-    tracer.configure(trace_processors=[FilterMutate("boop", "beep"), FilterMutate("mats", "sundin")])
+    tracer.processors = [FilterMutate("boop", "beep"), FilterMutate("mats", "sundin")]
 
     with tracer.trace("root"):
         with tracer.trace("child"):
@@ -1234,7 +1234,7 @@ def test_filters(tracer, test_spans):
         def process_trace(self, trace):
             _ = 1 / 0
 
-    tracer.configure(trace_processors=[FilterBroken()])
+    tracer.processors = [FilterBroken()]
 
     with tracer.trace("root"):
         with tracer.trace("child"):
@@ -1243,7 +1243,7 @@ def test_filters(tracer, test_spans):
     spans = test_spans.pop()
     assert len(spans) == 2
 
-    tracer.configure(trace_processors=[FilterMutate("boop", "beep"), FilterBroken()])
+    tracer.processors = [FilterMutate("boop", "beep"), FilterBroken()]
     with tracer.trace("root"):
         with tracer.trace("child"):
             pass
@@ -1854,7 +1854,7 @@ def test_tracer_memory_leak_span_processors():
         def process_trace(self, trace):
             return None
 
-    t.configure(trace_processors=[DropAllFilter()])
+    t.processors = [DropAllFilter()]
 
     for _ in range(5):
         with t.trace("test") as span:
@@ -1913,7 +1913,7 @@ def test_asm_standalone_configuration(sca_enabled, appsec_enabled, iast_enabled)
     with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
         ddtrace.config._reset()
         tracer = DummyTracer()
-        tracer.configure(appsec_enabled=appsec_enabled, iast_enabled=iast_enabled, apm_tracing_disabled=True)
+        tracer.configure(appsec_enabled=appsec_enabled, iast_enabled=iast_enabled, apm_tracing_enabled=False)
         if sca_enabled == "true":
             assert bool(ddtrace.config._sca_enabled) is True
         assert tracer.enabled is False
@@ -1927,7 +1927,7 @@ def test_asm_standalone_configuration(sca_enabled, appsec_enabled, iast_enabled)
     # reset tracer values
     with override_env({"DD_APPSEC_SCA_ENABLED": "false"}):
         ddtrace.config._reset()
-        tracer.configure(appsec_enabled=False, iast_enabled=False, apm_tracing_disabled=False)
+        tracer.configure(appsec_enabled=False, iast_enabled=False, apm_tracing_enabled=True)
 
 
 def test_gc_not_used_on_root_spans():

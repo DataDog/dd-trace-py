@@ -656,7 +656,7 @@ class CIVisibility(Service):
         tracer_filters = self.tracer._span_aggregator.user_processors
         if not any(isinstance(tracer_filter, TraceCiVisibilityFilter) for tracer_filter in tracer_filters):
             tracer_filters += [TraceCiVisibilityFilter(self._tags, self._service)]  # type: ignore[arg-type]
-            self.tracer.configure(trace_processors=tracer_filters)
+            self.tracer.processors = tracer_filters
 
         if asbool(os.getenv("DD_CIVISIBILITY_USE_BETA_WRITER")):
             self._set_global_span_forwarder(CIVisibilitySpanForwarder(self.tracer))
@@ -734,7 +734,7 @@ class CIVisibility(Service):
         tracer_filters = [tf for tf in tracer_filters if not isinstance(tf, CIVisibilitySpanForwarder)]
         if span_forwarder:
             tracer_filters.append(span_forwarder)
-        ddtrace.tracer.configure(trace_processors=tracer_filters)
+        ddtrace.tracer.processors = tracer_filters
 
     @classmethod
     def set_codeowners_of(cls, location, span=None):

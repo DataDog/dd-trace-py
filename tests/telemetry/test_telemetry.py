@@ -153,7 +153,7 @@ class FailingFilture(TraceFilter):
     def process_trace(self, trace):
        raise Exception("Exception raised in trace filter")
 
-tracer.configure(trace_processors=[FailingFilture()])
+tracer.processors = [FailingFilture()]
 
 # generate and encode span to trigger sampling failure
 tracer.trace("hello").finish()

@@ -91,7 +91,7 @@ def test_filters():
                 s.set_tag(self.key, self.value)
             return trace
 
-    tracer.configure(trace_processors=[FilterMutate("boop", "beep")])
+    tracer.processors = [FilterMutate("boop", "beep")]
 
     with tracer.trace("root"):
         with tracer.trace("child"):
