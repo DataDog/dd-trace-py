@@ -26,4 +26,4 @@ def get_dogstatsd_client(url: str, namespace: Optional[str] = None, tags: Option
             constant_tags=tags,
         )
 
-    raise ValueError("Unknown scheme `%s` for DogStatsD URL `{}`".format(parsed.scheme))
+    raise ValueError(f"Unknown scheme `{parsed.scheme}` for DogStatsD URL `{url}`")

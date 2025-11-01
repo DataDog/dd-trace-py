@@ -102,7 +102,7 @@ def path_to_regex(pattern: str) -> re.Pattern:
             regex += re.escape(ch)
 
     if in_char_class:
-        raise ValueError("unterminated character class in pattern {pattern}".format(pattern=pattern))
+        raise ValueError(f"unterminated character class in pattern {pattern}")
 
     regex += "/" if matches_dir else r"(?:\Z|/)"
     return re.compile(regex)

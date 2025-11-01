@@ -42,9 +42,7 @@ class PriorityCategory(object):
     RULE_DYNAMIC = "rule_dynamic"
 
 
-SAMPLING_MECHANISM_CONSTANTS = {
-    "-{}".format(value) for name, value in vars(SamplingMechanism).items() if name.isupper()
-}
+SAMPLING_MECHANISM_CONSTANTS = {f"-{value}" for name, value in vars(SamplingMechanism).items() if name.isupper()}
 
 KNUTH_SAMPLE_RATE_KEY = "_dd.p.ksr"
 

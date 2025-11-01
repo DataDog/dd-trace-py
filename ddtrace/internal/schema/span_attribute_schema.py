@@ -29,7 +29,7 @@ def database_operation_v0(v0_operation, database_provider=None):
 
 def database_operation_v1(v0_operation, database_provider=None):
     operation = "query"
-    return "{}.{}".format(database_provider, operation)
+    return f"{database_provider}.{operation}"
 
 
 def cache_operation_v0(v0_operation, cache_provider=None):
@@ -38,7 +38,7 @@ def cache_operation_v0(v0_operation, cache_provider=None):
 
 def cache_operation_v1(v0_operation, cache_provider=None):
     operation = "command"
-    return "{}.{}".format(cache_provider, operation)
+    return f"{cache_provider}.{operation}"
 
 
 def cloud_api_operation_v0(v0_operation, cloud_provider=None, cloud_service=None):
@@ -46,7 +46,7 @@ def cloud_api_operation_v0(v0_operation, cloud_provider=None, cloud_service=None
 
 
 def cloud_api_operation_v1(v0_operation, cloud_provider=None, cloud_service=None):
-    return "{}.{}.request".format(cloud_provider, cloud_service)
+    return f"{cloud_provider}.{cloud_service}.request"
 
 
 def cloud_faas_operation_v0(v0_operation, cloud_provider=None, cloud_service=None):
@@ -54,7 +54,7 @@ def cloud_faas_operation_v0(v0_operation, cloud_provider=None, cloud_service=Non
 
 
 def cloud_faas_operation_v1(v0_operation, cloud_provider=None, cloud_service=None):
-    return "{}.{}.invoke".format(cloud_provider, cloud_service)
+    return f"{cloud_provider}.{cloud_service}.invoke"
 
 
 def cloud_messaging_operation_v0(v0_operation, cloud_provider=None, cloud_service=None, direction=None):
@@ -63,11 +63,11 @@ def cloud_messaging_operation_v0(v0_operation, cloud_provider=None, cloud_servic
 
 def cloud_messaging_operation_v1(v0_operation, cloud_provider=None, cloud_service=None, direction=None):
     if direction == SpanDirection.INBOUND:
-        return "{}.{}.receive".format(cloud_provider, cloud_service)
+        return f"{cloud_provider}.{cloud_service}.receive"
     elif direction == SpanDirection.OUTBOUND:
-        return "{}.{}.send".format(cloud_provider, cloud_service)
+        return f"{cloud_provider}.{cloud_service}.send"
     elif direction == SpanDirection.PROCESSING:
-        return "{}.{}.process".format(cloud_provider, cloud_service)
+        return f"{cloud_provider}.{cloud_service}.process"
 
 
 def messaging_operation_v0(v0_operation, provider=None, service=None, direction=None):
@@ -76,11 +76,11 @@ def messaging_operation_v0(v0_operation, provider=None, service=None, direction=
 
 def messaging_operation_v1(v0_operation, provider=None, direction=None):
     if direction == SpanDirection.INBOUND:
-        return "{}.receive".format(provider)
+        return f"{provider}.receive"
     elif direction == SpanDirection.OUTBOUND:
-        return "{}.send".format(provider)
+        return f"{provider}.send"
     elif direction == SpanDirection.PROCESSING:
-        return "{}.process".format(provider)
+        return f"{provider}.process"
 
 
 def url_operation_v0(v0_operation, protocol=None, direction=None):
@@ -89,7 +89,7 @@ def url_operation_v0(v0_operation, protocol=None, direction=None):
 
 def url_operation_v1(v0_operation, protocol=None, direction=None):
     server_or_client = {SpanDirection.INBOUND: "server", SpanDirection.OUTBOUND: "client"}[direction]
-    return "{}.{}.request".format(protocol, server_or_client)
+    return f"{protocol}.{server_or_client}.request"
 
 
 _SPAN_ATTRIBUTE_TO_FUNCTION = {
