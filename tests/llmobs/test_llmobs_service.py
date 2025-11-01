@@ -1930,8 +1930,8 @@ def test_submit_evaluation_invalid_reasoning_raises_warning(llmobs, mock_llmobs_
     mock_llmobs_logs.warning.assert_called_once_with("Failed to parse reasoning. reasoning must be a string.")
 
 
-def test_submit_evaluation_for_enqueues_writer_with_reasoning(llmobs, mock_llmobs_eval_metric_writer):
-    llmobs.submit_evaluation_for(
+def test_submit_evaluation_enqueues_writer_with_reasoning(llmobs, mock_llmobs_eval_metric_writer):
+    llmobs.submit_evaluation(
         span={"span_id": "123", "trace_id": "456"},
         label="toxicity",
         metric_type="categorical",
@@ -1955,7 +1955,7 @@ def test_submit_evaluation_for_enqueues_writer_with_reasoning(llmobs, mock_llmob
         )
     )
     mock_llmobs_eval_metric_writer.reset()
-    llmobs.submit_evaluation_for(
+    llmobs.submit_evaluation(
         span={"span_id": "123", "trace_id": "456"},
         label="toxicity",
         metric_type="categorical",
