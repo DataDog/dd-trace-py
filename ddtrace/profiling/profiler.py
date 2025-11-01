@@ -89,6 +89,13 @@ class Profiler(object):
             pass
 
     def _restart_on_fork(self):
+        """Handle fork: stop parent profiler, conditionally start in child.
+
+        This respects the child process's DD_PROFILING_ENABLED setting,
+        which may differ from the parent's. The config is reloaded by
+        the forksafe hook (_reload_config_after_fork) before this runs.
+        """
+        # Step 1: Always stop parent profiler
         # Be sure to stop the parent first, since it might have to e.g. unpatch functions
         # Do not flush data as we don't want to have multiple copies of the parent profile exported.
         try:
@@ -96,8 +103,29 @@ class Profiler(object):
         except service.ServiceStatusError:
             # This can happen in uWSGI mode: the children won't have the _profiler started from the master process
             pass
-        self._profiler = self._profiler.copy()
-        self._profiler.start()
+
+        # Step 2: Check if profiling is enabled in THIS process
+        # Config was already reloaded by forksafe hook (_reload_config_after_fork)
+        from ddtrace.settings.profiling import config as profiling_config
+
+        if not profiling_config.enabled:
+            LOG.debug(
+                "Profiler not restarted in child process (PID=%d): DD_PROFILING_ENABLED is disabled",
+                os.getpid(),
+            )
+            return
+
+        # Step 3: Start fresh profiler in child
+        try:
+            self._profiler = self._profiler.copy()
+            self._profiler.start()
+            LOG.debug("Profiler successfully restarted in child process (PID=%d)", os.getpid())
+        except Exception:
+            LOG.error(
+                "Failed to restart profiler in child process (PID=%d)",
+                os.getpid(),
+                exc_info=True,
+            )
 
     def __getattr__(
         self,
