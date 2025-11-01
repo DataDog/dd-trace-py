@@ -2,6 +2,8 @@ from enum import Enum
 from enum import IntEnum
 import re
 
+from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
+
 
 SUITE = "suite"
 TEST = "test"
@@ -29,20 +31,11 @@ SUITE_TYPE = "test_suite_end"
 # Agentless and EVP-specific constants
 COVERAGE_TAG_NAME = "test.coverage"
 
-EVP_PROXY_AGENT_BASE_PATH = "/evp_proxy/v2"
-EVP_PROXY_AGENT_BASE_PATH_V4 = "/evp_proxy/v4"
-EVP_PROXY_AGENT_ENDPOINT = "{}/api/v2/citestcycle".format(EVP_PROXY_AGENT_BASE_PATH)
 AGENTLESS_ENDPOINT = "api/v2/citestcycle"
 AGENTLESS_COVERAGE_ENDPOINT = "api/v2/citestcov"
 AGENTLESS_API_KEY_HEADER_NAME = "dd-api-key"
 AGENTLESS_APP_KEY_HEADER_NAME = "dd-application-key"
-EVP_NEEDS_APP_KEY_HEADER_NAME = "X-Datadog-NeedsAppKey"
-EVP_NEEDS_APP_KEY_HEADER_VALUE = "true"
 EVP_PROXY_COVERAGE_ENDPOINT = "{}/{}".format(EVP_PROXY_AGENT_BASE_PATH, AGENTLESS_COVERAGE_ENDPOINT)
-EVP_SUBDOMAIN_HEADER_API_VALUE = "api"
-EVP_SUBDOMAIN_HEADER_COVERAGE_VALUE = "citestcov-intake"
-EVP_SUBDOMAIN_HEADER_EVENT_VALUE = "citestcycle-intake"
-EVP_SUBDOMAIN_HEADER_NAME = "X-Datadog-EVP-Subdomain"
 AGENTLESS_BASE_URL = "https://citestcycle-intake"
 AGENTLESS_COVERAGE_BASE_URL = "https://citestcov-intake"
 AGENTLESS_DEFAULT_SITE = "datadoghq.com"

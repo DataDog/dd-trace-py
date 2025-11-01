@@ -19,6 +19,10 @@ import ddtrace
 from ddtrace import config
 from ddtrace.internal import agent
 from ddtrace.internal import forksafe
+from ddtrace.internal.evp_proxy.constants import EVP_EVENT_SIZE_LIMIT
+from ddtrace.internal.evp_proxy.constants import EVP_PAYLOAD_SIZE_LIMIT
+from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
+from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.utils.http import Response
@@ -32,10 +36,6 @@ from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
 from ddtrace.llmobs._constants import DROPPED_VALUE_TEXT
 from ddtrace.llmobs._constants import EVAL_ENDPOINT
 from ddtrace.llmobs._constants import EVAL_SUBDOMAIN_NAME
-from ddtrace.llmobs._constants import EVP_EVENT_SIZE_LIMIT
-from ddtrace.llmobs._constants import EVP_PAYLOAD_SIZE_LIMIT
-from ddtrace.llmobs._constants import EVP_PROXY_AGENT_BASE_PATH
-from ddtrace.llmobs._constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.llmobs._constants import EXP_SUBDOMAIN_NAME
 from ddtrace.llmobs._constants import SPAN_ENDPOINT
 from ddtrace.llmobs._constants import SPAN_SUBDOMAIN_NAME
