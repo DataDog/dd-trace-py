@@ -233,8 +233,8 @@ class _ClientInterceptor(
         # propagate distributed tracing headers if available
         headers = {}
         if config.grpc.distributed_tracing_enabled:
-            # NOTE: We need to pass the span to the HTTPPropagator since it isn't active at this point
-            HTTPPropagator.inject(span.context, headers, span)
+            tracer.sample(span)
+            HTTPPropagator.inject(span.context, headers)
 
         metadata.extend(headers.items())
 
