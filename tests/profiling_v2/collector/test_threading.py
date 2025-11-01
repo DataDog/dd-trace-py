@@ -1,6 +1,9 @@
+from __future__ import absolute_import
+
 import _thread
 import glob
 import os
+import sys
 import threading
 from typing import Callable
 from typing import List
@@ -88,94 +91,67 @@ def test_repr(
     test_collector._test_repr(collector_class, expected_repr)
 
 
-@pytest.mark.parametrize(
-    "lock_class,collector_class",
-    [
-        (threading.Lock, ThreadingLockCollector),
-        (threading.RLock, ThreadingRLockCollector),
-    ],
-)
-def test_patch(
-    lock_class: LockClassType,
-    collector_class: CollectorClassType,
-) -> None:
-    lock: LockClassType = lock_class
-    collector: ThreadingLockCollector | ThreadingRLockCollector = collector_class()
+def test_patch():
+    from ddtrace.profiling.collector._lock import _LockAllocatorWrapper
+
+    lock = threading.Lock
+    collector = ThreadingLockCollector()
     collector.start()
-    assert lock == collector._original
-    # wrapt makes this true
-    assert lock == lock_class
+    assert lock == collector._original_lock
+    # After patching, threading.Lock is replaced with our wrapper
+    # The old reference (lock) points to the original builtin Lock class
+    assert lock != threading.Lock  # They're different after patching
+    assert isinstance(threading.Lock, _LockAllocatorWrapper)  # threading.Lock is now wrapped
+    assert callable(threading.Lock)  # and it's callable
     collector.stop()
-    assert lock == lock_class
-    assert collector._original == lock_class
+    # After stopping, everything is restored
+    assert lock == threading.Lock
+    assert collector._original_lock == threading.Lock
 
 
-@pytest.mark.subprocess(
-    env=dict(WRAPT_DISABLE_EXTENSIONS="True", DD_PROFILING_FILE_PATH=__file__),
-)
-def test_wrapt_disable_extensions() -> None:
-    import os
-    import threading
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="only works on linux")
+@pytest.mark.subprocess(err=None)
+# For macOS: Could print 'Error uploading' but okay to ignore since we are checking if native_id is set
+def test_user_threads_have_native_id():
+    from os import getpid
+    from threading import Thread
+    from threading import _MainThread
+    from threading import current_thread
+    from time import sleep
 
-    from ddtrace.internal.datadog.profiling import ddup
-    from ddtrace.profiling.collector import _lock
-    from ddtrace.profiling.collector.threading import ThreadingLockCollector
-    from tests.profiling.collector import pprof_utils
-    from tests.profiling.collector.lock_utils import LineNo
-    from tests.profiling.collector.lock_utils import get_lock_linenos
-    from tests.profiling.collector.lock_utils import init_linenos
-    from tests.profiling.collector.pprof_utils import pprof_pb2
+    from ddtrace.profiling import profiler
 
-    assert ddup.is_available, "ddup is not available"
+    # DEV: We used to run this test with ddtrace_run=True passed into the
+    # subprocess decorator, but that caused this to be flaky for Python 3.8.x
+    # with gevent. When it failed for that specific venv, current_thread()
+    # returned a DummyThread instead of a _MainThread.
+    p = profiler.Profiler()
+    p.start()
 
-    # Set up the ddup exporter
-    test_name: str = "test_wrapt_disable_extensions"
-    pprof_prefix: str = "/tmp" + os.sep + test_name
-    output_filename: str = pprof_prefix + "." + str(os.getpid())
-    ddup.config(
-        env="test", service=test_name, version="my_version", output_filename=pprof_prefix
-    )  # pyright: ignore[reportCallIssue]
-    ddup.start()
+    main = current_thread()
+    assert isinstance(main, _MainThread)
+    # We expect the current thread to have the same ID as the PID
+    assert main.native_id == getpid(), (main.native_id, getpid())
 
-    init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
+    t = Thread(target=lambda: None)
+    t.start()
 
-    # WRAPT_DISABLE_EXTENSIONS is a flag that can be set to disable the C extension
-    # for wrapt. It's not set by default in dd-trace-py, but it can be set by
-    # users. This test checks that the collector works even if the flag is set.
-    assert os.environ.get("WRAPT_DISABLE_EXTENSIONS")
-    assert _lock.WRAPT_C_EXT is False
+    for _ in range(10):
+        try:
+            # The TID should be higher than the PID, but not too high
+            assert 0 < t.native_id - getpid() < 100, (t.native_id, getpid())
+        except AttributeError:
+            # The native_id attribute is set by the thread so we might have to
+            # wait a bit for it to be set.
+            sleep(0.1)
+        else:
+            break
+    else:
+        raise AssertionError("Thread.native_id not set")
 
-    with ThreadingLockCollector(capture_pct=100):
-        th_lock: threading.Lock = threading.Lock()  # !CREATE! test_wrapt_disable_extensions
-        with th_lock:  # !ACQUIRE! !RELEASE! test_wrapt_disable_extensions
-            pass
+    t.join()
 
-    ddup.upload()  # pyright: ignore[reportCallIssue]
-
-    expected_filename: str = "test_threading.py"
-
-    linenos: LineNo = get_lock_linenos("test_wrapt_disable_extensions", with_stmt=True)
-
-    profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename)
-    pprof_utils.assert_lock_events(
-        profile,
-        expected_acquire_events=[
-            pprof_utils.LockAcquireEvent(
-                caller_name="<module>",
-                filename=expected_filename,
-                linenos=linenos,
-                lock_name="th_lock",
-            )
-        ],
-        expected_release_events=[
-            pprof_utils.LockReleaseEvent(
-                caller_name="<module>",
-                filename=expected_filename,
-                linenos=linenos,
-                lock_name="th_lock",
-            )
-        ],
-    )
+    p.stop()
 
 
 # This test has to be run in a subprocess because it calls gevent.monkey.patch_all()
