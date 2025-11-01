@@ -248,20 +248,36 @@ venv = Venv(
                     pkgs={"django": "~=2.2"},
                 ),
                 Venv(
-                    pys=["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pys=["3.8", "3.9", "3.10", "3.11", "3.12"],
                     pkgs={"django": "~=3.2"},
                 ),
                 Venv(
-                    pys=["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pys=["3.13"],
+                    pkgs={"django": "~=3.2", "legacy-cgi": latest},
+                ),
+                Venv(
+                    pys=["3.8", "3.9", "3.10", "3.11", "3.12"],
                     pkgs={"django": "==4.0.10"},
                 ),
                 Venv(
-                    pys=["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pys=["3.13"],
+                    pkgs={"django": "==4.0.10", "legacy-cgi": latest},
+                ),
+                Venv(
+                    pys=["3.8", "3.9", "3.10", "3.11", "3.12"],
                     pkgs={"django": "~=4.2"},
                 ),
                 Venv(
-                    pys=["3.10", "3.13"],
+                    pys=["3.13"],
+                    pkgs={"django": "~=4.2", "legacy-cgi": latest},
+                ),
+                Venv(
+                    pys=["3.10"],
                     pkgs={"django": "~=5.1"},
+                ),
+                Venv(
+                    pys=["3.13"],
+                    pkgs={"django": "~=5.1", "legacy-cgi": latest},
                 ),
             ],
         ),
@@ -328,6 +344,7 @@ venv = Venv(
                 "simplejson": latest,
                 "grpcio": latest,
                 "pytest-asyncio": latest,
+                "protobuf": latest,
             },
             env={
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
@@ -513,6 +530,7 @@ venv = Venv(
                 "pyfakefs": latest,
                 "pytest-benchmark": latest,
                 "wrapt": [latest, "<2.0.0"],
+                "protobuf": latest,  # used to test import of namespace packages
             },
             venvs=[
                 Venv(
@@ -1596,12 +1614,19 @@ venv = Venv(
         Venv(
             name="wsgi",
             command="pytest {cmdargs} tests/contrib/wsgi",
+            pkgs={
+                "WebTest": latest,
+                "pytest-randomly": latest,
+            },
             venvs=[
+                # Older Python's don't need legacy-cgi
                 Venv(
-                    pys=select_pys(),
+                    pys=select_pys(min_version="3.8", max_version="3.12"),
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.13"),
                     pkgs={
-                        "WebTest": latest,
-                        "pytest-randomly": latest,
+                        "legacy-cgi": latest,
                     },
                 ),
             ],
@@ -1738,8 +1763,17 @@ venv = Venv(
                 Venv(
                     # pyramid added support for Python 3.10/3.11 in 2.1
                     # FIXME[python-3.12]: blocked on venusian release https://github.com/Pylons/venusian/issues/85
-                    pys=select_pys(min_version="3.10"),
+                    pys=select_pys(min_version="3.10", max_version="3.12"),
                     pkgs={
+                        "pyramid": [latest],
+                    },
+                ),
+                Venv(
+                    # pyramid added support for Python 3.10/3.11 in 2.1
+                    # FIXME[python-3.12]: blocked on venusian release https://github.com/Pylons/venusian/issues/85
+                    pys=select_pys(min_version="3.13"),
+                    pkgs={
+                        "legacy-cgi": latest,
                         "pyramid": [latest],
                     },
                 ),
@@ -2125,7 +2159,6 @@ venv = Venv(
         ),
         Venv(
             name="httpx",
-            pys=select_pys(min_version="3.8"),
             command="pytest {cmdargs} tests/contrib/httpx",
             pkgs={
                 "pytest-asyncio": "==0.21.1",
@@ -2136,6 +2169,18 @@ venv = Venv(
                     latest,
                 ],
             },
+            venvs=[
+                # Older Python's don't need legacy-cgi
+                Venv(
+                    pys=select_pys(min_version="3.8", max_version="3.12"),
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.13"),
+                    pkgs={
+                        "legacy-cgi": latest,
+                    },
+                ),
+            ],
         ),
         Venv(
             name="urllib3",
@@ -3344,6 +3389,7 @@ venv = Venv(
             pkgs={
                 "gunicorn": latest,
                 "lz4": latest,
+                "protobuf": latest,
                 #
                 # pytest-benchmark depends on cpuinfo which dropped support for Python<=3.6 in 9.0
                 # See https://github.com/workhorsy/py-cpuinfo/issues/177
@@ -3441,6 +3487,7 @@ venv = Venv(
                 "jsonschema": latest,
                 "lz4": latest,
                 "pytest-cpp": latest,
+                "protobuf": latest,
                 #
                 # pytest-benchmark depends on cpuinfo which dropped support for Python<=3.6 in 9.0
                 # See https://github.com/workhorsy/py-cpuinfo/issues/177
