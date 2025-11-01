@@ -17,8 +17,6 @@ from typing import Optional
 from typing import Tuple
 from typing import Type
 
-import wrapt
-
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
@@ -34,22 +32,24 @@ def _current_thread() -> Tuple[int, str]:
     return thread_id, _threading.get_thread_name(thread_id)
 
 
-# We need to know if wrapt is compiled in C or not. If it's not using the C module, then the wrappers function will
-# appear in the stack trace and we need to hide it.
-WRAPT_C_EXT: bool
-if os.environ.get("WRAPT_DISABLE_EXTENSIONS"):
-    WRAPT_C_EXT = False
-else:
-    try:
-        import wrapt._wrappers as _w  # noqa: F401
-    except ImportError:
-        WRAPT_C_EXT = False
-    else:
-        WRAPT_C_EXT = True
-        del _w
-
-
-class _ProfiledLock(wrapt.ObjectProxy):
+class _ProfiledLock:
+    """Lightweight lock wrapper that profiles lock acquire/release operations.
+    
+    This is a simple delegating wrapper that intercepts lock methods without
+    the overhead of a full proxy object.
+    """
+    
+    __slots__ = (
+        "__wrapped__",
+        "_self_tracer",
+        "_self_max_nframes",
+        "_self_capture_sampler",
+        "_self_endpoint_collection_enabled",
+        "_self_init_loc",
+        "_self_acquired_at",
+        "_self_name",
+    )
+    
     def __init__(
         self,
         wrapped: Any,
@@ -58,12 +58,13 @@ class _ProfiledLock(wrapt.ObjectProxy):
         capture_sampler: collector.CaptureSampler,
         endpoint_collection_enabled: bool,
     ) -> None:
-        wrapt.ObjectProxy.__init__(self, wrapped)
+        self.__wrapped__: Any = wrapped
         self._self_tracer: Optional[Tracer] = tracer
         self._self_max_nframes: int = max_nframes
         self._self_capture_sampler: collector.CaptureSampler = capture_sampler
         self._self_endpoint_collection_enabled: bool = endpoint_collection_enabled
-        frame: FrameType = sys._getframe(2 if WRAPT_C_EXT else 3)
+        # Frame depth: 0=__init__, 1=_profiled_allocate_lock, 2=_LockAllocatorWrapper.__call__, 3=caller
+        frame: FrameType = sys._getframe(3)
         code: CodeType = frame.f_code
         self._self_init_loc: str = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
         self._self_acquired_at: int = 0
@@ -134,11 +135,6 @@ class _ProfiledLock(wrapt.ObjectProxy):
         return self._acquire(self.__wrapped__.acquire, *args, **kwargs)
 
     def _release(self, inner_func: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
-        # The underlying threading.Lock class is implemented using C code, and
-        # it doesn't have the __dict__ attribute. So we can't do
-        # self.__dict__.pop("_self_acquired_at", None) to remove the attribute.
-        # Instead, we need to use the following workaround to retrieve and
-        # remove the attribute.
         start: Optional[int] = getattr(self, "_self_acquired_at", None)
         try:
             # Though it should generally be avoided to call release() from
@@ -213,9 +209,14 @@ class _ProfiledLock(wrapt.ObjectProxy):
                 return name
             if config.lock.name_inspect_dir:
                 for attribute in dir(value):
-                    if not attribute.startswith("__") and getattr(value, attribute) is self:
-                        self._self_name = attribute
-                        return attribute
+                    try:
+                        if not attribute.startswith("__") and getattr(value, attribute) is self:
+                            self._self_name = attribute
+                            return attribute
+                    except AttributeError:
+                        # With __slots__, accessing unset attributes raises AttributeError
+                        # (e.g., _self_acquired_at after it's been deleted in _release)
+                        continue
         return None
 
     # Get lock acquire/release call location and variable name the lock is assigned to
@@ -250,13 +251,39 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
         if not self._self_name:
             self._self_name = ""
+    
+    # Delegate remaining lock methods to the wrapped lock
+    def locked(self) -> bool:
+        """Return True if lock is currently held."""
+        return self.__wrapped__.locked()
+    
+    def __repr__(self) -> str:
+        return f"<_ProfiledLock({self.__wrapped__!r}) at {self._self_init_loc}>"
+    
+    # Support for being used in with statements
+    def __bool__(self) -> bool:
+        return True
 
 
-class FunctionWrapper(wrapt.FunctionWrapper):
-    # Override the __get__ method: whatever happens, _allocate_lock is always considered by Python like a "static"
-    # method, even when used as a class attribute. Python never tried to "bind" it to a method, because it sees it is a
-    # builtin function. Override default wrapt behavior here that tries to detect bound method.
-    def __get__(self, instance: Any, owner: Optional[Type] = None) -> FunctionWrapper:  # type: ignore
+class _LockAllocatorWrapper:
+    """Wrapper for lock allocator functions that prevents method binding.
+    
+    When a function is stored as a class attribute and accessed via an instance,
+    Python's descriptor protocol normally binds it as a method. This wrapper
+    prevents that behavior by implementing __get__ to always return self,
+    similar to how staticmethod works, but as a callable object.
+    """
+    
+    __slots__ = ("_func",)
+    
+    def __init__(self, func: Callable[..., Any]) -> None:
+        self._func: Callable[..., Any] = func
+    
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        return self._func(*args, **kwargs)
+    
+    def __get__(self, instance: Any, owner: Optional[Type] = None) -> _LockAllocatorWrapper:
+        # Always return self, never bind as a method
         return self
 
 
@@ -303,9 +330,9 @@ class LockCollector(collector.CaptureSamplerCollector):
         # Nobody should use locks from `_thread`; if they do so, then it's deliberate and we don't profile.
         self._original = self._get_patch_target()
 
-        # TODO: `instance` is unused
-        def _allocate_lock(wrapped: Any, instance: Any, args: Any, kwargs: Any) -> _ProfiledLock:
-            lock: Any = wrapped(*args, **kwargs)
+        # Create a simple wrapper function that returns profiled locks
+        def _profiled_allocate_lock(*args: Any, **kwargs: Any) -> _ProfiledLock:
+            lock: Any = self._original(*args, **kwargs)
             return self.PROFILED_LOCK_CLASS(
                 lock,
                 self.tracer,
@@ -314,7 +341,9 @@ class LockCollector(collector.CaptureSamplerCollector):
                 self.endpoint_collection_enabled,
             )
 
-        self._set_patch_target(FunctionWrapper(self._original, _allocate_lock))
+        # Wrap the function to prevent it from being bound as a method when
+        # accessed as a class attribute (e.g., Foo.lock_class = threading.Lock)
+        self._set_patch_target(_LockAllocatorWrapper(_profiled_allocate_lock))
 
     def unpatch(self) -> None:
         """Unpatch the threading module for tracking lock allocation."""
