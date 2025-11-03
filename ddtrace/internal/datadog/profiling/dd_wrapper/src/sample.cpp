@@ -119,11 +119,12 @@ Datadog::Sample::push_label(const ExportLabelKey key, int64_t val)
         return true;
     }
 
+    auto empty_string = to_slice("");
     auto& label = labels.emplace_back();
     label.key = to_slice(key_sv);
-    label.str = to_slice("");
+    label.str = empty_string;
     label.num = val;
-    label.num_unit = to_slice("");
+    label.num_unit = empty_string;
     return true;
 }
 

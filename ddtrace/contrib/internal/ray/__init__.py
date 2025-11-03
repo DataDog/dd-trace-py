@@ -66,4 +66,5 @@ Notes
 
 - The integration disables Ray's built-in OpenTelemetry tracing to avoid duplicate telemetry.
 - Actor methods like ``ping`` and ``_polling`` are excluded from tracing to reduce noise.
+- Actors whose names start with an underscore (_) are not instrumented.
 """
