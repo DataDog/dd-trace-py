@@ -11,7 +11,7 @@ from tests.utils import override_env
 
 @pytest.fixture(
     params=[
-        {"DD_APPSEC_SCA_ENABLED": sca, "iast_enabled": iast, "appsec_enabled": appsec, "apm_tracing_disabled": apm}
+        {"DD_APPSEC_SCA_ENABLED": sca, "iast_enabled": iast, "appsec_enabled": appsec, "apm_tracing_enabled": apm}
         for sca in ["1", "0"]
         for iast in [True, False]
         for appsec in [True, False]
@@ -37,7 +37,7 @@ def tracer_appsec_standalone(request, tracer):
 
     # Reset tracer configuration
     ddtrace.config._reset()
-    tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
+    tracer.configure(appsec_enabled=False, apm_tracing_enabled=True, iast_enabled=False)
 
 
 def test_appsec_standalone_apm_enabled_metric(tracer_appsec_standalone):
@@ -46,7 +46,7 @@ def test_appsec_standalone_apm_enabled_metric(tracer_appsec_standalone):
     with tracer.trace("test", span_type=SpanTypes.WEB) as span:
         set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
 
-    if args.get("apm_tracing_disabled", None) and (
+    if args.get("apm_tracing_enabled", None) is False and (
         args.get("appsec_enabled", None)
         or args.get("iast_enabled", None)
         or args.get("DD_APPSEC_SCA_ENABLED", "0") == "1"

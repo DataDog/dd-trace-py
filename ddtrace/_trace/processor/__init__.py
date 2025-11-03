@@ -475,7 +475,6 @@ class SpanAggregator(SpanProcessor):
 
     def reset(
         self,
-        user_processors: Optional[List[TraceProcessor]] = None,
         compute_stats: Optional[bool] = None,
         apm_opt_out: Optional[bool] = None,
         appsec_enabled: Optional[bool] = None,
@@ -500,9 +499,6 @@ class SpanAggregator(SpanProcessor):
 
         if apm_opt_out is not None:
             self.sampling_processor.apm_opt_out = apm_opt_out
-
-        if user_processors is not None:
-            self.user_processors = user_processors
 
         # Reset the trace buffer and span metrics.
         # Useful when forking to prevent sending duplicate spans from parent and child processes.

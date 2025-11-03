@@ -60,6 +60,7 @@ from ddtrace.internal.writer import HTTPWriter
 from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
+from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.vendor.debtcollector.removals import remove
 from ddtrace.version import get_version
 
@@ -172,8 +173,6 @@ class Tracer(object):
             service_name=config.service or None,
             service_env=config.env or None,
             service_version=config.version or None,
-            process_tags=None,
-            container_id=None,
         )
         try:
             self._config_on_disk = store_metadata(metadata)
@@ -308,6 +307,7 @@ class Tracer(object):
         iast_enabled: Optional[bool] = None,
         apm_tracing_disabled: Optional[bool] = None,
         trace_processors: Optional[List[TraceProcessor]] = None,
+        apm_tracing_enabled: Optional[bool] = None,
     ) -> None:
         """Configure a Tracer.
 
@@ -316,9 +316,9 @@ class Tracer(object):
             doesn't need to be changed from the default value.
         :param bool appsec_enabled: Enables Application Security Monitoring (ASM) for the tracer.
         :param bool iast_enabled: Enables IAST support for the tracer
-        :param bool apm_tracing_disabled: When APM tracing is disabled ensures ASM support is still enabled.
-        :param List[TraceProcessor] trace_processors: This parameter sets TraceProcessor (ex: TraceFilters).
-           Trace processors are used to modify and filter traces based on certain criteria.
+        :param bool apm_tracing_disabled: Deprecated. Use `apm_tracing_enabled` instead.
+        :param bool apm_tracing_enabled: Enables/Disables the submission of traces to the Datadog Agent.
+        :param List[TraceProcessor] trace_processors: Deprecated. Use `tracer.processors` property instead.
         """
 
         if appsec_enabled is not None:
@@ -330,7 +330,15 @@ class Tracer(object):
             asm_config._iast_enabled = iast_enabled
 
         if apm_tracing_disabled is not None:
+            deprecate(
+                prefix="tracer.configure(apm_tracing_disabled=...) is deprecated",
+                message="Use tracer.configure(apm_tracing_enabled=...) instead.",
+                category=DDTraceDeprecationWarning,
+                removal_version="4.0.0",
+            )
             asm_config._apm_tracing_enabled = not apm_tracing_disabled
+        if apm_tracing_enabled is not None:
+            asm_config._apm_tracing_enabled = apm_tracing_enabled
 
         if asm_config._apm_opt_out:
             config._tracing_enabled = self.enabled = False
@@ -343,21 +351,27 @@ class Tracer(object):
         if compute_stats_enabled is not None:
             config._trace_compute_stats = compute_stats_enabled
 
+        if trace_processors is not None:
+            self._span_aggregator.user_processors = trace_processors
+
+        if context_provider is not None:
+            deprecate(
+                prefix="tracer.configure(context_provider=...) is deprecated",
+                message="Use tracer.context_provider property instead.",
+                category=DDTraceDeprecationWarning,
+                removal_version="4.0.0",
+            )
+            self.context_provider = context_provider
+
         if any(
             x is not None
             for x in [
-                trace_processors,
                 compute_stats_enabled,
                 appsec_enabled,
                 iast_enabled,
             ]
         ):
-            self._recreate(
-                trace_processors, compute_stats_enabled, asm_config._apm_opt_out, appsec_enabled, reset_buffer=False
-            )
-
-        if context_provider is not None:
-            self.context_provider = context_provider
+            self._recreate(compute_stats_enabled, asm_config._apm_opt_out, appsec_enabled, reset_buffer=False)
 
     def _generate_diagnostic_logs(self):
         if config._debug_mode or config._startup_logs_enabled:
@@ -385,7 +399,6 @@ class Tracer(object):
 
     def _recreate(
         self,
-        trace_processors: Optional[List[TraceProcessor]] = None,
         compute_stats_enabled: Optional[bool] = None,
         apm_opt_out: Optional[bool] = None,
         appsec_enabled: Optional[bool] = None,
@@ -395,7 +408,6 @@ class Tracer(object):
         # Stop the writer.
         # This will stop the periodic thread in HTTPWriters, preventing memory leaks and unnecessary I/O.
         self._span_aggregator.reset(
-            user_processors=trace_processors,
             compute_stats=compute_stats_enabled,
             apm_opt_out=apm_opt_out,
             appsec_enabled=appsec_enabled,
@@ -549,10 +561,10 @@ class Tracer(object):
                 on_finish=[self._on_span_finish],
             )
             if config._report_hostname:
-                span._set_tag_str(_HOSTNAME_KEY, hostname.get_hostname())
+                span.set_tag_str(_HOSTNAME_KEY, hostname.get_hostname())
 
         if not span._parent:
-            span._set_tag_str("runtime-id", get_runtime_id())
+            span.set_tag_str("runtime-id", get_runtime_id())
             span._metrics[PID] = self._pid
 
         # Apply default global tags.
@@ -560,7 +572,7 @@ class Tracer(object):
             span.set_tags(self._tags)
 
         if config.env:
-            span._set_tag_str(ENV_KEY, config.env)
+            span.set_tag_str(ENV_KEY, config.env)
 
         # Only set the version tag on internal spans.
         if config.version:
@@ -572,7 +584,7 @@ class Tracer(object):
             if (root_span is None and service == config.service) or (
                 root_span and root_span.service == service and root_span.get_tag(VERSION_KEY) is not None
             ):
-                span._set_tag_str(VERSION_KEY, config.version)
+                span.set_tag_str(VERSION_KEY, config.version)
 
         if activate:
             self.context_provider.activate(span)
