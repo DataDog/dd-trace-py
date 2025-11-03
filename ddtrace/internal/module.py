@@ -192,9 +192,16 @@ class _ImportHookChainedLoader:
         # Pretend that we do not have a loader (this would be self), to
         # allow _init_module_attrs to create the appropriate NamespaceLoader
         # for the namespace module.
+        original_loader = spec.loader
         spec.loader = None
 
-        _init_module_attrs(spec, module, override=True)
+        try:
+            _init_module_attrs(spec, module, override=True)
+        except Exception:
+            # If namespace initialization fails, restore original loader
+            # and let the standard import system handle it
+            spec.loader = original_loader
+            raise
 
         # Chain the loaders
         self.loader = spec.loader
@@ -236,7 +243,11 @@ class _ImportHookChainedLoader:
         if self.loader is None:
             if self.spec is None:
                 return None
-            sys.modules[self.spec.name] = module = self.namespace_module(self.spec)
+            # For namespace packages, check if already loaded to avoid conflicts
+            if self.spec.name in sys.modules:
+                module = sys.modules[self.spec.name]
+            else:
+                sys.modules[self.spec.name] = module = self.namespace_module(self.spec)
         else:
             module = self.loader.load_module(fullname)
 
@@ -307,7 +318,10 @@ class _ImportHookChainedLoader:
             if self.loader is None:
                 spec = getattr(module, "__spec__", None)
                 if spec is not None and is_namespace_spec(spec):
-                    sys.modules[spec.name] = module
+                    # Only add to sys.modules if not already present
+                    # This prevents double-registration which can cause issues with PEP 420 packages
+                    if spec.name not in sys.modules:
+                        sys.modules[spec.name] = module
             else:
                 try:
                     self.loader.exec_module(module)
@@ -430,6 +444,17 @@ class BaseModuleWatchdog(abc.ABC):
 
             if spec is None:
                 return None
+
+            # Skip PEP 420 namespace packages to avoid interfering with the built-in import system
+            # This prevents corruption of the import state when transitioning from pkg_resources
+            # namespace packages to PEP 420 implicit namespace packages (e.g., zope.event 6.0)
+            if is_namespace_spec(spec):
+                # For namespace packages, don't wrap the loader but still register callbacks
+                # if the loader is already our chained loader from a previous import
+                if isinstance(getattr(spec, "loader", None), _ImportHookChainedLoader):
+                    t.cast(_ImportHookChainedLoader, spec.loader).add_callback(type(self), self.after_import)
+                    t.cast(_ImportHookChainedLoader, spec.loader).add_transformer(type(self), self.transform)
+                return spec
 
             loader = getattr(spec, "loader", None)
 
