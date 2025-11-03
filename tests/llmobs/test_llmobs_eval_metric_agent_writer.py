@@ -2,8 +2,8 @@ import time
 
 import mock
 
+from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.llmobs._constants import EVAL_ENDPOINT
-from ddtrace.llmobs._constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.settings._agent import config as agent_config
 from tests.llmobs.test_llmobs_eval_metric_agentless_writer import _categorical_metric_event
