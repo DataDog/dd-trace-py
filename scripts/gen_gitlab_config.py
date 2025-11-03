@@ -193,6 +193,7 @@ def gen_build_docs() -> None:
             "docs/*",
             "ddtrace/*",
             "scripts/docs/*",
+            "scripts/gen_gitlab_config.py",
             "benchmarks/README.rst",
             ".readthedocs.yml",
         }
