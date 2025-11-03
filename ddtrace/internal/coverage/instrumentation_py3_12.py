@@ -1,4 +1,15 @@
+"""
+Coverage instrumentation for Python 3.12+ using sys.monitoring API.
+
+This module supports two modes:
+1. Line-level coverage: Tracks which specific lines are executed (LINE events)
+2. File-level coverage: Tracks which files are executed (PY_START events)
+
+The mode is controlled by the _DD_COVERAGE_FILE_LEVEL environment variable.
+"""
+
 import dis
+import os
 import sys
 from types import CodeType
 import typing as t
@@ -6,6 +17,7 @@ import typing as t
 from ddtrace.internal.bytecode_injection import HookType
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+from ddtrace.internal.utils.formats import asbool
 
 
 log = get_logger(__name__)
@@ -21,6 +33,11 @@ RESUME = dis.opmap["RESUME"]
 RETURN_CONST = dis.opmap["RETURN_CONST"]
 EMPTY_MODULE_BYTES = bytes([RESUME, 0, RETURN_CONST, 0])
 
+# Check if file-level coverage is requested
+_USE_FILE_LEVEL_COVERAGE = asbool(os.getenv("_DD_COVERAGE_FILE_LEVEL", "false"))
+
+EVENT = sys.monitoring.events.PY_START if _USE_FILE_LEVEL_COVERAGE else sys.monitoring.events.LINE
+
 # Store: (hook, path, import_names_by_line)
 _CODE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str, t.Dict[int, t.Tuple[str, t.Optional[t.Tuple[str]]]]]] = {}
 
@@ -29,17 +46,21 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     """
     Instrument code for coverage tracking using Python 3.12's monitoring API.
 
+    This function supports two modes based on _DD_COVERAGE_FILE_LEVEL:
+    - Line-level (default): Uses LINE events for detailed line-by-line coverage
+    - File-level: Uses PY_START events for faster file-level coverage
+
     Args:
         code: The code object to instrument
         hook: The hook function to call
         path: The file path
         package: The package name
 
-    Note: Python 3.12+ uses an optimized approach where each line callback returns DISABLE
-    after recording. This means:
-    - Each line is only reported once per coverage context (test/suite)
-    - No overhead for repeated line executions (e.g., in loops)
-    - Full line-by-line coverage data is captured
+    Returns:
+        Tuple of (code object, CoverageLines with instrumentable lines)
+
+    Note: Both modes use an optimized approach where callbacks return DISABLE
+    after recording, meaning each line/function is only reported once per coverage context.
     """
     coverage_tool = sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID)
     if coverage_tool is not None and coverage_tool != "datadog":
@@ -47,52 +68,111 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
         return code, CoverageLines()
 
     if coverage_tool is None:
-        log.debug("Registering code coverage tool")
+        mode = "file-level" if _USE_FILE_LEVEL_COVERAGE else "line-level"
+        log.debug("Registering %s coverage tool", mode)
         _register_monitoring()
 
-    return _instrument_all_lines_with_monitoring(code, hook, path, package)
+    return _instrument_with_monitoring(code, hook, path, package)
 
 
-def _line_event_handler(code: CodeType, line: int) -> t.Literal[sys.monitoring.DISABLE]:
+def _event_handler(code: CodeType, line: int) -> t.Literal[sys.monitoring.DISABLE]:
+    """
+    Callback for LINE/PY_START events.
+    Returns sys.monitoring.DISABLE to improve performance.
+    """
     hook_data = _CODE_HOOKS.get(code)
     if hook_data is None:
         return sys.monitoring.DISABLE
 
     hook, path, import_names = hook_data
 
-    # Report the line and then disable monitoring for this specific line
-    # This ensures each line is only reported once per context, even if executed multiple times (e.g., in loops)
-    import_name = import_names.get(line, None)
-    hook((line, path, import_name))
+    if _USE_FILE_LEVEL_COVERAGE:
+        # Report file-level coverage using line 0 as a sentinel value
+        # Line 0 indicates "file was executed" without specific line information
+        hook((0, path, None))
 
-    # Return DISABLE to prevent future callbacks for this specific line
-    # This provides full line coverage with minimal overhead
+        # Report any import dependencies (extracted at instrumentation time from bytecode)
+        # This ensures import tracking works even though we don't fire on individual lines
+        for line_num, import_name in import_names.items():
+            hook((line_num, path, import_name))
+    else:
+        # Report the line and then disable monitoring for this specific line
+        # This ensures each line is only reported once per context, even if executed multiple times (e.g., in loops)
+        import_name = import_names.get(line, None)
+        hook((line, path, import_name))
+
+    # Return DISABLE to prevent future callbacks for this specific line/code
     return sys.monitoring.DISABLE
 
 
 def _register_monitoring():
     """
-    Register the coverage tool with the low-impact monitoring system.
+    Register the coverage tool with the monitoring system.
+
+    This sets up the appropriate callback based on the coverage mode.
     """
     sys.monitoring.use_tool_id(sys.monitoring.COVERAGE_ID, "datadog")
-
-    # Register the line callback
-    sys.monitoring.register_callback(
-        sys.monitoring.COVERAGE_ID, sys.monitoring.events.LINE, _line_event_handler
-    )  # noqa
+    sys.monitoring.register_callback(sys.monitoring.COVERAGE_ID, EVENT, _event_handler)
 
 
-def _instrument_all_lines_with_monitoring(
+def _instrument_with_monitoring(
     code: CodeType, hook: HookType, path: str, package: str
 ) -> t.Tuple[CodeType, CoverageLines]:
-    # Enable local line events for the code object
-    sys.monitoring.set_local_events(sys.monitoring.COVERAGE_ID, code, sys.monitoring.events.LINE)  # noqa
+    """
+    Instrument code using either LINE events for detailed line-by-line coverage or PY_START for file-level.
+    """
+    # Enable local line/py_start events for the code object
+    sys.monitoring.set_local_events(sys.monitoring.COVERAGE_ID, code, EVENT)  # noqa
 
-    # Collect all the line numbers in the code object
-    linestarts = dict(dis.findlinestarts(code))
+    track_lines = not _USE_FILE_LEVEL_COVERAGE
+    # Extract import names and collect line numbers
+    lines, import_names = _extract_lines_and_imports(code, package, track_lines=track_lines)
 
+    # Recursively instrument nested code objects
+    for nested_code in (_ for _ in code.co_consts if isinstance(_, CodeType)):
+        _, nested_lines = instrument_all_lines(nested_code, hook, path, package)
+        lines.update(nested_lines)
+
+    # Register the hook and argument for the code object
+    _CODE_HOOKS[code] = (hook, path, import_names)
+
+    if _USE_FILE_LEVEL_COVERAGE:
+        # Return CoverageLines with line 0 as sentinel to indicate file-level coverage
+        # Line 0 means "file was instrumented/executed" without specific line details
+        lines = CoverageLines()
+        lines.add(0)
+        return code, lines
+    else:
+        # Special case for empty modules (eg: __init__.py ):
+        # Make sure line 0 is marked as executable, and add package dependency
+        if not lines and code.co_name == "<module>" and code.co_code == EMPTY_MODULE_BYTES:
+            lines.add(0)
+            if package is not None:
+                import_names[0] = (package, ("",))
+
+    return code, lines
+
+
+def _extract_lines_and_imports(
+    code: CodeType, package: str, track_lines: bool = True
+) -> t.Tuple[CoverageLines, t.Dict[int, t.Tuple[str, t.Tuple[str, ...]]]]:
+    """
+    Extract line numbers and import information from bytecode.
+
+    This parses the bytecode to:
+    1. Collect all executable line numbers (if track_lines=True)
+    2. Track IMPORT_NAME and IMPORT_FROM opcodes for dependency tracking
+
+    Args:
+        code: The code object to analyze
+        package: The package name for resolving relative imports
+        track_lines: Whether to collect line numbers (True for LINE mode, False for PY_START mode)
+
+    Returns:
+        Tuple of (CoverageLines with executable lines, dict mapping lines to imports)
+    """
     lines = CoverageLines()
-    import_names: t.Dict[int, t.Tuple[str, t.Optional[t.Tuple[str, ...]]]] = {}
+    import_names: t.Dict[int, t.Tuple[str, t.Tuple[str, ...]]] = {}
 
     # The previous two arguments are kept in order to track the depth of the IMPORT_NAME
     # For example, from ...package import module
@@ -102,6 +182,8 @@ def _instrument_all_lines_with_monitoring(
     current_import_name: t.Optional[str] = None
     current_import_package: t.Optional[str] = None
 
+    # Track line numbers
+    linestarts = dict(dis.findlinestarts(code))
     line: t.Optional[int] = None
 
     ext: list[bytes] = []
@@ -117,7 +199,7 @@ def _instrument_all_lines_with_monitoring(
             if offset in linestarts:
                 line = linestarts[offset]
                 # Skip if line is None (bytecode that doesn't map to a specific source line)
-                if line is not None:
+                if line is not None and track_lines:
                     lines.add(line)
 
                     # Make sure that the current module is marked as depending on its own package by instrumenting the
@@ -166,19 +248,4 @@ def _instrument_all_lines_with_monitoring(
     except StopIteration:
         pass
 
-    # Recursively instrument nested code objects
-    for nested_code in (_ for _ in code.co_consts if isinstance(_, CodeType)):
-        _, nested_lines = instrument_all_lines(nested_code, hook, path, package)
-        lines.update(nested_lines)
-
-    # Register the hook and argument for the code object
-    _CODE_HOOKS[code] = (hook, path, import_names)
-
-    # Special case for empty modules (eg: __init__.py ):
-    # Make sure line 0 is marked as executable, and add package dependency
-    if not lines and code.co_name == "<module>" and code.co_code == EMPTY_MODULE_BYTES:
-        lines.add(0)
-        if package is not None:
-            import_names[0] = (package, ("",))
-
-    return code, lines
+    return lines, import_names
