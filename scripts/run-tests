@@ -1,4 +1,4 @@
-#!/usr/bin/env uv run --script
+#!/usr/bin/env scripts/uv-run-script
 # -*- mode: python -*-
 # /// script
 # requires-python = ">=3.8"

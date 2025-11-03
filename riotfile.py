@@ -2606,11 +2606,9 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.9", max_version="3.13"),
                     pkgs={
-                        "openai": ["<2.0.0", "~=1.76.2", "==1.66.0"],
-                        "tiktoken": latest,
+                        "openai": [latest, "<2.0.0", "~=1.76.2", "==1.66.0"],
                         "pillow": latest,
                     },
-                    env={"TIKTOKEN_AVAILABLE": "True"},
                 ),
             ],
         ),
@@ -3521,7 +3519,7 @@ venv = Venv(
                 "AGENT_VERSION": "testagent",
                 "DD_REMOTE_CONFIGURATION_ENABLED": "true",
                 "DD_API_SECURITY_SAMPLE_DELAY": "0",
-                "DD_PATCH_MODULES": "unittest:false,urllib3:true",
+                "DD_PATCH_MODULES": "unittest:false",
             },
             venvs=[
                 Venv(
@@ -3575,7 +3573,7 @@ venv = Venv(
                 "AGENT_VERSION": "testagent",
                 "DD_REMOTE_CONFIGURATION_ENABLED": "true",
                 "DD_API_SECURITY_SAMPLE_DELAY": "0",
-                "DD_PATCH_MODULES": "unittest:false,urllib3:true",
+                "DD_PATCH_MODULES": "unittest:false",
             },
             venvs=[
                 Venv(
@@ -3626,7 +3624,7 @@ venv = Venv(
                 "DD_REMOTE_CONFIGURATION_ENABLED": "true",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
                 "DD_API_SECURITY_SAMPLE_DELAY": "0",
-                "DD_PATCH_MODULES": "unittest:false,urllib3:true",
+                "DD_PATCH_MODULES": "unittest:false",
             },
             venvs=[
                 Venv(

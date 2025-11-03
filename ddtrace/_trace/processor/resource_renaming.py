@@ -4,6 +4,7 @@ from typing import Optional
 from urllib.parse import urlparse
 
 from ddtrace._trace.processor import SpanProcessor
+from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal.logger import get_logger
@@ -13,7 +14,7 @@ from ddtrace.internal.settings._config import config
 log = get_logger(__name__)
 
 
-class ResourceRenamingProcessor(SpanProcessor):
+class SimplifiedEndpointComputer:
     def __init__(self):
         self._INT_RE = re.compile(r"^[1-9][0-9]+$")
         self._INT_ID_RE = re.compile(r"^(?=.*[0-9].*)[0-9._-]{3,}$")
@@ -35,7 +36,7 @@ class ResourceRenamingProcessor(SpanProcessor):
             return "{param:str}"
         return elem
 
-    def _compute_simplified_endpoint(self, url: Optional[str]) -> str:
+    def from_url(self, url: Optional[str]) -> str:
         """Extracts and simplifies the path from an HTTP URL."""
         if not url:
             return "/"
@@ -62,16 +63,24 @@ class ResourceRenamingProcessor(SpanProcessor):
         elements = [self._compute_simplified_endpoint_path_element(elem) for elem in elements]
         return "/" + "/".join(elements)
 
-    def on_span_start(self, span):
+
+class ResourceRenamingProcessor(SpanProcessor):
+    def __init__(self):
+        self.simplified_endpoint_computer = SimplifiedEndpointComputer()
+
+    def on_span_start(self, span: Span):
         pass
 
-    def on_span_finish(self, span):
+    def on_span_finish(self, span: Span):
         if not span._is_top_level or span.span_type not in (SpanTypes.WEB, SpanTypes.HTTP, SpanTypes.SERVERLESS):
             return
 
+        status = span.get_tag(http.STATUS_CODE)
+        is_404 = status == "404" or status == 404
+
         route = span.get_tag(http.ROUTE)
 
-        if not route or config._trace_resource_renaming_always_simplified_endpoint:
+        if not is_404 and (not route or config._trace_resource_renaming_always_simplified_endpoint):
             url = span.get_tag(http.URL)
-            endpoint = self._compute_simplified_endpoint(url)
-            span._set_tag_str(http.ENDPOINT, endpoint)
+            endpoint = self.simplified_endpoint_computer.from_url(url)
+            span.set_tag_str(http.ENDPOINT, endpoint)

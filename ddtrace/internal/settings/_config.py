@@ -641,6 +641,7 @@ class Config(object):
         self._trace_methods = _get_config("DD_TRACE_METHODS")
 
         self._dd_api_key = _get_config("DD_API_KEY")
+        self._dd_app_key = _get_config("DD_APP_KEY", report_telemetry=False)
         self._dd_site = _get_config("DD_SITE", "datadoghq.com")
 
         self._llmobs_enabled = _get_config("DD_LLMOBS_ENABLED", False, asbool)
