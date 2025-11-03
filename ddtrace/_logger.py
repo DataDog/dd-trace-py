@@ -131,7 +131,7 @@ def _configure_ddtrace_native_logger():
         from .settings._config import config
 
         if config._trace_writer_native:
-            backend = get_config("_DD_NATIVE_LOGGING_BACKEND", report_telemetry=True)
+            backend = get_config("_DD_NATIVE_LOGGING_BACKEND")
             if not backend:
                 return
             kwargs = {"output": backend}
