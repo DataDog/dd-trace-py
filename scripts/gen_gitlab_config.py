@@ -208,6 +208,7 @@ def gen_build_docs() -> None:
             print("      artifacts: true", file=f)
             print("  script:", file=f)
             print("    - |", file=f)
+            print("      git config --global --add safe.directory $CI_PROJECT_DIR", file=f)
             print("      riot -v run -s build_docs", file=f)
             print("      mkdir -p /tmp/docs", file=f)
             print("  artifacts:", file=f)
