@@ -29,7 +29,7 @@ from ddtrace.internal.openfeature.writer import get_exposure_writer
 from ddtrace.internal.openfeature.writer import start_exposure_writer
 from ddtrace.internal.openfeature.writer import stop_exposure_writer
 from ddtrace.internal.service import ServiceStatusError
-from ddtrace.settings.openfeature import config as ffe_config
+from ddtrace.internal.settings.openfeature import config as ffe_config
 
 
 # Handle different import paths between openfeature-sdk versions
