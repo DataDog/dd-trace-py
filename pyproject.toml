@@ -10,11 +10,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ddtrace"
-dynamic = ["version"]
+# DEV: to directly override the version specifier, comment this...
+#dynamic = ["version"]
+# ...and uncomment this
+version = "4.0.0.dev0"
 description = "Datadog APM client library"
 readme = "README.md"
 license = { text = "LICENSE.BSD3" }
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 authors = [
     { name = "Datadog, Inc.", email = "dev@datadoghq.com" },
 ]
@@ -50,9 +53,6 @@ opentracing = [
 ]
 opentelemetry = [
     "opentelemetry-exporter-otlp>=1.0.0",
-]
-openai = [
-    "tiktoken",
 ]
 
 [project.scripts]
@@ -106,7 +106,7 @@ exclude = '''
 
 [tool.black]
 line-length = 120
-target_version = ['py37', 'py38', 'py39', 'py310', 'py311', 'py312']
+target_version = ['py39', 'py310', 'py311', 'py312']
 include = '''\.py[ix]?$'''
 exclude = '''
 (
@@ -165,6 +165,8 @@ exclude-modules = '''
   | ^tests.(contrib|vendor)
   # avoid sitecustomize modules as they start services
   | ddtrace.bootstrap.sitecustomize
+  | ddtrace.openfeature
+  | ddtrace.internal.openfeature
   | ddtrace.profiling.bootstrap.sitecustomize
   | ddtrace.profiling.auto
   # also ignore preload module to avoid exception after moving ddtrace.tracing module

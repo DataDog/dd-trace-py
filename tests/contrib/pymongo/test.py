@@ -877,7 +877,7 @@ class TestPymongoDBMInjection(TracerTestCase):
         if pymongo.version_tuple < (3, 9):
             self.skipTest("DBM propagation requires PyMongo 3.9+")
 
-        from ddtrace.settings._database_monitoring import dbm_config
+        from ddtrace.internal.settings._database_monitoring import dbm_config
 
         assert dbm_config.propagation_mode == "full"
 
@@ -930,7 +930,7 @@ class TestPymongoDBMInjection(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="disabled"))
     def test_dbm_propagation_disabled(self):
         """Test that DBM comment is not injected when propagation mode is 'disabled'"""
-        from ddtrace.settings._database_monitoring import dbm_config
+        from ddtrace.internal.settings._database_monitoring import dbm_config
 
         assert dbm_config.propagation_mode == "disabled"
 
@@ -972,7 +972,7 @@ class TestPymongoDBMInjection(TracerTestCase):
         if pymongo.version_tuple < (3, 9):
             self.skipTest("DBM propagation requires PyMongo 3.9+")
 
-        from ddtrace.settings._database_monitoring import dbm_config
+        from ddtrace.internal.settings._database_monitoring import dbm_config
 
         assert dbm_config.propagation_mode == "service"
 
@@ -1045,7 +1045,7 @@ class TestPymongoDBMInjection(TracerTestCase):
         if pymongo.version_tuple >= (3, 9):
             self.skipTest("Only test on PyMongo versions < 3.9")
 
-        from ddtrace.settings._database_monitoring import dbm_config
+        from ddtrace.internal.settings._database_monitoring import dbm_config
 
         assert dbm_config.propagation_mode == "service"
 

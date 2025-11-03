@@ -320,10 +320,13 @@ def traced_chat_stream(langchain_core, pin, func, instance, args, kwargs):
         integration.record_instance(instance, span)
 
     def _on_span_finished(span: Span, streamed_chunks):
-        joined_chunks = streamed_chunks[0]
-        for chunk in streamed_chunks[1:]:
-            joined_chunks += chunk  # base message types support __add__ for concatenation
         kwargs["_dd.identifying_params"] = instance._identifying_params
+        if len(streamed_chunks):
+            joined_chunks = streamed_chunks[0]
+            for chunk in streamed_chunks[1:]:
+                joined_chunks += chunk  # base message types support __add__ for concatenation
+        else:
+            joined_chunks = []
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=joined_chunks, operation="chat")
 
     return shared_stream(
@@ -690,3 +693,5 @@ def unpatch():
     unwrap(langchain_core.prompts.base.BasePromptTemplate, "ainvoke")
     unwrap(langchain_core.embeddings.Embeddings, "__init_subclass__")
     unwrap(langchain_core.vectorstores.VectorStore, "__init_subclass__")
+
+    core.dispatch("langchain.unpatch", tuple())
