@@ -16,8 +16,7 @@ def create_boolean_flag(flag_key, enabled=True, default_value=True):
         "allocations": [
             {
                 "key": "allocation-default",
-                "rules": [],
-                "splits": [{"shards": [], "variationKey": "true" if default_value else "false"}],
+                "splits": [{"variationKey": "true" if default_value else "false", "shards": []}],
                 "doLog": True,
             }
         ],
@@ -34,8 +33,7 @@ def create_string_flag(flag_key, value, enabled=True):
         "allocations": [
             {
                 "key": "allocation-default",
-                "rules": [],
-                "splits": [{"shards": [], "variationKey": value, "extraLogging": "None"}],
+                "splits": [{"variationKey": value, "shards": []}],
                 "doLog": True,
             }
         ],
@@ -53,8 +51,7 @@ def create_integer_flag(flag_key, value, enabled=True):
         "allocations": [
             {
                 "key": "allocation-default",
-                "rules": [],
-                "splits": [{"shards": [], "variationKey": variation_key, "extraLogging": "None"}],
+                "splits": [{"variationKey": variation_key, "shards": []}],
                 "doLog": True,
             }
         ],
@@ -72,8 +69,7 @@ def create_float_flag(flag_key, value, enabled=True):
         "allocations": [
             {
                 "key": "allocation-default",
-                "rules": [],
-                "splits": [{"shards": [], "variationKey": variation_key, "extraLogging": "None"}],
+                "splits": [{"variationKey": variation_key, "shards": []}],
                 "doLog": True,
             }
         ],
@@ -91,8 +87,7 @@ def create_json_flag(flag_key, value, enabled=True):
         "allocations": [
             {
                 "key": "allocation-default",
-                "rules": [],
-                "splits": [{"shards": [], "variationKey": variation_key, "extraLogging": "None"}],
+                "splits": [{"variationKey": variation_key, "shards": []}],
                 "doLog": True,
             }
         ],

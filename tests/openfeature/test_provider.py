@@ -365,7 +365,7 @@ class TestComplexScenarios:
         assert result1.value is True
         assert result2.value == "value2"
         assert result3.value == 0  # disabled flag returns default
-        assert result3.reason == Reason.DEFAULT
+        assert result3.reason == Reason.DISABLED
 
     def test_empty_config(self, provider):
         """Should handle empty configuration."""
