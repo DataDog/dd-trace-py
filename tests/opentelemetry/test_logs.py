@@ -90,7 +90,7 @@ def test_otel_api_version_not_supported(ddtrace_run_python_code_in_subprocess):
     """Test error when OpenTelemetry API version is too old."""
     env = os.environ.copy()
     env["DD_LOGS_OTEL_ENABLED"] = "true"
-    stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code="", env=env)
+    stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code="import opentelemetry", env=env)
     assert status == 0, (stdout, stderr)
     assert (
         "OpenTelemetry API requires version 1.15.0 or higher to enable logs collection. "
