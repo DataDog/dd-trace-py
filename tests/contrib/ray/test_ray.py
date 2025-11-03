@@ -104,6 +104,28 @@ class TestRayIntegration(TracerTestCase):
 
         assert current_value == 2, f"Unexpected result: {current_value}"
 
+    @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_ignored_actored", ignores=RAY_SNAPSHOT_IGNORES)
+    def test_ignored_actors(self):
+        @ray.remote
+        class _InternalActor:
+            def one(self):
+                return 1
+
+        actor = _InternalActor.remote()
+        current_value = ray.get(actor.one.remote())
+        assert current_value == 1, f"Unexpected result: {current_value}"
+
+        class MockDeniedActor:
+            def get_value(self):
+                return 42
+
+        MockDeniedActor.__module__ = "ray.data._internal"
+        MockDeniedActor = ray.remote(MockDeniedActor)
+
+        denied_actor = MockDeniedActor.remote()
+        value = ray.get(denied_actor.get_value.remote())
+        assert value == 42, f"Unexpected result: {value}"
+
     @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_nested_tasks", ignores=RAY_SNAPSHOT_IGNORES)
     def test_nested_tasks(self):
         @ray.remote
