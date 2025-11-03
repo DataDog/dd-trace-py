@@ -288,7 +288,7 @@ def test_symbols_force_upload():
     assert scope["name"] == "tests.submod.stuff"
 
 
-@pytest.mark.subprocess(ddtrace_run=True)
+@pytest.mark.subprocess(ddtrace_run=True, err=None)
 def test_symbols_fork_uploads():
     """
     Test that we disable Symbol DB on processes that are not the main one nor
