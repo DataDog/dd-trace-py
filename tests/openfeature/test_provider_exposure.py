@@ -94,7 +94,7 @@ class TestExposureReporting:
         exposure_event = mock_writer.enqueue.call_args[0][0]
         assert exposure_event["flag"]["key"] == "alberto-flag"
         assert exposure_event["variant"]["key"] == "true"
-        assert exposure_event["allocation"]["key"] == "true"
+        assert exposure_event["allocation"]["key"] == "allocation-default"
         assert exposure_event["subject"]["id"] == "user-123"
         assert "timestamp" in exposure_event
 

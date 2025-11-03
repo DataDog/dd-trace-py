@@ -4,8 +4,6 @@ Feature Flagging and Experimentation (FFE) product module.
 This module handles Feature Flag configuration rules from Remote Configuration
 and forwards the raw bytes to the native FFE processor.
 """
-
-import datetime
 from importlib.metadata import version
 import typing
 
@@ -19,9 +17,8 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import ffe
 from ddtrace.internal.openfeature._config import _get_ffe_config
 from ddtrace.internal.openfeature._exposure import build_exposure_event
-from ddtrace.internal.openfeature._native import EvaluationError
 from ddtrace.internal.openfeature._native import VariationType
-from ddtrace.internal.openfeature._native import get_assignment
+from ddtrace.internal.openfeature._native import resolve_flag
 from ddtrace.internal.openfeature._remoteconfiguration import disable_featureflags_rc
 from ddtrace.internal.openfeature._remoteconfiguration import enable_featureflags_rc
 from ddtrace.internal.openfeature.writer import get_exposure_writer
@@ -168,16 +165,16 @@ class DataDogProvider(AbstractProvider):
             # Get the native Configuration object
             config = _get_ffe_config()
 
-            result = get_assignment(
+            # Resolve flag using native implementation
+            details = resolve_flag(
                 config,
                 flag_key=flag_key,
                 context=evaluation_context,
                 expected_type=variation_type,
-                now=datetime.datetime.now(),
             )
 
-            # Flag not found or disabled - return default
-            if result is None:
+            # No configuration available - return default
+            if details is None:
                 self._report_exposure(
                     flag_key=flag_key,
                     variant_key=None,
@@ -190,46 +187,61 @@ class DataDogProvider(AbstractProvider):
                     variant=None,
                 )
 
-            # Map native ffe.Reason to OpenFeature Reason
-            reason = self._map_reason_to_openfeature(result.reason)
+            # Handle errors from native evaluation
+            if details.error_code is not None:
+                # Map native error code to OpenFeature error code
+                openfeature_error_code = self._map_error_code_to_openfeature(details.error_code)
 
-            # Report exposure event
-            self._report_exposure(
-                flag_key=flag_key,
-                variant_key=result.variation_key,
-                allocation_key=result.allocation_key,
-                evaluation_context=evaluation_context,
-            )
+                # Flag not found - return default with DEFAULT reason
+                if details.error_code == ffe.ErrorCode.FlagNotFound:
+                    self._report_exposure(
+                        flag_key=flag_key,
+                        variant_key=None,
+                        allocation_key=None,
+                        evaluation_context=evaluation_context,
+                    )
+                    return FlagResolutionDetails(
+                        value=default_value,
+                        reason=Reason.DEFAULT,
+                        variant=None,
+                    )
 
-            # Success - return resolved value
-            return FlagResolutionDetails(
-                value=result.value.value,
-                reason=reason,
-                variant=result.variation_key,
-            )
-
-        except EvaluationError as e:
-            # Map native error code to OpenFeature error code
-            if e.error_code is not None:
-                openfeature_error_code = self._map_error_code_to_openfeature(e.error_code)
-            else:
-                openfeature_error_code = ErrorCode.GENERAL
-
-            # Type mismatch error
-            if e.kind == "TYPE_MISMATCH":
+                # Other errors - return default with ERROR reason
                 return FlagResolutionDetails(
                     value=default_value,
                     reason=Reason.ERROR,
                     error_code=openfeature_error_code,
-                    error_message=f"Expected {e.expected}, but flag is {e.found}",
+                    error_message=details.error_message or "Unknown error",
                 )
-            # Other evaluation errors
-            return FlagResolutionDetails(
-                value=default_value,
-                reason=Reason.ERROR,
-                error_code=openfeature_error_code,
-                error_message=str(e),
+
+            # Map native ffe.Reason to OpenFeature Reason
+            reason = self._map_reason_to_openfeature(details.reason)
+
+            # Report exposure event
+            self._report_exposure(
+                flag_key=flag_key,
+                variant_key=details.variant,
+                allocation_key=details.allocation_key,
+                evaluation_context=evaluation_context,
             )
+
+            # Check if variant is None/empty to determine if we should use default value.
+            # For JSON flags, value can be null which is valid, so we check variant instead.
+            # We preserve the reason from evaluation (could be DEFAULT, DISABLED, etc.)
+            if not details.variant:
+                return FlagResolutionDetails(
+                    value=default_value,
+                    reason=reason,
+                    variant=None,
+                )
+
+            # Success - return resolved value (which may be None for JSON flags)
+            return FlagResolutionDetails(
+                value=details.value,
+                reason=reason,
+                variant=details.variant,
+            )
+
         except Exception as e:
             # Unexpected errors
             return FlagResolutionDetails(

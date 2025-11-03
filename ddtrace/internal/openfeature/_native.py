@@ -5,10 +5,8 @@ This module provides the interface to the PyO3 native function that processes
 feature flag configuration rules.
 """
 
-from dataclasses import dataclass
 import json
 from typing import Any
-from typing import Dict
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
@@ -19,44 +17,7 @@ from ddtrace.internal.openfeature._config import _set_ffe_config
 log = get_logger(__name__)
 
 VariationType = ffe.FlagType
-
-
-@dataclass
-class AssignmentValue:
-    """Wrapper for flag values."""
-
-    variation_type: VariationType
-    value: Any
-
-
-@dataclass
-class Assignment:
-    """Assignment result from flag evaluation."""
-
-    value: AssignmentValue
-    variation_key: str
-    allocation_key: str
-    reason: Any  # Native ffe.Reason or fallback string
-    do_log: bool
-    extra_logging: Dict[str, str]
-
-
-class EvaluationError(Exception):
-    """Error raised during flag evaluation."""
-
-    def __init__(
-        self,
-        kind: str,
-        *,
-        expected: Optional[VariationType] = None,
-        found: Optional[VariationType] = None,
-        error_code: ffe.ErrorCode = ffe.ErrorCode.General,
-    ):
-        super().__init__(kind)
-        self.kind = kind
-        self.expected = expected
-        self.found = found
-        self.error_code = error_code
+ResolutionDetails = ffe.ResolutionDetails
 
 
 def process_ffe_configuration(config):
@@ -83,28 +44,23 @@ def process_ffe_configuration(config):
         )
 
 
-def get_assignment(
+def resolve_flag(
     configuration,
     flag_key: str,
     context: Any,
     expected_type: VariationType,
-    now: Any,
-) -> Optional[Assignment]:
+) -> Optional[ResolutionDetails]:
     """
-    Thin wrapper around native resolve_value that converts types.
+    Wrapper around native resolve_value that prepares the context.
 
     Args:
         configuration: Native ffe.Configuration object
         flag_key: The flag key to evaluate
         context: The evaluation context
         expected_type: Expected variation type
-        now: Current datetime (ignored, native uses system time)
 
     Returns:
-        Assignment object or None if flag not found/disabled
-
-    Raises:
-        EvaluationError: On type mismatch or other evaluation errors
+        ResolutionDetails object or None if configuration is None
     """
     if configuration is None:
         return None
@@ -117,30 +73,10 @@ def get_assignment(
         if hasattr(context, "attributes") and context.attributes:
             context_dict.update(context.attributes)
 
-    details = configuration.resolve_value(flag_key, expected_type, context_dict)
-
-    # Handle errors from native
-    if details.error_code is not None:
-        if details.error_code == ffe.ErrorCode.FlagNotFound:
-            return None
-        else:
-            raise EvaluationError(
-                details.error_message or "Unknown error",
-                expected=expected_type,
-                found=expected_type,
-                error_code=details.error_code,
-            )
-
-    # Return None if no value
-    if details.value is None:
-        return None
-
-    # Convert native ResolutionDetails to Assignment
-    return Assignment(
-        value=AssignmentValue(variation_type=expected_type, value=details.value),
-        variation_key=details.variant or "",
-        allocation_key=details.allocation_key or "",
-        reason=details.reason,  # Pass native ffe.Reason directly
-        do_log=details.do_log,
-        extra_logging=details.extra_logging or {},
-    )
+    # Call native resolve_value which returns ResolutionDetails
+    # ResolutionDetails contains: value, variant, reason, error_code, error_message,
+    # allocation_key, do_log, extra_logging
+    # JSON flags may contain "null" which is a valid value that should be returned.
+    # The way to check for absent value is by checking variant field—if it's None,
+    # then there's no value returned from evaluation.
+    return configuration.resolve_value(flag_key, expected_type, context_dict)
