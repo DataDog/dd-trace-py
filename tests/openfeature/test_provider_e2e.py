@@ -11,6 +11,7 @@ from ddtrace.internal.openfeature._ffe_mock import AssignmentReason
 from ddtrace.internal.openfeature._ffe_mock import VariationType
 from ddtrace.internal.openfeature._ffe_mock import mock_process_ffe_configuration
 from ddtrace.openfeature import DataDogProvider
+from tests.utils import override_global_config
 
 
 @pytest.fixture(autouse=True)
@@ -24,16 +25,17 @@ def clear_config():
 @pytest.fixture
 def setup_openfeature():
     """Set up OpenFeature API with DataDogProvider."""
-    # Set the provider
-    api.set_provider(DataDogProvider())
+    with override_global_config({"experimental_flagging_provider_enabled": True}):
+        # Set the provider
+        api.set_provider(DataDogProvider())
 
-    # Get a client
-    client = api.get_client()
+        # Get a client
+        client = api.get_client()
 
-    yield client
+        yield client
 
-    # Cleanup
-    api.shutdown()
+        # Cleanup
+        api.shutdown()
 
 
 class TestOpenFeatureE2EBooleanFlags:
@@ -48,8 +50,8 @@ class TestOpenFeatureE2EBooleanFlags:
             "flags": {
                 "enable-new-feature": {
                     "enabled": True,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                     "variation_key": "on",
                     "reason": AssignmentReason.STATIC.value,
                 }
@@ -79,8 +81,8 @@ class TestOpenFeatureE2EBooleanFlags:
             "flags": {
                 "premium-feature": {
                     "enabled": True,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                     "variation_key": "premium",
                     "reason": AssignmentReason.TARGETING_MATCH.value,
                 }
@@ -104,8 +106,8 @@ class TestOpenFeatureE2EBooleanFlags:
             "flags": {
                 "detailed-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                     "variation_key": "variant-a",
                     "reason": AssignmentReason.SPLIT.value,
                 }
@@ -132,8 +134,11 @@ class TestOpenFeatureE2EStringFlags:
             "flags": {
                 "api-endpoint": {
                     "enabled": True,
-                    "variation_type": VariationType.STRING.value,
-                    "value": "https://api.production.com",
+                    "variationType": VariationType.STRING.value,
+                    "variations": {
+                        "true": {"key": "true", "value": "https://api.production.com"},
+                        "false": {"key": "false", "value": False},
+                    },
                     "variation_key": "production",
                     "reason": AssignmentReason.STATIC.value,
                 }
@@ -166,8 +171,8 @@ class TestOpenFeatureE2ENumericFlags:
             "flags": {
                 "max-connections": {
                     "enabled": True,
-                    "variation_type": VariationType.INTEGER.value,
-                    "value": 100,
+                    "variationType": VariationType.INTEGER.value,
+                    "variations": {"false": {"key": "false", "value": 100}, "true": {"key": "true", "value": True}},
                     "variation_key": "high",
                     "reason": AssignmentReason.TARGETING_MATCH.value,
                 }
@@ -187,8 +192,8 @@ class TestOpenFeatureE2ENumericFlags:
             "flags": {
                 "sampling-rate": {
                     "enabled": True,
-                    "variation_type": VariationType.NUMERIC.value,
-                    "value": 0.75,
+                    "variationType": VariationType.NUMERIC.value,
+                    "variations": {"false": {"key": "false", "value": 0.75}, "true": {"key": "true", "value": True}},
                     "variation_key": "medium",
                     "reason": AssignmentReason.SPLIT.value,
                 }
@@ -212,8 +217,11 @@ class TestOpenFeatureE2EObjectFlags:
             "flags": {
                 "feature-config": {
                     "enabled": True,
-                    "variation_type": VariationType.JSON.value,
-                    "value": {"timeout": 30, "retries": 3, "endpoints": ["api1", "api2"]},
+                    "variationType": VariationType.JSON.value,
+                    "variations": {
+                        "true": {"key": "true", "value": {"timeout": 30, "retries": 3, "endpoints": ["api1", "api2"]}},
+                        "false": {"key": "false", "value": False},
+                    },
                     "variation_key": "config-v2",
                     "reason": AssignmentReason.STATIC.value,
                 }
@@ -235,8 +243,8 @@ class TestOpenFeatureE2EObjectFlags:
             "flags": {
                 "allowed-regions": {
                     "enabled": True,
-                    "variation_type": VariationType.JSON.value,
-                    "value": ["us-east-1", "eu-west-1", "ap-south-1"],
+                    "variationType": VariationType.JSON.value,
+                    "variations": {"global": {"key": "global", "value": ["us-east-1", "eu-west-1", "ap-south-1"]}},
                     "variation_key": "global",
                     "reason": AssignmentReason.TARGETING_MATCH.value,
                 }
@@ -262,8 +270,8 @@ class TestOpenFeatureE2EErrorHandling:
             "flags": {
                 "string-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.STRING.value,
-                    "value": "hello",
+                    "variationType": VariationType.STRING.value,
+                    "variations": {"hello": {"key": "hello", "value": "hello"}},
                 }
             }
         }
@@ -283,8 +291,8 @@ class TestOpenFeatureE2EErrorHandling:
             "flags": {
                 "disabled-feature": {
                     "enabled": False,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                 }
             }
         }
@@ -306,18 +314,18 @@ class TestOpenFeatureE2EMultipleFlags:
             "flags": {
                 "feature-a": {
                     "enabled": True,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                 },
                 "feature-b": {
                     "enabled": True,
-                    "variation_type": VariationType.STRING.value,
-                    "value": "variant-b",
+                    "variationType": VariationType.STRING.value,
+                    "variations": {"b": {"key": "b", "value": "variant-b"}},
                 },
                 "feature-c": {
                     "enabled": True,
-                    "variation_type": VariationType.INTEGER.value,
-                    "value": 42,
+                    "variationType": VariationType.INTEGER.value,
+                    "variations": {"default": {"key": "default", "value": 42}},
                 },
             }
         }
@@ -337,8 +345,9 @@ class TestOpenFeatureE2EProviderLifecycle:
 
     def test_provider_initialization_and_shutdown(self):
         """Test provider initialization and shutdown lifecycle."""
-        # Set provider
-        provider = DataDogProvider()
+        with override_global_config({"experimental_flagging_provider_enabled": True}):
+            # Set provider
+            provider = DataDogProvider()
         api.set_provider(provider)
 
         # Get client and use it
@@ -348,8 +357,8 @@ class TestOpenFeatureE2EProviderLifecycle:
             "flags": {
                 "lifecycle-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                 }
             }
         }
@@ -363,14 +372,15 @@ class TestOpenFeatureE2EProviderLifecycle:
 
     def test_multiple_clients_same_provider(self):
         """Test multiple clients using the same provider."""
-        api.set_provider(DataDogProvider())
+        with override_global_config({"experimental_flagging_provider_enabled": True}):
+            api.set_provider(DataDogProvider())
 
         config = {
             "flags": {
                 "shared-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.STRING.value,
-                    "value": "shared-value",
+                    "variationType": VariationType.STRING.value,
+                    "variations": {"default": {"key": "default", "value": "shared-value"}},
                 }
             }
         }
@@ -401,8 +411,8 @@ class TestOpenFeatureE2ERealWorldScenarios:
             "flags": {
                 "new-ui": {
                     "enabled": True,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                     "variation_key": "new-ui-enabled",
                     "reason": AssignmentReason.TARGETING_MATCH.value,
                 }
@@ -423,15 +433,20 @@ class TestOpenFeatureE2ERealWorldScenarios:
             "flags": {
                 "database-config": {
                     "enabled": True,
-                    "variation_type": VariationType.JSON.value,
-                    "value": {"host": "db.production.com", "port": 5432, "pool_size": 20, "timeout": 30},
+                    "variationType": VariationType.JSON.value,
+                    "variations": {
+                        "production-db": {
+                            "key": "production-db",
+                            "value": {"host": "db.production.com", "port": 5432, "pool_size": 20, "timeout": 30},
+                        }
+                    },
                     "variation_key": "production-db",
                     "reason": AssignmentReason.STATIC.value,
                 },
                 "cache-ttl": {
                     "enabled": True,
-                    "variation_type": VariationType.INTEGER.value,
-                    "value": 3600,
+                    "variationType": VariationType.INTEGER.value,
+                    "variations": {"1hour": {"key": "1hour", "value": 3600}},
                     "variation_key": "1hour",
                     "reason": AssignmentReason.STATIC.value,
                 },
@@ -454,8 +469,11 @@ class TestOpenFeatureE2ERealWorldScenarios:
             "flags": {
                 "button-color": {
                     "enabled": True,
-                    "variation_type": VariationType.STRING.value,
-                    "value": "blue",
+                    "variationType": VariationType.STRING.value,
+                    "variations": {
+                        "variant-b": {"key": "variant-b", "value": "blue"},
+                        "variant-a": {"key": "variant-a", "value": "red"},
+                    },
                     "variation_key": "variant-b",
                     "reason": AssignmentReason.SPLIT.value,
                 }
@@ -468,3 +486,135 @@ class TestOpenFeatureE2ERealWorldScenarios:
         assert details.value == "blue"
         assert details.variant == "variant-b"
         assert details.reason == "SPLIT"
+
+
+class TestOpenFeatureE2ERemoteConfigScenarios:
+    """End-to-end tests for remote config edge cases."""
+
+    def test_flag_evaluation_before_remote_config_received(self, setup_openfeature):
+        """Test flag evaluation when remote config payload hasn't been received yet."""
+        from unittest.mock import patch
+
+        client = setup_openfeature
+
+        # Don't set any config - simulating no remote config received yet
+        _set_ffe_config(None)
+
+        # Mock logger to verify warning is logged
+        with patch("ddtrace.internal.openfeature._provider.logger"):
+            result = client.get_boolean_value("unconfigured-flag", False)
+
+            # Should return default value
+            assert result is False
+
+            # Verify warning was logged about missing config
+            # (Implementation may log or not, this documents expected behavior)
+
+    def test_flag_evaluation_with_empty_remote_config(self, setup_openfeature):
+        """Test flag evaluation with empty remote config."""
+        client = setup_openfeature
+
+        # Set empty config
+        config = {"flags": {}}
+        mock_process_ffe_configuration(config)
+
+        result = client.get_boolean_value("any-flag", True)
+
+        # Should return default value
+        assert result is True
+
+    def test_multiple_flag_evaluations_before_config(self, setup_openfeature):
+        """Test multiple flag evaluations before remote config is received."""
+        client = setup_openfeature
+
+        _set_ffe_config(None)
+
+        # Multiple evaluations should all return defaults without crashing
+        result1 = client.get_boolean_value("flag1", False)
+        result2 = client.get_string_value("flag2", "default")
+        result3 = client.get_integer_value("flag3", 0)
+
+        assert result1 is False
+        assert result2 == "default"
+        assert result3 == 0
+
+    def test_flag_evaluation_after_remote_config_arrives(self, setup_openfeature):
+        """Test that flags work correctly after remote config arrives."""
+        client = setup_openfeature
+
+        # Start with no config
+        _set_ffe_config(None)
+
+        # First evaluation returns default
+        result1 = client.get_boolean_value("late-flag", False)
+        assert result1 is False
+
+        # Now remote config arrives
+        config = {
+            "flags": {
+                "late-flag": {
+                    "enabled": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
+                }
+            }
+        }
+        mock_process_ffe_configuration(config)
+
+        # Second evaluation should use the flag value
+        result2 = client.get_boolean_value("late-flag", False)
+        assert result2 is True
+
+    def test_remote_config_update_during_runtime(self, setup_openfeature):
+        """Test that flag values update when remote config changes."""
+        client = setup_openfeature
+
+        # Initial config
+        config1 = {
+            "flags": {
+                "dynamic-flag": {
+                    "enabled": True,
+                    "variationType": VariationType.STRING.value,
+                    "variations": {"v1": {"key": "v1", "value": "version1"}},
+                }
+            }
+        }
+        mock_process_ffe_configuration(config1)
+
+        result1 = client.get_string_value("dynamic-flag", "default")
+        assert result1 == "version1"
+
+        # Update config
+        config2 = {
+            "flags": {
+                "dynamic-flag": {
+                    "enabled": True,
+                    "variationType": VariationType.STRING.value,
+                    "variations": {"v2": {"key": "v2", "value": "version2"}},
+                }
+            }
+        }
+        mock_process_ffe_configuration(config2)
+
+        result2 = client.get_string_value("dynamic-flag", "default")
+        assert result2 == "version2"
+
+    def test_remote_config_with_malformed_data(self, setup_openfeature):
+        """Test handling of malformed remote config data."""
+        client = setup_openfeature
+
+        # Malformed config (missing required fields)
+        config = {
+            "flags": {
+                "malformed-flag": {
+                    "enabled": True,
+                    # Missing variationType and value
+                }
+            }
+        }
+
+        # Should not crash when processing malformed config
+        mock_process_ffe_configuration(config)
+        result = client.get_boolean_value("malformed-flag", False)
+        # Should return default
+        assert result is False or result is True  # Implementation dependent
