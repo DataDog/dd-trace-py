@@ -89,7 +89,7 @@ async def traced_send(func, instance, args, kwargs):
         service=trace_utils.ext_service(None, config.aiokafka),
         tags=common_aiokafka_tags(topic, bootstrap_servers),
     ) as ctx:
-        core.dispatch("aiokafka.send.start", (value, key, headers, ctx, partition))
+        core.dispatch("aiokafka.send.start", (topic, value, key, headers, ctx, partition))
         args, kwargs = set_argument_value(args, kwargs, 5, "headers", headers, override_unset=True)
 
         try:
@@ -142,7 +142,7 @@ async def traced_getone(func, instance, args, kwargs):
             distributed_context=parent_ctx,
             tags=common_consume_aiokafka_tags(getattr(message, "topic", None), bootstrap_servers, group_id),
         ) as ctx:
-            core.dispatch("aiokafka.getone.message", (ctx, start_ns, message, err))
+            core.dispatch("aiokafka.getone.message", (instance, ctx, start_ns, message, err))
     return message
 
 
@@ -160,7 +160,7 @@ async def traced_getmany(func, instance, args, kwargs):
     ) as ctx:
         messages = await func(*args, **kwargs)
 
-        core.dispatch("aiokafka.getmany.message", (ctx, messages))
+        core.dispatch("aiokafka.getmany.message", (instance, ctx, messages))
 
         return messages
 
