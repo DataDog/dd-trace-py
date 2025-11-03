@@ -88,7 +88,7 @@ jobs:
           pip install PyYAML
           pip install ddtrace
           # Install latest pip-tools from main branch for Python 3.14 compatibility
-          pip install --upgrade git+https://github.com/jazzband/pip-tools.git@main
+          pip install --upgrade git+https://github.com/jazzband/pip-tools.git@934b46a8795554f994b984ac743957f8458a29d6
 
       - name: Run regenerate-riot-latest
         run: scripts/regenerate-riot-latest.sh
