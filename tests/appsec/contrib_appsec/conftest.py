@@ -101,7 +101,7 @@ def find_resource(test_spans, root_span):
     def find(resource_name):
         for span in test_spans.spans:
             if span.parent_id is None or span.span_type == "web":
-                res = span._resource[0]
+                res = span.resource
                 if res == resource_name:
                     return True
         return False

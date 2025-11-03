@@ -1,7 +1,9 @@
 import asyncio
+from typing import Any
 from typing import Dict
 
 from ddtrace._trace.pin import Pin
+from ddtrace.internal import core
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.wrapping import unwrap
@@ -46,6 +48,9 @@ def _wrapped_create_task(wrapped, args, kwargs):
         return wrapped(*args, **kwargs)
 
     # Get current trace context
+    task_data: Dict[str, Any] = {}
+    core.dispatch("asyncio.create_task", (task_data,))
+
     dd_active = pin.tracer.current_trace_context()
     # Only wrap the coroutine if we have an active trace context
     if not dd_active:
@@ -58,6 +63,7 @@ def _wrapped_create_task(wrapped, args, kwargs):
     async def traced_coro(*args_c, **kwargs_c):
         if dd_active != pin.tracer.current_trace_context():
             pin.tracer.context_provider.activate(dd_active)
+        core.dispatch("asyncio.execute_task", (task_data,))
         return await coro
 
     # DEV: try to persist the original function name (useful for debugging)

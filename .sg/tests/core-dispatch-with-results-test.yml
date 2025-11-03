@@ -1,0 +1,65 @@
+id: core-dispatch-with-results
+valid:
+  # These should NOT trigger the rule (valid code)
+  - core.dispatch("my.event", (arg1, arg2))
+  - |
+    from ddtrace.internal.core import dispatch
+    dispatch("my.event", (arg1,))
+  - |
+    from ddtrace.internal.core import core
+    core.dispatch("my.event", ())
+  - |
+    # Using dispatch with mutable state is OK
+    data = {}
+    core.dispatch("my.event", (data,))
+    if data.get("result"):
+        process(data["result"])
+  - |
+    # Using set_item/get_item is the preferred pattern
+    core.dispatch("my.event", (arg1, arg2))
+    result = core.get_item("result_key")
+  - |
+    # Using try/except for flow control is OK
+    try:
+        core.dispatch("my.event", (args,))
+    except MyException:
+        pass
+  - |
+    # Other functions with similar names are OK
+    my_module.dispatch_with_results(args)
+    dispatch_with_other_results(args)
+
+invalid:
+  # These should trigger the rule (warnings)
+  # Direct function calls
+  - core.dispatch_with_results("my.event", (arg1, arg2))
+  - dispatch_with_results("my.event", (arg1,))
+  - event_hub.dispatch_with_results("my.event", ())
+  - |
+    result = core.dispatch_with_results("my.event", (arg1, arg2)).result_key.value
+  - |
+    data = core.dispatch_with_results("my.event", (arg1, arg2))
+    if data.result_key:
+        process(data.result_key.value)
+  - |
+    # Using dispatch_with_results in a chain
+    value = core.dispatch_with_results("my.event", (x,)).result.value
+    print(value)
+  # Import statements
+  - from ddtrace.internal.core import dispatch_with_results
+  - from ddtrace.internal.core import dispatch_with_results as dwr
+  - from ddtrace.internal.core import dispatch, dispatch_with_results
+  - from ddtrace.internal.core import dispatch_with_results, on
+  - from ddtrace.internal.core import dispatch, dispatch_with_results, on
+  - from ddtrace.internal.core.event_hub import dispatch_with_results
+  - from ddtrace.internal.core.event_hub import dispatch_with_results as dwr
+  - from ddtrace.internal.core.event_hub import dispatch, dispatch_with_results
+  - |
+    from ddtrace.internal.core import dispatch_with_results
+    result = dispatch_with_results("my.event", (arg1,))
+  - |
+    from ddtrace.internal.core.event_hub import dispatch_with_results
+    result = dispatch_with_results("my.event", ())
+  - |
+    from ddtrace.internal import core
+    result = core.dispatch_with_results("my.event", (arg1, arg2))

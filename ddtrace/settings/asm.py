@@ -18,8 +18,8 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import AI_GUARD_ENABLED
 from ddtrace.internal.constants import AI_GUARD_ENDPOINT
 from ddtrace.internal.constants import AI_GUARD_MAX_CONTENT_SIZE
-from ddtrace.internal.constants import AI_GUARD_MAX_HISTORY_LENGTH
-from ddtrace.internal.constants import DD_APPLICATION_KEY
+from ddtrace.internal.constants import AI_GUARD_MAX_MESSAGES_LENGTH
+from ddtrace.internal.constants import AI_GUARD_TIMEOUT
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.settings._config import config as tracer_config
 from ddtrace.settings._core import DDConfig
@@ -272,7 +272,6 @@ class ASMConfig(DDConfig):
 
             # Disable all features that are not supported in Lambda
             tracer_config._remote_config_enabled = False
-            self._ep_enabled = False
             self._iast_supported = False
 
         if not self._iast_supported:
@@ -311,6 +310,8 @@ class ASMConfig(DDConfig):
         self._asm_can_be_enabled = APPSEC_ENV not in os.environ and tracer_config._remote_config_enabled
         self._load_modules = bool(self._ep_enabled and (self._asm_enabled or self._asm_can_be_enabled))
         self._asm_rc_enabled = (self._asm_enabled and tracer_config._remote_config_enabled) or self._asm_can_be_enabled
+        if APPSEC_ENV in os.environ and self._asm_enabled:
+            tracer_config._trace_resource_renaming_enabled = True
 
     @property
     def _api_security_feature_active(self) -> bool:
@@ -337,17 +338,17 @@ config = ASMConfig()
 class AIGuardConfig(DDConfig):
     _ai_guard_enabled = DDConfig.var(bool, AI_GUARD_ENABLED, default=False)
     _ai_guard_endpoint = DDConfig.var(str, AI_GUARD_ENDPOINT, default="")
-    _ai_guard_max_history_length = DDConfig.var(int, AI_GUARD_MAX_HISTORY_LENGTH, default=16)
     _ai_guard_max_content_size = DDConfig.var(int, AI_GUARD_MAX_CONTENT_SIZE, default=512 * 1024)
-    _dd_app_key = DDConfig.var(str, DD_APPLICATION_KEY, default="")
+    _ai_guard_max_messages_length = DDConfig.var(int, AI_GUARD_MAX_MESSAGES_LENGTH, default=16)
+    _ai_guard_timeout = DDConfig.var(int, AI_GUARD_TIMEOUT, default=10_000)
 
     # for tests purposes
     _ai_guard_config_keys = [
         "_ai_guard_enabled",
         "_ai_guard_endpoint",
-        "_ai_guard_max_history_length",
         "_ai_guard_max_content_size",
-        "_dd_app_key",
+        "_ai_guard_max_messages_length",
+        "_ai_guard_timeout",
     ]
 
     def reset(self):

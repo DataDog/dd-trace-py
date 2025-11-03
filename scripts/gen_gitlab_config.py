@@ -134,7 +134,7 @@ def gen_required_suites() -> None:
     )
 
     # If the ci_visibility suite is in the list of required suites, we need to run all suites
-    ci_visibility_suites = {"ci_visibility", "pytest", "pytest_v2"}
+    ci_visibility_suites = {"ci_visibility", "pytest"}
     # If any of them in required_suites:
     if any(suite in required_suites for suite in ci_visibility_suites):
         required_suites = sorted(suites.keys())
@@ -199,6 +199,8 @@ def gen_build_docs() -> None:
             ".readthedocs.yml",
         }
     ):
+        date_str = datetime.datetime.now().strftime("%Y-%m")
+
         with TESTS_GEN.open("a") as f:
             print("build_docs:", file=f)
             print("  extends: .testrunner", file=f)
@@ -212,7 +214,7 @@ def gen_build_docs() -> None:
             print("      hatch run docs:build", file=f)
             print("      mkdir -p /tmp/docs", file=f)
             print("  cache:", file=f)
-            print("    key: v2-build_docs-pip-cache", file=f)
+            print(f"    key: build_docs-pip-cache-{date_str}", file=f)
             print("    paths:", file=f)
             print("      - .cache", file=f)
             print("  artifacts:", file=f)

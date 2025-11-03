@@ -113,6 +113,8 @@ class PyTracerMetadata:
         service_name: Optional[str],
         service_env: Optional[str],
         service_version: Optional[str],
+        process_tags: Optional[str],
+        container_id: Optional[str],
     ):
         """
         Initialize the `PyTracerMetadata`.
@@ -122,6 +124,8 @@ class PyTracerMetadata:
         :param service_name: Name of the service being instrumented.
         :param service_env: Environment of the service being instrumented.
         :param service_version: Version of the service being instrumented.
+        :param process_tags: Process tags of the application being instrumented.
+        :param container_id: Container id seen by the application.
         """
         ...
 
@@ -393,7 +397,7 @@ class logger:
         """
         Set the log level for the logger.
 
-        :param level: Log level ("trace", "debug", "info", "warn", or "error")
+        :param level: Log level ("trace", "debug", "info", "warning", or "error")
         :raises ValueError: If log level is invalid
         """
         ...
@@ -441,4 +445,13 @@ class SerializationError(Exception):
     Raised when there is an error serializing trace payload.
     """
 
+    ...
+
+def ffande_process_config(config_bytes: bytes) -> Optional[bool]:
+    """
+    Process feature flagging and experimentation configuration rules.
+
+    :param config_bytes: Raw bytes containing the configuration data
+    :return: True if processing was successful, False otherwise, None on error
+    """
     ...

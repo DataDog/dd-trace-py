@@ -3,6 +3,7 @@ This module contains constants used across ddtrace products.
 
 Constants that should NOT be referenced by ddtrace users are marked with a leading underscore.
 """
+
 _SAMPLING_PRIORITY_KEY = "_sampling_priority_v1"
 _SAMPLING_AGENT_DECISION = "_dd.agent_psr"
 _SAMPLING_RULE_DECISION = "_dd.rule_psr"
@@ -28,6 +29,7 @@ _KEEP_SPANS_RATE_KEY = "_dd.tracer_kr"
 _MULTIPLE_IP_HEADERS = "_dd.multiple-ip-headers"
 _DJM_ENABLED_KEY = "_dd.djm.enabled"
 _FILTER_KEPT_KEY = "_dd.filter.kept"
+_AI_OBS_ENABLED_KEY = "_dd.ai_obs.enabled"
 
 APPSEC_ENV = "DD_APPSEC_ENABLED"
 _CONFIG_ENDPOINT_ENV = "_DD_CONFIG_ENDPOINT"
