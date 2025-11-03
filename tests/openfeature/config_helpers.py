@@ -10,16 +10,14 @@ def create_boolean_flag(flag_key, enabled=True, default_value=True):
         "enabled": enabled,
         "variationType": "BOOLEAN",
         "variations": {
-            "false": {"key": "false", "value": False},
             "true": {"key": "true", "value": True},
+            "false": {"key": "false", "value": False},
         },
         "allocations": [
             {
                 "key": "allocation-default",
                 "rules": [],
-                "splits": [
-                    {"shards": [], "variationKey": "true" if default_value else "false", "extraLogging": "None"}
-                ],
+                "splits": [{"shards": [], "variationKey": "true" if default_value else "false"}],
                 "doLog": True,
             }
         ],

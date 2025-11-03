@@ -71,9 +71,7 @@ class TestBooleanFlagResolution:
         """Should resolve boolean flag and return correct value."""
         config = create_config(create_boolean_flag("test-bool-flag", enabled=True, default_value=True))
         process_ffe_configuration(config)
-
         result = provider.resolve_boolean_details("test-bool-flag", False)
-
         assert result.value is True
         assert result.variant == "true"
         assert result.error_code is None
@@ -98,7 +96,7 @@ class TestBooleanFlagResolution:
         result = provider.resolve_boolean_details("disabled-flag", False)
 
         assert result.value is False
-        assert result.reason == Reason.DEFAULT
+        assert result.reason == Reason.DISABLED
 
     def test_resolve_boolean_flag_type_mismatch(self, provider):
         """Should return error when flag type doesn't match."""

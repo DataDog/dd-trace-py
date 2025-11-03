@@ -66,12 +66,24 @@ def resolve_flag(
         return None
 
     # Convert evaluation context to dict for native FFE
-    context_dict = {}
+    # The native library expects: {"targeting_key": "...", "attributes": {...}}
+    context_dict = {"targeting_key": "", "attributes": {}}
+    
     if context is not None:
-        if hasattr(context, "targeting_key") and context.targeting_key:
-            context_dict["targetingKey"] = context.targeting_key
-        if hasattr(context, "attributes") and context.attributes:
-            context_dict.update(context.attributes)
+        # Handle dict input
+        if isinstance(context, dict):
+            # Try camelCase first (OpenFeature convention), then snake_case (native lib convention)
+            targeting_key = context.get("targetingKey") or context.get("targeting_key")
+            if targeting_key:
+                context_dict["targeting_key"] = targeting_key
+            attributes = context.get("attributes", {})
+            context_dict["attributes"] = attributes
+        # Handle object with attributes
+        elif hasattr(context, "targeting_key"):
+            if context.targeting_key:
+                context_dict["targeting_key"] = context.targeting_key
+            if hasattr(context, "attributes") and context.attributes:
+                context_dict["attributes"] = context.attributes
 
     # Call native resolve_value which returns ResolutionDetails
     # ResolutionDetails contains: value, variant, reason, error_code, error_message,
