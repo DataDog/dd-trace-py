@@ -107,7 +107,7 @@ def test_otel_sdk_not_installed(ddtrace_run_python_code_in_subprocess):
     """Test error when OpenTelemetry SDK is not installed."""
     env = os.environ.copy()
     env["DD_LOGS_OTEL_ENABLED"] = "true"
-    stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code="", env=env)
+    stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code="import opentelemetry", env=env)
     assert status == 0, (stdout, stderr)
 
     assert (
