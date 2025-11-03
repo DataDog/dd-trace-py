@@ -49,6 +49,11 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Setup Python 3.14
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.14"
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
 
@@ -82,6 +87,8 @@ jobs:
           pip install riot==0.20.1
           pip install PyYAML
           pip install ddtrace
+          # Install latest pip-tools from main branch for Python 3.14 compatibility
+          pip install --upgrade git+https://github.com/jazzband/pip-tools.git@934b46a8795554f994b984ac743957f8458a29d6
 
       - name: Run regenerate-riot-latest
         run: scripts/regenerate-riot-latest.sh
