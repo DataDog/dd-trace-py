@@ -68,7 +68,7 @@ def resolve_flag(
     # Convert evaluation context to dict for native FFE
     # The native library expects: {"targeting_key": "...", "attributes": {...}}
     context_dict = {"targeting_key": "", "attributes": {}}
-    
+
     if context is not None:
         # Handle dict input
         if isinstance(context, dict):

@@ -6,7 +6,6 @@ from the Remote Configuration payload structure.
 """
 
 import json
-import os
 from pathlib import Path
 
 from openfeature.evaluation_context import EvaluationContext
