@@ -30,7 +30,7 @@ if not _HAS_OPENFEATURE:
         """
 
         def __init__(self, *args: typing.Any, **kwargs: typing.Any):
-            log.error(
+            log.warning(
                 "DataDogProvider could not be loaded. This may be due to openfeature-sdk not being installed "
                 "or an incompatibility between the ddtrace provider and the installed openfeature-sdk version. "
                 "Please ensure openfeature-sdk is installed and compatible. "

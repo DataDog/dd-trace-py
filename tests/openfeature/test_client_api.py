@@ -7,21 +7,19 @@ Tests the high-level OpenFeature client methods:
 - Event handlers (PROVIDER_READY, PROVIDER_ERROR, etc.)
 """
 
-import pytest
 from openfeature import api
 from openfeature.evaluation_context import EvaluationContext
 from openfeature.event import ProviderEvent
+import pytest
 
 from ddtrace.internal.openfeature._native import process_ffe_configuration
 from ddtrace.openfeature import DataDogProvider
-from tests.openfeature.config_helpers import (
-    create_boolean_flag,
-    create_config,
-    create_float_flag,
-    create_integer_flag,
-    create_json_flag,
-    create_string_flag,
-)
+from tests.openfeature.config_helpers import create_boolean_flag
+from tests.openfeature.config_helpers import create_config
+from tests.openfeature.config_helpers import create_float_flag
+from tests.openfeature.config_helpers import create_integer_flag
+from tests.openfeature.config_helpers import create_json_flag
+from tests.openfeature.config_helpers import create_string_flag
 from tests.utils import override_global_config
 
 
@@ -458,9 +456,7 @@ class TestClientWithComplexFlags:
                 "allocations": [
                     {
                         "key": "rule1",
-                        "rules": [
-                            {"conditions": [{"attribute": "country", "operator": "ONE_OF", "value": ["US"]}]}
-                        ],
+                        "rules": [{"conditions": [{"attribute": "country", "operator": "ONE_OF", "value": ["US"]}]}],
                         "splits": [{"variationKey": "variant-a", "shards": []}],
                         "doLog": True,
                     },

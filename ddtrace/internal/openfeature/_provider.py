@@ -8,10 +8,12 @@ from importlib.metadata import version
 import typing
 
 from openfeature.evaluation_context import EvaluationContext
+from openfeature.event import ProviderEventDetails
 from openfeature.exception import ErrorCode
 from openfeature.flag_evaluation import FlagResolutionDetails
 from openfeature.flag_evaluation import Reason
 from openfeature.provider import Metadata
+from openfeature.provider import ProviderStatus
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import ffe
@@ -52,6 +54,8 @@ class DataDogProvider(AbstractProvider):
     def __init__(self, *args: typing.Any, **kwargs: typing.Any):
         super().__init__(*args, **kwargs)
         self._metadata = Metadata(name="Datadog")
+        self._status = ProviderStatus.NOT_READY
+        self._config_received = False
 
         # Check if experimental flagging provider is enabled
         self._enabled = ffe_config.experimental_flagging_provider_enabled
@@ -60,6 +64,9 @@ class DataDogProvider(AbstractProvider):
                 "openfeature: experimental flagging provider is not enabled, "
                 "please set DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED=true to enable it",
             )
+
+        # Register this provider instance for status updates
+        _register_provider(self)
 
     def get_metadata(self) -> Metadata:
         """Returns provider metadata."""
@@ -70,6 +77,15 @@ class DataDogProvider(AbstractProvider):
         Initialize the provider and enable remote configuration.
 
         Called by the OpenFeature SDK when the provider is set.
+        Provider Creation → NOT_READY
+                                 ↓
+                   First Remote Config Payload
+                                 ↓
+                            READY (emits PROVIDER_READY event)
+                                 ↓
+                           Shutdown
+                                 ↓
+                          NOT_READY
         """
         if not self._enabled:
             return
@@ -81,6 +97,13 @@ class DataDogProvider(AbstractProvider):
             start_exposure_writer()
         except ServiceStatusError:
             logger.debug("Exposure writer is already running", exc_info=True)
+
+        # If configuration was already received before initialization, emit ready now
+        config = _get_ffe_config()
+        if config is not None and not self._config_received:
+            self._config_received = True
+            self._status = ProviderStatus.READY
+            self._emit_ready_event()
 
     def shutdown(self) -> None:
         """
@@ -97,6 +120,11 @@ class DataDogProvider(AbstractProvider):
             stop_exposure_writer()
         except ServiceStatusError:
             logger.debug("Exposure writer has already stopped", exc_info=True)
+
+        # Unregister provider
+        _unregister_provider(self)
+        self._status = ProviderStatus.NOT_READY
+        self._config_received = False
 
     def resolve_boolean_details(
         self,
@@ -324,3 +352,49 @@ class DataDogProvider(AbstractProvider):
             return ErrorCode.GENERAL
         else:
             return ErrorCode.GENERAL
+
+    def on_configuration_received(self) -> None:
+        """
+        Called when a Remote Configuration payload is received and processed.
+
+        Emits PROVIDER_READY event on first configuration.
+        """
+        if not self._config_received:
+            self._config_received = True
+            self._status = ProviderStatus.READY
+            logger.debug("First FFE configuration received, provider is now READY")
+            self._emit_ready_event()
+
+    def _emit_ready_event(self) -> None:
+        """
+        Safely emit PROVIDER_READY event.
+
+        Handles SDK version compatibility - emit_provider_ready() only exists in SDK 0.7.0+.
+        """
+        if hasattr(self, "emit_provider_ready") and ProviderEventDetails is not None:
+            self.emit_provider_ready(ProviderEventDetails())
+        else:
+            # SDK 0.6.0 doesn't have emit methods
+            logger.debug("Provider status is READY (event emission not supported in SDK 0.6.0)")
+
+
+# Module-level registry for active provider instances
+_provider_instances: typing.List[DataDogProvider] = []
+
+
+def _register_provider(provider: DataDogProvider) -> None:
+    """Register a provider instance for configuration callbacks."""
+    if provider not in _provider_instances:
+        _provider_instances.append(provider)
+
+
+def _unregister_provider(provider: DataDogProvider) -> None:
+    """Unregister a provider instance."""
+    if provider in _provider_instances:
+        _provider_instances.remove(provider)
+
+
+def _notify_providers_config_received() -> None:
+    """Notify all registered providers that configuration was received."""
+    for provider in _provider_instances:
+        provider.on_configuration_received()
