@@ -1147,7 +1147,7 @@ def _on_aiokafka_send_start(
 
     if config.aiokafka.distributed_tracing_enabled:
         # inject headers with Datadog tags:
-        tracing_headers = {}
+        tracing_headers: Dict[str, str] = {}
         HTTPPropagator.inject(span.context, tracing_headers)
         for key, value in tracing_headers.items():
             headers.append((key, value.encode("utf-8")))
@@ -1201,7 +1201,7 @@ def _on_aiokafka_getmany_message(
         first_topic = next(iter(messages)).topic
         span.set_tag_str(MESSAGING_DESTINATION_NAME, first_topic)
 
-        topics_partitions = {}
+        topics_partitions: Dict[str, List[int]] = {}
         for topic_partition in messages.keys():
             topic = topic_partition.topic
             partition = topic_partition.partition
