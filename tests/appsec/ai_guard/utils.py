@@ -13,7 +13,7 @@ from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import AI_GUARD
 from ddtrace.appsec.ai_guard import AIGuardClient
 from ddtrace.appsec.ai_guard._api_client import Message
-from ddtrace.settings.asm import ai_guard_config
+from ddtrace.internal.settings.asm import ai_guard_config
 from tests.utils import DummyTracer
 
 
