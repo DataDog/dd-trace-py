@@ -917,7 +917,7 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
     env["OTEL_PROPAGATORS"] = "tracecontext"
     env["OTEL_TRACES_SAMPLER"] = "always_on"
     env["OTEL_TRACES_EXPORTER"] = "none"
-    env["OTEL_LOGS_EXPORTER"] = "otlp"
+    env["OTEL_LOGS_EXPORTER"] = "monkey"
     env["OTEL_METRICS_EXPORTER"] = "otlp"
     env["OTEL_RESOURCE_ATTRIBUTES"] = "team=apm,component=web"
     env["OTEL_SDK_DISABLED"] = "true"
