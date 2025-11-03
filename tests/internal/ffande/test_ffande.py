@@ -1,4 +1,4 @@
-"""Tests for FFAndE (Feature Flagging and Experimentation) product."""
+"""Tests for FFE (Feature Flagging and Experimentation) product."""
 import json
 
 from ddtrace.internal.openfeature._native import is_available
