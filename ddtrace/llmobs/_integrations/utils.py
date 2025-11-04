@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from ddtrace.llmobs._utils import _validate_prompt
 import inspect
 import json
 import re
@@ -15,6 +16,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
+from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_VALUE
@@ -753,10 +755,31 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], respo
     if "instructions" in kwargs:
         input_messages.insert(0, Message(content=str(kwargs["instructions"]), role="system"))
 
+    prompt_template = None
+    prompt = _get_attr(kwargs, "prompt", None)
+    if prompt is not None:
+        if isinstance(_get_attr(prompt, "id", None), str) and isinstance(_get_attr(prompt, "version", None), str):
+            variables = None
+            if (
+                isinstance(_get_attr(prompt, "variables", None), dict) 
+                and all(isinstance(v, str) for v in _get_attr(prompt, "variables", {}).values())
+            ):
+                variables = {k: str(v) for k, v in _get_attr(prompt, "variables", {}).items()}
+            try:
+                prompt_template = _validate_prompt({
+                    "id": prompt.id,
+                    "version": prompt.version,
+                    "variables": variables,
+                }, strict_validation=True)
+            except Exception as e:
+                # log.debug("Failed to validate openai prompt", e)
+                prompt_template = None
+
     span._set_ctx_items(
         {
             INPUT_MESSAGES: input_messages,
             METADATA: openai_get_metadata_from_response(response, kwargs),
+            INPUT_PROMPT: prompt_template,
         }
     )
 
