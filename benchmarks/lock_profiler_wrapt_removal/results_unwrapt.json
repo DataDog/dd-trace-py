@@ -1,0 +1,31 @@
+{
+  "implementation": "wrapt",
+  "timestamp": "2025-10-25T10:51:26.498492",
+  "python_version": "3.9.6 (default, Aug  8 2025, 19:06:38) \n[Clang 17.0.0 (clang-1700.3.19.1)]",
+  "results": [
+    {
+      "name": "Baseline",
+      "implementation": "wrapt",
+      "timestamp": "2025-10-25T10:51:24.747605",
+      "python_version": "3.9.6 (default, Aug  8 2025, 19:06:38) \n[Clang 17.0.0 (clang-1700.3.19.1)]",
+      "metrics": {
+        "memory_per_lock_bytes": 436.305,
+        "creation_time_per_lock_seconds": 2.65828748e-06,
+        "acquire_release_time_seconds": 1.16791975e-06,
+        "throughput_ops_per_sec": 868443.4753850377
+      }
+    },
+    {
+      "name": "1% Sampling",
+      "implementation": "wrapt",
+      "timestamp": "2025-10-25T10:51:25.587790",
+      "python_version": "3.9.6 (default, Aug  8 2025, 19:06:38) \n[Clang 17.0.0 (clang-1700.3.19.1)]",
+      "metrics": {
+        "memory_per_lock_bytes": 645.128,
+        "creation_time_per_lock_seconds": 2.698432479999999e-06,
+        "acquire_release_time_seconds": 1.2813455819999992e-06,
+        "throughput_ops_per_sec": 784160.2207454932
+      }
+    }
+  ]
+}
