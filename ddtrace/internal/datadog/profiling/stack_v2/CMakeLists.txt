@@ -54,26 +54,12 @@ if(NOT Threads_FOUND OR NOT CMAKE_USE_PTHREADS_INIT)
     message(FATAL_ERROR "pthread compatible library not found")
 endif()
 
-# Add echion
-set(ECHION_COMMIT
-    "b6d048df7d22fba77b7996964817d2bded7ec08e" # https://github.com/P403n1x87/echion/commit/b6d048df7d22fba77b7996964817d2bded7ec08e
-    CACHE STRING "Commit hash of echion to use")
-FetchContent_Declare(
-    echion
-    GIT_REPOSITORY "https://github.com/P403n1x87/echion.git"
-    GIT_TAG ${ECHION_COMMIT})
-FetchContent_GetProperties(echion)
-
-if(NOT echion_POPULATED)
-    FetchContent_Populate(echion)
-endif()
-
 # Specify the target C-extension that we want to build
 add_library(
     ${EXTENSION_NAME} SHARED
-    ${echion_SOURCE_DIR}/echion/frame.cc
-    ${echion_SOURCE_DIR}/echion/render.cc
-    ${echion_SOURCE_DIR}/echion/danger.cc
+    src/echion/danger.cc
+    src/echion/frame.cc
+    src/echion/render.cc
     src/sampler.cpp
     src/stack_renderer.cpp
     src/stack_v2.cpp
@@ -89,7 +75,6 @@ add_cppcheck_target(
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/include/util
     ${CMAKE_CURRENT_SOURCE_DIR}/..
-    ${echion_SOURCE_DIR}
     SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
@@ -100,8 +85,8 @@ target_compile_definitions(${EXTENSION_NAME} PRIVATE UNWIND_NATIVE_DISABLE)
 target_include_directories(
     ${EXTENSION_NAME} PRIVATE .. # include dd_wrapper from the root in order to make its paths transparent in the code
                               include)
-target_include_directories(${EXTENSION_NAME} SYSTEM PRIVATE ${echion_SOURCE_DIR} ${Python3_INCLUDE_DIRS}
-                                                            include/vendored include/util)
+target_include_directories(${EXTENSION_NAME} SYSTEM PRIVATE ${Python3_INCLUDE_DIRS} echion include/vendored
+                                                            include/util)
 
 # Echion sources need to be given the current platform
 if(APPLE)
