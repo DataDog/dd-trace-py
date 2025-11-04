@@ -25,14 +25,8 @@ inline int memory = 0;
 // Native stack sampling
 inline int native = 0;
 
-// Where mode
-inline int where = 0;
-
 // Maximum number of frames to unwind
 inline unsigned int max_frames = 2048;
-
-// Pipe name (where mode IPC)
-inline std::string pipe_name;
 
 // ----------------------------------------------------------------------------
 static PyObject* set_interval(PyObject* Py_UNUSED(m), PyObject* args)
@@ -97,30 +91,6 @@ static PyObject* set_native(PyObject* Py_UNUSED(m), PyObject* args)
                     "UNWIND_NATIVE_DISABLE env var/preprocessor flag");
     return NULL;
 #endif  // UNWIND_NATIVE_DISABLE
-    Py_RETURN_NONE;
-}
-
-// ----------------------------------------------------------------------------
-static PyObject* set_where(PyObject* Py_UNUSED(m), PyObject* args)
-{
-    int value;
-    if (!PyArg_ParseTuple(args, "p", &value))
-        return NULL;
-
-    where = value;
-
-    Py_RETURN_NONE;
-}
-
-// ----------------------------------------------------------------------------
-static PyObject* set_pipe_name(PyObject* Py_UNUSED(m), PyObject* args)
-{
-    const char* name;
-    if (!PyArg_ParseTuple(args, "s", &name))
-        return NULL;
-
-    pipe_name = name;
-
     Py_RETURN_NONE;
 }
 
