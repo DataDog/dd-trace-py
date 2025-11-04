@@ -19,7 +19,7 @@ DI_PRODUCT_KEY = "dynamic-instrumentation"
 log = get_logger(__name__)
 
 
-def _rc_callback(data: t.List[Payload], test_tracer=None):
+def _rc_callback(data: t.Sequence[Payload]):
     if get_ancestor_runtime_id() is not None and has_forked():
         log.debug("[PID %d] SymDB: Disabling Symbol DB in forked process", os.getpid())
         # We assume that forking is being used for spawning child worker
