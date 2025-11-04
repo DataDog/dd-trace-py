@@ -1913,7 +1913,7 @@ def test_asm_standalone_configuration(sca_enabled, appsec_enabled, iast_enabled)
     with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
         ddtrace.config._reset()
         tracer = DummyTracer()
-        tracer.configure(appsec_enabled=appsec_enabled, iast_enabled=iast_enabled, apm_tracing_disabled=True)
+        tracer.configure(appsec_enabled=appsec_enabled, iast_enabled=iast_enabled, apm_tracing_enabled=True)
         if sca_enabled == "true":
             assert bool(ddtrace.config._sca_enabled) is True
         assert tracer.enabled is False
@@ -1927,7 +1927,7 @@ def test_asm_standalone_configuration(sca_enabled, appsec_enabled, iast_enabled)
     # reset tracer values
     with override_env({"DD_APPSEC_SCA_ENABLED": "false"}):
         ddtrace.config._reset()
-        tracer.configure(appsec_enabled=False, iast_enabled=False, apm_tracing_disabled=False)
+        tracer.configure(appsec_enabled=False, iast_enabled=False, apm_tracing_enabled=False)
 
 
 def test_gc_not_used_on_root_spans():

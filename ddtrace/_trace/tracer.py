@@ -173,6 +173,8 @@ class Tracer(object):
             service_name=config.service or None,
             service_env=config.env or None,
             service_version=config.version or None,
+            process_tags=None,
+            container_id=None,
         )
         try:
             self._config_on_disk = store_metadata(metadata)
@@ -317,8 +319,9 @@ class Tracer(object):
         :param bool appsec_enabled: Enables Application Security Monitoring (ASM) for the tracer.
         :param bool iast_enabled: Enables IAST support for the tracer
         :param bool apm_tracing_disabled: Deprecated. Use `apm_tracing_enabled` instead.
+        :param List[TraceProcessor] trace_processors: This parameter sets TraceProcessor (ex: TraceFilters).
+           Trace processors are used to modify and filter traces based on certain criteria.
         :param bool apm_tracing_enabled: Enables/Disables the submission of traces to the Datadog Agent.
-        :param List[TraceProcessor] trace_processors: Deprecated. Use `tracer.processors` property instead.
         """
 
         if appsec_enabled is not None:
@@ -561,10 +564,10 @@ class Tracer(object):
                 on_finish=[self._on_span_finish],
             )
             if config._report_hostname:
-                span.set_tag_str(_HOSTNAME_KEY, hostname.get_hostname())
+                span._set_tag_str(_HOSTNAME_KEY, hostname.get_hostname())
 
         if not span._parent:
-            span.set_tag_str("runtime-id", get_runtime_id())
+            span._set_tag_str("runtime-id", get_runtime_id())
             span._metrics[PID] = self._pid
 
         # Apply default global tags.
@@ -572,7 +575,7 @@ class Tracer(object):
             span.set_tags(self._tags)
 
         if config.env:
-            span.set_tag_str(ENV_KEY, config.env)
+            span._set_tag_str(ENV_KEY, config.env)
 
         # Only set the version tag on internal spans.
         if config.version:
@@ -584,7 +587,7 @@ class Tracer(object):
             if (root_span is None and service == config.service) or (
                 root_span and root_span.service == service and root_span.get_tag(VERSION_KEY) is not None
             ):
-                span.set_tag_str(VERSION_KEY, config.version)
+                span._set_tag_str(VERSION_KEY, config.version)
 
         if activate:
             self.context_provider.activate(span)
