@@ -125,7 +125,6 @@ class _ProfiledLock:
             # and unlocked lock, and the expected behavior is to propagate that.
             del self._self_acquired_at
         except AttributeError:
-            # We just ignore the error, if the attribute is not found.
             pass
 
         try:
@@ -197,7 +196,7 @@ class _ProfiledLock:
                             return attribute
                     except AttributeError:
                         # Accessing unset attributes in __slots__ raises AttributeError.
-                        continue
+                        pass
         return None
 
     # Get lock acquire/release call location and variable name the lock is assigned to
@@ -229,10 +228,6 @@ class _ProfiledLock:
 
     def __repr__(self) -> str:
         return f"<_ProfiledLock({self.__wrapped__!r}) at {self._self_init_loc}>"
-
-    def __bool__(self) -> bool:
-        """For use in with statements."""
-        return True
 
 
 class _LockAllocatorWrapper:
