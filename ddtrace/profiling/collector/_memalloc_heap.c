@@ -75,6 +75,11 @@ typedef struct
     uint64_t allocated_memory;
     /* True if we are exporting the current heap profile */
     bool frozen;
+    /* The fraction of allocation samples that should be tracked for live heap. Expressed as 1/N:
+     * i.e. if the value is 16, we will track 1/16 of the samples.
+     * For now, use a prime number to get decent hash behaviour using %
+     */
+    uint64_t live_heap_subsampling_fraction;
     /* Contains the ongoing heap allocation/deallocation while frozen */
     struct
     {
@@ -116,6 +121,7 @@ heap_tracker_init(heap_tracker_t* heap_tracker)
     traceback_array_init(&heap_tracker->unreported_samples);
     heap_tracker->allocated_memory = 0;
     heap_tracker->frozen = false;
+    heap_tracker->live_heap_subsampling_fraction = 1;
     heap_tracker->sample_size = 0;
     heap_tracker->current_sample_size = 0;
     memalloc_gil_debug_check_init(&heap_tracker->gil_guard);
@@ -183,12 +189,19 @@ heap_tracker_thaw(heap_tracker_t* heap_tracker)
     free(to_free);
 }
 
+static bool should_track_pointer(void* ptr) {
+    return ((uintptr_t) ptr % global_heap_tracker.live_heap_subsampling_fraction == 0);
+}
+
 /* Public API */
 
 void
 memalloc_heap_tracker_init(uint32_t sample_size)
 {
     heap_tracker_init(&global_heap_tracker);
+    //TODO, take the subsampling_fraction as an argument and use it here
+    // Use a prime number to get a decent hash using %.
+    global_heap_tracker.live_heap_subsampling_fraction = 17;
     global_heap_tracker.sample_size = sample_size;
     global_heap_tracker.current_sample_size = heap_tracker_next_sample_size(sample_size);
 }
@@ -218,6 +231,13 @@ memalloc_heap_untrack_no_cpython(heap_tracker_t* heap_tracker, void* ptr)
         MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&heap_tracker->gil_guard);
         return NULL;
     }
+
+    // If we're not tracking pointers of this hash, don't nothing to do here.
+    if (!should_track_pointer(ptr)) {
+        MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&heap_tracker->gil_guard);
+        return NULL;
+    }
+
     if (!heap_tracker->frozen) {
         traceback_t* tb = memalloc_heap_map_remove(heap_tracker->allocs_m, ptr);
         if (tb && !tb->reported) {
@@ -306,10 +326,15 @@ memalloc_heap_add_sample_no_cpython(heap_tracker_t* heap_tracker, traceback_t* t
     }
 
     traceback_t* old = NULL;
-    if (heap_tracker->frozen) {
-        old = memalloc_heap_map_insert(heap_tracker->freezer.allocs_m, tb->ptr, tb);
+
+    if (should_track_pointer(tb->ptr)) {
+        if (heap_tracker->frozen) {
+            old = memalloc_heap_map_insert(heap_tracker->freezer.allocs_m, tb->ptr, tb);
+        } else {
+            old = memalloc_heap_map_insert(heap_tracker->allocs_m, tb->ptr, tb);
+        }
     } else {
-        old = memalloc_heap_map_insert(heap_tracker->allocs_m, tb->ptr, tb);
+        traceback_array_append(&heap_tracker->unreported_samples, tb);
     }
 
     /* Reset the counter to 0 */
@@ -385,7 +410,7 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
 }
 
 PyObject*
-memalloc_sample_to_tuple(traceback_t* tb, bool is_live)
+memalloc_sample_to_tuple(traceback_t* tb, bool is_live, uint64_t live_heap_scaling_factor)
 {
     PyObject* tb_and_info = PyTuple_New(4);
     if (tb_and_info == NULL) {
@@ -396,10 +421,12 @@ memalloc_sample_to_tuple(traceback_t* tb, bool is_live)
     size_t alloc_size;
 
     if (is_live) {
+        /* in_use_size is scaled */
+        in_use_size = tb->size * live_heap_scaling_factor;
         /* alloc_size tracks new allocations since the last heap snapshot. Once
          * we report it (tb->reported == true), we set the value to 0 to avoid
          * double-counting allocations across multiple snapshots. */
-        in_use_size = tb->size;
+
         alloc_size = tb->reported ? 0 : tb->size;
     } else {
         in_use_size = 0;
@@ -445,7 +472,7 @@ memalloc_heap(void)
     traceback_t* tb;
 
     while (memalloc_heap_map_iter_next(it, &key, &tb)) {
-        PyObject* tb_and_info = memalloc_sample_to_tuple(tb, true);
+        PyObject* tb_and_info = memalloc_sample_to_tuple(tb, true, global_heap_tracker.live_heap_subsampling_fraction);
 
         PyList_SET_ITEM(heap_list, list_index, tb_and_info);
         list_index++;
@@ -460,7 +487,7 @@ memalloc_heap(void)
     for (size_t i = 0; i < global_heap_tracker.unreported_samples.count; i++) {
         traceback_t* tb = global_heap_tracker.unreported_samples.tab[i];
 
-        PyObject* tb_and_info = memalloc_sample_to_tuple(tb, false);
+        PyObject* tb_and_info = memalloc_sample_to_tuple(tb, false, global_heap_tracker.live_heap_subsampling_fraction);
 
         PyList_SET_ITEM(heap_list, list_index, tb_and_info);
         list_index++;
