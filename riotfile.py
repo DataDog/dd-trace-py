@@ -3476,6 +3476,12 @@ venv = Venv(
                                 "gevent": latest,
                             },
                         ),
+                        # memcpy-based sampler
+                        Venv(
+                            env={
+                                "ECHION_USE_FAST_COPY_MEMORY": "1",
+                            },
+                        ),
                     ],
                 ),
                 # Python 3.10
@@ -3508,6 +3514,12 @@ venv = Venv(
                                 ),
                             ],
                         ),
+                        # memcpy-based sampler
+                        Venv(
+                            env={
+                                "ECHION_USE_FAST_COPY_MEMORY": "1",
+                            },
+                        ),
                     ],
                 ),
                 # Python >= 3.11
@@ -3526,6 +3538,12 @@ venv = Venv(
                                 "DD_PROFILE_TEST_GEVENT": "1",
                             },
                             pkgs={"gunicorn[gevent]": latest, "gevent": latest},
+                        ),
+                        # memcpy-based sampler
+                        Venv(
+                            env={
+                                "ECHION_USE_FAST_COPY_MEMORY": "1",
+                            },
                         ),
                     ],
                 ),
