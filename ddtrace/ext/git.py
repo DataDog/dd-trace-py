@@ -197,6 +197,7 @@ def _get_device_for_path(path):
     return os.stat(path).st_dev
 
 
+@cached()
 def _get_remote_name(cwd=None):
     # type: (Optional[str]) -> Optional[str]
     remote, stderr, _, exit_code = _extract_clone_defaultremotename_with_details(cwd=cwd)
@@ -298,6 +299,7 @@ def extract_user_info(cwd: Optional[str] = None, commit_sha: Optional[str] = Non
     }
 
 
+@cached()
 def extract_git_version(cwd=None):
     output = _git_subprocess_cmd("--version")
     try:
