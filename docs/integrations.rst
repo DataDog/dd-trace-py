@@ -209,13 +209,6 @@ Flask Cache
 .. automodule:: ddtrace.contrib.flask_cache
 
 
-.. _freezegun:
-
-FreezeGun
-^^^^^^^^^
-.. automodule:: ddtrace.contrib.internal.freezegun
-
-
 .. _futures:
 
 futures

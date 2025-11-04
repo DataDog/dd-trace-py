@@ -34,7 +34,7 @@ import types
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
 
 from ._listener import iast_listen
 from ._overhead_control_engine import oce

@@ -3,7 +3,7 @@ import typing
 
 from ddtrace.internal import periodic
 from ddtrace.internal import service
-from ddtrace.settings.profiling import config
+from ddtrace.internal.settings.profiling import config
 
 
 class CollectorError(Exception):
