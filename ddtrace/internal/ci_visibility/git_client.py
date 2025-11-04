@@ -13,6 +13,7 @@ from urllib.parse import urljoin
 
 from ddtrace.ext import ci
 from ddtrace.ext.git import _build_git_packfiles_with_details
+from ddtrace.ext.git import _ensure_fetch_unshallowed_trees
 from ddtrace.ext.git import _extract_clone_defaultremotename_with_details
 from ddtrace.ext.git import _extract_latest_commits_with_details
 from ddtrace.ext.git import _extract_upstream_sha
@@ -177,6 +178,7 @@ class CIVisibilityGitClient(object):
         log_level=0,  # int
     ):
         # type: (...) -> None
+        unshallow_performed = False
         log.setLevel(log_level)
         _metadata_upload_status.value = METADATA_UPLOAD_STATUS.IN_PROCESS
         try:
@@ -206,24 +208,30 @@ class CIVisibilityGitClient(object):
                 log.debug("Shallow repository detected on git > 2.27 detected, unshallowing")
                 try:
                     cls._unshallow_repository(cwd=cwd)
+                    unshallow_performed = True
                 except ValueError:
                     log.warning("Failed to unshallow repository, continuing to send pack data", exc_info=True)
 
-            latest_commits = cls._get_latest_commits(cwd=cwd)
-            backend_commits = cls._search_commits(
-                requests_mode, base_url, repo_url, latest_commits, serializer, _response
-            )
-            if backend_commits is None:
-                log.debug("No backend commits found, returning early.")
-                _metadata_upload_status.value = METADATA_UPLOAD_STATUS.FAILED
-                return
+            if unshallow_performed:
+                # DEV: we only need to fetch data from backend again if unshallow was performed, otherwise it will be
+                # the same as before.
+                latest_commits = cls._get_latest_commits(cwd=cwd)
+                backend_commits = cls._search_commits(
+                    requests_mode, base_url, repo_url, latest_commits, serializer, _response
+                )
+                if backend_commits is None:
+                    log.debug("No backend commits found, returning early.")
+                    _metadata_upload_status.value = METADATA_UPLOAD_STATUS.FAILED
+                    return
 
-            commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
+                commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
 
             rev_list = cls._get_filtered_revisions(
                 excluded_commits=backend_commits, included_commits=commits_not_in_backend, cwd=cwd
             )
             if rev_list:
+                if unshallow_performed:
+                    cls._ensure_fetch_unshallowed_trees(cwd=cwd, refspecs=rev_list)
                 log.debug("Building and uploading packfiles for revision list: %s", rev_list)
                 with _build_git_packfiles_with_details(rev_list, cwd=cwd) as (packfiles_prefix, packfiles_details):
                     record_git_command(
@@ -433,7 +441,7 @@ class CIVisibilityGitClient(object):
 
     @classmethod
     def _unshallow_repository_to_local_head(cls, remote, cwd=None):
-        # type (str, Optional[str) -> None
+        # type (str, Optional[str]) -> None
         head = extract_commit_sha(cwd=cwd)
         log.debug("Unshallowing to local head %s", head)
         _unshallow_repository(cwd=cwd, repo=remote, refspec=head)
@@ -441,11 +449,17 @@ class CIVisibilityGitClient(object):
 
     @classmethod
     def _unshallow_repository_to_upstream(cls, remote, cwd=None):
-        # type (str, Optional[str) -> None
+        # type (str, Optional[str]) -> None
         upstream = _extract_upstream_sha(cwd=cwd)
         log.debug("Unshallowing to upstream %s", upstream)
         _unshallow_repository(cwd=cwd, repo=remote, refspec=upstream)
-        log.debug("Unshallowing to upstream")
+        log.debug("Unshallowing to upstream successful")
+
+    @classmethod
+    def _ensure_fetch_unshallowed_trees(cls, refspecs, cwd=None):
+        log.debug("Ensuring unshallowed trees fetched")
+        _ensure_fetch_unshallowed_trees(cwd=cwd, refspecs=refspecs)
+        log.debug("Unshallowed trees fetched")
 
 
 class CIVisibilityGitClientSerializerV1(object):

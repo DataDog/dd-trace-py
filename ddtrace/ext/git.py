@@ -197,20 +197,50 @@ def _get_device_for_path(path):
     return os.stat(path).st_dev
 
 
+def _get_remote_name(cwd=None):
+    # type: (Optional[str]) -> Optional[str]
+    remote, stderr, _, exit_code = _extract_clone_defaultremotename_with_details(cwd=cwd)
+    if exit_code != 0:
+        log.debug("Failed to get default remote: %s", stderr)
+        return None
+
+    return remote
+
+
 def _unshallow_repository_with_details(
     cwd: Optional[str] = None, repo: Optional[str] = None, refspec: Optional[str] = None, parent_only: bool = False
 ) -> _GitSubprocessDetails:
-    cmd = [
-        "fetch",
-        "--deepen=1" if parent_only else '--shallow-since="1 month ago"',
-        "--update-shallow",
-        "--filter=blob:none",
-        "--recurse-submodules=no",
-    ]
-    if repo is not None:
-        cmd.append(repo)
-    if refspec is not None:
-        cmd.append(refspec)
+    if repo and refspec and extract_git_version(cwd) >= (2, 36, 0):
+        log.debug("Shallow repository on git >= 2.36 detected, unshallowing with new algorithm")
+        cmd = [
+            "-c",
+            "gc.auto=0",
+            "-c",
+            "fetch.negotiationAlgorithm=skipping",
+            "-c",
+            f"remote.{repo}.promisor=true",
+            "fetch",
+            '--shallow-since="1 month ago"',
+            "--update-shallow",
+            "--filter=tree:0",
+            "--no-tags",
+            "--recurse-submodules=no",
+            "--no-write-fetch-head",
+            repo,
+            refspec,
+        ]
+    else:
+        cmd = [
+            "fetch",
+            "--deepen=1" if parent_only else '--shallow-since="1 month ago"',
+            "--update-shallow",
+            "--filter=blob:none",
+            "--recurse-submodules=no",
+        ]
+        if repo is not None:
+            cmd.append(repo)
+        if refspec is not None:
+            cmd.append(refspec)
 
     return _git_subprocess_cmd_with_details(*cmd, cwd=cwd)
 
@@ -222,6 +252,36 @@ def _unshallow_repository(
     parent_only: bool = False,
 ) -> None:
     _unshallow_repository_with_details(cwd, repo, refspec, parent_only)
+
+
+def _ensure_fetch_unshallowed_trees(repo: str, refspecs: List[str], cwd: Optional[str] = None) -> None:
+    if extract_git_version(cwd=cwd) < (2, 36, 0):
+        return
+
+    remote = _get_remote_name(cwd=cwd)
+    if not remote:
+        return
+
+    cmd = [
+        "git",
+        "-c",
+        "gc.auto=0",
+        "-c",
+        "fetch.negotiationAlgorithm=skipping",
+        "-c",
+        f"remote.{repo}.promisor=true",
+        "fetch",
+        "--refetch",
+        '--shallow-since="1 month ago"',
+        "--update-shallow",
+        "--filter=blob:none",
+        "--no-tags",
+        "--recurse-submodules=no",
+        repo,
+        "HEAD",
+        *refspecs,
+    ]
+    _git_subprocess_cmd_with_details(*cmd, cwd=cwd)
 
 
 def extract_user_info(cwd: Optional[str] = None, commit_sha: Optional[str] = None) -> Dict[str, Tuple[str, str, str]]:
@@ -350,7 +410,8 @@ def extract_git_head_metadata(head_commit_sha: str, cwd: Optional[str] = None) -
 
     is_shallow, *_ = _is_shallow_repository_with_details(cwd=cwd)
     if is_shallow:
-        _unshallow_repository(cwd=cwd, repo=None, refspec=None, parent_only=True)
+        remote = _get_remote_name(cwd=cwd)
+        _unshallow_repository(cwd=cwd, repo=remote, refspec=head_commit_sha)
 
     try:
         users = extract_user_info(cwd=cwd, commit_sha=head_commit_sha)
