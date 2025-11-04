@@ -34,6 +34,7 @@ enumerate_files() {
         '*.c'
         '*.h'
         '*.cpp'
+        '*.cc'
         '*.hpp'
     )
 
