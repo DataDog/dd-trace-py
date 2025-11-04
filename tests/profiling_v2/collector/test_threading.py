@@ -1019,6 +1019,188 @@ class BaseThreadingLockCollectorTest:
         with pytest.raises(AssertionError):
             pprof_utils.parse_newest_profile(self.output_filename)
 
+    def test_lock_hash(self) -> None:
+        """Test that __hash__ allows profiled locks to be used in sets and dicts."""
+        with self.collector_class(capture_pct=100):
+            lock1 = self.lock_class()
+            lock2 = self.lock_class()
+
+            # Different locks should have different hashes
+            assert hash(lock1) != hash(lock2)
+
+            # Same lock should have consistent hash
+            assert hash(lock1) == hash(lock1)
+
+            # Should be usable in a set
+            lock_set = {lock1, lock2}
+            assert len(lock_set) == 2
+            assert lock1 in lock_set
+            assert lock2 in lock_set
+
+            # Should be usable as dict keys
+            lock_dict = {lock1: "first", lock2: "second"}
+            assert lock_dict[lock1] == "first"
+            assert lock_dict[lock2] == "second"
+
+    def test_lock_equality(self) -> None:
+        """Test that __eq__ compares locks correctly."""
+        with self.collector_class(capture_pct=100):
+            lock1 = self.lock_class()
+            lock2 = self.lock_class()
+
+            # Different locks should not be equal
+            assert lock1 != lock2
+
+            # Same lock should be equal to itself
+            assert lock1 == lock1
+
+            # A profiled lock should be comparable with its wrapped lock
+            from ddtrace.profiling.collector._lock import _ProfiledLock
+
+            assert isinstance(lock1, _ProfiledLock)
+            # The wrapped lock can be accessed via __wrapped__ attribute
+            # Note: We access it directly as a public attribute, not via name mangling
+            wrapped = lock1.__wrapped__
+            assert lock1 == wrapped
+            assert wrapped == lock1
+
+    def test_lock_getattr(self) -> None:
+        """Test that __getattr__ delegates attributes to the wrapped lock."""
+        with self.collector_class(capture_pct=100):
+            lock = self.lock_class()
+
+            # Test __getattr__ by accessing attributes that don't have
+            # an explicit override in _ProfiledLock
+            # The acquire() and release() methods are explicitly defined,
+            # but other attributes should be delegated
+            from ddtrace.profiling.collector._lock import _ProfiledLock
+
+            assert isinstance(lock, _ProfiledLock)
+
+            # For threading.Lock, test acquire_lock and release_lock which are
+            # alternative names that should be delegated via __getattr__
+            if self.lock_class == threading.Lock:
+                # acquire_lock and release_lock are aliases that exist on _thread.lock
+                # but are not explicitly defined on _ProfiledLock
+                assert hasattr(lock, "acquire_lock")
+                assert callable(lock.acquire_lock)
+                assert "acquire_lock" not in _ProfiledLock.__dict__
+
+                # Test that they work
+                assert lock.acquire_lock()
+                lock.release_lock()
+
+            # For threading.RLock, test _is_owned() method which should be delegated
+            elif self.lock_class == threading.RLock:
+                assert hasattr(lock, "_is_owned")
+                assert callable(lock._is_owned)
+
+                # Ensure _is_owned() is not directly defined on _ProfiledLock
+                assert "_is_owned" not in _ProfiledLock.__dict__
+
+                # Initially lock should not be owned
+                assert not lock._is_owned()
+
+                # After acquiring, it should be owned
+                lock.acquire()
+                assert lock._is_owned()
+
+                # After releasing, it should not be owned
+                lock.release()
+                assert not lock._is_owned()
+
+    def test_lock_repr(self) -> None:
+        """Test that __repr__ provides useful information about the profiled lock."""
+        with self.collector_class(capture_pct=100):
+            lock = self.lock_class()
+            repr_str = repr(lock)
+            # Should mention _ProfiledLock and the location
+            assert "_ProfiledLock" in repr_str
+            assert "test_threading.py" in repr_str
+            # Should show the line number where the lock was created
+            assert ":" in repr_str
+
+    def test_lock_getattr_nonexistent(self) -> None:
+        """Test that __getattr__ raises AttributeError for non-existent attributes."""
+        with self.collector_class(capture_pct=100):
+            lock = self.lock_class()
+            with pytest.raises(AttributeError):
+                _ = lock.this_attribute_does_not_exist
+
+    def test_lock_bool(self) -> None:
+        """Test that profiled locks are always truthy (like regular locks)."""
+        with self.collector_class(capture_pct=100):
+            lock = self.lock_class()
+            # Locks should always be truthy regardless of their state
+            assert lock
+            assert bool(lock) is True
+
+            # Even when acquired, still truthy
+            lock.acquire()
+            assert lock
+            assert bool(lock) is True
+            lock.release()
+
+    def test_lock_slots_enforced(self) -> None:
+        """Test that __slots__ prevents arbitrary attribute assignment for memory efficiency."""
+        with self.collector_class(capture_pct=100):
+            lock = self.lock_class()
+            from ddtrace.profiling.collector._lock import _ProfiledLock
+
+            assert isinstance(lock, _ProfiledLock)
+            # Should not be able to add arbitrary attributes due to __slots__
+            with pytest.raises(AttributeError):
+                lock.custom_attribute = "value"  # type: ignore[attr-defined]
+
+    def test_rlock_reentrant(self) -> None:
+        """Test that RLock can be acquired multiple times by same thread (reentrant behavior)."""
+        if self.lock_class != threading.RLock:
+            pytest.skip("Only applicable to RLock")
+
+        with self.collector_class(capture_pct=100):
+            lock = self.lock_class()
+            # Should be able to acquire multiple times from same thread
+            lock.acquire()
+            lock.acquire()
+            lock.acquire()
+            # And release same number of times
+            lock.release()
+            lock.release()
+            lock.release()
+
+    def test_lock_isinstance(self) -> None:
+        """Test that isinstance works correctly with profiled locks."""
+        with self.collector_class(capture_pct=100):
+            lock = self.lock_class()
+            from ddtrace.profiling.collector._lock import _ProfiledLock
+
+            # Should be instance of _ProfiledLock
+            assert isinstance(lock, _ProfiledLock)
+            # The wrapped lock should be accessible
+            assert hasattr(lock, "__wrapped__")
+            # The wrapped lock should be the actual lock type
+            wrapped = lock.__wrapped__
+            assert wrapped is not None
+
+    def test_lock_identity(self) -> None:
+        """Test that lock identity (is) differs from equality (==) appropriately."""
+        with self.collector_class(capture_pct=100):
+            lock1 = self.lock_class()
+            lock2 = lock1
+
+            # Same reference should have identity
+            assert lock1 is lock2
+            assert lock1 == lock2
+
+            # Different references should not have identity
+            lock3 = self.lock_class()
+            assert lock1 is not lock3
+            assert lock1 != lock3
+
+            # Hash should be consistent for same object
+            assert hash(lock1) == hash(lock2)
+            assert hash(lock1) != hash(lock3)
+
 
 class TestThreadingLockCollector(BaseThreadingLockCollectorTest):
     """Test Lock profiling"""

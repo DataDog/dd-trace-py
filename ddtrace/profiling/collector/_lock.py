@@ -75,6 +75,18 @@ class _ProfiledLock:
         self._self_acquired_at: int = 0
         self._self_name: Optional[str] = None
 
+    def __hash__(self) -> int:
+        return hash(self.__wrapped__)  # type: ignore[no-any-return]
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, _ProfiledLock):
+            return self.__wrapped__ == other.__wrapped__
+        return self.__wrapped__ == other
+
+    def __getattr__(self, name: str) -> Any:
+        # Delegates acquire_lock, release_lock, locked_lock, and any future methods
+        return getattr(self.__wrapped__, name)
+
     def acquire(self, *args: Any, **kwargs: Any) -> Any:
         return self._acquire(self.__wrapped__.acquire, *args, **kwargs)
 
