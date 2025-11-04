@@ -12,6 +12,8 @@ import pytest
 
 from ddtrace import config
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
+from ddtrace.internal.settings._agent import get_agent_hostname
+from ddtrace.internal.settings._telemetry import config as telemetry_config
 import ddtrace.internal.telemetry
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
@@ -20,8 +22,6 @@ from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.writer import TelemetryWriter
 from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
-from ddtrace.settings._agent import get_agent_hostname
-from ddtrace.settings._telemetry import config as telemetry_config
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.utils import call_program
 from tests.utils import override_global_config
@@ -80,9 +80,10 @@ def test_app_started_event_configuration_override(test_agent_session, run_python
 # most configurations are reported when ddtrace.auto is imported
 import ddtrace.auto
 # report configurations not used by ddtrace.auto
-import ddtrace.settings.symbol_db
-import ddtrace.settings.dynamic_instrumentation
-import ddtrace.settings.exception_replay
+import ddtrace.internal.settings.symbol_db
+import ddtrace.internal.settings.dynamic_instrumentation
+import ddtrace.internal.settings.exception_replay
+import opentelemetry
     """
 
     env = os.environ.copy()
@@ -286,7 +287,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_LOGS_OTEL_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_METRICS_OTEL_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_PROFILING_AGENTLESS", "origin": "default", "value": False},
-        {"name": "DD_PROFILING_API_TIMEOUT", "origin": "default", "value": 10.0},
+        {"name": "DD_PROFILING_API_TIMEOUT_MS", "origin": "default", "value": 10000},
         {"name": "DD_PROFILING_CAPTURE_PCT", "origin": "env_var", "value": 5.0},
         {"name": "DD_PROFILING_ENABLED", "origin": "env_var", "value": PYTHON_VERSION_INFO < (3, 14)},
         {"name": "DD_PROFILING_ENABLE_ASSERTS", "origin": "default", "value": False},

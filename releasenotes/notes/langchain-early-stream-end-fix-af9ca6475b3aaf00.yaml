@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    langchain: Fixes an issue where streamed responses that end before the first chunk is received would result in an ``IndexError``.

@@ -1,6 +1,7 @@
 import pytest
 
 from ddtrace._trace.processor.resource_renaming import ResourceRenamingProcessor
+from ddtrace._trace.processor.resource_renaming import SimplifiedEndpointComputer
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.trace import Context
@@ -44,8 +45,7 @@ class TestResourceRenaming:
         ],
     )
     def test_compute_simplified_endpoint_path_element(self, elem, expected):
-        processor = ResourceRenamingProcessor()
-        result = processor._compute_simplified_endpoint_path_element(elem)
+        result = SimplifiedEndpointComputer()._compute_simplified_endpoint_path_element(elem)
         assert result == expected
 
     @pytest.mark.parametrize(
@@ -89,8 +89,7 @@ class TestResourceRenaming:
         ],
     )
     def test_compute_simplified_endpoint(self, url, expected):
-        processor = ResourceRenamingProcessor()
-        result = processor._compute_simplified_endpoint(url)
+        result = SimplifiedEndpointComputer().from_url(url)
         assert result == expected
 
     def test_processor_with_route(self):

@@ -730,7 +730,7 @@ class BaseThreadingLockCollectorTest:
         [True, False],
     )
     def test_class_member_lock(self, inspect_dir_enabled: bool) -> None:
-        with mock.patch("ddtrace.settings.profiling.config.lock.name_inspect_dir", inspect_dir_enabled):
+        with mock.patch("ddtrace.internal.settings.profiling.config.lock.name_inspect_dir", inspect_dir_enabled):
             expected_lock_name: Optional[str] = "foo_lock" if inspect_dir_enabled else None
 
             with self.collector_class(capture_pct=100):

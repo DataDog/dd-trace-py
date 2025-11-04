@@ -52,8 +52,10 @@ from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings._config import config
 from ddtrace.internal.utils.time import Time
 from ddtrace.settings._config import config
+from ddtrace.vendor.debtcollector import removals
 
 
 class SpanEvent:
@@ -101,7 +103,7 @@ def _get_64_lowest_order_bits_as_int(large_int: int) -> int:
 
 def _get_64_highest_order_bits_as_hex(large_int: int) -> str:
     """Get the 64 highest order bits from a 128bit integer"""
-    return "{:032x}".format(large_int)[:16]
+    return f"{large_int:032x}"[:16]
 
 
 class Span(object):
