@@ -21,9 +21,12 @@ class CoverageFibonacci(bm.Scenario):
 
     Tests the DISABLE optimization: returning sys.monitoring.DISABLE prevents
     the handler from being called repeatedly for the same line.
+
+    Can run in either line-level or file-level coverage mode.
     """
 
     fib_n_recursive: int
+    env_dd_coverage_file_level: str
 
     def run(self) -> Generator[Callable[[int], None], None, None]:
         import os
@@ -31,6 +34,9 @@ class CoverageFibonacci(bm.Scenario):
 
         from ddtrace.internal.coverage.code import ModuleCodeCollector
         from ddtrace.internal.coverage.installer import install
+
+        # Set coverage mode directly from parameter
+        os.environ["_DD_COVERAGE_FILE_LEVEL"] = self.env_dd_coverage_file_level
 
         # Install coverage
         install(include_paths=[Path(os.getcwd())])
