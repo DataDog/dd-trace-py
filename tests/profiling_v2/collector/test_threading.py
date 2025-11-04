@@ -72,19 +72,15 @@ class Bar:
     [
         (
             ThreadingLockCollector,
-            "ThreadingLockCollector(status=<ServiceStatus.STOPPED: 'stopped'>, "
-            "capture_pct=1.0, nframes=64, "
-            "endpoint_collection_enabled=True, tracer=None)",
+            "ThreadingLockCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, nframes=64, tracer=None)",  # noqa: E501
         ),
         (
             ThreadingRLockCollector,
-            "ThreadingRLockCollector(status=<ServiceStatus.STOPPED: 'stopped'>, "
-            "capture_pct=1.0, nframes=64, "
-            "endpoint_collection_enabled=True, tracer=None)",
+            "ThreadingRLockCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, nframes=64, tracer=None)",  # noqa: E501
         ),
     ],
 )
-def test_repr(
+def test_collector_repr(
     collector_class: CollectorClassType,
     expected_repr: str,
 ) -> None:
@@ -679,7 +675,6 @@ class BaseThreadingLockCollectorTest:
         with self.collector_class(
             tracer=tracer,
             capture_pct=100,
-            endpoint_collection_enabled=False,
         ):
             lock1: LockClassInst = self.lock_class()  # !CREATE! test_resource_not_collected_1
             lock1.acquire()  # !ACQUIRE! test_resource_not_collected_1
@@ -1165,7 +1160,6 @@ class BaseThreadingLockCollectorTest:
                 "_self_tracer",
                 "_self_max_nframes",
                 "_self_capture_sampler",
-                "_self_endpoint_collection_enabled",
                 "_self_init_loc",
                 "_self_acquired_at",
                 "_self_name",

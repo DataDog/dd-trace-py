@@ -49,7 +49,6 @@ class _ProfiledLock:
         "_self_tracer",
         "_self_max_nframes",
         "_self_capture_sampler",
-        "_self_endpoint_collection_enabled",
         "_self_init_loc",
         "_self_acquired_at",
         "_self_name",
@@ -61,13 +60,11 @@ class _ProfiledLock:
         tracer: Optional[Tracer],
         max_nframes: int,
         capture_sampler: collector.CaptureSampler,
-        endpoint_collection_enabled: bool,
     ) -> None:
         self.__wrapped__: Any = wrapped
         self._self_tracer: Optional[Tracer] = tracer
         self._self_max_nframes: int = max_nframes
         self._self_capture_sampler: collector.CaptureSampler = capture_sampler
-        self._self_endpoint_collection_enabled: bool = endpoint_collection_enabled
         # Frame depth: 0=__init__, 1=_profiled_allocate_lock, 2=_LockAllocatorWrapper.__call__, 3=caller
         frame: FrameType = sys._getframe(3)
         code: CodeType = frame.f_code
@@ -76,7 +73,7 @@ class _ProfiledLock:
         self._self_name: Optional[str] = None
 
     def __hash__(self) -> int:
-        return hash(self.__wrapped__)  # type: ignore[no-any-return]
+        return hash(self.__wrapped__)
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, _ProfiledLock):
@@ -266,14 +263,12 @@ class LockCollector(collector.CaptureSamplerCollector):
     def __init__(
         self,
         nframes: int = config.max_frames,
-        endpoint_collection_enabled: bool = config.endpoint_collection,
         tracer: Optional[Tracer] = None,
         *args: Any,
         **kwargs: Any,
     ) -> None:
         super().__init__(*args, **kwargs)
         self.nframes: int = nframes
-        self.endpoint_collection_enabled: bool = endpoint_collection_enabled
         self.tracer: Optional[Tracer] = tracer
         self._original_lock: Any = None
 
@@ -299,7 +294,7 @@ class LockCollector(collector.CaptureSamplerCollector):
         """Patch the module for tracking lock allocation."""
         self._original_lock = self._get_patch_target()
         original_lock: Any = self._original_lock  # Capture non-None value
-        
+
         def _profiled_allocate_lock(*args: Any, **kwargs: Any) -> _ProfiledLock:
             """Simple wrapper that returns profiled locks."""
             return self.PROFILED_LOCK_CLASS(
@@ -307,7 +302,6 @@ class LockCollector(collector.CaptureSamplerCollector):
                 tracer=self.tracer,
                 max_nframes=self.nframes,
                 capture_sampler=self._capture_sampler,
-                endpoint_collection_enabled=self.endpoint_collection_enabled,
             )
 
         self._set_patch_target(_LockAllocatorWrapper(_profiled_allocate_lock))
