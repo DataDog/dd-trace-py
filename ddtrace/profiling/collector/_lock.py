@@ -72,8 +72,7 @@ class _ProfiledLock:
         self._self_acquired_at: int = 0
         self._self_name: Optional[str] = None
 
-    def __hash__(self) -> int:
-        return hash(self.__wrapped__)
+    ### DUNDER methods ###
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, _ProfiledLock):
@@ -83,6 +82,18 @@ class _ProfiledLock:
     def __getattr__(self, name: str) -> Any:
         # Delegates acquire_lock, release_lock, locked_lock, and any future methods
         return getattr(self.__wrapped__, name)
+
+    def __hash__(self) -> int:
+        return hash(self.__wrapped__)
+
+    def __repr__(self) -> str:
+        return f"<_ProfiledLock({self.__wrapped__!r}) at {self._self_init_loc}>"
+
+    ### Regular methods ###
+
+    def locked(self) -> bool:
+        """Return True if lock is currently held."""
+        return self.__wrapped__.locked()
 
     def acquire(self, *args: Any, **kwargs: Any) -> Any:
         return self._acquire(self.__wrapped__.acquire, *args, **kwargs)
@@ -230,13 +241,6 @@ class _ProfiledLock:
         # First, look at the local variables of the caller frame, and then the global variables
         frame = sys._getframe(3)
         self._self_name = self._find_self_name(frame.f_locals) or self._find_self_name(frame.f_globals) or ""
-
-    def locked(self) -> bool:
-        """Return True if lock is currently held."""
-        return self.__wrapped__.locked()
-
-    def __repr__(self) -> str:
-        return f"<_ProfiledLock({self.__wrapped__!r}) at {self._self_init_loc}>"
 
 
 class _LockAllocatorWrapper:
