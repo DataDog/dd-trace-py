@@ -334,7 +334,10 @@ memalloc_heap_add_sample_no_cpython(heap_tracker_t* heap_tracker, traceback_t* t
             old = memalloc_heap_map_insert(heap_tracker->allocs_m, tb->ptr, tb);
         }
     } else {
-        traceback_array_append(&heap_tracker->unreported_samples, tb);
+        if (!heap_tracker->frozen) {
+            // TODO: figure out if there is anything to do if we're frozen.
+            traceback_array_append(&heap_tracker->unreported_samples, tb);
+        }
     }
 
     /* Reset the counter to 0 */
