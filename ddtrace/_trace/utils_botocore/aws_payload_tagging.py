@@ -112,6 +112,7 @@ class AWSPayloadTagging:
         """
         Checks whether paths is "all" or all valid JSONPaths
         """
+        print("OLIVIER in json path validation")
         if not paths:
             return False  # not enabled
 
@@ -147,8 +148,10 @@ class AWSPayloadTagging:
         Get the list of redaction paths, combining defaults with any user-provided JSONPaths.
         """
         if not config.botocore.get("payload_tagging_response"):
+            print("OLVIER no res tagging")
             return []
 
+        print("OLVIER yes res tagging")
         response_redaction = config.botocore.get("payload_tagging_response")
         if self._validate_json_paths(response_redaction):
             if response_redaction == "all":
@@ -164,8 +167,10 @@ class AWSPayloadTagging:
         Get the list of redaction paths, combining defaults with any user-provided JSONPaths.
         """
         if not config.botocore.get("payload_tagging_request"):
+            print("OLVIER no req tagging")
             return []
 
+        print("OLVIER yes req tagging")
         request_redaction = config.botocore.get("payload_tagging_request")
         if self._validate_json_paths(request_redaction):
             if request_redaction == "all":
