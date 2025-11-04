@@ -208,9 +208,9 @@ static void unwind_python_stack(PyThreadState* tstate, FrameStack& stack)
         // TODO: Invalid frame
         return;
 
-    PyObject* frame_addr = (PyObject*)cframe.current_frame;
+    PyObject* frame_addr = reinterpret_cast<PyObject*>(cframe.current_frame);
 #else  // Python < 3.11
-    PyObject* frame_addr = (PyObject*)tstate->frame;
+    PyObject* frame_addr = reinterpret_cast<PyObject*>(tstate->frame);
 #endif
     unwind_frame(frame_addr, stack);
 }
@@ -336,7 +336,7 @@ public:
     // ------------------------------------------------------------------------
     FrameStack::Key inline store(FrameStack::Ptr stack)
     {
-        std::lock_guard<std::mutex> lock(this->lock);
+        std::lock_guard<std::mutex> guard(this->lock);
 
         auto stack_key = stack->key();
 
@@ -356,7 +356,7 @@ public:
     // ------------------------------------------------------------------------
     FrameStack& retrieve(FrameStack::Key stack_key)
     {
-        std::lock_guard<std::mutex> lock(this->lock);
+        std::lock_guard<std::mutex> guard(this->lock);
 
         return *table.find(stack_key)->second;
     }
@@ -364,7 +364,7 @@ public:
     // ------------------------------------------------------------------------
     void clear()
     {
-        std::lock_guard<std::mutex> lock(this->lock);
+        std::lock_guard<std::mutex> guard(this->lock);
 
         table.clear();
     }
