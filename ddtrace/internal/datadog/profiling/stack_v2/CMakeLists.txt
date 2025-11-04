@@ -48,13 +48,10 @@ if(NOT Threads_FOUND OR NOT CMAKE_USE_PTHREADS_INIT)
 endif()
 
 # Add echion
-set(ECHION_COMMIT
-    "1b02a8fcccaa4b748b494f3c3177b78be6503967" # https://github.com/P403n1x87/echion/commit/1b02a8fcccaa4b748b494f3c3177b78be6503967
-    CACHE STRING "Commit hash of echion to use")
 FetchContent_Declare(
     echion
-    GIT_REPOSITORY "https://github.com/P403n1x87/echion.git"
-    GIT_TAG ${ECHION_COMMIT})
+    SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../echion")
+
 FetchContent_GetProperties(echion)
 
 if(NOT echion_POPULATED)
@@ -62,7 +59,7 @@ if(NOT echion_POPULATED)
 endif()
 
 # Specify the target C-extension that we want to build
-add_library(${EXTENSION_NAME} SHARED ${echion_SOURCE_DIR}/echion/frame.cc ${echion_SOURCE_DIR}/echion/render.cc
+add_library(${EXTENSION_NAME} SHARED ${echion_SOURCE_DIR}/echion/frame.cc
                                      src/sampler.cpp src/stack_renderer.cpp src/stack_v2.cpp src/thread_span_links.cpp)
 
 # Add common config
