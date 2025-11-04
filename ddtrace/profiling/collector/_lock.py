@@ -97,7 +97,12 @@ class _ProfiledLock(wrapt.ObjectProxy):
             try:
                 self._maybe_update_self_name()
                 self._flush_sample(start, end, is_acquire=True)
+            except AssertionError:
+                if config.enable_asserts:
+                    # AssertionError exceptions need to propagate
+                    raise
             except Exception:
+                # Instrumentation must never crash user code
                 pass  # nosec
 
     def release(self, *args: Any, **kwargs: Any) -> Any:
