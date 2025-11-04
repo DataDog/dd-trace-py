@@ -255,7 +255,7 @@ def _unshallow_repository(
     _unshallow_repository_with_details(cwd, repo, refspec, parent_only)
 
 
-def _ensure_fetch_unshallowed_trees(repo: str, refspecs: List[str], cwd: Optional[str] = None) -> None:
+def _ensure_fetch_unshallowed_trees(refspecs: List[str], cwd: Optional[str] = None) -> None:
     if extract_git_version(cwd=cwd) < (2, 36, 0):
         return
 
