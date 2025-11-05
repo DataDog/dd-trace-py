@@ -21,7 +21,9 @@ def _add_span_events(span: Span) -> None:
     a span event for every handled exceptions, we store them in the span
     and add them when the span finishes.
     """
-    span_exc_events = list(HandledExceptionCollector.get_exception_events(span.span_id).values())
+    # Extract just the SpanEvent objects from the stored (exception, event) tuples
+    exception_data = HandledExceptionCollector.get_exception_events(span.span_id).values()
+    span_exc_events = [event for _exc, event in exception_data]
     if span_exc_events:
         span._set_tag_str(SPAN_EVENTS_HAS_EXCEPTION, "true")
         span._events.extend(span_exc_events)
@@ -37,7 +39,7 @@ def _on_span_exception(span, _exc_msg, exc_val, _exc_tb):
 
 class HandledExceptionCollector(Service):
     _instance: t.Optional["HandledExceptionCollector"] = None
-    _span_exception_events: t.Dict[int, t.Dict[int, SpanEvent]] = {}
+    _span_exception_events: t.Dict[int, t.Dict[int, t.Tuple[Exception, SpanEvent]]] = {}
 
     def __init__(self) -> None:
         super(HandledExceptionCollector, self).__init__()
@@ -114,7 +116,8 @@ class HandledExceptionCollector(Service):
             span._add_on_finish_exception_callback(_add_span_events)
         exc_id = id(exc)
         if exc_id in events_dict or len(events_dict) < COLLECTOR_MAX_SIZE_PER_SPAN:
-            events_dict[exc_id] = event
+            # Store both exception and event to keep exception alive and prevent ID reuse
+            events_dict[exc_id] = (exc, event)
 
     @classmethod
     def get_exception_events(cls, span_id: int):
