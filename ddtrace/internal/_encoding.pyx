@@ -746,7 +746,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                     ret = pack_text(&self.pk, span_events)
         return ret
 
-    cdef inline int _pack_metrics(self, object metrics) except? -1:
+    cdef inline int _pack_metrics(self, object metrics, object span) except? -1:
         cdef Py_ssize_t L
         cdef int ret
         cdef dict d
@@ -932,7 +932,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                 ret = pack_bytes(&self.pk, <char *> b"metrics", 7)
                 if ret != 0:
                     return ret
-                ret = self._pack_metrics(span._metrics)
+                ret = self._pack_metrics(span._metrics, span)
                 if ret != 0:
                     return ret
 
