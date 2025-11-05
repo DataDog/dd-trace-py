@@ -69,6 +69,7 @@ def cleanup_loaded_modules() -> None:
             "copyreg",  # pickling issues for tracebacks with gevent
             "ddtrace",
             "concurrent",
+            "importlib._bootstrap",  # special import that must not be unloaded
             "typing",
             "_operator",  # pickling issues with typing module
             "re",  # referenced by the typing module
