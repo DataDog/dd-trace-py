@@ -15,6 +15,7 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
+from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import flatten_key_value
 from ddtrace.internal.utils.formats import is_sequence
@@ -39,10 +40,14 @@ log = get_logger(__name__)
 
 def _ddmap(span, attribute, value):
     # type: (DDSpan, str, Union[bytes, NumericType]) -> DDSpan
-    if attribute.startswith("meta") or attribute.startswith("metrics"):
+    if attribute.startswith("meta"):
         meta_key = attribute.split("'")[1] if len(attribute.split("'")) == 3 else None
-        if meta_key:
-            span.set_tag(meta_key, value)
+        if meta_key and isinstance(value, bytes):
+            span.set_tag(meta_key, ensure_text(value))
+    elif attribute.startswith("metrics"):
+        metrics_key = attribute.split("'")[1] if len(attribute.split("'")) == 3 else None
+        if metrics_key and isinstance(value, (int, float)):
+            span.set_metric(metrics_key, value)
     else:
         setattr(span, attribute, value)
     return span
