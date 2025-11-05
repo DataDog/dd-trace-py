@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracer: This fix resolves an issue where an application instrumented by ddtrace could crash at start.
+    Fix compatibility with zope.event==6.0
