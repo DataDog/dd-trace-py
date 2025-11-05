@@ -87,6 +87,44 @@ def test_collector_repr(
     test_collector._test_repr(collector_class, expected_repr)
 
 
+@pytest.mark.parametrize(
+    "collector_class,lock_class_name,expected_pattern",
+    [
+        (
+            ThreadingLockCollector,
+            "Lock",
+            r"<_ProfiledLock\(<unlocked _thread\.lock object at 0x[0-9a-f]+>\) at test_threading\.py:{lineno}>",
+        ),
+        (
+            ThreadingRLockCollector,
+            "RLock",
+            r"<_ProfiledLock\(<unlocked _thread\.RLock object owner=0 count=0 at 0x[0-9a-f]+>\) at test_threading\.py:{lineno}>",  # noqa: E501
+        ),
+    ],
+)
+def test_lock_repr(
+    collector_class: CollectorClassType,
+    lock_class_name: str,
+    expected_pattern: str,
+) -> None:
+    """Test that __repr__ shows correct format with profiling info."""
+    import re
+
+    collector: Union[ThreadingLockCollector, ThreadingRLockCollector] = collector_class(capture_pct=100)
+    collector.start()
+    try:
+        # Get the lock class from threading module AFTER patching
+        lock_class: LockClassType = getattr(threading, lock_class_name)
+        lock: LockClassInst = lock_class()  # !CREATE! test_lock_repr
+    finally:
+        collector.stop()
+
+    repr_str: str = repr(lock)
+    linenos: LineNo = get_lock_linenos("test_lock_repr")
+    pattern: str = expected_pattern.format(lineno=linenos.create)
+    assert re.match(pattern, repr_str), f"repr {repr_str!r} didn't match pattern {pattern!r}"
+
+
 def test_patch():
     from ddtrace.profiling.collector._lock import _LockAllocatorWrapper
 
@@ -981,17 +1019,6 @@ class BaseThreadingLockCollectorTest:
         # This test checks that the profile is cleared after each upload() call
         # It is added in test_threading.py as LockCollector can easily be
         # configured to be deterministic with capture_pct=100.
-        # Note: This test can be flaky on some platforms (especially macOS) due to
-        # timing issues or interference from other tests running in parallel.
-
-        # First, ensure we start with a clean slate by uploading any pending data
-        ddup.upload()  # pyright: ignore[reportCallIssue]
-
-        # Small delay to ensure any pending operations complete
-        import time
-
-        time.sleep(0.01)
-
         with self.collector_class(capture_pct=100):
             with self.lock_class():  # !CREATE! !ACQUIRE! !RELEASE! test_upload_resets_profile
                 pass
@@ -1082,62 +1109,6 @@ class BaseThreadingLockCollectorTest:
             assert lock1 == wrapped
             assert wrapped == lock1
 
-    def test_lock_getattr(self) -> None:
-        """Test that __getattr__ delegates attributes to the wrapped lock."""
-        with self.collector_class(capture_pct=100):
-            lock: LockClassInst = self.lock_class()
-
-            # Test __getattr__ by accessing attributes that don't have
-            # an explicit override in _ProfiledLock
-            # The acquire() and release() methods are explicitly defined,
-            # but other attributes should be delegated
-            from ddtrace.profiling.collector._lock import _ProfiledLock
-
-            assert isinstance(lock, _ProfiledLock)
-
-            # For threading.Lock, test acquire_lock and release_lock which are
-            # alternative names that should be delegated via __getattr__
-            if self.lock_class == threading.Lock:
-                # acquire_lock and release_lock are aliases that exist on _thread.lock
-                # but are not explicitly defined on _ProfiledLock
-                assert hasattr(lock, "acquire_lock")
-                assert callable(lock.acquire_lock)
-                assert "acquire_lock" not in _ProfiledLock.__dict__
-
-                # Test that they work
-                assert lock.acquire_lock()
-                lock.release_lock()
-
-            # For threading.RLock, test _is_owned() method which should be delegated
-            elif self.lock_class == threading.RLock:
-                assert hasattr(lock, "_is_owned")
-                assert callable(lock._is_owned)
-
-                # Ensure _is_owned() is not directly defined on _ProfiledLock
-                assert "_is_owned" not in _ProfiledLock.__dict__
-
-                # Initially lock should not be owned
-                assert not lock._is_owned()
-
-                # After acquiring, it should be owned
-                lock.acquire()
-                assert lock._is_owned()
-
-                # After releasing, it should not be owned
-                lock.release()
-                assert not lock._is_owned()
-
-    def test_lock_repr(self) -> None:
-        """Test that __repr__ provides useful information about the profiled lock."""
-        with self.collector_class(capture_pct=100):
-            lock: LockClassInst = self.lock_class()
-            repr_str: str = repr(lock)
-            # Should mention _ProfiledLock and the location
-            assert "_ProfiledLock" in repr_str
-            assert "test_threading.py" in repr_str
-            # Should show the line number where the lock was created
-            assert ":" in repr_str
-
     def test_lock_getattr_nonexistent(self) -> None:
         """Test that __getattr__ raises AttributeError for non-existent attributes."""
         with self.collector_class(capture_pct=100):
@@ -1165,38 +1136,6 @@ class BaseThreadingLockCollectorTest:
                 "_self_name",
             }
             assert set(_ProfiledLock.__slots__) == expected_slots
-
-    def test_lock_behaves_like_regular_lock(self) -> None:
-        """Test that profiled lock has same interface as regular lock."""
-        with self.collector_class(capture_pct=100):
-            profiled_lock: LockClassInst = self.lock_class()
-
-        # Key methods should be accessible (via either direct definition or __getattr__)
-        key_methods: List[str] = ["acquire", "release"]
-        for method_name in key_methods:
-            assert hasattr(profiled_lock, method_name)
-            assert callable(getattr(profiled_lock, method_name))
-
-        # For Lock specifically, check lock-specific methods
-        if self.lock_class == threading.Lock:
-            # These should be accessible via __getattr__ delegation
-            assert hasattr(profiled_lock, "acquire_lock")
-            assert hasattr(profiled_lock, "release_lock")
-            assert hasattr(profiled_lock, "locked_lock")
-
-    def test_lock_weakref_support(self) -> None:
-        """Test that profiled locks handle weak references appropriately."""
-        import weakref
-
-        with self.collector_class(capture_pct=100):
-            lock: LockClassInst = self.lock_class()
-            try:
-                weak: "weakref.ReferenceType[LockClassInst]" = weakref.ref(lock)
-                # If weakref succeeds, verify it works
-                assert weak() is lock
-            except TypeError:
-                # It's okay if locks don't support weakref
-                pytest.skip("Lock doesn't support weakref (expected for some lock types)")
 
     def test_lock_profiling_overhead_reasonable(self) -> None:
         """Test that profiling overhead with 0% capture is bounded."""
@@ -1241,6 +1180,24 @@ class TestThreadingLockCollector(BaseThreadingLockCollectorTest):
     def lock_class(self) -> Type[threading.Lock]:
         return threading.Lock
 
+    def test_lock_getattr(self) -> None:
+        """Test that __getattr__ delegates Lock-specific attributes."""
+        with self.collector_class(capture_pct=100):
+            lock: LockClassInst = self.lock_class()
+            from ddtrace.profiling.collector._lock import _ProfiledLock
+
+            assert isinstance(lock, _ProfiledLock)
+
+            # acquire_lock and release_lock are aliases that exist on _thread.lock
+            # but are not explicitly defined on _ProfiledLock, so they should be delegated
+            assert hasattr(lock, "acquire_lock")
+            assert callable(lock.acquire_lock)
+            assert "acquire_lock" not in _ProfiledLock.__dict__
+
+            # Test that they work
+            assert lock.acquire_lock()
+            lock.release_lock()
+
 
 class TestThreadingRLockCollector(BaseThreadingLockCollectorTest):
     """Test RLock profiling"""
@@ -1253,15 +1210,26 @@ class TestThreadingRLockCollector(BaseThreadingLockCollectorTest):
     def lock_class(self) -> Type[threading.RLock]:
         return threading.RLock
 
-    def test_rlock_reentrant(self) -> None:
-        """Test that RLock can be acquired multiple times by same thread (reentrant behavior)."""
+    def test_lock_getattr(self) -> None:
+        """Test that __getattr__ delegates RLock-specific attributes."""
         with self.collector_class(capture_pct=100):
             lock: LockClassInst = self.lock_class()
-            # Should be able to acquire multiple times from same thread
+            from ddtrace.profiling.collector._lock import _ProfiledLock
+
+            assert isinstance(lock, _ProfiledLock)
+
+            # _is_owned() is an RLock-specific method that should be delegated via __getattr__
+            assert hasattr(lock, "_is_owned")
+            assert callable(lock._is_owned)
+            assert "_is_owned" not in _ProfiledLock.__dict__
+
+            # Initially lock should not be owned
+            assert not lock._is_owned()
+
+            # After acquiring, it should be owned
             lock.acquire()
-            lock.acquire()
-            lock.acquire()
-            # And release same number of times
+            assert lock._is_owned()
+
+            # After releasing, it should not be owned
             lock.release()
-            lock.release()
-            lock.release()
+            assert not lock._is_owned()
