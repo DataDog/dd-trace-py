@@ -1,12 +1,18 @@
-from ddtrace.internal.process_tags import normalize_tag
-from ddtrace.internal.process_tags import process_tags
-from ddtrace.internal.constants import PROCESS_TAGS
-from ddtrace.internal.process_tags.constants import ENTRYPOINT_BASEDIR_TAG, ENTRYPOINT_NAME_TAG, ENTRYPOINT_TYPE_SCRIPT, ENTRYPOINT_TYPE_TAG, ENTRYPOINT_WORKDIR_TAG
-from tests.utils import TracerTestCase
-from tests.utils import override_env
-import sys
 import os
 from pathlib import Path
+import sys
+
+from ddtrace.internal.constants import PROCESS_TAGS
+from ddtrace.internal.process_tags import normalize_tag
+from ddtrace.internal.process_tags import process_tags
+from ddtrace.internal.process_tags.constants import ENTRYPOINT_BASEDIR_TAG
+from ddtrace.internal.process_tags.constants import ENTRYPOINT_NAME_TAG
+from ddtrace.internal.process_tags.constants import ENTRYPOINT_TYPE_SCRIPT
+from ddtrace.internal.process_tags.constants import ENTRYPOINT_TYPE_TAG
+from ddtrace.internal.process_tags.constants import ENTRYPOINT_WORKDIR_TAG
+from tests.utils import TracerTestCase
+from tests.utils import override_env
+
 
 def test_normalize_tag():
     assert normalize_tag("HelloWorld") == "helloworld"
@@ -21,8 +27,8 @@ def test_normalize_tag():
     assert normalize_tag("123_abc.DEF-ghi/jkl") == "123_abc.def-ghi/jkl"
     assert normalize_tag("Env:Prod-Server#1") == "env_prod-server_1"
 
-class TestProcessTags(TracerTestCase):
 
+class TestProcessTags(TracerTestCase):
     def test_process_tags_deactivated(self):
         with self.tracer.trace("test"):
             pass
@@ -98,11 +104,11 @@ class TestProcessTags(TracerTestCase):
 
             process_tags.add_process_tag("test.tag", compute=failing_compute)
 
-            assert "test.tag" not in process_tags.process_tags
+            assert "test.tag" not in process_tags._process_tags
 
             process_tags.add_process_tag("test.working", value="value")
-            assert "test.working" in process_tags.process_tags
-            assert process_tags.process_tags["test.working"] == "value"
+            assert "test.working" in process_tags._process_tags
+            assert process_tags._process_tags["test.working"] == "value"
 
             process_tags._enabled = False
 
@@ -112,7 +118,7 @@ class TestProcessTags(TracerTestCase):
             process_tags._enabled = True
             process_tags.reload()
 
-            result1 = process_tags.get_serialized_process_tags()
+            process_tags.get_serialized_process_tags()
             assert process_tags._serialized is not None
 
             process_tags.add_process_tag("custom.tag", value="test")

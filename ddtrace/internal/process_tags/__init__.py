@@ -19,21 +19,23 @@ from .constants import ENTRYPOINT_WORKDIR_TAG
 
 log = get_logger(__name__)
 
+
 # outside of ProcessTags class for test purpose
 def normalize_tag(value: str) -> str:
     return re.sub(r"[^a-z0-9/._-]", "_", value.lower())
-class ProcessTags:
-    process_tags: Dict[str, str] = {}
 
+
+class ProcessTags:
     def __init__(self) -> None:
         self._lock = Lock()
         self._serialized: Optional[str] = None
         self._enabled = config._process_tags_enabled
+        self._process_tags: Dict[str, str] = {}
         self.reload()
 
     def _serialize_process_tags(self) -> Optional[str]:
-        if self.process_tags and not self._serialized:
-            serialized_tags = ",".join(f"{key}:{value}" for key, value in self.process_tags.items())
+        if self._process_tags and not self._serialized:
+            serialized_tags = ",".join(f"{key}:{value}" for key, value in self._process_tags.items())
             return serialized_tags
         return None
 
@@ -58,7 +60,7 @@ class ProcessTags:
 
         if value:
             with self._lock:
-                self.process_tags[key] = normalize_tag(value)
+                self._process_tags[key] = normalize_tag(value)
                 self._serialized = None
 
     def reload(self):
@@ -66,11 +68,12 @@ class ProcessTags:
             return
 
         with self._lock:
-            self.process_tags = {}
+            self._process_tags = {}
 
         self.add_process_tag(ENTRYPOINT_WORKDIR_TAG, compute=lambda: os.path.basename(os.getcwd()))
         self.add_process_tag(ENTRYPOINT_BASEDIR_TAG, compute=lambda: Path(sys.argv[0]).resolve().parent.name)
         self.add_process_tag(ENTRYPOINT_NAME_TAG, compute=lambda: os.path.splitext(os.path.basename(sys.argv[0]))[0])
         self.add_process_tag(ENTRYPOINT_TYPE_TAG, value=ENTRYPOINT_TYPE_SCRIPT)
+
 
 process_tags = ProcessTags()
