@@ -11,7 +11,7 @@ pub mod ffe {
 
     use datadog_ffe::rules_based::{
         get_assignment, now, AssignmentReason, AssignmentValue, Configuration, EvaluationContext,
-        EvaluationError, EvaluationFailure, Str, UniversalFlagConfig, VariationType,
+        EvaluationError, Str, UniversalFlagConfig, VariationType,
     };
 
     #[pyclass(frozen)]
@@ -194,26 +194,6 @@ pub mod ffe {
         }
     }
 
-    impl From<EvaluationFailure> for ResolutionDetails {
-        fn from(value: EvaluationFailure) -> ResolutionDetails {
-            match value {
-                EvaluationFailure::Error(evaluation_error) => evaluation_error.into(),
-                EvaluationFailure::ConfigurationMissing => ResolutionDetails::error(
-                    ErrorCode::ProviderNotReady,
-                    "configuration is missing",
-                ),
-                EvaluationFailure::FlagUnrecognizedOrDisabled => ResolutionDetails::error(
-                    ErrorCode::FlagNotFound,
-                    "flag is unrecognized or disabled",
-                ),
-                EvaluationFailure::FlagDisabled => ResolutionDetails::empty(Reason::Disabled),
-                EvaluationFailure::DefaultAllocationNull => {
-                    ResolutionDetails::empty(Reason::Default)
-                }
-            }
-        }
-    }
-
     impl From<EvaluationError> for ResolutionDetails {
         fn from(value: EvaluationError) -> ResolutionDetails {
             match value {
@@ -221,9 +201,19 @@ pub mod ffe {
                     ErrorCode::TypeMismatch,
                     format!("type mismatch, expected={expected:?}, found={found:?}"),
                 ),
-                EvaluationError::UnexpectedConfigurationError => {
+                EvaluationError::ConfigurationParseError => {
                     ResolutionDetails::error(ErrorCode::ParseError, "configuration error")
                 }
+                EvaluationError::ConfigurationMissing => ResolutionDetails::error(
+                    ErrorCode::ProviderNotReady,
+                    "configuration is missing",
+                ),
+                EvaluationError::FlagUnrecognizedOrDisabled => ResolutionDetails::error(
+                    ErrorCode::FlagNotFound,
+                    "flag is unrecognized or disabled",
+                ),
+                EvaluationError::FlagDisabled => ResolutionDetails::empty(Reason::Disabled),
+                EvaluationError::DefaultAllocationNull => ResolutionDetails::empty(Reason::Default),
                 err => ResolutionDetails::error(ErrorCode::General, err.to_string()),
             }
         }
