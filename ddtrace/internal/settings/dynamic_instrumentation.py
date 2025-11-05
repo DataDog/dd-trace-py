@@ -92,7 +92,6 @@ class DynamicInstrumentationConfig(DDConfig):
         default=1.0,  # seconds
         help_type="Float",
         help="Interval in seconds for flushing the dynamic logs upload queue",
-        deprecations=[("upload.flush_interval", None, "4.0")],
     )
 
     diagnostics_interval = DDConfig.v(
