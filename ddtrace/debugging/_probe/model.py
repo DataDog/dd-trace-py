@@ -41,12 +41,16 @@ def _resolve_source_file(_path: str) -> Optional[Path]:
     if path.is_file():
         return path.resolve()
 
+    max_resolved_path = None
     for relpath in (path.relative_to(_) for _ in path.parents):
-        resolved_path = _resolve(relpath)
-        if resolved_path is not None:
-            return resolved_path
+        if (resolved_path := _resolve(relpath)) is None:
+            continue
+        if max_resolved_path is None:
+            max_resolved_path = resolved_path
+        elif len(resolved_path.parts) > len(max_resolved_path.parts):
+            max_resolved_path = resolved_path
 
-    return None
+    return max_resolved_path
 
 
 MAXLEVEL = 2
