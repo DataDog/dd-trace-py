@@ -32,6 +32,7 @@ import os
 import sys
 import types
 
+from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.settings.asm import config as asm_config
@@ -44,6 +45,59 @@ log = get_logger(__name__)
 
 _IAST_TO_BE_LOADED = True
 _iast_propagation_enabled = False
+_fork_handler_registered = False
+
+
+def _reset_iast_after_fork():
+    """
+    Reset IAST taint tracking state after a fork to prevent segmentation faults.
+
+    When a process forks, the native extension's internal state (including memory
+    mappings, taint maps, and context slots) can become corrupted in the child process.
+    This function clears all state to ensure a clean slate in the forked child.
+
+    AIDEV-NOTE: This is critical for multiprocessing compatibility. The native
+    taint tracking extension maintains internal state that cannot be safely shared
+    across fork boundaries. Without this reset, accessing taint tracking functions
+    in a forked child process can cause segmentation faults.
+
+    Additionally, we must reset the Python-level context ID. The child process inherits
+    the parent's IAST_CONTEXT ContextVar, which points to a now-invalid C++ context slot.
+    Resetting it ensures the child creates a fresh context when needed.
+    """
+    if not asm_config._iast_enabled:
+        return
+
+    try:
+        # Import locally to avoid issues if the module hasn't been loaded yet
+        from ddtrace.appsec._iast._iast_request_context_base import IAST_CONTEXT
+        from ddtrace.appsec._iast._taint_tracking._context import clear_all_request_context_slots
+
+        log.debug("Resetting IAST taint tracking state after fork")
+
+        # Clear C++ side: all taint maps and context slots
+        clear_all_request_context_slots()
+
+        # Clear Python side: reset the context ID so child creates a new one
+        IAST_CONTEXT.set(None)
+
+    except Exception as e:
+        log.debug("Error resetting IAST state after fork: %s", e, exc_info=True)
+
+
+def _register_fork_handler():
+    """
+    Register the fork handler if IAST is enabled and it hasn't been registered yet.
+
+    This is called during IAST initialization to ensure the fork handler is only
+    registered once and only when IAST is actually being used.
+    """
+    global _fork_handler_registered
+
+    if not _fork_handler_registered and asm_config._iast_enabled:
+        forksafe.register(_reset_iast_after_fork)
+        _fork_handler_registered = True
+        log.debug("IAST fork safety handler registered")
 
 
 def ddtrace_iast_flask_patch():
@@ -101,6 +155,7 @@ def enable_iast_propagation():
         log.debug("iast::instrumentation::starting IAST")
         ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
         _iast_propagation_enabled = True
+        _register_fork_handler()
 
 
 def _iast_pytest_activation():
@@ -148,5 +203,6 @@ def load_iast():
     """Lazily load the iast module listeners."""
     global _IAST_TO_BE_LOADED
     if _IAST_TO_BE_LOADED:
+        _register_fork_handler()
         iast_listen()
         _IAST_TO_BE_LOADED = False
