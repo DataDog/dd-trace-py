@@ -16,6 +16,7 @@ import ddtrace
 from ddtrace import config
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
 from ddtrace._trace._span_pointer import _SpanPointerDescription
+from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace.span import Span
 from ddtrace._trace.utils import extract_DD_context_from_messages
 from ddtrace.constants import _SPAN_MEASURED_KEY
@@ -992,6 +993,70 @@ def _set_client_ip_tags(scope: Mapping[str, Any], span: Span):
             log.debug("Could not validate client IP address for websocket send message: %s", str(e))
 
 
+def _init_websocket_message_counters(scope: Mapping[str, Any]) -> None:
+    if "datadog" not in scope:
+        scope["datadog"] = {}  # type: ignore[index]
+    if "websocket_receive_counter" not in scope["datadog"]:
+        scope["datadog"]["websocket_receive_counter"] = 0  # type: ignore[index]
+    if "websocket_send_counter" not in scope["datadog"]:
+        scope["datadog"]["websocket_send_counter"] = 0  # type: ignore[index]
+
+
+def _increment_websocket_counter(scope: Mapping[str, Any], counter_type: str) -> int:
+    """
+    Increment and return websocket message counter (either websocket_receive_counter or websocket_send_counter)
+    """
+    scope["datadog"][counter_type] += 1  # type: ignore[index]
+    return scope["datadog"][counter_type]  # type: ignore[index,return-value]
+
+
+def _build_websocket_span_pointer_hash(
+    handshake_trace_id: int,
+    handshake_span_id: int,
+    counter: int,
+    is_server: bool,
+    is_incoming: bool,
+) -> str:
+    """
+    Build websocket span pointer hash.
+
+    Format: <prefix><128 bit hex trace id><64 bit hex span id><32 bit hex counter>
+    Prefix: 'S' for server outgoing or client incoming, 'C' for server incoming or client outgoing
+
+    :param handshake_trace_id: Trace ID from the handshake span
+    :param handshake_span_id: Span ID from the handshake span
+    :param counter: Message counter value
+    :param is_server: True if running on server side, False if client
+    :param is_incoming: True if incoming message, False if outgoing
+    :return: Span pointer hash string
+    """
+    if (is_server and not is_incoming) or (not is_server and is_incoming):
+        prefix = "S"
+    else:
+        prefix = "C"
+
+    trace_id_hex = f"{handshake_trace_id:032x}"
+    span_id_hex = f"{handshake_span_id:016x}"
+    counter_hex = f"{counter:08x}"
+
+    return f"{prefix}{trace_id_hex}{span_id_hex}{counter_hex}"
+
+
+def _has_distributed_tracing_context(span: Span) -> bool:
+    """
+    Check if the handshake span has extracted distributed tracing context.
+
+    A websocket server must not set the span pointer if the handshake has not extracted a context
+
+    A span has distributed tracing context if it has a parent context that was
+    extracted from headers (_is_remote=True).
+    """
+    if not span or not span._parent_context:
+        return False
+    # Check if the context was extracted from remote headers
+    return span._parent_context._is_remote
+
+
 def _on_asgi_websocket_receive_message(ctx, scope, message):
     """
     Handle websocket receive message events.
@@ -1011,16 +1076,38 @@ def _on_asgi_websocket_receive_message(ctx, scope, message):
     span.set_metric(websocket.MESSAGE_FRAMES, 1)
 
     if hasattr(ctx, "parent") and ctx.parent.span:
+        handshake_span = ctx.parent.span
+
+        # Add span pointer attributes if distributed tracing is enabled and context was extracted
+        if integration_config.distributed_tracing and _has_distributed_tracing_context(handshake_span):
+            counter = _increment_websocket_counter(scope, "websocket_receive_counter")
+
+            ptr_hash = _build_websocket_span_pointer_hash(
+                handshake_trace_id=handshake_span.trace_id,
+                handshake_span_id=handshake_span.span_id,
+                counter=counter,
+                is_server=True,
+                is_incoming=True,
+            )
+
+            link_attributes = {
+                "link.name": "span-pointer-up",
+                "dd.kind": "span-pointer",
+                "ptr.kind": "websocket",
+                "ptr.dir": _SpanPointerDirection.UPSTREAM,
+                "ptr.hash": ptr_hash,
+            }
+
         span.set_link(
-            trace_id=ctx.parent.span.trace_id,
-            span_id=ctx.parent.span.span_id,
-            attributes={SPAN_LINK_KIND: SpanLinkKind.EXECUTED},
+            trace_id=handshake_span.trace_id,
+            span_id=handshake_span.span_id,
+            attributes=link_attributes,
         )
 
         if getattr(integration_config, "asgi_websocket_messages_inherit_sampling", True):
-            _inherit_sampling_tags(span, ctx.parent.span._local_root)
+            _inherit_sampling_tags(span, handshake_span._local_root)
 
-        _copy_trace_level_tags(span, ctx.parent.span)
+        _copy_trace_level_tags(span, handshake_span)
 
 
 def _on_asgi_websocket_send_message(ctx, scope, message):
@@ -1041,10 +1128,32 @@ def _on_asgi_websocket_send_message(ctx, scope, message):
     span.set_metric(websocket.MESSAGE_FRAMES, 1)
 
     if hasattr(ctx, "parent") and ctx.parent.span:
+        handshake_span = ctx.parent.span
+
+        # Add span pointer attributes if distributed tracing is enabled and context was extracted
+        if integration_config.distributed_tracing and _has_distributed_tracing_context(handshake_span):
+            counter = _increment_websocket_counter(scope, "websocket_send_counter")
+
+            ptr_hash = _build_websocket_span_pointer_hash(
+                handshake_trace_id=handshake_span.trace_id,
+                handshake_span_id=handshake_span.span_id,
+                counter=counter,
+                is_server=True,
+                is_incoming=False,
+            )
+
+            link_attributes = {
+                "link.name": "span-pointer-down",
+                "dd.kind": "span-pointer",
+                "ptr.kind": "websocket",
+                "ptr.dir": _SpanPointerDirection.DOWNSTREAM,
+                "ptr.hash": ptr_hash,
+            }
+
         span.set_link(
-            trace_id=ctx.parent.span.trace_id,
-            span_id=ctx.parent.span.span_id,
-            attributes={SPAN_LINK_KIND: SpanLinkKind.RESUMING},
+            trace_id=handshake_span.trace_id,
+            span_id=handshake_span.span_id,
+            attributes=link_attributes,
         )
 
 
@@ -1068,13 +1177,38 @@ def _on_asgi_websocket_close_message(ctx, scope, message):
     _set_websocket_close_tags(span, message)
 
     if hasattr(ctx, "parent") and ctx.parent.span:
+        handshake_span = ctx.parent.span
+
+        # Build span link attributes
+        link_attributes = {SPAN_LINK_KIND: SpanLinkKind.RESUMING}
+
+        # Add span pointer attributes if distributed tracing is enabled and context was extracted
+        if integration_config.distributed_tracing and _has_distributed_tracing_context(handshake_span):
+            counter = _increment_websocket_counter(scope, "websocket_send_counter")
+
+            ptr_hash = _build_websocket_span_pointer_hash(
+                handshake_trace_id=handshake_span.trace_id,
+                handshake_span_id=handshake_span.span_id,
+                counter=counter,
+                is_server=True,
+                is_incoming=False,
+            )
+
+            link_attributes = {
+                "link.name": "span-pointer-down",
+                "dd.kind": "span-pointer",
+                "ptr.kind": "websocket",
+                "ptr.dir": _SpanPointerDirection.DOWNSTREAM,
+                "ptr.hash": ptr_hash,
+            }
+
         span.set_link(
-            trace_id=ctx.parent.span.trace_id,
-            span_id=ctx.parent.span.span_id,
-            attributes={SPAN_LINK_KIND: SpanLinkKind.RESUMING},
+            trace_id=handshake_span.trace_id,
+            span_id=handshake_span.span_id,
+            attributes=link_attributes,
         )
 
-        _copy_trace_level_tags(span, ctx.parent.span)
+        _copy_trace_level_tags(span, handshake_span)
 
 
 def _on_asgi_websocket_disconnect_message(ctx, scope, message):
@@ -1093,16 +1227,38 @@ def _on_asgi_websocket_disconnect_message(ctx, scope, message):
     _set_websocket_close_tags(span, message)
 
     if hasattr(ctx, "parent") and ctx.parent.span:
+        handshake_span = ctx.parent.span
+
+        # Add span pointer attributes if distributed tracing is enabled and context was extracted
+        if integration_config.distributed_tracing and _has_distributed_tracing_context(handshake_span):
+            counter = _increment_websocket_counter(scope, "websocket_receive_counter")
+
+            ptr_hash = _build_websocket_span_pointer_hash(
+                handshake_trace_id=handshake_span.trace_id,
+                handshake_span_id=handshake_span.span_id,
+                counter=counter,
+                is_server=True,
+                is_incoming=True,
+            )
+
+            link_attributes = {
+                "link.name": "span-pointer-up",
+                "dd.kind": "span-pointer",
+                "ptr.kind": "websocket",
+                "ptr.dir": _SpanPointerDirection.UPSTREAM,
+                "ptr.hash": ptr_hash,
+            }
+
         span.set_link(
-            trace_id=ctx.parent_span.trace_id,
-            span_id=ctx.parent_span.span_id,
-            attributes={SPAN_LINK_KIND: SpanLinkKind.EXECUTED},
+            trace_id=handshake_span.trace_id,
+            span_id=handshake_span.span_id,
+            attributes=link_attributes,
         )
 
         if getattr(integration_config, "asgi_websocket_messages_inherit_sampling", True):
-            _inherit_sampling_tags(span, ctx.parent.span._local_root)
+            _inherit_sampling_tags(span, handshake_span._local_root)
 
-        _copy_trace_level_tags(span, ctx.parent.span)
+        _copy_trace_level_tags(span, handshake_span)
 
 
 def _on_asgi_request(ctx: core.ExecutionContext) -> None:
@@ -1115,13 +1271,15 @@ def _on_asgi_request(ctx: core.ExecutionContext) -> None:
     span = _start_span(ctx)
     ctx.set_item("req_span", span)
 
-    if scope["type"] == "websocket":
-        span._set_tag_str("http.upgraded", "websocket")
-
     if "datadog" not in scope:
         scope["datadog"] = {"request_spans": [span]}
     else:
         scope["datadog"]["request_spans"].append(span)
+
+    if scope["type"] == "websocket":
+        span._set_tag_str("http.upgraded", "websocket")
+        # Initialize websocket message counters for span pointer tracking
+        _init_websocket_message_counters(scope)
 
 
 def listen():
