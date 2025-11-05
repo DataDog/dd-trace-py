@@ -148,7 +148,7 @@ dependencies = [
     "hypothesis",
     "torch>=1.8.1",
     "torchvision",
-    "lz4",
+    "zstandard",
 ]
 
 [envs.profiling_pytorch.env-vars]
