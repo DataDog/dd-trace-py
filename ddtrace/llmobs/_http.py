@@ -38,7 +38,7 @@ class ProxiedHTTPSConnection(HTTPSConnection):
         """Get proxy configuration from environment variables."""
         tunnel_port = port or default_port
         proxy = urlparse(proxy_url)
-        proxy_host = proxy.hostname
+        proxy_host = proxy.hostname or ""
 
         # Default to 3128 (Squid's default port, de facto standard for HTTP proxies)
         proxy_port = proxy.port or 3128
