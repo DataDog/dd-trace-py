@@ -14,9 +14,6 @@ LOG = get_logger(__name__)
 
 def start_profiler():
     if hasattr(bootstrap, "profiler"):
-        import os
-
-        print(f"{os.getpid()}: stopping profiler in ddtrace.profiling.bootstrap.start_profiler()")
         bootstrap.profiler.stop()
     # Export the profiler so we can introspect it if needed
     bootstrap.profiler = profiler.Profiler()

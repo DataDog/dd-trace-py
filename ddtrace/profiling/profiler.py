@@ -51,9 +51,7 @@ class Profiler(object):
         :param stop_on_exit: Whether to stop the profiler and flush the profile on exit.
         :param profile_children: Whether to start a profiler in child processes.
         """
-        import os
 
-        print(f"{os.getpid()}: Profiler start()")
         if profile_children:
             try:
                 uwsgi.check_uwsgi(self._restart_on_fork, atexit=self.stop if stop_on_exit else None)
@@ -70,9 +68,6 @@ class Profiler(object):
         self._profiler.start()
 
         if stop_on_exit:
-            import os
-
-            print(f"{os.getpid()}: registering atexit with stop_on_exit")
             atexit.register(self.stop)
 
         if profile_children:
@@ -85,36 +80,24 @@ class Profiler(object):
 
         :param flush: Flush last profile.
         """
-
-        import os
-
-        print(f"{os.getpid()}: stopping profiler in stop()")
         atexit.unregister(self.stop)
-
         try:
             self._profiler.stop(flush)
             telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, False)
         except service.ServiceStatusError:
-            print(f"{os.getpid()}: service status error in stop()")
             # Not a best practice, but for backward API compatibility that allowed to call `stop` multiple times.
             pass
 
     def _restart_on_fork(self):
-        import os
-
         # Be sure to stop the parent first, since it might have to e.g. unpatch functions
         # Do not flush data as we don't want to have multiple copies of the parent profile exported.
         try:
-            print(f"{os.getpid()}: stopping profiler in _restart_on_fork()")
             self._profiler.stop(flush=False, join=False)
         except service.ServiceStatusError:
             # This can happen in uWSGI mode: the children won't have the _profiler started from the master process
             pass
-        print(f"{os.getpid()}: copying profiler")
         self._profiler = self._profiler.copy()
-        print(f"{os.getpid()}: starting profiler")
         self._profiler.start()
-        print(f"{os.getpid()}: started profiler")
 
     def __getattr__(
         self,

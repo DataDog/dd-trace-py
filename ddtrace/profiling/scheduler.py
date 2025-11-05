@@ -49,10 +49,6 @@ class Scheduler(periodic.PeriodicService):
             except Exception:
                 LOG.error("Scheduler before_flush hook failed", exc_info=True)
 
-        import os
-
-        print(f"{os.getpid()}: calling ddup.upload")
-
         ddup.upload(self._tracer, self._enable_code_provenance)
 
         self._last_export = time.time_ns()

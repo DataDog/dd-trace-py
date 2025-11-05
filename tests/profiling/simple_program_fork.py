@@ -17,8 +17,6 @@ assert ddtrace.profiling.bootstrap.profiler.status == service.ServiceStatus.RUNN
 
 child_pid = os.fork()
 if child_pid == 0:
-    # Child process
-    print(f"{os.getpid()}:start", flush=True)
     # Release it
     lock.release()
 
@@ -26,12 +24,9 @@ if child_pid == 0:
     lock = threading.Lock()
     lock.acquire()
     lock.release()
-    print(f"{os.getpid()}:end", flush=True)
 else:
-    # Parent process
-    print(f"{os.getpid()}:child_pid={child_pid}", flush=True)
     lock.release()
     assert ddtrace.profiling.bootstrap.profiler.status == service.ServiceStatus.RUNNING
+    print(child_pid)
     pid, status = os.waitpid(child_pid, 0)
-    print(f"{os.getpid()}:done", flush=True)
     sys.exit(os.WEXITSTATUS(status))
