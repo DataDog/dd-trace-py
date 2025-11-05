@@ -15,6 +15,15 @@ from ddtrace.internal.symbol_db.symbols import Symbol
 from ddtrace.internal.symbol_db.symbols import SymbolType
 
 
+@pytest.fixture(autouse=True, scope="function")
+def pid_file_teardown():
+    from ddtrace.internal.symbol_db.remoteconfig import shared_pid_file
+
+    yield
+
+    shared_pid_file.clear()
+
+
 def test_symbol_from_code():
     def foo(a, b, c=None):
         loc = 42
@@ -320,3 +329,36 @@ def test_symbols_fork_uploads():
 
     for pid in pids:
         os.waitpid(pid, 0)
+
+
+def spawn_target(results):
+    from ddtrace.internal.remoteconfig import ConfigMetadata
+    from ddtrace.internal.remoteconfig import Payload
+    from ddtrace.internal.symbol_db.remoteconfig import _rc_callback
+    from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
+
+    SymbolDatabaseUploader.install()
+
+    rc_data = [Payload(ConfigMetadata("test", "symdb", "hash", 0, 0), "test", None)]
+    _rc_callback(rc_data)
+    results.append(SymbolDatabaseUploader.is_installed())
+
+
+@pytest.mark.subprocess
+def test_symbols_spawn_uploads():
+    import multiprocessing
+
+    mc_context = multiprocessing.get_context("spawn")
+    manager = multiprocessing.Manager()
+    returns = manager.list()
+    jobs = []
+
+    for _ in range(10):
+        p = mc_context.Process(target=spawn_target, args=(returns,))
+        p.start()
+        jobs.append(p)
+
+    for p in jobs:
+        p.join()
+
+    assert sum(returns) == 1, returns
