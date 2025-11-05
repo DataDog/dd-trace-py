@@ -28,7 +28,7 @@ TEST_FILE = "tests/appsec/integrations/django_tests/django_app/views.py"
 
 
 def get_iast_stack_trace(root_span):
-    appsec_traces = root_span.get_struct_tag(STACK_TRACE.TAG) or {}
+    appsec_traces = root_span._get_struct_tag(STACK_TRACE.TAG) or {}
     stacks = appsec_traces.get("vulnerability", [])
     return stacks
 

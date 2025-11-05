@@ -10,6 +10,9 @@ for distributed tracing, metrics, and logs.
 By default, telemetry data is routed to a Datadog Agent.
 The minimum supported Datadog Agent version is ``v7.33.0`` (but recommended to use ``>=7.66`` for best performance).
 
+**Note:** OpenTelemetry support is lazily loaded when the ``opentelemetry`` package is first imported. Ensure
+``import opentelemetry...`` or ``from opentelemetry....`` is present in your code.
+
 
 Tracing
 -------

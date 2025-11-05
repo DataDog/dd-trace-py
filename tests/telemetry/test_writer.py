@@ -83,6 +83,7 @@ import ddtrace.auto
 import ddtrace.internal.settings.symbol_db
 import ddtrace.internal.settings.dynamic_instrumentation
 import ddtrace.internal.settings.exception_replay
+import opentelemetry
     """
 
     env = os.environ.copy()
