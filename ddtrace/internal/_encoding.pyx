@@ -1122,6 +1122,37 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
                 meta.append((k, v))
             else:
                 log.warning("[span ID %d] Meta key %r has non-string value %r, skipping", span_id, k, v)
+
+        ret = msgpack_pack_map(
+            &self.pk,
+            len(meta) + (dd_origin is not NULL) + (len(span_links) > 0) + (len(span_events) > 0)
+        )
+        if ret != 0:
+            return ret
+        if meta:
+            for k, v in meta:
+                ret = self._pack_string(k)
+                if ret != 0:
+                    return ret
+                ret = self._pack_string(v)
+                if ret != 0:
+                    return ret
+        if dd_origin is not NULL:
+            ret = msgpack_pack_uint32(&self.pk, <stdint.uint32_t> 1)
+            if ret != 0:
+                return ret
+            ret = msgpack_pack_uint32(&self.pk, <stdint.uint32_t> dd_origin)
+            if ret != 0:
+                return ret
+        if span_links:
+            ret = self._pack_string(SPAN_LINKS_KEY)
+            if ret != 0:
+                return ret
+            ret = self._pack_string(span_links)
+            if ret != 0:
+                return ret
+        if span_events:
+            ret = self._pack_string(SPAN_EVENTS_KEY)
             if ret != 0:
                 return ret
             ret = self._pack_string(span_events)
