@@ -196,7 +196,6 @@ class ErrorTestCases(TracerTestCase):
         assert value == 10
         self.assert_span_count(1)
         assert len(self.spans[0]._events) == 1
-        # The exception type should include the test class path
         assert "UnhashableException" in self.spans[0]._events[0].attributes["exception.type"]
         assert self.spans[0]._events[0].attributes["exception.message"] == "unhashable error"
 
