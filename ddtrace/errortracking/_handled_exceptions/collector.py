@@ -21,7 +21,6 @@ def _add_span_events(span: Span) -> None:
     a span event for every handled exceptions, we store them in the span
     and add them when the span finishes.
     """
-    # Extract just the SpanEvent objects from the stored (exception, event) tuples
     exception_data = HandledExceptionCollector.get_exception_events(span.span_id).values()
     span_exc_events = [event for _exc, event in exception_data]
     if span_exc_events:
