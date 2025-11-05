@@ -24,31 +24,15 @@ class ProxiedHTTPSConnection(HTTPSConnection):
         self, host: str, port: Optional[int] = None, context: Optional[ssl.SSLContext] = None, **kwargs
     ) -> None:
         if "HTTPS_PROXY" in os.environ:
-            proxy_host, proxy_port, tunnel_host, tunnel_port = self._get_proxy_config(
-                os.environ["HTTPS_PROXY"], host, port, default_port=443
-            )
+            tunnel_port = port or 443
+            proxy = urlparse(os.environ["HTTPS_PROXY"])
+            proxy_host = proxy.hostname or ""
+            # Default to 3128 (Squid's default port, de facto standard for HTTP proxies)
+            proxy_port = proxy.port or 3128
             super().__init__(proxy_host, proxy_port, **kwargs)
-            self.set_tunnel(tunnel_host, tunnel_port)
+            self.set_tunnel(host, tunnel_port)
         else:
             super().__init__(host, port, **kwargs)
-
-    def _get_proxy_config(
-        self, proxy_url: str, host: str, port: Optional[int], default_port: int
-    ) -> Tuple[str, int, str, int]:
-        """Get proxy configuration from environment variables."""
-        tunnel_port = port or default_port
-        proxy = urlparse(proxy_url)
-        proxy_host = proxy.hostname or ""
-
-        # Default to 3128 (Squid's default port, de facto standard for HTTP proxies)
-        proxy_port = proxy.port or 3128
-
-        self.proxy_auth = None
-        if proxy.username and proxy.password:
-            creds = f"{proxy.username}:{proxy.password}".encode()
-            self.proxy_auth = base64.b64encode(creds).decode()
-
-        return proxy_host, proxy_port, host, tunnel_port
 
 
 def get_connection(url: str, timeout: float = DEFAULT_TIMEOUT) -> ConnectionType:
