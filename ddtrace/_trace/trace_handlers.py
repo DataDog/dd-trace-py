@@ -993,21 +993,21 @@ def _set_client_ip_tags(scope: Mapping[str, Any], span: Span):
             log.debug("Could not validate client IP address for websocket send message: %s", str(e))
 
 
-def _init_websocket_message_counters(scope: Mapping[str, Any]) -> None:
+def _init_websocket_message_counters(scope: Dict[str, Any]) -> None:
     if "datadog" not in scope:
-        scope["datadog"] = {}  # type: ignore[index]
+        scope["datadog"] = {}
     if "websocket_receive_counter" not in scope["datadog"]:
-        scope["datadog"]["websocket_receive_counter"] = 0  # type: ignore[index]
+        scope["datadog"]["websocket_receive_counter"] = 0
     if "websocket_send_counter" not in scope["datadog"]:
-        scope["datadog"]["websocket_send_counter"] = 0  # type: ignore[index]
+        scope["datadog"]["websocket_send_counter"] = 0
 
 
-def _increment_websocket_counter(scope: Mapping[str, Any], counter_type: str) -> int:
+def _increment_websocket_counter(scope: Dict[str, Any], counter_type: str) -> int:
     """
     Increment and return websocket message counter (either websocket_receive_counter or websocket_send_counter)
     """
-    scope["datadog"][counter_type] += 1  # type: ignore[index]
-    return scope["datadog"][counter_type]  # type: ignore[index,return-value]
+    scope["datadog"][counter_type] += 1
+    return scope["datadog"][counter_type]
 
 
 def _build_websocket_span_pointer_hash(
