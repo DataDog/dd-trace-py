@@ -106,7 +106,7 @@ class Contrib_TestClass_For_Threats:
         assert triggers is not None, "no appsec struct in root span"
         result = [t["rule"]["id"] for t in triggers]
         assert result == [rule_id], f"result={result}, expected={[rule_id]}"
-        return triggers[0].get("block_id", None)
+        return triggers[0].get("security_response_id", None)
 
     def check_rules_triggered(self, rule_id: List[str], entry_span):
         triggers = get_triggers(entry_span())
