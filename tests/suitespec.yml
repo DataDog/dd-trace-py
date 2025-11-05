@@ -95,6 +95,9 @@ components:
     - ddtrace/internal/opentelemetry/*
   opentracer:
     - ddtrace/opentracer/*
+  process_tags:
+    - ddtrace/internal/process_tags/*
+    - tests/process_tags/*
   profiling:
     - ddtrace/profiling/*
     - ddtrace/internal/datadog/profiling/*
@@ -242,6 +245,13 @@ suites:
       - '@core'
     runner: riot
     pattern: ^openfeature$
+  process_tags:
+    parallelism: 1
+    paths:
+      - '@process_tags'
+      - '@core'
+      - '@tracing'
+    runner: riot
   telemetry:
     parallelism: 1
     paths:
