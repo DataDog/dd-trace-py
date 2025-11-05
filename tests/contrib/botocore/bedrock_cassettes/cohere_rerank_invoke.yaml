@@ -1,0 +1,52 @@
+interactions:
+- request:
+    body: '{"query": "What is the capital of the United States?", "documents": ["Carson
+      City is the capital city of the American state of Nevada.", "The Commonwealth
+      of the Northern Mariana Islands is a group of islands in the Pacific Ocean.
+      Its capital is Saipan.", "Washington, D.C. (also known as simply Washington
+      or D.C., and officially as the District of Columbia) is the capital of the United
+      States. It is a federal district.", "Capitalization or capitalisation in English
+      grammar is the use of a capital letter at the start of a word. English usage
+      varies from capitalization in other languages.", "Capital punishment has existed
+      in the United States since beforethe United States was a country. As of 2017,
+      capital punishment is legal in 30 of the 50 states."], "api_version": 2, "top_n":
+      3}'
+    headers:
+      Content-Length:
+      - '790'
+      User-Agent:
+      - !!binary |
+        Qm90bzMvMS4zNC40OSBtZC9Cb3RvY29yZSMxLjM0LjQ5IHVhLzIuMCBvcy9tYWNvcyMyNC42LjAg
+        bWQvYXJjaCNhcm02NCBsYW5nL3B5dGhvbiMzLjExLjEzIG1kL3B5aW1wbCNDUHl0aG9uIGNmZy9y
+        ZXRyeS1tb2RlI2xlZ2FjeSBCb3RvY29yZS8xLjM0LjQ5
+      X-Amz-Date:
+      - !!binary |
+        MjAyNTEwMzFUMjEwODQ2Wg==
+      amz-sdk-invocation-id:
+      - !!binary |
+        NDNlZWJhN2EtNGY1Yy00ZDI1LWFmNzUtYjY0NDNjNmUzYzM0
+      amz-sdk-request:
+      - !!binary |
+        YXR0ZW1wdD0x
+    method: POST
+    uri: https://bedrock-runtime.us-east-1.amazonaws.com/model/cohere.rerank-v3-5%3A0/invoke
+  response:
+    body:
+      string: '{"results":[{"index":2,"relevance_score":0.8742601},{"index":0,"relevance_score":0.1728413},{"index":4,"relevance_score":0.10793502}]}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '134'
+      Content-Type:
+      - application/json
+      Date:
+      - Fri, 31 Oct 2025 21:08:47 GMT
+      X-Amzn-Bedrock-Invocation-Latency:
+      - '109'
+      x-amzn-RequestId:
+      - de4d85e7-fe35-4809-bda9-7675d0eb091f
+    status:
+      code: 200
+      message: OK
+version: 1

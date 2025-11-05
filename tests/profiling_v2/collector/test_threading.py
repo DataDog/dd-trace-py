@@ -360,6 +360,70 @@ def test_rlock_gevent_tasks() -> None:
     validate_and_cleanup()
 
 
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="true"))
+def test_assertion_error_raised_with_enable_asserts():
+    """Ensure that AssertionError is propagated when config.enable_asserts=True."""
+    import threading
+
+    import mock
+    import pytest
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+
+    # Initialize ddup (required before using collectors)
+    assert ddup.is_available, "ddup is not available"
+    ddup.config(env="test", service="test_asserts", version="1.0", output_filename="/tmp/test_asserts")
+    ddup.start()
+
+    with ThreadingLockCollector(capture_pct=100):
+        lock = threading.Lock()
+
+        # Patch _maybe_update_self_name to raise AssertionError
+        lock._maybe_update_self_name = mock.Mock(side_effect=AssertionError("test: unexpected frame in stack"))
+
+        with pytest.raises(AssertionError):
+            # AssertionError should be propagated when enable_asserts=True
+            lock.acquire()
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="false"))
+def test_all_exceptions_suppressed_by_default() -> None:
+    """
+    Ensure that exceptions are silently suppressed in the `_acquire` method
+    when config.enable_asserts=False (default).
+    """
+    import threading
+
+    import mock
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+
+    # Initialize ddup (required before using collectors)
+    assert ddup.is_available, "ddup is not available"
+    ddup.config(env="test", service="test_exceptions", version="1.0", output_filename="/tmp/test_exceptions")
+    ddup.start()
+
+    with ThreadingLockCollector(capture_pct=100):
+        lock = threading.Lock()
+
+        # Patch _maybe_update_self_name to raise AssertionError
+        lock._maybe_update_self_name = mock.Mock(side_effect=AssertionError("Unexpected frame in stack: 'fubar'"))
+        lock.acquire()
+        lock.release()
+
+        # Patch _maybe_update_self_name to raise RuntimeError
+        lock._maybe_update_self_name = mock.Mock(side_effect=RuntimeError("Some profiling error"))
+        lock.acquire()
+        lock.release()
+
+        # Patch _maybe_update_self_name to raise Exception
+        lock._maybe_update_self_name = mock.Mock(side_effect=Exception("Wut happened?!?!"))
+        lock.acquire()
+        lock.release()
+
+
 class BaseThreadingLockCollectorTest:
     # These should be implemented by child classes
     @property

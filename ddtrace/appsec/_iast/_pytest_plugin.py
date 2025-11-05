@@ -31,7 +31,7 @@ try:
             return
 
         # looking for IAST data in the span
-        dict_data = ddspan.get_struct_tag(IAST.STRUCT)
+        dict_data = ddspan._get_struct_tag(IAST.STRUCT)
         if dict_data is None:
             data = ddspan.get_tag(IAST.JSON)
             if data is None:

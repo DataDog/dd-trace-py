@@ -96,7 +96,7 @@ def _(asyncio):
             scheduled_tasks = asyncio.tasks._all_tasks.data
             eager_tasks = None
 
-        stack_v2.init_asyncio(asyncio.tasks._current_tasks, scheduled_tasks, eager_tasks)  # type: ignore[attr-defined]
+        stack_v2.init_asyncio(asyncio.tasks._current_tasks, scheduled_tasks, eager_tasks)
 
 
 def get_event_loop_for_thread(thread_id: int) -> typing.Union["asyncio.AbstractEventLoop", None]:
