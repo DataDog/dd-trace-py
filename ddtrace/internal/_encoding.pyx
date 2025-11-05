@@ -25,7 +25,7 @@ from .constants import MAX_UINT_64BITS
 from .logger import get_logger
 from .._trace._limits import MAX_SPAN_META_VALUE_LEN
 from .._trace._limits import TRUNCATED_SPAN_ATTRIBUTE_LEN
-from ..settings._agent import config as agent_config
+from ..internal.settings._agent import config as agent_config
 
 
 DEF MSGPACK_ARRAY_LENGTH_PREFIX_SIZE = 5

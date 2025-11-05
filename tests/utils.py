@@ -40,6 +40,10 @@ from ddtrace.internal.packages import filename_to_package
 from ddtrace.internal.packages import is_third_party
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.schema import SCHEMA_VERSION
+from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings._database_monitoring import dbm_config
+from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.settings.openfeature import config as ffe_config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.writer import AgentWriter
@@ -48,9 +52,6 @@ from ddtrace.internal.writer import NativeWriter
 from ddtrace.propagation._database_monitoring import listen as dbm_config_listen
 from ddtrace.propagation._database_monitoring import unlisten as dbm_config_unlisten
 from ddtrace.propagation.http import _DatadogMultiHeader
-from ddtrace.settings._agent import config as agent_config
-from ddtrace.settings._database_monitoring import dbm_config
-from ddtrace.settings.asm import config as asm_config
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
 from tests.subprocesstest import SubprocessTestCase
@@ -165,6 +166,7 @@ def override_global_config(values):
         "_telemetry_dependency_collection",
         "_dd_site",
         "_dd_api_key",
+        "_dd_app_key",
         "_llmobs_enabled",
         "_llmobs_sample_rate",
         "_llmobs_ml_app",
@@ -177,9 +179,13 @@ def override_global_config(values):
 
     asm_config_keys = asm_config._asm_config_keys
 
+    # OpenFeature config keys
+    openfeature_config_keys = ffe_config._openfeature_config_keys
+
     # Grab the current values of all keys
     originals = dict((key, getattr(ddtrace.config, key)) for key in global_config_keys)
     asm_originals = dict((key, getattr(asm_config, key)) for key in asm_config_keys)
+    openfeature_originals = dict((key, getattr(ffe_config, key)) for key in openfeature_config_keys)
 
     # Override from the passed in keys
     for key, value in values.items():
@@ -189,6 +195,10 @@ def override_global_config(values):
     for key, value in values.items():
         if key in asm_config_keys:
             setattr(asm_config, key, value)
+    # Override openfeature config
+    for key, value in values.items():
+        if key in openfeature_config_keys:
+            setattr(ffe_config, key, value)
     # If ddtrace.settings.asm.config has changed, check _asm_can_be_enabled again
     asm_config._eval_asm_can_be_enabled()
     from ddtrace.appsec._processor import AppSecSpanProcessor
@@ -223,6 +233,9 @@ def override_global_config(values):
         asm_config.reset()
         for key, value in asm_originals.items():
             setattr(asm_config, key, value)
+
+        for key, value in openfeature_originals.items():
+            setattr(ffe_config, key, value)
 
         ddtrace.config._reset()
 

@@ -209,13 +209,6 @@ Flask Cache
 .. automodule:: ddtrace.contrib.flask_cache
 
 
-.. _freezegun:
-
-FreezeGun
-^^^^^^^^^
-.. automodule:: ddtrace.contrib.internal.freezegun
-
-
 .. _futures:
 
 futures
@@ -242,12 +235,6 @@ google-adk
 google-genai
 ^^^^^^^^^^^^
 .. automodule:: ddtrace.contrib.internal.google_genai
-
-.. _google_generativeai:
-
-google-generativeai
-^^^^^^^^^^^^^^^^^^^
-.. automodule:: ddtrace.contrib.internal.google_generativeai
 
 
 .. _graphql:
