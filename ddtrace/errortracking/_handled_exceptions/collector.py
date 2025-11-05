@@ -30,13 +30,14 @@ def _add_span_events(span: Span) -> None:
 
 def _on_span_exception(span, _exc_msg, exc_val, _exc_tb):
     exception_events = HandledExceptionCollector.get_exception_events(span.span_id)
-    if exception_events and exc_val in exception_events:
-        del exception_events[exc_val]
+    exc_id = id(exc_val)
+    if exception_events and exc_id in exception_events:
+        del exception_events[exc_id]
 
 
 class HandledExceptionCollector(Service):
     _instance: t.Optional["HandledExceptionCollector"] = None
-    _span_exception_events: t.Dict[int, t.Dict[Exception, SpanEvent]] = {}
+    _span_exception_events: t.Dict[int, t.Dict[int, SpanEvent]] = {}
 
     def __init__(self) -> None:
         super(HandledExceptionCollector, self).__init__()
@@ -111,8 +112,9 @@ class HandledExceptionCollector(Service):
         events_dict = cls._span_exception_events.setdefault(span_id, {})
         if not events_dict:
             span._add_on_finish_exception_callback(_add_span_events)
-        if exc in events_dict or len(events_dict) < COLLECTOR_MAX_SIZE_PER_SPAN:
-            events_dict[exc] = event
+        exc_id = id(exc)
+        if exc_id in events_dict or len(events_dict) < COLLECTOR_MAX_SIZE_PER_SPAN:
+            events_dict[exc_id] = event
 
     @classmethod
     def get_exception_events(cls, span_id: int):

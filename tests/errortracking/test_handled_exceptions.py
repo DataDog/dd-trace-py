@@ -164,6 +164,42 @@ class ErrorTestCases(TracerTestCase):
         assert self.spans[1].name == "child_span"
         assert len(self.spans[1]._events) == 0
 
+    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
+    def test_unhashable_exception(self):
+        """Test that unhashable exceptions (e.g., with mutable attributes) are handled correctly."""
+        from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
+
+        class UnhashableException(Exception):
+            def __init__(self, message, mutable_data):
+                super().__init__(message)
+                self.mutable_data = mutable_data
+
+            def __eq__(self, other):
+                # This makes the exception unhashable if __hash__ is not defined
+                return isinstance(other, UnhashableException) and self.message == other.message
+
+        HandledExceptionCollector.enable()
+
+        value = 0
+
+        @self.tracer.wrap()
+        def f():
+            nonlocal value
+            try:
+                raise UnhashableException("unhashable error", {"key": "value"})
+            except UnhashableException:
+                value = 10
+
+        f()
+        HandledExceptionCollector.disable()
+
+        assert value == 10
+        self.assert_span_count(1)
+        assert len(self.spans[0]._events) == 1
+        # The exception type should include the test class path
+        assert "UnhashableException" in self.spans[0]._events[0].attributes["exception.type"]
+        assert self.spans[0]._events[0].attributes["exception.message"] == "unhashable error"
+
 
 @skipif_errortracking_not_supported
 class UserCodeErrorTestCases(TracerTestCase):
