@@ -1,13 +1,13 @@
 """AI Guard client for security evaluation of agentic AI workflows."""
+
 import json
 from typing import Any
-from typing import Dict
 from typing import List
+from typing import Literal
 from typing import Optional  # noqa:F401
-from typing import Text
 from typing import TypedDict
-from typing import Union
 
+import ddtrace
 from ddtrace import config
 from ddtrace import tracer as ddtracer
 from ddtrace._trace.tracer import Tracer
@@ -29,98 +29,65 @@ ABORT = "ABORT"
 ACTIONS = [ALLOW, DENY, ABORT]
 
 
-class _PromptOptional(TypedDict, total=False):
-    output: str
+class Function(TypedDict):
+    name: str
+    arguments: str
 
 
-class Prompt(_PromptOptional):
+class ToolCall(TypedDict):
+    id: str
+    function: Function
+
+
+class Message(TypedDict, total=False):
     role: str
     content: str
+    tool_call_id: str
+    tool_calls: List[ToolCall]
 
 
-class _ToolCallOptional(TypedDict, total=False):
-    output: str
+class Evaluation(TypedDict):
+    action: Literal["ALLOW", "DENY", "ABORT"]
+    reason: str
 
 
-class ToolCall(_ToolCallOptional):
-    tool_name: str
-    tool_args: Dict[Union[Text, bytes], Any]
+class Options(TypedDict, total=False):
+    block: bool
 
 
-Evaluation = Union[Prompt, ToolCall]
+class Error(TypedDict, total=False):
+    status: str
+    title: str
+    code: str
+    detail: str
 
 
 class AIGuardClientError(Exception):
     """Exception for AI Guard client errors."""
 
-    pass
+    def __init__(self, message: Optional[str], status: int = 0, errors: Optional[List[Error]] = None):
+        self.status = status
+        self.errors = errors or []
+        super().__init__(message)
 
 
 class AIGuardAbortError(Exception):
     """Exception to abort current execution due to security policy."""
 
-    pass
-
-
-class AIGuardWorkflow:
-    """Manages conversation history and evaluates tool calls against AI Guard policies."""
-
-    def __init__(self, client: "AIGuardClient"):
-        self._client = client
-        self._history: List[Evaluation] = []
-
-    def add_system_prompt(self, content: str, output: Optional[str] = None) -> "AIGuardWorkflow":
-        """Add a system prompt to the history of the workflow"""
-        return self.add_prompt("system", content, output)
-
-    def add_user_prompt(self, content: str, output: Optional[str] = None) -> "AIGuardWorkflow":
-        """Add a user prompt to the history of the workflow"""
-        return self.add_prompt("user", content, output)
-
-    def add_assistant_prompt(self, content: str, output: Optional[str] = None) -> "AIGuardWorkflow":
-        """Add an assistant prompt to the history of the workflow"""
-        return self.add_prompt("assistant", content, output)
-
-    def add_prompt(self, role: str, content: str, output: Optional[str] = None) -> "AIGuardWorkflow":
-        """Add a prompt to the history of the workflow"""
-        current = Prompt(role=role, content=content)
-        if output is not None:
-            current["output"] = output
-        self._history.append(current)
-        return self
-
-    def add_tool(
-        self, tool_name: str, tool_args: Dict[Union[Text, bytes], Any], output: Optional[str] = None
-    ) -> "AIGuardWorkflow":
-        """Add a tool execution to the history of the workflow"""
-        current = ToolCall(tool_name=tool_name, tool_args=tool_args)
-        if output is not None:
-            current["output"] = output
-        self._history.append(current)
-        return self
-
-    def evaluate_tool(
-        self,
-        tool_name: str,
-        tool_args: Dict[Union[Text, bytes], Any],
-        output: Optional[str] = None,
-        tags: Optional[Dict[Union[Text, bytes], Any]] = None,
-    ) -> bool:
-        return self._client.evaluate_tool(tool_name, tool_args, output=output, history=self._history, tags=tags)
-
-    def evaluate_prompt(self, role: str, content: str, tags: Optional[Dict[Union[Text, bytes], Any]] = None) -> bool:
-        return self._client.evaluate_prompt(role, content, history=self._history, tags=tags)
+    def __init__(self, action: str, reason: str):
+        self.action = action
+        self.reason = reason
+        super().__init__(f"AIGuardAbortError(action='{action}', reason='{reason}')")
 
 
 class AIGuardClient:
     """HTTP client for communicating with AI Guard security service."""
 
-    def __init__(self, endpoint: str, timeout: float, api_key: str, app_key: str, tracer: Tracer):
+    def __init__(self, endpoint: str, api_key: str, app_key: str, tracer: Tracer):
         """Initialize AI Guard client.
 
         Args:
             endpoint: AI Guard service endpoint URL
-            timeout: Request timeout in seconds
             api_key: Datadog API key
             app_key: Datadog application key
             tracer: Datadog tracer instance
@@ -128,208 +95,181 @@ class AIGuardClient:
 
         self._tracer = tracer
         self._endpoint = endpoint
-        self._timeout = timeout
         self._headers = {
             "Content-Type": "application/json",
             "DD-API-KEY": api_key,
             "DD-APPLICATION-KEY": app_key,
+            "DD-AI-GUARD-VERSION": ddtrace.__version__,
+            "DD-AI-GUARD-SOURCE": "SDK",
+            "DD-AI-GUARD-LANGUAGE": "python",
         }
-
-    def new_workflow(self) -> AIGuardWorkflow:
-        """Create a new workflow instance for managing conversation history."""
-        return AIGuardWorkflow(client=self)
+        self._meta = {"service": config.service, "env": config.env}
+        self._timeout = ai_guard_config._ai_guard_timeout // 1000
 
     @staticmethod
     def _add_request_to_telemetry(tags: MetricTagType) -> None:
         telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, AI_GUARD.REQUESTS_METRIC, 1, tags)
 
-    def evaluate_tool(
-        self,
-        tool_name: str,
-        tool_args: Dict[Union[Text, bytes], Any],
-        output: Optional[str] = None,
-        history: Optional[List[Evaluation]] = None,
-        tags: Optional[Dict[Union[Text, bytes], Any]] = None,
-    ) -> bool:
-        """Evaluate if a tool call is safe to execute.
+    @staticmethod
+    def _messages_for_meta_struct(messages: List[Message]) -> List[Message]:
+        max_messages_length = ai_guard_config._ai_guard_max_messages_length
+        if len(messages) > max_messages_length:
+            telemetry.telemetry_writer.add_count_metric(
+                TELEMETRY_NAMESPACE.APPSEC, AI_GUARD.TRUNCATED_METRIC, 1, (("type", "messages"),)
+            )
+        messages = messages[-max_messages_length:]
 
-        Args:
-            tool_name: Name of the tool being called
-            tool_args: Arguments passed to the tool
-            output: Output of the tool call
-            history: History of previous tool calls or prompts
-            tags: Tags to set on the created span
-
-        Returns:
-            True if tool execution is allowed, False if denied
-
-        Raises:
-            AIGuardAbortError: If execution should be aborted
-            AIGuardClientError: If evaluation request fails
-        """
-        if history is None:
-            history = []
-
-        if tags is None:
-            tags = {}
-        tags[AI_GUARD.TARGET_TAG] = "tool"
-        tags[AI_GUARD.TOOL_NAME_TAG] = tool_name
-
-        tool_call = ToolCall(tool_name=tool_name, tool_args=tool_args)
-        if output is not None:
-            tool_call["output"] = output
-
-        return self._evaluate(tool_call, history, tags)
-
-    def evaluate_prompt(
-        self,
-        role: str,
-        content: str,
-        output: Optional[str] = None,
-        history: Optional[List[Evaluation]] = None,
-        tags: Optional[Dict[Union[Text, bytes], Any]] = None,
-    ) -> bool:
-        """Evaluate if a prompt is safe to execute.
-
-        Args:
-            role: Role of the prompt author
-            content: The prompt content
-            output: Output of the prompt
-            history: History of previous tool calls or prompts
-            tags: Tags to set on the created span
-
-        Returns:
-            True if prompt execution is allowed, False if denied
-
-        Raises:
-            AIGuardAbortError: If execution should be aborted
-            AIGuardClientError: If evaluation request fails
-        """
-        if history is None:
-            history = []
-
-        if tags is None:
-            tags = {}
-        tags[AI_GUARD.TARGET_TAG] = "prompt"
-
-        prompt = Prompt(role=role, content=content)
-        if output is not None:
-            prompt["output"] = output
-
-        return self._evaluate(prompt, history, tags)
-
-    def _set_ai_guard_tags(
-        self, span, action: str, reason: Optional[str], blocked: bool, current: Evaluation, history: List[Evaluation]
-    ):
-        span.set_tag(AI_GUARD.ACTION_TAG, action)
-        if reason:
-            span.set_tag(AI_GUARD.REASON_TAG, reason)
-
-        if blocked:
-            span.set_tag(AI_GUARD.BLOCKED_TAG, "true")
-
-        if history:
-            max_history_length = ai_guard_config._ai_guard_max_history_length
-            if len(history) > max_history_length:
-                history = history[-max_history_length:]
-                telemetry.telemetry_writer.add_count_metric(
-                    TELEMETRY_NAMESPACE.APPSEC, AI_GUARD.TRUNCATED_METRIC, 1, (("type", "history"),)
-                )
-
-        content_truncated = False
         max_content_size = ai_guard_config._ai_guard_max_content_size
+        content_truncated = False
 
-        def truncate_content(evaluation: Evaluation) -> Evaluation:
+        def truncate_message(message: Message) -> Message:
             nonlocal content_truncated
-
-            if "content" in evaluation and len(str(evaluation["content"])) > max_content_size:  # type: ignore[typeddict-item]
-                truncated = evaluation.copy()
-                truncated["content"] = str(truncated["content"])[:max_content_size]  # type: ignore[typeddict-item, typeddict-unknown-key]
+            content = message.get("content", "")
+            if len(content) > max_content_size:
+                truncated = message.copy()
+                truncated["content"] = content[:max_content_size]
                 content_truncated = True
                 return truncated
+            return message
 
-            if "output" in evaluation and len(str(evaluation["output"])) > max_content_size:
-                truncated = evaluation.copy()
-                truncated["output"] = str(truncated["output"])[:max_content_size]
-                content_truncated = True
-                return truncated
-
-            return evaluation
-
-        span.set_struct_tag(
-            AI_GUARD.STRUCT,
-            {
-                "history": [truncate_content(e) for e in history],
-                "current": truncate_content(current),
-            },
-        )
-
+        result = [truncate_message(message) for message in messages]
         if content_truncated:
             telemetry.telemetry_writer.add_count_metric(
                 TELEMETRY_NAMESPACE.APPSEC, AI_GUARD.TRUNCATED_METRIC, 1, (("type", "content"),)
             )
+        return result
 
-    def _evaluate(self, current: Evaluation, history: List[Evaluation], tags: Dict[Union[Text, bytes], Any]) -> bool:
-        """Send evaluation request to AI Guard service."""
+    @staticmethod
+    def _has_tool_calls(message: Message) -> bool:
+        tool_calls = message.get("tool_calls")
+        return bool(tool_calls and len(tool_calls) > 0)
+
+    @staticmethod
+    def _has_tool_call_id(message: Message) -> bool:
+        tool_call_id = message.get("tool_call_id")
+        return bool(tool_call_id and len(tool_call_id) > 0)
+
+    @staticmethod
+    def _get_tool_name(message: Message, messages: List[Message]) -> Optional[str]:
+        # assistant message with tool calls
+        if AIGuardClient._has_tool_calls(message):
+            tool_calls = message.get("tool_calls", [])
+            names = [
+                tool_call["function"]["name"]
+                for tool_call in tool_calls
+                if "function" in tool_call and "name" in tool_call["function"]
+            ]
+            return ",".join(name for name in names if name)
+
+        # assistant message with tool output (search linked tool call in reverse order)
+        if AIGuardClient._has_tool_call_id(message):
+            target_id = message.get("tool_call_id")
+            if not target_id:
+                return None
+            for msg in reversed(messages):
+                tool_calls = msg.get("tool_calls", [])
+                for tool_call in tool_calls:
+                    if (
+                        "id" in tool_call
+                        and tool_call["id"] == target_id
+                        and "function" in tool_call
+                        and "name" in tool_call["function"]
+                    ):
+                        return tool_call["function"]["name"]
+
+        return None
+
+    @staticmethod
+    def _is_blocking_enabled(options: Optional[Options], remote_enabled: bool) -> bool:
+        if not remote_enabled or not options:
+            return False
+        return options.get("block", False)
+
+    def evaluate(self, messages: List[Message], options: Optional[Options] = None) -> Evaluation:
+        """Evaluate if the list of messages are safe to execute.
+
+        Args:
+            messages: List of messages to evaluate
+            options: Optional configuration with 'block' parameter (defaults to False)
+
+        Returns:
+            EvaluationResult containing action and reason
+
+        Raises:
+            AIGuardAbortError: If execution should be aborted and block is set to true
+            AIGuardClientError: If evaluation request fails
+        """
+        if not messages or len(messages) == 0:
+            raise ValueError("Messages must not be empty")
+
         with self._tracer.trace(AI_GUARD.RESOURCE_TYPE) as span:
-            if tags is not None:
-                span.set_tags(tags)
             try:
-                if history is None:
-                    history = []
-
-                attributes: dict[str, Any] = {"history": history, "current": current}
-                if config.service and config.env:
-                    attributes["meta"] = {"service": config.service, "env": config.env}
-                payload = {"data": {"attributes": attributes}}
+                payload = {"data": {"attributes": {"messages": messages, "meta": self._meta}}}
+                last = messages[-1]
+                tool_name = self._get_tool_name(last, messages)
+                if tool_name:
+                    span.set_tag(AI_GUARD.TARGET_TAG, "tool")
+                    span.set_tag(AI_GUARD.TOOL_NAME_TAG, tool_name)
+                else:
+                    span.set_tag(AI_GUARD.TARGET_TAG, "prompt")
+                span._set_struct_tag(AI_GUARD.STRUCT, {"messages": self._messages_for_meta_struct(messages)})
 
                 try:
-                    response = self._execute_request(f"{self._endpoint.rstrip('/')}/evaluate", payload)
-                    if response.status != 200:
-                        raise AIGuardClientError(f"AI Guard service call failed, status {response.status}")
+                    response = self._execute_request(f"{self._endpoint}/evaluate", payload)
                     result = response.get_json()
-                except AIGuardClientError:
-                    raise
                 except Exception as e:
-                    raise AIGuardClientError("Unexpected error calling AI Guard service") from e
+                    raise AIGuardClientError(message=f"Unexpected error calling AI Guard service: {e}") from e
 
-                try:
-                    attributes = result["data"]["attributes"]
-                    action = attributes["action"]
-                    reason = attributes.get("reason", None)
-                    blocking_enabled = attributes.get("is_blocking_enabled", False)
-                except Exception as e:
-                    value = json.dumps(result, indent=2)[:500]
-                    raise AIGuardClientError(f"AI Guard service returned unexpected response format: {value}") from e
+                if response.status == 200:
+                    try:
+                        attributes = result["data"]["attributes"]
+                        action = attributes["action"]
+                        reason = attributes.get("reason", None)
+                        blocking_enabled = attributes.get("is_blocking_enabled", False)
+                    except Exception as e:
+                        value = json.dumps(result, indent=2)[:500]
+                        raise AIGuardClientError(
+                            message=f"AI Guard service returned unexpected response format: {value}",
+                            status=response.status,
+                        ) from e
 
-                if action not in ACTIONS:
+                    if action not in ACTIONS:
+                        raise AIGuardClientError(
+                            f"AI Guard service returned unrecognized action: '{action}'. Expected {ACTIONS}",
+                            status=response.status,
+                        )
+
+                    span.set_tag(AI_GUARD.ACTION_TAG, action)
+                    if reason:
+                        span.set_tag(AI_GUARD.REASON_TAG, reason)
+                else:
                     raise AIGuardClientError(
-                        f"AI Guard service returned unrecognized action: '{action}'. Expected {ACTIONS}"
+                        message=f"AI Guard service call failed, status: {response.status}",
+                        status=response.status,
+                        errors=result["errors"] if "errors" in result else None,
                     )
 
-                should_block = blocking_enabled and action != ALLOW
-
-                self._set_ai_guard_tags(span, action, reason, should_block, current, history)
-
+                should_block = self._is_blocking_enabled(options, blocking_enabled) and action != ALLOW
                 self._add_request_to_telemetry(
                     (
                         ("action", action),
+                        ("block", "true" if should_block else "false"),
                         ("error", "false"),
                     )
                 )
-                if not should_block:
-                    return True
-                elif action == DENY:
-                    return False
-                else:
-                    raise AIGuardAbortError()
+
+                if should_block:
+                    span.set_tag(AI_GUARD.BLOCKED_TAG, "true")
+                    raise AIGuardAbortError(action=action, reason=reason)
+
+                return Evaluation(action=action, reason=reason)
 
             except AIGuardAbortError:
                 raise
 
-            except:
+            except Exception:
                 self._add_request_to_telemetry((("error", "true"),))
-                logger.debug("AI Guard evaluation failed for event: %s", current, exc_info=True)
+                logger.debug("AI Guard evaluation failed for messages: %s", messages, exc_info=True)
                 raise
 
     def _execute_request(self, url: str, payload: Any) -> Response:
@@ -345,20 +285,15 @@ class AIGuardClient:
 
 def new_ai_guard_client(
     endpoint: Optional[str] = None,
-    timeout: Optional[float] = None,
-    api_key: Optional[str] = None,
-    app_key: Optional[str] = None,
     tracer: Tracer = ddtracer,
 ) -> AIGuardClient:
-    endpoint = endpoint if endpoint is not None else ai_guard_config._ai_guard_endpoint
-    if not endpoint:
-        raise ValueError("AI Guard endpoint URL is required: provide DD_AI_GUARD_ENDPOINT")
-
-    api_key = api_key if api_key is not None else config._dd_api_key
-    app_key = app_key if app_key is not None else ai_guard_config._dd_app_key
+    api_key = config._dd_api_key
+    app_key = config._dd_app_key
     if not api_key or not app_key:
         raise ValueError("Authentication credentials required: provide DD_API_KEY and DD_APP_KEY")
 
-    timeout = timeout if timeout is not None else 30
+    if not endpoint:
+        site = f"app.{config._dd_site}" if config._dd_site.count(".") == 1 else config._dd_site
+        endpoint = f"https://{site}/api/v2/ai-guard"
 
-    return AIGuardClient(endpoint, timeout, api_key, app_key, tracer)
+    return AIGuardClient(endpoint, api_key, app_key, tracer)

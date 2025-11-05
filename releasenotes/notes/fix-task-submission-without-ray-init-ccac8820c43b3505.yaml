@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    ray: This fix resolves an issue where the tracer raised an error when submitting Ray tasks without explicitly calling ``ray.init()``.

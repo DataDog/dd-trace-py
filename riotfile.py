@@ -135,6 +135,29 @@ venv = Venv(
             pkgs={"slotscheck": "==0.17.0"},
         ),
         Venv(
+            name="build_docs",
+            command="scripts/docs/build.sh",
+            pys=["3.10"],
+            env={
+                "DD_TRACE_ENABLED": "false",
+            },
+            pkgs={
+                "reno": "~=3.5.0",
+                "sphinx": "~=4.0",
+                "sphinxcontrib-applehelp": "<1.0.8",
+                "sphinxcontrib-devhelp": "<1.0.6",
+                "sphinxcontrib-htmlhelp": "<2.0.5",
+                "sphinxcontrib-serializinghtml": "<1.1.10",
+                "sphinxcontrib-qthelp": "<1.0.7",
+                "sphinxcontrib-spelling": "==7.7.0",
+                "PyEnchant": "==3.2.2",
+                "sphinx-copybutton": "==0.5.1",
+                # Later release of furo breaks formatting for code blocks
+                "furo": "<=2023.05.20",
+                "standard-imghdr": latest,
+            },
+        ),
+        Venv(
             name="gitlab-gen-config",
             command="python scripts/gen_gitlab_config.py {cmdargs}",
             pys=["3"],
@@ -2884,22 +2907,6 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="google_generativeai",
-            command="pytest {cmdargs} tests/contrib/google_generativeai",
-            venvs=[
-                Venv(
-                    pys=select_pys(min_version="3.9", max_version="3.13"),
-                    pkgs={
-                        "pytest-asyncio": latest,
-                        "google-generativeai": ["~=0.7.0", latest],
-                        "pillow": latest,
-                        "google-ai-generativelanguage": [latest],
-                        "vertexai": [latest],
-                    },
-                )
-            ],
-        ),
-        Venv(
             name="vertexai",
             command="pytest {cmdargs} tests/contrib/vertexai",
             pys=select_pys(min_version="3.9", max_version="3.12"),
@@ -3186,7 +3193,7 @@ venv = Venv(
             },
             pkgs={
                 "gunicorn": latest,
-                "lz4": latest,
+                "zstandard": latest,
                 #
                 # pytest-benchmark depends on cpuinfo which dropped support for Python<=3.6 in 9.0
                 # See https://github.com/workhorsy/py-cpuinfo/issues/177
@@ -3281,7 +3288,7 @@ venv = Venv(
             pkgs={
                 "gunicorn": latest,
                 "jsonschema": latest,
-                "lz4": latest,
+                "zstandard": latest,
                 "pytest-cpp": latest,
                 #
                 # pytest-benchmark depends on cpuinfo which dropped support for Python<=3.6 in 9.0
@@ -3317,6 +3324,12 @@ venv = Venv(
                                 "gevent": latest,
                             },
                         ),
+                        # memcpy-based sampler
+                        Venv(
+                            env={
+                                "ECHION_USE_FAST_COPY_MEMORY": "1",
+                            },
+                        ),
                     ],
                 ),
                 # Python 3.10
@@ -3349,6 +3362,12 @@ venv = Venv(
                                 ),
                             ],
                         ),
+                        # memcpy-based sampler
+                        Venv(
+                            env={
+                                "ECHION_USE_FAST_COPY_MEMORY": "1",
+                            },
+                        ),
                     ],
                 ),
                 # Python >= 3.11
@@ -3367,6 +3386,12 @@ venv = Venv(
                                 "DD_PROFILE_TEST_GEVENT": "1",
                             },
                             pkgs={"gunicorn[gevent]": latest, "gevent": latest},
+                        ),
+                        # memcpy-based sampler
+                        Venv(
+                            env={
+                                "ECHION_USE_FAST_COPY_MEMORY": "1",
+                            },
                         ),
                     ],
                 ),
@@ -3519,7 +3544,7 @@ venv = Venv(
                 "AGENT_VERSION": "testagent",
                 "DD_REMOTE_CONFIGURATION_ENABLED": "true",
                 "DD_API_SECURITY_SAMPLE_DELAY": "0",
-                "DD_PATCH_MODULES": "unittest:false,urllib3:true",
+                "DD_PATCH_MODULES": "unittest:false",
             },
             venvs=[
                 Venv(
@@ -3573,7 +3598,7 @@ venv = Venv(
                 "AGENT_VERSION": "testagent",
                 "DD_REMOTE_CONFIGURATION_ENABLED": "true",
                 "DD_API_SECURITY_SAMPLE_DELAY": "0",
-                "DD_PATCH_MODULES": "unittest:false,urllib3:true",
+                "DD_PATCH_MODULES": "unittest:false",
             },
             venvs=[
                 Venv(
@@ -3624,7 +3649,7 @@ venv = Venv(
                 "DD_REMOTE_CONFIGURATION_ENABLED": "true",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
                 "DD_API_SECURITY_SAMPLE_DELAY": "0",
-                "DD_PATCH_MODULES": "unittest:false,urllib3:true",
+                "DD_PATCH_MODULES": "unittest:false",
             },
             venvs=[
                 Venv(

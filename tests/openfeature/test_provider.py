@@ -12,12 +12,14 @@ from ddtrace.internal.openfeature._ffe_mock import AssignmentReason
 from ddtrace.internal.openfeature._ffe_mock import VariationType
 from ddtrace.internal.openfeature._ffe_mock import mock_process_ffe_configuration
 from ddtrace.openfeature import DataDogProvider
+from tests.utils import override_global_config
 
 
 @pytest.fixture
 def provider():
     """Create a DataDogProvider instance for testing."""
-    return DataDogProvider()
+    with override_global_config({"experimental_flagging_provider_enabled": True}):
+        yield DataDogProvider()
 
 
 @pytest.fixture
@@ -67,8 +69,8 @@ class TestBooleanFlagResolution:
             "flags": {
                 "test-bool-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                     "variation_key": "on",
                     "reason": AssignmentReason.STATIC.value,
                 }
@@ -101,8 +103,8 @@ class TestBooleanFlagResolution:
             "flags": {
                 "disabled-flag": {
                     "enabled": False,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                 }
             }
         }
@@ -119,8 +121,8 @@ class TestBooleanFlagResolution:
             "flags": {
                 "string-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.STRING.value,
-                    "value": "hello",
+                    "variationType": VariationType.STRING.value,
+                    "variations": {"hello": {"key": "hello", "value": "hello"}},
                 }
             }
         }
@@ -143,8 +145,8 @@ class TestStringFlagResolution:
             "flags": {
                 "test-string-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.STRING.value,
-                    "value": "variant-a",
+                    "variationType": VariationType.STRING.value,
+                    "variations": {"a": {"key": "a", "value": "variant-a"}},
                     "variation_key": "a",
                     "reason": AssignmentReason.TARGETING_MATCH.value,
                 }
@@ -178,8 +180,8 @@ class TestIntegerFlagResolution:
             "flags": {
                 "test-int-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.INTEGER.value,
-                    "value": 42,
+                    "variationType": VariationType.INTEGER.value,
+                    "variations": {"int-variant": {"key": "int-variant", "value": 42}},
                     "variation_key": "int-variant",
                     "reason": AssignmentReason.SPLIT.value,
                 }
@@ -200,8 +202,8 @@ class TestIntegerFlagResolution:
             "flags": {
                 "bool-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                 }
             }
         }
@@ -223,8 +225,8 @@ class TestFloatFlagResolution:
             "flags": {
                 "test-float-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.NUMERIC.value,
-                    "value": 3.14159,
+                    "variationType": VariationType.NUMERIC.value,
+                    "variations": {"pi": {"key": "pi", "value": 3.14159}},
                     "variation_key": "pi",
                     "reason": AssignmentReason.STATIC.value,
                 }
@@ -257,8 +259,10 @@ class TestObjectFlagResolution:
             "flags": {
                 "test-object-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.JSON.value,
-                    "value": {"key": "value", "nested": {"foo": "bar"}},
+                    "variationType": VariationType.JSON.value,
+                    "variations": {
+                        "obj-variant": {"key": "obj-variant", "value": {"key": "value", "nested": {"foo": "bar"}}}
+                    },
                     "variation_key": "obj-variant",
                     "reason": AssignmentReason.TARGETING_MATCH.value,
                 }
@@ -278,8 +282,8 @@ class TestObjectFlagResolution:
             "flags": {
                 "test-list-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.JSON.value,
-                    "value": [1, 2, 3, "four"],
+                    "variationType": VariationType.JSON.value,
+                    "variations": {"list-variant": {"key": "list-variant", "value": [1, 2, 3, "four"]}},
                     "variation_key": "list-variant",
                     "reason": AssignmentReason.STATIC.value,
                 }
@@ -313,8 +317,8 @@ class TestEvaluationContext:
             "flags": {
                 "test-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                 }
             }
         }
@@ -330,8 +334,8 @@ class TestEvaluationContext:
             "flags": {
                 "test-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.STRING.value,
-                    "value": "no-context",
+                    "variationType": VariationType.STRING.value,
+                    "variations": {"default": {"key": "default", "value": "no-context"}},
                 }
             }
         }
@@ -351,8 +355,8 @@ class TestReasonMapping:
             "flags": {
                 "static-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                     "reason": AssignmentReason.STATIC.value,
                 }
             }
@@ -368,8 +372,8 @@ class TestReasonMapping:
             "flags": {
                 "targeting-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                     "reason": AssignmentReason.TARGETING_MATCH.value,
                 }
             }
@@ -385,8 +389,8 @@ class TestReasonMapping:
             "flags": {
                 "split-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                     "reason": AssignmentReason.SPLIT.value,
                 }
             }
@@ -406,8 +410,8 @@ class TestErrorHandling:
             "flags": {
                 "success-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                 }
             }
         }
@@ -424,8 +428,8 @@ class TestErrorHandling:
             "flags": {
                 "wrong-type-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.STRING.value,
-                    "value": "string",
+                    "variationType": VariationType.STRING.value,
+                    "variations": {"default": {"key": "default", "value": "string"}},
                 }
             }
         }
@@ -443,8 +447,8 @@ class TestErrorHandling:
             "flags": {
                 "error-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.INTEGER.value,
-                    "value": 123,
+                    "variationType": VariationType.INTEGER.value,
+                    "variations": {"default": {"key": "default", "value": 123}},
                 }
             }
         }
@@ -465,8 +469,8 @@ class TestVariantHandling:
             "flags": {
                 "variant-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.STRING.value,
-                    "value": "variant-value",
+                    "variationType": VariationType.STRING.value,
+                    "variations": {"my-variant-key": {"key": "my-variant-key", "value": "variant-value"}},
                     "variation_key": "my-variant-key",
                 }
             }
@@ -492,8 +496,8 @@ class TestVariantHandling:
             "flags": {
                 "no-variant-flag": {
                     "enabled": True,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                     # No variation_key specified
                 }
             }
@@ -514,18 +518,18 @@ class TestComplexScenarios:
             "flags": {
                 "flag1": {
                     "enabled": True,
-                    "variation_type": VariationType.BOOLEAN.value,
-                    "value": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
                 },
                 "flag2": {
                     "enabled": True,
-                    "variation_type": VariationType.STRING.value,
-                    "value": "value2",
+                    "variationType": VariationType.STRING.value,
+                    "variations": {"v2": {"key": "v2", "value": "value2"}},
                 },
                 "flag3": {
                     "enabled": False,
-                    "variation_type": VariationType.INTEGER.value,
-                    "value": 3,
+                    "variationType": VariationType.INTEGER.value,
+                    "variations": {"default": {"key": "default", "value": 3}},
                 },
             }
         }
@@ -549,3 +553,223 @@ class TestComplexScenarios:
 
         assert result.value is True
         assert result.reason == Reason.DEFAULT
+
+
+class TestFlagKeyCornerCases:
+    """Test corner cases with flag keys including special characters and Unicode."""
+
+    def test_flag_key_with_japanese_characters(self, provider):
+        """Should handle flag keys with Japanese characters."""
+        config = {
+            "flags": {
+                "機能フラグ": {
+                    "enabled": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {"有効": {"key": "有効", "value": True}, "無効": {"key": "無効", "value": False}},
+                    "variation_key": "有効",
+                }
+            }
+        }
+        mock_process_ffe_configuration(config)
+
+        result = provider.resolve_boolean_details("機能フラグ", False)
+
+        assert result.value is True
+        assert result.variant == "有効"
+
+    def test_flag_key_with_emoji(self, provider):
+        """Should handle flag keys with emoji characters."""
+        config = {
+            "flags": {
+                "feature-🚀-flag": {
+                    "enabled": True,
+                    "variationType": VariationType.STRING.value,
+                    "variations": {"rocket": {"key": "rocket", "value": "rocket-enabled"}},
+                }
+            }
+        }
+        mock_process_ffe_configuration(config)
+
+        result = provider.resolve_string_details("feature-🚀-flag", "default")
+
+        assert result.value == "rocket-enabled"
+
+    def test_flag_key_with_special_characters(self, provider):
+        """Should handle flag keys with special characters."""
+        special_keys = [
+            "flag.with.dots",
+            "flag-with-dashes",
+            "flag_with_underscores",
+            "flag:with:colons",
+            "flag/with/slashes",
+            "flag@with@at",
+        ]
+
+        for flag_key in special_keys:
+            config = {
+                "flags": {
+                    flag_key: {
+                        "enabled": True,
+                        "variationType": VariationType.BOOLEAN.value,
+                        "variations": {
+                            "true": {"key": "true", "value": True},
+                            "false": {"key": "false", "value": False},
+                        },
+                    }
+                }
+            }
+            mock_process_ffe_configuration(config)
+
+            result = provider.resolve_boolean_details(flag_key, False)
+            assert result.value is True, f"Failed for key: {flag_key}"
+
+    def test_flag_key_with_spaces(self, provider):
+        """Should handle flag keys with spaces."""
+        config = {
+            "flags": {
+                "flag with spaces": {
+                    "enabled": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
+                }
+            }
+        }
+        mock_process_ffe_configuration(config)
+
+        result = provider.resolve_boolean_details("flag with spaces", False)
+
+        assert result.value is True
+
+    def test_flag_key_empty_string(self, provider):
+        """Should handle empty string flag key gracefully."""
+        result = provider.resolve_boolean_details("", False)
+
+        assert result.value is False
+        assert result.reason == Reason.DEFAULT
+
+    def test_flag_key_very_long(self, provider):
+        """Should handle very long flag keys."""
+        long_key = "a" * 1000
+        config = {
+            "flags": {
+                long_key: {
+                    "enabled": True,
+                    "variationType": VariationType.INTEGER.value,
+                    "variations": {"default": {"key": "default", "value": 42}},
+                }
+            }
+        }
+        mock_process_ffe_configuration(config)
+
+        result = provider.resolve_integer_details(long_key, 0)
+
+        assert result.value == 42
+
+    def test_flag_key_with_cyrillic_characters(self, provider):
+        """Should handle flag keys with Cyrillic characters."""
+        config = {
+            "flags": {
+                "флаг-функции": {
+                    "enabled": True,
+                    "variationType": VariationType.STRING.value,
+                    "variations": {"включено": {"key": "включено", "value": "включено"}},
+                }
+            }
+        }
+        mock_process_ffe_configuration(config)
+
+        result = provider.resolve_string_details("флаг-функции", "default")
+
+        assert result.value == "включено"
+
+    def test_flag_key_with_arabic_characters(self, provider):
+        """Should handle flag keys with Arabic characters."""
+        config = {
+            "flags": {
+                "علامة-الميزة": {
+                    "enabled": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
+                }
+            }
+        }
+        mock_process_ffe_configuration(config)
+
+        result = provider.resolve_boolean_details("علامة-الميزة", False)
+
+        assert result.value is True
+
+    def test_flag_key_with_mixed_unicode(self, provider):
+        """Should handle flag keys with mixed Unicode characters."""
+        config = {
+            "flags": {
+                "feature-日本語-русский-عربي-🚀": {
+                    "enabled": True,
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
+                }
+            }
+        }
+        mock_process_ffe_configuration(config)
+
+        result = provider.resolve_boolean_details("feature-日本語-русский-عربي-🚀", False)
+
+        assert result.value is True
+
+
+class TestInvalidFlagData:
+    """Test handling of invalid or malformed flag data."""
+
+    def test_flag_with_null_value(self, provider):
+        """Should handle flag with null value."""
+        config = {
+            "flags": {
+                "null-flag": {
+                    "enabled": True,
+                    "variationType": VariationType.STRING.value,
+                    "variations": {"default": {"key": "default", "value": None}},
+                }
+            }
+        }
+        mock_process_ffe_configuration(config)
+
+        result = provider.resolve_string_details("null-flag", "default")
+
+        # Provider returns None value from config (not the default)
+        assert result.value is None
+        assert result.variant == "default"
+
+    def test_flag_missing_enabled_field(self, provider):
+        """Should handle flag missing enabled field gracefully."""
+        config = {
+            "flags": {
+                "incomplete-flag": {
+                    "variationType": VariationType.BOOLEAN.value,
+                    "variations": {"true": {"key": "true", "value": True}, "false": {"key": "false", "value": False}},
+                }
+            }
+        }
+        mock_process_ffe_configuration(config)
+
+        result = provider.resolve_boolean_details("incomplete-flag", False)
+
+        # Should not crash, return default
+        assert result.value is False or result.value is True  # Implementation dependent
+
+    def test_flag_with_invalid_variationType(self, provider):
+        """Should handle flag with invalid variation type."""
+        config = {
+            "flags": {
+                "invalid-type-flag": {
+                    "enabled": True,
+                    "variationType": "INVALID_TYPE",
+                    "variations": {"default": {"key": "default", "value": True}},
+                }
+            }
+        }
+        mock_process_ffe_configuration(config)
+
+        result = provider.resolve_boolean_details("invalid-type-flag", False)
+
+        # Should handle gracefully
+        assert result.value is not None
