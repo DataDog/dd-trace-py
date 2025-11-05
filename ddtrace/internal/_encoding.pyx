@@ -702,7 +702,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                         return ret
         return ret
 
-    cdef inline int _pack_meta(self, object meta, char *dd_origin, str span_events) except? -1:
+    cdef inline int _pack_meta(self, object meta, char *dd_origin, str span_events, int span_id) except? -1:
         cdef Py_ssize_t L
         cdef int ret
         cdef dict d
@@ -719,7 +719,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
             if PyUnicode_Check(v) or PyBytesLike_Check(v):
                 m.append((k, v))
             else:
-                log.warning("Meta key %r has non-string value %r, skipping", k, v)
+                log.warning("[span ID %r] Meta key %r has non-string value %r, skipping", span_id, k, v)
 
         L = len(m) + (dd_origin is not NULL) + (len(span_events) > 0)
         if L > ITEM_LIMIT:
@@ -746,7 +746,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                     ret = pack_text(&self.pk, span_events)
         return ret
 
-    cdef inline int _pack_metrics(self, object metrics, object span) except? -1:
+    cdef inline int _pack_metrics(self, object metrics, int span_id) except? -1:
         cdef Py_ssize_t L
         cdef int ret
         cdef dict d
@@ -763,7 +763,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
             if PyLong_Check(v) or PyFloat_Check(v):
                 m.append((k, v))
             else:
-                log.warning("[span ID %r] Metric key %r has non-numeric value %r, skipping", k, v, span.span_id)
+                log.warning("[span ID %r] Metric key %r has non-numeric value %r, skipping", span_id, k, v)
 
         L = len(m)
         if L > ITEM_LIMIT:
@@ -786,6 +786,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
         cdef int has_span_type
         cdef int has_meta
         cdef int has_metrics
+        cdef int span_id = span.span_id
 
         has_error = <bint> (span.error != 0)
         has_span_type = <bint> (span.span_type is not None)
@@ -826,7 +827,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
             ret = pack_bytes(&self.pk, <char *> b"span_id", 7)
             if ret != 0:
                 return ret
-            ret = pack_number(&self.pk, span.span_id)
+            ret = pack_number(&self.pk, span_id)
             if ret != 0:
                 return ret
 
@@ -905,7 +906,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                 span_events = ""
                 if has_span_events and not self.top_level_span_event_encoding:
                     span_events = json_dumps([vars(event)()  for event in span._events])
-                ret = self._pack_meta(span._meta, <char *> dd_origin, span_events)
+                ret = self._pack_meta(span._meta, <char *> dd_origin, span_events, span_id)
                 if ret != 0:
                     return ret
 
@@ -932,7 +933,8 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                 ret = pack_bytes(&self.pk, <char *> b"metrics", 7)
                 if ret != 0:
                     return ret
-                ret = self._pack_metrics(span._metrics, span)
+
+                ret = self._pack_metrics(span._metrics, span_id)
                 if ret != 0:
                     return ret
 
@@ -1059,6 +1061,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
     cdef int pack_span(self, object span, unsigned long long trace_id_64bits, void *dd_origin) except? -1:
         cdef int ret
         cdef list meta, metrics
+        cdef int span_id = span.span_id
 
         ret = msgpack_pack_array(&self.pk, 12)
         if ret != 0:
@@ -1078,8 +1081,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         if ret != 0:
             return ret
 
-        _ = span.span_id
-        ret = msgpack_pack_uint64(&self.pk, _ if _ is not None else 0)
+        ret = msgpack_pack_uint64(&self.pk, span_id if span_id is not None else 0)
         if ret != 0:
             return ret
 
@@ -1119,7 +1121,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
             if PyUnicode_Check(v) or PyBytesLike_Check(v):
                 meta.append((k, v))
             else:
-                log.warning("[span ID %r] Meta key %r has non-string value %r, skipping", k, v, span.span_id)
+                log.warning("[span ID %r] Meta key %r has non-string value %r, skipping", span_id, k, v)
 
         ret = msgpack_pack_map(
             &self.pk,
@@ -1163,7 +1165,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
             if PyLong_Check(v) or PyFloat_Check(v):
                 metrics.append((k, v))
             else:
-                log.warning("[span ID %r] Metric key %r has non-numeric value %r, skipping", k, v, span.span_id)
+                log.warning("[span ID %r] Metric key %r has non-numeric value %r, skipping", span_id, k, v)
 
         ret = msgpack_pack_map(&self.pk, len(metrics))
         if ret != 0:
