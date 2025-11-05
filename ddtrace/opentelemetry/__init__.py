@@ -9,6 +9,9 @@ OpenTelemetry trace api can be used to create, configure, and propagate a distri
 All operations defined the opentelemetry trace api are configured to use the ddtrace global tracer (``ddtrace.tracer``)
 and generate datadog compatible traces. By default all opentelemetry traces are submitted to a Datadog agent.
 
+**Note:** OpenTelemetry support is lazily loaded when the ``opentelemetry`` package is first imported. Ensure
+``import opentelemetry...`` or ``from opentelemetry....`` is present in your code.
+
 
 Configuration
 -------------
