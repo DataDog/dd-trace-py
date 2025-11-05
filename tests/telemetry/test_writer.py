@@ -395,6 +395,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_USER_MODEL_LOGIN_FIELD", "origin": "default", "value": ""},
         {"name": "DD_USER_MODEL_NAME_FIELD", "origin": "default", "value": ""},
         {"name": "DD_VERSION", "origin": "default", "value": None},
+        {"name": "DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED", "origin": "default", "value": False},
         {
             "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
             "origin": "env_var",
