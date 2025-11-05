@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    core: This fix resolves an issue where forksafe locks used patched threading primitives from the profiling module, causing performance issues. The forksafe module now uses unpatched threading primitives (``Lock``, ``RLock``, ``Event``).
