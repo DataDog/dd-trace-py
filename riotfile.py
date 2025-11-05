@@ -499,6 +499,11 @@ venv = Venv(
             pys=select_pys(max_version="3.12"),
         ),
         Venv(
+            name="process_tags",
+            command="pytest -v {cmdargs} tests/process_tags/",
+            pys=select_pys(min_version="3.9")
+        ),
+        Venv(
             name="internal",
             env={
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
