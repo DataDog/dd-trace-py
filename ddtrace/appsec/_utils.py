@@ -162,15 +162,15 @@ class Block_config:
         type: str = "auto",  # noqa: A002
         status_code: int = 403,
         grpc_status_code: int = 10,
-        block_id: str = "default",
+        security_response_id: str = "default",
         location: str = "",
         **_kwargs,
     ) -> None:
-        self.block_id: str = block_id
+        self.block_id: str = security_response_id
         self.grpc_status_code: int = grpc_status_code
         self.status_code: int = status_code
         self.type: str = type
-        self.location = location.replace(APPSEC.SECURITY_RESPONSE_ID, block_id)
+        self.location = location.replace(APPSEC.SECURITY_RESPONSE_ID, security_response_id)
         self.content_type: str = "application/json"
 
 
