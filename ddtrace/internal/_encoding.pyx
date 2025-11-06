@@ -702,7 +702,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                         return ret
         return ret
 
-    cdef inline int _pack_meta(self, object meta, char *dd_origin, str span_events, int span_id) except? -1:
+    cdef inline int _pack_meta(self, object meta, char *dd_origin, str span_events, unsigned long long span_id) except? -1:
         cdef Py_ssize_t L
         cdef int ret
         cdef dict d
@@ -746,7 +746,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                     ret = pack_text(&self.pk, span_events)
         return ret
 
-    cdef inline int _pack_metrics(self, object metrics, int span_id) except? -1:
+    cdef inline int _pack_metrics(self, object metrics, unsigned long long span_id) except? -1:
         cdef Py_ssize_t L
         cdef int ret
         cdef dict d
@@ -786,7 +786,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
         cdef int has_span_type
         cdef int has_meta
         cdef int has_metrics
-        cdef int span_id = span.span_id
+        cdef unsigned long long span_id = span.span_id
 
         has_error = <bint> (span.error != 0)
         has_span_type = <bint> (span.span_type is not None)
@@ -1061,7 +1061,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
     cdef int pack_span(self, object span, unsigned long long trace_id_64bits, void *dd_origin) except? -1:
         cdef int ret
         cdef list meta, metrics
-        cdef int span_id = span.span_id
+        cdef unsigned long long span_id = span.span_id
 
         ret = msgpack_pack_array(&self.pk, 12)
         if ret != 0:
