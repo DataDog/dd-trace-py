@@ -178,7 +178,7 @@ def test_aggregator_reset_apm_opt_out_preserves_sampling():
 def test_aggregator_reset_with_args(writer_class):
     """
     Validates that the span aggregator can reset trace buffers, sampling processor,
-    user processors/filters and trace api version (when ASM is enabled)
+    user processors/filters.
     """
 
     dd_proc = DummyProcessor()
@@ -204,12 +204,12 @@ def test_aggregator_reset_with_args(writer_class):
     assert aggr.sampling_processor.apm_opt_out is False
     assert aggr.sampling_processor._compute_stats_enabled is False
     # Reset the aggregator with new args and new user processors and expect the new values to be set
-    aggr.reset(user_processors=[], compute_stats=True, apm_opt_out=True, reset_buffer=False)
+    aggr.reset(user_processors=[], compute_stats=True, reset_buffer=False)
     assert aggr.user_processors == []
     assert dd_proc in aggr.dd_processors
-    assert aggr.sampling_processor.apm_opt_out is True
+    assert aggr.sampling_processor.apm_opt_out is False
     assert aggr.sampling_processor._compute_stats_enabled is True
-    assert aggr.writer._api_version == "v0.4"
+    assert aggr.writer._api_version == "v0.5"
     assert span.trace_id in aggr._traces
     assert len(aggr._span_metrics["spans_created"]) == 1
 

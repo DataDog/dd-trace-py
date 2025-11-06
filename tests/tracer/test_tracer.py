@@ -1902,32 +1902,6 @@ def test_finish_span_with_ancestors(tracer):
     assert span3.finished
 
 
-@pytest.mark.parametrize("sca_enabled", ["true", "false"])
-@pytest.mark.parametrize("appsec_enabled", [True, False])
-@pytest.mark.parametrize("iast_enabled", [True, False])
-def test_asm_standalone_configuration(sca_enabled, appsec_enabled, iast_enabled):
-    if not appsec_enabled and not iast_enabled and sca_enabled == "false":
-        pytest.skip("SCA, AppSec or IAST must be enabled")
-
-    with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
-        ddtrace.config._reset()
-        tracer = DummyTracer()
-        tracer.configure(appsec_enabled=appsec_enabled, iast_enabled=iast_enabled, apm_tracing_disabled=True)
-        if sca_enabled == "true":
-            assert bool(ddtrace.config._sca_enabled) is True
-        assert tracer.enabled is False
-
-        assert isinstance(tracer._sampler.limiter, RateLimiter)
-        assert tracer._sampler.limiter.rate_limit == 1
-        assert tracer._sampler.limiter.time_window == 60e9
-
-        assert tracer._span_aggregator.sampling_processor._compute_stats_enabled is False
-
-    # reset tracer values
-    with override_env({"DD_APPSEC_SCA_ENABLED": "false"}):
-        ddtrace.config._reset()
-        tracer.configure(appsec_enabled=False, iast_enabled=False, apm_tracing_disabled=False)
-
 
 def test_gc_not_used_on_root_spans():
     gc.freeze()
