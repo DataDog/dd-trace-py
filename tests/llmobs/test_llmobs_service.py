@@ -549,20 +549,22 @@ def test_annotate_input_llm_message(llmobs):
         assert span._get_ctx_item(INPUT_MESSAGES) == [{"content": "test_input", "role": "human"}]
 
 
-def test_annotate_input_llm_message_wrong_type(llmobs, mock_llmobs_logs):
+def test_annotate_input_llm_message_wrong_type(llmobs):
     with llmobs.llm(model_name="test_model") as span:
-        llmobs.annotate(span=span, input_data=[{"content": object()}])
-        assert span._get_ctx_item(INPUT_MESSAGES) is None
-        mock_llmobs_logs.warning.assert_called_once_with("Failed to parse input messages.", exc_info=True)
+        with pytest.raises(Exception) as excinfo:
+            llmobs.annotate(span=span, input_data=[{"content": object()}])
+        assert str(excinfo.value) == "Failed to parse input messages."
 
 
-def test_llmobs_annotate_incorrect_message_content_type_raises_warning(llmobs, mock_llmobs_logs):
+def test_llmobs_annotate_incorrect_message_content_type_raises_warning(llmobs):
     with llmobs.llm(model_name="test_model") as span:
-        llmobs.annotate(span=span, input_data={"role": "user", "content": {"nested": "yes"}})
-        mock_llmobs_logs.warning.assert_called_once_with("Failed to parse input messages.", exc_info=True)
-        mock_llmobs_logs.reset_mock()
-        llmobs.annotate(span=span, output_data={"role": "user", "content": {"nested": "yes"}})
-        mock_llmobs_logs.warning.assert_called_once_with("Failed to parse output messages.", exc_info=True)
+        with pytest.raises(Exception) as excinfo:
+            llmobs.annotate(span=span, input_data={"role": "user", "content": {"nested": "yes"}})
+        assert str(excinfo.value) == "Failed to parse input messages."
+
+        with pytest.raises(Exception) as excinfo:
+            llmobs.annotate(span=span, output_data={"role": "user", "content": {"nested": "yes"}})
+        assert str(excinfo.value) == "Failed to parse output messages."
 
 
 def test_annotate_input_llm_message_with_role_none_implicit(llmobs):
@@ -640,58 +642,61 @@ def test_annotate_document_list(llmobs):
         assert documents[1]["score"] == 0.9
 
 
-def test_annotate_incorrect_document_type_raises_warning(llmobs, mock_llmobs_logs):
+def test_annotate_incorrect_document_type_raises_warning(llmobs):
     with llmobs.embedding(model_name="test_model") as span:
-        llmobs.annotate(span=span, input_data={"text": 123})
-        mock_llmobs_logs.warning.assert_called_once_with("Failed to parse input documents.", exc_info=True)
-        mock_llmobs_logs.reset_mock()
-        llmobs.annotate(span=span, input_data=123)
-        mock_llmobs_logs.warning.assert_called_once_with("Failed to parse input documents.", exc_info=True)
-        mock_llmobs_logs.reset_mock()
-        llmobs.annotate(span=span, input_data=object())
-        mock_llmobs_logs.warning.assert_called_once_with("Failed to parse input documents.", exc_info=True)
-        mock_llmobs_logs.reset_mock()
+        with pytest.raises(Exception) as excinfo:
+            llmobs.annotate(span=span, input_data={"text": 123})
+        assert str(excinfo.value) == "Failed to parse input documents."
+        with pytest.raises(Exception) as excinfo:
+            llmobs.annotate(span=span, input_data=123)
+        assert str(excinfo.value) == "Failed to parse input documents."
+        with pytest.raises(Exception) as excinfo:
+            llmobs.annotate(span=span, input_data=object())
+        assert str(excinfo.value) == "Failed to parse input documents."
     with llmobs.retrieval() as span:
-        llmobs.annotate(span=span, output_data=[{"score": 0.9, "id": "id", "name": "name"}])
-        mock_llmobs_logs.warning.assert_called_once_with("Failed to parse output documents.", exc_info=True)
-        mock_llmobs_logs.reset_mock()
-        llmobs.annotate(span=span, output_data=123)
-        mock_llmobs_logs.warning.assert_called_once_with("Failed to parse output documents.", exc_info=True)
-        mock_llmobs_logs.reset_mock()
-        llmobs.annotate(span=span, output_data=object())
-        mock_llmobs_logs.warning.assert_called_once_with("Failed to parse output documents.", exc_info=True)
+        with pytest.raises(Exception) as excinfo:
+            llmobs.annotate(span=span, output_data=[{"score": 0.9, "id": "id", "name": "name"}])
+        assert str(excinfo.value) == "Failed to parse output documents."
+        with pytest.raises(Exception) as excinfo:
+            llmobs.annotate(span=span, output_data=123)
+        assert str(excinfo.value) == "Failed to parse output documents."
+        with pytest.raises(Exception) as excinfo:
+            llmobs.annotate(span=span, output_data=object())
+        assert str(excinfo.value) == "Failed to parse output documents."
 
 
-def test_annotate_document_no_text_raises_warning(llmobs, mock_llmobs_logs):
+def test_annotate_document_no_text_raises_warning(llmobs):
     with llmobs.embedding(model_name="test_model") as span:
-        llmobs.annotate(span=span, input_data=[{"score": 0.9, "id": "id", "name": "name"}])
-        mock_llmobs_logs.warning.assert_called_once_with("Failed to parse input documents.", exc_info=True)
-    mock_llmobs_logs.reset_mock()
+        with pytest.raises(Exception) as excinfo:
+            llmobs.annotate(span=span, input_data=[{"score": 0.9, "id": "id", "name": "name"}])
+        assert str(excinfo.value) == "Failed to parse input documents."
     with llmobs.retrieval() as span:
-        llmobs.annotate(span=span, output_data=[{"score": 0.9, "id": "id", "name": "name"}])
-        mock_llmobs_logs.warning.assert_called_once_with("Failed to parse output documents.", exc_info=True)
+        with pytest.raises(Exception) as excinfo:
+            llmobs.annotate(span=span, output_data=[{"score": 0.9, "id": "id", "name": "name"}])
+        assert str(excinfo.value) == "Failed to parse output documents."
 
 
-def test_annotate_incorrect_document_field_type_raises_warning(llmobs, mock_llmobs_logs):
+def test_annotate_incorrect_document_field_type_raises_warning(llmobs):
     with llmobs.embedding(model_name="test_model") as span:
-        llmobs.annotate(span=span, input_data=[{"text": "test_document_text", "score": "0.9"}])
-        mock_llmobs_logs.warning.assert_called_once_with("Failed to parse input documents.", exc_info=True)
-    mock_llmobs_logs.reset_mock()
+        with pytest.raises(Exception) as excinfo:
+            llmobs.annotate(span=span, input_data=[{"text": "test_document_text", "score": "0.9"}])
+        assert str(excinfo.value) == "Failed to parse input documents."
     with llmobs.embedding(model_name="test_model") as span:
-        llmobs.annotate(
-            span=span, input_data=[{"text": "text", "id": 123, "score": "0.9", "name": ["h", "e", "l", "l", "o"]}]
-        )
-        mock_llmobs_logs.warning.assert_called_once_with("Failed to parse input documents.", exc_info=True)
-    mock_llmobs_logs.reset_mock()
+        with pytest.raises(Exception) as excinfo:
+            llmobs.annotate(
+                span=span, input_data=[{"text": "text", "id": 123, "score": "0.9", "name": ["h", "e", "l", "l", "o"]}]
+            )
+        assert str(excinfo.value) == "Failed to parse input documents."
     with llmobs.retrieval() as span:
-        llmobs.annotate(span=span, output_data=[{"text": "test_document_text", "score": "0.9"}])
-        mock_llmobs_logs.warning.assert_called_once_with("Failed to parse output documents.", exc_info=True)
-    mock_llmobs_logs.reset_mock()
+        with pytest.raises(Exception) as excinfo:
+            llmobs.annotate(span=span, output_data=[{"text": "test_document_text", "score": "0.9"}])
+        assert str(excinfo.value) == "Failed to parse output documents."
     with llmobs.retrieval() as span:
-        llmobs.annotate(
-            span=span, output_data=[{"text": "text", "id": 123, "score": "0.9", "name": ["h", "e", "l", "l", "o"]}]
-        )
-        mock_llmobs_logs.warning.assert_called_once_with("Failed to parse output documents.", exc_info=True)
+        with pytest.raises(Exception) as excinfo:
+            llmobs.annotate(
+                span=span, output_data=[{"text": "text", "id": 123, "score": "0.9", "name": ["h", "e", "l", "l", "o"]}]
+            )
+        assert str(excinfo.value) == "Failed to parse output documents."
 
 
 def test_annotate_output_string(llmobs):
@@ -739,11 +744,12 @@ def test_annotate_output_llm_message(llmobs):
         assert llm_span._get_ctx_item(OUTPUT_MESSAGES) == [{"content": "test_output", "role": "human"}]
 
 
-def test_annotate_output_llm_message_wrong_type(llmobs, mock_llmobs_logs):
+def test_annotate_output_llm_message_wrong_type(llmobs):
     with llmobs.llm(model_name="test_model") as llm_span:
-        llmobs.annotate(span=llm_span, output_data=[{"content": object()}])
+        with pytest.raises(Exception) as excinfo:
+            llmobs.annotate(span=llm_span, output_data=[{"content": object()}])
+        assert str(excinfo.value) == "Failed to parse output messages."
         assert llm_span._get_ctx_item(OUTPUT_MESSAGES) is None
-        mock_llmobs_logs.warning.assert_called_once_with("Failed to parse output messages.", exc_info=True)
 
 
 def test_annotate_metrics(llmobs):

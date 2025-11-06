@@ -1446,22 +1446,32 @@ class LLMObs(Service):
                 not span_kind and not _suppress_span_kind_error
             ):  # TODO(sabrenner): we should figure out how to remove this check for annotation contexts
                 raise Exception("Span kind not specified, skipping annotation for input/output data")
+
+            annotation_error_message = None
             if input_data is not None or output_data is not None:
                 if span_kind == "llm":
-                    error = cls._tag_llm_io(span, input_messages=input_data, output_messages=output_data)
+                    annotation_error_message, error = cls._tag_llm_io(
+                        span, input_messages=input_data, output_messages=output_data
+                    )
                 elif span_kind == "embedding":
-                    error = cls._tag_embedding_io(span, input_documents=input_data, output_text=output_data)
+                    annotation_error_message, error = cls._tag_embedding_io(
+                        span, input_documents=input_data, output_text=output_data
+                    )
                 elif span_kind == "retrieval":
-                    error = cls._tag_retrieval_io(span, input_text=input_data, output_documents=output_data)
+                    annotation_error_message, error = cls._tag_retrieval_io(
+                        span, input_text=input_data, output_documents=output_data
+                    )
                 elif span_kind == "experiment":
                     cls._tag_freeform_io(span, input_value=input_data, output_value=output_data)
                 else:
                     cls._tag_text_io(span, input_value=input_data, output_value=output_data)
+            if annotation_error_message:
+                raise Exception(annotation_error_message)
         finally:
             telemetry.record_llmobs_annotate(span, error)
 
     @classmethod
-    def _tag_llm_io(cls, span, input_messages=None, output_messages=None) -> Optional[str]:
+    def _tag_llm_io(cls, span, input_messages=None, output_messages=None) -> Tuple[Optional[str], Optional[str]]:
         """Tags input/output messages for LLM-kind spans.
         Will be mapped to span's `meta.{input,output}.messages` fields.
         """
@@ -1472,27 +1482,21 @@ class LLMObs(Service):
                 if input_messages.messages:
                     span._set_ctx_item(INPUT_MESSAGES, input_messages.messages)
             except TypeError:
-                log.warning(
-                    "Failed to parse input messages.", exc_info=True
-                )  # TODO: figure out how to raise this error and return the error type
-                return "invalid_io_messages"
+                return "Failed to parse input messages.", "invalid_io_messages"
         if output_messages is None:
-            return None
+            return None, None
         try:
             if not isinstance(output_messages, Messages):
                 output_messages = Messages(output_messages)
             if not output_messages.messages:
-                return None
+                return None, None
             span._set_ctx_item(OUTPUT_MESSAGES, output_messages.messages)
         except TypeError:
-            log.warning(
-                "Failed to parse output messages.", exc_info=True
-            )  # TODO: figure out how to raise this error and return the error type
-            return "invalid_io_messages"
-        return None
+            return "Failed to parse output messages.", "invalid_io_messages"
+        return None, None
 
     @classmethod
-    def _tag_embedding_io(cls, span, input_documents=None, output_text=None) -> Optional[str]:
+    def _tag_embedding_io(cls, span, input_documents=None, output_text=None) -> Tuple[Optional[str], Optional[str]]:
         """Tags input documents and output text for embedding-kind spans.
         Will be mapped to span's `meta.{input,output}.text` fields.
         """
@@ -1503,36 +1507,30 @@ class LLMObs(Service):
                 if input_documents.documents:
                     span._set_ctx_item(INPUT_DOCUMENTS, input_documents.documents)
             except TypeError:
-                log.warning(
-                    "Failed to parse input documents.", exc_info=True
-                )  # TODO: figure out how to raise this error and return the error type
-                return "invalid_embedding_io"
+                return "Failed to parse input documents.", "invalid_embedding_io"
         if output_text is None:
-            return None
+            return None, None
         span._set_ctx_item(OUTPUT_VALUE, str(output_text))
-        return None
+        return None, None
 
     @classmethod
-    def _tag_retrieval_io(cls, span, input_text=None, output_documents=None) -> Optional[str]:
+    def _tag_retrieval_io(cls, span, input_text=None, output_documents=None) -> Tuple[Optional[str], Optional[str]]:
         """Tags input text and output documents for retrieval-kind spans.
         Will be mapped to span's `meta.{input,output}.text` fields.
         """
         if input_text is not None:
             span._set_ctx_item(INPUT_VALUE, safe_json(input_text))
         if output_documents is None:
-            return None
+            return None, None
         try:
             if not isinstance(output_documents, Documents):
                 output_documents = Documents(output_documents)
             if not output_documents.documents:
-                return None
+                return None, None
             span._set_ctx_item(OUTPUT_DOCUMENTS, output_documents.documents)
         except TypeError:
-            log.warning(
-                "Failed to parse output documents.", exc_info=True
-            )  # TODO: figure out how to raise this error and return the error type
-            return "invalid_retrieval_io"
-        return None
+            return "Failed to parse output documents.", "invalid_retrieval_io"
+        return None, None
 
     @classmethod
     def _tag_text_io(cls, span, input_value=None, output_value=None):
