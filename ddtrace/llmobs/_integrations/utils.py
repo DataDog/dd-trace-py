@@ -16,6 +16,7 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import INPUT_MESSAGES
+from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
@@ -26,6 +27,7 @@ from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import safe_load_json
@@ -741,6 +743,14 @@ def openai_get_metadata_from_response(
 def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], response: Optional[Any]) -> None:
     """Extract input/output tags from response and set them as temporary "_ml_obs.meta.*" tags."""
     input_data = kwargs.get("input", [])
+    
+    # For reusable prompts, input may not be in kwargs, extract from response.instructions
+    if not input_data and response and "prompt" in kwargs:
+        instructions = _get_attr(response, "instructions", [])
+        if instructions:
+            # Convert OpenAI Pydantic objects to dicts
+            input_data = load_data_value(instructions)
+    
     input_messages = openai_get_input_messages_from_response_input(input_data)
 
     if "instructions" in kwargs:
@@ -752,6 +762,15 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], respo
             METADATA: openai_get_metadata_from_response(response, kwargs),
         }
     )
+
+    if "prompt" in kwargs:
+        prompt_data = kwargs.get("prompt")
+        if prompt_data:
+            try:
+                validated_prompt = _validate_prompt(prompt_data, strict_validation=False)
+                span._set_ctx_item(INPUT_PROMPT, validated_prompt)
+            except (TypeError, ValueError) as e:
+                logger.debug("Failed to validate prompt for OpenAI response: %s", e)
 
     if span.error or not response:
         span._set_ctx_item(OUTPUT_MESSAGES, [Message(content="")])

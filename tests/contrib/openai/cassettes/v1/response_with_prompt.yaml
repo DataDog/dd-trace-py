@@ -1,0 +1,139 @@
+interactions:
+- request:
+    body: '{"prompt":{"id":"pmpt_690b24669d8c81948acc0e98da10e6490190feb3a62eee0b","version":"3","variables":{"question":"What
+      is machine learning?"}}}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '140'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 2.3.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - Linux
+      x-stainless-package-version:
+      - 2.3.0
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.18
+    method: POST
+    uri: https://api.openai.com/v1/responses
+  response:
+    body:
+      string: !!binary |
+        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
+    headers:
+      CF-RAY:
+      - 99a3476d3f40034e-CDG
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 06 Nov 2025 08:39:19 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=TDFxHybuF51a1ZDEYa83d238sg4jXiDN9XNIgltrxEo-1762418359-1.0.1.1-88kU.E2l.a4zKq49TvFPxb4nR1iu55wGnJ97Yl_lzBJOZjKYu35ZtUQaO7KJRYie1el18xqzGP5dxuvEgiNco_Xe62xhIB74gcexFW347jY;
+        path=/; expires=Thu, 06-Nov-25 09:09:19 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=fr4jipzxLgLJezlGineMyVXLv7wPB5vaLORozEQbmqM-1762418359532-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-staging
+      openai-processing-ms:
+      - '7213'
+      openai-project:
+      - proj_gt6TQZPRbZfoY2J9AQlEJMpd
+      openai-version:
+      - '2020-10-01'
+      x-envoy-upstream-service-time:
+      - '7217'
+      x-ratelimit-limit-requests:
+      - '30000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '29999'
+      x-ratelimit-remaining-tokens:
+      - '149999772'
+      x-ratelimit-reset-requests:
+      - 2ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_a545001a07e940499245fc93777c84aa
+    status:
+      code: 200
+      message: OK
+version: 1
