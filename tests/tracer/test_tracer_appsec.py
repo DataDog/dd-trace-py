@@ -10,6 +10,8 @@ from ddtrace.ext import net
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import NativeWriter
+from ddtrace.settings._config import Config
+from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.trace import Span
 from tests.appsec.utils import asm_context
 from tests.utils import DummyTracer
@@ -19,6 +21,19 @@ from tests.utils import override_env
 class DummyProcessor(TraceProcessor):
     def process_trace(self, trace):
         return trace
+
+
+@pytest.fixture
+def int_config():
+    c = Config()
+    c.myint = IntegrationConfig(c, "myint")
+    return c
+
+
+@pytest.fixture
+def span(tracer):
+    with tracer.trace(name="myint") as span:
+        yield span
 
 
 @pytest.mark.parametrize("writer_class", (AgentWriter, NativeWriter))
