@@ -3510,6 +3510,9 @@ venv = Venv(
                             env={
                                 "ECHION_USE_FAST_COPY_MEMORY": "1",
                             },
+                            pkgs={
+                                "protobuf": latest,
+                            },
                         ),
                     ],
                 ),
@@ -3553,6 +3556,9 @@ venv = Venv(
                             env={
                                 "ECHION_USE_FAST_COPY_MEMORY": "1",
                             },
+                            pkgs={
+                                "protobuf": latest,
+                            },
                         ),
                     ],
                 ),
@@ -3582,6 +3588,9 @@ venv = Venv(
                             env={
                                 "ECHION_USE_FAST_COPY_MEMORY": "1",
                             },
+                            pkgs={
+                                "protobuf": latest,
+                            },
                         ),
                     ],
                 ),
@@ -3590,6 +3599,9 @@ venv = Venv(
                     command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling_v2/collector/test_memalloc.py",  # noqa: E501
                     # skipping v3.14 for now due to an unstable `lz4 ` lib issue: https://gitlab.ddbuild.io/DataDog/apm-reliability/dd-trace-py/-/jobs/1163312347
                     pys=select_pys(max_version="3.13"),
+                    pkgs={
+                        "protobuf": latest,
+                    },
                     venvs=[
                         # standard allocators
                         Venv(
