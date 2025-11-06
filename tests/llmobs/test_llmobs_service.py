@@ -1916,29 +1916,20 @@ def test_submit_evaluation_enqueues_writer_with_reasoning(llmobs, mock_llmobs_ev
             reasoning="the content of the message involved profanity",
         )
     )
-    mock_llmobs_eval_metric_writer.reset()
-    llmobs.submit_evaluation(
-        span={"span_id": "123", "trace_id": "456"},
-        label="toxicity",
-        metric_type="categorical",
-        value="low",
-        tags={"foo": "bar", "bee": "baz", "ml_app": "ml_app_override"},
-        ml_app="ml_app_override",
-        metadata="invalid",
-        reasoning="the content of the message did not involve profanity or hate speech or negativity",
-    )
-    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
-        _expected_llmobs_eval_metric_event(
-            ml_app="ml_app_override",
-            span_id="123",
-            trace_id="456",
+    mock_llmobs_eval_metric_writer.reset_mock()
+    with pytest.raises(Exception) as excinfo:
+        llmobs.submit_evaluation(
+            span={"span_id": "123", "trace_id": "456"},
             label="toxicity",
             metric_type="categorical",
-            categorical_value="low",
-            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
+            value="low",
+            tags={"foo": "bar", "bee": "baz", "ml_app": "ml_app_override"},
+            ml_app="ml_app_override",
+            metadata="invalid",
             reasoning="the content of the message did not involve profanity or hate speech or negativity",
         )
-    )
+    assert str(excinfo.value) == "metadata must be json serializable dictionary."
+    mock_llmobs_eval_metric_writer.enqueue.assert_not_called()
 
 
 def test_llmobs_parenting_with_root_apm_span(llmobs, tracer, llmobs_events):
