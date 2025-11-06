@@ -1012,8 +1012,7 @@ class LLMObs(Service):
             span = cls._instance._current_span()
             if span is None:
                 telemetry.record_span_exported(span, "no_active_span")
-                log.warning("No span provided and no active LLMObs-generated span found.")
-                return None
+                raise Exception("No span provided and no active LLMObs-generated span found.")
         error = None
         try:
             if span.span_type != SpanTypes.LLM:

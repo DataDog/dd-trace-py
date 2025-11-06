@@ -466,7 +466,7 @@ def test_annotate_metadata_updates(llmobs):
         }
 
 
-def test_annotate_metadata_wrong_type_raises_warning(llmobs):
+def test_annotate_metadata_wrong_type_raises(llmobs):
     with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         with pytest.raises(Exception) as excinfo:
             llmobs.annotate(span=span, metadata="wrong_metadata")
@@ -556,7 +556,7 @@ def test_annotate_input_llm_message_wrong_type(llmobs):
         assert str(excinfo.value) == "Failed to parse input messages."
 
 
-def test_llmobs_annotate_incorrect_message_content_type_raises_warning(llmobs):
+def test_llmobs_annotate_incorrect_message_content_type_raises(llmobs):
     with llmobs.llm(model_name="test_model") as span:
         with pytest.raises(Exception) as excinfo:
             llmobs.annotate(span=span, input_data={"role": "user", "content": {"nested": "yes"}})
@@ -642,7 +642,7 @@ def test_annotate_document_list(llmobs):
         assert documents[1]["score"] == 0.9
 
 
-def test_annotate_incorrect_document_type_raises_warning(llmobs):
+def test_annotate_incorrect_document_type_raises(llmobs):
     with llmobs.embedding(model_name="test_model") as span:
         with pytest.raises(Exception) as excinfo:
             llmobs.annotate(span=span, input_data={"text": 123})
@@ -665,7 +665,7 @@ def test_annotate_incorrect_document_type_raises_warning(llmobs):
         assert str(excinfo.value) == "Failed to parse output documents."
 
 
-def test_annotate_document_no_text_raises_warning(llmobs):
+def test_annotate_document_no_text_raises(llmobs):
     with llmobs.embedding(model_name="test_model") as span:
         with pytest.raises(Exception) as excinfo:
             llmobs.annotate(span=span, input_data=[{"score": 0.9, "id": "id", "name": "name"}])
@@ -676,7 +676,7 @@ def test_annotate_document_no_text_raises_warning(llmobs):
         assert str(excinfo.value) == "Failed to parse output documents."
 
 
-def test_annotate_incorrect_document_field_type_raises_warning(llmobs):
+def test_annotate_incorrect_document_field_type_raises(llmobs):
     with llmobs.embedding(model_name="test_model") as span:
         with pytest.raises(Exception) as excinfo:
             llmobs.annotate(span=span, input_data=[{"text": "test_document_text", "score": "0.9"}])
@@ -921,13 +921,13 @@ def test_ml_app_override(llmobs, llmobs_events):
     assert llmobs_events[6] == _expected_llmobs_non_llm_span_event(span, "retrieval", tags={"ml_app": "test_app"})
 
 
-def test_export_span_specified_span_is_incorrect_type_raises_warning(llmobs):
+def test_export_span_specified_span_is_incorrect_type_raises(llmobs):
     with pytest.raises(Exception) as excinfo:
         llmobs.export_span(span="asd")
     assert str(excinfo.value) == "Failed to export span. Span must be a valid Span object."
 
 
-def test_export_span_specified_span_is_not_llmobs_span_raises_warning(llmobs):
+def test_export_span_specified_span_is_not_llmobs_span_raises(llmobs):
     with DummyTracer().trace("non_llmobs_span") as span:
         with pytest.raises(Exception) as excinfo:
             llmobs.export_span(span=span)
@@ -942,15 +942,17 @@ def test_export_span_specified_span_returns_span_context(llmobs):
         assert span_context["trace_id"] == format_trace_id(span._get_ctx_item(LLMOBS_TRACE_ID))
 
 
-def test_export_span_no_specified_span_no_active_span_raises_warning(llmobs, mock_llmobs_logs):
-    llmobs.export_span()
-    mock_llmobs_logs.warning.assert_called_once_with("No span provided and no active LLMObs-generated span found.")
-
-
-def test_export_span_active_span_not_llmobs_span_raises_warning(llmobs, mock_llmobs_logs):
-    with llmobs._instance.tracer.trace("non_llmobs_span"):
+def test_export_span_no_specified_span_no_active_span_raises(llmobs):
+    with pytest.raises(Exception) as excinfo:
         llmobs.export_span()
-    mock_llmobs_logs.warning.assert_called_once_with("No span provided and no active LLMObs-generated span found.")
+    assert str(excinfo.value) == "No span provided and no active LLMObs-generated span found."
+
+
+def test_export_span_active_span_not_llmobs_span_raises(llmobs):
+    with llmobs._instance.tracer.trace("non_llmobs_span"):
+        with pytest.raises(Exception) as excinfo:
+            llmobs.export_span()
+        assert str(excinfo.value) == "No span provided and no active LLMObs-generated span found."
 
 
 def test_export_span_no_specified_span_returns_exported_active_span(llmobs):
@@ -1530,7 +1532,7 @@ def test_service_enable_does_not_start_evaluator_runner():
         llmobs_service.disable()
 
 
-def test_submit_evaluation_no_ml_app_raises_warning(llmobs):
+def test_submit_evaluation_no_ml_app_raises(llmobs):
     with override_global_config(dict(_llmobs_ml_app="")):
         with pytest.raises(Exception) as excinfo:
             llmobs.submit_evaluation(
@@ -1545,7 +1547,7 @@ def test_submit_evaluation_no_ml_app_raises_warning(llmobs):
         )
 
 
-def test_submit_evaluation_span_incorrect_type_raises_error(llmobs, mock_llmobs_logs):
+def test_submit_evaluation_span_incorrect_type_raises(llmobs):
     with pytest.raises(
         TypeError,
         match=re.escape(
@@ -1646,7 +1648,7 @@ def test_submit_evaluation_incorrect_score_value_type_raises_error(llmobs, mock_
         )
 
 
-def test_submit_evaluation_invalid_tags_raises_warning(llmobs, mock_llmobs_logs):
+def test_submit_evaluation_invalid_tags_raises(llmobs):
     with pytest.raises(Exception) as excinfo:
         llmobs.submit_evaluation(
             span={"span_id": "123", "trace_id": "456"},
@@ -1878,7 +1880,7 @@ def test_submit_evaluation_enqueues_writer_with_assessment(llmobs, mock_llmobs_e
     )
 
 
-def test_submit_evaluation_invalid_reasoning_raises_warning(llmobs, mock_llmobs_logs):
+def test_submit_evaluation_invalid_reasoning_raises(llmobs):
     with pytest.raises(Exception) as excinfo:
         llmobs.submit_evaluation(
             span={"span_id": "123", "trace_id": "456"},
