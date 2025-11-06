@@ -68,7 +68,7 @@ def test_initializer_thread_safety():
 def test_initializer_reset_after_fork():
     """
     Test that IAST is disabled in forked child processes.
-    
+
     When a process forks, the native extension state cannot be safely used.
     The fork handler disables IAST in the child to prevent segmentation faults.
     This test verifies that the child process doesn't crash when IAST is disabled.

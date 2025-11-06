@@ -16,7 +16,7 @@ from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 def _child_check(q: Queue):
     """
     Subprocess entrypoint: verify IAST is disabled in forked child processes.
-    
+
     Reports tracer and IAST status back to parent via Queue.
     """
     try:
@@ -88,10 +88,10 @@ def _child_check(q: Queue):
 def test_subprocess_has_tracer_running_and_iast_env(monkeypatch):
     """
     Verify IAST is disabled in multiprocessing child processes.
-    
+
     When a process forks, the native IAST state cannot be safely used.
     The fork handler disables IAST in the child to prevent segmentation faults.
-    
+
     This test verifies:
     - Tracer remains enabled in child
     - DD_IAST_ENABLED env variable is propagated
@@ -117,7 +117,7 @@ def test_subprocess_has_tracer_running_and_iast_env(monkeypatch):
 
     # DD_IAST_ENABLED env should be visible and true in child (env is inherited)
     assert result["iast_env"] in ("true", "True", "1")
-    
+
     # But IAST should NOT actually taint objects (disabled for safety)
     assert result["text_is_tainted"] is False
     assert result["text_is_tainted2"] is False

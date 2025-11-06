@@ -56,13 +56,13 @@ def test_fork_handler_with_active_context(iast_context_defaults):
     # Reset simulates what happens after fork - IAST is disabled
     original_state = asm_config._iast_enabled
     _disable_iast_after_fork()
-    
+
     # IAST should now be disabled
     assert asm_config._iast_enabled is False, "IAST should be disabled after fork"
 
     # After reset, we should be able to call these safely (they're no-ops now)
     _end_iast_context_and_oce()
-    
+
     # Restore for other tests
     asm_config._iast_enabled = original_state
 
@@ -96,7 +96,7 @@ def test_multiprocessing_with_iast_no_segfault(iast_context_defaults):
             # Since IAST is disabled, count should be 0 and object not tainted
             count = _num_objects_tainted_in_request()
             is_obj_tainted = is_tainted(tainted_str)
-            
+
             queue.put(("success", is_enabled, count, is_obj_tainted))
 
         except Exception as e:
@@ -137,11 +137,11 @@ def test_multiple_fork_operations(iast_context_defaults):
         """Simple child process work - IAST will be disabled."""
         try:
             from ddtrace.settings.asm import config as asm_config
-            
+
             # These should be safe no-ops since IAST is disabled
             _start_iast_context_and_oce()
             taint_pyobject(f"data_{child_id}", "source", "value", OriginType.PARAMETER)
-            
+
             # Verify IAST is disabled
             is_enabled = asm_config._iast_enabled
             queue.put(("success", child_id, is_enabled))
@@ -183,7 +183,7 @@ def test_fork_with_os_fork_no_segfault(iast_context_defaults):
     to prevent any native extension corruption issues.
     """
     from ddtrace.appsec._iast._taint_tracking import is_tainted
-    
+
     _start_iast_context_and_oce()
     parent_data = taint_pyobject("parent", "source", "value", OriginType.PATH)
     assert is_tainted(parent_data), "Should be tainted in parent"
@@ -194,26 +194,26 @@ def test_fork_with_os_fork_no_segfault(iast_context_defaults):
         # Child process - IAST should be disabled
         try:
             from ddtrace.settings.asm import config as asm_config
-            
+
             # IAST should be disabled after fork
             if asm_config._iast_enabled:
                 print("ERROR: IAST should be disabled in child", file=sys.stderr)
                 os._exit(1)
-            
+
             # These should not segfault (they're no-ops)
             _start_iast_context_and_oce()
             child_data = taint_pyobject("child", "source", "value", OriginType.PARAMETER)
-            
+
             # Since IAST is disabled, nothing should be tainted
             count = _num_objects_tainted_in_request()
             if count != 0:
                 print(f"ERROR: Expected 0 tainted objects, got {count}", file=sys.stderr)
                 os._exit(1)
-            
+
             if is_tainted(child_data):
                 print("ERROR: Object should not be tainted (IAST disabled)", file=sys.stderr)
                 os._exit(1)
-                
+
             os._exit(0)
         except Exception as e:
             print(f"Child error: {e}", file=sys.stderr)
@@ -258,7 +258,7 @@ def test_fork_handler_clears_state(iast_context_defaults):
     assert not is_tainted(tainted2), "Should not be tainted (IAST disabled)"
 
     _end_iast_context_and_oce()
-    
+
     # Restore for other tests
     asm_config._iast_enabled = original_state
 
@@ -276,7 +276,7 @@ def test_eval_in_forked_process(iast_context_defaults):
         try:
             from ddtrace.appsec._iast._taint_tracking import is_tainted
             from ddtrace.settings.asm import config as asm_config
-            
+
             # IAST should be disabled, so this is a no-op
             _start_iast_context_and_oce()
 
@@ -286,10 +286,10 @@ def test_eval_in_forked_process(iast_context_defaults):
 
             # Code should not be tainted (IAST disabled)
             is_obj_tainted = is_tainted(tainted_code)
-            
+
             # This should not crash
             result = eval(tainted_code)
-            
+
             is_enabled = asm_config._iast_enabled
 
             queue.put(("success", result, is_enabled, is_obj_tainted))
