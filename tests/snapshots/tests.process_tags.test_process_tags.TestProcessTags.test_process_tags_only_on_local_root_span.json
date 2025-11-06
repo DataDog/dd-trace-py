@@ -1,0 +1,38 @@
+[[
+  {
+    "name": "parent",
+    "service": "tests.process_tags",
+    "resource": "parent",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "690c77c500000000",
+      "_dd.tags.process": "entrypoint.basedir:bin,entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project",
+      "language": "python",
+      "runtime-id": "24077c4537e349bca8226bf23bbfac75"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 605
+    },
+    "duration": 125583,
+    "start": 1762424773059544096
+  },
+     {
+       "name": "child",
+       "service": "tests.process_tags",
+       "resource": "child",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "duration": 73458,
+       "start": 1762424773059582388
+     }]]

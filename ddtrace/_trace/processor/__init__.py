@@ -252,8 +252,8 @@ class TraceTagsProcessor(TraceProcessor):
             span._update_tags_from_context()
             self._set_git_metadata(span)
             span._set_tag_str("language", "python")
-            if serialized_process_tags := process_tags.get_serialized_process_tags():
-                span._set_tag_str(PROCESS_TAGS, serialized_process_tags)
+            if process_tags:
+                span._set_tag_str(PROCESS_TAGS, process_tags)
             # for 128 bit trace ids
             if span.trace_id > MAX_UINT_64BITS:
                 trace_id_hob = _get_64_highest_order_bits_as_hex(span.trace_id)
