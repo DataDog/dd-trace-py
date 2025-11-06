@@ -41,7 +41,6 @@ class TestProcessTags(TracerTestCase):
 
     @pytest.mark.snapshot
     def test_process_tags_activated(self):
-        """Test process tags using override_env instead of run_in_subprocess"""
         config._process_tags_enabled = True
         _process_tag_reload()
 
@@ -50,7 +49,6 @@ class TestProcessTags(TracerTestCase):
 
     @pytest.mark.snapshot
     def test_process_tags_only_on_local_root_span(self):
-        """Test that only local root spans get process tags, not children"""
         config._process_tags_enabled = True
         _process_tag_reload()
         with self.tracer.trace("parent"):

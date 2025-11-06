@@ -47,12 +47,4 @@ def _process_tag_reload():
     global process_tags
     process_tags = generate_process_tags()
 
-    # Force update in the processor module for testing
-    import sys
-
-    if "ddtrace._trace.processor" in sys.modules:
-        processor_module = sys.modules["ddtrace._trace.processor"]
-        processor_module.process_tags = process_tags
-
-
 process_tags = generate_process_tags()
