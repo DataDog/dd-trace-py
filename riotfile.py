@@ -521,7 +521,6 @@ venv = Venv(
             command="pytest --no-cov {cmdargs} tests/coverage -s",
             pys=select_pys(max_version="3.12"),
         ),
-        Venv(name="process_tags", command="pytest -v {cmdargs} tests/process_tags/", pys=select_pys()),
         Venv(
             name="internal",
             env={

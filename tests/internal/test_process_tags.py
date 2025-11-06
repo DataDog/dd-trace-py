@@ -8,7 +8,7 @@ from tests.utils import TracerTestCase
 
 
 @pytest.mark.parametrize(
-    "input,expected",
+    "input_tag,expected",
     [
         ("HelloWorld", "helloworld"),
         ("Hello@World!", "hello_world_"),
