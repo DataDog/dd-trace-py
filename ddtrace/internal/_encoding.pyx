@@ -721,7 +721,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
             if PyUnicode_Check(v) or PyBytesLike_Check(v):
                 m.append((k, v))
             else:
-                log.warning("[span ID %ld] Meta key %r has non-string value %r, skipping", span_id, k, v)
+                log.warning("[span ID %d] Meta key %r has non-string value %r, skipping", span_id, k, v)
 
         L = len(m) + (dd_origin is not NULL) + (len(span_events) > 0)
         if L > ITEM_LIMIT:
@@ -765,7 +765,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
             if PyLong_Check(v) or PyFloat_Check(v):
                 m.append((k, v))
             else:
-                log.warning("[span ID %ld] Metric key %r has non-numeric value %r, skipping", span_id, k, v)
+                log.warning("[span ID %d] Metric key %r has non-numeric value %r, skipping", span_id, k, v)
 
         L = len(m)
         if L > ITEM_LIMIT:
@@ -1063,7 +1063,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
     cdef int pack_span(self, object span, unsigned long long trace_id_64bits, void *dd_origin) except? -1:
         cdef int ret
         cdef list meta, metrics
-        cdef unsigned long long span_id = span.span_id
+        cdef uint64_t span_id = span.span_id
 
         ret = msgpack_pack_array(&self.pk, 12)
         if ret != 0:
@@ -1123,7 +1123,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
             if PyUnicode_Check(v) or PyBytesLike_Check(v):
                 meta.append((k, v))
             else:
-                log.warning("[span ID %ld] Meta key %r has non-string value %r, skipping", span_id, k, v)
+                log.warning("[span ID %d] Meta key %r has non-string value %r, skipping", span_id, k, v)
 
         ret = msgpack_pack_map(
             &self.pk,
@@ -1167,7 +1167,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
             if PyLong_Check(v) or PyFloat_Check(v):
                 metrics.append((k, v))
             else:
-                log.warning("[span ID %ld] Metric key %r has non-numeric value %r, skipping", span_id, k, v)
+                log.warning("[span ID %d] Metric key %r has non-numeric value %r, skipping", span_id, k, v)
 
         ret = msgpack_pack_map(&self.pk, len(metrics))
         if ret != 0:
