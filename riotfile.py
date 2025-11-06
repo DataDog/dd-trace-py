@@ -351,6 +351,7 @@ venv = Venv(
                 "simplejson": latest,
                 "grpcio": latest,
                 "pytest-asyncio": latest,
+                "protobuf": latest,
             },
             env={
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
@@ -3365,7 +3366,6 @@ venv = Venv(
             pkgs={
                 "gunicorn": latest,
                 "zstandard": latest,
-                "protobuf": latest,
                 #
                 # pytest-benchmark depends on cpuinfo which dropped support for Python<=3.6 in 9.0
                 # See https://github.com/workhorsy/py-cpuinfo/issues/177
@@ -3393,6 +3393,7 @@ venv = Venv(
                             pkgs={
                                 "gunicorn[gevent]": latest,
                                 "gevent": latest,
+                                "protobuf": latest,
                             },
                         ),
                     ],
@@ -3414,16 +3415,18 @@ venv = Venv(
                             },
                             pkgs={
                                 "gunicorn[gevent]": latest,
+                                "protobuf": latest,
                             },
                             venvs=[
                                 Venv(
                                     pkgs={
                                         "gevent": latest,
                                         "greenlet": latest,
+                                        "protobuf": latest,
                                     }
                                 ),
                                 Venv(
-                                    pkgs={"gevent": latest},
+                                    pkgs={"gevent": latest, "protobuf": latest},
                                 ),
                             ],
                         ),
@@ -3444,7 +3447,7 @@ venv = Venv(
                             env={
                                 "DD_PROFILE_TEST_GEVENT": "1",
                             },
-                            pkgs={"gunicorn[gevent]": latest, "gevent": latest},
+                            pkgs={"gunicorn[gevent]": latest, "gevent": latest, "protobuf": latest},
                         ),
                     ],
                 ),
@@ -3462,7 +3465,6 @@ venv = Venv(
                 "gunicorn": latest,
                 "jsonschema": latest,
                 "zstandard": latest,
-                "protobuf": latest,
                 "pytest-cpp": latest,
                 #
                 # pytest-benchmark depends on cpuinfo which dropped support for Python<=3.6 in 9.0
@@ -3477,7 +3479,10 @@ venv = Venv(
                     name="profile-v2-uwsgi",
                     command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling_v2/test_uwsgi.py",  # noqa: E501
                     pys=select_pys(max_version="3.13"),
-                    pkgs={"uwsgi": "<2.0.30"},
+                    pkgs={
+                        "uwsgi": "<2.0.30",
+                        "protobuf": latest,
+                    },
                 ),
                 # Python 3.8 + 3.9
                 Venv(
@@ -3497,6 +3502,7 @@ venv = Venv(
                             pkgs={
                                 "gunicorn[gevent]": latest,
                                 "gevent": latest,
+                                "protobuf": latest,
                             },
                         ),
                         # memcpy-based sampler
@@ -3524,16 +3530,21 @@ venv = Venv(
                             },
                             pkgs={
                                 "gunicorn[gevent]": latest,
+                                "protobuf": latest,
                             },
                             venvs=[
                                 Venv(
                                     pkgs={
                                         "gevent": latest,
                                         "greenlet": latest,
+                                        "protobuf": latest,
                                     }
                                 ),
                                 Venv(
-                                    pkgs={"gevent": latest},
+                                    pkgs={
+                                        "gevent": latest,
+                                        "protobuf": latest,
+                                    },
                                 ),
                             ],
                         ),
@@ -3560,7 +3571,11 @@ venv = Venv(
                             env={
                                 "DD_PROFILE_TEST_GEVENT": "1",
                             },
-                            pkgs={"gunicorn[gevent]": latest, "gevent": latest},
+                            pkgs={
+                                "gunicorn[gevent]": latest,
+                                "gevent": latest,
+                                "protobuf": latest,
+                            },
                         ),
                         # memcpy-based sampler
                         Venv(
