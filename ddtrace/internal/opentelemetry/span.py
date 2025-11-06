@@ -39,12 +39,13 @@ log = get_logger(__name__)
 
 
 def _ddmap(span, attribute, value):
-    # type: (DDSpan, str, Union[bytes, NumericType]) -> DDSpan
+    # type: (DDSpan, str, Union[str, bytes, NumericType]) -> DDSpan
     if attribute.startswith("meta") or attribute.startswith("metrics"):
         meta_key = attribute.split("'")[1] if len(attribute.split("'")) == 3 else None
         if meta_key:
             if meta_key == "http.status_code":
-                value = str(value)
+                if isinstance(value, (int, float)):
+                    value = str(value)
 
             if isinstance(value, (str, bytes)):
                 span.set_tag(meta_key, ensure_text(value))
