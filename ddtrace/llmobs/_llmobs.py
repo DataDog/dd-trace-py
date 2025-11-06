@@ -1889,7 +1889,7 @@ class LLMObs(Service):
             telemetry.record_activate_distributed_headers(error)
 
     @classmethod
-    def activate_distributed_headers(cls, request_headers: Dict[str, str], _soft_fail: bool = False) -> None:
+    def activate_distributed_headers(cls, request_headers: Dict[str, str]) -> None:
         """
         Activates distributed tracing headers for the current request.
 
@@ -1903,7 +1903,7 @@ class LLMObs(Service):
             return
         context = HTTPPropagator.extract(request_headers)
         cls._instance.tracer.context_provider.activate(context)
-        cls._instance._activate_llmobs_distributed_context(request_headers, context, _soft_fail=_soft_fail)
+        cls._instance._activate_llmobs_distributed_context(request_headers, context, _soft_fail=False)
 
 
 # initialize the default llmobs instance
