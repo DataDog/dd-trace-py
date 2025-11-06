@@ -52,7 +52,6 @@ class TracerTestCases(TracerTestCase):
     @pytest.fixture(autouse=True)
     def inject_fixtures(self, tracer, caplog):
         self._caplog = caplog
-        self._tracer_appsec = tracer
 
     def test_tracer_vars(self):
         span = self.trace("a", service="s", resource="r", span_type="t")
