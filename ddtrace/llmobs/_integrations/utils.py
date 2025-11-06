@@ -740,6 +740,60 @@ def openai_get_metadata_from_response(
     return metadata
 
 
+def _extract_chat_template_from_instructions(
+    instructions: List[Any], variables: Dict[str, Any]
+) -> List[Dict[str, str]]:
+    """
+    Extract a chat template from OpenAI response instructions by replacing variable values with placeholders.
+
+    Args:
+        instructions: List of instruction messages from the OpenAI response
+        variables: Dictionary of variables used in the prompt
+
+    Returns:
+        List of chat template messages with placeholders (e.g., {{variable_name}})
+    """
+    chat_template = []
+
+    # Create a mapping of variable values to placeholder names
+    value_to_placeholder = {}
+    for var_name, var_value in variables.items():
+        if hasattr(var_value, "text"): # ResponseInputText
+            value_str = str(var_value.text)
+        else:
+            value_str = str(var_value)
+        value_to_placeholder[value_str] = "{{" + var_name + "}}"
+
+    for instruction in instructions:
+        role = _get_attr(instruction, "role", "")
+        if not role:
+            continue
+
+        content_items = _get_attr(instruction, "content", [])
+        if not content_items:
+            # Skip empty content (e.g., developer role with no content)
+            continue
+
+        text_parts = []
+        for content_item in content_items:
+            text = _get_attr(content_item, "text", "")
+            if text:
+                text_parts.append(str(text))
+
+        if not text_parts:
+            continue
+
+        full_text = "".join(text_parts)
+
+        # Replace variable values with placeholders
+        for value_str, placeholder in value_to_placeholder.items():
+            full_text = full_text.replace(value_str, placeholder)
+
+        chat_template.append({"role": role, "content": full_text})
+
+    return chat_template
+
+
 def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], response: Optional[Any]) -> None:
     """Extract input/output tags from response and set them as temporary "_ml_obs.meta.*" tags."""
     input_data = kwargs.get("input", [])
@@ -766,6 +820,16 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], respo
         prompt_data = kwargs.get("prompt")
         if prompt_data:
             try:
+                # Extract chat_template from response instructions if available
+                if response and not prompt_data.get("chat_template") and not prompt_data.get("template"):
+                    instructions = _get_attr(response, "instructions", None)
+                    variables = prompt_data.get("variables", {})
+                    if instructions and variables:
+                        chat_template = _extract_chat_template_from_instructions(instructions, variables)
+                        if chat_template:
+                            prompt_data = dict(prompt_data)  # Make a copy to avoid modifying the original
+                            prompt_data["chat_template"] = chat_template
+
                 validated_prompt = _validate_prompt(prompt_data, strict_validation=False)
                 span._set_ctx_item(INPUT_PROMPT, validated_prompt)
             except (TypeError, ValueError) as e:
