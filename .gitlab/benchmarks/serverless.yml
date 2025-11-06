@@ -5,8 +5,10 @@ benchmark-serverless:
   stage: benchmarks
   trigger:
     project: DataDog/serverless-tools
+    branch: brettlangdon/prebuilt-wheels
     strategy: depend
-  needs: []
+  needs:
+    - job: publish-wheels-to-s3
   rules:
     - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
       allow_failure: true
