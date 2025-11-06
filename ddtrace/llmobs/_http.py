@@ -1,8 +1,6 @@
-import base64
 import os
 import ssl
 from typing import Optional
-from typing import Tuple
 from urllib.parse import urlparse
 
 from ddtrace.internal.http import HTTPConnection
