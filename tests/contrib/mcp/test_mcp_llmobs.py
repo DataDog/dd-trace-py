@@ -55,7 +55,12 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, mock_tracer, llmobs_events, m
                 "isError": False,
             }
         ),
-        tags={"service": "mcptest", "ml_app": "<ml-app-name>", "mcp_tool_kind": "client"},
+        tags={
+            "service": "mcptest",
+            "ml_app": "<ml-app-name>",
+            "mcp_server_name": "TestServer",
+            "mcp_tool_kind": "client",
+        },
     )
     assert server_events[0] == _expected_llmobs_non_llm_span_event(
         server_span,

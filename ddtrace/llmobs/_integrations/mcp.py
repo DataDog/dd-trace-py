@@ -90,6 +90,13 @@ class MCPIntegration(BaseLLMIntegration):
             }
         )
 
+        existing_tags = span._get_ctx_item(TAGS) or {}
+        client_session_root = _find_client_session_root(span)
+        if client_session_root:
+            client_session_root_tags = client_session_root._get_ctx_item(TAGS) or {}
+            existing_tags["mcp_server_name"] = client_session_root_tags.get("mcp_server_name", "")
+            span._set_ctx_item(TAGS, existing_tags)
+
         if response is None:
             return
 
