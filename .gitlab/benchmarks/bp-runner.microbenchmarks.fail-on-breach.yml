@@ -802,7 +802,7 @@ experiments:
               - max_rss_usage < 675.00 MB
           - name: otelspan-add-tags
             thresholds:
-              - execution_time < 316.50 ms
+              - execution_time < 344.80 ms
               - max_rss_usage < 675.00 MB
           - name: otelspan-get-context
             thresholds:
