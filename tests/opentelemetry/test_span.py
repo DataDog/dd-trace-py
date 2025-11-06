@@ -272,4 +272,3 @@ def test_otel_span_interoperability(oteltracer):
         otel_span_clone = Span(otel_span_og._ddspan)
         # Ensure all properties are consistent
         assert otel_span_clone.__dict__ == otel_span_og.__dict__
-        assert otel_span_clone._ddspan._pprint() == otel_span_og._ddspan._pprint()

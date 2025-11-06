@@ -369,6 +369,7 @@ def test_unshallow_repository_bare(git_repo):
             "--update-shallow",
             "--filter=blob:none",
             "--recurse-submodules=no",
+            "--no-tags",
             cwd=git_repo,
         )
 
@@ -384,6 +385,7 @@ def test_unshallow_repository_bare_repo(git_repo):
             "--update-shallow",
             "--filter=blob:none",
             "--recurse-submodules=no",
+            "--no-tags",
             "myremote",
             cwd=git_repo,
         )
@@ -400,6 +402,7 @@ def test_unshallow_repository_bare_repo_refspec(git_repo):
             "--update-shallow",
             "--filter=blob:none",
             "--recurse-submodules=no",
+            "--no-tags",
             "myremote",
             "mycommitshaaaaaaaaaaaa123",
             cwd=git_repo,

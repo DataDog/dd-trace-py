@@ -3,6 +3,8 @@ from typing import Dict  # noqa:F401
 from typing import Optional  # noqa:F401
 from urllib import parse
 
+import requests
+
 import ddtrace
 from ddtrace import config
 from ddtrace._trace.pin import Pin
@@ -13,15 +15,28 @@ from ddtrace.contrib.internal.trace_utils import _sanitized_url
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.constants import USER_AGENT_HEADER
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.opentelemetry.constants import OTLP_EXPORTER_HEADER_IDENTIFIER
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
+
+
+def is_otlp_export(request: requests.models.Request) -> bool:
+    """Determine if a request is submitting data to the OpenTelemetry OTLP exporter."""
+    if not (config._otel_logs_enabled or config._otel_metrics_enabled):
+        return False
+    user_agent = request.headers.get(USER_AGENT_HEADER, "")
+    normalized_user_agent = user_agent.lower().replace(" ", "-")
+    if OTLP_EXPORTER_HEADER_IDENTIFIER in normalized_user_agent:
+        return True
+    return False
 
 
 def _extract_hostname_and_path(uri):
@@ -67,7 +82,7 @@ def _wrap_send(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     request = get_argument_value(args, kwargs, 0, "request")
-    if not request:
+    if not request or is_otlp_export(request):
         return func(*args, **kwargs)
 
     url = _sanitized_url(request.url)

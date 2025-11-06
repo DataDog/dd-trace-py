@@ -5,7 +5,7 @@ from unittest import TestCase
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
-from ddtrace.settings.integration import IntegrationConfig
+from ddtrace.internal.settings.integration import IntegrationConfig
 
 
 class InstanceConfigTestCase(TestCase):

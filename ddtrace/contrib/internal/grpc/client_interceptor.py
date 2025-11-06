@@ -13,6 +13,7 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.grpc import constants
 from ddtrace.contrib.internal.grpc import utils
+from ddtrace.contrib.internal.grpc.utils import is_otlp_export
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -193,6 +194,13 @@ class _ClientInterceptor(
         self._port = port
 
     def _intercept_client_call(self, method_kind, client_call_details):
+        metadata = []
+        if client_call_details.metadata is not None:
+            metadata = list(client_call_details.metadata)
+
+        if is_otlp_export(metadata):
+            return None, client_call_details
+
         tracer: Tracer = self._pin.tracer
 
         # Instead of using .trace, create the span and activate it at points where we call the continuations
@@ -225,12 +233,8 @@ class _ClientInterceptor(
         # propagate distributed tracing headers if available
         headers = {}
         if config.grpc.distributed_tracing_enabled:
-            # NOTE: We need to pass the span to the HTTPPropagator since it isn't active at this point
-            HTTPPropagator.inject(span.context, headers, span)
+            HTTPPropagator.inject(span, headers)
 
-        metadata = []
-        if client_call_details.metadata is not None:
-            metadata = list(client_call_details.metadata)
         metadata.extend(headers.items())
 
         client_call_details = _ClientCallDetails(
@@ -247,6 +251,8 @@ class _ClientInterceptor(
             constants.GRPC_METHOD_KIND_UNARY,
             client_call_details,
         )
+        if span is None:
+            return continuation(client_call_details, request)
         with _activated_span(self._pin.tracer, span):
             try:
                 response = continuation(client_call_details, request)
@@ -265,6 +271,8 @@ class _ClientInterceptor(
             constants.GRPC_METHOD_KIND_SERVER_STREAMING,
             client_call_details,
         )
+        if span is None:
+            return continuation(client_call_details, request)
         with _activated_span(self._pin.tracer, span):
             response_iterator = continuation(client_call_details, request)
             response_iterator = _WrappedResponseCallFuture(response_iterator, span, self._pin.tracer)
@@ -275,6 +283,8 @@ class _ClientInterceptor(
             constants.GRPC_METHOD_KIND_CLIENT_STREAMING,
             client_call_details,
         )
+        if span is None:
+            return continuation(client_call_details, request_iterator)
         with _activated_span(self._pin.tracer, span):
             try:
                 response = continuation(client_call_details, request_iterator)
@@ -293,6 +303,8 @@ class _ClientInterceptor(
             constants.GRPC_METHOD_KIND_BIDI_STREAMING,
             client_call_details,
         )
+        if span is None:
+            return continuation(client_call_details, request_iterator)
         with _activated_span(self._pin.tracer, span):
             response_iterator = continuation(client_call_details, request_iterator)
             response_iterator = _WrappedResponseCallFuture(response_iterator, span, self._pin.tracer)

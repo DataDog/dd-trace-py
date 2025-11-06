@@ -11,9 +11,9 @@ if typing.TYPE_CHECKING:
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
 from ddtrace.internal.datadog.profiling import stack_v2
 from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.settings.profiling import config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.wrapping import wrap
-from ddtrace.settings.profiling import config
 
 from . import _threading
 
@@ -50,9 +50,7 @@ def _(asyncio):
     elif hasattr(asyncio.Task, "all_tasks"):
         globals()["all_tasks"] = asyncio.Task.all_tasks
 
-    if hasattr(asyncio.Task, "get_name"):
-        # `get_name` is only available in Python ≥ 3.8
-        globals()["_task_get_name"] = lambda task: task.get_name()
+    globals()["_task_get_name"] = lambda task: task.get_name()
 
     if THREAD_LINK is None:
         THREAD_LINK = _threading._ThreadLink()
@@ -98,7 +96,7 @@ def _(asyncio):
             scheduled_tasks = asyncio.tasks._all_tasks.data
             eager_tasks = None
 
-        stack_v2.init_asyncio(asyncio.tasks._current_tasks, scheduled_tasks, eager_tasks)  # type: ignore[attr-defined]
+        stack_v2.init_asyncio(asyncio.tasks._current_tasks, scheduled_tasks, eager_tasks)
 
 
 def get_event_loop_for_thread(thread_id: int) -> typing.Union["asyncio.AbstractEventLoop", None]:

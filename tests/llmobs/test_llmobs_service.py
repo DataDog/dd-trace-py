@@ -1892,8 +1892,8 @@ def test_submit_evaluation_invalid_reasoning_raises(llmobs):
     assert str(excinfo.value) == "Failed to parse reasoning. reasoning must be a string."
 
 
-def test_submit_evaluation_for_enqueues_writer_with_reasoning(llmobs, mock_llmobs_eval_metric_writer):
-    llmobs.submit_evaluation_for(
+def test_submit_evaluation_enqueues_writer_with_reasoning(llmobs, mock_llmobs_eval_metric_writer):
+    llmobs.submit_evaluation(
         span={"span_id": "123", "trace_id": "456"},
         label="toxicity",
         metric_type="categorical",
@@ -1914,6 +1914,29 @@ def test_submit_evaluation_for_enqueues_writer_with_reasoning(llmobs, mock_llmob
             tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
             metadata={"foo": ["bar", "baz"]},
             reasoning="the content of the message involved profanity",
+        )
+    )
+    mock_llmobs_eval_metric_writer.reset()
+    llmobs.submit_evaluation(
+        span={"span_id": "123", "trace_id": "456"},
+        label="toxicity",
+        metric_type="categorical",
+        value="low",
+        tags={"foo": "bar", "bee": "baz", "ml_app": "ml_app_override"},
+        ml_app="ml_app_override",
+        metadata="invalid",
+        reasoning="the content of the message did not involve profanity or hate speech or negativity",
+    )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            ml_app="ml_app_override",
+            span_id="123",
+            trace_id="456",
+            label="toxicity",
+            metric_type="categorical",
+            categorical_value="low",
+            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
+            reasoning="the content of the message did not involve profanity or hate speech or negativity",
         )
     )
 

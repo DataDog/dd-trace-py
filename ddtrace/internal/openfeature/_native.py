@@ -22,7 +22,7 @@ except ImportError:
     # Provide a no-op fallback
     def ffande_process_config(config_bytes: bytes) -> Optional[bool]:
         """Fallback implementation when native module is not available."""
-        log.warning("FFAndE native module not available, ignoring configuration")
+        log.warning("FFE native module not available, ignoring configuration")
         return None
 
 
@@ -47,5 +47,5 @@ def process_ffe_configuration(config_bytes: bytes) -> bool:
             return False
         return result
     except Exception as e:
-        log.error("Error processing FFE configuration: %s", e, exc_info=True)
+        log.debug("Error processing FFE configuration: %s", e, exc_info=True)
         return False

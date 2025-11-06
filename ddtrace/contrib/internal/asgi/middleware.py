@@ -24,10 +24,10 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.settings._config import _get_config
 from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import set_blocked
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.settings._config import _get_config
 from ddtrace.trace import Span
 
 
