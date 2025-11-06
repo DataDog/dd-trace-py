@@ -743,13 +743,13 @@ def openai_get_metadata_from_response(
 def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], response: Optional[Any]) -> None:
     """Extract input/output tags from response and set them as temporary "_ml_obs.meta.*" tags."""
     input_data = kwargs.get("input", [])
-    
+
     # For reusable prompts, input may not be in kwargs, extract from response.instructions
     if not input_data and response and "prompt" in kwargs:
         instructions = _get_attr(response, "instructions", [])
         if instructions:
             input_data = load_data_value(instructions)
-    
+
     input_messages = openai_get_input_messages_from_response_input(input_data)
 
     if "instructions" in kwargs:
