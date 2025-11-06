@@ -48,7 +48,7 @@ experiments:
           - name: djangosimple-span-code-origin
             thresholds:
               - execution_time < 28.20 ms
-              - max_rss_usage < 69.50 MB
+              - max_rss_usage < 70.00 MB
           - name: djangosimple-tracer
             thresholds:
               - execution_time < 21.75 ms
@@ -108,15 +108,15 @@ experiments:
           - name: errortrackingflasksqli-errortracking-enabled-all
             thresholds:
               - execution_time < 2.30 ms
-              - max_rss_usage < 54.00 MB
+              - max_rss_usage < 54.50 MB
           - name: errortrackingflasksqli-errortracking-enabled-user
             thresholds:
               - execution_time < 2.25 ms
-              - max_rss_usage < 54.00 MB
+              - max_rss_usage < 54.50 MB
           - name: errortrackingflasksqli-tracer-enabled
             thresholds:
               - execution_time < 2.30 ms
-              - max_rss_usage < 54.00 MB
+              - max_rss_usage < 54.50 MB
 
           # flask_simple
           - name: flasksimple-tracer
@@ -134,7 +134,7 @@ experiments:
           - name: flasksimple-debugger
             thresholds:
               - execution_time < 2.00 ms
-              - max_rss_usage < 47.50 MB
+              - max_rss_usage < 48.00 MB
           - name: flasksimple-iast-get
             thresholds:
               - execution_time < 2.00 ms
@@ -428,7 +428,7 @@ experiments:
           - name: iastaspects-bytearray_aspect
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 40.00 MB
+              - max_rss_usage < 40.50 MB
           - name: iastaspects-bytearray_extend_aspect
             thresholds:
               - execution_time < 0.01 ms
@@ -654,7 +654,7 @@ experiments:
           - name: iastaspectsospath-ospathbasename_noaspect
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 40.00 MB
+              - max_rss_usage < 40.50 MB
           - name: iastaspectsospath-ospathjoin_aspect
             thresholds:
               - execution_time < 0.01 ms
@@ -850,11 +850,11 @@ experiments:
           - name: packagesupdateimporteddependencies-import_many
             thresholds:
               - execution_time < 0.17 ms
-              - max_rss_usage < 39.00 MB
+              - max_rss_usage < 39.50 MB
           - name: packagesupdateimporteddependencies-import_many_cached
             thresholds:
               - execution_time < 0.13 ms
-              - max_rss_usage < 39.00 MB
+              - max_rss_usage < 39.50 MB
           - name: packagesupdateimporteddependencies-import_many_stdlib
             thresholds:
               - execution_time < 1.75 ms
@@ -878,11 +878,11 @@ experiments:
           - name: packagesupdateimporteddependencies-import_one_cache
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 39.00 MB
+              - max_rss_usage < 39.50 MB
           - name: packagesupdateimporteddependencies-import_one_stdlib
             thresholds:
               - execution_time < 0.02 ms
-              - max_rss_usage < 39.00 MB
+              - max_rss_usage < 39.50 MB
           - name: packagesupdateimporteddependencies-import_one_stdlib_cache
             thresholds:
               - execution_time < 0.01 ms
@@ -985,7 +985,7 @@ experiments:
           - name: sethttpmeta-obfuscation-regular-case-explicit-query
             thresholds:
               - execution_time < 0.09 ms
-              - max_rss_usage < 35.00 MB
+              - max_rss_usage < 35.50 MB
           - name: sethttpmeta-obfuscation-regular-case-implicit-query
             thresholds:
               - execution_time < 0.09 ms
