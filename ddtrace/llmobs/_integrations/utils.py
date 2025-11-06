@@ -748,7 +748,6 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], respo
     if not input_data and response and "prompt" in kwargs:
         instructions = _get_attr(response, "instructions", [])
         if instructions:
-            # Convert OpenAI Pydantic objects to dicts
             input_data = load_data_value(instructions)
     
     input_messages = openai_get_input_messages_from_response_input(input_data)
