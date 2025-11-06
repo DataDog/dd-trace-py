@@ -1,8 +1,14 @@
 """
 Regression tests for IAST fork handler to prevent segmentation faults.
 
-These tests verify that the fork handler is properly registered and that
-IAST can safely work in multiprocessing scenarios without causing segfaults.
+These tests verify that IAST is properly disabled in forked child processes
+to prevent segmentation faults from corrupted native extension state.
+
+Key behavior:
+- IAST is fully functional in the parent process
+- After fork, IAST is disabled in the child process (asm_config._iast_enabled = False)
+- taint_pyobject operations become no-ops in children (return non-tainted objects)
+- This prevents segfaults at the cost of no IAST coverage in forked workers
 """
 from multiprocessing import Process
 from multiprocessing import Queue
@@ -19,60 +25,84 @@ from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 
 
 def test_fork_handler_callable(iast_context_defaults):
-    """Verify that _reset_iast_after_fork is callable and doesn't crash."""
-    from ddtrace.appsec._iast import _reset_iast_after_fork
+    """Verify that _reset_iast_after_fork is callable and disables IAST."""
+    from ddtrace.appsec._iast import _disable_iast_after_fork
+    from ddtrace.settings.asm import config as asm_config
 
     # Should not raise any exception
     try:
-        _reset_iast_after_fork()
+        original_state = asm_config._iast_enabled
+        _disable_iast_after_fork()
+        # Fork handler should disable IAST
+        assert asm_config._iast_enabled is False, "IAST should be disabled after fork"
+        # Restore for other tests
+        asm_config._iast_enabled = original_state
     except Exception as e:
         pytest.fail(f"Fork handler raised unexpected exception: {e}")
 
 
 def test_fork_handler_with_active_context(iast_context_defaults):
-    """Verify fork handler works when IAST context is active."""
-    from ddtrace.appsec._iast import _reset_iast_after_fork
+    """Verify fork handler disables IAST and clears context when active."""
+    from ddtrace.appsec._iast import _disable_iast_after_fork
+    from ddtrace.appsec._iast._taint_tracking import is_tainted
+    from ddtrace.settings.asm import config as asm_config
 
     _start_iast_context_and_oce()
 
     # Create some tainted objects
-    taint_pyobject("test_data", source_name="test", source_value="test", source_origin=OriginType.PARAMETER)
+    tainted = taint_pyobject("test_data", source_name="test", source_value="test", source_origin=OriginType.PARAMETER)
+    assert is_tainted(tainted), "Should be tainted before fork"
 
-    # Reset should clear the context
-    _reset_iast_after_fork()
+    # Reset simulates what happens after fork - IAST is disabled
+    original_state = asm_config._iast_enabled
+    _disable_iast_after_fork()
+    
+    # IAST should now be disabled
+    assert asm_config._iast_enabled is False, "IAST should be disabled after fork"
 
-    # After reset, we should be able to create a new context safely
+    # After reset, we should be able to call these safely (they're no-ops now)
     _end_iast_context_and_oce()
+    
+    # Restore for other tests
+    asm_config._iast_enabled = original_state
 
 
 def test_multiprocessing_with_iast_no_segfault(iast_context_defaults):
     """
-    Regression test: Verify that using multiprocessing with IAST enabled
-    doesn't cause segmentation faults.
+    Regression test: Verify that forking with IAST enabled doesn't cause segfaults.
 
-    This tests the fix for the issue where forking a process with IAST
-    enabled would cause segfaults in the child process.
+    With the new approach, IAST is disabled in child processes to prevent
+    segmentation faults from corrupted native extension state. This test
+    verifies the child doesn't crash and that taint operations are safely no-ops.
     """
 
     def child_process_work(queue):
-        """Child process that uses IAST functionality."""
+        """Child process where IAST should be disabled."""
         try:
-            # Start IAST in child
+            from ddtrace.appsec._iast._taint_tracking import is_tainted
+            from ddtrace.settings.asm import config as asm_config
+
+            # Start IAST in child (will be a no-op since IAST is disabled)
             _start_iast_context_and_oce()
 
-            # Perform taint operations that previously caused segfaults
+            # IAST should be disabled in child
+            is_enabled = asm_config._iast_enabled
+
+            # Taint operations should be no-ops (not crash)
             tainted_str = taint_pyobject(
                 "child_data", source_name="child_source", source_value="value", source_origin=OriginType.PARAMETER
             )
 
-            # Verify operations work
+            # Since IAST is disabled, count should be 0 and object not tainted
             count = _num_objects_tainted_in_request()
-            queue.put(("success", count, tainted_str))
+            is_obj_tainted = is_tainted(tainted_str)
+            
+            queue.put(("success", is_enabled, count, is_obj_tainted))
 
         except Exception as e:
             queue.put(("error", str(e), type(e).__name__))
 
-    # Parent setup
+    # Parent setup - IAST works normally
     _start_iast_context_and_oce()
     _ = taint_pyobject(
         "parent_data", source_name="parent", source_value="value", source_origin=OriginType.HEADER_NAME
@@ -84,28 +114,37 @@ def test_multiprocessing_with_iast_no_segfault(iast_context_defaults):
     child.start()
     child.join(timeout=5)
 
-    # Verify child didn't crash
+    # Verify child didn't crash (the main goal)
     assert child.exitcode == 0, f"Child process crashed with exit code {child.exitcode}"
 
     # Verify child completed successfully
     result = queue.get(timeout=1)
     assert result[0] == "success", f"Child process failed: {result}"
-    assert result[1] > 0, "Child should have tainted objects"
+    assert result[1] is False, "IAST should be disabled in child"
+    assert result[2] == 0, "Child should have 0 tainted objects (IAST disabled)"
+    assert result[3] is False, "Objects should not be tainted in child (IAST disabled)"
 
 
 def test_multiple_fork_operations(iast_context_defaults):
     """
-    Test that multiple sequential fork operations don't cause issues.
+    Test that multiple sequential fork operations don't cause segfaults.
 
-    This ensures the fork handler is idempotent and can be called multiple times.
+    Each child process should have IAST safely disabled by the fork handler,
+    ensuring no crashes occur even with multiple forks.
     """
 
     def simple_child_work(queue, child_id):
-        """Simple child process work."""
+        """Simple child process work - IAST will be disabled."""
         try:
+            from ddtrace.settings.asm import config as asm_config
+            
+            # These should be safe no-ops since IAST is disabled
             _start_iast_context_and_oce()
             taint_pyobject(f"data_{child_id}", "source", "value", OriginType.PARAMETER)
-            queue.put(("success", child_id))
+            
+            # Verify IAST is disabled
+            is_enabled = asm_config._iast_enabled
+            queue.put(("success", child_id, is_enabled))
         except Exception as e:
             queue.put(("error", child_id, str(e)))
 
@@ -125,7 +164,7 @@ def test_multiple_fork_operations(iast_context_defaults):
         child.join(timeout=5)
         assert child.exitcode == 0, f"Child {child.pid} crashed"
 
-    # Verify all completed successfully
+    # Verify all completed successfully without IAST enabled
     results = []
     while not queue.empty():
         results.append(queue.get(timeout=1))
@@ -133,27 +172,48 @@ def test_multiple_fork_operations(iast_context_defaults):
     assert len(results) == num_children, f"Expected {num_children} results, got {len(results)}"
     for result in results:
         assert result[0] == "success", f"Child failed: {result}"
+        assert result[2] is False, f"IAST should be disabled in child {result[1]}"
 
 
 def test_fork_with_os_fork_no_segfault(iast_context_defaults):
     """
     Test that os.fork() directly doesn't cause segfaults.
 
-    This is a more direct test of the fork safety mechanism.
+    This is a direct test of fork safety - IAST is disabled in the child
+    to prevent any native extension corruption issues.
     """
+    from ddtrace.appsec._iast._taint_tracking import is_tainted
+    
     _start_iast_context_and_oce()
-    parent_data = taint_pyobject("parent", "source", "value", OriginType.PATH)  # noqa: F841
+    parent_data = taint_pyobject("parent", "source", "value", OriginType.PATH)
+    assert is_tainted(parent_data), "Should be tainted in parent"
 
     pid = os.fork()
 
     if pid == 0:
-        # Child process
+        # Child process - IAST should be disabled
         try:
-            # This should not segfault after the fork handler runs
+            from ddtrace.settings.asm import config as asm_config
+            
+            # IAST should be disabled after fork
+            if asm_config._iast_enabled:
+                print("ERROR: IAST should be disabled in child", file=sys.stderr)
+                os._exit(1)
+            
+            # These should not segfault (they're no-ops)
             _start_iast_context_and_oce()
-            child_data = taint_pyobject("child", "source", "value", OriginType.PARAMETER)  # noqa: F841
+            child_data = taint_pyobject("child", "source", "value", OriginType.PARAMETER)
+            
+            # Since IAST is disabled, nothing should be tainted
             count = _num_objects_tainted_in_request()
-            assert count > 0, "Child should have tainted objects"
+            if count != 0:
+                print(f"ERROR: Expected 0 tainted objects, got {count}", file=sys.stderr)
+                os._exit(1)
+            
+            if is_tainted(child_data):
+                print("ERROR: Object should not be tainted (IAST disabled)", file=sys.stderr)
+                os._exit(1)
+                
             os._exit(0)
         except Exception as e:
             print(f"Child error: {e}", file=sys.stderr)
@@ -167,50 +227,72 @@ def test_fork_with_os_fork_no_segfault(iast_context_defaults):
 
 def test_fork_handler_clears_state(iast_context_defaults):
     """
-    Verify that the fork handler actually clears taint tracking state.
+    Verify that the fork handler disables IAST and clears state.
 
-    This tests the implementation detail that clear_all_request_context_slots
-    is called properly.
+    The fork handler clears all taint tracking state and disables IAST
+    to prevent segmentation faults from corrupted native extension state.
     """
-    from ddtrace.appsec._iast import _reset_iast_after_fork
+    from ddtrace.appsec._iast import _disable_iast_after_fork
+    from ddtrace.appsec._iast._taint_tracking import is_tainted
+    from ddtrace.settings.asm import config as asm_config
 
     _start_iast_context_and_oce()
-    taint_pyobject("test", "source", "value", OriginType.PARAMETER)
+    tainted = taint_pyobject("test", "source", "value", OriginType.PARAMETER)
+    assert is_tainted(tainted), "Should be tainted before fork"
 
     # Manually call the fork handler (simulating what happens after fork)
-    _reset_iast_after_fork()
+    original_state = asm_config._iast_enabled
+    _disable_iast_after_fork()
 
-    # After reset, starting a new context should work
+    # IAST should now be disabled
+    assert asm_config._iast_enabled is False, "IAST should be disabled after fork"
+
+    # After reset, these should be safe no-ops
     _end_iast_context_and_oce()
     _start_iast_context_and_oce()
 
-    # Should be able to create new tainted objects without issues
-    taint_pyobject("test2", "source2", "value2", OriginType.PARAMETER)
+    # taint_pyobject should be a no-op (IAST disabled)
+    tainted2 = taint_pyobject("test2", "source2", "value2", OriginType.PARAMETER)
     count = _num_objects_tainted_in_request()
-    assert count > 0, "Should be able to create tainted objects after reset"
+    assert count == 0, "Should have 0 tainted objects (IAST disabled)"
+    assert not is_tainted(tainted2), "Should not be tainted (IAST disabled)"
 
     _end_iast_context_and_oce()
+    
+    # Restore for other tests
+    asm_config._iast_enabled = original_state
 
 
 def test_eval_in_forked_process(iast_context_defaults):
     """
-    Regression test: Verify that eval() with IAST instrumentation works
-    in forked processes without segfaulting.
+    Regression test: Verify that eval() doesn't crash in forked processes.
+
+    With IAST disabled in the child, eval() should work normally without
+    any instrumentation or tainting.
     """
 
     def child_eval_work(queue):
-        """Child process that uses eval with IAST."""
+        """Child process with IAST disabled."""
         try:
+            from ddtrace.appsec._iast._taint_tracking import is_tainted
+            from ddtrace.settings.asm import config as asm_config
+            
+            # IAST should be disabled, so this is a no-op
             _start_iast_context_and_oce()
 
-            # Test eval with tainted input
+            # Test eval - taint_pyobject is a no-op since IAST is disabled
             code = "1 + 1"
             tainted_code = taint_pyobject(code, "code_source", code, OriginType.PARAMETER)
 
+            # Code should not be tainted (IAST disabled)
+            is_obj_tainted = is_tainted(tainted_code)
+            
             # This should not crash
             result = eval(tainted_code)
+            
+            is_enabled = asm_config._iast_enabled
 
-            queue.put(("success", result))
+            queue.put(("success", result, is_enabled, is_obj_tainted))
         except Exception as e:
             queue.put(("error", str(e), type(e).__name__))
 
@@ -226,6 +308,8 @@ def test_eval_in_forked_process(iast_context_defaults):
     result = queue.get(timeout=1)
     assert result[0] == "success", f"Child eval failed: {result}"
     assert result[1] == 2, "Eval should return correct result"
+    assert result[2] is False, "IAST should be disabled in child"
+    assert result[3] is False, "Code should not be tainted (IAST disabled)"
 
 
 if __name__ == "__main__":

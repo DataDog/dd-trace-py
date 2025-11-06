@@ -48,22 +48,28 @@ _iast_propagation_enabled = False
 _fork_handler_registered = False
 
 
-def _reset_iast_after_fork():
+def _disable_iast_after_fork():
     """
-    Reset IAST taint tracking state after a fork to prevent segmentation faults.
+    Disable IAST in forked child processes to prevent segmentation faults.
 
     When a process forks, the native extension's internal state (including memory
-    mappings, taint maps, and context slots) can become corrupted in the child process.
-    This function clears all state to ensure a clean slate in the forked child.
+    mappings, taint maps, context slots, and object pools) cannot be safely verified
+    or reconstructed in the child process. Attempting to use IAST in a forked child
+    can lead to segmentation faults due to corrupted shared_ptr references, invalid
+    mutex states, and cross-process memory corruption.
 
-    AIDEV-NOTE: This is critical for multiprocessing compatibility. The native
-    taint tracking extension maintains internal state that cannot be safely shared
-    across fork boundaries. Without this reset, accessing taint tracking functions
-    in a forked child process can cause segmentation faults.
+    This is critical for multiprocessing compatibility. Rather than
+    attempting to reset and reuse the native extension state (which is complex and
+    error-prone), we simply disable IAST in the child process. This ensures safety
+    at the cost of not having IAST coverage in forked workers.
 
-    Additionally, we must reset the Python-level context ID. The child process inherits
-    the parent's IAST_CONTEXT ContextVar, which points to a now-invalid C++ context slot.
-    Resetting it ensures the child creates a fresh context when needed.
+    The child process:
+    - Clears all C++ taint maps and context slots
+    - Resets the Python-level IAST_CONTEXT
+    - Disables IAST by setting asm_config._iast_enabled = False
+
+    This prevents any IAST operations from running in the child, ensuring no
+    segmentation faults occur from accessing corrupted native state.
     """
     if not asm_config._iast_enabled:
         return
@@ -80,6 +86,7 @@ def _reset_iast_after_fork():
 
         # Clear Python side: reset the context ID so child creates a new one
         IAST_CONTEXT.set(None)
+        asm_config._iast_enabled = False
 
     except Exception as e:
         log.debug("Error resetting IAST state after fork: %s", e, exc_info=True)
@@ -95,7 +102,7 @@ def _register_fork_handler():
     global _fork_handler_registered
 
     if not _fork_handler_registered and asm_config._iast_enabled:
-        forksafe.register(_reset_iast_after_fork)
+        forksafe.register(_disable_iast_after_fork)
         _fork_handler_registered = True
         log.debug("IAST fork safety handler registered")
 
