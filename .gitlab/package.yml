@@ -130,7 +130,7 @@ publish-wheels-to-s3:
       generate_index_html() {
         local outfile="$1"
         {
-          echo "<html><body>"
+          echo "<!DOCTYPE html><html lang=\"en\"><body>"
           for w in "${WHEELS[@]}"; do
             fname="$(basename "$w")"
             enc_fname="${fname//+/%2B}"
