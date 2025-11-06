@@ -702,7 +702,9 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                         return ret
         return ret
 
-    cdef inline int _pack_meta(self, object meta, char *dd_origin, str span_events, unsigned long long span_id) except? -1:
+    cdef inline int _pack_meta(
+        self, object meta, char *dd_origin, str span_events, unsigned long long span_id,
+    ) except? -1:
         cdef Py_ssize_t L
         cdef int ret
         cdef dict d
