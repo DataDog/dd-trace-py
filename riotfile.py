@@ -2177,7 +2177,6 @@ venv = Venv(
         ),
         Venv(
             name="httpx",
-            pys=select_pys(min_version="3.8"),
             command="pytest {cmdargs} tests/contrib/httpx",
             pkgs={
                 "pytest-asyncio": "==0.21.1",
