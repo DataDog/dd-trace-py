@@ -31,7 +31,6 @@ from ddtrace.contrib.internal.trace_utils import set_user
 from ddtrace.ext import user
 import ddtrace.internal
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
-from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.serverless import has_aws_lambda_agent_extension
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
@@ -1900,7 +1899,6 @@ def test_finish_span_with_ancestors(tracer):
     assert span1.finished
     assert span2.finished
     assert span3.finished
-
 
 
 def test_gc_not_used_on_root_spans():

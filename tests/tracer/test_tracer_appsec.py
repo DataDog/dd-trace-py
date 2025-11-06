@@ -1,15 +1,17 @@
 import pytest
+
 import ddtrace
 from ddtrace._trace.processor import SpanAggregator
-from ddtrace.trace import Span
-from ddtrace.internal.writer import AgentWriter
-from ddtrace.internal.writer import NativeWriter
 from ddtrace._trace.processor import TraceProcessor
-from tests.appsec.utils import asm_context
+from ddtrace.contrib.internal import trace_utils
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import net
-from ddtrace.contrib.internal import trace_utils
+from ddtrace.internal.rate_limiter import RateLimiter
+from ddtrace.internal.writer import AgentWriter
+from ddtrace.internal.writer import NativeWriter
+from ddtrace.trace import Span
+from tests.appsec.utils import asm_context
 from tests.utils import DummyTracer
 from tests.utils import override_env
 
@@ -57,7 +59,6 @@ def test_aggregator_reset_with_args(writer_class):
     assert aggr.writer._api_version == "v0.4"
     assert span.trace_id in aggr._traces
     assert len(aggr._span_metrics["spans_created"]) == 1
-
 
 
 @pytest.mark.parametrize("appsec_enabled", [False, True])
@@ -207,4 +208,3 @@ def test_asm_standalone_configuration(sca_enabled, appsec_enabled, iast_enabled)
     with override_env({"DD_APPSEC_SCA_ENABLED": "false"}):
         ddtrace.config._reset()
         tracer.configure(appsec_enabled=False, iast_enabled=False, apm_tracing_disabled=False)
-
