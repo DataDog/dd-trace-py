@@ -237,7 +237,7 @@ def test_trace_with_wrong_meta_types_not_sent(encoding, meta, monkeypatch):
 
             assert log_warning.call_count == 300
             log_warning.assert_called_with(
-                "[span ID %ld] Meta key %r has non-string value %r, skipping", mock.ANY, mock.ANY, mock.ANY
+                "[span ID %d] Meta key %r has non-string value %r, skipping", mock.ANY, mock.ANY, mock.ANY
             )
 
 
@@ -263,7 +263,7 @@ def test_trace_with_wrong_metrics_types_not_sent(encoding, metrics, expected_war
 
             assert log_warning.call_count == expected_warning_count
             log_warning.assert_called_with(
-                "[span ID %ld] Metric key %r has non-numeric value %r, skipping", mock.ANY, mock.ANY, mock.ANY
+                "[span ID %d] Metric key %r has non-numeric value %r, skipping", mock.ANY, mock.ANY, mock.ANY
             )
 
 
