@@ -4,7 +4,6 @@ from .utils import invert_integration_to_dependency_map
 
 EXCLUDED_FROM_TESTING = {
     "coverage",
-    "pytest_benchmark",
     "asgi",
     "wsgi",
     "boto",
