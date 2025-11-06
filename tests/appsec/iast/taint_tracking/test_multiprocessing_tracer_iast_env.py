@@ -87,16 +87,20 @@ def _child_check(q: Queue):
 @pytest.mark.skipif(os.name == "nt", reason="multiprocessing fork semantics differ on Windows")
 def test_subprocess_has_tracer_running_and_iast_env(monkeypatch):
     """
-    Verify IAST is disabled in multiprocessing child processes.
+    Verify IAST is disabled in late fork multiprocessing scenarios.
 
-    When a process forks, the native IAST state cannot be safely used.
-    The fork handler disables IAST in the child to prevent segmentation faults.
+    This test simulates multiprocessing.Process forking after IAST has active state.
+    The fork handler should detect the active context and disable IAST in the child
+    to prevent segmentation faults.
 
     This test verifies:
     - Tracer remains enabled in child
     - DD_IAST_ENABLED env variable is propagated
-    - IAST is actually disabled (_iast_enabled = False) to prevent crashes
+    - IAST is disabled (_iast_enabled = False) due to active context at fork time
     - taint_pyobject operations are no-ops (return non-tainted objects)
+
+    Note: Web framework workers (early forks) that fork before IAST state exists
+    will keep IAST enabled - this is tested separately in integration tests.
     """
     # Ensure tracer and IAST are enabled for the test
     monkeypatch.setenv("DD_IAST_ENABLED", "true")

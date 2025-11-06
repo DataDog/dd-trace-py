@@ -1,14 +1,17 @@
 """
 Regression tests for IAST fork handler to prevent segmentation faults.
 
-These tests verify that IAST is properly disabled in forked child processes
-to prevent segmentation faults from corrupted native extension state.
+These tests verify that IAST correctly handles two types of forks:
 
-Key behavior:
-- IAST is fully functional in the parent process
-- After fork, IAST is disabled in the child process (asm_config._iast_enabled = False)
-- taint_pyobject operations become no-ops in children (return non-tainted objects)
-- This prevents segfaults at the cost of no IAST coverage in forked workers
+1. **Early forks (web workers)**: Forks that happen BEFORE IAST has any active state.
+   These are safe - IAST remains enabled in the child and can initialize fresh.
+   Example: gunicorn/uvicorn worker processes.
+
+2. **Late forks (multiprocessing)**: Forks that happen AFTER IAST has active contexts.
+   These inherit corrupted native state and must have IAST disabled in the child.
+   Example: multiprocessing.Process with IAST already running.
+
+The fork handler detects which type of fork occurred by checking for active contexts.
 """
 from multiprocessing import Process
 from multiprocessing import Queue
@@ -69,11 +72,11 @@ def test_fork_handler_with_active_context(iast_context_defaults):
 
 def test_multiprocessing_with_iast_no_segfault(iast_context_defaults):
     """
-    Regression test: Verify that forking with IAST enabled doesn't cause segfaults.
+    Regression test: Verify that late forks (multiprocessing) safely disable IAST.
 
-    With the new approach, IAST is disabled in child processes to prevent
-    segmentation faults from corrupted native extension state. This test
-    verifies the child doesn't crash and that taint operations are safely no-ops.
+    This simulates multiprocessing.Process forking AFTER IAST has active contexts.
+    The fork handler should detect the active state and disable IAST in the child
+    to prevent segmentation faults from corrupted native extension state.
     """
 
     def child_process_work(queue):
@@ -310,6 +313,44 @@ def test_eval_in_forked_process(iast_context_defaults):
     assert result[1] == 2, "Eval should return correct result"
     assert result[2] is False, "IAST should be disabled in child"
     assert result[3] is False, "Code should not be tainted (IAST disabled)"
+
+
+def test_early_fork_keeps_iast_enabled(iast_context_defaults):
+    """
+    Test that early forks (web workers) keep IAST enabled.
+
+    This simulates the behavior of web framework workers like gunicorn/uvicorn
+    that fork BEFORE IAST has any active context. In this case, IAST should
+    remain enabled in the child and work normally.
+    """
+    from ddtrace.appsec._iast import _disable_iast_after_fork
+    from ddtrace.appsec._iast._taint_tracking import is_tainted
+    from ddtrace.settings.asm import config as asm_config
+
+    # Ensure IAST is enabled but NO context is active (simulating early fork)
+    # Don't call _start_iast_context_and_oce() - this simulates pre-fork state
+
+    original_state = asm_config._iast_enabled
+    asm_config._iast_enabled = True
+
+    # Call the fork handler - should detect no active context and keep IAST enabled
+    _disable_iast_after_fork()
+
+    # IAST should still be enabled (early fork scenario)
+    assert asm_config._iast_enabled is True, "IAST should remain enabled for early forks"
+
+    # Now we can initialize IAST fresh in this "worker"
+    _start_iast_context_and_oce()
+
+    # IAST should work normally
+    tainted = taint_pyobject("worker_data", "source", "value", OriginType.PARAMETER)
+    assert is_tainted(tainted), "IAST should work in early fork (web worker)"
+
+    count = _num_objects_tainted_in_request()
+    assert count > 0, "Should have tainted objects in early fork"
+
+    _end_iast_context_and_oce()
+    asm_config._iast_enabled = original_state
 
 
 if __name__ == "__main__":

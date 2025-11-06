@@ -50,26 +50,33 @@ _fork_handler_registered = False
 
 def _disable_iast_after_fork():
     """
-    Disable IAST in forked child processes to prevent segmentation faults.
+    Conditionally disable IAST in forked child processes to prevent segmentation faults.
 
-    When a process forks, the native extension's internal state (including memory
-    mappings, taint maps, context slots, and object pools) cannot be safely verified
-    or reconstructed in the child process. Attempting to use IAST in a forked child
-    can lead to segmentation faults due to corrupted shared_ptr references, invalid
-    mutex states, and cross-process memory corruption.
+    This fork handler differentiates between two types of forks:
 
-    This is critical for multiprocessing compatibility. Rather than
-    attempting to reset and reuse the native extension state (which is complex and
-    error-prone), we simply disable IAST in the child process. This ensures safety
-    at the cost of not having IAST coverage in forked workers.
+    1. **Early forks (web framework workers)**: Gunicorn, uvicorn, Django, Flask workers
+       fork BEFORE IAST initializes any state. These are safe - IAST remains enabled.
 
-    The child process:
+    2. **Late forks (multiprocessing)**: multiprocessing.Process forks AFTER IAST has
+       initialized state. These inherit corrupted native extension state and must have
+       IAST disabled to prevent segmentation faults.
+
+    Detection logic:
+    - If IAST has active request contexts when fork occurs → Late fork → Disable IAST
+    - If IAST has no active state → Early fork (worker) → Keep IAST enabled
+
+    This is critical for multiprocessing compatibility while maintaining IAST coverage
+    in web framework workers. The native extension state (taint maps, context slots,
+    object pools, shared_ptr references) cannot be safely used across fork boundaries
+    when it exists, but is safe to initialize fresh in clean workers.
+
+    For late forks, the child process:
     - Clears all C++ taint maps and context slots
     - Resets the Python-level IAST_CONTEXT
     - Disables IAST by setting asm_config._iast_enabled = False
 
-    This prevents any IAST operations from running in the child, ensuring no
-    segmentation faults occur from accessing corrupted native state.
+    This prevents segmentation faults in multiprocessing while allowing IAST to work
+    in web framework workers.
     """
     if not asm_config._iast_enabled:
         return
@@ -77,19 +84,29 @@ def _disable_iast_after_fork():
     try:
         # Import locally to avoid issues if the module hasn't been loaded yet
         from ddtrace.appsec._iast._iast_request_context_base import IAST_CONTEXT
+        from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
         from ddtrace.appsec._iast._taint_tracking._context import clear_all_request_context_slots
 
-        log.debug("Resetting IAST taint tracking state after fork")
+        if not is_iast_request_enabled():
+            # No active context - this is an early fork (web framework worker)
+            # IAST can be safely initialized fresh in this child process
+            log.debug("IAST fork handler: No active context, keeping IAST enabled (web worker fork)")
+            return
+
+        # Active context exists - this is a late fork (multiprocessing)
+        # Native state is corrupted, must disable IAST
+        log.debug("IAST fork handler: Active context detected, disabling IAST (multiprocessing fork)")
 
         # Clear C++ side: all taint maps and context slots
         clear_all_request_context_slots()
-
-        # Clear Python side: reset the context ID so child creates a new one
+        # Clear Python side: reset the context ID
         IAST_CONTEXT.set(None)
+
+        # Disable IAST to prevent segmentation faults
         asm_config._iast_enabled = False
 
     except Exception as e:
-        log.debug("Error resetting IAST state after fork: %s", e, exc_info=True)
+        log.debug("Error in IAST fork handler: %s", e, exc_info=True)
 
 
 def _register_fork_handler():
