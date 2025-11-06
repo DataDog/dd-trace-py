@@ -11,6 +11,7 @@ import sys
 
 import pytest
 
+
 # Skip all tests in this module if mcp is not installed
 pytest.importorskip("mcp")
 
@@ -25,11 +26,7 @@ from tests.appsec.integrations.utils_testagent import _get_span
 
 # Common environment configuration for MCP IAST tests
 MCP_IAST_ENV = {
-    "_DD_IAST_PATCH_MODULES": (
-        "benchmarks.,"
-        "tests.appsec.,"
-        "tests.appsec.integrations.fastapi_tests.mcp_app."
-    ),
+    "_DD_IAST_PATCH_MODULES": ("benchmarks.," "tests.appsec.," "tests.appsec.integrations.fastapi_tests.mcp_app."),
 }
 
 
@@ -44,10 +41,10 @@ HOST = "0.0.0.0"
 @asynccontextmanager
 async def mcp_client_session(port: int):
     """Create an MCP client session using SSE for HTTP/SSE-based streaming tests.
-    
+
     This uses SSE (Server-Sent Events) for bidirectional streaming communication,
     which is the real-world way MCP servers communicate over HTTP.
-    
+
     Note: FastMCP's SSE app has routes at /sse and /messages, so when mounted at
     /iast/mcp, the SSE endpoint is at /iast/mcp/sse.
     """
@@ -58,7 +55,7 @@ async def mcp_client_session(port: int):
 
 def test_iast_mcp_baseline(iast_test_token):
     """Baseline test: Regular CMDI endpoint works with IAST.
-    
+
     Also validates that headers are properly processed by the middleware.
     """
     with uvicorn_server(
@@ -320,7 +317,7 @@ def test_iast_mcp_header_tainting(iast_test_token):
         # Call the header echo endpoint to verify headers are tainted
         response = fastapi_client.get("/iast-header-echo", headers=headers)
         assert response.status_code == 200
-        
+
         response_data = response.json()
         assert response_data["iast_enabled"] is True
         assert response_data["headers"]["user_agent"] == headers["User-Agent"]
@@ -371,7 +368,7 @@ def test_iast_mcp_header_cmdi(iast_test_token):
         # Call the endpoint that uses header value in command execution
         response = fastapi_client.get("/iast-cmdi-header", headers=headers)
         assert response.status_code == 200
-        
+
         response_data = response.json()
         assert response_data["status"] == "ok"
         assert response_data["command_from_header"] == headers["X-Command"]
@@ -389,13 +386,13 @@ def test_iast_mcp_header_cmdi(iast_test_token):
 
     # Should have at least one span with IAST enabled
     assert len(spans_with_iast) >= 1
-    
+
     # Should detect the CMDI vulnerability from the header
     assert len(vulnerabilities) >= 1, f"Expected CMDI vulnerability from header, got: {vulnerabilities}"
-    
+
     # Verify it's a CMDI vulnerability
     from ddtrace.appsec._iast.constants import VULN_CMDI
-    
+
     found_cmdi = False
     for vuln_list in vulnerabilities:
         for vuln in vuln_list:
@@ -404,7 +401,7 @@ def test_iast_mcp_header_cmdi(iast_test_token):
                 assert vuln["hash"]
                 # The evidence should show the tainted header value
                 break
-    
+
     assert found_cmdi, f"Expected CMDI vulnerability but got: {vulnerabilities}"
 
 

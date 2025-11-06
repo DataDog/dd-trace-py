@@ -78,12 +78,12 @@ def get_app():
         """
         # Get the custom header - this should be tainted by IAST
         command = request.headers.get("X-Command", "default")
-        
+
         # Use the tainted header value in a subprocess (vulnerable)
         subp = subprocess.Popen(args=["ls", "-la", command])
         subp.communicate()
         subp.wait()
-        
+
         return {
             "status": "ok",
             "command_from_header": command,
@@ -113,7 +113,7 @@ def get_app():
     # FastMCP provides an sse_app() method that returns a Starlette app
     # Get the SSE app from FastMCP - pass None as mount_path since we're mounting it ourselves
     mcp_sse_starlette_app = mcp.sse_app(mount_path=None)
-    
+
     # Mount the MCP SSE app to our FastAPI app at /iast/mcp
     app.mount("/iast/mcp", mcp_sse_starlette_app)
 
