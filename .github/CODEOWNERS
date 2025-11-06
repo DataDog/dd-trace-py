@@ -127,7 +127,10 @@ tests/contrib/subprocess            @DataDog/asm-python
 tests/snapshots/tests*appsec*.json  @DataDog/asm-python
 tests/contrib/*/test*appsec*.py     @DataDog/asm-python
 tests/contrib/*/test*iast*.py  @DataDog/asm-python
+tests/tracer/test*appsec*.py     @DataDog/asm-python
+tests/smoke_test.py                 @DataDog/asm-python @DataDog/profiling-python
 scripts/iast/*                      @DataDog/asm-python
+
 
 # Profiling
 ddtrace/profiling                   @DataDog/profiling-python
