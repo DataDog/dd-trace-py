@@ -1808,9 +1808,7 @@ class LLMObs(Service):
             span_context._meta[PROPAGATED_ML_APP_KEY] = ml_app
 
     @classmethod
-    def inject_distributed_headers(
-        cls, request_headers: Dict[str, str], span: Optional[Span] = None, _soft_fail: bool = False
-    ) -> Dict[str, str]:
+    def inject_distributed_headers(cls, request_headers: Dict[str, str], span: Optional[Span] = None) -> Dict[str, str]:
         """Injects the span's distributed context into the given request headers."""
         if cls.enabled is False:
             log.warning(
@@ -1822,24 +1820,13 @@ class LLMObs(Service):
         try:
             if not isinstance(request_headers, dict):
                 error = "invalid_request_headers"
-                if _soft_fail:
-                    log.warning("request_headers must be a dictionary of string key-value pairs.")
-                    return request_headers
-                else:
-                    raise Exception("request_headers must be a dictionary of string key-value pairs.")
+                raise Exception("request_headers must be a dictionary of string key-value pairs.")
             if span is None:
                 span = cls._instance.tracer.current_span()
             if span is None:
                 error = "no_active_span"
-                if _soft_fail:
-                    log.warning("No span provided and no currently active span found.")
-                    return request_headers
                 raise Exception("No span provided and no currently active span found.")
             if not isinstance(span, Span):
-                error = "invalid_span"
-                if _soft_fail:
-                    log.warning("span must be a valid Span object. Distributed context will not be injected.")
-                    return request_headers
                 raise Exception("span must be a valid Span object. Distributed context will not be injected.")
             HTTPPropagator.inject(span.context, request_headers)
             return request_headers
