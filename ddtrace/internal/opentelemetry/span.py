@@ -190,6 +190,9 @@ class Span(OtelSpan):
             for k, v in flatten_key_value(key, value).items():
                 self._ddspan.set_tag(k, v)
             return
+        if key == "http.status_code":
+            if isinstance(value, (int, float)):
+                value = str(value)
         if isinstance(value, (str, bytes)):
             value = ensure_text(value)
             self._ddspan.set_tag(key, value)
