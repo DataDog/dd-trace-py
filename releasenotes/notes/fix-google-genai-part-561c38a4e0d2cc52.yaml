@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: Resolves an issue with the Google GenAI integration where processing token metrics would sometimes be skipped if the LLM message had no text part.

@@ -15,6 +15,7 @@ from ddtrace.appsec._iast.constants import VULN_WEAK_CIPHER_TYPE
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
+from .._logs import iast_error
 from .._metrics import _set_metric_iast_executed_sink
 from .._metrics import _set_metric_iast_instrumented_sink
 from .._patch_modules import WrapFunctonsForIAST
@@ -124,52 +125,58 @@ def wrapped_aux_blowfish_function(wrapped, instance, args, kwargs):
 
 
 def wrapped_rc4_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
-    if is_iast_request_enabled():
-        if WeakCipher.has_quota():
-            WeakCipher.report(
-                evidence_value="RC4",
-            )
-        # Reports Span Metrics
-        increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakCipher.vulnerability_type)
-        # Report Telemetry Metrics
-        _set_metric_iast_executed_sink(WeakCipher.vulnerability_type)
-
+    try:
+        if is_iast_request_enabled():
+            if WeakCipher.has_quota():
+                WeakCipher.report(
+                    evidence_value="RC4",
+                )
+            # Reports Span Metrics
+            increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakCipher.vulnerability_type)
+            # Report Telemetry Metrics
+            _set_metric_iast_executed_sink(WeakCipher.vulnerability_type)
+    except Exception as e:
+        iast_error("propagation::sink_point::Error in weak_cipher.wrapped_rc4_function", e)
     if hasattr(wrapped, "__func__"):
         return wrapped.__func__(instance, *args, **kwargs)
     return wrapped(*args, **kwargs)
 
 
 def wrapped_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
-    if is_iast_request_enabled():
-        if hasattr(instance, "_dd_weakcipher_algorithm"):
-            if WeakCipher.has_quota():
-                evidence = instance._dd_weakcipher_algorithm + "_" + str(instance.__class__.__name__)
-                WeakCipher.report(evidence_value=evidence)
+    try:
+        if is_iast_request_enabled():
+            if hasattr(instance, "_dd_weakcipher_algorithm"):
+                if WeakCipher.has_quota():
+                    evidence = instance._dd_weakcipher_algorithm + "_" + str(instance.__class__.__name__)
+                    WeakCipher.report(evidence_value=evidence)
 
-            # Reports Span Metrics
-            increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakCipher.vulnerability_type)
-            # Report Telemetry Metrics
-            _set_metric_iast_executed_sink(WeakCipher.vulnerability_type)
-
+                # Reports Span Metrics
+                increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakCipher.vulnerability_type)
+                # Report Telemetry Metrics
+                _set_metric_iast_executed_sink(WeakCipher.vulnerability_type)
+    except Exception as e:
+        iast_error("propagation::sink_point::Error in weak_cipher.wrapped_function", e)
     if hasattr(wrapped, "__func__"):
         return wrapped.__func__(instance, *args, **kwargs)
     return wrapped(*args, **kwargs)
 
 
 def wrapped_cryptography_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
-    if is_iast_request_enabled():
-        algorithm_name = instance.algorithm.name.lower()
-        if algorithm_name in get_weak_cipher_algorithms():
-            if WeakCipher.has_quota():
-                WeakCipher.report(
-                    evidence_value=algorithm_name,
-                )
+    try:
+        if is_iast_request_enabled():
+            algorithm_name = instance.algorithm.name.lower()
+            if algorithm_name in get_weak_cipher_algorithms():
+                if WeakCipher.has_quota():
+                    WeakCipher.report(
+                        evidence_value=algorithm_name,
+                    )
 
-            # Reports Span Metrics
-            increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakCipher.vulnerability_type)
-            # Report Telemetry Metrics
-            _set_metric_iast_executed_sink(WeakCipher.vulnerability_type)
-
+                # Reports Span Metrics
+                increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakCipher.vulnerability_type)
+                # Report Telemetry Metrics
+                _set_metric_iast_executed_sink(WeakCipher.vulnerability_type)
+    except Exception as e:
+        iast_error("propagation::sink_point::Error in weak_cipher.wrapped_cryptography_function", e)
     if hasattr(wrapped, "__func__"):
         return wrapped.__func__(instance, *args, **kwargs)
     return wrapped(*args, **kwargs)

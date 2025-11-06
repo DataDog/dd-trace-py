@@ -104,32 +104,33 @@ def traced_auth_middleware_process_request(func: FunctionType, args: Tuple[Any],
             return func(*args, **kwargs)
         finally:
             mode = asm_config._user_event_mode
-            if mode == "disabled":
-                return
-            try:
-                if request:
-                    if hasattr(request, "user") and hasattr(request.user, "_setup"):
-                        request.user._setup()
-                        request_user = request.user._wrapped
-                    else:
-                        request_user = request.user
-                    if hasattr(request, "session") and hasattr(request.session, "session_key"):
-                        session_key = request.session.session_key
-                    else:
-                        session_key = None
-                    core.dispatch(
-                        "django.process_request",
-                        (
-                            request_user,
-                            session_key,
-                            mode,
-                            kwargs,
-                            _DjangoUserInfoRetriever(request_user, credentials=kwargs),
-                            config_django,
-                        ),
+            if mode != "disabled":
+                try:
+                    if request:
+                        if hasattr(request, "user") and hasattr(request.user, "_setup"):
+                            request.user._setup()
+                            request_user = request.user._wrapped
+                        else:
+                            request_user = request.user
+                        if hasattr(request, "session") and hasattr(request.session, "session_key"):
+                            session_key = request.session.session_key
+                        else:
+                            session_key = None
+                        core.dispatch(
+                            "django.process_request",
+                            (
+                                request_user,
+                                session_key,
+                                mode,
+                                kwargs,
+                                _DjangoUserInfoRetriever(request_user, credentials=kwargs),
+                                config_django,
+                            ),
+                        )
+                except Exception:
+                    log.debug(
+                        "Error while trying to trace Django AuthenticationMiddleware process_request", exc_info=True
                     )
-            except Exception:
-                log.debug("Error while trying to trace Django AuthenticationMiddleware process_request", exc_info=True)
 
 
 def traced_middleware_factory(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:

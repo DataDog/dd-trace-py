@@ -88,46 +88,6 @@ sg-test = [
     "ast-grep test {args}",
 ]
 
-[envs.docs]
-template = "docs"
-dev-mode = false
-python = "3.10"
-features = ["opentracing"]
-dependencies = [  # copied from library dependencies
-    "protobuf>=3",
-    "xmltodict>=0.12",
-    "envier==0.6.1",
-    "opentelemetry-api>=1",
-    "opentracing>=2.0.0",
-    "bytecode",
-]
-extra-dependencies = [
-    "reno~=3.5.0",
-    "sphinx~=4.0",
-    "sphinxcontrib-applehelp<1.0.8",
-    "sphinxcontrib-devhelp<1.0.6",
-    "sphinxcontrib-htmlhelp<2.0.5",
-    "sphinxcontrib-devhelp<1.0.6",
-    "sphinxcontrib-serializinghtml<1.1.10",
-    "sphinxcontrib-qthelp<1.0.7",
-    "sphinxcontrib-spelling==7.7.0",
-    "PyEnchant==3.2.2",
-    "sphinx-copybutton==0.5.1",
-    # Later release of furo breaks formatting for code blocks
-    "furo<=2023.05.20",
-    "standard-imghdr",
-]
-pre-install-commands = [
-    "scripts/docs/install.sh",
-]
-[envs.docs.env-vars]
-DD_TRACE_ENABLED = "false"
-
-[envs.docs.scripts]
-build = [
-    "scripts/docs/build.sh",
-]
-
 [envs.scripts]
 detached = true
 python = "3.10"
@@ -188,7 +148,7 @@ dependencies = [
     "hypothesis",
     "torch>=1.8.1",
     "torchvision",
-    "lz4",
+    "zstandard",
 ]
 
 [envs.profiling_pytorch.env-vars]

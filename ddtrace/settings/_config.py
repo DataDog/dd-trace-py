@@ -120,6 +120,7 @@ INTEGRATION_CONFIGS = frozenset(
         "sanic",
         "snowflake",
         "pymemcache",
+        "azure_eventhubs",
         "azure_functions",
         "azure_servicebus",
         "protobuf",
@@ -344,13 +345,9 @@ class _ConfigItem:
         return "default"
 
     def __repr__(self):
-        return "<{} name={} default={} env_value={} user_value={} remote_config_value={}>".format(
-            self.__class__.__name__,
-            self._name,
-            self._default_value,
-            self._env_value,
-            self._code_value,
-            self._rc_value,
+        return (
+            f"<{self.__class__.__name__} name={self._name} default={self._default_value} "
+            f"env_value={self._env_value} user_value={self._code_value} remote_config_value={self._rc_value}>"
         )
 
 
@@ -513,9 +510,9 @@ class Config(object):
         self._extra_services_queue = None
         if self._remote_config_enabled and not in_aws_lambda():
             # lazy load slow import
-            from ddtrace.internal._file_queue import File_Queue
+            from ddtrace.internal.ipc import SharedStringFile
 
-            self._extra_services_queue = File_Queue()
+            self._extra_services_queue = SharedStringFile()
 
         self._unparsed_service_mapping = _get_config("DD_SERVICE_MAPPING", "")
         self.service_mapping = parse_tags_str(self._unparsed_service_mapping)
@@ -646,11 +643,8 @@ class Config(object):
 
         self._trace_methods = _get_config("DD_TRACE_METHODS")
 
-        self._telemetry_install_id = _get_config("DD_INSTRUMENTATION_INSTALL_ID")
-        self._telemetry_install_type = _get_config("DD_INSTRUMENTATION_INSTALL_TYPE")
-        self._telemetry_install_time = _get_config("DD_INSTRUMENTATION_INSTALL_TYPE")
-
         self._dd_api_key = _get_config("DD_API_KEY")
+        self._dd_app_key = _get_config("DD_APP_KEY", report_telemetry=False)
         self._dd_site = _get_config("DD_SITE", "datadoghq.com")
 
         self._llmobs_enabled = _get_config("DD_LLMOBS_ENABLED", False, asbool)
@@ -710,7 +704,7 @@ class Config(object):
         # type: () -> set[str]
         if self._extra_services_queue is None:
             return set()
-        self._extra_services.update(self._extra_services_queue.get_all())
+        self._extra_services.update(set(self._extra_services_queue.snatchall()) - {""})
         while len(self._extra_services) > 64:
             self._extra_services.pop()
         return self._extra_services

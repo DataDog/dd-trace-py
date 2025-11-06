@@ -34,6 +34,7 @@ from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.serverless import has_aws_lambda_agent_extension
 from ddtrace.internal.serverless import in_aws_lambda
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import LogWriter
 from ddtrace.settings._config import Config
@@ -1036,9 +1037,11 @@ def test_start_span_hooks():
 
     result = {}
 
-    @t.on_start_span
-    def store_span(span):
-        result["span"] = span
+    with pytest.warns(DDTraceDeprecationWarning):
+
+        @t.on_start_span
+        def store_span(span):
+            result["span"] = span
 
     try:
         span = t.start_span("hello")
@@ -1049,7 +1052,8 @@ def test_start_span_hooks():
         # Cleanup after the test is done
         # DEV: Since we use the core API for these hooks,
         #      they are not isolated to a single tracer instance
-        t.deregister_on_start_span(store_span)
+        with pytest.warns(DDTraceDeprecationWarning):
+            t.deregister_on_start_span(store_span)
 
 
 def test_deregister_start_span_hooks():
@@ -1057,11 +1061,14 @@ def test_deregister_start_span_hooks():
 
     result = {}
 
-    @t.on_start_span
-    def store_span(span):
-        result["span"] = span
+    with pytest.warns(DDTraceDeprecationWarning):
 
-    t.deregister_on_start_span(store_span)
+        @t.on_start_span
+        def store_span(span):
+            result["span"] = span
+
+    with pytest.warns(DDTraceDeprecationWarning):
+        t.deregister_on_start_span(store_span)
 
     with t.start_span("hello"):
         pass

@@ -60,21 +60,28 @@ class OpenAIIntegration(BaseLLMIntegration):
         self._user_api_key = "sk-...%s" % value[-4:]
 
     def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
-        traced_operations = ("createCompletion", "createChatCompletion", "createEmbedding", "createResponse")
+        traced_operations = (
+            "createCompletion",
+            "createChatCompletion",
+            "createEmbedding",
+            "createResponse",
+            "parseChatCompletion",
+            "parseResponse",
+        )
         if operation_id in traced_operations:
             submit_to_llmobs = True
         log.debug("Creating LLM span for openai operation: %s", operation_id)
         return super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
 
     def _set_base_span_tags(self, span: Span, **kwargs) -> None:
-        span.set_tag_str(COMPONENT, self.integration_config.integration_name)
+        span._set_tag_str(COMPONENT, self.integration_config.integration_name)
 
         client = "OpenAI"
         if self._is_provider(span, "azure"):
             client = "AzureOpenAI"
         elif self._is_provider(span, "deepseek"):
             client = "Deepseek"
-        span.set_tag_str("openai.request.provider", client)
+        span._set_tag_str("openai.request.provider", client)
 
     def _is_provider(self, span, provider):
         """Check if the traced operation is from the given provider."""
@@ -184,11 +191,8 @@ class OpenAIIntegration(BaseLLMIntegration):
                 metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cached_tokens
             return metrics
         elif kwargs.get("stream") and resp is not None:
-            model_name = span.get_tag("openai.response.model") or kwargs.get("model", "")
-            _, prompt_tokens = _compute_prompt_tokens(
-                model_name, kwargs.get("prompt", None), kwargs.get("messages", None)
-            )
-            _, completion_tokens = _compute_completion_tokens(resp, model_name)
+            prompt_tokens = _compute_prompt_tokens(kwargs.get("prompt", None), kwargs.get("messages", None))
+            completion_tokens = _compute_completion_tokens(resp)
             total_tokens = prompt_tokens + completion_tokens
 
             return {

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    ray: This fix resolves an issue where long-running spans did not preserve the correct resource name when being recreated.

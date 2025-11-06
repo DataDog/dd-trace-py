@@ -12,34 +12,7 @@ import sys
 import pytest
 
 
-@pytest.fixture(autouse=True)
-def cleanup_coverage_modules():
-    """Clean up coverage collector and imported test modules between tests."""
-    from ddtrace.internal.coverage.code import ModuleCodeCollector
-
-    # Store modules to remove after test
-    modules_to_remove = [key for key in sys.modules.keys() if key.startswith("tests.coverage.included_path")]
-
-    yield
-
-    # Clean up after test
-    if ModuleCodeCollector._instance:
-        ModuleCodeCollector._instance.uninstall()
-        ModuleCodeCollector._instance = None
-
-    # Remove imported test modules so they can be re-imported fresh in the next test
-    for module_name in modules_to_remove:
-        sys.modules.pop(module_name, None)
-
-    # Also remove any modules that were imported during the test
-    for key in list(sys.modules.keys()):
-        if key.startswith("tests.coverage.included_path"):
-            sys.modules.pop(key, None)
-
-
-# @pytest.mark.subprocess
-
-
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
 def test_coverage_import_time_lib():
     import os
     from pathlib import Path
@@ -85,20 +58,31 @@ def test_coverage_import_time_lib():
         "tests/coverage/included_path/nested_import_time_lib.py": {1, 4},
     }
 
-    assert (
-        executable.keys() == expected_executable.keys()
-    ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
-    assert (
-        covered.keys() == expected_covered.keys()
-    ), f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
-    assert (
-        covered_with_imports.keys() == expected_covered_with_imports.keys()
-    ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+    if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
+        # In file-level mode, we only track files, not specific line numbers
+        assert (
+            executable.keys() == expected_executable.keys()
+        ), f"Executable files mismatch: expected={expected_executable.keys()} vs actual={executable.keys()}"
+        assert (
+            covered.keys() == expected_covered.keys()
+        ), f"Covered files mismatch: expected={expected_covered.keys()} vs actual={covered.keys()}"
+        assert covered_with_imports.keys() == expected_covered_with_imports.keys(), (
+            f"Covered files with imports mismatch: expected={expected_covered_with_imports.keys()}"
+            f" vs actual={covered_with_imports.keys()}"
+        )
+    else:
+        # In full coverage mode, we track exact line numbers
+        assert (
+            executable == expected_executable
+        ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
+        assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
+        assert covered_with_imports == expected_covered_with_imports, (
+            f"Covered lines with imports mismatch: expected={expected_covered_with_imports} "
+            f"vs actual={covered_with_imports}"
+        )
 
 
-# @pytest.mark.subprocess
-
-
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
 def test_coverage_import_time_function():
     import os
     from pathlib import Path
@@ -143,12 +127,23 @@ def test_coverage_import_time_function():
         "tests/coverage/included_path/imported_in_function_lib.py": {1, 2, 3, 4, 7},
     }
 
-    assert (
-        lines.keys() == expected_lines.keys()
-    ), f"Executable lines mismatch: expected={expected_lines} vs actual={lines}"
-    assert (
-        covered.keys() == expected_covered.keys()
-    ), f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
-    assert (
-        covered_with_imports.keys() == expected_covered_with_imports.keys()
-    ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+    if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
+        # In file-level mode, we only track files, not specific line numbers
+        assert (
+            lines.keys() == expected_lines.keys()
+        ), f"Executable files mismatch: expected={expected_lines.keys()} vs actual={lines.keys()}"
+        assert (
+            covered.keys() == expected_covered.keys()
+        ), f"Covered files mismatch: expected={expected_covered.keys()} vs actual={covered.keys()}"
+        assert covered_with_imports.keys() == expected_covered_with_imports.keys(), (
+            f"Covered files with imports mismatch: expected={expected_covered_with_imports.keys()} "
+            f"vs actual={covered_with_imports.keys()}"
+        )
+    else:
+        # In full coverage mode, we track exact line numbers
+        assert lines == expected_lines, f"Executable lines mismatch: expected={expected_lines} vs actual={lines}"
+        assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
+        assert covered_with_imports == expected_covered_with_imports, (
+            f"Covered lines with imports mismatch: expected={expected_covered_with_imports} "
+            f"vs actual={covered_with_imports}"
+        )

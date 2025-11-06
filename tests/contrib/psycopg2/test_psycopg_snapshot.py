@@ -2,16 +2,16 @@ import os
 
 import psycopg2
 import pytest
-import wrapt
 
 from ddtrace.contrib.internal.psycopg.patch import patch
 from ddtrace.contrib.internal.psycopg.patch import unpatch
+from ddtrace.internal.compat import is_wrapted
 
 
 @pytest.fixture(autouse=True)
 def patch_psycopg():
     patch()
-    assert isinstance(psycopg2.connect, wrapt.ObjectProxy)
+    assert is_wrapted(psycopg2.connect)
     yield
     unpatch()
 

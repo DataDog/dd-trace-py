@@ -15,12 +15,17 @@ set(CMAKE_VERBOSE_MAKEFILE ON)
 
 # Get the cmake modules for this project
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../cmake")
+include(AnalysisFunc)
 
-# Having a common target in a subdirectory like this is a hack and a mistake, but it's fiddly to change it so we haven't
-# been able to. Instead, make sure that the binary path set in the subdirectory is stable *as a string* in order to make
-# sure the caches work.
-get_filename_component(DD_WRAPPER_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/../dd_wrapper_build ABSOLUTE)
-add_subdirectory(../dd_wrapper ${DD_WRAPPER_BUILD_DIR})
+# Link against the pre-built libdd_wrapper shared library The library is built by setup.py and its location is passed
+# via NATIVE_EXTENSION_LOCATION
+set(DD_WRAPPER_LIB "${NATIVE_EXTENSION_LOCATION}/../datadog/profiling/libdd_wrapper${EXTENSION_SUFFIX}")
+
+# Import the pre-built library as an imported target
+add_library(dd_wrapper SHARED IMPORTED)
+set_target_properties(
+    dd_wrapper PROPERTIES IMPORTED_LOCATION "${DD_WRAPPER_LIB}" INTERFACE_INCLUDE_DIRECTORIES
+                                                                "${CMAKE_CURRENT_SOURCE_DIR}/../dd_wrapper/include")
 
 find_package(Python3 COMPONENTS Interpreter Development)
 
@@ -69,8 +74,11 @@ if(APPLE)
 elseif(UNIX)
     set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/..")
 endif()
-target_include_directories(${EXTENSION_NAME} PRIVATE ../dd_wrapper/include ../../../../../src/native/target/include/
-                                                     ${Datadog_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS})
+target_include_directories(
+    ${EXTENSION_NAME}
+    PRIVATE ../dd_wrapper/include
+            ../../../../../src/native/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include/
+            ${Datadog_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS})
 
 target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper)
 

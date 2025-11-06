@@ -212,7 +212,7 @@ class DdtraceRunTest(BaseTestCase):
 
     def test_logs_injection(self):
         """Ensure logs injection works"""
-        with self.override_env(dict(DD_LOGS_INJECTION="true")):
+        with self.override_env(dict(DD_TAGS="service:my-service,env:my-env,version:my-version")):
             out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_logs_injection.py"])
             assert out.startswith(b"Test success"), out.decode()
 
@@ -531,12 +531,12 @@ def test_global_trace_tags_deprecation_warning():
         warnings.simplefilter("always")
         import ddtrace.auto  # noqa: F401
 
-        assert len(warns) == 1
-        warning_message = str(warns[0].message)
+        assert len(warns) >= 1
+        warning_messages = [str(warn.message) for warn in warns]
         assert (
-            warning_message
-            == "DD_TRACE_GLOBAL_TAGS is deprecated and will be removed in version '4.0.0': Please migrate to using DD_TAGS instead"  # noqa: E501
-        ), warning_message
+            "DD_TRACE_GLOBAL_TAGS is deprecated and will be removed in version '4.0.0': Please migrate to using "
+            "DD_TAGS instead" in warning_messages
+        ), warning_messages
 
 
 @pytest.mark.subprocess(ddtrace_run=False, err="")

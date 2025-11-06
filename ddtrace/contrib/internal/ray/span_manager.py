@@ -1,6 +1,7 @@
 import atexit
 from contextlib import contextmanager
 from itertools import chain
+import sys
 import threading
 import time
 from typing import Dict
@@ -48,14 +49,15 @@ def long_running_ray_span(
     with tracer.start_span(
         name=span_name, service=service, resource=resource, span_type=span_type, child_of=child_of, activate=activate
     ) as span:
-        span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
+        span._set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
         _inject_ray_span_tags_and_metrics(span)
         start_long_running_span(span)
 
         try:
             yield span
-        except BaseException as e:
-            raise e
+        except BaseException:
+            span.set_exc_info(*sys.exc_info())
+            raise
         finally:
             stop_long_running_span(span)
 
@@ -104,10 +106,10 @@ class RaySpanManager:
         partial_version = time.time_ns()
         if span.get_metric(DD_PARTIAL_VERSION) is None:
             span.set_metric(DD_PARTIAL_VERSION, partial_version)
-            span.set_tag_str(RAY_JOB_STATUS, RAY_STATUS_RUNNING)
+            span._set_tag_str(RAY_JOB_STATUS, RAY_STATUS_RUNNING)
 
         partial_span = self._recreate_job_span(span)
-        partial_span.set_tag_str(RAY_JOB_STATUS, RAY_STATUS_RUNNING)
+        partial_span._set_tag_str(RAY_JOB_STATUS, RAY_STATUS_RUNNING)
         partial_span.set_metric(DD_PARTIAL_VERSION, partial_version)
         partial_span.finish()
 
@@ -159,6 +161,7 @@ class RaySpanManager:
     def _recreate_job_span(self, job_span: Span) -> Span:
         new_span = Span(
             name=job_span.name,
+            resource=job_span.resource,
             service=job_span.service,
             span_type=job_span.span_type,
             trace_id=job_span.trace_id,
@@ -166,7 +169,7 @@ class RaySpanManager:
             parent_id=job_span.parent_id,
             context=job_span.context,
         )
-        new_span.set_tag_str("component", RAY_COMPONENT)
+        new_span._set_tag_str("component", RAY_COMPONENT)
         new_span.start_ns = job_span.start_ns
         new_span._meta = job_span._meta.copy()
         new_span._metrics = job_span._metrics.copy()
@@ -192,10 +195,10 @@ class RaySpanManager:
             del span._metrics[DD_PARTIAL_VERSION]
 
             span.set_metric(DD_WAS_LONG_RUNNING, 1)
-            span.set_tag_str(RAY_JOB_STATUS, RAY_STATUS_FINISHED)
+            span._set_tag_str(RAY_JOB_STATUS, RAY_STATUS_FINISHED)
 
         if job_info:
-            span.set_tag_str(RAY_JOB_STATUS, job_info.status)
+            span._set_tag_str(RAY_JOB_STATUS, job_info.status)
             span.set_tag(RAY_JOB_MESSAGE, job_info.message)
 
             if str(job_info.status) == RAY_STATUS_FAILED:
@@ -268,7 +271,7 @@ def start_long_running_job(job_span: Span) -> None:
     start_long_running_span(job_span)
 
 
-def stop_long_running_job(submission_id: str, job_info: Optional[JobInfo]) -> None:
+def stop_long_running_job(submission_id: str, job_info: Optional[JobInfo] = None) -> None:
     get_span_manager().stop_long_running_job(submission_id, job_info)
 
 
