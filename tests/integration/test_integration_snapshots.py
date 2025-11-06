@@ -236,7 +236,9 @@ def test_trace_with_wrong_meta_types_not_sent(encoding, meta, monkeypatch):
                         child._meta = meta
 
             assert log_warning.call_count == 300
-            log_warning.assert_called_with("Meta key %r has non-string value %r, skipping", mock.ANY, mock.ANY)
+            log_warning.assert_called_with(
+                "[span ID %ld] Meta key %r has non-string value %r, skipping", mock.ANY, mock.ANY, mock.ANY
+            )
 
 
 @pytest.mark.parametrize(
@@ -260,7 +262,9 @@ def test_trace_with_wrong_metrics_types_not_sent(encoding, metrics, expected_war
                         child._metrics = metrics
 
             assert log_warning.call_count == expected_warning_count
-            log_warning.assert_called_with("Metric key %r has non-numeric value %r, skipping", mock.ANY, mock.ANY)
+            log_warning.assert_called_with(
+                "[span ID %ld] Metric key %r has non-numeric value %r, skipping", mock.ANY, mock.ANY, mock.ANY
+            )
 
 
 @pytest.mark.subprocess()
