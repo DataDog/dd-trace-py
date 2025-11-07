@@ -1208,6 +1208,7 @@ setup(
         force=os.getenv("DD_SETUP_FORCE_CYTHONIZE", "0") == "1",
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
         compiler_directives={"language_level": "3"},
+        cache=True,
     )
     + get_exts_for("psutil"),
     distclass=PatchedDistribution,
