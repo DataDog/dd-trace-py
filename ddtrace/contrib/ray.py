@@ -18,3 +18,9 @@ def setup_tracing():
         # We silently deactivate it as users might be confused as they
         # probably do not activate otel on purpose
         tracing_helper._global_is_tracing_enabled = False
+
+
+def setup_logging():
+    from ddtrace import patch
+
+    patch(logging=True)
