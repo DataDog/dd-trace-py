@@ -186,17 +186,19 @@ def _iast_pytest_activation():
     global _iast_propagation_enabled
     if _iast_propagation_enabled:
         return
+    from ._iast_request_context_base import _iast_start_request
+
     os.environ["DD_IAST_ENABLED"] = os.environ.get("DD_IAST_ENABLED") or "1"
     os.environ["DD_IAST_REQUEST_SAMPLING"] = os.environ.get("DD_IAST_REQUEST_SAMPLING") or "100.0"
     os.environ["_DD_APPSEC_DEDUPLICATION_ENABLED"] = os.environ.get("_DD_APPSEC_DEDUPLICATION_ENABLED") or "false"
     os.environ["DD_IAST_VULNERABILITIES_PER_REQUEST"] = os.environ.get("DD_IAST_VULNERABILITIES_PER_REQUEST") or "1000"
-    os.environ["DD_IAST_MAX_CONCURRENT_REQUESTS"] = os.environ.get("DD_IAST_MAX_CONCURRENT_REQUESTS") or "1000"
 
     asm_config._iast_request_sampling = 100.0
     asm_config._deduplication_enabled = False
     asm_config._iast_max_vulnerabilities_per_requests = 1000
-    asm_config._iast_max_concurrent_requests = 1000
     oce.reconfigure()
+
+    _iast_start_request()
 
 
 def disable_iast_propagation():

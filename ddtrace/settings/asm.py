@@ -140,11 +140,6 @@ class ASMConfig(DDConfig):
         + r"ey[I-L][\w=-]+\.ey[I-L][\w=-]+(\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY"
         + r"[\-]{5}[^\-]+[\-]{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}",
     )
-    _iast_max_concurrent_requests = DDConfig.var(
-        int,
-        IAST.DD_IAST_MAX_CONCURRENT_REQUESTS,
-        default=2,
-    )
     _iast_max_vulnerabilities_per_requests = DDConfig.var(
         int,
         IAST.DD_IAST_VULNERABILITIES_PER_REQUEST,
