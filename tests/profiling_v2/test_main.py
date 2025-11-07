@@ -20,10 +20,9 @@ def test_call_script():
         assert exitcode == 0, (stdout, stderr)
     else:
         assert exitcode == 42, (stdout, stderr)
-    hello, interval, pid, stack_v2 = list(s.strip() for s in stdout.decode().strip().split("\n"))
+    hello, interval, _ = list(s.strip() for s in stdout.decode().strip().split("\n"))
     assert hello == "hello world", stdout.decode().strip()
     assert float(interval) >= 0.01, stdout.decode().strip()
-    assert stack_v2 == str(True)
 
 
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT", False), reason="Not testing gevent")
