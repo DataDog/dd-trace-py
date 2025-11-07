@@ -1023,6 +1023,7 @@ def test_unshallow_repository_local_head():
                     "--update-shallow",
                     "--filter=blob:none",
                     "--recurse-submodules=no",
+                    "--no-tags",
                     "origin",
                     "myfakesha",
                     cwd="/path/to/repo",
@@ -1051,6 +1052,7 @@ def test_unshallow_repository_upstream():
                         "--update-shallow",
                         "--filter=blob:none",
                         "--recurse-submodules=no",
+                        "--no-tags",
                         "origin",
                         "myupstreamsha",
                         cwd="/path/to/repo",
@@ -1080,6 +1082,7 @@ def test_unshallow_repository_full():
                         "--update-shallow",
                         "--filter=blob:none",
                         "--recurse-submodules=no",
+                        "--no-tags",
                         "origin",
                         cwd="/path/to/repo",
                     )
