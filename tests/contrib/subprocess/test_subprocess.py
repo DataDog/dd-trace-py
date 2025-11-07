@@ -263,8 +263,9 @@ def test_ossystem_disabled(tracer, config):
         spans = tracer.pop()
         assert spans
         num_spans = 1
-        if config.get("_asm_enabled") is True and sys.version_info[:2] != (3, 12):
-            num_spans = 2
+
+        print(f"num_spans!!! {num_spans}")
+        print(f"spans!!! {spans}")
         assert len(spans) == num_spans
         _assert_root_span_empty_system_data(spans[0])
 
