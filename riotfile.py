@@ -3362,6 +3362,8 @@ venv = Venv(
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
                 "DD_PROFILING_STACK_V2_ENABLED": "0",
                 "CPUCOUNT": "12",
+                # TODO: Remove once pkg_resources warnings are no longer emitted from this internal module
+                "PYTHONWARNINGS": "ignore::UserWarning:ddtrace.internal.module",
             },
             pkgs={
                 "gunicorn": latest,
@@ -3460,6 +3462,8 @@ venv = Venv(
             env={
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
                 "CPUCOUNT": "12",
+                # TODO: Remove once pkg_resources warnings are no longer emitted from this internal module
+                "PYTHONWARNINGS": "ignore::UserWarning:ddtrace.internal.module",
             },
             pkgs={
                 "gunicorn": latest,
