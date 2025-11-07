@@ -140,6 +140,13 @@ class ASMConfig(DDConfig):
         + r"ey[I-L][\w=-]+\.ey[I-L][\w=-]+(\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY"
         + r"[\-]{5}[^\-]+[\-]{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}",
     )
+    # We never use `asm_config._iast_max_concurrent_requests` directly,
+    # but we define it so it can be reported through telemetry, since it’s used from the C files.
+    _iast_max_concurrent_requests = DDConfig.var(
+        int,
+        IAST.DD_IAST_MAX_CONCURRENT_REQUESTS,
+        default=2,
+    )
     _iast_max_vulnerabilities_per_requests = DDConfig.var(
         int,
         IAST.DD_IAST_VULNERABILITIES_PER_REQUEST,
@@ -227,6 +234,7 @@ class ASMConfig(DDConfig):
         "_iast_redaction_enabled",
         "_iast_redaction_name_pattern",
         "_iast_redaction_value_pattern",
+        "_iast_max_concurrent_requests",
         "_iast_max_vulnerabilities_per_requests",
         "_iast_lazy_taint",
         "_iast_deduplication_enabled",
