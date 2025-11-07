@@ -12,12 +12,10 @@ import asyncio
 import pytest
 
 
-try:
-    import anyio
+# Skip all tests in this module if anyio is not installed
+pytest.importorskip("anyio")
 
-    ANYIO_AVAILABLE = True
-except ImportError:
-    ANYIO_AVAILABLE = False
+import anyio
 
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
@@ -25,7 +23,6 @@ from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 
 
-@pytest.mark.skipif(not ANYIO_AVAILABLE, reason="anyio not available")
 @pytest.mark.asyncio
 async def test_anyio_concurrent_taint_operations():
     """Test IAST with anyio's concurrent async operations."""
@@ -56,7 +53,6 @@ async def test_anyio_concurrent_taint_operations():
     assert True, "Anyio concurrent operations completed successfully"
 
 
-@pytest.mark.skipif(not ANYIO_AVAILABLE, reason="anyio not available")
 @pytest.mark.asyncio
 async def test_anyio_memory_streams():
     """Test IAST with anyio memory streams (the specific failing case)."""
@@ -93,7 +89,6 @@ async def test_anyio_memory_streams():
     assert True, "Anyio memory stream operations completed successfully"
 
 
-@pytest.mark.skipif(not ANYIO_AVAILABLE, reason="anyio not available")
 @pytest.mark.asyncio
 async def test_anyio_event_creation():
     """Test IAST with anyio Event creation (the specific line in the stack trace)."""
@@ -130,7 +125,6 @@ async def test_anyio_event_creation():
     assert True, "Anyio event creation with IAST completed successfully"
 
 
-@pytest.mark.skipif(not ANYIO_AVAILABLE, reason="anyio not available")
 def test_anyio_blocking_portal():
     """Test IAST with anyio's BlockingPortal (runs async code from sync context)."""
 
@@ -157,23 +151,3 @@ def test_anyio_blocking_portal():
             results.append(result)
 
     assert len(results) == 20, "All portal operations should complete"
-
-
-if __name__ == "__main__":
-    if ANYIO_AVAILABLE:
-        print("Testing anyio thread safety...")
-        asyncio.run(test_anyio_concurrent_taint_operations())
-        print("✓ Concurrent operations test passed")
-
-        asyncio.run(test_anyio_memory_streams())
-        print("✓ Memory streams test passed")
-
-        asyncio.run(test_anyio_event_creation())
-        print("✓ Event creation test passed")
-
-        test_anyio_blocking_portal()
-        print("✓ Blocking portal test passed")
-
-        print("\n✓ All anyio thread-safety tests passed!")
-    else:
-        print("anyio not available, skipping tests")
