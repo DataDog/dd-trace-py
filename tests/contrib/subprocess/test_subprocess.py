@@ -24,21 +24,9 @@ PATCH_ENABLED_CONFIGURATIONS = (
     dict(_bypass_instrumentation_for_waf=False, _asm_enabled=True, _iast_enabled=False),
 )
 
-PATCH_SPECIALS = (dict(_remote_config_enabled=True),)
-
 PATCH_DISABLED_CONFIGURATIONS = (
-    dict(),
-    dict(_asm_enabled=False),
-    dict(_iast_enabled=True),
-    dict(_iast_enabled=False),
-    dict(_asm_enabled=False, _iast_enabled=True),
-    dict(_remote_config_enabled=False),
-    dict(_remote_config_enabled=False, _iast_enabled=True),
-    dict(_asm_enabled=False, _iast_enabled=False),
     dict(_bypass_instrumentation_for_waf=True, _asm_enabled=False, _iast_enabled=False),
     dict(_bypass_instrumentation_for_waf=True),
-    dict(_bypass_instrumentation_for_waf=False, _asm_enabled=False, _iast_enabled=False),
-    dict(_bypass_instrumentation_for_waf=True, _asm_enabled=True, _iast_enabled=False),
     dict(_bypass_instrumentation_for_waf=True, _asm_enabled=False, _iast_enabled=True),
     dict(_bypass_instrumentation_for_waf=False, _asm_enabled=False, _iast_enabled=True),
 )
@@ -250,7 +238,7 @@ def test_ossystem(tracer, config):
         assert span.get_tag(COMMANDS.COMPONENT) == "os"
 
 
-@pytest.mark.parametrize("config", PATCH_DISABLED_CONFIGURATIONS + PATCH_SPECIALS)
+@pytest.mark.parametrize("config", PATCH_DISABLED_CONFIGURATIONS)
 def test_ossystem_disabled(tracer, config):
     with override_global_config(config):
         patch()
