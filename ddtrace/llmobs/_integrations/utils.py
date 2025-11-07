@@ -764,6 +764,9 @@ def _extract_chat_template_from_instructions(
             value_str = str(var_value)
         value_to_placeholder[value_str] = "{{" + var_name + "}}"
 
+    sorted_values = sorted(value_to_placeholder.keys(), key=len, reverse=True)
+    pattern = "|".join(re.escape(v) for v in sorted_values) if sorted_values else None
+
     for instruction in instructions:
         role = _get_attr(instruction, "role", "")
         if not role:
@@ -785,9 +788,8 @@ def _extract_chat_template_from_instructions(
 
         full_text = "".join(text_parts)
 
-        # Replace variable values with placeholders
-        for value_str, placeholder in value_to_placeholder.items():
-            full_text = full_text.replace(value_str, placeholder)
+        if pattern:
+            full_text = re.sub(pattern, lambda m: value_to_placeholder[m.group(0)], full_text)
 
         chat_template.append({"role": role, "content": full_text})
 
@@ -832,7 +834,7 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], respo
 
                 validated_prompt = _validate_prompt(prompt_data, strict_validation=False)
                 span._set_ctx_item(INPUT_PROMPT, validated_prompt)
-            except (TypeError, ValueError) as e:
+            except (TypeError, ValueError, AttributeError) as e:
                 logger.debug("Failed to validate prompt for OpenAI response: %s", e)
 
     if span.error or not response:
