@@ -14,14 +14,27 @@ random_range(uint64_t max)
 
 #define DO_NOTHING(...)
 
+#ifdef __cplusplus
+#define p_new(type, count) static_cast<type*>(PyMem_RawMalloc(sizeof(type) * (count)))
+#else
 #define p_new(type, count) PyMem_RawMalloc(sizeof(type) * (count))
+#endif
+
 #define p_delete(mem_p) PyMem_RawFree(mem_p);
 // Allocate at least 16 and 50% more than requested to avoid allocating items one by one.
 #define p_alloc_nr(x) (((x) + 16) * 3 / 2)
+
+#ifdef __cplusplus
+#define p_realloc(p, count)                                                                                            \
+    do {                                                                                                               \
+        (p) = static_cast<decltype(p)>(PyMem_RawRealloc((p), sizeof(*p) * (count)));                                   \
+    } while (0)
+#else
 #define p_realloc(p, count)                                                                                            \
     do {                                                                                                               \
         (p) = PyMem_RawRealloc((p), sizeof(*p) * (count));                                                             \
     } while (0)
+#endif
 
 #define p_grow(p, goalnb, allocnb)                                                                                     \
     do {                                                                                                               \

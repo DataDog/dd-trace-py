@@ -1047,11 +1047,11 @@ if not IS_PYSTON:
         Extension(
             "ddtrace.profiling.collector._memalloc",
             sources=[
-                "ddtrace/profiling/collector/_memalloc.c",
-                "ddtrace/profiling/collector/_memalloc_tb.c",
-                "ddtrace/profiling/collector/_memalloc_heap.c",
-                "ddtrace/profiling/collector/_memalloc_reentrant.c",
-                "ddtrace/profiling/collector/_memalloc_heap_map.c",
+                "ddtrace/profiling/collector/_memalloc.cpp",
+                "ddtrace/profiling/collector/_memalloc_tb.cpp",
+                "ddtrace/profiling/collector/_memalloc_heap.cpp",
+                "ddtrace/profiling/collector/_memalloc_reentrant.cpp",
+                "ddtrace/profiling/collector/_memalloc_heap_map.cpp",
             ],
             include_dirs=[
                 "ddtrace/internal/datadog/profiling/dd_wrapper/include",
@@ -1064,13 +1064,14 @@ if not IS_PYSTON:
                 if CURRENT_OS == "Darwin"
                 else []
             ),
+            language="c++",
             extra_compile_args=(
                 debug_compile_args
                 + (["-DNDEBUG"] if not debug_compile_args else ["-UNDEBUG"])
-                + ["-D_POSIX_C_SOURCE=200809L", "-std=c11"]
+                + ["-D_POSIX_C_SOURCE=200809L", "-std=c++17"]
                 + fast_build_args
                 if CURRENT_OS != "Windows"
-                else ["/std:c11", "/experimental:c11atomics"]
+                else ["/std:c++17", "/MT"]
             ),
         ),
         Extension(
