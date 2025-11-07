@@ -5,6 +5,7 @@ from ddtrace.internal.process_tags import _process_tag_reload
 from ddtrace.internal.process_tags import normalize_tag
 from ddtrace.settings._config import config
 from tests.utils import TracerTestCase
+from unittest.mock import patch
 
 
 @pytest.mark.parametrize(
@@ -41,16 +42,18 @@ class TestProcessTags(TracerTestCase):
 
     @pytest.mark.snapshot
     def test_process_tags_activated(self):
-        config._process_tags_enabled = True
-        _process_tag_reload()
+        with patch("sys.argv", ["/path/to/test_script.py"]), patch("os.getcwd", return_value="/path/to/workdir"):
+            config._process_tags_enabled = True
+            _process_tag_reload()
 
-        with self.tracer.trace("test"):
-            pass
+            with self.tracer.trace("test"):
+                pass
 
     @pytest.mark.snapshot
     def test_process_tags_only_on_local_root_span(self):
-        config._process_tags_enabled = True
-        _process_tag_reload()
-        with self.tracer.trace("parent"):
-            with self.tracer.trace("child"):
-                pass
+        with patch("sys.argv", ["/path/to/test_script.py"]), patch("os.getcwd", return_value="/path/to/workdir"):
+            config._process_tags_enabled = True
+            _process_tag_reload()
+            with self.tracer.trace("parent"):
+                with self.tracer.trace("child"):
+                    pass
