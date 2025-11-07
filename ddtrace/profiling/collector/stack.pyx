@@ -31,7 +31,6 @@ class StackCollector(collector.PeriodicCollector):
         "nframes",
         "endpoint_collection_enabled",
         "tracer",
-        "_last_wall_time",
     )
 
     def __init__(self,
@@ -51,7 +50,6 @@ class StackCollector(collector.PeriodicCollector):
         self.nframes: int = nframes
         self.endpoint_collection_enabled: typing.Optional[bool] = endpoint_collection_enabled
         self.tracer: typing.Optional[Tracer] = tracer
-        self._last_wall_time: int = 0  # Placeholder for initial value
 
 
     def __repr__(self):
@@ -67,7 +65,6 @@ class StackCollector(collector.PeriodicCollector):
 
     def _init(self):
         # type: (...) -> None
-        self._last_wall_time = time.monotonic_ns()
         if self.tracer is not None:
             link_span = stack_v2.link_span
             core.on("ddtrace.context_provider.activate", link_span)
@@ -106,7 +103,6 @@ class StackCollector(collector.PeriodicCollector):
     def collect(self):
         # Compute wall time
         now = time.monotonic_ns()
-        self._last_wall_time = now
         all_events = []
 
         used_wall_time_ns = time.monotonic_ns() - now

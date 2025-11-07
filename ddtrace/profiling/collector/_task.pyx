@@ -1,12 +1,6 @@
-import sys
-from types import ModuleType
-import weakref
-
 from wrapt.importer import when_imported
 
 from .. import _asyncio
-from .. import _threading
-from ddtrace.internal.settings.profiling import config
 
 
 @when_imported("gevent")
