@@ -252,8 +252,6 @@ def test_ossystem_disabled(tracer, config):
         assert spans
         num_spans = 1
 
-        print(f"num_spans!!! {num_spans}")
-        print(f"spans!!! {spans}")
         assert len(spans) == num_spans
         _assert_root_span_empty_system_data(spans[0])
 
