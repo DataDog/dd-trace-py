@@ -2,7 +2,9 @@ import io
 import json
 from typing import Any
 from typing import Dict
+from typing import List
 from typing import Optional
+from typing import Tuple
 from typing import Union
 
 from ddtrace._trace.span import Span
@@ -15,6 +17,7 @@ from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._http_utils import extract_cookies_from_headers
 from ddtrace.appsec._http_utils import normalize_headers
 from ddtrace.appsec._http_utils import parse_http_body
+from ddtrace.appsec._utils import Block_config
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.trace_utils_base import _get_request_header_user_agent
 from ddtrace.contrib.internal.trace_utils_base import _set_url_tag
@@ -292,24 +295,23 @@ def _on_grpc_server_data(headers, request_message, method, metadata):
         set_waf_address(SPAN_DATA_NAMES.GRPC_SERVER_REQUEST_METADATA, dict(metadata))
 
 
-def _wsgi_make_block_content(ctx, construct_url):
+def _wsgi_make_block_content(ctx, construct_url) -> Tuple[int, List[Tuple[str, str]], bytes]:
     middleware = ctx.get_item("middleware")
     req_span = ctx.get_item("req_span")
     headers = ctx.get_item("headers")
     environ = ctx.get_item("environ")
     if req_span is None:
         raise ValueError("request span not found")
-    block_config = get_blocked()
-    desired_type = block_config.get("type", "auto")
+    block_config: Block_config = get_blocked() or Block_config()
     ctype = None
-    if desired_type == "none":
-        content = ""
-        resp_headers = [("content-type", "text/plain; charset=utf-8"), ("location", block_config.get("location", ""))]
+    if block_config.type == "none":
+        content = b""
+        resp_headers = [("content-type", "text/plain; charset=utf-8"), ("location", block_config.location)]
     else:
-        ctype = block_config.get("content-type", "application/json")
-        content = http_utils._get_blocked_template(ctype).encode("UTF-8")
+        ctype = block_config.content_type
+        content = http_utils._get_blocked_template(ctype, block_config.block_id).encode("UTF-8")
         resp_headers = [("content-type", ctype)]
-    status = block_config.get("status_code", 403)
+    status = block_config.status_code
     try:
         req_span._set_tag_str(RESPONSE_HEADERS + ".content-length", str(len(content)))
         if ctype is not None:
@@ -332,28 +334,26 @@ def _wsgi_make_block_content(ctx, construct_url):
     return status, resp_headers, content
 
 
-def _asgi_make_block_content(ctx, url):
+def _asgi_make_block_content(ctx, url) -> Tuple[int, List[Tuple[bytes, bytes]], bytes]:
     middleware = ctx.get_item("middleware")
     req_span = ctx.get_item("req_span")
     headers = ctx.get_item("headers")
     environ = ctx.get_item("environ")
     if req_span is None:
         raise ValueError("request span not found")
-    block_config = get_blocked()
-    desired_type = block_config.get("type", "auto")
+    block_config = get_blocked() or Block_config()
     ctype = None
-    if desired_type == "none":
-        content = ""
+    if block_config.type == "none":
+        content = b""
         resp_headers = [
             (b"content-type", b"text/plain; charset=utf-8"),
-            (b"location", block_config.get("location", "").encode()),
+            (b"location", block_config.location.encode()),
         ]
     else:
-        ctype = block_config.get("content-type", "application/json")
-        content = http_utils._get_blocked_template(ctype).encode("UTF-8")
+        content = http_utils._get_blocked_template(block_config.content_type, block_config.block_id).encode("UTF-8")
         # ctype = f"{ctype}; charset=utf-8" can be considered at some point
-        resp_headers = [(b"content-type", ctype.encode())]
-    status = block_config.get("status_code", 403)
+        resp_headers = [(b"content-type", block_config.content_type.encode())]
+    status = block_config.status_code
     try:
         req_span._set_tag_str(RESPONSE_HEADERS + ".content-length", str(len(content)))
         if ctype is not None:

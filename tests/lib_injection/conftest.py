@@ -157,6 +157,9 @@ def test_venv(ddtrace_injection_artifact):
                     spec = f"{package}=={version}" if version else package
                     install_specs.append(spec)
 
+                    if package == "bottle" and sys.version_info >= (3, 13):
+                        install_specs.append("legacy-cgi")
+
                 if install_specs:
                     test_install_cmd = [pip_executable, "install", "--no-cache-dir"] + install_specs
                     subprocess.run(
