@@ -60,23 +60,6 @@ cpdef list_tasks(thread_id):
 
     tasks = []
 
-    if not is_stack_v2 and _gevent_tracer is not None:
-        if type(_threading.get_thread_by_id(thread_id)).__name__.endswith("_MainThread"):
-            # Under normal circumstances, the Hub is running in the main thread.
-            # Python will only ever have a single instance of a _MainThread
-            # class, so if we find it we attribute all the greenlets to it.
-            tasks.extend(
-                [
-                    (
-                        greenlet_id,
-                        _threading.get_thread_name(greenlet_id),
-                        greenlet.gr_frame
-                    )
-                    for greenlet_id, greenlet in dict(_gevent_tracer.greenlets).items()
-                    if not greenlet.dead
-                ]
-            )
-
     loop = _asyncio.get_event_loop_for_thread(thread_id)
     if loop is not None:
         tasks.extend([
