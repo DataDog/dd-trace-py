@@ -32,6 +32,7 @@ import os
 import sys
 import types
 
+from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings.asm import config as asm_config
@@ -44,6 +45,83 @@ log = get_logger(__name__)
 
 _IAST_TO_BE_LOADED = True
 _iast_propagation_enabled = False
+_fork_handler_registered = False
+
+
+def _disable_iast_after_fork():
+    """
+    Conditionally disable IAST in forked child processes to prevent segmentation faults.
+
+    This fork handler differentiates between two types of forks:
+
+    1. **Early forks (web framework workers)**: Gunicorn, uvicorn, Django, Flask workers
+       fork BEFORE IAST initializes any state. These are safe - IAST remains enabled.
+
+    2. **Late forks (multiprocessing)**: multiprocessing.Process forks AFTER IAST has
+       initialized state. These inherit corrupted native extension state and must have
+       IAST disabled to prevent segmentation faults.
+
+    Detection logic:
+    - If IAST has active request contexts when fork occurs → Late fork → Disable IAST
+    - If IAST has no active state → Early fork (worker) → Keep IAST enabled
+
+    This is critical for multiprocessing compatibility while maintaining IAST coverage
+    in web framework workers. The native extension state (taint maps, context slots,
+    object pools, shared_ptr references) cannot be safely used across fork boundaries
+    when it exists, but is safe to initialize fresh in clean workers.
+
+    For late forks, the child process:
+    - Clears all C++ taint maps and context slots
+    - Resets the Python-level IAST_CONTEXT
+    - Disables IAST by setting asm_config._iast_enabled = False
+
+    This prevents segmentation faults in multiprocessing while allowing IAST to work
+    in web framework workers.
+    """
+    if not asm_config._iast_enabled:
+        return
+
+    try:
+        # Import locally to avoid issues if the module hasn't been loaded yet
+        from ddtrace.appsec._iast._iast_request_context_base import IAST_CONTEXT
+        from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
+        from ddtrace.appsec._iast._taint_tracking._context import clear_all_request_context_slots
+
+        if not is_iast_request_enabled():
+            # No active context - this is an early fork (web framework worker)
+            # IAST can be safely initialized fresh in this child process
+            log.debug("IAST fork handler: No active context, keeping IAST enabled (web worker fork)")
+            return
+
+        # Active context exists - this is a late fork (multiprocessing)
+        # Native state is corrupted, must disable IAST
+        log.debug("IAST fork handler: Active context detected, disabling IAST (multiprocessing fork)")
+
+        # Clear C++ side: all taint maps and context slots
+        clear_all_request_context_slots()
+        # Clear Python side: reset the context ID
+        IAST_CONTEXT.set(None)
+
+        # Disable IAST to prevent segmentation faults
+        asm_config._iast_enabled = False
+
+    except Exception as e:
+        log.debug("Error in IAST fork handler: %s", e, exc_info=True)
+
+
+def _register_fork_handler():
+    """
+    Register the fork handler if IAST is enabled and it hasn't been registered yet.
+
+    This is called during IAST initialization to ensure the fork handler is only
+    registered once and only when IAST is actually being used.
+    """
+    global _fork_handler_registered
+
+    if not _fork_handler_registered and asm_config._iast_enabled:
+        forksafe.register(_disable_iast_after_fork)
+        _fork_handler_registered = True
+        log.debug("IAST fork safety handler registered")
 
 
 def ddtrace_iast_flask_patch():
@@ -101,6 +179,7 @@ def enable_iast_propagation():
         log.debug("iast::instrumentation::starting IAST")
         ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
         _iast_propagation_enabled = True
+        _register_fork_handler()
 
 
 def _iast_pytest_activation():
@@ -148,5 +227,6 @@ def load_iast():
     """Lazily load the iast module listeners."""
     global _IAST_TO_BE_LOADED
     if _IAST_TO_BE_LOADED:
+        _register_fork_handler()
         iast_listen()
         _IAST_TO_BE_LOADED = False
