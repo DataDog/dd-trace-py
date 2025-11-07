@@ -41,26 +41,3 @@ cpdef get_task(thread_id):
             frame = _asyncio_task_get_frame(task)
 
     return task_id, task_name, frame
-
-
-cpdef list_tasks(thread_id):
-    # type: (...) -> typing.List[typing.Tuple[int, str, types.FrameType]]
-    """Return the list of running tasks.
-
-    This is computed for gevent by taking the list of existing threading.Thread object and removing if any real OS
-    thread that might be running.
-
-    :return: [(task_id, task_name, task_frame), ...]"""
-
-    tasks = []
-
-    loop = _asyncio.get_event_loop_for_thread(thread_id)
-    if loop is not None:
-        tasks.extend([
-            (id(task),
-                _asyncio._task_get_name(task),
-                _asyncio_task_get_frame(task))
-            for task in _asyncio.all_tasks(loop)
-        ])
-
-    return tasks
