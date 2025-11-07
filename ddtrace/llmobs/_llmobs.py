@@ -153,6 +153,36 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
 }
 
 
+class LLMObsExportSpanError(Exception):
+    """Error raised when exporting a span."""
+
+    pass
+
+
+class LLMObsAnnotateSpanError(Exception):
+    """Error raised when annotating a span."""
+
+    pass
+
+
+class LLMObsSubmitEvaluationError(Exception):
+    """Error raised when submitting an evaluation."""
+
+    pass
+
+
+class LLMObsInjectDistributedHeadersError(Exception):
+    """Error raised when injecting distributed headers."""
+
+    pass
+
+
+class LLMObsActivateDistributedHeadersError(Exception):
+    """Error raised when activating distributed headers."""
+
+    pass
+
+
 @dataclass
 class LLMObsSpan:
     """LLMObs span object.
@@ -1011,19 +1041,19 @@ class LLMObs(Service):
             span = cls._instance._current_span()
             if span is None:
                 telemetry.record_span_exported(span, "no_active_span")
-                raise Exception("No span provided and no active LLMObs-generated span found.")
+                raise LLMObsExportSpanError("No span provided and no active LLMObs-generated span found.")
         error = None
         try:
             if span.span_type != SpanTypes.LLM:
                 error = "invalid_span"
-                raise Exception("Span must be an LLMObs-generated span.")
+                raise LLMObsExportSpanError("Span must be an LLMObs-generated span.")
             return ExportedLLMObsSpan(
                 span_id=str(span.span_id),
                 trace_id=format_trace_id(span._get_ctx_item(LLMOBS_TRACE_ID) or span.trace_id),
             )
         except (TypeError, AttributeError):
             error = "invalid_span"
-            raise Exception("Failed to export span. Span must be a valid Span object.") from None
+            raise LLMObsExportSpanError("Failed to export span. Span must be a valid Span object.") from None
         finally:
             telemetry.record_span_exported(span, error)
 
@@ -1398,29 +1428,31 @@ class LLMObs(Service):
                 span = cls._instance._current_span()
                 if span is None:
                     error = "invalid_span_no_active_spans"
-                    raise Exception("No span provided and no active LLMObs-generated span found.")
+                    raise LLMObsExportSpanError("No span provided and no active LLMObs-generated span found.")
             if span.span_type != SpanTypes.LLM:
                 error = "invalid_span_type"
-                raise Exception("Span must be an LLMObs-generated span.")
+                raise LLMObsExportSpanError("Span must be an LLMObs-generated span.")
             if span.finished:
                 error = "invalid_finished_span"
-                raise Exception("Cannot annotate a finished span.")
+                raise LLMObsAnnotateSpanError("Cannot annotate a finished span.")
             if metadata is not None:
                 if not isinstance(metadata, dict):
                     error = "invalid_metadata"
-                    raise Exception("metadata must be a dictionary")
+                    raise LLMObsAnnotateSpanError("metadata must be a dictionary")
                 else:
                     cls._set_dict_attribute(span, METADATA, metadata)
             if metrics is not None:
                 if not isinstance(metrics, dict) or not all(isinstance(v, (int, float)) for v in metrics.values()):
                     error = "invalid_metrics"
-                    raise Exception("metrics must be a dictionary of string key - numeric value pairs.")
+                    raise LLMObsAnnotateSpanError("metrics must be a dictionary of string key - numeric value pairs.")
                 else:
                     cls._set_dict_attribute(span, METRICS, metrics)
             if tags is not None:
                 if not isinstance(tags, dict):
                     error = "invalid_tags"
-                    raise Exception("span tags must be a dictionary of string key - primitive value pairs.")
+                    raise LLMObsAnnotateSpanError(
+                        "span tags must be a dictionary of string key - primitive value pairs."
+                    )
                 else:
                     session_id = tags.get("session_id")
                     if session_id:
@@ -1439,11 +1471,11 @@ class LLMObs(Service):
                     cls._set_dict_attribute(span, INPUT_PROMPT, validated_prompt)
                 except (ValueError, TypeError) as e:
                     error = "invalid_prompt"
-                    raise Exception("Failed to validate prompt with error:", str(e))
+                    raise LLMObsAnnotateSpanError("Failed to validate prompt with error:", str(e))
             if (
                 not span_kind and not _suppress_span_kind_error
             ):  # TODO(sabrenner): we should figure out how to remove this check for annotation contexts
-                raise Exception("Span kind not specified, skipping annotation for input/output data")
+                raise LLMObsAnnotateSpanError("Span kind not specified, skipping annotation for input/output data")
 
             annotation_error_message = None
             if input_data is not None or output_data is not None:
@@ -1464,7 +1496,7 @@ class LLMObs(Service):
                 else:
                     cls._tag_text_io(span, input_value=input_data, output_value=output_data)
             if annotation_error_message:
-                raise Exception(annotation_error_message)
+                raise LLMObsAnnotateSpanError(annotation_error_message)
         finally:
             telemetry.record_llmobs_annotate(span, error)
 
@@ -1669,12 +1701,12 @@ class LLMObs(Service):
                 raise TypeError("value must be a boolean for a boolean metric.")
 
             if tags is not None and not isinstance(tags, dict):
-                raise Exception("tags must be a dictionary of string key-value pairs.")
+                raise LLMObsSubmitEvaluationError("tags must be a dictionary of string key-value pairs.")
 
             ml_app = ml_app if ml_app else config._llmobs_ml_app
             if not ml_app:
                 error = "missing_ml_app"
-                raise Exception(
+                raise LLMObsSubmitEvaluationError(
                     "ML App name is required for sending evaluation metrics. Evaluation metric data will not be sent. "
                     "Ensure this configuration is set before running your application."
                 )
@@ -1690,7 +1722,9 @@ class LLMObs(Service):
                         evaluation_tags[ensure_text(k)] = ensure_text(v)
                     except TypeError:
                         error = "invalid_tags"
-                        raise Exception("Failed to parse tags. Tags for evaluation metrics must be strings.")
+                        raise LLMObsSubmitEvaluationError(
+                            "Failed to parse tags. Tags for evaluation metrics must be strings."
+                        )
 
             evaluation_metric: LLMObsEvaluationMetricEvent = {
                 "join_on": join_on,
@@ -1705,20 +1739,22 @@ class LLMObs(Service):
             if assessment:
                 if not isinstance(assessment, str) or assessment not in ("pass", "fail"):
                     error = "invalid_assessment"
-                    raise Exception("Failed to parse assessment. assessment must be either 'pass' or 'fail'.")
+                    raise LLMObsSubmitEvaluationError(
+                        "Failed to parse assessment. assessment must be either 'pass' or 'fail'."
+                    )
                 else:
                     evaluation_metric["assessment"] = assessment
             if reasoning:
                 if not isinstance(reasoning, str):
                     error = "invalid_reasoning"
-                    raise Exception("Failed to parse reasoning. reasoning must be a string.")
+                    raise LLMObsSubmitEvaluationError("Failed to parse reasoning. reasoning must be a string.")
                 else:
                     evaluation_metric["reasoning"] = reasoning
 
             if metadata:
                 if not isinstance(metadata, dict):
                     error = "invalid_metadata"
-                    raise Exception("metadata must be json serializable dictionary.")
+                    raise LLMObsSubmitEvaluationError("metadata must be json serializable dictionary.")
                 else:
                     metadata = safe_json(metadata)
                     if metadata and isinstance(metadata, str):
@@ -1768,14 +1804,18 @@ class LLMObs(Service):
         try:
             if not isinstance(request_headers, dict):
                 error = "invalid_request_headers"
-                raise Exception("request_headers must be a dictionary of string key-value pairs.")
+                raise LLMObsInjectDistributedHeadersError(
+                    "request_headers must be a dictionary of string key-value pairs."
+                )
             if span is None:
                 span = cls._instance.tracer.current_span()
             if span is None:
                 error = "no_active_span"
-                raise Exception("No span provided and no currently active span found.")
+                raise LLMObsInjectDistributedHeadersError("No span provided and no currently active span found.")
             if not isinstance(span, Span):
-                raise Exception("span must be a valid Span object. Distributed context will not be injected.")
+                raise LLMObsInjectDistributedHeadersError(
+                    "span must be a valid Span object. Distributed context will not be injected."
+                )
             HTTPPropagator.inject(span.context, request_headers)
             return request_headers
         finally:
@@ -1798,7 +1838,7 @@ class LLMObs(Service):
                 if _soft_fail:
                     log.warning("Failed to extract trace/span ID from request headers.")
                     return
-                raise Exception("Failed to extract trace/span ID from request headers.")
+                raise LLMObsActivateDistributedHeadersError("Failed to extract trace/span ID from request headers.")
             _parent_id = context._meta.get(PROPAGATED_PARENT_ID_KEY)
             if _parent_id is None:
                 error = "missing_parent_id"
