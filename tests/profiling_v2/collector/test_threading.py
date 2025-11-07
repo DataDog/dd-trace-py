@@ -111,8 +111,7 @@ def test_patch(
 
 
 @pytest.mark.subprocess(
-    env=dict(WRAPT_DISABLE_EXTENSIONS="True", DD_PROFILING_FILE_PATH=__file__, DD_PROFILING_ENABLED="1"),
-    ddtrace_run=True,
+    env=dict(WRAPT_DISABLE_EXTENSIONS="True", DD_PROFILING_FILE_PATH=__file__),
 )
 def test_wrapt_disable_extensions() -> None:
     import os
@@ -361,7 +360,7 @@ def test_rlock_gevent_tasks() -> None:
     validate_and_cleanup()
 
 
-@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="true", DD_PROFILING_ENABLED="1"), ddtrace_run=True)
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="true"))
 def test_assertion_error_raised_with_enable_asserts():
     """Ensure that AssertionError is propagated when config.enable_asserts=True."""
     import threading
@@ -388,7 +387,7 @@ def test_assertion_error_raised_with_enable_asserts():
             lock.acquire()
 
 
-@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="false", DD_PROFILING_ENABLED="1"), ddtrace_run=True)
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="false"))
 def test_all_exceptions_suppressed_by_default() -> None:
     """
     Ensure that exceptions are silently suppressed in the `_acquire` method
