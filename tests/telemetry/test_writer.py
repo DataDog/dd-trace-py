@@ -994,6 +994,7 @@ def test_add_error_log(mock_time, telemetry_writer, test_agent_session):
         log_entry = logs[0]
         assert log_entry["level"] == TELEMETRY_LOG_LEVEL.ERROR.value
         assert log_entry["message"] == "Test error message"
+        assert log_entry["tags"] == "error_type:jsondecodeerror"
 
         stack_trace = log_entry["stack_trace"]
         expected_lines = [
@@ -1009,6 +1010,77 @@ def test_add_error_log(mock_time, telemetry_writer, test_agent_session):
         ]
         for expected_line in expected_lines:
             assert expected_line in stack_trace
+
+
+def test_add_error_log_large_stack(mock_time, telemetry_writer, test_agent_session):
+    """Test add_integration_error_log functionality with real stack trace"""
+    try:
+
+        def _(n):
+            if n == 200:
+                raise ValueError("Test exception for large stack trace")
+            return _(n + 1)
+
+        _(0)
+    except Exception as e:
+        telemetry_writer.add_error_log("Test error message", e)
+        telemetry_writer.periodic(force_flush=True)
+
+        log_events = test_agent_session.get_events("logs")
+        assert len(log_events) == 1
+
+        logs = log_events[0]["payload"]["logs"]
+        assert len(logs) == 1
+
+        log_entry = logs[0]
+        assert log_entry["level"] == TELEMETRY_LOG_LEVEL.ERROR.value
+        assert log_entry["message"] == "Test error message"
+        assert log_entry["tags"] == "error_type:valueerror"
+
+        stack_trace = log_entry["stack_trace"]
+        expected_lines = """Traceback (most recent call last):
+  <REDACTED>
+    <REDACTED>
+  <REDACTED>
+    <REDACTED>
+  <REDACTED>
+    <REDACTED>
+  <REDACTED>
+    <REDACTED>
+  <REDACTED>
+    <REDACTED>
+  <REDACTED>
+    <REDACTED>
+  <REDACTED>
+    <REDACTED>
+  <REDACTED>
+    <REDACTED>
+  <REDACTED>
+    <REDACTED>
+  <REDACTED>
+    <REDACTED>
+  <REDACTED>
+    <REDACTED>
+  <REDACTED>
+    <REDACTED>
+  <REDACTED>
+    <REDACTED>
+  <REDACTED>
+    <REDACTED>
+  <REDACTED>
+    <REDACTED>
+  <REDACTED>
+    <REDACTED>
+  <REDACTED>
+    <REDACTED>
+  <REDACTED>
+    <REDACTED>
+  <REDACTED>
+    <REDACTED>
+  <REDACTED>
+    <REDACTED>
+builtins.ValueError: <REDACTED>"""
+        assert stack_trace == expected_lines
 
 
 def test_add_integration_error_log_with_log_collection_disabled(mock_time, telemetry_writer, test_agent_session):
