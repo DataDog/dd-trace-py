@@ -624,11 +624,11 @@ def _run_websocket_send_only_test():
         fastapi_unpatch()
 
 
-# @pytest.mark.subprocess(
-#     env=dict(
-#         DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true",
-#     )
-# )
+@pytest.mark.subprocess(
+    env=dict(
+        DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true",
+    )
+)
 @snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
 def test_traced_websocket(test_spans, snapshot_app):
     from tests.contrib.fastapi.test_fastapi import _run_websocket_test
@@ -740,7 +740,7 @@ def _run_websocket_context_propagation_test():
         fastapi_unpatch()
 
 
-# @pytest.mark.subprocess(env=dict(DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true"))
+@pytest.mark.subprocess(env=dict(DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true"))
 @snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
 def test_websocket_context_propagation(snapshot_app):
     """Test trace context propagation."""

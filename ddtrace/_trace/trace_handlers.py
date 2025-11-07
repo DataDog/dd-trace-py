@@ -1051,7 +1051,9 @@ def _has_distributed_tracing_context(span: Span) -> bool:
     A span has distributed tracing context if it has a parent context that was
     extracted from headers (_is_remote=True).
     """
+    # breakpoint()
     if not span or not span._parent_context:
+        # breakpoint()
         return False
     # Check if the context was extracted from remote headers
     return span._parent_context._is_remote
@@ -1077,7 +1079,7 @@ def _on_asgi_websocket_receive_message(ctx, scope, message):
 
     if hasattr(ctx, "parent") and ctx.parent.span:
         handshake_span = ctx.parent.span
-
+        link_attributes = {SPAN_LINK_KIND: SpanLinkKind.EXECUTED}
         # Add span pointer attributes if distributed tracing is enabled and context was extracted
         if integration_config.distributed_tracing and _has_distributed_tracing_context(handshake_span):
             counter = _increment_websocket_counter(scope, "websocket_receive_counter")
@@ -1090,13 +1092,15 @@ def _on_asgi_websocket_receive_message(ctx, scope, message):
                 is_incoming=True,
             )
 
-            link_attributes = {
-                "link.name": "span-pointer-up",
-                "dd.kind": "span-pointer",
-                "ptr.kind": "websocket",
-                "ptr.dir": _SpanPointerDirection.UPSTREAM,
-                "ptr.hash": ptr_hash,
-            }
+            link_attributes.update(
+                {
+                    "link.name": "span-pointer-up",
+                    "dd.kind": "span-pointer",
+                    "ptr.kind": "websocket",
+                    "ptr.dir": _SpanPointerDirection.UPSTREAM,
+                    "ptr.hash": ptr_hash,
+                }
+            )
 
         span.set_link(
             trace_id=handshake_span.trace_id,
@@ -1129,6 +1133,7 @@ def _on_asgi_websocket_send_message(ctx, scope, message):
 
     if hasattr(ctx, "parent") and ctx.parent.span:
         handshake_span = ctx.parent.span
+        link_attributes = {SPAN_LINK_KIND: SpanLinkKind.RESUMING}
 
         # Add span pointer attributes if distributed tracing is enabled and context was extracted
         if integration_config.distributed_tracing and _has_distributed_tracing_context(handshake_span):
@@ -1142,13 +1147,15 @@ def _on_asgi_websocket_send_message(ctx, scope, message):
                 is_incoming=False,
             )
 
-            link_attributes = {
-                "link.name": "span-pointer-down",
-                "dd.kind": "span-pointer",
-                "ptr.kind": "websocket",
-                "ptr.dir": _SpanPointerDirection.DOWNSTREAM,
-                "ptr.hash": ptr_hash,
-            }
+            link_attributes.update(
+                {
+                    "link.name": "span-pointer-down",
+                    "dd.kind": "span-pointer",
+                    "ptr.kind": "websocket",
+                    "ptr.dir": _SpanPointerDirection.DOWNSTREAM,
+                    "ptr.hash": ptr_hash,
+                }
+            )
 
         span.set_link(
             trace_id=handshake_span.trace_id,
@@ -1179,7 +1186,6 @@ def _on_asgi_websocket_close_message(ctx, scope, message):
     if hasattr(ctx, "parent") and ctx.parent.span:
         handshake_span = ctx.parent.span
 
-        # Build span link attributes
         link_attributes = {SPAN_LINK_KIND: SpanLinkKind.RESUMING}
 
         # Add span pointer attributes if distributed tracing is enabled and context was extracted
@@ -1194,13 +1200,15 @@ def _on_asgi_websocket_close_message(ctx, scope, message):
                 is_incoming=False,
             )
 
-            link_attributes = {
-                "link.name": "span-pointer-down",
-                "dd.kind": "span-pointer",
-                "ptr.kind": "websocket",
-                "ptr.dir": _SpanPointerDirection.DOWNSTREAM,
-                "ptr.hash": ptr_hash,
-            }
+            link_attributes.update(
+                {
+                    "link.name": "span-pointer-down",
+                    "dd.kind": "span-pointer",
+                    "ptr.kind": "websocket",
+                    "ptr.dir": _SpanPointerDirection.DOWNSTREAM,
+                    "ptr.hash": ptr_hash,
+                }
+            )
 
         span.set_link(
             trace_id=handshake_span.trace_id,
@@ -1228,6 +1236,7 @@ def _on_asgi_websocket_disconnect_message(ctx, scope, message):
 
     if hasattr(ctx, "parent") and ctx.parent.span:
         handshake_span = ctx.parent.span
+        link_attributes = {SPAN_LINK_KIND: SpanLinkKind.EXECUTED}
 
         # Add span pointer attributes if distributed tracing is enabled and context was extracted
         if integration_config.distributed_tracing and _has_distributed_tracing_context(handshake_span):
@@ -1241,13 +1250,15 @@ def _on_asgi_websocket_disconnect_message(ctx, scope, message):
                 is_incoming=True,
             )
 
-            link_attributes = {
-                "link.name": "span-pointer-up",
-                "dd.kind": "span-pointer",
-                "ptr.kind": "websocket",
-                "ptr.dir": _SpanPointerDirection.UPSTREAM,
-                "ptr.hash": ptr_hash,
-            }
+            link_attributes.update(
+                {
+                    "link.name": "span-pointer-up",
+                    "dd.kind": "span-pointer",
+                    "ptr.kind": "websocket",
+                    "ptr.dir": _SpanPointerDirection.UPSTREAM,
+                    "ptr.hash": ptr_hash,
+                }
+            )
 
         span.set_link(
             trace_id=handshake_span.trace_id,
