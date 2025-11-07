@@ -536,123 +536,6 @@ def test_stress_threads_run_as_thread(tmp_path):
     assert len(samples) > 0
 
 
-@pytest.mark.skipif(not stack.FEATURES["stack-exceptions"], reason="Stack exceptions not supported")
-def test_exception_collection_threads(tmp_path):
-    test_name = "test_exception_collection_threads"
-    pprof_prefix = str(tmp_path / test_name)
-    output_filename = pprof_prefix + "." + str(os.getpid())
-
-    assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
-    ddup.start()
-
-    tids = []
-    with stack.StackCollector():
-        NB_THREADS = 5
-        threads = []
-        for _ in range(NB_THREADS):
-            t = threading.Thread(target=_f0)  # noqa: E149,F821
-            t.start()
-            threads.append(t)
-            tids.append(t.ident)
-
-        for t in threads:
-            t.join()
-
-    ddup.upload()
-
-    profile = pprof_utils.parse_newest_profile(output_filename)
-    samples = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
-    for tid in tids:
-        pprof_utils.assert_profile_has_sample(
-            profile,
-            samples,
-            expected_sample=pprof_utils.StackEvent(
-                exception_type="builtins.ValueError",
-                thread_id=tid,
-                locations=[pprof_utils.StackLocation(filename="<string>", function_name="_f30", line_no=5)],
-            ),
-        )
-
-
-@pytest.mark.skipif(not stack.FEATURES["stack-exceptions"], reason="Stack exceptions not supported")
-def test_exception_collection(tmp_path):
-    test_name = "test_exception_collection"
-    pprof_prefix = str(tmp_path / test_name)
-    output_filename = pprof_prefix + "." + str(os.getpid())
-
-    assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
-    ddup.start()
-
-    with stack.StackCollector():
-        try:
-            raise ValueError("hello")
-        except Exception:
-            time.sleep(1)
-
-    ddup.upload()
-
-    profile = pprof_utils.parse_newest_profile(output_filename)
-    samples = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
-    pprof_utils.assert_profile_has_sample(
-        profile,
-        samples,
-        expected_sample=pprof_utils.StackEvent(
-            exception_type="builtins.ValueError",
-            thread_id=_thread.get_ident(),
-            locations=[
-                pprof_utils.StackLocation(
-                    filename=os.path.basename(__file__),
-                    function_name=test_name,
-                    # this sample is captured while we're in time.sleep, so
-                    # the line number is the one of the time.sleep call
-                    line_no=test_exception_collection.__code__.co_firstlineno + 14,
-                )
-            ],
-        ),
-    )
-
-
-@pytest.mark.skipif(not stack.FEATURES["stack-exceptions"], reason="Stack exceptions not supported")
-def test_exception_collection_trace(tmp_path, tracer):
-    test_name = "test_exception_collection_trace"
-    pprof_prefix = str(tmp_path / test_name)
-    output_filename = pprof_prefix + "." + str(os.getpid())
-
-    assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
-    ddup.start()
-
-    with stack.StackCollector(tracer=tracer):
-        with tracer.trace("test123"):
-            try:
-                raise ValueError("hello")
-            except Exception:
-                time.sleep(1)
-    ddup.upload()
-
-    profile = pprof_utils.parse_newest_profile(output_filename)
-    samples = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
-    pprof_utils.assert_profile_has_sample(
-        profile,
-        samples,
-        expected_sample=pprof_utils.StackEvent(
-            exception_type="builtins.ValueError",
-            thread_id=_thread.get_ident(),
-            locations=[
-                pprof_utils.StackLocation(
-                    filename=os.path.basename(__file__),
-                    function_name=test_name,
-                    # this sample is captured while we're in time.sleep, so
-                    # the line number is the one of the time.sleep call
-                    line_no=test_exception_collection_trace.__code__.co_firstlineno + 15,
-                )
-            ],
-        ),
-    )
-
-
 # if you don't need to check the output profile, you can use this fixture
 @pytest.fixture
 def tracer_and_collector(tracer, request, tmp_path):
@@ -949,10 +832,9 @@ def test_thread_time_cache():
     assert sorted(k[0] for k in cpu_time.keys()) == sorted([main_thread_id, t.ident])
     assert all(t >= 0 for t in cpu_time.values())
 
-    if stack.FEATURES["cpu-time"]:
-        assert set(tt._get_last_thread_time().keys()) == set(
-            (pthread_id, _threading.get_thread_native_id(pthread_id)) for pthread_id in threads
-        )
+    assert set(tt._get_last_thread_time().keys()) == set(
+        (pthread_id, _threading.get_thread_native_id(pthread_id)) for pthread_id in threads
+    )
 
     lock.release()
 
@@ -964,10 +846,9 @@ def test_thread_time_cache():
     assert sorted(k[0] for k in cpu_time.keys()) == sorted([main_thread_id])
     assert all(t >= 0 for t in cpu_time.values())
 
-    if stack.FEATURES["cpu-time"]:
-        assert set(tt._get_last_thread_time().keys()) == set(
-            (pthread_id, _threading.get_thread_native_id(pthread_id)) for pthread_id in threads
-        )
+    assert set(tt._get_last_thread_time().keys()) == set(
+        (pthread_id, _threading.get_thread_native_id(pthread_id)) for pthread_id in threads
+    )
 
 
 @pytest.mark.skipif(not TESTING_GEVENT or sys.version_info < (3, 9), reason="Not testing gevent")

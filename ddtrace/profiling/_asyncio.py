@@ -98,7 +98,7 @@ def _(asyncio: ModuleType) -> None:
     if THREAD_LINK is None:
         THREAD_LINK = _threading._ThreadLink()
 
-    init_stack_v2: bool = config.stack.v2_enabled and stack_v2.is_available
+    init_stack_v2: bool = config.stack.enabled and stack_v2.is_available
 
     @partial(wrap, sys.modules["asyncio.events"].BaseDefaultEventLoopPolicy.set_event_loop)
     def _(f, args, kwargs):
