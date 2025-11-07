@@ -758,7 +758,7 @@ def _extract_chat_template_from_instructions(
     # Create a mapping of variable values to placeholder names
     value_to_placeholder = {}
     for var_name, var_value in variables.items():
-        if hasattr(var_value, "text"): # ResponseInputText
+        if hasattr(var_value, "text"):  # ResponseInputText
             value_str = str(var_value.text)
         else:
             value_str = str(var_value)
