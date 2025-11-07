@@ -1038,6 +1038,11 @@ else:
 
 
 if not IS_PYSTON:
+    # Determine the libdd_wrapper filename with the Python extension suffix
+    _dd_wrapper_suffix = sysconfig.get_config_var("EXT_SUFFIX")
+    _dd_wrapper_path = str(
+        HERE / "ddtrace" / "internal" / "datadog" / "profiling" / f"libdd_wrapper{_dd_wrapper_suffix}"
+    )
     ext_modules: t.List[t.Union[Extension, Cython.Distutils.Extension, RustExtension]] = [
         Extension(
             "ddtrace.profiling.collector._memalloc",
@@ -1048,12 +1053,19 @@ if not IS_PYSTON:
                 "ddtrace/profiling/collector/_memalloc_reentrant.c",
                 "ddtrace/profiling/collector/_memalloc_heap_map.c",
             ],
+            include_dirs=[
+                "ddtrace/internal/datadog/profiling/dd_wrapper/include",
+            ],
+            extra_objects=[_dd_wrapper_path] if CURRENT_OS in ("Linux", "Darwin") else [],
+            extra_link_args=(
+                ["-Wl,-rpath,$ORIGIN/../../../internal/datadog/profiling"]
+                if CURRENT_OS == "Linux"
+                else ["-Wl,-rpath,@loader_path/../../../internal/datadog/profiling"]
+                if CURRENT_OS == "Darwin"
+                else []
+            ),
             extra_compile_args=(
                 debug_compile_args
-                # If NDEBUG is set, assert statements are compiled out. Make
-                # sure we explicitly set this for normal builds, and explicitly
-                # _unset_ it for debug builds in case the CFLAGS from sysconfig
-                # include -DNDEBUG
                 + (["-DNDEBUG"] if not debug_compile_args else ["-UNDEBUG"])
                 + ["-D_POSIX_C_SOURCE=200809L", "-std=c11"]
                 + fast_build_args
