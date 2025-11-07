@@ -3,15 +3,18 @@
 from builtins import open as unpatched_open  # noqa
 from json import loads as unpatched_json_loads  # noqa
 
-# Acquire a reference to the threading module. Some parts of the library (e.g.
-# the profiler) might be enabled programmatically and therefore might end up
-# getting a reference to the tracee's threading module. By storing a reference
-# to the threading module used by ddtrace here, we make it easy for those parts
-# to get a reference to the right threading module.
-import threading as _threading  # noqa
-import gc as _gc  # noqa
+# Acquire references to threading and gc, then remove them from sys.modules.
+# Some parts of the library (e.g. the profiler) might be enabled programmatically
+# and patch the threading and gc modules. We store references to the original
+# modules here to allow ddtrace internal modules to access the right versions of
+# the modules.
 
+import gc  # noqa
 import sys
+import threading  # noqa
+
+_threading = sys.modules.pop("threading", None)
+_gc = sys.modules.pop("gc", None)
 
 previous_loaded_modules = frozenset(sys.modules.keys())
 from subprocess import Popen as unpatched_Popen  # noqa # nosec B404
