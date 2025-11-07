@@ -9,9 +9,10 @@ pub mod ffe {
     use pyo3::{exceptions::PyValueError, prelude::*};
     use tracing::debug;
 
+    use datadog_ffe::rules_based as ffe;
     use datadog_ffe::rules_based::{
         get_assignment, now, AssignmentReason, AssignmentValue, Configuration, EvaluationContext,
-        EvaluationError, Str, UniversalFlagConfig, VariationType,
+        EvaluationError, Str, UniversalFlagConfig,
     };
 
     #[pyclass(frozen)]
@@ -129,7 +130,7 @@ pub mod ffe {
                 Some(&self.inner),
                 flag_key,
                 &context,
-                Some(expected_type.into()),
+                expected_type.into(),
                 now(),
             );
 
@@ -219,14 +220,14 @@ pub mod ffe {
         }
     }
 
-    impl From<FlagType> for VariationType {
-        fn from(value: FlagType) -> VariationType {
+    impl From<FlagType> for ffe::ExpectedFlagType {
+        fn from(value: FlagType) -> ffe::ExpectedFlagType {
             match value {
-                FlagType::String => VariationType::String,
-                FlagType::Integer => VariationType::Integer,
-                FlagType::Float => VariationType::Numeric,
-                FlagType::Boolean => VariationType::Boolean,
-                FlagType::Object => VariationType::Json,
+                FlagType::String => ffe::ExpectedFlagType::String,
+                FlagType::Integer => ffe::ExpectedFlagType::Integer,
+                FlagType::Float => ffe::ExpectedFlagType::Float,
+                FlagType::Boolean => ffe::ExpectedFlagType::Boolean,
+                FlagType::Object => ffe::ExpectedFlagType::Object,
             }
         }
     }

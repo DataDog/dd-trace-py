@@ -603,7 +603,7 @@ dependencies = [
 [[package]]
 name = "datadog-ffe"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=e112efa9d83030a6919dc87d6d93582f99f65359#e112efa9d83030a6919dc87d6d93582f99f65359"
+source = "git+https://github.com/DataDog/libdatadog?rev=b78a66bcf487afbe46c4e409834cecbc882ef01d#b78a66bcf487afbe46c4e409834cecbc882ef01d"
 dependencies = [
  "chrono",
  "derive_more",
