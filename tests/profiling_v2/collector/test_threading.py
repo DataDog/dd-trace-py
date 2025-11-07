@@ -133,7 +133,9 @@ def test_wrapt_disable_extensions() -> None:
     test_name: str = "test_wrapt_disable_extensions"
     pprof_prefix: str = "/tmp" + os.sep + test_name
     output_filename: str = pprof_prefix + "." + str(os.getpid())
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)  # pyright: ignore[reportCallIssue]
+    ddup.config(
+        env="test", service=test_name, version="my_version", output_filename=pprof_prefix
+    )  # pyright: ignore[reportCallIssue]
     ddup.start()
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
@@ -204,7 +206,9 @@ def test_lock_gevent_tasks() -> None:
     test_name: str = "test_lock_gevent_tasks"
     pprof_prefix: str = "/tmp" + os.sep + test_name
     output_filename: str = pprof_prefix + "." + str(os.getpid())
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)  # pyright: ignore[reportCallIssue]
+    ddup.config(
+        env="test", service=test_name, version="my_version", output_filename=pprof_prefix
+    )  # pyright: ignore[reportCallIssue]
     ddup.start()
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
@@ -220,7 +224,9 @@ def test_lock_gevent_tasks() -> None:
         expected_filename: str = "test_threading.py"
         linenos: LineNo = get_lock_linenos(test_name)
 
-        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename)  # pyright: ignore[reportInvalidTypeForm]
+        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(
+            output_filename
+        )  # pyright: ignore[reportInvalidTypeForm]
         pprof_utils.assert_lock_events(
             profile,
             expected_acquire_events=[
@@ -292,7 +298,9 @@ def test_rlock_gevent_tasks() -> None:
     test_name: str = "test_rlock_gevent_tasks"
     pprof_prefix: str = "/tmp" + os.sep + test_name
     output_filename: str = pprof_prefix + "." + str(os.getpid())
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)  # pyright: ignore[reportCallIssue]
+    ddup.config(
+        env="test", service=test_name, version="my_version", output_filename=pprof_prefix
+    )  # pyright: ignore[reportCallIssue]
     ddup.start()
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
@@ -439,7 +447,9 @@ class BaseThreadingLockCollectorTest:
 
         # ddup is available when the native module is compiled
         assert ddup.is_available, "ddup is not available"
-        ddup.config(env="test", service=self.test_name, version="my_version", output_filename=self.pprof_prefix)  # pyright: ignore[reportCallIssue]
+        ddup.config(
+            env="test", service=self.test_name, version="my_version", output_filename=self.pprof_prefix
+        )  # pyright: ignore[reportCallIssue]
         ddup.start()
 
     def teardown_method(self, method: Callable[..., None]) -> None:
