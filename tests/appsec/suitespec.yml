@@ -169,7 +169,7 @@ suites:
       - testagent
     timeout: 30m
   appsec_integrations_fastapi:
-    parallelism: 23
+    parallelism: 21
     paths:
       - '@bootstrap'
       - '@core'
