@@ -128,7 +128,7 @@ suites:
     runner: riot
     snapshot: true
   openai:
-    parallelism: 10
+    parallelism: 14
     paths:
       - '@bootstrap'
       - '@core'

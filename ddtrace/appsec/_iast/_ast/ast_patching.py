@@ -71,7 +71,7 @@ def initialize_iast_lists():
             import importlib.metadata as metadata
         result = set(metadata.packages_distributions())
         iastpatch.set_packages_distributions(result)
-    except ImportError:
+    except (ImportError, AttributeError):
         # If metadata module is not available, the C extension will handle
         # first-party detection gracefully by returning False
         log.debug("Could not import metadata module for first-party detection")

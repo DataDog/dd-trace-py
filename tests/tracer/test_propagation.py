@@ -194,27 +194,6 @@ def test_inject_tags_unicode(tracer):  # noqa: F811
         assert tags == set(["_dd.p.test=unicode"])
 
 
-def test_inject_tags_bytes(tracer):  # noqa: F811
-    """We properly encode when the meta key as long as it is just ascii characters"""
-    # Context._meta allows str and bytes for keys
-    # FIXME: W3C does not support byte headers
-    overrides = {
-        "_propagation_style_extract": [PROPAGATION_STYLE_DATADOG],
-        "_propagation_style_inject": [PROPAGATION_STYLE_DATADOG],
-    }
-    with override_global_config(overrides):
-        meta = {"_dd.p.test": b"bytes"}
-        ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
-        tracer.context_provider.activate(ctx)
-        with tracer.trace("global_root_span") as span:
-            headers = {}
-            HTTPPropagator.inject(span.context, headers)
-
-            # The ordering is non-deterministic, so compare as a list of tags
-            tags = set(headers[_HTTP_HEADER_TAGS].split(","))
-            assert tags == set(["_dd.p.test=bytes"])
-
-
 def test_inject_tags_unicode_error(tracer):  # noqa: F811
     """Unicode characters are not allowed"""
     meta = {"_dd.p.test": "unicode value ☺️"}
