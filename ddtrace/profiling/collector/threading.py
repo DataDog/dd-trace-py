@@ -50,7 +50,7 @@ class ThreadingRLockCollector(_lock.LockCollector):
 
 # Also patch threading.Thread so echion can track thread lifetimes
 def init_stack_v2() -> None:
-    if config.stack.v2_enabled and stack_v2.is_available:
+    if config.stack.enabled and stack_v2.is_available:
         _thread_set_native_id = ddtrace_threading.Thread._set_native_id  # type: ignore[attr-defined]
         _thread_bootstrap_inner = ddtrace_threading.Thread._bootstrap_inner  # type: ignore[attr-defined]
 
