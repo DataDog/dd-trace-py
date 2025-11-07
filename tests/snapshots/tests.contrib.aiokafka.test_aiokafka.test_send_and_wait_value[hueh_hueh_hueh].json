@@ -11,12 +11,10 @@
     "meta": {
       "_dd.base_service": "tests.contrib.aiokafka",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69085a0800000000",
+      "_dd.p.tid": "690e046c00000000",
       "component": "aiokafka",
       "kafka.group_id": "test_group",
       "kafka.message_key": "test_key",
-      "kafka.message_offset": "-1",
-      "kafka.partition": "0",
       "kafka.received_message": "True",
       "kafka.tombstone": "False",
       "kafka.topic": "send_and_wait_value",
@@ -24,7 +22,7 @@
       "messaging.destination.name": "send_and_wait_value",
       "messaging.kafka.bootstrap.servers": "['127.0.0.1:29092']",
       "messaging.system": "kafka",
-      "runtime-id": "daf5d3146c3b49d996bc3424e760edbd",
+      "runtime-id": "2b7b94b3fd1b4959a26a730f476cd083",
       "span.kind": "consumer"
     },
     "metrics": {
@@ -32,10 +30,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
+      "kafka.message_offset": -1,
+      "kafka.partition": 0,
       "process_id": 605
     },
-    "duration": 6439167,
-    "start": 1762155016406258259
+    "duration": 6930500,
+    "start": 1762526316017171889
   }],
 [
   {
@@ -50,9 +50,9 @@
     "meta": {
       "_dd.base_service": "tests.contrib.aiokafka",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69085a0500000000",
+      "_dd.p.tid": "690e046800000000",
       "component": "aiokafka",
-      "kafka.message_key": "b'test_key'",
+      "kafka.message_key": "test_key",
       "kafka.partition": "None",
       "kafka.tombstone": "False",
       "kafka.topic": "send_and_wait_value",
@@ -60,7 +60,7 @@
       "messaging.destination.name": "send_and_wait_value",
       "messaging.kafka.bootstrap.servers": "['127.0.0.1:29092']",
       "messaging.system": "kafka",
-      "runtime-id": "daf5d3146c3b49d996bc3424e760edbd",
+      "runtime-id": "2b7b94b3fd1b4959a26a730f476cd083",
       "span.kind": "producer"
     },
     "metrics": {
@@ -70,6 +70,6 @@
       "_sampling_priority_v1": 1,
       "process_id": 605
     },
-    "duration": 2172417,
-    "start": 1762155013388113674
+    "duration": 11542250,
+    "start": 1762526312988011970
   }]]

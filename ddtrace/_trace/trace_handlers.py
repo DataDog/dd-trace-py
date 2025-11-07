@@ -1140,8 +1140,8 @@ def _on_aiokafka_send_start(
     span = ctx.span
 
     span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
-    span.set_tag_str(MESSAGE_KEY, str(send_key))
-    span.set_tag_str(PARTITION, str(partition))
+    span.set_tag(MESSAGE_KEY, send_key.decode("utf-8") if send_key else None)
+    span.set_tag(PARTITION, partition)
     span.set_tag_str(TOMBSTONE, str(send_value is None))
     span.set_metric(_SPAN_MEASURED_KEY, 1)
 
@@ -1172,7 +1172,7 @@ def _on_aiokafka_getone_message(
     span.set_metric(_SPAN_MEASURED_KEY, 1)
 
     if message is not None:
-        message_key = message.key or ""
+        message_key = message.key.decode("utf-8") if message.key else None
         message_offset = message.offset or -1
         topic = str(message.topic)
         span.set_tag_str(TOPIC, topic)
@@ -1181,8 +1181,8 @@ def _on_aiokafka_getone_message(
             span.set_tag_str(MESSAGE_KEY, message_key)
 
         span.set_tag_str(TOMBSTONE, str(message.value is None))
-        span.set_tag_str(PARTITION, str(message.partition))
-        span.set_tag_str(MESSAGE_OFFSET, str(message_offset))
+        span.set_tag(PARTITION, message.partition)
+        span.set_tag(MESSAGE_OFFSET, message_offset)
 
     if err is not None:
         span.set_exc_info(type(err), err, err.__traceback__)

@@ -11,19 +11,19 @@
     "meta": {
       "_dd.base_service": "tests.contrib.aiokafka",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69085a1500000000",
-      "_dd.span_links": "[{\"trace_id\": \"69085a1200000000643246cd146d446b\", \"span_id\": \"58ded2ad1677021d\", \"tracestate\": \"dd=s:1;t.dm:-0;t.tid:69085a1200000000\", \"flags\": 1}, {\"trace_id\": \"69085a12000000004b1b96499e2cbded\", \"span_id\": \"6b7f9f8965a7c953\", \"tracestate\": \"dd=s:1;t.dm:-0;t.tid:69085a1200000000\", \"flags\": 1}, {\"trace_id\": \"69085a120000000022d2fe51a2a01317\", \"span_id\": \"c823cb904cde6648\", \"tracestate\": \"dd=s:1;t.dm:-0;t.tid:69085a1200000000\", \"flags\": 1}]",
+      "_dd.p.tid": "690e045900000000",
+      "_dd.span_links": "[{\"trace_id\": \"690e045600000000772d72eac825ed2d\", \"span_id\": \"54614350d89731e9\", \"tracestate\": \"dd=s:1;t.dm:-0;t.tid:690e045600000000\", \"flags\": 1}, {\"trace_id\": \"690e0456000000006fa5febfa9ab99c5\", \"span_id\": \"d5a06b74ec67426f\", \"tracestate\": \"dd=s:1;t.dm:-0;t.tid:690e045600000000\", \"flags\": 1}, {\"trace_id\": \"690e045600000000ad114da8111eac95\", \"span_id\": \"8da76bbcde159ea2\", \"tracestate\": \"dd=s:1;t.dm:-0;t.tid:690e045600000000\", \"flags\": 1}]",
       "component": "aiokafka",
       "kafka.group_id": "test_group",
       "kafka.partitions.getmany_distributed_tracing": "0",
       "kafka.partitions.getmany_distributed_tracing_2": "0",
       "kafka.received_message": "True",
-      "kafka.topic": "getmany_distributed_tracing,getmany_distributed_tracing_2",
+      "kafka.topic": "getmany_distributed_tracing_2,getmany_distributed_tracing",
       "language": "python",
-      "messaging.destination.name": "getmany_distributed_tracing",
+      "messaging.destination.name": "getmany_distributed_tracing_2",
       "messaging.kafka.bootstrap.servers": "['127.0.0.1:29092']",
       "messaging.system": "kafka",
-      "runtime-id": "daf5d3146c3b49d996bc3424e760edbd",
+      "runtime-id": "2b7b94b3fd1b4959a26a730f476cd083",
       "span.kind": "consumer"
     },
     "metrics": {
@@ -33,8 +33,8 @@
       "_sampling_priority_v1": 1,
       "process_id": 605
     },
-    "duration": 10576208,
-    "start": 1762155029046978751
+    "duration": 7134291,
+    "start": 1762526297303348630
   }],
 [
   {
@@ -49,7 +49,7 @@
     "meta": {
       "_dd.base_service": "tests.contrib.aiokafka",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69085a1200000000",
+      "_dd.p.tid": "690e045600000000",
       "component": "aiokafka",
       "kafka.message_key": "None",
       "kafka.partition": "None",
@@ -59,7 +59,7 @@
       "messaging.destination.name": "getmany_distributed_tracing",
       "messaging.kafka.bootstrap.servers": "['127.0.0.1:29092', '127.0.0.1:29092', '127.0.0.1:29092']",
       "messaging.system": "kafka",
-      "runtime-id": "daf5d3146c3b49d996bc3424e760edbd",
+      "runtime-id": "2b7b94b3fd1b4959a26a730f476cd083",
       "span.kind": "producer"
     },
     "metrics": {
@@ -69,8 +69,8 @@
       "_sampling_priority_v1": 1,
       "process_id": 605
     },
-    "duration": 2162666,
-    "start": 1762155026032888139
+    "duration": 3446000,
+    "start": 1762526294284183795
   }],
 [
   {
@@ -85,7 +85,7 @@
     "meta": {
       "_dd.base_service": "tests.contrib.aiokafka",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69085a1200000000",
+      "_dd.p.tid": "690e045600000000",
       "component": "aiokafka",
       "kafka.message_key": "None",
       "kafka.partition": "None",
@@ -95,7 +95,7 @@
       "messaging.destination.name": "getmany_distributed_tracing",
       "messaging.kafka.bootstrap.servers": "['127.0.0.1:29092', '127.0.0.1:29092', '127.0.0.1:29092']",
       "messaging.system": "kafka",
-      "runtime-id": "daf5d3146c3b49d996bc3424e760edbd",
+      "runtime-id": "2b7b94b3fd1b4959a26a730f476cd083",
       "span.kind": "producer"
     },
     "metrics": {
@@ -105,8 +105,8 @@
       "_sampling_priority_v1": 1,
       "process_id": 605
     },
-    "duration": 658458,
-    "start": 1762155026035483264
+    "duration": 757666,
+    "start": 1762526294288025295
   }],
 [
   {
@@ -121,7 +121,7 @@
     "meta": {
       "_dd.base_service": "tests.contrib.aiokafka",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69085a1200000000",
+      "_dd.p.tid": "690e045600000000",
       "component": "aiokafka",
       "kafka.message_key": "None",
       "kafka.partition": "None",
@@ -131,7 +131,7 @@
       "messaging.destination.name": "getmany_distributed_tracing_2",
       "messaging.kafka.bootstrap.servers": "['127.0.0.1:29092', '127.0.0.1:29092', '127.0.0.1:29092']",
       "messaging.system": "kafka",
-      "runtime-id": "daf5d3146c3b49d996bc3424e760edbd",
+      "runtime-id": "2b7b94b3fd1b4959a26a730f476cd083",
       "span.kind": "producer"
     },
     "metrics": {
@@ -141,6 +141,6 @@
       "_sampling_priority_v1": 1,
       "process_id": 605
     },
-    "duration": 644750,
-    "start": 1762155026036278055
+    "duration": 886458,
+    "start": 1762526294288923795
   }]]
