@@ -140,12 +140,12 @@ class ResetObject(wrapt.ObjectProxy, typing.Generic[_T]):
 
 
 def Lock() -> _unpatched.threading_Lock:
-    return ResetObject(_unpatched._threading_Lock)  # type: ignore
+    return ResetObject(_unpatched.threading_Lock)  # type: ignore
 
 
 def RLock() -> _unpatched.threading_RLock:
-    return ResetObject(_unpatched._threading_RLock)  # type: ignore
+    return ResetObject(_unpatched.threading_RLock)  # type: ignore
 
 
 def Event() -> _unpatched.threading_Event:
-    return ResetObject(_unpatched._threading_Event)  # type: ignore
+    return ResetObject(_unpatched.threading_Event)  # type: ignore
