@@ -13,8 +13,11 @@ import gc  # noqa
 import sys
 import threading  # noqa
 
-_threading = sys.modules.pop("threading", None)
-_gc = sys.modules.pop("gc", None)
+_threading = threading
+_gc = gc
+
+sys.modules.pop("threading", None)
+sys.modules.pop("gc", None)
 
 previous_loaded_modules = frozenset(sys.modules.keys())
 from subprocess import Popen as unpatched_Popen  # noqa # nosec B404
