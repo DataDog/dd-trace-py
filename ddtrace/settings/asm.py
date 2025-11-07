@@ -227,7 +227,6 @@ class ASMConfig(DDConfig):
         "_iast_redaction_enabled",
         "_iast_redaction_name_pattern",
         "_iast_redaction_value_pattern",
-        "_iast_max_concurrent_requests",
         "_iast_max_vulnerabilities_per_requests",
         "_iast_lazy_taint",
         "_iast_deduplication_enabled",
