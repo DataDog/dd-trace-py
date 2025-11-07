@@ -12,9 +12,9 @@ import threading as _threading  # noqa
 import gc as _gc  # noqa
 import sys
 
-_Lock = _threading.Lock
-_RLock = _threading.RLock
-_Event = _threading.Event
+threading_Lock = _threading.Lock
+threading_RLock = _threading.RLock
+threading_Event = _threading.Event
 
 
 previous_loaded_modules = frozenset(sys.modules.keys())

@@ -10,9 +10,7 @@ import weakref
 
 import wrapt
 
-from ddtrace.internal._unpatched import _Event
-from ddtrace.internal._unpatched import _Lock
-from ddtrace.internal._unpatched import _RLock
+from ddtrace.internal import _unpatched
 
 
 log = logging.getLogger(__name__)
@@ -141,13 +139,13 @@ class ResetObject(wrapt.ObjectProxy, typing.Generic[_T]):
         self.__wrapped__ = self._self_wrapped_class()
 
 
-def Lock() -> _Lock:
-    return ResetObject(_Lock)  # type: ignore
+def Lock() -> _unpatched.threading_Lock:
+    return ResetObject(_unpatched._threading_Lock)  # type: ignore
 
 
-def RLock() -> _RLock:
-    return ResetObject(_RLock)  # type: ignore
+def RLock() -> _unpatched.threading_RLock:
+    return ResetObject(_unpatched._threading_RLock)  # type: ignore
 
 
-def Event() -> _Event:
-    return ResetObject(_Event)  # type: ignore
+def Event() -> _unpatched.threading_Event:
+    return ResetObject(_unpatched._threading_Event)  # type: ignore
