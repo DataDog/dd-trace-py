@@ -511,9 +511,9 @@ class Config(object):
         self._extra_services_queue = None
         if self._remote_config_enabled and not in_aws_lambda():
             # lazy load slow import
-            from ddtrace.internal._file_queue import File_Queue
+            from ddtrace.internal.ipc import SharedStringFile
 
-            self._extra_services_queue = File_Queue()
+            self._extra_services_queue = SharedStringFile()
 
         self._unparsed_service_mapping = _get_config("DD_SERVICE_MAPPING", "")
         self.service_mapping = parse_tags_str(self._unparsed_service_mapping)
@@ -705,7 +705,7 @@ class Config(object):
         # type: () -> set[str]
         if self._extra_services_queue is None:
             return set()
-        self._extra_services.update(self._extra_services_queue.get_all())
+        self._extra_services.update(set(self._extra_services_queue.snatchall()) - {""})
         while len(self._extra_services) > 64:
             self._extra_services.pop()
         return self._extra_services
