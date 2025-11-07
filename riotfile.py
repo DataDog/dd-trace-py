@@ -267,19 +267,31 @@ venv = Venv(
                 ),
                 Venv(
                     pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
-                    pkgs={"django": "~=3.2"},
+                    pkgs={"django": "~=3.2", "legacy-cgi": latest},
                 ),
                 Venv(
                     pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
                     pkgs={"django": "==4.0.10"},
                 ),
                 Venv(
+                    pys=["3.13"],
+                    pkgs={"django": "==4.0.10", "legacy-cgi": latest},
+                ),
+                Venv(
                     pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
                     pkgs={"django": "~=4.2"},
                 ),
                 Venv(
-                    pys=["3.10", "3.13"],
+                    pys=["3.13"],
+                    pkgs={"django": "~=4.2", "legacy-cgi": latest},
+                ),
+                Venv(
+                    pys=["3.10"],
                     pkgs={"django": "~=5.1"},
+                ),
+                Venv(
+                    pys=["3.13"],
+                    pkgs={"django": "~=5.1", "legacy-cgi": latest},
                 ),
             ],
         ),
@@ -1553,10 +1565,18 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/wsgi",
             venvs=[
                 Venv(
-                    pys=select_pys(),
+                    pys=select_pys(max_version="3.12"),
                     pkgs={
                         "WebTest": latest,
                         "pytest-randomly": latest,
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.13"),
+                    pkgs={
+                        "WebTest": latest,
+                        "pytest-randomly": latest,
+                        "legacy-cgi": latest,
                     },
                 ),
             ],
@@ -1673,9 +1693,18 @@ venv = Venv(
                 Venv(
                     # pyramid added support for Python 3.10/3.11 in 2.1
                     # FIXME[python-3.12]: blocked on venusian release https://github.com/Pylons/venusian/issues/85
-                    pys=select_pys(min_version="3.10"),
+                    pys=select_pys(min_version="3.10", max_version="3.12"),
                     pkgs={
                         "pyramid": [latest],
+                    },
+                ),
+                Venv(
+                    # pyramid added support for Python 3.10/3.11 in 2.1
+                    # FIXME[python-3.12]: blocked on venusian release https://github.com/Pylons/venusian/issues/85
+                    pys=select_pys(min_version="3.13"),
+                    pkgs={
+                        "pyramid": [latest],
+                        "legacy-cgi": latest,
                     },
                 ),
             ],
@@ -2048,7 +2077,6 @@ venv = Venv(
         ),
         Venv(
             name="httpx",
-            pys=select_pys(),
             command="pytest {cmdargs} tests/contrib/httpx",
             pkgs={
                 "pytest-asyncio": "==0.21.1",
@@ -2059,6 +2087,15 @@ venv = Venv(
                     latest,
                 ],
             },
+            venvs=[
+                Venv(pys=select_pys(max_version="3.12")),
+                Venv(
+                    pys=select_pys(min_version="3.13"),
+                    pkgs={
+                        "legacy-cgi": latest,
+                    },
+                ),
+            ],
         ),
         Venv(
             name="urllib3",
