@@ -240,7 +240,7 @@ tests/contrib/azure_functions                               @DataDog/serverless 
 tests/contrib/azure_functions_eventhubs                     @DataDog/serverless @DataDog/apm-serverless
 tests/contrib/azure_functions_servicebus                    @DataDog/serverless @DataDog/apm-serverless
 tests/contrib/azure_servicebus                              @DataDog/serverless @DataDog/apm-serverless
-tests/internal/test_serverless.py                           @DataDog/apm-core-python @DataDog/apm-serverless
+tests/internal/test_serverless.py                           @DataDog/apm-core-python @DataDog/apm-serverless @DataDog/asm-python
 tests/snapshots/tests.contrib.aws_lambda.*.                 @DataDog/apm-serverless
 tests/snapshots/tests.contrib.azure_eventhubs.*             @DataDog/serverless @DataDog/apm-serverless
 tests/snapshots/tests.contrib.azure_functions.*             @DataDog/serverless @DataDog/apm-serverless
@@ -253,5 +253,8 @@ ddtrace/internal/datastreams        @DataDog/data-streams-monitoring
 tests/datastreams                   @DataDog/data-streams-monitoring
 
 # ASM (order matters)
-tests/*/test*appsec*.py     @DataDog/asm-python
-tests/*/test*iast*.py  @DataDog/asm-python
+tests/*/*/test*appsec*.py               @DataDog/asm-python
+tests/*/test*appsec*.py                 @DataDog/asm-python
+tests/*/test*iast*.py                   @DataDog/asm-python
+tests/*/*/test*iast*.py                 @DataDog/asm-python
+tests/tracer/test_propagation.py        @DataDog/apm-sdk-capabilities-python @DataDog/asm-python

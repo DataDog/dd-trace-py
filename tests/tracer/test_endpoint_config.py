@@ -23,7 +23,7 @@ def mock_getresponse_enabled_after_4_retries(self):
         response.status = 500
         response.reason = "KO"
     else:
-        response.read.return_value = b'{"dd_iast_enabled": true}'
+        response.read.return_value = b'{"dd_product_enabled": true}'
         response.status = 200
         response.reason = "OK"
     response.fp = BytesIO(response.read.return_value)
@@ -34,7 +34,7 @@ def mock_getresponse_enabled_after_4_retries(self):
 
 def mock_getresponse_enabled(self):
     response = mock.Mock(spec=HTTPResponse)
-    response.read.return_value = b'{"dd_iast_enabled": true}'
+    response.read.return_value = b'{"dd_product_enabled": true}'
     response.status = 200
     response.reason = "OK"
     response.chunked = False
@@ -46,7 +46,7 @@ def mock_getresponse_enabled(self):
 
 def mock_getresponse_403(self):
     response = mock.Mock(spec=HTTPResponse)
-    response.read.return_value = b'{"dd_iast_enabled": true}'
+    response.read.return_value = b'{"dd_product_enabled": true}'
     response.status = 403
     response.reason = "KO"
     response.chunked = False
@@ -58,7 +58,7 @@ def mock_getresponse_403(self):
 
 def mock_getresponse_500(self):
     response = mock.Mock(spec=HTTPResponse)
-    response.read.return_value = b'{"dd_iast_enabled": true}'
+    response.read.return_value = b'{"dd_product_enabled": true}'
     response.status = 500
     response.reason = "KO"
     response.chunked = False
@@ -99,7 +99,7 @@ def test_set_config_endpoint_enabled(caplog):
     ), mock.patch.object(
         HTTPConnection, "getresponse", new=mock_getresponse_enabled
     ):
-        assert fetch_config_from_endpoint() == {"dd_iast_enabled": True}
+        assert fetch_config_from_endpoint() == {"dd_product_enabled": True}
     if caplog.text:
         assert "Configuration endpoint not set. Skipping fetching configuration." not in caplog.text
         assert "Failed to fetch configuration from endpoint" not in caplog.text
@@ -181,4 +181,4 @@ def test_set_config_endpoint_retries(caplog):
     ), mock.patch(
         "ddtrace.settings.endpoint_config._get_retries", return_value=5
     ):
-        assert fetch_config_from_endpoint() == {"dd_iast_enabled": True}
+        assert fetch_config_from_endpoint() == {"dd_product_enabled": True}
