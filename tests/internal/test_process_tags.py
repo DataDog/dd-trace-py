@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import pytest
 
 from ddtrace.internal.constants import PROCESS_TAGS
@@ -5,7 +7,6 @@ from ddtrace.internal.process_tags import _process_tag_reload
 from ddtrace.internal.process_tags import normalize_tag
 from ddtrace.settings._config import config
 from tests.utils import TracerTestCase
-from unittest.mock import patch
 
 
 @pytest.mark.parametrize(

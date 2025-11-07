@@ -47,4 +47,5 @@ def _process_tag_reload():
     global process_tags
     process_tags = generate_process_tags()
 
+
 process_tags = generate_process_tags()
