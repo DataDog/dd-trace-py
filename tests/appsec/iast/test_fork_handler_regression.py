@@ -315,7 +315,7 @@ def test_eval_in_forked_process(iast_context_defaults):
     assert result[3] is False, "Code should not be tainted (IAST disabled)"
 
 
-def test_early_fork_keeps_iast_enabled(iast_context_defaults):
+def test_early_fork_keeps_iast_enabled():
     """
     Test that early forks (web workers) keep IAST enabled.
 

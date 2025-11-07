@@ -274,6 +274,7 @@ venv = Venv(
                 "jinja2": latest,
                 "httpx": "<0.28.0",
                 "uvicorn": "==0.33.0",
+                "pytest-asyncio": latest,
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
