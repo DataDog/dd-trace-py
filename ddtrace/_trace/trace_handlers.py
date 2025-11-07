@@ -1051,9 +1051,7 @@ def _has_distributed_tracing_context(span: Span) -> bool:
     A span has distributed tracing context if it has a parent context that was
     extracted from headers (_is_remote=True).
     """
-    # breakpoint()
     if not span or not span._parent_context:
-        # breakpoint()
         return False
     # Check if the context was extracted from remote headers
     return span._parent_context._is_remote
