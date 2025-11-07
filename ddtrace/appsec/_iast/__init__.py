@@ -195,15 +195,15 @@ def enable_iast_propagation():
 
 def _iast_pytest_activation():
     """Configure IAST settings for pytest execution.
-    
+
     This function sets up IAST configuration but does NOT create a request context.
     Request contexts should be created per-test or per-request to avoid threading issues.
-    
+
     Also sets a global flag to indicate we're in pytest mode, which ensures IAST is
     disabled in forked child processes to prevent segfaults when tests use multiprocessing.
     """
     global _iast_in_pytest_mode
-    
+
     if not asm_config._iast_enabled:
         return
 
