@@ -50,6 +50,15 @@ Datadog::Uploader::export_to_file(ddog_prof_EncodedProfile* encoded)
     return true;
 }
 
+std::string
+get_metrics_json_str()
+{
+    return R"([
+        ["python.profiler.samples", 12345],
+        ["python.profiler.samples_per_second", 123],
+    ])";
+}
+
 bool
 Datadog::Uploader::upload(ddog_prof_Profile& profile)
 {
@@ -68,18 +77,28 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
     if (!output_filename.empty()) {
         bool ret = export_to_file(encoded);
         ddog_prof_EncodedProfile_drop(encoded);
+
+        // TODO(kowalski): Add metrics here as well
+
         return ret;
     }
 
-    std::vector<ddog_prof_Exporter_File> to_compress_files;
+    // Initialise the vector, reserve 2 elements (we have up to 2 files)
+    std::vector<ddog_prof_Exporter_File> to_compress_files(2);
 
-    std::string_view json_str = CodeProvenance::get_instance().get_json_str();
-
-    if (!json_str.empty()) {
-        to_compress_files.reserve(1);
+    auto code_provenance_json_str = CodeProvenance::get_instance().get_json_str();
+    if (!code_provenance_json_str.empty()) {
         to_compress_files.push_back({
           .name = to_slice("code-provenance.json"),
-          .file = to_byte_slice(json_str),
+          .file = to_byte_slice(code_provenance_json_str),
+        });
+    }
+
+    auto metrics_json_str = get_metrics_json_str();
+    if (!metrics_json_str.empty()) {
+        to_compress_files.push_back({
+          .name = to_slice("metrics.json"),
+          .file = to_byte_slice(metrics_json_str),
         });
     }
 
