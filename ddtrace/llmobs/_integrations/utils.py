@@ -789,7 +789,7 @@ def _extract_chat_template_from_instructions(
         full_text = "".join(text_parts)
 
         if pattern:
-            full_text = re.sub(pattern, lambda m: value_to_placeholder[m.group(0)], full_text)
+            full_text = re.sub(pattern, lambda m: value_to_placeholder[str(m.group(0))], full_text)
 
         chat_template.append({"role": role, "content": full_text})
 
