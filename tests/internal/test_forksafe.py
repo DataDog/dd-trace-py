@@ -1,5 +1,6 @@
 from collections import Counter
 import os
+import sys
 
 import pytest
 
@@ -204,6 +205,7 @@ def test_lock_fork():
     assert exit_code == 12
 
 
+@pytest.mark.skipif(sys.version_info < (3, 14), reason="Profiling is not supported on Python 3.14 yet")
 @pytest.mark.subprocess(
     env=dict(DD_PROFILING_ENABLED="1"),
     ddtrace_run=True,
