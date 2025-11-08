@@ -28,14 +28,13 @@ def wrapped_function(wrapped, instance, args, kwargs):
     return wrapped(*args, **kwargs)
 """
 
-import os
 import sys
 import types
 
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
-from ddtrace.settings._config import _get_env
+from ddtrace.settings._env import environ as _env
 from ddtrace.settings.asm import config as asm_config
 
 from ._listener import iast_listen
@@ -187,11 +186,11 @@ def _iast_pytest_activation():
     global _iast_propagation_enabled
     if _iast_propagation_enabled:
         return
-    os.environ["DD_IAST_ENABLED"] = _get_env("DD_IAST_ENABLED", "1")
-    os.environ["DD_IAST_REQUEST_SAMPLING"] = _get_env("DD_IAST_REQUEST_SAMPLING", "100.0")
-    os.environ["_DD_APPSEC_DEDUPLICATION_ENABLED"] = _get_env("_DD_APPSEC_DEDUPLICATION_ENABLED", "false")
-    os.environ["DD_IAST_VULNERABILITIES_PER_REQUEST"] = _get_env("DD_IAST_VULNERABILITIES_PER_REQUEST", "1000")
-    os.environ["DD_IAST_MAX_CONCURRENT_REQUESTS"] = _get_env("DD_IAST_MAX_CONCURRENT_REQUESTS", "1000")
+    _env["DD_IAST_ENABLED"] = _env.get("DD_IAST_ENABLED", "1")
+    _env["DD_IAST_REQUEST_SAMPLING"] = _env.get("DD_IAST_REQUEST_SAMPLING", "100.0")
+    _env["_DD_APPSEC_DEDUPLICATION_ENABLED"] = _env.get("_DD_APPSEC_DEDUPLICATION_ENABLED", "false")
+    _env["DD_IAST_VULNERABILITIES_PER_REQUEST"] = _env.get("DD_IAST_VULNERABILITIES_PER_REQUEST", "1000")
+    _env["DD_IAST_MAX_CONCURRENT_REQUESTS"] = _env.get("DD_IAST_MAX_CONCURRENT_REQUESTS", "1000")
 
     asm_config._iast_request_sampling = 100.0
     asm_config._deduplication_enabled = False
