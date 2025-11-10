@@ -52,7 +52,6 @@ add_library(
     ${EXTENSION_NAME} SHARED
     src/echion/danger.cc
     src/echion/frame.cc
-    src/echion/render.cc
     src/sampler.cpp
     src/stack_renderer.cpp
     src/stack_v2.cpp
