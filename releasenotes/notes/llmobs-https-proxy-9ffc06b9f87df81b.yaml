@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: add support for HTTPS_PROXY.
