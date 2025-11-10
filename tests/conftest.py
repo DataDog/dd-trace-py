@@ -24,8 +24,8 @@ from typing import Dict
 from typing import Generator  # noqa:F401
 from typing import List
 from typing import Tuple  # noqa:F401
-from unittest import mock
 from unittest import TestCase
+from unittest import mock
 from urllib import parse
 import warnings
 
