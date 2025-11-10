@@ -3,6 +3,7 @@ import os
 import sys
 import threading
 import time
+import timeit
 from unittest.mock import patch
 import uuid
 
@@ -23,6 +24,44 @@ TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False) and (
     sys.version_info < (3, 11, 9) or sys.version_info >= (3, 12, 5)
 )
 
+# Function to use for stress-test of polling
+MAX_FN_NUM = 30
+FN_TEMPLATE = """def _f{num}():
+  return _f{nump1}()"""
+
+for num in range(MAX_FN_NUM):
+    exec(FN_TEMPLATE.format(num=num, nump1=num + 1))
+
+exec(
+    """def _f{MAX_FN_NUM}():
+    try:
+      raise ValueError('test')
+    except Exception:
+      time.sleep(2)""".format(
+        MAX_FN_NUM=MAX_FN_NUM
+    )
+)
+
+
+def func1():
+    return func2()
+
+
+def func2():
+    return func3()
+
+
+def func3():
+    return func4()
+
+
+def func4():
+    return func5()
+
+
+def func5():
+    return time.sleep(1)
+
 
 # Use subprocess as ddup config persists across tests.
 @pytest.mark.subprocess(
@@ -36,7 +75,7 @@ def test_collect_truncate():
 
     from ddtrace.profiling import profiler
     from tests.profiling.collector import pprof_utils
-    from tests.profiling.collector.test_stack import func1
+    from tests.profiling_v2.collector.test_stack import func1
 
     pprof_prefix = os.environ["DD_PROFILING_OUTPUT_PPROF"]
     output_filename = pprof_prefix + "." + str(os.getpid())
@@ -587,23 +626,6 @@ def test_new_interval():
     assert new_interval == c.min_interval_time
 
 
-# Function to use for stress-test of polling
-MAX_FN_NUM = 30
-FN_TEMPLATE = """def _f{num}():
-  return _f{nump1}()"""
-
-for num in range(MAX_FN_NUM):
-    exec(FN_TEMPLATE.format(num=num, nump1=num + 1))
-
-exec(
-    """def _f{MAX_FN_NUM}():
-    try:
-      raise ValueError('test')
-    except Exception:
-      time.sleep(2)""".format(MAX_FN_NUM=MAX_FN_NUM)
-)
-
-
 def test_stress_threads(tmp_path):
     test_name = "test_stress_threads"
     pprof_prefix = str(tmp_path / test_name)
@@ -679,7 +701,7 @@ def test_stress_threads_run_as_thread(tmp_path):
     ddup.upload()
 
     profile = pprof_utils.parse_newest_profile(output_filename)
-    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
     assert len(samples) > 0
 
 
