@@ -1092,9 +1092,9 @@ if not IS_PYSTON:
             ],
             extra_objects=_dd_wrapper_extra_objects,
             extra_link_args=(
-                ["-Wl,-rpath,$ORIGIN/../../../internal/datadog/profiling", "-latomic"]
+                ["-Wl,-rpath,$ORIGIN/../../internal/datadog/profiling", "-latomic"]
                 if CURRENT_OS == "Linux"
-                else ["-Wl,-rpath,@loader_path/../../../internal/datadog/profiling"]
+                else ["-Wl,-rpath,@loader_path/../../internal/datadog/profiling"]
                 if CURRENT_OS == "Darwin"
                 else []
             ),
@@ -1181,7 +1181,8 @@ setup(
         "ddtrace.appsec._ddwaf": ["libddwaf/*/lib/libddwaf.*"],
         "ddtrace.appsec._iast._taint_tracking": ["CMakeLists.txt"],
         "ddtrace.internal.datadog.profiling": (
-            ["libdd_wrapper*.*"] + ["ddtrace/internal/datadog/profiling/test/*"] if BUILD_PROFILING_NATIVE_TESTS else []
+            ["libdd_wrapper*.*"]
+            + (["ddtrace/internal/datadog/profiling/test/*"] if BUILD_PROFILING_NATIVE_TESTS else [])
         ),
     },
     zip_safe=False,
