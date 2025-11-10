@@ -330,15 +330,6 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="profile-diff",
-            command="python scripts/diff.py {cmdargs}",
-            pys="3",
-            pkgs={
-                "austin-python": "~=1.0",
-                "rich": latest,
-            },
-        ),
-        Venv(
             name="appsec_iast_default",
             command="pytest -v {cmdargs} tests/appsec/iast/",
             pys=select_pys(max_version="3.13"),  # pycryptodome doesn't publish 3.14 wheels
