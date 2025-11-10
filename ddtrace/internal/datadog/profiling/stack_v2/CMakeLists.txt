@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.19)
 
+# Disable testing by default (can be overridden with -DBUILD_TESTING=ON)
+option(BUILD_TESTING "Build the testing tree" OFF)
+
 # The exact name of this extension determines aspects of the installation and build paths, which need to be kept in sync
 # with setup.py. Accordingly, take the name passed in by the caller, defaulting to "stack_v2" if needed.
 set(EXTENSION_NAME

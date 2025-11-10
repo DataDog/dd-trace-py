@@ -1,4 +1,8 @@
 cmake_minimum_required(VERSION 3.19)
+
+# Disable testing by default (can be overridden with -DBUILD_TESTING=ON)
+option(BUILD_TESTING "Build the testing tree" OFF)
+
 project(
     dd_wrapper
     VERSION 0.1.1
