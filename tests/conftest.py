@@ -411,7 +411,7 @@ def pytest_collection_modifyitems(session, config, items):
 
     Also: add py39 - py314 suffix as parametrization in test names
     """
-    py_tag = f"py{sys.version_info.major}{sys.version_info.minor}"
+    py_tag = f"py{sys.version_info.major}.{sys.version_info.minor}"
     for item in items:
         if item.get_closest_marker("subprocess"):
             if item.get_closest_marker("skipif"):
