@@ -443,12 +443,12 @@ def _fib(n):
         return _fib(n - 1) + _fib(n - 2)
 
 
-@pytest.mark.skipif(not TESTING_GEVENT or sys.version_info < (3, 9), reason="Not testing gevent")
+@pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
 @pytest.mark.subprocess(ddtrace_run=True)
-def test_collect_gevent_threads():
-    import gevent.monkey
+def test_collect_gevent_thread_task():
+    from gevent import monkey
 
-    gevent.monkey.patch_all()
+    monkey.patch_all()
 
     import os
     import threading
@@ -457,30 +457,34 @@ def test_collect_gevent_threads():
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.test_stack import _fib
 
-    iteration = 100
-    sleep_time = 0.01
-    nb_threads = 15
-
-    # Start some greenthreads: they do nothing we just keep switching between them.
-    def _nothing():
-        for _ in range(iteration):
-            # Do nothing and just switch to another greenlet
-            time.sleep(sleep_time)
-
-    test_name = "test_collect_gevent_threads"
+    test_name = "test_collect_gevent_thread_task"
     pprof_prefix = "/tmp/" + test_name
     output_filename = pprof_prefix + "." + str(os.getpid())
+    nb_threads = 5
 
     assert ddup.is_available
-    ddup.config(env="test", service="test_collect_gevent_threads", version="my_version", output_filename=pprof_prefix)
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
     ddup.start()
 
-    with stack.StackCollector(max_time_usage_pct=100):
-        threads = []
-        i_to_tid = {}
+    # Start some (green)threads
+    def _dofib():
+        for _ in range(5):
+            # spend some time in CPU so the profiler can catch something
+            # On a Mac w/ Apple M3 MAX with Python 3.11 it takes about 200ms to calculate _fib(32)
+            # And _fib() is called 5 times so it should take about 1 second
+            # We use 5 threads below so it should take about 5 seconds
+            _fib(32)
+            # Just make sure gevent switches threads/greenlets
+            time.sleep(0)
+
+    threads = []
+    i_to_tid = {}
+
+    with stack.StackCollector():
         for i in range(nb_threads):
-            t = threading.Thread(target=_nothing, name="TestThread %d" % i)
+            t = threading.Thread(target=_dofib, name="TestThread %d" % i)
             i_to_tid[i] = t.ident
             t.start()
             threads.append(t)
@@ -505,94 +509,22 @@ def test_collect_gevent_threads():
                 locations=[
                     pprof_utils.StackLocation(
                         filename="test_stack.py",
-                        function_name="_nothing",
-                        line_no=_nothing.__code__.co_firstlineno + 3,
-                    )
+                        function_name="_fib",
+                        line_no=_fib.__code__.co_firstlineno + 6,
+                    ),
+                    pprof_utils.StackLocation(
+                        filename="test_stack.py",
+                        function_name="_fib",
+                        line_no=_fib.__code__.co_firstlineno + 6,
+                    ),
+                    pprof_utils.StackLocation(
+                        filename="test_stack.py",
+                        function_name="_fib",
+                        line_no=_fib.__code__.co_firstlineno + 6,
+                    ),
                 ],
             ),
         )
-
-
-@pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
-@pytest.mark.subprocess(ddtrace_run=True)
-def test_collect_gevent_thread_task():
-    # TODO(taegyunkim): update echion to support gevent and test with stack v2
-
-    from gevent import monkey
-
-    monkey.patch_all()
-
-    import os
-    import threading
-    import time
-
-    from ddtrace.internal.datadog.profiling import ddup
-    from ddtrace.profiling.collector import stack
-    from tests.profiling.collector import pprof_utils
-    from tests.profiling.collector.test_stack import _fib
-
-    test_name = "test_collect_gevent_thread_task"
-    pprof_prefix = "/tmp/" + test_name
-    output_filename = pprof_prefix + "." + str(os.getpid())
-
-    assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
-    ddup.start()
-
-    # Start some (green)threads
-    def _dofib():
-        for _ in range(5):
-            # spend some time in CPU so the profiler can catch something
-            # On a Mac w/ Apple M3 MAX with Python 3.11 it takes about 200ms to calculate _fib(32)
-            # And _fib() is called 5 times so it should take about 1 second
-            # We use 5 threads below so it should take about 5 seconds
-            _fib(32)
-            # Just make sure gevent switches threads/greenlets
-            time.sleep(0)
-
-    threads = []
-
-    with stack.StackCollector():
-        for i in range(5):
-            t = threading.Thread(target=_dofib, name="TestThread %d" % i)
-            t.start()
-            threads.append(t)
-        for t in threads:
-            t.join()
-
-    ddup.upload()
-
-    profile = pprof_utils.parse_newest_profile(output_filename)
-    samples = pprof_utils.get_samples_with_label_key(profile, "task name")
-    assert len(samples) > 0
-
-    pprof_utils.assert_profile_has_sample(
-        profile,
-        samples,
-        expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
-            task_name=r"Greenlet-\d+$",
-            locations=[
-                # Since we're using recursive function _fib(), we expect to have
-                # multiple locations for _fib(n) = _fib(n-1) + _fib(n-2)
-                pprof_utils.StackLocation(
-                    filename="test_stack.py",
-                    function_name="_fib",
-                    line_no=_fib.__code__.co_firstlineno + 6,
-                ),
-                pprof_utils.StackLocation(
-                    filename="test_stack.py",
-                    function_name="_fib",
-                    line_no=_fib.__code__.co_firstlineno + 6,
-                ),
-                pprof_utils.StackLocation(
-                    filename="test_stack.py",
-                    function_name="_fib",
-                    line_no=_fib.__code__.co_firstlineno + 6,
-                ),
-            ],
-        ),
-    )
 
 
 def test_max_time_usage():
