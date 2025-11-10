@@ -54,6 +54,7 @@ from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.openfeature import config as ffe_config
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
+from tests.conftest import original_test_name_key
 from tests.subprocesstest import SubprocessTestCase
 
 
@@ -1439,10 +1440,24 @@ def call_program(*args, **kwargs):
 
 def request_token(request):
     # type: (pytest.FixtureRequest) -> str
+    """Generate a token string from a pytest request.
+
+    Uses the original test name from stash (before Python version suffix was added).
+
+    Args:
+        request: The pytest FixtureRequest object
+
+    Returns:
+        A token string in the format "module.class.test_name"
+    """
     token = ""
     token += request.module.__name__
     token += ".%s" % request.cls.__name__ if request.cls else ""
-    token += ".%s" % request.node.name
+
+    # Get the original test name from stash (before Python version suffix was added)
+    test_name = request.node.stash.get(original_test_name_key, request.node.name)
+
+    token += ".%s" % test_name
     return token
 
 

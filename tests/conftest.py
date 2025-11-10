@@ -13,7 +13,6 @@ from os.path import split
 from os.path import splitext
 import platform
 import random
-import re
 import shutil
 import subprocess
 import sys
@@ -31,6 +30,7 @@ from urllib import parse
 import warnings
 
 import pytest
+from pytest import StashKey
 
 import ddtrace
 from ddtrace._trace.provider import _DD_CONTEXTVAR
@@ -53,6 +53,29 @@ code_to_pyc = getattr(importlib._bootstrap_external, "_code_to_timestamp_pyc")
 
 
 DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME = "ddtrace_subprocess_dir"
+
+# Stash keys for storing original test name and nodeid before Python version suffix is added
+original_test_name_key = StashKey[str]()
+original_test_nodeid_key = StashKey[str]()
+
+
+def get_original_test_name(request_or_item):
+    """Get the original test name from stash (before Python version suffix was added).
+
+    Args:
+        request_or_item: Either a pytest.FixtureRequest or pytest.Item
+
+    Returns:
+        The original test name string, or the current name if not found in stash
+    """
+    if hasattr(request_or_item, "node"):
+        # It's a FixtureRequest
+        item = request_or_item.node
+    else:
+        # It's an Item
+        item = request_or_item
+
+    return item.stash.get(original_test_name_key, item.name)
 
 
 # Hack to try and capture more logging data from pytest failing on `internal` jobs on
@@ -215,29 +238,6 @@ def ddtrace_run_python_code_in_subprocess(tmpdir):
     yield _run
 
 
-def _strip_python_version_suffix(token):
-    """Strip the Python version suffix added by pytest_collection_modifyitems from a token.
-
-    Examples:
-        test_name[py3.9] -> test_name
-        test_name[param1-py3.9] -> test_name[param1]
-        test_name -> test_name
-    """
-    # Pattern to match -pyX.Y] or [pyX.Y] at the end of the token
-    # This handles both cases:
-    # - test_name[param1-py3.9] -> test_name[param1]
-    # - test_name[py3.9] -> test_name
-    pattern = r"-py\d+\.\d+\]$"
-    if re.search(pattern, token):
-        return re.sub(pattern, "]", token)
-
-    pattern = r"\[py\d+\.\d+\]$"
-    if re.search(pattern, token):
-        return re.sub(pattern, "", token)
-
-    return token
-
-
 @pytest.fixture(autouse=True)
 def snapshot(request):
     marks = [m for m in request.node.iter_markers(name="snapshot")]
@@ -248,8 +248,6 @@ def snapshot(request):
             del snap.kwargs["token"]
         else:
             token = request_token(request).replace(" ", "_").replace(os.path.sep, "_")
-            # Strip the Python version suffix added by pytest_collection_modifyitems
-            token = _strip_python_version_suffix(token)
 
         mgr = _snapshot_context(token, *snap.args, **snap.kwargs)
         snapshot = mgr.__enter__()
@@ -272,8 +270,6 @@ def snapshot_context(request):
             # my code
     """
     token = request_token(request)
-    # Strip the Python version suffix added by pytest_collection_modifyitems
-    token = _strip_python_version_suffix(token)
 
     @contextlib.contextmanager
     def _snapshot(**kwargs):
@@ -448,21 +444,19 @@ def pytest_collection_modifyitems(session, config, items):
             unskippable = pytest.mark.skipif(False, reason="datadog_itr_unskippable")
             item.add_marker(unskippable)
 
-        if item.name.endswith("]") and "[" in item.name:
-            suffix = f"-{py_tag}]"
-            name_base = item.name[:-1]
-            nodeid_base = item.nodeid[:-1]
-        else:
-            suffix = f"[{py_tag}]"
-            name_base = item.name
-            nodeid_base = item.nodeid
+        # Store original name and nodeid in stash before modification
+        item.stash[original_test_name_key] = item.name
+        item.stash[original_test_nodeid_key] = item.nodeid
 
-        item._nodeid = f"{nodeid_base}{suffix}"
+        name_base = item.name
+        nodeid_base = item.nodeid
+
+        item._nodeid = f"{nodeid_base}[{py_tag}]"
 
         cls = getattr(item, "cls", None)
         is_unittest = isinstance(cls, type) and issubclass(cls, TestCase)
         if not is_unittest:
-            item.name = f"{name_base}{suffix}"
+            item.name = f"{name_base}[{py_tag}]"
 
 
 def pytest_generate_tests(metafunc):
@@ -729,9 +723,7 @@ class TelemetryTestSession(object):
 @pytest.fixture
 def test_agent_session(telemetry_writer, request):
     # type: (TelemetryWriter, Any) -> Generator[TelemetryTestSession, None, None]
-    token = _strip_python_version_suffix(request_token(request)) + "".join(
-        random.choices("abcdefghijklmnopqrstuvwxyz", k=32)
-    )
+    token = request_token(request) + "".join(random.choices("abcdefghijklmnopqrstuvwxyz", k=32))
     telemetry_writer._restart_sequence()
     telemetry_writer._client._headers["X-Datadog-Test-Session-Token"] = token
 
