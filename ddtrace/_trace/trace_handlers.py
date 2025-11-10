@@ -1139,10 +1139,10 @@ def _on_aiokafka_send_start(
 ) -> None:
     span = ctx.span
 
-    span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+    span._set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+    span._set_tag_str(TOMBSTONE, str(send_value is None))
     span.set_tag(MESSAGE_KEY, send_key.decode("utf-8") if send_key else None)
-    span.set_tag(PARTITION, partition)
-    span.set_tag_str(TOMBSTONE, str(send_value is None))
+    span.set_tag(PARTITION, partition or -1)
     span.set_metric(_SPAN_MEASURED_KEY, 1)
 
     if config.aiokafka.distributed_tracing_enabled:
@@ -1168,20 +1168,20 @@ def _on_aiokafka_getone_message(
     span = ctx.span
 
     span.start_ns = start_ns
-    span.set_tag_str(RECEIVED_MESSAGE, str(message is not None))
+    span._set_tag_str(RECEIVED_MESSAGE, str(message is not None))
     span.set_metric(_SPAN_MEASURED_KEY, 1)
 
     if message is not None:
         message_key = message.key.decode("utf-8") if message.key else None
         message_offset = message.offset or -1
         topic = str(message.topic)
-        span.set_tag_str(TOPIC, topic)
+        span._set_tag_str(TOPIC, topic)
 
         if isinstance(message_key, str) or isinstance(message_key, bytes):
-            span.set_tag_str(MESSAGE_KEY, message_key)
+            span.set_tag(MESSAGE_KEY, message_key)
 
-        span.set_tag_str(TOMBSTONE, str(message.value is None))
-        span.set_tag(PARTITION, message.partition)
+        span._set_tag_str(TOMBSTONE, str(message.value is None))
+        span.set_tag(PARTITION, message.partition or -1)
         span.set_tag(MESSAGE_OFFSET, message_offset)
 
     if err is not None:
@@ -1194,12 +1194,12 @@ def _on_aiokafka_getmany_message(
 ) -> None:
     span = ctx.span
 
-    span.set_tag_str(RECEIVED_MESSAGE, str(messages is not None))
+    span._set_tag_str(RECEIVED_MESSAGE, str(messages is not None))
     span.set_metric(_SPAN_MEASURED_KEY, 1)
 
     if messages is not None:
         first_topic = next(iter(messages)).topic
-        span.set_tag_str(MESSAGING_DESTINATION_NAME, first_topic)
+        span._set_tag_str(MESSAGING_DESTINATION_NAME, first_topic)
 
         topics_partitions: Dict[str, List[int]] = {}
         for topic_partition in messages.keys():
@@ -1214,7 +1214,7 @@ def _on_aiokafka_getmany_message(
 
         for topic, partitions in topics_partitions.items():
             partition_list = ",".join(map(str, sorted(partitions)))
-            span.set_tag_str(f"kafka.partitions.{topic}", partition_list)
+            span._set_tag_str(f"kafka.partitions.{topic}", partition_list)
 
         for topic_partition, records in messages.items():
             for record in records:
