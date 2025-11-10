@@ -125,7 +125,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         core.dispatch("flask.start_response.pre", (flask.request, ctx, config.flask, status_code, headers))
         if not get_blocked():
             core.dispatch("flask.start_response", ("Flask",))
-            if get_blocked():
+            if block_config := get_blocked():
                 # response code must be set here, or it will be too late
                 result_content = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
                     "flask.block.request.content", ()
@@ -134,16 +134,13 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                     _, status, response_headers = result_content.value
                     result = start_response(str(status), response_headers)
                 else:
-                    block_config = get_blocked()
-                    desired_type = block_config.get("type", "auto")
-                    status = block_config.get("status_code", 403)
-                    if desired_type == "none":
-                        response_headers = []
-                    else:
-                        ctype = block_config.get("content-type", "application/json")
-                        response_headers = [("content-type", ctype)]
-                    result = start_response(str(status), response_headers)
-                core.dispatch("flask.start_response.blocked", (ctx, config.flask, response_headers, status))
+                    response_headers = (
+                        [] if block_config.type == "none" else [("content-type", block_config.content_type)]
+                    )
+                    result = start_response(str(block_config.status_code), response_headers)
+                core.dispatch(
+                    "flask.start_response.blocked", (ctx, config.flask, response_headers, block_config.status_code)
+                )
             else:
                 result = start_response(status_code, headers)
         else:
@@ -549,8 +546,10 @@ def patched_register_error_handler(wrapped, instance, args, kwargs):
 def _block_request_callable(call):
     set_blocked()
     core.dispatch("flask.blocked_request_callable", (call,))
-    ctype = get_blocked().get("content-type", "application/json")
-    abort(flask.Response(http_utils._get_blocked_template(ctype), content_type=ctype, status=403))
+    block_config = get_blocked()
+    ctype = block_config.content_type if block_config else "application/json"
+    block_id = block_config.block_id if block_config else "(default)"
+    abort(flask.Response(http_utils._get_blocked_template(ctype, block_id), content_type=ctype, status=403))
 
 
 def request_patcher(name):

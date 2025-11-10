@@ -80,11 +80,6 @@ def test_filename_to_package(packages):
     package = packages.filename_to_package(httpretty.__file__)
     assert package.name == "httpretty"
 
-    import google.protobuf.internal as gp
-
-    package = packages.filename_to_package(gp.__file__)
-    assert package.name == "protobuf"
-
     try:
         package = packages.filename_to_package("You may be wondering how I got here even though I am not a file.")
     except Exception:

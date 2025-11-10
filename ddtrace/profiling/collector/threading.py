@@ -68,3 +68,8 @@ def init_stack_v2() -> None:
         # Instrument any living threads
         for thread_id, thread in ddtrace_threading._active.items():  # type: ignore[attr-defined]
             stack_v2.register_thread(thread_id, thread.native_id, thread.name)
+
+        # Import _asyncio to ensure asyncio post-import wrappers are initialised
+        from ddtrace.profiling import _asyncio  # noqa: F401
+
+        _asyncio.link_existing_loop_to_current_thread()
