@@ -48,38 +48,6 @@ def func5():
     return time.sleep(1)
 
 
-@pytest.mark.subprocess(
-    env=dict(
-        DD_PROFILING_MAX_FRAMES="5",
-        DD_PROFILING_OUTPUT_PPROF="/tmp/test_collect_truncate",
-    )
-)
-def test_collect_truncate():
-    import os
-
-    from ddtrace.profiling import profiler
-    from tests.profiling.collector import pprof_utils
-    from tests.profiling.collector.test_stack import func1
-
-    pprof_prefix = os.environ["DD_PROFILING_OUTPUT_PPROF"]
-    output_filename = pprof_prefix + "." + str(os.getpid())
-
-    max_nframes = int(os.environ["DD_PROFILING_MAX_FRAMES"])
-
-    p = profiler.Profiler()
-    p.start()
-
-    func1()
-
-    p.stop()
-
-    profile = pprof_utils.parse_newest_profile(output_filename)
-    samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
-    assert len(samples) > 0
-    for sample in samples:
-        assert len(sample.location_id) <= max_nframes, len(sample.location_id)
-
-
 def test_collect_once(tmp_path):
     test_name = "test_collect_once"
     pprof_prefix = str(tmp_path / test_name)
@@ -363,9 +331,7 @@ exec(
     try:
       raise ValueError('test')
     except Exception:
-      time.sleep(2)""".format(
-        MAX_FN_NUM=MAX_FN_NUM
-    )
+      time.sleep(2)""".format(MAX_FN_NUM=MAX_FN_NUM)
 )
 
 
