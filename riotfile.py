@@ -272,19 +272,31 @@ venv = Venv(
                 ),
                 Venv(
                     pys=["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"],
-                    pkgs={"django": "~=3.2"},
+                    pkgs={"django": "~=3.2", "legacy-cgi": latest},
                 ),
                 Venv(
-                    pys=["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pys=["3.8", "3.9", "3.10", "3.11", "3.12"],
                     pkgs={"django": "==4.0.10"},
                 ),
                 Venv(
-                    pys=["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pys=["3.13"],
+                    pkgs={"django": "==4.0.10", "legacy-cgi": latest},
+                ),
+                Venv(
+                    pys=["3.8", "3.9", "3.10", "3.11", "3.12"],
                     pkgs={"django": "~=4.2"},
                 ),
                 Venv(
-                    pys=["3.10", "3.13"],
+                    pys=["3.13"],
+                    pkgs={"django": "~=4.2", "legacy-cgi": latest},
+                ),
+                Venv(
+                    pys=["3.10"],
                     pkgs={"django": "~=5.1"},
+                ),
+                Venv(
+                    pys=["3.13"],
+                    pkgs={"django": "~=5.1", "legacy-cgi": latest},
                 ),
             ],
         ),
@@ -297,6 +309,7 @@ venv = Venv(
                 "jinja2": latest,
                 "httpx": "<0.28.0",
                 "uvicorn": "==0.33.0",
+                "pytest-asyncio": latest,
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
@@ -325,7 +338,11 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(min_version="3.9", max_version="3.13"),
-                    pkgs={"fastapi": ["==0.94.1", "~=0.114.2", latest]},
+                    pkgs={"fastapi": "==0.94.1"},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10", max_version="3.13"),
+                    pkgs={"fastapi": ["~=0.114.2", latest], "mcp": "==1.20.0"},
                 ),
             ],
         ),
@@ -351,6 +368,7 @@ venv = Venv(
                 "simplejson": latest,
                 "grpcio": latest,
                 "pytest-asyncio": latest,
+                "protobuf": latest,
             },
             env={
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
@@ -1621,10 +1639,18 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/wsgi",
             venvs=[
                 Venv(
-                    pys=select_pys(),
+                    pys=select_pys(max_version="3.12"),
                     pkgs={
                         "WebTest": latest,
                         "pytest-randomly": latest,
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.13"),
+                    pkgs={
+                        "WebTest": latest,
+                        "pytest-randomly": latest,
+                        "legacy-cgi": latest,
                     },
                 ),
             ],
@@ -1761,9 +1787,18 @@ venv = Venv(
                 Venv(
                     # pyramid added support for Python 3.10/3.11 in 2.1
                     # FIXME[python-3.12]: blocked on venusian release https://github.com/Pylons/venusian/issues/85
-                    pys=select_pys(min_version="3.10"),
+                    pys=select_pys(min_version="3.10", max_version="3.12"),
                     pkgs={
                         "pyramid": [latest],
+                    },
+                ),
+                Venv(
+                    # pyramid added support for Python 3.10/3.11 in 2.1
+                    # FIXME[python-3.12]: blocked on venusian release https://github.com/Pylons/venusian/issues/85
+                    pys=select_pys(min_version="3.13"),
+                    pkgs={
+                        "pyramid": [latest],
+                        "legacy-cgi": latest,
                     },
                 ),
             ],
@@ -2148,7 +2183,6 @@ venv = Venv(
         ),
         Venv(
             name="httpx",
-            pys=select_pys(min_version="3.8"),
             command="pytest {cmdargs} tests/contrib/httpx",
             pkgs={
                 "pytest-asyncio": "==0.21.1",
@@ -2159,6 +2193,15 @@ venv = Venv(
                     latest,
                 ],
             },
+            venvs=[
+                Venv(pys=select_pys(max_version="3.12")),
+                Venv(
+                    pys=select_pys(min_version="3.13"),
+                    pkgs={
+                        "legacy-cgi": latest,
+                    },
+                ),
+            ],
         ),
         Venv(
             name="urllib3",
@@ -3361,6 +3404,8 @@ venv = Venv(
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
                 "DD_PROFILING_STACK_V2_ENABLED": "0",
                 "CPUCOUNT": "12",
+                # TODO: Remove once pkg_resources warnings are no longer emitted from this internal module
+                "PYTHONWARNINGS": "ignore::UserWarning:ddtrace.internal.module,ignore::UserWarning:gevent.events",
             },
             pkgs={
                 "gunicorn": latest,
@@ -3392,6 +3437,7 @@ venv = Venv(
                             pkgs={
                                 "gunicorn[gevent]": latest,
                                 "gevent": latest,
+                                "protobuf": latest,
                             },
                         ),
                     ],
@@ -3413,16 +3459,18 @@ venv = Venv(
                             },
                             pkgs={
                                 "gunicorn[gevent]": latest,
+                                "protobuf": latest,
                             },
                             venvs=[
                                 Venv(
                                     pkgs={
                                         "gevent": latest,
                                         "greenlet": latest,
+                                        "protobuf": latest,
                                     }
                                 ),
                                 Venv(
-                                    pkgs={"gevent": latest},
+                                    pkgs={"gevent": latest, "protobuf": latest},
                                 ),
                             ],
                         ),
@@ -3443,7 +3491,7 @@ venv = Venv(
                             env={
                                 "DD_PROFILE_TEST_GEVENT": "1",
                             },
-                            pkgs={"gunicorn[gevent]": latest, "gevent": latest},
+                            pkgs={"gunicorn[gevent]": latest, "gevent": latest, "protobuf": latest},
                         ),
                     ],
                 ),
@@ -3456,6 +3504,8 @@ venv = Venv(
             env={
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
                 "CPUCOUNT": "12",
+                # TODO: Remove once pkg_resources warnings are no longer emitted from this internal module
+                "PYTHONWARNINGS": "ignore::UserWarning:ddtrace.internal.module,ignore::UserWarning:gevent.events",
             },
             pkgs={
                 "gunicorn": latest,
@@ -3475,7 +3525,10 @@ venv = Venv(
                     name="profile-v2-uwsgi",
                     command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling_v2/test_uwsgi.py",  # noqa: E501
                     pys=select_pys(max_version="3.13"),
-                    pkgs={"uwsgi": "<2.0.30"},
+                    pkgs={
+                        "uwsgi": "<2.0.30",
+                        "protobuf": latest,
+                    },
                 ),
                 # Python 3.8 + 3.9
                 Venv(
@@ -3495,12 +3548,16 @@ venv = Venv(
                             pkgs={
                                 "gunicorn[gevent]": latest,
                                 "gevent": latest,
+                                "protobuf": latest,
                             },
                         ),
                         # memcpy-based sampler
                         Venv(
                             env={
                                 "ECHION_USE_FAST_COPY_MEMORY": "1",
+                            },
+                            pkgs={
+                                "protobuf": latest,
                             },
                         ),
                     ],
@@ -3522,16 +3579,21 @@ venv = Venv(
                             },
                             pkgs={
                                 "gunicorn[gevent]": latest,
+                                "protobuf": latest,
                             },
                             venvs=[
                                 Venv(
                                     pkgs={
                                         "gevent": latest,
                                         "greenlet": latest,
+                                        "protobuf": latest,
                                     }
                                 ),
                                 Venv(
-                                    pkgs={"gevent": latest},
+                                    pkgs={
+                                        "gevent": latest,
+                                        "protobuf": latest,
+                                    },
                                 ),
                             ],
                         ),
@@ -3539,6 +3601,9 @@ venv = Venv(
                         Venv(
                             env={
                                 "ECHION_USE_FAST_COPY_MEMORY": "1",
+                            },
+                            pkgs={
+                                "protobuf": latest,
                             },
                         ),
                     ],
@@ -3558,12 +3623,19 @@ venv = Venv(
                             env={
                                 "DD_PROFILE_TEST_GEVENT": "1",
                             },
-                            pkgs={"gunicorn[gevent]": latest, "gevent": latest},
+                            pkgs={
+                                "gunicorn[gevent]": latest,
+                                "gevent": latest,
+                                "protobuf": latest,
+                            },
                         ),
                         # memcpy-based sampler
                         Venv(
                             env={
                                 "ECHION_USE_FAST_COPY_MEMORY": "1",
+                            },
+                            pkgs={
+                                "protobuf": latest,
                             },
                         ),
                     ],
@@ -3573,6 +3645,9 @@ venv = Venv(
                     command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling_v2/collector/test_memalloc.py",  # noqa: E501
                     # skipping v3.14 for now due to an unstable `lz4 ` lib issue: https://gitlab.ddbuild.io/DataDog/apm-reliability/dd-trace-py/-/jobs/1163312347
                     pys=select_pys(max_version="3.13"),
+                    pkgs={
+                        "protobuf": latest,
+                    },
                     venvs=[
                         # standard allocators
                         Venv(
