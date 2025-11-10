@@ -3,27 +3,29 @@
 
 // hello
 
+#include <signal.h>
+#include <string.h>
+#include <sys/mman.h>
+#include <unistd.h>
 #include <algorithm>
 #include <cassert>
 #include <cerrno>
 #include <csetjmp>
 #include <cstdio>
-#include <signal.h>
-#include <string.h>
-#include <sys/mman.h>
-#include <unistd.h>
 
 static const size_t page_size = []() -> size_t {
     auto v = sysconf(_SC_PAGESIZE);
 
 #ifdef PL_DARWIN
-    if (v <= 0) {
+    if (v <= 0)
+    {
         // Fallback on macOS just in case
         v = getpagesize();
     }
 #endif
 
-    if (v <= 0) {
+    if (v <= 0)
+    {
         fprintf(stderr, "Failed to detect page size, falling back to 4096\n");
         return 4096;
     }
@@ -40,24 +42,22 @@ thread_local ThreadAltStack t_altstack;
 thread_local sigjmp_buf t_jmpenv;
 thread_local volatile sig_atomic_t t_handler_armed = 0;
 
-static inline void
-arm_fault_handler()
+static inline void arm_fault_handler()
 {
     t_handler_armed = 1;
     __asm__ __volatile__("" ::: "memory");
 }
 
-static inline void
-disarm_fault_handler()
+static inline void disarm_fault_handler()
 {
     __asm__ __volatile__("" ::: "memory");
     t_handler_armed = 0;
 }
 
-static void
-segv_handler(int signo, siginfo_t*, void*)
+static void segv_handler(int signo, siginfo_t*, void*)
 {
-    if (!t_handler_armed) {
+    if (!t_handler_armed)
+    {
         struct sigaction* old = (signo == SIGSEGV) ? &g_old_segv : &g_old_bus;
         // Restore the previous handler and re-raise so default/old handling occurs.
         sigaction(signo, old, nullptr);
@@ -69,22 +69,27 @@ segv_handler(int signo, siginfo_t*, void*)
     siglongjmp(t_jmpenv, 1);
 }
 
-int
-init_segv_catcher()
+int init_segv_catcher()
 {
-    if (t_altstack.ensure_installed() != 0) {
+    if (t_altstack.ensure_installed() != 0)
+    {
         return -1;
     }
 
-    struct sigaction sa{};
+    struct sigaction sa
+    {
+    };
     sa.sa_sigaction = segv_handler;
     sigemptyset(&sa.sa_mask);
-    // SA_SIGINFO for 3-arg handler; SA_ONSTACK to run on alt stack; SA_NODEFER to avoid having to use savemask
+    // SA_SIGINFO for 3-arg handler; SA_ONSTACK to run on alt stack; SA_NODEFER to avoid having to
+    // use savemask
     sa.sa_flags = SA_SIGINFO | SA_ONSTACK | SA_NODEFER;
-    if (sigaction(SIGSEGV, &sa, &g_old_segv) != 0) {
+    if (sigaction(SIGSEGV, &sa, &g_old_segv) != 0)
+    {
         return -1;
     }
-    if (sigaction(SIGBUS, &sa, &g_old_bus) != 0) {
+    if (sigaction(SIGBUS, &sa, &g_old_bus) != 0)
+    {
         // Try to roll back SIGSEGV install on failure.
         sigaction(SIGSEGV, &g_old_segv, nullptr);
         return -1;
@@ -99,10 +104,10 @@ using safe_memcpy_return_t = ssize_t;
 using safe_memcpy_return_t = mach_vm_size_t;
 #endif
 
-safe_memcpy_return_t
-safe_memcpy(void* dst, const void* src, size_t n)
+safe_memcpy_return_t safe_memcpy(void* dst, const void* src, size_t n)
 {
-    if (t_altstack.ensure_installed() != 0) {
+    if (t_altstack.ensure_installed() != 0)
+    {
         errno = EINVAL;
         return -1;
     }
@@ -114,18 +119,20 @@ safe_memcpy(void* dst, const void* src, size_t n)
     safe_memcpy_return_t rem = static_cast<safe_memcpy_return_t>(n);
 
     arm_fault_handler();
-    if (sigsetjmp(t_jmpenv, /* save sig mask = */ 0) != 0) {
+    if (sigsetjmp(t_jmpenv, /* save sig mask = */ 0) != 0)
+    {
         // We arrived here from siglongjmp after a fault.
         t_faulted = true;
         goto landing;
     }
 
     // Copy in page-bounded chunks (at most one fault per bad page).
-    while (rem) {
+    while (rem)
+    {
         safe_memcpy_return_t to_src_pg =
-          page_size - (static_cast<uintptr_t>(reinterpret_cast<uintptr_t>(s)) & (page_size - 1));
+            page_size - (static_cast<uintptr_t>(reinterpret_cast<uintptr_t>(s)) & (page_size - 1));
         safe_memcpy_return_t to_dst_pg =
-          page_size - (static_cast<uintptr_t>(reinterpret_cast<uintptr_t>(d)) & (page_size - 1));
+            page_size - (static_cast<uintptr_t>(reinterpret_cast<uintptr_t>(d)) & (page_size - 1));
         safe_memcpy_return_t chunk = std::min(rem, std::min(to_src_pg, to_dst_pg));
 
         // Optional early probe to fault before entering large memcpy
@@ -142,7 +149,8 @@ safe_memcpy(void* dst, const void* src, size_t n)
 landing:
     disarm_fault_handler();
 
-    if (t_faulted) {
+    if (t_faulted)
+    {
         errno = EFAULT;
         return -1;
     }
@@ -151,13 +159,9 @@ landing:
 }
 
 #if defined PL_LINUX
-ssize_t
-safe_memcpy_wrapper(pid_t,
-                    const struct iovec* __dstvec,
-                    unsigned long int __dstiovcnt,
-                    const struct iovec* __srcvec,
-                    unsigned long int __srciovcnt,
-                    unsigned long int)
+ssize_t safe_memcpy_wrapper(pid_t, const struct iovec* __dstvec, unsigned long int __dstiovcnt,
+                            const struct iovec* __srcvec, unsigned long int __srciovcnt,
+                            unsigned long int)
 {
     (void)__dstiovcnt;
     (void)__srciovcnt;
@@ -168,17 +172,14 @@ safe_memcpy_wrapper(pid_t,
     return safe_memcpy(__dstvec->iov_base, __srcvec->iov_base, to_copy);
 }
 #elif defined PL_DARWIN
-kern_return_t
-safe_memcpy_wrapper(vm_map_read_t target_task,
-                    mach_vm_address_t address,
-                    mach_vm_size_t size,
-                    mach_vm_address_t data,
-                    mach_vm_size_t* outsize)
+kern_return_t safe_memcpy_wrapper(vm_map_read_t target_task, mach_vm_address_t address,
+                                  mach_vm_size_t size, mach_vm_address_t data,
+                                  mach_vm_size_t* outsize)
 {
     (void)target_task;
 
-    auto copied =
-      safe_memcpy(reinterpret_cast<void*>(data), reinterpret_cast<void*>(address), static_cast<size_t>(size));
+    auto copied = safe_memcpy(reinterpret_cast<void*>(data), reinterpret_cast<void*>(address),
+                              static_cast<size_t>(size));
     *outsize = copied;
     return copied == size ? KERN_SUCCESS : KERN_FAILURE;
 }

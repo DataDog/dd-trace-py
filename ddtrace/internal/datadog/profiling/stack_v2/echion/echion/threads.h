@@ -463,7 +463,7 @@ inline Result<void> ThreadInfo::sample(int64_t iid, PyThreadState* tstate, micro
             const auto& task_name = maybe_task_name->get();
             Renderer::get().render_task_begin(task_name, task_stack_info->on_cpu);
             Renderer::get().render_stack_begin(pid, iid, name);
-            
+
             task_stack_info->stack.render();
 
             Renderer::get().render_stack_end(MetricType::Time, delta);

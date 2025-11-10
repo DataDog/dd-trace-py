@@ -9,8 +9,8 @@
 #include <unicodeobject.h>
 
 #include <cstdint>
-#include <string>
 #include <mutex>
+#include <string>
 
 #include <echion/long.h>
 #include <echion/render.h>
