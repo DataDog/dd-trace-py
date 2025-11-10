@@ -191,13 +191,16 @@ services:
           DD_FAST_BUILD: "1"
           CMAKE_BUILD_PARALLEL_LEVEL: "12"
           CARGO_BUILD_JOBS: "12"
+          CYTHON_CACHE_DIR: "/home/bits/.cache/cython"
+          DD_USE_SCCACHE: "1"
+          SCCACHE_DIR: "/home/bits/.cache/sccache"
         network_mode: host
         userns_mode: host
         working_dir: /home/bits/project/
         volumes:
           - ddagent:/tmp/ddagent
+          - ./.cache:/home/bits/.cache
           - ./:/home/bits/project
-          - ./.riot:/home/bits/project/.riot
 
     localstack:
         image: localstack/localstack:1.4.0

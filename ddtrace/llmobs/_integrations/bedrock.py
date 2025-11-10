@@ -371,13 +371,14 @@ class BedrockIntegration(BaseLLMIntegration):
         """Extract output messages from the stored response.
         Anthropic allows for chat messages, which requires some special casing.
         """
-        if isinstance(response["text"], str):
-            return [Message(content=response["text"])]
-        if isinstance(response["text"], list):
-            if isinstance(response["text"][0], str):
-                return [Message(content=str(content)) for content in response["text"]]
-            if isinstance(response["text"][0], dict):
-                return [Message(content=response["text"][0].get("text", ""))]
+        resp_text = response.get("text", "")
+        if isinstance(resp_text, str):
+            return [Message(content=resp_text)]
+        if resp_text and isinstance(resp_text, list):
+            if isinstance(resp_text[0], str):
+                return [Message(content=str(content)) for content in resp_text]
+            if isinstance(resp_text[0], dict):
+                return [Message(content=resp_text[0].get("text", ""))]
         return []
 
     def _get_base_url(self, **kwargs: Dict[str, Any]) -> Optional[str]:

@@ -1,4 +1,4 @@
-#!/usr/bin/env uv run --script
+#!/usr/bin/env scripts/uv-run-script
 # -*- mode: python -*-
 # /// script
 # requires-python = ">=3.8"
@@ -246,6 +246,45 @@ class TestRunner:
 
         except Exception as e:
             print(f"Warning: Failed to get riot venvs for pattern '{pattern}': {e}")
+            return []
+
+    def get_all_riot_venvs(self) -> List[RiotVenv]:
+        """Get all available riot venvs without pattern filtering."""
+        try:
+            venvs = []
+
+            # Get all venv instances without pattern filtering
+            for n, inst in enumerate(riotfile.venv.instances()):
+                if not inst.name:
+                    continue
+
+                # Extract package information from the instance
+                packages_info = ""
+                if hasattr(inst, 'pkgs') and inst.pkgs:
+                    all_packages = [f"{pkg}: {version}" for pkg, version in inst.pkgs.items()]
+                    packages_info = ", ".join(all_packages) if all_packages else "standard packages"
+
+                # Extract command from the instance
+                command = ""
+                if hasattr(inst, 'cmd'):
+                    command = str(inst.cmd)
+                elif hasattr(inst, 'command'):
+                    command = str(inst.command)
+
+                venvs.append(RiotVenv(
+                    number=n,
+                    hash=inst.short_hash if hasattr(inst, 'short_hash') else f"hash{n}",
+                    name=inst.name,
+                    python_version=str(inst.py._hint) if hasattr(inst, 'py') and hasattr(inst.py, '_hint') else "3.10",
+                    packages=packages_info,
+                    suite_name="",
+                    command=command
+                ))
+
+            return venvs
+
+        except Exception as e:
+            print(f"Warning: Failed to get all riot venvs: {e}")
             return []
 
     def start_services(self, services: Set[str]) -> bool:
@@ -539,6 +578,25 @@ class TestRunner:
 
         return selected_venvs
 
+    def get_venvs_by_hash_direct(self, venv_hashes: List[str]) -> List[RiotVenv]:
+        """Get specific venvs by their hashes from all available venvs.
+
+        This method doesn't require suite information and is used when --venv is provided directly.
+        """
+        all_venvs = self.get_all_riot_venvs()
+        venv_hashes_set = set(venv_hashes)
+        matched_venvs = [venv for venv in all_venvs if venv.hash in venv_hashes_set]
+
+        if not matched_venvs:
+            return []
+
+        # Print info about found venvs
+        print(f"📌 Found {len(matched_venvs)} venv(s):")
+        for venv in matched_venvs:
+            print(f"   • {venv.hash}: {venv.name} ({venv.display_name})")
+
+        return matched_venvs
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -612,7 +670,19 @@ Examples:
 
     runner = TestRunner()
 
-    # Determine which files to check
+    # Special handling for --venv: skip all file discovery and suite matching
+    if args.venv:
+        print("🎯 Using directly specified venvs (skipping file/suite analysis)")
+        selected_venvs = runner.get_venvs_by_hash_direct(args.venv)
+        if not selected_venvs:
+            print(f"❌ No venvs found matching hashes: {', '.join(args.venv)}")
+            return 1
+        # When using --venv directly, skip service management
+        print(f"⚠️  Skipping service management (run manually if needed)")
+        success = runner.run_tests(selected_venvs, {}, riot_args=riot_args, dry_run=args.dry_run)
+        return 0 if success else 1
+
+    # Normal flow: determine which files to check
     if args.files:
         # Use explicitly provided files
         files = set(args.files)
@@ -646,17 +716,8 @@ Examples:
         runner.output_suites_json(matching_suites)
         return 0
 
-    # Determine venv selection method
-    if args.venv:
-        # Use provided venvs (no interactive prompts)
-        selected_venvs = runner.select_venvs_by_hash(matching_suites, args.venv)
-        if not selected_venvs:
-            print(f"❌ No venvs found matching hashes: {', '.join(args.venv)}")
-            return 1
-        print(f"📌 Selected {len(selected_venvs)} venv(s) from provided hashes")
-    else:
-        # Interactive venv selection
-        selected_venvs = runner.interactive_venv_selection(matching_suites)
+    # Interactive venv selection
+    selected_venvs = runner.interactive_venv_selection(matching_suites)
 
     # Execute tests
     success = runner.run_tests(selected_venvs, matching_suites, riot_args=riot_args, dry_run=args.dry_run)
