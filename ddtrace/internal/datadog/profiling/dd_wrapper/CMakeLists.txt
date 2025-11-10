@@ -1,7 +1,10 @@
 cmake_minimum_required(VERSION 3.19)
 
 # Disable testing by default (can be overridden with -DBUILD_TESTING=ON)
-option(BUILD_TESTING "Build the testing tree" OFF)
+# Use FORCE to override any cached values
+if(NOT DEFINED BUILD_TESTING)
+    set(BUILD_TESTING OFF CACHE BOOL "Build the testing tree" FORCE)
+endif()
 
 project(
     dd_wrapper
