@@ -25,7 +25,9 @@ from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
+from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
+from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
@@ -1067,6 +1069,32 @@ def test_activate_distributed_headers_activates_context(llmobs, mock_llmobs_logs
             llmobs.activate_distributed_headers({})
             assert mock_extract.call_count == 1
             mock_activate.assert_called_once_with(dummy_context)
+
+
+@pytest.mark.parametrize("propagated_trace_id", ["789", None])
+def test_activate_distributed_headers_invalid_parent_id_activates_fallback_context(
+    llmobs, mock_llmobs_logs, propagated_trace_id
+):
+    dummy_context = Context(trace_id=123, span_id=456)
+    dummy_context._meta[PROPAGATED_PARENT_ID_KEY] = "not-an-int"
+    if propagated_trace_id is not None:
+        dummy_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = propagated_trace_id
+    dummy_context._meta[PROPAGATED_ML_APP_KEY] = "test-ml-app"
+    with mock.patch("ddtrace.llmobs._llmobs.HTTPPropagator.extract") as mock_extract, mock.patch.object(
+        llmobs._instance.tracer.context_provider, "activate"
+    ), mock.patch.object(llmobs._instance._llmobs_context_provider, "activate") as mock_llmobs_activate, mock.patch(
+        "ddtrace.llmobs._llmobs.telemetry.record_activate_distributed_headers"
+    ) as mock_telemetry:
+        mock_extract.return_value = dummy_context
+        llmobs.activate_distributed_headers({})
+    fallback_context = mock_llmobs_activate.call_args[0][0]
+    assert fallback_context.trace_id == dummy_context.trace_id
+    assert fallback_context.span_id == dummy_context.span_id
+    expected_trace_id = propagated_trace_id if propagated_trace_id is not None else str(dummy_context.trace_id)
+    assert fallback_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] == expected_trace_id
+    assert fallback_context._meta[PROPAGATED_ML_APP_KEY] == "test-ml-app"
+    mock_llmobs_logs.warning.assert_called_once_with("Failed to parse LLMObs parent ID from request headers.")
+    mock_telemetry.assert_called_once_with("invalid_parent_id")
 
 
 def test_listener_hooks_enqueue_correct_writer(run_python_code_in_subprocess):
