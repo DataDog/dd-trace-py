@@ -246,7 +246,12 @@ class BaseLLMObsWriter(PeriodicService):
         except Exception:
             telemetry.record_dropped_payload(len(events), event_type=self.EVENT_TYPE, error="connection_error")
             logger.error(
-                "failed to send %d LLMObs %s events to %s", len(events), self.EVENT_TYPE, self._intake, exc_info=True
+                "failed to send %d LLMObs %s events to %s",
+                len(events),
+                self.EVENT_TYPE,
+                self._intake,
+                exc_info=True,
+                extra={"send_to_telemetry": False},
             )
 
     def _send_payload(self, payload: bytes, num_events: int):
@@ -262,6 +267,7 @@ class BaseLLMObsWriter(PeriodicService):
                     self._url,
                     resp.status,
                     resp.read(),
+                    extra={"send_to_telemetry": False},
                 )
                 telemetry.record_dropped_payload(num_events, event_type=self.EVENT_TYPE, error="http_error")
             else:
@@ -269,7 +275,12 @@ class BaseLLMObsWriter(PeriodicService):
             return Response.from_http_response(resp)
         except Exception:
             logger.error(
-                "failed to send %d LLMObs %s events to %s", num_events, self.EVENT_TYPE, self._intake, exc_info=True
+                "failed to send %d LLMObs %s events to %s",
+                num_events,
+                self.EVENT_TYPE,
+                self._intake,
+                exc_info=True,
+                extra={"send_to_telemetry": False},
             )
             raise
         finally:

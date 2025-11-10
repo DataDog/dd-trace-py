@@ -448,6 +448,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                     self._intake_endpoint(client),
                     self.RETRY_ATTEMPTS,
                     exc_info=True,
+                    extra={"send_to_telemetry": False},
                 )
         finally:
             self._metrics_dist("http.sent.bytes", len(encoded))
