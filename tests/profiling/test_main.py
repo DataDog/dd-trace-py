@@ -50,7 +50,7 @@ def test_call_script_pprof_output(tmp_path):
     stdout, stderr, exitcode, _ = call_program(
         "ddtrace-run",
         sys.executable,
-        os.path.join(os.path.dirname(__file__), "../profiling_v2", "simple_program.py"),
+        os.path.join(os.path.dirname(__file__), "../profiling", "simple_program.py"),
         env=env,
     )
     if sys.platform == "win32":
@@ -140,7 +140,7 @@ def test_fork(tmp_path):
 def test_fork_gevent():
     env = os.environ.copy()
     stdout, stderr, exitcode, pid = call_program(
-        "python", os.path.join(os.path.dirname(__file__), "../profiling_v2", "gevent_fork.py"), env=env
+        "python", os.path.join(os.path.dirname(__file__), "../profiling", "gevent_fork.py"), env=env
     )
     assert exitcode == 0
 
@@ -161,7 +161,7 @@ def test_multiprocessing(method, tmp_path):
     stdout, stderr, exitcode, _ = call_program(
         "ddtrace-run",
         sys.executable,
-        os.path.join(os.path.dirname(__file__), "../profiling_v2", "_test_multiprocessing.py"),
+        os.path.join(os.path.dirname(__file__), "../profiling", "_test_multiprocessing.py"),
         method,
         env=env,
     )
