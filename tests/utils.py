@@ -54,7 +54,6 @@ from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.openfeature import config as ffe_config
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
-from tests.conftest import original_test_name_key
 from tests.subprocesstest import SubprocessTestCase
 
 
@@ -1450,6 +1449,8 @@ def request_token(request):
     Returns:
         A token string in the format "module.class.test_name"
     """
+    from tests.conftest import original_test_name_key
+
     token = ""
     token += request.module.__name__
     token += ".%s" % request.cls.__name__ if request.cls else ""
