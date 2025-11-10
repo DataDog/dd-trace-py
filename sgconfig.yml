@@ -58,7 +58,7 @@ ignoreFiles:
   - test-results/**/*
 
   # Generated protobuf files
-  - "tests/profiling_v2/collector/pprof_*pb2.py"
+  - "tests/profiling/collector/pprof_*pb2.py"
   - "tests/contrib/grpc/hello_pb2.py"
   - "tests/lib-injection/dd-lib-python-init-test-protobuf-old/addressbook_pb2.py"
 

@@ -57,12 +57,12 @@ suites:
       DD_TRACE_AGENT_URL: ''
     parallelism: 20
     retry: 2
-    pattern: profile$|profile-v2
+    pattern: profile
     paths:
       - '@bootstrap'
       - '@core'
       - '@profiling'
-      - tests/profiling_v2/*
+      - tests/profiling/*
     services:
       - redis
 ```

@@ -12,8 +12,8 @@ import pytest
 from ddtrace import ext
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling.collector import stack
-from tests.profiling_v2.collector import pprof_utils
-from tests.profiling_v2.collector import test_collector
+from tests.profiling.collector import pprof_utils
+from tests.profiling.collector import test_collector
 
 
 # Python 3.11.9 is not compatible with gevent, https://github.com/gevent/gevent/issues/2040
@@ -74,8 +74,8 @@ def test_collect_truncate():
     import os
 
     from ddtrace.profiling import profiler
-    from tests.profiling_v2.collector import pprof_utils
-    from tests.profiling_v2.collector.test_stack import func1
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.test_stack import func1
 
     pprof_prefix = os.environ["DD_PROFILING_OUTPUT_PPROF"]
     output_filename = pprof_prefix + "." + str(os.getpid())
@@ -455,7 +455,7 @@ def test_collect_gevent_threads():
 
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import stack
-    from tests.profiling_v2.collector import pprof_utils
+    from tests.profiling.collector import pprof_utils
 
     iteration = 100
     sleep_time = 0.01
@@ -527,8 +527,8 @@ def test_collect_gevent_thread_task():
 
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import stack
-    from tests.profiling_v2.collector import pprof_utils
-    from tests.profiling_v2.collector.test_stack import _fib
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.test_stack import _fib
 
     test_name = "test_collect_gevent_thread_task"
     pprof_prefix = "/tmp/" + test_name

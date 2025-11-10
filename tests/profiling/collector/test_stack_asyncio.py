@@ -18,7 +18,7 @@ def test_asyncio():
     from ddtrace.internal.datadog.profiling import stack_v2
     from ddtrace.profiling import profiler
     from ddtrace.trace import tracer
-    from tests.profiling_v2.collector import pprof_utils
+    from tests.profiling.collector import pprof_utils
 
     assert stack_v2.is_available, stack_v2.failure_msg
 
@@ -188,7 +188,7 @@ def test_asyncio_start_profiler_from_process_before_importing_asyncio():
     assert t1_name == "tracked 1"
     assert t2_name == "tracked 2"
 
-    from tests.profiling_v2.collector import pprof_utils
+    from tests.profiling.collector import pprof_utils
 
     output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
     profile = pprof_utils.parse_newest_profile(output_filename)
@@ -312,7 +312,7 @@ def test_asyncio_start_profiler_from_process_before_starting_loop():
     assert t1_name == "tracked 1"
     assert t2_name == "tracked 2"
 
-    from tests.profiling_v2.collector import pprof_utils
+    from tests.profiling.collector import pprof_utils
 
     output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
     profile = pprof_utils.parse_newest_profile(output_filename)
@@ -437,7 +437,7 @@ def test_asyncio_start_profiler_from_process_after_creating_loop():
     assert t1_name == "tracked 1"
     assert t2_name == "tracked 2"
 
-    from tests.profiling_v2.collector import pprof_utils
+    from tests.profiling.collector import pprof_utils
 
     output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
     profile = pprof_utils.parse_newest_profile(output_filename)
@@ -562,7 +562,7 @@ def test_asyncio_import_profiler_from_process_after_starting_loop():
     assert t1_name == "tracked 1"
     assert t2_name == "tracked 2"
 
-    from tests.profiling_v2.collector import pprof_utils
+    from tests.profiling.collector import pprof_utils
 
     output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
     profile = pprof_utils.parse_newest_profile(output_filename)
@@ -689,7 +689,7 @@ def test_asyncio_start_profiler_from_process_after_task_start():
     assert t1_name == "tracked 1"
     assert t2_name == "tracked 2"
 
-    from tests.profiling_v2.collector import pprof_utils
+    from tests.profiling.collector import pprof_utils
 
     output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
     profile = pprof_utils.parse_newest_profile(output_filename)
@@ -816,7 +816,7 @@ def test_asyncio_import_and_start_profiler_from_process_after_task_start():
     assert t1_name == "tracked 1"
     assert t2_name == "tracked 2"
 
-    from tests.profiling_v2.collector import pprof_utils
+    from tests.profiling.collector import pprof_utils
 
     output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
     profile = pprof_utils.parse_newest_profile(output_filename)
