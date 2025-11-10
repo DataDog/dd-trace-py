@@ -30,7 +30,7 @@ from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 def test_fork_handler_callable(iast_context_defaults):
     """Verify that _reset_iast_after_fork is callable and disables IAST."""
     from ddtrace.appsec._iast import _disable_iast_after_fork
-    from ddtrace.settings.asm import config as asm_config
+    from ddtrace.internal.settings.asm import config as asm_config
 
     # Should not raise any exception
     try:
@@ -48,7 +48,7 @@ def test_fork_handler_with_active_context(iast_context_defaults):
     """Verify fork handler disables IAST and clears context when active."""
     from ddtrace.appsec._iast import _disable_iast_after_fork
     from ddtrace.appsec._iast._taint_tracking import is_tainted
-    from ddtrace.settings.asm import config as asm_config
+    from ddtrace.internal.settings.asm import config as asm_config
 
     _start_iast_context_and_oce()
 
@@ -83,7 +83,7 @@ def test_multiprocessing_with_iast_no_segfault(iast_context_defaults):
         """Child process where IAST should be disabled."""
         try:
             from ddtrace.appsec._iast._taint_tracking import is_tainted
-            from ddtrace.settings.asm import config as asm_config
+            from ddtrace.internal.settings.asm import config as asm_config
 
             # Start IAST in child (will be a no-op since IAST is disabled)
             _start_iast_context_and_oce()
@@ -139,7 +139,7 @@ def test_multiple_fork_operations(iast_context_defaults):
     def simple_child_work(queue, child_id):
         """Simple child process work - IAST will be disabled."""
         try:
-            from ddtrace.settings.asm import config as asm_config
+            from ddtrace.internal.settings.asm import config as asm_config
 
             # These should be safe no-ops since IAST is disabled
             _start_iast_context_and_oce()
@@ -196,7 +196,7 @@ def test_fork_with_os_fork_no_segfault(iast_context_defaults):
     if pid == 0:
         # Child process - IAST should be disabled
         try:
-            from ddtrace.settings.asm import config as asm_config
+            from ddtrace.internal.settings.asm import config as asm_config
 
             # IAST should be disabled after fork
             if asm_config._iast_enabled:
@@ -237,7 +237,7 @@ def test_fork_handler_clears_state(iast_context_defaults):
     """
     from ddtrace.appsec._iast import _disable_iast_after_fork
     from ddtrace.appsec._iast._taint_tracking import is_tainted
-    from ddtrace.settings.asm import config as asm_config
+    from ddtrace.internal.settings.asm import config as asm_config
 
     _start_iast_context_and_oce()
     tainted = taint_pyobject("test", "source", "value", OriginType.PARAMETER)
@@ -278,7 +278,7 @@ def test_eval_in_forked_process(iast_context_defaults):
         """Child process with IAST disabled."""
         try:
             from ddtrace.appsec._iast._taint_tracking import is_tainted
-            from ddtrace.settings.asm import config as asm_config
+            from ddtrace.internal.settings.asm import config as asm_config
 
             # IAST should be disabled, so this is a no-op
             _start_iast_context_and_oce()
@@ -325,7 +325,7 @@ def test_early_fork_keeps_iast_enabled():
     """
     from ddtrace.appsec._iast import _disable_iast_after_fork
     from ddtrace.appsec._iast._taint_tracking import is_tainted
-    from ddtrace.settings.asm import config as asm_config
+    from ddtrace.internal.settings.asm import config as asm_config
 
     # Ensure IAST is enabled but NO context is active (simulating early fork)
     # Don't call _start_iast_context_and_oce() - this simulates pre-fork state
