@@ -68,8 +68,7 @@ set_target_properties(${EXTENSION_NAME} PROPERTIES PREFIX "")
 set_target_properties(${EXTENSION_NAME} PROPERTIES SUFFIX "")
 
 # RPATH is needed for sofile discovery at runtime, since Python packages are not installed in the system path. This is
-# typical.
-# Use BUILD_WITH_INSTALL_RPATH to avoid rpath manipulation during install phase which can cause conflicts
+# typical. Use BUILD_WITH_INSTALL_RPATH to avoid rpath manipulation during install phase which can cause conflicts
 set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
 if(APPLE)
     set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "@loader_path/..")
