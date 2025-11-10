@@ -45,7 +45,8 @@ function(dd_wrapper_add_test name)
 
     add_ddup_config(${name})
 
-    gtest_discover_tests(${name})
+    gtest_discover_tests(${name} DISCOVERY_MODE PRE_TEST) # Delay test discovery until test execution to avoid running
+                                                          # sanitizer-built executables during build
 
     # This is supplemental artifact so make sure to install it in the right place
     if(INPLACE_LIB_INSTALL_DIR)
