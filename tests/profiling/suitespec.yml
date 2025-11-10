@@ -81,7 +81,7 @@ suites:
   profile:
     env:
       DD_TRACE_AGENT_URL: ''
-    # `riot list --hash-only profile$ | wc -1` = 19
+    # `riot list --hash-only profile | wc -l` = 27
     parallelism: 16
     paths:
       - '@bootstrap'
@@ -89,6 +89,6 @@ suites:
       - '@profiling'
       - tests/profiling/*
       - tests/profiling/suitespec.yml
-    pattern: profile$
+    pattern: profile
     retry: 2
     runner: riot
