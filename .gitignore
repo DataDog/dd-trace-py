@@ -135,7 +135,12 @@ ENV/
 .vscode/
 
 # Cursor
-.cursor/
+.cursor/context/
+.cursor/tasks/
+
+# Promptfoo
+.promptfoo/output/
+.promptfoo/prompts/
 
 # Cascade
 # .windsurf/  # If you want to use Windsurf/Cascade, do NOT ignore here.

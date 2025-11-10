@@ -1,0 +1,302 @@
+---
+description: IAST (Interactive Application Security Testing) - How it works and development guidelines
+globs:
+alwaysApply: true
+---
+
+# IAST Development Guide
+
+**Note:** General development patterns, code style, and testing guidelines are in `.claude/CLAUDE.md` under "IAST/AppSec Development".
+
+**Synonyms:** IAST = Code Security = Runtime Code Analysis (all refer to the same product)
+
+## What is IAST?
+
+IAST (Interactive Application Security Testing) analyzes running Python applications for security vulnerabilities by:
+1. **Tracking tainted data** - Data from untrusted sources (user input, HTTP requests, etc.)
+2. **Monitoring propagation** - Following how tainted data flows through the application
+3. **Detecting vulnerabilities** - Identifying when tainted data reaches security-sensitive functions (sinks)
+
+## How IAST Works: High-Level Architecture
+
+### 1. AST Patching (Code Instrumentation)
+
+IAST modifies Python bytecode at import time using AST (Abstract Syntax Tree) patching:
+
+- **Module Watchdog**: Hooks into Python's import system (`ddtrace.internal.module.ModuleWatchdog`)
+- **AST Visitor**: Analyzes and modifies Python AST before compilation (`ddtrace/appsec/_iast/_ast/visitor.py`)
+- **String Operations**: Patches string operations (concat, slice, format, etc.) to propagate taint
+- **Call Sites**: Instruments function calls to track taint flow
+
+**Location**: `ddtrace/appsec/_iast/_ast/`
+- `ast_patching.py` - Main AST patching logic
+- `visitor.py` - AST visitor for code transformation
+- `iastpatch.c` - C extension for fast AST manipulation
+
+**Activation**: Via `ModuleWatchdog.register_pre_exec_module_hook()` in `ddtrace/appsec/_iast/__init__.py`
+
+### 2. Taint Tracking (C++ Native Extension)
+
+Taint information is stored and propagated efficiently using a C++ native extension:
+
+- **TaintedObject**: Associates Python objects with taint metadata (source, ranges)
+- **Taint Ranges**: Track which parts of strings/bytes are tainted
+- **Context Management**: Per-request taint state using context-local storage
+- **Propagation Aspects**: Functions that propagate taint through operations
+
+**Location**: `ddtrace/appsec/_iast/_taint_tracking/`
+- Native C++ code compiled with CMake
+- `aspects.py` - Python API for taint propagation
+- `_native.cpython-*.so` - Compiled C++ extension
+
+**Key Concepts**:
+- **Taint Source**: Where untrusted data enters (HTTP params, headers, body)
+- **Taint Propagation**: Following data through operations (concat, slice, replace, etc.)
+- **Taint Range**: Start/end positions in strings that are tainted
+
+### 3. Module Patching (Taint Sinks)
+
+IAST wraps security-sensitive functions to detect vulnerabilities:
+
+- **IASTFunction**: Wraps target functions using `wrapt` library
+- **Taint Sinks**: Security-sensitive functions (exec, eval, SQL, file operations, etc.)
+- **Vulnerability Detection**: Checks if tainted data reaches sinks
+
+**Location**: `ddtrace/appsec/_iast/_patch_modules.py`
+
+**Supported Vulnerability Types** (`ddtrace/appsec/_iast/taint_sinks/`):
+- `sql_injection.py` - SQL injection detection
+- `command_injection.py` - OS command injection
+- `path_traversal.py` - Path traversal attacks
+- `ssrf.py` - Server-Side Request Forgery
+- `code_injection.py` - Code injection (eval, exec)
+- `header_injection.py` - HTTP header injection
+- `weak_hash.py` - Weak cryptographic hashes
+- `weak_cipher.py` - Weak encryption algorithms
+- `weak_randomness.py` - Weak random number generation
+- `insecure_cookie.py` - Insecure cookie settings
+- `unvalidated_redirect.py` - Open redirect vulnerabilities
+- `untrusted_serialization.py` - Insecure deserialization
+
+### 4. Overhead Control Engine (OCE)
+
+Performance optimization to limit IAST overhead:
+
+- **Request Sampling**: Analyze only X% of requests (default: 30%)
+- **Vulnerability Limits**: Max vulnerabilities per request
+- **Concurrent Request Limits**: Max requests analyzed simultaneously
+- **Per-Vulnerability Quotas**: Limit overhead per vulnerability type
+
+**Location**: `ddtrace/appsec/_iast/_overhead_control_engine.py`
+
+**Key Configuration**:
+- `DD_IAST_REQUEST_SAMPLING` - Percentage of requests to analyze (default: 30%)
+- `DD_IAST_VULNERABILITIES_PER_REQUEST` - Max vulnerabilities per request
+- `DD_IAST_MAX_CONCURRENT_REQUESTS` - Max concurrent analyzed requests
+
+### 5. Vulnerability Reporting
+
+When a vulnerability is detected:
+1. Evidence is collected (tainted data, location, stack trace)
+2. Vulnerability is reported via the tracer span
+3. Deduplication prevents duplicate reports
+4. Data is sent to Datadog backend for analysis
+
+## How to Add a New Vulnerability Type
+
+Follow this process to add a new taint sink:
+
+### Step 1: Define the Vulnerability Class
+
+Create `ddtrace/appsec/_iast/taint_sinks/my_vulnerability.py`:
+
+```python
+from ddtrace.appsec._iast._overhead_control_engine import oce
+from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
+
+@oce.register
+class MyVulnerability(VulnerabilityBase):
+    vulnerability_type = "MY_VULNERABILITY"
+    evidence_type = "MY_VULNERABILITY"
+```
+
+### Step 2: Create Wrapper Functions
+
+Wrap the target functions:
+
+```python
+@MyVulnerability.wrap
+def wrapped_dangerous_function(wrapped, instance, args, kwargs):
+    # Check if arguments are tainted
+    if is_tainted(args[0]):
+        MyVulnerability.report(
+            evidence_value=args[0],
+            # ... additional context
+        )
+    return wrapped(*args, **kwargs)
+```
+
+### Step 3: Implement patch() Function
+
+```python
+def patch():
+    """Patch the target module/functions"""
+    try_wrap_function_wrapper("target_module", "dangerous_function", wrapped_dangerous_function)
+```
+
+### Step 4: Register in IAST_PATCH
+
+Update `ddtrace/appsec/_iast/_patch_modules.py`:
+
+```python
+IAST_PATCH = {
+    # ... existing patches
+    "my_vulnerability": IASTFunction("target_module", "dangerous_function", my_vulnerability_hook),
+}
+```
+
+### Step 5: Write Tests
+
+Create `tests/appsec/iast/taint_sinks/test_my_vulnerability.py`:
+- Test vulnerability detection (positive cases)
+- Test non-tainted data (negative cases)
+- Test edge cases and error handling
+
+## Important Technical Details
+
+### Fork Safety
+
+IAST has special handling for forked processes:
+
+- **Early forks** (web framework workers): IAST enabled - Workers fork before IAST initializes
+- **Late forks** (multiprocessing): IAST disabled - Native state corrupted after fork
+
+Fork handler (`_disable_iast_after_fork`) automatically detects fork type and disables IAST for late forks to prevent segmentation faults.
+
+**Implementation**: `ddtrace/appsec/_iast/__init__.py:_disable_iast_after_fork()`
+
+### Flask Applications
+
+Flask apps need special patching for main module instrumentation:
+
+```python
+from ddtrace.appsec._iast import ddtrace_iast_flask_patch
+
+if __name__ == "__main__":
+    ddtrace_iast_flask_patch()  # Call before app.run()
+    app.run()
+```
+
+This patches the main Flask app file so IAST works on functions defined in `app.py`.
+
+### Gevent Compatibility
+
+IMPORTANT: Avoid top-level `import inspect` in IAST code - it interferes with gevent's monkey patching and causes sporadic worker timeouts in Gunicorn applications.
+
+**Solution**: Import `inspect` locally within functions when needed.
+
+### Native Code Development
+
+When working with IAST's C++ taint tracking code:
+
+1. **Prefer**: Native C++ types (`std::string`, `int`, `char`)
+2. **If needed**: CPython API with `PyObject*` (careful with reference counting!)
+3. **Last resort**: Pybind11 (adds complexity)
+
+**Build & Test C++ Code**:
+```bash
+cmake -DCMAKE_BUILD_TYPE=Debug -DPYTHON_EXECUTABLE=python \
+  -S ddtrace/appsec/_iast/_taint_tracking \
+  -B ddtrace/appsec/_iast/_taint_tracking
+
+make -f ddtrace/appsec/_iast/_taint_tracking/tests/Makefile native_tests
+ddtrace/appsec/_iast/_taint_tracking/tests/native_tests
+```
+
+## Testing IAST Code
+
+### Python Tests
+
+```bash
+# Run IAST tests
+python -m pytest -vv -s --no-cov tests/appsec/iast/
+
+# Run specific vulnerability tests
+python -m pytest -vv tests/appsec/iast/taint_sinks/test_sql_injection.py
+
+# Run with IAST enabled
+DD_IAST_ENABLED=true python -m pytest tests/appsec/iast/
+```
+
+### End-to-End Tests
+
+E2E tests use test servers defined in `tests/appsec/appsec_utils.py`:
+- `django_server` - Django test application
+- `flask_server` - Flask test application
+- `fast_api` - FastAPI test application
+
+Test application location: `tests/appsec/integrations/django_tests/django_app`
+
+**Running E2E tests**:
+```bash
+# Start testagent
+docker compose up -d testagent
+
+# Run E2E tests
+python -m pytest tests/appsec/iast/test_integration.py -v
+```
+
+### C++ Native Tests
+
+```bash
+# Build and run C++ tests
+./ddtrace/appsec/_iast/_taint_tracking/tests/native_tests
+```
+
+## Key Files Reference
+
+**Core Implementation**:
+- `ddtrace/appsec/_iast/__init__.py` - Entry point, initialization, fork safety
+- `ddtrace/appsec/_iast/_overhead_control_engine.py` - Performance control (OCE)
+- `ddtrace/appsec/_iast/_patch_modules.py` - Module patching registry
+
+**AST Patching**:
+- `ddtrace/appsec/_iast/_ast/ast_patching.py` - AST transformation
+- `ddtrace/appsec/_iast/_ast/visitor.py` - AST visitor
+- `ddtrace/appsec/_iast/_loader.py` - Patched module execution
+
+**Taint Tracking**:
+- `ddtrace/appsec/_iast/_taint_tracking/` - C++ native taint tracking
+- `ddtrace/appsec/_iast/_taint_tracking/aspects.py` - Taint propagation API
+
+**Vulnerability Detection**:
+- `ddtrace/appsec/_iast/taint_sinks/` - All vulnerability detectors
+- `ddtrace/appsec/_iast/taint_sinks/_base.py` - Base vulnerability class
+
+**Security Controls**:
+- `ddtrace/appsec/_iast/secure_marks/` - Validators and sanitizers
+
+## Environment Variables
+
+```bash
+# Enable IAST
+DD_IAST_ENABLED=true
+
+# Enable taint propagation (AST patching)
+DD_IAST_PROPAGATION_ENABLED=true
+
+# Request sampling (30% default)
+DD_IAST_REQUEST_SAMPLING=30.0
+
+# Max vulnerabilities per request
+DD_IAST_VULNERABILITIES_PER_REQUEST=2
+
+# Max concurrent analyzed requests
+DD_IAST_MAX_CONCURRENT_REQUESTS=2
+
+# Debug logging
+DD_IAST_DEBUG=true
+
+# Fast build mode (development)
+DD_FAST_BUILD=1
+```
