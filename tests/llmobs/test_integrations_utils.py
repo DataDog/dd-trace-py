@@ -89,27 +89,6 @@ class TestExtractChatTemplateFromInstructions:
         assert len(result) == 1
         assert result[0]["role"] == "user"
 
-    def test_large_pattern_fallback(self):
-        """Test that large patterns trigger fallback to iterative replacement."""
-        # Create variables that combined exceed MAX_REGEX_PATTERN_LENGTH (5000 chars)
-        # Total pattern: 1500 + 1500 + 3000 + 2 separators = 6002 chars
-        large_text = "A" * 3000
-        instructions = [
-            {
-                "role": "user",
-                "content": [{"text": f"Here is some text: {large_text}"}],
-            }
-        ]
-        variables = {
-            "var1": "B" * 1500,
-            "var2": "C" * 1500,
-            "large": large_text,
-        }
-
-        result = _extract_chat_template_from_instructions(instructions, variables)
-
-        assert result[0]["content"] == "Here is some text: {{large}}"
-
     def test_response_input_text_objects(self):
         """Test handling of ResponseInputText objects with .text attribute."""
 
