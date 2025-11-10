@@ -30,18 +30,8 @@ inline void sigprof_handler([[maybe_unused]] int signum)
 }
 
 // ----------------------------------------------------------------------------
-inline void sigquit_handler([[maybe_unused]] int signum)
-{
-    // Wake up the where thread
-    std::lock_guard<std::mutex> lock(where_lock);
-    where_cv.notify_one();
-}
-
-// ----------------------------------------------------------------------------
 inline void install_signals()
 {
-    signal(SIGQUIT, sigquit_handler);
-
     if (native)
         signal(SIGPROF, sigprof_handler);
 }
