@@ -1439,33 +1439,12 @@ def call_program(*args, **kwargs):
 
 def request_token(request):
     # type: (pytest.FixtureRequest) -> str
-    """Generate a token string from a pytest request.
-
-    Uses the original test name (before Python version suffix was added).
-    Works with both pytest >= 7.1.0 (using stash) and older versions (using attributes).
-
-    Args:
-        request: The pytest FixtureRequest object
-
-    Returns:
-        A token string in the format "module.class.test_name"
-    """
-    from tests.conftest import StashKey
-    from tests.conftest import original_test_name_key
+    from tests.conftest import get_original_test_name
 
     token = ""
     token += request.module.__name__
     token += ".%s" % request.cls.__name__ if request.cls else ""
-
-    # Get the original test name (before Python version suffix was added)
-    if StashKey:
-        # pytest >= 7.1.0: use stash
-        test_name = request.node.stash.get(original_test_name_key, request.node.name)
-    else:
-        # pytest < 7.1.0: use attribute
-        test_name = getattr(request.node, original_test_name_key, request.node.name)
-
-    token += ".%s" % test_name
+    token += ".%s" % get_original_test_name(request)
     return token
 
 
