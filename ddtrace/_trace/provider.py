@@ -1,5 +1,6 @@
 import abc
 import contextvars
+from threading import RLock
 from typing import Any
 from typing import Optional
 from typing import Union
@@ -29,6 +30,13 @@ class BaseContextProvider(metaclass=abc.ABCMeta):
     * the ``activate`` method, that sets the current active ``Context``
     """
 
+<<<<<<< Updated upstream
+=======
+    def __init__(self) -> None:
+        self._hooks = Hooks()
+        self._activation_lock: RLock = RLock()
+
+>>>>>>> Stashed changes
     @abc.abstractmethod
     def _has_active_context(self) -> bool:
         pass
@@ -81,17 +89,25 @@ class DefaultContextProvider(BaseContextProvider):
     def _update_active(self, span: Span) -> Optional[ActiveTrace]:
         """Updates the active trace in an executor.
 
-        When a span finishes, the active span becomes its parent.
+        When a span finishes, its parent becomes the active span.
         If no parent exists and the context is reactivatable, that context is restored.
+
+        Locking is necessary to avoid the following:
+        1. thread X: new_active is decided as span C, child of span B
+        2. thread Y: span B finishes, new_active decided as parent span A
+        3. thread Y: activate(span A), contextvar set
+        4. thread Y: span B garbage collected
+        5. thread X: activate(span B), contextvar set, segfault
         """
-        new_active: Optional[Span] = span
-        # PERF: Avoid checking if the span is finished more than once per span.
-        # PERF: By-pass Span.finished which is a computed property to avoid the function call overhead
-        while new_active and new_active.duration_ns is not None:
-            if new_active._parent is None and new_active._parent_context and new_active._parent_context._reactivate:
-                self.activate(new_active._parent_context)
-                return new_active._parent_context
-            new_active = new_active._parent
-        if new_active is not span:
-            self.activate(new_active)
-        return new_active
+        with self._activation_lock:
+            new_active: Optional[Span] = span
+            # PERF: Avoid checking if the span is finished more than once per span.
+            # PERF: By-pass Span.finished which is a computed property to avoid the function call overhead
+            while new_active and new_active.duration_ns is not None:
+                if new_active._parent is None and new_active._parent_context and new_active._parent_context._reactivate:
+                    self.activate(new_active._parent_context)
+                    return new_active._parent_context
+                new_active = new_active._parent
+            if new_active is not span:
+                self.activate(new_active)
+            return new_active
