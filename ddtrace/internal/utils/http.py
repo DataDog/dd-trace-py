@@ -320,11 +320,14 @@ def verify_url(url: str) -> parse.ParseResult:
 
 _HTML_BLOCKED_TEMPLATE_CACHE = None  # type: Optional[str]
 _JSON_BLOCKED_TEMPLATE_CACHE = None  # type: Optional[str]
+_RESPONSE_ID_TEMPLATE = "[security_response_id]"
 
 
-def _get_blocked_template(accept_header_value):
-    # type: (str) -> str
+def _format_template(template: str, security_response_id: str) -> str:
+    return template.replace(_RESPONSE_ID_TEMPLATE, security_response_id)
 
+
+def _get_blocked_template(accept_header_value: str, security_response_id: str) -> str:
     global _HTML_BLOCKED_TEMPLATE_CACHE
     global _JSON_BLOCKED_TEMPLATE_CACHE
 
@@ -334,10 +337,10 @@ def _get_blocked_template(accept_header_value):
         need_html_template = True
 
     if need_html_template and _HTML_BLOCKED_TEMPLATE_CACHE:
-        return _HTML_BLOCKED_TEMPLATE_CACHE
+        return _format_template(_HTML_BLOCKED_TEMPLATE_CACHE, security_response_id)
 
     if not need_html_template and _JSON_BLOCKED_TEMPLATE_CACHE:
-        return _JSON_BLOCKED_TEMPLATE_CACHE
+        return _format_template(_JSON_BLOCKED_TEMPLATE_CACHE, security_response_id)
 
     if need_html_template:
         template_path = os.getenv("DD_APPSEC_HTTP_BLOCKED_TEMPLATE_HTML")
@@ -353,17 +356,17 @@ def _get_blocked_template(accept_header_value):
                 _HTML_BLOCKED_TEMPLATE_CACHE = content
             else:
                 _JSON_BLOCKED_TEMPLATE_CACHE = content
-            return content
+            return _format_template(content, security_response_id)
         except (OSError, IOError) as e:  # noqa: B014
             log.warning("Could not load custom template at %s: %s", template_path, str(e))
 
     # No user-defined template at this point
     if need_html_template:
         _HTML_BLOCKED_TEMPLATE_CACHE = BLOCKED_RESPONSE_HTML
-        return BLOCKED_RESPONSE_HTML
+        return _format_template(_HTML_BLOCKED_TEMPLATE_CACHE, security_response_id)
 
     _JSON_BLOCKED_TEMPLATE_CACHE = BLOCKED_RESPONSE_JSON
-    return BLOCKED_RESPONSE_JSON
+    return _format_template(_JSON_BLOCKED_TEMPLATE_CACHE, security_response_id)
 
 
 def parse_form_params(body: str) -> Dict[str, Union[str, List[str]]]:

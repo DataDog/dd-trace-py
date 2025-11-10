@@ -10,7 +10,7 @@ from typing import Optional
 from typing import Tuple
 from typing import Union
 
-import lz4.frame
+import zstandard as zstd
 
 from tests.profiling.collector.lock_utils import LineNo
 
@@ -145,8 +145,9 @@ def parse_newest_profile(filename_prefix: str) -> pprof_pb2.Profile:
     # Sort files by creation timestamp (oldest first, newest last)
     files.sort(key=lambda f: os.path.getctime(f))
     filename = files[-1]
-    with lz4.frame.open(filename) as fp:
-        serialized_data = fp.read()
+    with open(filename, "rb") as fp:
+        dctx = zstd.ZstdDecompressor()
+        serialized_data = dctx.stream_reader(fp).read()
     profile = pprof_pb2.Profile()
     profile.ParseFromString(serialized_data)
     assert len(profile.sample) > 0, "No samples found in profile"
