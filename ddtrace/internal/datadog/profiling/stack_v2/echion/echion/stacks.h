@@ -12,11 +12,6 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#ifndef UNWIND_NATIVE_DISABLE
-#define UNW_LOCAL_ONLY
-#include <libunwind.h>
-#endif  // UNWIND_NATIVE_DISABLE
-
 #include <echion/config.h>
 #include <echion/frame.h>
 #include <echion/mojo.h>
@@ -69,33 +64,7 @@ private:
 // ----------------------------------------------------------------------------
 
 inline FrameStack python_stack;
-inline FrameStack native_stack;
 inline FrameStack interleaved_stack;
-
-// ----------------------------------------------------------------------------
-#ifndef UNWIND_NATIVE_DISABLE
-inline void unwind_native_stack()
-{
-    unw_cursor_t cursor;
-    unw_context_t context;
-
-    unw_getcontext(&context);
-    unw_init_local(&cursor, &context);
-
-    native_stack.clear();
-
-    while (unw_step(&cursor) > 0 && native_stack.size() < max_frames)
-    {
-        auto maybe_frame = Frame::get(cursor);
-        if (!maybe_frame)
-        {
-            break;
-        }
-
-        native_stack.push_back(*maybe_frame);
-    }
-}
-#endif  // UNWIND_NATIVE_DISABLE
 
 // ----------------------------------------------------------------------------
 static size_t unwind_frame(PyObject* frame_addr, FrameStack& stack)
@@ -244,75 +213,6 @@ static void unwind_python_stack_unsafe(PyThreadState* tstate, FrameStack& stack)
 static void unwind_python_stack(PyThreadState* tstate)
 {
     unwind_python_stack(tstate, python_stack);
-}
-
-// ----------------------------------------------------------------------------
-static Result<void> interleave_stacks(FrameStack& cur_python_stack)
-{
-    interleaved_stack.clear();
-
-    auto p = cur_python_stack.rbegin();
-    // The last two frames are usually the signal trampoline and the signal
-    // handler. We skip them.
-    for (auto n = native_stack.rbegin(); n != native_stack.rend() - 2; ++n)
-    {
-        auto native_frame = *n;
-
-        auto maybe_name = string_table.lookup(native_frame.get().name);
-        if (!maybe_name)
-        {
-            return ErrorKind::LookupError;
-        }
-
-        const auto& name = maybe_name->get();
-        if (name.find("PyEval_EvalFrameDefault") != std::string::npos)
-        {
-            if (p == cur_python_stack.rend())
-            {
-                // We expected a Python frame but we found none, so we report
-                // the native frame instead.
-                std::cerr << "Expected Python frame(s), found none!" << std::endl;
-                interleaved_stack.push_front(native_frame);
-            }
-            else
-            {
-                // We skip the PyEval_EvalFrameDefault frame because it is the
-                // function that calls the Python code.
-#if PY_VERSION_HEX >= 0x030b0000
-                int cframe_count = 0;
-                while (p != cur_python_stack.rend())
-                {
-                    // The Python stack will start with an entry frame at the top.
-                    // We stop popping at the next entry frame.
-                    cframe_count += (*p).get().is_entry;
-                    if (cframe_count >= 2)
-                        break;
-
-                    interleaved_stack.push_front(*p++);
-                }
-#else
-                interleaved_stack.push_front(*p++);
-#endif
-            }
-        }
-        else
-            interleaved_stack.push_front(native_frame);
-    }
-
-    if (p != cur_python_stack.rend())
-    {
-        std::cerr << "Python stack not empty after interleaving!" << std::endl;
-        while (p != python_stack.rend())
-            interleaved_stack.push_front(*p++);
-    }
-
-    return Result<void>::ok();
-}
-
-// ----------------------------------------------------------------------------
-static Result<void> interleave_stacks()
-{
-    return interleave_stacks(python_stack);
 }
 
 // ----------------------------------------------------------------------------

@@ -24,7 +24,6 @@
 #include <echion/greenlets.h>
 #include <echion/interp.h>
 #include <echion/render.h>
-#include <echion/signals.h>
 #include <echion/stacks.h>
 #include <echion/tasks.h>
 #include <echion/timing.h>
@@ -191,45 +190,20 @@ inline std::mutex thread_info_map_lock;
 // ----------------------------------------------------------------------------
 inline void ThreadInfo::unwind(PyThreadState* tstate)
 {
-    if (native)
+    unwind_python_stack(tstate);
+    if (asyncio_loop)
     {
-        // Lock on the signal handler. Will get unlocked once the handler is
-        // done unwinding the native stack.
-        const std::lock_guard<std::mutex> guard(sigprof_handler_lock);
-
-        // Pass the current thread state to the signal handler. This is needed
-        // to unwind the Python stack from within it.
-        current_tstate = tstate;
-
-        // Send a signal to the thread to unwind its native stack.
-#if defined PL_DARWIN
-        pthread_kill(reinterpret_cast<pthread_t>(tstate->thread_id), SIGPROF);
-#else
-        pthread_kill(static_cast<pthread_t>(tstate->thread_id), SIGPROF);
-#endif
-
-        // Lock to wait for the signal handler to finish unwinding the native
-        // stack. Release the lock immediately after so that it is available
-        // for the next thread.
-        sigprof_handler_lock.lock();
-    }
-    else
-    {
-        unwind_python_stack(tstate);
-        if (asyncio_loop)
+        auto unwind_tasks_success = unwind_tasks();
+        if (!unwind_tasks_success)
         {
-            auto unwind_tasks_success = unwind_tasks();
-            if (!unwind_tasks_success)
-            {
-                // If we fail, that's OK
-            }
+            // If we fail, that's OK
         }
-
-        // We make the assumption that gevent and asyncio are not mixed
-        // together to keep the logic here simple. We can always revisit this
-        // should there be a substantial demand for it.
-        unwind_greenlets(tstate, native_id);
     }
+
+    // We make the assumption that gevent and asyncio are not mixed
+    // together to keep the logic here simple. We can always revisit this
+    // should there be a substantial demand for it.
+    unwind_greenlets(tstate, native_id);
 }
 
 // ----------------------------------------------------------------------------
@@ -471,17 +445,7 @@ inline Result<void> ThreadInfo::sample(int64_t iid, PyThreadState* tstate, micro
             // Print the PID and thread name
             Renderer::get().render_stack_begin(pid, iid, name);
             // Print the stack
-            if (native)
-            {
-                if (!interleave_stacks())
-                {
-                    return ErrorKind::ThreadInfoError;
-                }
-
-                interleaved_stack.render();
-            }
-            else
-                python_stack.render();
+            python_stack.render();
 
             Renderer::get().render_stack_end(MetricType::Time, delta);
         }
@@ -499,19 +463,8 @@ inline Result<void> ThreadInfo::sample(int64_t iid, PyThreadState* tstate, micro
             const auto& task_name = maybe_task_name->get();
             Renderer::get().render_task_begin(task_name, task_stack_info->on_cpu);
             Renderer::get().render_stack_begin(pid, iid, name);
-            if (native)
-            {
-                // NOTE: These stacks might be non-sensical, especially with
-                // Python < 3.11.
-                if (!interleave_stacks(task_stack_info->stack))
-                {
-                    return ErrorKind::ThreadInfoError;
-                }
-
-                interleaved_stack.render();
-            }
-            else
-                task_stack_info->stack.render();
+            
+            task_stack_info->stack.render();
 
             Renderer::get().render_stack_end(MetricType::Time, delta);
         }
@@ -535,19 +488,7 @@ inline Result<void> ThreadInfo::sample(int64_t iid, PyThreadState* tstate, micro
             Renderer::get().render_stack_begin(pid, iid, name);
 
             auto& stack = greenlet_stack->stack;
-            if (native)
-            {
-                // NOTE: These stacks might be non-sensical, especially with
-                // Python < 3.11.
-                if (!interleave_stacks(stack))
-                {
-                    return ErrorKind::ThreadInfoError;
-                }
-
-                interleaved_stack.render();
-            }
-            else
-                stack.render();
+            stack.render();
 
             Renderer::get().render_stack_end(MetricType::Time, delta);
         }

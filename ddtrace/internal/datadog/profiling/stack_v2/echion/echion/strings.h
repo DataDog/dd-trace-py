@@ -11,13 +11,6 @@
 #include <cstdint>
 #include <string>
 
-#ifndef UNWIND_NATIVE_DISABLE
-#include <cxxabi.h>
-#define UNW_LOCAL_ONLY
-#include <libunwind.h>
-#endif  // UNWIND_NATIVE_DISABLE
-
-
 #include <echion/long.h>
 #include <echion/render.h>
 #include <echion/vm.h>
@@ -152,66 +145,6 @@ public:
 
         return k;
     };
-
-#ifndef UNWIND_NATIVE_DISABLE
-    // Native filename by program counter
-    [[nodiscard]] inline Key key(unw_word_t pc)
-    {
-        const std::lock_guard<std::mutex> lock(table_lock);
-
-        auto k = static_cast<Key>(pc);
-
-        if (this->find(k) == this->end())
-        {
-            char buffer[32] = {0};
-            std::snprintf(buffer, 32, "native@%p", reinterpret_cast<void*>(k));
-            this->emplace(k, buffer);
-            Renderer::get().string(k, buffer);
-        }
-
-        return k;
-    }
-
-    // Native scope name by unwinding cursor
-    [[nodiscard]] inline Result<Key> key(unw_cursor_t& cursor)
-    {
-        const std::lock_guard<std::mutex> lock(table_lock);
-
-        unw_proc_info_t pi;
-        if ((unw_get_proc_info(&cursor, &pi)))
-            return ErrorKind::UnwindError;
-
-        auto k = reinterpret_cast<Key>(pi.start_ip);
-
-        if (this->find(k) == this->end())
-        {
-            unw_word_t offset;  // Ignored. All the information is in the PC anyway.
-            char sym[256];
-            if (unw_get_proc_name(&cursor, sym, sizeof(sym), &offset))
-                return ErrorKind::UnwindError;
-
-            char* name = sym;
-
-            // Try to demangle C++ names
-            char* demangled = NULL;
-            if (name[0] == '_' && name[1] == 'Z')
-            {
-                int status;
-                demangled = abi::__cxa_demangle(name, NULL, NULL, &status);
-                if (status == 0)
-                    name = demangled;
-            }
-
-            this->emplace(k, name);
-            Renderer::get().string(k, name);
-
-            if (demangled)
-                std::free(demangled);
-        }
-
-        return Result<Key>(k);
-    }
-#endif  // UNWIND_NATIVE_DISABLE
 
     [[nodiscard]] inline Result<std::reference_wrapper<std::string>> lookup(Key key)
     {
