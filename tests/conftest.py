@@ -30,7 +30,6 @@ from urllib import parse
 import warnings
 
 import pytest
-from pytest import StashKey
 
 import ddtrace
 from ddtrace._trace.provider import _DD_CONTEXTVAR
@@ -48,15 +47,21 @@ from tests.utils import call_program
 from tests.utils import request_token
 from tests.utils import snapshot_context as _snapshot_context
 
+try:
+    from pytest import StashKey
+except ImportError:
+    StashKey = None
+
 
 code_to_pyc = getattr(importlib._bootstrap_external, "_code_to_timestamp_pyc")
 
 
 DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME = "ddtrace_subprocess_dir"
 
-# Stash keys for storing original test name and nodeid before Python version suffix is added
-original_test_name_key = StashKey[str]()
-original_test_nodeid_key = StashKey[str]()
+if StashKey:
+    # Stash keys for storing original test name and nodeid before Python version suffix is added
+    original_test_name_key = StashKey[str]()
+    original_test_nodeid_key = StashKey[str]()
 
 
 def get_original_test_name(request_or_item):
@@ -75,6 +80,12 @@ def get_original_test_name(request_or_item):
         # It's an Item
         item = request_or_item
 
+    if not StashKey:
+        if item.name.endswith(("[py3.8]", "[py3.9]")):
+            return item.name[:-7]
+        elif item.name.endswith(("[py3.10]", "[py3.11]", "[py3.12]", "[py3.13]", "[py3.14]")):
+            return item.name[:-8]
+        return item.name
     return item.stash.get(original_test_name_key, item.name)
 
 
@@ -444,9 +455,10 @@ def pytest_collection_modifyitems(session, config, items):
             unskippable = pytest.mark.skipif(False, reason="datadog_itr_unskippable")
             item.add_marker(unskippable)
 
-        # Store original name and nodeid in stash before modification
-        item.stash[original_test_name_key] = item.name
-        item.stash[original_test_nodeid_key] = item.nodeid
+        if StashKey:
+            # Store original name and nodeid in stash before modification
+            item.stash[original_test_name_key] = item.name
+            item.stash[original_test_nodeid_key] = item.nodeid
 
         name_base = item.name
         nodeid_base = item.nodeid
