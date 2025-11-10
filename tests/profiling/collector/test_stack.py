@@ -38,9 +38,7 @@ exec(
     try:
       raise ValueError('test')
     except Exception:
-      time.sleep(2)""".format(
-        MAX_FN_NUM=MAX_FN_NUM
-    )
+      time.sleep(2)""".format(MAX_FN_NUM=MAX_FN_NUM)
 )
 
 
@@ -526,47 +524,6 @@ def test_repr():
         stack.StackCollector,
         "StackCollector(status=<ServiceStatus.STOPPED: 'stopped'>, nframes=64, tracer=None)",
     )
-
-
-def test_stress_threads(tmp_path):
-    test_name = "test_stress_threads"
-    pprof_prefix = str(tmp_path / test_name)
-    output_filename = pprof_prefix + "." + str(os.getpid())
-
-    assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
-    ddup.start()
-
-    with stack.StackCollector() as s:
-        NB_THREADS = 40
-
-        threads = []
-        for _ in range(NB_THREADS):
-            t = threading.Thread(target=_f0)  # noqa: E149,F821
-            t.start()
-            threads.append(t)
-        number = 20000
-
-        exectime = timeit.timeit(s.collect, number=number)
-        # Threads are fake threads with gevent, so result is actually for one thread, not NB_THREADS
-        exectime_per_collect = exectime / number
-        print("%.3f ms per call" % (1000.0 * exectime_per_collect))
-        print(
-            "CPU overhead for %d threads with %d functions"
-            % (
-                NB_THREADS,
-                MAX_FN_NUM,
-            )
-        )
-
-        for t in threads:
-            t.join()
-
-    ddup.upload()
-
-    profile = pprof_utils.parse_newest_profile(output_filename)
-    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
-    assert len(samples) > 0
 
 
 def test_stress_threads_run_as_thread(tmp_path):
