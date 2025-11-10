@@ -271,7 +271,7 @@ venv = Venv(
                 ),
                 Venv(
                     pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
-                    pkgs={"django": "==4.0.10"},
+                    pkgs={"django": "==4.0.10", "legacy-cgi": latest},
                 ),
                 Venv(
                     pys=["3.13"],
