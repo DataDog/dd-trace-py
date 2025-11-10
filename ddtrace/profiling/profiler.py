@@ -191,11 +191,7 @@ class _ProfilerInstance(service.Service):
         if self._stack_collector_enabled:
             LOG.debug("Profiling collector (stack) enabled")
             try:
-                self._collectors.append(
-                    stack.StackCollector(
-                        tracer=self.tracer,
-                    )
-                )
+                self._collectors.append(stack.StackCollector(tracer=self.tracer))
                 LOG.debug("Profiling collector (stack) initialized")
             except Exception:
                 LOG.error("Failed to start stack collector, disabling.", exc_info=True)
@@ -262,9 +258,7 @@ class _ProfilerInstance(service.Service):
 
         self._build_default_exporters()
 
-        scheduler_class = (
-            scheduler.ServerlessScheduler if self._lambda_function_name else scheduler.Scheduler
-        )  # type: (Type[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]])
+        scheduler_class = scheduler.ServerlessScheduler if self._lambda_function_name else scheduler.Scheduler  # type: (Type[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]])
 
         self._scheduler = scheduler_class(
             before_flush=self._collectors_snapshot,

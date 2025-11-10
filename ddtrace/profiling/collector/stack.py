@@ -58,13 +58,11 @@ class StackCollector(collector.Collector):
         # This is split in its own function to ease testing
         LOG.debug("Profiling StackCollector starting")
         self._init()
-        super(StackCollector, self)._start_service()
         LOG.debug("Profiling StackCollector started")
 
     def _stop_service(self):
         # type: (...) -> None
         LOG.debug("Profiling StackCollector stopping")
-        super(StackCollector, self)._stop_service()
         if self.tracer is not None:
             link_span = stack_v2.link_span
             core.reset_listeners("ddtrace.context_provider.activate", link_span)
@@ -72,6 +70,3 @@ class StackCollector(collector.Collector):
 
         # Also tell the native thread running the v2 sampler to stop, if needed
         stack_v2.stop()
-
-    def collect(self):
-        return []
