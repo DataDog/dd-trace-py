@@ -656,7 +656,8 @@ def test_exception_collection_trace(tmp_path, tracer):
 # if you don't need to check the output profile, you can use this fixture
 @pytest.fixture
 def tracer_and_collector(tracer, request, tmp_path):
-    test_name = request.node.name
+    from tests.conftest import _strip_python_version_suffix
+    test_name = _strip_python_version_suffix(request.node.name)
     pprof_prefix = str(tmp_path / test_name)
 
     assert ddup.is_available
@@ -785,7 +786,8 @@ def test_collect_span_id(tracer, tmp_path):
 
 
 def test_collect_span_resource_after_finish(tracer, tmp_path, request):
-    test_name = request.node.name
+    from tests.conftest import _strip_python_version_suffix
+    test_name = _strip_python_version_suffix(request.node.name)
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
 
@@ -861,7 +863,8 @@ def test_resource_not_collected(tmp_path, tracer):
 
 
 def test_collect_nested_span_id(tmp_path, tracer, request):
-    test_name = request.node.name
+    from tests.conftest import _strip_python_version_suffix
+    test_name = _strip_python_version_suffix(request.node.name)
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
 

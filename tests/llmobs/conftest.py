@@ -11,6 +11,7 @@ import pytest
 
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
+from tests.conftest import _strip_python_version_suffix
 from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.llmobs._utils import logs_vcr
 from tests.utils import DummyTracer
@@ -25,7 +26,10 @@ def vcr_logs(request):
     assert len(marks) < 2
     if marks:
         mark = marks[0]
-        cass = mark.kwargs.get("cassette", request_token(request).replace(" ", "_").replace(os.path.sep, "_"))
+        token = request_token(request).replace(" ", "_").replace(os.path.sep, "_")
+        # Strip the Python version suffix added by pytest_collection_modifyitems
+        token = _strip_python_version_suffix(token)
+        cass = mark.kwargs.get("cassette", token)
         with logs_vcr.use_cassette("%s.yaml" % cass):
             yield
     else:

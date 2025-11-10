@@ -69,7 +69,8 @@ def test_dataset_records() -> List[DatasetRecord]:
 
 @pytest.fixture
 def test_dataset_name(request) -> str:
-    return f"test-dataset-{request.node.name}"
+    from tests.conftest import _strip_python_version_suffix
+    return f"test-dataset-{_strip_python_version_suffix(request.node.name)}"
 
 
 @pytest.fixture

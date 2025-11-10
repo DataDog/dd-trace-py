@@ -13,6 +13,7 @@ from os.path import split
 from os.path import splitext
 import platform
 import random
+import re
 import shutil
 import subprocess
 import sys
@@ -214,6 +215,29 @@ def ddtrace_run_python_code_in_subprocess(tmpdir):
     yield _run
 
 
+def _strip_python_version_suffix(token):
+    """Strip the Python version suffix added by pytest_collection_modifyitems from a token.
+
+    Examples:
+        test_name[py3.9] -> test_name
+        test_name[param1-py3.9] -> test_name[param1]
+        test_name -> test_name
+    """
+    # Pattern to match -pyX.Y] or [pyX.Y] at the end of the token
+    # This handles both cases:
+    # - test_name[param1-py3.9] -> test_name[param1]
+    # - test_name[py3.9] -> test_name
+    pattern = r"-py\d+\.\d+\]$"
+    if re.search(pattern, token):
+        return re.sub(pattern, "]", token)
+
+    pattern = r"\[py\d+\.\d+\]$"
+    if re.search(pattern, token):
+        return re.sub(pattern, "", token)
+
+    return token
+
+
 @pytest.fixture(autouse=True)
 def snapshot(request):
     marks = [m for m in request.node.iter_markers(name="snapshot")]
@@ -224,6 +248,8 @@ def snapshot(request):
             del snap.kwargs["token"]
         else:
             token = request_token(request).replace(" ", "_").replace(os.path.sep, "_")
+            # Strip the Python version suffix added by pytest_collection_modifyitems
+            token = _strip_python_version_suffix(token)
 
         mgr = _snapshot_context(token, *snap.args, **snap.kwargs)
         snapshot = mgr.__enter__()
@@ -246,6 +272,8 @@ def snapshot_context(request):
             # my code
     """
     token = request_token(request)
+    # Strip the Python version suffix added by pytest_collection_modifyitems
+    token = _strip_python_version_suffix(token)
 
     @contextlib.contextmanager
     def _snapshot(**kwargs):
@@ -701,7 +729,9 @@ class TelemetryTestSession(object):
 @pytest.fixture
 def test_agent_session(telemetry_writer, request):
     # type: (TelemetryWriter, Any) -> Generator[TelemetryTestSession, None, None]
-    token = request_token(request) + "".join(random.choices("abcdefghijklmnopqrstuvwxyz", k=32))
+    token = _strip_python_version_suffix(request_token(request)) + "".join(
+        random.choices("abcdefghijklmnopqrstuvwxyz", k=32)
+    )
     telemetry_writer._restart_sequence()
     telemetry_writer._client._headers["X-Datadog-Test-Session-Token"] = token
 
