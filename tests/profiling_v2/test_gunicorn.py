@@ -8,7 +8,7 @@ import urllib.request
 
 import pytest
 
-from tests.profiling.collector import pprof_utils
+from tests.profiling_v2.collector import pprof_utils
 
 
 # DEV: gunicorn tests are hard to debug, so keeping these print statements for
@@ -43,7 +43,7 @@ def _run_gunicorn(*args):
             os.path.dirname(__file__),
         ]
         + list(args)
-        + ["tests.profiling.gunicorn-app:app"]
+        + ["tests.profiling_v2.gunicorn-app:app"]
     )
     return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 

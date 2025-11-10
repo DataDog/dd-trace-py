@@ -9,7 +9,7 @@ import time
 import pytest
 
 from tests.contrib.uwsgi import run_uwsgi
-from tests.profiling.collector import pprof_utils
+from tests.profiling_v2.collector import pprof_utils
 
 
 # uwsgi is not available on Windows
@@ -22,7 +22,7 @@ THREADS_MSG = (
     b"number of threads must be set"
 )
 
-uwsgi_app = os.path.join(os.path.dirname(__file__), "..", "profiling", "uwsgi-app.py")
+uwsgi_app = os.path.join(os.path.dirname(__file__), "..", "profiling_v2", "uwsgi-app.py")
 
 
 @pytest.fixture

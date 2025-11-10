@@ -62,7 +62,6 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@profiling'
-      - tests/profiling/*
       - tests/profiling_v2/*
     services:
       - redis
