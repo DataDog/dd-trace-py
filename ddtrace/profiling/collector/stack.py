@@ -1,4 +1,5 @@
 """CPU profiling collector."""
+
 from __future__ import absolute_import
 
 import logging
@@ -23,14 +24,11 @@ class StackCollector(collector.Collector):
         "tracer",
     )
 
-    def __init__(self,
-                 nframes: int = config.max_frames,
-                 tracer: typing.Optional[Tracer] = None):
+    def __init__(self, nframes: int = config.max_frames, tracer: typing.Optional[Tracer] = None):
         super().__init__()
 
         self.nframes: int = nframes
         self.tracer: typing.Optional[Tracer] = tracer
-
 
     def __repr__(self):
         class_name = self.__class__.__name__
@@ -41,7 +39,6 @@ class StackCollector(collector.Collector):
         slot_attrs_str = ", ".join(f"{k}={v!r}" for k, v in slot_attrs.items())
 
         return f"{class_name}({attrs_str}, {slot_attrs_str})"
-
 
     def _init(self):
         # type: (...) -> None
