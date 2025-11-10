@@ -1,4 +1,3 @@
-from contextlib import contextmanager
 import os
 import secrets
 import tempfile
@@ -57,9 +56,7 @@ try:
     class WriteLock(BaseUnixLock):
         __acquire_mode__ = fcntl.LOCK_EX
 
-    @contextmanager
-    def open_file(path, mode):
-        yield unpatched_open(path, mode)
+    open_file = unpatched_open
 
 except ModuleNotFoundError:
     # Availability: Windows
@@ -78,7 +75,7 @@ except ModuleNotFoundError:
 
     ReadLock = WriteLock = BaseWinLock  # type: ignore
 
-    def open_file(path, mode):
+    def open_file(path, mode):  # type: ignore
         import _winapi
 
         # force all modes to be read/write binary
