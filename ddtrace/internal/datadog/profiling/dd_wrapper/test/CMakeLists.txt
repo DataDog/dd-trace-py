@@ -40,8 +40,8 @@ function(dd_wrapper_add_test name)
     add_ddup_config(${name})
     target_link_options(${name} PRIVATE -Wl,--no-as-needed)
 
-    # Test executable needs to find libdd_wrapper in parent directory
-    # Append to INSTALL_RPATH instead of replacing to preserve sanitizer library paths set by add_ddup_config
+    # Test executable needs to find libdd_wrapper in parent directory Append to INSTALL_RPATH instead of replacing to
+    # preserve sanitizer library paths set by add_ddup_config
     get_target_property(EXISTING_INSTALL_RPATH ${name} INSTALL_RPATH)
     if(EXISTING_INSTALL_RPATH)
         set_target_properties(${name} PROPERTIES INSTALL_RPATH "${EXISTING_INSTALL_RPATH};$ORIGIN/.."
