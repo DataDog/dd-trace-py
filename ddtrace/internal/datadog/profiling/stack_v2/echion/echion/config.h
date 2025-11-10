@@ -19,9 +19,6 @@ inline int cpu = 0;
 // Set this to false to unwind all threads.
 inline bool ignore_non_running_threads = true;
 
-// Memory events
-inline int memory = 0;
-
 // Native stack sampling
 inline int native = 0;
 
@@ -66,18 +63,6 @@ static PyObject* set_cpu(PyObject* Py_UNUSED(m), PyObject* args)
         return NULL;
 
     _set_cpu(new_cpu);
-
-    Py_RETURN_NONE;
-}
-
-// ----------------------------------------------------------------------------
-static PyObject* set_memory(PyObject* Py_UNUSED(m), PyObject* args)
-{
-    int new_memory;
-    if (!PyArg_ParseTuple(args, "p", &new_memory))
-        return NULL;
-
-    memory = new_memory;
 
     Py_RETURN_NONE;
 }

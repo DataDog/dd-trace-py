@@ -28,7 +28,6 @@
 #include <echion/config.h>
 #include <echion/greenlets.h>
 #include <echion/interp.h>
-#include <echion/memory.h>
 #include <echion/mojo.h>
 #include <echion/signals.h>
 #include <echion/stacks.h>
@@ -142,14 +141,7 @@ static inline void _start()
 
     Renderer::get().header();
 
-    if (memory)
-    {
-        Renderer::get().metadata("mode", "memory");
-    }
-    else
-    {
-        Renderer::get().metadata("mode", (cpu ? "cpu" : "wall"));
-    }
+    Renderer::get().metadata("mode", (cpu ? "cpu" : "wall"));
     Renderer::get().metadata("interval", std::to_string(interval));
     Renderer::get().metadata("sampler", "echion");
 
@@ -161,17 +153,11 @@ static inline void _start()
     Renderer::get().string(1, "<invalid>");
     Renderer::get().string(2, "<unknown>");
     Renderer::get().render_stack_end(MetricType::Time, 0);
-
-    if (memory)
-        setup_memory();
 }
 
 // ----------------------------------------------------------------------------
 static inline void _stop()
 {
-    if (memory)
-        teardown_memory();
-
     // Clean up the thread info map. When not running async, we need to guard
     // the map lock because we are not in control of the sampling thread.
     {
@@ -207,26 +193,17 @@ static inline void _sampler()
     {
         microsecond_t now = gettime();
         microsecond_t end_time = now + interval;
+        microsecond_t wall_time = now - last_time;
 
-        if (memory)
-        {
-            if (rss_tracker.check())
-                stack_stats.flush();
-        }
-        else
-        {
-            microsecond_t wall_time = now - last_time;
-
-            for_each_interp([=](InterpreterInfo& interp) -> void {
-                for_each_thread(interp, [=](PyThreadState* tstate, ThreadInfo& thread) {
-                    auto sample_success = thread.sample(interp.id, tstate, wall_time);
-                    if (!sample_success)
-                    {
-                        // Silently skip sampling this thread
-                    }
-                });
+        for_each_interp([=](InterpreterInfo& interp) -> void {
+            for_each_thread(interp, [=](PyThreadState* tstate, ThreadInfo& thread) {
+                auto sample_success = thread.sample(interp.id, tstate, wall_time);
+                if (!sample_success)
+                {
+                    // Silently skip sampling this thread
+                }
             });
-        }
+        });
 
         std::this_thread::sleep_for(std::chrono::microseconds(end_time - now));
         last_time = now;
@@ -528,7 +505,6 @@ static PyMethodDef echion_core_methods[] = {
     // Configuration interface
     {"set_interval", set_interval, METH_VARARGS, "Set the sampling interval"},
     {"set_cpu", set_cpu, METH_VARARGS, "Set whether to use CPU time instead of wall time"},
-    {"set_memory", set_memory, METH_VARARGS, "Set whether to sample memory usage"},
     {"set_native", set_native, METH_VARARGS, "Set whether to sample the native stacks"},
     {"set_where", set_where, METH_VARARGS, "Set whether to use where mode"},
     {"set_pipe_name", set_pipe_name, METH_VARARGS, "Set the pipe name"},
