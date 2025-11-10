@@ -26,6 +26,7 @@ from ddtrace.internal.native import DDSketch
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.trace import TraceFilter
 from ddtrace.trace import tracer as ddtracer
+from tests.conftest import get_original_test_name
 from tests.contrib.config import KAFKA_CONFIG
 from tests.datastreams.test_public_api import MockedTracer
 from tests.utils import DummyTracer
@@ -58,7 +59,7 @@ class KafkaConsumerPollFilter(TraceFilter):
 @pytest.fixture()
 def kafka_topic(request):
     # todo: add a UUID, but it makes snapshot tests fail.
-    topic_name = request.node.name.replace("[", "_").replace("]", "")
+    topic_name = get_original_test_name(request).replace("[", "_").replace("]", "")
 
     client = kafka_admin.AdminClient({"bootstrap.servers": BOOTSTRAP_SERVERS})
     for _, future in client.create_topics([kafka_admin.NewTopic(topic_name, 1, 1)]).items():
@@ -74,7 +75,7 @@ def empty_kafka_topic(request):
     """
     Deletes a kafka topic to clear message if it exists.
     """
-    topic_name = request.node.name.replace("[", "_").replace("]", "")
+    topic_name = get_original_test_name(request).replace("[", "_").replace("]", "")
     client = kafka_admin.AdminClient({"bootstrap.servers": BOOTSTRAP_SERVERS})
     for _, future in client.delete_topics([topic_name]).items():
         try:
