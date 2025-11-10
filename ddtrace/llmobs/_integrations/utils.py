@@ -746,6 +746,9 @@ def _extract_chat_template_from_instructions(
     """
     Extract a chat template from OpenAI response instructions by replacing variable values with placeholders.
 
+    Uses regex-based replacement for performance when patterns are small, but falls back to
+    iterative string replacement for large patterns to avoid regex performance issues.
+
     Args:
         instructions: List of instruction messages from the OpenAI response
         variables: Dictionary of variables used in the prompt
@@ -755,22 +758,32 @@ def _extract_chat_template_from_instructions(
     """
     chat_template = []
 
+    # Maximum regex pattern length (number of characters) before falling back to iterative replacement
+    MAX_REGEX_PATTERN_LENGTH = 5000
+
     # Create a mapping of variable values to placeholder names
     value_to_placeholder = {}
     for var_name, var_value in variables.items():
-        if hasattr(var_value, "text"):
+        if hasattr(var_value, "text"):  # ResponseInputText
             value_str = str(var_value.text)
         else:
             value_str = str(var_value)
-        
+
         # Skip empty values
         if not value_str:
             continue
-            
+
         value_to_placeholder[value_str] = "{{" + var_name + "}}"
 
+    # Sort by length (longest first) to handle overlapping values correctly
     sorted_values = sorted(value_to_placeholder.keys(), key=len, reverse=True)
-    pattern = "|".join(re.escape(v) for v in sorted_values) if sorted_values else None
+
+    total_pattern_length = (
+        sum(len(re.escape(v)) for v in sorted_values) + len(sorted_values) - 1
+    )  # -1 because n values need n-1 separators
+    use_regex = sorted_values and total_pattern_length < MAX_REGEX_PATTERN_LENGTH
+
+    pattern = "|".join(re.escape(v) for v in sorted_values) if use_regex else None
 
     for instruction in instructions:
         role = _get_attr(instruction, "role", "")
@@ -793,8 +806,13 @@ def _extract_chat_template_from_instructions(
 
         full_text = "".join(text_parts)
 
+        # Replace variable values with placeholders
         if pattern:
             full_text = re.sub(pattern, lambda m: value_to_placeholder[str(m.group(0))], full_text)
+        elif sorted_values:
+            for value_str in sorted_values:
+                placeholder = value_to_placeholder[value_str]
+                full_text = full_text.replace(value_str, placeholder)
 
         chat_template.append({"role": role, "content": full_text})
 
