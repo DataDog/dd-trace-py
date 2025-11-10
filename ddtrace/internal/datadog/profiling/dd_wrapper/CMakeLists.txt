@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.19)
 
-# Disable testing by default (can be overridden with -DBUILD_TESTING=ON) Use FORCE to override any cached values
+# Disable testing by default (can be overridden with -DBUILD_TESTING=ON) Don't use FORCE to allow command-line overrides
 if(NOT DEFINED BUILD_TESTING)
     set(BUILD_TESTING
         OFF
-        CACHE BOOL "Build the testing tree" FORCE)
+        CACHE BOOL "Build the testing tree")
 endif()
 
 project(
