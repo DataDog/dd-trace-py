@@ -36,74 +36,6 @@
 #include <echion/timing.h>
 
 // ----------------------------------------------------------------------------
-static void do_where(std::ostream& stream)
-{
-    WhereRenderer::get().set_output(stream);
-    WhereRenderer::get().render_message("\r🐴 Echion reporting for duty");
-    WhereRenderer::get().render_message("");
-
-    for_each_interp([](InterpreterInfo& interp) -> void {
-        for_each_thread(interp, [](PyThreadState* tstate, ThreadInfo& thread) -> void {
-            thread.unwind(tstate);
-            WhereRenderer::get().render_thread_begin(tstate, thread.name, /*cpu_time*/ 0,
-                                                     tstate->thread_id, thread.native_id);
-
-            if (native)
-            {
-                auto interleave_success = interleave_stacks();
-                if (!interleave_success)
-                {
-                    std::cerr << "could not interleave stacks" << std::endl;
-                    return;
-                }
-
-                interleaved_stack.render_where();
-            }
-            else
-                python_stack.render_where();
-            WhereRenderer::get().render_message("");
-        });
-    });
-}
-
-// ----------------------------------------------------------------------------
-static void where_listener()
-{
-    for (;;)
-    {
-        std::unique_lock<std::mutex> lock(where_lock);
-        where_cv.wait(lock);
-
-        if (!running)
-            break;
-
-        do_where(std::cerr);
-    }
-}
-
-// ----------------------------------------------------------------------------
-static void setup_where()
-{
-    where_thread = new std::thread(where_listener);
-}
-
-static void teardown_where()
-{
-    if (where_thread != nullptr)
-    {
-        {
-            std::lock_guard<std::mutex> lock(where_lock);
-
-            where_cv.notify_one();
-        }
-
-        where_thread->join();
-
-        where_thread = nullptr;
-    }
-}
-
-// ----------------------------------------------------------------------------
 static inline void _start()
 {
     init_frame_cache(CACHE_MAX_ENTRIES * (1 + native));
@@ -121,23 +53,6 @@ static inline void _start()
     // Get the wall time clock resource.
     host_get_clock_service(mach_host_self(), CALENDAR_CLOCK, &cclock);
 #endif
-
-    if (where)
-    {
-        std::ofstream pipe(pipe_name, std::ios::out);
-
-        if (pipe)
-            do_where(pipe);
-
-        else
-            std::cerr << "Failed to open pipe " << pipe_name << std::endl;
-
-        running = 0;
-
-        return;
-    }
-
-    setup_where();
 
     Renderer::get().header();
 
@@ -166,8 +81,6 @@ static inline void _stop()
         thread_info_map.clear();
         string_table.clear();
     }
-
-    teardown_where();
 
 #if defined PL_DARWIN
     mach_port_deallocate(mach_task_self(), cclock);
@@ -506,8 +419,6 @@ static PyMethodDef echion_core_methods[] = {
     {"set_interval", set_interval, METH_VARARGS, "Set the sampling interval"},
     {"set_cpu", set_cpu, METH_VARARGS, "Set whether to use CPU time instead of wall time"},
     {"set_native", set_native, METH_VARARGS, "Set whether to sample the native stacks"},
-    {"set_where", set_where, METH_VARARGS, "Set whether to use where mode"},
-    {"set_pipe_name", set_pipe_name, METH_VARARGS, "Set the pipe name"},
     {"set_max_frames", set_max_frames, METH_VARARGS, "Set the max number of frames to unwind"},
     // Sentinel
     {NULL, NULL, 0, NULL}};
