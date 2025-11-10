@@ -17,7 +17,7 @@
 #if PY_VERSION_HEX >= 0x030d0000
 #define Py_BUILD_CORE
 #include <internal/pycore_code.h>
-#endif  // PY_VERSION_HEX >= 0x030d0000
+#endif // PY_VERSION_HEX >= 0x030d0000
 #if PY_VERSION_HEX >= 0x030b0000
 #define Py_BUILD_CORE
 #include <internal/pycore_frame.h>
@@ -28,24 +28,18 @@
 #include <cstring>
 #include <functional>
 
-#ifndef UNWIND_NATIVE_DISABLE
-#include <cxxabi.h>
-#define UNW_LOCAL_ONLY
-#include <libunwind.h>
-#endif  // UNWIND_NATIVE_DISABLE
-
 #include <echion/cache.h>
 #include <echion/mojo.h>
 #if PY_VERSION_HEX >= 0x030b0000
 #include <echion/stack_chunk.h>
-#endif  // PY_VERSION_HEX >= 0x030b0000
+#endif // PY_VERSION_HEX >= 0x030b0000
 #include <echion/strings.h>
 #include <echion/vm.h>
 
 // ----------------------------------------------------------------------------
 class Frame
 {
-public:
+  public:
     using Ref = std::reference_wrapper<Frame>;
     using Ptr = std::unique_ptr<Frame>;
     using Key = uintptr_t;
@@ -68,31 +62,28 @@ public:
 #endif
 
     // ------------------------------------------------------------------------
-    Frame(StringTable::Key filename, StringTable::Key name) : filename(filename), name(name) {}
-    Frame(StringTable::Key name) : name(name) {};
+    Frame(StringTable::Key filename, StringTable::Key name)
+      : filename(filename)
+      , name(name)
+    {
+    }
+    Frame(StringTable::Key name)
+      : name(name) {};
     Frame(PyObject* frame);
     [[nodiscard]] static Result<Frame::Ptr> create(PyCodeObject* code, int lasti);
-#ifndef UNWIND_NATIVE_DISABLE
-    [[nodiscard]] static Result<Frame::Ptr> create(unw_cursor_t& cursor, unw_word_t pc);
-#endif  // UNWIND_NATIVE_DISABLE
 
 #if PY_VERSION_HEX >= 0x030b0000
-    [[nodiscard]] static Result<std::reference_wrapper<Frame>> read(
-        _PyInterpreterFrame* frame_addr, _PyInterpreterFrame** prev_addr);
+    [[nodiscard]] static Result<std::reference_wrapper<Frame>> read(_PyInterpreterFrame* frame_addr,
+                                                                    _PyInterpreterFrame** prev_addr);
 #else
-    [[nodiscard]] static Result<std::reference_wrapper<Frame>> read(PyObject* frame_addr,
-                                                                    PyObject** prev_addr);
+    [[nodiscard]] static Result<std::reference_wrapper<Frame>> read(PyObject* frame_addr, PyObject** prev_addr);
 #endif
 
-    [[nodiscard]] static Result<std::reference_wrapper<Frame>> get(PyCodeObject* code_addr,
-                                                                   int lasti);
+    [[nodiscard]] static Result<std::reference_wrapper<Frame>> get(PyCodeObject* code_addr, int lasti);
     static Frame& get(PyObject* frame);
-#ifndef UNWIND_NATIVE_DISABLE
-    [[nodiscard]] static Result<std::reference_wrapper<Frame>> get(unw_cursor_t& cursor);
-#endif  // UNWIND_NATIVE_DISABLE
     static Frame& get(StringTable::Key name);
 
-private:
+  private:
     [[nodiscard]] Result<void> inline infer_location(PyCodeObject* code, int lasti);
     static inline Key key(PyCodeObject* code, int lasti);
     static inline Key key(PyObject* frame);
@@ -105,5 +96,7 @@ inline auto C_FRAME = Frame(StringTable::C_FRAME);
 // We make this a raw pointer to prevent its destruction on exit, since we
 // control the lifetime of the cache.
 inline LRUCache<uintptr_t, Frame>* frame_cache = nullptr;
-void init_frame_cache(size_t capacity);
-void reset_frame_cache();
+void
+init_frame_cache(size_t capacity);
+void
+reset_frame_cache();

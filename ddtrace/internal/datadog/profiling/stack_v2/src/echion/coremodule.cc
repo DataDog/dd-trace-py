@@ -9,9 +9,6 @@
 #undef _PyGC_FINALIZED
 #endif
 
-#include <condition_variable>
-#include <fstream>
-#include <iostream>
 #include <mutex>
 #include <thread>
 
@@ -29,7 +26,6 @@
 #include <echion/greenlets.h>
 #include <echion/interp.h>
 #include <echion/mojo.h>
-#include <echion/signals.h>
 #include <echion/stacks.h>
 #include <echion/state.h>
 #include <echion/threads.h>
@@ -38,7 +34,7 @@
 // ----------------------------------------------------------------------------
 static inline void _start()
 {
-    init_frame_cache(CACHE_MAX_ENTRIES * (1 + native));
+    init_frame_cache(CACHE_MAX_ENTRIES);
 
     auto open_success = Renderer::get().open();
     if (!open_success)
@@ -46,8 +42,6 @@ static inline void _start()
         PyErr_SetString(PyExc_RuntimeError, "Failed to open renderer");
         return;
     }
-
-    install_signals();
 
 #if defined PL_DARWIN
     // Get the wall time clock resource.
@@ -85,8 +79,6 @@ static inline void _stop()
 #if defined PL_DARWIN
     mach_port_deallocate(mach_task_self(), cclock);
 #endif
-
-    restore_signals();
 
     Renderer::get().close();
 
@@ -418,7 +410,6 @@ static PyMethodDef echion_core_methods[] = {
     // Configuration interface
     {"set_interval", set_interval, METH_VARARGS, "Set the sampling interval"},
     {"set_cpu", set_cpu, METH_VARARGS, "Set whether to use CPU time instead of wall time"},
-    {"set_native", set_native, METH_VARARGS, "Set whether to sample the native stacks"},
     {"set_max_frames", set_max_frames, METH_VARARGS, "Set the max number of frames to unwind"},
     // Sentinel
     {NULL, NULL, 0, NULL}};
