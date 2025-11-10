@@ -107,22 +107,6 @@ Result<Frame::Ptr> Frame::create(PyCodeObject* code, int lasti)
     return frame;
 }
 
-// ------------------------------------------------------------------------
-#ifndef UNWIND_NATIVE_DISABLE
-Result<Frame::Ptr> Frame::create(unw_cursor_t& cursor, unw_word_t pc)
-{
-    auto filename = string_table.key(pc);
-
-    auto maybe_name = string_table.key(cursor);
-    if (!maybe_name)
-    {
-        return ErrorKind::FrameError;
-    }
-
-    return std::make_unique<Frame>(filename, *maybe_name);
-}
-#endif  // UNWIND_NATIVE_DISABLE
-
 // ----------------------------------------------------------------------------
 Result<void> Frame::infer_location(PyCodeObject* code_obj, int lasti)
 {
@@ -441,41 +425,6 @@ Frame& Frame::get(PyObject* frame)
     frame_cache->store(frame_key, std::move(new_frame));
     return f;
 }
-
-// ----------------------------------------------------------------------------
-#ifndef UNWIND_NATIVE_DISABLE
-Result<std::reference_wrapper<Frame>> Frame::get(unw_cursor_t& cursor)
-{
-    unw_word_t pc;
-    unw_get_reg(&cursor, UNW_REG_IP, &pc);
-    if (pc == 0)
-    {
-        return ErrorKind::FrameError;
-    }
-
-    uintptr_t frame_key = static_cast<uintptr_t>(pc);
-    auto maybe_frame = frame_cache->lookup(frame_key);
-    if (maybe_frame)
-    {
-        return *maybe_frame;
-    }
-
-    auto maybe_new_frame = Frame::create(cursor, pc);
-    if (!maybe_new_frame)
-    {
-        return std::ref(UNKNOWN_FRAME);
-    }
-
-    auto frame = std::move(*maybe_new_frame);
-    frame->cache_key = frame_key;
-    auto& f = *frame;
-    Renderer::get().frame(frame_key, frame->filename, frame->name, frame->location.line,
-                          frame->location.line_end, frame->location.column,
-                          frame->location.column_end);
-    frame_cache->store(frame_key, std::move(frame));
-    return std::ref(f);
-}
-#endif  // UNWIND_NATIVE_DISABLE
 
 // ----------------------------------------------------------------------------
 Frame& Frame::get(StringTable::Key name)
