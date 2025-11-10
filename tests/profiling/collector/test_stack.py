@@ -657,6 +657,7 @@ def test_exception_collection_trace(tmp_path, tracer):
 @pytest.fixture
 def tracer_and_collector(tracer, request, tmp_path):
     from tests.conftest import _strip_python_version_suffix
+
     test_name = _strip_python_version_suffix(request.node.name)
     pprof_prefix = str(tmp_path / test_name)
 
@@ -787,6 +788,7 @@ def test_collect_span_id(tracer, tmp_path):
 
 def test_collect_span_resource_after_finish(tracer, tmp_path, request):
     from tests.conftest import _strip_python_version_suffix
+
     test_name = _strip_python_version_suffix(request.node.name)
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
@@ -864,6 +866,7 @@ def test_resource_not_collected(tmp_path, tracer):
 
 def test_collect_nested_span_id(tmp_path, tracer, request):
     from tests.conftest import _strip_python_version_suffix
+
     test_name = _strip_python_version_suffix(request.node.name)
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())

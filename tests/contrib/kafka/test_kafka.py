@@ -59,6 +59,7 @@ class KafkaConsumerPollFilter(TraceFilter):
 def kafka_topic(request):
     # todo: add a UUID, but it makes snapshot tests fail.
     from tests.conftest import _strip_python_version_suffix
+
     topic_name = _strip_python_version_suffix(request.node.name).replace("[", "_").replace("]", "")
 
     client = kafka_admin.AdminClient({"bootstrap.servers": BOOTSTRAP_SERVERS})
@@ -76,6 +77,7 @@ def empty_kafka_topic(request):
     Deletes a kafka topic to clear message if it exists.
     """
     from tests.conftest import _strip_python_version_suffix
+
     topic_name = _strip_python_version_suffix(request.node.name).replace("[", "_").replace("]", "")
     client = kafka_admin.AdminClient({"bootstrap.servers": BOOTSTRAP_SERVERS})
     for _, future in client.delete_topics([topic_name]).items():
