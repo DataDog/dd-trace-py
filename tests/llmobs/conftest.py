@@ -25,8 +25,7 @@ def vcr_logs(request):
     assert len(marks) < 2
     if marks:
         mark = marks[0]
-        token = request_token(request).replace(" ", "_").replace(os.path.sep, "_")
-        cass = mark.kwargs.get("cassette", token)
+        cass = mark.kwargs.get("cassette", request_token(request).replace(" ", "_").replace(os.path.sep, "_"))
         with logs_vcr.use_cassette("%s.yaml" % cass):
             yield
     else:
