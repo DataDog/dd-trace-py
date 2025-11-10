@@ -5,12 +5,12 @@ from __future__ import absolute_import
 import logging
 import typing
 
-from ddtrace.trace import Tracer
 from ddtrace.internal import core
 from ddtrace.internal.datadog.profiling import stack_v2
 from ddtrace.internal.settings.profiling import config
 from ddtrace.profiling import collector
 from ddtrace.profiling.collector import threading
+from ddtrace.trace import Tracer
 
 
 LOG = logging.getLogger(__name__)
