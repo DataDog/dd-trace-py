@@ -32,7 +32,7 @@ class LLMObsServer(BaseHTTPRequestHandler):
         super().__init__(*args, **kwargs)
 
     def do_POST(self) -> None:
-        if not LLMOBS_SPAN_ENDPOINT in self.path:
+        if LLMOBS_SPAN_ENDPOINT not in self.path:
             self.send_response(404)
             self.end_headers()
             return
