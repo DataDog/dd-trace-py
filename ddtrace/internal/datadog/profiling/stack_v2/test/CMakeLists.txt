@@ -40,7 +40,8 @@ function(dd_wrapper_add_test name)
         target_link_libraries(${name} PRIVATE ${Python3_LIBRARIES})
     endif()
 
-    set_target_properties(${name} PROPERTIES INSTALL_RPATH "$ORIGIN/../stack_v2")
+    # Test executable needs to find _stack_v2 in parent directory
+    set_target_properties(${name} PROPERTIES INSTALL_RPATH "$ORIGIN/.." BUILD_WITH_INSTALL_RPATH TRUE)
 
     add_ddup_config(${name})
 

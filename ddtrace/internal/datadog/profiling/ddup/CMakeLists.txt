@@ -68,11 +68,23 @@ set_target_properties(${EXTENSION_NAME} PROPERTIES PREFIX "")
 set_target_properties(${EXTENSION_NAME} PROPERTIES SUFFIX "")
 
 # RPATH is needed for sofile discovery at runtime, since Python packages are not installed in the system path. This is
-# typical. Use BUILD_WITH_INSTALL_RPATH to avoid rpath manipulation during install phase which can cause conflicts
+# typical. Use BUILD_WITH_INSTALL_RPATH to avoid rpath manipulation during install phase which can cause conflicts For
+# standalone/test builds, also include LIB_INSTALL_DIR so tests can find libdd_wrapper
 if(APPLE)
-    set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "@loader_path/.." BUILD_WITH_INSTALL_RPATH TRUE)
+    if(BUILD_TESTING AND LIB_INSTALL_DIR)
+        set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "@loader_path/..;${LIB_INSTALL_DIR}"
+                                                           BUILD_WITH_INSTALL_RPATH TRUE)
+    else()
+        set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "@loader_path/.." BUILD_WITH_INSTALL_RPATH
+                                                                                           TRUE)
+    endif()
 elseif(UNIX)
-    set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/.." BUILD_WITH_INSTALL_RPATH TRUE)
+    if(BUILD_TESTING AND LIB_INSTALL_DIR)
+        set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/..;${LIB_INSTALL_DIR}"
+                                                           BUILD_WITH_INSTALL_RPATH TRUE)
+    else()
+        set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/.." BUILD_WITH_INSTALL_RPATH TRUE)
+    endif()
 endif()
 target_include_directories(
     ${EXTENSION_NAME}

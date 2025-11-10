@@ -46,7 +46,8 @@ function(dd_wrapper_add_test name)
                    # dying.
                    ENVIRONMENT "TSAN_OPTIONS=die_after_fork=0:suppressions=${CMAKE_CURRENT_SOURCE_DIR}/TSan.supp")
 
-    set_target_properties(${name} PROPERTIES INSTALL_RPATH "$ORIGIN/..")
+    # Test executable needs to find libdd_wrapper in parent directory
+    set_target_properties(${name} PROPERTIES INSTALL_RPATH "$ORIGIN/.." BUILD_WITH_INSTALL_RPATH TRUE)
 
     if(LIB_INSTALL_DIR)
         install(TARGETS ${name} RUNTIME DESTINATION ${LIB_INSTALL_DIR}/../test)
