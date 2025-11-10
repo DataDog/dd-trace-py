@@ -95,7 +95,7 @@ jobs:
       CIBW_BEFORE_ALL_LINUX: |
         if [[ "$(uname -m)-$(uname -i)-$(uname -o | tr '[:upper:]' '[:lower:]')-$(ldd --version 2>&1 | head -n 1 | awk '{print $1}')" != "i686-unknown-linux-musl" ]]; then
           if command -v yum &> /dev/null; then
-            yum install -y libatomic.i686
+            yum install -y libatomic.i686 || echo "libatomic.i686 not available, assuming it's already installed"
           fi
           curl -sSf https://sh.rustup.rs | sh -s -- -y;
         fi

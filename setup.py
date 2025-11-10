@@ -1092,7 +1092,7 @@ if not IS_PYSTON:
             ],
             extra_objects=_dd_wrapper_extra_objects,
             extra_link_args=(
-                ["-Wl,-rpath,$ORIGIN/../../../internal/datadog/profiling"]
+                ["-Wl,-rpath,$ORIGIN/../../../internal/datadog/profiling", "-latomic"]
                 if CURRENT_OS == "Linux"
                 else ["-Wl,-rpath,@loader_path/../../../internal/datadog/profiling"]
                 if CURRENT_OS == "Darwin"
