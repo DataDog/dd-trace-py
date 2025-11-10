@@ -93,14 +93,17 @@ except ModuleNotFoundError:
         return unpatched_open(fd, mode)
 
 
-TMPDIR = Path(tempfile.gettempdir())
+try:
+    TMPDIR: typing.Optional[Path] = Path(tempfile.gettempdir())
+except FileNotFoundError:
+    TMPDIR = None
 
 
 class SharedStringFile:
     """A simple shared-file implementation for multiprocess communication."""
 
     def __init__(self) -> None:
-        self.filename: typing.Optional[str] = str(TMPDIR / secrets.token_hex(8))
+        self.filename: typing.Optional[str] = str(TMPDIR / secrets.token_hex(8)) if TMPDIR is not None else None
 
     def put(self, data: str) -> None:
         """Put a string into the file."""
