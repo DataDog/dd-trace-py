@@ -25,6 +25,7 @@ from typing import Generator  # noqa:F401
 from typing import List
 from typing import Tuple  # noqa:F401
 from unittest import mock
+from unittest import TestCase
 from urllib import parse
 import warnings
 
@@ -428,8 +429,12 @@ def pytest_collection_modifyitems(session, config, items):
             name_base = item.name
             nodeid_base = item.nodeid
 
-        item.name = f"{name_base}{suffix}"
         item._nodeid = f"{nodeid_base}{suffix}"
+
+        cls = getattr(item, "cls", None)
+        is_unittest = isinstance(cls, type) and issubclass(cls, TestCase)
+        if not is_unittest:
+            item.name = f"{name_base}{suffix}"
 
 
 def pytest_generate_tests(metafunc):
