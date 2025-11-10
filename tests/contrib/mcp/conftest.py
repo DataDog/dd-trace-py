@@ -12,6 +12,7 @@ from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.mcp.patch import patch
 from ddtrace.contrib.internal.mcp.patch import unpatch
 from ddtrace.llmobs import LLMObs as llmobs_service
+from ddtrace.llmobs._constants import SPAN_ENDPOINT as LLMOBS_SPAN_ENDPOINT
 from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
@@ -31,7 +32,7 @@ class LLMObsServer(BaseHTTPRequestHandler):
         super().__init__(*args, **kwargs)
 
     def do_POST(self) -> None:
-        if self.path != "/evp_proxy/v2/api/v2/llmobs":
+        if not LLMOBS_SPAN_ENDPOINT in self.path:
             self.send_response(404)
             self.end_headers()
             return
