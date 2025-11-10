@@ -31,6 +31,10 @@ class LLMObsServer(BaseHTTPRequestHandler):
         super().__init__(*args, **kwargs)
 
     def do_POST(self) -> None:
+        if self.path != "/evp_proxy/v2/api/v2/llmobs":
+            self.send_response(404)
+            self.end_headers()
+            return
         content_length = int(self.headers["Content-Length"])
         body = self.rfile.read(content_length).decode("utf-8")
         self.requests.append({"path": self.path, "headers": dict(self.headers), "body": body})
