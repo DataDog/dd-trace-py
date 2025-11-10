@@ -258,7 +258,9 @@ class _ProfilerInstance(service.Service):
 
         self._build_default_exporters()
 
-        scheduler_class = scheduler.ServerlessScheduler if self._lambda_function_name else scheduler.Scheduler  # type: (Type[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]])
+        scheduler_class = (
+            scheduler.ServerlessScheduler if self._lambda_function_name else scheduler.Scheduler
+        )  # type: (Type[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]])
 
         self._scheduler = scheduler_class(
             before_flush=self._collectors_snapshot,
