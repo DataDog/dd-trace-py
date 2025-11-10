@@ -1081,36 +1081,6 @@ if not IS_PYSTON:
 
     ext_modules: t.List[t.Union[Extension, Cython.Distutils.Extension, RustExtension]] = [
         Extension(
-            "ddtrace.profiling.collector._memalloc",
-            sources=[
-                "ddtrace/profiling/collector/_memalloc.cpp",
-                "ddtrace/profiling/collector/_memalloc_tb.cpp",
-                "ddtrace/profiling/collector/_memalloc_heap.cpp",
-                "ddtrace/profiling/collector/_memalloc_reentrant.cpp",
-                "ddtrace/profiling/collector/_memalloc_heap_map.cpp",
-            ],
-            include_dirs=[
-                "ddtrace/internal/datadog/profiling/dd_wrapper/include",
-            ],
-            extra_objects=_dd_wrapper_extra_objects,
-            extra_link_args=(
-                ["-Wl,-rpath,$ORIGIN/../../internal/datadog/profiling", "-latomic"]
-                if CURRENT_OS == "Linux"
-                else ["-Wl,-rpath,@loader_path/../../internal/datadog/profiling"]
-                if CURRENT_OS == "Darwin"
-                else []
-            ),
-            language="c++",
-            extra_compile_args=(
-                debug_compile_args
-                + (["-DNDEBUG"] if not debug_compile_args else ["-UNDEBUG"])
-                + ["-D_POSIX_C_SOURCE=200809L", "-std=c++17"]
-                + fast_build_args
-                if CURRENT_OS != "Windows"
-                else ["/std:c++17", "/MT"]
-            ),
-        ),
-        Extension(
             "ddtrace.internal._threads",
             sources=["ddtrace/internal/_threads.cpp"],
             extra_compile_args=(
@@ -1120,6 +1090,41 @@ if not IS_PYSTON:
             ),
         ),
     ]
+
+    # _memalloc uses cwisstable which is not supported on Windows
+    # Profiler extensions are only needed on Linux and macOS
+    if CURRENT_OS != "Windows":
+        ext_modules.insert(
+            0,
+            Extension(
+                "ddtrace.profiling.collector._memalloc",
+                sources=[
+                    "ddtrace/profiling/collector/_memalloc.cpp",
+                    "ddtrace/profiling/collector/_memalloc_tb.cpp",
+                    "ddtrace/profiling/collector/_memalloc_heap.cpp",
+                    "ddtrace/profiling/collector/_memalloc_reentrant.cpp",
+                    "ddtrace/profiling/collector/_memalloc_heap_map.cpp",
+                ],
+                include_dirs=[
+                    "ddtrace/internal/datadog/profiling/dd_wrapper/include",
+                ],
+                extra_objects=_dd_wrapper_extra_objects,
+                extra_link_args=(
+                    ["-Wl,-rpath,$ORIGIN/../../internal/datadog/profiling", "-latomic"]
+                    if CURRENT_OS == "Linux"
+                    else ["-Wl,-rpath,@loader_path/../../internal/datadog/profiling"]
+                    if CURRENT_OS == "Darwin"
+                    else []
+                ),
+                language="c++",
+                extra_compile_args=(
+                    debug_compile_args
+                    + (["-DNDEBUG"] if not debug_compile_args else ["-UNDEBUG"])
+                    + ["-D_POSIX_C_SOURCE=200809L", "-std=c++17"]
+                    + fast_build_args
+                ),
+            ),
+        )
     if platform.system() not in ("Windows", ""):
         ext_modules.append(
             Extension(
