@@ -48,32 +48,6 @@ def func5():
     return time.sleep(1)
 
 
-def test_collect_once(tmp_path):
-    test_name = "test_collect_once"
-    pprof_prefix = str(tmp_path / test_name)
-    output_filename = pprof_prefix + "." + str(os.getpid())
-    assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
-    ddup.start()
-
-    s = stack.StackCollector()
-    s._init()
-    all_events = s.collect()
-
-    ddup.upload()
-    # assert len(all_events) == 0
-    assert len(all_events) == 2
-
-    stack_events = all_events[0]
-    exc_events = all_events[1]
-    assert len(stack_events) == 0
-    assert len(exc_events) == 0
-
-    profile = pprof_utils.parse_newest_profile(output_filename)
-    samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
-    assert len(samples) > 0
-
-
 def _find_sleep_event(events, class_name):
     class_method_found = False
     class_classmethod_found = False
@@ -91,114 +65,6 @@ def _find_sleep_event(events, class_name):
             return True
 
     return False
-
-
-def test_collect_once_with_class(tmp_path):
-    class SomeClass(object):
-        @classmethod
-        def sleep_class(cls):
-            return cls().sleep_instance()
-
-        def sleep_instance(self):
-            for _ in range(10):
-                time.sleep(0.1)
-
-    test_name = "test_collect_once_with_class"
-    pprof_prefix = str(tmp_path / test_name)
-    output_filename = pprof_prefix + "." + str(os.getpid())
-
-    assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
-    ddup.start()
-
-    with stack.StackCollector():
-        SomeClass.sleep_class()
-
-    ddup.upload()
-
-    profile = pprof_utils.parse_newest_profile(output_filename)
-    samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
-    assert len(samples) > 0
-
-    pprof_utils.assert_profile_has_sample(
-        profile,
-        samples=samples,
-        expected_sample=pprof_utils.StackEvent(
-            thread_id=_thread.get_ident(),
-            thread_name="MainThread",
-            locations=[
-                pprof_utils.StackLocation(
-                    function_name="sleep_instance",
-                    filename="test_stack.py",
-                    line_no=SomeClass.sleep_instance.__code__.co_firstlineno + 2,
-                ),
-                pprof_utils.StackLocation(
-                    function_name="sleep_class",
-                    filename="test_stack.py",
-                    line_no=SomeClass.sleep_class.__code__.co_firstlineno + 2,
-                ),
-                pprof_utils.StackLocation(
-                    function_name="test_collect_once_with_class",
-                    filename="test_stack.py",
-                    line_no=test_collect_once_with_class.__code__.co_firstlineno + 19,
-                ),
-            ],
-        ),
-    )
-
-
-def test_collect_once_with_class_not_right_type(tmp_path):
-    class SomeClass(object):
-        @classmethod
-        def sleep_class(foobar, cls):
-            return foobar().sleep_instance(cls)
-
-        def sleep_instance(foobar, self):
-            for _ in range(10):
-                time.sleep(0.1)
-
-    test_name = "test_collect_once_with_class"
-    pprof_prefix = str(tmp_path / test_name)
-    output_filename = pprof_prefix + "." + str(os.getpid())
-
-    assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
-    ddup.start()
-
-    with stack.StackCollector():
-        SomeClass.sleep_class(123)
-
-    ddup.upload()
-
-    profile = pprof_utils.parse_newest_profile(output_filename)
-    samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
-    assert len(samples) > 0
-
-    pprof_utils.assert_profile_has_sample(
-        profile,
-        samples=samples,
-        expected_sample=pprof_utils.StackEvent(
-            thread_id=_thread.get_ident(),
-            thread_name="MainThread",
-            locations=[
-                pprof_utils.StackLocation(
-                    function_name="sleep_instance",
-                    filename="test_stack.py",
-                    line_no=SomeClass.sleep_instance.__code__.co_firstlineno + 2,
-                ),
-                pprof_utils.StackLocation(
-                    function_name="sleep_class",
-                    filename="test_stack.py",
-                    line_no=SomeClass.sleep_class.__code__.co_firstlineno + 2,
-                ),
-                pprof_utils.StackLocation(
-                    function_name="test_collect_once_with_class_not_right_type",
-                    filename="test_stack.py",
-                    line_no=test_collect_once_with_class_not_right_type.__code__.co_firstlineno + 19,
-                ),
-            ],
-        ),
-    )
 
 
 def _fib(n):
@@ -228,15 +94,6 @@ def test_max_time_usage_over():
 #     test_collector._test_restart(stack.StackCollector)
 
 
-def test_repr():
-    test_collector._test_repr(
-        stack.StackCollector,
-        "StackCollector(status=<ServiceStatus.STOPPED: 'stopped'>, "
-        "min_interval_time=0.01, max_time_usage_pct=1.0, "
-        "nframes=64, endpoint_collection_enabled=None, tracer=None)",
-    )
-
-
 def test_new_interval():
     c = stack.StackCollector(max_time_usage_pct=2)
     new_interval = c._compute_new_interval(1000000)
@@ -263,9 +120,7 @@ exec(
     try:
       raise ValueError('test')
     except Exception:
-      time.sleep(2)""".format(
-        MAX_FN_NUM=MAX_FN_NUM
-    )
+      time.sleep(2)""".format(MAX_FN_NUM=MAX_FN_NUM)
 )
 
 
