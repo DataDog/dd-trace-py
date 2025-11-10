@@ -1,8 +1,9 @@
 # Promptfoo local cursor provider.
 # Parse the responses.yml file
-import yaml
 from pathlib import Path
 from typing import Any
+
+import yaml
 
 
 class ProviderOptions:
