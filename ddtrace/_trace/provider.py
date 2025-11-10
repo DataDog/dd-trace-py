@@ -30,13 +30,6 @@ class BaseContextProvider(metaclass=abc.ABCMeta):
     * the ``activate`` method, that sets the current active ``Context``
     """
 
-<<<<<<< Updated upstream
-=======
-    def __init__(self) -> None:
-        self._hooks = Hooks()
-        self._activation_lock: RLock = RLock()
-
->>>>>>> Stashed changes
     @abc.abstractmethod
     def _has_active_context(self) -> bool:
         pass
@@ -65,6 +58,7 @@ class DefaultContextProvider(BaseContextProvider):
 
     def __init__(self) -> None:
         super(DefaultContextProvider, self).__init__()
+        self._activation_lock: RLock = RLock()
 
     def _has_active_context(self) -> bool:
         """Returns whether there is an active context in the current execution."""
