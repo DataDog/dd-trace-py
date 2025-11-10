@@ -20,9 +20,6 @@ from ddtrace._trace._span_pointer import _SpanPointer
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace.context import Context
 from ddtrace._trace.types import _AttributeValueType
-from ddtrace._trace.types import _MetaDictType
-from ddtrace._trace.types import _MetricDictType
-from ddtrace._trace.types import _TagNameType
 from ddtrace.constants import _SAMPLING_AGENT_DECISION
 from ddtrace.constants import _SAMPLING_LIMIT_DECISION
 from ddtrace.constants import _SAMPLING_RULE_DECISION
@@ -189,9 +186,9 @@ class Span(object):
         self.span_type = span_type
         self._span_api = span_api
 
-        self._meta: _MetaDictType = {}
+        self._meta: Dict[str, str] = {}
         self.error = 0
-        self._metrics: _MetricDictType = {}
+        self._metrics: Dict[str, NumericType] = {}
 
         self._meta_struct: Dict[str, Dict[str, Any]] = {}
 
@@ -333,7 +330,7 @@ class Span(object):
         self.context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] = value
         return value
 
-    def set_tag(self, key: _TagNameType, value: Any = None) -> None:
+    def set_tag(self, key: str, value: Optional[str] = None) -> None:
         """Set a tag key/value pair on the span.
 
         Keys must be strings, values must be ``str``-able.
@@ -343,11 +340,6 @@ class Span(object):
         :param value: Value to assign for the tag
         :type value: ``str``-able value
         """
-
-        if not isinstance(key, str):
-            log.warning("Ignoring tag pair %s:%s. Key must be a string.", key, value)
-            return
-
         # Special case, force `http.status_code` as a string
         # DEV: `http.status_code` *has* to be in `meta` for metrics
         #   calculated in the trace agent
@@ -362,14 +354,14 @@ class Span(object):
         INT_TYPES = (net.TARGET_PORT,)
         if key in INT_TYPES and not val_is_an_int:
             try:
-                value = int(value)
+                value = int(value)  # type: ignore
                 val_is_an_int = True
             except (ValueError, TypeError):
                 pass
 
         # Set integers that are less than equal to 2^53 as metrics
-        if value is not None and val_is_an_int and abs(value) <= 2**53:
-            self.set_metric(key, value)
+        if value is not None and val_is_an_int and abs(value) <= 2**53:  # type: ignore
+            self.set_metric(key, value)  # type: ignore
             return
 
         # All floats should be set as a metric
@@ -393,8 +385,8 @@ class Span(object):
             # Set `_dd.measured` tag as a metric
             # DEV: `set_metric` will ensure it is an integer 0 or 1
             if value is None:
-                value = 1
-            self.set_metric(key, value)
+                value = 1  # type: ignore
+            self.set_metric(key, value)  # type: ignore
             return
 
         try:
@@ -415,7 +407,7 @@ class Span(object):
         """Return the given struct or None if it doesn't exist."""
         return self._meta_struct.get(key, None)
 
-    def _set_tag_str(self, key: _TagNameType, value: Text) -> None:
+    def _set_tag_str(self, key: str, value: str) -> None:
         """Set a value for a tag. Values are coerced to unicode in Python 2 and
         str in Python 3, with decoding errors in conversion being replaced with
         U+FFFD.
@@ -427,15 +419,15 @@ class Span(object):
                 raise e
             log.warning("Failed to set text tag '%s'", key, exc_info=True)
 
-    def get_tag(self, key: _TagNameType) -> Optional[Text]:
+    def get_tag(self, key: str) -> Optional[str]:
         """Return the given tag or None if it doesn't exist."""
         return self._meta.get(key, None)
 
-    def get_tags(self) -> _MetaDictType:
+    def get_tags(self) -> Dict[str, str]:
         """Return all tags."""
         return self._meta.copy()
 
-    def set_tags(self, tags: Dict[_TagNameType, Any]) -> None:
+    def set_tags(self, tags: Dict[str, str]) -> None:
         """Set a dictionary of tags on the given span. Keys and values
         must be strings (or stringable)
         """
@@ -443,7 +435,7 @@ class Span(object):
             for k, v in iter(tags.items()):
                 self.set_tag(k, v)
 
-    def set_metric(self, key: _TagNameType, value: NumericType) -> None:
+    def set_metric(self, key: str, value: NumericType) -> None:
         """This method sets a numeric tag value for the given key."""
         # Enforce a specific constant for `_dd.measured`
         if key == _SPAN_MEASURED_KEY:
@@ -473,7 +465,7 @@ class Span(object):
             del self._meta[key]
         self._metrics[key] = value
 
-    def set_metrics(self, metrics: _MetricDictType) -> None:
+    def set_metrics(self, metrics: Dict[str, NumericType]) -> None:
         """Set a dictionary of metrics on the given span. Keys must be
         must be strings (or stringable). Values must be numeric.
         """
@@ -481,7 +473,7 @@ class Span(object):
             for k, v in metrics.items():
                 self.set_metric(k, v)
 
-    def get_metric(self, key: _TagNameType) -> Optional[NumericType]:
+    def get_metric(self, key: str) -> Optional[NumericType]:
         """Return the given metric or None if it doesn't exist."""
         return self._metrics.get(key)
 
@@ -494,7 +486,7 @@ class Span(object):
         """Add an errortracking related callback to the on_finish_callback array"""
         self._on_finish_callbacks.insert(0, callback)
 
-    def get_metrics(self) -> _MetricDictType:
+    def get_metrics(self) -> Dict[str, NumericType]:
         """Return all metrics."""
         return self._metrics.copy()
 

@@ -35,6 +35,7 @@ from ddtrace.appsec._constants import WAF_DATA_NAMES
 from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
 from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.appsec._utils import Binding_error
+from ddtrace.appsec._utils import Block_config
 from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _RUNTIME_FAMILY
@@ -341,7 +342,7 @@ class AppSecSpanProcessor(SpanProcessor):
             log.debug("[DDAS-011-00] ASM In-App WAF returned: %s. Timeout %s", waf_results.data, waf_results.timeout)
 
         if blocked:
-            _asm_request_context.set_blocked(blocked)
+            _asm_request_context.set_blocked(Block_config(**blocked))
 
         allowed = True
         if waf_results.keep:
