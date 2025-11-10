@@ -404,7 +404,13 @@ def run_function_from_file(item, params=None):
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_collection_modifyitems(session, config, items):
-    """Don't let ITR skip tests that use the subprocess marker because coverage collection in subprocesses is broken"""
+    """
+    Don't let ITR skip tests that use the subprocess marker
+    because coverage collection in subprocesses is broken.
+
+    Also: add py39 - py314 suffix as parametrization in test names
+    """
+    py_tag = f"py{sys.version_info.major}{sys.version_info.minor}"
     for item in items:
         if item.get_closest_marker("subprocess"):
             if item.get_closest_marker("skipif"):
@@ -412,6 +418,18 @@ def pytest_collection_modifyitems(session, config, items):
                 continue
             unskippable = pytest.mark.skipif(False, reason="datadog_itr_unskippable")
             item.add_marker(unskippable)
+
+        if item.name.endswith("]") and "[" in item.name:
+            suffix = f"-{py_tag}]"
+            name_base = item.name[:-1]
+            nodeid_base = item.nodeid[:-1]
+        else:
+            suffix = f"[{py_tag}]"
+            name_base = item.name
+            nodeid_base = item.nodeid
+
+        item.name = f"{name_base}{suffix}"
+        item._nodeid = f"{nodeid_base}{suffix}"
 
 
 def pytest_generate_tests(metafunc):
