@@ -2,8 +2,6 @@
 from __future__ import absolute_import
 
 import logging
-import sys
-import time
 import typing
 
 from ddtrace.trace import Tracer
@@ -17,38 +15,20 @@ from ddtrace.profiling.collector import threading
 LOG = logging.getLogger(__name__)
 
 
-def _default_min_interval_time():
-    return sys.getswitchinterval() * 2
-
-
-class StackCollector(collector.PeriodicCollector):
+class StackCollector(collector.Collector):
     """Execution stacks collector."""
 
     __slots__ = (
-        "_real_thread",
-        "min_interval_time",
-        "max_time_usage_pct",
         "nframes",
-        "endpoint_collection_enabled",
         "tracer",
     )
 
     def __init__(self,
-                 max_time_usage_pct: float = config.max_time_usage_pct,
                  nframes: int = config.max_frames,
-                 endpoint_collection_enabled: typing.Optional[bool] = None,
                  tracer: typing.Optional[Tracer] = None):
-        super().__init__(interval= _default_min_interval_time())
-        if max_time_usage_pct <= 0 or max_time_usage_pct > 100:
-            raise ValueError("Max time usage percent must be greater than 0 and smaller or equal to 100")
+        super().__init__()
 
-        # This need to be a real OS thread in order to catch
-        self._real_thread: bool = True
-        self.min_interval_time: float = _default_min_interval_time()
-
-        self.max_time_usage_pct: float = max_time_usage_pct
         self.nframes: int = nframes
-        self.endpoint_collection_enabled: typing.Optional[bool] = endpoint_collection_enabled
         self.tracer: typing.Optional[Tracer] = tracer
 
 
@@ -96,16 +76,5 @@ class StackCollector(collector.PeriodicCollector):
         # Also tell the native thread running the v2 sampler to stop, if needed
         stack_v2.stop()
 
-    def _compute_new_interval(self, used_wall_time_ns):
-        interval = (used_wall_time_ns / (self.max_time_usage_pct / 100.0)) - used_wall_time_ns
-        return max(interval / 1e9, self.min_interval_time)
-
     def collect(self):
-        # Compute wall time
-        now = time.monotonic_ns()
-        all_events = []
-
-        used_wall_time_ns = time.monotonic_ns() - now
-        self.interval = self._compute_new_interval(used_wall_time_ns)
-
-        return all_events
+        return []

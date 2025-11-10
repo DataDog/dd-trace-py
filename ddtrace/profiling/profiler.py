@@ -194,7 +194,6 @@ class _ProfilerInstance(service.Service):
                 self._collectors.append(
                     stack.StackCollector(
                         tracer=self.tracer,
-                        endpoint_collection_enabled=self.endpoint_collection_enabled,
                     )
                 )
                 LOG.debug("Profiling collector (stack) initialized")

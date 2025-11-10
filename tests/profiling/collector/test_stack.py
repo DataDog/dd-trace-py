@@ -165,10 +165,7 @@ def test_push_span(tmp_path, tracer):
     resource = str(uuid.uuid4())
     span_type = ext.SpanTypes.WEB
 
-    with stack.StackCollector(
-        tracer=tracer,
-        endpoint_collection_enabled=True,
-    ):
+    with stack.StackCollector(tracer=tracer):
         with tracer.trace("foobar", resource=resource, span_type=span_type) as span:
             span_id = span.span_id
             local_root_span_id = span._local_root.span_id
@@ -213,7 +210,6 @@ def test_push_span_unregister_thread(tmp_path, monkeypatch, tracer):
 
         with stack.StackCollector(
             tracer=tracer,
-            endpoint_collection_enabled=True,
         ):
             with tracer.trace("foobar", resource=resource, span_type=span_type) as span:
                 span_id = span.span_id
@@ -258,7 +254,6 @@ def test_push_non_web_span(tmp_path, tracer):
 
     with stack.StackCollector(
         tracer=tracer,
-        endpoint_collection_enabled=True,
     ):
         with tracer.trace("foobar", resource=resource, span_type=span_type) as span:
             span_id = span.span_id
@@ -299,7 +294,6 @@ def test_push_span_none_span_type(tmp_path, tracer):
 
     with stack.StackCollector(
         tracer=tracer,
-        endpoint_collection_enabled=True,
     ):
         # Explicitly set None span_type as the default could change in the
         # future.
@@ -527,36 +521,11 @@ def test_collect_gevent_thread_task():
         )
 
 
-def test_max_time_usage():
-    with pytest.raises(ValueError):
-        stack.StackCollector(max_time_usage_pct=0)
-
-
-def test_max_time_usage_over():
-    with pytest.raises(ValueError):
-        stack.StackCollector(max_time_usage_pct=200)
-
-
 def test_repr():
     test_collector._test_repr(
         stack.StackCollector,
-        "StackCollector(status=<ServiceStatus.STOPPED: 'stopped'>, "
-        "min_interval_time=0.01, max_time_usage_pct=1.0, "
-        "nframes=64, endpoint_collection_enabled=None, tracer=None)",
+        "StackCollector(status=<ServiceStatus.STOPPED: 'stopped'>, nframes=64, tracer=None)",
     )
-
-
-def test_new_interval():
-    c = stack.StackCollector(max_time_usage_pct=2)
-    new_interval = c._compute_new_interval(1000000)
-    assert new_interval == 0.049
-    new_interval = c._compute_new_interval(2000000)
-    assert new_interval == 0.098
-    c = stack.StackCollector(max_time_usage_pct=10)
-    new_interval = c._compute_new_interval(200000)
-    assert new_interval == 0.01
-    new_interval = c._compute_new_interval(1)
-    assert new_interval == c.min_interval_time
 
 
 def test_stress_threads(tmp_path):
@@ -583,12 +552,10 @@ def test_stress_threads(tmp_path):
         exectime_per_collect = exectime / number
         print("%.3f ms per call" % (1000.0 * exectime_per_collect))
         print(
-            "CPU overhead for %d threads with %d functions long at %d Hz: %.2f%%"
+            "CPU overhead for %d threads with %d functions"
             % (
                 NB_THREADS,
                 MAX_FN_NUM,
-                1 / s.min_interval_time,
-                100 * exectime_per_collect / s.min_interval_time,
             )
         )
 
@@ -709,7 +676,7 @@ def test_collect_span_resource_after_finish(tracer, tmp_path, request):
     ddup.start()
 
     tracer._endpoint_call_counter_span_processor.enable()
-    with stack.StackCollector(tracer=tracer, endpoint_collection_enabled=True):
+    with stack.StackCollector(tracer=tracer):
         resource = str(uuid.uuid4())
         span_type = ext.SpanTypes.WEB
         span = tracer.start_span("foobar", activate=True, span_type=span_type, resource=resource)
@@ -749,7 +716,7 @@ def test_resource_not_collected(tmp_path, tracer):
     ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
     ddup.start()
 
-    with stack.StackCollector(endpoint_collection_enabled=False, tracer=tracer):
+    with stack.StackCollector(tracer=tracer):
         resource = str(uuid.uuid4())
         span_type = ext.SpanTypes.WEB
         with tracer.start_span("foobar", activate=True, resource=resource, span_type=span_type) as span:
@@ -786,7 +753,7 @@ def test_collect_nested_span_id(tmp_path, tracer, request):
     ddup.start()
 
     tracer._endpoint_call_counter_span_processor.enable()
-    with stack.StackCollector(tracer=tracer, endpoint_collection_enabled=True):
+    with stack.StackCollector(tracer=tracer):
         resource = str(uuid.uuid4())
         span_type = ext.SpanTypes.WEB
         with tracer.start_span("foobar", activate=True, resource=resource, span_type=span_type):
