@@ -1,0 +1,4 @@
+---
+features:
+  - |
+     Adds span pointers for WebSocket message tracing to enable distributed context propagation across client-server boundaries.

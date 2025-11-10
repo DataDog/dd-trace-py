@@ -15,6 +15,7 @@ import wrapt
 import ddtrace
 from ddtrace import config
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
+from ddtrace._trace._span_link import SpanLinkKind as _SpanLinkKind
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace.span import Span
@@ -32,6 +33,7 @@ from ddtrace.contrib.internal.trace_utils import _copy_trace_level_tags
 from ddtrace.contrib.internal.trace_utils import _set_url_tag
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanLinkKind
+from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import http
 from ddtrace.ext import net
@@ -50,6 +52,8 @@ from ddtrace.internal.constants import MESSAGING_MESSAGE_ID
 from ddtrace.internal.constants import MESSAGING_OPERATION
 from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.constants import SPAN_LINK_KIND
+from ddtrace.internal.constants import SPAN_POINTER_DOWN_DIRECTION
+from ddtrace.internal.constants import SPAN_POINTER_UP_DIRECTION
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import _inherit_sampling_tags
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -1092,9 +1096,9 @@ def _on_asgi_websocket_receive_message(ctx, scope, message):
 
             link_attributes.update(
                 {
-                    "link.name": "span-pointer-up",
-                    "dd.kind": "span-pointer",
-                    "ptr.kind": "websocket",
+                    "link.name": SPAN_POINTER_UP_DIRECTION,
+                    "dd.kind": _SpanLinkKind.SPAN_POINTER.value,
+                    "ptr.kind": SpanTypes.WEBSOCKET,
                     "ptr.dir": _SpanPointerDirection.UPSTREAM,
                     "ptr.hash": ptr_hash,
                 }
@@ -1147,9 +1151,9 @@ def _on_asgi_websocket_send_message(ctx, scope, message):
 
             link_attributes.update(
                 {
-                    "link.name": "span-pointer-down",
-                    "dd.kind": "span-pointer",
-                    "ptr.kind": "websocket",
+                    "link.name": SPAN_POINTER_DOWN_DIRECTION,
+                    "dd.kind": _SpanLinkKind.SPAN_POINTER.value,
+                    "ptr.kind": SpanTypes.WEBSOCKET,
                     "ptr.dir": _SpanPointerDirection.DOWNSTREAM,
                     "ptr.hash": ptr_hash,
                 }
@@ -1200,9 +1204,9 @@ def _on_asgi_websocket_close_message(ctx, scope, message):
 
             link_attributes.update(
                 {
-                    "link.name": "span-pointer-down",
-                    "dd.kind": "span-pointer",
-                    "ptr.kind": "websocket",
+                    "link.name": SPAN_POINTER_DOWN_DIRECTION,
+                    "dd.kind": _SpanLinkKind.SPAN_POINTER.value,
+                    "ptr.kind": SpanTypes.WEBSOCKET,
                     "ptr.dir": _SpanPointerDirection.DOWNSTREAM,
                     "ptr.hash": ptr_hash,
                 }
@@ -1250,9 +1254,9 @@ def _on_asgi_websocket_disconnect_message(ctx, scope, message):
 
             link_attributes.update(
                 {
-                    "link.name": "span-pointer-up",
-                    "dd.kind": "span-pointer",
-                    "ptr.kind": "websocket",
+                    "link.name": SPAN_POINTER_UP_DIRECTION,
+                    "dd.kind": _SpanLinkKind.SPAN_POINTER.value,
+                    "ptr.kind": SpanTypes.WEBSOCKET,
                     "ptr.dir": _SpanPointerDirection.UPSTREAM,
                     "ptr.hash": ptr_hash,
                 }
@@ -1286,7 +1290,7 @@ def _on_asgi_request(ctx: core.ExecutionContext) -> None:
         scope["datadog"]["request_spans"].append(span)
 
     if scope["type"] == "websocket":
-        span._set_tag_str("http.upgraded", "websocket")
+        span._set_tag_str("http.upgraded", SpanTypes.WEBSOCKET)
         # Initialize websocket message counters for span pointer tracking
         _init_websocket_message_counters(scope)
 
