@@ -1026,13 +1026,6 @@ def _build_websocket_span_pointer_hash(
 
     Format: <prefix><128 bit hex trace id><64 bit hex span id><32 bit hex counter>
     Prefix: 'S' for server outgoing or client incoming, 'C' for server incoming or client outgoing
-
-    :param handshake_trace_id: Trace ID from the handshake span
-    :param handshake_span_id: Span ID from the handshake span
-    :param counter: Message counter value
-    :param is_server: True if running on server side, False if client
-    :param is_incoming: True if incoming message, False if outgoing
-    :return: Span pointer hash string
     """
     if (is_server and not is_incoming) or (not is_server and is_incoming):
         prefix = "S"
