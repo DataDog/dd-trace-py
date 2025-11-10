@@ -758,10 +758,15 @@ def _extract_chat_template_from_instructions(
     # Create a mapping of variable values to placeholder names
     value_to_placeholder = {}
     for var_name, var_value in variables.items():
-        if hasattr(var_value, "text"):  # ResponseInputText
+        if hasattr(var_value, "text"):
             value_str = str(var_value.text)
         else:
             value_str = str(var_value)
+        
+        # Skip empty values
+        if not value_str:
+            continue
+            
         value_to_placeholder[value_str] = "{{" + var_name + "}}"
 
     sorted_values = sorted(value_to_placeholder.keys(), key=len, reverse=True)
