@@ -8,13 +8,7 @@ active_hashes=($($RIOT_CMD list --hash-only))
 echo "Building requirements lockfiles for riot hashes that don't have them"
 for hash in "${active_hashes[@]}"
 do
-    if [[ ! -f .riot/requirements/"$hash".txt ]]; then
-        # Try to compile requirements, but continue on error
-        # pip-tools des not currently handle compiling requirements for Python 3.14, so we skip it for now
-        if ! $RIOT_CMD -P -v requirements "$hash"; then
-            echo "Warning: Failed to compile requirements for hash $hash (likely Python 3.14 compatibility issue), skipping..."
-        fi
-    fi
+    [[ ! -f .riot/requirements/"$hash".txt ]] && $RIOT_CMD -P -v requirements "$hash"
 done
 
 echo "Removing requirements lockfiles for riot hashes that don't exist"
