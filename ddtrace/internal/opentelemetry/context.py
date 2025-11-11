@@ -24,26 +24,26 @@ class DDRuntimeContext:
         from opentelemetry.baggage import get_all
         from opentelemetry.trace import Span as OtelSpan
         from opentelemetry.trace import get_current_span
+        from opentelemetry.trace import INVALID_SPAN
 
         from .span import Span
 
         otel_span = get_current_span(otel_context)
-        if otel_span:
-            if isinstance(otel_span, Span):
-                self._ddcontext_provider.activate(otel_span._ddspan)
-                ddcontext = otel_span._ddspan.context
-            elif isinstance(otel_span, OtelSpan):
-                trace_id, span_id, _, tf, ts, _ = otel_span.get_span_context()
-                trace_state = ts.to_header() if ts else None
-                ddcontext = _TraceContext._get_context(trace_id, span_id, tf, trace_state)
-                self._ddcontext_provider.activate(ddcontext)
-            else:
-                ddcontext = None
-                log.error(
-                    "Programming ERROR: ddtrace does not support activating spans with the type: %s. Please open a "
-                    "github issue at: https://github.com/Datadog/dd-trace-py and set DD_TRACE_OTEL_ENABLED=True.",
-                    type(otel_span),
-                )
+        if isinstance(otel_span, Span):
+            self._ddcontext_provider.activate(otel_span._ddspan)
+            ddcontext = otel_span._ddspan.context
+        elif otel_span is not INVALID_SPAN:
+            trace_id, span_id, _, tf, ts, _ = otel_span.get_span_context()
+            trace_state = ts.to_header() if ts else None
+            ddcontext = _TraceContext._get_context(trace_id, span_id, tf, trace_state)
+            self._ddcontext_provider.activate(ddcontext)
+        else:
+            ddcontext = None
+            log.error(
+                "Programming ERROR: ddtrace does not support activating spans with the type: %s. Please open a "
+                "github issue at: https://github.com/Datadog/dd-trace-py and set DD_TRACE_OTEL_ENABLED=True.",
+                type(otel_span),
+            )
 
             # get current open telemetry baggage and store it on the datadog context object
             # fix: we need to support setting baggage when there is no active span
