@@ -30,9 +30,9 @@ random_range(uint64_t max)
 #define P_REALLOC_CAST(p, expr) (expr)
 #endif
 
-#define p_realloc(p, count) \
-    do { \
-        (p) = P_REALLOC_CAST(p, PyMem_RawRealloc((p), sizeof(*p) * (count))); \
+#define p_realloc(p, count)                                                                                            \
+    do {                                                                                                               \
+        (p) = P_REALLOC_CAST(p, PyMem_RawRealloc((p), sizeof(*p) * (count)));                                          \
     } while (0)
 
 #define p_grow(p, goalnb, allocnb)                                                                                     \
