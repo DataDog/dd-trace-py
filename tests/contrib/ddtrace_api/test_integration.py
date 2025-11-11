@@ -48,6 +48,13 @@ class DDTraceAPITestCase(TracerTestCase):
         self._assert_real_spans()
 
     @pytest.mark.snapshot()
+    def test_span_finish_with_ancestors(self):
+        span = ddtrace_api.tracer.start_span("web.request")
+        child_span = ddtrace_api.tracer.start_span("web.request", child_of=span)
+        child_span._finish_with_ancestors()
+        self._assert_real_spans(2)
+
+    @pytest.mark.snapshot()
     def test_trace(self):
         with ddtrace_api.tracer.trace("web.request") as span:
             self._assert_span_stub(span)
