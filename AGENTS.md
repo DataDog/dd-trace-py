@@ -22,18 +22,3 @@ cat .cursor/rules/linting.mdc
 cat .cursor/rules/testing.mdc
 cat .cursor/rules/repo-structure.mdc
 ```
-## Dev environment tips
-
-- Python interpreter: `/home/albertovara/.pyenv/versions/3.13.9/envs/ddtrace3.13/bin/python`
-- Virtual environment: `pyenv activate ddtrace3.13`
-
-## Testing instructions
-
-- **ALWAYS use the `run-tests` skill** - never run pytest directly
-- Use `--dry-run` first to see what tests would run
-- See `.cursor/rules/testing.mdc` for full guidelines
-
-## PR instructions
-
-- Run `hatch run lint:checks` before committing
-- Format all edited files with `hatch run lint:fmt -- <file>`
