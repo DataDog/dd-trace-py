@@ -93,6 +93,19 @@ class RuntimeCoverageWriter(HTTPWriter):
             processing_interval,
         )
 
+    def recreate(self) -> "RuntimeCoverageWriter":
+        """
+        Recreate the writer with the same configuration.
+
+        This is required by HTTPWriter for certain scenarios like fork handling.
+        """
+        return self.__class__(
+            intake_url=self.intake_url,
+            use_evp=self._use_evp,
+            processing_interval=self._interval,
+            timeout=self._timeout,
+        )
+
 
 # Global singleton writer instance
 _RUNTIME_COVERAGE_WRITER: Optional[RuntimeCoverageWriter] = None
