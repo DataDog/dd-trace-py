@@ -16,7 +16,7 @@ dynamic = ["version"]
 # version = "4.0.0.dev0"
 description = "Datadog APM client library"
 readme = "README.md"
-license = { text = "LICENSE.BSD3" }
+license = { text = "BSD-3-Clause" }
 requires-python = ">=3.8"
 authors = [
     { name = "Datadog, Inc.", email = "dev@datadoghq.com" },
