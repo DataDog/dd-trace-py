@@ -397,7 +397,6 @@ if config.stack.v2_enabled and not stack_v2_is_available:
     )
     config.stack.v2_enabled = False
     config.stack.enabled = False
-    config.enabled = False
 
 # Enrich tags with git metadata and DD_TAGS
 config.tags = _enrich_tags(config.tags)
