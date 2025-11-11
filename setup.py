@@ -1068,14 +1068,14 @@ if not IS_PYSTON:
     # Determine the libdd_wrapper filename with the Python extension suffix
     # For editable builds, the library will be in the source directory
     # For regular builds, it will be built during build_ext and found via the build system
-    _dd_wrapper_suffix = sysconfig.get_config_var("EXT_SUFFIX")
-    _dd_wrapper_source_path = (
+    _dd_wrapper_suffix: t.Optional[str] = sysconfig.get_config_var("EXT_SUFFIX")
+    _dd_wrapper_source_path: Path = (
         HERE / "ddtrace" / "internal" / "datadog" / "profiling" / f"libdd_wrapper{_dd_wrapper_suffix}"
     )
 
     # Only include extra_objects if the library already exists (editable builds)
     # For non-editable builds, build_libdd_wrapper() will handle it and the linker will find it
-    _dd_wrapper_extra_objects = []
+    _dd_wrapper_extra_objects: t.List[str] = []
     if CURRENT_OS in ("Linux", "Darwin") and _dd_wrapper_source_path.exists():
         _dd_wrapper_extra_objects = [str(_dd_wrapper_source_path)]
 
