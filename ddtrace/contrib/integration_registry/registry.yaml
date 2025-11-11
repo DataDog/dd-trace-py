@@ -783,12 +783,6 @@ integrations:
       min: 4.1.0
       max: 6.0.1
 
-- integration_name: pytest_benchmark
-  is_external_package: true
-  is_tested: false
-  dependency_names:
-  - pytest_benchmark
-
 - integration_name: ray
   is_external_package: true
   is_tested: false

@@ -9,7 +9,7 @@ from typing import Union
 
 import ddtrace
 from ddtrace._trace.context import Context
-from ddtrace.contrib.internal.pytest_benchmark.constants import BENCHMARK_INFO
+from ddtrace.contrib.internal.pytest.benchmark_constants import BENCHMARK_INFO
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
