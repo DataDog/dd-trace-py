@@ -69,7 +69,9 @@ def test_dataset_records() -> List[DatasetRecord]:
 
 @pytest.fixture
 def test_dataset_name(request) -> str:
-    return f"test-dataset-{request.node.name}"
+    from tests.conftest import get_original_test_name
+
+    return f"test-dataset-{get_original_test_name(request)}"
 
 
 @pytest.fixture

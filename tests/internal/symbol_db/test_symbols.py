@@ -331,34 +331,37 @@ def test_symbols_fork_uploads():
         os.waitpid(pid, 0)
 
 
-def spawn_target(results):
-    from ddtrace.internal.remoteconfig import ConfigMetadata
-    from ddtrace.internal.remoteconfig import Payload
-    from ddtrace.internal.symbol_db.remoteconfig import _rc_callback
-    from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
-
-    SymbolDatabaseUploader.install()
-
-    rc_data = [Payload(ConfigMetadata("test", "symdb", "hash", 0, 0), "test", None)]
-    _rc_callback(rc_data)
-    results.append(SymbolDatabaseUploader.is_installed())
-
-
-@pytest.mark.subprocess
+@pytest.mark.subprocess(run_module=True, err=None)
 def test_symbols_spawn_uploads():
-    import multiprocessing
+    def spawn_target(results):
+        from ddtrace.internal.remoteconfig import ConfigMetadata
+        from ddtrace.internal.remoteconfig import Payload
+        from ddtrace.internal.symbol_db.remoteconfig import _rc_callback
+        from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
 
-    mc_context = multiprocessing.get_context("spawn")
-    manager = multiprocessing.Manager()
-    returns = manager.list()
-    jobs = []
+        SymbolDatabaseUploader.install()
 
-    for _ in range(10):
-        p = mc_context.Process(target=spawn_target, args=(returns,))
-        p.start()
-        jobs.append(p)
+        rc_data = [Payload(ConfigMetadata("test", "symdb", "hash", 0, 0), "test", None)]
+        _rc_callback(rc_data)
+        results.append(SymbolDatabaseUploader.is_installed())
 
-    for p in jobs:
-        p.join()
+    if __name__ == "__main__":
+        import multiprocessing
 
-    assert sum(returns) == 1, returns
+        multiprocessing.freeze_support()
+
+        multiprocessing.set_start_method("spawn", force=True)
+        mc_context = multiprocessing.get_context("spawn")
+        manager = multiprocessing.Manager()
+        returns = manager.list()
+        jobs = []
+
+        for _ in range(10):
+            p = mc_context.Process(target=spawn_target, args=(returns,))
+            p.start()
+            jobs.append(p)
+
+        for p in jobs:
+            p.join()
+
+        assert sum(returns) == 1, returns
