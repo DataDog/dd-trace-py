@@ -86,12 +86,18 @@ def iast_context_defaults():
 
 @pytest.fixture
 def iast_context_deduplication_enabled(tracer):
-    yield from iast_context(dict(DD_IAST_ENABLED="true", DD_IAST_REQUEST_SAMPLING="100.0"), deduplication=True, vulnerabilities_per_requests=2)
+    yield from iast_context(
+        dict(DD_IAST_ENABLED="true", DD_IAST_REQUEST_SAMPLING="100.0"),
+        deduplication=True,
+        vulnerabilities_per_requests=2,
+    )
 
 
 @pytest.fixture
 def iast_context_2_vulnerabilities_per_requests(tracer):
-    yield from iast_context(dict(DD_IAST_ENABLED="true", DD_IAST_REQUEST_SAMPLING="100.0"), vulnerabilities_per_requests=2)
+    yield from iast_context(
+        dict(DD_IAST_ENABLED="true", DD_IAST_REQUEST_SAMPLING="100.0"), vulnerabilities_per_requests=2
+    )
 
 
 @pytest.fixture

@@ -49,12 +49,15 @@ def test_oce_max_vulnerabilities_per_request(iast_context_deduplication_enabled)
     m = hashlib.md5()
     m.update(b"Nobody inspects")
     # Each digest() call must be on a different line to avoid deduplication
-    m.digest()  # vulnerability 1
-    m.digest()  # vulnerability 2
-    m.digest()  # This should not be reported (exceeds max)
-    m.digest()  # This should not be reported (exceeds max)
-    span_report = get_iast_reporter()
+    result1 = m.digest()  # vulnerability 1
+    result2 = m.digest()  # vulnerability 2
+    result3 = m.digest()  # This should not be reported (exceeds max)
+    result4 = m.digest()  # This should not be reported (exceeds max)
 
+    # Ensure all digest calls completed
+    assert result1 is not None and result2 is not None and result3 is not None and result4 is not None
+
+    span_report = get_iast_reporter()
     assert span_report is not None, "IAST reporter should be initialized after vulnerability detection"
     assert len(span_report.vulnerabilities) == asm_config._iast_max_vulnerabilities_per_requests
 
@@ -65,9 +68,12 @@ def test_oce_reset_vulnerabilities_report(iast_context_deduplication_enabled):
     m = hashlib.md5()
     m.update(b"Nobody inspects")
     # Each digest() call must be on a different line to avoid deduplication
-    m.digest()  # vulnerability 1
-    m.digest()  # vulnerability 2
-    m.digest()  # This should not be reported (exceeds max)
+    result1 = m.digest()  # vulnerability 1
+    result2 = m.digest()  # vulnerability 2
+    result3 = m.digest()  # This should not be reported (exceeds max)
+
+    # Ensure all digest calls completed
+    assert result1 is not None and result2 is not None and result3 is not None
 
     # Ensure reporter exists before reset
     span_report = get_iast_reporter()
@@ -76,7 +82,8 @@ def test_oce_reset_vulnerabilities_report(iast_context_deduplication_enabled):
     assert initial_count == asm_config._iast_max_vulnerabilities_per_requests
 
     reset_request_vulnerabilities()
-    m.digest()  # vulnerability 3 (after reset)
+    result4 = m.digest()  # vulnerability 3 (after reset)
+    assert result4 is not None
 
     span_report = get_iast_reporter()
     assert span_report is not None, "IAST reporter should still exist after reset"
