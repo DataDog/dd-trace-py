@@ -370,6 +370,71 @@ def _on_app_exception(ctx):
     req_span.finish()
 
 
+def _on_wsgi_runtime_coverage_start(ctx: core.ExecutionContext) -> None:
+    """Handler for starting runtime request coverage collection on WSGI request start."""
+    from ddtrace.internal.ci_visibility.runtime_coverage import is_runtime_coverage_supported
+
+    if not is_runtime_coverage_supported():
+        return
+
+    try:
+        from ddtrace.internal.coverage.code import ModuleCodeCollector
+
+        collector = ModuleCodeCollector._instance
+        if collector is not None:
+            coverage_ctx = collector.CollectInContext()
+            coverage_ctx.__enter__()
+            # Store coverage context in the execution context for later cleanup
+            ctx.set_item("runtime_coverage_ctx", coverage_ctx)
+    except Exception:
+        log.debug("Failed to start runtime request coverage", exc_info=True)
+
+
+def _on_wsgi_runtime_coverage_complete(ctx: core.ExecutionContext, closing_iterable, app_is_iterator) -> None:
+    """
+    Handler for processing runtime request coverage data on WSGI request complete.
+
+    This extracts the collected coverage data and sends it to the citestcov intake via
+    the RuntimeCoverageWriter, which handles batching, encoding, and delivery using the
+    same infrastructure as test coverage.
+    """
+    coverage_ctx = ctx.get_item("runtime_coverage_ctx")
+    if coverage_ctx is None:
+        return
+
+    try:
+        span = ctx.get_item("req_span")
+        if span is not None:
+            import os
+            from pathlib import Path
+
+            from ddtrace.internal.ci_visibility.runtime_coverage import build_runtime_coverage_payload
+            from ddtrace.internal.ci_visibility.runtime_coverage import send_runtime_coverage
+
+            # Get root directory for path resolution
+            root_dir = Path(os.getcwd())
+
+            # Build coverage payload
+            coverage_payload = build_runtime_coverage_payload(
+                root_dir=root_dir,
+                trace_id=span.trace_id,
+                span_id=span.span_id,
+            )
+
+            if coverage_payload:
+                # Enqueue coverage data to the RuntimeCoverageWriter
+                # The writer will batch and send it to citestcov intake
+                send_runtime_coverage(span, coverage_payload["files"])
+    except Exception:
+        log.debug("Failed to send runtime request coverage", exc_info=True)
+    finally:
+        # Clean up coverage context
+        try:
+            coverage_ctx.__exit__(None, None, None)
+        except Exception:
+            log.debug("Failed to cleanup coverage context", exc_info=True)
+
+
 def _on_request_complete(ctx, closing_iterable, app_is_iterator):
     middleware = ctx.get_item("middleware")
     req_span = ctx.get_item("req_span")
@@ -393,6 +458,9 @@ def _on_request_complete(ctx, closing_iterable, app_is_iterator):
         else middleware._response_span_modifier
     )
     modifier(resp_span, closing_iterable)
+
+    # Handle runtime request coverage collection and sending
+    _on_wsgi_runtime_coverage_complete(ctx, closing_iterable, app_is_iterator)
 
     return _TracedIterable(closing_iterable, resp_span, req_span, wrapped_is_iterator=app_is_iterator)
 
@@ -1262,6 +1330,9 @@ def listen():
         "psycopg.patched_connect",
     ):
         core.on(f"context.started.{context_name}", _start_span)
+        # Add runtime coverage handler for WSGI context start
+        if context_name == "wsgi.__call__":
+            core.on(f"context.started.{context_name}", _on_wsgi_runtime_coverage_start)
 
     for name in (
         "asgi.request",
