@@ -705,7 +705,6 @@ Database tests
 
 @pytest.mark.subprocess(env={"DD_DJANGO_INSTRUMENT_DATABASES": "true"})
 def test_connection():
-    import django
     from tests.contrib.django.utils import setup_django_test_spans
     from tests.contrib.django.utils import with_django_db
 
@@ -741,6 +740,7 @@ Caching tests
 @pytest.mark.subprocess(env={"DD_DJANGO_INSTRUMENT_CACHES": "true"})
 def test_cache_get():
     import django
+
     from tests.contrib.django.utils import setup_django_test_spans
     from tests.utils import assert_dict_issuperset
 
@@ -1473,7 +1473,6 @@ def test_cache_set_many():
     import django
 
     from tests.contrib.django.utils import setup_django_test_spans
-    from tests.utils import assert_dict_issuperset
 
     test_spans = setup_django_test_spans()
 
@@ -1514,6 +1513,7 @@ def test_cache_set_many():
 @pytest.mark.subprocess(env={"DD_DJANGO_INSTRUMENT_CACHES": "true"})
 def test_cache_delete_many():
     import django
+
     from tests.contrib.django.utils import setup_django_test_spans
 
     test_spans = setup_django_test_spans()
@@ -1554,11 +1554,10 @@ def test_cache_delete_many():
 
 @pytest.mark.subprocess(env={"DD_DJANGO_INSTRUMENT_CACHES": "true"})
 def test_cached_view():
-    import django
+    from django.test import Client
+
     from tests.contrib.django.utils import setup_django_test_spans
     from tests.contrib.django.utils import with_django_db
-
-    from django.test import Client
 
     test_spans = setup_django_test_spans()
 
@@ -1665,7 +1664,9 @@ def test(client, test_spans):
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(expected_service_name)
+    """.format(
+        expected_service_name
+    )
 
     env = os.environ.copy()
     if schema_version is not None:
@@ -1713,7 +1714,9 @@ with with_django_db(test_spans):
     assert span.span_type == "sql"
     assert span.get_tag("django.db.vendor") == "sqlite"
     assert span.get_tag("django.db.alias") == "default"
-    """.format(expected_service_name)
+    """.format(
+        expected_service_name
+    )
 
     env = os.environ.copy()
     env["DD_DJANGO_INSTRUMENT_DATABASES"] = "true"
@@ -1756,7 +1759,9 @@ def test(client, test_spans):
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(expected_operation_name)
+    """.format(
+        expected_operation_name
+    )
 
     env = os.environ.copy()
     if schema_version is not None:
@@ -1841,6 +1846,7 @@ def test_database_service_prefix_precedence():
 )
 def test_cache_service_can_be_overridden():
     import django
+
     from tests.contrib.django.utils import setup_django_test_spans
 
     test_spans = setup_django_test_spans()
@@ -2077,8 +2083,9 @@ Template tests
 
 @pytest.mark.subprocess(env=dict(DD_DJANGO_INSTRUMENT_TEMPLATES="true"))
 def test_template():
-    from tests.contrib.django.utils import setup_django_test_spans
     import django.template
+
+    from tests.contrib.django.utils import setup_django_test_spans
 
     test_spans = setup_django_test_spans()
 
@@ -2127,10 +2134,11 @@ def test_template_no_instrumented(test_spans):
 
 @pytest.mark.subprocess(env=dict(DD_DJANGO_INSTRUMENT_TEMPLATES="true"))
 def test_template_name():
-    from tests.contrib.django.utils import setup_django_test_spans
+    from pathlib import PosixPath
+
     import django.template
 
-    from pathlib import PosixPath
+    from tests.contrib.django.utils import setup_django_test_spans
 
     test_spans = setup_django_test_spans()
 
@@ -2604,9 +2612,8 @@ class TestWSGI:
 
 @pytest.mark.subprocess(env={"DD_DJANGO_INSTRUMENT_DATABASES": "true"})
 def test_connections_patched():
-    import django
-    from tests.contrib.django.utils import setup_django_test_spans
     from ddtrace.internal import wrapping
+    from tests.contrib.django.utils import setup_django_test_spans
 
     setup_django_test_spans()
 

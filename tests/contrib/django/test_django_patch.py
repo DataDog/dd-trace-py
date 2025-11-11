@@ -1,8 +1,8 @@
+import pytest
+
 from ddtrace.contrib.internal.django.patch import get_version
 from ddtrace.contrib.internal.django.patch import patch
 from tests.contrib.patch import PatchTestCase
-
-import pytest
 
 
 class TestDjangoPatch(PatchTestCase.Base):

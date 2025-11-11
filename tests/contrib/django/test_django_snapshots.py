@@ -8,7 +8,6 @@ import django
 import pytest
 
 from tests.utils import _build_env
-from tests.utils import override_config
 from tests.utils import package_installed
 from tests.utils import snapshot
 from tests.webclient import Client
@@ -157,7 +156,7 @@ def test_404_exceptions(client):
 )
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES + ["meta.out.host", "metrics._dd.tracer_kr"])
 @pytest.mark.subprocess(ddtrace_run=True, env={"DD_DJANGO_INSTRUMENT_DATABASES": "true"})
-def test_psycopg2_query_default(client, snapshot_context, psycopg2_patched):
+def test_psycopg2_query_default():
     """Execute a psycopg2 query on a Django database wrapper."""
     from tests.contrib.django.utils import setup_django
 

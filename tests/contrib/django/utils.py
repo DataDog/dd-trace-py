@@ -1,4 +1,5 @@
 import contextlib
+
 from zeep import Client
 from zeep.transports import Transport
 
@@ -16,8 +17,9 @@ def make_soap_request(url):
 
 
 def setup_django():
-    from ddtrace.contrib.internal.django.patch import patch
     import django
+
+    from ddtrace.contrib.internal.django.patch import patch
 
     patch()
     django.setup()
@@ -36,7 +38,8 @@ def setup_django_test_spans():
 
 @contextlib.contextmanager
 def with_django_db(test_spans=None):
-    from django.test.utils import setup_databases, teardown_databases
+    from django.test.utils import setup_databases
+    from django.test.utils import teardown_databases
 
     old_config = setup_databases(
         verbosity=0,
