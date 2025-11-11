@@ -22,38 +22,28 @@ class DDRuntimeContext:
         """
         # Inline opentelemetry imports to avoid circular imports.
         from opentelemetry.baggage import get_all
-        from opentelemetry.trace import Span as OtelSpan
         from opentelemetry.trace import get_current_span
 
         from .span import Span
 
         otel_span = get_current_span(otel_context)
-        if otel_span:
-            if isinstance(otel_span, Span):
-                token = self._ddcontext_provider.activate(otel_span._ddspan)
-                ddcontext = otel_span._ddspan.context
-            elif isinstance(otel_span, OtelSpan):
-                trace_id, span_id, _, tf, ts, _ = otel_span.get_span_context()
-                trace_state = ts.to_header() if ts else None
-                ddcontext = _TraceContext._get_context(trace_id, span_id, tf, trace_state)
-                token = self._ddcontext_provider.activate(ddcontext)
-            else:
-                token = None
-                ddcontext = None
-                log.error(
-                    "Programming ERROR: ddtrace does not support activating spans with the type: %s. Please open a "
-                    "github issue at: https://github.com/Datadog/dd-trace-py and set DD_TRACE_OTEL_ENABLED=True.",
-                    type(otel_span),
-                )
+        if isinstance(otel_span, Span):
+            ddcontext = otel_span._ddspan.context
+            token = self._ddcontext_provider.activate(otel_span._ddspan)
+        else:
+            trace_id, span_id, _, tf, ts, _ = otel_span.get_span_context()
+            trace_state = ts.to_header() if ts else None
+            ddcontext = _TraceContext._get_context(trace_id, span_id, tf, trace_state)
+            token = self._ddcontext_provider.activate(ddcontext)
 
-            # get current open telemetry baggage and store it on the datadog context object
-            # fix: we need to support setting baggage when there is no active span
-            otel_baggage = get_all(otel_context)
-            if ddcontext:
-                ddcontext.remove_all_baggage_items()
-                if otel_baggage:
-                    for key, value in otel_baggage.items():
-                        ddcontext._baggage[key] = value  # potentially convert to json
+        # get current open telemetry baggage and store it on the datadog context object
+        # fix: we need to support setting baggage when there is no active span
+        otel_baggage = get_all(otel_context)
+        if ddcontext:
+            ddcontext.remove_all_baggage_items()
+            if otel_baggage:
+                for key, value in otel_baggage.items():
+                    ddcontext._baggage[key] = value  # potentially convert to json
 
         return token
 
