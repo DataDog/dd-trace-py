@@ -93,11 +93,14 @@ class RuntimeCoverageWriter(HTTPWriter):
             processing_interval,
         )
 
-    def recreate(self) -> "RuntimeCoverageWriter":
+    def recreate(self, appsec_enabled: Optional[bool] = None) -> "RuntimeCoverageWriter":
         """
         Recreate the writer with the same configuration.
 
         This is required by HTTPWriter for certain scenarios like fork handling.
+
+        Args:
+            appsec_enabled: Ignored for runtime coverage writer (kept for signature compatibility)
         """
         return self.__class__(
             intake_url=self.intake_url,
