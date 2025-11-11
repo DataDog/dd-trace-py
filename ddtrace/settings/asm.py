@@ -140,6 +140,8 @@ class ASMConfig(DDConfig):
         + r"ey[I-L][\w=-]+\.ey[I-L][\w=-]+(\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY"
         + r"[\-]{5}[^\-]+[\-]{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}",
     )
+    # We never use `asm_config._iast_max_concurrent_requests` directly,
+    # but we define it so it can be reported through telemetry, since it’s used from the C files.
     _iast_max_concurrent_requests = DDConfig.var(
         int,
         IAST.DD_IAST_MAX_CONCURRENT_REQUESTS,
