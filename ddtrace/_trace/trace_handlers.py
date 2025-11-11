@@ -1046,20 +1046,16 @@ def _has_distributed_tracing_context(span: Span) -> bool:
     A websocket server must not set the span pointer if the handshake has not extracted a context
 
     A span has distributed tracing context if it has a parent context that was
-    extracted from headers (_is_remote=True).
+    extracted from headers.
     """
     if not span or not span._parent_context:
         return False
-    # Check if the context was extracted from remote headers
     return span._parent_context._is_remote
 
 
 def _on_asgi_websocket_receive_message(ctx, scope, message):
     """
     Handle websocket receive message events.
-
-    This handler is called when a websocket receive message event is dispatched.
-    It sets up the span with appropriate tags, metrics, and links.
     """
     span = ctx.span
     integration_config = ctx.get_item("integration_config")
@@ -1075,7 +1071,6 @@ def _on_asgi_websocket_receive_message(ctx, scope, message):
     if hasattr(ctx, "parent") and ctx.parent.span:
         handshake_span = ctx.parent.span
         link_attributes = {SPAN_LINK_KIND: SpanLinkKind.EXECUTED}
-        # Add span pointer attributes if distributed tracing is enabled and context was extracted
         if integration_config.distributed_tracing and _has_distributed_tracing_context(handshake_span):
             counter = _increment_websocket_counter(scope, "websocket_receive_counter")
 
@@ -1112,9 +1107,6 @@ def _on_asgi_websocket_receive_message(ctx, scope, message):
 def _on_asgi_websocket_send_message(ctx, scope, message):
     """
     Handle websocket send message events.
-
-    This handler is called when a websocket send message event is dispatched.
-    It sets up the span with appropriate tags, metrics, and links.
     """
     span = ctx.span
     integration_config = ctx.get_item("integration_config")
@@ -1130,7 +1122,6 @@ def _on_asgi_websocket_send_message(ctx, scope, message):
         handshake_span = ctx.parent.span
         link_attributes = {SPAN_LINK_KIND: SpanLinkKind.RESUMING}
 
-        # Add span pointer attributes if distributed tracing is enabled and context was extracted
         if integration_config.distributed_tracing and _has_distributed_tracing_context(handshake_span):
             counter = _increment_websocket_counter(scope, "websocket_send_counter")
 
@@ -1162,9 +1153,6 @@ def _on_asgi_websocket_send_message(ctx, scope, message):
 def _on_asgi_websocket_close_message(ctx, scope, message):
     """
     Handle websocket close message events.
-
-    This handler is called when a websocket close message event is dispatched.
-    It sets up the span with appropriate tags, metrics, and links.
     """
     span = ctx.span
     integration_config = ctx.get_item("integration_config")
@@ -1183,7 +1171,6 @@ def _on_asgi_websocket_close_message(ctx, scope, message):
 
         link_attributes = {SPAN_LINK_KIND: SpanLinkKind.RESUMING}
 
-        # Add span pointer attributes if distributed tracing is enabled and context was extracted
         if integration_config.distributed_tracing and _has_distributed_tracing_context(handshake_span):
             counter = _increment_websocket_counter(scope, "websocket_send_counter")
 
@@ -1217,9 +1204,6 @@ def _on_asgi_websocket_close_message(ctx, scope, message):
 def _on_asgi_websocket_disconnect_message(ctx, scope, message):
     """
     Handle websocket disconnect message events.
-
-    This handler is called when a websocket disconnect message event is dispatched.
-    It sets up the span with appropriate tags, metrics, and links.
     """
     span = ctx.span
     integration_config = ctx.get_item("integration_config")
@@ -1233,7 +1217,6 @@ def _on_asgi_websocket_disconnect_message(ctx, scope, message):
         handshake_span = ctx.parent.span
         link_attributes = {SPAN_LINK_KIND: SpanLinkKind.EXECUTED}
 
-        # Add span pointer attributes if distributed tracing is enabled and context was extracted
         if integration_config.distributed_tracing and _has_distributed_tracing_context(handshake_span):
             counter = _increment_websocket_counter(scope, "websocket_receive_counter")
 
@@ -1284,7 +1267,6 @@ def _on_asgi_request(ctx: core.ExecutionContext) -> None:
 
     if scope["type"] == "websocket":
         span._set_tag_str("http.upgraded", SpanTypes.WEBSOCKET)
-        # Initialize websocket message counters for span pointer tracking
         _init_websocket_message_counters(scope)
 
 
