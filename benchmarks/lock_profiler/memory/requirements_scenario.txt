@@ -1,0 +1,3 @@
+# No additional requirements beyond base benchmarks framework
+# tracemalloc is part of Python standard library
+

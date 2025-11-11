@@ -1,0 +1,194 @@
+# Lock Profiler Performance Benchmark Configurations
+# Measures overhead of lock profiling at different sampling rates
+
+# Lock creation benchmarks
+creation-baseline: &creation_base
+  benchmark_type: "creation"
+  num_locks: 1000
+  capture_pct: 0.0
+
+creation-1pct:
+  <<: *creation_base
+  capture_pct: 1.0
+
+creation-10pct:
+  <<: *creation_base
+  capture_pct: 10.0
+
+creation-100pct:
+  <<: *creation_base
+  capture_pct: 100.0
+
+# Acquire/release benchmarks
+acquire-release-baseline: &acquire_release_base
+  benchmark_type: "acquire_release"
+  operations_per_thread: 100000
+  capture_pct: 0.0
+
+acquire-release-1pct:
+  <<: *acquire_release_base
+  capture_pct: 1.0
+
+acquire-release-10pct:
+  <<: *acquire_release_base
+  capture_pct: 10.0
+
+acquire-release-100pct:
+  <<: *acquire_release_base
+  capture_pct: 100.0
+
+# Throughput benchmarks
+throughput-baseline: &throughput_base
+  benchmark_type: "throughput"
+  num_threads: 10
+  operations_per_thread: 10000
+  capture_pct: 0.0
+
+throughput-1pct:
+  <<: *throughput_base
+  capture_pct: 1.0
+
+throughput-10pct:
+  <<: *throughput_base
+  capture_pct: 10.0
+
+throughput-100pct:
+  <<: *throughput_base
+  capture_pct: 100.0
+
+# Contention benchmarks
+contention-baseline: &contention_base
+  benchmark_type: "contention"
+  num_threads: 50
+  num_locks: 5
+  operations_per_thread: 1000
+  capture_pct: 0.0
+
+contention-1pct:
+  <<: *contention_base
+  capture_pct: 1.0
+
+contention-10pct:
+  <<: *contention_base
+  capture_pct: 10.0
+
+contention-100pct:
+  <<: *contention_base
+  capture_pct: 100.0
+
+# Nested lock benchmarks
+nested-baseline: &nested_base
+  benchmark_type: "nested"
+  num_threads: 10
+  operations_per_thread: 5000
+  capture_pct: 0.0
+
+nested-1pct:
+  <<: *nested_base
+  capture_pct: 1.0
+
+nested-10pct:
+  <<: *nested_base
+  capture_pct: 10.0
+
+nested-100pct:
+  <<: *nested_base
+  capture_pct: 100.0
+
+# Mixed primitives benchmarks
+mixed-primitives-baseline: &mixed_base
+  benchmark_type: "mixed_primitives"
+  num_threads: 20
+  operations_per_thread: 9000
+  capture_pct: 0.0
+
+mixed-primitives-1pct:
+  <<: *mixed_base
+  capture_pct: 1.0
+
+mixed-primitives-10pct:
+  <<: *mixed_base
+  capture_pct: 10.0
+
+mixed-primitives-100pct:
+  <<: *mixed_base
+  capture_pct: 100.0
+
+# Short critical section benchmarks
+short-critical-baseline: &short_critical_base
+  benchmark_type: "short_critical_section"
+  num_threads: 20
+  operations_per_thread: 10000
+  capture_pct: 0.0
+
+short-critical-1pct:
+  <<: *short_critical_base
+  capture_pct: 1.0
+
+short-critical-10pct:
+  <<: *short_critical_base
+  capture_pct: 10.0
+
+short-critical-100pct:
+  <<: *short_critical_base
+  capture_pct: 100.0
+
+# Long critical section benchmarks
+long-critical-baseline: &long_critical_base
+  benchmark_type: "long_critical_section"
+  num_threads: 10
+  operations_per_thread: 1000
+  capture_pct: 0.0
+
+long-critical-1pct:
+  <<: *long_critical_base
+  capture_pct: 1.0
+
+long-critical-10pct:
+  <<: *long_critical_base
+  capture_pct: 10.0
+
+long-critical-100pct:
+  <<: *long_critical_base
+  capture_pct: 100.0
+
+# Context manager benchmarks
+context-manager-baseline: &context_manager_base
+  benchmark_type: "context_manager"
+  num_threads: 20
+  num_locks: 100
+  operations_per_thread: 10000
+  capture_pct: 0.0
+
+context-manager-1pct:
+  <<: *context_manager_base
+  capture_pct: 1.0
+
+context-manager-10pct:
+  <<: *context_manager_base
+  capture_pct: 10.0
+
+context-manager-100pct:
+  <<: *context_manager_base
+  capture_pct: 100.0
+
+# Explicit acquire/release benchmarks
+explicit-baseline: &explicit_base
+  benchmark_type: "explicit_acquire_release"
+  num_threads: 20
+  num_locks: 100
+  operations_per_thread: 10000
+  capture_pct: 0.0
+
+explicit-1pct:
+  <<: *explicit_base
+  capture_pct: 1.0
+
+explicit-10pct:
+  <<: *explicit_base
+  capture_pct: 10.0
+
+explicit-100pct:
+  <<: *explicit_base
+  capture_pct: 100.0
+

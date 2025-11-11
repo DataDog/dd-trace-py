@@ -1,0 +1,131 @@
+# Lock Profiler Memory Benchmark Configurations
+# Measures memory overhead at different sampling rates
+
+# Memory per lock instance - small scale
+memory-small-baseline: &memory_small_base
+  num_locks: 100
+  num_iterations: 100
+  capture_pct: 0.0
+
+memory-small-1pct:
+  <<: *memory_small_base
+  capture_pct: 1.0
+
+memory-small-10pct:
+  <<: *memory_small_base
+  capture_pct: 10.0
+
+memory-small-100pct:
+  <<: *memory_small_base
+  capture_pct: 100.0
+
+# Memory per lock instance - medium scale
+memory-medium-baseline: &memory_medium_base
+  num_locks: 1000
+  num_iterations: 100
+  capture_pct: 0.0
+
+memory-medium-1pct:
+  <<: *memory_medium_base
+  capture_pct: 1.0
+
+memory-medium-10pct:
+  <<: *memory_medium_base
+  capture_pct: 10.0
+
+memory-medium-100pct:
+  <<: *memory_medium_base
+  capture_pct: 100.0
+
+# Memory per lock instance - large scale
+memory-large-baseline: &memory_large_base
+  num_locks: 10000
+  num_iterations: 10
+  capture_pct: 0.0
+
+memory-large-1pct:
+  <<: *memory_large_base
+  capture_pct: 1.0
+
+memory-large-10pct:
+  <<: *memory_large_base
+  capture_pct: 10.0
+
+memory-large-100pct:
+  <<: *memory_large_base
+  capture_pct: 100.0
+
+# Memory growth over time - detect leaks
+growth-small-baseline: &growth_small_base
+  num_iterations: 50
+  locks_per_iteration: 100
+  capture_pct: 0.0
+
+growth-small-1pct:
+  <<: *growth_small_base
+  capture_pct: 1.0
+
+growth-small-10pct:
+  <<: *growth_small_base
+  capture_pct: 10.0
+
+growth-small-100pct:
+  <<: *growth_small_base
+  capture_pct: 100.0
+
+# Memory growth - intensive
+growth-intensive-baseline: &growth_intensive_base
+  num_iterations: 200
+  locks_per_iteration: 200
+  capture_pct: 0.0
+
+growth-intensive-1pct:
+  <<: *growth_intensive_base
+  capture_pct: 1.0
+
+growth-intensive-10pct:
+  <<: *growth_intensive_base
+  capture_pct: 10.0
+
+growth-intensive-100pct:
+  <<: *growth_intensive_base
+  capture_pct: 100.0
+
+# Memory under concurrent pressure
+pressure-baseline: &pressure_base
+  num_threads: 20
+  num_locks: 100
+  operations_per_thread: 1000
+  capture_pct: 0.0
+
+pressure-1pct:
+  <<: *pressure_base
+  capture_pct: 1.0
+
+pressure-10pct:
+  <<: *pressure_base
+  capture_pct: 10.0
+
+pressure-100pct:
+  <<: *pressure_base
+  capture_pct: 100.0
+
+# Heavy concurrent pressure
+pressure-heavy-baseline: &pressure_heavy_base
+  num_threads: 50
+  num_locks: 500
+  operations_per_thread: 2000
+  capture_pct: 0.0
+
+pressure-heavy-1pct:
+  <<: *pressure_heavy_base
+  capture_pct: 1.0
+
+pressure-heavy-10pct:
+  <<: *pressure_heavy_base
+  capture_pct: 10.0
+
+pressure-heavy-100pct:
+  <<: *pressure_heavy_base
+  capture_pct: 100.0
+
