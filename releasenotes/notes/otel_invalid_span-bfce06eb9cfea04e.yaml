@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    otel: This fix resolves an issue where the tracer would accept an invalid span when attaching to the context, causing it not to be sampled.
