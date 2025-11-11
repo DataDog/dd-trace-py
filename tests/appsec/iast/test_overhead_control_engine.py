@@ -48,10 +48,11 @@ def test_oce_max_vulnerabilities_per_request(iast_context_deduplication_enabled)
 
     m = hashlib.md5()
     m.update(b"Nobody inspects")
-    m.digest()
-    m.digest()
-    m.digest()
-    m.digest()
+    # Each digest() call must be on a different line to avoid deduplication
+    m.digest()  # vulnerability 1
+    m.digest()  # vulnerability 2
+    m.digest()  # This should not be reported (exceeds max)
+    m.digest()  # This should not be reported (exceeds max)
     span_report = get_iast_reporter()
 
     assert span_report is not None, "IAST reporter should be initialized after vulnerability detection"
@@ -63,14 +64,23 @@ def test_oce_reset_vulnerabilities_report(iast_context_deduplication_enabled):
 
     m = hashlib.md5()
     m.update(b"Nobody inspects")
-    m.digest()
-    m.digest()
-    m.digest()
+    # Each digest() call must be on a different line to avoid deduplication
+    m.digest()  # vulnerability 1
+    m.digest()  # vulnerability 2
+    m.digest()  # This should not be reported (exceeds max)
+
+    # Ensure reporter exists before reset
+    span_report = get_iast_reporter()
+    assert span_report is not None, "IAST reporter should exist before reset"
+    initial_count = len(span_report.vulnerabilities)
+    assert initial_count == asm_config._iast_max_vulnerabilities_per_requests
+
     reset_request_vulnerabilities()
-    m.digest()
+    m.digest()  # vulnerability 3 (after reset)
 
     span_report = get_iast_reporter()
     assert span_report is not None, "IAST reporter should still exist after reset"
+    # After reset, we should have the original 2 vulnerabilities + 1 new one = 3 total
     assert len(span_report.vulnerabilities) == asm_config._iast_max_vulnerabilities_per_requests + 1
 
 
