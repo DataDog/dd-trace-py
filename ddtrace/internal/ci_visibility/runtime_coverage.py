@@ -68,31 +68,40 @@ def initialize_runtime_coverage() -> bool:
         return False
 
 
-def build_runtime_coverage_payload(root_dir: Path, trace_id: int, span_id: int) -> Optional[Dict]:
+def build_runtime_coverage_payload(coverage_ctx, root_dir: Path) -> Optional[List[Dict]]:
     """
-    Build a coverage payload from ModuleCodeCollector for runtime request coverage.
+    Build a coverage payload from coverage context for runtime request coverage.
+    
+    Converts CoverageLines to bitmap format for CIVisibilityCoverageEncoderV02.
 
     Args:
+        coverage_ctx: Coverage context from CollectInContext
         root_dir: Root directory for relative path resolution
-        trace_id: Trace ID for correlation
-        span_id: Span ID for correlation
 
     Returns:
-        Dictionary with coverage files, trace_id, and span_id, or None if no coverage data
+        List of file coverage dicts: [{"filename": str, "bitmap": bytes}, ...]
     """
     try:
-        # Get coverage files from ModuleCodeCollector
-        files = ModuleCodeCollector.report_seen_lines(root_dir, include_imported=True)
-
-        if not files:
+        covered_lines_dict = coverage_ctx.get_covered_lines()
+        if not covered_lines_dict:
             return None
 
-        # Return payload dict with trace/span IDs for correlation
-        return {
-            "trace_id": trace_id,
-            "span_id": span_id,
-            "files": files,
-        }
+        files = []
+        for abs_path_str, lines in covered_lines_dict.items():
+            abs_path = Path(abs_path_str)
+            
+            # Make path relative to root_dir and prepend with /
+            try:
+                relative_path = abs_path.relative_to(root_dir) if abs_path.is_relative_to(root_dir) else abs_path
+                path_str = f"/{relative_path}"
+            except (ValueError, TypeError):
+                path_str = abs_path_str
+
+            bitmap = lines.to_bytes()
+            if bitmap:
+                files.append({"filename": path_str, "bitmap": bitmap})
+
+        return files if files else None
 
     except Exception as e:
         log.debug("Failed to build runtime coverage payload: %s", e, exc_info=True)

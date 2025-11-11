@@ -21,7 +21,7 @@ class TestInitializeRuntimeCoverage:
     """Test runtime coverage initialization."""
 
     @pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 12), reason="Requires Python 3.12+")
-    @mock.patch("ddtrace.internal.ci_visibility.runtime_coverage.install")
+    @mock.patch("ddtrace.internal.coverage.installer.install")
     @mock.patch("ddtrace.internal.ci_visibility.runtime_coverage.ModuleCodeCollector")
     def test_initialize_runtime_coverage_success(self, mock_collector_class, mock_install):
         """Test successful initialization of runtime coverage."""
@@ -40,7 +40,7 @@ class TestInitializeRuntimeCoverage:
         assert call_args[1]["collect_import_time_coverage"] is True
 
     @pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 12), reason="Requires Python 3.12+")
-    @mock.patch("ddtrace.internal.ci_visibility.runtime_coverage.install")
+    @mock.patch("ddtrace.internal.coverage.installer.install")
     @mock.patch("ddtrace.internal.ci_visibility.runtime_coverage.ModuleCodeCollector")
     def test_initialize_runtime_coverage_instance_not_created(self, mock_collector_class, mock_install):
         """Test initialization fails when collector instance is not created."""
@@ -53,7 +53,7 @@ class TestInitializeRuntimeCoverage:
         mock_install.assert_called_once()
 
     @pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 12), reason="Requires Python 3.12+")
-    @mock.patch("ddtrace.internal.ci_visibility.runtime_coverage.install")
+    @mock.patch("ddtrace.internal.coverage.installer.install")
     def test_initialize_runtime_coverage_install_raises_exception(self, mock_install):
         """Test initialization handles exceptions gracefully."""
         # Mock install raising an exception
@@ -74,72 +74,74 @@ class TestInitializeRuntimeCoverage:
 class TestBuildRuntimeCoveragePayload:
     """Test building runtime coverage payloads."""
 
-    @mock.patch("ddtrace.internal.ci_visibility.runtime_coverage.ModuleCodeCollector")
-    def test_build_runtime_coverage_payload_success(self, mock_collector_class):
+    def test_build_runtime_coverage_payload_success(self):
         """Test successfully building a coverage payload."""
-        # Mock coverage data
-        mock_files = [
-            {"filename": "/app/views.py", "segments": [[1, 0, 10, 0, -1]]},
-            {"filename": "/app/models.py", "segments": [[5, 0, 15, 0, -1]]},
-        ]
-        mock_collector_class.report_seen_lines.return_value = mock_files
+        from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+
+        # Create mock coverage context with get_covered_lines method
+        mock_coverage_ctx = mock.Mock()
+        
+        # Mock CoverageLines objects with coverage data
+        coverage_lines_1 = CoverageLines()
+        for line in range(1, 11):  # Add lines 1-10
+            coverage_lines_1.add(line)
+        
+        coverage_lines_2 = CoverageLines()
+        for line in range(5, 16):  # Add lines 5-15
+            coverage_lines_2.add(line)
+        
+        # Return dict mapping paths to CoverageLines
+        mock_coverage_ctx.get_covered_lines.return_value = {
+            "/app/views.py": coverage_lines_1,
+            "/app/models.py": coverage_lines_2,
+        }
 
         root_dir = Path("/app")
-        trace_id = 12345
-        span_id = 67890
 
-        payload = build_runtime_coverage_payload(root_dir, trace_id, span_id)
+        files = build_runtime_coverage_payload(mock_coverage_ctx, root_dir)
 
-        assert payload is not None
-        assert payload["trace_id"] == trace_id
-        assert payload["span_id"] == span_id
-        assert payload["files"] == mock_files
-        assert len(payload["files"]) == 2
+        assert files is not None
+        assert isinstance(files, list)
+        assert len(files) == 2
+        
+        # Verify coverage context was called
+        mock_coverage_ctx.get_covered_lines.assert_called_once()
 
-        # Verify ModuleCodeCollector was called correctly
-        mock_collector_class.report_seen_lines.assert_called_once_with(root_dir, include_imported=True)
-
-    @mock.patch("ddtrace.internal.ci_visibility.runtime_coverage.ModuleCodeCollector")
-    def test_build_runtime_coverage_payload_no_coverage(self, mock_collector_class):
+    def test_build_runtime_coverage_payload_no_coverage(self):
         """Test building payload when no coverage data is available."""
-        # Mock no coverage
-        mock_collector_class.report_seen_lines.return_value = None
+        # Mock coverage context returning None
+        mock_coverage_ctx = mock.Mock()
+        mock_coverage_ctx.get_covered_lines.return_value = None
 
         root_dir = Path("/app")
-        trace_id = 12345
-        span_id = 67890
 
-        payload = build_runtime_coverage_payload(root_dir, trace_id, span_id)
+        files = build_runtime_coverage_payload(mock_coverage_ctx, root_dir)
 
-        assert payload is None
+        assert files is None
 
-    @mock.patch("ddtrace.internal.ci_visibility.runtime_coverage.ModuleCodeCollector")
-    def test_build_runtime_coverage_payload_empty_coverage(self, mock_collector_class):
+    def test_build_runtime_coverage_payload_empty_coverage(self):
         """Test building payload when coverage is empty."""
-        # Mock empty coverage
-        mock_collector_class.report_seen_lines.return_value = []
+        # Mock empty coverage - empty dict
+        mock_coverage_ctx = mock.Mock()
+        mock_coverage_ctx.get_covered_lines.return_value = {}
 
         root_dir = Path("/app")
-        trace_id = 12345
-        span_id = 67890
 
-        payload = build_runtime_coverage_payload(root_dir, trace_id, span_id)
+        files = build_runtime_coverage_payload(mock_coverage_ctx, root_dir)
 
-        assert payload is None
+        assert files is None
 
-    @mock.patch("ddtrace.internal.ci_visibility.runtime_coverage.ModuleCodeCollector")
-    def test_build_runtime_coverage_payload_exception(self, mock_collector_class):
+    def test_build_runtime_coverage_payload_exception(self):
         """Test building payload handles exceptions gracefully."""
-        # Mock exception
-        mock_collector_class.report_seen_lines.side_effect = Exception("Coverage collection failed")
+        # Mock exception when getting covered lines
+        mock_coverage_ctx = mock.Mock()
+        mock_coverage_ctx.get_covered_lines.side_effect = Exception("Coverage collection failed")
 
         root_dir = Path("/app")
-        trace_id = 12345
-        span_id = 67890
 
-        payload = build_runtime_coverage_payload(root_dir, trace_id, span_id)
+        files = build_runtime_coverage_payload(mock_coverage_ctx, root_dir)
 
-        assert payload is None
+        assert files is None
 
 
 class TestSendRuntimeCoverage:

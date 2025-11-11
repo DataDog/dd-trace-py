@@ -53,7 +53,7 @@ class RuntimeCoverageWriter(HTTPWriter):
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
         if timeout is None:
-            timeout = agent_config.agent_timeout_seconds
+            timeout = agent_config.trace_agent_timeout_seconds
 
         # Determine intake URL and mode
         self._use_evp = use_evp
@@ -70,10 +70,12 @@ class RuntimeCoverageWriter(HTTPWriter):
 
         # Create coverage client - this is the only client we need
         # It will handle encoding spans with coverage data and sending to the right endpoint
+        # For runtime coverage, we want per-request (per-span) coverage, so we use
+        # itr_suite_skipping_mode=False to include span_id in the encoded payload
         coverage_client = _create_coverage_client(
             use_evp=self._use_evp,
             intake_url=intake_url,
-            itr_suite_skipping_mode=True,  # Enable ITR mode for proper encoding
+            itr_suite_skipping_mode=False,  # Include span_id for per-request coverage
         )
 
         super(RuntimeCoverageWriter, self).__init__(
@@ -91,6 +93,22 @@ class RuntimeCoverageWriter(HTTPWriter):
             self._use_evp,
             intake_url,
             processing_interval,
+        )
+
+    def recreate(self, appsec_enabled: Optional[bool] = None) -> "RuntimeCoverageWriter":
+        """
+        Recreate the writer with the same configuration.
+
+        This is required by HTTPWriter for certain scenarios like fork handling.
+
+        Args:
+            appsec_enabled: Ignored for runtime coverage writer (kept for signature compatibility)
+        """
+        return self.__class__(
+            intake_url=self.intake_url,
+            use_evp=self._use_evp,
+            processing_interval=self._interval,
+            timeout=self._timeout,
         )
 
 
