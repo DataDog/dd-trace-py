@@ -269,25 +269,6 @@ class Span(object):
     def finished(self) -> bool:
         return self.duration_ns is not None
 
-    @finished.setter
-    def finished(self, value: bool) -> None:
-        """Finishes the span if set to a truthy value.
-
-        If the span is already finished and a truthy value is provided
-        no action will occur.
-        """
-        deprecate(
-            prefix="The finished setter is deprecated",
-            message="""Use the finish() method to finish a span.""",
-            category=DDTraceDeprecationWarning,
-            removal_version="4.0.0",
-        )
-        if value:
-            if not self.finished:
-                self.duration_ns = Time.time_ns() - self.start_ns
-        else:
-            self.duration_ns = None
-
     @property
     def duration(self) -> Optional[float]:
         """The span duration in seconds."""
@@ -610,8 +591,6 @@ class Span(object):
         :param attributes: Optional dictionary of additional attributes to add to the exception event.
             These attributes will override the default exception attributes if they contain the same keys.
             Valid attribute values include (homogeneous array of) strings, booleans, integers, floats.
-        :param timestamp: Deprecated.
-        :param escaped: Deprecated.
         """
         tb = self._get_traceback(type(exception), exception, exception.__traceback__)
 
@@ -783,15 +762,6 @@ class Span(object):
         while span is not None:
             span.finish()
             span = span._parent
-
-    @removals.remove(removal_version="4.0.0")
-    def finish_with_ancestors(self) -> None:
-        """Finish this span along with all (accessible) ancestors of this span.
-
-        This method is useful if a sudden program shutdown is required and finishing
-        the trace is desired.
-        """
-        self._finish_with_ancestors()
 
     def __enter__(self) -> "Span":
         return self
