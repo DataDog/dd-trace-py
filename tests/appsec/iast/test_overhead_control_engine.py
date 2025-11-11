@@ -54,6 +54,7 @@ def test_oce_max_vulnerabilities_per_request(iast_context_deduplication_enabled)
     m.digest()
     span_report = get_iast_reporter()
 
+    assert span_report is not None, "IAST reporter should be initialized after vulnerability detection"
     assert len(span_report.vulnerabilities) == asm_config._iast_max_vulnerabilities_per_requests
 
 
@@ -69,7 +70,7 @@ def test_oce_reset_vulnerabilities_report(iast_context_deduplication_enabled):
     m.digest()
 
     span_report = get_iast_reporter()
-
+    assert span_report is not None, "IAST reporter should still exist after reset"
     assert len(span_report.vulnerabilities) == asm_config._iast_max_vulnerabilities_per_requests + 1
 
 

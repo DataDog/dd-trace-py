@@ -602,13 +602,23 @@ def test_context_race_conditions_threads(caplog, telemetry_writer):
     destroying contexts
     """
     _end_iast_context_and_oce()
+    # Clear telemetry logs from previous tests
+    telemetry_writer._logs.clear()
+    
     pool = ThreadPool(processes=3)
     results_async = [pool.apply_async(reset_contexts_loop) for _ in range(20)]
     results = [res.get() for res in results_async]
+    pool.close()
+    pool.join()
+    
     assert results.count(True) <= 2
     log_messages = [record.message for record in caplog.get_records("call")]
     assert len([message for message in log_messages if IAST_VALID_LOG.search(message)]) == 0
-    list_metrics_logs = list(telemetry_writer._logs)
+    
+    # Filter out telemetry connection errors which are expected in test environment
+    list_metrics_logs = [
+        log for log in telemetry_writer._logs if not log["message"].startswith("failed to send, dropping")
+    ]
     assert len(list_metrics_logs) == 0
 
 

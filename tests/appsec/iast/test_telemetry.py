@@ -178,11 +178,14 @@ def test_metric_request_tainted(no_request_sampling, telemetry_writer):
 
 
 def test_log_metric(telemetry_writer):
+    # Clear any existing logs first
+    telemetry_writer._logs.clear()
+    
     with override_global_config(dict(_iast_debug=True)):
         _set_iast_error_metric("test_format_key_error_and_no_log_metric raises")
 
     list_metrics_logs = list(telemetry_writer._logs)
-    assert len(list_metrics_logs) == 1
+    assert len(list_metrics_logs) == 1, f"Expected 1 log entry, got {len(list_metrics_logs)}"
     assert list_metrics_logs[0]["message"] == "test_format_key_error_and_no_log_metric raises"
     assert "stack_trace" not in list_metrics_logs[0].keys()
 
@@ -196,12 +199,15 @@ def test_log_metric_debug_disabled(telemetry_writer):
 
 
 def test_log_metric_debug_deduplication(telemetry_writer):
+    # Clear any existing logs first
+    telemetry_writer._logs.clear()
+    
     with override_global_config(dict(_iast_debug=True)):
         for i in range(10):
             _set_iast_error_metric("test_log_metric_debug_deduplication raises 2")
 
         list_metrics_logs = list(telemetry_writer._logs)
-        assert len(list_metrics_logs) == 1
+        assert len(list_metrics_logs) == 1, f"Expected 1 log entry, got {len(list_metrics_logs)}"
         assert list_metrics_logs[0]["message"] == "test_log_metric_debug_deduplication raises 2"
         assert "stack_trace" not in list_metrics_logs[0].keys()
 
@@ -216,12 +222,15 @@ def test_log_metric_debug_disabled_deduplication(telemetry_writer):
 
 
 def test_log_metric_debug_deduplication_different_messages(telemetry_writer):
+    # Clear any existing logs first
+    telemetry_writer._logs.clear()
+    
     with override_global_config(dict(_iast_debug=True)):
         for i in range(10):
             _set_iast_error_metric(f"test_log_metric_debug_deduplication_different_messages raises {i}")
 
         list_metrics_logs = list(telemetry_writer._logs)
-        assert len(list_metrics_logs) == 10
+        assert len(list_metrics_logs) == 10, f"Expected 10 log entries, got {len(list_metrics_logs)}"
         assert list_metrics_logs[0]["message"].startswith(
             "test_log_metric_debug_deduplication_different_messages raises"
         )
