@@ -1260,14 +1260,14 @@ def _on_asgi_request(ctx: core.ExecutionContext) -> None:
     span = _start_span(ctx)
     ctx.set_item("req_span", span)
 
+    if scope["type"] == "websocket":
+        span._set_tag_str("http.upgraded", SpanTypes.WEBSOCKET)
+        _init_websocket_message_counters(scope)
+
     if "datadog" not in scope:
         scope["datadog"] = {"request_spans": [span]}
     else:
         scope["datadog"]["request_spans"].append(span)
-
-    if scope["type"] == "websocket":
-        span._set_tag_str("http.upgraded", SpanTypes.WEBSOCKET)
-        _init_websocket_message_counters(scope)
 
 
 def listen():
