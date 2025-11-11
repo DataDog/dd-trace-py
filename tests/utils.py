@@ -1439,10 +1439,12 @@ def call_program(*args, **kwargs):
 
 def request_token(request):
     # type: (pytest.FixtureRequest) -> str
+    from tests.conftest import get_original_test_name
+
     token = ""
     token += request.module.__name__
     token += ".%s" % request.cls.__name__ if request.cls else ""
-    token += ".%s" % request.node.name
+    token += ".%s" % get_original_test_name(request)
     return token
 
 

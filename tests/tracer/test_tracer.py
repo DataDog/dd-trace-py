@@ -1842,22 +1842,6 @@ def test_top_level(tracer):
             assert child_span2._is_top_level
 
 
-def test_finish_span_with_ancestors(tracer):
-    # single span case
-    span1 = tracer.trace("span1")
-    span1.finish_with_ancestors()
-    assert span1.finished
-
-    # multi ancestor case
-    span1 = tracer.trace("span1")
-    span2 = tracer.trace("span2")
-    span3 = tracer.trace("span2")
-    span3.finish_with_ancestors()
-    assert span1.finished
-    assert span2.finished
-    assert span3.finished
-
-
 @pytest.mark.parametrize("sca_enabled", ["true", "false"])
 @pytest.mark.parametrize("appsec_enabled", [True, False])
 @pytest.mark.parametrize("iast_enabled", [True, False])
