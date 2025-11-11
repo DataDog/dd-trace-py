@@ -73,6 +73,9 @@ typedef struct
     memalloc_heap_map_t* allocs_m;
     /* Bytes allocated since the last sample was collected */
     uint64_t allocated_memory;
+    /* The factor that controls how often pointers are eligible to sample 
+     * TODO more description here */
+    uintptr_t sample_mask;
     /* True if we are exporting the current heap profile */
     bool frozen;
     /* Contains the ongoing heap allocation/deallocation while frozen */
@@ -87,12 +90,20 @@ typedef struct
     /* Debug guard to assert that GIL-protected critical sections are maintained
      * while accessing the profiler's state */
     memalloc_gil_debug_check_t gil_guard;
+    // Whether we are currently in a run where we should try to collect a sample
+    bool collect_sample;
 } heap_tracker_t;
 
 static heap_tracker_t global_heap_tracker;
 
+static bool 
+is_eligible_to_sample_no_cpython(void* ptr)
+{
+    return (uintptr_t)ptr % global_heap_tracker.sample_mask == 0;
+}
+
 static uint32_t
-heap_tracker_next_sample_size(uint32_t sample_size)
+heap_tracker_next_sample_size_no_cpython(uint32_t sample_size)
 {
     /* We want to draw a sampling target from an exponential distribution with
        average sample_size. We use the standard technique of inverse transform
@@ -114,10 +125,12 @@ heap_tracker_init(heap_tracker_t* heap_tracker)
     heap_tracker->freezer.allocs_m = memalloc_heap_map_new();
     ptr_array_init(&heap_tracker->freezer.frees);
     traceback_array_init(&heap_tracker->unreported_samples);
+    heap_tracker->sample_mask = 1;
     heap_tracker->allocated_memory = 0;
     heap_tracker->frozen = false;
     heap_tracker->sample_size = 0;
     heap_tracker->current_sample_size = 0;
+    heap_tracker->collect_sample = false;
     memalloc_gil_debug_check_init(&heap_tracker->gil_guard);
 }
 
@@ -189,8 +202,11 @@ void
 memalloc_heap_tracker_init(uint32_t sample_size)
 {
     heap_tracker_init(&global_heap_tracker);
+    // TODO take as a param
+    // Should be prime
+    global_heap_tracker.sample_mask = 5;
     global_heap_tracker.sample_size = sample_size;
-    global_heap_tracker.current_sample_size = heap_tracker_next_sample_size(sample_size);
+    global_heap_tracker.current_sample_size = heap_tracker_next_sample_size_no_cpython(sample_size);
 }
 
 void
@@ -218,6 +234,13 @@ memalloc_heap_untrack_no_cpython(heap_tracker_t* heap_tracker, void* ptr)
         MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&heap_tracker->gil_guard);
         return NULL;
     }
+
+    // If this is not a pointer that could be sampled, then no need to do anything with it.
+    if (!is_eligible_to_sample_no_cpython(ptr)) {
+        MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&heap_tracker->gil_guard);
+        return NULL;
+    }
+
     if (!heap_tracker->frozen) {
         traceback_t* tb = memalloc_heap_map_remove(heap_tracker->allocs_m, ptr);
         if (tb && !tb->reported) {
@@ -259,7 +282,7 @@ memalloc_heap_untrack(void* ptr)
  * shared state, and must be called with the GIL held and without making any C
  * Python API calls. */
 static bool
-memalloc_heap_should_sample_no_cpython(heap_tracker_t* heap_tracker, size_t size)
+memalloc_heap_should_sample_no_cpython(heap_tracker_t* heap_tracker, void* ptr, size_t size)
 {
     MEMALLOC_GIL_DEBUG_CHECK_ACQUIRE(&heap_tracker->gil_guard);
     /* Heap tracking is disabled */
@@ -269,12 +292,6 @@ memalloc_heap_should_sample_no_cpython(heap_tracker_t* heap_tracker, size_t size
     }
 
     heap_tracker->allocated_memory += size;
-
-    /* Check if we have enough sample or not */
-    if (heap_tracker->allocated_memory < heap_tracker->current_sample_size) {
-        MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&heap_tracker->gil_guard);
-        return false;
-    }
 
     if (memalloc_heap_map_size(heap_tracker->allocs_m) + memalloc_heap_map_size(heap_tracker->freezer.allocs_m) >
         TRACEBACK_ARRAY_MAX_COUNT) {
@@ -287,8 +304,37 @@ memalloc_heap_should_sample_no_cpython(heap_tracker_t* heap_tracker, size_t size
         return false;
     }
 
+    /* Check if we have enough sample or not.
+     * If so, start a run of possible sample collection */
+    if (heap_tracker->allocated_memory >= heap_tracker->current_sample_size) {
+        heap_tracker->collect_sample = true;
+    }
+
+    /* If we are in a situation where we could collect samples, and the pointer is elibible,
+     * collect a sample */
+    if (heap_tracker->collect_sample && is_eligible_to_sample_no_cpython(ptr)) {
+        heap_tracker->collect_sample = false;
+        MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&heap_tracker->gil_guard);
+        return true;
+    }
+
+    /* Otherwise, leave collect_sample untouched, and try next time */
     MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&heap_tracker->gil_guard);
     return true;
+}
+
+/* Updates the threshold for  */
+static void
+memalloc_heap_update_threshold_no_cpython(heap_tracker_t* heap_tracker)
+{
+    MEMALLOC_GIL_DEBUG_CHECK_ACQUIRE(&heap_tracker->gil_guard);
+    /* Reset the counter to 0 */
+    heap_tracker->allocated_memory = 0;
+
+    /* Compute the new target sample size */
+    heap_tracker->current_sample_size = heap_tracker_next_sample_size_no_cpython(heap_tracker->sample_size);
+
+    MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&heap_tracker->gil_guard);
 }
 
 /* Track an allocation that we decided to sample. This updates shared state and
@@ -312,11 +358,7 @@ memalloc_heap_add_sample_no_cpython(heap_tracker_t* heap_tracker, traceback_t* t
         old = memalloc_heap_map_insert(heap_tracker->allocs_m, tb->ptr, tb);
     }
 
-    /* Reset the counter to 0 */
-    heap_tracker->allocated_memory = 0;
-
-    /* Compute the new target sample size */
-    heap_tracker->current_sample_size = heap_tracker_next_sample_size(heap_tracker->sample_size);
+    memalloc_heap_update_threshold_no_cpython(heap_tracker);
 
     MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&heap_tracker->gil_guard);
     return old;
@@ -326,7 +368,7 @@ memalloc_heap_add_sample_no_cpython(heap_tracker_t* heap_tracker, traceback_t* t
 void
 memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorDomain domain)
 {
-    if (!memalloc_heap_should_sample_no_cpython(&global_heap_tracker, size)) {
+    if (!memalloc_heap_should_sample_no_cpython(&global_heap_tracker, ptr, size)) {
         return;
     }
 
