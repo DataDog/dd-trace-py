@@ -90,6 +90,7 @@ def post_preload():
         # Pytest relies on inspect.signature objects remaining consistent across its lifecycle.
         # Dropping inspect causes: "unexpected object <Signature> in __signature__ attribute"
 
+
 def start():
     """
     Start the IAST product.
