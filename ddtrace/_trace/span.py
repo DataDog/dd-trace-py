@@ -269,19 +269,6 @@ class Span(object):
     def finished(self) -> bool:
         return self.duration_ns is not None
 
-    @finished.setter
-    def finished(self, value: bool) -> None:
-        """Finishes the span if set to a truthy value.
-
-        If the span is already finished and a truthy value is provided
-        no action will occur.
-        """
-        if value:
-            if not self.finished:
-                self.duration_ns = Time.time_ns() - self.start_ns
-        else:
-            self.duration_ns = None
-
     @property
     def duration(self) -> Optional[float]:
         """The span duration in seconds."""
@@ -775,15 +762,6 @@ class Span(object):
         while span is not None:
             span.finish()
             span = span._parent
-
-    @removals.remove(removal_version="4.0.0")
-    def finish_with_ancestors(self) -> None:
-        """Finish this span along with all (accessible) ancestors of this span.
-
-        This method is useful if a sudden program shutdown is required and finishing
-        the trace is desired.
-        """
-        self._finish_with_ancestors()
 
     def __enter__(self) -> "Span":
         return self
