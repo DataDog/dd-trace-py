@@ -46,9 +46,9 @@ PROMPT = [
 
 def _build_test_params():
     actions = [
-        {"action": "ALLOW", "reason": "Go ahead"},
-        {"action": "DENY", "reason": "Nope"},
-        {"action": "ABORT", "reason": "Kill it with fire"},
+        {"action": "ALLOW", "reason": "Go ahead", "tags": []},
+        {"action": "DENY", "reason": "Nope", "tags": ["deny_everything", "test_deny"]},
+        {"action": "ABORT", "reason": "Kill it with fire", "tags": ["alarm_tag", "abort_everything"]},
     ]
     block = [True, False]
     suites = [
@@ -63,6 +63,7 @@ def _build_test_params():
             pytest.param(
                 action["action"],
                 action["reason"],
+                action["tags"],
                 block,
                 suite["suite"],
                 suite["target"],
@@ -78,14 +79,24 @@ def assert_telemetry(mocked, metric, tags):
     assert ("count", "appsec", metric, 1, tags) in metrics
 
 
-@pytest.mark.parametrize("action,reason,blocking,suite,target,messages", _build_test_params())
+@pytest.mark.parametrize("action,reason,tags,blocking,suite,target,messages", _build_test_params())
 @patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
 def test_evaluate_method(
-    mock_execute_request, telemetry_mock, ai_guard_client, tracer, action, reason, blocking, suite, target, messages
+    mock_execute_request,
+    telemetry_mock,
+    ai_guard_client,
+    tracer,
+    action,
+    reason,
+    tags,
+    blocking,
+    suite,
+    target,
+    messages,
 ):
     """Test different combinations of evaluations."""
-    mock_execute_request.return_value = mock_evaluate_response(action, reason, blocking)
+    mock_execute_request.return_value = mock_evaluate_response(action, reason, tags, blocking)
     should_block = blocking and action != "ALLOW"
 
     if should_block:
@@ -103,6 +114,8 @@ def test_evaluate_method(
         expected_tags.update({"ai_guard.tool_name": "calc"})
     if action != "ALLOW" and blocking:
         expected_tags.update({"ai_guard.blocked": "true"})
+    for tag in tags:
+        expected_tags.update({"ai_guard.tag." + tag: "true"})
     assert_ai_guard_span(
         tracer,
         messages,
