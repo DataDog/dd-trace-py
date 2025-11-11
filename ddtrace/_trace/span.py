@@ -276,12 +276,6 @@ class Span(object):
         If the span is already finished and a truthy value is provided
         no action will occur.
         """
-        deprecate(
-            prefix="The finished setter is deprecated",
-            message="""Use the finish() method to finish a span.""",
-            category=DDTraceDeprecationWarning,
-            removal_version="4.0.0",
-        )
         if value:
             if not self.finished:
                 self.duration_ns = Time.time_ns() - self.start_ns
@@ -610,8 +604,6 @@ class Span(object):
         :param attributes: Optional dictionary of additional attributes to add to the exception event.
             These attributes will override the default exception attributes if they contain the same keys.
             Valid attribute values include (homogeneous array of) strings, booleans, integers, floats.
-        :param timestamp: Deprecated.
-        :param escaped: Deprecated.
         """
         tb = self._get_traceback(type(exception), exception, exception.__traceback__)
 
