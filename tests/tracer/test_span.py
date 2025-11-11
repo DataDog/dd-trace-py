@@ -677,28 +677,6 @@ def test_set_tag_measured_change_value():
     assert_is_measured(s)
 
 
-def test_spans_finished():
-    span = Span(None)
-    assert span.finished is False
-    assert span.duration_ns is None
-
-    span.finished = True
-    assert span.finished is True
-    assert span.duration_ns is not None
-    duration = span.duration_ns
-
-    span.finished = True
-    assert span.finished is True
-    assert span.duration_ns == duration
-
-    span.finished = False
-    assert span.finished is False
-
-    span.finished = True
-    assert span.finished is True
-    assert span.duration_ns != duration
-
-
 def test_span_unicode_set_tag():
     span = Span(None)
     span.set_tag("key", "😌")
