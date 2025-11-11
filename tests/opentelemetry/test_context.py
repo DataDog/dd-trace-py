@@ -6,6 +6,9 @@ from opentelemetry.baggage import get_baggage
 from opentelemetry.baggage import remove_baggage
 from opentelemetry.baggage import set_baggage
 from opentelemetry.context import attach
+from opentelemetry.context import Context
+from opentelemetry.trace import INVALID_SPAN
+from opentelemetry.trace import get_current_span
 import pytest
 
 import ddtrace
@@ -161,6 +164,25 @@ async def test_otel_trace_multiple_coroutines(oteltracer):
         await coro(2)
         await coro(3)
         await coro(4)
+
+
+def test_otel_get_current_span_with_invalid_context(oteltracer):
+    context = Context()
+    attach(context)
+    # When a context without a span is activated, get_current_span should return INVALID_SPAN
+    assert get_current_span() is INVALID_SPAN
+
+    with oteltracer.start_as_current_span("otel-get-current-span") as span:
+        span_context = span.get_span_context()
+        # Spans are sampled lazily; calling get_span_context will set the sampling priority
+        current_span = get_current_span()
+        current_context = current_span.get_span_context()
+        # Ensure get_current_span and span have the same context
+        assert span_context.trace_id == current_context.trace_id
+        assert span_context.span_id == current_context.span_id
+        # Ensure the span is kept (trace_flags == 1 means sampled)
+        assert span_context.trace_flags == current_context.trace_flags == 1
+        assert span_context.trace_state == current_context.trace_state
 
 
 def test_otel_baggage_propagation_to_ddtrace(oteltracer):
