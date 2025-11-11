@@ -701,29 +701,23 @@ class CustomBuildExt(build_ext):
                 raise
         else:
             # For the memalloc extension, dynamically add libdd_wrapper to extra_objects
-            # if it's not already there (needed for non-editable builds)
             if ext.name == "ddtrace.profiling.collector._memalloc" and CURRENT_OS in ("Linux", "Darwin"):
                 dd_wrapper_suffix = sysconfig.get_config_var("EXT_SUFFIX")
 
-                # For non-editable builds, remove any source directory paths and add build directory path
-                if not (IS_EDITABLE or getattr(self, "inplace", False)):
-                    # Remove any source directory libdd_wrapper paths
-                    source_wrapper_dir = Path(__file__).parent / "ddtrace" / "internal" / "datadog" / "profiling"
-                    ext.extra_objects = [
-                        obj for obj in ext.extra_objects if not obj.startswith(str(source_wrapper_dir))
-                    ]
-
-                    # Add build directory path
+                if IS_EDITABLE or getattr(self, "inplace", False):
+                    # Editable build: use source directory
+                    wrapper_dir = Path(__file__).parent / "ddtrace" / "internal" / "datadog" / "profiling"
+                else:
+                    # Non-editable build: use build directory
                     wrapper_dir = (
                         Path(__file__).parent / Path(self.build_lib) / "ddtrace" / "internal" / "datadog" / "profiling"
                     )
-                    wrapper_path = wrapper_dir / f"libdd_wrapper{dd_wrapper_suffix}"
 
-                    if wrapper_path.exists():
-                        wrapper_path_str = str(wrapper_path)
-                        if wrapper_path_str not in ext.extra_objects:
-                            ext.extra_objects.append(wrapper_path_str)
-                            print(f"Added libdd_wrapper to link: {wrapper_path_str}")
+                wrapper_path = wrapper_dir / f"libdd_wrapper{dd_wrapper_suffix}"
+                if wrapper_path.exists():
+                    wrapper_path_str = str(wrapper_path)
+                    if wrapper_path_str not in ext.extra_objects:
+                        ext.extra_objects.append(wrapper_path_str)
 
             super().build_extension(ext)
 
@@ -1065,20 +1059,6 @@ else:
 
 
 if not IS_PYSTON:
-    # Determine the libdd_wrapper filename with the Python extension suffix
-    # For editable builds, the library will be in the source directory
-    # For regular builds, it will be built during build_ext and found via the build system
-    _dd_wrapper_suffix: t.Optional[str] = sysconfig.get_config_var("EXT_SUFFIX")
-    _dd_wrapper_source_path: Path = (
-        HERE / "ddtrace" / "internal" / "datadog" / "profiling" / f"libdd_wrapper{_dd_wrapper_suffix}"
-    )
-
-    # Only include extra_objects if the library already exists (editable builds)
-    # For non-editable builds, build_libdd_wrapper() will handle it and the linker will find it
-    _dd_wrapper_extra_objects: t.List[str] = []
-    if CURRENT_OS in ("Linux", "Darwin") and _dd_wrapper_source_path.exists():
-        _dd_wrapper_extra_objects = [str(_dd_wrapper_source_path)]
-
     ext_modules: t.List[t.Union[Extension, Cython.Distutils.Extension, RustExtension]] = [
         Extension(
             "ddtrace.internal._threads",
@@ -1107,7 +1087,6 @@ if not IS_PYSTON:
                 include_dirs=[
                     "ddtrace/internal/datadog/profiling/dd_wrapper/include",
                 ],
-                extra_objects=_dd_wrapper_extra_objects,
                 extra_link_args=(
                     ["-Wl,-rpath,$ORIGIN/../../internal/datadog/profiling", "-latomic"]
                     if CURRENT_OS == "Linux"
