@@ -180,7 +180,7 @@ def test_metric_request_tainted(no_request_sampling, telemetry_writer):
 def test_log_metric(telemetry_writer):
     # Clear any existing logs first
     telemetry_writer._logs.clear()
-    
+
     with override_global_config(dict(_iast_debug=True)):
         _set_iast_error_metric("test_format_key_error_and_no_log_metric raises")
 
@@ -201,7 +201,7 @@ def test_log_metric_debug_disabled(telemetry_writer):
 def test_log_metric_debug_deduplication(telemetry_writer):
     # Clear any existing logs first
     telemetry_writer._logs.clear()
-    
+
     with override_global_config(dict(_iast_debug=True)):
         for i in range(10):
             _set_iast_error_metric("test_log_metric_debug_deduplication raises 2")
@@ -224,7 +224,7 @@ def test_log_metric_debug_disabled_deduplication(telemetry_writer):
 def test_log_metric_debug_deduplication_different_messages(telemetry_writer):
     # Clear any existing logs first
     telemetry_writer._logs.clear()
-    
+
     with override_global_config(dict(_iast_debug=True)):
         for i in range(10):
             _set_iast_error_metric(f"test_log_metric_debug_deduplication_different_messages raises {i}")
