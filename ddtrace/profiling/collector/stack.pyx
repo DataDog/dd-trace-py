@@ -419,7 +419,7 @@ class StackCollector(collector.PeriodicCollector):
                  ignore_profiler: bool = config.ignore_profiler,
                  endpoint_collection_enabled: typing.Optional[bool] = None,
                  tracer: typing.Optional[Tracer] = None,
-                 _stack_collector_v2_enabled: bool = config.stack.v2_enabled):
+                 _stack_collector_v2_enabled: bool = config.stack.enabled):
         super().__init__(interval= _default_min_interval_time())
         if max_time_usage_pct <= 0 or max_time_usage_pct > 100:
             raise ValueError("Max time usage percent must be greater than 0 and smaller or equal to 100")

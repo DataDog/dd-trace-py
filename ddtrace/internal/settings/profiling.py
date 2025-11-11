@@ -253,22 +253,10 @@ class ProfilingConfigStack(DDConfig):
     enabled = DDConfig.v(
         bool,
         "enabled",
-        default=True,
+        default=sys.version_info < (3, 14),
         help_type="Boolean",
         help="Whether to enable the stack profiler",
     )
-
-    _v2_enabled = DDConfig.v(
-        bool,
-        "v2_enabled",
-        # Not yet supported on 3.14
-        default=sys.version_info < (3, 14),
-        help_type="Boolean",
-        help="Whether to enable the v2 stack profiler. Also enables the libdatadog collector.",
-    )
-
-    # V2 can't be enabled if stack collection is disabled or if pre-requisites are not met
-    v2_enabled = DDConfig.d(bool, lambda c: c._v2_enabled and c.enabled)
 
     v2_adaptive_sampling = DDConfig.v(
         bool,
@@ -388,14 +376,13 @@ if not ddup_is_available:
 # We also need to check if stack_v2 module is available, and turn if off
 # if it s not.
 stack_v2_failure_msg, stack_v2_is_available = _check_for_stack_v2_available()
-if config.stack.v2_enabled and not stack_v2_is_available:
+if config.stack.enabled and not stack_v2_is_available:
     msg = stack_v2_failure_msg or "stack_v2 not available"
     logger.warning("Failed to load stack_v2 module (%s), falling back to v1 stack sampler", msg)
     telemetry_writer.add_log(
         TELEMETRY_LOG_LEVEL.ERROR,
         "Failed to load stack_v2 module (%s), disabling profiling" % msg,
     )
-    config.stack.v2_enabled = False
     config.stack.enabled = False
 
 # Enrich tags with git metadata and DD_TAGS
@@ -405,10 +392,7 @@ config.tags = _enrich_tags(config.tags)
 def config_str(config):
     configured_features = []
     if config.stack.enabled:
-        if config.stack.v2_enabled:
-            configured_features.append("stack_v2")
-        else:
-            configured_features.append("stack")
+        configured_features.append("stack_v2")
     if config.lock.enabled:
         configured_features.append("lock")
     if config.memory.enabled:

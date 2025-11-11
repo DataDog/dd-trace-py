@@ -9,7 +9,7 @@ from .. import _threading
 from ddtrace.internal.settings.profiling import config
 
 
-if (is_stack_v2 := config.stack.v2_enabled):
+if (is_stack_v2 := config.stack.enabled):
 
     @when_imported("gevent")
     def _(gevent):

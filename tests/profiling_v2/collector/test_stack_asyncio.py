@@ -40,7 +40,6 @@ def test_asyncio():
     span_type = ext.SpanTypes.WEB
 
     p = profiler.Profiler(tracer=tracer)
-    assert p._profiler._stack_v2_enabled
     p.start()
     with tracer.trace("test_asyncio", resource=resource, span_type=span_type) as span:
         span_id = span.span_id
@@ -135,7 +134,6 @@ def test_asyncio_start_profiler_from_process_before_importing_asyncio():
     assert stack_v2.is_available, stack_v2.failure_msg
 
     p = profiler.Profiler()
-    assert p._profiler._stack_v2_enabled
     p.start()
 
     import asyncio
@@ -265,7 +263,7 @@ def test_asyncio_start_profiler_from_process_before_starting_loop():
     assert stack_v2.is_available, stack_v2.failure_msg
 
     p = profiler.Profiler()
-    assert p._profiler._stack_v2_enabled
+
     p.start()
 
     # Start an asyncio loop BEFORE importing profiler modules
@@ -396,7 +394,7 @@ def test_asyncio_start_profiler_from_process_after_creating_loop():
     assert stack_v2.is_available, stack_v2.failure_msg
 
     p = profiler.Profiler()
-    assert p._profiler._stack_v2_enabled
+
     p.start()
 
     async def my_function():
@@ -522,7 +520,7 @@ def test_asyncio_import_profiler_from_process_after_starting_loop():
     assert stack_v2.is_available, stack_v2.failure_msg
 
     p = profiler.Profiler()
-    assert p._profiler._stack_v2_enabled
+
     p.start()
 
     async def my_function():
@@ -659,7 +657,7 @@ def test_asyncio_start_profiler_from_process_after_task_start():
         assert stack_v2.is_available, stack_v2.failure_msg
 
         p = profiler.Profiler()
-        assert p._profiler._stack_v2_enabled
+
         p.start()
 
         # Run tasks that should be tracked
@@ -787,7 +785,7 @@ def test_asyncio_import_and_start_profiler_from_process_after_task_start():
         assert stack_v2.is_available, stack_v2.failure_msg
 
         p = profiler.Profiler()
-        assert p._profiler._stack_v2_enabled
+
         p.start()
 
         # Run tasks that should be tracked
