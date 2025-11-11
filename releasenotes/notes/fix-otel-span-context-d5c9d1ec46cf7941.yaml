@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    opentelemetry: Added support for nested context activation and deactivation using ``attach()`` and ``detach()`` from the OpenTelemetry context API. Deactivating a context properly restores the previous active trace.
+    Note: ``detach()`` only supports deactivating the last active trace and baggage. Other signals present in the context will not be restored.

@@ -1,5 +1,6 @@
 import abc
 import contextvars
+from contextvars import Token
 from typing import Any
 from typing import Optional
 from typing import Union
@@ -63,10 +64,11 @@ class DefaultContextProvider(BaseContextProvider):
         ctx = _DD_CONTEXTVAR.get()
         return ctx is not None
 
-    def activate(self, ctx: Optional[ActiveTrace]) -> None:
+    def activate(self, ctx: Optional[ActiveTrace]) -> Token:
         """Makes the given context active in the current execution."""
-        _DD_CONTEXTVAR.set(ctx)
+        token = _DD_CONTEXTVAR.set(ctx)
         super(DefaultContextProvider, self).activate(ctx)
+        return token
 
     def active(self) -> Optional[ActiveTrace]:
         """Returns the active span or context for the current execution."""
@@ -95,3 +97,6 @@ class DefaultContextProvider(BaseContextProvider):
         if new_active is not span:
             self.activate(new_active)
         return new_active
+
+    def _deactivate(self, token: Token) -> None:
+        _DD_CONTEXTVAR.reset(token)

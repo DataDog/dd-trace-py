@@ -2042,3 +2042,38 @@ def test_activate_context_nesting_and_restoration(tracer):
         assert active.span_id == 1
 
     assert tracer.context_provider.active() is None
+
+
+def test_activate_and_deactivate_active_trace(tracer):
+    """Test that deactivating an active trace properly restores the previous active trace."""
+    # Verify test starts with clean context
+    assert tracer.context_provider.active() is None
+
+    try:
+        # Activate span1 and verify it becomes active
+        span1 = tracer.start_span("span1")
+        token1 = tracer.context_provider.activate(span1)
+        assert tracer.context_provider.active() == span1
+        # Activate span2 and verify it becomes active (nested)
+        span2 = tracer.start_span("span2")
+        token2 = tracer.context_provider.activate(span2)
+        assert tracer.context_provider.active() == span2
+        # Activate a context and verify it becomes active (double-nested)
+        context3 = Context(trace_id=3, span_id=3)
+        token3 = tracer.context_provider.activate(context3)
+        assert tracer.context_provider.active() == context3
+        # Deactivate span3, span2 should become active again
+        tracer.context_provider._deactivate(token3)
+        assert tracer.context_provider.active() == span2
+        # Deactivate span2, span1 should become active again
+        tracer.context_provider._deactivate(token2)
+        assert tracer.context_provider.active() == span1
+        # Deactivate span1, no active span should remain
+        tracer.context_provider._deactivate(token1)
+        assert tracer.context_provider.active() is None
+        # End spans to clean up
+        span1.finish()
+        span2.finish()
+    finally:
+        # Clear context to prevent leaking spans to subsequent tests
+        tracer.context_provider.activate(None)

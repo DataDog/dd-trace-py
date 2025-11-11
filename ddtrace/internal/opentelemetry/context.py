@@ -30,14 +30,15 @@ class DDRuntimeContext:
         otel_span = get_current_span(otel_context)
         if otel_span:
             if isinstance(otel_span, Span):
-                self._ddcontext_provider.activate(otel_span._ddspan)
+                token = self._ddcontext_provider.activate(otel_span._ddspan)
                 ddcontext = otel_span._ddspan.context
             elif isinstance(otel_span, OtelSpan):
                 trace_id, span_id, _, tf, ts, _ = otel_span.get_span_context()
                 trace_state = ts.to_header() if ts else None
                 ddcontext = _TraceContext._get_context(trace_id, span_id, tf, trace_state)
-                self._ddcontext_provider.activate(ddcontext)
+                token = self._ddcontext_provider.activate(ddcontext)
             else:
+                token = None
                 ddcontext = None
                 log.error(
                     "Programming ERROR: ddtrace does not support activating spans with the type: %s. Please open a "
@@ -54,9 +55,7 @@ class DDRuntimeContext:
                     for key, value in otel_baggage.items():
                         ddcontext._baggage[key] = value  # potentially convert to json
 
-        # A return value with the type `object` is required by the otel api to remove/deactivate spans.
-        # Since manually deactivating spans is not supported by ddtrace this object will never be used.
-        return object()
+        return token
 
     def get_current(self):
         """
@@ -100,10 +99,9 @@ class DDRuntimeContext:
 
     def detach(self, token):
         """
-        NOP, The otel api uses this method to deactivate spans but this operation is not supported by
-        the datadog context provider.
+        Resets the datadog contextvar to the previous active context.
         """
-        pass
+        self._ddcontext_provider._deactivate(token)
 
     @property
     def _ddcontext_provider(self):
