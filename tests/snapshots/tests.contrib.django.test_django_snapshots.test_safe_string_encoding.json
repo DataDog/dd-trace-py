@@ -399,7 +399,7 @@
                                            "service": "django",
                                            "resource": "django.views.generic.list.BaseListView.get",
                                            "trace_id": 0,
-                                           "span_id": 32,
+                                           "span_id": 31,
                                            "parent_id": 30,
                                            "type": "",
                                            "error": 0,

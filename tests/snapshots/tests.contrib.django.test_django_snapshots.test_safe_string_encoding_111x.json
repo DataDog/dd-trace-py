@@ -211,7 +211,7 @@
              "service": "django",
              "resource": "django.views.generic.list.BaseListView.get",
              "trace_id": 0,
-             "span_id": 20,
+             "span_id": 19,
              "parent_id": 18,
              "type": "",
              "error": 0,
