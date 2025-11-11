@@ -315,7 +315,8 @@ class Dataset:
 class _ExperimentRunInfo:
     def __init__(self, run_interation: int):
         self._id = uuid.uuid4()
-        self._run_iteration = run_interation
+        # always increment the representation of iteration by 1 for readability
+        self._run_iteration = run_interation + 1
 
 
 class Experiment:
