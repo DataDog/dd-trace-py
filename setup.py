@@ -1094,8 +1094,7 @@ if not IS_PYSTON:
     # _memalloc uses cwisstable which is not supported on Windows
     # Profiler extensions are only needed on Linux and macOS
     if CURRENT_OS != "Windows":
-        ext_modules.insert(
-            0,
+        ext_modules.append(
             Extension(
                 "ddtrace.profiling.collector._memalloc",
                 sources=[
