@@ -1,0 +1,6 @@
+---
+deprecations:
+  - |
+    tracing: ``Span.finished`` setter is deprecated, use ``Span.finish()`` method instead.
+  - |
+    tracing: ``Span.finish_with_ancestors()`` is deprecated with no alternative.
