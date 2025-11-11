@@ -187,24 +187,6 @@
        "start": 1692907166412379000
      },
      {
-       "name": "django.template.render",
-       "service": "django",
-       "resource": "django.template.base.Template.render",
-       "trace_id": 0,
-       "span_id": 11,
-       "parent_id": 1,
-       "type": "template",
-       "error": 0,
-       "meta": {
-         "_dd.base_service": "",
-         "_dd.p.tid": "654a694400000000",
-         "component": "django",
-         "django.template.engine.class": "django.template.engine.Engine"
-       },
-       "duration": 128000,
-       "start": 1692907166414461000
-     },
-     {
        "name": "django.middleware",
        "service": "django",
        "resource": "django.middleware.csrf.CsrfViewMiddleware.process_response",
