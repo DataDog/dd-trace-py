@@ -263,7 +263,6 @@ def test_asyncio_start_profiler_from_process_before_starting_loop():
     assert stack_v2.is_available, stack_v2.failure_msg
 
     p = profiler.Profiler()
-
     p.start()
 
     # Start an asyncio loop BEFORE importing profiler modules
@@ -394,7 +393,6 @@ def test_asyncio_start_profiler_from_process_after_creating_loop():
     assert stack_v2.is_available, stack_v2.failure_msg
 
     p = profiler.Profiler()
-
     p.start()
 
     async def my_function():
@@ -520,7 +518,6 @@ def test_asyncio_import_profiler_from_process_after_starting_loop():
     assert stack_v2.is_available, stack_v2.failure_msg
 
     p = profiler.Profiler()
-
     p.start()
 
     async def my_function():
@@ -657,7 +654,6 @@ def test_asyncio_start_profiler_from_process_after_task_start():
         assert stack_v2.is_available, stack_v2.failure_msg
 
         p = profiler.Profiler()
-
         p.start()
 
         # Run tasks that should be tracked
@@ -785,7 +781,6 @@ def test_asyncio_import_and_start_profiler_from_process_after_task_start():
         assert stack_v2.is_available, stack_v2.failure_msg
 
         p = profiler.Profiler()
-
         p.start()
 
         # Run tasks that should be tracked
