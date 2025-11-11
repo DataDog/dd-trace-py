@@ -91,12 +91,18 @@ class DDRuntimeContext:
         """
         Resets the datadog contextvar to the previous active context.
         """
-        self._ddcontext_provider._deactivate(token)
+        if hasattr(self._ddcontext_provider, "_deactivate"):
+            self._ddcontext_provider._deactivate(token)
+        else:
+            log.debug(
+                "Context provider does not support deactivation. " "Active Context: %s, Token: %s",
+                self._ddcontext_provider.active(),
+                token,
+            )
 
     @property
     def _ddcontext_provider(self):
         """
         Get the ddtrace context provider from the global Datadog tracer.
-        This can reterive a default, gevent, or asyncio context provider.
         """
         return ddtracer.context_provider

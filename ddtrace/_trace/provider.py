@@ -35,7 +35,7 @@ class BaseContextProvider(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def activate(self, ctx: Optional[ActiveTrace]) -> None:
+    def activate(self, ctx: Optional[ActiveTrace]):
         core.dispatch("ddtrace.context_provider.activate", (ctx,))
 
     @abc.abstractmethod

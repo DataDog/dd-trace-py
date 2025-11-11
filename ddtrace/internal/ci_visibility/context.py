@@ -33,10 +33,11 @@ class CIContextProvider(DefaultContextProvider):
         ctx = _DD_CI_CONTEXTVAR.get()
         return ctx is not None
 
-    def activate(self, ctx: ContextTypeValue) -> None:
+    def activate(self, ctx: ContextTypeValue) -> contextvars.Token:
         """Makes the given context active in the current execution."""
-        _DD_CI_CONTEXTVAR.set(ctx)
+        token = _DD_CI_CONTEXTVAR.set(ctx)
         super(DefaultContextProvider, self).activate(ctx)
+        return token
 
     def active(self) -> ContextTypeValue:
         """Returns the active span or context for the current execution."""
@@ -44,3 +45,6 @@ class CIContextProvider(DefaultContextProvider):
         if isinstance(item, Span):
             return self._update_active(item)
         return item
+
+    def _deactivate(self, token: contextvars.Token) -> None:
+        _DD_CI_CONTEXTVAR.reset(token)
