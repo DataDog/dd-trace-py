@@ -38,11 +38,18 @@ def assert_ai_guard_span(tracer: DummyTracer, messages: List[Message], tags: Dic
     assert struct["messages"] == messages
 
 
-def mock_evaluate_response(action: str, reason: str = "", block: bool = True) -> Mock:
+def mock_evaluate_response(action: str, reason: str = "", tags: List[str] = None, block: bool = True) -> Mock:
     mock_response = Mock()
     mock_response.status = 200
     mock_response.get_json.return_value = {
-        "data": {"attributes": {"action": action, "reason": reason, "is_blocking_enabled": block}}
+        "data": {
+            "attributes": {
+                "action": action,
+                "reason": reason,
+                "tags": tags if tags else [],
+                "is_blocking_enabled": block,
+            }
+        }
     }
     return mock_response
 

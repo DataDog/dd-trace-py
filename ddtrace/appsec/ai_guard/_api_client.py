@@ -225,6 +225,7 @@ class AIGuardClient:
                         attributes = result["data"]["attributes"]
                         action = attributes["action"]
                         reason = attributes.get("reason", None)
+                        tags = attributes.get("tags", [])
                         blocking_enabled = attributes.get("is_blocking_enabled", False)
                     except Exception as e:
                         value = json.dumps(result, indent=2)[:500]
@@ -240,6 +241,8 @@ class AIGuardClient:
                         )
 
                     span.set_tag(AI_GUARD.ACTION_TAG, action)
+                    for tag in tags:
+                        span.set_tag(AI_GUARD.TAG + ".tag." + tag, "true")
                     if reason:
                         span.set_tag(AI_GUARD.REASON_TAG, reason)
                 else:
