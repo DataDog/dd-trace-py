@@ -1084,7 +1084,7 @@ if not IS_PYSTON:
             "ddtrace.internal._threads",
             sources=["ddtrace/internal/_threads.cpp"],
             extra_compile_args=(
-                ["-std=c++17", "-Wall", "-Wextra"] + fast_build_args
+                ["-std=c++20", "-Wall", "-Wextra"] + fast_build_args
                 if CURRENT_OS != "Windows"
                 else ["/std:c++20", "/MT"]
             ),
@@ -1120,7 +1120,7 @@ if not IS_PYSTON:
                 extra_compile_args=(
                     debug_compile_args
                     + (["-DNDEBUG"] if not debug_compile_args else ["-UNDEBUG"])
-                    + ["-D_POSIX_C_SOURCE=200809L", "-std=c++17"]
+                    + ["-D_POSIX_C_SOURCE=200809L", "-std=c++20"]
                     + fast_build_args
                 ),
             ),

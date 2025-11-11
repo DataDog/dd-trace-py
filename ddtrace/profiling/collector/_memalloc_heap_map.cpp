@@ -104,9 +104,7 @@ memalloc_heap_map_size(memalloc_heap_map_t* m)
 traceback_t*
 memalloc_heap_map_insert(memalloc_heap_map_t* m, void* key, traceback_t* value)
 {
-    HeapSamples_Entry k;
-    k.key = key;
-    k.val = value;
+    HeapSamples_Entry k = { .key = key, .val = value };
     HeapSamples_Insert res = HeapSamples_insert(&m->map, &k);
     traceback_t* prev = NULL;
     if (!res.inserted) {
