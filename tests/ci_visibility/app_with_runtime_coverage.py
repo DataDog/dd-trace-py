@@ -50,13 +50,17 @@ if __name__ == "__main__":
     from wsgiref.simple_server import make_server, WSGIServer
     import socket
 
+    # Wrap with DD WSGI middleware for runtime coverage collection
+    from ddtrace.contrib.wsgi import DDWSGIMiddleware
+    wrapped_application = DDWSGIMiddleware(application)
+
     # Custom server class that sets SO_REUSEADDR before binding
     class ReuseAddrServer(WSGIServer):
         allow_reuse_address = True
 
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8765
     print(f"Starting server on port {port}...", flush=True)
-    server = make_server("0.0.0.0", port, application, server_class=ReuseAddrServer)
+    server = make_server("0.0.0.0", port, wrapped_application, server_class=ReuseAddrServer)
     print(f"Server started on http://0.0.0.0:{port}", flush=True)
     try:
         server.serve_forever()
