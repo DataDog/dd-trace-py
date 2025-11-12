@@ -31,15 +31,17 @@
 #include <echion/timing.h>
 
 // ----------------------------------------------------------------------------
-static void _init()
+static void
+_init()
 {
     pid = getpid();
 }
 
 // ----------------------------------------------------------------------------
-static PyObject* track_thread(PyObject* Py_UNUSED(m), PyObject* args)
+static PyObject*
+track_thread(PyObject* Py_UNUSED(m), PyObject* args)
 {
-    uintptr_t thread_id;  // map key
+    uintptr_t thread_id; // map key
     const char* thread_name;
     pid_t native_id;
 
@@ -50,20 +52,16 @@ static PyObject* track_thread(PyObject* Py_UNUSED(m), PyObject* args)
         const std::lock_guard<std::mutex> guard(thread_info_map_lock);
 
         auto maybe_thread_info = ThreadInfo::create(thread_id, native_id, thread_name);
-        if (!maybe_thread_info)
-        {
+        if (!maybe_thread_info) {
             PyErr_SetString(PyExc_RuntimeError, "Failed to track thread");
             return nullptr;
         }
 
         auto entry = thread_info_map.find(thread_id);
-        if (entry != thread_info_map.end())
-        {
+        if (entry != thread_info_map.end()) {
             // Thread is already tracked so we update its info
             entry->second = std::move(*maybe_thread_info);
-        }
-        else
-        {
+        } else {
             thread_info_map.emplace(thread_id, std::move(*maybe_thread_info));
         }
     }
@@ -72,7 +70,8 @@ static PyObject* track_thread(PyObject* Py_UNUSED(m), PyObject* args)
 }
 
 // ----------------------------------------------------------------------------
-static PyObject* untrack_thread(PyObject* Py_UNUSED(m), PyObject* args)
+static PyObject*
+untrack_thread(PyObject* Py_UNUSED(m), PyObject* args)
 {
     unsigned long thread_id;
     if (!PyArg_ParseTuple(args, "l", &thread_id))
@@ -88,7 +87,8 @@ static PyObject* untrack_thread(PyObject* Py_UNUSED(m), PyObject* args)
 }
 
 // ----------------------------------------------------------------------------
-static PyObject* init(PyObject* Py_UNUSED(m), PyObject* Py_UNUSED(args))
+static PyObject*
+init(PyObject* Py_UNUSED(m), PyObject* Py_UNUSED(args))
 {
     _init();
 
@@ -97,15 +97,16 @@ static PyObject* init(PyObject* Py_UNUSED(m), PyObject* Py_UNUSED(args))
 
 // ----------------------------------------------------------------------------
 static PyMethodDef echion_core_methods[] = {
-    {"track_thread", track_thread, METH_VARARGS, "Map the name of a thread with its identifier"},
-    {"untrack_thread", untrack_thread, METH_VARARGS, "Untrack a terminated thread"},
-    {"init", init, METH_NOARGS, "Initialize the stack sampler (usually after a fork)"},
+    { "track_thread", track_thread, METH_VARARGS, "Map the name of a thread with its identifier" },
+    { "untrack_thread", untrack_thread, METH_VARARGS, "Untrack a terminated thread" },
+    { "init", init, METH_NOARGS, "Initialize the stack sampler (usually after a fork)" },
     // Configuration interface
-    {"set_interval", set_interval, METH_VARARGS, "Set the sampling interval"},
-    {"set_cpu", set_cpu, METH_VARARGS, "Set whether to use CPU time instead of wall time"},
-    {"set_max_frames", set_max_frames, METH_VARARGS, "Set the max number of frames to unwind"},
+    { "set_interval", set_interval, METH_VARARGS, "Set the sampling interval" },
+    { "set_cpu", set_cpu, METH_VARARGS, "Set whether to use CPU time instead of wall time" },
+    { "set_max_frames", set_max_frames, METH_VARARGS, "Set the max number of frames to unwind" },
     // Sentinel
-    {NULL, NULL, 0, NULL}};
+    { NULL, NULL, 0, NULL }
+};
 
 // ----------------------------------------------------------------------------
 static struct PyModuleDef coremodule = {
@@ -122,7 +123,8 @@ static struct PyModuleDef coremodule = {
 };
 
 // ----------------------------------------------------------------------------
-PyMODINIT_FUNC PyInit_core(void)
+PyMODINIT_FUNC
+PyInit_core(void)
 {
     PyObject* m;
 

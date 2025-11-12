@@ -5,7 +5,8 @@
 
 // ----------------------------------------------------------------------------
 #if PY_VERSION_HEX >= 0x030b0000
-static inline int _read_varint(unsigned char* table, ssize_t size, ssize_t* i)
+static inline int
+_read_varint(unsigned char* table, ssize_t size, ssize_t* i)
 {
     ssize_t guard = size - 1;
     if (*i >= guard)
@@ -13,8 +14,7 @@ static inline int _read_varint(unsigned char* table, ssize_t size, ssize_t* i)
 
     int val = table[++*i] & 63;
     int shift = 0;
-    while (table[*i] & 64 && *i < guard)
-    {
+    while (table[*i] & 64 && *i < guard) {
         shift += 6;
         val |= (table[++*i] & 63) << shift;
     }
@@ -22,7 +22,8 @@ static inline int _read_varint(unsigned char* table, ssize_t size, ssize_t* i)
 }
 
 // ----------------------------------------------------------------------------
-static inline int _read_signed_varint(unsigned char* table, ssize_t size, ssize_t* i)
+static inline int
+_read_signed_varint(unsigned char* table, ssize_t size, ssize_t* i)
 {
     int val = _read_varint(table, size, i);
     return (val & 1) ? -(val >> 1) : (val >> 1);
@@ -30,13 +31,15 @@ static inline int _read_signed_varint(unsigned char* table, ssize_t size, ssize_
 #endif
 
 // ----------------------------------------------------------------------------
-void init_frame_cache(size_t capacity)
+void
+init_frame_cache(size_t capacity)
 {
     frame_cache = new LRUCache<uintptr_t, Frame>(capacity);
 }
 
 // ----------------------------------------------------------------------------
-void reset_frame_cache()
+void
+reset_frame_cache()
 {
     delete frame_cache;
     frame_cache = nullptr;
@@ -55,14 +58,13 @@ Frame::Frame(PyObject* frame)
     const _PyInterpreterFrame* iframe = reinterpret_cast<_PyInterpreterFrame*>(frame);
     const int lasti = _PyInterpreterFrame_LASTI(iframe);
     PyCodeObject* code = iframe->f_code;
-#endif  // PY_VERSION_HEX >= 0x030d0000
-    PyCode_Addr2Location(code, lasti << 1, &location.line, &location.column, &location.line_end,
-                         &location.column_end);
+#endif // PY_VERSION_HEX >= 0x030d0000
+    PyCode_Addr2Location(code, lasti << 1, &location.line, &location.column, &location.line_end, &location.column_end);
     location.column++;
     location.column_end++;
     name = string_table.key_unsafe(code->co_qualname);
 #if PY_VERSION_HEX >= 0x030c0000
-    is_entry = (iframe->owner == FRAME_OWNED_BY_CSTACK);  // Shim frame
+    is_entry = (iframe->owner == FRAME_OWNED_BY_CSTACK); // Shim frame
 #else
     is_entry = iframe->is_entry;
 #endif
@@ -78,11 +80,11 @@ Frame::Frame(PyObject* frame)
 }
 
 // ------------------------------------------------------------------------
-Result<Frame::Ptr> Frame::create(PyCodeObject* code, int lasti)
+Result<Frame::Ptr>
+Frame::create(PyCodeObject* code, int lasti)
 {
     auto maybe_filename = string_table.key(code->co_filename);
-    if (!maybe_filename)
-    {
+    if (!maybe_filename) {
         return ErrorKind::FrameError;
     }
 
@@ -92,15 +94,13 @@ Result<Frame::Ptr> Frame::create(PyCodeObject* code, int lasti)
     auto maybe_name = string_table.key(code->co_name);
 #endif
 
-    if (!maybe_name)
-    {
+    if (!maybe_name) {
         return ErrorKind::FrameError;
     }
 
     auto frame = std::make_unique<Frame>(*maybe_filename, *maybe_name);
     auto infer_location_success = frame->infer_location(code, lasti);
-    if (!infer_location_success)
-    {
+    if (!infer_location_success) {
         return ErrorKind::LocationError;
     }
 
@@ -108,31 +108,29 @@ Result<Frame::Ptr> Frame::create(PyCodeObject* code, int lasti)
 }
 
 // ----------------------------------------------------------------------------
-Result<void> Frame::infer_location(PyCodeObject* code_obj, int lasti)
+Result<void>
+Frame::infer_location(PyCodeObject* code_obj, int lasti)
 {
     unsigned int lineno = code_obj->co_firstlineno;
     Py_ssize_t len = 0;
 
 #if PY_VERSION_HEX >= 0x030b0000
     auto table = pybytes_to_bytes_and_size(code_obj->co_linetable, &len);
-    if (table == nullptr)
-    {
+    if (table == nullptr) {
         return ErrorKind::LocationError;
     }
 
     auto table_data = table.get();
 
-    for (Py_ssize_t i = 0, bc = 0; i < len; i++)
-    {
+    for (Py_ssize_t i = 0, bc = 0; i < len; i++) {
         bc += (table[i] & 7) + 1;
         int code = (table[i] >> 3) & 15;
         unsigned char next_byte = 0;
-        switch (code)
-        {
+        switch (code) {
             case 15:
                 break;
 
-            case 14:  // Long form
+            case 14: // Long form
                 lineno += _read_signed_varint(table_data, len, &i);
 
                 this->location.line = lineno;
@@ -142,7 +140,7 @@ Result<void> Frame::infer_location(PyCodeObject* code_obj, int lasti)
 
                 break;
 
-            case 13:  // No column data
+            case 13: // No column data
                 lineno += _read_signed_varint(table_data, len, &i);
 
                 this->location.line = lineno;
@@ -151,11 +149,10 @@ Result<void> Frame::infer_location(PyCodeObject* code_obj, int lasti)
 
                 break;
 
-            case 12:  // New lineno
+            case 12: // New lineno
             case 11:
             case 10:
-                if (i >= len - 2)
-                {
+                if (i >= len - 2) {
                     return ErrorKind::LocationError;
                 }
 
@@ -169,8 +166,7 @@ Result<void> Frame::infer_location(PyCodeObject* code_obj, int lasti)
                 break;
 
             default:
-                if (i >= len - 1)
-                {
+                if (i >= len - 1) {
                     return ErrorKind::LocationError;
                 }
 
@@ -188,14 +184,12 @@ Result<void> Frame::infer_location(PyCodeObject* code_obj, int lasti)
 
 #elif PY_VERSION_HEX >= 0x030a0000
     auto table = pybytes_to_bytes_and_size(code_obj->co_linetable, &len);
-    if (table == nullptr)
-    {
+    if (table == nullptr) {
         return ErrorKind::LocationError;
     }
 
     lasti <<= 1;
-    for (int i = 0, bc = 0; i < len; i++)
-    {
+    for (int i = 0, bc = 0; i < len; i++) {
         int sdelta = table[i++];
         if (sdelta == 0xff)
             break;
@@ -215,13 +209,11 @@ Result<void> Frame::infer_location(PyCodeObject* code_obj, int lasti)
 
 #else
     auto table = pybytes_to_bytes_and_size(code_obj->co_lnotab, &len);
-    if (table == nullptr)
-    {
+    if (table == nullptr) {
         return ErrorKind::LocationError;
     }
 
-    for (int i = 0, bc = 0; i < len; i++)
-    {
+    for (int i = 0, bc = 0; i < len; i++) {
         bc += table[i++];
         if (bc > lasti)
             break;
@@ -243,13 +235,15 @@ Result<void> Frame::infer_location(PyCodeObject* code_obj, int lasti)
 }
 
 // ------------------------------------------------------------------------
-Frame::Key Frame::key(PyCodeObject* code, int lasti)
+Frame::Key
+Frame::key(PyCodeObject* code, int lasti)
 {
     return ((static_cast<uintptr_t>(((reinterpret_cast<uintptr_t>(code)))) << 16) | lasti);
 }
 
 // ----------------------------------------------------------------------------
-Frame::Key Frame::key(PyObject* frame)
+Frame::Key
+Frame::key(PyObject* frame)
 {
 #if PY_VERSION_HEX >= 0x030d0000
     _PyInterpreterFrame* iframe = reinterpret_cast<_PyInterpreterFrame*>(frame);
@@ -269,179 +263,177 @@ Frame::Key Frame::key(PyObject* frame)
 
 // ------------------------------------------------------------------------
 #if PY_VERSION_HEX >= 0x030b0000
-Result<std::reference_wrapper<Frame>> Frame::read(_PyInterpreterFrame* frame_addr,
-                                                  _PyInterpreterFrame** prev_addr)
+Result<std::reference_wrapper<Frame>>
+Frame::read(_PyInterpreterFrame* frame_addr, _PyInterpreterFrame** prev_addr)
 #else
-Result<std::reference_wrapper<Frame>> Frame::read(PyObject* frame_addr, PyObject** prev_addr)
+Result<std::reference_wrapper<Frame>>
+Frame::read(PyObject* frame_addr, PyObject** prev_addr)
 #endif
 {
 #if PY_VERSION_HEX >= 0x030b0000
     _PyInterpreterFrame iframe;
     auto resolved_addr =
-        stack_chunk ? reinterpret_cast<_PyInterpreterFrame*>(stack_chunk->resolve(frame_addr))
-                    : frame_addr;
-    if (resolved_addr != frame_addr)
-    {
+      stack_chunk ? reinterpret_cast<_PyInterpreterFrame*>(stack_chunk->resolve(frame_addr)) : frame_addr;
+    if (resolved_addr != frame_addr) {
         frame_addr = resolved_addr;
-    }
-    else
-    {
-        if (copy_type(frame_addr, iframe))
-        {
+    } else {
+        if (copy_type(frame_addr, iframe)) {
             return ErrorKind::FrameError;
         }
         frame_addr = &iframe;
     }
-    if (frame_addr == NULL)
-    {
+    if (frame_addr == NULL) {
         return ErrorKind::FrameError;
     }
 
 #if PY_VERSION_HEX >= 0x030c0000
-    if (frame_addr->owner == FRAME_OWNED_BY_CSTACK)
-    {
+    if (frame_addr->owner == FRAME_OWNED_BY_CSTACK) {
         *prev_addr = frame_addr->previous;
         // This is a C frame, we just need to ignore it
         return std::ref(C_FRAME);
     }
 
-    if (frame_addr->owner != FRAME_OWNED_BY_THREAD && frame_addr->owner != FRAME_OWNED_BY_GENERATOR)
-    {
+    if (frame_addr->owner != FRAME_OWNED_BY_THREAD && frame_addr->owner != FRAME_OWNED_BY_GENERATOR) {
         return ErrorKind::FrameError;
     }
-#endif  // PY_VERSION_HEX >= 0x030c0000
+#endif // PY_VERSION_HEX >= 0x030c0000
 
     // We cannot use _PyInterpreterFrame_LASTI because _PyCode_CODE reads
     // from the code object.
 #if PY_VERSION_HEX >= 0x030d0000
     const int lasti =
-        (static_cast<int>((frame_addr->instr_ptr - 1 -
-                           reinterpret_cast<_Py_CODEUNIT*>(
-                               (reinterpret_cast<PyCodeObject*>(frame_addr->f_executable)))))) -
-        offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT);
+      (static_cast<int>(
+        (frame_addr->instr_ptr - 1 -
+         reinterpret_cast<_Py_CODEUNIT*>((reinterpret_cast<PyCodeObject*>(frame_addr->f_executable)))))) -
+      offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT);
     auto maybe_frame = Frame::get(reinterpret_cast<PyCodeObject*>(frame_addr->f_executable), lasti);
-    if (!maybe_frame)
-    {
+    if (!maybe_frame) {
         return ErrorKind::FrameError;
     }
 
     auto& frame = maybe_frame->get();
 #else
-    const int lasti = (static_cast<int>((frame_addr->prev_instr -
-                                         reinterpret_cast<_Py_CODEUNIT*>((frame_addr->f_code))))) -
-                      offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT);
+    const int lasti =
+      (static_cast<int>((frame_addr->prev_instr - reinterpret_cast<_Py_CODEUNIT*>((frame_addr->f_code))))) -
+      offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT);
     auto maybe_frame = Frame::get(frame_addr->f_code, lasti);
-    if (!maybe_frame)
-    {
+    if (!maybe_frame) {
         return ErrorKind::FrameError;
     }
 
     auto& frame = maybe_frame->get();
-#endif  // PY_VERSION_HEX >= 0x030d0000
-    if (&frame != &INVALID_FRAME)
-    {
+#endif // PY_VERSION_HEX >= 0x030d0000
+    if (&frame != &INVALID_FRAME) {
 #if PY_VERSION_HEX >= 0x030c0000
-        frame.is_entry = (frame_addr->owner == FRAME_OWNED_BY_CSTACK);  // Shim frame
-#else   // PY_VERSION_HEX < 0x030c0000
+        frame.is_entry = (frame_addr->owner == FRAME_OWNED_BY_CSTACK); // Shim frame
+#else                                                                  // PY_VERSION_HEX < 0x030c0000
         frame.is_entry = frame_addr->is_entry;
-#endif  // PY_VERSION_HEX >= 0x030c0000
+#endif                                                                 // PY_VERSION_HEX >= 0x030c0000
     }
 
     *prev_addr = &frame == &INVALID_FRAME ? NULL : frame_addr->previous;
 
-#else   // PY_VERSION_HEX < 0x030b0000
+#else  // PY_VERSION_HEX < 0x030b0000
     // Unwind the stack from leaf to root and store it in a stack. This way we
     // can print it from root to leaf.
     PyFrameObject py_frame;
 
-    if (copy_type(frame_addr, py_frame))
-    {
+    if (copy_type(frame_addr, py_frame)) {
         return ErrorKind::FrameError;
     }
 
     auto maybe_frame = Frame::get(py_frame.f_code, py_frame.f_lasti);
-    if (!maybe_frame)
-    {
+    if (!maybe_frame) {
         return ErrorKind::FrameError;
     }
 
     auto& frame = maybe_frame->get();
     *prev_addr = (&frame == &INVALID_FRAME) ? NULL : reinterpret_cast<PyObject*>(py_frame.f_back);
-#endif  // PY_VERSION_HEX >= 0x030b0000
+#endif // PY_VERSION_HEX >= 0x030b0000
 
     return std::ref(frame);
 }
 
 // ----------------------------------------------------------------------------
-Result<std::reference_wrapper<Frame>> Frame::get(PyCodeObject* code_addr, int lasti)
+Result<std::reference_wrapper<Frame>>
+Frame::get(PyCodeObject* code_addr, int lasti)
 {
     auto frame_key = Frame::key(code_addr, lasti);
 
     auto maybe_frame = frame_cache->lookup(frame_key);
-    if (maybe_frame)
-    {
+    if (maybe_frame) {
         return *maybe_frame;
     }
 
     PyCodeObject code;
-    if (copy_type(code_addr, code))
-    {
+    if (copy_type(code_addr, code)) {
         return std::ref(INVALID_FRAME);
     }
 
     auto maybe_new_frame = Frame::create(&code, lasti);
-    if (!maybe_new_frame)
-    {
+    if (!maybe_new_frame) {
         return std::ref(INVALID_FRAME);
     }
 
     auto new_frame = std::move(*maybe_new_frame);
     new_frame->cache_key = frame_key;
     auto& f = *new_frame;
-    Renderer::get().frame(frame_key, new_frame->filename, new_frame->name, new_frame->location.line,
-                          new_frame->location.line_end, new_frame->location.column,
+    Renderer::get().frame(frame_key,
+                          new_frame->filename,
+                          new_frame->name,
+                          new_frame->location.line,
+                          new_frame->location.line_end,
+                          new_frame->location.column,
                           new_frame->location.column_end);
     frame_cache->store(frame_key, std::move(new_frame));
     return std::ref(f);
 }
 
 // ----------------------------------------------------------------------------
-Frame& Frame::get(PyObject* frame)
+Frame&
+Frame::get(PyObject* frame)
 {
     auto frame_key = Frame::key(frame);
 
     auto maybe_frame = frame_cache->lookup(frame_key);
-    if (maybe_frame)
-    {
+    if (maybe_frame) {
         return *maybe_frame;
     }
 
     auto new_frame = std::make_unique<Frame>(frame);
     new_frame->cache_key = frame_key;
     auto& f = *new_frame;
-    Renderer::get().frame(frame_key, new_frame->filename, new_frame->name, new_frame->location.line,
-                          new_frame->location.line_end, new_frame->location.column,
+    Renderer::get().frame(frame_key,
+                          new_frame->filename,
+                          new_frame->name,
+                          new_frame->location.line,
+                          new_frame->location.line_end,
+                          new_frame->location.column,
                           new_frame->location.column_end);
     frame_cache->store(frame_key, std::move(new_frame));
     return f;
 }
 
 // ----------------------------------------------------------------------------
-Frame& Frame::get(StringTable::Key name)
+Frame&
+Frame::get(StringTable::Key name)
 {
     uintptr_t frame_key = static_cast<uintptr_t>(name);
 
     auto maybe_frame = frame_cache->lookup(frame_key);
-    if (maybe_frame)
-    {
+    if (maybe_frame) {
         return *maybe_frame;
     }
 
     auto frame = std::make_unique<Frame>(name);
     frame->cache_key = frame_key;
     auto& f = *frame;
-    Renderer::get().frame(frame_key, frame->filename, frame->name, frame->location.line,
-                          frame->location.line_end, frame->location.column,
+    Renderer::get().frame(frame_key,
+                          frame->filename,
+                          frame->name,
+                          frame->location.line,
+                          frame->location.line_end,
+                          frame->location.column,
                           frame->location.column_end);
     frame_cache->store(frame_key, std::move(frame));
     return f;
