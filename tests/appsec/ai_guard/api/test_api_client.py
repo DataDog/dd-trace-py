@@ -1,4 +1,3 @@
-import json
 from itertools import product
 from unittest.mock import Mock
 from unittest.mock import patch
@@ -115,12 +114,13 @@ def test_evaluate_method(
         expected_tags.update({"ai_guard.tool_name": "calc"})
     if action != "ALLOW" and blocking:
         expected_tags.update({"ai_guard.blocked": "true"})
+    expected_meta_struct = {"messages": messages}
     if len(tags) > 0:
-        expected_tags.update({"ai_guard.matching_rules": json.dumps(tags)})
+        expected_meta_struct.update({"matching_rules": tags})
     assert_ai_guard_span(
         tracer,
-        messages,
         expected_tags,
+        expected_meta_struct,
     )
     assert_telemetry(
         telemetry_mock,
