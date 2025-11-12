@@ -21,7 +21,7 @@ class TestInitializeRuntimeCoverage:
     """Test runtime coverage initialization."""
 
     @pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 12), reason="Requires Python 3.12+")
-    @mock.patch("ddtrace.internal.ci_visibility.runtime_coverage.install")
+    @mock.patch("ddtrace.internal.coverage.installer.install")
     @mock.patch("ddtrace.internal.ci_visibility.runtime_coverage.ModuleCodeCollector")
     def test_initialize_runtime_coverage_success(self, mock_collector_class, mock_install):
         """Test successful initialization of runtime coverage."""
@@ -40,7 +40,7 @@ class TestInitializeRuntimeCoverage:
         assert call_args[1]["collect_import_time_coverage"] is True
 
     @pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 12), reason="Requires Python 3.12+")
-    @mock.patch("ddtrace.internal.ci_visibility.runtime_coverage.install")
+    @mock.patch("ddtrace.internal.coverage.installer.install")
     @mock.patch("ddtrace.internal.ci_visibility.runtime_coverage.ModuleCodeCollector")
     def test_initialize_runtime_coverage_instance_not_created(self, mock_collector_class, mock_install):
         """Test initialization fails when collector instance is not created."""
@@ -53,7 +53,7 @@ class TestInitializeRuntimeCoverage:
         mock_install.assert_called_once()
 
     @pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 12), reason="Requires Python 3.12+")
-    @mock.patch("ddtrace.internal.ci_visibility.runtime_coverage.install")
+    @mock.patch("ddtrace.internal.coverage.installer.install")
     def test_initialize_runtime_coverage_install_raises_exception(self, mock_install):
         """Test initialization handles exceptions gracefully."""
         # Mock install raising an exception

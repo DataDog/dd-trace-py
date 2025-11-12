@@ -53,7 +53,7 @@ class RuntimeCoverageWriter(HTTPWriter):
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
         if timeout is None:
-            timeout = agent_config.agent_timeout_seconds
+            timeout = agent_config.trace_agent_timeout_seconds
 
         # Determine intake URL and mode
         self._use_evp = use_evp
