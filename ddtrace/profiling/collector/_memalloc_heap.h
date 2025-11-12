@@ -25,8 +25,4 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
 void
 memalloc_heap_untrack(void* ptr);
 
-#define MEMALLOC_HEAP_PTR_ARRAY_COUNT_TYPE uint64_t
-#define MEMALLOC_HEAP_PTR_ARRAY_MAX_COUNT UINT64_MAX
-DO_ARRAY(void*, ptr, MEMALLOC_HEAP_PTR_ARRAY_COUNT_TYPE, DO_NOTHING)
-
 #endif
