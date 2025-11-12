@@ -7,6 +7,7 @@ from opentelemetry.trace import SpanContext
 from opentelemetry.trace import SpanKind
 from opentelemetry.trace import Status
 from opentelemetry.trace import StatusCode
+from opentelemetry.trace.span import DEFAULT_TRACE_OPTIONS
 from opentelemetry.trace.span import TraceFlags
 from opentelemetry.trace.span import TraceState
 
@@ -46,6 +47,18 @@ def _ddmap(span, attribute, value):
     else:
         setattr(span, attribute, value)
     return span
+
+
+def _get_trace_flags(sampling_priority):
+    """Returns the trace flags for a given sampling priority.
+    Note - DEFAULT_TRACE_OPTIONS is equivalent to 'span is not sampled YET'
+    """
+    if sampling_priority is None:
+        return DEFAULT_TRACE_OPTIONS
+    elif sampling_priority > 0:
+        return TraceFlags(TraceFlags.SAMPLED)
+    else:
+        return TraceFlags(TraceFlags.DEFAULT)
 
 
 _OTelDatadogMapping = {
@@ -144,11 +157,7 @@ class Span(OtelSpan):
             # the span context is accessed.
             ddtracer.sample(self._ddspan._local_root)
 
-        if self._ddspan.context.sampling_priority > 0:
-            tf = TraceFlags(TraceFlags.SAMPLED)
-        else:
-            tf = TraceFlags(TraceFlags.DEFAULT)
-
+        tf = _get_trace_flags(self._ddspan.context.sampling_priority)
         # Evaluate the tracestate header after the sampling decision has been made
         ts_str = w3c_tracestate_add_p(self._ddspan.context._tracestate, self._ddspan.span_id)
         ts = TraceState.from_header([ts_str])

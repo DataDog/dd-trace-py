@@ -865,7 +865,10 @@ class _TraceContext:
                     if lpid:
                         meta[LAST_DD_PARENT_ID_KEY] = lpid
 
-                    sampling_priority = _TraceContext._get_sampling_priority(trace_flag, sampling_priority_ts, origin)
+                    if trace_flag is not None:
+                        sampling_priority = _TraceContext._get_sampling_priority(
+                            trace_flag, sampling_priority_ts, origin
+                        )
                 else:
                     log.debug("no dd list member in tracestate from incoming request: %r", ts)
 
