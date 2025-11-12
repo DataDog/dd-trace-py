@@ -49,7 +49,7 @@ for _ in range(10):
 
 extra_services = ddtrace.config._get_extra_services()
 extra_services.discard("sqlite")  # coverage
-assert extra_services == {"extra_service_1"}
+assert extra_services == {"extra_service_1"}, extra_services
     """
 
     env = os.environ.copy()

@@ -1,6 +1,7 @@
 import atexit
 from contextlib import contextmanager
 from itertools import chain
+import sys
 import threading
 import time
 from typing import Dict
@@ -54,8 +55,9 @@ def long_running_ray_span(
 
         try:
             yield span
-        except BaseException as e:
-            raise e
+        except BaseException:
+            span.set_exc_info(*sys.exc_info())
+            raise
         finally:
             stop_long_running_span(span)
 

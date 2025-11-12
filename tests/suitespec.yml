@@ -6,7 +6,6 @@ components:
     - riotfile.py
     - .riot/requirements/*
     - scripts/ddtest
-    - scripts/run-test-suite
     - hatch.toml
     - tests/conftest.py
     - tests/utils.py
@@ -37,7 +36,6 @@ components:
   core:
     - ddtrace/internal/__init__.py
     - ddtrace/internal/_exceptions.py
-    - ddtrace/internal/_file_queue.py
     - ddtrace/internal/_rand.pyi
     - ddtrace/internal/_rand.pyx
     - ddtrace/internal/_stdint.h
@@ -54,6 +52,7 @@ components:
     - ddtrace/internal/forksafe.py
     - ddtrace/internal/gitmetadata.py
     - ddtrace/internal/glob_matching.py
+    - ddtrace/internal/ipc.py
     - ddtrace/internal/logger.py
     - ddtrace/_logger.py
     - ddtrace/internal/hostname.py
@@ -83,6 +82,9 @@ components:
     - ddtrace/internal/datastreams/*
     - ddtrace/data_streams.py
     - ddtrace/ext/schema.py
+  openfeature:
+    - ddtrace/openfeature/*
+    - tests/openfeature/*
   git:
     - ddtrace/ext/git.py
   lib_injection:
@@ -232,6 +234,14 @@ suites:
       - tests/runtime/*
     runner: riot
     skip: true
+  openfeature:
+    parallelism: 1
+    paths:
+      - '@openfeature'
+      - '@remoteconfig'
+      - '@core'
+    runner: riot
+    pattern: ^openfeature$
   telemetry:
     parallelism: 1
     paths:

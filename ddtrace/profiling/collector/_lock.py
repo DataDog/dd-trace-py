@@ -17,8 +17,6 @@ from typing import Optional
 from typing import Tuple
 from typing import Type
 
-import wrapt
-
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
@@ -29,117 +27,115 @@ from ddtrace.settings.profiling import config
 from ddtrace.trace import Tracer
 
 
+ACQUIRE_RELEASE_CO_NAMES: frozenset[str] = frozenset(["_acquire", "_release"])
+ENTER_EXIT_CO_NAMES: frozenset[str] = frozenset(
+    ["acquire", "release", "__enter__", "__exit__", "__aenter__", "__aexit__"]
+)
+
+
 def _current_thread() -> Tuple[int, str]:
     thread_id: int = _thread.get_ident()
     return thread_id, _threading.get_thread_name(thread_id)
 
 
-# We need to know if wrapt is compiled in C or not. If it's not using the C module, then the wrappers function will
-# appear in the stack trace and we need to hide it.
-WRAPT_C_EXT: bool
-if os.environ.get("WRAPT_DISABLE_EXTENSIONS"):
-    WRAPT_C_EXT = False
-else:
-    try:
-        import wrapt._wrappers as _w  # noqa: F401
-    except ImportError:
-        WRAPT_C_EXT = False
-    else:
-        WRAPT_C_EXT = True
-        del _w
+class _ProfiledLock:
+    """
+    Lightweight lock wrapper that profiles lock acquire/release operations.
+    It intercepts lock methods without the overhead of a full proxy object.
+    """
 
+    __slots__ = (
+        "__wrapped__",
+        "tracer",
+        "max_nframes",
+        "capture_sampler",
+        "init_location",
+        "acquired_time",
+        "name",
+    )
 
-class _ProfiledLock(wrapt.ObjectProxy):
     def __init__(
         self,
         wrapped: Any,
         tracer: Optional[Tracer],
         max_nframes: int,
         capture_sampler: collector.CaptureSampler,
-        endpoint_collection_enabled: bool,
     ) -> None:
-        wrapt.ObjectProxy.__init__(self, wrapped)
-        self._self_tracer: Optional[Tracer] = tracer
-        self._self_max_nframes: int = max_nframes
-        self._self_capture_sampler: collector.CaptureSampler = capture_sampler
-        self._self_endpoint_collection_enabled: bool = endpoint_collection_enabled
-        frame: FrameType = sys._getframe(2 if WRAPT_C_EXT else 3)
+        self.__wrapped__: Any = wrapped
+        self.tracer: Optional[Tracer] = tracer
+        self.max_nframes: int = max_nframes
+        self.capture_sampler: collector.CaptureSampler = capture_sampler
+        # Frame depth: 0=__init__, 1=_profiled_allocate_lock, 2=_LockAllocatorWrapper.__call__, 3=caller
+        frame: FrameType = sys._getframe(3)
         code: CodeType = frame.f_code
-        self._self_init_loc: str = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
-        self._self_acquired_at: int = 0
-        self._self_name: Optional[str] = None
+        self.init_location: str = f"{os.path.basename(code.co_filename)}:{frame.f_lineno}"
+        self.acquired_time: int = 0
+        self.name: Optional[str] = None
+
+    ### DUNDER methods ###
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, _ProfiledLock):
+            return self.__wrapped__ == other.__wrapped__
+        return self.__wrapped__ == other
+
+    def __getattr__(self, name: str) -> Any:
+        # Delegates acquire_lock, release_lock, locked_lock, and any future methods
+        return getattr(self.__wrapped__, name)
+
+    def __hash__(self) -> int:
+        return hash(self.__wrapped__)
+
+    def __repr__(self) -> str:
+        return f"<_ProfiledLock({self.__wrapped__!r}) at {self.init_location}>"
+
+    ### Regular methods ###
+
+    def locked(self) -> bool:
+        """Return True if lock is currently held."""
+        return self.__wrapped__.locked()
+
+    def acquire(self, *args: Any, **kwargs: Any) -> Any:
+        return self._acquire(self.__wrapped__.acquire, *args, **kwargs)
+
+    def __enter__(self, *args: Any, **kwargs: Any) -> Any:
+        return self._acquire(self.__wrapped__.__enter__, *args, **kwargs)
 
     def __aenter__(self, *args: Any, **kwargs: Any) -> Any:
         return self._acquire(self.__wrapped__.__aenter__, *args, **kwargs)
 
-    def __aexit__(self, *args: Any, **kwargs: Any) -> Any:
-        return self._release(self.__wrapped__.__aexit__, *args, **kwargs)
-
     def _acquire(self, inner_func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
-        if not self._self_capture_sampler.capture():
+        if not self.capture_sampler.capture():
             return inner_func(*args, **kwargs)
 
         start: int = time.monotonic_ns()
         try:
             return inner_func(*args, **kwargs)
         finally:
+            end: int = time.monotonic_ns()
+            self.acquired_time = end
             try:
-                end: int = time.monotonic_ns()
-                self._self_acquired_at = end
-
-                thread_id: int
-                thread_name: str
-                thread_id, thread_name = _current_thread()
-
-                task_id: Optional[int]
-                task_name: Optional[str]
-                task_frame: Optional[FrameType]
-                task_id, task_name, task_frame = _task.get_task(thread_id)
-
-                self._maybe_update_self_name()
-                lock_name: str = (
-                    "%s:%s" % (self._self_init_loc, self._self_name) if self._self_name else self._self_init_loc
-                )
-
-                frame: FrameType
-                if task_frame is None:
-                    # If we can't get the task frame, we use the caller frame. We expect acquire/release or
-                    # __enter__/__exit__ to be on the stack, so we go back 2 frames.
-                    frame = sys._getframe(2)
-                else:
-                    frame = task_frame
-
-                frames: List[DDFrame]
-                frames, _ = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
-
-                thread_native_id: int = _threading.get_thread_native_id(thread_id)
-
-                handle: ddup.SampleHandle = ddup.SampleHandle()
-                handle.push_monotonic_ns(end)
-                handle.push_lock_name(lock_name)
-                handle.push_acquire(end - start, 1)  # AFAICT, capture_pct does not adjust anything here
-                handle.push_threadinfo(thread_id, thread_native_id, thread_name)
-                handle.push_task_id(task_id)
-                handle.push_task_name(task_name)
-
-                if self._self_tracer is not None:
-                    handle.push_span(self._self_tracer.current_span())
-                for ddframe in frames:
-                    handle.push_frame(ddframe.function_name, ddframe.file_name, 0, ddframe.lineno)
-                handle.flush_sample()
+                self._update_name()
+                self._flush_sample(start, end, is_acquire=True)
+            except AssertionError:
+                if config.enable_asserts:
+                    # AssertionError exceptions need to propagate
+                    raise
             except Exception:
+                # Instrumentation must never crash user code
                 pass  # nosec
 
-    def acquire(self, *args: Any, **kwargs: Any) -> Any:
-        return self._acquire(self.__wrapped__.acquire, *args, **kwargs)
+    def release(self, *args: Any, **kwargs: Any) -> Any:
+        return self._release(self.__wrapped__.release, *args, **kwargs)
+
+    def __exit__(self, *args: Any, **kwargs: Any) -> None:
+        self._release(self.__wrapped__.__exit__, *args, **kwargs)
+
+    def __aexit__(self, *args: Any, **kwargs: Any) -> Any:
+        return self._release(self.__wrapped__.__aexit__, *args, **kwargs)
 
     def _release(self, inner_func: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
-        # The underlying threading.Lock class is implemented using C code, and
-        # it doesn't have the __dict__ attribute. So we can't do
-        # self.__dict__.pop("_self_acquired_at", None) to remove the attribute.
-        # Instead, we need to use the following workaround to retrieve and
-        # remove the attribute.
-        start: Optional[int] = getattr(self, "_self_acquired_at", None)
+        start: Optional[int] = getattr(self, "acquired_time", None)
         try:
             # Though it should generally be avoided to call release() from
             # multiple threads, it is possible to do so. In that scenario, the
@@ -147,65 +143,66 @@ class _ProfiledLock(wrapt.ObjectProxy):
             # not be propagated to the caller and to the users. The inner_func
             # will raise an RuntimeError as the threads are trying to release()
             # and unlocked lock, and the expected behavior is to propagate that.
-            del self._self_acquired_at
+            del self.acquired_time
         except AttributeError:
-            # We just ignore the error, if the attribute is not found.
             pass
+
         try:
             return inner_func(*args, **kwargs)
         finally:
             if start is not None:
-                end: int = time.monotonic_ns()
+                self._flush_sample(start, end=time.monotonic_ns(), is_acquire=False)
 
-                thread_id: int
-                thread_name: str
-                thread_id, thread_name = _current_thread()
+    def _flush_sample(self, start: int, end: int, is_acquire: bool) -> None:
+        """Helper method to push lock profiling data to ddup.
 
-                task_id: Optional[int]
-                task_name: Optional[str]
-                task_frame: Optional[FrameType]
-                task_id, task_name, task_frame = _task.get_task(thread_id)
+        Args:
+            start: Start timestamp in nanoseconds
+            end: End timestamp in nanoseconds
+            is_acquire: True for acquire operations, False for release operations
+        """
+        handle: ddup.SampleHandle = ddup.SampleHandle()
 
-                lock_name: str = (
-                    "%s:%s" % (self._self_init_loc, self._self_name) if self._self_name else self._self_init_loc
-                )
+        handle.push_monotonic_ns(end)
 
-                frame: FrameType
-                if task_frame is None:
-                    # See the comments in _acquire
-                    frame = sys._getframe(2)
-                else:
-                    frame = task_frame
+        lock_name: str = f"{self.init_location}:{self.name}" if self.name else self.init_location
+        handle.push_lock_name(lock_name)
 
-                frames: List[DDFrame]
-                frames, _ = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
+        duration_ns: int = end - start
+        if is_acquire:
+            handle.push_acquire(duration_ns, 1)
+        else:
+            handle.push_release(duration_ns, 1)
 
-                thread_native_id: int = _threading.get_thread_native_id(thread_id)
+        thread_id: int
+        thread_name: str
+        thread_id, thread_name = _current_thread()
 
-                handle: ddup.SampleHandle = ddup.SampleHandle()
-                handle.push_monotonic_ns(end)
-                handle.push_lock_name(lock_name)
-                handle.push_release(end - start, 1)  # AFAICT, capture_pct does not adjust anything here
-                handle.push_threadinfo(thread_id, thread_native_id, thread_name)
-                handle.push_task_id(task_id)
-                handle.push_task_name(task_name)
+        task_id: Optional[int]
+        task_name: Optional[str]
+        task_frame: Optional[FrameType]
+        task_id, task_name, task_frame = _task.get_task(thread_id)
 
-                if self._self_tracer is not None:
-                    handle.push_span(self._self_tracer.current_span())
-                for ddframe in frames:
-                    handle.push_frame(ddframe.function_name, ddframe.file_name, 0, ddframe.lineno)
-                handle.flush_sample()
+        handle.push_task_id(task_id)
+        handle.push_task_name(task_name)
 
-    def release(self, *args: Any, **kwargs: Any) -> Any:
-        return self._release(self.__wrapped__.release, *args, **kwargs)
+        thread_native_id: int = _threading.get_thread_native_id(thread_id)
+        handle.push_threadinfo(thread_id, thread_native_id, thread_name)
 
-    def __enter__(self, *args: Any, **kwargs: Any) -> Any:
-        return self._acquire(self.__wrapped__.__enter__, *args, **kwargs)
+        if self.tracer is not None:
+            handle.push_span(self.tracer.current_span())
 
-    def __exit__(self, *args: Any, **kwargs: Any) -> None:
-        self._release(self.__wrapped__.__exit__, *args, **kwargs)
+        # If we can't get the task frame, we use the caller frame.
+        # Call stack: 0: _flush_sample, 1: _acquire/_release, 2: acquire/release/__enter__/__exit__, 3: caller
+        frame: FrameType = task_frame or sys._getframe(3)
+        frames: List[DDFrame]
+        frames, _ = _traceback.pyframe_to_frames(frame, self.max_nframes)
+        for ddframe in frames:
+            handle.push_frame(ddframe.function_name, ddframe.file_name, 0, ddframe.lineno)
 
-    def _find_self_name(self, var_dict: Dict[str, Any]) -> Optional[str]:
+        handle.flush_sample()
+
+    def _find_name(self, var_dict: Dict[str, Any]) -> Optional[str]:
         for name, value in var_dict.items():
             if name.startswith("__") or isinstance(value, ModuleType):
                 continue
@@ -213,15 +210,18 @@ class _ProfiledLock(wrapt.ObjectProxy):
                 return name
             if config.lock.name_inspect_dir:
                 for attribute in dir(value):
-                    if not attribute.startswith("__") and getattr(value, attribute) is self:
-                        self._self_name = attribute
-                        return attribute
+                    try:
+                        if not attribute.startswith("__") and getattr(value, attribute) is self:
+                            return attribute
+                    except AttributeError:
+                        # Accessing unset attributes in __slots__ raises AttributeError.
+                        pass
         return None
 
     # Get lock acquire/release call location and variable name the lock is assigned to
     # This function propagates ValueError if the frame depth is <= 3.
-    def _maybe_update_self_name(self) -> None:
-        if self._self_name is not None:
+    def _update_name(self) -> None:
+        if self.name is not None:
             return
         # We expect the call stack to be like this:
         # 0: this
@@ -230,33 +230,31 @@ class _ProfiledLock(wrapt.ObjectProxy):
         # 3: caller frame
         if config.enable_asserts:
             frame: FrameType = sys._getframe(1)
-            # TODO: replace dict with list
-            if frame.f_code.co_name not in {"_acquire", "_release"}:
-                raise AssertionError("Unexpected frame %s" % frame.f_code.co_name)
+            if frame.f_code.co_name not in ACQUIRE_RELEASE_CO_NAMES:
+                raise AssertionError(f"Unexpected frame in stack: '{frame.f_code.co_name}'")
+
             frame = sys._getframe(2)
-            if frame.f_code.co_name not in {
-                "acquire",
-                "release",
-                "__enter__",
-                "__exit__",
-                "__aenter__",
-                "__aexit__",
-            }:
-                raise AssertionError("Unexpected frame %s" % frame.f_code.co_name)
-        frame = sys._getframe(3)
+            if frame.f_code.co_name not in ENTER_EXIT_CO_NAMES:
+                raise AssertionError(f"Unexpected frame in stack: '{frame.f_code.co_name}'")
 
         # First, look at the local variables of the caller frame, and then the global variables
-        self._self_name = self._find_self_name(frame.f_locals) or self._find_self_name(frame.f_globals)
-
-        if not self._self_name:
-            self._self_name = ""
+        frame = sys._getframe(3)
+        self.name = self._find_name(frame.f_locals) or self._find_name(frame.f_globals) or ""
 
 
-class FunctionWrapper(wrapt.FunctionWrapper):
-    # Override the __get__ method: whatever happens, _allocate_lock is always considered by Python like a "static"
-    # method, even when used as a class attribute. Python never tried to "bind" it to a method, because it sees it is a
-    # builtin function. Override default wrapt behavior here that tries to detect bound method.
-    def __get__(self, instance: Any, owner: Optional[Type] = None) -> FunctionWrapper:  # type: ignore
+class _LockAllocatorWrapper:
+    """Wrapper for lock allocator functions that prevents method binding."""
+
+    __slots__ = ("_func",)
+
+    def __init__(self, func: Callable[..., Any]) -> None:
+        self._func: Callable[..., Any] = func
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        return self._func(*args, **kwargs)
+
+    def __get__(self, instance: Any, owner: Optional[Type] = None) -> _LockAllocatorWrapper:
+        # Prevent automatic method binding (e.g., Foo.lock_class = threading.Lock)
         return self
 
 
@@ -268,16 +266,14 @@ class LockCollector(collector.CaptureSamplerCollector):
     def __init__(
         self,
         nframes: int = config.max_frames,
-        endpoint_collection_enabled: bool = config.endpoint_collection,
         tracer: Optional[Tracer] = None,
         *args: Any,
         **kwargs: Any,
     ) -> None:
         super().__init__(*args, **kwargs)
         self.nframes: int = nframes
-        self.endpoint_collection_enabled: bool = endpoint_collection_enabled
         self.tracer: Optional[Tracer] = tracer
-        self._original: Optional[Any] = None
+        self._original_lock: Any = None
 
     @abc.abstractmethod
     def _get_patch_target(self) -> Callable[..., Any]:
@@ -299,23 +295,20 @@ class LockCollector(collector.CaptureSamplerCollector):
 
     def patch(self) -> None:
         """Patch the module for tracking lock allocation."""
-        # We only patch the lock from the `threading` module.
-        # Nobody should use locks from `_thread`; if they do so, then it's deliberate and we don't profile.
-        self._original = self._get_patch_target()
+        self._original_lock = self._get_patch_target()
+        original_lock: Any = self._original_lock  # Capture non-None value
 
-        # TODO: `instance` is unused
-        def _allocate_lock(wrapped: Any, instance: Any, args: Any, kwargs: Any) -> _ProfiledLock:
-            lock: Any = wrapped(*args, **kwargs)
+        def _profiled_allocate_lock(*args: Any, **kwargs: Any) -> _ProfiledLock:
+            """Simple wrapper that returns profiled locks."""
             return self.PROFILED_LOCK_CLASS(
-                lock,
-                self.tracer,
-                self.nframes,
-                self._capture_sampler,
-                self.endpoint_collection_enabled,
+                wrapped=original_lock(*args, **kwargs),
+                tracer=self.tracer,
+                max_nframes=self.nframes,
+                capture_sampler=self._capture_sampler,
             )
 
-        self._set_patch_target(FunctionWrapper(self._original, _allocate_lock))
+        self._set_patch_target(_LockAllocatorWrapper(_profiled_allocate_lock))
 
     def unpatch(self) -> None:
         """Unpatch the threading module for tracking lock allocation."""
-        self._set_patch_target(self._original)
+        self._set_patch_target(self._original_lock)

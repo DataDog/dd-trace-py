@@ -104,7 +104,7 @@ def _get_64_lowest_order_bits_as_int(large_int: int) -> int:
 
 def _get_64_highest_order_bits_as_hex(large_int: int) -> str:
     """Get the 64 highest order bits from a 128bit integer"""
-    return "{:032x}".format(large_int)[:16]
+    return f"{large_int:032x}"[:16]
 
 
 class Span(object):
@@ -282,6 +282,12 @@ class Span(object):
         If the span is already finished and a truthy value is provided
         no action will occur.
         """
+        deprecate(
+            prefix="The finished setter is deprecated",
+            message="""Use the finish() method to finish a span.""",
+            category=DDTraceDeprecationWarning,
+            removal_version="4.0.0",
+        )
         if value:
             if not self.finished:
                 self.duration_ns = Time.time_ns() - self.start_ns
@@ -820,7 +826,7 @@ class Span(object):
         except ValueError:
             self._links.append(link)
 
-    def finish_with_ancestors(self) -> None:
+    def _finish_with_ancestors(self) -> None:
         """Finish this span along with all (accessible) ancestors of this span.
 
         This method is useful if a sudden program shutdown is required and finishing
@@ -830,6 +836,15 @@ class Span(object):
         while span is not None:
             span.finish()
             span = span._parent
+
+    @removals.remove(removal_version="4.0.0")
+    def finish_with_ancestors(self) -> None:
+        """Finish this span along with all (accessible) ancestors of this span.
+
+        This method is useful if a sudden program shutdown is required and finishing
+        the trace is desired.
+        """
+        self._finish_with_ancestors()
 
     def __enter__(self) -> "Span":
         return self
