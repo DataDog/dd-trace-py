@@ -211,7 +211,8 @@ class AIGuardClient:
                     span.set_tag(AI_GUARD.TOOL_NAME_TAG, tool_name)
                 else:
                     span.set_tag(AI_GUARD.TARGET_TAG, "prompt")
-                span.set_struct_tag(AI_GUARD.STRUCT, {"messages": self._messages_for_meta_struct(messages)})
+
+                span._set_struct_tag(AI_GUARD.STRUCT, {"messages": self._messages_for_meta_struct(messages)})
 
                 try:
                     response = self._execute_request(f"{self._endpoint}/evaluate", payload)
@@ -241,7 +242,8 @@ class AIGuardClient:
 
                     span.set_tag(AI_GUARD.ACTION_TAG, action)
                     if len(tags) > 0:
-                        span.set_tag(AI_GUARD.TAG + ".matching_rules", json.dumps(tags))
+                        meta_struct = span._get_struct_tag(AI_GUARD.STRUCT)
+                        meta_struct.update({"matching_rules": tags})
                     if reason:
                         span.set_tag(AI_GUARD.REASON_TAG, reason)
                 else:
