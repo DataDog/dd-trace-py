@@ -6,8 +6,6 @@
 
 #include <Python.h>
 
-#include "_utils.h"
-
 typedef struct
 #ifdef __GNUC__
   __attribute__((packed))

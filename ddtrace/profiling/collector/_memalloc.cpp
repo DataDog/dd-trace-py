@@ -10,7 +10,6 @@
 #include "_memalloc_reentrant.h"
 #include "_memalloc_tb.h"
 #include "_pymacro.h"
-#include "_utils.h"
 
 typedef struct
 {
