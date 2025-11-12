@@ -155,8 +155,6 @@ jobs:
             CMAKE_ARGS="-DNATIVE_TESTING=OFF"
             SETUPTOOLS_SCM_PRETEND_VERSION_FOR_DDTRACE=${{ needs.compute_version.outputs.library_version }}
             SCCACHE_GHA_ENABLED=true
-            SCCACHE_DIR=/host/${{ env.SCCACHE_DIR }}
-            SCCACHE_PATH=/host/${{ env.SCCACHE_PATH }}
             SCCACHE_CACHE_SIZE=1G
             ACTIONS_RUNTIME_TOKEN=${{ env.ACTIONS_RUNTIME_TOKEN }}
             ACTIONS_RUNTIME_URL=${{ env.ACTIONS_RUNTIME_URL }}
