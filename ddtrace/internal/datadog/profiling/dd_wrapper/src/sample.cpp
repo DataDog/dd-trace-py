@@ -1,11 +1,8 @@
 #include "sample.hpp"
 
-#include "code_provenance.hpp"
-
 #include <algorithm>
 #include <chrono>
 #include <string_view>
-#include <thread>
 
 Datadog::internal::StringArena::StringArena()
 {
@@ -526,16 +523,10 @@ Datadog::Sample::is_timeline_enabled() const
     return timeline_enabled;
 }
 
-ddog_prof_Profile&
+Datadog::ProfileBorrow
 Datadog::Sample::profile_borrow()
 {
-    return profile_state.profile_borrow();
-}
-
-void
-Datadog::Sample::profile_release()
-{
-    profile_state.profile_release();
+    return profile_state.borrow();
 }
 
 void

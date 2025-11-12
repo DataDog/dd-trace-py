@@ -54,6 +54,8 @@ add_library(
     src/code_provenance_interface.cpp
     src/ddup_interface.cpp
     src/profile.cpp
+    src/profile_borrow.cpp
+    src/profiler_stats.cpp
     src/sample.cpp
     src/sample_manager.cpp
     src/static_sample_pool.cpp
