@@ -57,11 +57,11 @@ def _get_application(key):
     Cached() annotation only supports functions with one argument
     """
     # avoid circular dependency
-    from ddtrace.internal.process_tags import process_tags
+    from ddtrace.internal import process_tags
 
     service, version, env = key
 
-    return {
+    application = {
         "service_name": service or DEFAULT_SERVICE_NAME,  # mandatory field, can not be empty
         "service_version": version or "",
         "env": env or "",
@@ -70,8 +70,12 @@ def _get_application(key):
         "tracer_version": get_version(),
         "runtime_name": platform.python_implementation(),
         "runtime_version": _format_version_info(sys.implementation.version),
-        "process_tags": process_tags,
     }
+
+    if process_tags := process_tags.process_tags:
+        application["process_tags"] = process_tags
+
+    return application
 
 
 def update_imported_dependencies(already_imported: Dict[str, str], new_modules: Iterable[str]) -> List[Dict[str, str]]:
