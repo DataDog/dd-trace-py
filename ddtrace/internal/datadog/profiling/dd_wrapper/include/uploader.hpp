@@ -1,11 +1,10 @@
 #pragma once
 
-#include "sample.hpp"
-#include "types.hpp"
+#include "profiler_stats.hpp"
 
 #include <atomic>
-#include <memory>
 #include <mutex>
+#include <string>
 
 extern "C"
 {
@@ -27,7 +26,7 @@ class Uploader
     bool export_to_file(ddog_prof_EncodedProfile* encoded);
 
   public:
-    bool upload(ddog_prof_Profile& profile);
+    bool upload(ddog_prof_Profile& profile, Datadog::ProfilerStats& profiler_stats);
     static void cancel_inflight();
     static void lock();
     static void unlock();

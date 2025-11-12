@@ -2,12 +2,12 @@
 
 #include "code_provenance.hpp"
 #include "libdatadog_helpers.hpp"
+#include "profiler_stats.hpp"
 
-#include <errno.h> // errno
-#include <fstream> // ofstream
-#include <optional>
+#include <cerrno>   // errno
+#include <cstring>  // strerror
+#include <fstream>  // ofstream
 #include <sstream>  // ostringstream
-#include <string.h> // strerror
 #include <unistd.h> // getpid
 #include <vector>
 
@@ -18,7 +18,7 @@ Datadog::Uploader::Uploader(std::string_view _output_filename, ddog_prof_Profile
   , ddog_exporter{ _ddog_exporter }
 {
     // Increment the upload sequence number every time we build an uploader.
-    // Upoloaders are use-once-and-destroy.
+    // Uploaders are use-once-and-destroy.
     upload_seq++;
 }
 
@@ -51,7 +51,7 @@ Datadog::Uploader::export_to_file(ddog_prof_EncodedProfile* encoded)
 }
 
 bool
-Datadog::Uploader::upload(ddog_prof_Profile& profile)
+Datadog::Uploader::upload(ddog_prof_Profile& profile, Datadog::ProfilerStats& profiler_stats)
 {
     // Serialize the profile
     ddog_prof_Profile_SerializeResult serialize_result = ddog_prof_Profile_serialize(&profile, nullptr, nullptr);
@@ -83,6 +83,8 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
         });
     }
 
+    auto internal_metadata_json_slice = to_slice(profiler_stats.get_internal_metadata_json());
+
     auto build_res = ddog_prof_Exporter_Request_build(
       &ddog_exporter,
       encoded,
@@ -93,8 +95,8 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
       },
       ddog_prof_Exporter_Slice_File_empty(), // files_to_export_unmodified
       nullptr,                               // optional_additional_tags
-      nullptr,                               // optional_internal_metadata_json
-      nullptr                                // optional_info_json
+      &internal_metadata_json_slice,
+      nullptr // optional_info_json
     );
     ddog_prof_EncodedProfile_drop(encoded);
 
