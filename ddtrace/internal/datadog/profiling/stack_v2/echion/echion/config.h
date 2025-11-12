@@ -21,7 +21,8 @@ inline bool ignore_non_running_threads = true;
 inline unsigned int max_frames = 2048;
 
 // ----------------------------------------------------------------------------
-static PyObject* set_interval(PyObject* Py_UNUSED(m), PyObject* args)
+static PyObject*
+set_interval(PyObject* Py_UNUSED(m), PyObject* args)
 {
     unsigned int new_interval;
     if (!PyArg_ParseTuple(args, "I", &new_interval))
@@ -33,19 +34,22 @@ static PyObject* set_interval(PyObject* Py_UNUSED(m), PyObject* args)
 }
 
 // ----------------------------------------------------------------------------
-inline void _set_cpu(int new_cpu)
+inline void
+_set_cpu(int new_cpu)
 {
     cpu = new_cpu;
 }
 
 // ----------------------------------------------------------------------------
-inline void _set_ignore_non_running_threads(bool new_ignore_non_running_threads)
+inline void
+_set_ignore_non_running_threads(bool new_ignore_non_running_threads)
 {
     ignore_non_running_threads = new_ignore_non_running_threads;
 }
 
 // ----------------------------------------------------------------------------
-static PyObject* set_cpu(PyObject* Py_UNUSED(m), PyObject* args)
+static PyObject*
+set_cpu(PyObject* Py_UNUSED(m), PyObject* args)
 {
     int new_cpu;
     if (!PyArg_ParseTuple(args, "p", &new_cpu))
@@ -57,7 +61,8 @@ static PyObject* set_cpu(PyObject* Py_UNUSED(m), PyObject* args)
 }
 
 // ----------------------------------------------------------------------------
-static PyObject* set_max_frames(PyObject* Py_UNUSED(m), PyObject* args)
+static PyObject*
+set_max_frames(PyObject* Py_UNUSED(m), PyObject* args)
 {
     unsigned int new_max_frames;
     if (!PyArg_ParseTuple(args, "I", &new_max_frames))
