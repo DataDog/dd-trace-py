@@ -2,7 +2,7 @@
 components:
   errortracking:
     - ddtrace/errortracking/*
-    - ddtrace/settings/errortracking.py
+    - ddtrace/internal/settings/errortracking.py
 suites:
   errortracker:
     parallelism: 1

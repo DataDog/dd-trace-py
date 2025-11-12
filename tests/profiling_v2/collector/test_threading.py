@@ -389,8 +389,8 @@ def test_assertion_error_raised_with_enable_asserts():
     with ThreadingLockCollector(capture_pct=100):
         lock = threading.Lock()
 
-        # Patch _maybe_update_self_name to raise AssertionError
-        lock._maybe_update_self_name = mock.Mock(side_effect=AssertionError("test: unexpected frame in stack"))
+        # Patch _update_name to raise AssertionError
+        lock._update_name = mock.Mock(side_effect=AssertionError("test: unexpected frame in stack"))
 
         with pytest.raises(AssertionError):
             # AssertionError should be propagated when enable_asserts=True
@@ -418,18 +418,18 @@ def test_all_exceptions_suppressed_by_default() -> None:
     with ThreadingLockCollector(capture_pct=100):
         lock = threading.Lock()
 
-        # Patch _maybe_update_self_name to raise AssertionError
-        lock._maybe_update_self_name = mock.Mock(side_effect=AssertionError("Unexpected frame in stack: 'fubar'"))
+        # Patch _update_name to raise AssertionError
+        lock._update_name = mock.Mock(side_effect=AssertionError("Unexpected frame in stack: 'fubar'"))
         lock.acquire()
         lock.release()
 
-        # Patch _maybe_update_self_name to raise RuntimeError
-        lock._maybe_update_self_name = mock.Mock(side_effect=RuntimeError("Some profiling error"))
+        # Patch _update_name to raise RuntimeError
+        lock._update_name = mock.Mock(side_effect=RuntimeError("Some profiling error"))
         lock.acquire()
         lock.release()
 
-        # Patch _maybe_update_self_name to raise Exception
-        lock._maybe_update_self_name = mock.Mock(side_effect=Exception("Wut happened?!?!"))
+        # Patch _update_name to raise Exception
+        lock._update_name = mock.Mock(side_effect=Exception("Wut happened?!?!"))
         lock.acquire()
         lock.release()
 
@@ -803,7 +803,7 @@ class BaseThreadingLockCollectorTest:
         [True, False],
     )
     def test_class_member_lock(self, inspect_dir_enabled: bool) -> None:
-        with mock.patch("ddtrace.settings.profiling.config.lock.name_inspect_dir", inspect_dir_enabled):
+        with mock.patch("ddtrace.internal.settings.profiling.config.lock.name_inspect_dir", inspect_dir_enabled):
             expected_lock_name: Optional[str] = "foo_lock" if inspect_dir_enabled else None
 
             with self.collector_class(capture_pct=100):
@@ -1128,12 +1128,12 @@ class BaseThreadingLockCollectorTest:
             # Verify all expected attributes are in __slots__
             expected_slots: set[str] = {
                 "__wrapped__",
-                "_self_tracer",
-                "_self_max_nframes",
-                "_self_capture_sampler",
-                "_self_init_loc",
-                "_self_acquired_at",
-                "_self_name",
+                "tracer",
+                "max_nframes",
+                "capture_sampler",
+                "init_location",
+                "acquired_time",
+                "name",
             }
             assert set(_ProfiledLock.__slots__) == expected_slots
 
