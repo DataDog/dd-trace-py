@@ -836,11 +836,11 @@ class _TraceContext:
 
     @staticmethod
     def _get_context(trace_id, span_id, trace_flag, ts, meta=None):
-        # type: (int, int, Literal[0,1], Optional[str], Optional[_MetaDictType]) -> Context
+        # type: (int, int, Optional[Literal[0,1]], Optional[str], Optional[_MetaDictType]) -> Context
         if meta is None:
             meta = {}
         origin = None
-        sampling_priority = trace_flag  # type: int
+        sampling_priority = trace_flag
         if ts:
             # whitespace is allowed, but whitespace to start or end values should be trimmed
             # e.g. "foo=1 \t , \t bar=2, \t baz=3" -> "foo=1,bar=2,baz=3"

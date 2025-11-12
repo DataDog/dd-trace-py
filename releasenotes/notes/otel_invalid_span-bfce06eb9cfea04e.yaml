@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    otel: This fix resolves an issue where the tracer would accept an invalid span when attaching to the context, causing it not to be sampled.
+    opentelemetry: Fixed spans going unsampled when using ``opentelemetry.trace.get_current_span()`` or ``NonRecordingSpan``. Spans are now kept and appear in the UI unless explicitly dropped by the Agent or sampling rules.

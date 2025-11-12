@@ -5,8 +5,9 @@ import opentelemetry
 from opentelemetry.baggage import get_baggage
 from opentelemetry.baggage import remove_baggage
 from opentelemetry.baggage import set_baggage
-from opentelemetry.context import attach
+import opentelemetry.context
 from opentelemetry.context import Context
+from opentelemetry.context import attach
 from opentelemetry.trace import INVALID_SPAN
 from opentelemetry.trace import get_current_span
 import pytest
@@ -166,9 +167,9 @@ async def test_otel_trace_multiple_coroutines(oteltracer):
         await coro(4)
 
 
-def test_otel_get_current_span_with_invalid_context(oteltracer):
-    context = Context()
-    attach(context)
+def test_otel_get_current_span(oteltracer):
+    """Test that get_current_span returns the correct span when a span is active"""
+    attach(Context())
     # When a context without a span is activated, get_current_span should return INVALID_SPAN
     assert get_current_span() is INVALID_SPAN
 
@@ -229,6 +230,24 @@ def test_otel_baggage_removal_propagation_to_ddtrace(oteltracer):
             assert ddspan.context.get_baggage_item("key4") == "value4"
             assert ddspan.context.get_baggage_item("key1") is None
             assert ddspan.context.get_baggage_item("key2") is None
+
+
+def test_otel_lazy_sampling_with_nonrecording_span(oteltracer):
+    """Test that lazy sampling works with a nonrecording span."""
+    from opentelemetry.trace import NonRecordingSpan
+    from opentelemetry.trace import SpanContext
+    from opentelemetry.trace import set_span_in_context
+    from opentelemetry.trace.span import TraceFlags
+
+    ctx = set_span_in_context(NonRecordingSpan(SpanContext(trace_id=1, span_id=2, is_remote=False)))
+    with oteltracer.start_as_current_span("test_span", context=ctx) as span:
+        assert span._ddspan.trace_id == 1
+        assert span._ddspan.parent_id == 2
+        assert span._ddspan.context.sampling_priority is None
+
+        sc = span.get_span_context()
+        assert sc.trace_flags == TraceFlags.SAMPLED
+        assert span._ddspan.context.sampling_priority == 1
 
 
 @pytest.mark.skipif(

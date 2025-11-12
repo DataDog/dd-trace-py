@@ -142,17 +142,12 @@ class Span(OtelSpan):
             # decision is made. Since the default sampling decision is to unsample spans this can result
             # in missing spans. To resolve this issue, a sampling decision must be made the first time
             # the span context is accessed.
-            ddtracer.sample(self._ddspan._local_root or self._ddspan)
+            ddtracer.sample(self._ddspan._local_root)
 
-        if self._ddspan.context.sampling_priority is None:
-            tf = TraceFlags.get_default()
-            log.warning(
-                "Span context is missing a sampling decision, defaulting to unsampled: %s", str(self._ddspan.context)
-            )
-        elif self._ddspan.context.sampling_priority > 0:
+        if self._ddspan.context.sampling_priority > 0:
             tf = TraceFlags(TraceFlags.SAMPLED)
         else:
-            tf = TraceFlags.get_default()
+            tf = TraceFlags(TraceFlags.DEFAULT)
 
         # Evaluate the tracestate header after the sampling decision has been made
         ts_str = w3c_tracestate_add_p(self._ddspan.context._tracestate, self._ddspan.span_id)
