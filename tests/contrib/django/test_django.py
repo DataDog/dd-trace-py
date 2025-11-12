@@ -30,14 +30,12 @@ from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal import wrapping
 from ddtrace.internal.compat import ensure_text
-from ddtrace.internal.schema import schematize_service_name
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
-from tests.utils import assert_dict_issuperset
 from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -333,11 +331,11 @@ def test_django_request_not_found(client, test_spans):
 
     # Assert the correct number of traces and spans
     if django.VERSION >= (2, 0, 0):
-        span_count = 27
+        span_count = 26
     elif django.VERSION >= (1, 11, 0):
-        span_count = 18
+        span_count = 17
     else:
-        span_count = 16
+        span_count = 15
     test_spans.assert_span_count(span_count)
 
     # Assert the structure of the root `django.request` span
@@ -355,19 +353,6 @@ def test_django_request_not_found(client, test_spans):
             "http.method": "GET",
             "http.status_code": "404",
             "http.url": "http://testserver/unknown/endpoint",
-        },
-    )
-
-    # Assert template render
-    render_spans = list(test_spans.filter_spans(name="django.template.render"))
-    assert len(render_spans) == 1
-
-    render_span = render_spans[0]
-    render_span.assert_matches(
-        name="django.template.render",
-        resource="django.template.base.Template.render",
-        meta={
-            "django.template.engine.class": "django.template.engine.Engine",
         },
     )
 
@@ -718,26 +703,33 @@ Database tests
 """
 
 
-@pytest.mark.django_db
-def test_connection(client, test_spans):
+@pytest.mark.subprocess(env={"DD_DJANGO_INSTRUMENT_DATABASES": "true"})
+def test_connection():
+    from tests.contrib.django.utils import setup_django_test_spans
+    from tests.contrib.django.utils import with_django_db
+
+    test_spans = setup_django_test_spans()
+
     """
     When database queries are made from Django
         The queries are traced
     """
-    from django.contrib.auth.models import User
+    with with_django_db(test_spans):
+        from django.contrib.auth.models import User
 
-    users = User.objects.count()
-    assert users == 0
+        users = User.objects.count()
 
-    test_spans.assert_span_count(1)
-    spans = test_spans.get_spans()
+        assert users == 0
 
-    span = spans[0]
-    assert span.name == "sqlite.query"
-    assert span.service == "defaultdb"
-    assert span.span_type == "sql"
-    assert span.get_tag("django.db.vendor") == "sqlite"
-    assert span.get_tag("django.db.alias") == "default"
+        test_spans.assert_span_count(1)
+        spans = test_spans.get_spans()
+
+        span = spans[0]
+        assert span.name == "sqlite.query"
+        assert span.service == "defaultdb"
+        assert span.span_type == "sql"
+        assert span.get_tag("django.db.vendor") == "sqlite"
+        assert span.get_tag("django.db.alias") == "default"
 
 
 """
@@ -745,7 +737,15 @@ Caching tests
 """
 
 
-def test_cache_get(test_spans):
+@pytest.mark.subprocess(env={"DD_DJANGO_INSTRUMENT_CACHES": "true"})
+def test_cache_get():
+    import django
+
+    from tests.contrib.django.utils import setup_django_test_spans
+    from tests.utils import assert_dict_issuperset
+
+    test_spans = setup_django_test_spans()
+
     # get the default cache
     cache = django.core.cache.caches["default"]
 
@@ -770,19 +770,37 @@ def test_cache_get(test_spans):
     assert_dict_issuperset(span.get_tags(), expected_meta)
 
 
-def test_cache_service_schematization(test_spans):
+@pytest.mark.subprocess(
+    env={"DD_DJANGO_INSTRUMENT_CACHES": "true", "DD_DJANGO_CACHE_SERVICE_NAME": "test-cache-service"}
+)
+def test_cache_service_schematization():
+    import django
+
+    from ddtrace.internal.schema import schematize_service_name
+    from ddtrace.internal.settings._config import config
+    from tests.contrib.django.utils import setup_django_test_spans
+
+    test_spans = setup_django_test_spans()
+
     cache = django.core.cache.caches["default"]
 
-    with override_config("django", dict(cache_service_name="test-cache-service")):
-        cache.get("missing_key")
-        spans = test_spans.get_spans()
-        assert spans
-        span = spans[0]
-        expected_service_name = schematize_service_name(config.django.cache_service_name)
-        assert span.service == expected_service_name
+    cache.get("missing_key")
+    spans = test_spans.get_spans()
+    assert spans
+    span = spans[0]
+    expected_service_name = schematize_service_name(config.django.cache_service_name)
+    assert span.service == expected_service_name
 
 
-def test_cache_get_rowcount_existing_key(test_spans):
+@pytest.mark.subprocess(env={"DD_DJANGO_INSTRUMENT_CACHES": "true"})
+def test_cache_get_rowcount_existing_key():
+    import django
+
+    from tests.contrib.django.utils import setup_django_test_spans
+    from tests.utils import assert_dict_issuperset
+
+    test_spans = setup_django_test_spans()
+
     # get the default cache
     cache = django.core.cache.caches["default"]
 
@@ -800,7 +818,15 @@ def test_cache_get_rowcount_existing_key(test_spans):
     assert_dict_issuperset(span.get_metrics(), {"db.row_count": 1})
 
 
-def test_cache_get_rowcount_missing_key(test_spans):
+@pytest.mark.subprocess(env={"DD_DJANGO_INSTRUMENT_CACHES": "true"})
+def test_cache_get_rowcount_missing_key():
+    import django
+
+    from tests.contrib.django.utils import setup_django_test_spans
+    from tests.utils import assert_dict_issuperset
+
+    test_spans = setup_django_test_spans()
+
     # get the default cache
     cache = django.core.cache.caches["default"]
 
@@ -816,12 +842,19 @@ def test_cache_get_rowcount_missing_key(test_spans):
     assert_dict_issuperset(span.get_metrics(), {"db.row_count": 0})
 
 
-class NoBool:
-    def __bool__(self):
-        raise NotImplementedError
+@pytest.mark.subprocess(env={"DD_DJANGO_INSTRUMENT_CACHES": "true"})
+def test_cache_get_rowcount_empty_key():
+    import django
 
+    from tests.contrib.django.utils import setup_django_test_spans
+    from tests.utils import assert_dict_issuperset
 
-def test_cache_get_rowcount_empty_key(test_spans):
+    test_spans = setup_django_test_spans()
+
+    class NoBool:
+        def __bool__(self):
+            raise NotImplementedError
+
     # get the default cache
     cache = django.core.cache.caches["default"]
     cache.set(1, NoBool())
@@ -840,7 +873,15 @@ def test_cache_get_rowcount_empty_key(test_spans):
     assert_dict_issuperset(get_span.get_metrics(), {"db.row_count": 1})
 
 
+@pytest.mark.subprocess(env={"DD_DJANGO_INSTRUMENT_CACHES": "true"})
 def test_cache_get_rowcount_missing_key_with_default(test_spans):
+    import django
+
+    from tests.contrib.django.utils import setup_django_test_spans
+    from tests.utils import assert_dict_issuperset
+
+    test_spans = setup_django_test_spans()
+
     # get the default cache
     cache = django.core.cache.caches["default"]
 
@@ -856,22 +897,27 @@ def test_cache_get_rowcount_missing_key_with_default(test_spans):
     assert_dict_issuperset(span.get_metrics(), {"db.row_count": 1})
 
 
-class RaiseNotImplementedError:
-    def __eq__(self, _):
-        raise NotImplementedError
+@pytest.mark.subprocess(env={"DD_DJANGO_INSTRUMENT_CACHES": "true"})
+def test_cache_get_rowcount_throws_attribute_and_value_error():
+    import django
 
+    from tests.contrib.django.utils import setup_django_test_spans
+    from tests.utils import assert_dict_issuperset
 
-class RaiseValueError:
-    def __eq__(self, _):
-        raise ValueError
+    test_spans = setup_django_test_spans()
 
+    class RaiseNotImplementedError:
+        def __eq__(self, _):
+            raise NotImplementedError
 
-class RaiseAttributeError:
-    def __eq__(self, _):
-        raise AttributeError
+    class RaiseValueError:
+        def __eq__(self, _):
+            raise ValueError
 
+    class RaiseAttributeError:
+        def __eq__(self, _):
+            raise AttributeError
 
-def test_cache_get_rowcount_throws_attribute_and_value_error(test_spans):
     # get the default cache
     cache = django.core.cache.caches["default"]
 
@@ -916,25 +962,33 @@ def test_cache_get_rowcount_throws_attribute_and_value_error(test_spans):
     assert_dict_issuperset(get_3.get_metrics(), {"db.row_count": 0})
 
 
-class MockDataFrame:
-    def __init__(self, data):
-        self.data = data
-
-    def __eq__(self, other):
-        if isinstance(other, str):
-            return MockDataFrame([item == other for item in self.data])
-        else:
-            return MockDataFrame([row == other for row in self.data])
-
-    def __bool__(self):
-        raise ValueError("Cannot determine truthiness of comparison result for DataFrame.")
-
-    def __iter__(self):
-        return iter(self.data)
-
-
 @pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="")
-def test_cache_get_rowcount_iterable_ambiguous_truthiness(test_spans):
+@pytest.mark.subprocess(env={"DD_DJANGO_INSTRUMENT_CACHES": "true"})
+def test_cache_get_rowcount_iterable_ambiguous_truthiness():
+    import django
+    import pytest
+
+    from tests.contrib.django.utils import setup_django_test_spans
+    from tests.utils import assert_dict_issuperset
+
+    test_spans = setup_django_test_spans()
+
+    class MockDataFrame:
+        def __init__(self, data):
+            self.data = data
+
+        def __eq__(self, other):
+            if isinstance(other, str):
+                return MockDataFrame([item == other for item in self.data])
+            else:
+                return MockDataFrame([row == other for row in self.data])
+
+        def __bool__(self):
+            raise ValueError("Cannot determine truthiness of comparison result for DataFrame.")
+
+        def __iter__(self):
+            return iter(self.data)
+
     # get the default cache
 
     data = {"col1": 1, "col2": 2, "col3": 3}
@@ -979,7 +1033,15 @@ def test_cache_get_rowcount_iterable_ambiguous_truthiness(test_spans):
     assert_dict_issuperset(get_2.get_metrics(), {"db.row_count": 0})
 
 
+@pytest.mark.subprocess(env={"DD_DJANGO_INSTRUMENT_CACHES": "true"})
 def test_cache_get_unicode(test_spans):
+    import django
+
+    from tests.contrib.django.utils import setup_django_test_spans
+    from tests.utils import assert_dict_issuperset
+
+    test_spans = setup_django_test_spans()
+
     # get the default cache
     cache = django.core.cache.caches["default"]
 
@@ -1004,7 +1066,15 @@ def test_cache_get_unicode(test_spans):
     assert_dict_issuperset(span.get_tags(), expected_meta)
 
 
-def test_cache_set(test_spans):
+@pytest.mark.subprocess(env={"DD_DJANGO_INSTRUMENT_CACHES": "true"})
+def test_cache_set():
+    import django
+
+    from tests.contrib.django.utils import setup_django_test_spans
+    from tests.utils import assert_dict_issuperset
+
+    test_spans = setup_django_test_spans()
+
     # get the default cache
     cache = django.core.cache.caches["default"]
 
@@ -1030,7 +1100,15 @@ def test_cache_set(test_spans):
     assert_dict_issuperset(span.get_tags(), expected_meta)
 
 
-def test_cache_delete(test_spans):
+@pytest.mark.subprocess(env={"DD_DJANGO_INSTRUMENT_CACHES": "true"})
+def test_cache_delete():
+    import django
+
+    from tests.contrib.django.utils import setup_django_test_spans
+    from tests.utils import assert_dict_issuperset
+
+    test_spans = setup_django_test_spans()
+
     # get the default cache
     cache = django.core.cache.caches["default"]
 
@@ -1056,7 +1134,15 @@ def test_cache_delete(test_spans):
 
 
 @pytest.mark.skipif(django.VERSION >= (2, 1, 0), reason="")
-def test_cache_incr_1XX(test_spans):
+@pytest.mark.subprocess(env={"DD_DJANGO_INSTRUMENT_CACHES": "true"})
+def test_cache_incr_1XX():
+    import django
+
+    from tests.contrib.django.utils import setup_django_test_spans
+    from tests.utils import assert_dict_issuperset
+
+    test_spans = setup_django_test_spans()
+
     # get the default cache, set the value and reset the spans
     cache = django.core.cache.caches["default"]
     cache.set("value", 0)
@@ -1093,7 +1179,15 @@ def test_cache_incr_1XX(test_spans):
 
 
 @pytest.mark.skipif(django.VERSION < (2, 1, 0), reason="")
-def test_cache_incr_2XX(test_spans):
+@pytest.mark.subprocess(env={"DD_DJANGO_INSTRUMENT_CACHES": "true"})
+def test_cache_incr_2XX():
+    import django
+
+    from tests.contrib.django.utils import setup_django_test_spans
+    from tests.utils import assert_dict_issuperset
+
+    test_spans = setup_django_test_spans()
+
     # get the default cache, set the value and reset the spans
     cache = django.core.cache.caches["default"]
     cache.set("value", 0)
@@ -1123,7 +1217,15 @@ def test_cache_incr_2XX(test_spans):
 
 
 @pytest.mark.skipif(django.VERSION >= (2, 1, 0), reason="")
-def test_cache_decr_1XX(test_spans):
+@pytest.mark.subprocess(env={"DD_DJANGO_INSTRUMENT_CACHES": "true"})
+def test_cache_decr_1XX():
+    import django
+
+    from tests.contrib.django.utils import setup_django_test_spans
+    from tests.utils import assert_dict_issuperset
+
+    test_spans = setup_django_test_spans()
+
     # get the default cache, set the value and reset the spans
     cache = django.core.cache.caches["default"]
     cache.set("value", 0)
@@ -1167,7 +1269,15 @@ def test_cache_decr_1XX(test_spans):
 
 
 @pytest.mark.skipif(django.VERSION < (2, 1, 0), reason="")
-def test_cache_decr_2XX(test_spans):
+@pytest.mark.subprocess(env={"DD_DJANGO_INSTRUMENT_CACHES": "true"})
+def test_cache_decr_2XX():
+    import django
+
+    from tests.contrib.django.utils import setup_django_test_spans
+    from tests.utils import assert_dict_issuperset
+
+    test_spans = setup_django_test_spans()
+
     # get the default cache, set the value and reset the spans
     cache = django.core.cache.caches["default"]
     cache.set("value", 0)
@@ -1203,7 +1313,15 @@ def test_cache_decr_2XX(test_spans):
     assert_dict_issuperset(span_decr.get_tags(), expected_meta)
 
 
-def test_cache_get_many(test_spans):
+@pytest.mark.subprocess(env={"DD_DJANGO_INSTRUMENT_CACHES": "true"})
+def test_cache_get_many():
+    import django
+
+    from tests.contrib.django.utils import setup_django_test_spans
+    from tests.utils import assert_dict_issuperset
+
+    test_spans = setup_django_test_spans()
+
     # get the default cache
     cache = django.core.cache.caches["default"]
 
@@ -1242,7 +1360,15 @@ def test_cache_get_many(test_spans):
     assert_dict_issuperset(span_get_many.get_tags(), expected_meta)
 
 
-def test_cache_get_many_rowcount_all_existing(test_spans):
+@pytest.mark.subprocess(env={"DD_DJANGO_INSTRUMENT_CACHES": "true"})
+def test_cache_get_many_rowcount_all_existing():
+    import django
+
+    from tests.contrib.django.utils import setup_django_test_spans
+    from tests.utils import assert_dict_issuperset
+
+    test_spans = setup_django_test_spans()
+
     # get the default cache
     cache = django.core.cache.caches["default"]
 
@@ -1270,7 +1396,15 @@ def test_cache_get_many_rowcount_all_existing(test_spans):
     assert_dict_issuperset(span_get_second.get_metrics(), {"db.row_count": 1})
 
 
-def test_cache_get_many_rowcount_none_existing(test_spans):
+@pytest.mark.subprocess(env={"DD_DJANGO_INSTRUMENT_CACHES": "true"})
+def test_cache_get_many_rowcount_none_existing():
+    import django
+
+    from tests.contrib.django.utils import setup_django_test_spans
+    from tests.utils import assert_dict_issuperset
+
+    test_spans = setup_django_test_spans()
+
     # get the default cache
     cache = django.core.cache.caches["default"]
 
@@ -1297,7 +1431,15 @@ def test_cache_get_many_rowcount_none_existing(test_spans):
     assert_dict_issuperset(span_get_second.get_metrics(), {"db.row_count": 0})
 
 
-def test_cache_get_many_rowcount_some_existing(test_spans):
+@pytest.mark.subprocess(env={"DD_DJANGO_INSTRUMENT_CACHES": "true"})
+def test_cache_get_many_rowcount_some_existing():
+    import django
+
+    from tests.contrib.django.utils import setup_django_test_spans
+    from tests.utils import assert_dict_issuperset
+
+    test_spans = setup_django_test_spans()
+
     # get the default cache
     cache = django.core.cache.caches["default"]
 
@@ -1305,7 +1447,6 @@ def test_cache_get_many_rowcount_some_existing(test_spans):
 
     result = cache.get_many(["first_key", "missing_key"])
 
-    print(result)
     assert result == {"first_key": 1}
 
     spans = test_spans.get_spans()
@@ -1327,7 +1468,14 @@ def test_cache_get_many_rowcount_some_existing(test_spans):
     assert_dict_issuperset(span_get_second.get_metrics(), {"db.row_count": 0})
 
 
-def test_cache_set_many(test_spans):
+@pytest.mark.subprocess(env={"DD_DJANGO_INSTRUMENT_CACHES": "true"})
+def test_cache_set_many():
+    import django
+
+    from tests.contrib.django.utils import setup_django_test_spans
+
+    test_spans = setup_django_test_spans()
+
     # get the default cache
     cache = django.core.cache.caches["default"]
 
@@ -1362,7 +1510,14 @@ def test_cache_set_many(test_spans):
     assert "second_key" in span_set_many.get_tag("django.cache.key")
 
 
-def test_cache_delete_many(test_spans):
+@pytest.mark.subprocess(env={"DD_DJANGO_INSTRUMENT_CACHES": "true"})
+def test_cache_delete_many():
+    import django
+
+    from tests.contrib.django.utils import setup_django_test_spans
+
+    test_spans = setup_django_test_spans()
+
     # get the default cache
     cache = django.core.cache.caches["default"]
 
@@ -1397,59 +1552,68 @@ def test_cache_delete_many(test_spans):
     assert "another_key" in span_delete_many.get_tag("django.cache.key")
 
 
-@pytest.mark.django_db
-def test_cached_view(client, test_spans):
+@pytest.mark.subprocess(env={"DD_DJANGO_INSTRUMENT_CACHES": "true"})
+def test_cached_view():
+    from django.test import Client
+
+    from tests.contrib.django.utils import setup_django_test_spans
+    from tests.contrib.django.utils import with_django_db
+
+    test_spans = setup_django_test_spans()
+
     # make the first request so that the view is cached
-    response = client.get("/cached-users/")
-    assert response.status_code == 200
+    with with_django_db(test_spans):
+        client = Client()
+        response = client.get("/cached-users/")
+        assert response.status_code == 200
 
-    # check the first call for a non-cached view
-    spans = list(test_spans.filter_spans(name="django.cache"))
-    assert len(spans) == 3
-    # the cache miss
-    assert spans[0].resource == "django.core.cache.backends.locmem.get"
-    # store the result in the cache
-    assert spans[1].resource == "django.core.cache.backends.locmem.set"
-    assert spans[2].resource == "django.core.cache.backends.locmem.set"
+        # check the first call for a non-cached view
+        spans = list(test_spans.filter_spans(name="django.cache"))
+        assert len(spans) == 3
+        # the cache miss
+        assert spans[0].resource == "django.core.cache.backends.locmem.get"
+        # store the result in the cache
+        assert spans[1].resource == "django.core.cache.backends.locmem.set"
+        assert spans[2].resource == "django.core.cache.backends.locmem.set"
 
-    # check if the cache hit is traced
-    response = client.get("/cached-users/")
-    assert response.status_code == 200
-    spans = list(test_spans.filter_spans(name="django.cache"))
-    # There should be two more spans now
-    assert len(spans) == 5
+        # check if the cache hit is traced
+        response = client.get("/cached-users/")
+        assert response.status_code == 200
+        spans = list(test_spans.filter_spans(name="django.cache"))
+        # There should be two more spans now
+        assert len(spans) == 5
 
-    span_header = spans[3]
-    span_view = spans[4]
-    assert span_view.service == "django"
-    assert span_view.resource == "django.core.cache.backends.locmem.get"
-    assert span_view.name == "django.cache"
-    assert span_view.span_type == "cache"
-    assert span_view.error == 0
-    assert span_header.service == "django"
-    assert span_header.resource == "django.core.cache.backends.locmem.get"
-    assert span_header.name == "django.cache"
-    assert span_header.span_type == "cache"
-    assert span_header.error == 0
+        span_header = spans[3]
+        span_view = spans[4]
+        assert span_view.service == "django"
+        assert span_view.resource == "django.core.cache.backends.locmem.get"
+        assert span_view.name == "django.cache"
+        assert span_view.span_type == "cache"
+        assert span_view.error == 0
+        assert span_header.service == "django"
+        assert span_header.resource == "django.core.cache.backends.locmem.get"
+        assert span_header.name == "django.cache"
+        assert span_header.span_type == "cache"
+        assert span_header.error == 0
 
-    expected_meta_view = {
-        "component": "django",
-        "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
-        "django.cache.key": (
-            "views.decorators.cache.cache_page..GET.03cdc1cc4aab71b038a6764e5fcabb82.d41d8cd98f00b204e9800998ecf8..."
-        ),
-        "_dd.base_service": "tests.contrib.django",
-    }
+        expected_meta_view = {
+            "component": "django",
+            "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
+            "django.cache.key": (
+                "views.decorators.cache.cache_page..GET.03cdc1cc4aab71b038a6764e5fcabb82.d41d8cd98f00b204e9800998ecf8..."
+            ),
+            "_dd.base_service": "ddtrace_subprocess_dir",
+        }
 
-    expected_meta_header = {
-        "component": "django",
-        "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
-        "django.cache.key": "views.decorators.cache.cache_header..03cdc1cc4aab71b038a6764e5fcabb82.en-us",
-        "_dd.base_service": "tests.contrib.django",
-    }
+        expected_meta_header = {
+            "component": "django",
+            "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
+            "django.cache.key": "views.decorators.cache.cache_header..03cdc1cc4aab71b038a6764e5fcabb82.en-us",
+            "_dd.base_service": "ddtrace_subprocess_dir",
+        }
 
-    assert span_view.get_tags() == expected_meta_view
-    assert span_header.get_tags() == expected_meta_header
+        assert span_view.get_tags() == expected_meta_view, span_view.get_tags()
+        assert span_header.get_tags() == expected_meta_header
 
 
 """
@@ -1529,16 +1693,13 @@ def test_schematized_default_db_service_name(
         "v1": global_service_name or DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME,
     }[schema_version]
     code = """
-import pytest
-import sys
-
 import django
 
-from tests.contrib.django.conftest import *
-from tests.utils import override_config
+from tests.contrib.django.utils import setup_django_test_spans
+from tests.contrib.django.utils import with_django_db
 
-@pytest.mark.django_db
-def test_connection(client, test_spans):
+test_spans = setup_django_test_spans()
+with with_django_db(test_spans):
     from django.contrib.auth.models import User
 
     users = User.objects.count()
@@ -1553,15 +1714,14 @@ def test_connection(client, test_spans):
     assert span.span_type == "sql"
     assert span.get_tag("django.db.vendor") == "sqlite"
     assert span.get_tag("django.db.alias") == "default"
-
-if __name__ == "__main__":
-    # --reuse-db needed so the subprocess will not delete the main process database.
-    sys.exit(pytest.main(["-x", "--reuse-db", __file__]))
     """.format(
         expected_service_name
     )
 
     env = os.environ.copy()
+    env["DD_DJANGO_INSTRUMENT_DATABASES"] = "true"
+    env["DD_TRACE_PSYCOPG_ENABLED"] = "false"
+    env["DD_TRACE_SQLITE3_ENABLED"] = "false"
     if schema_version is not None:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     if global_service_name is not None:
@@ -1613,59 +1773,93 @@ if __name__ == "__main__":
     assert status == 0, (out, err)
 
 
-@pytest.mark.django_db
+@pytest.mark.subprocess(
+    env={
+        "DD_DJANGO_INSTRUMENT_DATABASES": "true",
+        "DD_DJANGO_DATABASE_SERVICE_NAME_PREFIX": "my-",
+    }
+)
 def test_database_service_prefix_can_be_overridden(test_spans):
-    with override_config("django", dict(database_service_name_prefix="my-")):
+    from tests.contrib.django.utils import setup_django_test_spans
+    from tests.contrib.django.utils import with_django_db
+
+    test_spans = setup_django_test_spans()
+
+    with with_django_db(test_spans):
         from django.contrib.auth.models import User
 
         User.objects.count()
 
-    spans = test_spans.get_spans()
-    assert len(spans) > 0
+        spans = test_spans.get_spans()
+        assert len(spans) > 0
 
-    span = spans[0]
-    assert span.service == "my-defaultdb"
+        span = spans[0]
+        assert span.service == "my-defaultdb"
 
 
-@pytest.mark.django_db
-def test_database_service_can_be_overridden(test_spans):
-    with override_config("django", dict(database_service_name="django-db")):
+@pytest.mark.subprocess(env={"DD_DJANGO_INSTRUMENT_DATABASES": "true", "DD_DJANGO_DATABASE_SERVICE_NAME": "django-db"})
+def test_database_service_can_be_overridden():
+    from tests.contrib.django.utils import setup_django_test_spans
+    from tests.contrib.django.utils import with_django_db
+
+    test_spans = setup_django_test_spans()
+
+    with with_django_db(test_spans):
         from django.contrib.auth.models import User
 
         User.objects.count()
 
-    spans = test_spans.get_spans()
-    assert len(spans) > 0
+        spans = test_spans.get_spans()
+        assert len(spans) > 0
 
-    span = spans[0]
-    assert span.service == "django-db"
+        span = spans[0]
+        assert span.service == "django-db"
 
 
-@pytest.mark.django_db
-def test_database_service_prefix_precedence(test_spans):
-    with override_config("django", dict(database_service_name="django-db", database_service_name_prefix="my-")):
+@pytest.mark.subprocess(
+    env={
+        "DD_DJANGO_INSTRUMENT_DATABASES": "true",
+        "DD_DJANGO_DATABASE_SERVICE_NAME": "django-db",
+        "DD_DJANGO_DATABASE_SERVICE_NAME_PREFIX": "my-",
+    }
+)
+def test_database_service_prefix_precedence():
+    from tests.contrib.django.utils import setup_django_test_spans
+    from tests.contrib.django.utils import with_django_db
+
+    test_spans = setup_django_test_spans()
+
+    with with_django_db(test_spans):
         from django.contrib.auth.models import User
 
         User.objects.count()
 
-    spans = test_spans.get_spans()
-    assert len(spans) > 0
+        spans = test_spans.get_spans()
+        assert len(spans) > 0
 
-    span = spans[0]
-    assert span.service == "django-db"
+        span = spans[0]
+        assert span.service == "django-db"
 
 
-def test_cache_service_can_be_overridden(test_spans):
+@pytest.mark.subprocess(
+    env={"DD_DJANGO_INSTRUMENT_CACHES": "true", "DD_DJANGO_CACHE_SERVICE_NAME": "test-cache-service"}
+)
+def test_cache_service_can_be_overridden():
+    import django
+
+    from tests.contrib.django.utils import setup_django_test_spans
+
+    test_spans = setup_django_test_spans()
+
     cache = django.core.cache.caches["default"]
 
-    with override_config("django", dict(cache_service_name="test-cache-service")):
-        cache.get("missing_key")
+    cache.get("missing_key")
 
     spans = test_spans.get_spans()
     assert len(spans) == 1
 
     span = spans[0]
-    assert span.service == "test-cache-service"
+    assert span.service == "test-cache-service", span.service
 
 
 def test_django_request_distributed(client, test_spans):
@@ -1887,7 +2081,14 @@ Template tests
 """
 
 
-def test_template(test_spans):
+@pytest.mark.subprocess(env=dict(DD_DJANGO_INSTRUMENT_TEMPLATES="true"))
+def test_template():
+    import django.template
+
+    from tests.contrib.django.utils import setup_django_test_spans
+
+    test_spans = setup_django_test_spans()
+
     # prepare a base template using the default engine
     template = django.template.Template("Hello {{name}}!")
     ctx = django.template.Context({"name": "Django"})
@@ -1918,22 +2119,28 @@ def test_template_no_instrumented(test_spans):
     properly disables template spans.
     """
     # prepare a base template using the default engine
-    with override_config("django", dict(instrument_templates=False)):
-        template = django.template.Template("Hello {{name}}!")
-        ctx = django.template.Context({"name": "Django"})
+    template = django.template.Template("Hello {{name}}!")
+    ctx = django.template.Context({"name": "Django"})
 
-        assert template.render(ctx) == "Hello Django!"
-        spans = test_spans.get_spans()
-        assert len(spans) == 0
+    assert template.render(ctx) == "Hello Django!"
+    spans = test_spans.get_spans()
+    assert len(spans) == 0
 
-        template.name = "my-template"
-        assert template.render(ctx) == "Hello Django!"
-        spans = test_spans.get_spans()
-        assert len(spans) == 0
+    template.name = "my-template"
+    assert template.render(ctx) == "Hello Django!"
+    spans = test_spans.get_spans()
+    assert len(spans) == 0
 
 
-def test_template_name(test_spans):
+@pytest.mark.subprocess(env=dict(DD_DJANGO_INSTRUMENT_TEMPLATES="true"))
+def test_template_name():
     from pathlib import PosixPath
+
+    import django.template
+
+    from tests.contrib.django.utils import setup_django_test_spans
+
+    test_spans = setup_django_test_spans()
 
     # prepare a base template using the default engine
     template = django.template.Template("Hello {{name}}!")
@@ -2403,8 +2610,13 @@ class TestWSGI:
             assert root.resource == "GET tests.contrib.django.views.error_500"
 
 
-@pytest.mark.django_db
+@pytest.mark.subprocess(env={"DD_DJANGO_INSTRUMENT_DATABASES": "true"})
 def test_connections_patched():
+    from ddtrace.internal import wrapping
+    from tests.contrib.django.utils import setup_django_test_spans
+
+    setup_django_test_spans()
+
     from django.db import connection
     from django.db import connections
 
