@@ -46,7 +46,7 @@ def test_flush_spans_before_writer_recreate():
 
     writer = tracer._span_aggregator.writer
     # Enable compute stats to trigger the recreation of the agent writer
-    tracer._recreate()
+    tracer._recreate(reset_buffer=False)
     assert tracer._span_aggregator.writer is not writer, "Writer should be recreated"
     # Finish the long running span after the writer has been recreated
     long_running_span.finish()
