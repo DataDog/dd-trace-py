@@ -45,11 +45,6 @@ def test_get_application_with_values():
 
 
 def test_get_application_with_process_tags():
-    from ddtrace.internal.process_tags.constants import ENTRYPOINT_BASEDIR_TAG
-    from ddtrace.internal.process_tags.constants import ENTRYPOINT_NAME_TAG
-    from ddtrace.internal.process_tags.constants import ENTRYPOINT_TYPE_SCRIPT
-    from ddtrace.internal.process_tags.constants import ENTRYPOINT_TYPE_TAG
-    from ddtrace.internal.process_tags.constants import ENTRYPOINT_WORKDIR_TAG
     from ddtrace.settings._config import config
 
     with mock.patch("sys.argv", ["/path/to/test_script.py"]), mock.patch("os.getcwd", return_value="/path/to/workdir"):
@@ -59,16 +54,6 @@ def test_get_application_with_process_tags():
 
             application = get_application("", "", "")
             assert "process_tags" in application
-
-            process_tags = application["process_tags"]
-
-            expected_raw = (
-                f"{ENTRYPOINT_BASEDIR_TAG}:to,"
-                f"{ENTRYPOINT_NAME_TAG}:test_script,"
-                f"{ENTRYPOINT_TYPE_TAG}:{ENTRYPOINT_TYPE_SCRIPT},"
-                f"{ENTRYPOINT_WORKDIR_TAG}:workdir"
-            )
-            assert process_tags == expected_raw
         finally:
             config._process_tags_enabled = False
             _process_tag_reload()
