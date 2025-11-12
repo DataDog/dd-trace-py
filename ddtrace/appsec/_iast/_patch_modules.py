@@ -29,7 +29,7 @@ from ddtrace.appsec._iast.secure_marks.configuration import SC_VALIDATOR
 from ddtrace.appsec._iast.secure_marks.sanitizers import create_sanitizer
 from ddtrace.appsec._iast.secure_marks.validators import create_validator
 from ddtrace.internal.logger import get_logger
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)

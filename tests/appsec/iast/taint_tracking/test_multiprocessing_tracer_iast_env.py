@@ -20,7 +20,7 @@ def _child_check(q: Queue):
     Reports tracer and IAST status back to parent via Queue.
     """
     try:
-        from ddtrace.settings.asm import config as asm_config
+        from ddtrace.internal.settings.asm import config as asm_config
         from ddtrace.trace import tracer
 
         # Start IAST context in child process

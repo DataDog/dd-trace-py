@@ -32,7 +32,7 @@ objects that must remain valid throughout its lifecycle.
 import sys
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)

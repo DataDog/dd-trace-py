@@ -21,11 +21,11 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.internal.compat import ensure_text
+from ddtrace.internal.settings._config import Config
+from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.settings._config import Config
-from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.trace import Context
 from ddtrace.trace import Span
 from tests.appsec.utils import asm_context
@@ -511,7 +511,7 @@ def test_set_http_meta(
             assert span.get_tag(tag) == value
 
 
-@mock.patch("ddtrace.settings._config.log")
+@mock.patch("ddtrace.internal.settings._config.log")
 @pytest.mark.parametrize(
     "error_codes,status_code,error,log_call",
     [
@@ -540,7 +540,7 @@ def test_set_http_meta_custom_errors(mock_log, span, int_config, error_codes, st
 def test_set_http_meta_custom_errors_via_env():
     from ddtrace import config
     from ddtrace.contrib.internal.trace_utils import set_http_meta
-    from ddtrace.settings.integration import IntegrationConfig
+    from ddtrace.internal.settings.integration import IntegrationConfig
     from ddtrace.trace import tracer
 
     config.myint = IntegrationConfig(config, "myint")
@@ -1118,7 +1118,7 @@ def test_url_in_http_with_empty_obfuscation_regex():
     from ddtrace import config
     from ddtrace.contrib.internal.trace_utils import set_http_meta
     from ddtrace.ext import http
-    from ddtrace.settings.integration import IntegrationConfig
+    from ddtrace.internal.settings.integration import IntegrationConfig
     from ddtrace.trace import tracer
 
     assert config._obfuscation_query_string_pattern.pattern == b"", config._obfuscation_query_string_pattern
@@ -1144,7 +1144,7 @@ def test_url_in_http_with_obfuscation_enabled_and_empty_regex():
     from ddtrace import config
     from ddtrace.contrib.internal.trace_utils import set_http_meta
     from ddtrace.ext import http
-    from ddtrace.settings.integration import IntegrationConfig
+    from ddtrace.internal.settings.integration import IntegrationConfig
     from ddtrace.trace import tracer
 
     # assert obfuscation is disabled when the regex is an empty string
