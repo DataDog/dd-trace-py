@@ -83,7 +83,7 @@ typedef struct
         std::vector<void*> frees;
     } freezer;
     /* List of freed samples that haven't been reported yet */
-    traceback_array_t unreported_samples;
+    std::vector<traceback_t*> unreported_samples;
 
     /* Debug guard to assert that GIL-protected critical sections are maintained
      * while accessing the profiler's state */
@@ -114,7 +114,6 @@ heap_tracker_init(heap_tracker_t* heap_tracker)
     heap_tracker->allocs_m = memalloc_heap_map_new();
     heap_tracker->freezer.allocs_m = memalloc_heap_map_new();
     // std::vector initializes itself, no need for explicit init
-    traceback_array_init(&heap_tracker->unreported_samples);
     heap_tracker->allocated_memory = 0;
     heap_tracker->frozen = false;
     heap_tracker->sample_size = 0;
@@ -128,7 +127,6 @@ heap_tracker_wipe(heap_tracker_t* heap_tracker)
     memalloc_heap_map_delete(heap_tracker->allocs_m);
     memalloc_heap_map_delete(heap_tracker->freezer.allocs_m);
     // std::vector destructor handles cleanup automatically
-    traceback_array_wipe(&heap_tracker->unreported_samples);
 }
 
 static void
@@ -216,7 +214,7 @@ memalloc_heap_untrack_no_cpython(heap_tracker_t* heap_tracker, void* ptr)
         traceback_t* tb = memalloc_heap_map_remove(heap_tracker->allocs_m, ptr);
         if (tb && !tb->reported) {
             /* If the sample hasn't been reported yet, add it to the allocation list */
-            traceback_array_append(&heap_tracker->unreported_samples, tb);
+            heap_tracker->unreported_samples.push_back(tb);
             MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&heap_tracker->gil_guard);
             return NULL;
         }
@@ -420,7 +418,7 @@ memalloc_heap(void)
 
     /* Calculate total number of samples: live + freed */
     size_t live_count = memalloc_heap_map_size(global_heap_tracker.allocs_m);
-    size_t freed_count = global_heap_tracker.unreported_samples.count;
+    size_t freed_count = global_heap_tracker.unreported_samples.size();
     size_t total_count = live_count + freed_count;
 
     PyObject* heap_list = PyList_New(total_count);
@@ -451,9 +449,7 @@ memalloc_heap(void)
     memalloc_heap_map_iter_delete(it);
 
     /* Second, iterate over freed samples from unreported_samples */
-    for (size_t i = 0; i < global_heap_tracker.unreported_samples.count; i++) {
-        traceback_t* tb = global_heap_tracker.unreported_samples.tab[i];
-
+    for (traceback_t* tb : global_heap_tracker.unreported_samples) {
         PyObject* tb_and_info = memalloc_sample_to_tuple(tb, false);
 
         PyList_SET_ITEM(heap_list, list_index, tb_and_info);
@@ -461,13 +457,13 @@ memalloc_heap(void)
     }
 
     /* Free all tracebacks in unreported_samples after reporting them */
-    for (size_t i = 0; i < global_heap_tracker.unreported_samples.count; i++) {
-        if (global_heap_tracker.unreported_samples.tab[i] != NULL) {
-            traceback_free(global_heap_tracker.unreported_samples.tab[i]);
+    for (traceback_t* tb : global_heap_tracker.unreported_samples) {
+        if (tb != NULL) {
+            traceback_free(tb);
         }
     }
-    /* Reset the count to 0 so we can reuse the memory */
-    global_heap_tracker.unreported_samples.count = 0;
+    /* Clear the vector so we can reuse the memory */
+    global_heap_tracker.unreported_samples.clear();
 
     heap_tracker_thaw(&global_heap_tracker);
 
