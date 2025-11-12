@@ -16,15 +16,15 @@ call set_local_events() for all instrumented code objects when starting new cont
 import http.client
 import json
 import os
-import re
 import signal
 import subprocess
-import tempfile
 import time
 
 import pytest
 
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
+
+PORT = 18765
 
 
 class SimpleHTTPClient:
@@ -91,20 +91,8 @@ def _extract_coverage_payload_from_stdout(stdout_text):
     return payloads
 
 
-@pytest.fixture
-def wsgi_app_port():
-    """Get an available port for the WSGI app."""
-    import socket
-
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("", 0))
-        s.listen(1)
-        port = s.getsockname()[1]
-    return port
-
-
 @pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 12), reason="Requires Python 3.12+")
-def test_runtime_coverage_e2e_with_sitecustomize(wsgi_app_port, tmpdir):
+def test_runtime_coverage_e2e_with_sitecustomize(tmpdir):
     """
     End-to-end test that verifies runtime coverage collection with a real WSGI server.
 
@@ -118,7 +106,6 @@ def test_runtime_coverage_e2e_with_sitecustomize(wsgi_app_port, tmpdir):
     # Create sitecustomize.py in a temp directory
     sitecustomize_content = """
 # sitecustomize.py - Patch runtime coverage to print payloads to stdout for testing
-import sys
 import json
 
 def patched_send_runtime_coverage(span, files):
@@ -160,7 +147,7 @@ except Exception:
         "ddtrace-run",
         "python",
         "tests/ci_visibility/app_with_runtime_coverage.py",
-        str(wsgi_app_port),
+        str(PORT),
     ]
 
     proc = subprocess.Popen(
@@ -175,7 +162,7 @@ except Exception:
 
     try:
         # Create client and wait for server to start
-        client = SimpleHTTPClient("127.0.0.1", wsgi_app_port)
+        client = SimpleHTTPClient("127.0.0.1", PORT)
         client.wait(delay=0.1, path="/", max_retries=100)
 
         # Make request to exercise coverage
@@ -278,16 +265,13 @@ except Exception:
 
 
 @pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 12), reason="Requires Python 3.12+")
-def test_runtime_coverage_disabled_e2e(wsgi_app_port, tmpdir):
+def test_runtime_coverage_disabled_e2e(tmpdir):
     """
     Verify that when runtime coverage is NOT enabled, no coverage payloads are generated.
     """
     # Create sitecustomize.py in a temp directory
     sitecustomize_content = """
 # sitecustomize.py - Patch send_runtime_coverage to print payload to stdout
-import sys
-import json
-
 def patched_send_runtime_coverage(span, files):
     \"\"\"This should NOT be called when coverage is disabled.\"\"\"
     print(f"COVERAGE_PAYLOAD_UNEXPECTED", flush=True)
@@ -320,7 +304,7 @@ except Exception:
         "ddtrace-run",
         "python",
         "tests/ci_visibility/app_with_runtime_coverage.py",
-        str(wsgi_app_port),
+        str(PORT),
     ]
 
     proc = subprocess.Popen(
@@ -334,7 +318,7 @@ except Exception:
     )
 
     try:
-        client = SimpleHTTPClient("127.0.0.1", wsgi_app_port)
+        client = SimpleHTTPClient("127.0.0.1", PORT)
         client.wait(delay=0.1, path="/", max_retries=100)
 
         resp = client.get("/")
