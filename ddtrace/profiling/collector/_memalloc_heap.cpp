@@ -143,8 +143,8 @@ heap_tracker_freeze(heap_tracker_t* heap_tracker)
 /* Un-freeze the profiler, and return any samples we weren't able to remove while
  * the profiler was frozen. This function modifies the profiler state, so it must
  * be called with the GIL held and must not call any C Python APIS. */
-static traceback_t**
-heap_tracker_thaw_no_cpython(heap_tracker_t* heap_tracker, size_t* n_to_free)
+static std::vector<traceback_t*>
+heap_tracker_thaw_no_cpython(heap_tracker_t* heap_tracker)
 {
     MEMALLOC_GIL_DEBUG_CHECK_ACQUIRE(&heap_tracker->gil_guard);
     assert(heap_tracker->frozen);
@@ -153,15 +153,11 @@ heap_tracker_thaw_no_cpython(heap_tracker_t* heap_tracker, size_t* n_to_free)
      * allocations from allocs_m before pulling in the allocations from
      * freezer.allocs_m, in case another newer allocation at the same address is
      * tracked in freezer.allocs_m */
-    traceback_t** to_free = NULL;
-    *n_to_free = heap_tracker->freezer.frees.size();
-    if (*n_to_free > 0) {
-        /* TODO: can we put traceback_t* directly in freezer.frees so we don't need new storage? */
-        to_free = static_cast<traceback_t**>(malloc(*n_to_free * sizeof(traceback_t*)));
-        for (size_t i = 0; i < *n_to_free; i++) {
-            traceback_t* tb = memalloc_heap_map_remove(heap_tracker->allocs_m, heap_tracker->freezer.frees[i]);
-            to_free[i] = tb;
-        }
+    std::vector<traceback_t*> to_free;
+    to_free.reserve(heap_tracker->freezer.frees.size());
+    for (void* ptr : heap_tracker->freezer.frees) {
+        traceback_t* tb = memalloc_heap_map_remove(heap_tracker->allocs_m, ptr);
+        to_free.push_back(tb);
     }
     /* Now we can pull in the allocations from freezer.allocs_m since we've
      * removed any potentially duplicated keys from allocs_m. */
@@ -175,13 +171,10 @@ heap_tracker_thaw_no_cpython(heap_tracker_t* heap_tracker, size_t* n_to_free)
 static void
 heap_tracker_thaw(heap_tracker_t* heap_tracker)
 {
-    size_t n_to_free = 0;
-    traceback_t** to_free = heap_tracker_thaw_no_cpython(heap_tracker, &n_to_free);
-    for (size_t i = 0; i < n_to_free; i++) {
-        traceback_free(to_free[i]);
+    std::vector<traceback_t*> to_free = heap_tracker_thaw_no_cpython(heap_tracker);
+    for (traceback_t* tb : to_free) {
+        traceback_free(tb);
     }
-    /* NB: freeing a null pointer is fine */
-    free(to_free);
 }
 
 /* Public API */
