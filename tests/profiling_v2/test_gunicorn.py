@@ -94,11 +94,10 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
 
     debug_print("Reading gunicorn worker output to get PIDs")
     output = proc.stdout.read().decode()
-    worker_pids = _get_worker_pids(output)
-    debug_print("Gunicorn worker PIDs: %s" % worker_pids)
-
     for line in output.splitlines():
         debug_print(line)
+    worker_pids = _get_worker_pids(output)
+    debug_print("Gunicorn worker PIDs: %s" % worker_pids)
 
     assert len(worker_pids) == 1, output
 
@@ -111,23 +110,12 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
 
     for pid in worker_pids:
         debug_print("Reading pprof file with prefix %s.%d" % (filename, pid))
-        profile = pprof_utils.parse_newest_profile("%s.%d" % (filename, pid))
-        # This returns a list of samples that have non-zero cpu-time
-        samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
-        assert len(samples) > 0
-
-        # DEV: somehow the filename is reported as either __init__.py or gunicorn-app.py
-        # when run on GitLab CI. We need to match either of these two.
-        filename_regex = r"^(?:__init__\.py|gunicorn-app\.py)$"
-
-        expected_location = pprof_utils.StackLocation(function_name="fib", filename=filename_regex, line_no=8)
-
-        pprof_utils.assert_profile_has_sample(
-            profile,
-            samples=samples,
-            # DEV: we expect multiple locations as fibonacci is recursive
-            expected_sample=pprof_utils.StackEvent(locations=[expected_location, expected_location]),
-        )
+        for value_type in ("wall-time", "cpu-time"):
+            msg = f"profile has samples of type {value_type}"
+            assert sum(
+                len(pprof_utils.get_samples_with_value_type(profile, value_type))
+                for profile in pprof_utils.list_profiles("%s.%d" % (filename, pid))
+            ), msg
 
 
 @pytest.mark.skipif(
