@@ -22,8 +22,7 @@ TaintRange::toString() const
     return ret.str();
 }
 
-TaintRange::
-operator std::string() const
+TaintRange::operator std::string() const
 {
     return toString();
 }

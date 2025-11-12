@@ -119,8 +119,7 @@ TaintedObject::toString() const
     return ss.str();
 }
 
-TaintedObject::
-operator string() const
+TaintedObject::operator string() const
 {
     return toString();
 }

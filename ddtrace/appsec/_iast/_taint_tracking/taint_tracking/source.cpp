@@ -29,8 +29,7 @@ Source::toString() const
     return ret.str();
 }
 
-Source::
-operator std::string() const
+Source::operator std::string() const
 {
     return toString();
 }
