@@ -9,17 +9,16 @@
 #include <unicodeobject.h>
 
 #include <cstdint>
-#include <string>
 #include <mutex>
+#include <string>
 
 #include <echion/long.h>
 #include <echion/render.h>
 #include <echion/vm.h>
 
-
 // ----------------------------------------------------------------------------
-static std::unique_ptr<unsigned char[]> pybytes_to_bytes_and_size(PyObject* bytes_addr,
-                                                                  Py_ssize_t* size)
+static std::unique_ptr<unsigned char[]>
+pybytes_to_bytes_and_size(PyObject* bytes_addr, Py_ssize_t* size)
 {
     PyBytesObject bytes;
 
@@ -31,15 +30,15 @@ static std::unique_ptr<unsigned char[]> pybytes_to_bytes_and_size(PyObject* byte
         return nullptr;
 
     auto data = std::make_unique<unsigned char[]>(*size);
-    if (copy_generic(reinterpret_cast<char*>(bytes_addr) + offsetof(PyBytesObject, ob_sval),
-                     data.get(), *size))
+    if (copy_generic(reinterpret_cast<char*>(bytes_addr) + offsetof(PyBytesObject, ob_sval), data.get(), *size))
         return nullptr;
 
     return data;
 }
 
 // ----------------------------------------------------------------------------
-static Result<std::string> pyunicode_to_utf8(PyObject* str_addr)
+static Result<std::string>
+pyunicode_to_utf8(PyObject* str_addr)
 {
     PyUnicodeObject str;
     if (copy_type(str_addr, str))
@@ -51,9 +50,8 @@ static Result<std::string> pyunicode_to_utf8(PyObject* str_addr)
         return ErrorKind::PyUnicodeError;
 
     const char* data = ascii.state.compact
-                           ? reinterpret_cast<const char*>(
-                                 reinterpret_cast<const uint8_t*>(str_addr) + sizeof(ascii))
-                           : static_cast<const char*>(str._base.utf8);
+                         ? reinterpret_cast<const char*>(reinterpret_cast<const uint8_t*>(str_addr) + sizeof(ascii))
+                         : static_cast<const char*>(str._base.utf8);
     if (data == NULL)
         return ErrorKind::PyUnicodeError;
 
@@ -72,9 +70,8 @@ static Result<std::string> pyunicode_to_utf8(PyObject* str_addr)
 
 class StringTable : public std::unordered_map<uintptr_t, std::string>
 {
-public:
+  public:
     using Key = uintptr_t;
-
 
     static constexpr Key INVALID = 1;
     static constexpr Key UNKNOWN = 2;
@@ -87,22 +84,17 @@ public:
 
         auto k = reinterpret_cast<Key>(s);
 
-        if (this->find(k) == this->end())
-        {
+        if (this->find(k) == this->end()) {
 #if PY_VERSION_HEX >= 0x030c0000
             // The task name might hold a PyLong for deferred task name formatting.
             std::string str = "Task-";
 
             auto maybe_long = pylong_to_llong(s);
-            if (maybe_long)
-            {
+            if (maybe_long) {
                 str += std::to_string(*maybe_long);
-            }
-            else
-            {
+            } else {
                 auto maybe_unicode = pyunicode_to_utf8(s);
-                if (!maybe_unicode)
-                {
+                if (!maybe_unicode) {
                     return ErrorKind::PyUnicodeError;
                 }
 
@@ -110,8 +102,7 @@ public:
             }
 #else
             auto maybe_unicode = pyunicode_to_utf8(s);
-            if (!maybe_unicode)
-            {
+            if (!maybe_unicode) {
                 return ErrorKind::PyUnicodeError;
             }
 
@@ -131,12 +122,11 @@ public:
 
         auto k = reinterpret_cast<Key>(s);
 
-        if (this->find(k) == this->end())
-        {
+        if (this->find(k) == this->end()) {
 #if PY_VERSION_HEX >= 0x030c0000
             // The task name might hold a PyLong for deferred task name formatting.
-            auto str = (PyLong_CheckExact(s)) ? "Task-" + std::to_string(PyLong_AsLong(s))
-                                              : std::string(PyUnicode_AsUTF8(s));
+            auto str =
+              (PyLong_CheckExact(s)) ? "Task-" + std::to_string(PyLong_AsLong(s)) : std::string(PyUnicode_AsUTF8(s));
 #else
             auto str = std::string(PyUnicode_AsUTF8(s));
 #endif
@@ -158,14 +148,15 @@ public:
         return std::ref(it->second);
     };
 
-    StringTable() : std::unordered_map<uintptr_t, std::string>()
+    StringTable()
+      : std::unordered_map<uintptr_t, std::string>()
     {
         this->emplace(0, "");
         this->emplace(INVALID, "<invalid>");
         this->emplace(UNKNOWN, "<unknown>");
     };
 
-private:
+  private:
     std::mutex table_lock;
 };
 

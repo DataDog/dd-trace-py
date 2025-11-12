@@ -28,5 +28,5 @@ inline std::thread* sampler_thread = nullptr;
 inline int running = 0;
 
 inline PyObject* asyncio_current_tasks = NULL;
-inline PyObject* asyncio_scheduled_tasks = NULL;  // WeakSet
-inline PyObject* asyncio_eager_tasks = NULL;      // set
+inline PyObject* asyncio_scheduled_tasks = NULL; // WeakSet
+inline PyObject* asyncio_eager_tasks = NULL;     // set
