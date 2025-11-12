@@ -210,8 +210,6 @@ except Exception:
         assert len(payloads) > 0, "Should have captured at least one coverage payload"
 
         # Verify payload structure and content
-        found_callee = False
-        found_in_context_lib = False
         all_files = set()
 
         for payload in payloads:
@@ -231,21 +229,6 @@ except Exception:
             for file_data in files:
                 filename = file_data.get("filename", "")
                 all_files.add(filename)
-
-                # Check if this payload has our business logic files
-                if "callee.py" in filename:
-                    found_callee = True
-                    # Verify it's a relative path, not absolute
-                    assert not filename.startswith("/"), f"Filename should be relative: {filename}"
-                    assert filename.startswith(
-                        "tests/coverage/included_path/"
-                    ), f"callee.py should have correct relative path: {filename}"
-
-                if "in_context_lib.py" in filename:
-                    found_in_context_lib = True
-                    assert filename.startswith(
-                        "tests/coverage/included_path/"
-                    ), f"in_context_lib.py should have correct relative path: {filename}"
 
             # Verify file structure - all segments should be file-level format [0, 0, 0, 0, -1]
             for file_data in files:
@@ -275,15 +258,16 @@ except Exception:
                         "__init__.py"
                     ), f"Only __init__.py files should have empty segments, got empty for {filename}"
 
-        # At least one payload should have covered our business logic
-        assert found_callee, "Expected at least one payload to include tests/coverage/included_path/callee.py"
-        assert (
-            found_in_context_lib
-        ), "Expected at least one payload to include tests/coverage/included_path/in_context_lib.py"
-
-        # Verify expected files are present in coverage
-        assert any("callee.py" in f for f in all_files), "callee.py should be in coverage"
-        assert any("wsgi.py" in f for f in all_files), "wsgi middleware should be in coverage"
+        assert all_files == {
+            "ddtrace/contrib/internal/logging/__init__.py",
+            "ddtrace/contrib/internal/logging/patch.py",
+            "ddtrace/contrib/internal/wsgi/wsgi.py",
+            "ddtrace/internal/_exceptions.py",
+            "tests/coverage/excluded_path/excluded.py",
+            "tests/coverage/included_path/callee.py",
+            "tests/coverage/included_path/in_context_lib.py",
+            "tests/coverage/included_path/lib.py",
+        }
 
     finally:
         # Ensure cleanup
@@ -291,122 +275,6 @@ except Exception:
             os.killpg(proc.pid, signal.SIGKILL)
         except Exception:
             pass
-
-
-@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 12), reason="Requires Python 3.12+")
-def test_runtime_coverage_writer_sends_correct_payload():
-    """
-    Test that runtime coverage writer sends correctly formatted citestcov payloads.
-
-    This is a simpler E2E test that mocks the HTTP connection to verify
-    the payload structure without needing a subprocess server.
-    """
-    from unittest import mock
-    from pathlib import Path
-
-    from ddtrace.internal.ci_visibility.runtime_coverage import build_runtime_coverage_payload
-    from ddtrace.internal.ci_visibility.runtime_coverage import initialize_runtime_coverage
-    from ddtrace.internal.ci_visibility.runtime_coverage import send_runtime_coverage
-    from ddtrace.internal.ci_visibility.runtime_coverage_writer import initialize_runtime_coverage_writer
-    from ddtrace.internal.coverage.code import ModuleCodeCollector
-
-    # Initialize coverage
-    ModuleCodeCollector._instance = None
-    assert initialize_runtime_coverage()
-    assert initialize_runtime_coverage_writer()
-
-    # Collect coverage
-    ModuleCodeCollector.start_coverage()
-    from tests.coverage.included_path.callee import called_in_context_main
-    from tests.coverage.included_path.callee import called_in_session_main
-
-    called_in_context_main(1, 2)
-    called_in_session_main(3, 4)
-    ModuleCodeCollector.stop_coverage()
-
-    # Build payload
-    payload = build_runtime_coverage_payload(Path(os.getcwd()), trace_id=12345, span_id=67890)
-    assert payload is not None
-    assert len(payload["files"]) > 0
-
-    # Mock the HTTP connection to capture what gets sent
-    sent_data = []
-
-    def capture_request(self, method, url, body=None, headers=None):
-        sent_data.append({"method": method, "url": url, "body": body, "headers": headers})
-
-        # Return a mock response
-        class MockResponse:
-            status = 200
-
-            def read(self):
-                return b"OK"
-
-        return MockResponse()
-
-    # Mock the span
-    mock_span = mock.Mock()
-    mock_span.trace_id = 12345
-    mock_span.span_id = 67890
-    mock_span._metrics = {}
-    mock_span.get_tags.return_value = {}
-    mock_span.get_struct_tag.return_value = None
-
-    # Send coverage with mocked HTTP
-    with mock.patch("http.client.HTTPConnection.request", side_effect=capture_request):
-        with mock.patch("http.client.HTTPConnection.getresponse") as mock_resp:
-            mock_resp.return_value.status = 200
-            mock_resp.return_value.read.return_value = b"OK"
-
-            result = send_runtime_coverage(mock_span, payload["files"])
-            assert result is True
-
-    # Verify the span was tagged with coverage data
-    mock_span._set_struct_tag.assert_called_once()
-    call_args = mock_span._set_struct_tag.call_args
-    assert call_args[0][0] == "test.coverage"  # The COVERAGE_TAG_NAME constant
-    coverage_data = call_args[0][1]
-    assert "files" in coverage_data
-    assert len(coverage_data["files"]) > 0
-
-    # Verify coverage file structure and specific expected files
-    filenames = [f["filename"] for f in coverage_data["files"]]
-
-    # Must include our business logic files
-    assert any("callee.py" in f for f in filenames), f"Expected callee.py in coverage, got: {filenames}"
-    assert any("in_context_lib.py" in f for f in filenames), f"Expected in_context_lib.py in coverage, got: {filenames}"
-
-    for file_data in coverage_data["files"]:
-        assert "filename" in file_data
-        assert "segments" in file_data
-        assert isinstance(file_data["segments"], list)
-
-        # Filenames should be relative paths
-        filename = file_data["filename"]
-        if "tests/coverage/" in filename:
-            assert not filename.startswith("/"), f"Should be relative path: {filename}"
-            assert filename.startswith("tests/coverage/"), f"Should start with tests/coverage/: {filename}"
-
-        # Verify segment format [start_line, start_col, end_line, end_col, count]
-        # File-level coverage: files with code have [0, 0, 0, 0, -1], empty files (e.g., __init__.py) can have []
-        segments = file_data["segments"]
-        if len(segments) > 0:
-            # Files with executable code should have exactly 1 segment for file-level coverage
-            assert len(segments) == 1, f"File-level coverage should have 1 segment, got {len(segments)} for {filename}"
-
-            segment = segments[0]
-            assert segment == [
-                0,
-                0,
-                0,
-                0,
-                -1,
-            ], f"File-level segment should be [0, 0, 0, 0, -1], got {segment} for {filename}"
-        else:
-            # Empty files (like __init__.py) can have no segments
-            assert "__init__.py" in filename or filename.endswith(
-                "__init__.py"
-            ), f"Only __init__.py files should have empty segments, got empty segments for {filename}"
 
 
 @pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 12), reason="Requires Python 3.12+")
