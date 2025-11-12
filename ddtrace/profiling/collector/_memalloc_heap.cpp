@@ -64,8 +64,54 @@
    formula if more testing shows us to be too inaccurate.
  */
 
-typedef struct
+// Forward declaration
+PyObject*
+memalloc_sample_to_tuple(traceback_t* tb, bool is_live);
+
+class heap_tracker_t
 {
+  public:
+    heap_tracker_t();
+    ~heap_tracker_t();
+
+    // Delete copy constructor and assignment operator
+    heap_tracker_t(const heap_tracker_t&) = delete;
+    heap_tracker_t& operator=(const heap_tracker_t&) = delete;
+
+    void init(uint32_t sample_size_val);
+    void deinit();
+    void freeze();
+
+    /* Un-freeze the profiler, and return any samples we weren't able to remove while
+     * the profiler was frozen. This function modifies the profiler state, so it must
+     * be called with the GIL held and must not call any C Python APIS. */
+    std::vector<traceback_t*> thaw_no_cpython();
+    void thaw();
+
+    /* Remove an allocation at the given address, if we are tracking it. This
+     * function accesses the heap tracker data structures. It must be called with the
+     * GIL held and must not make any C Python API calls. If a sample is removed, it
+     * is returned and must be freed by the caller. */
+    traceback_t* untrack_no_cpython(void* ptr);
+
+    /* Decide whether we should sample an allocation of the given size. Accesses
+     * shared state, and must be called with the GIL held and without making any C
+     * Python API calls. Returns true if we should sample, and sets allocated_memory_val
+     * to the current allocated_memory value. */
+    bool should_sample_no_cpython(size_t size, uint64_t* allocated_memory_val);
+
+    /* Track an allocation that we decided to sample. This updates shared state and
+     * must be called with the GIL held and without making any C Python API calls.
+     * If the allocation could not be added because the profiler was stopped,
+     * or if an allocation at the same address is already tracked, this function
+     * returns a traceback that should be freed */
+    traceback_t* add_sample_no_cpython(traceback_t* tb);
+
+    PyObject* export_heap();
+
+  private:
+    static uint32_t heap_tracker_next_sample_size(uint32_t sample_size);
+
     /* Heap profiler sampling interval */
     uint64_t sample_size;
     /* Next heap sample target, in bytes allocated */
@@ -77,23 +123,19 @@ typedef struct
     /* True if we are exporting the current heap profile */
     bool frozen;
     /* Contains the ongoing heap allocation/deallocation while frozen */
-    struct
-    {
-        memalloc_heap_map* allocs_m;
-        std::vector<void*> frees;
-    } freezer;
+    memalloc_heap_map* freezer_allocs_m;
+    std::vector<void*> freezer_frees;
     /* List of freed samples that haven't been reported yet */
     std::vector<traceback_t*> unreported_samples;
 
     /* Debug guard to assert that GIL-protected critical sections are maintained
      * while accessing the profiler's state */
     memalloc_gil_debug_check_t gil_guard;
-} heap_tracker_t;
+};
 
-static heap_tracker_t global_heap_tracker;
-
-static uint32_t
-heap_tracker_next_sample_size(uint32_t sample_size)
+// Static helper function
+uint32_t
+heap_tracker_t::heap_tracker_next_sample_size(uint32_t sample_size)
 {
     /* We want to draw a sampling target from an exponential distribution with
        average sample_size. We use the standard technique of inverse transform
@@ -108,85 +150,77 @@ heap_tracker_next_sample_size(uint32_t sample_size)
     return (uint32_t)(log_val * (-log(2) * (sample_size + 1)));
 }
 
-static void
-heap_tracker_init(heap_tracker_t* heap_tracker)
+// Method implementations
+heap_tracker_t::heap_tracker_t()
+  : sample_size(0)
+  , current_sample_size(0)
+  , allocs_m(new memalloc_heap_map())
+  , allocated_memory(0)
+  , frozen(false)
+  , freezer_allocs_m(new memalloc_heap_map())
 {
-    heap_tracker->allocs_m = new memalloc_heap_map();
-    heap_tracker->freezer.allocs_m = new memalloc_heap_map();
-    // std::vector initializes itself, no need for explicit init
-    heap_tracker->allocated_memory = 0;
-    heap_tracker->frozen = false;
-    heap_tracker->sample_size = 0;
-    heap_tracker->current_sample_size = 0;
-    memalloc_gil_debug_check_init(&heap_tracker->gil_guard);
+    memalloc_gil_debug_check_init(&gil_guard);
 }
 
-static void
-heap_tracker_wipe(heap_tracker_t* heap_tracker)
+heap_tracker_t::~heap_tracker_t()
 {
-    delete heap_tracker->allocs_m;
-    delete heap_tracker->freezer.allocs_m;
+    delete allocs_m;
+    delete freezer_allocs_m;
     // std::vector destructor handles cleanup automatically
 }
 
-static void
-heap_tracker_freeze(heap_tracker_t* heap_tracker)
+void
+heap_tracker_t::init(uint32_t sample_size_val)
 {
-    MEMALLOC_GIL_DEBUG_CHECK_ACQUIRE(&heap_tracker->gil_guard);
-    assert(!heap_tracker->frozen);
-    heap_tracker->frozen = true;
-    MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&heap_tracker->gil_guard);
+    sample_size = sample_size_val;
+    current_sample_size = heap_tracker_next_sample_size(sample_size_val);
 }
 
-/* Un-freeze the profiler, and return any samples we weren't able to remove while
- * the profiler was frozen. This function modifies the profiler state, so it must
- * be called with the GIL held and must not call any C Python APIS. */
-static std::vector<traceback_t*>
-heap_tracker_thaw_no_cpython(heap_tracker_t* heap_tracker)
+void
+heap_tracker_t::freeze()
 {
-    MEMALLOC_GIL_DEBUG_CHECK_ACQUIRE(&heap_tracker->gil_guard);
-    assert(heap_tracker->frozen);
+    MEMALLOC_GIL_DEBUG_CHECK_ACQUIRE(&gil_guard);
+    assert(!frozen);
+    frozen = true;
+    MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&gil_guard);
+}
+
+std::vector<traceback_t*>
+heap_tracker_t::thaw_no_cpython()
+{
+    MEMALLOC_GIL_DEBUG_CHECK_ACQUIRE(&gil_guard);
+    assert(frozen);
     /* Any pointers in freezer.frees were from allocations that were tracked in
      * allocs_m and freed while the profiler was frozen. We need to remove the
      * allocations from allocs_m before pulling in the allocations from
      * freezer.allocs_m, in case another newer allocation at the same address is
      * tracked in freezer.allocs_m */
     std::vector<traceback_t*> to_free;
-    to_free.reserve(heap_tracker->freezer.frees.size());
-    for (void* ptr : heap_tracker->freezer.frees) {
-        traceback_t* tb = heap_tracker->allocs_m->remove(ptr);
+    to_free.reserve(freezer_frees.size());
+    for (void* ptr : freezer_frees) {
+        traceback_t* tb = allocs_m->remove(ptr);
         to_free.push_back(tb);
     }
     /* Now we can pull in the allocations from freezer.allocs_m since we've
      * removed any potentially duplicated keys from allocs_m. */
-    heap_tracker->allocs_m->destructive_copy_from(*heap_tracker->freezer.allocs_m);
-    heap_tracker->freezer.frees.clear();
-    heap_tracker->frozen = false;
-    MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&heap_tracker->gil_guard);
+    allocs_m->destructive_copy_from(*freezer_allocs_m);
+    freezer_frees.clear();
+    frozen = false;
+    MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&gil_guard);
     return to_free;
 }
 
-static void
-heap_tracker_thaw(heap_tracker_t* heap_tracker)
+void
+heap_tracker_t::thaw()
 {
-    std::vector<traceback_t*> to_free = heap_tracker_thaw_no_cpython(heap_tracker);
+    std::vector<traceback_t*> to_free = thaw_no_cpython();
     for (traceback_t* tb : to_free) {
         traceback_free(tb);
     }
 }
 
-/* Public API */
-
 void
-memalloc_heap_tracker_init(uint32_t sample_size)
-{
-    heap_tracker_init(&global_heap_tracker);
-    global_heap_tracker.sample_size = sample_size;
-    global_heap_tracker.current_sample_size = heap_tracker_next_sample_size(sample_size);
-}
-
-void
-memalloc_heap_tracker_deinit(void)
+heap_tracker_t::deinit()
 {
     /* Setting the sample size back to zero acts as a flag that the profiler is
      * deactivated. Checked during sampling, in case sampling and
@@ -194,130 +228,203 @@ memalloc_heap_tracker_deinit(void)
      * NB: do this before wiping, in case deallocating tracebacks leads to GIL
      * release
      */
-    global_heap_tracker.sample_size = 0;
-    heap_tracker_wipe(&global_heap_tracker);
+    sample_size = 0;
 }
 
-/* Remove an allocation at the given adress, if we are tracking it. This
- * function accesses the heap tracker data structures. It must be called with the
- * GIL held and must not make any C Python API calls. If a sample is removed, it
- * is returned and must be freed by the caller. */
-static traceback_t*
-memalloc_heap_untrack_no_cpython(heap_tracker_t* heap_tracker, void* ptr)
+traceback_t*
+heap_tracker_t::untrack_no_cpython(void* ptr)
 {
-    MEMALLOC_GIL_DEBUG_CHECK_ACQUIRE(&heap_tracker->gil_guard);
-    if (heap_tracker->sample_size == 0) {
-        MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&heap_tracker->gil_guard);
+    MEMALLOC_GIL_DEBUG_CHECK_ACQUIRE(&gil_guard);
+    if (sample_size == 0) {
+        MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&gil_guard);
         return NULL;
     }
-    if (!heap_tracker->frozen) {
-        traceback_t* tb = heap_tracker->allocs_m->remove(ptr);
+    if (!frozen) {
+        traceback_t* tb = allocs_m->remove(ptr);
         if (tb && !tb->reported) {
             /* If the sample hasn't been reported yet, add it to the allocation list */
-            heap_tracker->unreported_samples.push_back(tb);
-            MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&heap_tracker->gil_guard);
+            unreported_samples.push_back(tb);
+            MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&gil_guard);
             return NULL;
         }
-        MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&heap_tracker->gil_guard);
+        MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&gil_guard);
         return tb;
     }
 
-    traceback_t* tb = heap_tracker->freezer.allocs_m->remove(ptr);
+    traceback_t* tb = freezer_allocs_m->remove(ptr);
     if (tb) {
-        MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&heap_tracker->gil_guard);
+        MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&gil_guard);
         return tb;
-    } else if (heap_tracker->allocs_m->contains(ptr)) {
+    } else if (allocs_m->contains(ptr)) {
         /* We're tracking this pointer but can't remove it right now because
          * we're iterating over the map. Save the pointer to remove later. We're
          * going to free the allocation right after this, so we could sample
          * another allocation at the same address, but it'll go in the frozen
          * map. */
-        heap_tracker->freezer.frees.push_back(ptr);
+        freezer_frees.push_back(ptr);
     }
-    MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&heap_tracker->gil_guard);
+    MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&gil_guard);
     return NULL;
 }
 
-void
-memalloc_heap_untrack(void* ptr)
+bool
+heap_tracker_t::should_sample_no_cpython(size_t size, uint64_t* allocated_memory_val)
 {
-    traceback_t* tb = memalloc_heap_untrack_no_cpython(&global_heap_tracker, ptr);
-    if (tb) {
-        traceback_free(tb);
-    }
-}
-
-/* Decide whether we should sample an allocation of the given size. Accessses
- * shared state, and must be called with the GIL held and without making any C
- * Python API calls. */
-static bool
-memalloc_heap_should_sample_no_cpython(heap_tracker_t* heap_tracker, size_t size)
-{
-    MEMALLOC_GIL_DEBUG_CHECK_ACQUIRE(&heap_tracker->gil_guard);
+    MEMALLOC_GIL_DEBUG_CHECK_ACQUIRE(&gil_guard);
     /* Heap tracking is disabled */
-    if (heap_tracker->sample_size == 0) {
-        MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&heap_tracker->gil_guard);
+    if (sample_size == 0) {
+        MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&gil_guard);
         return false;
     }
 
-    heap_tracker->allocated_memory += size;
+    allocated_memory += size;
+    *allocated_memory_val = allocated_memory;
 
     /* Check if we have enough sample or not */
-    if (heap_tracker->allocated_memory < heap_tracker->current_sample_size) {
-        MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&heap_tracker->gil_guard);
+    if (allocated_memory < current_sample_size) {
+        MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&gil_guard);
         return false;
     }
 
-    if (heap_tracker->allocs_m->size() + heap_tracker->freezer.allocs_m->size() > TRACEBACK_ARRAY_MAX_COUNT) {
+    if (allocs_m->size() + freezer_allocs_m->size() > TRACEBACK_ARRAY_MAX_COUNT) {
         /* TODO(nick) this is vestigial from the original array-based
          * implementation. Do we actually want this? It gives us bounded memory
          * use, but the size limit is arbitrary and once we hit the arbitrary
          * limit our reported numbers will be inaccurate.
          */
-        MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&heap_tracker->gil_guard);
+        MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&gil_guard);
         return false;
     }
 
-    MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&heap_tracker->gil_guard);
+    MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&gil_guard);
     return true;
 }
 
-/* Track an allocation that we decided to sample. This updates shared state and
- * must be called with the GIL held and without making any C Python API calls.
- * If the allocation could not be added because the profiler was stopped,
- * or if an allocation at the same address is already tracked, this function
- * returns a traceback that should be freed */
-static traceback_t*
-memalloc_heap_add_sample_no_cpython(heap_tracker_t* heap_tracker, traceback_t* tb)
+traceback_t*
+heap_tracker_t::add_sample_no_cpython(traceback_t* tb)
 {
-    MEMALLOC_GIL_DEBUG_CHECK_ACQUIRE(&heap_tracker->gil_guard);
-    if (heap_tracker->sample_size == 0) {
-        MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&heap_tracker->gil_guard);
+    MEMALLOC_GIL_DEBUG_CHECK_ACQUIRE(&gil_guard);
+    if (sample_size == 0) {
+        MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&gil_guard);
         return tb;
     }
 
     traceback_t* old = NULL;
-    if (heap_tracker->frozen) {
-        old = heap_tracker->freezer.allocs_m->insert(tb->ptr, tb);
+    if (frozen) {
+        old = freezer_allocs_m->insert(tb->ptr, tb);
     } else {
-        old = heap_tracker->allocs_m->insert(tb->ptr, tb);
+        old = allocs_m->insert(tb->ptr, tb);
     }
 
     /* Reset the counter to 0 */
-    heap_tracker->allocated_memory = 0;
+    allocated_memory = 0;
 
     /* Compute the new target sample size */
-    heap_tracker->current_sample_size = heap_tracker_next_sample_size(heap_tracker->sample_size);
+    current_sample_size = heap_tracker_next_sample_size(sample_size);
 
-    MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&heap_tracker->gil_guard);
+    MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&gil_guard);
     return old;
+}
+
+PyObject*
+heap_tracker_t::export_heap()
+{
+    freeze();
+
+    /* The tracker is frozen. This thread owns allocs_m until the tracker is thawed.
+     * New allocations will go into the secondary freezer.allocs_m map and allocations
+     * tracked in allocs_m which are freed will be added to a list to be removed when
+     * the profiler is thawed. */
+
+    /* Calculate total number of samples: live + freed */
+    size_t live_count = allocs_m->size();
+    size_t freed_count = unreported_samples.size();
+    size_t total_count = live_count + freed_count;
+
+    PyObject* heap_list = PyList_New(total_count);
+    if (heap_list == NULL) {
+        thaw();
+        return NULL;
+    }
+
+    int list_index = 0;
+
+    /* First, iterate over live samples using the new iterator API */
+    memalloc_heap_map::iterator it(*allocs_m);
+
+    void* key;
+    traceback_t* tb;
+
+    while (it.next(&key, &tb)) {
+        PyObject* tb_and_info = memalloc_sample_to_tuple(tb, true);
+
+        PyList_SET_ITEM(heap_list, list_index, tb_and_info);
+        list_index++;
+
+        /* Mark as reported */
+        tb->reported = true;
+    }
+
+    /* Second, iterate over freed samples from unreported_samples */
+    for (traceback_t* tb : unreported_samples) {
+        PyObject* tb_and_info = memalloc_sample_to_tuple(tb, false);
+
+        PyList_SET_ITEM(heap_list, list_index, tb_and_info);
+        list_index++;
+    }
+
+    /* Free all tracebacks in unreported_samples after reporting them */
+    for (traceback_t* tb : unreported_samples) {
+        if (tb != NULL) {
+            traceback_free(tb);
+        }
+    }
+    /* Clear the vector so we can reuse the memory */
+    unreported_samples.clear();
+
+    thaw();
+
+    return heap_list;
+}
+
+static heap_tracker_t* global_heap_tracker = nullptr;
+
+/* Public API */
+
+void
+memalloc_heap_tracker_init(uint32_t sample_size)
+{
+    if (global_heap_tracker == nullptr) {
+        global_heap_tracker = new heap_tracker_t();
+    }
+    global_heap_tracker->init(sample_size);
+}
+
+void
+memalloc_heap_tracker_deinit(void)
+{
+    if (global_heap_tracker != nullptr) {
+        global_heap_tracker->deinit();
+        delete global_heap_tracker;
+        global_heap_tracker = nullptr;
+    }
+}
+
+void
+memalloc_heap_untrack(void* ptr)
+{
+    traceback_t* tb = global_heap_tracker->untrack_no_cpython(ptr);
+    if (tb) {
+        traceback_free(tb);
+    }
 }
 
 /* Track a memory allocation in the heap profiler. */
 void
 memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorDomain domain)
 {
-    if (!memalloc_heap_should_sample_no_cpython(&global_heap_tracker, size)) {
+    uint64_t allocated_memory_val = 0;
+    if (!global_heap_tracker->should_sample_no_cpython(size, &allocated_memory_val)) {
         return;
     }
 
@@ -354,7 +461,7 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
        will tend to be larger for large allocations and smaller for small
        allocations, and close to the average sampling interval so that the sum
        of sample live allocations stays close to the actual heap size */
-    traceback_t* tb = memalloc_get_traceback(max_nframe, ptr, size, domain, global_heap_tracker.allocated_memory);
+    traceback_t* tb = memalloc_get_traceback(max_nframe, ptr, size, domain, allocated_memory_val);
 
 #if defined(_PY310_AND_LATER) && !defined(_PY312_AND_LATER)
     if (gc_enabled) {
@@ -367,7 +474,7 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
         return;
     }
 
-    traceback_t* to_free = memalloc_heap_add_sample_no_cpython(&global_heap_tracker, tb);
+    traceback_t* to_free = global_heap_tracker->add_sample_no_cpython(tb);
     if (to_free) {
         traceback_free(to_free);
     }
@@ -408,60 +515,5 @@ memalloc_sample_to_tuple(traceback_t* tb, bool is_live)
 PyObject*
 memalloc_heap(void)
 {
-    heap_tracker_freeze(&global_heap_tracker);
-
-    /* The tracker is frozen. This thread owns allocs_m until the tracker is thawed.
-     * New allocations will go into the secondary freezer.allocs_m map and allocations
-     * tracked in allocs_m which are freed will be added to a list to be removed when
-     * the profiler is thawed. */
-
-    /* Calculate total number of samples: live + freed */
-    size_t live_count = global_heap_tracker.allocs_m->size();
-    size_t freed_count = global_heap_tracker.unreported_samples.size();
-    size_t total_count = live_count + freed_count;
-
-    PyObject* heap_list = PyList_New(total_count);
-    if (heap_list == NULL) {
-        heap_tracker_thaw(&global_heap_tracker);
-        return NULL;
-    }
-
-    int list_index = 0;
-
-    /* First, iterate over live samples using the new iterator API */
-    memalloc_heap_map::iterator it(*global_heap_tracker.allocs_m);
-
-    void* key;
-    traceback_t* tb;
-
-    while (it.next(&key, &tb)) {
-        PyObject* tb_and_info = memalloc_sample_to_tuple(tb, true);
-
-        PyList_SET_ITEM(heap_list, list_index, tb_and_info);
-        list_index++;
-
-        /* Mark as reported */
-        tb->reported = true;
-    }
-
-    /* Second, iterate over freed samples from unreported_samples */
-    for (traceback_t* tb : global_heap_tracker.unreported_samples) {
-        PyObject* tb_and_info = memalloc_sample_to_tuple(tb, false);
-
-        PyList_SET_ITEM(heap_list, list_index, tb_and_info);
-        list_index++;
-    }
-
-    /* Free all tracebacks in unreported_samples after reporting them */
-    for (traceback_t* tb : global_heap_tracker.unreported_samples) {
-        if (tb != NULL) {
-            traceback_free(tb);
-        }
-    }
-    /* Clear the vector so we can reuse the memory */
-    global_heap_tracker.unreported_samples.clear();
-
-    heap_tracker_thaw(&global_heap_tracker);
-
-    return heap_list;
+    return global_heap_tracker->export_heap();
 }
