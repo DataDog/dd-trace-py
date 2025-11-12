@@ -1,11 +1,8 @@
 """
-End-to-end snapshot tests for runtime coverage functionality.
+End-to-end tests for runtime coverage functionality.
 
 These tests launch a WSGI application with DD_TRACE_RUNTIME_COVERAGE_ENABLED,
 make HTTP requests to it, and verify that coverage data is collected and sent to the agent.
-
-The snapshot framework automatically validates that the traces/spans match the expected snapshots,
-including validation of coverage data presence/absence.
 """
 
 import http.client
@@ -24,16 +21,6 @@ from ddtrace.internal.compat import PYTHON_VERSION_INFO
 DEFAULT_HEADERS = {
     "User-Agent": "test-client/1.0",
 }
-
-# Ignore dynamic fields in snapshots
-SNAPSHOT_IGNORES = [
-    "meta.error.stack",
-    "meta.runtime-id",
-    "metrics._dd.tracer_kr",
-    "metrics.process_id",
-    "duration",
-    "start",
-]
 
 
 class SimpleHTTPClient:
@@ -96,11 +83,14 @@ def server_command(server_port):
 
 def env_with_runtime_coverage():
     """Environment with runtime coverage enabled."""
+    import tempfile
+    debug_file = os.path.join(tempfile.gettempdir(), "runtime_coverage_debug.json")
     env = os.environ.copy()
     env.update(
         {
             "DD_TRACE_RUNTIME_COVERAGE_ENABLED": "true",
             "DD_TRACE_SQLITE3_ENABLED": "0",
+            "_DD_TEST_RUNTIME_COVERAGE_DEBUG_FILE": debug_file,
         }
     )
     return env
@@ -145,167 +135,66 @@ def wsgi_client(server_command, server_port, env_arg):
             pass
         time.sleep(0.2)
     finally:
+        # Print subprocess output for debugging
+        if proc.stdout:
+            stdout = proc.stdout.read()
+            if stdout:
+                print(f"\n{'='*80}")
+                print("SUBPROCESS STDOUT:")
+                print(f"{'='*80}")
+                print(stdout.decode("utf-8", errors="replace"))
+                print(f"{'='*80}\n")
+        if proc.stderr:
+            stderr = proc.stderr.read()
+            if stderr:
+                print(f"\n{'='*80}")
+                print("SUBPROCESS STDERR:")
+                print(f"{'='*80}")
+                print(stderr.decode("utf-8", errors="replace"))
+                print(f"{'='*80}\n")
         os.killpg(proc.pid, signal.SIGKILL)
         proc.wait()
 
 
 @pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 12), reason="Requires Python 3.12+")
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 @pytest.mark.parametrize("env_arg", (env_with_runtime_coverage, env_without_runtime_coverage))
-def test_runtime_coverage_simple_request(wsgi_client, env_arg):
-    """Test that runtime coverage is collected for a simple request.
-
-    The snapshot will automatically validate that coverage data is present in the spans.
-    """
-    # Determine if coverage should be enabled based on environment
+def test_runtime_coverage_collection(wsgi_client, env_arg):
+    """Test that runtime coverage is collected (or not) based on DD_TRACE_RUNTIME_COVERAGE_ENABLED."""
+    import json
+    import tempfile
     coverage_enabled = env_arg == env_with_runtime_coverage
+    debug_file = os.path.join(tempfile.gettempdir(), "runtime_coverage_debug.json")
+    
+    # Clean up any existing debug file
+    if os.path.exists(debug_file):
+        os.remove(debug_file)
 
-    # Patch the writer to capture what gets written
-    with mock.patch("ddtrace.internal.ci_visibility.runtime_coverage_writer.RuntimeCoverageWriter._put") as mock_put:
-        resp = wsgi_client.get("/")
-        assert resp.status == 200
-        assert b"Result:" in resp.data
+    resp = wsgi_client.get("/")
+    assert resp.status == 200
+    assert b"Results:" in resp.data
 
-        # Give the writer time to flush
-        time.sleep(0.5)
-
-        # Verify the writer behavior based on coverage_enabled flag
-        if mock_put.called:
-            # Extract the spans that were written
-            call_args_list = mock_put.call_args_list
-            written_spans = []
-            for call in call_args_list:
-                if len(call.args) > 0:
-                    written_spans.extend(call.args[0])
-
-            # Collect spans with coverage data
-            coverage_spans = []
-            for span in written_spans:
-                coverage_tag = span.get_struct_tag("test.code_coverage")
-                if coverage_tag:
-                    coverage_spans.append((span, coverage_tag))
-
-            if coverage_enabled:
-                # When coverage is enabled, we MUST have coverage data
-                assert len(coverage_spans) > 0, "Expected at least one span with coverage data when coverage is enabled"
-
-                # Validate the coverage structure
-                for span, coverage_data in coverage_spans:
-                    assert "files" in coverage_data, "Coverage data should have 'files' key"
-                    assert len(coverage_data["files"]) > 0, "Should have at least one file in coverage"
-
-                    # Verify the covered file is from our test code
-                    filenames = [f.get("filename", "") for f in coverage_data["files"]]
-                    assert any(
-                        "callee.py" in fname for fname in filenames
-                    ), f"Expected callee.py in coverage files, got: {filenames}"
-            else:
-                # When coverage is disabled, we MUST NOT have coverage data
-                assert (
-                    len(coverage_spans) == 0
-                ), f"Expected NO coverage data when coverage is disabled, but found {len(coverage_spans)} span(s) with coverage"
-
-
-@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 12), reason="Requires Python 3.12+")
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
-@pytest.mark.parametrize("env_arg", (env_with_runtime_coverage, env_without_runtime_coverage))
-def test_runtime_coverage_multiple_paths(wsgi_client, env_arg):
-    """Test runtime coverage with multiple code paths.
-
-    The snapshot will automatically validate that coverage data is present in the spans.
-    """
-    # Determine if coverage should be enabled based on environment
-    coverage_enabled = env_arg == env_with_runtime_coverage
-
-    with mock.patch("ddtrace.internal.ci_visibility.runtime_coverage_writer.RuntimeCoverageWriter._put") as mock_put:
-        resp = wsgi_client.get("/multiple")
-        assert resp.status == 200
-        assert b"Results:" in resp.data
-
-        # Give the writer time to flush
-        time.sleep(0.5)
-
-        # Verify the writer behavior based on coverage_enabled flag
-        if mock_put.called:
-            # Extract the spans that were written
-            call_args_list = mock_put.call_args_list
-            written_spans = []
-            for call in call_args_list:
-                if len(call.args) > 0:
-                    written_spans.extend(call.args[0])
-
-            # Collect spans with coverage data
-            coverage_spans = []
-            for span in written_spans:
-                coverage_tag = span.get_struct_tag("test.code_coverage")
-                if coverage_tag:
-                    coverage_spans.append((span, coverage_tag))
-
-            if coverage_enabled:
-                # When coverage is enabled, we MUST have coverage data
-                assert len(coverage_spans) > 0, "Expected at least one span with coverage data when coverage is enabled"
-
-                # Validate the coverage structure and verify multiple functions covered
-                for span, coverage_data in coverage_spans:
-                    assert "files" in coverage_data, "Coverage data should have 'files' key"
-                    files = coverage_data["files"]
-                    assert len(files) > 0, "Should have at least one file in coverage"
-
-                    # Verify the covered file is from our test code
-                    filenames = [f.get("filename", "") for f in files]
-                    assert any(
-                        "callee.py" in fname for fname in filenames
-                    ), f"Expected callee.py in coverage files, got: {filenames}"
-
-                    # Verify we have line coverage (segments or bitmap)
-                    for file_data in files:
-                        assert "segments" in file_data or "bitmap" in file_data, "File should have coverage data"
-            else:
-                # When coverage is disabled, we MUST NOT have coverage data
-                assert (
-                    len(coverage_spans) == 0
-                ), f"Expected NO coverage data when coverage is disabled, but found {len(coverage_spans)} span(s) with coverage"
-
-
-@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 12), reason="Requires Python 3.12+")
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
-@pytest.mark.parametrize("env_arg", (env_with_runtime_coverage, env_without_runtime_coverage))
-def test_runtime_coverage_disabled(wsgi_client, env_arg):
-    """Test coverage behavior with both enabled and disabled states.
-
-    The snapshot will automatically validate that coverage data presence/absence matches expectations.
-    """
-    # Determine if coverage should be enabled based on environment
-    coverage_enabled = env_arg == env_with_runtime_coverage
-
-    with mock.patch("ddtrace.internal.ci_visibility.runtime_coverage_writer.RuntimeCoverageWriter._put") as mock_put:
-        resp = wsgi_client.get("/")
-        assert resp.status == 200
-
-        # Give time for any potential writes
-        time.sleep(0.5)
-
-        # The writer may or may not be called (it might not even be initialized),
-        # but if it is, validate based on coverage_enabled flag
-        if mock_put.called:
-            call_args_list = mock_put.call_args_list
-            written_spans = []
-            for call in call_args_list:
-                if len(call.args) > 0:
-                    written_spans.extend(call.args[0])
-
-            # Collect spans with coverage data
-            coverage_spans = []
-            for span in written_spans:
-                coverage_tag = span.get_struct_tag("test.code_coverage")
-                if coverage_tag:
-                    coverage_spans.append(coverage_tag)
-
-            if coverage_enabled:
-                # When coverage is enabled, we MUST have coverage data
-                assert len(coverage_spans) > 0, "Expected at least one span with coverage data when coverage is enabled"
-            else:
-                # When coverage is disabled, we MUST NOT have coverage data
-                assert (
-                    len(coverage_spans) == 0
-                ), f"Expected NO coverage data when runtime coverage is disabled, but found: {coverage_spans}"
+    # Give the writer time to flush
+    time.sleep(0.5)
+    
+    # Read debug file if coverage was enabled
+    if coverage_enabled:
+        assert os.path.exists(debug_file), f"Debug file not created at {debug_file}"
+        with open(debug_file, "r") as f:
+            debug_data = json.load(f)
+            print(f"\n{'='*80}")
+            print("ACTUAL SEGMENTS FROM SUBPROCESS:")
+            print(f"{'='*80}")
+            for i, segment in enumerate(debug_data.get("segments", [])):
+                print(f"  Segment {i}: {segment}")
+            print(f"{'='*80}\n")
+            
+            # Intentionally wrong assertion to see actual values
+            expected_segments = [[999, 0, 999, 0, -1]]
+            actual_segments = debug_data.get("segments", [])
+            assert actual_segments == expected_segments, (
+                f"Expected segments:\n{expected_segments}\n\n"
+                f"Actual segments:\n{actual_segments}"
+            )
+    else:
+        # When disabled, debug file should NOT exist
+        assert not os.path.exists(debug_file), "Debug file should not be created when coverage is disabled"

@@ -87,6 +87,24 @@ def build_runtime_coverage_payload(root_dir: Path, trace_id: int, span_id: int) 
         if not files:
             return None
 
+        # DEBUG: Write actual segments to temp file for test inspection
+        debug_segments_file = os.getenv("_DD_TEST_RUNTIME_COVERAGE_DEBUG_FILE")
+        if debug_segments_file:
+            import json
+            import sys
+            print(f"DEBUG: build_runtime_coverage_payload called, files count: {len(files)}", file=sys.stderr, flush=True)
+            for file_data in files:
+                filename = file_data.get("filename", "")
+                print(f"DEBUG: Checking file: {filename}", file=sys.stderr, flush=True)
+                if "callee.py" in filename:
+                    print(f"DEBUG: Found callee.py, writing to {debug_segments_file}", file=sys.stderr, flush=True)
+                    with open(debug_segments_file, "w") as f:
+                        json.dump({"segments": file_data.get("segments", [])}, f, indent=2)
+                    print(f"DEBUG: Debug file written successfully", file=sys.stderr, flush=True)
+                    break
+            else:
+                print(f"DEBUG: No callee.py found in files", file=sys.stderr, flush=True)
+
         # Return payload dict with trace/span IDs for correlation
         return {
             "trace_id": trace_id,
