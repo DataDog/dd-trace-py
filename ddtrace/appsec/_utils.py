@@ -154,6 +154,35 @@ class Rasp_result:
         self.durations: Dict[str, float] = collections.defaultdict(float)
 
 
+class Block_config:
+    __slots__ = ["block_id", "grpc_status_code", "status_code", "type", "content_type", "location"]
+
+    def __init__(
+        self,
+        type: str = "auto",  # noqa: A002
+        status_code: int = 403,
+        grpc_status_code: int = 10,
+        security_response_id: str = "default",
+        location: str = "",
+        **_kwargs,
+    ) -> None:
+        self.block_id: str = security_response_id
+        self.grpc_status_code: int = grpc_status_code
+        self.status_code: int = status_code
+        self.type: str = type
+        self.location = location.replace(APPSEC.SECURITY_RESPONSE_ID, security_response_id)
+        self.content_type: str = "application/json"
+
+    def get(self, method_name: str, default: Any = None) -> Any:
+        """
+        Dictionary-like get method for backward compatibility with Lambda integration.
+
+        Returns the attribute value if it exists, otherwise returns the default value.
+        This allows Block_config to be used in contexts that expect dictionary-like access.
+        """
+        return getattr(self, method_name, default)
+
+
 class Telemetry_result:
     __slots__ = [
         "blocked",
