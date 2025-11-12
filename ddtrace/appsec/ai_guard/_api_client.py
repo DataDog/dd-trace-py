@@ -243,7 +243,7 @@ class AIGuardClient:
                     span.set_tag(AI_GUARD.ACTION_TAG, action)
                     if len(tags) > 0:
                         meta_struct = span._get_struct_tag(AI_GUARD.STRUCT)
-                        meta_struct.update({"matching_rules": tags})
+                        meta_struct.update({"attack_categories": tags})
                     if reason:
                         span.set_tag(AI_GUARD.REASON_TAG, reason)
                 else:
