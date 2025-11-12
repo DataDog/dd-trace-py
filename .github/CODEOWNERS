@@ -47,6 +47,7 @@ tests/utils.py                      @DataDog/python-guild
 tests/suitespec.yml                 @DataDog/python-guild  @DataDog/apm-core-python
 tests/suitespec.py                  @DataDog/python-guild  @DataDog/apm-core-python
 scripts/bump_ddtrace.py             @DataDog/python-guild
+tests/smoke_test.py                 @DataDog/python-guild
 
 # Core / Language Platform
 tests/internal                      @DataDog/apm-core-python
@@ -125,7 +126,6 @@ ddtrace/internal/iast/              @DataDog/asm-python
 tests/appsec/                       @DataDog/asm-python
 tests/contrib/subprocess            @DataDog/asm-python
 tests/snapshots/tests*appsec*.json  @DataDog/asm-python
-tests/smoke_test.py                 @DataDog/asm-python @DataDog/profiling-python
 scripts/iast/*                      @DataDog/asm-python
 
 
@@ -253,8 +253,6 @@ ddtrace/internal/datastreams        @DataDog/data-streams-monitoring
 tests/datastreams                   @DataDog/data-streams-monitoring
 
 # ASM (order matters)
-tests/*/*/test*appsec*.py               @DataDog/asm-python
-tests/*/test*appsec*.py                 @DataDog/asm-python
-tests/*/test*iast*.py                   @DataDog/asm-python
-tests/*/*/test*iast*.py                 @DataDog/asm-python
+tests/**/*appsec*               @DataDog/asm-python
+tests/**/*iast*                 @DataDog/asm-python
 tests/tracer/test_propagation.py        @DataDog/apm-sdk-capabilities-python @DataDog/asm-python
