@@ -156,7 +156,7 @@ heap_tracker_thaw_no_cpython(heap_tracker_t* heap_tracker, size_t* n_to_free)
     *n_to_free = heap_tracker->freezer.frees.count;
     if (*n_to_free > 0) {
         /* TODO: can we put traceback_t* directly in freezer.frees so we don't need new storage? */
-        to_free = malloc(*n_to_free * sizeof(traceback_t*));
+        to_free = static_cast<traceback_t**>(malloc(*n_to_free * sizeof(traceback_t*)));
         for (size_t i = 0; i < *n_to_free; i++) {
             traceback_t* tb = memalloc_heap_map_remove(heap_tracker->allocs_m, heap_tracker->freezer.frees.tab[i]);
             to_free[i] = tb;
