@@ -159,7 +159,7 @@ heap_tracker_t::heap_tracker_t()
   , frozen(false)
   , freezer_allocs_m(new memalloc_heap_map())
 {
-    memalloc_gil_debug_check_init(&gil_guard);
+    // gil_guard is initialized by its constructor
 }
 
 heap_tracker_t::~heap_tracker_t()

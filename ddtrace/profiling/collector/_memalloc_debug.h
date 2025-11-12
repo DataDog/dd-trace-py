@@ -17,16 +17,16 @@ memalloc_debug_gil_release(void)
 #endif
 }
 
-typedef struct
+class memalloc_gil_debug_check_t
 {
-    bool acquired;
-} memalloc_gil_debug_check_t;
+  public:
+    memalloc_gil_debug_check_t()
+      : acquired(false)
+    {
+    }
 
-static void
-memalloc_gil_debug_check_init(memalloc_gil_debug_check_t* c)
-{
-    c->acquired = false;
-}
+    bool acquired;
+};
 
 #ifndef NDEBUG
 /* Annotate that we are beginning a critical section where we don't want other
