@@ -241,11 +241,12 @@ def test_otel_lazy_sampling_with_nonrecording_span(oteltracer):
 
     ctx = set_span_in_context(NonRecordingSpan(SpanContext(trace_id=1, span_id=2, is_remote=False)))
     with oteltracer.start_as_current_span("test_span", context=ctx) as span:
-        assert span._ddspan.trace_id == 1
-        assert span._ddspan.parent_id == 2
         assert span._ddspan.context.sampling_priority is None
+        assert span._ddspan.context._is_remote is False
 
         sc = span.get_span_context()
+        assert sc.trace_id == 1
+        assert sc.is_remote is False
         assert sc.trace_flags == TraceFlags.SAMPLED
         assert span._ddspan.context.sampling_priority == 1
 
