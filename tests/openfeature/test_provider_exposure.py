@@ -21,7 +21,12 @@ from tests.utils import override_global_config
 def provider():
     """Create a DataDogProvider instance for testing."""
     with override_global_config({"experimental_flagging_provider_enabled": True}):
-        yield DataDogProvider()
+        provider_instance = DataDogProvider()
+        # Ensure exposure cache is cleared for each test
+        provider_instance.clear_exposure_cache()
+        yield provider_instance
+        # Clean up after test
+        provider_instance.clear_exposure_cache()
 
 
 @pytest.fixture
@@ -184,6 +189,54 @@ class TestExposureReporting:
         exposure_event = mock_writer.enqueue.call_args[0][0]
         assert exposure_event["flag"]["key"] == "string-flag"
         assert exposure_event["variant"]["key"] == "variant-a"
+
+    @mock.patch("ddtrace.internal.openfeature._provider.get_exposure_writer")
+    def test_exposure_cached_on_duplicate_evaluation(self, mock_get_writer, provider, evaluation_context):
+        """Test that duplicate exposure events are cached and not reported multiple times."""
+        mock_writer = mock.Mock()
+        mock_get_writer.return_value = mock_writer
+
+        config = create_config(create_boolean_flag("cached-flag", enabled=True, default_value=True))
+        process_ffe_configuration(config)
+
+        # First evaluation - should report exposure
+        result1 = provider.resolve_boolean_details("cached-flag", False, evaluation_context)
+        assert result1.value is True
+        assert mock_writer.enqueue.call_count == 1
+
+        # Second evaluation - should NOT report exposure (cached)
+        result2 = provider.resolve_boolean_details("cached-flag", False, evaluation_context)
+        assert result2.value is True
+        assert mock_writer.enqueue.call_count == 1  # Still 1, not 2
+
+        # Third evaluation - should NOT report exposure (cached)
+        result3 = provider.resolve_boolean_details("cached-flag", False, evaluation_context)
+        assert result3.value is True
+        assert mock_writer.enqueue.call_count == 1  # Still 1, not 3
+
+    @mock.patch("ddtrace.internal.openfeature._provider.get_exposure_writer")
+    def test_exposure_cache_cleared_on_clear_call(self, mock_get_writer, provider, evaluation_context):
+        """Test that clearing the cache allows exposure events to be reported again."""
+        mock_writer = mock.Mock()
+        mock_get_writer.return_value = mock_writer
+
+        config = create_config(create_boolean_flag("clear-test-flag", enabled=True, default_value=True))
+        process_ffe_configuration(config)
+
+        # First evaluation - should report exposure
+        provider.resolve_boolean_details("clear-test-flag", False, evaluation_context)
+        assert mock_writer.enqueue.call_count == 1
+
+        # Second evaluation - should NOT report (cached)
+        provider.resolve_boolean_details("clear-test-flag", False, evaluation_context)
+        assert mock_writer.enqueue.call_count == 1
+
+        # Clear the cache
+        provider.clear_exposure_cache()
+
+        # Third evaluation - should report again after cache clear
+        provider.resolve_boolean_details("clear-test-flag", False, evaluation_context)
+        assert mock_writer.enqueue.call_count == 2
 
     @mock.patch("ddtrace.internal.openfeature.writer.get_exposure_writer")
     def test_exposure_reporting_failure_does_not_affect_resolution(self, mock_get_writer, provider, evaluation_context):

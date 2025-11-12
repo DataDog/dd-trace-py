@@ -57,6 +57,10 @@ class DataDogProvider(AbstractProvider):
         self._status = ProviderStatus.NOT_READY
         self._config_received = False
 
+        # Cache for reported exposures to prevent duplicates
+        # Stores tuples of (flag_key, variant_key, allocation_key)
+        self._exposure_cache: typing.Set[typing.Tuple[str, typing.Optional[str], typing.Optional[str]]] = set()
+
         # Check if experimental flagging provider is enabled
         self._enabled = ffe_config.experimental_flagging_provider_enabled
         if not self._enabled:
@@ -120,6 +124,9 @@ class DataDogProvider(AbstractProvider):
             stop_exposure_writer()
         except ServiceStatusError:
             logger.debug("Exposure writer has already stopped", exc_info=True)
+
+        # Clear exposure cache
+        self.clear_exposure_cache()
 
         # Unregister provider
         _unregister_provider(self)
@@ -288,8 +295,17 @@ class DataDogProvider(AbstractProvider):
     ) -> None:
         """
         Report a feature flag exposure event to the EVP proxy intake.
+
+        Uses caching to prevent duplicate exposure events for the same
+        (flag_key, variant_key, allocation_key) combination.
         """
         try:
+            # Check cache to prevent duplicate exposure events
+            cache_key = (flag_key, variant_key, allocation_key)
+            if cache_key in self._exposure_cache:
+                logger.debug("Skipping duplicate exposure event for %s", cache_key)
+                return
+
             exposure_event = build_exposure_event(
                 flag_key=flag_key,
                 variant_key=variant_key,
@@ -300,6 +316,8 @@ class DataDogProvider(AbstractProvider):
             if exposure_event:
                 writer = get_exposure_writer()
                 writer.enqueue(exposure_event)
+                # Add to cache only after successful enqueue
+                self._exposure_cache.add(cache_key)
         except Exception as e:
             logger.debug("Failed to report exposure event: %s", e, exc_info=True)
 
@@ -376,6 +394,15 @@ class DataDogProvider(AbstractProvider):
         else:
             # SDK 0.6.0 doesn't have emit methods
             logger.debug("Provider status is READY (event emission not supported in SDK 0.6.0)")
+
+    def clear_exposure_cache(self) -> None:
+        """
+        Clear the exposure event cache.
+
+        This method is useful for testing to ensure fresh exposure events are sent.
+        """
+        self._exposure_cache.clear()
+        logger.debug("Exposure cache cleared")
 
 
 # Module-level registry for active provider instances
