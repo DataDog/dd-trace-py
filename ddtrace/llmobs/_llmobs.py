@@ -1849,6 +1849,16 @@ class LLMObs(Service):
             parent_id = int(_parent_id)
         except ValueError:
             log.warning("Failed to parse LLMObs parent ID from request headers.")
+            llmobs_context = Context(trace_id=context.trace_id, span_id=context.span_id)
+            parent_llmobs_trace_id = context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
+            if parent_llmobs_trace_id is not None:
+                llmobs_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(parent_llmobs_trace_id)
+            else:
+                llmobs_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(context.trace_id)
+            ml_app = context._meta.get(PROPAGATED_ML_APP_KEY)
+            if ml_app is not None:
+                llmobs_context._meta[PROPAGATED_ML_APP_KEY] = ml_app
+            cls._instance._llmobs_context_provider.activate(llmobs_context)
             return "invalid_parent_id"
         parent_llmobs_trace_id = context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
         if parent_llmobs_trace_id is None:
