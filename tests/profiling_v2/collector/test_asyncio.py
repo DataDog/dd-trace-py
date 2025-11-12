@@ -21,9 +21,7 @@ init_linenos(__file__)
 def test_repr():
     test_collector._test_repr(
         collector_asyncio.AsyncioLockCollector,
-        "AsyncioLockCollector(status=<ServiceStatus.STOPPED: 'stopped'>, "
-        "capture_pct=1.0, nframes=64, "
-        "endpoint_collection_enabled=True, tracer=None)",
+        "AsyncioLockCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, nframes=64, tracer=None)",  # noqa: E501
     )
 
 
