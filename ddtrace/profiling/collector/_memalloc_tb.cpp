@@ -63,7 +63,7 @@ memalloc_tb_buffer_pool_get(memalloc_tb_buffer_pool* pool, uint16_t max_nframe)
         pool->pool[pool->count - 1] = NULL;
         pool->count--;
     } else {
-        t = malloc(TRACEBACK_SIZE(max_nframe));
+        t = static_cast<traceback_t*>(malloc(TRACEBACK_SIZE(max_nframe)));
     }
     return t;
 }
@@ -238,7 +238,7 @@ memalloc_frame_to_traceback(PyFrameObject* pyframe, uint16_t max_nframe)
     }
 
     size_t traceback_size = TRACEBACK_SIZE(traceback_buffer->nframe);
-    traceback_t* traceback = PyMem_RawMalloc(traceback_size);
+    traceback_t* traceback = static_cast<traceback_t*>(PyMem_RawMalloc(traceback_size));
 
     if (traceback)
         memcpy(traceback, traceback_buffer, traceback_size);

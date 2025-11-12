@@ -81,14 +81,14 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          python -m pip install --upgrade pip
+          python -m pip install --upgrade "pip<25.3"
           pip install packaging
           pip install requests
           pip install riot==0.20.1
           pip install PyYAML
           pip install ddtrace
           # Install latest pip-tools from main branch for Python 3.14 compatibility
-          pip install --upgrade git+https://github.com/jazzband/pip-tools.git@934b46a8795554f994b984ac743957f8458a29d6
+          pip install --upgrade git+https://github.com/jazzband/pip-tools.git@1c2692b7f45a94d93e3f4bb252da3fd711ad08a9 # v7.5.1
 
       - name: Run regenerate-riot-latest
         run: scripts/regenerate-riot-latest.sh

@@ -46,12 +46,12 @@ class _ProfiledLock:
 
     __slots__ = (
         "__wrapped__",
-        "_self_tracer",
-        "_self_max_nframes",
-        "_self_capture_sampler",
-        "_self_init_loc",
-        "_self_acquired_at",
-        "_self_name",
+        "tracer",
+        "max_nframes",
+        "capture_sampler",
+        "init_location",
+        "acquired_time",
+        "name",
     )
 
     def __init__(
@@ -62,15 +62,15 @@ class _ProfiledLock:
         capture_sampler: collector.CaptureSampler,
     ) -> None:
         self.__wrapped__: Any = wrapped
-        self._self_tracer: Optional[Tracer] = tracer
-        self._self_max_nframes: int = max_nframes
-        self._self_capture_sampler: collector.CaptureSampler = capture_sampler
+        self.tracer: Optional[Tracer] = tracer
+        self.max_nframes: int = max_nframes
+        self.capture_sampler: collector.CaptureSampler = capture_sampler
         # Frame depth: 0=__init__, 1=_profiled_allocate_lock, 2=_LockAllocatorWrapper.__call__, 3=caller
         frame: FrameType = sys._getframe(3)
         code: CodeType = frame.f_code
-        self._self_init_loc: str = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
-        self._self_acquired_at: int = 0
-        self._self_name: Optional[str] = None
+        self.init_location: str = f"{os.path.basename(code.co_filename)}:{frame.f_lineno}"
+        self.acquired_time: int = 0
+        self.name: Optional[str] = None
 
     ### DUNDER methods ###
 
@@ -87,7 +87,7 @@ class _ProfiledLock:
         return hash(self.__wrapped__)
 
     def __repr__(self) -> str:
-        return f"<_ProfiledLock({self.__wrapped__!r}) at {self._self_init_loc}>"
+        return f"<_ProfiledLock({self.__wrapped__!r}) at {self.init_location}>"
 
     ### Regular methods ###
 
@@ -105,7 +105,7 @@ class _ProfiledLock:
         return self._acquire(self.__wrapped__.__aenter__, *args, **kwargs)
 
     def _acquire(self, inner_func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
-        if not self._self_capture_sampler.capture():
+        if not self.capture_sampler.capture():
             return inner_func(*args, **kwargs)
 
         start: int = time.monotonic_ns()
@@ -113,9 +113,9 @@ class _ProfiledLock:
             return inner_func(*args, **kwargs)
         finally:
             end: int = time.monotonic_ns()
-            self._self_acquired_at = end
+            self.acquired_time = end
             try:
-                self._maybe_update_self_name()
+                self._update_name()
                 self._flush_sample(start, end, is_acquire=True)
             except AssertionError:
                 if config.enable_asserts:
@@ -135,7 +135,7 @@ class _ProfiledLock:
         return self._release(self.__wrapped__.__aexit__, *args, **kwargs)
 
     def _release(self, inner_func: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
-        start: Optional[int] = getattr(self, "_self_acquired_at", None)
+        start: Optional[int] = getattr(self, "acquired_time", None)
         try:
             # Though it should generally be avoided to call release() from
             # multiple threads, it is possible to do so. In that scenario, the
@@ -143,7 +143,7 @@ class _ProfiledLock:
             # not be propagated to the caller and to the users. The inner_func
             # will raise an RuntimeError as the threads are trying to release()
             # and unlocked lock, and the expected behavior is to propagate that.
-            del self._self_acquired_at
+            del self.acquired_time
         except AttributeError:
             pass
 
@@ -165,7 +165,7 @@ class _ProfiledLock:
 
         handle.push_monotonic_ns(end)
 
-        lock_name: str = f"{self._self_init_loc}:{self._self_name}" if self._self_name else self._self_init_loc
+        lock_name: str = f"{self.init_location}:{self.name}" if self.name else self.init_location
         handle.push_lock_name(lock_name)
 
         duration_ns: int = end - start
@@ -189,20 +189,20 @@ class _ProfiledLock:
         thread_native_id: int = _threading.get_thread_native_id(thread_id)
         handle.push_threadinfo(thread_id, thread_native_id, thread_name)
 
-        if self._self_tracer is not None:
-            handle.push_span(self._self_tracer.current_span())
+        if self.tracer is not None:
+            handle.push_span(self.tracer.current_span())
 
         # If we can't get the task frame, we use the caller frame.
         # Call stack: 0: _flush_sample, 1: _acquire/_release, 2: acquire/release/__enter__/__exit__, 3: caller
         frame: FrameType = task_frame or sys._getframe(3)
         frames: List[DDFrame]
-        frames, _ = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
+        frames, _ = _traceback.pyframe_to_frames(frame, self.max_nframes)
         for ddframe in frames:
             handle.push_frame(ddframe.function_name, ddframe.file_name, 0, ddframe.lineno)
 
         handle.flush_sample()
 
-    def _find_self_name(self, var_dict: Dict[str, Any]) -> Optional[str]:
+    def _find_name(self, var_dict: Dict[str, Any]) -> Optional[str]:
         for name, value in var_dict.items():
             if name.startswith("__") or isinstance(value, ModuleType):
                 continue
@@ -212,7 +212,6 @@ class _ProfiledLock:
                 for attribute in dir(value):
                     try:
                         if not attribute.startswith("__") and getattr(value, attribute) is self:
-                            self._self_name = attribute
                             return attribute
                     except AttributeError:
                         # Accessing unset attributes in __slots__ raises AttributeError.
@@ -221,8 +220,8 @@ class _ProfiledLock:
 
     # Get lock acquire/release call location and variable name the lock is assigned to
     # This function propagates ValueError if the frame depth is <= 3.
-    def _maybe_update_self_name(self) -> None:
-        if self._self_name is not None:
+    def _update_name(self) -> None:
+        if self.name is not None:
             return
         # We expect the call stack to be like this:
         # 0: this
@@ -240,7 +239,7 @@ class _ProfiledLock:
 
         # First, look at the local variables of the caller frame, and then the global variables
         frame = sys._getframe(3)
-        self._self_name = self._find_self_name(frame.f_locals) or self._find_self_name(frame.f_globals) or ""
+        self.name = self._find_name(frame.f_locals) or self._find_name(frame.f_globals) or ""
 
 
 class _LockAllocatorWrapper:
