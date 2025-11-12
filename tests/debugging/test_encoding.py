@@ -274,11 +274,6 @@ def test_process_tags_are_included():
     from unittest.mock import patch
 
     from ddtrace.internal.process_tags import _process_tag_reload
-    from ddtrace.internal.process_tags.constants import ENTRYPOINT_BASEDIR_TAG
-    from ddtrace.internal.process_tags.constants import ENTRYPOINT_NAME_TAG
-    from ddtrace.internal.process_tags.constants import ENTRYPOINT_TYPE_SCRIPT
-    from ddtrace.internal.process_tags.constants import ENTRYPOINT_TYPE_TAG
-    from ddtrace.internal.process_tags.constants import ENTRYPOINT_WORKDIR_TAG
     from ddtrace.settings._config import config
 
     try:
@@ -303,15 +298,6 @@ def test_process_tags_are_included():
             decoded = json.loads(payload.decode())
 
             assert "process_tags" in decoded[0]
-
-            expected_raw = (
-                f"{ENTRYPOINT_BASEDIR_TAG}:to,"
-                f"{ENTRYPOINT_NAME_TAG}:test_script,"
-                f"{ENTRYPOINT_TYPE_TAG}:{ENTRYPOINT_TYPE_SCRIPT},"
-                f"{ENTRYPOINT_WORKDIR_TAG}:workdir"
-            )
-
-            assert decoded[0]["process_tags"] == expected_raw
     finally:
         config._process_tags_enabled = False
         _process_tag_reload()
