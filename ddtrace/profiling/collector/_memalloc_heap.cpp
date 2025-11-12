@@ -71,14 +71,13 @@ memalloc_sample_to_tuple(traceback_t* tb, bool is_live);
 class heap_tracker_t
 {
   public:
-    heap_tracker_t();
+    heap_tracker_t(uint32_t sample_size_val);
     ~heap_tracker_t();
 
     // Delete copy constructor and assignment operator
     heap_tracker_t(const heap_tracker_t&) = delete;
     heap_tracker_t& operator=(const heap_tracker_t&) = delete;
 
-    void init(uint32_t sample_size_val);
     void deinit();
     void freeze();
 
@@ -151,9 +150,9 @@ heap_tracker_t::heap_tracker_next_sample_size(uint32_t sample_size)
 }
 
 // Method implementations
-heap_tracker_t::heap_tracker_t()
-  : sample_size(0)
-  , current_sample_size(0)
+heap_tracker_t::heap_tracker_t(uint32_t sample_size_val)
+  : sample_size(sample_size_val)
+  , current_sample_size(heap_tracker_next_sample_size(sample_size_val))
   , allocated_memory(0)
   , frozen(false)
 {
@@ -163,13 +162,6 @@ heap_tracker_t::heap_tracker_t()
 heap_tracker_t::~heap_tracker_t()
 {
     // std::vector and memalloc_heap_map destructors handle cleanup automatically
-}
-
-void
-heap_tracker_t::init(uint32_t sample_size_val)
-{
-    sample_size = sample_size_val;
-    current_sample_size = heap_tracker_next_sample_size(sample_size_val);
 }
 
 void
@@ -391,9 +383,8 @@ void
 memalloc_heap_tracker_init(uint32_t sample_size)
 {
     if (global_heap_tracker == nullptr) {
-        global_heap_tracker = new heap_tracker_t();
+        global_heap_tracker = new heap_tracker_t(sample_size);
     }
-    global_heap_tracker->init(sample_size);
 }
 
 void
