@@ -11,7 +11,9 @@ from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_free_slots_number
 from ddtrace.appsec._iast.main import patch_iast
 from ddtrace.contrib.internal.django.patch import patch as django_patch
+from ddtrace.contrib.internal.psycopg.patch import patch as psycopg_patch
 from ddtrace.contrib.internal.requests.patch import patch as requests_patch
+from ddtrace.contrib.internal.sqlite3.patch import patch as sqlite3_patch
 from ddtrace.internal import core
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
@@ -35,7 +37,9 @@ def pytest_configure():
         settings.DEBUG = False
         patch_iast()
         load_iast()
+        psycopg_patch()
         requests_patch()
+        sqlite3_patch()
         django_patch()
         enable_iast_propagation()
         django.setup()
