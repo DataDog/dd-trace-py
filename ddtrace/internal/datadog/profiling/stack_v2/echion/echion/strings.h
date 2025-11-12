@@ -10,6 +10,7 @@
 
 #include <cstdint>
 #include <string>
+#include <mutex>
 
 #include <echion/long.h>
 #include <echion/render.h>
