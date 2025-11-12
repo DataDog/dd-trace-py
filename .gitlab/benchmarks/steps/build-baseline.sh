@@ -8,6 +8,14 @@ then
   python3.9 -m pip download --no-deps "ddtrace==${BASELINE_TAG:1}"
 else
   ulimit -c unlimited
+
+  # Install libatomic for C++ atomic operations support (required since memalloc was ported to C++)
+  if command -v yum &> /dev/null; then
+    yum install -y libatomic
+  elif command -v apk &> /dev/null; then
+    apk add --no-cache libatomic
+  fi
+
   curl -sSf https://sh.rustup.rs | sh -s -- -y;
   export PATH="$HOME/.cargo/bin:$PATH"
   echo "Building wheel for ${BASELINE_BRANCH}:${BASELINE_COMMIT_SHA}"
