@@ -241,8 +241,8 @@ class AIGuardClient:
                         )
 
                     span.set_tag(AI_GUARD.ACTION_TAG, action)
-                    for tag in tags:
-                        span.set_tag(AI_GUARD.TAG + ".tag." + tag, "true")
+                    if len(tags) > 0:
+                        span.set_tag(AI_GUARD.TAG + ".matching_rules", json.dumps(tags))
                     if reason:
                         span.set_tag(AI_GUARD.REASON_TAG, reason)
                 else:
