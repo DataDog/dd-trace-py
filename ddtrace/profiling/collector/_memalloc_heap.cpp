@@ -1,5 +1,6 @@
 #include <math.h>
 #include <stdlib.h>
+#include <vector>
 
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
@@ -79,7 +80,7 @@ typedef struct
     struct
     {
         memalloc_heap_map_t* allocs_m;
-        ptr_array_t frees;
+        std::vector<void*> frees;
     } freezer;
     /* List of freed samples that haven't been reported yet */
     traceback_array_t unreported_samples;
@@ -112,7 +113,7 @@ heap_tracker_init(heap_tracker_t* heap_tracker)
 {
     heap_tracker->allocs_m = memalloc_heap_map_new();
     heap_tracker->freezer.allocs_m = memalloc_heap_map_new();
-    ptr_array_init(&heap_tracker->freezer.frees);
+    // std::vector initializes itself, no need for explicit init
     traceback_array_init(&heap_tracker->unreported_samples);
     heap_tracker->allocated_memory = 0;
     heap_tracker->frozen = false;
@@ -126,7 +127,7 @@ heap_tracker_wipe(heap_tracker_t* heap_tracker)
 {
     memalloc_heap_map_delete(heap_tracker->allocs_m);
     memalloc_heap_map_delete(heap_tracker->freezer.allocs_m);
-    ptr_array_wipe(&heap_tracker->freezer.frees);
+    // std::vector destructor handles cleanup automatically
     traceback_array_wipe(&heap_tracker->unreported_samples);
 }
 
@@ -153,19 +154,19 @@ heap_tracker_thaw_no_cpython(heap_tracker_t* heap_tracker, size_t* n_to_free)
      * freezer.allocs_m, in case another newer allocation at the same address is
      * tracked in freezer.allocs_m */
     traceback_t** to_free = NULL;
-    *n_to_free = heap_tracker->freezer.frees.count;
+    *n_to_free = heap_tracker->freezer.frees.size();
     if (*n_to_free > 0) {
         /* TODO: can we put traceback_t* directly in freezer.frees so we don't need new storage? */
         to_free = static_cast<traceback_t**>(malloc(*n_to_free * sizeof(traceback_t*)));
         for (size_t i = 0; i < *n_to_free; i++) {
-            traceback_t* tb = memalloc_heap_map_remove(heap_tracker->allocs_m, heap_tracker->freezer.frees.tab[i]);
+            traceback_t* tb = memalloc_heap_map_remove(heap_tracker->allocs_m, heap_tracker->freezer.frees[i]);
             to_free[i] = tb;
         }
     }
     /* Now we can pull in the allocations from freezer.allocs_m since we've
      * removed any potentially duplicated keys from allocs_m. */
     memalloc_heap_map_destructive_copy(heap_tracker->allocs_m, heap_tracker->freezer.allocs_m);
-    heap_tracker->freezer.frees.count = 0;
+    heap_tracker->freezer.frees.clear();
     heap_tracker->frozen = false;
     MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&heap_tracker->gil_guard);
     return to_free;
@@ -240,7 +241,7 @@ memalloc_heap_untrack_no_cpython(heap_tracker_t* heap_tracker, void* ptr)
          * going to free the allocation right after this, so we could sample
          * another allocation at the same address, but it'll go in the frozen
          * map. */
-        ptr_array_append(&heap_tracker->freezer.frees, ptr);
+        heap_tracker->freezer.frees.push_back(ptr);
     }
     MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&heap_tracker->gil_guard);
     return NULL;
