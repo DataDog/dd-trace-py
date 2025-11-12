@@ -1,3 +1,4 @@
+import json
 from itertools import product
 from unittest.mock import Mock
 from unittest.mock import patch
@@ -114,8 +115,8 @@ def test_evaluate_method(
         expected_tags.update({"ai_guard.tool_name": "calc"})
     if action != "ALLOW" and blocking:
         expected_tags.update({"ai_guard.blocked": "true"})
-    for tag in tags:
-        expected_tags.update({"ai_guard.tag." + tag: "true"})
+    if len(tags) > 0:
+        expected_tags.update({"ai_guard.matching_rules": json.dumps(tags)})
     assert_ai_guard_span(
         tracer,
         messages,
