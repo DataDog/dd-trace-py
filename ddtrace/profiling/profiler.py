@@ -124,7 +124,6 @@ class _ProfilerInstance(service.Service):
         api_key: Optional[str] = None,
         _memory_collector_enabled: bool = profiling_config.memory.enabled,
         _stack_collector_enabled: bool = profiling_config.stack.enabled,
-        _stack_v2_enabled: bool = profiling_config.stack.v2_enabled,
         _lock_collector_enabled: bool = profiling_config.lock.enabled,
         _pytorch_collector_enabled: bool = profiling_config.pytorch.enabled,
         enable_code_provenance: bool = profiling_config.code_provenance,
@@ -140,7 +139,6 @@ class _ProfilerInstance(service.Service):
         self.api_key: Optional[str] = api_key if api_key is not None else config._dd_api_key
         self._memory_collector_enabled: bool = _memory_collector_enabled
         self._stack_collector_enabled: bool = _stack_collector_enabled
-        self._stack_v2_enabled: bool = _stack_v2_enabled
         self._lock_collector_enabled: bool = _lock_collector_enabled
         self._pytorch_collector_enabled: bool = _pytorch_collector_enabled
         self.enable_code_provenance: bool = enable_code_provenance

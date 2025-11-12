@@ -26,6 +26,10 @@ SPEC_PATTERNS = {_ for suite in spec.get_suites() for _ in spec.get_patterns(sui
 IGNORE_PATTERNS.add("**/*.md")
 # The aioredis integration is deprecated and untested
 IGNORE_PATTERNS.add("ddtrace/contrib/aioredis/*")
+# TODO(taegyunkim): remove these after merging profiling v2 tests back to profiling
+IGNORE_PATTERNS.add("tests/profiling/*.py")
+IGNORE_PATTERNS.add("tests/profiling/*/*.py")
+IGNORE_PATTERNS.add("tests/profiling/*/*.proto")
 
 
 def owners(path: str) -> str:
