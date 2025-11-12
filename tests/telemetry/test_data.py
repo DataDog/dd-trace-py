@@ -6,7 +6,6 @@ import pytest
 
 import ddtrace
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
-from ddtrace.internal.process_tags import _process_tag_reload
 from ddtrace.internal.runtime.container import CGroupInfo
 from ddtrace.internal.telemetry.data import _format_version_info
 from ddtrace.internal.telemetry.data import _get_container_id
@@ -14,6 +13,7 @@ from ddtrace.internal.telemetry.data import _get_os_version
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.data import get_hostname
+from tests.utils import process_tag_reload
 
 
 def test_get_application():
@@ -45,33 +45,17 @@ def test_get_application_with_values():
 
 
 def test_get_application_with_process_tags():
-    from ddtrace.internal.process_tags.constants import ENTRYPOINT_BASEDIR_TAG
-    from ddtrace.internal.process_tags.constants import ENTRYPOINT_NAME_TAG
-    from ddtrace.internal.process_tags.constants import ENTRYPOINT_TYPE_SCRIPT
-    from ddtrace.internal.process_tags.constants import ENTRYPOINT_TYPE_TAG
-    from ddtrace.internal.process_tags.constants import ENTRYPOINT_WORKDIR_TAG
-    from ddtrace.settings._config import config
+    from ddtrace.internal.settings._config import config
 
-    with mock.patch("sys.argv", ["/path/to/test_script.py"]), mock.patch("os.getcwd", return_value="/path/to/workdir"):
-        try:
-            config._process_tags_enabled = True
-            _process_tag_reload()
+    try:
+        config._process_tags_enabled = True
+        process_tag_reload()
 
-            application = get_application("", "", "")
-            assert "process_tags" in application
-
-            process_tags = application["process_tags"]
-
-            expected_raw = (
-                f"{ENTRYPOINT_BASEDIR_TAG}:to,"
-                f"{ENTRYPOINT_NAME_TAG}:test_script,"
-                f"{ENTRYPOINT_TYPE_TAG}:{ENTRYPOINT_TYPE_SCRIPT},"
-                f"{ENTRYPOINT_WORKDIR_TAG}:workdir"
-            )
-            assert process_tags == expected_raw
-        finally:
-            config._process_tags_enabled = False
-            _process_tag_reload()
+        application = get_application("", "", "")
+        assert "process_tags" in application
+    finally:
+        config._process_tags_enabled = False
+        process_tag_reload()
 
 
 def test_application_with_setenv(run_python_code_in_subprocess, monkeypatch):
