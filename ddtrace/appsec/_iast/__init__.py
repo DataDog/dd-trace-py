@@ -46,6 +46,7 @@ log = get_logger(__name__)
 _IAST_TO_BE_LOADED = True
 _iast_propagation_enabled = False
 _fork_handler_registered = False
+_iast_in_pytest_mode = False
 
 
 def _disable_iast_after_fork():
@@ -86,6 +87,15 @@ def _disable_iast_after_fork():
         from ddtrace.appsec._iast._iast_request_context_base import IAST_CONTEXT
         from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
         from ddtrace.appsec._iast._taint_tracking._context import clear_all_request_context_slots
+
+        # In pytest mode, always disable IAST in child processes to avoid segfaults
+        # when tests create multiprocesses (e.g., for testing fork behavior)
+        if _iast_in_pytest_mode:
+            log.debug("IAST fork handler: Pytest mode detected, disabling IAST in child process")
+            clear_all_request_context_slots()
+            IAST_CONTEXT.set(None)
+            asm_config._iast_enabled = False
+            return
 
         if not is_iast_request_enabled():
             # No active context - this is an early fork (web framework worker)
@@ -168,6 +178,7 @@ def enable_iast_propagation():
     """Add IAST AST patching in the ModuleWatchdog"""
     # DEV: These imports are here to avoid _ast.ast_patching import in the top level
     # because they are slow and affect serverless startup time
+
     if asm_config._iast_propagation_enabled:
         from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
         from ddtrace.appsec._iast._loader import _exec_iast_patched_module
@@ -183,19 +194,30 @@ def enable_iast_propagation():
 
 
 def _iast_pytest_activation():
-    global _iast_propagation_enabled
-    if _iast_propagation_enabled:
+    """Configure IAST settings for pytest execution.
+
+    This function sets up IAST configuration but does NOT create a request context.
+    Request contexts should be created per-test or per-request to avoid threading issues.
+
+    Also sets a global flag to indicate we're in pytest mode, which ensures IAST is
+    disabled in forked child processes to prevent segfaults when tests use multiprocessing.
+    """
+    global _iast_in_pytest_mode
+
+    if not asm_config._iast_enabled:
         return
-    os.environ["DD_IAST_ENABLED"] = os.environ.get("DD_IAST_ENABLED") or "1"
+
+    # Mark that we're running in pytest mode
+    # This flag is checked by the fork handler to disable IAST in child processes
+    _iast_in_pytest_mode = True
+
     os.environ["DD_IAST_REQUEST_SAMPLING"] = os.environ.get("DD_IAST_REQUEST_SAMPLING") or "100.0"
     os.environ["_DD_APPSEC_DEDUPLICATION_ENABLED"] = os.environ.get("_DD_APPSEC_DEDUPLICATION_ENABLED") or "false"
     os.environ["DD_IAST_VULNERABILITIES_PER_REQUEST"] = os.environ.get("DD_IAST_VULNERABILITIES_PER_REQUEST") or "1000"
-    os.environ["DD_IAST_MAX_CONCURRENT_REQUESTS"] = os.environ.get("DD_IAST_MAX_CONCURRENT_REQUESTS") or "1000"
 
     asm_config._iast_request_sampling = 100.0
     asm_config._deduplication_enabled = False
     asm_config._iast_max_vulnerabilities_per_requests = 1000
-    asm_config._iast_max_concurrent_requests = 1000
     oce.reconfigure()
 
 

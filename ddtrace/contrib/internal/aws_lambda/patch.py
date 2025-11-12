@@ -103,7 +103,7 @@ class TimeoutChannel:
 
         current_span = tracer.current_span()
         if current_span is not None:
-            current_span.finish_with_ancestors()
+            current_span._finish_with_ancestors()
 
     def _remove_alarm_signal(self):
         """Removes the handler set for the signal `SIGALRM`."""
