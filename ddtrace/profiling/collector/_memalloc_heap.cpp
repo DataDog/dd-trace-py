@@ -382,6 +382,7 @@ static heap_tracker_t* global_heap_tracker = nullptr;
 void
 memalloc_heap_tracker_init(uint32_t sample_size)
 {
+    // TODO(dsn): what should we do it this was already initialized?
     if (global_heap_tracker == nullptr) {
         global_heap_tracker = new heap_tracker_t(sample_size);
     }
