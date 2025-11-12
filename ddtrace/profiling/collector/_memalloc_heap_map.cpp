@@ -1,4 +1,6 @@
 #include <stdint.h>
+#include <utility>
+#include <iterator>
 
 #include "_memalloc_debug.h"
 #include "_memalloc_heap_map.hpp"
@@ -190,12 +192,29 @@ class memalloc_heap_map::iterator::Impl
 {
   public:
     HeapSamples_CIter iter;
+    bool is_end;
+
+    Impl()
+      : is_end(true)
+    {
+    }
 
     Impl(const memalloc_heap_map::Impl& map)
       : iter(HeapSamples_citer(&map.map))
+      , is_end(false)
     {
+        // Advance to first valid entry if any
+        const HeapSamples_Entry* e = HeapSamples_CIter_get(&iter);
+        if (!e) {
+            is_end = true;
+        }
     }
 };
+
+memalloc_heap_map::iterator::iterator()
+  : impl(new Impl())
+{
+}
 
 memalloc_heap_map::iterator::iterator(const memalloc_heap_map& map)
   : impl(new Impl(*map.impl))
@@ -207,15 +226,71 @@ memalloc_heap_map::iterator::~iterator()
     delete impl;
 }
 
-bool
-memalloc_heap_map::iterator::next(void** key, traceback_t** tb)
+memalloc_heap_map::iterator&
+memalloc_heap_map::iterator::operator++()
 {
+    if (impl->is_end) {
+        return *this;
+    }
+    HeapSamples_CIter_next(&impl->iter);
     const HeapSamples_Entry* e = HeapSamples_CIter_get(&impl->iter);
     if (!e) {
+        impl->is_end = true;
+    }
+    return *this;
+}
+
+memalloc_heap_map::iterator
+memalloc_heap_map::iterator::operator++(int)
+{
+    iterator tmp = *this;
+    ++(*this);
+    return tmp;
+}
+
+memalloc_heap_map::iterator::value_type
+memalloc_heap_map::iterator::operator*() const
+{
+    const HeapSamples_Entry* e = HeapSamples_CIter_get(&impl->iter);
+    if (!e || impl->is_end) {
+        return {nullptr, nullptr};
+    }
+    return {e->key, e->val};
+}
+
+bool
+memalloc_heap_map::iterator::operator==(const iterator& other) const
+{
+    // Both are end iterators
+    if (impl->is_end && other.impl->is_end) {
+        return true;
+    }
+    // One is end, one is not
+    if (impl->is_end != other.impl->is_end) {
         return false;
     }
-    *key = e->key;
-    *tb = e->val;
-    HeapSamples_CIter_next(&impl->iter);
-    return true;
+    // Both are valid - compare underlying iterators
+    // Note: HeapSamples_CIter doesn't have equality comparison, so we compare
+    // the current entry pointers
+    const HeapSamples_Entry* e1 = HeapSamples_CIter_get(&impl->iter);
+    const HeapSamples_Entry* e2 = HeapSamples_CIter_get(&other.impl->iter);
+    return e1 == e2;
+}
+
+bool
+memalloc_heap_map::iterator::operator!=(const iterator& other) const
+{
+    return !(*this == other);
+}
+
+memalloc_heap_map::iterator
+memalloc_heap_map::begin() const
+{
+    return iterator(*this);
+}
+
+memalloc_heap_map::iterator
+memalloc_heap_map::end() const
+{
+    return iterator();
 }

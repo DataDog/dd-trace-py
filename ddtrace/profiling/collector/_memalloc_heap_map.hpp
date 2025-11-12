@@ -1,4 +1,6 @@
 #include <stddef.h>
+#include <iterator>
+#include <utility>
 
 #include <Python.h>
 
@@ -38,15 +40,32 @@ class memalloc_heap_map
     class iterator
     {
       public:
+        // Iterator traits
+        using iterator_category = std::forward_iterator_tag;
+        using value_type = std::pair<void*, traceback_t*>;
+        using difference_type = std::ptrdiff_t;
+        using pointer = value_type*;
+        using reference = value_type&;
+
+        iterator();
         iterator(const memalloc_heap_map& map);
         ~iterator();
-        bool next(void** key, traceback_t** tb);
+
+        // Iterator operations
+        iterator& operator++();
+        iterator operator++(int);
+        value_type operator*() const;
+        bool operator==(const iterator& other) const;
+        bool operator!=(const iterator& other) const;
 
       private:
         class Impl;
         Impl* impl;
         friend class memalloc_heap_map;
     };
+
+    iterator begin() const;
+    iterator end() const;
 
   private:
     class Impl;

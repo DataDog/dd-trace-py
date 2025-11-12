@@ -337,13 +337,11 @@ heap_tracker_t::export_heap()
 
     int list_index = 0;
 
-    /* First, iterate over live samples using the new iterator API */
-    memalloc_heap_map::iterator it(allocs_m);
+    /* First, iterate over live samples using the iterator API */
+    for (const auto& pair : allocs_m) {
+        void* key = pair.first;
+        traceback_t* tb = pair.second;
 
-    void* key;
-    traceback_t* tb;
-
-    while (it.next(&key, &tb)) {
         PyObject* tb_and_info = memalloc_sample_to_tuple(tb, true);
 
         PyList_SET_ITEM(heap_list, list_index, tb_and_info);
