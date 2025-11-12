@@ -90,7 +90,7 @@ typedef struct memalloc_heap_map_iter_t
 memalloc_heap_map_t*
 memalloc_heap_map_new()
 {
-    memalloc_heap_map_t* m = calloc(sizeof(memalloc_heap_map_t), 1);
+    memalloc_heap_map_t* m = static_cast<memalloc_heap_map_t*>(calloc(sizeof(memalloc_heap_map_t), 1));
     m->map = HeapSamples_new(0);
     return m;
 }
@@ -104,7 +104,7 @@ memalloc_heap_map_size(memalloc_heap_map_t* m)
 traceback_t*
 memalloc_heap_map_insert(memalloc_heap_map_t* m, void* key, traceback_t* value)
 {
-    HeapSamples_Entry k = { key = key, value = value };
+    HeapSamples_Entry k = { .key = key, .val = value };
     HeapSamples_Insert res = HeapSamples_insert(&m->map, &k);
     traceback_t* prev = NULL;
     if (!res.inserted) {
@@ -187,7 +187,7 @@ memalloc_heap_map_delete(memalloc_heap_map_t* m)
 memalloc_heap_map_iter_t*
 memalloc_heap_map_iter_new(memalloc_heap_map_t* m)
 {
-    memalloc_heap_map_iter_t* it = malloc(sizeof(memalloc_heap_map_iter_t));
+    memalloc_heap_map_iter_t* it = static_cast<memalloc_heap_map_iter_t*>(malloc(sizeof(memalloc_heap_map_iter_t)));
     if (it) {
         it->iter = HeapSamples_citer(&m->map);
     }
