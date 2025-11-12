@@ -7,7 +7,7 @@
 
 #include "_memalloc_debug.h"
 #include "_memalloc_heap.h"
-#include "_memalloc_heap_map.h"
+#include "_memalloc_heap_map.hpp"
 #include "_memalloc_reentrant.h"
 #include "_memalloc_tb.h"
 
@@ -71,7 +71,7 @@ typedef struct
     /* Next heap sample target, in bytes allocated */
     uint64_t current_sample_size;
     /* Tracked allocations */
-    memalloc_heap_map_t* allocs_m;
+    memalloc_heap_map* allocs_m;
     /* Bytes allocated since the last sample was collected */
     uint64_t allocated_memory;
     /* True if we are exporting the current heap profile */
@@ -79,7 +79,7 @@ typedef struct
     /* Contains the ongoing heap allocation/deallocation while frozen */
     struct
     {
-        memalloc_heap_map_t* allocs_m;
+        memalloc_heap_map* allocs_m;
         std::vector<void*> frees;
     } freezer;
     /* List of freed samples that haven't been reported yet */
@@ -111,8 +111,8 @@ heap_tracker_next_sample_size(uint32_t sample_size)
 static void
 heap_tracker_init(heap_tracker_t* heap_tracker)
 {
-    heap_tracker->allocs_m = memalloc_heap_map_new();
-    heap_tracker->freezer.allocs_m = memalloc_heap_map_new();
+    heap_tracker->allocs_m = new memalloc_heap_map();
+    heap_tracker->freezer.allocs_m = new memalloc_heap_map();
     // std::vector initializes itself, no need for explicit init
     heap_tracker->allocated_memory = 0;
     heap_tracker->frozen = false;
@@ -124,8 +124,8 @@ heap_tracker_init(heap_tracker_t* heap_tracker)
 static void
 heap_tracker_wipe(heap_tracker_t* heap_tracker)
 {
-    memalloc_heap_map_delete(heap_tracker->allocs_m);
-    memalloc_heap_map_delete(heap_tracker->freezer.allocs_m);
+    delete heap_tracker->allocs_m;
+    delete heap_tracker->freezer.allocs_m;
     // std::vector destructor handles cleanup automatically
 }
 
@@ -154,12 +154,12 @@ heap_tracker_thaw_no_cpython(heap_tracker_t* heap_tracker)
     std::vector<traceback_t*> to_free;
     to_free.reserve(heap_tracker->freezer.frees.size());
     for (void* ptr : heap_tracker->freezer.frees) {
-        traceback_t* tb = memalloc_heap_map_remove(heap_tracker->allocs_m, ptr);
+        traceback_t* tb = heap_tracker->allocs_m->remove(ptr);
         to_free.push_back(tb);
     }
     /* Now we can pull in the allocations from freezer.allocs_m since we've
      * removed any potentially duplicated keys from allocs_m. */
-    memalloc_heap_map_destructive_copy(heap_tracker->allocs_m, heap_tracker->freezer.allocs_m);
+    heap_tracker->allocs_m->destructive_copy_from(*heap_tracker->freezer.allocs_m);
     heap_tracker->freezer.frees.clear();
     heap_tracker->frozen = false;
     MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&heap_tracker->gil_guard);
@@ -211,7 +211,7 @@ memalloc_heap_untrack_no_cpython(heap_tracker_t* heap_tracker, void* ptr)
         return NULL;
     }
     if (!heap_tracker->frozen) {
-        traceback_t* tb = memalloc_heap_map_remove(heap_tracker->allocs_m, ptr);
+        traceback_t* tb = heap_tracker->allocs_m->remove(ptr);
         if (tb && !tb->reported) {
             /* If the sample hasn't been reported yet, add it to the allocation list */
             heap_tracker->unreported_samples.push_back(tb);
@@ -222,11 +222,11 @@ memalloc_heap_untrack_no_cpython(heap_tracker_t* heap_tracker, void* ptr)
         return tb;
     }
 
-    traceback_t* tb = memalloc_heap_map_remove(heap_tracker->freezer.allocs_m, ptr);
+    traceback_t* tb = heap_tracker->freezer.allocs_m->remove(ptr);
     if (tb) {
         MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&heap_tracker->gil_guard);
         return tb;
-    } else if (memalloc_heap_map_contains(heap_tracker->allocs_m, ptr)) {
+    } else if (heap_tracker->allocs_m->contains(ptr)) {
         /* We're tracking this pointer but can't remove it right now because
          * we're iterating over the map. Save the pointer to remove later. We're
          * going to free the allocation right after this, so we could sample
@@ -268,8 +268,7 @@ memalloc_heap_should_sample_no_cpython(heap_tracker_t* heap_tracker, size_t size
         return false;
     }
 
-    if (memalloc_heap_map_size(heap_tracker->allocs_m) + memalloc_heap_map_size(heap_tracker->freezer.allocs_m) >
-        TRACEBACK_ARRAY_MAX_COUNT) {
+    if (heap_tracker->allocs_m->size() + heap_tracker->freezer.allocs_m->size() > TRACEBACK_ARRAY_MAX_COUNT) {
         /* TODO(nick) this is vestigial from the original array-based
          * implementation. Do we actually want this? It gives us bounded memory
          * use, but the size limit is arbitrary and once we hit the arbitrary
@@ -299,9 +298,9 @@ memalloc_heap_add_sample_no_cpython(heap_tracker_t* heap_tracker, traceback_t* t
 
     traceback_t* old = NULL;
     if (heap_tracker->frozen) {
-        old = memalloc_heap_map_insert(heap_tracker->freezer.allocs_m, tb->ptr, tb);
+        old = heap_tracker->freezer.allocs_m->insert(tb->ptr, tb);
     } else {
-        old = memalloc_heap_map_insert(heap_tracker->allocs_m, tb->ptr, tb);
+        old = heap_tracker->allocs_m->insert(tb->ptr, tb);
     }
 
     /* Reset the counter to 0 */
@@ -417,7 +416,7 @@ memalloc_heap(void)
      * the profiler is thawed. */
 
     /* Calculate total number of samples: live + freed */
-    size_t live_count = memalloc_heap_map_size(global_heap_tracker.allocs_m);
+    size_t live_count = global_heap_tracker.allocs_m->size();
     size_t freed_count = global_heap_tracker.unreported_samples.size();
     size_t total_count = live_count + freed_count;
 
@@ -430,13 +429,12 @@ memalloc_heap(void)
     int list_index = 0;
 
     /* First, iterate over live samples using the new iterator API */
-    memalloc_heap_map_iter_t* it = memalloc_heap_map_iter_new(global_heap_tracker.allocs_m);
-    // TODO: handle NULL return
+    memalloc_heap_map::iterator it(*global_heap_tracker.allocs_m);
 
     void* key;
     traceback_t* tb;
 
-    while (memalloc_heap_map_iter_next(it, &key, &tb)) {
+    while (it.next(&key, &tb)) {
         PyObject* tb_and_info = memalloc_sample_to_tuple(tb, true);
 
         PyList_SET_ITEM(heap_list, list_index, tb_and_info);
@@ -445,8 +443,6 @@ memalloc_heap(void)
         /* Mark as reported */
         tb->reported = true;
     }
-
-    memalloc_heap_map_iter_delete(it);
 
     /* Second, iterate over freed samples from unreported_samples */
     for (traceback_t* tb : global_heap_tracker.unreported_samples) {

@@ -1,9 +1,7 @@
-#include <stdlib.h>
-
-#include <Python.h>
+#include <stdint.h>
 
 #include "_memalloc_debug.h"
-#include "_memalloc_tb.h"
+#include "_memalloc_heap_map.hpp"
 #include "vendor/cwisstable.h"
 
 /* cwisstable.h provides a C implementation of SwissTables hash maps, originally
@@ -77,35 +75,49 @@ CWISS_DECLARE_FLAT_MAP_POLICY(HeapSamples_policy32, void*, traceback_t*, (key_ha
 CWISS_DECLARE_HASHMAP_WITH(HeapSamples, void*, traceback_t*, HeapSamples_policy32);
 #endif
 
-typedef struct memalloc_heap_map_t
+// Pimpl implementation
+class memalloc_heap_map::Impl
 {
+  public:
     HeapSamples map;
-} memalloc_heap_map_t;
 
-typedef struct memalloc_heap_map_iter_t
-{
-    HeapSamples_CIter iter;
-} memalloc_heap_map_iter_t;
+    Impl()
+      : map(HeapSamples_new(0))
+    {
+    }
 
-memalloc_heap_map_t*
-memalloc_heap_map_new()
+    ~Impl()
+    {
+        HeapSamples_CIter it = HeapSamples_citer(&map);
+        for (const HeapSamples_Entry* e = HeapSamples_CIter_get(&it); e != NULL; e = HeapSamples_CIter_next(&it)) {
+            traceback_free(e->val);
+        }
+        HeapSamples_destroy(&map);
+    }
+};
+
+// memalloc_heap_map implementation
+memalloc_heap_map::memalloc_heap_map()
+  : impl(new Impl())
 {
-    memalloc_heap_map_t* m = static_cast<memalloc_heap_map_t*>(calloc(sizeof(memalloc_heap_map_t), 1));
-    m->map = HeapSamples_new(0);
-    return m;
+}
+
+memalloc_heap_map::~memalloc_heap_map()
+{
+    delete impl;
 }
 
 size_t
-memalloc_heap_map_size(memalloc_heap_map_t* m)
+memalloc_heap_map::size() const
 {
-    return HeapSamples_size(&m->map);
+    return HeapSamples_size(&impl->map);
 }
 
 traceback_t*
-memalloc_heap_map_insert(memalloc_heap_map_t* m, void* key, traceback_t* value)
+memalloc_heap_map::insert(void* key, traceback_t* value)
 {
     HeapSamples_Entry k = { .key = key, .val = value };
-    HeapSamples_Insert res = HeapSamples_insert(&m->map, &k);
+    HeapSamples_Insert res = HeapSamples_insert(&impl->map, &k);
     traceback_t* prev = NULL;
     if (!res.inserted) {
         /* This should not happen. It means we did not properly remove a previously-tracked
@@ -119,16 +131,16 @@ memalloc_heap_map_insert(memalloc_heap_map_t* m, void* key, traceback_t* value)
 }
 
 bool
-memalloc_heap_map_contains(memalloc_heap_map_t* m, void* key)
+memalloc_heap_map::contains(void* key) const
 {
-    return HeapSamples_contains(&m->map, &key);
+    return HeapSamples_contains(&impl->map, &key);
 }
 
 traceback_t*
-memalloc_heap_map_remove(memalloc_heap_map_t* m, void* key)
+memalloc_heap_map::remove(void* key)
 {
     traceback_t* res = NULL;
-    HeapSamples_Iter it = HeapSamples_find(&m->map, &key);
+    HeapSamples_Iter it = HeapSamples_find(&impl->map, &key);
     HeapSamples_Entry* e = HeapSamples_Iter_get(&it);
     if (e != NULL) {
         res = e->val;
@@ -139,15 +151,15 @@ memalloc_heap_map_remove(memalloc_heap_map_t* m, void* key)
 }
 
 PyObject*
-memalloc_heap_map_export(memalloc_heap_map_t* m)
+memalloc_heap_map::export_to_python() const
 {
-    PyObject* heap_list = PyList_New(HeapSamples_size(&m->map));
+    PyObject* heap_list = PyList_New(HeapSamples_size(&impl->map));
     if (heap_list == NULL) {
         return NULL;
     }
 
     int i = 0;
-    HeapSamples_CIter it = HeapSamples_citer(&m->map);
+    HeapSamples_CIter it = HeapSamples_citer(&impl->map);
     for (const HeapSamples_Entry* e = HeapSamples_CIter_get(&it); e != NULL; e = HeapSamples_CIter_next(&it)) {
         traceback_t* tb = e->val;
 
@@ -163,54 +175,108 @@ memalloc_heap_map_export(memalloc_heap_map_t* m)
 }
 
 void
-memalloc_heap_map_destructive_copy(memalloc_heap_map_t* dst, memalloc_heap_map_t* src)
+memalloc_heap_map::destructive_copy_from(memalloc_heap_map& src)
 {
-    HeapSamples_Iter it = HeapSamples_iter(&src->map);
+    HeapSamples_Iter it = HeapSamples_iter(&src.impl->map);
     for (const HeapSamples_Entry* e = HeapSamples_Iter_get(&it); e != NULL; e = HeapSamples_Iter_next(&it)) {
-        HeapSamples_insert(&dst->map, e);
+        HeapSamples_insert(&impl->map, e);
     }
     /* Can't erase inside the loop or the iterator is invalidated */
-    HeapSamples_clear(&src->map);
+    HeapSamples_clear(&src.impl->map);
 }
 
-void
-memalloc_heap_map_delete(memalloc_heap_map_t* m)
+// Iterator implementation
+class memalloc_heap_map::iterator::Impl
 {
-    HeapSamples_CIter it = HeapSamples_citer(&m->map);
-    for (const HeapSamples_Entry* e = HeapSamples_CIter_get(&it); e != NULL; e = HeapSamples_CIter_next(&it)) {
-        traceback_free(e->val);
+  public:
+    HeapSamples_CIter iter;
+
+    Impl(const memalloc_heap_map::Impl& map)
+      : iter(HeapSamples_citer(&map.map))
+    {
     }
-    HeapSamples_destroy(&m->map);
-    free(m);
+};
+
+memalloc_heap_map::iterator::iterator(const memalloc_heap_map& map)
+  : impl(new Impl(*map.impl))
+{
 }
 
-memalloc_heap_map_iter_t*
-memalloc_heap_map_iter_new(memalloc_heap_map_t* m)
+memalloc_heap_map::iterator::~iterator()
 {
-    memalloc_heap_map_iter_t* it = static_cast<memalloc_heap_map_iter_t*>(malloc(sizeof(memalloc_heap_map_iter_t)));
-    if (it) {
-        it->iter = HeapSamples_citer(&m->map);
-    }
-    return it;
+    delete impl;
 }
 
 bool
-memalloc_heap_map_iter_next(memalloc_heap_map_iter_t* it, void** key, traceback_t** tb)
+memalloc_heap_map::iterator::next(void** key, traceback_t** tb)
 {
-    const HeapSamples_Entry* e = HeapSamples_CIter_get(&it->iter);
+    const HeapSamples_Entry* e = HeapSamples_CIter_get(&impl->iter);
     if (!e) {
         return false;
     }
     *key = e->key;
     *tb = e->val;
-    HeapSamples_CIter_next(&it->iter);
+    HeapSamples_CIter_next(&impl->iter);
     return true;
 }
 
-void
-memalloc_heap_map_iter_delete(memalloc_heap_map_iter_t* it)
+// C compatibility functions (for existing code that uses C-style interface)
+extern "C"
 {
-    if (it) {
-        free(it);
+
+    memalloc_heap_map_t* memalloc_heap_map_new()
+    {
+        return new memalloc_heap_map();
     }
-}
+
+    size_t memalloc_heap_map_size(memalloc_heap_map_t* m)
+    {
+        return m->size();
+    }
+
+    traceback_t* memalloc_heap_map_insert(memalloc_heap_map_t* m, void* key, traceback_t* value)
+    {
+        return m->insert(key, value);
+    }
+
+    bool memalloc_heap_map_contains(memalloc_heap_map_t* m, void* key)
+    {
+        return m->contains(key);
+    }
+
+    traceback_t* memalloc_heap_map_remove(memalloc_heap_map_t* m, void* key)
+    {
+        return m->remove(key);
+    }
+
+    PyObject* memalloc_heap_map_export(memalloc_heap_map_t* m)
+    {
+        return m->export_to_python();
+    }
+
+    void memalloc_heap_map_destructive_copy(memalloc_heap_map_t* dst, memalloc_heap_map_t* src)
+    {
+        dst->destructive_copy_from(*src);
+    }
+
+    void memalloc_heap_map_delete(memalloc_heap_map_t* m)
+    {
+        delete m;
+    }
+
+    memalloc_heap_map_iter_t* memalloc_heap_map_iter_new(memalloc_heap_map_t* m)
+    {
+        return new memalloc_heap_map::iterator(*m);
+    }
+
+    bool memalloc_heap_map_iter_next(memalloc_heap_map_iter_t* it, void** key, traceback_t** tb)
+    {
+        return it->next(key, tb);
+    }
+
+    void memalloc_heap_map_iter_delete(memalloc_heap_map_iter_t* it)
+    {
+        delete it;
+    }
+
+} // extern "C"
