@@ -211,7 +211,8 @@ class AIGuardClient:
                     span.set_tag(AI_GUARD.TOOL_NAME_TAG, tool_name)
                 else:
                     span.set_tag(AI_GUARD.TARGET_TAG, "prompt")
-                span.set_struct_tag(AI_GUARD.STRUCT, {"messages": self._messages_for_meta_struct(messages)})
+
+                span._set_struct_tag(AI_GUARD.STRUCT, {"messages": self._messages_for_meta_struct(messages)})
 
                 try:
                     response = self._execute_request(f"{self._endpoint}/evaluate", payload)
@@ -224,6 +225,7 @@ class AIGuardClient:
                         attributes = result["data"]["attributes"]
                         action = attributes["action"]
                         reason = attributes.get("reason", None)
+                        tags = attributes.get("tags", [])
                         blocking_enabled = attributes.get("is_blocking_enabled", False)
                     except Exception as e:
                         value = json.dumps(result, indent=2)[:500]
@@ -239,6 +241,9 @@ class AIGuardClient:
                         )
 
                     span.set_tag(AI_GUARD.ACTION_TAG, action)
+                    if len(tags) > 0:
+                        meta_struct = span._get_struct_tag(AI_GUARD.STRUCT)
+                        meta_struct.update({"attack_categories": tags})
                     if reason:
                         span.set_tag(AI_GUARD.REASON_TAG, reason)
                 else:
