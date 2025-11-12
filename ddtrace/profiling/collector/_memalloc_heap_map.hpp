@@ -53,6 +53,3 @@ class memalloc_heap_map
     Impl* impl;
 };
 
-// C compatibility typedef (for existing code)
-typedef memalloc_heap_map memalloc_heap_map_t;
-typedef memalloc_heap_map::iterator memalloc_heap_map_iter_t;
