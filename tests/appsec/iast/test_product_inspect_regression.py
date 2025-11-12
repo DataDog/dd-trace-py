@@ -89,7 +89,7 @@ class TestInspectModuleDropRegression:
             # Force reload of asm_config to pick up the environment variable
             import importlib
 
-            from ddtrace.settings import asm
+            from ddtrace.internal.settings import asm
 
             importlib.reload(asm)
 

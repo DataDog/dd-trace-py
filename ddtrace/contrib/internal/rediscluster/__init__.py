@@ -4,7 +4,7 @@
 ::
 
     from ddtrace import patch
-    from ddtrace.trace import Pin
+    from ddtrace._trace.pin import Pin
     import rediscluster
 
     # If not patched yet, you can patch redis specifically

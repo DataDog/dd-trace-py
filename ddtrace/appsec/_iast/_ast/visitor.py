@@ -392,7 +392,6 @@ class AstVisitor(ast.NodeTransformer):
 
     @staticmethod
     def _none_constant(from_node: Any) -> Any:  # noqa: B008
-        # 3.8+
         return ast.Constant(
             lineno=from_node.lineno,
             col_offset=from_node.col_offset,
@@ -863,17 +862,6 @@ class AstVisitor(ast.NodeTransformer):
             call_node.func.attr = aspect_split[1]
             call_node.func.value.id = aspect_split[0]
             call_node.args.extend([subscr_node.value, subscr_node.slice])
-        # TODO: python 3.8 isn't working correctly with index_aspect, tests raise:
-        #  corrupted size vs. prev_size in fastbins
-        #  Test failed with exit code -6
-        #  https://app.circleci.com/pipelines/github/DataDog/dd-trace-py/46665/workflows/3cf1257c-feaf-4653-bb9c-fb840baa1776/jobs/3031799
-        # elif isinstance(subscr_node.slice, ast.Index):
-        #     if self._is_string_node(subscr_node.slice.value):  # type: ignore[attr-defined]
-        #         return subscr_node
-        #     aspect_split = self._aspect_index.split(".")
-        #     call_node.func.attr = aspect_split[1]
-        #     call_node.func.value.id = aspect_split[0]
-        #     call_node.args.extend([subscr_node.value, subscr_node.slice.value])  # type: ignore[attr-defined]
         else:
             return subscr_node
 

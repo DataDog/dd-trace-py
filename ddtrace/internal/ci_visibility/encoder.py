@@ -262,7 +262,7 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
         spans_with_coverage = [
             span
             for span in item
-            if COVERAGE_TAG_NAME in span.get_tags() or span.get_struct_tag(COVERAGE_TAG_NAME) is not None
+            if COVERAGE_TAG_NAME in span.get_tags() or span._get_struct_tag(COVERAGE_TAG_NAME) is not None
         ]
         # Also include session span for parent session ID lookup, even if it doesn't have coverage data
         session_span = next((span for span in item if span.get_tag(EVENT_TYPE) == SESSION_TYPE), None)

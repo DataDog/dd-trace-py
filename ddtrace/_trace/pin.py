@@ -4,7 +4,7 @@ from typing import Optional
 
 import ddtrace
 from ddtrace.internal.compat import is_wrapted
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
 
 from ..internal.logger import get_logger
 

@@ -6,7 +6,7 @@ import pytest
 
 from ddtrace._trace.product import apm_tracing_rc
 from ddtrace.internal.remoteconfig import Payload
-from ddtrace.settings._config import Config
+from ddtrace.internal.settings._config import Config
 from tests.utils import remote_config_build_payload as build_payload
 
 
@@ -606,7 +606,7 @@ assert span3.get_tag("env_set_tag_name") == "helloworld"
 def test_config_public_properties_and_methods():
     # Regression test to prevent unexpected changes to public attributes in Config
     # By default most attributes should be private and set via Environment Variables
-    from ddtrace.settings._config import Config
+    from ddtrace.internal.settings._config import Config
 
     public_attrs = set()
     c = Config()

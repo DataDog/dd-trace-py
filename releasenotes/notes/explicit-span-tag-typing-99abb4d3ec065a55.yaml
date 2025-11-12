@@ -1,0 +1,18 @@
+---
+upgrade:
+  - |
+    tracing: ``Span.set_tag`` typing is now ``set_tag(key: str, value: Optional[str] = None) -> None``
+  - |
+    tracing: ``Span.get_tag`` typing is now ``get_tag(key: str) -> Optional[str]``
+  - |
+    tracing: ``Span.set_tags`` typing is now ``set_tags(tags: dict[str, str]) -> None``
+  - |
+    tracing: ``Span.get_tags`` typing is now ``get_tags() -> dict[str, str]``
+  - |
+    tracing: ``Span.set_metric`` typing is now ``set_metric(key: str, value: int | float) -> None``
+  - |
+    tracing: ``Span.get_metric`` typing is now ``get_metric(key: str) -> Optional[int | float]``
+  - |
+    tracing: ``Span.set_metrics`` typing is now ``set_metrics(metrics: Dict[str, int | float]) -> None``
+  - |
+    tracing: ``Span.get_metrics`` typing is now ``get_metrics() -> dict[str, int | float]``
