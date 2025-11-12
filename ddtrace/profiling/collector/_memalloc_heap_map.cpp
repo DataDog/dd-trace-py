@@ -1,6 +1,6 @@
+#include <iterator>
 #include <stdint.h>
 #include <utility>
-#include <iterator>
 
 #include "_memalloc_debug.h"
 #include "_memalloc_heap_map.hpp"
@@ -253,9 +253,9 @@ memalloc_heap_map::iterator::operator*() const
 {
     const HeapSamples_Entry* e = HeapSamples_CIter_get(&impl->iter);
     if (!e || impl->is_end) {
-        return {nullptr, nullptr};
+        return { nullptr, nullptr };
     }
-    return {e->key, e->val};
+    return { e->key, e->val };
 }
 
 bool

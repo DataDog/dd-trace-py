@@ -1,5 +1,5 @@
-#include <stddef.h>
 #include <iterator>
+#include <stddef.h>
 #include <utility>
 
 #include <Python.h>
@@ -71,4 +71,3 @@ class memalloc_heap_map
     class Impl;
     Impl* impl;
 };
-
