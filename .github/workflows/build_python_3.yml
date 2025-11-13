@@ -184,7 +184,7 @@ jobs:
             MACOSX_DEPLOYMENT_TARGET=12.7 delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: python scripts/zip_filter.py "{wheel}" "*.c" "*.cpp" "*.cc" "*.h" "*.hpp" "*.pyx" "*.md" && mv "{wheel}" "{dest_dir}"
           CIBW_BEFORE_TEST_LINUX: /host/${{ env.SCCACHE_PATH }} --show-stats
-          CIBW_BEFORE_TEST_MACOS: /host/${{ env.SCCACHE_PATH }} --show-stats
+          CIBW_BEFORE_TEST_MACOS: ${{ env.SCCACHE_PATH }} --show-stats
           CIBW_TEST_COMMAND: "python {project}/tests/smoke_test.py"
       - name: Validate wheel RECORD files
         shell: bash
