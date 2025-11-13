@@ -8,9 +8,8 @@ use std::time::Duration;
 
 use libdd_common::Endpoint;
 use libdd_crashtracker::{
-     is_runtime_callback_registered, register_runtime_stack_callback, CallbackError, CallbackType,
-    CrashtrackerConfiguration, CrashtrackerReceiverConfig, Metadata, RuntimeStackFrame,
-    StacktraceCollection,
+    is_runtime_callback_registered, register_runtime_stacktrace_string_callback, CallbackError,
+    CrashtrackerConfiguration, CrashtrackerReceiverConfig, Metadata, StacktraceCollection,
 };
 use pyo3::prelude::*;
 
@@ -29,7 +28,6 @@ extern "C" {
     fn fcntl(fd: c_int, cmd: c_int, arg: c_int) -> c_int;
 }
 
-// Constants for fcntl
 const F_SETFL: c_int = 4;
 const O_NONBLOCK: c_int = 0o4000;
 
@@ -201,7 +199,7 @@ impl CrashtrackerMetadataPy {
 }
 
 impl RustWrapper for CrashtrackerMetadataPy {
-    type Inner = datadog_crashtracker::Metadata;
+    type Inner = Metadata;
     const INNER_TYPE_NAME: &'static str = "Metadata";
 
     fn take_inner(&mut self) -> Option<Self::Inner> {
@@ -331,101 +329,14 @@ impl From<CallbackError> for CallbackResult {
     }
 }
 
-// Constants for signal-safe operation
-const MAX_FRAMES: usize = 64;
-const MAX_STRING_LEN: usize = 256;
-const MAX_TRACEBACK_SIZE: usize = 64 * 1024; // 64KB buffer for traceback text
+const MAX_TRACEBACK_SIZE: usize = 8 * 1024; // 8KB
 
-// Stack-allocated buffer for signal-safe string handling
-struct StackBuffer {
-    data: [u8; MAX_STRING_LEN],
-    len: usize,
-}
-
-impl StackBuffer {
-    const fn new() -> Self {
-        Self {
-            data: [0u8; MAX_STRING_LEN],
-            len: 0,
-        }
-    }
-
-    fn as_ptr(&self) -> *const c_char {
-        self.data.as_ptr() as *const c_char
-    }
-
-    fn set_from_str(&mut self, s: &str) {
-        let bytes = s.as_bytes();
-        let copy_len = bytes.len().min(MAX_STRING_LEN - 1);
-        self.data[..copy_len].copy_from_slice(&bytes[..copy_len]);
-        self.data[copy_len] = 0;
-        self.len = copy_len;
-    }
-}
-
-// Parse a single traceback line into frame information
-// '  File "/path/to/file.py", line 42, in function_name'
-fn parse_traceback_line(
-    line: &str,
-    function_buf: &mut StackBuffer,
-    file_buf: &mut StackBuffer,
-) -> u32 {
-    let trimmed = line.trim();
-
-    // Look for the pattern: File "filename", line number, in function_name
-    if let Some(file_start) = trimmed.find('"') {
-        if let Some(file_end) = trimmed[file_start + 1..].find('"') {
-            let file_path = &trimmed[file_start + 1..file_start + 1 + file_end];
-            file_buf.set_from_str(file_path);
-
-            let after_file = &trimmed[file_start + file_end + 2..];
-            if let Some(line_start) = after_file.find("line ") {
-                let line_part = &after_file[line_start + 5..];
-
-                // Try to find comma first ("line 42, in func")
-                let line_num = if let Some(line_end) = line_part.find(',') {
-                    let line_str = line_part[..line_end].trim();
-                    line_str.parse::<u32>().unwrap_or(0)
-                } else {
-                    // No comma, try space ("line 42 in func")
-                    if let Some(space_pos) = line_part.find(' ') {
-                        let line_str = line_part[..space_pos].trim();
-                        line_str.parse::<u32>().unwrap_or(0)
-                    } else {
-                        // Just numbers until end
-                        let line_str = line_part.trim();
-                        line_str.parse::<u32>().unwrap_or(0)
-                    }
-                };
-
-                // Look for function name
-                if let Some(in_pos) = after_file.find(" in ") {
-                    let func_name = after_file[in_pos + 4..].trim();
-                    function_buf.set_from_str(func_name);
-                } else {
-                    function_buf.set_from_str("<unknown>");
-                }
-
-                return line_num;
-            }
-        }
-    }
-
-    // Fallback parsing
-    function_buf.set_from_str("<parse_failed>");
-    file_buf.set_from_str("<parse_failed>");
-    0
-}
-
-/// Dump Python traceback as a complete string
-///
-/// This function captures the Python traceback via CPython's internal API
-/// and emits it as a single string instead of parsing into individual frames.
-/// This is more efficient and preserves the original Python formatting.
 unsafe fn dump_python_traceback_as_string(
     emit_stacktrace_string: unsafe extern "C" fn(*const c_char),
 ) {
-    // Create a pipe to capture CPython internal traceback dump
+    // Create a pipe to capture CPython internal traceback dump. _Py_DumpTracebackThreads writes to
+    // a fd. Reading and writing to pipe is signal-safe. We stack allocate a buffer in the beginning,
+    // and use it to read the output
     let mut pipefd: [c_int; 2] = [0, 0];
     if pipe(&mut pipefd as *mut [c_int; 2]) != 0 {
         emit_stacktrace_string("<pipe_creation_failed>\0".as_ptr() as *const c_char);
@@ -438,28 +349,20 @@ unsafe fn dump_python_traceback_as_string(
     // Make the read end non-blocking
     fcntl(read_fd, F_SETFL, O_NONBLOCK);
 
-    // Get the current thread state safely - same approach as CPython's faulthandler
-    // SIGSEGV, SIGFPE, SIGABRT, SIGBUS and SIGILL are synchronous signals and
-    // are thus delivered to the thread that caused the fault.
+    // Same approach as CPython's faulthandler
     let current_tstate = crashtracker_get_current_tstate();
 
-    // Call the CPython internal API via our C wrapper
-    // Pass NULL for interpreter state - let _Py_DumpTracebackThreads handle it internally
     let error_msg = crashtracker_dump_traceback_threads(write_fd, ptr::null_mut(), current_tstate);
 
     close(write_fd);
 
-    // Check for errors from _Py_DumpTracebackThreads
     if !error_msg.is_null() {
         close(read_fd);
-        // Note: We can't format the error message because we're in a signal context
-        // Just emit a generic error message
         emit_stacktrace_string("<cpython_api_error>\0".as_ptr() as *const c_char);
         return;
     }
 
-    // Read the traceback output
-    let mut buffer = vec![0u8; MAX_TRACEBACK_SIZE];
+    let mut buffer = [0u8; MAX_TRACEBACK_SIZE];
     let bytes_read = read(
         read_fd,
         buffer.as_mut_ptr() as *mut c_void,
@@ -469,11 +372,20 @@ unsafe fn dump_python_traceback_as_string(
     close(read_fd);
 
     if bytes_read > 0 {
-        buffer.truncate(bytes_read as usize);
-        if let Ok(traceback_text) = std::str::from_utf8(&buffer) {
-            emit_stacktrace_string(traceback_text.as_ptr() as *const c_char);
-            return;
+        let bytes_read = bytes_read as usize;
+        if bytes_read < MAX_TRACEBACK_SIZE {
+            buffer[bytes_read] = 0;
+        } else {
+            // Buffer is full; add truncation indicator
+            let truncation_msg = b"\n[TRUNCATED]\0";
+            let msg_len = truncation_msg.len();
+            if MAX_TRACEBACK_SIZE >= msg_len {
+                let start_pos = MAX_TRACEBACK_SIZE - msg_len;
+                buffer[start_pos..].copy_from_slice(truncation_msg);
+            }
         }
+        emit_stacktrace_string(buffer.as_ptr() as *const c_char);
+        return;
     }
 
     emit_stacktrace_string("<traceback_read_failed>\0".as_ptr() as *const c_char);
@@ -485,44 +397,16 @@ unsafe extern "C" fn native_runtime_stack_callback(
     dump_python_traceback_as_string(emit_stacktrace_string);
 }
 
-/// Frame-based callback implementation for runtime stack collection
-///
-/// This callback collects Python stack frames individually and emits them
-/// one by one for detailed stack trace information.
-// unsafe extern "C" fn native_runtime_frame_callback(
-//     emit_frame: unsafe extern "C" fn(*const RuntimeStackFrame),
-// ) {
-//     dump_python_traceback_via_cpython_api(emit_frame);
-// }
-
 /// Register the native runtime stack collection callback (string-based)
-///
-/// This function registers a native callback that directly collects Python runtime
-/// stack traces as complete strings without requiring Python callback functions.
-///
-/// # Returns
-/// - `CallbackResult::Ok` if registration succeeds (replaces any existing callback)
 #[pyfunction(name = "crashtracker_register_native_runtime_callback")]
 pub fn crashtracker_register_native_runtime_callback() -> CallbackResult {
-    match register_runtime_stacktrace_string_callback(
-        native_runtime_stack_callback,
-    ) {
+    match register_runtime_stacktrace_string_callback(native_runtime_stack_callback) {
         Ok(()) => CallbackResult::Ok,
         Err(e) => e.into(),
     }
-    // match register_runtime_frame_callback(
-    //     native_runtime_frame_callback,
-    // ) {
-    //     Ok(()) => CallbackResult::Ok,
-    //     Err(e) => e.into(),
-    // }
 }
 
 /// Check if a runtime callback is currently registered
-///
-/// # Returns
-/// - `True` if a callback is registered
-/// - `False` if no callback is registered
 #[pyfunction(name = "crashtracker_is_runtime_callback_registered")]
 pub fn crashtracker_is_runtime_callback_registered() -> bool {
     is_runtime_callback_registered()

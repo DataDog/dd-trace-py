@@ -29,13 +29,20 @@ libdd-common = { git = "https://github.com/DataDog/libdatadog", rev = "v24.0.0" 
 pyo3 = { version = "0.25", features = ["extension-module", "anyhow"] }
 tracing = { version = "0.1", default-features = false }
 pyo3-ffi = "0.25"
-cc = "1.2.39"
 
 [build-dependencies]
 pyo3-build-config = "0.25"
+cc = "1.2.39"
 build_common = { git = "https://github.com/DataDog/libdatadog", rev = "v24.0.0", features = [
     "cbindgen",
 ] }
 
 [lib]
 name = "_native"
+path = "lib.rs"
+crate-type = ["cdylib"]
+
+[net]
+# Use git binary from the system instead of the built-in git client
+# "Setting this to true can be helpful if you have special authentication requirements that Cargo does not support."
+git-fetch-with-cli = true
