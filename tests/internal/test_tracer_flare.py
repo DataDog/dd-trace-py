@@ -23,6 +23,7 @@ from ddtrace.internal.flare.flare import FlareSendRequest
 from ddtrace.internal.flare.handler import _handle_tracer_flare
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
+from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from tests.utils import remote_config_build_payload as build_payload
 
 
@@ -214,6 +215,7 @@ class TracerFlareTests(TestCase):
         self.flare.clean_up_files()
         self.flare.revert_configs()
 
+    @fibonacci_backoff_with_jitter(attempts=5, initial_wait=0.1)
     def confirm_cleanup(self):
         assert not self.flare.flare_dir.exists(), f"The directory {self.flare.flare_dir} still exists"
         # Only check for file handler cleanup if prepare() was called

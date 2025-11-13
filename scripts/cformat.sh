@@ -42,7 +42,7 @@ enumerate_files() {
         for ext in "${extensions[@]}"; do
             find_conditions+=("-o" "-name" "$ext")
         done
-        unset 'find_conditions[-1]'
+        find_conditions=("${find_conditions[@]:1}")  # Remove first -o
         find "$BASE_DIR" -type f \( "${find_conditions[@]}" \)
     else
         git ls-files "${extensions[@]}"
@@ -52,7 +52,7 @@ enumerate_files() {
 # Script defaults
 UPDATE_MODE=false
 ENUM_ALL=false
-BASE_DIR=$(dirname "$(realpath "$0")")
+BASE_DIR=$(dirname "$(dirname "$(realpath "$0")")")
 CLANG_FORMAT=clang-format
 
 # NB: consumes the arguments
@@ -67,20 +67,21 @@ while (( "$#" )); do
         *)
             ;;
     esac
+    shift
 done
 
 # Environment variable overrides
 [[ -n "${CFORMAT_FIX:-}" ]] && UPDATE_MODE=true
 [[ -n "${CFORMAT_ALL:-}" ]] && ENUM_ALL=true
-[[ -n "${CFORMAT_BIN:-}" ]] && CLANG_FORMAT="$CLANG_FORMAT_BIN"
+[[ -n "${CFORMAT_BIN:-}" ]] && CLANG_FORMAT="$CFORMAT_BIN"
 
 if [[ "$UPDATE_MODE" == "true" ]]; then
     # Update mode: Format files in-place
     enumerate_files \
         | exclude_patterns \
         | while IFS= read -r file; do
+            echo "Formatting $file";
             ${CLANG_FORMAT} -i "$file"
-            echo "Formatting $file"
         done
 else
     # Check mode: Compare formatted output to existing files

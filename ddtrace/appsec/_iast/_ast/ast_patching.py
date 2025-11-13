@@ -14,8 +14,8 @@ from ddtrace.appsec._iast._logs import iast_compiling_debug_log
 from ddtrace.appsec._iast._logs import iast_instrumentation_ast_patching_debug_log
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import origin
+from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.settings.asm import config as asm_config
 
 from .visitor import AstVisitor
 
@@ -71,7 +71,7 @@ def initialize_iast_lists():
             import importlib.metadata as metadata
         result = set(metadata.packages_distributions())
         iastpatch.set_packages_distributions(result)
-    except ImportError:
+    except (ImportError, AttributeError):
         # If metadata module is not available, the C extension will handle
         # first-party detection gracefully by returning False
         log.debug("Could not import metadata module for first-party detection")
