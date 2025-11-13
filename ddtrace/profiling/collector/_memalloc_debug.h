@@ -1,8 +1,7 @@
 #ifndef _DDTRACE_MEMALLOC_DEBUG_H
 #define _DDTRACE_MEMALLOC_DEBUG_H
 
-#include <assert.h>
-#include <stdbool.h>
+#include <cassert>
 
 #include <Python.h>
 

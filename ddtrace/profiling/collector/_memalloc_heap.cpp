@@ -1,5 +1,6 @@
-#include <math.h>
-#include <stdlib.h>
+#include <cassert>
+#include <cmath>
+#include <cstdlib>
 #include <vector>
 
 #define PY_SSIZE_T_CLEAN
