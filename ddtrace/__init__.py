@@ -21,16 +21,14 @@ from ._monkey import patch_all  # noqa: E402
 from .internal.compat import PYTHON_VERSION_INFO  # noqa: E402
 from .internal.settings._config import config
 from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
-from .version import get_version  # noqa: E402
-
-
-__version__ = get_version()
+from .version import __version__
 
 # TODO: Deprecate accessing tracer from ddtrace.__init__ module in v4.0
 if os.environ.get("_DD_GLOBAL_TRACER_INIT", "true").lower() in ("1", "true"):
     from ddtrace.trace import tracer  # noqa: F401
 
 __all__ = [
+    "__version__",
     "patch",
     "patch_all",
     "config",

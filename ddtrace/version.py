@@ -1,13 +1,23 @@
-def get_version() -> str:
-    try:
-        from ._version import version
+__all__ = [
+    "__version__",
+    "__version_tuple__",
+    "version",
+    "version_tuple",
+]
 
-        return version
-    except ImportError:
-        from importlib.metadata import version as ilm_version
+TYPE_CHECKING = False
+if TYPE_CHECKING:
+    from typing import Tuple
+    from typing import Union
 
-        try:
-            return ilm_version("ddtrace")
-        except ModuleNotFoundError:
-            # package is not installed
-            return "dev"
+    VERSION_TUPLE = Tuple[Union[int, str], ...]
+else:
+    VERSION_TUPLE = object
+
+version: str
+__version__: str
+__version_tuple__: VERSION_TUPLE
+version_tuple: VERSION_TUPLE
+
+__version__ = version = "4.0.0rc1"
+__version_tuple__ = version_tuple = (4, 0, 0, "rc1")
