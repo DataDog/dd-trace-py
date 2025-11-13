@@ -36,7 +36,7 @@ def test_crashtracker_config_bytes():
     import pytest
 
     from ddtrace.internal.core import crashtracking
-    from ddtrace.settings.crashtracker import config as crashtracker_config
+    from ddtrace.internal.settings.crashtracker import config as crashtracker_config
     from tests.internal.crashtracker.utils import read_files
 
     # Delete the stdout and stderr files if they exist

@@ -6,11 +6,9 @@ import typing as t
 from envier import En
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.settings.http import HttpConfig
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
-from ddtrace.settings.http import HttpConfig
-from ddtrace.vendor.debtcollector import deprecate
 
 
 log = get_logger(__name__)
@@ -40,26 +38,12 @@ def post_preload():
 
 def start():
     if _config.enabled:
-        from ddtrace.settings._config import config
+        from ddtrace.internal.settings._config import config
 
         if config._trace_methods:
             from ddtrace.internal.tracemethods import _install_trace_methods
 
             _install_trace_methods(config._trace_methods)
-
-    if _config.global_tags:
-        from ddtrace.trace import tracer
-
-        # ddtrace library supports setting tracer tags using both DD_TRACE_GLOBAL_TAGS and DD_TAGS
-        # moving forward we should only support DD_TRACE_GLOBAL_TAGS.
-        # TODO(munir): Set dd_tags here
-        deprecate(
-            "DD_TRACE_GLOBAL_TAGS is deprecated",
-            message="Please migrate to using DD_TAGS instead",
-            category=DDTraceDeprecationWarning,
-            removal_version="4.0.0",
-        )
-        tracer.set_tags(_config.global_tags)
 
 
 def restart(join=False):
