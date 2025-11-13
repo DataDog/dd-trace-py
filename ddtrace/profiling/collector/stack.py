@@ -1,4 +1,4 @@
-"""CPU profiling collector."""
+"""Simple wrapper around stack_v2 native extension module."""
 
 from __future__ import absolute_import
 
