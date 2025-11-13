@@ -17,7 +17,7 @@ def start_crashtracker(port: int, stdout: Optional[str] = None, stderr: Optional
     ret = False
     try:
         from ddtrace.internal.core import crashtracking
-        from ddtrace.settings.crashtracker import config as crashtracker_config
+        from ddtrace.internal.settings.crashtracker import config as crashtracker_config
 
         crashtracker_config.debug_url = "http://localhost:%d" % port
         crashtracker_config.stdout_filename = stdout

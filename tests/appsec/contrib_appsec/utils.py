@@ -16,8 +16,8 @@ from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import _constants as asm_constants
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import constants
+from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.http import _format_template
-from ddtrace.settings.asm import config as asm_config
 import tests.appsec.rules as rules
 from tests.utils import DummyTracer
 from tests.utils import override_env
@@ -89,7 +89,7 @@ class Contrib_TestClass_For_Threats:
         raise NotImplementedError
 
     def get_stack_trace(self, entry_span, namespace):
-        appsec_traces = entry_span().get_struct_tag(asm_constants.STACK_TRACE.TAG) or {}
+        appsec_traces = entry_span()._get_struct_tag(asm_constants.STACK_TRACE.TAG) or {}
         stacks = appsec_traces.get(namespace, [])
         return stacks
 
@@ -148,7 +148,7 @@ class Contrib_TestClass_For_Threats:
             response = interface.client.get("/")
             assert self.status(response) == 200, "healthcheck failed"
             assert self.body(response) == "ok ASM"
-            from ddtrace.settings.asm import config as asm_config
+            from ddtrace.internal.settings.asm import config as asm_config
 
             assert asm_config._asm_enabled is asm_enabled
             assert get_entry_span_tag("http.status_code") == "200"

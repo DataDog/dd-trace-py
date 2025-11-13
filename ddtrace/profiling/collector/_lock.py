@@ -18,12 +18,12 @@ from typing import Tuple
 from typing import Type
 
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.settings.profiling import config
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
 from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _traceback
 from ddtrace.profiling.event import DDFrame
-from ddtrace.settings.profiling import config
 from ddtrace.trace import Tracer
 
 
