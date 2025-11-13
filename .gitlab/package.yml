@@ -44,7 +44,7 @@ download_ddtrace_artifacts:
     # Prevent git operation errors:
     #   failed to determine base repo: failed to run git: fatal: detected dubious ownership in repository at ...
     git config --global --add safe.directory "${CI_PROJECT_DIR}"
-    CI_COMMIT_SHA=59d5849586844bed76372a28eefaefd85d868e94 .gitlab/download-wheels-from-gh-actions.sh
+    .gitlab/download-wheels-from-gh-actions.sh
   artifacts:
     paths:
       - "pywheels/*.whl"

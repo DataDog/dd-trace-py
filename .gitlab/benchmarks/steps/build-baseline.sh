@@ -4,6 +4,7 @@ set -e -o pipefail
 # If we have a tag (e.g. v2.21.1), then use the PyPI published wheel
 if [[ -n "${BASELINE_TAG}" ]];
 then
+  echo "Downloading wheel for tag ${BASELINE_TAG} from PyPI"
   python3.9 -m pip download --no-deps "ddtrace==${BASELINE_TAG:1}"
   exit 0
 fi
@@ -13,18 +14,14 @@ fi
 if [[ -n "${BASELINE_COMMIT_SHA}" ]];
 then
   # Try to download the wheel from the public S3 bucket if we have one
-  .gitlab/scripts/get-pipelines-for-ref.sh "${BASELINE_COMMIT_SHA}" || true
+  PIPELINE_ID=$(.gitlab/scripts/get-pipelines-for-ref.sh "${BASELINE_COMMIT_SHA}" | jq -r 'if length > 0 then .[0].id else empty end')
 
-  exit 1
-  # CI_COMMIT_SHA="${BASELINE_COMMIT_SHA}" .gitlab/download-wheels-from-gh-actions.sh || true
-
-  # If we have a ./pywheels/ for cp39 manylinux x86_64 use that wheel
-  # if [ -d "./pywheels" ] && ls ./pywheels/ddtrace-*cp39*manylinux* | grep -q "x86_64";
-  # then
-  #   echo "Using prebuilt wheel from GitHub Actions for baseline commit ${BASELINE_COMMIT_SHA}"
-  #   cp ./pywheels/ddtrace-*cp39*manylinux*x86_64.whl ./
-  #   exit 0
-  # fi
+  if [[ -n "${PIPELINE_ID}" ]];
+  then
+    echo "Downloading prebuilt wheel for ${BASELINE_BRANCH}:${BASELINE_COMMIT_SHA} from pipeline ${PIPELINE_ID}"
+    python3.9 -m pip download --no-deps --index-url "https://dd-trace-py-builds.s3.amazonaws.com/${PIPELINE_ID}/" "ddtrace"
+    exit 0
+  fi
 fi
 
 # Otherwise, build from source
