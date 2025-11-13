@@ -22,6 +22,7 @@ class Uploader
     static inline ddog_CancellationToken cancel{ .inner = nullptr };
     static inline std::atomic<uint64_t> upload_seq{ 0 };
     std::string output_filename;
+    uint64_t instance_upload_seq;  // Captured sequence number for this instance
     ddog_prof_ProfileExporter ddog_exporter{ .inner = nullptr };
 
     bool export_to_file(ddog_prof_EncodedProfile* encoded);
