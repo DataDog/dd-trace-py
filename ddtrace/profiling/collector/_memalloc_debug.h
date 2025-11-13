@@ -1,5 +1,4 @@
-#ifndef _DDTRACE_MEMALLOC_DEBUG_H
-#define _DDTRACE_MEMALLOC_DEBUG_H
+#pragma once
 
 #include <cassert>
 
@@ -53,7 +52,5 @@ class memalloc_gil_debug_check_t
 
 #define MEMALLOC_GIL_DEBUG_CHECK_ACQUIRE(c)
 #define MEMALLOC_GIL_DEBUG_CHECK_RELEASE(c)
-
-#endif
 
 #endif

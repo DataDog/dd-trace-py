@@ -1,5 +1,4 @@
-#ifndef _DDTRACE_MEMALLOC_HEAP_H
-#define _DDTRACE_MEMALLOC_HEAP_H
+#pragma once
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -22,5 +21,3 @@ void
 memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorDomain domain);
 void
 memalloc_heap_untrack(void* ptr);
-
-#endif

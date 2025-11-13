@@ -1,5 +1,4 @@
-#ifndef _DDTRACE_MEMALLOC_REENTRANT_H
-#define _DDTRACE_MEMALLOC_REENTRANT_H
+#pragma once
 
 #ifdef _WIN32
 #include <windows.h>
@@ -54,5 +53,3 @@ memalloc_yield_guard(void)
     // a coarse-grained lock, we just set it to false.
     _MEMALLOC_ON_THREAD = false;
 }
-
-#endif

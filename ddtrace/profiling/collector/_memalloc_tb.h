@@ -1,5 +1,4 @@
-#ifndef _DDTRACE_MEMALLOC_TB_H
-#define _DDTRACE_MEMALLOC_TB_H
+#pragma once
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -7,7 +6,7 @@
 #include <Python.h>
 
 typedef struct
-#ifdef __GNUC__
+git#ifdef __GNUC__
   __attribute__((packed))
 #elif defined(_MSC_VER)
 #pragma pack(push, 4)
@@ -65,5 +64,3 @@ traceback_to_tuple(traceback_t* tb);
 
 /* The maximum number of traceback samples we can store in the heap profiler */
 #define TRACEBACK_ARRAY_MAX_COUNT UINT16_MAX
-
-#endif
