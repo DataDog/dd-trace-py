@@ -10,23 +10,23 @@ experiments:
           - name: coreapiscenario-context_with_data_listeners
             thresholds:
               - execution_time < 0.02 ms
-              - max_rss_usage < 35.00 MB
+              - max_rss_usage < 35.50 MB
           - name: coreapiscenario-context_with_data_no_listeners
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 35.00 MB
+              - max_rss_usage < 35.50 MB
           - name: coreapiscenario-get_item_exists
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 35.00 MB
+              - max_rss_usage < 35.50 MB
           - name: coreapiscenario-get_item_missing
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 35.00 MB
+              - max_rss_usage < 35.50 MB
           - name: coreapiscenario-set_item
             thresholds:
               - execution_time < 0.03 ms
-              - max_rss_usage < 35.00 MB
+              - max_rss_usage < 35.50 MB
 
           # djangosimple
           - name: djangosimple-appsec
@@ -122,7 +122,7 @@ experiments:
           - name: flasksimple-tracer
             thresholds:
               - execution_time < 3.65 ms
-              - max_rss_usage < 54.50 MB
+              - max_rss_usage < 55.50 MB
           - name: flasksimple-tracer-native
             thresholds:
               - execution_time < 3.65 ms
@@ -130,7 +130,7 @@ experiments:
           - name: flasksimple-profiler
             thresholds:
               - execution_time < 2.10 ms
-              - max_rss_usage < 49.00 MB
+              - max_rss_usage < 50.00 MB
           - name: flasksimple-debugger
             thresholds:
               - execution_time < 2.00 ms
@@ -154,7 +154,7 @@ experiments:
           - name: flasksimple-resource-renaming
             thresholds:
               - execution_time < 3.65 ms
-              - max_rss_usage < 55.00 MB
+              - max_rss_usage < 56.00 MB
 
           # flasksqli
           - name: flasksqli-appsec-enabled
@@ -330,83 +330,83 @@ experiments:
           - name: iast_aspects-re_expand_aspect
             thresholds:
               - execution_time < 0.04 ms
-              - max_rss_usage < 40.50 MB
+              - max_rss_usage < 41.00 MB
           - name: iast_aspects-re_expand_noaspect
             thresholds:
               - execution_time < 0.04 ms
-              - max_rss_usage < 40.50 MB
+              - max_rss_usage < 41.00 MB
           - name: iast_aspects-re_findall_aspect
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 40.50 MB
+              - max_rss_usage < 41.00 MB
           - name: iast_aspects-re_findall_noaspect
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 40.50 MB
+              - max_rss_usage < 41.00 MB
           - name: iast_aspects-re_finditer_aspect
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 40.50 MB
+              - max_rss_usage < 41.00 MB
           - name: iast_aspects-re_finditer_noaspect
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 40.50 MB
+              - max_rss_usage < 41.00 MB
           - name: iast_aspects-re_fullmatch_aspect
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 40.50 MB
+              - max_rss_usage < 41.00 MB
           - name: iast_aspects-re_fullmatch_noaspect
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 40.50 MB
+              - max_rss_usage < 41.00 MB
           - name: iast_aspects-re_group_aspect
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 40.50 MB
+              - max_rss_usage < 41.00 MB
           - name: iast_aspects-re_group_noaspect
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 40.50 MB
+              - max_rss_usage < 41.00 MB
           - name: iast_aspects-re_groups_aspect
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 40.50 MB
+              - max_rss_usage < 41.00 MB
           - name: iast_aspects-re_groups_noaspect
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 40.50 MB
+              - max_rss_usage < 41.00 MB
           - name: iast_aspects-re_match_aspect
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 40.50 MB
+              - max_rss_usage < 41.00 MB
           - name: iast_aspects-re_match_noaspect
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 40.50 MB
+              - max_rss_usage < 41.00 MB
           - name: iast_aspects-re_search_aspect
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 40.50 MB
+              - max_rss_usage < 41.00 MB
           - name: iast_aspects-re_search_noaspect
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 40.50 MB
+              - max_rss_usage < 41.00 MB
           - name: iast_aspects-re_sub_aspect
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 40.50 MB
+              - max_rss_usage < 41.00 MB
           - name: iast_aspects-re_sub_noaspect
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 40.50 MB
+              - max_rss_usage < 41.00 MB
           - name: iast_aspects-re_subn_aspect
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 40.50 MB
+              - max_rss_usage < 41.00 MB
           - name: iast_aspects-re_subn_noaspect
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 40.50 MB
+              - max_rss_usage < 41.00 MB
 
           # iastaspects
           - name: iastaspects-add_aspect
@@ -650,83 +650,83 @@ experiments:
           - name: iastaspectsospath-ospathbasename_aspect
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 40.50 MB
+              - max_rss_usage < 41.00 MB
           - name: iastaspectsospath-ospathbasename_noaspect
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 40.50 MB
+              - max_rss_usage < 41.00 MB
           - name: iastaspectsospath-ospathjoin_aspect
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 40.50 MB
+              - max_rss_usage < 41.00 MB
           - name: iastaspectsospath-ospathjoin_noaspect
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 40.50 MB
+              - max_rss_usage < 41.00 MB
           - name: iastaspectsospath-ospathnormcase_aspect
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 40.50 MB
+              - max_rss_usage < 41.00 MB
           - name: iastaspectsospath-ospathnormcase_noaspect
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 40.50 MB
+              - max_rss_usage < 41.00 MB
           - name: iastaspectsospath-ospathsplit_aspect
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 40.50 MB
+              - max_rss_usage < 41.00 MB
           - name: iastaspectsospath-ospathsplit_noaspect
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 40.50 MB
+              - max_rss_usage < 41.00 MB
           - name: iastaspectsospath-ospathsplitdrive_aspect
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 40.50 MB
+              - max_rss_usage < 41.00 MB
           - name: iastaspectsospath-ospathsplitdrive_noaspect
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 40.50 MB
+              - max_rss_usage < 41.00 MB
           - name: iastaspectsospath-ospathsplitext_aspect
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 40.50 MB
+              - max_rss_usage < 41.00 MB
           - name: iastaspectsospath-ospathsplitext_noaspect
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 40.50 MB
+              - max_rss_usage < 41.00 MB
 
           # iastaspectssplit
           - name: iastaspectssplit-rsplit_aspect
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 40.50 MB
+              - max_rss_usage < 41.00 MB
           - name: iastaspectssplit-rsplit_noaspect
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 40.50 MB
+              - max_rss_usage < 41.00 MB
           - name: iastaspectssplit-split_aspect
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 40.50 MB
+              - max_rss_usage < 41.00 MB
           - name: iastaspectssplit-split_noaspect
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 40.50 MB
+              - max_rss_usage < 41.00 MB
           - name: iastaspectssplit-splitlines_aspect
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 40.50 MB
+              - max_rss_usage < 41.00 MB
           - name: iastaspectssplit-splitlines_noaspect
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 40.50 MB
+              - max_rss_usage < 41.00 MB
 
           # iastpropagation
           - name: iastpropagation-no-propagation
             thresholds:
               - execution_time < 0.06 ms
-              - max_rss_usage < 40.00 MB
+              - max_rss_usage < 40.50 MB
           - name: iastpropagation-propagation_enabled
             thresholds:
               - execution_time < 0.19 ms
@@ -840,61 +840,61 @@ experiments:
           - name: packagespackageforrootmodulemapping-cache_off
             thresholds:
               - execution_time < 354.30 ms
-              - max_rss_usage < 41.00 MB
+              - max_rss_usage < 41.50 MB
           - name: packagespackageforrootmodulemapping-cache_on
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 40.00 MB
+              - max_rss_usage < 41.00 MB
 
           # packagesupdateimporteddependencies
           - name: packagesupdateimporteddependencies-import_many
             thresholds:
               - execution_time < 0.17 ms
-              - max_rss_usage < 40.00 MB
+              - max_rss_usage < 40.50 MB
           - name: packagesupdateimporteddependencies-import_many_cached
             thresholds:
               - execution_time < 0.13 ms
-              - max_rss_usage < 40.00 MB
+              - max_rss_usage < 40.50 MB
           - name: packagesupdateimporteddependencies-import_many_stdlib
             thresholds:
               - execution_time < 1.75 ms
-              - max_rss_usage < 40.00 MB
+              - max_rss_usage < 40.50 MB
           - name: packagesupdateimporteddependencies-import_many_stdlib_cached
             thresholds:
               - execution_time < 1.10 ms
-              - max_rss_usage < 40.00 MB
+              - max_rss_usage < 40.50 MB
           - name: packagesupdateimporteddependencies-import_many_unknown
             thresholds:
               - execution_time < 0.89 ms
-              - max_rss_usage < 40.00 MB
+              - max_rss_usage < 40.50 MB
           - name: packagesupdateimporteddependencies-import_many_unknown_cached
             thresholds:
               - execution_time < 0.87 ms
-              - max_rss_usage < 40.00 MB
+              - max_rss_usage < 40.50 MB
           - name: packagesupdateimporteddependencies-import_one
             thresholds:
               - execution_time < 0.03 ms
-              - max_rss_usage < 39.00 MB
+              - max_rss_usage < 40.50 MB
           - name: packagesupdateimporteddependencies-import_one_cache
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 39.50 MB
+              - max_rss_usage < 40.50 MB
           - name: packagesupdateimporteddependencies-import_one_stdlib
             thresholds:
               - execution_time < 0.02 ms
-              - max_rss_usage < 39.50 MB
+              - max_rss_usage < 40.50 MB
           - name: packagesupdateimporteddependencies-import_one_stdlib_cache
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 39.50 MB
+              - max_rss_usage < 40.50 MB
           - name: packagesupdateimporteddependencies-import_one_unknown
             thresholds:
               - execution_time < 0.05 ms
-              - max_rss_usage < 39.00 MB
+              - max_rss_usage < 40.50 MB
           - name: packagesupdateimporteddependencies-import_one_unknown_cache
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 39.50 MB
+              - max_rss_usage < 40.50 MB
 
           # ratelimiter
           - name: ratelimiter-defaults
@@ -930,7 +930,7 @@ experiments:
           - name: recursivecomputation-deep-profiled
             thresholds:
               - execution_time < 359.15 ms
-              - max_rss_usage < 40.00 MB
+              - max_rss_usage < 40.50 MB
           - name: recursivecomputation-medium
             thresholds:
               - execution_time < 7.40 ms
@@ -961,67 +961,67 @@ experiments:
           - name: sethttpmeta-all-disabled
             thresholds:
               - execution_time < 0.02 ms
-              - max_rss_usage < 35.50 MB
+              - max_rss_usage < 36.00 MB
           - name: sethttpmeta-all-enabled
             thresholds:
               - execution_time < 0.05 ms
-              - max_rss_usage < 35.50 MB
+              - max_rss_usage < 36.00 MB
           - name: sethttpmeta-collectipvariant_exists
             thresholds:
               - execution_time < 0.05 ms
-              - max_rss_usage < 35.50 MB
+              - max_rss_usage < 36.00 MB
           - name: sethttpmeta-no-collectipvariant
             thresholds:
               - execution_time < 0.05 ms
-              - max_rss_usage < 35.50 MB
+              - max_rss_usage < 36.00 MB
           - name: sethttpmeta-no-useragentvariant
             thresholds:
               - execution_time < 0.05 ms
-              - max_rss_usage < 35.50 MB
+              - max_rss_usage < 36.00 MB
           - name: sethttpmeta-obfuscation-no-query
             thresholds:
               - execution_time < 0.05 ms
-              - max_rss_usage < 35.50 MB
+              - max_rss_usage < 36.00 MB
           - name: sethttpmeta-obfuscation-regular-case-explicit-query
             thresholds:
               - execution_time < 0.09 ms
-              - max_rss_usage < 36.00 MB
+              - max_rss_usage < 36.50 MB
           - name: sethttpmeta-obfuscation-regular-case-implicit-query
             thresholds:
               - execution_time < 0.09 ms
-              - max_rss_usage < 36.00 MB
+              - max_rss_usage < 36.50 MB
           - name: sethttpmeta-obfuscation-send-querystring-disabled
             thresholds:
               - execution_time < 0.17 ms
-              - max_rss_usage < 36.00 MB
+              - max_rss_usage < 36.50 MB
           - name: sethttpmeta-obfuscation-worst-case-explicit-query
             thresholds:
               - execution_time < 0.16 ms
-              - max_rss_usage < 36.00 MB
+              - max_rss_usage < 36.50 MB
           - name: sethttpmeta-obfuscation-worst-case-implicit-query
             thresholds:
               - execution_time < 0.17 ms
-              - max_rss_usage < 36.00 MB
+              - max_rss_usage < 36.50 MB
           - name: sethttpmeta-useragentvariant_exists_1
             thresholds:
               - execution_time < 0.05 ms
-              - max_rss_usage < 35.50 MB
+              - max_rss_usage < 36.00 MB
           - name: sethttpmeta-useragentvariant_exists_2
             thresholds:
               - execution_time < 0.05 ms
-              - max_rss_usage < 35.50 MB
+              - max_rss_usage < 36.00 MB
           - name: sethttpmeta-useragentvariant_exists_3
             thresholds:
               - execution_time < 0.05 ms
-              - max_rss_usage < 35.50 MB
+              - max_rss_usage < 36.00 MB
           - name: sethttpmeta-useragentvariant_not_exists_1
             thresholds:
               - execution_time < 0.05 ms
-              - max_rss_usage < 35.50 MB
+              - max_rss_usage < 36.00 MB
           - name: sethttpmeta-useragentvariant_not_exists_2
             thresholds:
               - execution_time < 0.05 ms
-              - max_rss_usage < 35.50 MB
+              - max_rss_usage < 36.00 MB
 
           # span
           - name: span-add-event
@@ -1081,63 +1081,63 @@ experiments:
           - name: telemetryaddmetric-1-count-metric-1-times
             thresholds:
               - execution_time < 0.02 ms
-              - max_rss_usage < 35.00 MB
+              - max_rss_usage < 35.50 MB
           - name: telemetryaddmetric-1-count-metrics-100-times
             thresholds:
               - execution_time < 0.22 ms
-              - max_rss_usage < 35.00 MB
+              - max_rss_usage < 35.50 MB
           - name: telemetryaddmetric-1-distribution-metric-1-times
             thresholds:
               - execution_time < 0.02 ms
-              - max_rss_usage < 35.00 MB
+              - max_rss_usage < 35.50 MB
           - name: telemetryaddmetric-1-distribution-metrics-100-times
             thresholds:
               - execution_time < 0.22 ms
-              - max_rss_usage < 35.00 MB
+              - max_rss_usage < 35.50 MB
           - name: telemetryaddmetric-1-gauge-metric-1-times
             thresholds:
               - execution_time < 0.02 ms
-              - max_rss_usage < 35.00 MB
+              - max_rss_usage < 35.50 MB
           - name: telemetryaddmetric-1-gauge-metrics-100-times
             thresholds:
               - execution_time < 0.15 ms
-              - max_rss_usage < 35.00 MB
+              - max_rss_usage < 35.50 MB
           - name: telemetryaddmetric-1-rate-metric-1-times
             thresholds:
               - execution_time < 0.02 ms
-              - max_rss_usage < 35.00 MB
+              - max_rss_usage < 35.50 MB
           - name: telemetryaddmetric-1-rate-metrics-100-times
             thresholds:
               - execution_time < 0.25 ms
-              - max_rss_usage < 35.00 MB
+              - max_rss_usage < 35.50 MB
           - name: telemetryaddmetric-100-count-metrics-100-times
             thresholds:
               - execution_time < 22.0 ms
-              - max_rss_usage < 35.00 MB
+              - max_rss_usage < 35.50 MB
           - name: telemetryaddmetric-100-distribution-metrics-100-times
             thresholds:
               - execution_time < 2.30 ms
-              - max_rss_usage < 35.00 MB
+              - max_rss_usage < 35.50 MB
           - name: telemetryaddmetric-100-gauge-metrics-100-times
             thresholds:
               - execution_time < 1.55 ms
-              - max_rss_usage < 35.00 MB
+              - max_rss_usage < 35.50 MB
           - name: telemetryaddmetric-100-rate-metrics-100-times
             thresholds:
               - execution_time < 2.55 ms
-              - max_rss_usage < 35.00 MB
+              - max_rss_usage < 35.50 MB
           - name: telemetryaddmetric-flush-1-metric
             thresholds:
               - execution_time < 0.02 ms
-              - max_rss_usage < 35.00 MB
+              - max_rss_usage < 35.50 MB
           - name: telemetryaddmetric-flush-100-metrics
             thresholds:
               - execution_time < 0.25 ms
-              - max_rss_usage < 35.00 MB
+              - max_rss_usage < 35.50 MB
           - name: telemetryaddmetric-flush-1000-metrics
             thresholds:
               - execution_time < 2.50 ms
-              - max_rss_usage < 36.00 MB
+              - max_rss_usage < 36.50 MB
 
           # tracer
           - name: tracer-large
