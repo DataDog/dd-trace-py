@@ -1,3 +1,4 @@
+recursive-include ddtrace *.pyx
 prune .riot/
 prune benchmarks/
 prune releasenotes/

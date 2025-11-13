@@ -49,7 +49,8 @@ jobs:
       - name: Build sdist
         run: |
           pip install "cython" "cmake>=3.24.2,<3.28" "setuptools-rust"
-          python setup.py sdist
+          # Do not Cythonize during sdist to avoid generating .c files
+          DD_CYTHONIZE=0 python setup.py sdist
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: source-dist
