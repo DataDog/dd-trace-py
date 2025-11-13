@@ -92,6 +92,8 @@ jobs:
       - name: Enable sccache
         if: runner.os != 'Windows'
         uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad  # 0.0.9
+        with:
+          disable_annotations: true
 
       - name: Add addtional GHA cache-related env vars
         uses: actions/github-script@v7
