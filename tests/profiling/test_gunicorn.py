@@ -28,8 +28,6 @@ def _run_gunicorn(*args):
 
 @pytest.fixture
 def gunicorn(monkeypatch):
-    # Do not ignore profiler so we have samples in the output pprof
-    monkeypatch.setenv("DD_PROFILING_IGNORE_PROFILER", "0")
     monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
 
     yield _run_gunicorn
