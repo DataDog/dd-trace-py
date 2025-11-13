@@ -1,31 +1,3 @@
-compute_library_version:
-  image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
-  tags: [ "arch:amd64" ]
-  stage: package
-  id_tokens:
-    DDOCTOSTS_ID_TOKEN:
-      aud: dd-octo-sts
-  script: |
-    if [ -z ${GH_TOKEN} ]
-    then
-      # Use dd-octo-sts to get GitHub token
-      dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read > token
-      gh auth login --with-token < token
-      rm token
-    fi
-    # Prevent git operation errors:
-    #   failed to determine base repo: failed to run git: fatal: detected dubious ownership in repository at ...
-    git config --global --add safe.directory "${CI_PROJECT_DIR}"
-    .gitlab/download-library-version-from-gh-actions.sh
-
-    echo "SETUPTOOLS_SCM_PRETEND_VERSION_FOR_DDTRACE=$(cat library-version/version.txt)" | tee library_version.env
-    echo "DDTRACE_VERSION=$(cat library-version/version.txt)" | tee -a library_version.env
-  artifacts:
-    reports:
-      dotenv: library_version.env
-    paths:
-      - "library-version/version.txt"
-
 download_ddtrace_artifacts:
   image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
   tags: [ "arch:amd64" ]
@@ -88,8 +60,6 @@ publish-wheels-to-s3:
   needs:
     - job: download_ddtrace_artifacts
       artifacts: true
-    - job: compute_library_version
-      artifacts: true
   variables:
     BUCKET: dd-trace-py-builds
   script:
@@ -105,9 +75,7 @@ publish-wheels-to-s3:
     - printf ' - %s\n' "${WHEELS[@]}"
 
     - |
-      if [ -f library-version/version.txt ]; then
-        VERSION="$(tr -d '\r\n' < library-version/version.txt)"
-      fi
+      VERSION=$(unzip -p $(ls ./pywheels/*.whl | head -n 1) '*.dist-info/METADATA' | awk -F': ' '/^Version:/ { print $2; exit }')
 
       if [ -z "${VERSION:-}" ]; then
         echo "ERROR: VERSION is not defined or library-version/version.txt missing!"
