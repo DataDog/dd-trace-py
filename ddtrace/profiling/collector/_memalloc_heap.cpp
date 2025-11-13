@@ -159,10 +159,7 @@ heap_tracker_t::heap_tracker_t(uint32_t sample_size_val)
     // gil_guard, allocs_m, and freezer_allocs_m are initialized by their constructors
 }
 
-heap_tracker_t::~heap_tracker_t()
-{
-    // std::vector and memalloc_heap_map destructors handle cleanup automatically
-}
+heap_tracker_t::~heap_tracker_t() = default;
 
 void
 heap_tracker_t::freeze()

@@ -20,12 +20,9 @@ memalloc_debug_gil_release(void)
 class memalloc_gil_debug_check_t
 {
   public:
-    memalloc_gil_debug_check_t()
-      : acquired(false)
-    {
-    }
+    memalloc_gil_debug_check_t() = default;
 
-    bool acquired;
+    bool acquired = false;
 };
 
 #ifndef NDEBUG

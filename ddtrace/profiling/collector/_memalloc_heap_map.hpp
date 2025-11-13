@@ -65,7 +65,7 @@ class memalloc_heap_map
 
         iterator();
         iterator(const memalloc_heap_map& map);
-        ~iterator();
+        ~iterator() = default;
 
         // Iterator operations
         iterator& operator++();

@@ -122,8 +122,6 @@ memalloc_heap_map::iterator::iterator(const memalloc_heap_map& map)
     }
 }
 
-memalloc_heap_map::iterator::~iterator() {}
-
 memalloc_heap_map::iterator&
 memalloc_heap_map::iterator::operator++()
 {
