@@ -1225,7 +1225,7 @@ suites:
     runner: riot
     snapshot: true
   subprocess:
-    parallelism: 1
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'

@@ -173,6 +173,15 @@ class Block_config:
         self.location = location.replace(APPSEC.SECURITY_RESPONSE_ID, security_response_id)
         self.content_type: str = "application/json"
 
+    def get(self, method_name: str, default: Any = None) -> Any:
+        """
+        Dictionary-like get method for backward compatibility with Lambda integration.
+
+        Returns the attribute value if it exists, otherwise returns the default value.
+        This allows Block_config to be used in contexts that expect dictionary-like access.
+        """
+        return getattr(self, method_name, default)
+
 
 class Telemetry_result:
     __slots__ = [
