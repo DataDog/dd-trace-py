@@ -409,23 +409,6 @@
                                      "duration": 30667,
                                      "start": 1754921175203619881
                                    },
-                                   {
-                                     "name": "django.template.render",
-                                     "service": "django",
-                                     "resource": "django.template.base.Template.render",
-                                     "trace_id": 0,
-                                     "span_id": 31,
-                                     "parent_id": 23,
-                                     "type": "template",
-                                     "error": 0,
-                                     "meta": {
-                                       "_dd.base_service": "",
-                                       "component": "django",
-                                       "django.template.engine.class": "django.template.engine.Engine"
-                                     },
-                                     "duration": 4145500,
-                                     "start": 1754921175211694215
-                                   },
                           {
                             "name": "django.middleware",
                             "service": "django",
