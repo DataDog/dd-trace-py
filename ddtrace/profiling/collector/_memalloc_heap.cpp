@@ -165,16 +165,15 @@ heap_tracker_t::~heap_tracker_t() = default;
 void
 heap_tracker_t::freeze()
 {
-    MEMALLOC_GIL_DEBUG_CHECK_ACQUIRE(&gil_guard);
+    memalloc_gil_debug_guard_t guard(gil_guard);
     assert(!frozen);
     frozen = true;
-    MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&gil_guard);
 }
 
 std::vector<traceback_t*>
 heap_tracker_t::thaw_no_cpython()
 {
-    MEMALLOC_GIL_DEBUG_CHECK_ACQUIRE(&gil_guard);
+    memalloc_gil_debug_guard_t guard(gil_guard);
     assert(frozen);
     /* Any pointers in freezer.frees were from allocations that were tracked in
      * allocs_m and freed while the profiler was frozen. We need to remove the
@@ -192,7 +191,6 @@ heap_tracker_t::thaw_no_cpython()
     allocs_m.destructive_copy_from(freezer_allocs_m);
     freezer_frees.clear();
     frozen = false;
-    MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&gil_guard);
     return to_free;
 }
 
@@ -220,9 +218,8 @@ heap_tracker_t::deinit()
 traceback_t*
 heap_tracker_t::untrack_no_cpython(void* ptr)
 {
-    MEMALLOC_GIL_DEBUG_CHECK_ACQUIRE(&gil_guard);
+    memalloc_gil_debug_guard_t guard(gil_guard);
     if (sample_size == 0) {
-        MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&gil_guard);
         return nullptr;
     }
     if (!frozen) {
@@ -230,16 +227,13 @@ heap_tracker_t::untrack_no_cpython(void* ptr)
         if (tb && !tb->reported) {
             /* If the sample hasn't been reported yet, add it to the allocation list */
             unreported_samples.push_back(tb);
-            MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&gil_guard);
             return nullptr;
         }
-        MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&gil_guard);
         return tb;
     }
 
     traceback_t* tb = freezer_allocs_m.remove(ptr);
     if (tb) {
-        MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&gil_guard);
         return tb;
     } else if (allocs_m.contains(ptr)) {
         /* We're tracking this pointer but can't remove it right now because
@@ -249,17 +243,15 @@ heap_tracker_t::untrack_no_cpython(void* ptr)
          * map. */
         freezer_frees.push_back(ptr);
     }
-    MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&gil_guard);
     return nullptr;
 }
 
 bool
 heap_tracker_t::should_sample_no_cpython(size_t size, uint64_t* allocated_memory_val)
 {
-    MEMALLOC_GIL_DEBUG_CHECK_ACQUIRE(&gil_guard);
+    memalloc_gil_debug_guard_t guard(gil_guard);
     /* Heap tracking is disabled */
     if (sample_size == 0) {
-        MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&gil_guard);
         return false;
     }
 
@@ -268,7 +260,6 @@ heap_tracker_t::should_sample_no_cpython(size_t size, uint64_t* allocated_memory
 
     /* Check if we have enough sample or not */
     if (allocated_memory < current_sample_size) {
-        MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&gil_guard);
         return false;
     }
 
@@ -278,20 +269,17 @@ heap_tracker_t::should_sample_no_cpython(size_t size, uint64_t* allocated_memory
          * use, but the size limit is arbitrary and once we hit the arbitrary
          * limit our reported numbers will be inaccurate.
          */
-        MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&gil_guard);
         return false;
     }
 
-    MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&gil_guard);
     return true;
 }
 
 traceback_t*
 heap_tracker_t::add_sample_no_cpython(traceback_t* tb)
 {
-    MEMALLOC_GIL_DEBUG_CHECK_ACQUIRE(&gil_guard);
+    memalloc_gil_debug_guard_t guard(gil_guard);
     if (sample_size == 0) {
-        MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&gil_guard);
         return tb;
     }
 
@@ -308,7 +296,6 @@ heap_tracker_t::add_sample_no_cpython(traceback_t* tb)
     /* Compute the new target sample size */
     current_sample_size = heap_tracker_next_sample_size(sample_size);
 
-    MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&gil_guard);
     return old;
 }
 

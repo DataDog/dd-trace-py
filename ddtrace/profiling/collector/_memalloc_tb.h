@@ -6,7 +6,7 @@
 #include <Python.h>
 
 typedef struct
-git#ifdef __GNUC__
+#ifdef __GNUC__
   __attribute__((packed))
 #elif defined(_MSC_VER)
 #pragma pack(push, 4)
