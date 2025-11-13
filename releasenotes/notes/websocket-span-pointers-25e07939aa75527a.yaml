@@ -1,4 +1,4 @@
 ---
 features:
   - |
-     feat(asgi): Enable context propagation between websocket messages by implementing span pointers between incoming and outgoing messages.
+     feat(asgi): Enable context propagation between websocket message spans by implementing span pointers between incoming and outgoing messages.
