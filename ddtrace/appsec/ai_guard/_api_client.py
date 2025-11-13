@@ -1,4 +1,5 @@
 """AI Guard client for security evaluation of agentic AI workflows."""
+
 import json
 from typing import Any
 from typing import List
@@ -13,11 +14,11 @@ from ddtrace._trace.tracer import Tracer
 from ddtrace.appsec._constants import AI_GUARD
 from ddtrace.internal import telemetry
 import ddtrace.internal.logger as ddlogger
+from ddtrace.internal.settings.asm import ai_guard_config
 from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.metrics_namespaces import MetricTagType
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
-from ddtrace.settings.asm import ai_guard_config
 
 
 logger = ddlogger.get_logger(__name__)
@@ -211,7 +212,7 @@ class AIGuardClient:
                     span.set_tag(AI_GUARD.TOOL_NAME_TAG, tool_name)
                 else:
                     span.set_tag(AI_GUARD.TARGET_TAG, "prompt")
-                span.set_struct_tag(AI_GUARD.STRUCT, {"messages": self._messages_for_meta_struct(messages)})
+                span._set_struct_tag(AI_GUARD.STRUCT, {"messages": self._messages_for_meta_struct(messages)})
 
                 try:
                     response = self._execute_request(f"{self._endpoint}/evaluate", payload)

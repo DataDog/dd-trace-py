@@ -34,10 +34,9 @@ from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.serverless import has_aws_lambda_agent_extension
 from ddtrace.internal.serverless import in_aws_lambda
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.settings._config import Config
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import LogWriter
-from ddtrace.settings._config import Config
 from ddtrace.trace import Context
 from ddtrace.trace import tracer as global_tracer
 from tests.subprocesstest import run_in_subprocess
@@ -1032,50 +1031,6 @@ def test_tracer_runtime_tags_cross_execution(tracer):
     assert span.get_metric(PID) is not None
 
 
-def test_start_span_hooks():
-    t = DummyTracer()
-
-    result = {}
-
-    with pytest.warns(DDTraceDeprecationWarning):
-
-        @t.on_start_span
-        def store_span(span):
-            result["span"] = span
-
-    try:
-        span = t.start_span("hello")
-
-        assert span == result["span"]
-        span.finish()
-    finally:
-        # Cleanup after the test is done
-        # DEV: Since we use the core API for these hooks,
-        #      they are not isolated to a single tracer instance
-        with pytest.warns(DDTraceDeprecationWarning):
-            t.deregister_on_start_span(store_span)
-
-
-def test_deregister_start_span_hooks():
-    t = DummyTracer()
-
-    result = {}
-
-    with pytest.warns(DDTraceDeprecationWarning):
-
-        @t.on_start_span
-        def store_span(span):
-            result["span"] = span
-
-    with pytest.warns(DDTraceDeprecationWarning):
-        t.deregister_on_start_span(store_span)
-
-    with t.start_span("hello"):
-        pass
-
-    assert result == {}
-
-
 @pytest.mark.subprocess(parametrize={"DD_TRACE_ENABLED": ["true", "false"]})
 def test_enable():
     import os
@@ -1885,22 +1840,6 @@ def test_top_level(tracer):
             assert child_span._is_top_level
         with tracer.trace("child2", service="child-svc") as child_span2:
             assert child_span2._is_top_level
-
-
-def test_finish_span_with_ancestors(tracer):
-    # single span case
-    span1 = tracer.trace("span1")
-    span1.finish_with_ancestors()
-    assert span1.finished
-
-    # multi ancestor case
-    span1 = tracer.trace("span1")
-    span2 = tracer.trace("span2")
-    span3 = tracer.trace("span2")
-    span3.finish_with_ancestors()
-    assert span1.finished
-    assert span2.finished
-    assert span3.finished
 
 
 @pytest.mark.parametrize("sca_enabled", ["true", "false"])

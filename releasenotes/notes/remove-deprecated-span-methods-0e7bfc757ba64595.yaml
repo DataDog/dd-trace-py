@@ -1,0 +1,8 @@
+---
+upgrade:
+  - |
+    tracing: ``Span.set_tag_str`` has been removed, use ``Span.set_tag`` instead.
+  - |
+    tracing: ``Span.set_struct_tag`` has been removed.
+  - |
+    tracing: ``Span.get_struct_tag`` has been removed.
