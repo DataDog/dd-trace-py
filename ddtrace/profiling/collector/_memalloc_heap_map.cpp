@@ -21,7 +21,7 @@ memalloc_heap_map::memalloc_heap_map()
 memalloc_heap_map::~memalloc_heap_map()
 {
     HeapSamples_CIter it = HeapSamples_citer(&map);
-    for (const HeapSamples_Entry* e = HeapSamples_CIter_get(&it); e != NULL; e = HeapSamples_CIter_next(&it)) {
+    for (const HeapSamples_Entry* e = HeapSamples_CIter_get(&it); e != nullptr; e = HeapSamples_CIter_next(&it)) {
         traceback_free(e->val);
     }
     HeapSamples_destroy(&map);
@@ -38,7 +38,7 @@ memalloc_heap_map::insert(void* key, traceback_t* value)
 {
     HeapSamples_Entry k = { .key = key, .val = value };
     HeapSamples_Insert res = HeapSamples_insert(&map, &k);
-    traceback_t* prev = NULL;
+    traceback_t* prev = nullptr;
     if (!res.inserted) {
         /* This should not happen. It means we did not properly remove a previously-tracked
          * allocation from the map. This should probably be an assertion. Return the previous
@@ -59,10 +59,10 @@ memalloc_heap_map::contains(void* key) const
 traceback_t*
 memalloc_heap_map::remove(void* key)
 {
-    traceback_t* res = NULL;
+    traceback_t* res = nullptr;
     HeapSamples_Iter it = HeapSamples_find(&map, &key);
     HeapSamples_Entry* e = HeapSamples_Iter_get(&it);
-    if (e != NULL) {
+    if (e != nullptr) {
         res = e->val;
         /* This erases the entry but won't shrink the table. */
         HeapSamples_erase_at(it);
@@ -74,13 +74,13 @@ PyObject*
 memalloc_heap_map::export_to_python() const
 {
     PyObject* heap_list = PyList_New(HeapSamples_size(&map));
-    if (heap_list == NULL) {
-        return NULL;
+    if (heap_list == nullptr) {
+        return nullptr;
     }
 
     int i = 0;
     HeapSamples_CIter it = HeapSamples_citer(&map);
-    for (const HeapSamples_Entry* e = HeapSamples_CIter_get(&it); e != NULL; e = HeapSamples_CIter_next(&it)) {
+    for (const HeapSamples_Entry* e = HeapSamples_CIter_get(&it); e != nullptr; e = HeapSamples_CIter_next(&it)) {
         traceback_t* tb = e->val;
 
         PyObject* tb_and_size = PyTuple_New(2);
@@ -98,7 +98,7 @@ void
 memalloc_heap_map::destructive_copy_from(memalloc_heap_map& src)
 {
     HeapSamples_Iter it = HeapSamples_iter(&src.map);
-    for (const HeapSamples_Entry* e = HeapSamples_Iter_get(&it); e != NULL; e = HeapSamples_Iter_next(&it)) {
+    for (const HeapSamples_Entry* e = HeapSamples_Iter_get(&it); e != nullptr; e = HeapSamples_Iter_next(&it)) {
         HeapSamples_insert(&map, e);
     }
     /* Can't erase inside the loop or the iterator is invalidated */

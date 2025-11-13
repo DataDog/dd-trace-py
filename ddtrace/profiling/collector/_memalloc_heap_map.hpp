@@ -45,7 +45,7 @@ class memalloc_heap_map
     bool contains(void* key) const;
 
     /* Retrieve the sampled allocation with the given address from m.
-     * Returns NULL if the allocation wasn't found */
+     * Returns nullptr if the allocation wasn't found */
     traceback_t* remove(void* key);
 
     PyObject* export_to_python() const;

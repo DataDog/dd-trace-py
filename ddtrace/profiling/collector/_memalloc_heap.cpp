@@ -222,7 +222,7 @@ heap_tracker_t::untrack_no_cpython(void* ptr)
     MEMALLOC_GIL_DEBUG_CHECK_ACQUIRE(&gil_guard);
     if (sample_size == 0) {
         MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&gil_guard);
-        return NULL;
+        return nullptr;
     }
     if (!frozen) {
         traceback_t* tb = allocs_m.remove(ptr);
@@ -230,7 +230,7 @@ heap_tracker_t::untrack_no_cpython(void* ptr)
             /* If the sample hasn't been reported yet, add it to the allocation list */
             unreported_samples.push_back(tb);
             MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&gil_guard);
-            return NULL;
+            return nullptr;
         }
         MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&gil_guard);
         return tb;
@@ -249,7 +249,7 @@ heap_tracker_t::untrack_no_cpython(void* ptr)
         freezer_frees.push_back(ptr);
     }
     MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&gil_guard);
-    return NULL;
+    return nullptr;
 }
 
 bool
@@ -294,7 +294,7 @@ heap_tracker_t::add_sample_no_cpython(traceback_t* tb)
         return tb;
     }
 
-    traceback_t* old = NULL;
+    traceback_t* old = nullptr;
     if (frozen) {
         old = freezer_allocs_m.insert(tb->ptr, tb);
     } else {
@@ -327,9 +327,9 @@ heap_tracker_t::export_heap()
     size_t total_count = live_count + freed_count;
 
     PyObject* heap_list = PyList_New(total_count);
-    if (heap_list == NULL) {
+    if (heap_list == nullptr) {
         thaw();
-        return NULL;
+        return nullptr;
     }
 
     int list_index = 0;
@@ -358,7 +358,7 @@ heap_tracker_t::export_heap()
 
     /* Free all tracebacks in unreported_samples after reporting them */
     for (traceback_t* tb : unreported_samples) {
-        if (tb != NULL) {
+        if (tb != nullptr) {
             traceback_free(tb);
         }
     }
@@ -469,8 +469,8 @@ PyObject*
 memalloc_sample_to_tuple(traceback_t* tb, bool is_live)
 {
     PyObject* tb_and_info = PyTuple_New(4);
-    if (tb_and_info == NULL) {
-        return NULL;
+    if (tb_and_info == nullptr) {
+        return nullptr;
     }
 
     size_t in_use_size;
