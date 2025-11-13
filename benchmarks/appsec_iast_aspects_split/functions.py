@@ -2,6 +2,7 @@ import _io
 import os
 import re
 
+
 try:
     from ddtrace import __version__
 except ImportError:
