@@ -8,10 +8,10 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.internal.rate_limiter import RateLimiter
+from ddtrace.internal.settings._config import Config
+from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import NativeWriter
-from ddtrace.settings._config import Config
-from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.trace import Span
 from tests.appsec.utils import asm_context
 from tests.utils import DummyTracer
