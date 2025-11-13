@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOTS=("ddtrace" "tests")
+# TODO: Can we also check tests/? some folders in there require missing __init__.py
+ROOTS=("ddtrace")
 FAIL=0
 
 echo "Checking for accidental namespace packages..."
