@@ -18,6 +18,7 @@ from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers
 from ddtrace._trace._span_link import SpanLinkKind as _SpanLinkKind
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace._span_pointer import _SpanPointerDirection
+from ddtrace._trace._span_pointer import _SpanPointerDirectionName
 from ddtrace._trace.span import Span
 from ddtrace._trace.utils import extract_DD_context_from_messages
 from ddtrace.constants import _SPAN_MEASURED_KEY
@@ -46,14 +47,13 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import FLASK_ENDPOINT
 from ddtrace.internal.constants import FLASK_URL_RULE
 from ddtrace.internal.constants import FLASK_VIEW_ARGS
+from ddtrace.internal.constants import HTTP_REQUEST_UPGRADED
 from ddtrace.internal.constants import MESSAGING_BATCH_COUNT
 from ddtrace.internal.constants import MESSAGING_DESTINATION_NAME
 from ddtrace.internal.constants import MESSAGING_MESSAGE_ID
 from ddtrace.internal.constants import MESSAGING_OPERATION
 from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.constants import SPAN_LINK_KIND
-from ddtrace.internal.constants import SPAN_POINTER_DOWN_DIRECTION
-from ddtrace.internal.constants import SPAN_POINTER_UP_DIRECTION
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import _inherit_sampling_tags
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -61,6 +61,9 @@ from ddtrace.propagation.http import HTTPPropagator
 
 
 log = get_logger(__name__)
+
+_WEBSOCKET_LINK_ATTRS_EXECUTED = {SPAN_LINK_KIND: SpanLinkKind.EXECUTED}
+_WEBSOCKET_LINK_ATTRS_RESUMING = {SPAN_LINK_KIND: SpanLinkKind.RESUMING}
 
 
 class _TracedIterable(wrapt.ObjectProxy):
@@ -1080,10 +1083,10 @@ def _add_websocket_span_pointer_attributes(
     )
 
     if is_incoming:
-        link_name = SPAN_POINTER_UP_DIRECTION
+        link_name = _SpanPointerDirectionName.UPSTREAM
         ptr_direction = _SpanPointerDirection.UPSTREAM
     else:
-        link_name = SPAN_POINTER_DOWN_DIRECTION
+        link_name = _SpanPointerDirectionName.DOWNSTREAM
         ptr_direction = _SpanPointerDirection.DOWNSTREAM
 
     link_attributes.update(
@@ -1114,17 +1117,13 @@ def _on_asgi_websocket_receive_message(ctx, scope, message):
 
     if hasattr(ctx, "parent") and ctx.parent.span:
         handshake_span = ctx.parent.span
-        link_attributes = {SPAN_LINK_KIND: SpanLinkKind.EXECUTED}
+        link_attributes = _WEBSOCKET_LINK_ATTRS_EXECUTED.copy()
 
         _add_websocket_span_pointer_attributes(
             link_attributes, integration_config, handshake_span, scope, is_incoming=True
         )
 
-        span.set_link(
-            trace_id=handshake_span.trace_id,
-            span_id=handshake_span.span_id,
-            attributes=link_attributes,
-        )
+        span.link_span(handshake_span.context, link_attributes)
 
         if getattr(integration_config, "asgi_websocket_messages_inherit_sampling", True):
             _inherit_sampling_tags(span, handshake_span._local_root)
@@ -1148,17 +1147,13 @@ def _on_asgi_websocket_send_message(ctx, scope, message):
 
     if hasattr(ctx, "parent") and ctx.parent.span:
         handshake_span = ctx.parent.span
-        link_attributes = {SPAN_LINK_KIND: SpanLinkKind.RESUMING}
+        link_attributes = _WEBSOCKET_LINK_ATTRS_RESUMING.copy()
 
         _add_websocket_span_pointer_attributes(
             link_attributes, integration_config, handshake_span, scope, is_incoming=False
         )
 
-        span.set_link(
-            trace_id=handshake_span.trace_id,
-            span_id=handshake_span.span_id,
-            attributes=link_attributes,
-        )
+        span.link_span(handshake_span.context, link_attributes)
 
 
 def _on_asgi_websocket_close_message(ctx, scope, message):
@@ -1179,17 +1174,13 @@ def _on_asgi_websocket_close_message(ctx, scope, message):
 
     if hasattr(ctx, "parent") and ctx.parent.span:
         handshake_span = ctx.parent.span
-        link_attributes = {SPAN_LINK_KIND: SpanLinkKind.RESUMING}
+        link_attributes = _WEBSOCKET_LINK_ATTRS_RESUMING.copy()
 
         _add_websocket_span_pointer_attributes(
             link_attributes, integration_config, handshake_span, scope, is_incoming=False
         )
 
-        span.set_link(
-            trace_id=handshake_span.trace_id,
-            span_id=handshake_span.span_id,
-            attributes=link_attributes,
-        )
+        span.link_span(handshake_span.context, link_attributes)
 
         _copy_trace_level_tags(span, handshake_span)
 
@@ -1208,17 +1199,13 @@ def _on_asgi_websocket_disconnect_message(ctx, scope, message):
 
     if hasattr(ctx, "parent") and ctx.parent.span:
         handshake_span = ctx.parent.span
-        link_attributes = {SPAN_LINK_KIND: SpanLinkKind.EXECUTED}
+        link_attributes = _WEBSOCKET_LINK_ATTRS_EXECUTED.copy()
 
         _add_websocket_span_pointer_attributes(
             link_attributes, integration_config, handshake_span, scope, is_incoming=True
         )
 
-        span.set_link(
-            trace_id=handshake_span.trace_id,
-            span_id=handshake_span.span_id,
-            attributes=link_attributes,
-        )
+        span.link_span(handshake_span.context, link_attributes)
 
         if getattr(integration_config, "asgi_websocket_messages_inherit_sampling", True):
             _inherit_sampling_tags(span, handshake_span._local_root)
@@ -1242,7 +1229,7 @@ def _on_asgi_request(ctx: core.ExecutionContext) -> None:
         scope["datadog"]["request_spans"].append(span)
 
     if scope["type"] == "websocket":
-        span._set_tag_str("http.upgraded", SpanTypes.WEBSOCKET)
+        span._set_tag_str(HTTP_REQUEST_UPGRADED, SpanTypes.WEBSOCKET)
         _init_websocket_message_counters(scope)
 
 
