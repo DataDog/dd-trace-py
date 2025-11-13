@@ -5,7 +5,7 @@ import pytest
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.dynamic_instrumentation import DynamicInstrumentationConfig
 from ddtrace.internal.utils.formats import parse_tags_str
-from ddtrace.version import get_version
+from ddtrace.version import __version__
 from tests.utils import override_env
 
 
@@ -39,7 +39,7 @@ def test_tags():
             c="d",
             env="test-env",
             version="test-version",
-            debugger_version=get_version(),
+            debugger_version=__version__,
         )
 
 

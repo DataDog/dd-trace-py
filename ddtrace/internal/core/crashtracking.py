@@ -53,7 +53,7 @@ def _get_tags(additional_tags: Optional[Dict[str, str]]) -> Dict[str, str]:
     runtime_version = platform.python_version()
     if runtime_version:
         tags["runtime_version"] = runtime_version
-    library_version = version.get_version()
+    library_version = version.__version__
     if library_version:
         tags["library_version"] = library_version
 
@@ -127,7 +127,7 @@ def _get_args(additional_tags: Optional[Dict[str, str]]):
 
     tags = _get_tags(additional_tags)
 
-    metadata = CrashtrackerMetadata("dd-trace-py", version.get_version(), "python", tags)
+    metadata = CrashtrackerMetadata("dd-trace-py", version.__version__, "python", tags)
 
     return config, receiver_config, metadata
 
