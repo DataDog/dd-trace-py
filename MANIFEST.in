@@ -1,5 +1,7 @@
 recursive-include ddtrace *.pxd
 recursive-include ddtrace *.pyx
+graft src
 prune .riot/
 prune benchmarks/
 prune releasenotes/
+prune src/native/target*
