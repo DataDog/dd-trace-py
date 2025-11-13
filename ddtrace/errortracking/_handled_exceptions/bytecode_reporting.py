@@ -11,7 +11,7 @@ from ddtrace.internal.module import BaseModuleWatchdog
 from ddtrace.internal.packages import is_stdlib
 from ddtrace.internal.packages import is_third_party
 from ddtrace.internal.packages import is_user_code
-from ddtrace.settings.errortracking import config
+from ddtrace.internal.settings.errortracking import config
 
 
 INSTRUMENTABLE_TYPES = (types.FunctionType, types.MethodType, staticmethod, type)

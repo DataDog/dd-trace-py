@@ -9,7 +9,7 @@ attrs==25.4.0
 bcrypt==4.2.1
 certifi==2025.10.5
 charset-normalizer==3.4.4
-coverage[toml]==7.11.0
+coverage[toml]==7.11.1
 dill==0.4.0
 django==5.2.8
 django-configurations==2.5.1
@@ -36,8 +36,5 @@ six==1.17.0
 sortedcontainers==2.4.0
 sqlparse==0.5.3
 urllib3==2.5.0
-zope-event==6.0
+zope-event==6.1
 zope-interface==8.0.1
-
-# The following packages are considered to be unsafe in a requirements file:
-setuptools==80.9.0
