@@ -112,7 +112,9 @@ class DataStreamsProcessor(PeriodicService):
         self._timeout = timeout
         # Have the bucket size match the interval in which flushes occur.
         self._bucket_size_ns = int(interval * 1e9)  # type: int
-        self._buckets = defaultdict(lambda: Bucket(defaultdict(PathwayStats), defaultdict(int), defaultdict(int)))  # type: DefaultDict[int, Bucket]
+        self._buckets = defaultdict(
+            lambda: Bucket(defaultdict(PathwayStats), defaultdict(int), defaultdict(int))
+        )  # type: DefaultDict[int, Bucket]
         self._version = __version__
         self._headers = {
             "Datadog-Meta-Lang": "python",
