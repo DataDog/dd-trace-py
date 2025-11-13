@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Once;
 use std::time::Duration;
 
-use datadog_crashtracker::{
+use libdd_crashtracker::{
     is_runtime_callback_registered, register_runtime_frame_callback, register_runtime_stacktrace_string_callback, CallbackError,
     CrashtrackerConfiguration, CrashtrackerReceiverConfig, Metadata, RuntimeStackFrame,
     StacktraceCollection,
@@ -115,7 +115,7 @@ impl CrashtrackerConfigurationPy {
                 use_alt_stack,
                 endpoint,
                 resolve_frames,
-                datadog_crashtracker::default_signals(),
+                libdd_crashtracker::default_signals(),
                 Some(Duration::from_millis(timeout_ms)),
                 unix_socket_path,
                 true, /* demangle_names */
@@ -201,7 +201,7 @@ impl CrashtrackerMetadataPy {
 }
 
 impl RustWrapper for CrashtrackerMetadataPy {
-    type Inner = datadog_crashtracker::Metadata;
+    type Inner = libdd_crashtracker::Metadata;
     const INNER_TYPE_NAME: &'static str = "Metadata";
 
     fn take_inner(&mut self) -> Option<Self::Inner> {
@@ -258,7 +258,7 @@ pub fn crashtracker_init<'py>(
         if let (Some(config), Some(receiver_config), Some(metadata)) =
             (config_opt, receiver_config_opt, metadata_opt)
         {
-            match datadog_crashtracker::init(config, receiver_config, metadata) {
+            match libdd_crashtracker::init(config, receiver_config, metadata) {
                 Ok(_) => CRASHTRACKER_STATUS
                     .store(CrashtrackerStatus::Initialized as u8, Ordering::SeqCst),
                 Err(e) => {
@@ -292,7 +292,7 @@ pub fn crashtracker_on_fork<'py>(
 
     // Note to self: is it possible to call crashtracker_on_fork before crashtracker_init?
     // dd-trace-py seems to start crashtracker early on.
-    datadog_crashtracker::on_fork(inner_config, inner_receiver_config, inner_metadata)
+    libdd_crashtracker::on_fork(inner_config, inner_receiver_config, inner_metadata)
 }
 
 #[pyfunction(name = "crashtracker_status")]
@@ -309,7 +309,7 @@ pub fn crashtracker_status() -> anyhow::Result<CrashtrackerStatus> {
 // binary names for the receiver, since Python installs the script as a command.
 #[pyfunction(name = "crashtracker_receiver")]
 pub fn crashtracker_receiver() -> anyhow::Result<()> {
-    datadog_crashtracker::receiver_entry_point_stdin()
+    libdd_crashtracker::receiver_entry_point_stdin()
 }
 
 /// Result type for runtime callback operations
@@ -331,21 +331,18 @@ impl From<CallbackError> for CallbackResult {
     }
 }
 
-// Constants for signal-safe operation
-const MAX_FRAMES: usize = 64;
-const MAX_STRING_LEN: usize = 256;
-const MAX_TRACEBACK_SIZE: usize = 64 * 1024; // 64KB buffer for traceback text
+const MAX_TRACEBACK_SIZE: usize = 64 * 1024; // 64KB
 
 // Stack-allocated buffer for signal-safe string handling
 struct StackBuffer {
-    data: [u8; MAX_STRING_LEN],
+    data: [u8; MAX_TRACEBACK_SIZE],
     len: usize,
 }
 
 impl StackBuffer {
     const fn new() -> Self {
         Self {
-            data: [0u8; MAX_STRING_LEN],
+            data: [0u8; MAX_TRACEBACK_SIZE],
             len: 0,
         }
     }
@@ -356,65 +353,11 @@ impl StackBuffer {
 
     fn set_from_str(&mut self, s: &str) {
         let bytes = s.as_bytes();
-        let copy_len = bytes.len().min(MAX_STRING_LEN - 1);
+        let copy_len = bytes.len().min(MAX_TRACEBACK_SIZE - 1);
         self.data[..copy_len].copy_from_slice(&bytes[..copy_len]);
         self.data[copy_len] = 0;
         self.len = copy_len;
     }
-}
-
-// Parse a single traceback line into frame information
-// '  File "/path/to/file.py", line 42, in function_name'
-fn parse_traceback_line(
-    line: &str,
-    function_buf: &mut StackBuffer,
-    file_buf: &mut StackBuffer,
-) -> u32 {
-    let trimmed = line.trim();
-
-    // Look for the pattern: File "filename", line number, in function_name
-    if let Some(file_start) = trimmed.find('"') {
-        if let Some(file_end) = trimmed[file_start + 1..].find('"') {
-            let file_path = &trimmed[file_start + 1..file_start + 1 + file_end];
-            file_buf.set_from_str(file_path);
-
-            let after_file = &trimmed[file_start + file_end + 2..];
-            if let Some(line_start) = after_file.find("line ") {
-                let line_part = &after_file[line_start + 5..];
-
-                // Try to find comma first ("line 42, in func")
-                let line_num = if let Some(line_end) = line_part.find(',') {
-                    let line_str = line_part[..line_end].trim();
-                    line_str.parse::<u32>().unwrap_or(0)
-                } else {
-                    // No comma, try space ("line 42 in func")
-                    if let Some(space_pos) = line_part.find(' ') {
-                        let line_str = line_part[..space_pos].trim();
-                        line_str.parse::<u32>().unwrap_or(0)
-                    } else {
-                        // Just numbers until end
-                        let line_str = line_part.trim();
-                        line_str.parse::<u32>().unwrap_or(0)
-                    }
-                };
-
-                // Look for function name
-                if let Some(in_pos) = after_file.find(" in ") {
-                    let func_name = after_file[in_pos + 4..].trim();
-                    function_buf.set_from_str(func_name);
-                } else {
-                    function_buf.set_from_str("<unknown>");
-                }
-
-                return line_num;
-            }
-        }
-    }
-
-    // Fallback parsing
-    function_buf.set_from_str("<parse_failed>");
-    file_buf.set_from_str("<parse_failed>");
-    0
 }
 
 /// Dump Python traceback as a complete string
@@ -449,7 +392,6 @@ unsafe fn dump_python_traceback_as_string(
 
     close(write_fd);
 
-    // Check for errors from _Py_DumpTracebackThreads
     if !error_msg.is_null() {
         close(read_fd);
         // Note: We can't format the error message because we're in a signal context
@@ -485,16 +427,6 @@ unsafe extern "C" fn native_runtime_stack_callback(
     dump_python_traceback_as_string(emit_stacktrace_string);
 }
 
-/// Frame-based callback implementation for runtime stack collection
-///
-/// This callback collects Python stack frames individually and emits them
-/// one by one for detailed stack trace information.
-// unsafe extern "C" fn native_runtime_frame_callback(
-//     emit_frame: unsafe extern "C" fn(*const RuntimeStackFrame),
-// ) {
-//     dump_python_traceback_via_cpython_api(emit_frame);
-// }
-
 /// Register the native runtime stack collection callback (string-based)
 ///
 /// This function registers a native callback that directly collects Python runtime
@@ -510,12 +442,6 @@ pub fn crashtracker_register_native_runtime_callback() -> CallbackResult {
         Ok(()) => CallbackResult::Ok,
         Err(e) => e.into(),
     }
-    // match register_runtime_frame_callback(
-    //     native_runtime_frame_callback,
-    // ) {
-    //     Ok(()) => CallbackResult::Ok,
-    //     Err(e) => e.into(),
-    // }
 }
 
 /// Check if a runtime callback is currently registered
