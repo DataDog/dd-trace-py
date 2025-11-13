@@ -85,6 +85,7 @@ Homepage = "https://github.com/DataDog/dd-trace-py"
 
 [tool.setuptools_scm]
 version_scheme = "release-branch-semver"  # Must be "release-branch-semver" for now in main, see https://github.com/DataDog/dd-trace-py/issues/8801
+local_scheme = "no-local-version"  # Prevent date stamps in wheel filenames during local installs
 write_to = "ddtrace/_version.py"
 
 [tool.cython-lint]
