@@ -2,9 +2,25 @@
 #include <stddef.h>
 #include <utility>
 
+#include "_memalloc_tb.h"
 #include <Python.h>
 
-#include "_memalloc_tb.h"
+/* cwisstable.h provides a C implementation of SwissTables hash maps, originally
+ * implemented in the Abseil C++ library.
+ *
+ * This header is was generated from https://github.com/google/cwisstable
+ * at commit 6de0e5f2e55f90017534a3366198ce7d3e3b7fef
+ * and lightly modified to compile for Windows and 32-bit platforms we support.
+ * See "BEGIN MODIFICATION" and "END MODIFICATION" in the header.
+ *
+ * The following macro will expand to a type-safe implementation with void* keys
+ * and traceback_t* values for use by the heap profiler. We encapsulate this
+ * implementation in a wrapper specialized for use by the heap profiler, both to
+ * keep compilation fast (the cwisstables header is big) and to allow us to swap
+ * out the implementation if we want.
+ */
+#include "vendor/cwisstable.h"
+CWISS_DECLARE_FLAT_HASHMAP(HeapSamples, void*, traceback_t*);
 
 /* memalloc_heap_map tracks sampled allocations by their address.
  * C++ interface - implementation is in _memalloc_heap_map.cpp
@@ -59,8 +75,8 @@ class memalloc_heap_map
         bool operator!=(const iterator& other) const;
 
       private:
-        class Impl;
-        Impl* impl;
+        HeapSamples_CIter iter;
+        bool is_end;
         friend class memalloc_heap_map;
     };
 
@@ -68,6 +84,5 @@ class memalloc_heap_map
     iterator end() const;
 
   private:
-    class Impl;
-    Impl* impl;
+    HeapSamples map;
 };
