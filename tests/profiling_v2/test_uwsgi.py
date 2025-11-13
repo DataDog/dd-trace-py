@@ -26,7 +26,9 @@ uwsgi_app = os.path.join(os.path.dirname(__file__), "..", "profiling", "uwsgi-ap
 
 
 @pytest.fixture
-def uwsgi(tmp_path):
+def uwsgi(monkeypatch, tmp_path):
+    # Do not ignore profiler so we have samples in the output pprof
+    monkeypatch.setenv("DD_PROFILING_IGNORE_PROFILER", "0")
     # Do not use pytest tmpdir fixtures which generate directories longer than allowed for a socket file name
     socket_name = str(tmp_path / "uwsgi.sock")
     import os
