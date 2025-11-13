@@ -76,7 +76,6 @@ components:
     - ddtrace/__init__.py
     - ddtrace/py.typed
     - ddtrace/version.py
-    - ddtrace/_version.py
     - ddtrace/internal/settings/_config.py
     - src/native/*
   datastreams:
