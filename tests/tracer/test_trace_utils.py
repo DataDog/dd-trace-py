@@ -386,7 +386,6 @@ def test_set_http_meta_with_http_header_tags_config():
     assert response_span.get_tag("third-header") == "value3"
 
 
-
 @mock.patch("ddtrace.internal.settings._config.log")
 @pytest.mark.parametrize(
     "error_codes,status_code,error,log_call",
