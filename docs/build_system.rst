@@ -183,6 +183,11 @@ These environment variables modify aspects of the build process.
     version_added:
         v3.3.0:
 
+  DD_CYTHONIZE: |
+    If enabled, then Cython extensions are includes in the build. Disabling will exclude them.
+    This is mostly useful for source distribution builds so we can skip cythonizing source files.
+    default: True
+
   DD_FAST_BUILD:
     type: Boolean
     default: False
