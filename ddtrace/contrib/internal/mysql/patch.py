@@ -13,9 +13,9 @@ from ddtrace.ext import net
 from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
-from ddtrace.settings.asm import config as asm_config
 
 
 config._add(

@@ -2,7 +2,7 @@ import re
 import string
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
 
 from .._utils import _get_source_index
 from ..constants import VULN_CMDI

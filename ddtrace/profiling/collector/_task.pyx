@@ -6,10 +6,10 @@ from wrapt.importer import when_imported
 
 from .. import _asyncio
 from .. import _threading
-from ddtrace.settings.profiling import config
+from ddtrace.internal.settings.profiling import config
 
 
-if (is_stack_v2 := config.stack.v2_enabled):
+if (is_stack_v2 := config.stack.enabled):
 
     @when_imported("gevent")
     def _(gevent):

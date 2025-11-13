@@ -1,0 +1,6 @@
+---
+upgrade:
+  - |
+    Django: This upgrades the default tracing behavior to enable minimal tracing mode by default (``DD_DJANGO_TRACING_MINIMAL`` now defaults to ``true``). Django ORM, cache, and template instrumentation are disabled by default to eliminate duplicate span creation since library integrations for database drivers (psycopg, MySQLdb, sqlite3), cache clients (redis, memcached), template renderers (Jinja2), and other supported libraries continue to be traced. This reduces performance overhead by removing redundant Django-layer instrumentation. To restore all Django instrumentation, set ``DD_DJANGO_TRACING_MINIMAL=false``, or enable individual features using ``DD_DJANGO_INSTRUMENT_DATABASES=true``, ``DD_DJANGO_INSTRUMENT_CACHES=true``, and ``DD_DJANGO_INSTRUMENT_TEMPLATES=true``.
+  - |
+    Django: When ``DD_DJANGO_INSTRUMENT_DATABASES=true`` (default ``false``), database instrumentation now merges Django-specific tags into database driver spans created by supported integrations (psycopg, sqlite3, MySQLdb, etc.) instead of creating duplicate Django database spans. If the database cursor is not already wrapped by a supported integration, Django wraps it and creates a span. This change reduces overhead and duplicate spans while preserving visibility into database operations.
