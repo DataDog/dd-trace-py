@@ -1,6 +1,7 @@
-recursive-include ddtrace *.pxd
-recursive-include ddtrace *.pyx
+graft ddtrace
 graft src
+
+recursive-exclude * **/__pycache__/*
 prune .riot/
 prune benchmarks/
 prune releasenotes/

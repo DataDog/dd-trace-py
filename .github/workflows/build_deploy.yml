@@ -84,6 +84,7 @@ jobs:
       - name: Install source package
         env:
           CMAKE_BUILD_PARALLEL_LEVEL: 12
+          CARGO_BUILD_JOBS: 12
         run: pip install dist/*.tar.gz
 
       - name: Test the source package
