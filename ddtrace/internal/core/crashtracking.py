@@ -163,7 +163,6 @@ def start(additional_tags: Optional[Dict[str, str]] = None) -> bool:
             # Shouldn't block on this, but log an error if it fails
             if result != CallbackResult.Ok:
                 print(f"Failed to register runtime callback: {result}", file=sys.stderr)
-                return False
 
         def crashtracker_fork_handler():
             # We recreate the args here mainly to pass updated runtime_id after
@@ -185,16 +184,6 @@ def start(additional_tags: Optional[Dict[str, str]] = None) -> bool:
 
 
 def register_runtime_callback() -> bool:
-    """
-    Register the native runtime callback for stack collection during crashes.
-
-    This should be called after crashtracker initialization to enable Python
-    runtime stack trace collection in crash reports. The callback provides
-    frame-by-frame Python stack traces with proper context information.
-
-    Returns:
-        bool: True if callback was registered successfully, False otherwise
-    """
     if not is_available:
         return False
 
@@ -207,12 +196,6 @@ def register_runtime_callback() -> bool:
 
 
 def is_runtime_callback_registered() -> bool:
-    """
-    Check if a runtime callback is currently registered.
-
-    Returns:
-        bool: True if a callback is registered, False otherwise
-    """
     if not is_available:
         return False
 
