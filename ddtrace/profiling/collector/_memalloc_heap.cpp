@@ -1,6 +1,7 @@
 #include <cassert>
 #include <cmath>
 #include <cstdlib>
+#include <memory>
 #include <vector>
 
 #define PY_SSIZE_T_CLEAN
@@ -358,7 +359,7 @@ heap_tracker_t::export_heap()
     return heap_list;
 }
 
-static heap_tracker_t* global_heap_tracker = nullptr;
+static std::unique_ptr<heap_tracker_t> global_heap_tracker;
 
 /* Public API */
 
@@ -366,18 +367,17 @@ void
 memalloc_heap_tracker_init(uint32_t sample_size)
 {
     // TODO(dsn): what should we do it this was already initialized?
-    if (global_heap_tracker == nullptr) {
-        global_heap_tracker = new heap_tracker_t(sample_size);
+    if (!global_heap_tracker) {
+        global_heap_tracker = std::make_unique<heap_tracker_t>(sample_size);
     }
 }
 
 void
 memalloc_heap_tracker_deinit(void)
 {
-    if (global_heap_tracker != nullptr) {
+    if (global_heap_tracker) {
         global_heap_tracker->deinit();
-        delete global_heap_tracker;
-        global_heap_tracker = nullptr;
+        global_heap_tracker.reset();
     }
 }
 
