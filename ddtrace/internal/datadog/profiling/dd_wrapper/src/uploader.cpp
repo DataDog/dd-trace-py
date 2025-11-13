@@ -26,9 +26,11 @@ Datadog::Uploader::Uploader(std::string_view _output_filename,
   , profiler_stats{ _stats }
   , process_tags{ _process_tags }
 {
-    // Increment the upload sequence number every time we build an uploader.
+    // Atomically increment and capture the upload sequence number for this instance.
+    // This prevents race conditions where multiple threads creating Uploaders concurrently
+    // could result in duplicate sequence numbers in filenames.
     // Uploaders are use-once-and-destroy.
-    upload_seq++;
+    instance_upload_seq = ++upload_seq;
 }
 
 bool
@@ -37,7 +39,7 @@ Datadog::Uploader::export_to_file(ddog_prof_EncodedProfile& encoded, std::string
     // Write the profile to a file using the following format for filename:
     // <output_filename>.<process_id>.<sequence_number>
     std::ostringstream oss;
-    oss << output_filename << "." << getpid() << "." << upload_seq;
+    oss << output_filename << "." << getpid() << "." << instance_upload_seq;
     const std::string base_filename = oss.str();
     const std::string pprof_filename = base_filename + ".pprof";
 
