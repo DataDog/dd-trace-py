@@ -623,7 +623,7 @@ class LLMObs(Service):
                         "DD_SITE is required for sending LLMObs data when agentless mode is enabled. "
                         "Ensure this configuration is set before running your application."
                     )
-                if not os.getenv("DD_REMOTE_CONFIG_ENABLED"):
+                if not os.getenv("DD_REMOTE_CONFIGURATION_ENABLED"):
                     config._remote_config_enabled = False
                     log.debug("Remote configuration disabled because DD_LLMOBS_AGENTLESS_ENABLED is set to true.")
                     remoteconfig_poller.disable()

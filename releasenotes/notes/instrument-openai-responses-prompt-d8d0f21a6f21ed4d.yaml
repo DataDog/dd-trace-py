@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    LLM Observability: The OpenAI integration now captures prompt metadata (id, version, variables, and chat template) 
+    for reusable prompts when using the ``responses`` endpoint (available in OpenAI SDK >= 1.87.0).

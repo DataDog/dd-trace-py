@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    aioredis: The aioredis integration has been removed.

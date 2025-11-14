@@ -1,4 +1,4 @@
-use data_pipeline::trace_exporter::{
+use libdd_data_pipeline::trace_exporter::{
     agent_response::AgentResponse, TelemetryConfig, TraceExporter, TraceExporterBuilder,
     TraceExporterInputFormat, TraceExporterOutputFormat,
 };

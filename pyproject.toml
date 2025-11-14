@@ -11,9 +11,9 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ddtrace"
 # DEV: to directly override the version specifier, comment this...
-dynamic = ["version"]
+#dynamic = ["version"]
 # ...and uncomment this
-#version = "4.0.0.dev0"
+version = "4.1.0dev"
 description = "Datadog APM client library"
 readme = "README.md"
 license = { text = "LICENSE.BSD3" }
@@ -267,6 +267,11 @@ lint.ignore = [
     "G201",
 ]
 line-length = 120
+
+# Allow experimental/preview checks
+lint.preview = true
+lint.explicit-preview-rules = true
+
 lint.select = [
     "A",
     "D",
