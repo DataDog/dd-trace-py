@@ -57,9 +57,7 @@ class memalloc_gil_debug_guard_t
 class memalloc_gil_debug_guard_t
 {
   public:
-    explicit memalloc_gil_debug_guard_t(memalloc_gil_debug_check_t&)
-    {
-    }
+    explicit memalloc_gil_debug_guard_t(memalloc_gil_debug_check_t&) {}
 
     // Non-copyable, non-movable
     memalloc_gil_debug_guard_t(const memalloc_gil_debug_guard_t&) = delete;

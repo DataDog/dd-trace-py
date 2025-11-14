@@ -5,20 +5,12 @@
 
 #include <Python.h>
 
-typedef struct
-#ifdef __GNUC__
-  __attribute__((packed))
-#elif defined(_MSC_VER)
-#pragma pack(push, 4)
-#endif
+typedef struct __attribute__((packed))
 {
     PyObject* filename;
     PyObject* name;
     unsigned int lineno;
 } frame_t;
-#if defined(_MSC_VER)
-#pragma pack(pop)
-#endif
 
 typedef struct
 {

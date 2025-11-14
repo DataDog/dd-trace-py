@@ -12,7 +12,7 @@
  *
  * This header is was generated from https://github.com/google/cwisstable
  * at commit 6de0e5f2e55f90017534a3366198ce7d3e3b7fef
- * and lightly modified to compile for Windows and 32-bit platforms we support.
+ * and lightly modified for our use.
  * See "BEGIN MODIFICATION" and "END MODIFICATION" in the header.
  *
  * The following macro will expand to a type-safe implementation with void* keys

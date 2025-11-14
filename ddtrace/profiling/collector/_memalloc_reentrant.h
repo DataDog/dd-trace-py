@@ -1,8 +1,5 @@
 #pragma once
 
-#ifdef _WIN32
-#include <windows.h>
-#else
 #define _POSIX_C_SOURCE 200809L
 #include <errno.h>
 #include <pthread.h>
@@ -11,17 +8,13 @@
 #else
 #include <stdatomic.h>
 #endif
-#include <time.h>
-#include <unistd.h>
-#endif
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <time.h>
+#include <unistd.h>
 
-// Cross-platform macro for defining thread-local storage
-#if defined(_MSC_VER) // Check for MSVC compiler
-#define MEMALLOC_TLS __declspec(thread)
-#elif defined(__GNUC__) || defined(__clang__) // GCC or Clang
+// Thread-local storage macro for Unix (GCC/Clang)
 // NB - we explicitly specify global-dynamic on Unix because the others are problematic.
 // See e.g. https://fuchsia.dev/fuchsia-src/development/kernel/threads/tls for
 // an explanation of thread-local storage access models. global-dynamic is the
@@ -31,9 +24,6 @@
 // sees we're building a shared library. But we've been bit by issues related
 // to this before, and it doesn't hurt to explicitly declare the model here.
 #define MEMALLOC_TLS __attribute__((tls_model("global-dynamic"))) __thread
-#else
-#error "Unsupported compiler for thread-local storage"
-#endif
 extern MEMALLOC_TLS bool _MEMALLOC_ON_THREAD;
 
 static inline bool
