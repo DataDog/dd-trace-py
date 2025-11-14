@@ -354,6 +354,7 @@ venv = Venv(
                 "protobuf": latest,
             },
             env={
+                "DD_REMOTE_CONFIGURATION_ENABLED": "0",
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
                 "DD_IAST_REQUEST_SAMPLING": "100",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",

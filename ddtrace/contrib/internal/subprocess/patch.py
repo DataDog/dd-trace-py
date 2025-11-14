@@ -501,15 +501,21 @@ def _traced_fork(module, pin, wrapped, instance, args, kwargs):
     Note:
         Only instruments when AAP is enabled.
         Creates spans with fork operation details.
+        The span is finished in the parent before fork to avoid child process issues.
     """
 
     if not asm_config._asm_enabled:
         return wrapped(*args, **kwargs)
 
-    with pin.tracer.trace(COMMANDS.SPAN_NAME, resource="fork", span_type=SpanTypes.SYSTEM) as span:
-        span.set_tag(COMMANDS.EXEC, ["os.fork"])
-        span._set_tag_str(COMMANDS.COMPONENT, "os")
-        return wrapped(*args, **kwargs)
+    span = pin.tracer.trace(COMMANDS.SPAN_NAME, resource="fork", span_type=SpanTypes.SYSTEM)
+    span.set_tag(COMMANDS.EXEC, ["os.fork"])
+    span._set_tag_str(COMMANDS.COMPONENT, "os")
+
+    # Finish span before fork to prevent child process from inheriting active span context
+    span.finish()
+
+    # Now fork - only parent will have the span recorded
+    return wrapped(*args, **kwargs)
 
 
 @trace_utils.with_traced_module
