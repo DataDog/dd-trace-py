@@ -1,4 +1,4 @@
-use data_pipeline::trace_exporter::error::TraceExporterError;
+use libdd_data_pipeline::trace_exporter::error::TraceExporterError;
 use pyo3::{create_exception, exceptions::PyException, prelude::*, PyErr};
 
 create_exception!(
