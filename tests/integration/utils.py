@@ -47,7 +47,7 @@ def parametrize_with_all_encodings(env=None, out=None, err="", check_logs=True):
         #   may appear in some cases and is acceptable
         #
         #   Empty lines are also ignored
-        lines = [l.strip() for l in stream.splitlines() if l.strip() and b"Got response: 200 OK sent" not in l]
+        lines = [_.strip() for _ in stream.splitlines() if _.strip() and b"Got response: 200 OK sent" not in _]
         assert not lines, f"Unexpected output in stdout: {lines}"
 
     if out is None:
