@@ -47,6 +47,7 @@ tests/utils.py                      @DataDog/python-guild
 tests/suitespec.yml                 @DataDog/python-guild  @DataDog/apm-core-python
 tests/suitespec.py                  @DataDog/python-guild  @DataDog/apm-core-python
 scripts/bump_ddtrace.py             @DataDog/python-guild
+tests/smoke_test.py                 @DataDog/python-guild
 
 # Core / Language Platform
 tests/internal                      @DataDog/apm-core-python
@@ -125,9 +126,8 @@ ddtrace/internal/iast/              @DataDog/asm-python
 tests/appsec/                       @DataDog/asm-python
 tests/contrib/subprocess            @DataDog/asm-python
 tests/snapshots/tests*appsec*.json  @DataDog/asm-python
-tests/contrib/*/test*appsec*.py     @DataDog/asm-python
-tests/contrib/*/test*iast*.py  @DataDog/asm-python
 scripts/iast/*                      @DataDog/asm-python
+
 
 # Profiling
 ddtrace/profiling                   @DataDog/profiling-python
@@ -240,7 +240,7 @@ tests/contrib/azure_functions                               @DataDog/serverless 
 tests/contrib/azure_functions_eventhubs                     @DataDog/serverless @DataDog/apm-serverless
 tests/contrib/azure_functions_servicebus                    @DataDog/serverless @DataDog/apm-serverless
 tests/contrib/azure_servicebus                              @DataDog/serverless @DataDog/apm-serverless
-tests/internal/test_serverless.py                           @DataDog/apm-core-python @DataDog/apm-serverless
+tests/internal/test_serverless.py                           @DataDog/apm-core-python @DataDog/apm-serverless @DataDog/asm-python
 tests/snapshots/tests.contrib.aws_lambda.*.                 @DataDog/apm-serverless
 tests/snapshots/tests.contrib.azure_eventhubs.*             @DataDog/serverless @DataDog/apm-serverless
 tests/snapshots/tests.contrib.azure_functions.*             @DataDog/serverless @DataDog/apm-serverless
@@ -251,3 +251,8 @@ tests/snapshots/tests.contrib.azure_servicebus.*            @DataDog/serverless 
 # Data Streams Monitoring
 ddtrace/internal/datastreams        @DataDog/data-streams-monitoring
 tests/datastreams                   @DataDog/data-streams-monitoring
+
+# ASM (order matters)
+tests/**/*appsec*               @DataDog/asm-python
+tests/**/*iast*                 @DataDog/asm-python
+tests/tracer/test_propagation.py        @DataDog/apm-sdk-capabilities-python @DataDog/asm-python
