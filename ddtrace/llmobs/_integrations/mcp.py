@@ -114,6 +114,8 @@ class MCPIntegration(BaseLLMIntegration):
                 },
             )
 
+        _set_or_update_tags(span, {"mcp_tool_kind": "client"})
+
         if response is None:
             return
 
@@ -125,8 +127,6 @@ class MCPIntegration(BaseLLMIntegration):
         ]
         output_value = {"content": processed_content, "isError": is_error}
         span._set_ctx_item(OUTPUT_VALUE, output_value)
-
-        _set_or_update_tags(span, {"mcp_tool_kind": "client"})
 
     def _llmobs_set_tags_server(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any) -> None:
         tool_arguments = get_argument_value(args, kwargs, 1, "arguments", optional=True) or {}
