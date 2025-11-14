@@ -354,11 +354,15 @@ venv = Venv(
                 "protobuf": latest,
             },
             env={
+                "DD_REMOTE_CONFIGURATION_ENABLED": "0",
+                "DD_TELEMETRY_ENABLED": "0",
+                "DD_PROFILING_ENABLED": "0",
+                "DD_SYMBOL_DATABASE_UPLOAD_ENABLED": "0",
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
                 "DD_IAST_REQUEST_SAMPLING": "100",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
-                "PYTHONFAULTHANDLER": "1",
+                "DD_CIVISIBILITY_FLAKY_RETRY_ENABLED": "0",
             },
         ),
         Venv(
