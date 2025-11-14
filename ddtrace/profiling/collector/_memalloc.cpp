@@ -144,7 +144,8 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
         PyUnicode_InternInPlace(&object_string);
     }
 
-    memalloc_heap_tracker_init((uint32_t)heap_sample_size);
+    if (!memalloc_heap_tracker_init((uint32_t)heap_sample_size))
+        return NULL;
 
     PyMemAllocatorEx alloc;
 

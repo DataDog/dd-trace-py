@@ -9,7 +9,7 @@
 /* The maximum heap sample size is the maximum value we can store in a heap_tracker_t.allocated_memory */
 #define MAX_HEAP_SAMPLE_SIZE UINT32_MAX
 
-void
+[[nodiscard]] bool
 memalloc_heap_tracker_init(uint32_t sample_size);
 void
 memalloc_heap_tracker_deinit(void);

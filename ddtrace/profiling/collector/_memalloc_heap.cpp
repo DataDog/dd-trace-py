@@ -340,13 +340,15 @@ heap_tracker_t* heap_tracker_t::instance = nullptr;
 
 /* Public API */
 
-void
+bool
 memalloc_heap_tracker_init(uint32_t sample_size)
 {
     // TODO(dsn): what should we do it this was already initialized?
     if (!heap_tracker_t::instance) {
         heap_tracker_t::instance = new heap_tracker_t(sample_size);
+        return true;
     }
+    return false;
 }
 
 void
