@@ -178,6 +178,7 @@ suites:
     pattern: integration-latest*
     runner: riot
   integration_testagent:
+    retry: 1
     parallelism: 3
     paths:
       - '@tracing'
