@@ -1,5 +1,5 @@
 ---
-deprecations:
+upgrade:
   - |
     No longer releases wheels for 32-bit linux. Please contact us if this blocks
     upgrading dd-trace-py.
