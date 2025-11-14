@@ -78,7 +78,6 @@ class memalloc_heap_map
 
       private:
         HeapSamples_CIter iter;
-        bool is_end;
         friend class memalloc_heap_map;
     };
 

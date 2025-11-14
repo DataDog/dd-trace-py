@@ -107,32 +107,23 @@ memalloc_heap_map::destructive_copy_from(memalloc_heap_map& src)
 
 // Iterator implementation
 memalloc_heap_map::iterator::iterator()
-  : is_end(true)
+  : iter{}
 {
 }
 
 memalloc_heap_map::iterator::iterator(const memalloc_heap_map& map)
   : iter(HeapSamples_citer(&map.map))
-  , is_end(false)
 {
-    // Advance to first valid entry if any
-    const HeapSamples_Entry* e = HeapSamples_CIter_get(&iter);
-    if (!e) {
-        is_end = true;
-    }
 }
 
 memalloc_heap_map::iterator&
 memalloc_heap_map::iterator::operator++()
 {
-    if (is_end) {
+    const HeapSamples_Entry* e = HeapSamples_CIter_get(&iter);
+    if (!e) {
         return *this;
     }
     HeapSamples_CIter_next(&iter);
-    const HeapSamples_Entry* e = HeapSamples_CIter_get(&iter);
-    if (!e) {
-        is_end = true;
-    }
     return *this;
 }
 
@@ -147,9 +138,6 @@ memalloc_heap_map::iterator::operator++(int)
 memalloc_heap_map::iterator::value_type
 memalloc_heap_map::iterator::operator*() const
 {
-    if (is_end) {
-        return { nullptr, nullptr };
-    }
     const HeapSamples_Entry* e = HeapSamples_CIter_get(&iter);
     if (!e) {
         return { nullptr, nullptr };
@@ -160,17 +148,9 @@ memalloc_heap_map::iterator::operator*() const
 bool
 memalloc_heap_map::iterator::operator==(const iterator& other) const
 {
-    // Both are end iterators
-    if (is_end && other.is_end) {
-        return true;
-    }
-    // One is end, one is not
-    if (is_end != other.is_end) {
-        return false;
-    }
-    // Both are valid - compare underlying iterators
+    // Compare underlying iterators by their current entry pointers
     // Note: HeapSamples_CIter doesn't have equality comparison, so we compare
-    // the current entry pointers
+    // the current entry pointers. Both end iterators will have nullptr entries.
     const HeapSamples_Entry* e1 = HeapSamples_CIter_get(&iter);
     const HeapSamples_Entry* e2 = HeapSamples_CIter_get(&other.iter);
     return e1 == e2;
