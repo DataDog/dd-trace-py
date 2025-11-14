@@ -302,7 +302,6 @@ heap_tracker_t::export_heap()
 
     /* First, iterate over live samples using the iterator API */
     for (const auto& pair : allocs_m) {
-        void* key = pair.first;
         traceback_t* tb = pair.second;
 
         PyObject* tb_and_info = memalloc_sample_to_tuple(tb, true);

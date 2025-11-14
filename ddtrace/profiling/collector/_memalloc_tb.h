@@ -1,19 +1,21 @@
 #pragma once
 
-#include <stdbool.h>
-#include <stdint.h>
+#include <cstddef>
+#include <cstdint>
+#include <vector>
 
 #include <Python.h>
 
-typedef struct __attribute__((packed))
+struct frame_t
 {
     PyObject* filename;
     PyObject* name;
     unsigned int lineno;
-} frame_t;
+} __attribute__((packed));
 
-typedef struct
+class traceback_t
 {
+  public:
     /* Total number of frames in the traceback */
     uint16_t total_nframe;
     /* Number of frames in the traceback */
@@ -31,8 +33,20 @@ typedef struct
     /* Count of allocations this sample represents (for scaling) */
     size_t count;
     /* List of frames, top frame first */
-    frame_t frames[1];
-} traceback_t;
+    std::vector<frame_t> frames;
+
+    /* Constructor - reserves space for the specified number of frames */
+    explicit traceback_t(uint16_t nframe);
+
+    /* Destructor - cleans up Python references */
+    ~traceback_t();
+
+    // Non-copyable, non-movable
+    traceback_t(const traceback_t&) = delete;
+    traceback_t& operator=(const traceback_t&) = delete;
+    traceback_t(traceback_t&&) = delete;
+    traceback_t& operator=(traceback_t&&) = delete;
+};
 
 /* The maximum number of frames we can store in `traceback_t.nframe` */
 #define TRACEBACK_MAX_NFRAME UINT16_MAX
