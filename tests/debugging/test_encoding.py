@@ -250,6 +250,59 @@ def test_batch_json_encoder():
     assert queue.count == 0
 
 
+def test_process_tags_are_not_included_by_default():
+    s = Snapshot(
+        probe=create_snapshot_line_probe(probe_id="batch-test", source_file="foo.py", line=42),
+        frame=inspect.currentframe(),
+        thread=threading.current_thread(),
+    )
+    buffer_size = 30 * (1 << 20)
+    queue = SignalQueue(encoder=LogSignalJsonEncoder(None), buffer_size=buffer_size)
+
+    s.line({})
+
+    queue = SignalQueue(encoder=LogSignalJsonEncoder("test-service"))
+    queue.put(s)
+    data = queue.flush()
+    assert data is not None
+    payload, _ = data
+    decoded = json.loads(payload.decode())
+    assert "process_tags" not in decoded[0]
+
+
+def test_process_tags_are_included():
+    from unittest.mock import patch
+
+    from ddtrace.internal.process_tags import _process_tag_reload
+    from ddtrace.settings._config import config
+
+    try:
+        with patch("sys.argv", ["/path/to/test_script.py"]), patch("os.getcwd", return_value="/path/to/workdir"):
+            config._process_tags_enabled = True
+            _process_tag_reload()
+            s = Snapshot(
+                probe=create_snapshot_line_probe(probe_id="batch-test", source_file="foo.py", line=42),
+                frame=inspect.currentframe(),
+                thread=threading.current_thread(),
+            )
+            buffer_size = 30 * (1 << 20)
+            queue = SignalQueue(encoder=LogSignalJsonEncoder(None), buffer_size=buffer_size)
+
+            s.line({})
+
+            queue = SignalQueue(encoder=LogSignalJsonEncoder("test-service"))
+            queue.put(s)
+            data = queue.flush()
+            assert data is not None
+            payload, _ = data
+            decoded = json.loads(payload.decode())
+
+            assert "process_tags" in decoded[0]
+    finally:
+        config._process_tags_enabled = False
+        _process_tag_reload()
+
+
 def test_batch_flush_reencode():
     s = Snapshot(
         probe=create_snapshot_line_probe(probe_id="batch-test", source_file="foo.py", line=42),
