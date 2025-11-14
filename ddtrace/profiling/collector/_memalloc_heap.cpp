@@ -112,7 +112,7 @@ class heap_tracker_t
     static heap_tracker_t* instance;
 
   private:
-    static uint32_t heap_tracker_next_sample_size(uint32_t sample_size);
+    static uint32_t next_sample_size(uint32_t sample_size);
 
     /* Heap profiler sampling interval */
     uint64_t sample_size;
@@ -137,7 +137,7 @@ class heap_tracker_t
 
 // Static helper function
 uint32_t
-heap_tracker_t::heap_tracker_next_sample_size(uint32_t sample_size)
+heap_tracker_t::next_sample_size(uint32_t sample_size)
 {
     /* We want to draw a sampling target from an exponential distribution with
        average sample_size. We use the standard technique of inverse transform
@@ -155,7 +155,7 @@ heap_tracker_t::heap_tracker_next_sample_size(uint32_t sample_size)
 // Method implementations
 heap_tracker_t::heap_tracker_t(uint32_t sample_size_val)
   : sample_size(sample_size_val)
-  , current_sample_size(heap_tracker_next_sample_size(sample_size_val))
+  , current_sample_size(next_sample_size(sample_size_val))
   , allocated_memory(0)
   , frozen(false)
 {
@@ -209,9 +209,6 @@ traceback_t*
 heap_tracker_t::untrack_no_cpython(void* ptr)
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
-    if (sample_size == 0) {
-        return nullptr;
-    }
     if (!frozen) {
         traceback_t* tb = allocs_m.remove(ptr);
         if (tb && !tb->reported) {
@@ -240,11 +237,6 @@ bool
 heap_tracker_t::should_sample_no_cpython(size_t size, uint64_t* allocated_memory_val)
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
-    /* Heap tracking is disabled */
-    if (sample_size == 0) {
-        return false;
-    }
-
     allocated_memory += size;
     *allocated_memory_val = allocated_memory;
 
@@ -269,10 +261,6 @@ traceback_t*
 heap_tracker_t::add_sample_no_cpython(traceback_t* tb)
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
-    if (sample_size == 0) {
-        return tb;
-    }
-
     traceback_t* old = nullptr;
     if (frozen) {
         old = freezer_allocs_m.insert(tb->ptr, tb);
@@ -284,7 +272,7 @@ heap_tracker_t::add_sample_no_cpython(traceback_t* tb)
     allocated_memory = 0;
 
     /* Compute the new target sample size */
-    current_sample_size = heap_tracker_next_sample_size(sample_size);
+    current_sample_size = next_sample_size(sample_size);
 
     return old;
 }
