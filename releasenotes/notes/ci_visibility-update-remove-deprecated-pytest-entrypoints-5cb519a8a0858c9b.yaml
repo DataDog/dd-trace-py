@@ -1,0 +1,5 @@
+---
+upgrade:
+  - |
+    CI Visibility: Removed deprecated entry points for the ``pytest_benchmark`` and ``pytest_bdd`` integrations. These
+    plugins are now supported by the regular ``pytest`` integration.

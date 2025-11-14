@@ -12,7 +12,7 @@ from ddtrace.appsec.ai_guard import Message
 from ddtrace.appsec.ai_guard import Options
 from ddtrace.appsec.ai_guard import ToolCall
 from ddtrace.appsec.ai_guard import new_ai_guard_client
-from ddtrace.settings.asm import ai_guard_config
+from ddtrace.internal.settings.asm import ai_guard_config
 from tests.appsec.ai_guard.utils import assert_ai_guard_span
 from tests.appsec.ai_guard.utils import assert_mock_execute_request_call
 from tests.appsec.ai_guard.utils import find_ai_guard_span

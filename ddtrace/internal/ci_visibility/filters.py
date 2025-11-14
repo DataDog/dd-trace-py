@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 class TraceCiVisibilityFilter(TraceFilter):
     def __init__(self, tags, service):
-        # type: (Dict[Union[str, bytes], str], str) -> None
+        # type: (Dict[str, str], str) -> None
         self._tags = tags
         self._service = service
 
