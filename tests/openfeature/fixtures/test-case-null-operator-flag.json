@@ -1,0 +1,64 @@
+[
+  {
+    "flag": "null-operator-test",
+    "variationType": "STRING",
+    "defaultValue": "default-null",
+    "targetingKey": "alice",
+    "attributes": {
+      "size": 5,
+      "country": "US"
+    },
+    "result": {
+      "value": "old"
+    }
+  },
+  {
+    "flag": "null-operator-test",
+    "variationType": "STRING",
+    "defaultValue": "default-null",
+    "targetingKey": "bob",
+    "attributes": {
+      "size": 10,
+      "country": "Canada"
+    },
+    "result": {
+      "value": "new"
+    }
+  },
+  {
+    "flag": "null-operator-test",
+    "variationType": "STRING",
+    "defaultValue": "default-null",
+    "targetingKey": "charlie",
+    "attributes": {
+      "size": null
+    },
+    "result": {
+      "value": "old"
+    }
+  },
+  {
+    "flag": "null-operator-test",
+    "variationType": "STRING",
+    "defaultValue": "default-null",
+    "targetingKey": "david",
+    "attributes": {
+      "size": 26
+    },
+    "result": {
+      "value": "new"
+    }
+  },
+  {
+    "flag": "null-operator-test",
+    "variationType": "STRING",
+    "defaultValue": "default-null",
+    "targetingKey": "elize",
+    "attributes": {
+      "country": "UK"
+    },
+    "result": {
+      "value": "old"
+    }
+  }
+]
