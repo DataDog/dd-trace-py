@@ -18,7 +18,7 @@ dependencies = [
     "packaging==23.1",
     "pygments==2.16.1",
     "riot==0.20.1",
-    "ruff==0.14.4",
+    "ruff==0.14.5",
     "clang-format==18.1.5",
     "cmake-format==0.6.13",
     "ruamel.yaml==0.18.6",

@@ -218,7 +218,11 @@ lint.ignore = [
     "G201",
 ]
 line-length = 120
-preview = true
+
+# Allow experimental/preview checks
+lint.preview = true
+lint.explicit-preview-rules = true
+
 lint.select = [
     "A",
     "D",
