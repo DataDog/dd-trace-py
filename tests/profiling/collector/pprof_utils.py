@@ -142,8 +142,9 @@ def parse_newest_profile(filename_prefix: str) -> pprof_pb2.Profile:
     the newest profile that has given filename prefix.
     """
     files = glob.glob(filename_prefix + ".*")
-    # Sort files by creation timestamp (oldest first, newest last)
-    files.sort(key=lambda f: os.path.getctime(f))
+    # Sort files by logical timestamp (i.e. the sequence number, which is monotonically increasing);
+    # this approach is more reliable than filesystem timestamps, especially when files are created rapidly.
+    files.sort(key=lambda f: int(f.rsplit(".", 1)[-1]))
     filename = files[-1]
     with open(filename, "rb") as fp:
         dctx = zstd.ZstdDecompressor()

@@ -65,7 +65,6 @@ __all__ = [
     "copy_ranges_from_strings",
     "get_range_by_hash",
     "get_ranges",
-    "is_in_taint_map",
     "is_tainted",
     "new_pyobject_id",
     "origin_to_str",

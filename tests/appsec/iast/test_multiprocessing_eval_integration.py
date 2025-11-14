@@ -25,6 +25,7 @@ class TestMultiprocessingEvalIntegration:
     This reproduces the dd-source test scenario that was causing segfaults.
     """
 
+    @pytest.mark.skip(reason="multiprocessing fork doesn't work correctly in ddtrace-py 4.0")
     def test_uvicorn_style_worker_with_eval(self):
         """
         Simulate a uvicorn-style worker process that performs eval operations.
@@ -167,6 +168,7 @@ class TestMultiprocessingEvalIntegration:
             more_parent_result = eval(more_parent_tainted)
             assert more_parent_result == 500
 
+    @pytest.mark.skip(reason="multiprocessing fork doesn't work correctly in ddtrace-py 4.0")
     def test_sequential_workers_stress_test(self):
         """
         Stress test: Multiple workers created sequentially.

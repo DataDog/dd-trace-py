@@ -1,0 +1,318 @@
+[
+  {
+    "flag": "new-user-onboarding",
+    "variationType": "STRING",
+    "defaultValue": "default",
+    "targetingKey": "alice",
+    "attributes": {
+      "email": "alice@mycompany.com",
+      "country": "US"
+    },
+    "result": {
+      "value": "green"
+    }
+  },
+  {
+    "flag": "new-user-onboarding",
+    "variationType": "STRING",
+    "defaultValue": "default",
+    "targetingKey": "bob",
+    "attributes": {
+      "email": "bob@example.com",
+      "country": "Canada"
+    },
+    "result": {
+      "value": "default"
+    }
+  },
+  {
+    "flag": "new-user-onboarding",
+    "variationType": "STRING",
+    "defaultValue": "default",
+    "targetingKey": "charlie",
+    "attributes": {
+      "age": 50
+    },
+    "result": {
+      "value": "default"
+    }
+  },
+  {
+    "flag": "new-user-onboarding",
+    "variationType": "STRING",
+    "defaultValue": "default",
+    "targetingKey": "debra",
+    "attributes": {
+      "email": "test@test.com",
+      "country": "Mexico",
+      "age": 25
+    },
+    "result": {
+      "value": "blue"
+    }
+  },
+  {
+    "flag": "new-user-onboarding",
+    "variationType": "STRING",
+    "defaultValue": "default",
+    "targetingKey": "zach",
+    "attributes": {
+      "email": "test@test.com",
+      "country": "Mexico",
+      "age": 25
+    },
+    "result": {
+      "value": "purple"
+    }
+  },
+  {
+    "flag": "new-user-onboarding",
+    "variationType": "STRING",
+    "defaultValue": "default",
+    "targetingKey": "zach",
+    "attributes": {
+      "id": "override-id",
+      "email": "test@test.com",
+      "country": "Mexico",
+      "age": 25
+    },
+    "result": {
+      "value": "blue"
+    }
+  },
+  {
+    "flag": "new-user-onboarding",
+    "variationType": "STRING",
+    "defaultValue": "default",
+    "targetingKey": "Zach",
+    "attributes": {
+      "email": "test@test.com",
+      "country": "Mexico",
+      "age": 25
+    },
+    "result": {
+      "value": "default"
+    }
+  },
+  {
+    "flag": "new-user-onboarding",
+    "variationType": "STRING",
+    "defaultValue": "default",
+    "targetingKey": "1",
+    "attributes": {},
+    "result": {
+      "value": "default"
+    }
+  },
+  {
+    "flag": "new-user-onboarding",
+    "variationType": "STRING",
+    "defaultValue": "default",
+    "targetingKey": "2",
+    "attributes": {
+      "country": "Mexico"
+    },
+    "result": {
+      "value": "blue"
+    }
+  },
+  {
+    "flag": "new-user-onboarding",
+    "variationType": "STRING",
+    "defaultValue": "default",
+    "targetingKey": "3",
+    "attributes": {
+      "country": "UK",
+      "age": 33
+    },
+    "result": {
+      "value": "control"
+    }
+  },
+  {
+    "flag": "new-user-onboarding",
+    "variationType": "STRING",
+    "defaultValue": "default",
+    "targetingKey": "4",
+    "attributes": {
+      "country": "Germany"
+    },
+    "result": {
+      "value": "red"
+    }
+  },
+  {
+    "flag": "new-user-onboarding",
+    "variationType": "STRING",
+    "defaultValue": "default",
+    "targetingKey": "5",
+    "attributes": {
+      "country": "Germany"
+    },
+    "result": {
+      "value": "yellow"
+    }
+  },
+  {
+    "flag": "new-user-onboarding",
+    "variationType": "STRING",
+    "defaultValue": "default",
+    "targetingKey": "6",
+    "attributes": {
+      "country": "Germany"
+    },
+    "result": {
+      "value": "yellow"
+    }
+  },
+  {
+    "flag": "new-user-onboarding",
+    "variationType": "STRING",
+    "defaultValue": "default",
+    "targetingKey": "7",
+    "attributes": {
+      "country": "US"
+    },
+    "result": {
+      "value": "blue"
+    }
+  },
+  {
+    "flag": "new-user-onboarding",
+    "variationType": "STRING",
+    "defaultValue": "default",
+    "targetingKey": "8",
+    "attributes": {
+      "country": "Italy"
+    },
+    "result": {
+      "value": "red"
+    }
+  },
+  {
+    "flag": "new-user-onboarding",
+    "variationType": "STRING",
+    "defaultValue": "default",
+    "targetingKey": "9",
+    "attributes": {
+      "email": "email@email.com"
+    },
+    "result": {
+      "value": "default"
+    }
+  },
+  {
+    "flag": "new-user-onboarding",
+    "variationType": "STRING",
+    "defaultValue": "default",
+    "targetingKey": "10",
+    "attributes": {},
+    "result": {
+      "value": "default"
+    }
+  },
+  {
+    "flag": "new-user-onboarding",
+    "variationType": "STRING",
+    "defaultValue": "default",
+    "targetingKey": "11",
+    "attributes": {},
+    "result": {
+      "value": "default"
+    }
+  },
+  {
+    "flag": "new-user-onboarding",
+    "variationType": "STRING",
+    "defaultValue": "default",
+    "targetingKey": "12",
+    "attributes": {
+      "country": "US"
+    },
+    "result": {
+      "value": "blue"
+    }
+  },
+  {
+    "flag": "new-user-onboarding",
+    "variationType": "STRING",
+    "defaultValue": "default",
+    "targetingKey": "13",
+    "attributes": {
+      "country": "Canada"
+    },
+    "result": {
+      "value": "blue"
+    }
+  },
+  {
+    "flag": "new-user-onboarding",
+    "variationType": "STRING",
+    "defaultValue": "default",
+    "targetingKey": "14",
+    "attributes": {},
+    "result": {
+      "value": "default"
+    }
+  },
+  {
+    "flag": "new-user-onboarding",
+    "variationType": "STRING",
+    "defaultValue": "default",
+    "targetingKey": "15",
+    "attributes": {
+      "country": "Denmark"
+    },
+    "result": {
+      "value": "yellow"
+    }
+  },
+  {
+    "flag": "new-user-onboarding",
+    "variationType": "STRING",
+    "defaultValue": "default",
+    "targetingKey": "16",
+    "attributes": {
+      "country": "Norway"
+    },
+    "result": {
+      "value": "control"
+    }
+  },
+  {
+    "flag": "new-user-onboarding",
+    "variationType": "STRING",
+    "defaultValue": "default",
+    "targetingKey": "17",
+    "attributes": {
+      "country": "UK"
+    },
+    "result": {
+      "value": "control"
+    }
+  },
+  {
+    "flag": "new-user-onboarding",
+    "variationType": "STRING",
+    "defaultValue": "default",
+    "targetingKey": "18",
+    "attributes": {
+      "country": "UK"
+    },
+    "result": {
+      "value": "default"
+    }
+  },
+  {
+    "flag": "new-user-onboarding",
+    "variationType": "STRING",
+    "defaultValue": "default",
+    "targetingKey": "19",
+    "attributes": {
+      "country": "UK"
+    },
+    "result": {
+      "value": "red"
+    }
+  }
+]

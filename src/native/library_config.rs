@@ -1,4 +1,4 @@
-use datadog_library_config::{
+use libdd_library_config::{
     tracer_metadata::{store_tracer_metadata, AnonymousFileHandle, TracerMetadata},
     Configurator, ProcessInfo,
 };
@@ -42,7 +42,7 @@ impl PyConfigurator {
             &ProcessInfo::detect_global("python".to_string()),
         );
         match res_config {
-            datadog_library_config::LoggedResult::Ok(config, logs) => {
+            libdd_library_config::LoggedResult::Ok(config, logs) => {
                 // Previously, `libdatadog` printed debug logs to stderr. However,
                 // in v21.0.0, we changed the behavior to buffer them and return
                 // them in the logs returned by this `LoggedResult`.
@@ -60,7 +60,7 @@ impl PyConfigurator {
                 }
                 Ok(list.into())
             }
-            datadog_library_config::LoggedResult::Err(e) => {
+            libdd_library_config::LoggedResult::Err(e) => {
                 let err_msg = format!("Failed to get configuration: {e:?}");
                 Err(PyException::new_err(err_msg))
             }

@@ -33,7 +33,7 @@ def mock_tracer():
 def langgraph(monkeypatch, mock_tracer):
     patch()
     import langgraph
-    import langgraph.prebuilt
+    import langgraph.prebuilt  # noqa: F401
 
     pin = Pin.get_from(langgraph)
     pin._override(langgraph, tracer=mock_tracer)

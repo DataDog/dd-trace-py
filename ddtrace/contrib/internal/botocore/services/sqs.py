@@ -3,7 +3,7 @@ from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import Optional  # noqa:F401
 
-import botocore.client
+import botocore.client  # noqa: F401
 import botocore.exceptions
 
 from ddtrace import config

@@ -16,6 +16,7 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import INPUT_MESSAGES
+from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
@@ -26,6 +27,7 @@ from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import safe_load_json
@@ -738,9 +740,78 @@ def openai_get_metadata_from_response(
     return metadata
 
 
+def _extract_chat_template_from_instructions(
+    instructions: List[Any], variables: Dict[str, Any]
+) -> List[Dict[str, str]]:
+    """
+    Extract a chat template from OpenAI response instructions by replacing variable values with placeholders.
+
+    Args:
+        instructions: List of instruction messages from the OpenAI response
+        variables: Dictionary of variables used in the prompt
+
+    Returns:
+        List of chat template messages with placeholders (e.g., {{variable_name}})
+    """
+    chat_template = []
+
+    # Create a mapping of variable values to placeholder names
+    value_to_placeholder = {}
+    for var_name, var_value in variables.items():
+        if hasattr(var_value, "text"):  # ResponseInputText
+            value_str = str(var_value.text)
+        else:
+            value_str = str(var_value)
+
+        # Skip empty values
+        if not value_str:
+            continue
+
+        value_to_placeholder[value_str] = f"{{{{{var_name}}}}}"
+
+    # Sort by length (longest first) to handle overlapping values correctly
+    sorted_values = sorted(value_to_placeholder.keys(), key=len, reverse=True)
+
+    for instruction in instructions:
+        role = _get_attr(instruction, "role", "")
+        if not role:
+            continue
+
+        content_items = _get_attr(instruction, "content", [])
+        if not content_items:
+            continue
+
+        text_parts = []
+        for content_item in content_items:
+            text = _get_attr(content_item, "text", "")
+            if text:
+                text_parts.append(str(text))
+
+        if not text_parts:
+            continue
+
+        full_text = "".join(text_parts)
+
+        # Replace variable values with placeholders (longest first)
+        for value_str in sorted_values:
+            placeholder = value_to_placeholder[value_str]
+            full_text = full_text.replace(value_str, placeholder)
+
+        chat_template.append({"role": role, "content": full_text})
+
+    return chat_template
+
+
 def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], response: Optional[Any]) -> None:
     """Extract input/output tags from response and set them as temporary "_ml_obs.meta.*" tags."""
     input_data = kwargs.get("input", [])
+
+    # For reusable prompts, input may not be in kwargs, extract from response.instructions
+    if not input_data and response and "prompt" in kwargs:
+        instructions = _get_attr(response, "instructions", [])
+        if instructions:
+            input_data = load_data_value(instructions)
+
     input_messages = openai_get_input_messages_from_response_input(input_data)
 
     if "instructions" in kwargs:
@@ -752,6 +823,25 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], respo
             METADATA: openai_get_metadata_from_response(response, kwargs),
         }
     )
+
+    if "prompt" in kwargs:
+        prompt_data = kwargs.get("prompt")
+        if prompt_data:
+            try:
+                # Extract chat_template from response instructions if available
+                if response and not prompt_data.get("chat_template") and not prompt_data.get("template"):
+                    instructions = _get_attr(response, "instructions", None)
+                    variables = prompt_data.get("variables", {})
+                    if instructions and variables:
+                        chat_template = _extract_chat_template_from_instructions(instructions, variables)
+                        if chat_template:
+                            prompt_data = dict(prompt_data)  # Make a copy to avoid modifying the original
+                            prompt_data["chat_template"] = chat_template
+
+                validated_prompt = _validate_prompt(prompt_data, strict_validation=False)
+                span._set_ctx_item(INPUT_PROMPT, validated_prompt)
+            except (TypeError, ValueError, AttributeError) as e:
+                logger.debug("Failed to validate prompt for OpenAI response: %s", e)
 
     if span.error or not response:
         span._set_ctx_item(OUTPUT_MESSAGES, [Message(content="")])
