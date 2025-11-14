@@ -1,0 +1,134 @@
+interactions:
+- request:
+    body: '{"prompt":{"id":"pmpt_690b24669d8c81948acc0e98da10e6490190feb3a62eee0b","version":"4","variables":{"question":"What
+      is machine learning?"}}}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '140'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 2.3.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - Linux
+      x-stainless-package-version:
+      - 2.3.0
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.18
+    method: POST
+    uri: https://api.openai.com/v1/responses
+  response:
+    body:
+      string: !!binary |
+        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
+        BwAA//8DAHhWLkvUEQAA
+    headers:
+      CF-RAY:
+      - 99a4fa22dbb601cc-CDG
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 06 Nov 2025 13:36:05 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=oAc59HaJwUjrUv2uHgTgDkTP1sVynTMJVzliRX11b7o-1762436165-1.0.1.1-STkKgI9BlQHAvGzS.Rqi6UQVssVb5_M5J9QpUZICssvaO35gDy6yDFJo.tYdjVGKAGufaBJ9rwowcVi0u.xMc6oV0zOSTM2nqB6IjkP9W.4;
+        path=/; expires=Thu, 06-Nov-25 14:06:05 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=bDZxnxovYk7l9OeXSX6u2DbwKyUR5GDTvi_l5SLAkiY-1762436165819-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-staging
+      openai-processing-ms:
+      - '7512'
+      openai-project:
+      - proj_gt6TQZPRbZfoY2J9AQlEJMpd
+      openai-version:
+      - '2020-10-01'
+      x-envoy-upstream-service-time:
+      - '7514'
+      x-ratelimit-limit-requests:
+      - '30000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '29999'
+      x-ratelimit-remaining-tokens:
+      - '149999762'
+      x-ratelimit-reset-requests:
+      - 2ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_2409b397395c43bcaa8b763bb736ebf5
+    status:
+      code: 200
+      message: OK
+version: 1

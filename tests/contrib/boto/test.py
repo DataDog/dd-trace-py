@@ -5,9 +5,9 @@ from unittest import skipUnless
 import boto.awslambda
 import boto.ec2
 import boto.elasticache
-import boto.kms
+import boto.kms  # noqa: F401
 import boto.s3
-import boto.sqs
+import boto.sqs  # noqa: F401
 import boto.sts
 from moto import mock_ec2
 from moto import mock_lambda

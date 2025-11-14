@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    profiling: This fixes a bug where asyncio stacks would only get partial data, with some coroutines not showing.
