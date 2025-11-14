@@ -19,6 +19,8 @@ from ddtrace.appsec._iast.taint_sinks.untrusted_serialization import patch as un
 from ddtrace.appsec._iast.taint_sinks.weak_cipher import patch as weak_cipher_patch
 from ddtrace.appsec._iast.taint_sinks.weak_hash import patch as weak_hash_patch
 from ddtrace.appsec._iast.taint_sinks.weak_hash import unpatch_iast as weak_hash_unpatch
+from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
 from tests.appsec.iast.iast_utils import IAST_VALID_LOG
@@ -29,6 +31,14 @@ from tests.utils import override_global_config
 
 
 CONFIG_SERVER_PORT = "9596"
+
+
+@pytest.fixture(scope="module", autouse=True)
+def disable_threads():
+    """Disable remote config poller to prevent background threads that cause fork() deadlocks."""
+    remoteconfig_poller.disable()
+    telemetry_writer.disable()
+    yield
 
 
 @pytest.fixture
@@ -163,4 +173,14 @@ def clear_iast_env_vars():
     os.environ[IAST.PATCH_MODULES] = "benchmarks.,tests.appsec."
     if IAST.DENY_MODULES in os.environ:
         os.environ.pop("_DD_IAST_DENY_MODULES")
+
+    # Disable background services that start threads which cause fork() deadlocks
+    # when multiprocessing tests run. These services (remote config, telemetry,
+    # profiling, symbol db) have background threads that hold locks. When fork()
+    # is called, child processes inherit locks in unknown states, causing deadlocks.
+    os.environ["DD_REMOTE_CONFIGURATION_ENABLED"] = "0"
+    os.environ["DD_TELEMETRY_ENABLED"] = "0"
+    os.environ["DD_PROFILING_ENABLED"] = "0"
+    os.environ["DD_SYMBOL_DATABASE_UPLOAD_ENABLED"] = "0"
+
     yield
