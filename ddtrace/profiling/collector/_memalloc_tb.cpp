@@ -106,8 +106,7 @@ traceback_t::traceback_t(void* ptr,
                          size_t weighted_size,
                          PyFrameObject* pyframe,
                          uint16_t max_nframe)
-  : total_nframe(0)
-  , ptr(ptr)
+  : ptr(ptr)
   , size(weighted_size)
   , domain(domain)
   , thread_id(PyThread_get_thread_ident())
@@ -123,13 +122,13 @@ traceback_t::traceback_t(void* ptr,
     count = (size_t)scaled_count;
 
     // Collect frames from the Python frame chain
+    size_t total_nframe = 0;
     for (; pyframe != NULL;) {
         if (frames.size() < max_nframe) {
             frames.emplace_back(pyframe);
         }
-        /* Make sure we don't overflow */
-        if (total_nframe < UINT16_MAX)
-            total_nframe++;
+        // TODO(dsn): add a truncated frame to the traceback if we exceed the max_nframe
+        total_nframe++;
 
 #ifdef _PY39_AND_LATER
         PyFrameObject* back = PyFrame_GetBack(pyframe);

@@ -15,13 +15,11 @@ class frame_t
 
     /* Constructor - converts a PyFrameObject to a frame_t */
     explicit frame_t(PyFrameObject* pyframe);
-} __attribute__((packed));
+};
 
 class traceback_t
 {
   public:
-    /* Total number of frames in the traceback */
-    uint16_t total_nframe;
     /* Memory pointer allocated */
     void* ptr;
     /* Memory size allocated in bytes */
