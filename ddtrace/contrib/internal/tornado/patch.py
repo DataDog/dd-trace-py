@@ -36,7 +36,8 @@ VERSION_TUPLE = tuple([int(x) for x in get_version().split(".")])
 if VERSION_TUPLE < (6, 1, 0):
     deprecate(
         f"Tornado {VERSION_TUPLE} is deprecated",
-        message="Use Tornado v6.1 or later and configure tracing using environment variables and ``import ddtrace.auto`` instead.",
+        message="Use Tornado v6.1 or later and configure tracing using "
+        "environment variables and ``ddtrace-run`` or ``import ddtrace.auto`` instead.",
         category=DDTraceDeprecationWarning,
         removal_version="4.0.0",
     )
