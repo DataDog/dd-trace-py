@@ -2,7 +2,6 @@ import dataclasses
 import errno
 from json.decoder import JSONDecodeError
 import os
-import os.path
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import ClassVar

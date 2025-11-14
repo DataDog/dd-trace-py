@@ -1,7 +1,7 @@
 from typing import Dict
 
 import pyramid
-import pyramid.config
+import pyramid.config  # noqa: F401
 import wrapt
 
 from ddtrace import config

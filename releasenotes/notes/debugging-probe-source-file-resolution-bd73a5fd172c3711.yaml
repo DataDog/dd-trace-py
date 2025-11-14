@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: fix issue with line probes matching the wrong
+    source file when multiple source files from different Python path entries
+    share the same name.

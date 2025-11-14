@@ -96,6 +96,7 @@ def test_collect_once(tmp_path):
 
     ddup.upload()
     # assert len(all_events) == 0
+    assert all_events is not None
     assert len(all_events) == 2
 
     stack_events = all_events[0]
@@ -338,6 +339,8 @@ def test_ignore_profiler(tmp_path, ignore_profiler):
     with s:
         for _ in range(10):
             time.sleep(0.1)
+
+        assert s._worker is not None
         collector_worker_thread_id = s._worker.ident
 
     ddup.upload()
@@ -392,6 +395,8 @@ def test_ignore_profiler_gevent_task():
     with s:
         for _ in range(10):
             time.sleep(0.1)
+
+        assert s._worker is not None
         collector_worker_thread_id = s._worker.ident
 
     ddup.upload()
