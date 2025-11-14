@@ -26,6 +26,12 @@ CLIENT_TOOL_CALL_OPERATION_NAME = "client_tool_call"
 
 
 def _find_client_session_root(span: Optional[Span]) -> Optional[Span]:
+    """
+    Find the root span of a client session.
+    Note that this will not work in distributed tracing, but since
+    all client operations should happen in the same service or process,
+    this should mostly be safe.
+    """
     while span is not None:
         if span._get_ctx_item(MCP_SPAN_TYPE) == "client_session":
             return span
@@ -33,7 +39,7 @@ def _find_client_session_root(span: Optional[Span]) -> Optional[Span]:
     return None
 
 
-def _set_on_existing_tags(span: Span, tags: Dict[str, str]) -> None:
+def _set_or_update_tags(span: Span, tags: Dict[str, str]) -> None:
     existing_tags: Optional[Dict[str, str]] = span._get_ctx_item(TAGS)
     if existing_tags is not None:
         existing_tags.update(tags)
@@ -101,7 +107,7 @@ class MCPIntegration(BaseLLMIntegration):
         client_session_root = _find_client_session_root(span)
         if client_session_root:
             client_session_root_tags = client_session_root._get_ctx_item(TAGS) or {}
-            _set_on_existing_tags(
+            _set_or_update_tags(
                 span,
                 {
                     "mcp_server_name": client_session_root_tags.get("mcp_server_name", ""),
@@ -120,7 +126,7 @@ class MCPIntegration(BaseLLMIntegration):
         output_value = {"content": processed_content, "isError": is_error}
         span._set_ctx_item(OUTPUT_VALUE, output_value)
 
-        _set_on_existing_tags(span, {"mcp_tool_kind": "client"})
+        _set_or_update_tags(span, {"mcp_tool_kind": "client"})
 
     def _llmobs_set_tags_server(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any) -> None:
         tool_arguments = get_argument_value(args, kwargs, 1, "arguments", optional=True) or {}
@@ -135,7 +141,7 @@ class MCPIntegration(BaseLLMIntegration):
             }
         )
 
-        _set_on_existing_tags(span, {"mcp_tool_kind": "server"})
+        _set_or_update_tags(span, {"mcp_tool_kind": "server"})
 
         if span.error or response is None:
             return
@@ -164,7 +170,7 @@ class MCPIntegration(BaseLLMIntegration):
 
         client_session_root = _find_client_session_root(span)
         if client_session_root:
-            _set_on_existing_tags(
+            _set_or_update_tags(
                 client_session_root,
                 {
                     "mcp_server_name": getattr(server_info, "name", ""),

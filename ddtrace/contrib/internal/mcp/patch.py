@@ -120,7 +120,10 @@ async def traced_call_tool(mcp, pin: Pin, func, instance, args: tuple, kwargs: d
         if getattr(result, "isError", False):
             content = getattr(result, "content", [])
             span.error = 1
-            span.set_tag(ERROR_MSG, getattr(content[0], "text", ""))
+
+            content_block = content[0] if content and isinstance(content, list) else None
+            if content_block and getattr(content_block, "text", None):
+                span.set_tag(ERROR_MSG, content_block.text)
 
         integration.llmobs_set_tags(
             span, args=args, kwargs=kwargs, response=result, operation=CLIENT_TOOL_CALL_OPERATION_NAME
