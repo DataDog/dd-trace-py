@@ -83,6 +83,13 @@ class EvaluationResult(TypedDict):
     evaluations: Dict[str, Dict[str, JSONType]]
 
 
+class _ExperimentRunInfo:
+    def __init__(self, run_interation: int):
+        self._id = uuid.uuid4()
+        # always increment the representation of iteration by 1 for readability
+        self._run_iteration = run_interation + 1
+
+
 class ExperimentRowResult(TypedDict):
     idx: int
     record_id: Optional[str]
@@ -97,9 +104,23 @@ class ExperimentRowResult(TypedDict):
     error: Dict[str, Optional[str]]
 
 
+class ExperimentRun:
+    def __init__(
+        self,
+        run: _ExperimentRunInfo,
+        summary_evaluations: Dict[str, Dict[str, JSONType]],
+        rows: List[ExperimentRowResult],
+    ):
+        self.run_id = run._id
+        self.run_iteration = run._run_iteration
+        self.summary_evaluations = summary_evaluations or {}
+        self.rows = rows or []
+
+
 class ExperimentResult(TypedDict):
     summary_evaluations: Dict[str, Dict[str, JSONType]]
     rows: List[ExperimentRowResult]
+    runs: List[ExperimentRun]
 
 
 class Dataset:
@@ -312,13 +333,6 @@ class Dataset:
         return pd.DataFrame(data=records_list, columns=pd.MultiIndex.from_tuples(column_tuples))
 
 
-class _ExperimentRunInfo:
-    def __init__(self, run_interation: int):
-        self._id = uuid.uuid4()
-        # always increment the representation of iteration by 1 for readability
-        self._run_iteration = run_interation + 1
-
-
 class Experiment:
     def __init__(
         self,
@@ -387,6 +401,10 @@ class Experiment:
         self._id = experiment_id
         self._tags["experiment_id"] = str(experiment_id)
         self._run_name = experiment_run_name
+        run_results = []
+        # for backwards compatibility
+        first_run_rows = []
+        first_run_summary_evals = {}
         for run_iteration in range(self._runs):
             run = _ExperimentRunInfo(run_iteration)
             self._tags["run_id"] = str(run._id)
@@ -394,13 +412,22 @@ class Experiment:
             task_results = self._run_task(jobs, run, raise_errors, sample_size)
             evaluations = self._run_evaluators(task_results, raise_errors=raise_errors)
             summary_evals = self._run_summary_evaluators(task_results, evaluations, raise_errors)
-            experiment_results = self._merge_results(task_results, evaluations, summary_evals)
-            experiment_evals = self._generate_metrics_from_exp_results(experiment_results)
+            run_result = self._merge_results(run, task_results, evaluations, summary_evals)
+            experiment_evals = self._generate_metrics_from_exp_results(run_result)
             self._llmobs_instance._dne_client.experiment_eval_post(
                 self._id, experiment_evals, convert_tags_dict_to_list(self._tags)
             )
+            run_results.append(run_result)
+            if run_iteration == 0:
+                first_run_rows = run_result.rows
+                first_run_summary_evals = run_result.summary_evaluations
 
-        return experiment_results
+        experiment_result: ExperimentResult = {
+            "summary_evaluations": first_run_summary_evals,
+            "rows": first_run_rows,
+            "runs": run_results,
+        }
+        return experiment_result
 
     @property
     def url(self) -> str:
@@ -564,10 +591,11 @@ class Experiment:
 
     def _merge_results(
         self,
+        run: _ExperimentRunInfo,
         task_results: List[TaskResult],
         evaluations: List[EvaluationResult],
         summary_evaluations: Optional[List[EvaluationResult]],
-    ) -> ExperimentResult:
+    ) -> ExperimentRun:
         experiment_results = []
         for idx, task_result in enumerate(task_results):
             output_data = task_result["output"]
@@ -596,11 +624,7 @@ class Experiment:
                 for name, eval_data in summary_evaluation["evaluations"].items():
                     summary_evals[name] = eval_data
 
-        result: ExperimentResult = {
-            "summary_evaluations": summary_evals,
-            "rows": experiment_results,
-        }
-        return result
+        return ExperimentRun(run, summary_evals, experiment_results)
 
     def _generate_metric_from_evaluation(
         self,
@@ -636,11 +660,11 @@ class Experiment:
         }
 
     def _generate_metrics_from_exp_results(
-        self, experiment_result: ExperimentResult
+        self, experiment_result: ExperimentRun
     ) -> List["LLMObsExperimentEvalMetricEvent"]:
         eval_metrics = []
         latest_timestamp: int = 0
-        for exp_result in experiment_result["rows"]:
+        for exp_result in experiment_result.rows:
             evaluations = exp_result.get("evaluations") or {}
             span_id = exp_result.get("span_id", "")
             trace_id = exp_result.get("trace_id", "")
@@ -657,7 +681,7 @@ class Experiment:
                 )
                 eval_metrics.append(eval_metric)
 
-        for name, summary_eval_data in experiment_result.get("summary_evaluations", {}).items():
+        for name, summary_eval_data in experiment_result.summary_evaluations.items():
             if not summary_eval_data:
                 continue
             eval_metric = self._generate_metric_from_evaluation(
