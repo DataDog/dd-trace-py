@@ -1,0 +1,158 @@
+#!/usr/bin/env scripts/uv-run-script
+# -*- mode: python -*-
+# /// script
+# requires-python = ">=3.9"
+# dependencies = ["packaging"]
+# ///
+"""Verify and update static versions in pyproject.toml and ddtrace/version.py.
+
+Usage:
+    scripts/verify-package-version       # Check versions match (exit 0 if OK, 1 if mismatch)
+    scripts/verify-package-version --fix # Update version.py from pyproject.toml
+"""
+
+from pathlib import Path
+import re
+import sys
+
+from packaging.version import InvalidVersion
+from packaging.version import Version
+
+
+try:
+    import tomllib
+except ModuleNotFoundError:
+    import tomli as tomllib  # type: ignore[import-not-found]
+
+
+def version_to_tuple(version_str: str) -> tuple:
+    """Convert a PEP 440 version string to a 4-element tuple.
+
+    Returns a tuple of (major, minor, micro, pre_release_identifier)
+    where pre_release_identifier is a string like "rc1", "dev0", "post1", or "".
+
+    Raises:
+        InvalidVersion: If the version string is not PEP 440 compliant.
+    """
+    parsed = Version(version_str)
+    major, minor, micro = parsed.release[:3]
+
+    # Build the pre-release identifier
+    pre_id_parts = []
+    if parsed.pre:
+        pre_id_parts.append(f"{parsed.pre[0]}{parsed.pre[1]}")
+    if parsed.post is not None:
+        pre_id_parts.append(f"post{parsed.post}")
+    if parsed.dev is not None:
+        pre_id_parts.append(f"dev{parsed.dev}")
+    if parsed.local:
+        pre_id_parts.append(f"+{parsed.local}")
+
+    pre_id = "".join(pre_id_parts) if pre_id_parts else ""
+
+    return (major, minor, micro, pre_id)
+
+
+def read_pyproject_version(pyproject_path: Path) -> str:
+    """Read version from pyproject.toml."""
+    with open(pyproject_path, "rb") as f:
+        data = tomllib.load(f)
+    return data["project"]["version"]
+
+
+def read_version_py(version_path: Path) -> tuple:
+    """Read version and version_tuple from ddtrace/version.py.
+
+    Returns:
+        Tuple of (version_string, version_tuple)
+    """
+    content = version_path.read_text()
+
+    version_match = re.search(r'__version__\s*=\s*version\s*=\s*"([^"]+)"', content)
+    if not version_match:
+        raise ValueError("Could not find __version__ in version.py")
+    version = version_match.group(1)
+
+    tuple_match = re.search(r"__version_tuple__\s*=\s*version_tuple\s*=\s*(\([^)]+\))", content)
+    if not tuple_match:
+        raise ValueError("Could not find __version_tuple__ in version.py")
+    version_tuple = eval(tuple_match.group(1))
+
+    return version, version_tuple
+
+
+def format_tuple_with_double_quotes(tup: tuple) -> str:
+    """Format a tuple using double quotes for strings instead of single quotes."""
+    elements = []
+    for item in tup:
+        if isinstance(item, str):
+            elements.append(f'"{item}"')
+        else:
+            elements.append(repr(item))
+    return f"({', '.join(elements)})"
+
+
+def update_version_py(version_path: Path, new_version: str, new_version_tuple: tuple) -> None:
+    """Update version and version_tuple in ddtrace/version.py."""
+    content = version_path.read_text()
+
+    version_tuple_str = format_tuple_with_double_quotes(new_version_tuple)
+
+    content = re.sub(
+        r'__version__\s*=\s*version\s*=\s*"[^"]+"',
+        f'__version__ = version = "{new_version}"',
+        content,
+    )
+
+    content = re.sub(
+        r"__version_tuple__\s*=\s*version_tuple\s*=\s*\([^)]+\)",
+        f"__version_tuple__ = version_tuple = {version_tuple_str}",
+        content,
+    )
+
+    version_path.write_text(content)
+
+
+def main() -> int:
+    """Main entry point."""
+    fix = "--fix" in sys.argv
+
+    repo_root = Path(__file__).parent.parent
+    pyproject_path = repo_root / "pyproject.toml"
+    version_path = repo_root / "ddtrace" / "version.py"
+
+    try:
+        pyproject_version = read_pyproject_version(pyproject_path)
+
+        # Validate that the version is PEP 440 compliant
+        try:
+            pyproject_version_tuple = version_to_tuple(pyproject_version)
+        except InvalidVersion as e:
+            print(f"✗ Invalid version in pyproject.toml: {pyproject_version}", file=sys.stderr)
+            print(f"  Error: {e}", file=sys.stderr)
+            return 1
+
+        current_version, current_version_tuple = read_version_py(version_path)
+
+        if current_version == pyproject_version and current_version_tuple == pyproject_version_tuple:
+            print("✓ Versions match!")
+            return 0
+
+        if not fix:
+            print("✗ Version mismatch detected:")
+            print(f"  pyproject.toml:      {pyproject_version} {pyproject_version_tuple}")
+            print(f"  ddtrace/version.py:  {current_version} {current_version_tuple}")
+            print("\nRun with --fix to update ddtrace/version.py")
+            return 1
+
+        update_version_py(version_path, pyproject_version, pyproject_version_tuple)
+        print(f"✓ Updated ddtrace/version.py to {pyproject_version} {pyproject_version_tuple}")
+        return 0
+
+    except Exception as e:
+        print(f"✗ Error: {e}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
