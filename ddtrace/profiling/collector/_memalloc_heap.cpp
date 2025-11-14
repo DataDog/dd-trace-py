@@ -385,7 +385,8 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
     }
 
     /* Avoid loops */
-    if (!memalloc_take_guard()) {
+    memalloc_reentrant_guard_t guard;
+    if (!guard) {
         return;
     }
 
@@ -426,14 +427,12 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
 #endif
 
     if (!tb) {
-        memalloc_yield_guard();
         return;
     }
 
     // Check that instance is still valid after GIL release in memalloc_get_traceback
     if (!heap_tracker_t::instance) {
         traceback_free(tb);
-        memalloc_yield_guard();
         return;
     }
 
@@ -441,8 +440,6 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
     if (to_free) {
         traceback_free(to_free);
     }
-
-    memalloc_yield_guard();
 }
 
 PyObject*
