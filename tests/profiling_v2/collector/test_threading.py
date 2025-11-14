@@ -1022,47 +1022,45 @@ class BaseThreadingLockCollectorTest:
         with self.collector_class(capture_pct=100):
             with self.lock_class():  # !CREATE! !ACQUIRE! !RELEASE! test_upload_resets_profile
                 pass
+
         ddup.upload()  # pyright: ignore[reportCallIssue]
 
         linenos: LineNo = get_lock_linenos("test_upload_resets_profile", with_stmt=True)
 
-        try:
-            pprof: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
-            pprof_utils.assert_lock_events(
-                pprof,
-                expected_acquire_events=[
-                    pprof_utils.LockAcquireEvent(
-                        caller_name=self.test_name,
-                        filename=os.path.basename(__file__),
-                        linenos=linenos,
-                    ),
-                ],
-                expected_release_events=[
-                    pprof_utils.LockReleaseEvent(
-                        caller_name=self.test_name,
-                        filename=os.path.basename(__file__),
-                        linenos=linenos,
-                    ),
-                ],
-            )
-        except (AssertionError, KeyError) as e:
-            # This can be flaky due to timing or interference from other tests
-            pytest.skip(f"Profile validation failed (known flaky on some platforms): {e}")
+        pprof: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
+        pprof_utils.assert_lock_events(
+            pprof,
+            expected_acquire_events=[
+                pprof_utils.LockAcquireEvent(
+                    caller_name=self.test_name,
+                    filename=os.path.basename(__file__),
+                    linenos=linenos,
+                ),
+            ],
+            expected_release_events=[
+                pprof_utils.LockReleaseEvent(
+                    caller_name=self.test_name,
+                    filename=os.path.basename(__file__),
+                    linenos=linenos,
+                ),
+            ],
+        )
 
-        # Now we call upload() again without any new lock operations
-        # We expect the profile to be empty or contain no samples
+        # Now we call upload() again, and we expect the profile to be empty
+        num_files_before_second_upload: int = len(glob.glob(self.output_filename + ".*"))
+
         ddup.upload()  # pyright: ignore[reportCallIssue]
 
-        # Try to parse the newest profile - it should either not exist (no new file)
-        # or have no samples (which would raise AssertionError in parse_newest_profile)
-        try:
-            _ = pprof_utils.parse_newest_profile(self.output_filename)
-            # If we got here, a profile with samples exists
-            # This might be okay if other collectors are running
-            pytest.skip("Profile still has samples (possibly from other activity - known flaky)")
-        except (AssertionError, IndexError):
-            # Expected: no profile file or no samples
-            pass
+        num_files_after_second_upload: int = len(glob.glob(self.output_filename + ".*"))
+
+        # A new profile file should always be created (upload_seq increments)
+        assert (
+            num_files_after_second_upload - num_files_before_second_upload == 1
+        ), f"Expected 1 new file, got {num_files_after_second_upload - num_files_before_second_upload}."
+
+        # The newest profile file should be empty (no samples), which causes an AssertionError
+        with pytest.raises(AssertionError, match="No samples found in profile"):
+            pprof_utils.parse_newest_profile(self.output_filename)
 
     def test_lock_hash(self) -> None:
         """Test that __hash__ allows profiled locks to be used in sets and dicts."""
