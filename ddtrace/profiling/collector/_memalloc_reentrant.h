@@ -1,13 +1,5 @@
 #pragma once
 
-#define _POSIX_C_SOURCE 200809L
-#include <cstdint>
-#include <cstdlib>
-#include <ctime>
-#include <errno.h>
-#include <pthread.h>
-#include <unistd.h>
-
 // Thread-local storage macro for Unix (GCC/Clang)
 // NB - we explicitly specify global-dynamic on Unix because the others are problematic.
 // See e.g. https://fuchsia.dev/fuchsia-src/development/kernel/threads/tls for
