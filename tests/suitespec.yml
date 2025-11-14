@@ -76,7 +76,6 @@ components:
     - ddtrace/__init__.py
     - ddtrace/py.typed
     - ddtrace/version.py
-    - ddtrace/_version.py
     - ddtrace/internal/settings/_config.py
     - src/native/*
   datastreams:
@@ -218,12 +217,6 @@ suites:
     parallelism: 2
     runner: riot
     pattern: ^lib_injection$
-  slotscheck:
-    parallelism: 1
-    paths:
-      - 'ddtrace/**/*.py'
-    runner: riot
-    snapshot: false
   runtime:
     paths:
       - '@bootstrap'

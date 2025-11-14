@@ -103,6 +103,7 @@ def _get_updatable_packages_implementing(contrib_modules: typing.Set[str]) -> ty
     all_venvs = _propagate_venv_names_to_child_venvs(all_venvs)
 
     packages_setting_latest = set()
+
     def recurse_venvs(venvs: typing.List[riotfile.Venv]):
         for venv in venvs:
             # split venv name by ":" since some venvs are named after the integration:subintegration
@@ -232,7 +233,7 @@ def _get_package_versions_from(
 
     for line in lockfile_content:
         package, _, versions = line.partition("==")
-        package = package.split("[")[0] # strip optional package installs like flask[async]
+        package = package.split("[")[0]  # strip optional package installs like flask[async]
         if package in dependencies or package == integration:
             lock_packages.append((package, versions))
     return lock_packages

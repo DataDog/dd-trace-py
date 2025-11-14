@@ -8,7 +8,7 @@ from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.utils.config import get_application_name
-from ddtrace.version import get_version
+from ddtrace.version import __version__
 
 
 DEFAULT_MAX_PROBES = 100
@@ -17,7 +17,7 @@ DEFAULT_GLOBAL_RATE_LIMIT = 100.0
 
 def _derive_tags(c):
     # type: (DDConfig) -> str
-    _tags = dict(env=ddconfig.env, version=ddconfig.version, debugger_version=get_version())
+    _tags = dict(env=ddconfig.env, version=ddconfig.version, debugger_version=__version__)
     _tags.update(ddconfig.tags)
 
     # Add git metadata tags, if available

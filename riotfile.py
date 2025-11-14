@@ -129,12 +129,6 @@ venv = Venv(
             },
         ),
         Venv(
-            name="slotscheck",
-            command="python -m slotscheck -v ddtrace/",
-            pys=["3.10"],
-            pkgs={"slotscheck": "==0.17.0"},
-        ),
-        Venv(
             name="build_docs",
             command="scripts/docs/build.sh",
             pys=["3.10"],

@@ -46,10 +46,14 @@ components:
     - ddtrace/contrib/__init__.py
     - ddtrace/contrib/internal/__init__.py
     - ddtrace/contrib/trace_utils.py
+    - ddtrace/contrib/internal/__init__.py
+    - ddtrace/contrib/internal/trace_utils_base.py
     - ddtrace/contrib/internal/trace_utils_async.py
     - ddtrace/contrib/internal/trace_utils_base.py
     - ddtrace/contrib/internal/trace_utils.py
     - ddtrace/contrib/internal/redis_utils.py
+    - ddtrace/contrib/ray.py
+    - ddtrace/contrib/valkey.py
     - ddtrace/ext/__init__.py
     - ddtrace/ext/http.py
     - ddtrace/ext/net.py

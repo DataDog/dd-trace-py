@@ -9,13 +9,13 @@ from textwrap import dedent
 import unittest
 
 from ddtrace.internal.compat import is_wrapted
-from ddtrace.version import get_version
+from ddtrace.version import __version__
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import call_program
 
 
-TRACER_VERSION = get_version()
+TRACER_VERSION = __version__
 
 
 class PatchMixin(unittest.TestCase):

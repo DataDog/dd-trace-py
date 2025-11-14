@@ -22,7 +22,7 @@ from ddtrace.internal.native import DDSketch
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
-from ddtrace.version import get_version
+from ddtrace.version import __version__
 
 from .._encoding import packb
 from ..agent import get_connection
@@ -115,7 +115,7 @@ class DataStreamsProcessor(PeriodicService):
         self._buckets = defaultdict(
             lambda: Bucket(defaultdict(PathwayStats), defaultdict(int), defaultdict(int))
         )  # type: DefaultDict[int, Bucket]
-        self._version = get_version()
+        self._version = __version__
         self._headers = {
             "Datadog-Meta-Lang": "python",
             "Datadog-Meta-Tracer-Version": self._version,

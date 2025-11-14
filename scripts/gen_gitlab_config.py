@@ -271,6 +271,11 @@ def gen_pre_checks() -> None:
         command="scripts/check-dependency-bounds",
         paths={"pyproject.toml"},
     )
+    check(
+        name="Check package version",
+        command="scripts/verify-package-version",
+        paths={"pyproject.toml", "ddtrace/version.py"},
+    )
     if not checks:
         return
 

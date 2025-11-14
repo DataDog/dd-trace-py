@@ -4,7 +4,7 @@ import ddtrace.auto  # noqa: F401, I001
 import ddtrace.profiling.auto  # noqa:F401
 
 
-import gevent.monkey # noqa:F402
+import gevent.monkey  # noqa:F402
 
 gevent.monkey.patch_all()
 
