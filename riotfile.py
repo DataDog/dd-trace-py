@@ -663,6 +663,7 @@ venv = Venv(
                 "httpretty": latest,
                 "typing-extensions": latest,
                 "pytest-asyncio": latest,
+                "pytest-benchmark": latest,
             },
             pys=select_pys(),
         ),
