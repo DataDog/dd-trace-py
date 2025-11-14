@@ -20,10 +20,12 @@ components:
     - ddtrace/ext/aws.py
   azure_eventhubs:
     - ddtrace/contrib/internal/azure_eventhubs/*
+    - ddtrace/ext/azure_eventhubs.py
   azure_functions:
     - ddtrace/contrib/internal/azure_functions/*
   azure_servicebus:
     - ddtrace/contrib/internal/azure_servicebus/*
+    - ddtrace/ext/azure_servicebus.py
   botocore:
     - ddtrace/contrib/internal/botocore/*
     - ddtrace/contrib/internal/boto/*
@@ -42,8 +44,10 @@ components:
     - ddtrace/ext/consul.py
   contrib:
     - ddtrace/contrib/__init__.py
+    - ddtrace/contrib/internal/__init__.py
     - ddtrace/contrib/trace_utils.py
     - ddtrace/contrib/internal/trace_utils_async.py
+    - ddtrace/contrib/internal/trace_utils_base.py
     - ddtrace/contrib/internal/trace_utils.py
     - ddtrace/contrib/internal/redis_utils.py
     - ddtrace/ext/__init__.py
@@ -53,6 +57,7 @@ components:
     - ddtrace/ext/sql.py
     - ddtrace/ext/test.py
     - ddtrace/ext/user.py
+    - ddtrace/ext/websocket.py
     - ddtrace/propagation/*
     - ddtrace/internal/settings/_database_monitoring.py
     - tests/contrib/patch.py
@@ -151,6 +156,7 @@ components:
     - ddtrace/contrib/internal/pyramid/*
   ray:
     - ddtrace/contrib/internal/ray/*
+    - ddtrace/contrib/ray.py
   redis:
     - ddtrace/contrib/internal/rediscluster/*
     - ddtrace/contrib/internal/redis/*
@@ -186,6 +192,7 @@ components:
   valkey:
     - ddtrace/contrib/internal/valkey/*
     - ddtrace/contrib/internal/valkey_utils.py
+    - ddtrace/contrib/valkey.py
     - ddtrace/_trace/utils_valkey.py
     - ddtrace/ext/valkey.py
   vertica:
