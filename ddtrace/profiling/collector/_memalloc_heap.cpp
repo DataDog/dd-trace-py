@@ -1,7 +1,6 @@
 #include <cassert>
 #include <cmath>
 #include <cstdlib>
-#include <memory>
 #include <vector>
 
 #define PY_SSIZE_T_CLEAN
@@ -108,6 +107,9 @@ class heap_tracker_t
     traceback_t* add_sample_no_cpython(traceback_t* tb);
 
     PyObject* export_heap();
+
+    /* Global instance of the heap tracker */
+    static heap_tracker_t* instance;
 
   private:
     static uint32_t heap_tracker_next_sample_size(uint32_t sample_size);
@@ -346,7 +348,8 @@ heap_tracker_t::export_heap()
     return heap_list;
 }
 
-static std::unique_ptr<heap_tracker_t> global_heap_tracker;
+// Static member definition
+heap_tracker_t* heap_tracker_t::instance = nullptr;
 
 /* Public API */
 
@@ -354,30 +357,28 @@ void
 memalloc_heap_tracker_init(uint32_t sample_size)
 {
     // TODO(dsn): what should we do it this was already initialized?
-    if (!global_heap_tracker) {
-        global_heap_tracker = std::make_unique<heap_tracker_t>(sample_size);
+    if (!heap_tracker_t::instance) {
+        heap_tracker_t::instance = new heap_tracker_t(sample_size);
     }
 }
 
 void
 memalloc_heap_tracker_deinit(void)
 {
-    // Note that as per the standard, reset() first sets null then calls the deleter.
-    // This is important because the deleter call may release the GIL, and we want to use nullptr as a sentinel.
-    // https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2017/n4713.pdf 23.11.1.2.5
-    // Effects: Assigns p to the stored pointer, and then if and only if the old value of the stored pointer,
-    // old_p, was not equal to nullptr, calls get_deleter()(old_p). [ Note: The order of these operations
-    // is significant because the call to get_deleter() may destroy *this. — end note ]
-    global_heap_tracker.reset();
+    // Delete the instance and set to nullptr. We set to nullptr first so that
+    // if the destructor releases the GIL, we can use nullptr as a sentinel.
+    heap_tracker_t* old_instance = heap_tracker_t::instance;
+    heap_tracker_t::instance = nullptr;
+    delete old_instance;
 }
 
 void
 memalloc_heap_untrack(void* ptr)
 {
-    if (!global_heap_tracker) {
+    if (!heap_tracker_t::instance) {
         return;
     }
-    traceback_t* tb = global_heap_tracker->untrack_no_cpython(ptr);
+    traceback_t* tb = heap_tracker_t::instance->untrack_no_cpython(ptr);
     if (tb) {
         traceback_free(tb);
     }
@@ -387,11 +388,11 @@ memalloc_heap_untrack(void* ptr)
 void
 memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorDomain domain)
 {
-    if (!global_heap_tracker) {
+    if (!heap_tracker_t::instance) {
         return;
     }
     uint64_t allocated_memory_val = 0;
-    if (!global_heap_tracker->should_sample_no_cpython(size, &allocated_memory_val)) {
+    if (!heap_tracker_t::instance->should_sample_no_cpython(size, &allocated_memory_val)) {
         return;
     }
 
@@ -441,7 +442,14 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
         return;
     }
 
-    traceback_t* to_free = global_heap_tracker->add_sample_no_cpython(tb);
+    // Check that instance is still valid after GIL release in memalloc_get_traceback
+    if (!heap_tracker_t::instance) {
+        traceback_free(tb);
+        memalloc_yield_guard();
+        return;
+    }
+
+    traceback_t* to_free = heap_tracker_t::instance->add_sample_no_cpython(tb);
     if (to_free) {
         traceback_free(to_free);
     }
@@ -482,8 +490,8 @@ memalloc_sample_to_tuple(traceback_t* tb, bool is_live)
 PyObject*
 memalloc_heap(void)
 {
-    if (!global_heap_tracker) {
+    if (!heap_tracker_t::instance) {
         return PyList_New(0);
     }
-    return global_heap_tracker->export_heap();
+    return heap_tracker_t::instance->export_heap();
 }
