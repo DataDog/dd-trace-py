@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    aiokafka: Adds instrumentation support for ``aiokafka>=0.9.0``. See the
+    ``aiokafka<https://ddtrace.readthedocs.io/en/stable/integrations.html#aiokafka>``
+    documentation for more information.

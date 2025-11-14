@@ -197,6 +197,7 @@ INTEGRATION_CONFIGS = frozenset(
         "openai_agents",
         "mcp",
         "ray",
+        "aiokafka",
     }
 )
 
