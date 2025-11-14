@@ -201,7 +201,7 @@ heap_tracker_t::thaw()
 {
     std::vector<traceback_t*> to_free = thaw_no_cpython();
     for (traceback_t* tb : to_free) {
-        traceback_free(tb);
+        delete tb;
     }
 }
 
@@ -324,7 +324,7 @@ heap_tracker_t::export_heap()
     /* Free all tracebacks in unreported_samples after reporting them */
     for (traceback_t* tb : unreported_samples) {
         if (tb != nullptr) {
-            traceback_free(tb);
+            delete tb;
         }
     }
     /* Clear the vector so we can reuse the memory */
@@ -367,7 +367,7 @@ memalloc_heap_untrack(void* ptr)
     }
     traceback_t* tb = heap_tracker_t::instance->untrack_no_cpython(ptr);
     if (tb) {
-        traceback_free(tb);
+        delete tb;
     }
 }
 
@@ -417,7 +417,7 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
        will tend to be larger for large allocations and smaller for small
        allocations, and close to the average sampling interval so that the sum
        of sample live allocations stays close to the actual heap size */
-    traceback_t* tb = memalloc_get_traceback(max_nframe, ptr, size, domain, allocated_memory_val);
+    traceback_t* tb = traceback_t::get_traceback(max_nframe, ptr, size, domain, allocated_memory_val);
 
 #if defined(_PY310_AND_LATER) && !defined(_PY312_AND_LATER)
     if (gc_enabled) {
@@ -429,15 +429,15 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
         return;
     }
 
-    // Check that instance is still valid after GIL release in memalloc_get_traceback
+    // Check that instance is still valid after GIL release in get_traceback
     if (!heap_tracker_t::instance) {
-        traceback_free(tb);
+        delete tb;
         return;
     }
 
     traceback_t* to_free = heap_tracker_t::instance->add_sample_no_cpython(tb);
     if (to_free) {
-        traceback_free(to_free);
+        delete to_free;
     }
 }
 
@@ -463,7 +463,7 @@ memalloc_sample_to_tuple(traceback_t* tb, bool is_live)
         alloc_size = tb->size;
     }
 
-    PyTuple_SET_ITEM(tb_and_info, 0, traceback_to_tuple(tb));
+    PyTuple_SET_ITEM(tb_and_info, 0, tb->to_tuple());
     PyTuple_SET_ITEM(tb_and_info, 1, PyLong_FromSize_t(in_use_size));
     PyTuple_SET_ITEM(tb_and_info, 2, PyLong_FromSize_t(alloc_size));
     PyTuple_SET_ITEM(tb_and_info, 3, PyLong_FromSize_t(tb->count));

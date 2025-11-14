@@ -134,7 +134,7 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
         return NULL;
     }
 
-    if (memalloc_tb_init(global_memalloc_ctx.max_nframe) < 0)
+    if (!traceback_t::init())
         return NULL;
 
     if (object_string == NULL) {
@@ -189,7 +189,7 @@ memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
     memalloc_heap_tracker_deinit();
 
     /* Finally, we know in-progress sampling won't use the buffer pool, so clear it out */
-    memalloc_tb_deinit();
+    traceback_t::deinit();
 
     memalloc_enabled = false;
 

@@ -22,7 +22,7 @@ memalloc_heap_map::~memalloc_heap_map()
 {
     HeapSamples_CIter it = HeapSamples_citer(&map);
     for (const HeapSamples_Entry* e = HeapSamples_CIter_get(&it); e != nullptr; e = HeapSamples_CIter_next(&it)) {
-        traceback_free(e->val);
+        delete e->val;
     }
     HeapSamples_destroy(&map);
 }
@@ -84,7 +84,7 @@ memalloc_heap_map::export_to_python() const
         traceback_t* tb = e->val;
 
         PyObject* tb_and_size = PyTuple_New(2);
-        PyTuple_SET_ITEM(tb_and_size, 0, traceback_to_tuple(tb));
+        PyTuple_SET_ITEM(tb_and_size, 0, tb->to_tuple());
         PyTuple_SET_ITEM(tb_and_size, 1, PyLong_FromSize_t(tb->size));
         PyList_SET_ITEM(heap_list, i, tb_and_size);
         i++;
