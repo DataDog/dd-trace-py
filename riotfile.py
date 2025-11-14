@@ -354,6 +354,7 @@ venv = Venv(
                 "protobuf": latest,
             },
             env={
+                "DD_TRACE_AGENT_URL": "http://localhost:9126",
                 "DD_REMOTE_CONFIGURATION_ENABLED": "0",
                 "DD_TELEMETRY_ENABLED": "0",
                 "DD_PROFILING_ENABLED": "0",
