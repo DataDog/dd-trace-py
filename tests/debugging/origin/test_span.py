@@ -2,8 +2,6 @@ from functools import partial
 from pathlib import Path
 import typing as t
 
-import pytest
-
 import ddtrace
 from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
 from ddtrace.debugging._origin.span import SpanCodeOriginProcessorExit
@@ -46,6 +44,9 @@ class SpanProbeTestCase(TracerTestCase):
 
         MockSpanCodeOriginProcessorEntry.enable()
         MockSpanCodeOriginProcessor.enable()
+
+        if (uploader := MockSpanCodeOriginProcessor.get_uploader()) is not None:
+            uploader.flush()
 
     def tearDown(self):
         ddtrace.tracer = self.backup_tracer
@@ -94,7 +95,6 @@ class SpanProbeTestCase(TracerTestCase):
         assert _exit.get_tag("_dd.code_origin.frames.0.file") == str(Path(__file__).resolve())
         assert _exit.get_tag("_dd.code_origin.frames.0.line") == str(self.test_span_origin.__code__.co_firstlineno)
 
-    @pytest.mark.skip(reason="Frequent unreliable failures")
     def test_span_origin_session(self):
         def entry_call():
             pass
@@ -111,7 +111,12 @@ class SpanProbeTestCase(TracerTestCase):
 
         self.assert_span_count(3)
         entry, middle, _exit = self.get_spans()
-        payloads = MockSpanCodeOriginProcessor.get_uploader().wait_for_payloads()
+
+        snapshot_ids_from_span_tags = {
+            s.get_tag(f"_dd.code_origin.frames.{_}.snapshot_id") for s in (entry, middle, _exit) for _ in range(8)
+        } - {None}
+
+        payloads = MockSpanCodeOriginProcessor.get_uploader().wait_for_payloads(len(snapshot_ids_from_span_tags))
         snapshot_ids = {p["debugger"]["snapshot"]["id"] for p in payloads}
 
         assert len(payloads) == len(snapshot_ids)
@@ -125,9 +130,8 @@ class SpanProbeTestCase(TracerTestCase):
 
         # Check that we have all the snapshots for the exit span
         assert _exit.get_tag("_dd.code_origin.type") == "exit"
-        snapshot_ids_from_span_tags = {_exit.get_tag(f"_dd.code_origin.frames.{_}.snapshot_id") for _ in range(8)}
-        snapshot_ids_from_span_tags.discard(None)
-        assert snapshot_ids_from_span_tags < snapshot_ids
+
+        assert snapshot_ids_from_span_tags == snapshot_ids
 
         # Check that we have complete data
         snapshot_ids_from_span_tags.add(entry_snapshot_id)
