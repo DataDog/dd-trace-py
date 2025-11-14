@@ -76,7 +76,7 @@ integrations:
   - algoliasearch
   tested_versions_by_dependency:
     algoliasearch:
-      min: 2.5.0
+      min: 2.6.3
       max: 2.6.3
 
 - integration_name: anthropic
@@ -114,7 +114,7 @@ integrations:
   - asyncpg
   tested_versions_by_dependency:
     asyncpg:
-      min: 0.22.0
+      min: 0.23.0
       max: 0.30.0
 
 - integration_name: avro
@@ -204,16 +204,6 @@ integrations:
     bottle:
       min: 0.12.25
       max: 0.13.4
-
-- integration_name: cassandra
-  is_external_package: true
-  is_tested: true
-  dependency_names:
-  - cassandra-driver
-  tested_versions_by_dependency:
-    cassandra-driver:
-      min: 3.24.0
-      max: 3.28.0
 
 - integration_name: celery
   is_external_package: true
@@ -389,16 +379,6 @@ integrations:
       min: 1.10.1
       max: 2.3.0
 
-- integration_name: freezegun
-  is_external_package: true
-  is_tested: true
-  dependency_names:
-  - freezegun
-  tested_versions_by_dependency:
-    freezegun:
-      min: 1.3.1
-      max: 1.5.2
-
 - integration_name: futures
   is_external_package: false
   is_tested: true
@@ -410,7 +390,7 @@ integrations:
   - gevent
   tested_versions_by_dependency:
     gevent:
-      min: 20.12.1
+      min: 21.1.2
       max: 25.5.1
 
 - integration_name: google_adk
@@ -432,16 +412,6 @@ integrations:
     google-genai:
       min: 1.21.1
       max: 1.41.0
-
-- integration_name: google_generativeai
-  is_external_package: true
-  is_tested: true
-  dependency_names:
-  - google-generativeai
-  tested_versions_by_dependency:
-    google-generativeai:
-      min: 0.7.2
-      max: 0.8.5
 
 - integration_name: graphql
   is_external_package: true
@@ -619,16 +589,6 @@ integrations:
       min: 1.0.2
       max: 1.0.2
 
-- integration_name: mongoengine
-  is_external_package: true
-  is_tested: true
-  dependency_names:
-  - mongoengine
-  tested_versions_by_dependency:
-    mongoengine:
-      min: 0.23.1
-      max: 0.29.1
-
 - integration_name: mysql
   is_external_package: true
   is_tested: true
@@ -676,7 +636,7 @@ integrations:
   - protobuf
   tested_versions_by_dependency:
     protobuf:
-      min: 5.29.3
+      min: 6.30.1
       max: 6.32.0
 
 - integration_name: psycopg
@@ -690,7 +650,7 @@ integrations:
       min: 3.0.18
       max: 3.2.10
     psycopg2-binary:
-      min: 2.8.6
+      min: 2.9.10
       max: 2.9.10
 
 - integration_name: pydantic_ai
@@ -750,7 +710,7 @@ integrations:
   - pynamodb
   tested_versions_by_dependency:
     pynamodb:
-      min: 5.0.3
+      min: 5.5.1
       max: 5.5.1
 
 - integration_name: pyodbc
@@ -836,7 +796,7 @@ integrations:
   - requests
   tested_versions_by_dependency:
     requests:
-      min: 2.20.1
+      min: 2.25.1
       max: 2.32.5
 
 - integration_name: rq
@@ -872,7 +832,7 @@ integrations:
   - snowflake-connector-python
   tested_versions_by_dependency:
     snowflake-connector-python:
-      min: 2.3.10
+      min: 2.4.6
       max: 3.17.2
 
 - integration_name: sqlalchemy
@@ -938,7 +898,7 @@ integrations:
   - urllib3
   tested_versions_by_dependency:
     urllib3:
-      min: 1.25.0
+      min: 1.25.8
       max: 2.5.0
 
 - integration_name: valkey

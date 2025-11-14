@@ -5,8 +5,8 @@ import typing as t
 import ddtrace.internal.core as core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.products import manager as product_manager
-from ddtrace.settings._core import ValueSource
-from ddtrace.settings.code_origin import config
+from ddtrace.internal.settings._core import ValueSource
+from ddtrace.internal.settings.code_origin import config
 
 
 log = get_logger(__name__)

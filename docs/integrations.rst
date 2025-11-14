@@ -116,13 +116,6 @@ Bottle
 .. automodule:: ddtrace.contrib.bottle
 
 
-.. _cassandra:
-
-Cassandra
-^^^^^^^^^
-.. automodule:: ddtrace.contrib.internal.cassandra
-
-
 .. _celery:
 
 Celery
@@ -222,13 +215,6 @@ Flask Cache
 .. automodule:: ddtrace.contrib.flask_cache
 
 
-.. _freezegun:
-
-FreezeGun
-^^^^^^^^^
-.. automodule:: ddtrace.contrib.internal.freezegun
-
-
 .. _futures:
 
 futures
@@ -255,12 +241,6 @@ google-adk
 google-genai
 ^^^^^^^^^^^^
 .. automodule:: ddtrace.contrib.internal.google_genai
-
-.. _google_generativeai:
-
-google-generativeai
-^^^^^^^^^^^^^^^^^^^
-.. automodule:: ddtrace.contrib.internal.google_generativeai
 
 
 .. _graphql:
@@ -379,13 +359,6 @@ MariaDB
 Molten
 ^^^^^^
 .. automodule:: ddtrace.contrib.internal.molten
-
-
-.. _mongoengine:
-
-Mongoengine
-^^^^^^^^^^^
-.. automodule:: ddtrace.contrib.internal.mongoengine
 
 
 .. _mysql-connector:

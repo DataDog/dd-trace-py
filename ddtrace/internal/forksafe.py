@@ -5,11 +5,12 @@ An API to provide fork-safe functions.
 import functools
 import logging
 import os
-import threading
 import typing
 import weakref
 
 import wrapt
+
+from ddtrace.internal import _unpatched
 
 
 log = logging.getLogger(__name__)
@@ -138,13 +139,13 @@ class ResetObject(wrapt.ObjectProxy, typing.Generic[_T]):
         self.__wrapped__ = self._self_wrapped_class()
 
 
-def Lock() -> threading.Lock:
-    return ResetObject(threading.Lock)  # type: ignore
+def Lock() -> _unpatched.threading_Lock:
+    return ResetObject(_unpatched.threading_Lock)
 
 
-def RLock() -> threading.RLock:
-    return ResetObject(threading.RLock)  # type: ignore
+def RLock() -> _unpatched.threading_RLock:
+    return ResetObject(_unpatched.threading_RLock)
 
 
-def Event() -> threading.Event:
-    return ResetObject(threading.Event)  # type: ignore
+def Event() -> _unpatched.threading_Event:
+    return ResetObject(_unpatched.threading_Event)
