@@ -4,7 +4,7 @@ import torch.optim
 from torch.profiler import ProfilerActivity
 import torch.utils.data
 import torchvision.datasets
-import torchvision.models
+import torchvision.models  # noqa: F401
 from torchvision.models import ResNet18_Weights
 from torchvision.models import resnet18
 import torchvision.transforms as T
