@@ -1155,33 +1155,10 @@ if not IS_PYSTON:
 else:
     ext_modules = []
 
-interpose_sccache()
-setup(
-    name="ddtrace",
-    packages=find_packages(exclude=["tests*", "benchmarks*", "scripts*"]),
-    package_data={
-        "ddtrace": ["py.typed"],
-        "ddtrace.appsec": ["rules.json"],
-        "ddtrace.appsec._ddwaf": ["libddwaf/*/lib/libddwaf.*"],
-        "ddtrace.appsec._iast._taint_tracking": ["CMakeLists.txt"],
-        "ddtrace.internal.datadog.profiling": (
-            ["libdd_wrapper*.*"]
-            + (["ddtrace/internal/datadog/profiling/test/*"] if BUILD_PROFILING_NATIVE_TESTS else [])
-        ),
-    },
-    zip_safe=False,
-    # enum34 is an enum backport for earlier versions of python
-    # funcsigs backport required for vendored debtcollector
-    cmdclass={
-        "build_ext": CustomBuildExt,
-        "build_py": LibraryDownloader,
-        "build_rust": CustomBuildRust,
-        "clean": CleanLibraries,
-        "ext_hashes": ExtensionHashes,
-    },
-    setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28", "setuptools-rust"],
-    ext_modules=ext_modules
-    + cythonize(
+
+cython_exts = []
+if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
+    cython_exts = cythonize(
         [
             Cython.Distutils.Extension(
                 "ddtrace.internal._rand",
@@ -1242,6 +1219,32 @@ setup(
         compiler_directives={"language_level": "3"},
         cache=True,
     )
-    + get_exts_for("psutil"),
+
+interpose_sccache()
+setup(
+    name="ddtrace",
+    packages=find_packages(exclude=["tests*", "benchmarks*", "scripts*"]),
+    package_data={
+        "ddtrace": ["py.typed"],
+        "ddtrace.appsec": ["rules.json"],
+        "ddtrace.appsec._ddwaf": ["libddwaf/*/lib/libddwaf.*"],
+        "ddtrace.appsec._iast._taint_tracking": ["CMakeLists.txt"],
+        "ddtrace.internal.datadog.profiling": (
+            ["libdd_wrapper*.*"]
+            + (["ddtrace/internal/datadog/profiling/test/*"] if BUILD_PROFILING_NATIVE_TESTS else [])
+        ),
+    },
+    zip_safe=False,
+    # enum34 is an enum backport for earlier versions of python
+    # funcsigs backport required for vendored debtcollector
+    cmdclass={
+        "build_ext": CustomBuildExt,
+        "build_py": LibraryDownloader,
+        "build_rust": CustomBuildRust,
+        "clean": CleanLibraries,
+        "ext_hashes": ExtensionHashes,
+    },
+    setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28", "setuptools-rust"],
+    ext_modules=ext_modules + cython_exts + get_exts_for("psutil"),
     distclass=PatchedDistribution,
 )
