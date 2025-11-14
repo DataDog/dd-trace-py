@@ -43,21 +43,8 @@ components:
     - ddtrace/contrib/internal/consul/*
     - ddtrace/ext/consul.py
   contrib:
-    - ddtrace/contrib/__init__.py
-    - ddtrace/contrib/internal/__init__.py
-    - ddtrace/contrib/trace_utils.py
-    - ddtrace/contrib/internal/trace_utils_async.py
-    - ddtrace/contrib/internal/trace_utils_base.py
-    - ddtrace/contrib/internal/trace_utils.py
-    - ddtrace/contrib/internal/redis_utils.py
-    - ddtrace/ext/__init__.py
-    - ddtrace/ext/http.py
-    - ddtrace/ext/net.py
-    - ddtrace/ext/schema.py
-    - ddtrace/ext/sql.py
-    - ddtrace/ext/test.py
-    - ddtrace/ext/user.py
-    - ddtrace/ext/websocket.py
+    - ddtrace/contrib/*
+    - ddtrace/ext/*
     - ddtrace/propagation/*
     - ddtrace/internal/settings/_database_monitoring.py
     - tests/contrib/patch.py
