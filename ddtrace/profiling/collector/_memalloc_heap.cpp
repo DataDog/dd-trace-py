@@ -80,7 +80,6 @@ class heap_tracker_t
     heap_tracker_t(const heap_tracker_t&) = delete;
     heap_tracker_t& operator=(const heap_tracker_t&) = delete;
 
-    void deinit();
     void freeze();
 
     /* Un-freeze the profiler, and return any samples we weren't able to remove while
@@ -202,18 +201,6 @@ heap_tracker_t::thaw()
     for (traceback_t* tb : to_free) {
         traceback_free(tb);
     }
-}
-
-void
-heap_tracker_t::deinit()
-{
-    /* Setting the sample size back to zero acts as a flag that the profiler is
-     * deactivated. Checked during sampling, in case sampling and
-     * deinitialization interleave due to GIL release.
-     * NB: do this before wiping, in case deallocating tracebacks leads to GIL
-     * release
-     */
-    sample_size = 0;
 }
 
 traceback_t*
@@ -375,15 +362,21 @@ memalloc_heap_tracker_init(uint32_t sample_size)
 void
 memalloc_heap_tracker_deinit(void)
 {
-    if (global_heap_tracker) {
-        global_heap_tracker->deinit();
-        global_heap_tracker.reset();
-    }
+    // Note that as per the standard, reset() first sets null then calls the deleter.
+    // This is important because the deleter call may release the GIL, and we want to use nullptr as a sentinel.
+    // https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2017/n4713.pdf 23.11.1.2.5
+    // Effects: Assigns p to the stored pointer, and then if and only if the old value of the stored pointer,
+    // old_p, was not equal to nullptr, calls get_deleter()(old_p). [ Note: The order of these operations
+    // is significant because the call to get_deleter() may destroy *this. — end note ]
+    global_heap_tracker.reset();
 }
 
 void
 memalloc_heap_untrack(void* ptr)
 {
+    if (!global_heap_tracker) {
+        return;
+    }
     traceback_t* tb = global_heap_tracker->untrack_no_cpython(ptr);
     if (tb) {
         traceback_free(tb);
@@ -394,6 +387,9 @@ memalloc_heap_untrack(void* ptr)
 void
 memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorDomain domain)
 {
+    if (!global_heap_tracker) {
+        return;
+    }
     uint64_t allocated_memory_val = 0;
     if (!global_heap_tracker->should_sample_no_cpython(size, &allocated_memory_val)) {
         return;
@@ -486,5 +482,8 @@ memalloc_sample_to_tuple(traceback_t* tb, bool is_live)
 PyObject*
 memalloc_heap(void)
 {
+    if (!global_heap_tracker) {
+        return PyList_New(0);
+    }
     return global_heap_tracker->export_heap();
 }
