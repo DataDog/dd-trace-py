@@ -16,9 +16,14 @@ from .constants import ENTRYPOINT_WORKDIR_TAG
 
 log = get_logger(__name__)
 
+_INVALID_CHARS_PATTERN = re.compile(r"[^a-z0-9/._-]")
+_CONSECUTIVE_UNDERSCORES_PATTERN = re.compile(r"_{2,}")
+
 
 def normalize_tag(value: str) -> str:
-    return re.sub(r"[^a-z0-9/._-]", "_", value.lower())
+    normalized = _INVALID_CHARS_PATTERN.sub("_", value.lower())
+    normalized = _CONSECUTIVE_UNDERSCORES_PATTERN.sub("_", normalized)
+    return normalized.strip("_")
 
 
 def generate_process_tags() -> Optional[str]:
