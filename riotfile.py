@@ -340,7 +340,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_iast_default",
-            command="pytest -v {cmdargs} tests/appsec/iast/",
+            command="pytest -vv --no-ddtrace --no-cov {cmdargs} tests/appsec/iast/",
             pys=select_pys(max_version="3.13"),  # pycryptodome doesn't publish 3.14 wheels
             pkgs={
                 "requests": latest,
