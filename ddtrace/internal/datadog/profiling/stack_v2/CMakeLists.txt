@@ -1,5 +1,12 @@
 cmake_minimum_required(VERSION 3.19)
 
+# Disable testing by default (can be overridden with -DBUILD_TESTING=ON) Don't use FORCE to allow command-line overrides
+if(NOT DEFINED BUILD_TESTING)
+    set(BUILD_TESTING
+        OFF
+        CACHE BOOL "Build the testing tree")
+endif()
+
 # The exact name of this extension determines aspects of the installation and build paths, which need to be kept in sync
 # with setup.py. Accordingly, take the name passed in by the caller, defaulting to "stack_v2" if needed.
 set(EXTENSION_NAME
@@ -49,7 +56,7 @@ endif()
 
 # Add echion
 set(ECHION_COMMIT
-    "1b02a8fcccaa4b748b494f3c3177b78be6503967" # https://github.com/P403n1x87/echion/commit/1b02a8fcccaa4b748b494f3c3177b78be6503967
+    "e9f06f7f2a716d583e1bd204eab33b12dc970983" # https://github.com/P403n1x87/echion/commit/e9f06f7f2a716d583e1bd204eab33b12dc970983
     CACHE STRING "Commit hash of echion to use")
 FetchContent_Declare(
     echion
@@ -62,8 +69,15 @@ if(NOT echion_POPULATED)
 endif()
 
 # Specify the target C-extension that we want to build
-add_library(${EXTENSION_NAME} SHARED ${echion_SOURCE_DIR}/echion/frame.cc ${echion_SOURCE_DIR}/echion/render.cc
-                                     src/sampler.cpp src/stack_renderer.cpp src/stack_v2.cpp src/thread_span_links.cpp)
+add_library(
+    ${EXTENSION_NAME} SHARED
+    ${echion_SOURCE_DIR}/echion/frame.cc
+    ${echion_SOURCE_DIR}/echion/render.cc
+    ${echion_SOURCE_DIR}/echion/danger.cc
+    src/sampler.cpp
+    src/stack_renderer.cpp
+    src/stack_v2.cpp
+    src/thread_span_links.cpp)
 
 # Add common config
 add_ddup_config(${EXTENSION_NAME})
@@ -102,11 +116,23 @@ set_target_properties(${EXTENSION_NAME} PROPERTIES PREFIX "")
 set_target_properties(${EXTENSION_NAME} PROPERTIES SUFFIX "")
 
 # RPATH is needed for sofile discovery at runtime, since Python packages are not installed in the system path. This is
-# typical.
+# typical. Use BUILD_WITH_INSTALL_RPATH to avoid rpath manipulation during install phase which can cause conflicts For
+# standalone/test builds, also include LIB_INSTALL_DIR so tests can find libdd_wrapper
 if(APPLE)
-    set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "@loader_path/..")
+    if(BUILD_TESTING AND LIB_INSTALL_DIR)
+        set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "@loader_path/..;${LIB_INSTALL_DIR}"
+                                                           BUILD_WITH_INSTALL_RPATH TRUE)
+    else()
+        set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "@loader_path/.." BUILD_WITH_INSTALL_RPATH
+                                                                                           TRUE)
+    endif()
 elseif(UNIX)
-    set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/..")
+    if(BUILD_TESTING AND LIB_INSTALL_DIR)
+        set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/..;${LIB_INSTALL_DIR}"
+                                                           BUILD_WITH_INSTALL_RPATH TRUE)
+    else()
+        set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/.." BUILD_WITH_INSTALL_RPATH TRUE)
+    endif()
 endif()
 
 target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper Threads::Threads)

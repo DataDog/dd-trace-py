@@ -269,16 +269,14 @@ class TestLLMObsOpenaiV1:
 
     def test_completion_stream(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
         with get_openai_vcr(subdirectory_name="v1").use_cassette("completion_streamed.yaml"):
-            with mock.patch("ddtrace.llmobs._integrations.utils.encoding_for_model", create=True) as mock_encoding:
-                with mock.patch("ddtrace.llmobs._integrations.utils._est_tokens") as mock_est:
-                    mock_encoding.return_value.encode.side_effect = lambda x: [1, 2]
-                    mock_est.return_value = 2
-                    model = "ada"
-                    expected_completion = '! ... A page layouts page drawer? ... Interesting. The "Tools" is'
-                    client = openai.OpenAI()
-                    resp = client.completions.create(model=model, prompt="Hello world", stream=True)
-                    for _ in resp:
-                        pass
+            with mock.patch("ddtrace.llmobs._integrations.utils._est_tokens") as mock_est:
+                mock_est.return_value = 2
+                model = "ada"
+                expected_completion = '! ... A page layouts page drawer? ... Interesting. The "Tools" is'
+                client = openai.OpenAI()
+                resp = client.completions.create(model=model, prompt="Hello world", stream=True)
+                for _ in resp:
+                    pass
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
@@ -565,24 +563,22 @@ class TestLLMObsOpenaiV1:
         """
 
         with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_streamed.yaml"):
-            with mock.patch("ddtrace.llmobs._integrations.utils.encoding_for_model", create=True) as mock_encoding:
-                with mock.patch("ddtrace.llmobs._integrations.utils._est_tokens") as mock_est:
-                    mock_encoding.return_value.encode.side_effect = lambda x: [1, 2, 3, 4, 5, 6, 7, 8]
-                    mock_est.return_value = 8
-                    model = "gpt-3.5-turbo"
-                    resp_model = model
-                    input_messages = [{"role": "user", "content": "Who won the world series in 2020?"}]
-                    expected_completion = "The Los Angeles Dodgers won the World Series in 2020."
-                    client = openai.OpenAI()
-                    resp = client.chat.completions.create(
-                        model=model,
-                        messages=input_messages,
-                        stream=True,
-                        user="ddtrace-test",
-                        stream_options={"include_usage": False},
-                    )
-                    for chunk in resp:
-                        resp_model = chunk.model
+            with mock.patch("ddtrace.llmobs._integrations.utils._est_tokens") as mock_est:
+                mock_est.return_value = 8
+                model = "gpt-3.5-turbo"
+                resp_model = model
+                input_messages = [{"role": "user", "content": "Who won the world series in 2020?"}]
+                expected_completion = "The Los Angeles Dodgers won the World Series in 2020."
+                client = openai.OpenAI()
+                resp = client.chat.completions.create(
+                    model=model,
+                    messages=input_messages,
+                    stream=True,
+                    user="ddtrace-test",
+                    stream_options={"include_usage": False},
+                )
+                for chunk in resp:
+                    resp_model = chunk.model
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
@@ -2152,6 +2148,57 @@ MUL: "*"
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 87),
+        reason="Reusable prompts only available in openai >= 1.87",
+    )
+    def test_response_with_prompt_tracking(self, openai, mock_llmobs_writer, mock_tracer):
+        """Test that prompt metadata (id, version, variables) is captured for reusable prompts."""
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("response_with_prompt.yaml"):
+            client = openai.OpenAI()
+            client.responses.create(
+                prompt={
+                    "id": "pmpt_690b24669d8c81948acc0e98da10e6490190feb3a62eee0b",
+                    "version": "4",
+                    "variables": {"question": "What is machine learning?"},
+                }
+            )
+        mock_tracer.pop_traces()
+        assert mock_llmobs_writer.enqueue.call_count == 1
+
+        call_args = mock_llmobs_writer.enqueue.call_args[0][0]
+
+        # Verify prompt metadata is captured
+        assert "prompt" in call_args["meta"]["input"]
+        actual_prompt = call_args["meta"]["input"]["prompt"]
+        assert actual_prompt["id"] == "pmpt_690b24669d8c81948acc0e98da10e6490190feb3a62eee0b"
+        assert actual_prompt["version"] == "4"
+        assert actual_prompt["variables"] == {"question": "What is machine learning?"}
+
+        # Verify chat_template is extracted with variable placeholders
+        assert "chat_template" in actual_prompt
+        chat_template = actual_prompt["chat_template"]
+        assert len(chat_template) == 2
+        # First message: developer role
+        assert chat_template[0]["role"] == "developer"
+        assert chat_template[0]["content"] == "Direct & Conversational tone"
+        # Second message: user role with variable placeholder
+        assert chat_template[1]["role"] == "user"
+        assert chat_template[1]["content"] == "You are a helpful assistant. Please answer this question: {{question}}"
+
+        # Verify the actual prompt content is captured in input messages
+        input_messages = call_args["meta"]["input"]["messages"]
+        assert len(input_messages) == 2
+        # Developer message
+        assert input_messages[0]["role"] == "developer"
+        assert input_messages[0]["content"] == "Direct & Conversational tone"
+        # User message with rendered variables
+        assert input_messages[1]["role"] == "user"
+        assert (
+            input_messages[1]["content"]
+            == "You are a helpful assistant. Please answer this question: What is machine learning?"
         )
 
 

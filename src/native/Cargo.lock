@@ -216,8 +216,8 @@ dependencies = [
 
 [[package]]
 name = "build_common"
-version = "22.1.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v22.1.0#9517280fdb1ff5779ca2528a12c3807051de57fb"
+version = "24.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
 dependencies = [
  "cbindgen",
  "serde",
@@ -280,15 +280,6 @@ dependencies = [
  "jobserver",
  "libc",
  "shlex",
-]
-
-[[package]]
-name = "cc_utils"
-version = "0.1.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v22.1.0#9517280fdb1ff5779ca2528a12c3807051de57fb"
-dependencies = [
- "anyhow",
- "cc",
 ]
 
 [[package]]
@@ -484,311 +475,18 @@ dependencies = [
 ]
 
 [[package]]
-name = "data-pipeline"
-version = "22.1.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v22.1.0#9517280fdb1ff5779ca2528a12c3807051de57fb"
-dependencies = [
- "anyhow",
- "arc-swap",
- "bytes",
- "datadog-ddsketch",
- "datadog-trace-protobuf",
- "datadog-trace-stats",
- "datadog-trace-utils",
- "ddcommon",
- "ddtelemetry",
- "dogstatsd-client",
- "either",
- "http",
- "http-body-util",
- "hyper",
- "hyper-util",
- "rmp-serde",
- "serde",
- "serde_json",
- "sha2",
- "tinybytes",
- "tokio",
- "tokio-util",
- "tracing",
- "uuid",
-]
-
-[[package]]
-name = "datadog-alloc"
-version = "22.1.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v22.1.0#9517280fdb1ff5779ca2528a12c3807051de57fb"
-dependencies = [
- "allocator-api2",
- "libc",
- "windows-sys 0.52.0",
-]
-
-[[package]]
-name = "datadog-crashtracker"
-version = "22.1.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v22.1.0#9517280fdb1ff5779ca2528a12c3807051de57fb"
-dependencies = [
- "anyhow",
- "backtrace",
- "blazesym",
- "cc",
- "cc_utils",
- "chrono",
- "ddcommon",
- "ddtelemetry",
- "http",
- "libc",
- "nix",
- "num-derive",
- "num-traits",
- "os_info",
- "page_size",
- "portable-atomic",
- "rand",
- "schemars",
- "serde",
- "serde_json",
- "symbolic-common",
- "symbolic-demangle",
- "thiserror",
- "tokio",
- "uuid",
- "windows 0.59.0",
-]
-
-[[package]]
-name = "datadog-ddsketch"
-version = "22.1.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v22.1.0#9517280fdb1ff5779ca2528a12c3807051de57fb"
-dependencies = [
- "prost",
-]
-
-[[package]]
-name = "datadog-library-config"
-version = "0.0.2"
-source = "git+https://github.com/DataDog/libdatadog?rev=v22.1.0#9517280fdb1ff5779ca2528a12c3807051de57fb"
-dependencies = [
- "anyhow",
- "memfd",
- "rand",
- "rmp",
- "rmp-serde",
- "serde",
- "serde_yaml",
-]
-
-[[package]]
-name = "datadog-log"
-version = "22.1.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v22.1.0#9517280fdb1ff5779ca2528a12c3807051de57fb"
-dependencies = [
- "chrono",
- "ddcommon-ffi",
- "tracing",
- "tracing-appender",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "datadog-profiling"
-version = "22.1.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v22.1.0#9517280fdb1ff5779ca2528a12c3807051de57fb"
-dependencies = [
- "anyhow",
- "bitmaps",
- "byteorder",
- "bytes",
- "chrono",
- "datadog-alloc",
- "datadog-profiling-protobuf",
- "ddcommon",
- "futures",
- "http",
- "http-body-util",
- "hyper",
- "hyper-multipart-rfc7578",
- "indexmap",
- "lz4_flex",
- "mime",
- "prost",
- "rustc-hash 1.1.0",
- "serde",
- "serde_json",
- "target-triple",
- "tokio",
- "tokio-util",
-]
-
-[[package]]
-name = "datadog-profiling-ffi"
-version = "22.1.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v22.1.0#9517280fdb1ff5779ca2528a12c3807051de57fb"
-dependencies = [
- "anyhow",
- "build_common",
- "datadog-profiling",
- "ddcommon",
- "ddcommon-ffi",
- "function_name",
- "futures",
- "http-body-util",
- "hyper",
- "libc",
- "serde_json",
- "tokio-util",
-]
-
-[[package]]
-name = "datadog-profiling-protobuf"
-version = "22.1.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v22.1.0#9517280fdb1ff5779ca2528a12c3807051de57fb"
-dependencies = [
- "prost",
-]
-
-[[package]]
-name = "datadog-trace-normalization"
-version = "22.1.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v22.1.0#9517280fdb1ff5779ca2528a12c3807051de57fb"
-dependencies = [
- "anyhow",
- "datadog-trace-protobuf",
-]
-
-[[package]]
-name = "datadog-trace-protobuf"
-version = "22.1.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v22.1.0#9517280fdb1ff5779ca2528a12c3807051de57fb"
-dependencies = [
- "prost",
- "serde",
- "serde_bytes",
-]
-
-[[package]]
-name = "datadog-trace-stats"
-version = "22.1.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v22.1.0#9517280fdb1ff5779ca2528a12c3807051de57fb"
-dependencies = [
- "datadog-ddsketch",
- "datadog-trace-protobuf",
- "datadog-trace-utils",
- "hashbrown 0.15.5",
-]
-
-[[package]]
-name = "datadog-trace-utils"
-version = "22.1.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v22.1.0#9517280fdb1ff5779ca2528a12c3807051de57fb"
-dependencies = [
- "anyhow",
- "bytes",
- "datadog-trace-normalization",
- "datadog-trace-protobuf",
- "ddcommon",
- "futures",
- "http-body-util",
- "hyper",
- "prost",
- "rand",
- "rmp",
- "rmp-serde",
- "rmpv",
- "serde",
- "serde_json",
- "tinybytes",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "ddcommon"
-version = "22.1.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v22.1.0#9517280fdb1ff5779ca2528a12c3807051de57fb"
-dependencies = [
- "anyhow",
- "cc",
- "const_format",
- "futures",
- "futures-core",
- "futures-util",
- "hex",
- "http",
- "http-body",
- "http-body-util",
- "hyper",
- "hyper-rustls",
- "hyper-util",
- "libc",
- "nix",
- "pin-project",
- "regex",
- "rustls",
- "rustls-native-certs",
- "serde",
- "static_assertions",
- "thiserror",
- "tokio",
- "tokio-rustls",
- "tower-service",
- "windows-sys 0.52.0",
-]
-
-[[package]]
-name = "ddcommon-ffi"
-version = "22.1.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v22.1.0#9517280fdb1ff5779ca2528a12c3807051de57fb"
-dependencies = [
- "anyhow",
- "build_common",
- "chrono",
- "crossbeam-queue",
- "ddcommon",
- "hyper",
- "serde",
-]
-
-[[package]]
-name = "ddtelemetry"
-version = "22.1.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v22.1.0#9517280fdb1ff5779ca2528a12c3807051de57fb"
-dependencies = [
- "anyhow",
- "base64",
- "datadog-ddsketch",
- "ddcommon",
- "futures",
- "hashbrown 0.15.5",
- "http",
- "http-body-util",
- "hyper",
- "hyper-util",
- "libc",
- "serde",
- "serde_json",
- "sys-info",
- "tokio",
- "tokio-util",
- "tracing",
- "uuid",
- "winver",
-]
-
-[[package]]
 name = "ddtrace-native"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "build_common",
- "data-pipeline",
- "datadog-crashtracker",
- "datadog-ddsketch",
- "datadog-library-config",
- "datadog-log",
- "datadog-profiling-ffi",
- "ddcommon",
+ "libdd-common",
+ "libdd-crashtracker",
+ "libdd-data-pipeline",
+ "libdd-ddsketch",
+ "libdd-library-config",
+ "libdd-log",
+ "libdd-profiling-ffi",
  "pyo3",
  "pyo3-build-config",
  "tracing",
@@ -820,19 +518,6 @@ checksum = "9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292"
 dependencies = [
  "block-buffer",
  "crypto-common",
-]
-
-[[package]]
-name = "dogstatsd-client"
-version = "22.1.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v22.1.0#9517280fdb1ff5779ca2528a12c3807051de57fb"
-dependencies = [
- "anyhow",
- "cadence",
- "ddcommon",
- "http",
- "serde",
- "tracing",
 ]
 
 [[package]]
@@ -1312,6 +997,320 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2874a2af47a2325c2001a6e6fad9b16a53b802102b528163885171cf92b15976"
 
 [[package]]
+name = "libdd-alloc"
+version = "1.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+dependencies = [
+ "allocator-api2",
+ "libc",
+ "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "libdd-common"
+version = "1.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+dependencies = [
+ "anyhow",
+ "cc",
+ "const_format",
+ "futures",
+ "futures-core",
+ "futures-util",
+ "hex",
+ "http",
+ "http-body",
+ "http-body-util",
+ "hyper",
+ "hyper-rustls",
+ "hyper-util",
+ "libc",
+ "nix",
+ "pin-project",
+ "regex",
+ "rustls",
+ "rustls-native-certs",
+ "serde",
+ "static_assertions",
+ "thiserror",
+ "tokio",
+ "tokio-rustls",
+ "tower-service",
+ "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "libdd-common-ffi"
+version = "24.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+dependencies = [
+ "anyhow",
+ "build_common",
+ "chrono",
+ "crossbeam-queue",
+ "hyper",
+ "libdd-common",
+ "serde",
+]
+
+[[package]]
+name = "libdd-crashtracker"
+version = "1.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+dependencies = [
+ "anyhow",
+ "backtrace",
+ "blazesym",
+ "cc",
+ "chrono",
+ "http",
+ "libc",
+ "libdd-common",
+ "libdd-telemetry",
+ "nix",
+ "num-derive",
+ "num-traits",
+ "os_info",
+ "page_size",
+ "portable-atomic",
+ "rand",
+ "schemars",
+ "serde",
+ "serde_json",
+ "symbolic-common",
+ "symbolic-demangle",
+ "thiserror",
+ "tokio",
+ "uuid",
+ "windows 0.59.0",
+]
+
+[[package]]
+name = "libdd-data-pipeline"
+version = "1.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+dependencies = [
+ "anyhow",
+ "arc-swap",
+ "bytes",
+ "either",
+ "http",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "libdd-common",
+ "libdd-ddsketch",
+ "libdd-dogstatsd-client",
+ "libdd-telemetry",
+ "libdd-tinybytes",
+ "libdd-trace-protobuf",
+ "libdd-trace-stats",
+ "libdd-trace-utils",
+ "rmp-serde",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "libdd-ddsketch"
+version = "1.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+dependencies = [
+ "prost",
+]
+
+[[package]]
+name = "libdd-dogstatsd-client"
+version = "1.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+dependencies = [
+ "anyhow",
+ "cadence",
+ "http",
+ "libdd-common",
+ "serde",
+ "tracing",
+]
+
+[[package]]
+name = "libdd-library-config"
+version = "1.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+dependencies = [
+ "anyhow",
+ "memfd",
+ "rand",
+ "rmp",
+ "rmp-serde",
+ "serde",
+ "serde_yaml",
+]
+
+[[package]]
+name = "libdd-log"
+version = "1.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+dependencies = [
+ "chrono",
+ "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "libdd-profiling"
+version = "1.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+dependencies = [
+ "anyhow",
+ "bitmaps",
+ "byteorder",
+ "bytes",
+ "chrono",
+ "futures",
+ "http",
+ "http-body-util",
+ "hyper",
+ "hyper-multipart-rfc7578",
+ "indexmap",
+ "libdd-alloc",
+ "libdd-common",
+ "libdd-profiling-protobuf",
+ "lz4_flex",
+ "mime",
+ "prost",
+ "rustc-hash 1.1.0",
+ "serde",
+ "serde_json",
+ "target-triple",
+ "tokio",
+ "tokio-util",
+ "zstd",
+]
+
+[[package]]
+name = "libdd-profiling-ffi"
+version = "1.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+dependencies = [
+ "anyhow",
+ "build_common",
+ "function_name",
+ "futures",
+ "http-body-util",
+ "hyper",
+ "libc",
+ "libdd-common",
+ "libdd-common-ffi",
+ "libdd-profiling",
+ "serde_json",
+ "tokio-util",
+]
+
+[[package]]
+name = "libdd-profiling-protobuf"
+version = "1.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+dependencies = [
+ "prost",
+]
+
+[[package]]
+name = "libdd-telemetry"
+version = "1.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+dependencies = [
+ "anyhow",
+ "base64",
+ "futures",
+ "hashbrown 0.15.5",
+ "http",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "libc",
+ "libdd-common",
+ "libdd-ddsketch",
+ "serde",
+ "serde_json",
+ "sys-info",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "uuid",
+ "winver",
+]
+
+[[package]]
+name = "libdd-tinybytes"
+version = "1.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "libdd-trace-normalization"
+version = "1.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+dependencies = [
+ "anyhow",
+ "libdd-trace-protobuf",
+]
+
+[[package]]
+name = "libdd-trace-protobuf"
+version = "1.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+dependencies = [
+ "prost",
+ "serde",
+ "serde_bytes",
+]
+
+[[package]]
+name = "libdd-trace-stats"
+version = "1.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+dependencies = [
+ "hashbrown 0.15.5",
+ "libdd-ddsketch",
+ "libdd-trace-protobuf",
+ "libdd-trace-utils",
+]
+
+[[package]]
+name = "libdd-trace-utils"
+version = "1.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "futures",
+ "http-body-util",
+ "hyper",
+ "indexmap",
+ "libdd-common",
+ "libdd-tinybytes",
+ "libdd-trace-normalization",
+ "libdd-trace-protobuf",
+ "prost",
+ "rand",
+ "rmp",
+ "rmp-serde",
+ "rmpv",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "libloading"
 version = "0.8.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1571,6 +1570,12 @@ name = "pin-utils"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
+
+[[package]]
+name = "pkg-config"
+version = "0.3.32"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7edddbd0b52d732b21ad9a5fab5c704c14cd949e5e9a1ec5929a24fded1b904c"
 
 [[package]]
 name = "plist"
@@ -2282,14 +2287,6 @@ checksum = "30cfb0125f12d9c277f35663a0a33f8c30190f4e4574868a330595412d34ebf3"
 dependencies = [
  "num-conv",
  "time-core",
-]
-
-[[package]]
-name = "tinybytes"
-version = "22.1.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v22.1.0#9517280fdb1ff5779ca2528a12c3807051de57fb"
-dependencies = [
- "serde",
 ]
 
 [[package]]
@@ -3024,3 +3021,31 @@ name = "zeroize"
 version = "1.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b97154e67e32c85465826e8bcc1c59429aaaf107c1e4a9e53c8d8ccd5eff88d0"
+
+[[package]]
+name = "zstd"
+version = "0.13.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e91ee311a569c327171651566e07972200e76fcfe2242a4fa446149a3881c08a"
+dependencies = [
+ "zstd-safe",
+]
+
+[[package]]
+name = "zstd-safe"
+version = "7.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f49c4d5f0abb602a93fb8736af2a4f4dd9512e36f7f570d66e65ff867ed3b9d"
+dependencies = [
+ "zstd-sys",
+]
+
+[[package]]
+name = "zstd-sys"
+version = "2.0.16+zstd.1.5.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "91e19ebc2adc8f83e43039e79776e3fda8ca919132d68a1fed6a5faca2683748"
+dependencies = [
+ "cc",
+ "pkg-config",
+]

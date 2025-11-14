@@ -11,14 +11,16 @@ if typing.TYPE_CHECKING:
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
 from ddtrace.internal.datadog.profiling import stack_v2
 from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.settings.profiling import config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.wrapping import wrap
-from ddtrace.settings.profiling import config
 
 from . import _threading
 
 
 THREAD_LINK = None  # type: typing.Optional[_threading._ThreadLink]
+
+ASYNCIO_IMPORTED = False
 
 
 def current_task(loop: typing.Union["asyncio.AbstractEventLoop", None] = None) -> typing.Union["asyncio.Task", None]:
@@ -35,10 +37,51 @@ def _task_get_name(task: "asyncio.Task") -> str:
     return "Task-%d" % id(task)
 
 
+def _call_init_asyncio(asyncio: ModuleType) -> None:
+    from asyncio import tasks as asyncio_tasks
+
+    if sys.hexversion >= 0x030C0000:
+        scheduled_tasks = asyncio_tasks._scheduled_tasks.data  # type: ignore[attr-defined]
+        eager_tasks = asyncio_tasks._eager_tasks  # type: ignore[attr-defined]
+    else:
+        scheduled_tasks = asyncio_tasks._all_tasks.data  # type: ignore[attr-defined]
+        eager_tasks = None
+
+    stack_v2.init_asyncio(asyncio_tasks._current_tasks, scheduled_tasks, eager_tasks)  # type: ignore[attr-defined]
+
+
+def link_existing_loop_to_current_thread() -> None:
+    global ASYNCIO_IMPORTED
+
+    # Only proceed if asyncio is actually imported and available
+    # Don't rely solely on ASYNCIO_IMPORTED global since it persists across forks
+    if not ASYNCIO_IMPORTED or "asyncio" not in sys.modules:
+        return
+
+    import asyncio
+
+    # Only track if there's actually a running loop
+    running_loop: typing.Union["asyncio.AbstractEventLoop", None] = None
+    try:
+        running_loop = asyncio.get_running_loop()
+    except RuntimeError:
+        # No existing loop to track, nothing to do
+        return
+
+    # We have a running loop, track it
+    assert THREAD_LINK is not None  # nosec: assert is used for typing
+    THREAD_LINK.clear_threads(set(sys._current_frames().keys()))
+    THREAD_LINK.link_object(running_loop)
+    stack_v2.track_asyncio_loop(typing.cast(int, ddtrace_threading.current_thread().ident), running_loop)
+    _call_init_asyncio(asyncio)
+
+
 @ModuleWatchdog.after_module_imported("asyncio")
-def _(asyncio):
-    # type: (ModuleType) -> None
+def _(asyncio: ModuleType) -> None:
     global THREAD_LINK
+    global ASYNCIO_IMPORTED
+
+    ASYNCIO_IMPORTED = True
 
     if hasattr(asyncio, "current_task"):
         globals()["current_task"] = asyncio.current_task
@@ -50,14 +93,12 @@ def _(asyncio):
     elif hasattr(asyncio.Task, "all_tasks"):
         globals()["all_tasks"] = asyncio.Task.all_tasks
 
-    if hasattr(asyncio.Task, "get_name"):
-        # `get_name` is only available in Python ≥ 3.8
-        globals()["_task_get_name"] = lambda task: task.get_name()
+    globals()["_task_get_name"] = lambda task: task.get_name()
 
     if THREAD_LINK is None:
         THREAD_LINK = _threading._ThreadLink()
 
-    init_stack_v2 = config.stack.v2_enabled and stack_v2.is_available
+    init_stack_v2: bool = config.stack.enabled and stack_v2.is_available
 
     @partial(wrap, sys.modules["asyncio.events"].BaseDefaultEventLoopPolicy.set_event_loop)
     def _(f, args, kwargs):
@@ -91,14 +132,7 @@ def _(asyncio):
                 for child in children:
                     stack_v2.link_tasks(parent, child)
 
-        if sys.hexversion >= 0x030C0000:
-            scheduled_tasks = asyncio.tasks._scheduled_tasks.data
-            eager_tasks = asyncio.tasks._eager_tasks
-        else:
-            scheduled_tasks = asyncio.tasks._all_tasks.data
-            eager_tasks = None
-
-        stack_v2.init_asyncio(asyncio.tasks._current_tasks, scheduled_tasks, eager_tasks)  # type: ignore[attr-defined]
+        _call_init_asyncio(asyncio)
 
 
 def get_event_loop_for_thread(thread_id: int) -> typing.Union["asyncio.AbstractEventLoop", None]:

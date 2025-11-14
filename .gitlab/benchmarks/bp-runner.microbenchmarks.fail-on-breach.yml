@@ -798,11 +798,11 @@ experiments:
           - name: otelspan-add-metrics
             thresholds:
               - execution_time < 344.80 ms
-              - max_rss_usage < 675.00 MB
+              - max_rss_usage < 47.50 MB
           - name: otelspan-add-tags
             thresholds:
-              - execution_time < 314.00 ms
-              - max_rss_usage < 675.00 MB
+              - execution_time < 321.00 ms
+              - max_rss_usage < 47.50 MB
           - name: otelspan-get-context
             thresholds:
               - execution_time < 92.35 ms
@@ -1031,11 +1031,11 @@ experiments:
           - name: span-add-metrics
             thresholds:
               - execution_time < 93.50 ms
-              - max_rss_usage < 961.00 MB
+              - max_rss_usage < 53.00 MB
           - name: span-add-tags
             thresholds:
               - execution_time < 155.00 ms
-              - max_rss_usage < 962.50 MB
+              - max_rss_usage < 53.00 MB
           - name: span-get-context
             thresholds:
               - execution_time < 20.50 ms
