@@ -1,7 +1,6 @@
 #pragma once
 
 #define _POSIX_C_SOURCE 200809L
-#include <atomic>
 #include <cstdint>
 #include <cstdlib>
 #include <ctime>
