@@ -42,6 +42,28 @@
 // before raising an error.
 const constexpr size_t MAX_RECURSION_DEPTH = 250;
 
+// This is a private type in CPython, so we need to define it here
+// in order to be able to use it in our code.
+// We cannot put it into namespace {} because the 'PyAsyncGenASend' name would then be ambiguous.
+// The extern "C" is not required but here to avoid any ambiguity.
+extern "C"
+{
+
+    typedef struct PyAsyncGenASend
+    {
+        PyObject_HEAD PyAsyncGenObject* ags_gen;
+    } PyAsyncGenASend;
+
+#ifndef PyAsyncGenASend_CheckExact
+#if PY_VERSION_HEX >= 0x03090000
+// Py_IS_TYPE is only available since Python 3.9
+#define PyAsyncGenASend_CheckExact(obj) (Py_IS_TYPE(obj, &_PyAsyncGenASend_Type))
+#else // PY_VERSION_HEX >= 0x03090000
+#define PyAsyncGenASend_CheckExact(obj) (Py_TYPE(obj) == &_PyAsyncGenASend_Type)
+#endif // PY_VERSION_HEX < 0x03090000
+#endif // defined PyAsyncGenASend_CheckExact
+}
+
 class GenInfo
 {
   public:
@@ -76,13 +98,30 @@ GenInfo::create(PyObject* gen_addr)
     }
 
     PyGenObject gen;
-
-    if (copy_type(gen_addr, gen) || !PyCoro_CheckExact(&gen)) {
+    if (copy_type(gen_addr, gen)) {
         recursion_depth--;
         return ErrorKind::GenInfoError;
     }
 
-    auto origin = gen_addr;
+    if (PyAsyncGenASend_CheckExact(&gen)) {
+        static_assert(
+          sizeof(PyAsyncGenASend) <= sizeof(PyGenObject),
+          "PyAsyncGenASend must be smaller than PyGenObject in order for copy_type to have copied enough data.");
+
+        // Type-pun the PyGenObject to a PyAsyncGenASend. *gen_addr was actually never a PyGenObject to begin with,
+        // but we do not care as the only thing we will use from it is the ags_gen field.
+        PyAsyncGenASend* asend = reinterpret_cast<PyAsyncGenASend*>(&gen);
+        PyAsyncGenObject* gen = asend->ags_gen;
+        auto asend_yf = reinterpret_cast<PyObject*>(gen);
+        auto result = GenInfo::create(asend_yf);
+        recursion_depth--;
+        return result;
+    }
+
+    if (!PyCoro_CheckExact(&gen) && !PyAsyncGen_CheckExact(&gen)) {
+        recursion_depth--;
+        return ErrorKind::GenInfoError;
+    }
 
 #if PY_VERSION_HEX >= 0x030b0000
     // The frame follows the generator object
@@ -117,7 +156,7 @@ GenInfo::create(PyObject* gen_addr)
 #endif
 
     recursion_depth--;
-    return std::make_unique<GenInfo>(origin, frame, std::move(await), is_running);
+    return std::make_unique<GenInfo>(gen_addr, frame, std::move(await), is_running);
 }
 
 // ----------------------------------------------------------------------------
