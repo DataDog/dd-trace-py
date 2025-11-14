@@ -41,7 +41,7 @@ def _resolve_source_file(_path: str) -> Optional[Path]:
     if path.is_file():
         return path.resolve()
 
-    for relpath in (path.relative_to(_) for _ in path.parents[::-1]):
+    for relpath in (path.relative_to(_) for _ in reversed(path.parents)):
         if (resolved_path := _resolve(relpath)) is not None:
             return resolved_path
 
