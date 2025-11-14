@@ -15,31 +15,23 @@ set(INSTALL_GTEST
 FetchContent_MakeAvailable(googletest)
 include(GoogleTest)
 
-find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
+find_package(
+    Python3
+    COMPONENTS Interpreter Development
+    REQUIRED)
 
 # Add the test executable
 add_executable(test_memalloc_heap_map test_memalloc_heap_map.cpp)
 
 # Include directories
-target_include_directories(test_memalloc_heap_map PRIVATE
-    ..
-    ${Python3_INCLUDE_DIRS}
-    ${CMAKE_CURRENT_SOURCE_DIR}/../vendor
-)
+target_include_directories(test_memalloc_heap_map PRIVATE .. ${Python3_INCLUDE_DIRS}
+                                                          ${CMAKE_CURRENT_SOURCE_DIR}/../vendor)
 
 # Link libraries
-target_link_libraries(test_memalloc_heap_map PRIVATE
-    gtest
-    gtest_main
-    ${Python3_LIBRARIES}
-)
+target_link_libraries(test_memalloc_heap_map PRIVATE gtest gtest_main ${Python3_LIBRARIES})
 
 # Add source files that need to be compiled
-target_sources(test_memalloc_heap_map PRIVATE
-    ../_memalloc_heap_map.cpp
-    ../_memalloc_tb.cpp
-    ../_memalloc_reentrant.cpp
-)
+target_sources(test_memalloc_heap_map PRIVATE ../_memalloc_heap_map.cpp ../_memalloc_tb.cpp ../_memalloc_reentrant.cpp)
 
 # Python library linking
 if(Python3_LIBRARY)
@@ -47,10 +39,7 @@ if(Python3_LIBRARY)
 endif()
 
 # Compiler flags
-target_compile_definitions(test_memalloc_heap_map PRIVATE
-    PY_SSIZE_T_CLEAN
-)
+target_compile_definitions(test_memalloc_heap_map PRIVATE PY_SSIZE_T_CLEAN)
 
 # Discover and register tests
 gtest_discover_tests(test_memalloc_heap_map)
-
