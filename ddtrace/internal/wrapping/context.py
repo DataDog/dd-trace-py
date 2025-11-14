@@ -3,6 +3,7 @@ from contextvars import ContextVar
 from inspect import iscoroutinefunction
 from inspect import isgeneratorfunction
 import sys
+from types import CodeType
 from types import FrameType
 from types import FunctionType
 from types import TracebackType
@@ -23,6 +24,117 @@ from ddtrace.internal.wrapping import wrap
 
 
 T = t.TypeVar("T")
+
+# ============================================================================
+# Lazy wrapping machinery: allows deferring expensive bytecode instrumentation
+# until the first time a function is actually called.
+# ============================================================================
+
+_lazy_registry: t.Dict[CodeType, "LazyMeta"] = {}
+
+
+class LazyMeta:
+    """Metadata for a lazily-wrapped function."""
+
+    __slots__ = ("func", "builder", "lock", "initialized")
+
+    def __init__(self, func: FunctionType, builder: t.Callable[[FunctionType], CodeType]):
+        self.func = func  # the original function object
+        self.builder = builder  # callable: builder(func) -> CodeType
+        self.initialized = False
+
+
+def __lazy_trampoline_entry(*args, **kwargs):
+    """
+    Called from the trampoline code on first invocation.
+    Uses the current frame's code object to find the right LazyMeta,
+    builds the heavy bytecode, and swaps it in place.
+    """
+    # Get the caller's frame (the trampoline frame)
+    code = sys._getframe(1).f_code
+    meta = _lazy_registry[code]
+
+    if not meta.initialized:
+        if not meta.initialized:
+            # Build heavy code from the original pre-wrapped function
+            new_code = meta.builder(meta.func)
+            # Swap the code on the SAME function object frameworks already hold
+            meta.func.__code__ = new_code
+            meta.initialized = True
+        # Drop the registry entry to free memory
+        _lazy_registry.pop(code, None)
+
+    # Now call the function again; this time it runs the heavy code
+    return meta.func(*args, **kwargs)
+
+
+def _make_trampoline_code(template_code: CodeType) -> CodeType:
+    """
+    Build a tiny code object that:
+      - takes *args, **kwargs
+      - calls the global __lazy_trampoline_entry(*args, **kwargs)
+      - returns its value
+
+    Note: This only works for functions with 0 freevars.
+    """
+    bc = Bytecode()
+    bc.name = template_code.co_name
+    bc.filename = template_code.co_filename
+    bc.first_lineno = template_code.co_firstlineno
+
+    # Function signature: accepts *args, **kwargs
+    bc.argcount = 0
+    bc.posonlyargcount = 0
+    bc.kwonlyargcount = 0
+    bc.flags = bytecode.CompilerFlags.VARARGS | bytecode.CompilerFlags.VARKEYWORDS
+
+    # Declare locals for *args, **kwargs
+    bc.argnames = ["args", "kwargs"]
+
+    # No freevars or cellvars
+    bc.freevars = []
+    bc.cellvars = []
+
+    # Call the global entry: __lazy_trampoline_entry(*args, **kwargs)
+    if sys.version_info >= (3, 13):
+        # Python 3.13+
+        bc.extend(
+            [
+                bytecode.Instr("LOAD_GLOBAL", (True, "__lazy_trampoline_entry")),  # (True = NULL + func)
+                bytecode.Instr("LOAD_FAST", "args"),
+                bytecode.Instr("BUILD_MAP", 0),
+                bytecode.Instr("LOAD_FAST", "kwargs"),
+                bytecode.Instr("DICT_MERGE", 1),
+                bytecode.Instr("CALL_FUNCTION_EX", 1),
+                bytecode.Instr("RETURN_VALUE"),
+            ]
+        )
+    elif sys.version_info >= (3, 11):
+        # Python 3.11-3.12
+        bc.extend(
+            [
+                bytecode.Instr("PUSH_NULL"),
+                bytecode.Instr("LOAD_GLOBAL", (False, "__lazy_trampoline_entry")),
+                bytecode.Instr("LOAD_FAST", "args"),
+                bytecode.Instr("LOAD_FAST", "kwargs"),
+                bytecode.Instr("CALL_FUNCTION_EX", 1),
+                bytecode.Instr("RETURN_VALUE"),
+            ]
+        )
+    else:
+        # Python 3.10 and earlier
+        bc.extend(
+            [
+                bytecode.Instr("LOAD_GLOBAL", "__lazy_trampoline_entry"),
+                bytecode.Instr("LOAD_FAST", "args"),
+                bytecode.Instr("LOAD_FAST", "kwargs"),
+                bytecode.Instr("CALL_FUNCTION_EX", 1),
+                bytecode.Instr("RETURN_VALUE"),
+            ]
+        )
+
+    return bc.to_code()
+
 
 # This module implements utilities for wrapping a function with a context
 # manager. The rough idea is to re-write the function's bytecode to look like
@@ -405,6 +517,10 @@ class WrappingContext(BaseWrappingContext):
     def wrap(self) -> None:
         t.cast(_UniversalWrappingContext, _UniversalWrappingContext.wrapped(self.__wrapped__)).register(self)
 
+    def wrap_lazy(self) -> None:
+        """Install lazy wrapping that defers bytecode instrumentation until first call."""
+        t.cast(_UniversalWrappingContext, _UniversalWrappingContext.wrapped_lazy(self.__wrapped__)).register(self)
+
     def unwrap(self) -> None:
         f = self.__wrapped__
 
@@ -475,6 +591,16 @@ class _UniversalWrappingContext(BaseWrappingContext):
         self._contexts.append(context)
         self._contexts.sort(key=lambda c: c.__priority__)
 
+    @classmethod
+    def wrapped_lazy(cls, f: FunctionType) -> "_UniversalWrappingContext":
+        """Create a universal wrapping context with lazy bytecode instrumentation."""
+        if cls.is_wrapped(f):
+            context = cls.extract(f)
+        else:
+            context = cls(f)
+            context.wrap_lazy()
+        return context
+
     def unregister(self, context: WrappingContext) -> None:
         try:
             self._contexts.remove(context)
@@ -541,86 +667,123 @@ class _UniversalWrappingContext(BaseWrappingContext):
             raise ValueError("Function is not wrapped")
         return t.cast(_UniversalWrappingContext, t.cast(ContextWrappedFunction, f).__dd_context_wrapped__)
 
+    def _build_wrapped_code(self, f: FunctionType) -> CodeType:
+        """
+        Build the heavy instrumented bytecode for a function.
+        This is extracted from wrap() to enable lazy wrapping.
+        """
+        bc = Bytecode.from_code(f.__code__)
+
+        # Prefix every return
+        i = 0
+        while i < len(bc):
+            instr = bc[i]
+            try:
+                if instr.name == "RETURN_VALUE":
+                    return_code = CONTEXT_RETURN.bind({"context_return": self.__return__}, lineno=instr.lineno)
+                elif sys.version_info >= (3, 12) and instr.name == "RETURN_CONST":  # Python 3.12+
+                    return_code = CONTEXT_RETURN_CONST.bind(
+                        {"context_return": self.__return__, "value": instr.arg}, lineno=instr.lineno
+                    )
+                else:
+                    return_code = []
+
+                bc[i:i] = return_code
+                i += len(return_code)
+            except AttributeError:
+                # Not an instruction
+                pass
+            i += 1
+
+        # Search for the RESUME instruction
+        for i, instr in enumerate(bc, 1):
+            try:
+                if instr.name == "RESUME":
+                    break
+            except AttributeError:
+                # Not an instruction
+                pass
+        else:
+            i = 0
+
+        bc[i:i] = CONTEXT_HEAD.bind({"context_enter": self.__enter__}, lineno=f.__code__.co_firstlineno)
+
+        # Wrap every line outside a try block
+        except_label = bytecode.Label()
+        first_try_begin = last_try_begin = bytecode.TryBegin(except_label, push_lasti=True)
+
+        i = 0
+        while i < len(bc):
+            instr = bc[i]
+            if isinstance(instr, bytecode.TryBegin) and last_try_begin is not None:
+                bc.insert(i, bytecode.TryEnd(last_try_begin))
+                last_try_begin = None
+                i += 1
+            elif isinstance(instr, bytecode.TryEnd):
+                j = i + 1
+                while j < len(bc) and not isinstance(bc[j], bytecode.TryBegin):
+                    if isinstance(bc[j], bytecode.Instr):
+                        last_try_begin = bytecode.TryBegin(except_label, push_lasti=True)
+                        bc.insert(i + 1, last_try_begin)
+                        break
+                    j += 1
+                i += 1
+            i += 1
+
+        bc.insert(0, first_try_begin)
+
+        bc.append(bytecode.TryEnd(last_try_begin))
+        bc.append(except_label)
+        bc.extend(CONTEXT_FOOT.bind({"context_exit": self._exit}))
+
+        # Link the function to its original code object so that we can retrieve
+        # it later if required.
+        link_function_to_code(f.__code__, f)
+
+        return bc.to_code()
+
+    def wrap_lazy(self) -> None:
+        """
+        Install lazy wrapping: replace function's __code__ with a trampoline
+        that defers the expensive bytecode instrumentation until first call.
+        """
+        f = self.__wrapped__
+
+        if self.is_wrapped(f):
+            raise ValueError("Function already wrapped")
+
+        # Lazy wrapping doesn't work with closures (functions with freevars)
+        # because we can't replace __code__ with different freevar counts.
+        # Fall back to eager wrapping in this case.
+        if len(f.__code__.co_freevars) > 0:
+            return self.wrap()
+
+        # Mark the function as wrapped immediately (before the trampoline)
+        t.cast(ContextWrappedFunction, f).__dd_context_wrapped__ = self
+
+        # Create a trampoline code object with matching freevars
+        tramp_code = _make_trampoline_code(f.__code__)
+
+        # Register the builder that will be called on first invocation
+        _lazy_registry[tramp_code] = LazyMeta(f, self._build_wrapped_code)
+
+        # Swap in the trampoline (cheap operation)
+        f.__code__ = tramp_code
+
     if sys.version_info >= (3, 11):
 
         def wrap(self) -> None:
+            """Eagerly wrap the function with full bytecode instrumentation."""
             f = self.__wrapped__
 
             if self.is_wrapped(f):
                 raise ValueError("Function already wrapped")
 
-            bc = Bytecode.from_code(f.__code__)
-
-            # Prefix every return
-            i = 0
-            while i < len(bc):
-                instr = bc[i]
-                try:
-                    if instr.name == "RETURN_VALUE":
-                        return_code = CONTEXT_RETURN.bind({"context_return": self.__return__}, lineno=instr.lineno)
-                    elif sys.version_info >= (3, 12) and instr.name == "RETURN_CONST":  # Python 3.12+
-                        return_code = CONTEXT_RETURN_CONST.bind(
-                            {"context_return": self.__return__, "value": instr.arg}, lineno=instr.lineno
-                        )
-                    else:
-                        return_code = []
-
-                    bc[i:i] = return_code
-                    i += len(return_code)
-                except AttributeError:
-                    # Not an instruction
-                    pass
-                i += 1
-
-            # Search for the RESUME instruction
-            for i, instr in enumerate(bc, 1):
-                try:
-                    if instr.name == "RESUME":
-                        break
-                except AttributeError:
-                    # Not an instruction
-                    pass
-            else:
-                i = 0
-
-            bc[i:i] = CONTEXT_HEAD.bind({"context_enter": self.__enter__}, lineno=f.__code__.co_firstlineno)
-
-            # Wrap every line outside a try block
-            except_label = bytecode.Label()
-            first_try_begin = last_try_begin = bytecode.TryBegin(except_label, push_lasti=True)
-
-            i = 0
-            while i < len(bc):
-                instr = bc[i]
-                if isinstance(instr, bytecode.TryBegin) and last_try_begin is not None:
-                    bc.insert(i, bytecode.TryEnd(last_try_begin))
-                    last_try_begin = None
-                    i += 1
-                elif isinstance(instr, bytecode.TryEnd):
-                    j = i + 1
-                    while j < len(bc) and not isinstance(bc[j], bytecode.TryBegin):
-                        if isinstance(bc[j], bytecode.Instr):
-                            last_try_begin = bytecode.TryBegin(except_label, push_lasti=True)
-                            bc.insert(i + 1, last_try_begin)
-                            break
-                        j += 1
-                    i += 1
-                i += 1
-
-            bc.insert(0, first_try_begin)
-
-            bc.append(bytecode.TryEnd(last_try_begin))
-            bc.append(except_label)
-            bc.extend(CONTEXT_FOOT.bind({"context_exit": self._exit}))
-
             # Mark the function as wrapped by a wrapping context
             t.cast(ContextWrappedFunction, f).__dd_context_wrapped__ = self
 
-            # Replace the function code with the wrapped code. We also link
-            # the function to its original code object so that we can retrieve
-            # it later if required.
-            link_function_to_code(f.__code__, f)
-            f.__code__ = bc.to_code()
+            # Build and install the heavy wrapped code immediately
+            f.__code__ = self._build_wrapped_code(f)
 
         def unwrap(self) -> None:
             f = self.__wrapped__

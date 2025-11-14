@@ -223,8 +223,8 @@ class SpanCodeOriginProcessorEntry:
 
         _f = t.cast(FunctionType, f)
         if not EntrySpanWrappingContext.is_wrapped(_f):
-            log.debug("Patching entrypoint %r for code origin", f)
-            EntrySpanWrappingContext(cls.__uploader__, _f).wrap()
+            log.debug("Lazy wrapping entrypoint %r for code origin", f)
+            EntrySpanWrappingContext(cls.__uploader__, _f).wrap_lazy()
 
     @classmethod
     def enable(cls):
