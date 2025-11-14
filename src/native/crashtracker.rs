@@ -1,14 +1,37 @@
 use anyhow;
 use std::collections::HashMap;
+use std::ffi::{c_char, c_int, c_void};
+use std::ptr;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Once;
 use std::time::Duration;
 
-use datadog_crashtracker::{
-    CrashtrackerConfiguration, CrashtrackerReceiverConfig, Metadata, StacktraceCollection,
+use libdd_crashtracker::{
+    is_runtime_callback_registered, register_runtime_frame_callback, register_runtime_stacktrace_string_callback, CallbackError,
+    CrashtrackerConfiguration, CrashtrackerReceiverConfig, Metadata, RuntimeStackFrame,
+    StacktraceCollection,
 };
-use ddcommon::Endpoint;
+use libdd_common::Endpoint;
 use pyo3::prelude::*;
+
+extern "C" {
+    fn crashtracker_dump_traceback_threads(
+        fd: c_int,
+        interp: *mut pyo3_ffi::PyInterpreterState,
+        current_tstate: *mut pyo3_ffi::PyThreadState,
+    ) -> *const c_char;
+
+    fn crashtracker_get_current_tstate() -> *mut pyo3_ffi::PyThreadState;
+
+    fn pipe(pipefd: *mut [c_int; 2]) -> c_int;
+    fn read(fd: c_int, buf: *mut c_void, count: usize) -> isize;
+    fn close(fd: c_int) -> c_int;
+    fn fcntl(fd: c_int, cmd: c_int, arg: c_int) -> c_int;
+}
+
+// Constants for fcntl
+const F_SETFL: c_int = 4;
+const O_NONBLOCK: c_int = 0o4000;
 
 pub trait RustWrapper {
     type Inner;
@@ -92,7 +115,7 @@ impl CrashtrackerConfigurationPy {
                 use_alt_stack,
                 endpoint,
                 resolve_frames,
-                datadog_crashtracker::default_signals(),
+                libdd_crashtracker::default_signals(),
                 Some(Duration::from_millis(timeout_ms)),
                 unix_socket_path,
                 true, /* demangle_names */
@@ -178,7 +201,7 @@ impl CrashtrackerMetadataPy {
 }
 
 impl RustWrapper for CrashtrackerMetadataPy {
-    type Inner = Metadata;
+    type Inner = libdd_crashtracker::Metadata;
     const INNER_TYPE_NAME: &'static str = "Metadata";
 
     fn take_inner(&mut self) -> Option<Self::Inner> {
@@ -235,7 +258,7 @@ pub fn crashtracker_init<'py>(
         if let (Some(config), Some(receiver_config), Some(metadata)) =
             (config_opt, receiver_config_opt, metadata_opt)
         {
-            match datadog_crashtracker::init(config, receiver_config, metadata) {
+            match libdd_crashtracker::init(config, receiver_config, metadata) {
                 Ok(_) => CRASHTRACKER_STATUS
                     .store(CrashtrackerStatus::Initialized as u8, Ordering::SeqCst),
                 Err(e) => {
@@ -269,7 +292,7 @@ pub fn crashtracker_on_fork<'py>(
 
     // Note to self: is it possible to call crashtracker_on_fork before crashtracker_init?
     // dd-trace-py seems to start crashtracker early on.
-    datadog_crashtracker::on_fork(inner_config, inner_receiver_config, inner_metadata)
+    libdd_crashtracker::on_fork(inner_config, inner_receiver_config, inner_metadata)
 }
 
 #[pyfunction(name = "crashtracker_status")]
@@ -286,5 +309,147 @@ pub fn crashtracker_status() -> anyhow::Result<CrashtrackerStatus> {
 // binary names for the receiver, since Python installs the script as a command.
 #[pyfunction(name = "crashtracker_receiver")]
 pub fn crashtracker_receiver() -> anyhow::Result<()> {
-    datadog_crashtracker::receiver_entry_point_stdin()
+    libdd_crashtracker::receiver_entry_point_stdin()
+}
+
+/// Result type for runtime callback operations
+#[pyclass(
+    eq,
+    eq_int,
+    name = "CallbackResult",
+    module = "datadog.internal._native"
+)]
+#[derive(Debug, PartialEq, Eq)]
+pub enum CallbackResult {
+    Ok,
+    Error,
+}
+
+impl From<CallbackError> for CallbackResult {
+    fn from(_error: CallbackError) -> Self {
+        CallbackResult::Error
+    }
+}
+
+const MAX_TRACEBACK_SIZE: usize = 64 * 1024; // 64KB
+
+// Stack-allocated buffer for signal-safe string handling
+struct StackBuffer {
+    data: [u8; MAX_TRACEBACK_SIZE],
+    len: usize,
+}
+
+impl StackBuffer {
+    const fn new() -> Self {
+        Self {
+            data: [0u8; MAX_TRACEBACK_SIZE],
+            len: 0,
+        }
+    }
+
+    fn as_ptr(&self) -> *const c_char {
+        self.data.as_ptr() as *const c_char
+    }
+
+    fn set_from_str(&mut self, s: &str) {
+        let bytes = s.as_bytes();
+        let copy_len = bytes.len().min(MAX_TRACEBACK_SIZE - 1);
+        self.data[..copy_len].copy_from_slice(&bytes[..copy_len]);
+        self.data[copy_len] = 0;
+        self.len = copy_len;
+    }
+}
+
+/// Dump Python traceback as a complete string
+///
+/// This function captures the Python traceback via CPython's internal API
+/// and emits it as a single string instead of parsing into individual frames.
+/// This is more efficient and preserves the original Python formatting.
+unsafe fn dump_python_traceback_as_string(
+    emit_stacktrace_string: unsafe extern "C" fn(*const c_char),
+) {
+    // Create a pipe to capture CPython internal traceback dump
+    let mut pipefd: [c_int; 2] = [0, 0];
+    if pipe(&mut pipefd as *mut [c_int; 2]) != 0 {
+        emit_stacktrace_string("<pipe_creation_failed>\0".as_ptr() as *const c_char);
+        return;
+    }
+
+    let read_fd = pipefd[0];
+    let write_fd = pipefd[1];
+
+    // Make the read end non-blocking
+    fcntl(read_fd, F_SETFL, O_NONBLOCK);
+
+    // Get the current thread state safely - same approach as CPython's faulthandler
+    // SIGSEGV, SIGFPE, SIGABRT, SIGBUS and SIGILL are synchronous signals and
+    // are thus delivered to the thread that caused the fault.
+    let current_tstate = crashtracker_get_current_tstate();
+
+    // Call the CPython internal API via our C wrapper
+    // Pass NULL for interpreter state - let _Py_DumpTracebackThreads handle it internally
+    let error_msg = crashtracker_dump_traceback_threads(write_fd, ptr::null_mut(), current_tstate);
+
+    close(write_fd);
+
+    if !error_msg.is_null() {
+        close(read_fd);
+        // Note: We can't format the error message because we're in a signal context
+        // Just emit a generic error message
+        emit_stacktrace_string("<cpython_api_error>\0".as_ptr() as *const c_char);
+        return;
+    }
+
+    // Read the traceback output
+    let mut buffer = vec![0u8; MAX_TRACEBACK_SIZE];
+    let bytes_read = read(
+        read_fd,
+        buffer.as_mut_ptr() as *mut c_void,
+        MAX_TRACEBACK_SIZE,
+    );
+
+    close(read_fd);
+
+    if bytes_read > 0 {
+        buffer.truncate(bytes_read as usize);
+        if let Ok(traceback_text) = std::str::from_utf8(&buffer) {
+            emit_stacktrace_string(traceback_text.as_ptr() as *const c_char);
+            return;
+        }
+    }
+
+    emit_stacktrace_string("<traceback_read_failed>\0".as_ptr() as *const c_char);
+}
+
+unsafe extern "C" fn native_runtime_stack_callback(
+    emit_stacktrace_string: unsafe extern "C" fn(*const c_char),
+) {
+    dump_python_traceback_as_string(emit_stacktrace_string);
+}
+
+/// Register the native runtime stack collection callback (string-based)
+///
+/// This function registers a native callback that directly collects Python runtime
+/// stack traces as complete strings without requiring Python callback functions.
+///
+/// # Returns
+/// - `CallbackResult::Ok` if registration succeeds (replaces any existing callback)
+#[pyfunction(name = "crashtracker_register_native_runtime_callback")]
+pub fn crashtracker_register_native_runtime_callback() -> CallbackResult {
+    match register_runtime_stacktrace_string_callback(
+        native_runtime_stack_callback,
+    ) {
+        Ok(()) => CallbackResult::Ok,
+        Err(e) => e.into(),
+    }
+}
+
+/// Check if a runtime callback is currently registered
+///
+/// # Returns
+/// - `True` if a callback is registered
+/// - `False` if no callback is registered
+#[pyfunction(name = "crashtracker_is_runtime_callback_registered")]
+pub fn crashtracker_is_runtime_callback_registered() -> bool {
+    is_runtime_callback_registered()
 }
