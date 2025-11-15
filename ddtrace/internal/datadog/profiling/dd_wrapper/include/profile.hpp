@@ -1,13 +1,11 @@
 #pragma once
 
 #include "constants.hpp"
+#include "profiler_stats.hpp"
 #include "types.hpp"
 
 #include <atomic>
-#include <memory>
 #include <mutex>
-#include <string>
-#include <string_view>
 #include <vector>
 
 extern "C"
@@ -17,9 +15,13 @@ extern "C"
 
 namespace Datadog {
 
+class ProfileBorrow;
+
 // Serves to collect individual samples, as well as lengthen the scope of string data
 class Profile
 {
+    friend class ProfileBorrow;
+
   private:
     // Serialization for static state
     // - string table
@@ -45,6 +47,12 @@ class Profile
     // cannot be used until it's initialized by libdatadog
     ddog_prof_Profile cur_profile{};
 
+    Datadog::ProfilerStats profiler_stats{};
+
+    // Internal access methods - not for direct use
+    ddog_prof_Profile& profile_borrow_internal();
+    void profile_release();
+
   public:
     // State management
     void one_time_init(SampleType type, unsigned int _max_nframes);
@@ -53,8 +61,8 @@ class Profile
 
     // Getters
     size_t get_sample_type_length();
-    ddog_prof_Profile& profile_borrow();
-    void profile_release();
+
+    ProfileBorrow borrow();
 
     // constref getters
     const ValueIndex& val();
