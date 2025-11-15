@@ -206,6 +206,7 @@ suites:
       - tests/internal/*
       - tests/submod/*
       - tests/cache/*
+      - tests/snapshots/tests.internal.*
     runner: riot
     snapshot: true
   lib_injection:

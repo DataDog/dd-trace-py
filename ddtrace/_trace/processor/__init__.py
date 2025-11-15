@@ -14,11 +14,13 @@ from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.constants import _APM_ENABLED_METRIC_KEY as MK_APM_ENABLED
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.internal import gitmetadata
+from ddtrace.internal import process_tags
 from ddtrace.internal import telemetry
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
 from ddtrace.internal.constants import MAX_UINT_64BITS
+from ddtrace.internal.constants import PROCESS_TAGS
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.logger import get_logger
@@ -250,6 +252,8 @@ class TraceTagsProcessor(TraceProcessor):
             span._update_tags_from_context()
             self._set_git_metadata(span)
             span._set_tag_str("language", "python")
+            if p_tags := process_tags.process_tags:
+                span._set_tag_str(PROCESS_TAGS, p_tags)
             # for 128 bit trace ids
             if span.trace_id > MAX_UINT_64BITS:
                 trace_id_hob = _get_64_highest_order_bits_as_hex(span.trace_id)
