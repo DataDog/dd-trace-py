@@ -16,6 +16,7 @@ import tempfile
 import time
 from typing import Generator
 from typing import List
+from typing import Optional
 from unittest.mock import MagicMock
 
 import mock
@@ -23,6 +24,7 @@ import pytest
 
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
+from ddtrace.llmobs._experiment import _ExperimentRunInfo
 from tests.utils import override_global_config
 
 
@@ -60,6 +62,14 @@ def dummy_summary_evaluator(inputs, outputs, expected_outputs, evaluators_result
 
 def dummy_summary_evaluator_using_missing_eval_results(inputs, outputs, expected_outputs, evaluators_results):
     return len(inputs) + len(outputs) + len(expected_outputs) + len(evaluators_results["non_existent_evaluator"])
+
+
+def run_info_with_stable_id(iteration: int, run_id: Optional[str] = None) -> _ExperimentRunInfo:
+    eri = _ExperimentRunInfo(iteration)
+    eri._id = "12345678-abcd-abcd-abcd-123456789012"
+    if run_id is not None:
+        eri._id = run_id
+    return eri
 
 
 @pytest.fixture
@@ -1222,7 +1232,7 @@ def test_experiment_run_task(llmobs, test_dataset, test_dataset_records):
         [dummy_evaluator],
         config={"models": ["gpt-4.1"]},
     )
-    task_results = exp._run_task(1, raise_errors=False)
+    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
     assert len(task_results) == 2
     assert task_results[0] == {
         "idx": 0,
@@ -1254,7 +1264,7 @@ def test_experiment_run_task(llmobs, test_dataset, test_dataset_records):
 
 def test_experiment_run_task_error(llmobs, test_dataset_one_record):
     exp = llmobs.experiment("test_experiment", faulty_task, test_dataset_one_record, [dummy_evaluator])
-    task_results = exp._run_task(1, raise_errors=False)
+    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
     assert len(task_results) == 1
     assert task_results == [
         {
@@ -1282,12 +1292,12 @@ def test_experiment_run_task_error_raises(llmobs, test_dataset_one_record):
         RuntimeError,
         match=re.compile("Error on record 0: This is a test error\n.*ValueError.*in faulty_task.*", flags=re.DOTALL),
     ):
-        exp._run_task(1, raise_errors=True)
+        exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=True)
 
 
 def test_experiment_run_evaluators(llmobs, test_dataset_one_record):
     exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
-    task_results = exp._run_task(1, raise_errors=False)
+    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
     assert len(task_results) == 1
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
     assert len(eval_results) == 1
@@ -1302,7 +1312,7 @@ def test_experiment_run_summary_evaluators(llmobs, test_dataset_one_record):
         [dummy_evaluator],
         summary_evaluators=[dummy_summary_evaluator],
     )
-    task_results = exp._run_task(1, raise_errors=False)
+    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
     assert len(task_results) == 1
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
     assert len(eval_results) == 1
@@ -1317,7 +1327,7 @@ def test_experiment_run_summary_evaluators(llmobs, test_dataset_one_record):
 
 def test_experiment_run_evaluators_error(llmobs, test_dataset_one_record):
     exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [faulty_evaluator])
-    task_results = exp._run_task(1, raise_errors=False)
+    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
     assert len(task_results) == 1
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
     assert len(eval_results) == 1
@@ -1336,7 +1346,7 @@ def test_experiment_run_summary_evaluators_error(llmobs, test_dataset_one_record
         [dummy_evaluator],
         summary_evaluators=[faulty_summary_evaluator],
     )
-    task_results = exp._run_task(1, raise_errors=False)
+    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
     assert len(task_results) == 1
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
     assert len(eval_results) == 1
@@ -1360,7 +1370,7 @@ def test_experiment_summary_evaluators_missing_eval_error(llmobs, test_dataset_o
         [dummy_evaluator],
         summary_evaluators=[dummy_summary_evaluator_using_missing_eval_results],
     )
-    task_results = exp._run_task(1, raise_errors=False)
+    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
     assert len(task_results) == 1
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
     assert len(eval_results) == 1
@@ -1378,7 +1388,7 @@ def test_experiment_summary_evaluators_missing_eval_error(llmobs, test_dataset_o
 
 def test_experiment_run_evaluators_error_raises(llmobs, test_dataset_one_record):
     exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [faulty_evaluator])
-    task_results = exp._run_task(1, raise_errors=False)
+    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
     assert len(task_results) == 1
     with pytest.raises(RuntimeError, match="Evaluator faulty_evaluator failed on row 0"):
         exp._run_evaluators(task_results, raise_errors=True)
@@ -1392,7 +1402,7 @@ def test_experiment_run_summary_evaluators_error_raises(llmobs, test_dataset_one
         [dummy_evaluator],
         summary_evaluators=[faulty_summary_evaluator],
     )
-    task_results = exp._run_task(1, raise_errors=False)
+    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
     assert len(task_results) == 1
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
     with pytest.raises(RuntimeError, match="Summary evaluator faulty_summary_evaluator failed"):
@@ -1407,7 +1417,7 @@ def test_experiment_summary_eval_missing_results_raises(llmobs, test_dataset_one
         [dummy_evaluator],
         summary_evaluators=[dummy_summary_evaluator_using_missing_eval_results],
     )
-    task_results = exp._run_task(1, raise_errors=False)
+    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
     assert len(task_results) == 1
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
     with pytest.raises(
@@ -1418,12 +1428,14 @@ def test_experiment_summary_eval_missing_results_raises(llmobs, test_dataset_one
 
 def test_experiment_merge_results(llmobs, test_dataset_one_record):
     exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
-    task_results = exp._run_task(1, raise_errors=False)
+    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
-    merged_results = exp._merge_results(task_results, eval_results, None)
+    merged_results = exp._merge_results(run_info_with_stable_id(0), task_results, eval_results, None)
 
-    assert len(merged_results["rows"]) == 1
-    exp_result = merged_results["rows"][0]
+    assert len(merged_results.rows) == 1
+    assert merged_results.run_iteration == 1
+    assert merged_results.run_id is not None
+    exp_result = merged_results.rows[0]
     assert exp_result["idx"] == 0
     assert exp_result["record_id"] != ""
     assert exp_result["input"] == {"prompt": "What is the capital of France?"}
@@ -1445,12 +1457,14 @@ def test_experiment_merge_results(llmobs, test_dataset_one_record):
 
 def test_experiment_merge_err_results(llmobs, test_dataset_one_record):
     exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [faulty_evaluator])
-    task_results = exp._run_task(1, raise_errors=False)
+    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
-    merged_results = exp._merge_results(task_results, eval_results, None)
+    merged_results = exp._merge_results(run_info_with_stable_id(0), task_results, eval_results, None)
 
-    assert len(merged_results["rows"]) == 1
-    exp_result = merged_results["rows"][0]
+    assert len(merged_results.rows) == 1
+    assert merged_results.run_iteration == 1
+    assert merged_results.run_id is not None
+    exp_result = merged_results.rows[0]
     assert exp_result["idx"] == 0
     assert exp_result["record_id"] != ""
     assert exp_result["input"] == {"prompt": "What is the capital of France?"}
@@ -1491,13 +1505,19 @@ def test_experiment_run(llmobs, test_dataset_one_record):
             },
             "error": {"message": None, "type": None, "stack": None},
         }
-        exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
-        exp._tags = {"ddtrace.version": "1.2.3"}  # FIXME: this is a hack to set the tags for the experiment
-        exp_results = exp.run()
+        with mock.patch("ddtrace.llmobs._experiment._ExperimentRunInfo") as mock_experiment_run_info:
+            # this is to ensure that the UUID for the run is always the same
+            mock_experiment_run_info.return_value = run_info_with_stable_id(0)
+            exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
+            exp._tags = {"ddtrace.version": "1.2.3"}  # FIXME: this is a hack to set the tags for the experiment
+            exp_results = exp.run()
 
-    assert len(exp_results["summary_evaluations"]) == 0
-    assert len(exp_results["rows"]) == 1
-    exp_result = exp_results["rows"][0]
+    assert len(exp_results.get("summary_evaluations")) == 0
+    assert len(exp_results.get("rows")) == 1
+    assert len(exp_results.get("runs")) == 1
+    assert len(exp_results.get("runs")[0].summary_evaluations) == 0
+    assert len(exp_results.get("runs")[0].rows) == 1
+    exp_result = exp_results.get("rows")[0]
     assert exp_result["idx"] == 0
     assert exp_result["input"] == {"prompt": "What is the capital of France?"}
     assert exp_result["output"] == {"prompt": "What is the capital of France?"}
@@ -1527,15 +1547,18 @@ def test_experiment_run_w_different_project(llmobs, test_dataset_one_record):
             },
             "error": {"message": None, "type": None, "stack": None},
         }
-        exp = llmobs.experiment(
-            "test_experiment",
-            dummy_task,
-            test_dataset_one_record,
-            [dummy_evaluator],
-            project_name="new-different-project",
-        )
-        exp._tags = {"ddtrace.version": "1.2.3"}  # FIXME: this is a hack to set the tags for the experiment
-        exp_results = exp.run()
+        with mock.patch("ddtrace.llmobs._experiment._ExperimentRunInfo") as mock_experiment_run_info:
+            # this is to ensure that the UUID for the run is always the same
+            mock_experiment_run_info.return_value = run_info_with_stable_id(0)
+            exp = llmobs.experiment(
+                "test_experiment",
+                dummy_task,
+                test_dataset_one_record,
+                [dummy_evaluator],
+                project_name="new-different-project",
+            )
+            exp._tags = {"ddtrace.version": "1.2.3"}  # FIXME: this is a hack to set the tags for the experiment
+            exp_results = exp.run()
 
     assert len(exp_results["summary_evaluations"]) == 0
     assert len(exp_results["rows"]) == 1
@@ -1569,15 +1592,18 @@ def test_experiment_run_w_summary(llmobs, test_dataset_one_record):
             },
             "error": {"message": None, "type": None, "stack": None},
         }
-        exp = llmobs.experiment(
-            "test_experiment",
-            dummy_task,
-            test_dataset_one_record,
-            [dummy_evaluator],
-            summary_evaluators=[dummy_summary_evaluator],
-        )
-        exp._tags = {"ddtrace.version": "1.2.3"}  # FIXME: this is a hack to set the tags for the experiment
-        exp_results = exp.run()
+        with mock.patch("ddtrace.llmobs._experiment._ExperimentRunInfo") as mock_experiment_run_info:
+            # this is to ensure that the UUID for the run is always the same
+            mock_experiment_run_info.return_value = run_info_with_stable_id(0)
+            exp = llmobs.experiment(
+                "test_experiment",
+                dummy_task,
+                test_dataset_one_record,
+                [dummy_evaluator],
+                summary_evaluators=[dummy_summary_evaluator],
+            )
+            exp._tags = {"ddtrace.version": "1.2.3"}  # FIXME: this is a hack to set the tags for the experiment
+            exp_results = exp.run()
 
     assert len(exp_results["summary_evaluations"]) == 1
     summary_eval = exp_results["summary_evaluations"]["dummy_summary_evaluator"]
@@ -1596,7 +1622,7 @@ def test_experiment_span_written_to_experiment_scope(llmobs, llmobs_events, test
     """Assert that the experiment span includes expected output field and includes the experiment scope."""
     exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
     exp._id = "1234567890"
-    exp._run_task(1, raise_errors=False)
+    exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
     assert len(llmobs_events) == 1
     event = llmobs_events[0]
     assert event["name"] == "dummy_task"
