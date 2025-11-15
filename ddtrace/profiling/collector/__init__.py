@@ -1,7 +1,6 @@
 # -*- encoding: utf-8 -*-
 import typing
 
-from ddtrace.internal import periodic
 from ddtrace.internal import service
 from ddtrace.internal.settings.profiling import config
 
@@ -23,20 +22,6 @@ class Collector(service.Service):
     @staticmethod
     def snapshot() -> None:
         """Take a snapshot of collected data, to be exported."""
-
-
-class PeriodicCollector(Collector, periodic.PeriodicService):
-    """A collector that needs to run periodically."""
-
-    __slots__ = ()
-
-    def periodic(self) -> None:
-        # This is to simply override periodic.PeriodicService.periodic()
-        self.collect()
-
-    def collect(self) -> None:
-        """Collect the actual data."""
-        raise NotImplementedError
 
 
 class CaptureSampler(object):

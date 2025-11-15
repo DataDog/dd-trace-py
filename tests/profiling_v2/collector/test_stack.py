@@ -77,7 +77,7 @@ def test_stack_locations(tmp_path):
     def foo():
         bar()
 
-    with stack.StackCollector(_stack_collector_v2_enabled=True):
+    with stack.StackCollector():
         for _ in range(10):
             foo()
     ddup.upload()
@@ -127,9 +127,6 @@ def test_push_span(tmp_path, tracer):
 
     with stack.StackCollector(
         tracer=tracer,
-        endpoint_collection_enabled=True,
-        ignore_profiler=True,  # this is not necessary, but it's here to trim samples
-        _stack_collector_v2_enabled=True,
     ):
         with tracer.trace("foobar", resource=resource, span_type=span_type) as span:
             span_id = span.span_id
@@ -175,9 +172,6 @@ def test_push_span_unregister_thread(tmp_path, monkeypatch, tracer):
 
         with stack.StackCollector(
             tracer=tracer,
-            endpoint_collection_enabled=True,
-            ignore_profiler=True,  # this is not necessary, but it's here to trim samples
-            _stack_collector_v2_enabled=True,
         ):
             with tracer.trace("foobar", resource=resource, span_type=span_type) as span:
                 span_id = span.span_id
@@ -222,9 +216,6 @@ def test_push_non_web_span(tmp_path, tracer):
 
     with stack.StackCollector(
         tracer=tracer,
-        endpoint_collection_enabled=True,
-        ignore_profiler=True,  # this is not necessary, but it's here to trim samples
-        _stack_collector_v2_enabled=True,
     ):
         with tracer.trace("foobar", resource=resource, span_type=span_type) as span:
             span_id = span.span_id
@@ -265,9 +256,6 @@ def test_push_span_none_span_type(tmp_path, tracer):
 
     with stack.StackCollector(
         tracer=tracer,
-        endpoint_collection_enabled=True,
-        ignore_profiler=True,  # this is not necessary, but it's here to trim samples
-        _stack_collector_v2_enabled=True,
     ):
         # Explicitly set None span_type as the default could change in the
         # future.
@@ -294,9 +282,7 @@ def test_push_span_none_span_type(tmp_path, tracer):
         )
 
 
-@pytest.mark.skipif(not stack.FEATURES["stack-exceptions"], reason="Stack exceptions are not supported")
-@pytest.mark.parametrize("stack_v2_enabled", [True, False])
-def test_exception_collection(stack_v2_enabled, tmp_path):
+def test_exception_collection(tmp_path):
     test_name = "test_exception_collection"
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
@@ -305,7 +291,7 @@ def test_exception_collection(stack_v2_enabled, tmp_path):
     ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
     ddup.start()
 
-    with stack.StackCollector(ignore_profiler=True, _stack_collector_v2_enabled=stack_v2_enabled):
+    with stack.StackCollector():
         try:
             raise ValueError("hello")
         except Exception:
@@ -316,34 +302,12 @@ def test_exception_collection(stack_v2_enabled, tmp_path):
     profile = pprof_utils.parse_newest_profile(output_filename)
     samples = pprof_utils.get_samples_with_label_key(profile, "exception type")
 
-    if stack_v2_enabled:
-        # DEV: update the test once we have exception profiling for stack v2
-        # using echion
-        assert len(samples) == 0
-    else:
-        assert len(samples) > 0
-        for sample in samples:
-            pprof_utils.assert_stack_event(
-                profile,
-                sample,
-                expected_event=pprof_utils.StackEvent(
-                    thread_id=_thread.get_ident(),
-                    thread_name="MainThread",
-                    exception_type="builtins.ValueError",
-                    locations=[
-                        pprof_utils.StackLocation(
-                            filename="test_stack.py",
-                            function_name="test_exception_collection",
-                            line_no=test_exception_collection.__code__.co_firstlineno + 15,
-                        ),
-                    ],
-                ),
-            )
+    # DEV: update the test once we have exception profiling for stack v2
+    # using echion
+    assert len(samples) == 0
 
 
-@pytest.mark.skipif(not stack.FEATURES["stack-exceptions"], reason="Stack exceptions are not supported")
-@pytest.mark.parametrize("stack_v2_enabled", [True, False])
-def test_exception_collection_threads(stack_v2_enabled, tmp_path):
+def test_exception_collection_threads(tmp_path):
     test_name = "test_exception_collection_threads"
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
@@ -352,7 +316,7 @@ def test_exception_collection_threads(stack_v2_enabled, tmp_path):
     ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
     ddup.start()
 
-    with stack.StackCollector(ignore_profiler=True, _stack_collector_v2_enabled=stack_v2_enabled):
+    with stack.StackCollector():
 
         def target_fun():
             try:
@@ -374,35 +338,10 @@ def test_exception_collection_threads(stack_v2_enabled, tmp_path):
     profile = pprof_utils.parse_newest_profile(output_filename)
     samples = pprof_utils.get_samples_with_label_key(profile, "exception type")
 
-    if stack_v2_enabled:
-        assert len(samples) == 0
-    else:
-        assert len(samples) > 0
-        for sample in samples:
-            thread_id_label = pprof_utils.get_label_with_key(profile.string_table, sample, "thread id")
-            thread_id = int(thread_id_label.num)
-            assert thread_id in [t.ident for t in threads]
-
-            pprof_utils.assert_stack_event(
-                profile,
-                sample,
-                expected_event=pprof_utils.StackEvent(
-                    exception_type="builtins.ValueError",
-                    thread_name=r"Thread-\d+ \(target_fun\)" if sys.version_info[:2] > (3, 9) else r"Thread-\d+",
-                    locations=[
-                        pprof_utils.StackLocation(
-                            filename="test_stack.py",
-                            function_name="target_fun",
-                            line_no=target_fun.__code__.co_firstlineno + 4,
-                        ),
-                    ],
-                ),
-            )
+    assert len(samples) == 0
 
 
-@pytest.mark.skipif(not stack.FEATURES["stack-exceptions"], reason="Stack exceptions are not supported")
-@pytest.mark.parametrize("stack_v2_enabled", [True, False])
-def test_exception_collection_trace(stack_v2_enabled, tmp_path, tracer):
+def test_exception_collection_trace(tmp_path, tracer):
     test_name = "test_exception_collection_trace"
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
@@ -413,7 +352,7 @@ def test_exception_collection_trace(stack_v2_enabled, tmp_path, tracer):
     ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
     ddup.start()
 
-    with stack.StackCollector(tracer=tracer, ignore_profiler=True, _stack_collector_v2_enabled=stack_v2_enabled):
+    with stack.StackCollector(tracer=tracer):
         with tracer.trace("foobar", resource="resource", span_type=ext.SpanTypes.WEB):
             try:
                 raise ValueError("hello")
@@ -425,29 +364,7 @@ def test_exception_collection_trace(stack_v2_enabled, tmp_path, tracer):
     profile = pprof_utils.parse_newest_profile(output_filename)
     samples = pprof_utils.get_samples_with_label_key(profile, "exception type")
 
-    if stack_v2_enabled:
-        assert len(samples) == 0
-    else:
-        assert len(samples) > 0
-        for sample in samples:
-            pprof_utils.assert_stack_event(
-                profile,
-                sample,
-                expected_event=pprof_utils.StackEvent(
-                    thread_id=_thread.get_ident(),
-                    thread_name="MainThread",
-                    exception_type="builtins.ValueError",
-                    trace_type=ext.SpanTypes.WEB,
-                    trace_endpoint="resource",
-                    locations=[
-                        pprof_utils.StackLocation(
-                            filename="test_stack.py",
-                            function_name="test_exception_collection_trace",
-                            line_no=test_exception_collection_trace.__code__.co_firstlineno + 18,
-                        ),
-                    ],
-                ),
-            )
+    assert len(samples) == 0
 
 
 def test_collect_once_with_class(tmp_path):
@@ -468,7 +385,7 @@ def test_collect_once_with_class(tmp_path):
     ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
     ddup.start()
 
-    with stack.StackCollector(ignore_profiler=True, _stack_collector_v2_enabled=True):
+    with stack.StackCollector():
         SomeClass.sleep_class()
 
     ddup.upload()
@@ -522,7 +439,7 @@ def test_collect_once_with_class_not_right_type(tmp_path):
     ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
     ddup.start()
 
-    with stack.StackCollector(ignore_profiler=True, _stack_collector_v2_enabled=True):
+    with stack.StackCollector():
         SomeClass.sleep_class(123)
 
     ddup.upload()
@@ -649,137 +566,8 @@ def test_collect_gevent_thread_task():
     )
 
 
-def test_max_time_usage():
-    with pytest.raises(ValueError):
-        stack.StackCollector(max_time_usage_pct=0)
-
-
-def test_max_time_usage_over():
-    with pytest.raises(ValueError):
-        stack.StackCollector(max_time_usage_pct=200)
-
-
-@pytest.mark.parametrize(
-    "stack_v2_enabled",
-    [True, False],
-)
-@pytest.mark.parametrize(
-    "ignore_profiler",
-    [True, False],
-)
-def test_ignore_profiler(stack_v2_enabled, ignore_profiler, tmp_path):
-    if stack_v2_enabled:
-        pytest.xfail("Echion doesn't support ignore_profiler yet, and the test flakes")
-
-    test_name = "test_ignore_profiler"
-    pprof_prefix = str(tmp_path / test_name)
-    output_filename = pprof_prefix + "." + str(os.getpid())
-
-    assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
-    ddup.start()
-
-    s = stack.StackCollector(ignore_profiler=ignore_profiler, _stack_collector_v2_enabled=stack_v2_enabled)
-    collector_worker_thread_id = None
-
-    with s:
-        for _ in range(10):
-            time.sleep(0.1)
-        collector_worker_thread_id = s._worker.ident
-
-    ddup.upload()
-
-    profile = pprof_utils.parse_newest_profile(output_filename)
-    samples = pprof_utils.get_samples_with_label_key(profile, "thread id")
-
-    thread_ids = set()
-
-    for sample in samples:
-        thread_id_label = pprof_utils.get_label_with_key(profile.string_table, sample, "thread id")
-        thread_id = int(thread_id_label.num)
-        thread_ids.add(thread_id)
-
-    # TODO(taegyunkim): update echion to support ignore_profiler and test with stack v2
-    # Echion by default does not track native threads that are not registered
-    # after https://github.com/P403n1x87/echion/pull/83.
-    if stack_v2_enabled or ignore_profiler:
-        assert collector_worker_thread_id not in thread_ids
-    else:
-        assert collector_worker_thread_id in thread_ids
-
-
-# TODO: support ignore profiler with stack_v2 and update this test
-@pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
-@pytest.mark.skip(reason="ignore_profiler is not supported with stack v2")
-@pytest.mark.subprocess(
-    ddtrace_run=True,
-    env=dict(DD_PROFILING_IGNORE_PROFILER="1", DD_PROFILING_OUTPUT_PPROF="/tmp/test_ignore_profiler_gevent_task"),
-)
-def test_ignore_profiler_gevent_task():
-    import gevent.monkey
-
-    gevent.monkey.patch_all()
-
-    import os
-    import time
-    import typing
-
-    from ddtrace.profiling import collector
-    from ddtrace.profiling import event as event_mod
-    from ddtrace.profiling import profiler
-    from ddtrace.profiling.collector import stack
-    from tests.profiling.collector import pprof_utils
-
-    def _fib(n):
-        if n == 1:
-            return 1
-        elif n == 0:
-            return 0
-        else:
-            return _fib(n - 1) + _fib(n - 2)
-
-    class CollectorTest(collector.PeriodicCollector):
-        def collect(self) -> typing.Iterable[typing.Iterable[event_mod.Event]]:
-            _fib(22)
-            return []
-
-    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"]
-
-    p = profiler.Profiler()
-
-    p.start()
-
-    for c in p._profiler._collectors:
-        if isinstance(c, stack.StackCollector):
-            c.ignore_profiler
-
-    c = CollectorTest(None, interval=0.00001)
-    c.start()
-
-    time.sleep(3)
-
-    worker_ident = c._worker.ident
-
-    c.stop()
-    p.stop()
-
-    profile = pprof_utils.parse_newest_profile(output_filename + "." + str(os.getpid()))
-
-    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
-
-    thread_ids = set()
-    for sample in samples:
-        thread_id_label = pprof_utils.get_label_with_key(profile.string_table, sample, "thread id")
-        thread_id = int(thread_id_label.num)
-        thread_ids.add(thread_id)
-
-    assert worker_ident not in thread_ids
-
-
 def test_repr():
     test_collector._test_repr(
         stack.StackCollector,
-        "StackCollector(status=<ServiceStatus.STOPPED: 'stopped'>, "
-        "min_interval_time=0.01, max_time_usage_pct=1.0, "
-        "nframes=64, ignore_profiler=False, endpoint_collection_enabled=None, tracer=None)",
+        "StackCollector(status=<ServiceStatus.STOPPED: 'stopped'>, nframes=64, tracer=None)",
     )
