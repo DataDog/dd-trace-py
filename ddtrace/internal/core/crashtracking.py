@@ -9,6 +9,7 @@ from ddtrace import config
 from ddtrace import version
 from ddtrace.internal import forksafe
 from ddtrace.internal.compat import ensure_text
+from ddtrace.internal.process_tags import process_tags
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.crashtracker import config as crashtracker_config
@@ -56,6 +57,8 @@ def _get_tags(additional_tags: Optional[Dict[str, str]]) -> Dict[str, str]:
     library_version = version.get_version()
     if library_version:
         tags["library_version"] = library_version
+    if process_tags:
+        tags["process_tags"] = process_tags
 
     for k, v in crashtracker_config.tags.items():
         if k and v:
