@@ -1,0 +1,21 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# promptfoo llm tests
+
+* you are going to launch the promptfoo tests to verify that the new rules/instructions/prompts introduced on the workspace are working well.
+* First action you should take is delete the logs/responses.yaml file if exists.
+* The promptfoo tests files (yaml files) are under the folder .promptfoo. The main configuration resides in the file promptfooconfig.yaml, in the root folder of the workspace.
+* The user can launch the full tests suite or a concrete tests. if there is no reference to a concrete yaml file, the user wants to run the entire tests suite.
+* if there is NO reference to a concrete yaml file, you MUST parse the yaml file "promptfooconfig.yaml" and extract all the tests files. Parse these tests yaml files one by one and read the value of the field user_prompt and answer the questions or perform the action.
+* if there is reference to a concrete yaml file (.promptfoo/xyz.yaml), you MUST parse ONLY this file and read the value of the field user_prompt  and answer the questions or perform the action.
+* All the actions that you perform MUST NOT require interact with the user.
+* NEVER edit files EXCEPT the "responses.yaml", only print the proposed changes.
+* NEVER launch shell command, only print the proposed command.
+* you MUST ALWAYS create or update and write in other yaml file called "responses.yaml" in the "logs" folder the query (create prompt field) and the associated response you provided (output), under the root node "responses".
+* After write the responses.yaml files, as a final action, remember to user that he should run the command "promptfoo eval" for evaluate the responses for the full tests suite, or the command "promptfoo eval -t .promptfoo/xyz.yaml" for evaluate the responses when the user references a concrete yaml file.
+* Remember to user that he can read about how this testing framework (prompt) works using the internal documentation: docs/ai/ai-tools-prompt-validation.md.
+* Questions may begin with an "@". In such cases, you'll need to load the rule file specified after the "@" into your context.
+* When parsing the test YAML file, completely ignore any assertions—they are not actual test assertions. Only extract and use the questions/prompts.
