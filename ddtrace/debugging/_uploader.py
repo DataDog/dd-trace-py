@@ -154,9 +154,8 @@ class SignalUploader(agent.AgentCheckPeriodicService):
                 if not (200 <= resp.status < 300):
                     log.error("Failed to upload payload to endpoint %s: [%d] %r", endpoint, resp.status, resp.read())
                     meter.increment("upload.error", tags={"status": str(resp.status)})
-                    if 400 <= resp.status < 500:
-                        msg = "Failed to upload payload"
-                        raise SignalUploaderError(msg)
+                    msg = "Failed to upload payload"
+                    raise SignalUploaderError(msg)
                 else:
                     meter.increment("upload.success")
                     meter.distribution("upload.size", len(payload))
