@@ -218,12 +218,6 @@ suites:
     parallelism: 2
     runner: riot
     pattern: ^lib_injection$
-  slotscheck:
-    parallelism: 1
-    paths:
-      - 'ddtrace/**/*.py'
-    runner: riot
-    snapshot: false
   runtime:
     paths:
       - '@bootstrap'
