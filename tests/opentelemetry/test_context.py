@@ -2,10 +2,15 @@ import threading
 import time
 
 import opentelemetry
+from opentelemetry import context as context_api
 from opentelemetry.baggage import get_baggage
 from opentelemetry.baggage import remove_baggage
 from opentelemetry.baggage import set_baggage
+from opentelemetry.context import Context
 from opentelemetry.context import attach
+from opentelemetry.trace import get_current_span
+from opentelemetry.trace import set_span_in_context
+from opentelemetry.trace.span import INVALID_SPAN
 import pytest
 
 import ddtrace
@@ -229,3 +234,39 @@ def test_providers_are_set():
     assert tracer_provider.get_tracer(__name__) is not None
     assert meter_provider.get_meter(__name__) is not None
     assert logger_provider.get_logger(__name__) is not None
+
+
+def test_otel_context_api(oteltracer):
+    """Validates context activation and deactivation using the OpenTelemetry context API."""
+    # Verify test starts with clean context
+    assert get_current_span() is INVALID_SPAN
+
+    try:
+        # Attach span1 and verify it becomes active
+        span1 = oteltracer.start_span("span1")
+        token1 = context_api.attach(set_span_in_context(span1))
+        assert get_current_span()._ddspan == span1._ddspan
+        # Attach span2 and verify it becomes active (nested)
+        span2 = oteltracer.start_span("span2")
+        token2 = context_api.attach(set_span_in_context(span2))
+        assert get_current_span()._ddspan == span2._ddspan
+        # Attach span3 and verify it becomes active (double-nested)
+        span3 = oteltracer.start_span("span3")
+        token3 = context_api.attach(set_span_in_context(span3))
+        assert get_current_span()._ddspan == span3._ddspan
+        # Detach span3, span2 should become active again
+        context_api.detach(token3)
+        assert get_current_span()._ddspan == span2._ddspan
+        # Detach span2, span1 should become active again
+        context_api.detach(token2)
+        assert get_current_span()._ddspan == span1._ddspan
+        # Detach span1, no active span should remain
+        context_api.detach(token1)
+        assert get_current_span() is INVALID_SPAN
+        # End spans to clean up
+        span1.end()
+        span2.end()
+        span3.end()
+    finally:
+        # Clear context to prevent leaking spans to subsequent tests
+        context_api.attach(Context())

@@ -47,10 +47,11 @@ class LLMObsContextProvider(DefaultContextProvider):
         self.activate(None)
         return None
 
-    def activate(self, ctx: ContextTypeValue) -> None:
+    def activate(self, ctx: ContextTypeValue) -> contextvars.Token:
         """Makes the given context active in the current execution."""
-        _DD_LLMOBS_CONTEXTVAR.set(ctx)
+        token = _DD_LLMOBS_CONTEXTVAR.set(ctx)
         super(DefaultContextProvider, self).activate(ctx)
+        return token
 
     def active(self) -> ContextTypeValue:
         """Returns the active span or context for the current execution."""
@@ -58,3 +59,6 @@ class LLMObsContextProvider(DefaultContextProvider):
         if isinstance(item, Span):
             return self._update_active(item)
         return item
+
+    def _deactivate(self, token: contextvars.Token) -> None:
+        _DD_LLMOBS_CONTEXTVAR.reset(token)
