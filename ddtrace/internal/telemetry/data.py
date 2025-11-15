@@ -56,9 +56,12 @@ def _get_application(key):
     This helper packs and unpacks get_application arguments to support caching.
     Cached() annotation only supports functions with one argument
     """
+    # avoid circular dependency
+    from ddtrace.internal import process_tags
+
     service, version, env = key
 
-    return {
+    application = {
         "service_name": service or DEFAULT_SERVICE_NAME,  # mandatory field, can not be empty
         "service_version": version or "",
         "env": env or "",
@@ -68,6 +71,11 @@ def _get_application(key):
         "runtime_name": platform.python_implementation(),
         "runtime_version": _format_version_info(sys.implementation.version),
     }
+
+    if process_tags := process_tags.process_tags:
+        application["process_tags"] = process_tags
+
+    return application
 
 
 def update_imported_dependencies(already_imported: Dict[str, str], new_modules: Iterable[str]) -> List[Dict[str, str]]:

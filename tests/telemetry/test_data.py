@@ -6,6 +6,7 @@ import pytest
 
 import ddtrace
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
+from ddtrace.internal.process_tags import _process_tag_reload
 from ddtrace.internal.runtime.container import CGroupInfo
 from ddtrace.internal.telemetry.data import _format_version_info
 from ddtrace.internal.telemetry.data import _get_container_id
@@ -41,6 +42,21 @@ def test_get_application_with_values():
     assert application["service_name"] == "munirs-service"
     assert application["service_version"] == "1.1.1"
     assert application["env"] == "staging"
+
+
+def test_get_application_with_process_tags():
+    from ddtrace.settings._config import config
+
+    with mock.patch("sys.argv", ["/path/to/test_script.py"]), mock.patch("os.getcwd", return_value="/path/to/workdir"):
+        try:
+            config._process_tags_enabled = True
+            _process_tag_reload()
+
+            application = get_application("", "", "")
+            assert "process_tags" in application
+        finally:
+            config._process_tags_enabled = False
+            _process_tag_reload()
 
 
 def test_application_with_setenv(run_python_code_in_subprocess, monkeypatch):
