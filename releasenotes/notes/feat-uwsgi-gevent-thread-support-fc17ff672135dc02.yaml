@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Added support for uWSGI with gevent when threads are also patched.
