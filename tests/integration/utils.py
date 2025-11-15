@@ -36,11 +36,29 @@ def send_invalid_payload_and_get_logs(encoder_cls=BadEncoder):
     return log
 
 
-def parametrize_with_all_encodings(env=None, out="", err="", check_logs=True):
+def parametrize_with_all_encodings(env=None, out=None, err="", check_logs=True):
     if env is None:
         env = dict()
+
+    def stdout_ok(stream):
+        # Ensure no unexpected output in stdout
+        #
+        #   b"Got response: 200 OK sent 711B in 1.59383s to http://localhost:9126/v0.4/traces"
+        #   may appear in some cases and is acceptable
+        #
+        #   Empty lines are also ignored
+        lines = [_.strip() for _ in stream.splitlines() if _.strip() and b"Got response: 200 OK sent" not in _]
+        assert not lines, f"Unexpected output in stdout: {lines}"
+
+    if out is None:
+        out = stdout_ok
+
     return pytest.mark.subprocess(
-        parametrize={"DD_TRACE_API_VERSION": ["v0.5", "v0.4"]}, env=env, out=out, err=err, check_logs=check_logs
+        parametrize={"DD_TRACE_API_VERSION": ["v0.5", "v0.4"]},
+        env=env,
+        out=out,
+        err=err,
+        check_logs=check_logs,
     )
 
 
