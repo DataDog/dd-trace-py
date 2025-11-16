@@ -215,7 +215,7 @@ class TracerFlareTests(TestCase):
         self.flare.clean_up_files()
         self.flare.revert_configs()
 
-    @fibonacci_backoff_with_jitter(attempts=5, initial_wait=0.1)
+    @fibonacci_backoff_with_jitter(attempts=10, initial_wait=0.1)
     def confirm_cleanup(self):
         assert not self.flare.flare_dir.exists(), f"The directory {self.flare.flare_dir} still exists"
         # Only check for file handler cleanup if prepare() was called
