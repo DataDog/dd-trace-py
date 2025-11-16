@@ -31,6 +31,7 @@ tracing = { version = "0.1", default-features = false }
 
 [build-dependencies]
 pyo3-build-config = "0.25"
+cc = "1.2.39"
 build_common = { git = "https://github.com/DataDog/libdatadog", rev = "v24.0.0", features = [
     "cbindgen",
 ] }
