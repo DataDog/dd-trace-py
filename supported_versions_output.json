@@ -481,7 +481,7 @@
         "dependency": "psycopg",
         "integration": "psycopg",
         "minimum_tracer_supported": "3.0.18",
-        "max_tracer_supported": "3.2.10",
+        "max_tracer_supported": "3.2.12",
         "auto-instrumented": true
     },
     {
