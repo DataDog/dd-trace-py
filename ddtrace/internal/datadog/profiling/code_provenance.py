@@ -103,6 +103,12 @@ class CodeProvenance:
         return {"v1": [lib.to_dict() for lib in self.libraries]}
 
 
+# Initialize once at import to avoid reinitializing this in every child process.
+# This can add up and show up as a significant overhead, especially in a service
+# with many packages installed, and many short lived child processes serving
+# requests.
+CODE_PROVENANCE_JSON_STR = json.dumps(CodeProvenance().to_dict())
+
+
 def json_str_to_export() -> str:
-    cp = CodeProvenance()
-    return json.dumps(cp.to_dict())
+    return CODE_PROVENANCE_JSON_STR
