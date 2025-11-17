@@ -16,7 +16,11 @@ variables:
   when: on_success
   tags: ["runner:apm-k8s-tweaked-metal"]
   image: $MICROBENCHMARKS_CI_IMAGE
-  interruptible: true
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      interruptible: false
+    - if: $CI_COMMIT_BRANCH != "main"
+      interruptible: true
   timeout: 30m
   dependencies: [ "baseline:build", "candidate" ]
   script: |
