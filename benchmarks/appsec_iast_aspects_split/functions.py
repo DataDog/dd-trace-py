@@ -4,14 +4,12 @@ import re
 
 
 try:
-    from ddtrace import __version__
+    from ddtrace import __version__ as version
 except ImportError:
     from ddtrace.version import get_version
 
-    __version__ = get_version()
+    version = get_version()
 
-
-version = get_version()
 
 # Some old versions could not have or export some symbols, so we import them dynamically and assign None if not found
 # which will make the aspect benchmark fail but not the entire benchmark
