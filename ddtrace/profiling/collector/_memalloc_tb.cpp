@@ -129,12 +129,8 @@ traceback_t::traceback_t(void* ptr,
         return;
     }
 
-    // TODO: Ensure profile_state is initialized before creating Sample objects
-    // Currently, push_alloc() has bounds checking to handle uninitialized profile_state gracefully,
-    // but ideally we should initialize profile_state before constructing traceback_t objects.
-
     // Push allocation info to sample
-    // Note: push_alloc() has bounds checking to handle uninitialized profile_state gracefully
+    // Note: profile_state is initialized in memalloc_start() before any traceback_t objects are created
     sample.push_alloc(weighted_size, count);
     sample.push_threadinfo(thread_id, 0, ""); // thread_native_id and thread_name not available here
 
