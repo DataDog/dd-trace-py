@@ -802,3 +802,39 @@ def test_apm_tracing_sampling_rules_none_override(remote_config_worker):
         # Restore original config
         config.service = original_service
         config.env = original_env
+
+
+def test_remote_config_payload_not_includes_process_tags():
+    client = RemoteConfigClient()
+    payload = client._build_payload({})
+
+    assert "process_tags" not in payload["client"]["client_tracer"]
+
+
+@pytest.mark.subprocess(env={"DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED": "True"})
+def test_remote_config_payload_includes_process_tags():
+    from unittest.mock import patch
+
+    from ddtrace.internal.process_tags import ENTRYPOINT_BASEDIR_TAG
+    from ddtrace.internal.process_tags import ENTRYPOINT_NAME_TAG
+    from ddtrace.internal.process_tags import ENTRYPOINT_TYPE_SCRIPT
+    from ddtrace.internal.process_tags import ENTRYPOINT_TYPE_TAG
+    from ddtrace.internal.process_tags import ENTRYPOINT_WORKDIR_TAG
+    from ddtrace.internal.remoteconfig.client import RemoteConfigClient
+    from tests.utils import process_tag_reload
+
+    with patch("sys.argv", ["/path/to/test_script.py"]), patch("os.getcwd", return_value="/path/to/workdir"):
+        process_tag_reload()
+
+        client = RemoteConfigClient()
+        payload = client._build_payload({})
+
+        assert "process_tags" in payload["client"]["client_tracer"]
+
+        process_tags = payload["client"]["client_tracer"]["process_tags"]
+
+        assert isinstance(process_tags, list)
+        assert f"{ENTRYPOINT_BASEDIR_TAG}:to" in process_tags
+        assert f"{ENTRYPOINT_NAME_TAG}:test_script" in process_tags
+        assert f"{ENTRYPOINT_TYPE_TAG}:{ENTRYPOINT_TYPE_SCRIPT}" in process_tags
+        assert f"{ENTRYPOINT_WORKDIR_TAG}:workdir" in process_tags
