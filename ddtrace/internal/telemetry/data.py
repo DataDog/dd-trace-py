@@ -72,8 +72,8 @@ def _get_application(key):
         "runtime_version": _format_version_info(sys.implementation.version),
     }
 
-    if process_tags := process_tags.process_tags:
-        application["process_tags"] = process_tags
+    if p_tags := process_tags.process_tags:
+        application["process_tags"] = p_tags
 
     return application
 
