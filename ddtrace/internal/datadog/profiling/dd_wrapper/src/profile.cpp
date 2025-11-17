@@ -58,7 +58,7 @@ Datadog::Profile::reset_profile()
         return false;
     }
 
-    profiler_stats.reset_state();
+    cur_profiler_stats.reset_state();
     return true;
 }
 
@@ -228,6 +228,6 @@ Datadog::Profile::postfork_child()
 {
     new (&profile_mtx) std::mutex();
     // Reset the profile to clear any samples collected in the parent process
-    profiler_stats.reset_state();
+    cur_profiler_stats.reset_state();
     reset_profile();
 }

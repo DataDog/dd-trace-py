@@ -47,7 +47,7 @@ class Profile
     // cannot be used until it's initialized by libdatadog
     ddog_prof_Profile cur_profile{};
 
-    Datadog::ProfilerStats profiler_stats{};
+    Datadog::ProfilerStats cur_profiler_stats{};
 
     // Internal access methods - not for direct use
     ddog_prof_Profile& profile_borrow_internal();
