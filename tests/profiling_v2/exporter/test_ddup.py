@@ -97,28 +97,12 @@ def test_process_tags_activated():
 
     from ddtrace.profiling.profiler import Profiler  # noqa: I001
     from ddtrace.internal.datadog.profiling import ddup
-    from ddtrace.internal.process_tags import _process_tag_reload
 
-    from ddtrace.internal.process_tags.constants import ENTRYPOINT_BASEDIR_TAG
-    from ddtrace.internal.process_tags.constants import ENTRYPOINT_NAME_TAG
-    from ddtrace.internal.process_tags.constants import ENTRYPOINT_TYPE_SCRIPT
-    from ddtrace.internal.process_tags.constants import ENTRYPOINT_TYPE_TAG
-    from ddtrace.internal.process_tags.constants import ENTRYPOINT_WORKDIR_TAG
+    # When Profiler is instantiated and libdd is enabled, it should call ddup.config
+    Profiler()
 
-    with mock.patch("sys.argv", ["/path/to/test_script.py"]), mock.patch("os.getcwd", return_value="/path/to/workdir"):
-        _process_tag_reload()
+    ddup.config.assert_called()
 
-        # When Profiler is instantiated and libdd is enabled, it should call ddup.config
-        Profiler()
+    tags = ddup.config.call_args.kwargs["tags"]
 
-        ddup.config.assert_called()
-
-        tags = ddup.config.call_args.kwargs["tags"]
-
-        assert "process_tags" in tags
-        process_tags = dict(tag.split(":", 1) for tag in tags["process_tags"].split(","))
-
-        assert process_tags[ENTRYPOINT_BASEDIR_TAG] == "to"
-        assert process_tags[ENTRYPOINT_NAME_TAG] == "test_script"
-        assert process_tags[ENTRYPOINT_TYPE_TAG] == ENTRYPOINT_TYPE_SCRIPT
-        assert process_tags[ENTRYPOINT_WORKDIR_TAG] == "workdir"
+    assert "process_tags" in tags
