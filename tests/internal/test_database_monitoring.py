@@ -122,6 +122,54 @@ def test_dbm_propagation_full_mode():
 
 @pytest.mark.subprocess(
     env=dict(
+        DD_DBM_PROPAGATION_MODE="service",
+        DD_SERVICE="orders-app",
+        DD_ENV="staging",
+        DD_VERSION="v7343437-d7ac743",
+        DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED="true",
+    )
+)
+def test_dbm_comment_includes_service_hash_when_process_tags_enabled():
+    from ddtrace.internal.process_tags import update_base_hash
+    from ddtrace.propagation import _database_monitoring
+    from ddtrace.trace import tracer
+
+    update_base_hash("abc123")
+
+    with tracer.trace("dbspan", service="orders-db") as dbspan:
+        dbm_popagator = _database_monitoring._DBM_Propagator(0, "query")
+        sqlcomment = dbm_popagator._get_dbm_comment(dbspan)
+
+        assert "ddsh='abc123'" in sqlcomment
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_DBM_PROPAGATION_MODE="service",
+        DD_SERVICE="orders-app",
+        DD_ENV="staging",
+        DD_VERSION="v7343437-d7ac743",
+        DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED="false",
+    )
+)
+def test_dbm_comment_excludes_service_hash_when_process_tags_disabled():
+    from ddtrace.internal import process_tags
+    from ddtrace.internal.process_tags import update_base_hash
+    from ddtrace.propagation import _database_monitoring
+    from ddtrace.trace import tracer
+
+    update_base_hash("abc123")
+    assert process_tags.base_hash == 0
+
+    with tracer.trace("dbspan", service="orders-db") as dbspan:
+        dbm_popagator = _database_monitoring._DBM_Propagator(0, "query")
+        sqlcomment = dbm_popagator._get_dbm_comment(dbspan)
+
+        assert "ddsh" not in sqlcomment
+
+
+@pytest.mark.subprocess(
+    env=dict(
         DD_DBM_PROPAGATION_MODE="full",
         DD_SERVICE="orders-app",
         DD_ENV="staging",

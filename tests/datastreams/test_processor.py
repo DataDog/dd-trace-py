@@ -29,6 +29,15 @@ def test_data_streams_processor():
     assert processor._buckets[bucket_time_ns].pathway_stats[aggr_key_2].full_pathway_latency.count == 1
 
 
+def test_new_pathway_uses_base_hash():
+    with mock.patch("ddtrace.internal.datastreams.processor.process_tags") as mock_process_tags:
+        mock_process_tags.base_hash = 987654321
+
+        ctx = processor.new_pathway(now_sec=mocked_time)
+
+        assert ctx.hash == 987654321
+
+
 def test_data_streams_loop_protection():
     ctx = processor.set_checkpoint(["direction:in", "topic:topicA", "type:kafka"])
     parent_hash = ctx.hash

@@ -5,6 +5,7 @@ from typing import Union  # noqa:F401
 import ddtrace
 from ddtrace import config as dd_config
 from ddtrace.internal import core
+from ddtrace.internal import process_tags
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.peer_service import PeerServiceConfig
 from ddtrace.vendor.sqlcommenter import generate_sql_comment as _generate_sql_comment
@@ -28,6 +29,7 @@ DBM_PEER_DB_NAME_KEY: Literal["dddb"] = "dddb"
 DBM_PEER_SERVICE_KEY: Literal["ddprs"] = "ddprs"
 DBM_ENVIRONMENT_KEY: Literal["dde"] = "dde"
 DBM_VERSION_KEY: Literal["ddpv"] = "ddpv"
+DBM_SERVICE_HASH: Literal["ddsh"] = "ddsh"
 DBM_TRACE_PARENT_KEY: Literal["traceparent"] = "traceparent"
 DBM_TRACE_INJECTED_TAG: Literal["_dd.dbm_trace_injected"] = "_dd.dbm_trace_injected"
 
@@ -127,6 +129,9 @@ class _DBM_Propagator(object):
         if dbm_config.propagation_mode == "full":
             db_span._set_tag_str(DBM_TRACE_INJECTED_TAG, "true")
             dbm_tags[DBM_TRACE_PARENT_KEY] = db_span.context._traceparent
+
+        if base_hash := process_tags.base_hash:
+            dbm_tags[DBM_SERVICE_HASH] = base_hash
 
         sql_comment = self.comment_generator(**dbm_tags)
         if sql_comment:

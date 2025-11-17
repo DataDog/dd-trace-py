@@ -16,6 +16,7 @@ from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 
 from ddtrace.internal import compat
+from ddtrace.internal import process_tags
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.native import DDSketch
@@ -344,7 +345,7 @@ class DataStreamsProcessor(PeriodicService):
 
         if not now_sec:
             now_sec = time.time()
-        ctx = DataStreamsCtx(self, 0, now_sec, now_sec)
+        ctx = DataStreamsCtx(self, process_tags.base_hash, now_sec, now_sec)
         self._current_context.value = ctx
         return ctx
 

@@ -73,6 +73,7 @@ STATUS_403_TYPE_AUTO = {"status_code": 403, "type": "auto"}
 PROCESS_TAGS = "_dd.tags.process"
 
 CONTAINER_ID_HEADER_NAME = "Datadog-Container-Id"
+CONTAINER_TAGS_HASH = "Datadog-Container-Tags-Hash"
 
 ENTITY_ID_HEADER_NAME = "Datadog-Entity-ID"
 
