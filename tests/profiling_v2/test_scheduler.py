@@ -6,6 +6,11 @@ from unittest import mock
 from ddtrace.profiling import scheduler
 
 
+def test_exporter_failure():
+    s = scheduler.Scheduler()
+    s.flush()
+
+
 def test_thread_name():
     s = scheduler.Scheduler()
     s.start()

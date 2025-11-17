@@ -81,13 +81,13 @@ suites:
   profile_v2:
     env:
       DD_TRACE_AGENT_URL: ''
-    # `riot list --hash-only profile-v2$ | wc -1` = 19
-    parallelism: 16
+    # `riot list --hash-only profile-v2 | wc -l` = 26
+    parallelism: 26
     paths:
       - '@bootstrap'
       - '@core'
       - '@profiling'
-      - tests/profiling/suitespec.yml
+      - tests/profiling_v2/suitespec.yml
       - tests/profiling_v2/*
     pattern: profile-v2
     retry: 2

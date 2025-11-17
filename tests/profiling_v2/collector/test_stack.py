@@ -7,12 +7,12 @@ from unittest.mock import patch
 import uuid
 
 import pytest
+from tests.profiling.collector import test_collector
 
 from ddtrace import ext
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling.collector import stack
 from tests.conftest import get_original_test_name
-from tests.profiling.collector import test_collector
 from tests.profiling_v2.collector import pprof_utils
 
 

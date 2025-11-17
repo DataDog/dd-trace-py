@@ -21,8 +21,8 @@ from ddtrace._trace.tracer import Tracer
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling.collector.threading import ThreadingLockCollector
 from ddtrace.profiling.collector.threading import ThreadingRLockCollector
-from tests.profiling.collector import test_collector
 from tests.profiling_v2.collector import pprof_utils
+from tests.profiling_v2.collector import test_collector
 from tests.profiling_v2.collector.lock_utils import LineNo
 from tests.profiling_v2.collector.lock_utils import get_lock_linenos
 from tests.profiling_v2.collector.lock_utils import init_linenos
