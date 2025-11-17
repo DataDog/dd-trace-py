@@ -9,7 +9,7 @@ from ddtrace.llmobs._integrations.utils import _est_tokens
 from ddtrace.llmobs._utils import safe_json
 from tests.contrib.openai.utils import chat_completion_custom_functions
 from tests.contrib.openai.utils import chat_completion_input_description
-from tests.contrib.openai.utils import get_mock_response_mcp_tool_call
+from tests.contrib.openai.utils import mock_response_mcp_tool_call
 from tests.contrib.openai.utils import get_openai_vcr
 from tests.contrib.openai.utils import mock_openai_chat_completions_response
 from tests.contrib.openai.utils import mock_openai_completions_response
@@ -2159,7 +2159,7 @@ MUL: "*"
     def test_response_mcp_tool_call(
         self, mock_response_post, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer
     ):
-        mock_response_post.return_value = get_mock_response_mcp_tool_call()
+        mock_response_post.return_value = mock_response_mcp_tool_call()
 
         client = openai.OpenAI()
         client.responses.create(
