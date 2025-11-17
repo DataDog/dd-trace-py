@@ -1,12 +1,12 @@
+from concurrent.futures import ThreadPoolExecutor
 import os
 import time
 
 import tornado.concurrent
+from tornado.gen import sleep as tornado_sleep
 import tornado.web
 
 from . import uimodules
-from .compat import ThreadPoolExecutor
-from .compat import sleep
 
 
 BASE_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -31,7 +31,7 @@ class NestedHandler(tornado.web.RequestHandler):
     def get(self):
         tracer = self.settings["datadog_trace"]["tracer"]
         with tracer.trace("tornado.sleep"):
-            yield sleep(0.05)
+            yield tornado_sleep(0.05)
         self.write("OK")
 
 
@@ -45,7 +45,7 @@ class NestedWrapHandler(tornado.web.RequestHandler):
         @tracer.wrap("tornado.coro")
         @tornado.gen.coroutine
         def coro():
-            yield sleep(0.05)
+            yield tornado_sleep(0.05)
 
         yield coro()
         self.write("OK")
@@ -61,7 +61,7 @@ class NestedExceptionWrapHandler(tornado.web.RequestHandler):
         @tracer.wrap("tornado.coro")
         @tornado.gen.coroutine
         def coro():
-            yield sleep(0.05)
+            yield tornado_sleep(0.05)
             raise Exception("Ouch!")
 
         yield coro()
@@ -122,7 +122,7 @@ class SyncNestedWrapHandler(tornado.web.RequestHandler):
         # is only for easy testing
         @tracer.wrap("tornado.func")
         def func():
-            time.sleep(0.05)
+            tornado_sleep(0.05)
 
         func()
         self.write("OK")

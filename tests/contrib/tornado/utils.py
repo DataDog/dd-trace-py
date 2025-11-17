@@ -9,7 +9,6 @@ from ddtrace.contrib.internal.tornado.patch import unpatch
 from tests.utils import TracerTestCase
 
 from .web import app
-from .web import compat
 
 
 class TornadoTestCase(TracerTestCase, AsyncHTTPTestCase):
@@ -23,7 +22,6 @@ class TornadoTestCase(TracerTestCase, AsyncHTTPTestCase):
         # patch Tornado and reload module app
         patch()
         patch_futures()
-        reload_module(compat)
         reload_module(app)
 
         settings = self.get_settings()
@@ -42,5 +40,4 @@ class TornadoTestCase(TracerTestCase, AsyncHTTPTestCase):
         # unpatch Tornado
         unpatch()
         unpatch_futures()
-        reload_module(compat)
         reload_module(app)

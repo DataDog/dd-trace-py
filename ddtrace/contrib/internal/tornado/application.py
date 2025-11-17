@@ -5,9 +5,7 @@ from tornado import template
 import ddtrace
 from ddtrace import config
 from ddtrace._trace.pin import Pin
-from ddtrace.contrib.internal.tornado import decorators
 from ddtrace.contrib.internal.tornado.constants import CONFIG_KEY
-from ddtrace.contrib.internal.tornado.stack_context import context_provider
 from ddtrace.internal.schema import schematize_service_name
 
 
@@ -40,10 +38,8 @@ def tracer_config(__init__, app, args, kwargs):
     trace_processors = settings.get("settings", {}).get("FILTERS")
 
     tracer.configure(
-        context_provider=context_provider,
         trace_processors=trace_processors,
     )
-    tracer._wrap_executor = decorators.wrap_executor
     # TODO: Remove `enabled`, `hostname` and `port` settings in v4.0
     # Tracer should be configured via environment variables
     if settings.get("enabled") is not None:

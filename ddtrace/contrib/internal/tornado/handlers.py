@@ -12,14 +12,12 @@ from ddtrace.internal.utils import get_argument_value
 
 from .constants import CONFIG_KEY
 from .constants import REQUEST_SPAN_KEY
-from .stack_context import TracerStackContext
 
 
 def execute(func, handler, args, kwargs):
     """
     Wrap the handler execute method so that the entire request is within the same
-    ``TracerStackContext``. This simplifies users code when the automatic ``Context``
-    retrieval is used via ``Tracer.trace()`` method.
+    tracing context.
     """
     # retrieve tracing settings
     settings = handler.settings[CONFIG_KEY]
@@ -27,31 +25,30 @@ def execute(func, handler, args, kwargs):
     service = settings["default_service"]
     distributed_tracing = settings["distributed_tracing"]
 
-    with TracerStackContext():
-        with core.context_with_data(
-            "tornado.request",
-            span_name=schematize_url_operation("tornado.request", protocol="http", direction=SpanDirection.INBOUND),
-            span_type=SpanTypes.WEB,
-            service=service,
-            tags={},
-            tracer=tracer,
-            distributed_headers=handler.request.headers,
-            integration_config=config.tornado,
-            activate_distributed_headers=True,
-            distributed_headers_config_override=distributed_tracing,
-            headers_case_sensitive=True,
-        ) as ctx:
-            req_span = ctx.span
+    with core.context_with_data(
+        "tornado.request",
+        span_name=schematize_url_operation("tornado.request", protocol="http", direction=SpanDirection.INBOUND),
+        span_type=SpanTypes.WEB,
+        service=service,
+        tags={},
+        tracer=tracer,
+        distributed_headers=handler.request.headers,
+        integration_config=config.tornado,
+        activate_distributed_headers=True,
+        distributed_headers_config_override=distributed_tracing,
+        headers_case_sensitive=True,
+    ) as ctx:
+        req_span = ctx.span
 
-            ctx.set_item("req_span", req_span)
-            core.dispatch("web.request.start", (ctx, config.tornado))
+        ctx.set_item("req_span", req_span)
+        core.dispatch("web.request.start", (ctx, config.tornado))
 
-            http_route = _find_route(handler.application.default_router.rules, handler.request)
-            if http_route is not None and isinstance(http_route, str):
-                req_span._set_tag_str("http.route", http_route)
-            setattr(handler.request, REQUEST_SPAN_KEY, req_span)
+        http_route = _find_route(handler.application.default_router.rules, handler.request)
+        if http_route is not None and isinstance(http_route, str):
+            req_span._set_tag_str("http.route", http_route)
+        setattr(handler.request, REQUEST_SPAN_KEY, req_span)
 
-            return func(*args, **kwargs)
+        return func(*args, **kwargs)
 
 
 def _find_route(initial_rule_set, request):

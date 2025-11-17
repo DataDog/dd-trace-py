@@ -4,16 +4,11 @@ from typing import Dict
 import tornado
 from wrapt import wrap_function_wrapper as _w
 
-import ddtrace
 from ddtrace import config
-from ddtrace.contrib.internal.tornado.stack_context import context_provider
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.vendor.debtcollector import deprecate
 
 from . import application
-from . import decorators
 from . import handlers
 from . import template
 
@@ -31,20 +26,8 @@ def get_version():
     return getattr(tornado, "version", "0.0.0")
 
 
-VERSION_TUPLE = tuple([int(x) for x in get_version().split(".")])
-
-if VERSION_TUPLE < (6, 1, 0):
-    deprecate(
-        f"Tornado {VERSION_TUPLE} is deprecated",
-        message="Use Tornado v6.1 or later and configure tracing using "
-        "environment variables and ``ddtrace-run`` or ``import ddtrace.auto`` instead.",
-        category=DDTraceDeprecationWarning,
-        removal_version="4.0.0",
-    )
-
-
 def _supported_versions() -> Dict[str, str]:
-    return {"tornado": ">=6.0.0"}
+    return {"tornado": ">=6.1"}
 
 
 def patch():
@@ -67,10 +50,6 @@ def patch():
 
     # patch Template system
     _w("tornado.template", "Template.generate", template.generate)
-
-    # configure the global tracer
-    ddtrace.tracer.context_provider = context_provider
-    ddtrace.tracer._wrap_executor = decorators.wrap_executor
 
 
 def unpatch():

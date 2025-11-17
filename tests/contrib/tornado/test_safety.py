@@ -1,13 +1,14 @@
+from concurrent.futures import ThreadPoolExecutor
 import threading
 
 from tornado import httpclient
+from tornado.gen import sleep as tornado_sleep
 from tornado.testing import gen_test
 
 from ddtrace.contrib.internal.tornado.patch import patch
 from ddtrace.contrib.internal.tornado.patch import unpatch
 from ddtrace.ext import http
 
-from . import web
 from .utils import TornadoTestCase
 from .web.app import CustomDefaultHandler
 
@@ -40,7 +41,7 @@ class TestAsyncConcurrency(TornadoTestCase):
             t.start()
 
         while len(responses) < REQUESTS_NUMBER:
-            yield web.compat.sleep(0.001)
+            yield tornado_sleep(0.001)
 
         for t in threads:
             t.join()
@@ -119,10 +120,6 @@ class TestAppSafety(TornadoTestCase):
 
     @gen_test
     def test_futures_without_context(self):
-        # ensures that if futures propagation is available, an empty
-        # context doesn't crash the system
-        from .web.compat import ThreadPoolExecutor
-
         def job():
             with self.tracer.trace("job"):
                 return 42
