@@ -2,6 +2,7 @@
 
 #include "libdatadog_helpers.hpp"
 #include "profile.hpp"
+#include "profile_borrow.hpp"
 #include "types.hpp"
 
 #include <string>
@@ -134,8 +135,7 @@ class Sample
     // Flushes the current buffer, clearing it
     bool flush_sample(bool reverse_locations = false);
 
-    static ddog_prof_Profile& profile_borrow();
-    static void profile_release();
+    static ProfileBorrow profile_borrow();
     static void postfork_child();
     Sample(SampleType _type_mask, unsigned int _max_nframes);
 
