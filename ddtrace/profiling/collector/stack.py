@@ -30,7 +30,7 @@ class StackCollector(collector.Collector):
         self.nframes = nframes if nframes is not None else config.max_frames
         self.tracer = tracer
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         class_name = self.__class__.__name__
         attrs = {k: v for k, v in self.__dict__.items() if not k.startswith("_")}
         attrs_str = ", ".join(f"{k}={v!r}" for k, v in attrs.items())
@@ -40,8 +40,7 @@ class StackCollector(collector.Collector):
 
         return f"{class_name}({attrs_str}, {slot_attrs_str})"
 
-    def _init(self):
-        # type: (...) -> None
+    def _init(self) -> None:
         if self.tracer is not None:
             core.on("ddtrace.context_provider.activate", stack_v2.link_span)
 
@@ -52,15 +51,13 @@ class StackCollector(collector.Collector):
         stack_v2.set_adaptive_sampling(config.stack.v2_adaptive_sampling)
         stack_v2.start()
 
-    def _start_service(self):
-        # type: (...) -> None
+    def _start_service(self) -> None:
         # This is split in its own function to ease testing
         LOG.debug("Profiling StackCollector starting")
         self._init()
         LOG.debug("Profiling StackCollector started")
 
-    def _stop_service(self):
-        # type: (...) -> None
+    def _stop_service(self) -> None:
         LOG.debug("Profiling StackCollector stopping")
         if self.tracer is not None:
             core.reset_listeners("ddtrace.context_provider.activate", stack_v2.link_span)
