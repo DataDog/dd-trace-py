@@ -1,34 +1,25 @@
-#ifndef _DDTRACE_MEMALLOC_TB_H
-#define _DDTRACE_MEMALLOC_TB_H
+#pragma once
 
-#include <stdbool.h>
-#include <stdint.h>
+#include <cstddef>
+#include <cstdint>
+#include <vector>
 
 #include <Python.h>
 
-#include "_utils.h"
-
-typedef struct
-#ifdef __GNUC__
-  __attribute__((packed))
-#elif defined(_MSC_VER)
-#pragma pack(push, 4)
-#endif
+class frame_t
 {
+  public:
     PyObject* filename;
     PyObject* name;
     unsigned int lineno;
-} frame_t;
-#if defined(_MSC_VER)
-#pragma pack(pop)
-#endif
 
-typedef struct
+    /* Constructor - converts a PyFrameObject to a frame_t */
+    explicit frame_t(PyFrameObject* pyframe);
+};
+
+class traceback_t
 {
-    /* Total number of frames in the traceback */
-    uint16_t total_nframe;
-    /* Number of frames in the traceback */
-    uint16_t nframe;
+  public:
     /* Memory pointer allocated */
     void* ptr;
     /* Memory size allocated in bytes */
@@ -42,33 +33,47 @@ typedef struct
     /* Count of allocations this sample represents (for scaling) */
     size_t count;
     /* List of frames, top frame first */
-    frame_t frames[1];
-} traceback_t;
+    std::vector<frame_t> frames;
 
-/* The maximum number of frames we can store in `traceback_t.nframe` */
+    /* Constructor - also collects frames from the current Python frame chain */
+    traceback_t(void* ptr,
+                size_t size,
+                PyMemAllocatorDomain domain,
+                size_t weighted_size,
+                PyFrameObject* pyframe,
+                uint16_t max_nframe);
+
+    /* Destructor - cleans up Python references */
+    ~traceback_t();
+
+    /* Convert traceback to Python tuple */
+    PyObject* to_tuple() const;
+
+    /* Factory method - creates a traceback from the current Python frame chain */
+    static traceback_t* get_traceback(uint16_t max_nframe,
+                                      void* ptr,
+                                      size_t size,
+                                      PyMemAllocatorDomain domain,
+                                      size_t weighted_size);
+
+    /* Initialize traceback module (creates interned strings)
+     * Returns true on success, false otherwise */
+    [[nodiscard]] static bool init();
+    /* Deinitialize traceback module */
+    static void deinit();
+
+    // Non-copyable, non-movable
+    traceback_t(const traceback_t&) = delete;
+    traceback_t& operator=(const traceback_t&) = delete;
+    traceback_t(traceback_t&&) = delete;
+    traceback_t& operator=(traceback_t&&) = delete;
+};
+
+/* The maximum number of frames we can store in `traceback_t.frames` */
 #define TRACEBACK_MAX_NFRAME UINT16_MAX
 
 bool
 memalloc_ddframe_class_init();
 
-int
-memalloc_tb_init(uint16_t max_nframe);
-void
-memalloc_tb_deinit();
-
-void
-traceback_free(traceback_t* tb);
-
-traceback_t*
-memalloc_get_traceback(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorDomain domain, size_t weighted_size);
-
-PyObject*
-traceback_to_tuple(traceback_t* tb);
-
-/* The maximum number of events we can store in `traceback_array_t.count` */
+/* The maximum number of traceback samples we can store in the heap profiler */
 #define TRACEBACK_ARRAY_MAX_COUNT UINT16_MAX
-#define TRACEBACK_ARRAY_COUNT_TYPE size_t
-
-DO_ARRAY(traceback_t*, traceback, TRACEBACK_ARRAY_COUNT_TYPE, traceback_free)
-
-#endif

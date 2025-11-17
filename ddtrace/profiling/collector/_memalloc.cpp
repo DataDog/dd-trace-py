@@ -10,7 +10,6 @@
 #include "_memalloc_reentrant.h"
 #include "_memalloc_tb.h"
 #include "_pymacro.h"
-#include "_utils.h"
 
 typedef struct
 {
@@ -135,7 +134,7 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
         return NULL;
     }
 
-    if (memalloc_tb_init(global_memalloc_ctx.max_nframe) < 0)
+    if (!traceback_t::init())
         return NULL;
 
     if (object_string == NULL) {
@@ -145,7 +144,8 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
         PyUnicode_InternInPlace(&object_string);
     }
 
-    memalloc_heap_tracker_init((uint32_t)heap_sample_size);
+    if (!memalloc_heap_tracker_init((uint32_t)heap_sample_size))
+        return NULL;
 
     PyMemAllocatorEx alloc;
 
@@ -190,7 +190,7 @@ memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
     memalloc_heap_tracker_deinit();
 
     /* Finally, we know in-progress sampling won't use the buffer pool, so clear it out */
-    memalloc_tb_deinit();
+    traceback_t::deinit();
 
     memalloc_enabled = false;
 
