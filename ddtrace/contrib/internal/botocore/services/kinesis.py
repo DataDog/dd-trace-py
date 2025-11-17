@@ -6,7 +6,7 @@ from typing import Dict
 from typing import List
 from typing import Tuple
 
-import botocore.client
+import botocore.client  # noqa: F401
 import botocore.exceptions
 
 from ddtrace import config
