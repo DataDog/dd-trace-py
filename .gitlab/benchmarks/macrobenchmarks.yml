@@ -18,10 +18,10 @@ candidate:
   stage: build
   tags: [ "arch:amd64" ]
   rules:
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
+      interruptible: false
     - if: $CI_COMMIT_BRANCH != "main"
       interruptible: true
-    - if: $CI_COMMIT_BRANCH == "main"
-      interruptible: false
   needs:
     - pipeline: $PARENT_PIPELINE_ID
       job: download_ddtrace_artifacts
@@ -39,7 +39,7 @@ candidate:
   needs: [ "candidate" ]
   tags: ["runner:apm-k8s-same-cpu"]
   rules:
-    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
       interruptible: false
     - if: $CI_COMMIT_BRANCH != "main"
       interruptible: true
