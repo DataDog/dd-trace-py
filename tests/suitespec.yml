@@ -177,6 +177,7 @@ suites:
       - tests/snapshots/tests.integration.*
     pattern: integration-latest*
     runner: riot
+    junit_xml_upload: true
   integration_testagent:
     parallelism: 3
     paths:
@@ -189,6 +190,7 @@ suites:
     pattern: integration-snapshot*
     runner: riot
     snapshot: true
+    junit_xml_upload: true
   integration_registry:
     parallelism: 1
     paths:

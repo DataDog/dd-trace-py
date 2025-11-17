@@ -27,6 +27,7 @@ class JobSpec:
     timeout: t.Optional[int] = None
     skip: bool = False
     allow_failure: bool = False
+    junit_xml_upload: bool = False
     paths: t.Optional[t.Set[str]] = None  # ignored
     only: t.Optional[t.Set[str]] = None  # ignored
 
@@ -76,6 +77,9 @@ class JobSpec:
         if not env or "SUITE_NAME" not in env:
             env = env or {}
             env["SUITE_NAME"] = self.pattern or self.name
+
+        if "JUNIT_XML_UPLOAD" not in env and self.junit_xml_upload:
+            env["JUNIT_XML_UPLOAD"] = "1"
 
         suite_name = env["SUITE_NAME"]
         env["PIP_CACHE_DIR"] = "${CI_PROJECT_DIR}/.cache/pip"
