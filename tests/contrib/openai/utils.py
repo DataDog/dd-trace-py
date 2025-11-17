@@ -160,38 +160,18 @@ response_tool_function_expected_output_streamed = [
 ]
 
 
-def get_mock_response_mcp_tool_call():
+def mock_response_mcp_tool_call():
     from openai.types.responses import Response
-    from openai.types.responses import ResponseOutputMessage
-    from openai.types.responses import ResponseOutputText
-    from openai.types.responses import ResponseReasoningItem
-    from openai.types.responses import ResponseTextConfig
-    from openai.types.responses.response_output_item import McpCall
-    from openai.types.responses.response_output_item import McpListTools
-    from openai.types.responses.response_output_item import McpListToolsTool
-    from openai.types.responses.response_usage import InputTokensDetails
-    from openai.types.responses.response_usage import OutputTokensDetails
-    from openai.types.responses.response_usage import ResponseUsage
-    from openai.types.responses.tool import Mcp
-    from openai.types.shared.reasoning import Reasoning
-    from openai.types.shared.response_format_text import ResponseFormatText
 
-    return Response(
-        id="resp_0f873afd7ff4f5b30168ffa1f4533481a0936c236a102d8baf",
-        created_at=1761583604.0,
-        error=None,
-        incomplete_details=None,
-        instructions=None,
-        metadata={},
+    return Response.model_construct(
         model="gpt-5-2025-08-07",
-        object="response",
         output=[
-            McpListTools(
-                id="mcpl_0f873afd7ff4f5b30168ffa1f4a5cc81a09c93896d6090f9eb",
-                server_label="dice_roller",
-                tools=[
-                    McpListToolsTool(
-                        input_schema={
+            {
+                "id": "mcpl_0f873afd7ff4f5b30168ffa1f4a5cc81a09c93896d6090f9eb",
+                "server_label": "dice_roller",
+                "tools": [
+                    {
+                        "input_schema": {
                             "type": "object",
                             "properties": {
                                 "notation": {
@@ -215,88 +195,53 @@ def get_mock_response_mcp_tool_call():
                             "additionalProperties": False,
                             "$schema": "http://json-schema.org/draft-07/schema#",
                         },
-                        name="dice_roll",
-                        annotations={"read_only": False},
-                        description=(
+                        "name": "dice_roll",
+                        "annotations": {"read_only": False},
+                        "description": (
                             "Roll dice using standard notation. "
                             "IMPORTANT: For D&D advantage use '2d20kh1' (NOT '2d20')"
                         ),
-                    ),
+                    },
                 ],
-                type="mcp_list_tools",
-                error=None,
-            ),
-            ResponseReasoningItem(
-                id="rs_0f873afd7ff4f5b30168ffa1f5d91c81a0890e78a4873fbc1b",
-                summary=[],
-                type="reasoning",
-                content=None,
-                encrypted_content=None,
-                status=None,
-            ),
-            McpCall(
-                id="mcp_0f873afd7ff4f5b30168ffa1f7ddec81a0a114abda192da6b3",
-                arguments='{"notation":"2d4+1","label":"2d4+1 roll","verbose":true}',
-                name="dice_roll",
-                server_label="dice_roller",
-                type="mcp_call",
-                error=None,
-                output="You rolled 2d4+1 for 2d4+1 roll:\n🎲 Total: 8\n📊 Breakdown: 2d4:[3,4] + 1",
-            ),
-            ResponseOutputMessage(
-                id="msg_0f873afd7ff4f5b30168ffa1f8e7f881a0aaec9b8bbc246900",
-                content=[
-                    ResponseOutputText(
-                        annotations=[],
-                        text="You rolled 2d4+1:\n- Total: 8\n- Breakdown: 2d4 → [3, 4] + 1",
-                        type="output_text",
-                        logprobs=[],
-                    )
+                "type": "mcp_list_tools",
+            },
+            {
+                "id": "rs_0f873afd7ff4f5b30168ffa1f5d91c81a0890e78a4873fbc1b",
+                "summary": [],
+                "type": "reasoning",
+            },
+            {
+                "id": "mcp_0f873afd7ff4f5b30168ffa1f7ddec81a0a114abda192da6b3",
+                "arguments": '{"notation":"2d4+1","label":"2d4+1 roll","verbose":true}',
+                "name": "dice_roll",
+                "server_label": "dice_roller",
+                "type": "mcp_call",
+                "output": "You rolled 2d4+1 for 2d4+1 roll:\n🎲 Total: 8\n📊 Breakdown: 2d4:[3,4] + 1",
+            },
+            {
+                "id": "msg_0f873afd7ff4f5b30168ffa1f8e7f881a0aaec9b8bbc246900",
+                "content": [
+                    {
+                        "text": "You rolled 2d4+1:\n- Total: 8\n- Breakdown: 2d4 → [3, 4] + 1",
+                        "type": "output_text",
+                    }
                 ],
-                role="assistant",
-                status="completed",
-                type="message",
-            ),
+                "role": "assistant",
+                "type": "message",
+            },
         ],
-        parallel_tool_calls=True,
         temperature=1.0,
-        tool_choice="auto",
-        tools=[
-            Mcp(
-                server_label="dice_roller",
-                type="mcp",
-                allowed_tools=None,
-                authorization=None,
-                connector_id=None,
-                headers=None,
-                require_approval="never",
-                server_description="Public dice-roller MCP server for testing.",
-                server_url="https://dice-rolling-mcp.vercel.app/<redacted>",
-            )
-        ],
         top_p=1.0,
-        background=False,
-        conversation=None,
-        max_output_tokens=None,
-        max_tool_calls=None,
-        previous_response_id=None,
-        prompt=None,
-        prompt_cache_key=None,
-        reasoning=Reasoning(effort="medium", generate_summary=None, summary=None),
-        safety_identifier=None,
-        service_tier="default",
-        status="completed",
-        text=ResponseTextConfig(format=ResponseFormatText(type="text"), verbosity="medium"),
-        top_logprobs=0,
+        tool_choice="auto",
         truncation="disabled",
-        usage=ResponseUsage(
-            input_tokens=642,
-            input_tokens_details=InputTokensDetails(cached_tokens=0),
-            output_tokens=206,
-            output_tokens_details=OutputTokensDetails(reasoning_tokens=128),
-            total_tokens=848,
-        ),
-        user=None,
+        text={"format": {"type": "text"}, "verbosity": "medium"},
+        usage={
+            "input_tokens": 642,
+            "input_tokens_details": {"cached_tokens": 0},
+            "output_tokens": 206,
+            "output_tokens_details": {"reasoning_tokens": 128},
+            "total_tokens": 848,
+        },
     )
 
 
