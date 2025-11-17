@@ -1,6 +1,8 @@
 #include "profile.hpp"
 
 #include "libdatadog_helpers.hpp"
+#include "profile_borrow.hpp"
+#include "profiler_stats.hpp"
 
 #include <functional>
 #include <iostream>
@@ -55,6 +57,8 @@ Datadog::Profile::reset_profile()
         ddog_Error_drop(&err);
         return false;
     }
+
+    profiler_stats.reset_state();
     return true;
 }
 
@@ -127,11 +131,16 @@ Datadog::Profile::get_sample_type_length()
     return samplers.size();
 }
 
-ddog_prof_Profile&
-Datadog::Profile::profile_borrow()
+Datadog::ProfileBorrow
+Datadog::Profile::borrow()
 {
-    // We could wrap this in an object for better RAII, but since this
-    // sequence is only used in a single place, we'll hold off on that sidequest.
+    return ProfileBorrow(*this);
+}
+
+ddog_prof_Profile&
+Datadog::Profile::profile_borrow_internal()
+{
+    // Note: Caller is responsible for ensuring profile_release() is called
     profile_mtx.lock();
     return cur_profile;
 }
@@ -219,5 +228,6 @@ Datadog::Profile::postfork_child()
 {
     new (&profile_mtx) std::mutex();
     // Reset the profile to clear any samples collected in the parent process
+    profiler_stats.reset_state();
     reset_profile();
 }

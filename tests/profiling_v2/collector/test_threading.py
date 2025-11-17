@@ -1047,11 +1047,11 @@ class BaseThreadingLockCollectorTest:
         )
 
         # Now we call upload() again, and we expect the profile to be empty
-        num_files_before_second_upload: int = len(glob.glob(self.output_filename + ".*"))
+        num_files_before_second_upload: int = len(glob.glob(self.output_filename + ".*.pprof"))
 
         ddup.upload()  # pyright: ignore[reportCallIssue]
 
-        num_files_after_second_upload: int = len(glob.glob(self.output_filename + ".*"))
+        num_files_after_second_upload: int = len(glob.glob(self.output_filename + ".*.pprof"))
 
         # A new profile file should always be created (upload_seq increments)
         assert (
