@@ -2279,7 +2279,7 @@ MUL: "*"
                 }
             ],
         )
-    
+
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 87),
         reason="Reusable prompts only available in openai >= 1.87",
