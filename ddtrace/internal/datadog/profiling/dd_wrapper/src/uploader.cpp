@@ -2,12 +2,12 @@
 
 #include "code_provenance.hpp"
 #include "libdatadog_helpers.hpp"
+#include "profiler_stats.hpp"
 
-#include <errno.h> // errno
-#include <fstream> // ofstream
-#include <optional>
+#include <cerrno>   // errno
+#include <cstring>  // strerror
+#include <fstream>  // ofstream
 #include <sstream>  // ostringstream
-#include <string.h> // strerror
 #include <unistd.h> // getpid
 #include <vector>
 
@@ -18,21 +18,23 @@ Datadog::Uploader::Uploader(std::string_view _output_filename, ddog_prof_Profile
   , ddog_exporter{ _ddog_exporter }
 {
     // Increment the upload sequence number every time we build an uploader.
-    // Upoloaders are use-once-and-destroy.
+    // Uploaders are use-once-and-destroy.
     upload_seq++;
 }
 
 bool
-Datadog::Uploader::export_to_file(ddog_prof_EncodedProfile* encoded)
+Datadog::Uploader::export_to_file(ddog_prof_EncodedProfile* encoded, std::string_view internal_metadata_json)
 {
     // Write the profile to a file using the following format for filename:
     // <output_filename>.<process_id>.<sequence_number>
     std::ostringstream oss;
     oss << output_filename << "." << getpid() << "." << upload_seq;
-    std::string filename = oss.str();
-    std::ofstream out(filename, std::ios::binary);
+    const std::string base_filename = oss.str();
+    const std::string pprof_filename = base_filename + ".pprof";
+
+    std::ofstream out(pprof_filename, std::ios::binary);
     if (!out.is_open()) {
-        std::cerr << "Error opening output file " << filename << ": " << strerror(errno) << std::endl;
+        std::cerr << "Error opening output file " << pprof_filename << ": " << strerror(errno) << std::endl;
         return false;
     }
     auto bytes_res = ddog_prof_EncodedProfile_bytes(encoded);
@@ -44,14 +46,24 @@ Datadog::Uploader::export_to_file(ddog_prof_EncodedProfile* encoded)
     }
     out.write(reinterpret_cast<const char*>(bytes_res.ok.ptr), bytes_res.ok.len);
     if (out.fail()) {
-        std::cerr << "Error writing to output file " << filename << ": " << strerror(errno) << std::endl;
+        std::cerr << "Error writing to output file " << pprof_filename << ": " << strerror(errno) << std::endl;
         return false;
     }
+
+    const std::string internal_metadata_filename = base_filename + ".internal_metadata.json";
+    std::ofstream out_internal_metadata(internal_metadata_filename);
+    out_internal_metadata << internal_metadata_json;
+    if (out_internal_metadata.fail()) {
+        std::cerr << "Error writing to internal metadata file " << internal_metadata_filename << ": " << strerror(errno)
+                  << std::endl;
+        return false;
+    }
+
     return true;
 }
 
 bool
-Datadog::Uploader::upload(ddog_prof_Profile& profile)
+Datadog::Uploader::upload(ddog_prof_Profile& profile, Datadog::ProfilerStats& profiler_stats)
 {
     // Serialize the profile
     ddog_prof_Profile_SerializeResult serialize_result = ddog_prof_Profile_serialize(&profile, nullptr, nullptr);
@@ -66,7 +78,7 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
     ddog_prof_EncodedProfile* encoded = &serialize_result.ok; // NOLINT (cppcoreguidelines-pro-type-union-access)
 
     if (!output_filename.empty()) {
-        bool ret = export_to_file(encoded);
+        bool ret = export_to_file(encoded, profiler_stats.get_internal_metadata_json());
         ddog_prof_EncodedProfile_drop(encoded);
         return ret;
     }
@@ -83,6 +95,8 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
         });
     }
 
+    auto internal_metadata_json_slice = to_slice(profiler_stats.get_internal_metadata_json());
+
     auto build_res = ddog_prof_Exporter_Request_build(
       &ddog_exporter,
       encoded,
@@ -93,8 +107,8 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
       },
       ddog_prof_Exporter_Slice_File_empty(), // files_to_export_unmodified
       nullptr,                               // optional_additional_tags
-      nullptr,                               // optional_internal_metadata_json
-      nullptr                                // optional_info_json
+      &internal_metadata_json_slice,
+      nullptr // optional_info_json
     );
     ddog_prof_EncodedProfile_drop(encoded);
 

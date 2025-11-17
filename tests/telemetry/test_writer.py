@@ -12,6 +12,8 @@ import pytest
 
 from ddtrace import config
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
+from ddtrace.internal.settings._agent import get_agent_hostname
+from ddtrace.internal.settings._telemetry import config as telemetry_config
 import ddtrace.internal.telemetry
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
@@ -20,8 +22,6 @@ from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.writer import TelemetryWriter
 from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
-from ddtrace.settings._agent import get_agent_hostname
-from ddtrace.settings._telemetry import config as telemetry_config
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.utils import call_program
 from tests.utils import override_global_config
@@ -80,9 +80,9 @@ def test_app_started_event_configuration_override(test_agent_session, run_python
 # most configurations are reported when ddtrace.auto is imported
 import ddtrace.auto
 # report configurations not used by ddtrace.auto
-import ddtrace.settings.symbol_db
-import ddtrace.settings.dynamic_instrumentation
-import ddtrace.settings.exception_replay
+import ddtrace.internal.settings.symbol_db
+import ddtrace.internal.settings.dynamic_instrumentation
+import ddtrace.internal.settings.exception_replay
 import opentelemetry
     """
 
@@ -307,7 +307,6 @@ import opentelemetry
         {"name": "DD_PROFILING_PYTORCH_EVENTS_LIMIT", "origin": "default", "value": 1000000},
         {"name": "DD_PROFILING_SAMPLE_POOL_CAPACITY", "origin": "default", "value": 4},
         {"name": "DD_PROFILING_STACK_ENABLED", "origin": "env_var", "value": False},
-        {"name": "DD_PROFILING_STACK_V2_ENABLED", "origin": "default", "value": PYTHON_VERSION_INFO < (3, 14)},
         {"name": "DD_PROFILING_TAGS", "origin": "default", "value": ""},
         {"name": "DD_PROFILING_TIMELINE_ENABLED", "origin": "default", "value": True},
         {"name": "DD_PROFILING_UPLOAD_INTERVAL", "origin": "env_var", "value": 10.0},
@@ -474,8 +473,9 @@ import opentelemetry
         {"name": "_DD_APPSEC_DEDUPLICATION_ENABLED", "origin": "default", "value": True},
         {"name": "_DD_IAST_LAZY_TAINT", "origin": "default", "value": False},
         {"name": "_DD_IAST_USE_ROOT_SPAN", "origin": "default", "value": False},
+        {"name": "_DD_NATIVE_LOGGING_BACKEND", "origin": "default", "value": None},
         {"name": "_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", "origin": "default", "value": False},
-        {"name": "_DD_TRACE_WRITER_NATIVE", "origin": "default", "value": False},
+        {"name": "_DD_TRACE_WRITER_NATIVE", "origin": "default", "value": True},
         {"name": "instrumentation_source", "origin": "code", "value": "manual"},
         {"name": "python_build_gnu_type", "origin": "unknown", "value": sysconfig.get_config_var("BUILD_GNU_TYPE")},
         {"name": "python_host_gnu_type", "origin": "unknown", "value": sysconfig.get_config_var("HOST_GNU_TYPE")},
@@ -681,9 +681,9 @@ def test_app_client_configuration_changed_event(telemetry_writer, test_agent_ses
     telemetry_writer.periodic(force_flush=True)
     """asserts that queuing a configuration sends a valid telemetry request"""
     with override_global_config(dict()):
-        telemetry_writer.add_configuration("appsec_enabled", True, "env_var")
+        telemetry_writer.add_configuration("product_enabled", True, "env_var")
         telemetry_writer.add_configuration("DD_TRACE_PROPAGATION_STYLE_EXTRACT", "datadog", "default")
-        telemetry_writer.add_configuration("appsec_enabled", False, "code")
+        telemetry_writer.add_configuration("product_enabled", False, "code")
 
         telemetry_writer.periodic(force_flush=True)
 
@@ -696,13 +696,13 @@ def test_app_client_configuration_changed_event(telemetry_writer, test_agent_ses
             < received_configurations[2]["seq_id"]
         )
         # assert that all configuration values are sent to the agent in the order they were added (by seq_id)
-        assert received_configurations[0]["name"] == "appsec_enabled"
+        assert received_configurations[0]["name"] == "product_enabled"
         assert received_configurations[0]["origin"] == "env_var"
         assert received_configurations[0]["value"] is True
         assert received_configurations[1]["name"] == "DD_TRACE_PROPAGATION_STYLE_EXTRACT"
         assert received_configurations[1]["origin"] == "default"
         assert received_configurations[1]["value"] == "datadog"
-        assert received_configurations[2]["name"] == "appsec_enabled"
+        assert received_configurations[2]["name"] == "product_enabled"
         assert received_configurations[2]["origin"] == "code"
         assert received_configurations[2]["value"] is False
 
