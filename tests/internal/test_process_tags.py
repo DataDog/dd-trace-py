@@ -3,11 +3,11 @@ from unittest.mock import patch
 import pytest
 
 from ddtrace.internal import process_tags
-from ddtrace.internal.process_tags import _process_tag_reload
 from ddtrace.internal.process_tags import normalize_tag
-from ddtrace.settings._config import config
+from ddtrace.internal.settings._config import config
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
+from tests.utils import process_tag_reload
 
 
 @pytest.mark.parametrize(
@@ -50,7 +50,7 @@ class TestProcessTags(TracerTestCase):
     @pytest.mark.snapshot
     def test_process_tags_deactivated(self):
         config._process_tags_enabled = False
-        _process_tag_reload()
+        process_tag_reload()
 
         with self.tracer.trace("test"):
             pass
@@ -59,7 +59,7 @@ class TestProcessTags(TracerTestCase):
     def test_process_tags_activated(self):
         with patch("sys.argv", ["/path/to/test_script.py"]), patch("os.getcwd", return_value="/path/to/workdir"):
             config._process_tags_enabled = True
-            _process_tag_reload()
+            process_tag_reload()
 
             with self.tracer.trace("parent"):
                 with self.tracer.trace("child"):
@@ -69,7 +69,7 @@ class TestProcessTags(TracerTestCase):
     def test_process_tags_edge_case(self):
         with patch("sys.argv", ["/test_script"]), patch("os.getcwd", return_value="/path/to/workdir"):
             config._process_tags_enabled = True
-            _process_tag_reload()
+            process_tag_reload()
 
             with self.tracer.trace("span"):
                 pass
@@ -81,7 +81,7 @@ class TestProcessTags(TracerTestCase):
 
             with self.override_global_config(dict(_telemetry_enabled=False)):
                 with patch("ddtrace.internal.process_tags.log") as mock_log:
-                    _process_tag_reload()
+                    process_tag_reload()
 
                     with self.tracer.trace("span"):
                         pass
@@ -96,7 +96,7 @@ class TestProcessTags(TracerTestCase):
     def test_process_tags_partial_flush(self):
         with patch("sys.argv", ["/path/to/test_script.py"]), patch("os.getcwd", return_value="/path/to/workdir"):
             config._process_tags_enabled = True
-            _process_tag_reload()
+            process_tag_reload()
 
             with self.override_global_config(dict(_partial_flush_enabled=True, _partial_flush_min_spans=2)):
                 with self.tracer.trace("parent"):

@@ -5,16 +5,16 @@ import sys
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.settings._config import config
-
-from .constants import ENTRYPOINT_BASEDIR_TAG
-from .constants import ENTRYPOINT_NAME_TAG
-from .constants import ENTRYPOINT_TYPE_SCRIPT
-from .constants import ENTRYPOINT_TYPE_TAG
-from .constants import ENTRYPOINT_WORKDIR_TAG
+from ddtrace.internal.settings._config import config
 
 
 log = get_logger(__name__)
+
+ENTRYPOINT_NAME_TAG = "entrypoint.name"
+ENTRYPOINT_WORKDIR_TAG = "entrypoint.workdir"
+ENTRYPOINT_TYPE_TAG = "entrypoint.type"
+ENTRYPOINT_TYPE_SCRIPT = "script"
+ENTRYPOINT_BASEDIR_TAG = "entrypoint.basedir"
 
 _INVALID_CHARS_PATTERN = re.compile(r"[^a-z0-9/._-]")
 _CONSECUTIVE_UNDERSCORES_PATTERN = re.compile(r"_{2,}")
@@ -45,12 +45,6 @@ def generate_process_tags() -> Optional[str]:
     except Exception as e:
         log.debug("failed to get process_tags: %s", e)
         return None
-
-
-# For test purpose
-def _process_tag_reload():
-    global process_tags
-    process_tags = generate_process_tags()
 
 
 process_tags = generate_process_tags()
