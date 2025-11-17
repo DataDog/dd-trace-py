@@ -14,7 +14,7 @@ from ddtrace.internal import compat
 from ddtrace.internal.native import DDSketch
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
-from ddtrace.version import __version__
+from ddtrace import __version__
 
 from ...constants import _SPAN_MEASURED_KEY
 from .. import agent

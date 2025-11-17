@@ -13,7 +13,7 @@ except ImportError:
 
 import pytest
 
-from ddtrace.version import __version__
+from ddtrace import __version__
 
 
 HOST_DDTRACE_VERSION = __version__

@@ -8,7 +8,7 @@ from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.utils.config import get_application_name
-from ddtrace.version import __version__
+from ddtrace import __version__
 
 
 DEFAULT_MAX_PROBES = 100
