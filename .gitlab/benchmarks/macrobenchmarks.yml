@@ -17,7 +17,6 @@ candidate:
   image: $PACKAGE_IMAGE
   stage: build
   tags: [ "arch:amd64" ]
-  interruptible: true
   rules:
     - if: $CI_COMMIT_BRANCH != "main"
       interruptible: true
@@ -39,7 +38,6 @@ candidate:
   stage: test
   needs: [ "candidate" ]
   tags: ["runner:apm-k8s-same-cpu"]
-  interruptible: true
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
       interruptible: false
