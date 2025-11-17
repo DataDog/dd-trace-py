@@ -2,11 +2,10 @@
 features:
   - |
     LLM Observability: Experiments can now be run multiple times by using the optional ``runs`` argument, 
-    to assess the true performance of an experiment in the face of the non determinism of LLMs
+    to assess the true performance of an experiment in the face of the non determinism of LLMs. Use the new ``ExperimentResult`` class' ``runs`` attribute to access the results by run iteration.
 deprecations:
   - |
-    LLM Observability: The ``ExperimentResult`` class now has a new ``runs`` attribute to store the results of
-    every experiment run. The ``rows`` and ``summary_evaluations`` attributes will only store the results from the first run
+    LLM Observability: The ``ExperimentResult`` class' ``rows`` and ``summary_evaluations`` attributes are deprecated and will be removed in the next major release. ``ExperimentResult.rows/summary_evaluations`` attributes will only store the results of the first run iteration for multi-run experiments. Use the ``ExperimentResult.runs`` attribute instead to access experiment results and summary evaluations.
 fixes:
   - |
-    LLM Observability: experiment children span now have experiment related tags
+    LLM Observability: Non-root experiment spans are now tagged with experiment ID, run ID, and run iteration tags.
