@@ -19,12 +19,10 @@ from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
-from ddtrace.llmobs._constants import NAME
 from ddtrace.llmobs._constants import OAI_HANDOFF_TOOL_ARG
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_VALUE
-from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
@@ -1464,17 +1462,11 @@ def create_mcp_tool_span(
     else:
         return
 
-    span = integration.trace(pin, "server_tool_call", submit_to_llmobs=True, kind="tool")
-    span_name = "MCP Server Tool Execute: {}".format(tool_name)
-    span.name = span_name
-
-    span._set_ctx_items(
-        {
-            SPAN_KIND: "tool",
-            NAME: span_name,
-            INPUT_VALUE: safe_json(tool_arguments) if tool_arguments is not None else "",
-            OUTPUT_VALUE: safe_json(tool_output) if tool_output is not None else "",
-        }
-    )
-
-    span.finish()
+    with integration.trace(pin, "server_tool_call", submit_to_llmobs=True, kind="tool") as span:
+        integration.llmobs_set_tags(
+            span,
+            args=[],
+            kwargs={"name": tool_name, "arguments": tool_arguments},
+            response=tool_output,
+            operation="tool",
+        )
