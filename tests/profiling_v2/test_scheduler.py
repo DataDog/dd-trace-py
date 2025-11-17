@@ -1,8 +1,7 @@
 # -*- encoding: utf-8 -*-
 import logging
 import time
-
-import mock
+from unittest import mock
 
 from ddtrace.profiling import scheduler
 
@@ -10,6 +9,7 @@ from ddtrace.profiling import scheduler
 def test_thread_name():
     s = scheduler.Scheduler()
     s.start()
+    assert s._worker is not None
     assert s._worker.name == "ddtrace.profiling.scheduler:Scheduler"
     s.stop()
 

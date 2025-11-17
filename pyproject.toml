@@ -154,50 +154,6 @@ exclude = [
   ".worktrees",
 ]
 
-[tool.slotscheck]
-exclude-modules = '''
-(
-  ^ddtrace.(contrib|vendor)
-  | ^tests.(contrib|vendor)
-  # avoid sitecustomize modules as they start services
-  | ddtrace.bootstrap.sitecustomize
-  | ddtrace.openfeature
-  | ddtrace.internal.openfeature
-  | ddtrace.profiling.bootstrap.sitecustomize
-  | ddtrace.profiling.auto
-  # also ignore preload module to avoid exception after moving ddtrace.tracing module
-  | ddtrace.bootstrap.preload
-  # protobuf file fails to import
-  | tests.profiling.collector.pprof_3_pb2
-  | tests.profiling.collector.pprof_312_pb2
-  | tests.profiling.collector.pprof_319_pb2
-  | tests.profiling.collector.pprof_421_pb2
-  # TODO: resolve slot inheritance issues with profiling
-  | ddtrace.profiling.collector
-  | ddtrace.profiling._gevent
-  | ddtrace,appsec,iast,_taint_tracking.vendor
-  | ddtrace.appsec._ddwaf.ddwaf_types
-  | ddtrace.appsec._iast._taint_tracking
-  | ddtrace.appsec._iast._ast.aspects
-  | ddtrace.appsec._iast._taint_utils
-  | ddtrace.appsec._iast.taint_sinks.sql_injection
-  # DSM specific contribs
-  | ddtrace.internal.datastreams.kafka
-  # libdd_wrapper is a common native dependency, not a module
-  | ddtrace.internal.datadog.profiling.libdd_wrapper
-  # _ddup and _stack_v2 miss a runtime dependency in slotscheck, but ddup and stack_v2 are fine
-  | ddtrace.internal.datadog.profiling.ddup._ddup
-  | ddtrace.internal.datadog.profiling.stack_v2._stack_v2
-  # coverage has version-specific checks that prevent import
-  | ddtrace.internal.coverage.instrumentation_py3_8
-  | ddtrace.internal.coverage.instrumentation_py3_10
-  | ddtrace.internal.coverage.instrumentation_py3_11
-  | ddtrace.internal.coverage.instrumentation_py3_12
-  | ddtrace.internal.coverage.instrumentation_py3_13
-  | ddtrace.internal.coverage.instrumentation_py3_14
-)
-'''
-
 [tool.bandit]
 targets = ["ddtrace/"]
 
@@ -280,6 +236,7 @@ lint.select = [
     "F",
     "G",
     "I",
+    "PLW0244",  # redefined-slots-in-subclass
     "W",
 ]
 lint.unfixable =[
