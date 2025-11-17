@@ -129,12 +129,6 @@ venv = Venv(
             },
         ),
         Venv(
-            name="slotscheck",
-            command="python -m slotscheck -v ddtrace/",
-            pys=["3.10"],
-            pkgs={"slotscheck": "==0.17.0"},
-        ),
-        Venv(
             name="build_docs",
             command="scripts/docs/build.sh",
             pys=["3.10"],
@@ -2629,7 +2623,7 @@ venv = Venv(
             venvs=[
                 Venv(
                     # Test against different versions of openfeature-sdk (0.5.0+ for submodule imports)
-                    pkgs={"openfeature-sdk": ["~=0.5.0", "~=0.6.0", "~=0.7.0", latest]},
+                    pkgs={"openfeature-sdk": ["~=0.6.0", "~=0.7.0", latest]},
                 ),
             ],
         ),

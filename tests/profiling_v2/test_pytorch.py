@@ -13,7 +13,7 @@ def test_call_script_pytorch_gpu(tmp_path, monkeypatch):
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
     monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
     monkeypatch.setenv("DD_PROFILING_PYTORCH_ENABLED", "1")
-    stdout, stderr, exitcode, pid = call_program(
+    _, stderr, exitcode, _ = call_program(
         "ddtrace-run", sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_pytorch_gpu.py")
     )
     assert exitcode == 0, f"Profiler exited with code {exitcode}. Stderr: {stderr}"
