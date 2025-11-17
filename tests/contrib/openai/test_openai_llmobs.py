@@ -2192,7 +2192,7 @@ MUL: "*"
                 ensure_ascii=False,
             ),
             output_value="You rolled 2d4+1 for 2d4+1 roll:\n🎲 Total: 8\n📊 Breakdown: 2d4:[3,4] + 1",
-            metadata={},
+            metadata={"tool_id": "mcp_0f873afd7ff4f5b30168ffa1f7ddec81a0a114abda192da6b3"},
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
         )
         assert tool_span.parent_id == response_span.span_id

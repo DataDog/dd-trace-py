@@ -36,6 +36,12 @@ from ddtrace.trace import Span
 
 log = get_logger(__name__)
 
+OPENAI_LLM_OPERATIONS = (
+    "completion",
+    "chat",
+    "response"
+)
+
 
 class OpenAIIntegration(BaseLLMIntegration):
     _integration_name = "openai"
@@ -110,11 +116,9 @@ class OpenAIIntegration(BaseLLMIntegration):
         span_kind = (
             "workflow"
             if span._get_ctx_item(PROXY_REQUEST)
-            else "embedding"
-            if operation == "embedding"
-            else "tool"
-            if operation == "tool"
-            else "llm"
+            else "llm" 
+            if operation in OPENAI_LLM_OPERATIONS
+            else operation
         )
         model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model")
 
@@ -167,6 +171,7 @@ class OpenAIIntegration(BaseLLMIntegration):
     @staticmethod
     def _llmobs_set_tags_from_tool(span: Span, kwargs: Dict[str, Any], response: Any) -> None:
         """Extract tool name, arguments, and output from the request and response to be submitted to LLMObs."""
+        tool_id = kwargs.get("tool_id", "unknown_tool_id")
         tool_name = kwargs.get("name", "unknown_tool")
         tool_arguments = kwargs.get("arguments")
         tool_output = response
@@ -180,6 +185,7 @@ class OpenAIIntegration(BaseLLMIntegration):
                 NAME: span_name,
                 INPUT_VALUE: safe_json(tool_arguments) if tool_arguments is not None else "",
                 OUTPUT_VALUE: safe_json(tool_output) if tool_output is not None else "",
+                METADATA: {"tool_id": tool_id},
             }
         )
 

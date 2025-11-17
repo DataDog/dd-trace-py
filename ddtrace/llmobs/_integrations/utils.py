@@ -733,7 +733,7 @@ def _openai_parse_output_response_messages(
                 tool_id=call_id,
                 type="mcp_tool_result",
             )
-            create_mcp_tool_span(name, arguments, output, integration)
+            create_mcp_tool_span(call_id, name, arguments, output, integration)
             message.update(
                 {
                     "tool_calls": [tool_call_info],
@@ -1497,6 +1497,7 @@ def extract_instance_metadata_from_stack(
 
 
 def create_mcp_tool_span(
+    tool_id,
     tool_name,
     tool_arguments,
     tool_output,
@@ -1514,7 +1515,7 @@ def create_mcp_tool_span(
         integration.llmobs_set_tags(
             span,
             args=[],
-            kwargs={"name": tool_name, "arguments": tool_arguments},
+            kwargs={"name": tool_name, "arguments": tool_arguments, "tool_id": tool_id},
             response=tool_output,
             operation="tool",
         )
