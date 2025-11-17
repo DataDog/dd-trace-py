@@ -758,7 +758,7 @@ assert ddtrace.tracer._span_aggregator.writer._interval == 1.0
     assert status == 0, (out, err)
 
 
-@parametrize_with_all_encodings(env={"DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "2"})
+@parametrize_with_all_encodings(env={"DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "2"}, out=None)
 def test_partial_flush_log():
     import mock
 
