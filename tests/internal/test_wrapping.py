@@ -10,6 +10,7 @@ from ddtrace.internal.wrapping import is_wrapped
 from ddtrace.internal.wrapping import is_wrapped_with
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
+from ddtrace.internal.wrapping import wrap_once
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.internal.wrapping.context import _UniversalWrappingContext
 
@@ -926,3 +927,39 @@ def test_wrapping_context_method_leaks():
 
     new_method_count = len([_ for _ in gc.get_objects() if type(_).__name__ == "method"])
     assert new_method_count <= method_count + 1
+
+
+def test_wrap_once():
+    c = 0
+
+    def wrapper(f, args, kwargs):
+        nonlocal c
+        c += 1
+        return f(*args, **kwargs)
+
+    def foo():
+        pass
+
+    wrap_once(foo, wrapper)
+
+    for _ in range(10):
+        foo()
+
+    assert c == 1
+
+
+def test_wrapping_context_lazy():
+    free = 42
+
+    def foo():
+        return free
+
+    (wc := DummyWrappingContext(foo)).wrap_lazy()
+
+    assert not DummyWrappingContext.is_wrapped(foo)
+
+    assert foo() == free
+
+    assert DummyWrappingContext.is_wrapped(foo)
+
+    assert wc.entered

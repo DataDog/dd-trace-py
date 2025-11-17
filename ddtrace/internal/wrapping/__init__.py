@@ -336,3 +336,10 @@ def unwrap(wf, wrapper):
     except AttributeError:
         # The function is not wrapped so we return it as is.
         return cast(FunctionType, wf)
+
+
+def wrap_once(f, wrapper):
+    def trampoline(_, args, kwargs):
+        return wrapper(unwrap(f, trampoline), args, kwargs)
+
+    return wrap(f, trampoline)

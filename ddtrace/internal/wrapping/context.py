@@ -14,6 +14,7 @@ from bytecode import Bytecode
 
 from ddtrace.internal.assembly import Assembly
 from ddtrace.internal.utils.inspection import link_function_to_code
+from ddtrace.internal.wrapping import wrap_once
 
 
 T = t.TypeVar("T")
@@ -365,6 +366,15 @@ class BaseWrappingContext(ABC):
 
     def unwrap(self) -> None:
         raise NotImplementedError
+
+    def wrap_lazy(self) -> None:
+        """Perform the bytecode wrapping on first invocation."""
+
+        def wrapper(f, args, kwargs):
+            self.wrap()
+            return f(*args, **kwargs)
+
+        wrap_once(self.__wrapped__, wrapper)
 
 
 # This is the public interface exported by this module
