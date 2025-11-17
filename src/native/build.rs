@@ -6,68 +6,38 @@ fn main() {
         pyo3_build_config::add_extension_module_link_args();
     }
 
-    // Compile the C wrapper for CPython internal APIs
-    // This file defines Py_BUILD_CORE and provides access to internal functions
+    // Compile C sources for crashtracker runtime stack collection
+    // This includes the CPython internal API wrappers needed for _Py_DumpTracebackThreads
+    let mut build = cc::Build::new();
 
-    // Get Python include directory using the cross-compilation info
-    let include_dir = match std::env::var("PYO3_CROSS_INCLUDE_DIR") {
-        Ok(dir) => std::path::PathBuf::from(dir),
-        Err(_) => {
-            // Fallback to using Python's sysconfig
-            let output = std::process::Command::new("python")
-                .args([
-                    "-c",
-                    "import sysconfig; print(sysconfig.get_path('include'))",
-                ])
-                .output()
-                .expect("Failed to run python to get include directory");
-            std::path::PathBuf::from(String::from_utf8(output.stdout).unwrap().trim())
-        }
-    };
+    // Get Python configuration
+    let python_config = pyo3_build_config::get();
 
-    // Add internal headers path for CPython internal APIs
-    let internal_headers_dir = include_dir.join("internal");
+    // Find Python include directory using Python sysconfig
+    let python_executable = python_config.executable.as_deref().unwrap_or("python");
+    let python_include_output = std::process::Command::new(python_executable)
+        .args(&["-c", "import sysconfig; print(sysconfig.get_path('include'))"])
+        .output()
+        .expect("Failed to get Python include directory");
 
-    cc::Build::new()
+    if python_include_output.status.success() {
+        let python_include_dir = String::from_utf8_lossy(&python_include_output.stdout).trim().to_string();
+        build.include(&python_include_dir);
+    }
+
+    // Set Py_BUILD_CORE to access internal CPython APIs
+    build.define("Py_BUILD_CORE", "1");
+
+    // Compile the C source file
+    build
         .file("cpython_internal.c")
-        .include(&include_dir)
-        .include(&internal_headers_dir) // Add internal headers directory
-        .define("Py_BUILD_CORE", "1")
         .compile("cpython_internal");
 
-    // Tell rustc to link the compiled C library
+    // Tell rustc to link the static library we just built
     println!("cargo:rustc-link-lib=static=cpython_internal");
 
-    // Force linking to libpython to access internal symbols
-    // PyO3 normally avoids linking to libpython on Unix, but we need it for internal APIs
-    if !cfg!(target_os = "macos") {
-        // Get Python version and library info
-        let output = std::process::Command::new("python3")
-            .args(["-c", "import sysconfig; version = sysconfig.get_config_var('VERSION'); ldlibrary = sysconfig.get_config_var('LDLIBRARY'); libdir = sysconfig.get_config_var('LIBDIR'); print(f'{version}:{ldlibrary}:{libdir}')"])
-            .output()
-            .expect("Failed to get Python library info");
-
-        let version_info = String::from_utf8(output.stdout).unwrap();
-        let parts: Vec<&str> = version_info.trim().split(':').collect();
-
-        if parts.len() == 3 {
-            let version = parts[0];
-            let ldlibrary = parts[1];
-            let libdir = parts[2];
-
-            // Add library directory to search path
-            println!("cargo:rustc-link-search=native={}", libdir);
-
-            // Extract library name from LDLIBRARY (e.g., "libpython3.11.so" -> "python3.11")
-            if let Some(lib_name) = ldlibrary
-                .strip_prefix("lib")
-                .and_then(|s| s.strip_suffix(".so"))
-            {
-                println!("cargo:rustc-link-lib={}", lib_name);
-            } else {
-                // Fallback to version-based naming
-                println!("cargo:rustc-link-lib=python{}", version);
-            }
-        }
-    }
+    // Tell cargo to invalidate the built crate whenever these files change
+    println!("cargo:rerun-if-changed=cpython_internal.c");
+    println!("cargo:rerun-if-changed=cpython_internal.h");
+    println!("cargo:rerun-if-changed=build.rs");
 }
