@@ -8,7 +8,7 @@ import urllib.request
 
 import pytest
 
-from tests.profiling.collector import pprof_utils
+from tests.profiling_v2.collector import pprof_utils
 
 
 # DEV: gunicorn tests are hard to debug, so keeping these print statements for

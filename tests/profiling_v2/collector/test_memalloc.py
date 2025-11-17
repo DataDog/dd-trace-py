@@ -7,7 +7,7 @@ import pytest
 
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling.collector import memalloc
-from tests.profiling.collector import pprof_utils
+from tests.profiling_v2.collector import pprof_utils
 
 
 PY_313_OR_ABOVE = sys.version_info[:2] >= (3, 13)
@@ -28,7 +28,7 @@ def test_heap_samples_collected():
     import os
 
     from ddtrace.profiling import Profiler
-    from tests.profiling.collector import pprof_utils
+    from tests.profiling_v2.collector import pprof_utils
     from tests.profiling_v2.collector.test_memalloc import _allocate_1k
 
     # Test for https://github.com/DataDog/dd-trace-py/issues/11069

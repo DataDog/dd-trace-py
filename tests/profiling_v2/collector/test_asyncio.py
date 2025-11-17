@@ -9,10 +9,10 @@ import pytest
 from ddtrace import ext
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling.collector import asyncio as collector_asyncio
-from tests.profiling.collector import pprof_utils
 from tests.profiling.collector import test_collector
-from tests.profiling.collector.lock_utils import get_lock_linenos
-from tests.profiling.collector.lock_utils import init_linenos
+from tests.profiling_v2.collector import pprof_utils
+from tests.profiling_v2.collector.lock_utils import get_lock_linenos
+from tests.profiling_v2.collector.lock_utils import init_linenos
 
 
 init_linenos(__file__)

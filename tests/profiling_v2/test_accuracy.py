@@ -67,7 +67,7 @@ def test_accuracy_stack_v2():
     import os
 
     from ddtrace.profiling import profiler
-    from tests.profiling.collector import pprof_utils
+    from tests.profiling_v2.collector import pprof_utils
     from tests.profiling_v2.test_accuracy import assert_almost_equal
     from tests.profiling_v2.test_accuracy import spend_16
 

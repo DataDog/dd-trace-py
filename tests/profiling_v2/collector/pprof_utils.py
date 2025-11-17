@@ -12,7 +12,7 @@ from typing import Union
 
 import zstandard as zstd
 
-from tests.profiling.collector.lock_utils import LineNo
+from tests.profiling_v2.collector.lock_utils import LineNo
 
 
 UINT64_MAX = (1 << 64) - 1
@@ -34,12 +34,12 @@ for v in [(4, 21), (3, 19), (3, 12)]:
     if _pb_version >= v:
         import sys
 
-        pprof_module = "tests.profiling.collector.pprof_%s%s_pb2" % v
+        pprof_module = "tests.profiling_v2.collector.pprof_%s%s_pb2" % v
         __import__(pprof_module)
         pprof_pb2 = sys.modules[pprof_module]
         break
 else:
-    from tests.profiling.collector import pprof_3_pb2 as pprof_pb2  # type: ignore[no-redef]
+    from tests.profiling_v2.collector import pprof_3_pb2 as pprof_pb2  # type: ignore[no-redef]
 
 
 # Clamp the value to the range [0, UINT64_MAX] as done in clamp_to_uint64_unsigned

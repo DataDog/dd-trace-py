@@ -5,8 +5,8 @@ import sys
 
 import pytest
 
-from tests.profiling.collector import lock_utils
-from tests.profiling.collector import pprof_utils
+from tests.profiling_v2.collector import lock_utils
+from tests.profiling_v2.collector import pprof_utils
 from tests.utils import call_program
 
 
