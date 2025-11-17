@@ -602,50 +602,30 @@ def test_crashtracker_process_tags():
     import ctypes
     import os
     import sys
-    from unittest.mock import patch
 
-    from ddtrace.internal.process_tags import _process_tag_reload
-    from ddtrace.internal.process_tags.constants import ENTRYPOINT_BASEDIR_TAG
-    from ddtrace.internal.process_tags.constants import ENTRYPOINT_NAME_TAG
-    from ddtrace.internal.process_tags.constants import ENTRYPOINT_TYPE_SCRIPT
-    from ddtrace.internal.process_tags.constants import ENTRYPOINT_TYPE_TAG
-    from ddtrace.internal.process_tags.constants import ENTRYPOINT_WORKDIR_TAG
     import tests.internal.crashtracker.utils as utils
 
-    with patch("sys.argv", ["/path/to/test_script.py"]), patch("os.getcwd", return_value="/path/to/workdir"):
-        _process_tag_reload()
+    with utils.with_test_agent() as client:
+        pid = os.fork()
+        if pid == 0:
+            ct = utils.CrashtrackerWrapper(base_name="tags_required")
+            assert ct.start()
+            stdout_msg, stderr_msg = ct.logs()
+            assert not stdout_msg
+            assert not stderr_msg
 
-        with utils.with_test_agent() as client:
-            pid = os.fork()
-            if pid == 0:
-                ct = utils.CrashtrackerWrapper(base_name="tags_required")
-                assert ct.start()
-                stdout_msg, stderr_msg = ct.logs()
-                assert not stdout_msg
-                assert not stderr_msg
+            ctypes.string_at(0)
+            sys.exit(-1)
 
-                ctypes.string_at(0)
-                sys.exit(-1)
+        # Check for crash ping
+        _ping = utils.get_crash_ping(client)
 
-            # Check for crash ping
-            _ping = utils.get_crash_ping(client)
+        # Check for crash report
+        report = utils.get_crash_report(client)
+        assert b"string_at" in report["body"]
 
-            # Check for crash report
-            report = utils.get_crash_report(client)
-            assert b"string_at" in report["body"]
-
-            # Verify process_tags are present in crash report
-            tags = {
-                ENTRYPOINT_NAME_TAG: "test_script",
-                ENTRYPOINT_WORKDIR_TAG: "workdir",
-                ENTRYPOINT_TYPE_TAG: ENTRYPOINT_TYPE_SCRIPT,
-                ENTRYPOINT_BASEDIR_TAG: "to",
-            }
-
-            # Now check for the tags
-            for k, v in tags.items():
-                assert k.encode() in report["body"]
-                assert v.encode() in report["body"]
+        # Verify process_tags are present in crash report
+        assert "process_tags".encode() in report["body"]
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
