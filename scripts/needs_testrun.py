@@ -129,8 +129,11 @@ def get_changed_files(pr_number: int, sha: t.Optional[str] = None) -> t.Set[str]
             for page in count(1):
                 result = {_["filename"] for _ in github_api(f"/pulls/{pr_number}/files", {"page": page})}
                 if not result:
+                    # End of pagination, return collected files
                     return files
                 files |= result
+            # If we got here, we successfully collected files from all pages
+            return files
         except Exception:
             LOGGER.warning("Failed to get changed files from GitHub API", exc_info=True)
 
@@ -151,7 +154,7 @@ def needs_testrun(suite: str, pr_number: int, sha: t.Optional[str] = None) -> bo
     ...     needs_testrun("debugger", 6485)
     ...     needs_testrun("debugger", 6388)
     ...     needs_testrun("foobar", 6412)
-    ...     needs_testrun("profiling::profile", 11690)
+    ...     needs_testrun("profiling_v2::profile_v2", 11690)
     True
     True
     True
