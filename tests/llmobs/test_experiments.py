@@ -18,10 +18,12 @@ from typing import Generator
 from typing import List
 from typing import Optional
 from unittest.mock import MagicMock
+from uuid import UUID
 
 import mock
 import pytest
 
+import ddtrace
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import _ExperimentRunInfo
@@ -62,6 +64,9 @@ def dummy_summary_evaluator(inputs, outputs, expected_outputs, evaluators_result
 
 def dummy_summary_evaluator_using_missing_eval_results(inputs, outputs, expected_outputs, evaluators_results):
     return len(inputs) + len(outputs) + len(expected_outputs) + len(evaluators_results["non_existent_evaluator"])
+
+
+DUMMY_EXPERIMENT_FIRST_RUN_ID = UUID("12345678-abcd-abcd-abcd-123456789012")
 
 
 def run_info_with_stable_id(iteration: int, run_id: Optional[str] = None) -> _ExperimentRunInfo:
@@ -1635,4 +1640,30 @@ def test_experiment_span_written_to_experiment_scope(llmobs, llmobs_events, test
     assert "dataset_id:{}".format(test_dataset_one_record._id) in event["tags"]
     assert "dataset_record_id:{}".format(test_dataset_one_record._records[0]["record_id"]) in event["tags"]
     assert "experiment_id:1234567890" in event["tags"]
+    assert f"run_id:{DUMMY_EXPERIMENT_FIRST_RUN_ID}" in event["tags"]
+    assert "run_iteration:1" in event["tags"]
+    assert f"ddtrace.version:{ddtrace.__version__}" in event["tags"]
     assert event["_dd"]["scope"] == "experiments"
+
+
+def test_experiment_span_multi_run_tags(llmobs, llmobs_events, test_dataset_one_record):
+    exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
+    exp._id = "1234567890"
+    for i in range(2):
+        exp._run_task(1, run=run_info_with_stable_id(i), raise_errors=False)
+        assert len(llmobs_events) == i + 1
+        event = llmobs_events[i]
+        assert event["name"] == "dummy_task"
+        for key in ("span_id", "trace_id", "parent_id", "start_ns", "duration", "metrics"):
+            assert event[key] == mock.ANY
+        assert event["status"] == "ok"
+        assert event["meta"]["input"] == '{"prompt": "What is the capital of France?"}'
+        assert event["meta"]["output"] == '{"prompt": "What is the capital of France?"}'
+        assert event["meta"]["expected_output"] == '{"answer": "Paris"}'
+        assert "dataset_id:{}".format(test_dataset_one_record._id) in event["tags"]
+        assert "dataset_record_id:{}".format(test_dataset_one_record._records[0]["record_id"]) in event["tags"]
+        assert "experiment_id:1234567890" in event["tags"]
+        assert f"run_id:{DUMMY_EXPERIMENT_FIRST_RUN_ID}" in event["tags"]
+        assert f"run_iteration:{i + 1}" in event["tags"]
+        assert f"ddtrace.version:{ddtrace.__version__}" in event["tags"]
+        assert event["_dd"]["scope"] == "experiments"

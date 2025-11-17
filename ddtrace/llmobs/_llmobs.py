@@ -486,7 +486,7 @@ class LLMObs(Service):
         # set experiment tags on children spans if the tags do not already exist
         experiment_id = span.context.get_baggage_item(EXPERIMENT_ID_KEY)
         if experiment_id and "experiment_id" not in tags:
-                tags["experiment_id"] = experiment_id
+            tags["experiment_id"] = experiment_id
 
         run_id = span.context.get_baggage_item(EXPERIMENT_RUN_ID_KEY)
         if run_id and "run_id" not in tags:

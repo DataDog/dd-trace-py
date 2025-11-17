@@ -118,6 +118,7 @@ class ExperimentRun:
 
 
 class ExperimentResult(TypedDict):
+    # TODO: remove these fields (summary_evaluations, rows) in the next major release (5.x)
     summary_evaluations: Dict[str, Dict[str, JSONType]]
     rows: List[ExperimentRowResult]
     runs: List[ExperimentRun]
