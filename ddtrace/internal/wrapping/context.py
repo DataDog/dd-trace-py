@@ -13,8 +13,13 @@ import bytecode
 from bytecode import Bytecode
 
 from ddtrace.internal.assembly import Assembly
+from ddtrace.internal.forksafe import Lock
 from ddtrace.internal.utils.inspection import link_function_to_code
-from ddtrace.internal.wrapping import wrap_once
+from ddtrace.internal.wrapping import WrappedFunction
+from ddtrace.internal.wrapping import Wrapper
+from ddtrace.internal.wrapping import is_wrapped_with
+from ddtrace.internal.wrapping import unwrap
+from ddtrace.internal.wrapping import wrap
 
 
 T = t.TypeVar("T")
@@ -367,15 +372,6 @@ class BaseWrappingContext(ABC):
     def unwrap(self) -> None:
         raise NotImplementedError
 
-    def wrap_lazy(self) -> None:
-        """Perform the bytecode wrapping on first invocation."""
-
-        def wrapper(f, args, kwargs):
-            self.wrap()
-            return f(*args, **kwargs)
-
-        wrap_once(self.__wrapped__, wrapper)
-
 
 # This is the public interface exported by this module
 class WrappingContext(BaseWrappingContext):
@@ -414,6 +410,44 @@ class WrappingContext(BaseWrappingContext):
 
         if _UniversalWrappingContext.is_wrapped(f):
             _UniversalWrappingContext.extract(f).unregister(self)
+
+
+class LazyWrappingContext(WrappingContext):
+    def __init__(self, f: FunctionType):
+        super().__init__(f)
+
+        self._trampoline: t.Optional[Wrapper] = None
+        self._trampoline_lock = Lock()
+
+    def wrap(self) -> None:
+        """Perform the bytecode wrapping on first invocation."""
+        with (tl := self._trampoline_lock):
+            if self._trampoline is not None:
+                return
+
+            def trampoline(_, args, kwargs):
+                with tl:
+                    f = t.cast(WrappedFunction, self.__wrapped__)
+                    if is_wrapped_with(self.__wrapped__, trampoline):
+                        f = unwrap(f, trampoline)
+                        super(LazyWrappingContext, self).wrap()
+                return f(*args, **kwargs)
+
+            wrap(self.__wrapped__, trampoline)
+
+            self._trampoline = trampoline
+
+    def unwrap(self) -> None:
+        with self._trampoline_lock:
+            if self._trampoline is None:
+                return
+
+            if self.is_wrapped(self.__wrapped__):
+                super().unwrap()
+            else:
+                unwrap(t.cast(WrappedFunction, self.__wrapped__), self._trampoline)
+
+            self._trampoline = None
 
 
 class ContextWrappedFunction(Protocol):

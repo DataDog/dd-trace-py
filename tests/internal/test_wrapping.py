@@ -10,7 +10,7 @@ from ddtrace.internal.wrapping import is_wrapped
 from ddtrace.internal.wrapping import is_wrapped_with
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
-from ddtrace.internal.wrapping import wrap_once
+from ddtrace.internal.wrapping.context import LazyWrappingContext
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.internal.wrapping.context import _UniversalWrappingContext
 
@@ -929,37 +929,40 @@ def test_wrapping_context_method_leaks():
     assert new_method_count <= method_count + 1
 
 
-def test_wrap_once():
-    c = 0
-
-    def wrapper(f, args, kwargs):
-        nonlocal c
-        c += 1
-        return f(*args, **kwargs)
-
-    def foo():
-        pass
-
-    wrap_once(foo, wrapper)
-
-    for _ in range(10):
-        foo()
-
-    assert c == 1
-
-
 def test_wrapping_context_lazy():
     free = 42
 
     def foo():
         return free
 
-    (wc := DummyWrappingContext(foo)).wrap_lazy()
+    class DummyLazyWrappingContext(LazyWrappingContext):
+        def __init__(self, f):
+            super().__init__(f)
 
-    assert not DummyWrappingContext.is_wrapped(foo)
+            self.count = 0
 
-    assert foo() == free
+        def __enter__(self):
+            self.count += 1
+            return super().__enter__()
 
-    assert DummyWrappingContext.is_wrapped(foo)
+    (wc := DummyLazyWrappingContext(foo)).wrap()
 
-    assert wc.entered
+    assert not DummyLazyWrappingContext.is_wrapped(foo)
+
+    for _ in range(n := 10):
+        assert foo() == free
+
+        assert DummyLazyWrappingContext.is_wrapped(foo)
+
+    assert wc.count == n
+
+    wc.count = 0
+
+    wc.unwrap()
+
+    for _ in range(10):
+        assert not DummyLazyWrappingContext.is_wrapped(foo)
+
+        assert foo() == free
+
+    assert wc.count == 0
