@@ -63,12 +63,6 @@ integrations:
       min: 0.16.0
       max: 1.4.0
 
-- integration_name: aioredis
-  is_external_package: true
-  is_tested: false
-  dependency_names:
-  - aioredis
-
 - integration_name: algoliasearch
   is_external_package: true
   is_tested: true

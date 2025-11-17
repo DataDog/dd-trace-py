@@ -31,7 +31,6 @@ log = get_logger(__name__)
 # Default set of modules to automatically patch or not
 PATCH_MODULES = {
     "aiokafka": True,
-    "aioredis": True,
     "aiomysql": True,
     "aredis": True,
     "asyncio": True,

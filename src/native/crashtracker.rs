@@ -4,10 +4,10 @@ use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Once;
 use std::time::Duration;
 
-use datadog_crashtracker::{
+use libdd_common::Endpoint;
+use libdd_crashtracker::{
     CrashtrackerConfiguration, CrashtrackerReceiverConfig, Metadata, StacktraceCollection,
 };
-use ddcommon::Endpoint;
 use pyo3::prelude::*;
 
 pub trait RustWrapper {
@@ -20,7 +20,7 @@ pub trait RustWrapper {
     }
 }
 
-// We redefine the Enum here to expose it to Python as datadog_crashtracker::StacktraceCollection
+// We redefine the Enum here to expose it to Python as libdd_crashtracker::StacktraceCollection
 // is defined in an external crate.
 #[pyclass(
     eq,
@@ -92,7 +92,7 @@ impl CrashtrackerConfigurationPy {
                 use_alt_stack,
                 endpoint,
                 resolve_frames,
-                datadog_crashtracker::default_signals(),
+                libdd_crashtracker::default_signals(),
                 Some(Duration::from_millis(timeout_ms)),
                 unix_socket_path,
                 true, /* demangle_names */
@@ -235,7 +235,7 @@ pub fn crashtracker_init<'py>(
         if let (Some(config), Some(receiver_config), Some(metadata)) =
             (config_opt, receiver_config_opt, metadata_opt)
         {
-            match datadog_crashtracker::init(config, receiver_config, metadata) {
+            match libdd_crashtracker::init(config, receiver_config, metadata) {
                 Ok(_) => CRASHTRACKER_STATUS
                     .store(CrashtrackerStatus::Initialized as u8, Ordering::SeqCst),
                 Err(e) => {
@@ -269,7 +269,7 @@ pub fn crashtracker_on_fork<'py>(
 
     // Note to self: is it possible to call crashtracker_on_fork before crashtracker_init?
     // dd-trace-py seems to start crashtracker early on.
-    datadog_crashtracker::on_fork(inner_config, inner_receiver_config, inner_metadata)
+    libdd_crashtracker::on_fork(inner_config, inner_receiver_config, inner_metadata)
 }
 
 #[pyfunction(name = "crashtracker_status")]
@@ -286,5 +286,5 @@ pub fn crashtracker_status() -> anyhow::Result<CrashtrackerStatus> {
 // binary names for the receiver, since Python installs the script as a command.
 #[pyfunction(name = "crashtracker_receiver")]
 pub fn crashtracker_receiver() -> anyhow::Result<()> {
-    datadog_crashtracker::receiver_entry_point_stdin()
+    libdd_crashtracker::receiver_entry_point_stdin()
 }
