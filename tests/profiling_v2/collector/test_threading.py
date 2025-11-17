@@ -40,8 +40,7 @@ LockClassInst = Union[_thread.LockType, _thread.RLock]
 _test_global_lock: LockClassInst
 
 
-class TestBar:
-    ...
+class TestBar: ...
 
 
 _test_global_bar_instance: TestBar
@@ -215,9 +214,7 @@ def test_lock_gevent_tasks() -> None:
     test_name: str = "test_lock_gevent_tasks"
     pprof_prefix: str = "/tmp" + os.sep + test_name
     output_filename: str = pprof_prefix + "." + str(os.getpid())
-    ddup.config(
-        env="test", service=test_name, version="my_version", output_filename=pprof_prefix
-    )  # pyright: ignore[reportCallIssue]
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)  # pyright: ignore[reportCallIssue]
     ddup.start()
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
@@ -233,9 +230,7 @@ def test_lock_gevent_tasks() -> None:
         expected_filename: str = "test_threading.py"
         linenos: LineNo = get_lock_linenos(test_name)
 
-        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(
-            output_filename
-        )  # pyright: ignore[reportInvalidTypeForm]
+        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename)  # pyright: ignore[reportInvalidTypeForm]
         pprof_utils.assert_lock_events(
             profile,
             expected_acquire_events=[
@@ -307,9 +302,7 @@ def test_rlock_gevent_tasks() -> None:
     test_name: str = "test_rlock_gevent_tasks"
     pprof_prefix: str = "/tmp" + os.sep + test_name
     output_filename: str = pprof_prefix + "." + str(os.getpid())
-    ddup.config(
-        env="test", service=test_name, version="my_version", output_filename=pprof_prefix
-    )  # pyright: ignore[reportCallIssue]
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)  # pyright: ignore[reportCallIssue]
     ddup.start()
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
@@ -456,9 +449,7 @@ class BaseThreadingLockCollectorTest:
 
         # ddup is available when the native module is compiled
         assert ddup.is_available, "ddup is not available"
-        ddup.config(
-            env="test", service=self.test_name, version="my_version", output_filename=self.pprof_prefix
-        )  # pyright: ignore[reportCallIssue]
+        ddup.config(env="test", service=self.test_name, version="my_version", output_filename=self.pprof_prefix)  # pyright: ignore[reportCallIssue]
         ddup.start()
 
     def teardown_method(self, method: Callable[..., None]) -> None:
@@ -1054,9 +1045,9 @@ class BaseThreadingLockCollectorTest:
         num_files_after_second_upload: int = len(glob.glob(self.output_filename + ".*.pprof"))
 
         # A new profile file should always be created (upload_seq increments)
-        assert (
-            num_files_after_second_upload - num_files_before_second_upload == 1
-        ), f"Expected 1 new file, got {num_files_after_second_upload - num_files_before_second_upload}."
+        assert num_files_after_second_upload - num_files_before_second_upload == 1, (
+            f"Expected 1 new file, got {num_files_after_second_upload - num_files_before_second_upload}."
+        )
 
         # The newest profile file should be empty (no samples), which causes an AssertionError
         with pytest.raises(AssertionError, match="No samples found in profile"):
@@ -1162,9 +1153,9 @@ class BaseThreadingLockCollectorTest:
         # Allow up to 50x overhead since lock operations are extremely fast (microseconds)
         # and wrapper overhead is constant per call
         overhead_multiplier: float = profiled_time_zero / regular_time if regular_time > 0 else 1
-        assert (
-            overhead_multiplier < 50
-        ), f"Overhead too high: {overhead_multiplier}x (regular: {regular_time:.6f}s, profiled: {profiled_time_zero:.6f}s)"  # noqa: E501
+        assert overhead_multiplier < 50, (
+            f"Overhead too high: {overhead_multiplier}x (regular: {regular_time:.6f}s, profiled: {profiled_time_zero:.6f}s)"
+        )  # noqa: E501
 
 
 class TestThreadingLockCollector(BaseThreadingLockCollectorTest):
