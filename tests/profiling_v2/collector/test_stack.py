@@ -7,7 +7,7 @@ from unittest.mock import patch
 import uuid
 
 import pytest
-from tests.profiling.collector import test_collector
+from tests.profiling_v2.collector import test_collector
 
 from ddtrace import ext
 from ddtrace.internal.datadog.profiling import ddup
@@ -35,7 +35,7 @@ TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False) and (
 def test_collect_truncate():
     import os
 
-    from tests.profiling.collector.test_stack import func1
+    from tests.profiling_v2.collector.test_stack import func1
 
     from ddtrace.profiling import profiler
     from tests.profiling_v2.collector import pprof_utils

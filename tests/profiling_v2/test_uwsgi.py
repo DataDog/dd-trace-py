@@ -22,7 +22,7 @@ THREADS_MSG = (
     b"number of threads must be set"
 )
 
-uwsgi_app = os.path.join(os.path.dirname(__file__), "..", "profiling", "uwsgi-app.py")
+uwsgi_app = os.path.join(os.path.dirname(__file__), "uwsgi-app.py")
 
 
 @pytest.fixture

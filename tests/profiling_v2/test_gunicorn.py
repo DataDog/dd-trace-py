@@ -43,7 +43,7 @@ def _run_gunicorn(*args):
             os.path.dirname(__file__),
         ]
         + list(args)
-        + ["tests.profiling.gunicorn-app:app"]
+        + ["tests.profiling_v2.gunicorn-app:app"]
     )
     return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
