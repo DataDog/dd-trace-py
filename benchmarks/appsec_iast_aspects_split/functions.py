@@ -35,7 +35,7 @@ for symbol in symbols:
         # print(f"Warning: {symbol} not found in the current version")
 
 if notfound_symbols:
-    print("Warning: symbols not found in the tested version [%s]: %s" % (__version__, str(notfound_symbols)))
+    print("Warning: symbols not found in the tested version [%s]: %s" % (version, str(notfound_symbols)))
 
 
 def iast_add_aspect():
