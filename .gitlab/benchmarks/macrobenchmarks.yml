@@ -20,8 +20,7 @@ candidate:
   rules:
     - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
       interruptible: false
-    - if: $CI_COMMIT_BRANCH != "main"
-      interruptible: true
+    - interruptible: true
   needs:
     - pipeline: $PARENT_PIPELINE_ID
       job: download_ddtrace_artifacts
@@ -41,8 +40,7 @@ candidate:
   rules:
     - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
       interruptible: false
-    - if: $CI_COMMIT_BRANCH != "main"
-      interruptible: true
+    - interruptible: true
   timeout: 1h
   retry:
     max: 2
