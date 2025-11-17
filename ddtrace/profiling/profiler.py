@@ -191,12 +191,7 @@ class _ProfilerInstance(service.Service):
         if self._stack_collector_enabled:
             LOG.debug("Profiling collector (stack) enabled")
             try:
-                self._collectors.append(
-                    stack.StackCollector(
-                        tracer=self.tracer,
-                        endpoint_collection_enabled=self.endpoint_collection_enabled,
-                    )
-                )
+                self._collectors.append(stack.StackCollector(tracer=self.tracer))
                 LOG.debug("Profiling collector (stack) initialized")
             except Exception:
                 LOG.error("Failed to start stack collector, disabling.", exc_info=True)
