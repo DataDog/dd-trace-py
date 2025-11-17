@@ -1,8 +1,8 @@
 import logging
 import sys
 import time
+from unittest import mock
 
-import mock
 import pytest
 
 import ddtrace
@@ -107,7 +107,7 @@ def test_failed_start_collector(caplog, monkeypatch):
 
     class TestProfiler(profiler._ProfilerInstance):
         def _build_default_exporters(self, *args, **kargs):
-            return []
+            return None
 
     p = TestProfiler()
     err_collector = mock.MagicMock(wraps=ErrCollect())
@@ -182,7 +182,7 @@ def test_libdd_failure_telemetry_logging():
     2) import ddtrace.profiling.auto
     """
 
-    import mock
+    from unittest import mock
 
     with mock.patch.multiple(
         "ddtrace.internal.datadog.profiling.ddup",
@@ -206,7 +206,7 @@ def test_libdd_failure_telemetry_logging():
     err=None
 )
 def test_libdd_failure_telemetry_logging_with_auto():
-    import mock
+    from unittest import mock
 
     with mock.patch.multiple(
         "ddtrace.internal.datadog.profiling.ddup",
@@ -233,7 +233,7 @@ def test_stack_v2_failure_telemetry_logging():
     # mimicking the behavior of ddtrace-run, where the config is imported to
     # determine if profiling/stack_v2 is enabled
 
-    import mock
+    from unittest import mock
 
     with mock.patch.multiple(
         "ddtrace.internal.datadog.profiling.stack_v2",
@@ -257,7 +257,7 @@ def test_stack_v2_failure_telemetry_logging():
     err=None,
 )
 def test_stack_v2_failure_telemetry_logging_with_auto():
-    import mock
+    from unittest import mock
 
     with mock.patch.multiple(
         "ddtrace.internal.datadog.profiling.stack_v2",
@@ -305,7 +305,7 @@ def test_user_threads_have_native_id():
     for _ in range(10):
         try:
             # The TID should be higher than the PID, but not too high
-            assert 0 < t.native_id - getpid() < 100, (t.native_id, getpid())
+            assert 0 < t.native_id - getpid() < 100, (t.native_id, getpid())  # pyright: ignore[reportOptionalOperand]
         except AttributeError:
             # The native_id attribute is set by the thread so we might have to
             # wait a bit for it to be set.
