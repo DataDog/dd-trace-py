@@ -100,7 +100,16 @@ The available settings are:
 from ddtrace.contrib.internal.tornado.stack_context import TracerStackContext
 from ddtrace.contrib.internal.tornado.stack_context import context_provider
 from ddtrace.contrib.internal.tornado.stack_context import run_with_trace_context
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
+
+deprecate(
+    "ddtrace.contrib.tornado is deprecated",
+    message="Use ``import ddtrace.auto`` and ``DD_PATCH_MODULES`` to configure tracing for Tornado.",
+    category=DDTraceDeprecationWarning,
+    removal_version="4.0.0",
+)
 
 __all__ = [
     "context_provider",
