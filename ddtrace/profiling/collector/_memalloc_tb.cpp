@@ -1,6 +1,7 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include <frameobject.h>
+#include <string_view>
 
 #include "_memalloc_debug.h"
 #include "_memalloc_tb.h"
@@ -112,6 +113,7 @@ traceback_t::traceback_t(void* ptr,
   , thread_id(PyThread_get_thread_ident())
   , reported(false)
   , count(0)
+  , sample(Datadog::SampleType::Allocation, max_nframe)
 {
     // Size 0 allocations are legal and we can hypothetically sample them,
     // e.g. if an allocation during sampling pushes us over the next sampling threshold,
@@ -121,21 +123,98 @@ traceback_t::traceback_t(void* ptr,
     double scaled_count = ((double)weighted_size) / ((double)adjusted_size);
     count = (size_t)scaled_count;
 
-    // Collect frames from the Python frame chain
+    // Validate Sample object is in a valid state before use
+    if (max_nframe == 0) {
+        // Should not happen, but defensive check
+        return;
+    }
+
+    // TODO: Ensure profile_state is initialized before creating Sample objects
+    // Currently, push_alloc() has bounds checking to handle uninitialized profile_state gracefully,
+    // but ideally we should initialize profile_state before constructing traceback_t objects.
+
+    // Push allocation info to sample
+    // Note: push_alloc() has bounds checking to handle uninitialized profile_state gracefully
+    sample.push_alloc(weighted_size, count);
+    sample.push_threadinfo(thread_id, 0, ""); // thread_native_id and thread_name not available here
+
+    // Collect frames from the Python frame chain and push to Sample
+    // We push frames as we collect them (root to leaf order).
+    // Note: Sample.push_frame() comment says it "Assumes frames are pushed in leaf-order",
+    // but we push root-to-leaf. When flushing the sample, use flush_sample(reverse_locations=true)
+    // to reverse the order if needed.
     size_t total_nframe = 0;
-    for (; pyframe != NULL;) {
+    for (PyFrameObject* frame = pyframe; frame != NULL;) {
         if (frames.size() < max_nframe) {
-            frames.emplace_back(pyframe);
+            frames.emplace_back(frame);
         }
         // TODO(dsn): add a truncated frame to the traceback if we exceed the max_nframe
         total_nframe++;
 
+        // Extract frame info for Sample
+        int lineno_val = PyFrame_GetLineNumber(frame);
+        if (lineno_val < 0)
+            lineno_val = 0;
+
 #ifdef _PY39_AND_LATER
-        PyFrameObject* back = PyFrame_GetBack(pyframe);
-        Py_DECREF(pyframe);
-        pyframe = back;
+        PyCodeObject* code = PyFrame_GetCode(frame);
 #else
-        pyframe = pyframe->f_back;
+        PyCodeObject* code = frame->f_code;
+#endif
+
+        // Extract frame info for Sample
+        // Create string_views directly from bytes buffers, push_frame copies them immediately,
+        // then we can safely DECREF the bytes objects
+        std::string_view name_sv = "<unknown>";
+        std::string_view filename_sv = "<unknown>";
+
+        PyObject* name_bytes = nullptr;
+        PyObject* filename_bytes = nullptr;
+
+        if (code != NULL) {
+            if (code->co_name) {
+                name_bytes = PyUnicode_AsUTF8String(code->co_name);
+                if (name_bytes) {
+                    const char* name_ptr = PyBytes_AsString(name_bytes);
+                    if (name_ptr) {
+                        Py_ssize_t name_len = PyBytes_Size(name_bytes);
+                        name_sv = std::string_view(name_ptr, name_len);
+                    }
+                }
+            }
+
+            if (code->co_filename) {
+                filename_bytes = PyUnicode_AsUTF8String(code->co_filename);
+                if (filename_bytes) {
+                    const char* filename_ptr = PyBytes_AsString(filename_bytes);
+                    if (filename_ptr) {
+                        Py_ssize_t filename_len = PyBytes_Size(filename_bytes);
+                        filename_sv = std::string_view(filename_ptr, filename_len);
+                    }
+                }
+            }
+        }
+
+        // Push frame to Sample (root to leaf order)
+        // push_frame copies the strings immediately into its StringArena, so it's safe to
+        // DECREF the bytes objects after this call
+        sample.push_frame(name_sv, filename_sv, 0, lineno_val);
+
+        // Now safe to release the bytes objects since push_frame has copied the strings
+        Py_XDECREF(name_bytes);
+        Py_XDECREF(filename_bytes);
+
+#ifdef _PY39_AND_LATER
+        Py_XDECREF(code);
+#endif
+
+#ifdef _PY39_AND_LATER
+        PyFrameObject* back = PyFrame_GetBack(frame);
+        Py_DECREF(frame); // Release reference - pyframe from PyThreadState_GetFrame is a new reference, and back frames
+                          // from GetBack are also new references
+        frame = back;
+#else
+        frame = frame->f_back;
 #endif
         memalloc_debug_gil_release();
     }
@@ -146,10 +225,13 @@ traceback_t::traceback_t(void* ptr,
 
 traceback_t::~traceback_t()
 {
+    // Clean up Python references in frames
     for (const frame_t& frame : frames) {
         Py_DECREF(frame.filename);
         Py_DECREF(frame.name);
     }
+    // Sample object is a member variable and will be automatically destroyed
+    // No explicit cleanup needed - its destructor will handle internal cleanup
 }
 
 traceback_t*

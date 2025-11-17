@@ -6,6 +6,9 @@
 
 #include <Python.h>
 
+// Include Sample class header to enable calling functions from Sample.cpp
+#include "../../internal/datadog/profiling/dd_wrapper/include/sample.hpp"
+
 class frame_t
 {
   public:
@@ -34,6 +37,8 @@ class traceback_t
     size_t count;
     /* List of frames, top frame first */
     std::vector<frame_t> frames;
+    /* Sample object storing the stacktrace */
+    Datadog::Sample sample;
 
     /* Constructor - also collects frames from the current Python frame chain */
     traceback_t(void* ptr,

@@ -256,9 +256,17 @@ Datadog::Sample::push_alloc(int64_t size, int64_t count) // NOLINT (bugprone-eas
     }
 
     if (0U != (type_mask & SampleType::Allocation)) {
-        values[profile_state.val().alloc_space] += size;
-        values[profile_state.val().alloc_count] += count;
-        return true;
+        // Bounds check to prevent out-of-bounds access if profile_state isn't initialized
+        const size_t alloc_space_idx = profile_state.val().alloc_space;
+        const size_t alloc_count_idx = profile_state.val().alloc_count;
+        if (alloc_space_idx < values.size() && alloc_count_idx < values.size()) {
+            values[alloc_space_idx] += size;
+            values[alloc_count_idx] += count;
+            return true;
+        }
+        // If indices are out of bounds, profile_state likely isn't initialized
+        // Return false to indicate failure gracefully instead of crashing
+        return false;
     }
     if (!already_warned) {
         already_warned = true;

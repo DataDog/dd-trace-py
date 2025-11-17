@@ -11,6 +11,9 @@
 #include "_memalloc_tb.h"
 #include "_pymacro.h"
 
+// Ensure profile_state is initialized before creating Sample objects
+#include "../../internal/datadog/profiling/dd_wrapper/include/ddup_interface.hpp"
+
 typedef struct
 {
     PyMemAllocatorEx pymem_allocator_obj;
@@ -107,6 +110,11 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
         PyErr_SetString(PyExc_RuntimeError, "the memalloc module is already started");
         return NULL;
     }
+
+    // Ensure profile_state is initialized before creating Sample objects
+    // This initializes the Sample::profile_state which is required for Sample objects to work correctly
+    // ddup_start() uses std::call_once, so it's safe to call multiple times
+    ddup_start();
 
     char* val = getenv("_DD_MEMALLOC_DEBUG_RNG_SEED");
     if (val) {
