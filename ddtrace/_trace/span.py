@@ -317,7 +317,7 @@ class Span(object):
         self.context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] = value
         return value
 
-    def set_tag(self, key: str, value: Optional[str] = None) -> None:
+    def set_tag(self, key: str, value: Optional[object] = None) -> None:
         """Set a tag key/value pair on the span.
 
         Keys must be strings, values must be ``str``-able.
@@ -363,7 +363,7 @@ class Span(object):
             self._override_sampling_decision(USER_REJECT)
             return
         elif key == SERVICE_KEY:
-            self.service = value
+            self.service = value  # type: ignore
         elif key == SERVICE_VERSION_KEY:
             # Also set the `version` tag to the same value
             # DEV: Note that we do no return, we want to set both
@@ -372,7 +372,7 @@ class Span(object):
             # Set `_dd.measured` tag as a metric
             # DEV: `set_metric` will ensure it is an integer 0 or 1
             if value is None:
-                value = 1  # type: ignore
+                value = 1
             self.set_metric(key, value)  # type: ignore
             return
 
