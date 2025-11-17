@@ -1072,38 +1072,6 @@ if not IS_PYSTON:
         ),
     ]
 
-    # _memalloc uses cwisstable which is not supported on Windows
-    # Profiler extensions are only needed on Linux and macOS
-    if CURRENT_OS != "Windows":
-        ext_modules.append(
-            Extension(
-                "ddtrace.profiling.collector._memalloc",
-                sources=[
-                    "ddtrace/profiling/collector/_memalloc.cpp",
-                    "ddtrace/profiling/collector/_memalloc_tb.cpp",
-                    "ddtrace/profiling/collector/_memalloc_heap.cpp",
-                    "ddtrace/profiling/collector/_memalloc_reentrant.cpp",
-                    "ddtrace/profiling/collector/_memalloc_heap_map.cpp",
-                ],
-                include_dirs=[
-                    "ddtrace/internal/datadog/profiling/dd_wrapper/include",
-                ],
-                extra_link_args=(
-                    ["-Wl,-rpath,$ORIGIN/../../internal/datadog/profiling", "-latomic"]
-                    if CURRENT_OS == "Linux"
-                    else ["-Wl,-rpath,@loader_path/../../internal/datadog/profiling"]
-                    if CURRENT_OS == "Darwin"
-                    else []
-                ),
-                language="c++",
-                extra_compile_args=(
-                    debug_compile_args
-                    + (["-DNDEBUG"] if not debug_compile_args else ["-UNDEBUG"])
-                    + ["-D_POSIX_C_SOURCE=200809L", "-std=c++20"]
-                    + fast_build_args
-                ),
-            ),
-        )
     if platform.system() not in ("Windows", ""):
         ext_modules.append(
             Extension(
@@ -1129,6 +1097,36 @@ if not IS_PYSTON:
 
     if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
         if sys.version_info < (3, 14):
+            ext_modules.append(
+                Extension(
+                    "ddtrace.profiling.collector._memalloc",
+                    sources=[
+                        "ddtrace/profiling/collector/_memalloc.cpp",
+                        "ddtrace/profiling/collector/_memalloc_tb.cpp",
+                        "ddtrace/profiling/collector/_memalloc_heap.cpp",
+                        "ddtrace/profiling/collector/_memalloc_reentrant.cpp",
+                        "ddtrace/profiling/collector/_memalloc_heap_map.cpp",
+                    ],
+                    include_dirs=[
+                        "ddtrace/internal/datadog/profiling/dd_wrapper/include",
+                    ],
+                    extra_link_args=(
+                        ["-Wl,-rpath,$ORIGIN/../../internal/datadog/profiling", "-latomic"]
+                        if CURRENT_OS == "Linux"
+                        else ["-Wl,-rpath,@loader_path/../../internal/datadog/profiling"]
+                        if CURRENT_OS == "Darwin"
+                        else []
+                    ),
+                    language="c++",
+                    extra_compile_args=(
+                        debug_compile_args
+                        + (["-DNDEBUG"] if not debug_compile_args else ["-UNDEBUG"])
+                        + ["-D_POSIX_C_SOURCE=200809L", "-std=c++20"]
+                        + fast_build_args
+                    ),
+                ),
+            )
+
             ext_modules.append(
                 CMakeExtension(
                     "ddtrace.internal.datadog.profiling.ddup._ddup",
@@ -1159,7 +1157,7 @@ else:
 
 
 cython_exts = []
-if os.getenv("DD_CYTHONIZE", "1") == "1":
+if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
     cython_exts = cythonize(
         [
             Cython.Distutils.Extension(
@@ -1246,7 +1244,7 @@ setup(
         "clean": CleanLibraries,
         "ext_hashes": ExtensionHashes,
     },
-    setup_requires=["cython", "cmake>=3.24.2,<3.28", "setuptools-rust"],
+    setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28", "setuptools-rust"],
     ext_modules=ext_modules + cython_exts + get_exts_for("psutil"),
     distclass=PatchedDistribution,
 )

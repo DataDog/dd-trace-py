@@ -276,6 +276,11 @@ def gen_pre_checks() -> None:
         command="scripts/verify-package-version",
         paths={"pyproject.toml", "ddtrace/version.py"},
     )
+    check(
+        name="Check for namespace packages",
+        command="scripts/check-for-namespace-packages.sh",
+        paths={"*"},
+    )
     if not checks:
         return
 
