@@ -6,6 +6,11 @@
 # ///
 """Verify and update static versions in pyproject.toml and ddtrace/version.py.
 
+Performs the following validations:
+- Ensures version in pyproject.toml is PEP 440 compliant (e.g., "4.1.0.dev0" not "4.1.0.dev")
+- Verifies __version__ in ddtrace/version.py matches __version_tuple__ when parsed
+- Checks that versions in both files are consistent
+
 Usage:
     scripts/verify-package-version       # Check versions match (exit 0 if OK, 1 if mismatch)
     scripts/verify-package-version --fix # Update version.py from pyproject.toml
@@ -23,6 +28,24 @@ try:
     import tomllib
 except ModuleNotFoundError:
     import tomli as tomllib  # type: ignore[import-not-found]
+
+
+def is_pep440_compliant(version_str: str) -> tuple[bool, str]:
+    """Check if a version string is strictly PEP 440 compliant.
+
+    Returns:
+        Tuple of (is_compliant, normalized_version)
+    """
+    try:
+        parsed = Version(version_str)
+        normalized = str(parsed)
+
+        # Check if the original matches the normalized form
+        # If they differ, the version had implicit defaults which is not strictly compliant
+        is_compliant = version_str == normalized
+        return is_compliant, normalized
+    except InvalidVersion:
+        return False, ""
 
 
 def version_to_tuple(version_str: str) -> tuple:
@@ -124,7 +147,15 @@ def main() -> int:
     try:
         pyproject_version = read_pyproject_version(pyproject_path)
 
-        # Validate that the version is PEP 440 compliant
+        # Check PEP 440 compliance
+        is_compliant, normalized_version = is_pep440_compliant(pyproject_version)
+        if not is_compliant:
+            print(f"✗ Version in pyproject.toml is not PEP 440 compliant: {pyproject_version}", file=sys.stderr)
+            print(f"  PEP 440 requires explicit numbers for pre-release, post, and dev versions", file=sys.stderr)
+            print(f"  Suggested fix: {normalized_version}", file=sys.stderr)
+            return 1
+
+        # Validate that the version is PEP 440 parseable
         try:
             pyproject_version_tuple = version_to_tuple(pyproject_version)
         except InvalidVersion as e:
@@ -133,6 +164,20 @@ def main() -> int:
             return 1
 
         current_version, current_version_tuple = read_version_py(version_path)
+
+        # Verify that __version__ and __version_tuple__ in version.py are consistent
+        try:
+            derived_tuple = version_to_tuple(current_version)
+            if derived_tuple != current_version_tuple:
+                print(f"✗ Version mismatch in ddtrace/version.py:", file=sys.stderr)
+                print(f"  __version__ '{current_version}' converts to tuple {derived_tuple}", file=sys.stderr)
+                print(f"  __version_tuple__ is {current_version_tuple}", file=sys.stderr)
+                print("\nRun with --fix to update ddtrace/version.py")
+                return 1
+        except InvalidVersion as e:
+            print(f"✗ Invalid version in ddtrace/version.py: {current_version}", file=sys.stderr)
+            print(f"  Error: {e}", file=sys.stderr)
+            return 1
 
         if current_version == pyproject_version and current_version_tuple == pyproject_version_tuple:
             print("✓ Versions match!")
