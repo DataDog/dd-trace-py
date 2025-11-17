@@ -2,6 +2,7 @@
 import multiprocessing
 import os
 import sys
+from typing import cast
 
 import pytest
 
@@ -21,7 +22,7 @@ def test_call_script(monkeypatch):
         assert exitcode == 0, (stdout, stderr)
     else:
         assert exitcode == 42, (stdout, stderr)
-    hello, pid = list(s.strip() for s in stdout.decode().strip().split("\n"))
+    hello, pid = list(s.strip() for s in cast(bytes, stdout).decode().strip().split("\n"))
     assert hello == "hello world", stdout.decode().strip()
 
 
@@ -50,7 +51,7 @@ def test_call_script_pprof_output(tmp_path, monkeypatch):
         assert exitcode == 0, (stdout, stderr)
     else:
         assert exitcode == 42, (stdout, stderr)
-    hello, pid = list(s.strip() for s in stdout.decode().strip().split("\n"))
+    hello, pid = list(s.strip() for s in cast(bytes, stdout).decode().strip().split("\n"))
     utils.check_pprof_file(filename + "." + str(pid))
 
 
@@ -60,11 +61,9 @@ def test_fork(tmp_path, monkeypatch):
     monkeypatch.setenv("DD_PROFILING_API_TIMEOUT_MS", "100")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
     monkeypatch.setenv("DD_PROFILING_CAPTURE_PCT", "100")
-    stdout, stderr, exitcode, pid = call_program(
-        "python", os.path.join(os.path.dirname(__file__), "simple_program_fork.py")
-    )
+    stdout, _, exitcode, pid = call_program("python", os.path.join(os.path.dirname(__file__), "simple_program_fork.py"))
     assert exitcode == 0
-    child_pid = stdout.decode().strip()
+    child_pid = cast(bytes, stdout).decode().strip()
     utils.check_pprof_file(filename + "." + str(pid))
     utils.check_pprof_file(filename + "." + str(child_pid), sample_type="lock-release")
 
@@ -73,7 +72,7 @@ def test_fork(tmp_path, monkeypatch):
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT", False), reason="Not testing gevent")
 def test_fork_gevent(monkeypatch):
     monkeypatch.setenv("DD_PROFILING_API_TIMEOUT_MS", "100")
-    stdout, stderr, exitcode, pid = call_program("python", os.path.join(os.path.dirname(__file__), "gevent_fork.py"))
+    _, _, exitcode, _ = call_program("python", os.path.join(os.path.dirname(__file__), "gevent_fork.py"))
     assert exitcode == 0
 
 
@@ -96,7 +95,7 @@ def test_multiprocessing(method, tmp_path, monkeypatch):
         method,
     )
     assert exitcode == 0, (stdout, stderr)
-    pid, child_pid = list(s.strip() for s in stdout.decode().strip().split("\n"))
+    pid, child_pid = list(s.strip() for s in cast(bytes, stdout).decode().strip().split("\n"))
     utils.check_pprof_file(filename + "." + str(pid))
     utils.check_pprof_file(filename + "." + str(child_pid), sample_type="wall-time")
 
