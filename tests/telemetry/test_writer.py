@@ -474,8 +474,9 @@ import opentelemetry
         {"name": "_DD_APPSEC_DEDUPLICATION_ENABLED", "origin": "default", "value": True},
         {"name": "_DD_IAST_LAZY_TAINT", "origin": "default", "value": False},
         {"name": "_DD_IAST_USE_ROOT_SPAN", "origin": "default", "value": False},
+        {"name": "_DD_NATIVE_LOGGING_BACKEND", "origin": "default", "value": None},
         {"name": "_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", "origin": "default", "value": False},
-        {"name": "_DD_TRACE_WRITER_NATIVE", "origin": "default", "value": False},
+        {"name": "_DD_TRACE_WRITER_NATIVE", "origin": "default", "value": True},
         {"name": "instrumentation_source", "origin": "code", "value": "manual"},
         {"name": "python_build_gnu_type", "origin": "unknown", "value": sysconfig.get_config_var("BUILD_GNU_TYPE")},
         {"name": "python_host_gnu_type", "origin": "unknown", "value": sysconfig.get_config_var("HOST_GNU_TYPE")},
@@ -681,9 +682,9 @@ def test_app_client_configuration_changed_event(telemetry_writer, test_agent_ses
     telemetry_writer.periodic(force_flush=True)
     """asserts that queuing a configuration sends a valid telemetry request"""
     with override_global_config(dict()):
-        telemetry_writer.add_configuration("appsec_enabled", True, "env_var")
+        telemetry_writer.add_configuration("product_enabled", True, "env_var")
         telemetry_writer.add_configuration("DD_TRACE_PROPAGATION_STYLE_EXTRACT", "datadog", "default")
-        telemetry_writer.add_configuration("appsec_enabled", False, "code")
+        telemetry_writer.add_configuration("product_enabled", False, "code")
 
         telemetry_writer.periodic(force_flush=True)
 
@@ -696,13 +697,13 @@ def test_app_client_configuration_changed_event(telemetry_writer, test_agent_ses
             < received_configurations[2]["seq_id"]
         )
         # assert that all configuration values are sent to the agent in the order they were added (by seq_id)
-        assert received_configurations[0]["name"] == "appsec_enabled"
+        assert received_configurations[0]["name"] == "product_enabled"
         assert received_configurations[0]["origin"] == "env_var"
         assert received_configurations[0]["value"] is True
         assert received_configurations[1]["name"] == "DD_TRACE_PROPAGATION_STYLE_EXTRACT"
         assert received_configurations[1]["origin"] == "default"
         assert received_configurations[1]["value"] == "datadog"
-        assert received_configurations[2]["name"] == "appsec_enabled"
+        assert received_configurations[2]["name"] == "product_enabled"
         assert received_configurations[2]["origin"] == "code"
         assert received_configurations[2]["value"] is False
 
