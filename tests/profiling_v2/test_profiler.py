@@ -1,7 +1,8 @@
 import logging
+import sys
 import time
+from unittest import mock
 
-import mock
 import pytest
 
 import ddtrace
@@ -106,7 +107,7 @@ def test_failed_start_collector(caplog, monkeypatch):
 
     class TestProfiler(profiler._ProfilerInstance):
         def _build_default_exporters(self, *args, **kargs):
-            return []
+            return None
 
     p = TestProfiler()
     err_collector = mock.MagicMock(wraps=ErrCollect())
@@ -148,7 +149,7 @@ def test_profiler_serverless(monkeypatch):
     assert p.tags["functionname"] == "foobar"
 
 
-@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 9), reason="Python 3.8 throws a deprecation warning")
+@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 10), reason="ddtrace under Python 3.9 is deprecated")
 @pytest.mark.subprocess()
 def test_profiler_ddtrace_deprecation():
     """
@@ -181,15 +182,15 @@ def test_libdd_failure_telemetry_logging():
     2) import ddtrace.profiling.auto
     """
 
-    import mock
+    from unittest import mock
 
     with mock.patch.multiple(
         "ddtrace.internal.datadog.profiling.ddup",
         failure_msg="mock failure message",
         is_available=False,
     ), mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_log") as mock_add_log:
+        from ddtrace.internal.settings.profiling import config  # noqa:F401
         from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
-        from ddtrace.settings.profiling import config  # noqa:F401
 
         mock_add_log.assert_called_once()
         call_args = mock_add_log.call_args
@@ -205,7 +206,7 @@ def test_libdd_failure_telemetry_logging():
     err=None
 )
 def test_libdd_failure_telemetry_logging_with_auto():
-    import mock
+    from unittest import mock
 
     with mock.patch.multiple(
         "ddtrace.internal.datadog.profiling.ddup",
@@ -232,15 +233,15 @@ def test_stack_v2_failure_telemetry_logging():
     # mimicking the behavior of ddtrace-run, where the config is imported to
     # determine if profiling/stack_v2 is enabled
 
-    import mock
+    from unittest import mock
 
     with mock.patch.multiple(
         "ddtrace.internal.datadog.profiling.stack_v2",
         failure_msg="mock failure message",
         is_available=False,
     ), mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_log") as mock_add_log:
+        from ddtrace.internal.settings.profiling import config  # noqa: F401
         from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
-        from ddtrace.settings.profiling import config  # noqa: F401
 
         mock_add_log.assert_called_once()
         call_args = mock_add_log.call_args
@@ -256,7 +257,7 @@ def test_stack_v2_failure_telemetry_logging():
     err=None,
 )
 def test_stack_v2_failure_telemetry_logging_with_auto():
-    import mock
+    from unittest import mock
 
     with mock.patch.multiple(
         "ddtrace.internal.datadog.profiling.stack_v2",
@@ -272,3 +273,48 @@ def test_stack_v2_failure_telemetry_logging_with_auto():
         message = call_args[0][1]
         assert "Failed to load stack_v2 module" in message
         assert "mock failure message" in message
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="only works on linux")
+@pytest.mark.subprocess(err=None)
+# For macOS: Could print 'Error uploading' but okay to ignore since we are checking if native_id is set
+def test_user_threads_have_native_id():
+    from os import getpid
+    from threading import Thread
+    from threading import _MainThread  # pyright: ignore[reportAttributeAccessIssue]
+    from threading import current_thread
+    from time import sleep
+
+    from ddtrace.profiling import profiler
+
+    # DEV: We used to run this test with ddtrace_run=True passed into the
+    # subprocess decorator, but that caused this to be flaky for Python 3.8.x
+    # with gevent. When it failed for that specific venv, current_thread()
+    # returned a DummyThread instead of a _MainThread.
+    p = profiler.Profiler()
+    p.start()
+
+    main = current_thread()
+    assert isinstance(main, _MainThread)
+    # We expect the current thread to have the same ID as the PID
+    assert main.native_id == getpid(), (main.native_id, getpid())
+
+    t = Thread(target=lambda: None)
+    t.start()
+
+    for _ in range(10):
+        try:
+            # The TID should be higher than the PID, but not too high
+            assert 0 < t.native_id - getpid() < 100, (t.native_id, getpid())  # pyright: ignore[reportOptionalOperand]
+        except AttributeError:
+            # The native_id attribute is set by the thread so we might have to
+            # wait a bit for it to be set.
+            sleep(0.1)
+        else:
+            break
+    else:
+        raise AssertionError("Thread.native_id not set")
+
+    t.join()
+
+    p.stop()

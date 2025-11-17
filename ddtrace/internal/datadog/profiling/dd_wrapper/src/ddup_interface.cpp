@@ -1,8 +1,7 @@
 #include "ddup_interface.hpp"
 
-#include "code_provenance.hpp"
 #include "libdatadog_helpers.hpp"
-#include "profile.hpp"
+#include "profiler_stats.hpp"
 #include "sample.hpp"
 #include "sample_manager.hpp"
 #include "uploader.hpp"
@@ -125,6 +124,12 @@ void
 ddup_config_sample_pool_capacity(uint64_t capacity) // cppcheck-suppress unusedFunction
 {
     Datadog::SampleManager::set_sample_pool_capacity(capacity);
+}
+
+void
+ddup_config_set_max_timeout_ms(uint64_t max_timeout_ms)
+{
+    Datadog::UploaderBuilder::set_max_timeout_ms(max_timeout_ms);
 }
 
 bool
@@ -299,6 +304,20 @@ ddup_push_monotonic_ns(Datadog::Sample* sample, int64_t monotonic_ns) // cppchec
 }
 
 void
+ddup_increment_sampling_event_count() // cppcheck-suppress unusedFunction
+{
+    auto borrowed = Datadog::Sample::profile_borrow();
+    borrowed.stats().increment_sampling_event_count();
+}
+
+void
+ddup_increment_sample_count() // cppcheck-suppress unusedFunction
+{
+    auto borrowed = Datadog::Sample::profile_borrow();
+    borrowed.stats().increment_sample_count();
+}
+
+void
 ddup_flush_sample(Datadog::Sample* sample) // cppcheck-suppress unusedFunction
 {
     sample->flush_sample();
@@ -345,9 +364,10 @@ ddup_upload() // cppcheck-suppress unusedFunction
     //  be modified.  It gets released and cleared after uploading.
     // * Uploading cancels inflight uploads. There are better ways to do this, but this is what
     //   we have for now.
-    uploader.upload(Datadog::Sample::profile_borrow());
-    Datadog::Sample::profile_release();
-    return true;
+    auto borrowed = Datadog::Sample::profile_borrow();
+    bool success = uploader.upload(borrowed.profile(), borrowed.stats());
+    borrowed.stats().reset_state();
+    return success;
 }
 
 void
@@ -355,7 +375,8 @@ ddup_profile_set_endpoints(
   std::unordered_map<int64_t, std::string_view> span_ids_to_endpoints) // cppcheck-suppress unusedFunction
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
-    ddog_prof_Profile& profile = Datadog::Sample::profile_borrow();
+    auto borrowed = Datadog::Sample::profile_borrow();
+    ddog_prof_Profile& profile = borrowed.profile();
     for (const auto& [span_id, trace_endpoint] : span_ids_to_endpoints) {
         ddog_CharSlice trace_endpoint_slice = Datadog::to_slice(trace_endpoint);
         auto res = ddog_prof_Profile_set_endpoint(&profile, span_id, trace_endpoint_slice);
@@ -369,14 +390,14 @@ ddup_profile_set_endpoints(
             ddog_Error_drop(&err);
         }
     }
-    Datadog::Sample::profile_release();
 }
 
 void
 ddup_profile_add_endpoint_counts(std::unordered_map<std::string_view, int64_t> trace_endpoints_to_counts)
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
-    ddog_prof_Profile& profile = Datadog::Sample::profile_borrow();
+    auto borrowed = Datadog::Sample::profile_borrow();
+    ddog_prof_Profile& profile = borrowed.profile();
     for (const auto& [trace_endpoint, count] : trace_endpoints_to_counts) {
         ddog_CharSlice trace_endpoint_slice = Datadog::to_slice(trace_endpoint);
         auto res = ddog_prof_Profile_add_endpoint_count(&profile, trace_endpoint_slice, count);
@@ -390,5 +411,4 @@ ddup_profile_add_endpoint_counts(std::unordered_map<std::string_view, int64_t> t
             ddog_Error_drop(&err);
         }
     }
-    Datadog::Sample::profile_release();
 }

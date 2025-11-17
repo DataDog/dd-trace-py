@@ -4,19 +4,21 @@ from typing import Union
 from .._types import StringType
 from ddtrace._trace.span import Span
 from ddtrace._trace.tracer import Tracer
+import ddtrace
 
 def config(
-    env: StringType,
-    service: StringType,
-    version: StringType,
-    tags: Optional[Dict[Union[str, bytes], Union[str, bytes]]],
-    max_nframes: Optional[int],
-    timeline_enabled: Optional[bool],
-    output_filename: Optional[str],
-    sample_pool_capacity: Optional[int],
+    env: StringType = None,
+    service: StringType = None,
+    version: StringType = None,
+    tags: Optional[Dict[Union[str, bytes], Union[str, bytes]]] = None,
+    max_nframes: Optional[int] = None,
+    timeline_enabled: Optional[bool] = None,
+    output_filename: Optional[str] = None,
+    sample_pool_capacity: Optional[int] = None,
+    timeout: Optional[int] = None,
 ) -> None: ...
 def start() -> None: ...
-def upload(tracer: Optional[Tracer], enable_code_provenance: Optional[bool]) -> None: ...
+def upload(tracer: Optional[Tracer] = ddtrace.tracer, enable_code_provenance: Optional[bool] = None) -> None: ...
 
 class SampleHandle:
     def flush_sample(self) -> None: ...

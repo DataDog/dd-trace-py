@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracer: This fix ensures compatibility with wrapt 2.0.0

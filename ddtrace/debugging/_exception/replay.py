@@ -19,9 +19,9 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
 from ddtrace.internal.rate_limiter import RateLimitExceeded
+from ddtrace.internal.settings._config import config as global_config
+from ddtrace.internal.settings.exception_replay import config
 from ddtrace.internal.utils.time import HourGlass
-from ddtrace.settings._config import config as global_config
-from ddtrace.settings.exception_replay import config
 from ddtrace.trace import Span
 
 
@@ -283,7 +283,11 @@ class SpanExceptionHandler:
                 snapshot.do_line()
 
                 # Collect
-                self.__uploader__.get_collector().push(snapshot)
+                if (collector := self.__uploader__.get_collector()) is None:
+                    log.error("No collector available to push exception replay snapshot")
+                    return False
+
+                collector.push(snapshot)
 
                 # Memoize
                 frame.f_locals[SNAPSHOT_KEY] = snapshot_id = snapshot.uuid

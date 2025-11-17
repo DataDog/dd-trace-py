@@ -29,7 +29,7 @@ The following data is collected in span tags with a default sampling rate of ``1
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The OpenAI integration **estimates** prompt and completion token counts if streaming is turned on.
-This is because the ``usage`` field is no longer returned in streamed completions, which is what
+This is because the ``usage`` field is not returned in streamed completions, which is what
 the integration relies on for reporting metrics.
 
 Streaming responses should produce a ``openai.stream`` span. This span is tagged with estimated
@@ -114,7 +114,7 @@ To configure the OpenAI integration on a per-instance basis use the
 
     import openai
     from ddtrace import config
-    from ddtrace.trace import Pin
+    from ddtrace._trace.pin import Pin
 
     Pin.override(openai, service="my-openai-service")
 """  # noqa: E501

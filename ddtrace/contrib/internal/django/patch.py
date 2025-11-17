@@ -21,6 +21,7 @@ from ddtrace._trace.pin import Pin
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.django.user import _DjangoUserInfoRetriever
 from ddtrace.internal import core
+from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.core.event_hub import ResultType
 from ddtrace.internal.endpoints import endpoint_collection
@@ -28,19 +29,18 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.importlib import func_name
-from ddtrace.settings.asm import config as asm_config
-from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.vendor.packaging.version import parse as parse_version
 
 
 log = get_logger(__name__)
 
-# TODO[4.0]: Change this to True by default
-DJANGO_TRACING_MINIMAL = asbool(_get_config("DD_DJANGO_TRACING_MINIMAL", default=False))
+DJANGO_TRACING_MINIMAL = asbool(_get_config("DD_DJANGO_TRACING_MINIMAL", default=True))
 
 config._add(
     "django",
@@ -54,8 +54,6 @@ config._add(
         instrument_middleware=asbool(os.getenv("DD_DJANGO_INSTRUMENT_MIDDLEWARE", default=True)),
         instrument_templates=asbool(os.getenv("DD_DJANGO_INSTRUMENT_TEMPLATES", default=not DJANGO_TRACING_MINIMAL)),
         instrument_databases=asbool(os.getenv("DD_DJANGO_INSTRUMENT_DATABASES", default=not DJANGO_TRACING_MINIMAL)),
-        # TODO[4.0]: remove this option and make it the default behavior when databases are instrumented
-        always_create_database_spans=asbool(os.getenv("DD_DJANGO_ALWAYS_CREATE_DATABASE_SPANS", default=True)),
         instrument_caches=asbool(os.getenv("DD_DJANGO_INSTRUMENT_CACHES", default=not DJANGO_TRACING_MINIMAL)),
         trace_query_string=None,  # Default to global config
         include_user_name=asm_config._django_include_user_name,
@@ -252,7 +250,7 @@ def _instrument_view(django, view, path=None):
     for name in list(request_method_list or _DEFAULT_METHODS) + list(lifecycle_methods):
         try:
             func = getattr(view, name, None)
-            if not func or isinstance(func, wrapt.ObjectProxy):
+            if not func or is_wrapted(func):
                 continue
 
             resource = "{0}.{1}".format(func_name(view), name)
@@ -269,7 +267,7 @@ def _instrument_view(django, view, path=None):
             try:
                 func = getattr(response_cls, name, None)
                 # Do not wrap if the method does not exist or is already wrapped
-                if not func or isinstance(func, wrapt.ObjectProxy):
+                if not func or is_wrapted(func):
                     continue
 
                 resource = "{0}.{1}".format(func_name(response_cls), name)
@@ -279,7 +277,7 @@ def _instrument_view(django, view, path=None):
                 log.debug("Failed to instrument Django response %r function %s", response_cls, name, exc_info=True)
 
     # If the view itself is not wrapped, wrap it
-    if not isinstance(view, wrapt.ObjectProxy):
+    if not is_wrapted(view):
         view = utils.DjangoViewProxy(
             view, traced_func(django, "django.view", resource=func_name(view), ignored_excs=[django.http.Http404])
         )
