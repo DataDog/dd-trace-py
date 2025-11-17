@@ -20,11 +20,11 @@ from ddtrace.ext.test_visibility.api import TestSuiteId
 from ddtrace.internal.ci_visibility.constants import ITR_UNSKIPPABLE_REASON
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings._config import _get_config
 from ddtrace.internal.test_visibility.api import InternalTest
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.inspection import undecorated
-from ddtrace.settings._config import _get_config
 
 
 log = get_logger(__name__)

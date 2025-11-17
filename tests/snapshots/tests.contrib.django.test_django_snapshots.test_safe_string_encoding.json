@@ -399,7 +399,7 @@
                                            "service": "django",
                                            "resource": "django.views.generic.list.BaseListView.get",
                                            "trace_id": 0,
-                                           "span_id": 32,
+                                           "span_id": 31,
                                            "parent_id": 30,
                                            "type": "",
                                            "error": 0,
@@ -445,47 +445,6 @@
                                      "duration": 275958,
                                      "start": 1692647371693455802
                                    },
-                                      {
-                                        "name": "django.template.render",
-                                        "service": "django",
-                                        "resource": "cached_list.html",
-                                        "trace_id": 0,
-                                        "span_id": 31,
-                                        "parent_id": 28,
-                                        "type": "template",
-                                        "error": 0,
-                                        "meta": {
-                                          "_dd.base_service": "tests.contrib.django",
-                                          "_dd.p.tid": "654a694400000000",
-                                          "component": "django",
-                                          "django.template.engine.class": "django.template.engine.Engine",
-                                          "django.template.name": "cached_list.html"
-                                        },
-                                        "duration": 196084,
-                                        "start": 1692647371693511968
-                                      },
-                                         {
-                                           "name": "django.cache",
-                                           "service": "django",
-                                           "resource": "django.core.cache.backends.locmem.get",
-                                           "trace_id": 0,
-                                           "span_id": 33,
-                                           "parent_id": 31,
-                                           "type": "cache",
-                                           "error": 0,
-                                           "meta": {
-                                             "_dd.base_service": "tests.contrib.django",
-                                             "_dd.p.tid": "654a694400000000",
-                                             "component": "django",
-                                             "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
-                                             "django.cache.key": "template.cache.users_list.d41d8cd98f00b204e9800998ecf8427e"
-                                           },
-                                           "metrics": {
-                                             "db.row_count": 1
-                                           },
-                                           "duration": 55959,
-                                           "start": 1692647371693633093
-                                         },
                           {
                             "name": "django.middleware",
                             "service": "django",

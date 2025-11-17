@@ -4,7 +4,7 @@ import webbrowser
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
 
 
 def get_version():
