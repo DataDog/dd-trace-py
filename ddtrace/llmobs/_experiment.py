@@ -403,8 +403,6 @@ class Experiment:
         self._run_name = experiment_run_name
         run_results = []
         # for backwards compatibility
-        first_run_rows = []
-        first_run_summary_evals = {}
         for run_iteration in range(self._runs):
             run = _ExperimentRunInfo(run_iteration)
             self._tags["run_id"] = str(run._id)
@@ -418,13 +416,11 @@ class Experiment:
                 self._id, experiment_evals, convert_tags_dict_to_list(self._tags)
             )
             run_results.append(run_result)
-            if run_iteration == 0:
-                first_run_rows = run_result.rows
-                first_run_summary_evals = run_result.summary_evaluations
 
         experiment_result: ExperimentResult = {
-            "summary_evaluations": first_run_summary_evals,
-            "rows": first_run_rows,
+            # for backwards compatibility, the first result fills the old fields of rows and summary evals
+            "summary_evaluations": run_results[0].summary_evaluations if len(run_results) > 0 else {},
+            "rows": run_results[0].rows if len(run_results) > 0 else [],
             "runs": run_results,
         }
         return experiment_result
