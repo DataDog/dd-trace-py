@@ -303,7 +303,7 @@ def test_extract(tracer):  # noqa: F811
 @pytest.mark.parametrize("appsec_enabled", [True, False])
 @pytest.mark.parametrize("iast_enabled", [True, False])
 def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(
-    tracer,
+    tracer,  # noqa: F811
     sca_enabled,
     appsec_enabled,
     iast_enabled,  # noqa: F811
@@ -364,7 +364,7 @@ def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(
 @pytest.mark.parametrize("appsec_enabled", [True, False])
 @pytest.mark.parametrize("iast_enabled", [True, False])
 def test_asm_standalone_missing_propagation_tags_no_appsec_event_trace_dropped(
-    tracer,
+    tracer,  # noqa: F811
     sca_enabled,
     appsec_enabled,
     iast_enabled,  # noqa: F811
@@ -446,7 +446,7 @@ def test_asm_standalone_missing_propagation_tags_appsec_event_present_trace_kept
 @pytest.mark.parametrize("appsec_enabled", [True, False])
 @pytest.mark.parametrize("iast_enabled", [True, False])
 def test_asm_standalone_missing_appsec_tag_no_appsec_event_propagation_resets(
-    tracer,
+    tracer,  # noqa: F811
     sca_enabled,
     appsec_enabled,
     iast_enabled,  # noqa: F811
@@ -557,7 +557,7 @@ def test_asm_standalone_missing_appsec_tag_appsec_event_present_trace_kept(
 @pytest.mark.parametrize("appsec_enabled", [True, False])
 @pytest.mark.parametrize("iast_enabled", [True, False])
 def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_set_to_user_keep(
-    tracer,
+    tracer,  # noqa: F811
     upstream_priority,
     sca_enabled,
     appsec_enabled,
@@ -629,7 +629,7 @@ def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_set_to_us
 @pytest.mark.parametrize("appsec_enabled", [True, False])
 @pytest.mark.parametrize("iast_enabled", [True, False])
 def test_asm_standalone_present_appsec_tag_appsec_event_present_propagation_force_keep(
-    tracer,
+    tracer,  # noqa: F811
     upstream_priority,
     sca_enabled,
     appsec_enabled,

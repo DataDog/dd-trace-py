@@ -1154,7 +1154,8 @@ class BaseThreadingLockCollectorTest:
         # and wrapper overhead is constant per call
         overhead_multiplier: float = profiled_time_zero / regular_time if regular_time > 0 else 1
         assert overhead_multiplier < 50, (
-            f"Overhead too high: {overhead_multiplier}x (regular: {regular_time:.6f}s, profiled: {profiled_time_zero:.6f}s)"
+            f"Overhead too high: {overhead_multiplier}x (regular: {regular_time:.6f}s, "
+            f"profiled: {profiled_time_zero:.6f}s)"
         )  # noqa: E501
 
 

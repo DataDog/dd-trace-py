@@ -45,6 +45,7 @@ def test_code_coverage_tool_clash():
     )
     assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
     assert covered_with_imports == expected_covered_with_imports, (
-        f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+        f"Covered lines with imports mismatch: expected={expected_covered_with_imports} "
+        f"vs actual={covered_with_imports}"
     )
     assert line_number == 7

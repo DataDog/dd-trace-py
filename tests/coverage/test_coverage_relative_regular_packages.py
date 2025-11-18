@@ -62,7 +62,8 @@ def test_coverage_regular_package_import_normal():
     )
     assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
     assert covered_with_imports == expected_covered_with_imports, (
-        f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+        f"Covered lines with imports mismatch: expected={expected_covered_with_imports} "
+        f"vs actual={covered_with_imports}"
     )
 
 
@@ -145,7 +146,8 @@ def test_coverage_regular_package_import_late():
     )
     assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
     assert covered_with_imports == expected_covered_with_imports, (
-        f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+        f"Covered lines with imports mismatch: expected={expected_covered_with_imports} "
+        f"vs actual={covered_with_imports}"
     )
 
 
@@ -198,7 +200,8 @@ def test_coverage_regular_package_rpa_import_parent_normal():
     )
     assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
     assert covered_with_imports == expected_covered_with_imports, (
-        f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+        f"Covered lines with imports mismatch: expected={expected_covered_with_imports} "
+        f"vs actual={covered_with_imports}"
     )
 
 
@@ -256,7 +259,8 @@ def test_coverage_regular_package_rpa_import_parent_late():
     )
     assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
     assert covered_with_imports == expected_covered_with_imports, (
-        f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+        f"Covered lines with imports mismatch: expected={expected_covered_with_imports} "
+        f"vs actual={covered_with_imports}"
     )
 
 
@@ -317,7 +321,8 @@ def test_coverage_regular_package_rpa_import_dot_normal():
     )
     assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
     assert covered_with_imports == expected_covered_with_imports, (
-        f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+        f"Covered lines with imports mismatch: expected={expected_covered_with_imports} "
+        f"vs actual={covered_with_imports}"
     )
 
 
@@ -390,5 +395,6 @@ def test_coverage_regular_package_rpa_import_dot_late():
     )
     assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
     assert covered_with_imports == expected_covered_with_imports, (
-        f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+        f"Covered lines with imports mismatch: expected={expected_covered_with_imports} "
+        f"vs actual={covered_with_imports}"
     )
