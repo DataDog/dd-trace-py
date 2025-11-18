@@ -25,8 +25,8 @@ dependencies = [
 ]
 
 [envs.lint.scripts]
-black_check = [
-    "ruff format {args:.}",
+format_check = [
+    "ruff format --check {args:.}",
 ]
 cmakeformat_check = [
     "bash scripts/cmake-format.sh"
@@ -35,7 +35,7 @@ cformat_check = [
     "bash scripts/cformat.sh"
 ]
 style = [
-    "black_check",
+    "format_check",
     "ruff check {args:.}",
     "cython-lint {args:.}",
     "cformat_check",
