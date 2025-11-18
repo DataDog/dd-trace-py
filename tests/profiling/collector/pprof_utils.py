@@ -340,6 +340,38 @@ def assert_profile_has_sample(
     samples: List[pprof_pb2.Sample],
     expected_sample: StackEvent,
 ):
+    # Print all samples with line number + function name + labels
+    print(f"\n=== Printing all {len(samples)} samples ===")
+    for i, sample in enumerate(samples):
+        print(f"\nSample {i}:")
+
+        # Print locations (stack trace)
+        print("  Stack trace:")
+        for j, location_id in enumerate(sample.location_id):
+            location = get_location_with_id(profile, location_id)
+            if location.line:
+                line = location.line[0]
+                function = get_function_with_id(profile, line.function_id)
+                function_name = profile.string_table[function.name]
+                filename = profile.string_table[function.filename]
+                print(f"    [{j}] {filename}:{line.line} in {function_name}()")
+
+        # Print labels
+        print("  Labels:")
+        for label in sample.label:
+            key_str = profile.string_table[label.key]
+            if label.str:
+                value_str = profile.string_table[label.str]
+                print(f"    {key_str}: {value_str}")
+            elif label.num:
+                print(f"    {key_str}: {label.num}")
+
+        # Print values
+        if sample.value:
+            print(f"  Values: {sample.value}")
+
+    print("=== End of samples ===\n")
+
     found = False
     for sample in samples:
         try:
