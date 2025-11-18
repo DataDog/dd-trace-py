@@ -16,7 +16,10 @@ variables:
   when: on_success
   tags: ["runner:apm-k8s-tweaked-metal"]
   image: $MICROBENCHMARKS_CI_IMAGE
-  interruptible: true
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
+      interruptible: false
+    - interruptible: true
   timeout: 30m
   dependencies: [ "baseline:build", "candidate" ]
   script: |
@@ -159,7 +162,9 @@ microbenchmarks:
         - "appsec_iast_aspects_split"
         # Flaky timeouts on starting up
         # - "appsec_iast_django_startup"
-        - "appsec_iast_propagation"
+        # TOOD: Re-enable when this issue is resolved:
+        #   AttributeError: 'OverheadControl' object has no attribute 'release_request'
+        # - "appsec_iast_propagation"
         - "errortracking_django_simple"
         # They take a long time to run and frequently time out
         # TODO: Make benchmarks faster, or run less frequently, or as macrobenchmarks
