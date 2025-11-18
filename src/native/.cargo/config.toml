@@ -1,5 +1,19 @@
 [build]
-rustflags = ["-C", "relocation-model=pic"]
+rustflags = [
+    "-Ccodegen-units=1",
+    "-Cpasses=sancov-module",
+    "-Cllvm-args=-sanitizer-coverage-level=3",
+    "-Cllvm-args=-sanitizer-coverage-trace-pc-guard",
+    "-Cdebuginfo=2",
+    "-Csplit-debuginfo=unpacked",
+    "-Clink-args=-Wl,--build-id",
+    "-Crelocation-model=pic",
+    "-L/usr/lib/",
+    "-lvoidstar",
+]
+
+[target.x86_64-unknown-linux-gnu]
+linker = "cc"
 
 [target.'cfg(target_os = "windows")']
 rustflags = [
