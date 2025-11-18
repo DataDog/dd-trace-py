@@ -190,33 +190,27 @@ def gen_build_docs() -> None:
 
     if pr_matches_patterns(
         {
-            "docker*",
             "docs/*",
             "ddtrace/*",
             "scripts/docs/*",
-            "releasenotes/*",
+            "scripts/gen_gitlab_config.py",
             "benchmarks/README.rst",
             ".readthedocs.yml",
         }
     ):
-        date_str = datetime.datetime.now().strftime("%Y-%m")
-
         with TESTS_GEN.open("a") as f:
             print("build_docs:", file=f)
             print("  extends: .testrunner", file=f)
             print("  stage: core", file=f)
             print("  needs:", file=f)
             print("    - prechecks", file=f)
-            print("  variables:", file=f)
-            print("    PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'", file=f)
+            print("    - job: build_base_venvs", file=f)
+            print("      artifacts: true", file=f)
             print("  script:", file=f)
             print("    - |", file=f)
-            print("      hatch run docs:build", file=f)
+            print("      git config --global --add safe.directory $CI_PROJECT_DIR", file=f)
+            print("      riot -v run -s --pass-env build_docs", file=f)
             print("      mkdir -p /tmp/docs", file=f)
-            print("  cache:", file=f)
-            print(f"    key: build_docs-pip-cache-{date_str}", file=f)
-            print("    paths:", file=f)
-            print("      - .cache", file=f)
             print("  artifacts:", file=f)
             print("    paths:", file=f)
             print("      - 'docs/'", file=f)
@@ -271,6 +265,16 @@ def gen_pre_checks() -> None:
         name="Check integration error logs",
         command="hatch run lint:error-log-check",
         paths={"ddtrace/contrib/**/*.py"},
+    )
+    check(
+        name="Check project dependency bounds",
+        command="scripts/check-dependency-bounds",
+        paths={"pyproject.toml"},
+    )
+    check(
+        name="Check for namespace packages",
+        command="scripts/check-for-namespace-packages.sh",
+        paths={"*"},
     )
     if not checks:
         return

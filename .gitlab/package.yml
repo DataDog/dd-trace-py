@@ -59,8 +59,6 @@ download_dependency_wheels:
     PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
   parallel:
     matrix: # The image tags that are mirrored are in: https://github.com/DataDog/images/blob/master/mirror.yaml
-      - PYTHON_IMAGE_TAG: "3.8"
-        PYTHON_VERSION: "3.8"
       - PYTHON_IMAGE_TAG: "3.9.13"
         PYTHON_VERSION: "3.9"
       - PYTHON_IMAGE_TAG: "3.10.13"
@@ -87,8 +85,6 @@ publish-wheels-to-s3:
   tags: ["arch:amd64"]
   image: registry.ddbuild.io/images/mirror/amazon/aws-cli:2.4.29
   stage: package
-  rules:
-    - when: always
   needs:
     - job: download_ddtrace_artifacts
       artifacts: true
@@ -132,7 +128,7 @@ publish-wheels-to-s3:
       generate_index_html() {
         local outfile="$1"
         {
-          echo "<html><body>"
+          echo "<!DOCTYPE html><html lang=\"en\"><body>"
           for w in "${WHEELS[@]}"; do
             fname="$(basename "$w")"
             enc_fname="${fname//+/%2B}"

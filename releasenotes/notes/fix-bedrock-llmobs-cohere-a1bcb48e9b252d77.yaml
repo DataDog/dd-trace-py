@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: Resolves an issue in the bedrock integration where invoking cohere rerank models would result in missing spans due to output formatting index errors.

@@ -32,9 +32,9 @@ from ddtrace.internal.ci_visibility.recorder import _extract_repository_name_fro
 from ddtrace.internal.ci_visibility.recorder import _is_item_itr_skippable
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH_V4
+from ddtrace.internal.settings._config import Config
 from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabilities
 from ddtrace.internal.utils.http import Response
-from ddtrace.settings._config import Config
 from ddtrace.trace import Span
 from tests.ci_visibility.api_client._util import _make_fqdn_suite_ids
 from tests.ci_visibility.api_client._util import _make_fqdn_test_ids
@@ -728,7 +728,7 @@ class TestCIVisibilityWriter(TracerTestCase):
                 DD_API_KEY="foobar.baz",
             )
         ), mock.patch(
-            "ddtrace.settings._agent.config.trace_agent_url",
+            "ddtrace.internal.settings._agent.config.trace_agent_url",
             new_callable=mock.PropertyMock,
             return_value="http://arandomhost:9126",
         ) as agent_url_mock, mock.patch(
@@ -773,10 +773,10 @@ def test_civisibilitywriter_agentless_url_envvar():
                 DD_API_KEY="foobar.baz",
             )
         ), mock.patch(
-            "ddtrace.settings._agent.config.trace_agent_url",
+            "ddtrace.internal.settings._agent.config.trace_agent_url",
             new_callable=mock.PropertyMock,
             return_value="http://evpproxy.bar:1234",
-        ), mock.patch("ddtrace.settings._config.Config", _get_default_civisibility_ddconfig()), mock.patch(
+        ), mock.patch("ddtrace.internal.settings._config.Config", _get_default_civisibility_ddconfig()), mock.patch(
             "ddtrace.tracer", CIVisibilityTracer()
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_base_url",
@@ -797,7 +797,7 @@ def test_civisibilitywriter_agentless_url_envvar():
                 DD_API_KEY="foobar.baz",
             )
         ), mock.patch(
-            "ddtrace.settings._agent.config.trace_agent_url",
+            "ddtrace.internal.settings._agent.config.trace_agent_url",
             new_callable=mock.PropertyMock,
             return_value="http://onlytraces:1234",
         ), mock.patch("ddtrace.tracer", CIVisibilityTracer()), mock.patch(
@@ -1023,6 +1023,7 @@ def test_unshallow_repository_local_head():
                     "--update-shallow",
                     "--filter=blob:none",
                     "--recurse-submodules=no",
+                    "--no-tags",
                     "origin",
                     "myfakesha",
                     cwd="/path/to/repo",
@@ -1051,6 +1052,7 @@ def test_unshallow_repository_upstream():
                         "--update-shallow",
                         "--filter=blob:none",
                         "--recurse-submodules=no",
+                        "--no-tags",
                         "origin",
                         "myupstreamsha",
                         cwd="/path/to/repo",
@@ -1080,6 +1082,7 @@ def test_unshallow_repository_full():
                         "--update-shallow",
                         "--filter=blob:none",
                         "--recurse-submodules=no",
+                        "--no-tags",
                         "origin",
                         cwd="/path/to/repo",
                     )

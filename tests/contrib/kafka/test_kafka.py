@@ -22,9 +22,11 @@ from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
 from ddtrace.internal.datastreams.processor import DataStreamsCtx
 from ddtrace.internal.datastreams.processor import PartitionKey
+from ddtrace.internal.native import DDSketch
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.trace import TraceFilter
 from ddtrace.trace import tracer as ddtracer
+from tests.conftest import get_original_test_name
 from tests.contrib.config import KAFKA_CONFIG
 from tests.datastreams.test_public_api import MockedTracer
 from tests.utils import DummyTracer
@@ -57,7 +59,7 @@ class KafkaConsumerPollFilter(TraceFilter):
 @pytest.fixture()
 def kafka_topic(request):
     # todo: add a UUID, but it makes snapshot tests fail.
-    topic_name = request.node.name.replace("[", "_").replace("]", "")
+    topic_name = get_original_test_name(request).replace("[", "_").replace("]", "")
 
     client = kafka_admin.AdminClient({"bootstrap.servers": BOOTSTRAP_SERVERS})
     for _, future in client.create_topics([kafka_admin.NewTopic(topic_name, 1, 1)]).items():
@@ -73,7 +75,7 @@ def empty_kafka_topic(request):
     """
     Deletes a kafka topic to clear message if it exists.
     """
-    topic_name = request.node.name.replace("[", "_").replace("]", "")
+    topic_name = get_original_test_name(request).replace("[", "_").replace("]", "")
     client = kafka_admin.AdminClient({"bootstrap.servers": BOOTSTRAP_SERVERS})
     for _, future in client.delete_topics([topic_name]).items():
         try:
@@ -448,7 +450,10 @@ def test_data_streams_payload_size(dsm_processor, consumer, producer, kafka_topi
     first = list(buckets.values())[0].pathway_stats
     for _bucket_name, bucket in first.items():
         assert bucket.payload_size.count >= 1
-        assert bucket.payload_size.sum == expected_payload_size
+
+        expected_sketch = DDSketch()
+        expected_sketch.add(expected_payload_size)
+        assert bucket.payload_size.to_proto() == expected_sketch.to_proto()
 
 
 def test_data_streams_kafka_serializing(dsm_processor, deserializing_consumer, serializing_producer, kafka_topic):

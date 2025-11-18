@@ -98,7 +98,7 @@ BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.29.0"
+LIBDDWAF_VERSION = "1.30.0"
 
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
 # libdatadog v15.0.0 requires rust 1.78.
@@ -700,6 +700,26 @@ class CustomBuildExt(build_ext):
                     return
                 raise
         else:
+            # For the memalloc extension, dynamically add libdd_wrapper to extra_objects
+            if ext.name == "ddtrace.profiling.collector._memalloc" and CURRENT_OS in ("Linux", "Darwin"):
+                dd_wrapper_suffix: t.Optional[str] = sysconfig.get_config_var("EXT_SUFFIX")
+
+                wrapper_dir: Path
+                if IS_EDITABLE or getattr(self, "inplace", False):
+                    # Editable build: use source directory
+                    wrapper_dir = Path(__file__).parent / "ddtrace" / "internal" / "datadog" / "profiling"
+                else:
+                    # Non-editable build: use build directory
+                    wrapper_dir = (
+                        Path(__file__).parent / Path(self.build_lib) / "ddtrace" / "internal" / "datadog" / "profiling"
+                    )
+
+                wrapper_path: Path = wrapper_dir / f"libdd_wrapper{dd_wrapper_suffix}"
+                if wrapper_path.exists():
+                    wrapper_path_str: str = str(wrapper_path)
+                    if wrapper_path_str not in ext.extra_objects:
+                        ext.extra_objects.append(wrapper_path_str)
+
             super().build_extension(ext)
 
         if COMPILE_MODE.lower() in ("release", "minsizerel"):
@@ -792,6 +812,8 @@ class CustomBuildExt(build_ext):
 
         if BUILD_PROFILING_NATIVE_TESTS:
             cmake_args += ["-DBUILD_TESTING=ON"]
+        else:
+            cmake_args += ["-DBUILD_TESTING=OFF"]
 
         # If this is an inplace build, propagate this fact to CMake in case it's helpful
         # In particular, this is needed for build products which are not otherwise managed
@@ -1040,37 +1062,16 @@ else:
 if not IS_PYSTON:
     ext_modules: t.List[t.Union[Extension, Cython.Distutils.Extension, RustExtension]] = [
         Extension(
-            "ddtrace.profiling.collector._memalloc",
-            sources=[
-                "ddtrace/profiling/collector/_memalloc.c",
-                "ddtrace/profiling/collector/_memalloc_tb.c",
-                "ddtrace/profiling/collector/_memalloc_heap.c",
-                "ddtrace/profiling/collector/_memalloc_reentrant.c",
-                "ddtrace/profiling/collector/_memalloc_heap_map.c",
-            ],
-            extra_compile_args=(
-                debug_compile_args
-                # If NDEBUG is set, assert statements are compiled out. Make
-                # sure we explicitly set this for normal builds, and explicitly
-                # _unset_ it for debug builds in case the CFLAGS from sysconfig
-                # include -DNDEBUG
-                + (["-DNDEBUG"] if not debug_compile_args else ["-UNDEBUG"])
-                + ["-D_POSIX_C_SOURCE=200809L", "-std=c11"]
-                + fast_build_args
-                if CURRENT_OS != "Windows"
-                else ["/std:c11", "/experimental:c11atomics"]
-            ),
-        ),
-        Extension(
             "ddtrace.internal._threads",
             sources=["ddtrace/internal/_threads.cpp"],
             extra_compile_args=(
-                ["-std=c++17", "-Wall", "-Wextra"] + fast_build_args
+                ["-std=c++20", "-Wall", "-Wextra"] + fast_build_args
                 if CURRENT_OS != "Windows"
                 else ["/std:c++20", "/MT"]
             ),
         ),
     ]
+
     if platform.system() not in ("Windows", ""):
         ext_modules.append(
             Extension(
@@ -1096,6 +1097,36 @@ if not IS_PYSTON:
 
     if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
         if sys.version_info < (3, 14):
+            ext_modules.append(
+                Extension(
+                    "ddtrace.profiling.collector._memalloc",
+                    sources=[
+                        "ddtrace/profiling/collector/_memalloc.cpp",
+                        "ddtrace/profiling/collector/_memalloc_tb.cpp",
+                        "ddtrace/profiling/collector/_memalloc_heap.cpp",
+                        "ddtrace/profiling/collector/_memalloc_reentrant.cpp",
+                        "ddtrace/profiling/collector/_memalloc_heap_map.cpp",
+                    ],
+                    include_dirs=[
+                        "ddtrace/internal/datadog/profiling/dd_wrapper/include",
+                    ],
+                    extra_link_args=(
+                        ["-Wl,-rpath,$ORIGIN/../../internal/datadog/profiling", "-latomic"]
+                        if CURRENT_OS == "Linux"
+                        else ["-Wl,-rpath,@loader_path/../../internal/datadog/profiling"]
+                        if CURRENT_OS == "Darwin"
+                        else []
+                    ),
+                    language="c++",
+                    extra_compile_args=(
+                        debug_compile_args
+                        + (["-DNDEBUG"] if not debug_compile_args else ["-UNDEBUG"])
+                        + ["-D_POSIX_C_SOURCE=200809L", "-std=c++20"]
+                        + fast_build_args
+                    ),
+                ),
+            )
+
             ext_modules.append(
                 CMakeExtension(
                     "ddtrace.internal.datadog.profiling.ddup._ddup",
@@ -1124,32 +1155,10 @@ if not IS_PYSTON:
 else:
     ext_modules = []
 
-interpose_sccache()
-setup(
-    name="ddtrace",
-    packages=find_packages(exclude=["tests*", "benchmarks*", "scripts*"]),
-    package_data={
-        "ddtrace": ["py.typed"],
-        "ddtrace.appsec": ["rules.json"],
-        "ddtrace.appsec._ddwaf": ["libddwaf/*/lib/libddwaf.*"],
-        "ddtrace.appsec._iast._taint_tracking": ["CMakeLists.txt"],
-        "ddtrace.internal.datadog.profiling": (
-            ["libdd_wrapper*.*"] + ["ddtrace/internal/datadog/profiling/test/*"] if BUILD_PROFILING_NATIVE_TESTS else []
-        ),
-    },
-    zip_safe=False,
-    # enum34 is an enum backport for earlier versions of python
-    # funcsigs backport required for vendored debtcollector
-    cmdclass={
-        "build_ext": CustomBuildExt,
-        "build_py": LibraryDownloader,
-        "build_rust": CustomBuildRust,
-        "clean": CleanLibraries,
-        "ext_hashes": ExtensionHashes,
-    },
-    setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28", "setuptools-rust"],
-    ext_modules=ext_modules
-    + cythonize(
+
+cython_exts = []
+if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
+    cython_exts = cythonize(
         [
             Cython.Distutils.Extension(
                 "ddtrace.internal._rand",
@@ -1172,16 +1181,6 @@ setup(
                 "ddtrace.internal.telemetry.metrics_namespaces",
                 ["ddtrace/internal/telemetry/metrics_namespaces.pyx"],
                 language="c",
-            ),
-            Cython.Distutils.Extension(
-                "ddtrace.profiling.collector.stack",
-                sources=["ddtrace/profiling/collector/stack.pyx"],
-                language="c",
-                # cython generated code errors on build in toolchains that are strict about int->ptr conversion
-                # OTOH, the MSVC toolchain is different.  In a perfect world we'd deduce the underlying
-                # toolchain and emit the right flags, but as a compromise we assume Windows implies MSVC and
-                # everything else is on a GNU-like toolchain
-                extra_compile_args=extra_compile_args + (["-Wno-int-conversion"] if CURRENT_OS != "Windows" else []),
             ),
             Cython.Distutils.Extension(
                 "ddtrace.profiling.collector._traceback",
@@ -1208,7 +1207,34 @@ setup(
         force=os.getenv("DD_SETUP_FORCE_CYTHONIZE", "0") == "1",
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
         compiler_directives={"language_level": "3"},
+        cache=True,
     )
-    + get_exts_for("psutil"),
+
+interpose_sccache()
+setup(
+    name="ddtrace",
+    packages=find_packages(exclude=["tests*", "benchmarks*", "scripts*"]),
+    package_data={
+        "ddtrace": ["py.typed"],
+        "ddtrace.appsec": ["rules.json"],
+        "ddtrace.appsec._ddwaf": ["libddwaf/*/lib/libddwaf.*"],
+        "ddtrace.appsec._iast._taint_tracking": ["CMakeLists.txt"],
+        "ddtrace.internal.datadog.profiling": (
+            ["libdd_wrapper*.*"]
+            + (["ddtrace/internal/datadog/profiling/test/*"] if BUILD_PROFILING_NATIVE_TESTS else [])
+        ),
+    },
+    zip_safe=False,
+    # enum34 is an enum backport for earlier versions of python
+    # funcsigs backport required for vendored debtcollector
+    cmdclass={
+        "build_ext": CustomBuildExt,
+        "build_py": LibraryDownloader,
+        "build_rust": CustomBuildRust,
+        "clean": CleanLibraries,
+        "ext_hashes": ExtensionHashes,
+    },
+    setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28", "setuptools-rust"],
+    ext_modules=ext_modules + cython_exts + get_exts_for("psutil"),
     distclass=PatchedDistribution,
 )

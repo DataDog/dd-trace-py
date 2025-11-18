@@ -154,7 +154,7 @@ def load_iast_report(span):
     else:
         iast_report_json = span.get_tag(IAST.JSON)
         if iast_report_json is None:
-            iast_report = span.get_struct_tag(IAST.STRUCT)
+            iast_report = span._get_struct_tag(IAST.STRUCT)
         else:
             iast_report = json.loads(iast_report_json)
     return iast_report

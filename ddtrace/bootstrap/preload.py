@@ -10,8 +10,8 @@ from ddtrace.internal.logger import get_logger  # noqa:F401
 from ddtrace.internal.module import ModuleWatchdog  # noqa:F401
 from ddtrace.internal.products import manager  # noqa:F401
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker  # noqa:F401
-from ddtrace.settings.crashtracker import config as crashtracker_config
-from ddtrace.settings.profiling import config as profiling_config  # noqa:F401
+from ddtrace.internal.settings.crashtracker import config as crashtracker_config
+from ddtrace.internal.settings.profiling import config as profiling_config  # noqa:F401
 from ddtrace.trace import tracer
 
 
@@ -64,34 +64,25 @@ if profiling_config.enabled:
 if config._runtime_metrics_enabled:
     RuntimeWorker.enable()
 
-if config._otel_trace_enabled:
 
-    @ModuleWatchdog.after_module_imported("opentelemetry.trace")
-    def _ot_traces(_):
+@ModuleWatchdog.after_module_imported("opentelemetry")
+def _otel_signals(_):
+    if config._otel_trace_enabled:
         from opentelemetry.trace import set_tracer_provider
 
         from ddtrace.opentelemetry import TracerProvider
 
         set_tracer_provider(TracerProvider())
 
-
-if config._otel_metrics_enabled:
-
-    @ModuleWatchdog.after_module_imported("opentelemetry.metrics")
-    def _otel_metrics(_):
-        from ddtrace.internal.opentelemetry.metrics import set_otel_meter_provider
-
-        set_otel_meter_provider()
-
-
-if config._otel_logs_enabled:
-
-    @register_post_preload
-    def _otel_logs():
-        # Post load to ensure that the logger provider is not overridden by module unloading
+    if config._otel_logs_enabled:
         from ddtrace.internal.opentelemetry.logs import set_otel_logs_provider
 
         set_otel_logs_provider()
+
+    if config._otel_metrics_enabled:
+        from ddtrace.internal.opentelemetry.metrics import set_otel_meter_provider
+
+        set_otel_meter_provider()
 
 
 if config._llmobs_enabled:

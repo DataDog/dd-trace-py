@@ -23,10 +23,12 @@ components:
     - ddtrace/ext/aws.py
   azure_eventhubs:
     - ddtrace/contrib/internal/azure_eventhubs/*
+    - ddtrace/ext/azure_eventhubs.py
   azure_functions:
     - ddtrace/contrib/internal/azure_functions/*
   azure_servicebus:
     - ddtrace/contrib/internal/azure_servicebus/*
+    - ddtrace/ext/azure_servicebus.py
   botocore:
     - ddtrace/contrib/internal/botocore/*
     - ddtrace/contrib/internal/boto/*
@@ -34,9 +36,6 @@ components:
   bottle:
     - ddtrace/contrib/bottle.py
     - ddtrace/contrib/internal/bottle/*
-  cassandra:
-    - ddtrace/contrib/internal/cassandra/*
-    - ddtrace/ext/cassandra.py
   celery:
     - ddtrace/contrib/celery.py
     - ddtrace/contrib/internal/celery/*
@@ -47,20 +46,10 @@ components:
     - ddtrace/contrib/internal/consul/*
     - ddtrace/ext/consul.py
   contrib:
-    - ddtrace/contrib/__init__.py
-    - ddtrace/contrib/trace_utils.py
-    - ddtrace/contrib/internal/trace_utils_async.py
-    - ddtrace/contrib/internal/trace_utils.py
-    - ddtrace/contrib/internal/redis_utils.py
-    - ddtrace/ext/__init__.py
-    - ddtrace/ext/http.py
-    - ddtrace/ext/net.py
-    - ddtrace/ext/schema.py
-    - ddtrace/ext/sql.py
-    - ddtrace/ext/test.py
-    - ddtrace/ext/user.py
+    - ddtrace/contrib/*
+    - ddtrace/ext/*
     - ddtrace/propagation/*
-    - ddtrace/settings/_database_monitoring.py
+    - ddtrace/internal/settings/_database_monitoring.py
     - tests/contrib/patch.py
     - tests/contrib/config.py
     - tests/contrib/__init__.py
@@ -92,8 +81,6 @@ components:
     - ddtrace/contrib/internal/flask/*
     - ddtrace/contrib/flask_cache.py
     - ddtrace/contrib/internal/flask_cache/*
-  freezegun:
-    - ddtrace/contrib/internal/freezegun/*
   futures:
     - ddtrace/contrib/internal/futures/*
   gevent:
@@ -132,7 +119,6 @@ components:
     - ddtrace/contrib/internal/molten/*
   mongo:
     - ddtrace/contrib/internal/pymongo/*
-    - ddtrace/contrib/internal/mongoengine/*
     - ddtrace/ext/mongo.py
   mysql:
     - ddtrace/contrib/internal/mysql/*
@@ -160,6 +146,7 @@ components:
     - ddtrace/contrib/internal/pyramid/*
   ray:
     - ddtrace/contrib/internal/ray/*
+    - ddtrace/contrib/ray.py
   redis:
     - ddtrace/contrib/internal/rediscluster/*
     - ddtrace/contrib/internal/redis/*
@@ -195,6 +182,7 @@ components:
   valkey:
     - ddtrace/contrib/internal/valkey/*
     - ddtrace/contrib/internal/valkey_utils.py
+    - ddtrace/contrib/valkey.py
     - ddtrace/_trace/utils_valkey.py
     - ddtrace/ext/valkey.py
   vertica:
@@ -480,19 +468,6 @@ suites:
       - tests/contrib/bottle/*
     runner: riot
     snapshot: true
-  cassandra:
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@contrib'
-      - '@tracing'
-      - '@cassandra'
-      - tests/contrib/cassandra/*
-    runner: riot
-    snapshot: true
-    parallelism: 2
-    services:
-      - cassandra
   celery:
     env:
       DD_DISABLE_ERROR_RESPONSES: true
@@ -715,16 +690,6 @@ suites:
       - memcached
       - redis
     snapshot: true
-  freezegun:
-    paths:
-        - '@bootstrap'
-        - '@core'
-        - '@contrib'
-        - '@tracing'
-        - '@freezegun'
-        - tests/contrib/freezegun/*
-    runner: riot
-    snapshot: true
   gevent:
     paths:
       - '@bootstrap'
@@ -919,18 +884,6 @@ suites:
       - tests/contrib/molten/*
     runner: riot
     snapshot: true
-  mongoengine:
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@contrib'
-      - '@tracing'
-      - '@mongo'
-      - tests/contrib/mongoengine/*
-    runner: riot
-    snapshot: true
-    services:
-      - mongo
   mysqlpython:
     paths:
       - '@bootstrap'
@@ -958,15 +911,6 @@ suites:
       - tests/snapshots/tests.opentelemetry.*
     runner: riot
     snapshot: true
-  opentracer:
-    parallelism: 1
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@opentracer'
-      - tests/opentracer/*
-    runner: riot
   protobuf:
     parallelism: 1
     paths:
@@ -1246,7 +1190,7 @@ suites:
     runner: riot
     snapshot: true
   subprocess:
-    parallelism: 1
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'

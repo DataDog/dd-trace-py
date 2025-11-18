@@ -17,7 +17,7 @@ from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
 from ddtrace.internal.ci_visibility.git_data import GitData
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH_V4
-from ddtrace.settings._config import Config
+from ddtrace.internal.settings._config import Config
 from tests.ci_visibility.api_client._util import _AGENTLESS
 from tests.ci_visibility.api_client._util import _EVP_PROXY
 from tests.ci_visibility.api_client._util import TestTestVisibilityAPIClientBase
@@ -491,7 +491,7 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_base_url",
             return_value=EVP_PROXY_AGENT_BASE_PATH,
         ), mock.patch(
-            "ddtrace.settings._agent.config.trace_agent_url", return_value="http://shouldntbeused:6218"
+            "ddtrace.internal.settings._agent.config.trace_agent_url", return_value="http://shouldntbeused:6218"
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.ddtrace.tracer._span_aggregator.writer.intake_url",
             "http://patchedagenturl:6218",
@@ -600,7 +600,7 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
         ), mock.patch(
             "ddtrace.internal.agent.info", return_value=agent_info_response
         ), mock.patch(
-            "ddtrace.settings._agent.config.trace_agent_url",
+            "ddtrace.internal.settings._agent.config.trace_agent_url",
             new_callable=mock.PropertyMock,
             return_value="http://shouldntbeused:6218",
         ), mock.patch(
