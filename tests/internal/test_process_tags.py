@@ -3,37 +3,73 @@ from unittest.mock import patch
 import pytest
 
 from ddtrace.internal import process_tags
-from ddtrace.internal.process_tags import normalize_tag
+from ddtrace.internal.process_tags import normalize_tag_value
 from ddtrace.internal.settings._config import config
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 from tests.utils import process_tag_reload
 
 
+TEST_SCRIPT_PATH = "/path/to/test_script.py"
+TEST_WORKDIR_PATH = "/path/to/workdir"
+
+
 @pytest.mark.parametrize(
     "input_tag,expected",
     [
-        ("HelloWorld", "helloworld"),
-        ("Hello@World!", "hello_world"),
-        ("HeLLo123", "hello123"),
-        ("hello world", "hello_world"),
-        ("a/b.c_d-e", "a/b.c_d-e"),
-        ("héllø", "h_ll"),
+        # # Additional test cases from Go implementation
+        ("#test_starting_hash", "test_starting_hash"),
+        ("TestCAPSandSuch", "testcapsandsuch"),
+        ("Test Conversion Of Weird !@#$%^&**() Characters", "test_conversion_of_weird_characters"),
+        ("$#weird_starting", "weird_starting"),
+        ("allowed:c0l0ns", "allowed:c0l0ns"),
+        ("1love", "1love"),
+        ("/love2", "/love2"),
+        ("ünicöde", "ünicöde"),
+        ("ünicöde:metäl", "ünicöde:metäl"),
+        ("Data🐨dog🐶 繋がっ⛰てて", "data_dog_繋がっ_てて"),
+        (" spaces   ", "spaces"),
+        (" #hashtag!@#spaces #__<>#  ", "hashtag_spaces"),
+        (":testing", ":testing"),
+        ("_foo", "foo"),
+        (":::test", ":::test"),
+        ("contiguous_____underscores", "contiguous_underscores"),
+        ("foo_", "foo"),
+        ("\u017Fodd_\u017Fcase\u017F", "\u017Fodd_\u017Fcase\u017F"),
         ("", ""),
-        ("💡⚡️", ""),
-        ("!foo@", "foo"),
-        ("123_abc.DEF-ghi/jkl", "123_abc.def-ghi/jkl"),
-        ("Env:Prod-Server#1", "env_prod-server_1"),
-        ("__hello__world__", "hello_world"),
-        ("___test___", "test"),
-        ("_leading", "leading"),
-        ("trailing_", "trailing"),
-        ("double__underscore", "double_underscore"),
+        (" ", ""),
+        ("ok", "ok"),
+        ("™Ö™Ö™™Ö™", "ö_ö_ö"),
+        ("AlsO:ök", "also:ök"),
+        (":still_ok", ":still_ok"),
+        ("___trim", "trim"),
+        ("12.:trim@", "12.:trim"),
+        ("12.:trim@@", "12.:trim"),
+        ("fun:ky__tag/1", "fun:ky_tag/1"),
+        ("fun:ky@tag/2", "fun:ky_tag/2"),
+        ("fun:ky@@@tag/3", "fun:ky_tag/3"),
+        ("tag:1/2.3", "tag:1/2.3"),
+        ("---fun:k####y_ta@#g/1_@@#", "---fun:k_y_ta_g/1"),
+        ("AlsO:œ#@ö))œk", "also:œ_ö_œk"),
         ("test\x99\x8faaa", "test_aaa"),
+        ("test\x99\x8f", "test"),
+        ("a" * 888, "a" * 200),
+        ("a" + "🐶" * 799 + "b", "a"),
+        ("a" + "\ufffd", "a"),
+        ("a" + "\ufffd" + "\ufffd", "a"),
+        ("a" + "\ufffd" + "\ufffd" + "b", "a_b"),
+        (
+            "A00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+            "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+            " 000000000000",
+            "a00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+            "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+            "_0",
+        ),
     ],
 )
 def test_normalize_tag(input_tag, expected):
-    assert normalize_tag(input_tag) == expected
+    assert normalize_tag_value(input_tag) == expected
 
 
 class TestProcessTags(TracerTestCase):
@@ -57,7 +93,7 @@ class TestProcessTags(TracerTestCase):
 
     @pytest.mark.snapshot
     def test_process_tags_activated(self):
-        with patch("sys.argv", ["/path/to/test_script.py"]), patch("os.getcwd", return_value="/path/to/workdir"):
+        with patch("sys.argv", [TEST_SCRIPT_PATH]), patch("os.getcwd", return_value=TEST_WORKDIR_PATH):
             config._process_tags_enabled = True
             process_tag_reload()
 
@@ -67,7 +103,7 @@ class TestProcessTags(TracerTestCase):
 
     @pytest.mark.snapshot
     def test_process_tags_edge_case(self):
-        with patch("sys.argv", ["/test_script"]), patch("os.getcwd", return_value="/path/to/workdir"):
+        with patch("sys.argv", ["/test_script"]), patch("os.getcwd", return_value=TEST_WORKDIR_PATH):
             config._process_tags_enabled = True
             process_tag_reload()
 
@@ -76,7 +112,7 @@ class TestProcessTags(TracerTestCase):
 
     @pytest.mark.snapshot
     def test_process_tags_error(self):
-        with patch("sys.argv", []), patch("os.getcwd", return_value="/path/to/workdir"):
+        with patch("sys.argv", []), patch("os.getcwd", return_value=TEST_WORKDIR_PATH):
             config._process_tags_enabled = True
 
             with self.override_global_config(dict(_telemetry_enabled=False)):
@@ -89,12 +125,14 @@ class TestProcessTags(TracerTestCase):
                     # Check if debug log was called
                     mock_log.debug.assert_called_once()
                     call_args = mock_log.debug.call_args[0]
-                    assert "failed to get process_tags" in call_args[0]
+                    assert (
+                        "failed to get process_tags" in call_args[0]
+                    ), f"Expected error message not found. Got: {call_args[0]}"
 
     @pytest.mark.snapshot
     @run_in_subprocess(env_overrides=dict(DD_TRACE_PARTIAL_FLUSH_ENABLED="true", DD_TRACE_PARTIAL_FLUSH_MIN_SPANS="2"))
     def test_process_tags_partial_flush(self):
-        with patch("sys.argv", ["/path/to/test_script.py"]), patch("os.getcwd", return_value="/path/to/workdir"):
+        with patch("sys.argv", [TEST_SCRIPT_PATH]), patch("os.getcwd", return_value=TEST_WORKDIR_PATH):
             config._process_tags_enabled = True
             process_tag_reload()
 
