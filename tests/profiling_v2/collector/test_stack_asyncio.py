@@ -47,9 +47,9 @@ def test_asyncio():
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        maintask = loop.create_task(hello(), name="main")
+        main_task = loop.create_task(hello(), name="main")
 
-        t1, t2 = loop.run_until_complete(maintask)
+        t1, t2 = loop.run_until_complete(main_task)
     p.stop()
 
     t1_name = t1.get_name()
