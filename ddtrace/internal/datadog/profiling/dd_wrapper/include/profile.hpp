@@ -46,7 +46,6 @@ class Profile
     // The profile object is initialized here as a skeleton object, but it
     // cannot be used until it's initialized by libdatadog
     ddog_prof_Profile cur_profile{};
-
     Datadog::ProfilerStats cur_profiler_stats{};
 
     // Internal access methods - not for direct use
