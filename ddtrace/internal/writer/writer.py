@@ -831,7 +831,11 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         if config._health_metrics_enabled:
             builder.enable_health_metrics()
 
-        return builder.build()
+        try:
+            return builder.build()
+        except native.BuilderError as e:
+            log.error("Failed to build trace exporter: %s", e)
+            raise e
 
     def set_test_session_token(self, token: Optional[str]) -> None:
         """
@@ -1040,19 +1044,33 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         except Exception as e:
             if raise_exc:
                 raise
-
-            msg = "failed to send, dropping %d traces to intake at %s: %s"
-            log_args = (
-                n_traces,
-                self._intake_endpoint(client),
-                str(e),
-            )
-            # Append the payload if requested
-            if config._trace_writer_log_err_payload:
-                msg += ", payload %s"
-                log_args += (binascii.hexlify(encoded).decode(),)  # type: ignore
-
-            log.error(msg, *log_args, extra={"send_to_telemetry": False})
+            if isinstance(e, native.DeserializationError):
+                log.error("Trace exporter failed to deserialize payload: %s", str(e), exc_info=True)
+            if isinstance(e, native.SerializationError):
+                log.error("Trace exporter failed to serialize payload: %s", str(e), exc_info=True)
+            if isinstance(e, native.IoError):
+                log.error("Trace exporter IO error: %s", str(e), exc_info=True)
+            else:
+                # Append the payload if requested
+                if config._trace_writer_log_err_payload:
+                    log.error(
+                        "failed to send, dropping %d traces to intake at %s: %s, payload %s",
+                        n_traces,
+                        self._intake_endpoint(client),
+                        str(e),
+                        binascii.hexlify(encoded).decode(),
+                        exc_info=True,
+                        extra={"send_to_telemetry": False},
+                    )
+                else:
+                    log.error(
+                        "failed to send, dropping %d traces to intake at %s: %s",
+                        n_traces,
+                        self._intake_endpoint(client),
+                        str(e),
+                        exc_info=True,
+                        extra={"send_to_telemetry": False},
+                    )
 
     def periodic(self):
         self.flush_queue(raise_exc=False)
