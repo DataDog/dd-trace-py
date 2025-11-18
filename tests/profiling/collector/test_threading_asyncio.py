@@ -15,9 +15,9 @@ def test_lock_acquire_events():
     import threading
 
     from ddtrace.profiling import profiler
-    from tests.profiling_v2.collector import pprof_utils
-    from tests.profiling_v2.collector.lock_utils import get_lock_linenos
-    from tests.profiling_v2.collector.lock_utils import init_linenos
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.lock_utils import get_lock_linenos
+    from tests.profiling.collector.lock_utils import init_linenos
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
 

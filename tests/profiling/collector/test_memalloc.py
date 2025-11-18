@@ -9,7 +9,7 @@ import pytest
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.event import DDFrame
-from tests.profiling_v2.collector import pprof_utils
+from tests.profiling.collector import pprof_utils
 
 
 PY_313_OR_ABOVE = sys.version_info[:2] >= (3, 13)
@@ -30,8 +30,8 @@ def test_heap_samples_collected():
     import os
 
     from ddtrace.profiling import Profiler
-    from tests.profiling_v2.collector import pprof_utils
-    from tests.profiling_v2.collector.test_memalloc import _allocate_1k
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.test_memalloc import _allocate_1k
 
     # Test for https://github.com/DataDog/dd-trace-py/issues/11069
     pprof_prefix = os.environ["DD_PROFILING_OUTPUT_PPROF"]
@@ -145,7 +145,7 @@ def test_heap_profiler_large_heap_overhead():
     # Un-skip this test if/when we improve the worst-case performance of the
     # heap profiler for large heaps
     from ddtrace.profiling import Profiler
-    from tests.profiling_v2.collector.test_memalloc import one
+    from tests.profiling.collector.test_memalloc import one
 
     p = Profiler()
     p.start()

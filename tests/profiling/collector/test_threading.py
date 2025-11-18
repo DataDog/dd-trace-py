@@ -21,12 +21,12 @@ from ddtrace._trace.tracer import Tracer
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling.collector.threading import ThreadingLockCollector
 from ddtrace.profiling.collector.threading import ThreadingRLockCollector
-from tests.profiling_v2.collector import pprof_utils
-from tests.profiling_v2.collector import test_collector
-from tests.profiling_v2.collector.lock_utils import LineNo
-from tests.profiling_v2.collector.lock_utils import get_lock_linenos
-from tests.profiling_v2.collector.lock_utils import init_linenos
-from tests.profiling_v2.collector.pprof_utils import pprof_pb2
+from tests.profiling.collector import pprof_utils
+from tests.profiling.collector import test_collector
+from tests.profiling.collector.lock_utils import LineNo
+from tests.profiling.collector.lock_utils import get_lock_linenos
+from tests.profiling.collector.lock_utils import init_linenos
+from tests.profiling.collector.pprof_utils import pprof_pb2
 
 
 # Type aliases for supported classes
@@ -205,9 +205,9 @@ def test_lock_gevent_tasks() -> None:
 
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
-    from tests.profiling_v2.collector import pprof_utils
-    from tests.profiling_v2.collector.lock_utils import get_lock_linenos
-    from tests.profiling_v2.collector.lock_utils import init_linenos
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.lock_utils import get_lock_linenos
+    from tests.profiling.collector.lock_utils import init_linenos
 
     assert ddup.is_available, "ddup is not available"
 
@@ -297,9 +297,9 @@ def test_rlock_gevent_tasks() -> None:
 
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector.threading import ThreadingRLockCollector
-    from tests.profiling_v2.collector import pprof_utils
-    from tests.profiling_v2.collector.lock_utils import get_lock_linenos
-    from tests.profiling_v2.collector.lock_utils import init_linenos
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.lock_utils import get_lock_linenos
+    from tests.profiling.collector.lock_utils import init_linenos
 
     assert ddup.is_available, "ddup is not available"
 

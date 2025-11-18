@@ -67,9 +67,9 @@ def test_accuracy_stack_v2():
     import os
 
     from ddtrace.profiling import profiler
-    from tests.profiling_v2.collector import pprof_utils
-    from tests.profiling_v2.test_accuracy import assert_almost_equal
-    from tests.profiling_v2.test_accuracy import spend_16
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.test_accuracy import assert_almost_equal
+    from tests.profiling.test_accuracy import spend_16
 
     # Set this to 100 so we don't sleep too often and mess with the precision.
     p = profiler.Profiler()

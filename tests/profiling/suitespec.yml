@@ -87,8 +87,8 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@profiling'
-      - tests/profiling_v2/suitespec.yml
-      - tests/profiling_v2/*
+      - tests/profiling/suitespec.yml
+      - tests/profiling/*
     pattern: profile-v2
     retry: 2
     runner: riot

@@ -3235,7 +3235,7 @@ venv = Venv(
         Venv(
             name="profile-v2",
             # NB riot commands that use this Venv must include --pass-env to work properly
-            command="python -m tests.profiling_v2.run pytest -v --no-cov --capture=no --benchmark-disable --ignore='tests/profiling_v2/collector/test_memalloc.py' {cmdargs} tests/profiling_v2",  # noqa: E501
+            command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable --ignore='tests/profiling/collector/test_memalloc.py' {cmdargs} tests/profiling",  # noqa: E501
             env={
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
                 "CPUCOUNT": "12",
@@ -3258,7 +3258,7 @@ venv = Venv(
             venvs=[
                 Venv(
                     name="profile-v2-uwsgi",
-                    command="python -m tests.profiling_v2.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling_v2/test_uwsgi.py",  # noqa: E501
+                    command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling/test_uwsgi.py",  # noqa: E501
                     pys=select_pys(max_version="3.13"),
                     pkgs={
                         "uwsgi": "<2.0.30",
@@ -3376,7 +3376,7 @@ venv = Venv(
                 ),
                 Venv(
                     name="profile-v2-memalloc",
-                    command="python -m tests.profiling_v2.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling_v2/collector/test_memalloc.py",  # noqa: E501
+                    command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling/collector/test_memalloc.py",  # noqa: E501
                     # skipping v3.14 for now due to an unstable `lz4 ` lib issue: https://gitlab.ddbuild.io/DataDog/apm-reliability/dd-trace-py/-/jobs/1163312347
                     pys=select_pys(max_version="3.13"),
                     pkgs={

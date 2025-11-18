@@ -9,7 +9,7 @@ import time
 import pytest
 
 from tests.contrib.uwsgi import run_uwsgi
-from tests.profiling_v2.collector import pprof_utils
+from tests.profiling.collector import pprof_utils
 
 
 # uwsgi is not available on Windows
