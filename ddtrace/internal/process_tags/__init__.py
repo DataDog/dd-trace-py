@@ -49,8 +49,7 @@ def generate_process_tags() -> Optional[str]:
 
 def update_base_hash(new_base_hash):
     global base_hash
-    if process_tags:
-        base_hash = new_base_hash
+    base_hash = new_base_hash
 
 
 base_hash = ""
