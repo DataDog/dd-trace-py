@@ -3,7 +3,8 @@ message: Import `__version__` from `ddtrace.version` instead of `ddtrace`
 severity: error
 language: python
 ignores:
-  - "ddtrace/version.py"
+  - "tests/**"
+  - "benchmarks/**"
 rule:
   any:
     # Match: from ddtrace import __version__ (using variable with constraint)
