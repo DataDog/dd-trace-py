@@ -1,4 +1,3 @@
-import importlib.metadata
 import os
 import sys
 
@@ -22,19 +21,12 @@ from ._monkey import patch_all  # noqa: E402
 from .internal.compat import PYTHON_VERSION_INFO  # noqa: E402
 from .internal.settings._config import config
 from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
+from .version import __version__
 
 
 # TODO: Deprecate accessing tracer from ddtrace.__init__ module in v4.0
 if os.environ.get("_DD_GLOBAL_TRACER_INIT", "true").lower() in ("1", "true"):
     from ddtrace.trace import tracer  # noqa: F401
-
-
-__version__: str
-
-try:
-    __version__ = version = importlib.metadata.version(__package__ or __name__)
-except importlib.metadata.PackageNotFoundError:
-    __version__ = version = "0.0.0"
 
 
 __all__ = [

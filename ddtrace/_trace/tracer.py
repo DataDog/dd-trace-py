@@ -59,7 +59,7 @@ from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import HTTPWriter
-from ddtrace import __version__
+from ddtrace.version import __version__
 
 
 log = get_logger(__name__)

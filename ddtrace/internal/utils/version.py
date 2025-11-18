@@ -2,7 +2,7 @@ import typing  # noqa:F401
 from typing import Optional  # noqa:F401
 
 import ddtrace.vendor.packaging.version as packaging_version
-from ddtrace import __version__
+from ddtrace.version import __version__
 
 
 def parse_version(version):

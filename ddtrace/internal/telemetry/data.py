@@ -11,7 +11,7 @@ from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.packages import get_module_distribution_versions
 from ddtrace.internal.runtime.container import get_container_info
 from ddtrace.internal.utils.cache import cached
-from ddtrace import __version__
+from ddtrace.version import __version__
 
 from ..hostname import get_hostname
 
