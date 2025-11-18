@@ -7,36 +7,6 @@ def _test_repr(collector_class, s):
     assert repr(collector_class()) == s
 
 
-def _test_restart(collector, **kwargs):
-    c = collector(**kwargs)
-    c.start()
-    c.stop()
-    c.join()
-    c.start()
-    with pytest.raises(RuntimeError):
-        c.start()
-    c.stop()
-    c.join()
-
-
-def test_dynamic_interval():
-    c = collector.PeriodicCollector(interval=1)
-    c.start()
-    assert c.interval == 1
-    assert c._worker.interval == c.interval
-    c.interval = 2
-    assert c.interval == 2
-    assert c._worker.interval == c.interval
-    c.stop()
-
-
-def test_thread_name():
-    c = collector.PeriodicCollector(interval=1)
-    c.start()
-    assert c._worker.name == "ddtrace.profiling.collector:PeriodicCollector"
-    c.stop()
-
-
 def test_capture_sampler():
     cs = collector.CaptureSampler(15)
     assert cs.capture() is False  # 15
