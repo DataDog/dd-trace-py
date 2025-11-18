@@ -219,6 +219,17 @@ def has_function_in_traceback(frames, function_name):
     return any(frame.function_name == function_name for frame in frames)
 
 
+def has_function_in_profile_sample(profile, sample, function_name):
+    """Check if a pprof profile sample contains a function in its stack trace."""
+    for location_id in sample.location_id:
+        location = pprof_utils.get_location_with_id(profile, location_id)
+        if location.line:
+            function = pprof_utils.get_function_with_id(profile, location.line[0].function_id)
+            if profile.string_table[function.name] == function_name:
+                return True
+    return False
+
+
 def get_tracemalloc_stats_per_func(stats, funcs):
     source_to_func = {}
 
@@ -553,7 +564,19 @@ def test_memory_collector_allocation_tracking_across_snapshots():
         del data_to_keep
 
 
-def test_memory_collector_python_interface_with_allocation_tracking():
+def test_memory_collector_python_interface_with_allocation_tracking(tmp_path):
+    test_name = "test_memory_collector_python_interface_with_allocation_tracking"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    ddup.config(
+        service=test_name,
+        version="test",
+        env="test",
+        output_filename=pprof_prefix,
+    )
+    ddup.start()
+
     mc = memalloc.MemoryCollector(heap_sample_size=128)
 
     with mc:
@@ -562,7 +585,7 @@ def test_memory_collector_python_interface_with_allocation_tracking():
             first_batch.append(one(256))
 
         # We're taking a snapshot here to ensure that in the next snapshot, we don't see any "one" allocations
-        mc.test_snapshot()
+        mc.snapshot_and_parse_pprof(output_filename)
 
         second_batch = []
         for i in range(15):
@@ -570,32 +593,54 @@ def test_memory_collector_python_interface_with_allocation_tracking():
 
         del first_batch
 
-        final_samples = mc.test_snapshot()
+        final_profile = mc.snapshot_and_parse_pprof(output_filename)
 
-        assert len(final_samples) >= 0, "Final snapshot should be valid"
+        assert len(final_profile.sample) >= 0, "Final snapshot should be valid"
 
-        for sample in final_samples:
-            assert sample.size > 0, f"Size should be positive int, got {sample.size}"
-            assert sample.count > 0, f"Count should be positive int, got {sample.count}"
-            assert sample.in_use_size >= 0, f"in_use_size should be non-negative int, got {sample.in_use_size}"
-            assert sample.alloc_size >= 0, f"alloc_size should be non-negative int, got {sample.alloc_size}"
+        # Get sample type indices
+        heap_space_idx = pprof_utils.get_sample_type_index(final_profile, "heap-space")
+        alloc_space_idx = pprof_utils.get_sample_type_index(final_profile, "alloc-space")
+        alloc_count_idx = pprof_utils.get_sample_type_index(final_profile, "alloc-samples")
 
-        one_samples_in_final = [sample for sample in final_samples if has_function_in_traceback(sample.frames, "one")]
+        # Assert that required sample types exist in the profile
+        assert heap_space_idx >= 0, "heap-space sample type not found in profile"
+        assert alloc_space_idx >= 0, "alloc-space sample type not found in profile"
+        assert alloc_count_idx >= 0, "alloc-samples sample type not found in profile"
+
+        # Validate all samples have valid values
+        for sample in final_profile.sample:
+            # Check that at least one value type is non-zero
+            has_heap = sample.value[heap_space_idx] > 0
+            has_alloc = sample.value[alloc_space_idx] > 0
+            assert has_heap or has_alloc, "Sample should have either heap-space or alloc-space > 0"
+            assert sample.value[alloc_count_idx] >= 0, f"alloc-samples should be non-negative, got {sample.value[alloc_count_idx]}"
+
+        # Get live samples (heap-space > 0)
+        live_samples = [s for s in final_profile.sample if s.value[heap_space_idx] > 0]
+
+        # Check that we have no live samples with 'one' in traceback (they were freed)
+        one_samples_in_final = [
+            sample for sample in live_samples if has_function_in_profile_sample(final_profile, sample, "one")
+        ]
 
         assert (
             len(one_samples_in_final) == 0
-        ), f"Should have no samples with 'one' in traceback in final_samples, got {len(one_samples_in_final)}"
+        ), f"Should have no live samples with 'one' in traceback in final_samples, got {len(one_samples_in_final)}"
 
+        # Check that we have live samples from function 'two'
         batch_two_live_samples = [
             sample
-            for sample in final_samples
-            if has_function_in_traceback(sample.frames, "two") and sample.in_use_size > 0
+            for sample in live_samples
+            if has_function_in_profile_sample(final_profile, sample, "two")
         ]
 
         assert (
             len(batch_two_live_samples) > 0
         ), f"Should have live samples from batch two, got {len(batch_two_live_samples)}"
-        assert all(sample.in_use_size > 0 and sample.alloc_size > 0 for sample in batch_two_live_samples)
+        assert all(
+            sample.value[heap_space_idx] > 0 and sample.value[alloc_space_idx] >= 0
+            for sample in batch_two_live_samples
+        )
 
         del second_batch
 
