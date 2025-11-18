@@ -5,14 +5,12 @@ from unittest import mock
 import pytest
 
 import ddtrace
-from ddtrace.internal.settings._config import config
 from ddtrace.profiling import collector
 from ddtrace.profiling import profiler
 from ddtrace.profiling import scheduler
 from ddtrace.profiling.collector import asyncio
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
-from tests.utils import process_tag_reload
 
 
 def test_status():
@@ -149,21 +147,17 @@ def test_profiler_serverless(monkeypatch):
 
 
 def test_process_tags_deactivated():
-    p = profiler.Profiler(tags={})
+    p = profiler.Profiler()
     assert "process_tags" not in p.tags
 
 
+@pytest.mark.subprocess(
+    env=dict(
+        DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED="true",
+    )
+)
 def test_process_tags_activated():
-    # type: (...) -> None
-    try:
-        config._process_tags_enabled = True
-        process_tag_reload()
+    from ddtrace.profiling import profiler
 
-        # Pass explicit tags dict to avoid mutating shared profiling_config.tags
-        p = profiler.Profiler(tags={})
-
-        # Verify that process_tags are in the profiler tags
-        assert "process_tags" in p.tags
-    finally:
-        config._process_tags_enabled = False
-        process_tag_reload()
+    p = profiler.Profiler()
+    assert "process_tags" in p.tags

@@ -169,7 +169,6 @@ class _ProfilerInstance(service.Service):
         profiler_config = config_str(profiling_config)
         self.tags.update({"profiler_config": profiler_config})
 
-        # add process_tags
         if p_tags := process_tags.process_tags:
             self.tags.update({"process_tags": p_tags})
 
