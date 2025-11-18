@@ -32,10 +32,66 @@ fn main() {
     // Tell rustc to link the static library we just built
     println!("cargo:rustc-link-lib=static=cpython_internal");
 
-    // Link dl library for dynamic symbol loading (dlsym) - Unix only
-    if !cfg!(target_os = "windows") {
+    // Link Python static library for _Py_DumpTracebackThreads access
+    let python_version_output = std::process::Command::new(python_executable)
+        .args([
+            "-c",
+            "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')",
+        ])
+        .output()
+        .expect("Failed to get Python version");
+
+    if python_version_output.status.success() {
+        let python_version = String::from_utf8_lossy(&python_version_output.stdout)
+            .trim()
+            .to_string();
+
+        // Get the config directory path where static library is located
+        let config_dir_output = std::process::Command::new(python_executable)
+            .args(["-c", "import sysconfig; print(sysconfig.get_path('stdlib') + '/config-' + sysconfig.get_config_var('LDVERSION') + '-' + sysconfig.get_platform())"])
+            .output()
+            .expect("Failed to get Python config directory");
+
+        if config_dir_output.status.success() {
+            let config_dir = String::from_utf8_lossy(&config_dir_output.stdout)
+                .trim()
+                .to_string();
+            let static_lib_path = format!("{}/libpython{}.a", config_dir, python_version);
+
+            // Check if static library exists and link it
+            if std::path::Path::new(&static_lib_path).exists() {
+                // Add search path and link to Python static library
+                println!("cargo:rustc-link-search=native={}", config_dir);
+                println!("cargo:rustc-link-lib=static=python{}", python_version);
+
+                // Link required dependencies for static Python library
+                println!("cargo:rustc-link-lib=dl");
+                println!("cargo:rustc-link-lib=m");
+                println!("cargo:rustc-link-lib=pthread");
+
+                println!(
+                    "cargo:warning=Static linking enabled for Python {}: {}",
+                    python_version, static_lib_path
+                );
+            } else {
+                // Static library not available - only dynamic loading will be attempted
+                println!("cargo:rustc-link-lib=dl");
+                println!(
+                    "cargo:warning=Static library not found at {}, using dynamic loading only",
+                    static_lib_path
+                );
+            }
+        } else {
+            // Fallback: link dl for dynamic loading
+            println!("cargo:rustc-link-lib=dl");
+            println!("cargo:warning=Failed to get config directory, using dynamic loading only");
+        }
+    } else {
+        // Fallback: link dl for dynamic loading
         println!("cargo:rustc-link-lib=dl");
+        println!("cargo:warning=Failed to get Python version, using dynamic loading only");
     }
+
     println!("cargo:rerun-if-changed=cpython_internal.c");
     println!("cargo:rerun-if-changed=cpython_internal.h");
     println!("cargo:rerun-if-changed=build.rs");
