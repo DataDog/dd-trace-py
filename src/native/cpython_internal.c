@@ -2,40 +2,26 @@
 
 #include <Python.h>
 #include <string.h>
-#include <unistd.h>
-
-// Platform-specific dynamic loading for fallback
-#ifndef _WIN32
-#include <dlfcn.h>
-#endif
 
 // Direct declaration of _Py_DumpTracebackThreads for static linking
 // Uses weak symbol so it's NULL if cant link
+#ifdef _WIN32
+__declspec(selectany)
+const char* (*_Py_DumpTracebackThreads)(int fd, PyInterpreterState* interp, PyThreadState* current_tstate) = NULL;
+#else
 extern const char*
 _Py_DumpTracebackThreads(int fd, PyInterpreterState* interp, PyThreadState* current_tstate) __attribute__((weak));
+#endif
 
 const char*
 crashtracker_dump_traceback_threads(int fd, PyInterpreterState* interp, PyThreadState* current_tstate)
 {
+    // Try static linking first
     if (_Py_DumpTracebackThreads) {
         return _Py_DumpTracebackThreads(fd, interp, current_tstate);
     }
 
-#ifndef _WIN32
-    // Try dynamic linking
-    static const char* (*_Py_DumpTracebackThreads_ptr)(int, PyInterpreterState*, PyThreadState*) = NULL;
-    static int symbol_resolved = 0;
-
-    if (!symbol_resolved) {
-        _Py_DumpTracebackThreads_ptr =
-          (const char* (*)(int, PyInterpreterState*, PyThreadState*))dlsym(RTLD_DEFAULT, "_Py_DumpTracebackThreads");
-        symbol_resolved = 1;
-    }
-
-    if (_Py_DumpTracebackThreads_ptr) {
-        return _Py_DumpTracebackThreads_ptr(fd, interp, current_tstate);
-    }
-#endif
+    // Fallback to faulthandler
     PyObject* faulthandler_module = PyImport_ImportModule("faulthandler");
     if (faulthandler_module == NULL) {
         PyErr_Clear();

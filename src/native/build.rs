@@ -64,32 +64,33 @@ fn main() {
                 println!("cargo:rustc-link-search=native={}", config_dir);
                 println!("cargo:rustc-link-lib=static=python{}", python_version);
 
-                // Link required dependencies for static Python library
-                println!("cargo:rustc-link-lib=dl");
-                println!("cargo:rustc-link-lib=m");
-                println!("cargo:rustc-link-lib=pthread");
+                // Link required dependencies for static Python library (Unix only)
+                if !cfg!(target_os = "windows") {
+                    println!("cargo:rustc-link-lib=dl");
+                    println!("cargo:rustc-link-lib=m");
+                    println!("cargo:rustc-link-lib=pthread");
+                }
 
                 println!(
                     "cargo:warning=Static linking enabled for Python {}: {}",
                     python_version, static_lib_path
                 );
             } else {
-                // Static library not available - only dynamic loading will be attempted
-                println!("cargo:rustc-link-lib=dl");
+                // Static library not available - fallback to faulthandler only
                 println!(
-                    "cargo:warning=Static library not found at {}, using dynamic loading only",
+                    "cargo:warning=Static library not found at {}, using faulthandler fallback only",
                     static_lib_path
                 );
             }
         } else {
-            // Fallback: link dl for dynamic loading
-            println!("cargo:rustc-link-lib=dl");
-            println!("cargo:warning=Failed to get config directory, using dynamic loading only");
+            // Fallback: faulthandler only
+            println!(
+                "cargo:warning=Failed to get config directory, using faulthandler fallback only"
+            );
         }
     } else {
-        // Fallback: link dl for dynamic loading
-        println!("cargo:rustc-link-lib=dl");
-        println!("cargo:warning=Failed to get Python version, using dynamic loading only");
+        // Fallback: faulthandler only
+        println!("cargo:warning=Failed to get Python version, using faulthandler fallback only");
     }
 
     println!("cargo:rerun-if-changed=cpython_internal.c");
