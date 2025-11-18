@@ -132,12 +132,25 @@ Datadog::Sample::clear_buffers()
     labels.clear();
     locations.clear();
     dropped_frames = 0;
+    reverse_locations = false;
     string_storage.reset();
 }
 
 bool
-Datadog::Sample::flush_sample(bool reverse_locations)
+Datadog::Sample::flush_sample()
 {
+    // Export the sample data (export_sample handles dropped frames)
+    auto ret = export_sample();
+    
+    // Clear buffers after exporting
+    clear_buffers();
+    return ret;
+}
+
+bool
+Datadog::Sample::export_sample()
+{
+    // Handle dropped frames by adding them to locations if needed
     if (dropped_frames > 0) {
         const std::string name =
           "<" + std::to_string(dropped_frames) + " frame" + (1 == dropped_frames ? "" : "s") + " omitted>";
@@ -146,6 +159,7 @@ Datadog::Sample::flush_sample(bool reverse_locations)
 
     if (reverse_locations) {
         std::reverse(locations.begin(), locations.end());
+        reverse_locations = false; // Reset after reversing
     }
 
     const ddog_prof_Sample sample = {
@@ -154,9 +168,8 @@ Datadog::Sample::flush_sample(bool reverse_locations)
         .labels = { labels.data(), labels.size() },
     };
 
-    const bool ret = profile_state.collect(sample, endtime_ns);
-    clear_buffers();
-    return ret;
+    // Export to profile without clearing buffers
+    return profile_state.collect(sample, endtime_ns);
 }
 
 bool
@@ -290,6 +303,30 @@ Datadog::Sample::push_heap(int64_t size)
         std::cerr << "bad push heap" << std::endl;
     }
     return false;
+}
+
+void
+Datadog::Sample::reset_alloc()
+{
+    if (0U != (type_mask & SampleType::Allocation)) {
+        const size_t alloc_space_idx = profile_state.val().alloc_space;
+        const size_t alloc_count_idx = profile_state.val().alloc_count;
+        if (alloc_space_idx < values.size() && alloc_count_idx < values.size()) {
+            values[alloc_space_idx] = 0;
+            values[alloc_count_idx] = 0;
+        }
+    }
+}
+
+void
+Datadog::Sample::reset_heap()
+{
+    if (0U != (type_mask & SampleType::Heap)) {
+        const size_t heap_space_idx = profile_state.val().heap_space;
+        if (heap_space_idx < values.size()) {
+            values[heap_space_idx] = 0;
+        }
+    }
 }
 
 bool

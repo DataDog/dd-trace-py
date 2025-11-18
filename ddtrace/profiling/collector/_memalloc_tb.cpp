@@ -113,7 +113,7 @@ traceback_t::traceback_t(void* ptr,
   , thread_id(PyThread_get_thread_ident())
   , reported(false)
   , count(0)
-  , sample(Datadog::SampleType::Allocation, max_nframe)
+  , sample(static_cast<Datadog::SampleType>(Datadog::SampleType::Allocation | Datadog::SampleType::Heap), max_nframe)
 {
     // Size 0 allocations are legal and we can hypothetically sample them,
     // e.g. if an allocation during sampling pushes us over the next sampling threshold,
@@ -132,6 +132,9 @@ traceback_t::traceback_t(void* ptr,
     // Push allocation info to sample
     // Note: profile_state is initialized in memalloc_start() before any traceback_t objects are created
     sample.push_alloc(weighted_size, count);
+    // Push heap info - use actual size (not weighted) for heap tracking
+    // TODO(dsn): figure out if this actually makes sense, or if we should use the weighted size
+    sample.push_heap(size);
     sample.push_threadinfo(thread_id, 0, ""); // thread_native_id and thread_name not available here
 
     // Collect frames from the Python frame chain and push to Sample
