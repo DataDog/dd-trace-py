@@ -1,7 +1,7 @@
 import logging
 import time
+from unittest import mock
 
-import mock
 import pytest
 
 import ddtrace
@@ -105,7 +105,7 @@ def test_failed_start_collector(caplog, monkeypatch):
 
     class TestProfiler(profiler._ProfilerInstance):
         def _build_default_exporters(self, *args, **kargs):
-            return []
+            return None
 
     p = TestProfiler()
     err_collector = mock.MagicMock(wraps=ErrCollect())
@@ -140,7 +140,6 @@ def test_default_collectors():
 
 
 def test_profiler_serverless(monkeypatch):
-    # type: (...) -> None
     monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "foobar")
     p = profiler.Profiler()
     assert isinstance(p._scheduler, scheduler.ServerlessScheduler)

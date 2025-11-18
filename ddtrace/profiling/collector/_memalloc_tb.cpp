@@ -1,7 +1,3 @@
-#include <assert.h>
-#include <stdlib.h>
-#include <string.h>
-
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include <frameobject.h>
@@ -16,83 +12,7 @@ static PyObject* unknown_name = NULL;
 /* A string containing "" */
 static PyObject* empty_string = NULL;
 
-#define TRACEBACK_SIZE(NFRAME) (sizeof(traceback_t) + sizeof(frame_t) * (NFRAME - 1))
-
 static PyObject* ddframe_class = NULL;
-
-#ifndef MEMALLOC_BUFFER_POOL_CAPACITY
-#define MEMALLOC_BUFFER_POOL_CAPACITY 4
-#endif
-
-/* memalloc_tb_buffer_pool is a pool of scratch buffers used for collecting
- * tracebacks. We don't know ahead of time how many frames a traceback will have,
- * and traversing the list of frames can be expensive. At the same time, we want
- * to right-size the tracebacks we aggregate in memory to minimize waste. So we
- * use scratch buffers of the maximum configured traceback size and then copy
- * the actual traceback once we know how many frames it has.
- *
- * We need a pool because, for some Python versions, collecting a traceback
- * releases the GIL. So we can't just have one scratch buffer or we will have a
- * logical race in writing to the buffer. The calling thread owns the scratch
- * buffer it gets from the pool until the buffer is returned to the pool.
- */
-typedef struct
-{
-    /* TODO: if/when we support no-GIL or subinterpreter python, we'll need a
-     * lock to protect the pool in get & put */
-    traceback_t* pool[MEMALLOC_BUFFER_POOL_CAPACITY];
-    size_t count;
-    size_t capacity;
-} memalloc_tb_buffer_pool;
-
-/* For now we use a global pool */
-static memalloc_tb_buffer_pool g_memalloc_tb_buffer_pool = {
-    .count = 0,
-    .capacity = MEMALLOC_BUFFER_POOL_CAPACITY,
-};
-
-#undef MEMALLOC_BUFFER_POOL_CAPACITY
-
-static traceback_t*
-memalloc_tb_buffer_pool_get(memalloc_tb_buffer_pool* pool, uint16_t max_nframe)
-{
-    assert(PyGILState_Check());
-    traceback_t* t = NULL;
-    if (pool->count > 0) {
-        t = pool->pool[pool->count - 1];
-        pool->pool[pool->count - 1] = NULL;
-        pool->count--;
-    } else {
-        t = static_cast<traceback_t*>(malloc(TRACEBACK_SIZE(max_nframe)));
-    }
-    return t;
-}
-
-static void
-memalloc_tb_buffer_pool_put(memalloc_tb_buffer_pool* pool, traceback_t* t)
-{
-    assert(PyGILState_Check());
-    if (pool->count < pool->capacity) {
-        pool->pool[pool->count] = t;
-        pool->count++;
-    } else {
-        /* We don't want to keep an unbounded number of full-size tracebacks
-         * around. So in the rare chance that there are a large number of threads
-         * hitting sampling at the same time, just drop excess tracebacks */
-        free(t);
-    }
-}
-
-static void
-memalloc_tb_buffer_pool_clear(memalloc_tb_buffer_pool* pool)
-{
-    assert(PyGILState_Check());
-    for (size_t i = 0; i < pool->count; i++) {
-        free(pool->pool[i]);
-        pool->pool[i] = NULL;
-    }
-    pool->count = 0;
-}
 
 bool
 memalloc_ddframe_class_init()
@@ -125,55 +45,38 @@ memalloc_ddframe_class_init()
     return true;
 }
 
-int
-memalloc_tb_init(uint16_t max_nframe)
+bool
+traceback_t::init()
 {
     if (unknown_name == NULL) {
         unknown_name = PyUnicode_FromString("<unknown>");
         if (unknown_name == NULL)
-            return -1;
+            return false;
         PyUnicode_InternInPlace(&unknown_name);
     }
 
     if (empty_string == NULL) {
         empty_string = PyUnicode_FromString("");
         if (empty_string == NULL)
-            return -1;
+            return false;
         PyUnicode_InternInPlace(&empty_string);
     }
-    return 0;
+    return true;
 }
 
 void
-memalloc_tb_deinit(void)
+traceback_t::deinit()
 {
-    memalloc_tb_buffer_pool_clear(&g_memalloc_tb_buffer_pool);
+    // Nothing to clean up - tracebacks are managed by their owners
 }
 
-void
-traceback_free(traceback_t* tb)
+frame_t::frame_t(PyFrameObject* pyframe)
 {
-    if (!tb)
-        return;
+    int lineno_val = PyFrame_GetLineNumber(pyframe);
+    if (lineno_val < 0)
+        lineno_val = 0;
 
-    for (uint16_t nframe = 0; nframe < tb->nframe; nframe++) {
-        Py_DECREF(tb->frames[nframe].filename);
-        Py_DECREF(tb->frames[nframe].name);
-    }
-    PyMem_RawFree(tb);
-}
-
-/* Convert PyFrameObject to a frame_t that we can store in memory */
-static void
-memalloc_convert_frame(PyFrameObject* pyframe, frame_t* frame)
-{
-    int lineno = PyFrame_GetLineNumber(pyframe);
-    if (lineno < 0)
-        lineno = 0;
-
-    frame->lineno = (unsigned int)lineno;
-
-    PyObject *filename, *name;
+    lineno = (unsigned int)lineno_val;
 
 #ifdef _PY39_AND_LATER
     PyCodeObject* code = PyFrame_GetCode(pyframe);
@@ -182,50 +85,50 @@ memalloc_convert_frame(PyFrameObject* pyframe, frame_t* frame)
 #endif
 
     if (code == NULL) {
-        filename = unknown_name;
         name = unknown_name;
+        filename = unknown_name;
     } else {
-        filename = code->co_filename;
-        name = code->co_name;
+        name = code->co_name ? code->co_name : unknown_name;
+        filename = code->co_filename ? code->co_filename : unknown_name;
     }
 
-    if (name)
-        frame->name = name;
-    else
-        frame->name = unknown_name;
-
-    Py_INCREF(frame->name);
-
-    if (filename)
-        frame->filename = filename;
-    else
-        frame->filename = unknown_name;
-
-    Py_INCREF(frame->filename);
+    Py_INCREF(name);
+    Py_INCREF(filename);
 
 #ifdef _PY39_AND_LATER
     Py_XDECREF(code);
 #endif
 }
 
-static traceback_t*
-memalloc_frame_to_traceback(PyFrameObject* pyframe, uint16_t max_nframe)
+traceback_t::traceback_t(void* ptr,
+                         size_t size,
+                         PyMemAllocatorDomain domain,
+                         size_t weighted_size,
+                         PyFrameObject* pyframe,
+                         uint16_t max_nframe)
+  : ptr(ptr)
+  , size(weighted_size)
+  , domain(domain)
+  , thread_id(PyThread_get_thread_ident())
+  , reported(false)
+  , count(0)
 {
-    traceback_t* traceback_buffer = memalloc_tb_buffer_pool_get(&g_memalloc_tb_buffer_pool, max_nframe);
-    if (!traceback_buffer) {
-        return NULL;
-    }
-    traceback_buffer->total_nframe = 0;
-    traceback_buffer->nframe = 0;
+    // Size 0 allocations are legal and we can hypothetically sample them,
+    // e.g. if an allocation during sampling pushes us over the next sampling threshold,
+    // but we can't sample it, so we sample the next allocation which happens to be 0
+    // bytes. Defensively make sure size isn't 0.
+    size_t adjusted_size = size > 0 ? size : 1;
+    double scaled_count = ((double)weighted_size) / ((double)adjusted_size);
+    count = (size_t)scaled_count;
 
+    // Collect frames from the Python frame chain
+    size_t total_nframe = 0;
     for (; pyframe != NULL;) {
-        if (traceback_buffer->nframe < max_nframe) {
-            memalloc_convert_frame(pyframe, &traceback_buffer->frames[traceback_buffer->nframe]);
-            traceback_buffer->nframe++;
+        if (frames.size() < max_nframe) {
+            frames.emplace_back(pyframe);
         }
-        /* Make sure we don't overflow */
-        if (traceback_buffer->total_nframe < UINT16_MAX)
-            traceback_buffer->total_nframe++;
+        // TODO(dsn): add a truncated frame to the traceback if we exceed the max_nframe
+        total_nframe++;
 
 #ifdef _PY39_AND_LATER
         PyFrameObject* back = PyFrame_GetBack(pyframe);
@@ -237,19 +140,24 @@ memalloc_frame_to_traceback(PyFrameObject* pyframe, uint16_t max_nframe)
         memalloc_debug_gil_release();
     }
 
-    size_t traceback_size = TRACEBACK_SIZE(traceback_buffer->nframe);
-    traceback_t* traceback = static_cast<traceback_t*>(PyMem_RawMalloc(traceback_size));
+    // Shrink to actual size to save memory
+    frames.shrink_to_fit();
+}
 
-    if (traceback)
-        memcpy(traceback, traceback_buffer, traceback_size);
-
-    memalloc_tb_buffer_pool_put(&g_memalloc_tb_buffer_pool, traceback_buffer);
-
-    return traceback;
+traceback_t::~traceback_t()
+{
+    for (const frame_t& frame : frames) {
+        Py_DECREF(frame.filename);
+        Py_DECREF(frame.name);
+    }
 }
 
 traceback_t*
-memalloc_get_traceback(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorDomain domain, size_t weighted_size)
+traceback_t::get_traceback(uint16_t max_nframe,
+                           void* ptr,
+                           size_t size,
+                           PyMemAllocatorDomain domain,
+                           size_t weighted_size)
 {
     PyThreadState* tstate = PyThreadState_Get();
 
@@ -265,47 +173,25 @@ memalloc_get_traceback(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocat
     if (pyframe == NULL)
         return NULL;
 
-    traceback_t* traceback = memalloc_frame_to_traceback(pyframe, max_nframe);
-
-    if (traceback == NULL)
-        return NULL;
-
-    traceback->size = weighted_size;
-    traceback->ptr = ptr;
-
-    traceback->thread_id = PyThread_get_thread_ident();
-
-    traceback->domain = domain;
-
-    traceback->reported = false;
-
-    // Size 0 allocations are legal and we can hypothetically sample them,
-    // e.g. if an allocation during sampling pushes us over the next sampling threshold,
-    // but we can't sample it, so we sample the next allocation which happens to be 0
-    // bytes. Defensively make sure size isn't 0.
-    size = size > 0 ? size : 1;
-    double scaled_count = ((double)weighted_size) / ((double)size);
-    traceback->count = (size_t)scaled_count;
-
-    return traceback;
+    return new traceback_t(ptr, size, domain, weighted_size, pyframe, max_nframe);
 }
 
 PyObject*
-traceback_to_tuple(traceback_t* tb)
+traceback_t::to_tuple() const
 {
     /* Convert stack into a tuple of tuple */
-    PyObject* stack = PyTuple_New(tb->nframe);
+    PyObject* stack = PyTuple_New(frames.size());
 
-    for (uint16_t nframe = 0; nframe < tb->nframe; nframe++) {
+    for (size_t nframe = 0; nframe < frames.size(); nframe++) {
         PyObject* frame_tuple = PyTuple_New(4);
 
-        frame_t* frame = &tb->frames[nframe];
+        const frame_t& frame = frames[nframe];
 
-        Py_INCREF(frame->filename);
-        PyTuple_SET_ITEM(frame_tuple, 0, frame->filename);
-        PyTuple_SET_ITEM(frame_tuple, 1, PyLong_FromUnsignedLong(frame->lineno));
-        Py_INCREF(frame->name);
-        PyTuple_SET_ITEM(frame_tuple, 2, frame->name);
+        Py_INCREF(frame.filename);
+        PyTuple_SET_ITEM(frame_tuple, 0, frame.filename);
+        PyTuple_SET_ITEM(frame_tuple, 1, PyLong_FromUnsignedLong(frame.lineno));
+        Py_INCREF(frame.name);
+        PyTuple_SET_ITEM(frame_tuple, 2, frame.name);
         /* Class name */
         Py_INCREF(empty_string);
         PyTuple_SET_ITEM(frame_tuple, 3, empty_string);
@@ -327,6 +213,6 @@ traceback_to_tuple(traceback_t* tb)
 
     PyObject* tuple = PyTuple_New(2);
     PyTuple_SET_ITEM(tuple, 0, stack);
-    PyTuple_SET_ITEM(tuple, 1, PyLong_FromUnsignedLong(tb->thread_id));
+    PyTuple_SET_ITEM(tuple, 1, PyLong_FromUnsignedLong(thread_id));
     return tuple;
 }

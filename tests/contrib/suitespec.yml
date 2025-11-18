@@ -6,6 +6,9 @@ components:
     - ddtrace/contrib/internal/aiohttp_jinja2/*
   aiopg:
     - ddtrace/contrib/internal/aiopg/*
+  aiokafka:
+    - ddtrace/contrib/internal/aiokafka/*
+    - ddtrace/ext/kafka.py
   algoliasearch:
     - ddtrace/contrib/internal/algoliasearch/*
   asgi:
@@ -20,10 +23,12 @@ components:
     - ddtrace/ext/aws.py
   azure_eventhubs:
     - ddtrace/contrib/internal/azure_eventhubs/*
+    - ddtrace/ext/azure_eventhubs.py
   azure_functions:
     - ddtrace/contrib/internal/azure_functions/*
   azure_servicebus:
     - ddtrace/contrib/internal/azure_servicebus/*
+    - ddtrace/ext/azure_servicebus.py
   botocore:
     - ddtrace/contrib/internal/botocore/*
     - ddtrace/contrib/internal/boto/*
@@ -41,18 +46,8 @@ components:
     - ddtrace/contrib/internal/consul/*
     - ddtrace/ext/consul.py
   contrib:
-    - ddtrace/contrib/__init__.py
-    - ddtrace/contrib/trace_utils.py
-    - ddtrace/contrib/internal/trace_utils_async.py
-    - ddtrace/contrib/internal/trace_utils.py
-    - ddtrace/contrib/internal/redis_utils.py
-    - ddtrace/ext/__init__.py
-    - ddtrace/ext/http.py
-    - ddtrace/ext/net.py
-    - ddtrace/ext/schema.py
-    - ddtrace/ext/sql.py
-    - ddtrace/ext/test.py
-    - ddtrace/ext/user.py
+    - ddtrace/contrib/*
+    - ddtrace/ext/*
     - ddtrace/propagation/*
     - ddtrace/internal/settings/_database_monitoring.py
     - tests/contrib/patch.py
@@ -151,6 +146,7 @@ components:
     - ddtrace/contrib/internal/pyramid/*
   ray:
     - ddtrace/contrib/internal/ray/*
+    - ddtrace/contrib/ray.py
   redis:
     - ddtrace/contrib/internal/rediscluster/*
     - ddtrace/contrib/internal/redis/*
@@ -186,6 +182,7 @@ components:
   valkey:
     - ddtrace/contrib/internal/valkey/*
     - ddtrace/contrib/internal/valkey_utils.py
+    - ddtrace/contrib/valkey.py
     - ddtrace/_trace/utils_valkey.py
     - ddtrace/ext/valkey.py
   vertica:
@@ -239,6 +236,24 @@ suites:
     runner: riot
     services:
       - mysql
+    snapshot: true
+  aiokafka:
+    env:
+      TEST_KAFKA_HOST: kafka
+      TEST_KAFKA_PORT: '29092'
+    parallelism: 2
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@aiokafka'
+      - '@datastreams'
+      - tests/contrib/aiokafka/*
+      - tests/snapshots/tests.contrib.aiokafka.*
+    runner: riot
+    services:
+      - kafka
     snapshot: true
   aiopg:
     paths:
