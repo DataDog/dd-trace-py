@@ -23,6 +23,7 @@ def test_coverage_namespace_package_import_normal():
     imports_ns_dot_normal()
     ModuleCodeCollector.stop_coverage()
 
+    assert ModuleCodeCollector._instance is not None
     executable = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance.lines)
     covered = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=False))
     covered_with_imports = _get_relpath_dict(
@@ -79,6 +80,7 @@ def test_coverage_namespace_package_import_late():
     imports_ns_dot_late()
     ModuleCodeCollector.stop_coverage()
 
+    assert ModuleCodeCollector._instance is not None
     executable = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance.lines)
     covered = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=False))
     covered_with_imports = _get_relpath_dict(
@@ -150,6 +152,7 @@ def test_coverage_namespace_package_nsa_import_parent_normal():
     nsa_imports_parent_normal()
     ModuleCodeCollector.stop_coverage()
 
+    assert ModuleCodeCollector._instance is not None
     executable = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance.lines)
     covered = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=False))
     covered_with_imports = _get_relpath_dict(
@@ -158,14 +161,14 @@ def test_coverage_namespace_package_nsa_import_parent_normal():
 
     expected_executable = {
         "tests/coverage/included_path/normal_import_const.py": {1},
-        "tests/coverage/included_path/nsa/nsa_imports_parent.py": {1, 2, 5, 6, 9, 10, 12},
+        "tests/coverage/included_path/nsa/nsa_imports_parent.py": {1, 3, 6, 7, 10, 11, 13},
     }
     expected_covered = {
-        "tests/coverage/included_path/nsa/nsa_imports_parent.py": {6},
+        "tests/coverage/included_path/nsa/nsa_imports_parent.py": {7},
     }
     expected_covered_with_imports = {
         "tests/coverage/included_path/normal_import_const.py": {1},
-        "tests/coverage/included_path/nsa/nsa_imports_parent.py": {1, 2, 5, 6, 9},
+        "tests/coverage/included_path/nsa/nsa_imports_parent.py": {1, 3, 6, 7, 10},
     }
 
     assert executable == expected_executable, (
@@ -200,6 +203,7 @@ def test_coverage_namespace_package_nsa_import_parent_late():
     nsa_imports_parent_late()
     ModuleCodeCollector.stop_coverage()
 
+    assert ModuleCodeCollector._instance is not None
     executable = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance.lines)
     covered = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=False))
     covered_with_imports = _get_relpath_dict(
@@ -209,16 +213,16 @@ def test_coverage_namespace_package_nsa_import_parent_late():
     expected_executable = {
         "tests/coverage/included_path/late_import_const.py": {1},
         "tests/coverage/included_path/normal_import_const.py": {1},
-        "tests/coverage/included_path/nsa/nsa_imports_parent.py": {1, 2, 5, 6, 9, 10, 12},
+        "tests/coverage/included_path/nsa/nsa_imports_parent.py": {1, 3, 6, 7, 10, 11, 13},
     }
     expected_covered = {
         "tests/coverage/included_path/late_import_const.py": {1},
-        "tests/coverage/included_path/nsa/nsa_imports_parent.py": {10, 12},
+        "tests/coverage/included_path/nsa/nsa_imports_parent.py": {11, 13},
     }
     expected_covered_with_imports = {
         "tests/coverage/included_path/late_import_const.py": {1},
         "tests/coverage/included_path/normal_import_const.py": {1},
-        "tests/coverage/included_path/nsa/nsa_imports_parent.py": {1, 2, 5, 9, 10, 12},
+        "tests/coverage/included_path/nsa/nsa_imports_parent.py": {1, 3, 6, 10, 11, 13},
     }
 
     assert executable == expected_executable, (
@@ -253,6 +257,7 @@ def test_coverage_namespace_package_nsa_import_dot_normal():
     nsa_imports_dot_normal()
     ModuleCodeCollector.stop_coverage()
 
+    assert ModuleCodeCollector._instance is not None
     executable = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance.lines)
     covered = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=False))
     covered_with_imports = _get_relpath_dict(
@@ -307,6 +312,7 @@ def test_coverage_namespace_package_nsa_import_dot_late():
     nsa_imports_dot_late()
     ModuleCodeCollector.stop_coverage()
 
+    assert ModuleCodeCollector._instance is not None
     executable = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance.lines)
     covered = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=False))
     covered_with_imports = _get_relpath_dict(
