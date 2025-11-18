@@ -17,7 +17,6 @@ TEST_WORKDIR_PATH = "/path/to/workdir"
 @pytest.mark.parametrize(
     "input_tag,expected",
     [
-        # # Additional test cases from Go implementation
         ("#test_starting_hash", "test_starting_hash"),
         ("TestCAPSandSuch", "testcapsandsuch"),
         ("Test Conversion Of Weird !@#$%^&**() Characters", "test_conversion_of_weird_characters"),
