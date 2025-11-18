@@ -1,0 +1,75 @@
+[[
+  {
+    "name": "kafka.consume",
+    "service": "kafka",
+    "resource": "kafka.consume",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.aiokafka",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6911b88c00000000",
+      "component": "aiokafka",
+      "kafka.group_id": "test_group",
+      "kafka.message_key": "test_key",
+      "kafka.received_message": "True",
+      "kafka.tombstone": "True",
+      "kafka.topic": "send_and_wait_value",
+      "language": "python",
+      "messaging.destination.name": "send_and_wait_value",
+      "messaging.kafka.bootstrap.servers": "['127.0.0.1:29092']",
+      "messaging.system": "kafka",
+      "runtime-id": "490caac0109647009afd7509bc66828d",
+      "span.kind": "consumer"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "kafka.message_offset": -1,
+      "kafka.partition": -1,
+      "process_id": 605
+    },
+    "duration": 4203209,
+    "start": 1762769036989193750
+  }],
+[
+  {
+    "name": "kafka.produce",
+    "service": "kafka",
+    "resource": "kafka.produce",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.aiokafka",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6911b88900000000",
+      "component": "aiokafka",
+      "kafka.message_key": "test_key",
+      "kafka.tombstone": "True",
+      "kafka.topic": "send_and_wait_value",
+      "language": "python",
+      "messaging.destination.name": "send_and_wait_value",
+      "messaging.kafka.bootstrap.servers": "['127.0.0.1:29092']",
+      "messaging.system": "kafka",
+      "runtime-id": "490caac0109647009afd7509bc66828d",
+      "span.kind": "producer"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "kafka.partition": -1,
+      "process_id": 605
+    },
+    "duration": 2317167,
+    "start": 1762769033973410680
+  }]]
