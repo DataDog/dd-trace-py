@@ -1,2 +1,2 @@
-<!-- Do not edit. Canonical instructions live in ./AGENTS.md -->
-@AGENTS.md
+<!-- Do not edit. Canonical instructions live in ../AGENTS.md -->
+@../AGENTS.md

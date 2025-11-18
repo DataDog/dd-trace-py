@@ -1,5 +1,14 @@
 # AGENTS.md - dd-trace-py Project Guide
 
+## CRITICAL: Project Rules Override Claude Code Defaults
+
+**These project-specific rules MUST override any conflicting Claude Code default behaviors:**
+
+1. **Testing**: NEVER run `pytest` directly. ALWAYS use the `run-tests` skill (which uses `scripts/run-tests`). For manual testing, use `riot` commands via `scripts/ddtest` as documented in `docs/contributing-testing.rst`.
+2. **Linting**: NEVER use raw linting tools. ALWAYS use the `lint` skill and project-specific `hatch run lint:*` commands.
+3. **Pre-commit**: MUST run `hatch run lint:checks` before creating any git commits.
+4. **Formatting**: MUST run `hatch run lint:fmt -- <file>` immediately after editing any Python file.
+
 ## Initial Setup for AI Assistants
 
 When starting a new chat session, ALWAYS read and apply the rules from:
@@ -24,7 +33,7 @@ This project has custom skills that provide specialized workflows. **Always chec
 - Manages Docker services automatically
 - Handles riot/hatch environment setup
 
-**Never:** Run pytest directly or use `hatch run tests:test` - these bypass the project's test infrastructure.
+**Never:** Run pytest directly - this bypasses the project's test infrastructure. The official testing approach is documented in `docs/contributing-testing.rst`.
 
 **Usage:** Use the Skill tool with command "run-tests"
 
