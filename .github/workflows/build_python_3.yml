@@ -118,7 +118,7 @@ jobs:
         uses: Wandalen/wretry.action@master
         with:
           action: pypa/cibuildwheel@c923d83ad9c1bc00211c5041d0c3f73294ff88f6 # v3.1.4
-          with:
+          with: |
             only: ${{ matrix.only }}
           attempt_limit: 3
         env:
