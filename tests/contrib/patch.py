@@ -8,8 +8,8 @@ from tempfile import NamedTemporaryFile
 from textwrap import dedent
 import unittest
 
-from ddtrace.internal.compat import is_wrapted
 from ddtrace import __version__
+from ddtrace.internal.compat import is_wrapted
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import call_program

@@ -11,9 +11,9 @@ from flask import Flask  # noqa: E402
 from flask import request  # noqa: E402
 import requests  # noqa: E402 F401
 
+from ddtrace import __version__  # noqa: E402
 from ddtrace.internal.settings.asm import config as asm_config  # noqa: E402
 import ddtrace.internal.telemetry.writer  # noqa: E402
-from ddtrace import __version__  # noqa: E402
 
 
 app = Flask(__name__)

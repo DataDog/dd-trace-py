@@ -11,6 +11,7 @@ from ddtrace.internal.sampling import _set_sampling_tags
 from ddtrace.trace import TraceFilter
 from ddtrace.version import __version__
 
+
 if TYPE_CHECKING:
     from ddtrace.trace import Span  # noqa:F401
 
