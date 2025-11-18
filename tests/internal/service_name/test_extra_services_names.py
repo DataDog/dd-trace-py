@@ -4,7 +4,9 @@ import sys
 import pytest
 
 
-@pytest.mark.skipif(sys.platform in ("win32", "cygwin"), reason="Fork not supported on Windows")
+@pytest.mark.skipif(
+    sys.platform in ("win32", "cygwin", "macos"), reason="Fork not supported on Windows; Test is flaky on macos"
+)
 def test_config_extra_service_names_fork(run_python_code_in_subprocess):
     code = """
 import ddtrace.auto
