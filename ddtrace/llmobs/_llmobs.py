@@ -57,6 +57,8 @@ from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import EXPERIMENT_CSV_FIELD_MAX_SIZE
 from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
 from ddtrace.llmobs._constants import EXPERIMENT_ID_KEY
+from ddtrace.llmobs._constants import EXPERIMENT_RUN_ID_KEY
+from ddtrace.llmobs._constants import EXPERIMENT_RUN_ITERATION_KEY
 from ddtrace.llmobs._constants import EXPERIMENTS_INPUT
 from ddtrace.llmobs._constants import EXPERIMENTS_OUTPUT
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
@@ -481,6 +483,20 @@ class LLMObs(Service):
         existing_tags = span._get_ctx_item(TAGS)
         if existing_tags is not None:
             tags.update(existing_tags)
+
+        # set experiment tags on children spans if the tags do not already exist
+        experiment_id = span.context.get_baggage_item(EXPERIMENT_ID_KEY)
+        if experiment_id and "experiment_id" not in tags:
+            tags["experiment_id"] = experiment_id
+
+        run_id = span.context.get_baggage_item(EXPERIMENT_RUN_ID_KEY)
+        if run_id and "run_id" not in tags:
+            tags["run_id"] = run_id
+
+        run_iteration = span.context.get_baggage_item(EXPERIMENT_RUN_ITERATION_KEY)
+        if run_iteration and "run_iteration" not in tags:
+            tags["run_iteration"] = run_iteration
+
         return ["{}:{}".format(k, v) for k, v in tags.items()]
 
     def _do_annotations(self, span: Span) -> None:
@@ -815,6 +831,7 @@ class LLMObs(Service):
                 ]
             ]
         ] = None,
+        runs: Optional[int] = 1,
     ) -> Experiment:
         """Initializes an Experiment to run a task on a Dataset and evaluators.
 
@@ -831,6 +848,8 @@ class LLMObs(Service):
                                    to produce a single value.
                                    Must accept parameters ``inputs``, ``outputs``, ``expected_outputs``,
                                    ``evaluators_results``.
+        :param runs: The number of times to run the experiment, or, run the task for every dataset record the defined
+                     number of times.
         """
         if not callable(task):
             raise TypeError("task must be a callable function.")
@@ -871,6 +890,7 @@ class LLMObs(Service):
             config=config,
             _llmobs_instance=cls._instance,
             summary_evaluators=summary_evaluators,
+            runs=runs,
         )
 
     @classmethod
@@ -1337,6 +1357,8 @@ class LLMObs(Service):
         session_id: Optional[str] = None,
         ml_app: Optional[str] = None,
         experiment_id: Optional[str] = None,
+        run_id: Optional[str] = None,
+        run_iteration: Optional[int] = None,
     ) -> Span:
         """
         Trace an LLM experiment, only used internally by the experiments SDK.
@@ -1354,6 +1376,12 @@ class LLMObs(Service):
         # Set experiment_id in baggage if provided
         if experiment_id:
             span.context.set_baggage_item(EXPERIMENT_ID_KEY, experiment_id)
+
+        if run_id:
+            span.context.set_baggage_item(EXPERIMENT_RUN_ID_KEY, run_id)
+
+        if run_iteration is not None:
+            span.context.set_baggage_item(EXPERIMENT_RUN_ITERATION_KEY, run_iteration)
 
         return span
 
