@@ -82,7 +82,7 @@ class Sample
     std::vector<int64_t> values = {};
 
     // Additional metadata
-    int64_t endtime_ns = 0; // end of the event
+    int64_t endtime_ns = 0;         // end of the event
     bool reverse_locations = false; // whether to reverse locations when exporting/flushing
 
     // Backing memory for string copies

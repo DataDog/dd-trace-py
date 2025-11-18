@@ -141,7 +141,7 @@ Datadog::Sample::flush_sample()
 {
     // Export the sample data (export_sample handles dropped frames)
     auto ret = export_sample();
-    
+
     // Clear buffers after exporting
     clear_buffers();
     return ret;
