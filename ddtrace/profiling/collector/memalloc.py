@@ -3,6 +3,7 @@ import logging
 import os
 import threading
 from types import TracebackType
+from typing import Any
 from typing import List
 from typing import NamedTuple
 from typing import Optional
@@ -161,6 +162,37 @@ class MemoryCollector:
                 samples.append(MemorySample(frames, size, count, in_use_size, alloc_size, thread_id))
 
         return tuple(samples)
+
+    def snapshot_and_parse_pprof(self, output_filename: str) -> Any:
+        """Export samples to profile, upload, and parse the pprof profile.
+
+        This is similar to test_snapshot() but exports to the profile and returns
+        the parsed pprof profile instead of Python objects.
+
+        Args:
+            output_filename: The pprof output filename prefix (without .pid.counter suffix)
+
+        Returns:
+            Parsed pprof profile object (pprof_pb2.Profile)
+
+        Raises:
+            ImportError: If pprof_utils is not available (only available in test environment)
+        """
+        # Export samples to profile
+        self.snapshot()
+
+        # Upload to write profile to disk
+        ddup.upload()  # type: ignore[attr-defined]
+
+        # Parse the profile (only available in test environment)
+        try:
+            from tests.profiling.collector import pprof_utils
+        except ImportError:
+            raise ImportError(
+                "pprof_utils is not available. snapshot_and_parse_pprof() is only available in test environment."
+            )
+
+        return pprof_utils.parse_newest_profile(output_filename)
 
     def collect(self) -> Tuple[MemorySample, ...]:
         return tuple()
