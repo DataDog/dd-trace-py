@@ -2,6 +2,7 @@ import os
 import time
 
 import mock
+import pytest
 
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
@@ -29,13 +30,28 @@ def test_data_streams_processor():
     assert processor._buckets[bucket_time_ns].pathway_stats[aggr_key_2].full_pathway_latency.count == 1
 
 
+@pytest.mark.subprocess(
+    env=dict(
+        DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED="true",
+    )
+)
 def test_new_pathway_uses_base_hash():
-    with mock.patch("ddtrace.internal.datastreams.processor.process_tags") as mock_process_tags:
-        mock_process_tags.base_hash = 987654321
+    from ddtrace.internal.datastreams.processor import DataStreamsProcessor
+    from ddtrace.internal.process_tags import update_base_hash
 
-        ctx = processor.new_pathway(now_sec=mocked_time)
+    processor = DataStreamsProcessor("http://localhost:8126")
+    mocked_time = 1642544540
 
-        assert ctx.hash == 987654321
+    ctx = processor.new_pathway(now_sec=mocked_time)
+    ctx.set_checkpoint(["direction:out", "topic:topicA", "type:kafka"])
+    hash_without_base = ctx.hash
+
+    update_base_hash("container-hash-123")
+    ctx_with_base = processor.new_pathway(now_sec=mocked_time)
+    ctx_with_base.set_checkpoint(["direction:out", "topic:topicA", "type:kafka"])
+    hash_with_base = ctx_with_base.hash
+
+    assert hash_without_base != hash_with_base
 
 
 def test_data_streams_loop_protection():

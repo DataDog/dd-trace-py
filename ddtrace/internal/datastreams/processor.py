@@ -345,7 +345,7 @@ class DataStreamsProcessor(PeriodicService):
 
         if not now_sec:
             now_sec = time.time()
-        ctx = DataStreamsCtx(self, process_tags.base_hash, now_sec, now_sec)
+        ctx = DataStreamsCtx(self, 0, now_sec, now_sec)
         self._current_context.value = ctx
         return ctx
 
@@ -420,7 +420,7 @@ class DataStreamsCtx:
         def get_bytes(s):
             return bytes(s, encoding="utf-8")
 
-        b = get_bytes(self.service) + get_bytes(self.env)
+        b = get_bytes(self.service) + get_bytes(self.env) + get_bytes(process_tags.base_hash)
         for t in tags:
             b += get_bytes(t)
         node_hash = fnv1_64(b)

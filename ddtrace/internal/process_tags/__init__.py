@@ -53,5 +53,5 @@ def update_base_hash(new_base_hash):
         base_hash = new_base_hash
 
 
-base_hash = 0
+base_hash = ""
 process_tags = generate_process_tags()
