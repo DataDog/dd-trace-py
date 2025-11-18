@@ -115,9 +115,12 @@ jobs:
           platforms: all
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@c923d83ad9c1bc00211c5041d0c3f73294ff88f6 # v3.1.4
+        uses: Wandalen/wretry.action@master
         with:
-          only: ${{ matrix.only }}
+          action: pypa/cibuildwheel@c923d83ad9c1bc00211c5041d0c3f73294ff88f6 # v3.1.4
+          with:
+            only: ${{ matrix.only }}
+          attempt_limit: 3
         env:
           SETUPTOOLS_SCM_PRETEND_VERSION_FOR_DDTRACE: ${{ needs.compute_version.outputs.library_version }}
           CIBW_SKIP: ${{ inputs.cibw_skip }}
