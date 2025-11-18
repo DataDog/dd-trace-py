@@ -349,7 +349,7 @@ unsafe fn dump_python_traceback_as_string(
     // Make the read end non-blocking
     fcntl(read_fd, F_SETFL, O_NONBLOCK);
 
-     // Same approach as CPython's faulthandler
+    // Same approach as CPython's faulthandler
     let current_tstate = crashtracker_get_current_tstate();
 
     let error_msg = crashtracker_dump_traceback_threads(write_fd, ptr::null_mut(), current_tstate);
@@ -358,7 +358,7 @@ unsafe fn dump_python_traceback_as_string(
 
     if !error_msg.is_null() {
         close(read_fd);
-        emit_stacktrace_string("<cpython_api_error>\0".as_ptr() as *const c_char);
+        emit_stacktrace_string(error_msg as *const c_char);
         return;
     }
 
