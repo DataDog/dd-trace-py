@@ -8,7 +8,7 @@ variables:
       user: bits
   # DEV: we have a larger pool of amd64 runners, prefer that over arm64
   tags: [ "arch:amd64" ]
-  timeout: 20m
+  timeout: 30m
   before_script:
     - ulimit -c unlimited
     - git config --global --add safe.directory ${CI_PROJECT_DIR}
