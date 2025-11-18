@@ -79,6 +79,7 @@ jobs:
     needs: ["compute_version", "build-wheels-matrix" ]
     runs-on: ${{ matrix.os }}
     name: Build ${{ matrix.only }}
+    max_attempts: 3
     strategy:
       fail-fast: false
       matrix:
