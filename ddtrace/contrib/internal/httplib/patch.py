@@ -19,9 +19,9 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.settings.asm import config as asm_config
 
 
 span_name = "http.client.request"
@@ -102,10 +102,10 @@ def _wrap_request(func, instance, args, kwargs):
         # Create a new span and attach to this instance (so we can retrieve/update/close later on the response)
         span = pin.tracer.trace(span_name, span_type=SpanTypes.HTTP)
 
-        span.set_tag_str(COMPONENT, config.httplib.integration_name)
+        span._set_tag_str(COMPONENT, config.httplib.integration_name)
 
         # set span.kind to the type of operation being performed
-        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         instance._datadog_span = span
 
@@ -147,10 +147,10 @@ def _wrap_putrequest(func, instance, args, kwargs):
             # Create a new span and attach to this instance (so we can retrieve/update/close later on the response)
             span = pin.tracer.trace(span_name, span_type=SpanTypes.HTTP)
 
-            span.set_tag_str(COMPONENT, config.httplib.integration_name)
+            span._set_tag_str(COMPONENT, config.httplib.integration_name)
 
             # set span.kind to the type of operation being performed
-            span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+            span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
             instance._datadog_span = span
 

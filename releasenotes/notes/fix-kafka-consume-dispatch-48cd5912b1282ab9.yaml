@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    kafka: This fix resolves an issue where only the first message in a batch was dispatched to Data Streams Monitoring (DSM) when consuming multiple Kafka messages

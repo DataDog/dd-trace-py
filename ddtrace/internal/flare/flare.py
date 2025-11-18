@@ -10,7 +10,9 @@ import time
 from typing import Optional
 import zipfile
 
+from ddtrace import config
 from ddtrace._logger import _add_file_handler
+from ddtrace._logger import _configure_ddtrace_native_logger
 from ddtrace.internal.flare.json_formatter import StructuredJSONFormatter
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.http import get_connection
@@ -128,6 +130,9 @@ class Flare:
             log.debug("Could not find %s to remove", TRACER_FLARE_FILE_HANDLER_NAME)
         ddlogger.setLevel(self.original_log_level)
 
+        # Restore native logger configuration from env vars
+        _configure_ddtrace_native_logger()
+
     def _validate_case_id(self, case_id: str) -> bool:
         """
         Validate case_id (must be numeric or specific allowed patterns).
@@ -179,6 +184,14 @@ class Flare:
             TRACER_FLARE_FILE_HANDLER_NAME,
             formatter=json_formatter,
         )
+
+        if config._trace_writer_native:
+            from ddtrace.internal.native._native import logger as native_logger
+
+            native_flare_path = self.flare_dir / f"tracer_native_{pid}.log"
+            native_logger.configure(output="file", path=str(native_flare_path))
+            native_logger.set_log_level(logging.getLevelName(flare_log_level_int))
+
         return pid
 
     def _create_zip_content(self) -> bytes:

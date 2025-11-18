@@ -16,13 +16,17 @@ import tempfile
 import time
 from typing import Generator
 from typing import List
+from typing import Optional
 from unittest.mock import MagicMock
+from uuid import UUID
 
 import mock
 import pytest
 
+import ddtrace
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
+from ddtrace.llmobs._experiment import _ExperimentRunInfo
 from tests.utils import override_global_config
 
 
@@ -62,6 +66,17 @@ def dummy_summary_evaluator_using_missing_eval_results(inputs, outputs, expected
     return len(inputs) + len(outputs) + len(expected_outputs) + len(evaluators_results["non_existent_evaluator"])
 
 
+DUMMY_EXPERIMENT_FIRST_RUN_ID = UUID("12345678-abcd-abcd-abcd-123456789012")
+
+
+def run_info_with_stable_id(iteration: int, run_id: Optional[str] = None) -> _ExperimentRunInfo:
+    eri = _ExperimentRunInfo(iteration)
+    eri._id = "12345678-abcd-abcd-abcd-123456789012"
+    if run_id is not None:
+        eri._id = run_id
+    return eri
+
+
 @pytest.fixture
 def test_dataset_records() -> List[DatasetRecord]:
     return []
@@ -69,7 +84,9 @@ def test_dataset_records() -> List[DatasetRecord]:
 
 @pytest.fixture
 def test_dataset_name(request) -> str:
-    return f"test-dataset-{request.node.name}"
+    from tests.conftest import get_original_test_name
+
+    return f"test-dataset-{get_original_test_name(request)}"
 
 
 @pytest.fixture
@@ -300,7 +317,8 @@ def test_dataset_csv_no_expected_output(llmobs, tmp_csv_file_for_upload):
             assert len(ds) == len(dataset)
             assert ds.name == dataset.name
             assert ds.description == dataset.description
-            assert ds._version == 1
+            assert ds.latest_version == 1
+            assert ds.latest_version == ds.version
         finally:
             if dataset_id:
                 llmobs._delete_dataset(dataset_id=dataset_id)
@@ -347,7 +365,8 @@ def test_dataset_csv(llmobs, tmp_csv_file_for_upload):
             assert len(ds) == len(dataset)
             assert ds.name == dataset.name
             assert ds.description == dataset.description
-            assert ds._version == 1
+            assert ds.latest_version == 1
+            assert ds.latest_version == ds.version
         finally:
             if dataset_id:
                 llmobs._delete_dataset(dataset_id=dataset_id)
@@ -400,7 +419,8 @@ def test_dataset_csv_pipe_separated(llmobs, tmp_csv_file_for_upload):
             assert len(ds) == len(dataset)
             assert ds.name == dataset.name
             assert ds.description == dataset.description
-            assert ds._version == 1
+            assert ds.latest_version == 1
+            assert ds.latest_version == ds.version
         finally:
             if dataset_id:
                 llmobs._delete_dataset(dataset_id=dataset._id)
@@ -423,7 +443,8 @@ def test_dataset_pull_large_num_records(llmobs, test_dataset_large_num_records):
     assert len(pds) == len(test_dataset_large_num_records)
     assert pds.name == test_dataset_large_num_records.name
     assert pds.description == test_dataset_large_num_records.description
-    assert pds._version == test_dataset_large_num_records._version == 1
+    assert pds.latest_version == test_dataset_large_num_records.latest_version == 1
+    assert pds.version == test_dataset_large_num_records.version == 1
 
     dataset = sorted(pds, key=lambda r: int(r["input_data"].lstrip("input_")))
     for i, d in enumerate(dataset):
@@ -450,7 +471,57 @@ def test_dataset_pull_exists_with_record(llmobs, test_dataset_one_record):
     assert dataset[0]["expected_output"] == {"answer": "Paris"}
     assert dataset.name == test_dataset_one_record.name
     assert dataset.description == test_dataset_one_record.description
-    assert dataset._version == test_dataset_one_record._version == 1
+    assert dataset.latest_version == test_dataset_one_record.latest_version == 1
+    assert dataset.version == test_dataset_one_record.version == 1
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [[DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"})]],
+)
+def test_dataset_pull_w_versions(llmobs, test_dataset, test_dataset_records):
+    assert len(test_dataset) == 1
+    assert test_dataset[0]["input_data"] == {"prompt": "What is the capital of France?"}
+    assert test_dataset[0]["expected_output"] == {"answer": "Paris"}
+    assert test_dataset.latest_version == 1
+    assert test_dataset.version == 1
+
+    test_dataset.append(
+        {"input_data": {"prompt": "What is the capital of China?"}, "expected_output": {"answer": "Beijing"}}
+    )
+    test_dataset.push()
+    wait_for_backend(4)
+
+    dataset_v2 = llmobs.pull_dataset(dataset_name=test_dataset.name)
+    assert len(dataset_v2) == 2
+    assert dataset_v2[1]["input_data"] == {"prompt": "What is the capital of France?"}
+    assert dataset_v2[1]["expected_output"] == {"answer": "Paris"}
+    assert dataset_v2[0]["input_data"] == {"prompt": "What is the capital of China?"}
+    assert dataset_v2[0]["expected_output"] == {"answer": "Beijing"}
+    assert dataset_v2.name == test_dataset.name
+    assert dataset_v2.description == test_dataset.description
+    assert dataset_v2.latest_version == test_dataset.latest_version == 2
+    assert dataset_v2.version == test_dataset.version == 2
+
+    dataset_v1 = llmobs.pull_dataset(dataset_name=test_dataset.name, version=1)
+    assert len(dataset_v1) == 1
+    assert dataset_v1[0]["input_data"] == {"prompt": "What is the capital of France?"}
+    assert dataset_v1[0]["expected_output"] == {"answer": "Paris"}
+    assert dataset_v1.name == test_dataset.name
+    assert dataset_v1.description == test_dataset.description
+    assert dataset_v1.latest_version == test_dataset.latest_version == 2
+    assert dataset_v1.version == 1
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [[DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"})]],
+)
+def test_dataset_pull_w_invalid_version(llmobs, test_dataset, test_dataset_records):
+    with pytest.raises(
+        ValueError, match="Failed to pull dataset records for.*version is greater than the current version or negative"
+    ):
+        llmobs.pull_dataset(dataset_name=test_dataset.name, version=420)
 
 
 def test_dataset_pull_from_project(llmobs, test_dataset_one_record_separate_project):
@@ -464,7 +535,8 @@ def test_dataset_pull_from_project(llmobs, test_dataset_one_record_separate_proj
     assert dataset[0]["expected_output"] == {"answer": "Boston"}
     assert dataset.name == test_dataset_one_record_separate_project.name
     assert dataset.description == test_dataset_one_record_separate_project.description
-    assert dataset._version == test_dataset_one_record_separate_project._version == 1
+    assert dataset.latest_version == test_dataset_one_record_separate_project.latest_version == 1
+    assert dataset.version == test_dataset_one_record_separate_project.version == 1
 
 
 @pytest.mark.parametrize(
@@ -479,7 +551,8 @@ def test_dataset_pull_from_project(llmobs, test_dataset_one_record_separate_proj
     ],
 )
 def test_dataset_modify_records_multiple_times(llmobs, test_dataset, test_dataset_records):
-    assert test_dataset._version == 1
+    assert test_dataset.latest_version == 1
+    assert test_dataset.version == 1
 
     test_dataset.update(
         0,
@@ -518,7 +591,8 @@ def test_dataset_modify_records_multiple_times(llmobs, test_dataset, test_datase
 
     test_dataset.push()
     assert len(test_dataset) == 2
-    assert test_dataset._version == 2
+    assert test_dataset.latest_version == 2
+    assert test_dataset.version == 2
 
     assert test_dataset[0]["input_data"] == {"prompt": "What is the capital of Germany?"}
     assert test_dataset[0]["expected_output"] == {"answer": "Berlin"}
@@ -548,7 +622,8 @@ def test_dataset_modify_records_multiple_times(llmobs, test_dataset, test_datase
     assert len(ds) == 2
     assert ds.name == test_dataset.name
     assert ds.description == test_dataset.description
-    assert ds._version == 2
+    assert ds.latest_version == 2
+    assert ds.version == 2
 
 
 @pytest.mark.parametrize(
@@ -556,7 +631,8 @@ def test_dataset_modify_records_multiple_times(llmobs, test_dataset, test_datase
     [[DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"})]],
 )
 def test_dataset_modify_single_record(llmobs, test_dataset, test_dataset_records):
-    assert test_dataset._version == 1
+    assert test_dataset.latest_version == 1
+    assert test_dataset.version == 1
 
     test_dataset.update(
         0,
@@ -568,7 +644,8 @@ def test_dataset_modify_single_record(llmobs, test_dataset, test_dataset_records
 
     test_dataset.push()
     assert len(test_dataset) == 1
-    assert test_dataset._version == 2
+    assert test_dataset.latest_version == 2
+    assert test_dataset.version == 2
 
     assert test_dataset[0]["input_data"] == {"prompt": "What is the capital of Germany?"}
     assert test_dataset[0]["expected_output"] == {"answer": "Berlin"}
@@ -585,7 +662,8 @@ def test_dataset_modify_single_record(llmobs, test_dataset, test_dataset_records
     assert len(ds) == 1
     assert ds.name == test_dataset.name
     assert ds.description == test_dataset.description
-    assert ds._version == 2
+    assert ds.latest_version == 2
+    assert ds.version == 2
 
 
 @pytest.mark.parametrize(
@@ -593,7 +671,8 @@ def test_dataset_modify_single_record(llmobs, test_dataset, test_dataset_records
     [[DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"})]],
 )
 def test_dataset_modify_single_record_empty_record(llmobs, test_dataset, test_dataset_records):
-    assert test_dataset._version == 1
+    assert test_dataset.latest_version == 1
+    assert test_dataset.version == 1
 
     with pytest.raises(
         ValueError,
@@ -615,7 +694,8 @@ def test_dataset_estimate_size(llmobs, test_dataset):
     [[DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"})]],
 )
 def test_dataset_modify_record_on_optional(llmobs, test_dataset, test_dataset_records):
-    assert test_dataset._version == 1
+    assert test_dataset.latest_version == 1
+    assert test_dataset.version == 1
 
     test_dataset.update(0, {"expected_output": None})
     assert test_dataset[0]["input_data"] == {"prompt": "What is the capital of France?"}
@@ -624,7 +704,8 @@ def test_dataset_modify_record_on_optional(llmobs, test_dataset, test_dataset_re
 
     test_dataset.push()
     assert len(test_dataset) == 1
-    assert test_dataset._version == 2
+    assert test_dataset.latest_version == 2
+    assert test_dataset.version == 2
 
     assert test_dataset[0]["input_data"] == {"prompt": "What is the capital of France?"}
     assert test_dataset[0]["expected_output"] is None
@@ -641,7 +722,8 @@ def test_dataset_modify_record_on_optional(llmobs, test_dataset, test_dataset_re
     assert len(ds) == 1
     assert ds.name == test_dataset.name
     assert ds.description == test_dataset.description
-    assert ds._version == 2
+    assert ds.latest_version == 2
+    assert ds.version == 2
 
 
 @pytest.mark.parametrize(
@@ -657,7 +739,8 @@ def test_dataset_modify_record_on_optional(llmobs, test_dataset, test_dataset_re
     ],
 )
 def test_dataset_modify_record_on_input(llmobs, test_dataset, test_dataset_records):
-    assert test_dataset._version == 1
+    assert test_dataset.latest_version == 1
+    assert test_dataset.version == 1
     test_dataset.update(0, {"input_data": "A"})
     assert test_dataset[0]["input_data"] == "A"
     assert test_dataset[0]["expected_output"] == {"answer": "Paris"}
@@ -665,7 +748,8 @@ def test_dataset_modify_record_on_input(llmobs, test_dataset, test_dataset_recor
 
     test_dataset.push()
     assert len(test_dataset) == 1
-    assert test_dataset._version == 2
+    assert test_dataset.latest_version == 2
+    assert test_dataset.version == 2
 
     assert test_dataset[0]["input_data"] == "A"
     assert test_dataset[0]["expected_output"] == {"answer": "Paris"}
@@ -684,7 +768,8 @@ def test_dataset_modify_record_on_input(llmobs, test_dataset, test_dataset_recor
     assert len(ds) == 1
     assert ds.name == test_dataset.name
     assert ds.description == test_dataset.description
-    assert ds._version == 2
+    assert ds.latest_version == 2
+    assert ds.version == 2
 
 
 @pytest.mark.parametrize(
@@ -696,7 +781,8 @@ def test_dataset_append(llmobs, test_dataset):
         DatasetRecord(input_data={"prompt": "What is the capital of Italy?"}, expected_output={"answer": "Rome"})
     )
     assert len(test_dataset) == 2
-    assert test_dataset._version == 1
+    assert test_dataset.latest_version == 1
+    assert test_dataset.version == 1
 
     wait_for_backend()
     test_dataset.push()
@@ -707,12 +793,14 @@ def test_dataset_append(llmobs, test_dataset):
     assert test_dataset[1]["expected_output"] == {"answer": "Rome"}
     assert test_dataset.name == test_dataset.name
     assert test_dataset.description == test_dataset.description
-    assert test_dataset._version == 2
+    assert test_dataset.latest_version == 2
+    assert test_dataset.version == 2
 
     # check that a pulled dataset matches the pushed dataset
     wait_for_backend()
     ds = llmobs.pull_dataset(dataset_name=test_dataset.name)
-    assert ds._version == 2
+    assert ds.latest_version == 2
+    assert ds.version == 2
     assert len(ds) == 2
     # note: it looks like dataset order is not deterministic
     assert ds[1]["input_data"] == {"prompt": "What is the capital of France?"}
@@ -735,7 +823,8 @@ def test_dataset_extend(llmobs, test_dataset):
         ]
     )
     assert len(test_dataset) == 3
-    assert test_dataset._version == 1
+    assert test_dataset.latest_version == 1
+    assert test_dataset.version == 1
 
     wait_for_backend()
     test_dataset.push()
@@ -748,12 +837,14 @@ def test_dataset_extend(llmobs, test_dataset):
     assert test_dataset[2]["expected_output"] == {"answer": "Stockholm"}
     assert test_dataset.name == test_dataset.name
     assert test_dataset.description == test_dataset.description
-    assert test_dataset._version == 2
+    assert test_dataset.latest_version == 2
+    assert test_dataset.version == 2
 
     # check that a pulled dataset matches the pushed dataset
     wait_for_backend()
     ds = llmobs.pull_dataset(dataset_name=test_dataset.name)
-    assert ds._version == 2
+    assert ds.latest_version == 2
+    assert ds.version == 2
     assert len(ds) == 3
     assert ds[2]["input_data"] == {"prompt": "What is the capital of France?"}
     # order is non deterministic
@@ -770,7 +861,8 @@ def test_dataset_extend(llmobs, test_dataset):
 def test_dataset_append_no_expected_output(llmobs, test_dataset):
     test_dataset.append(DatasetRecord(input_data={"prompt": "What is the capital of Sealand?"}))
     assert len(test_dataset) == 2
-    assert test_dataset._version == 1
+    assert test_dataset.latest_version == 1
+    assert test_dataset.version == 1
 
     wait_for_backend()
     test_dataset.push()
@@ -781,12 +873,14 @@ def test_dataset_append_no_expected_output(llmobs, test_dataset):
     assert "expected_output" not in test_dataset[1]
     assert test_dataset.name == test_dataset.name
     assert test_dataset.description == test_dataset.description
-    assert test_dataset._version == 2
+    assert test_dataset.latest_version == 2
+    assert test_dataset.version == 2
 
     # check that a pulled dataset matches the pushed dataset
     wait_for_backend()
     ds = llmobs.pull_dataset(dataset_name=test_dataset.name)
-    assert ds._version == 2
+    assert ds.latest_version == 2
+    assert ds.version == 2
     assert len(ds) == 2
     # note: it looks like dataset order is not deterministic
     assert ds[1]["input_data"] == {"prompt": "What is the capital of France?"}
@@ -809,11 +903,13 @@ def test_dataset_append_no_expected_output(llmobs, test_dataset):
 def test_dataset_delete(llmobs, test_dataset):
     test_dataset.delete(0)
     assert len(test_dataset) == 1
-    assert test_dataset._version == 1
+    assert test_dataset.latest_version == 1
+    assert test_dataset.version == 1
 
     wait_for_backend()
     test_dataset.push()
-    assert test_dataset._version == 2
+    assert test_dataset.latest_version == 2
+    assert test_dataset.version == 2
     assert len(test_dataset) == 1
     assert test_dataset[0]["input_data"] == {"prompt": "What is the capital of Italy?"}
     assert test_dataset[0]["expected_output"] == {"answer": "Rome"}
@@ -823,7 +919,8 @@ def test_dataset_delete(llmobs, test_dataset):
     # check that a pulled dataset matches the pushed dataset
     wait_for_backend()
     ds = llmobs.pull_dataset(dataset_name=test_dataset.name)
-    assert ds._version == 2
+    assert ds.latest_version == 2
+    assert ds.version == 2
     assert len(ds) == 1
     assert ds[0]["input_data"] == {"prompt": "What is the capital of Italy?"}
     assert ds[0]["expected_output"] == {"answer": "Rome"}
@@ -841,11 +938,13 @@ def test_dataset_delete(llmobs, test_dataset):
 def test_dataset_delete_no_expected_output(llmobs, test_dataset):
     test_dataset.delete(1)
     assert len(test_dataset) == 1
-    assert test_dataset._version == 1
+    assert test_dataset.latest_version == 1
+    assert test_dataset.version == 1
 
     wait_for_backend()
     test_dataset.push()
-    assert test_dataset._version == 2
+    assert test_dataset.latest_version == 2
+    assert test_dataset.version == 2
     assert len(test_dataset) == 1
     assert test_dataset[0]["input_data"] == {"prompt": "What is the capital of Nauru?"}
     assert "expected_output" not in test_dataset[0]
@@ -855,7 +954,8 @@ def test_dataset_delete_no_expected_output(llmobs, test_dataset):
     # check that a pulled dataset matches the pushed dataset
     wait_for_backend()
     ds = llmobs.pull_dataset(dataset_name=test_dataset.name)
-    assert ds._version == 2
+    assert ds.latest_version == 2
+    assert ds.version == 2
     assert len(ds) == 1
     assert ds[0]["input_data"] == {"prompt": "What is the capital of Nauru?"}
     assert ds[0]["expected_output"] is None
@@ -879,11 +979,13 @@ def test_dataset_delete_after_update(llmobs, test_dataset):
 
     test_dataset.delete(0)
     assert len(test_dataset) == 1
-    assert test_dataset._version == 1
+    assert test_dataset.latest_version == 1
+    assert test_dataset.version == 1
 
     wait_for_backend()
     test_dataset.push()
-    assert test_dataset._version == 2
+    assert test_dataset.latest_version == 2
+    assert test_dataset.version == 2
     assert len(test_dataset) == 1
     assert test_dataset[0]["input_data"] == {"prompt": "What is the capital of Italy?"}
     assert test_dataset[0]["expected_output"] == {"answer": "Rome"}
@@ -893,7 +995,8 @@ def test_dataset_delete_after_update(llmobs, test_dataset):
     # check that a pulled dataset matches the pushed dataset
     wait_for_backend()
     ds = llmobs.pull_dataset(dataset_name=test_dataset.name)
-    assert ds._version == 2
+    assert ds.latest_version == 2
+    assert ds.version == 2
     assert len(ds) == 1
     assert ds[0]["input_data"] == {"prompt": "What is the capital of Italy?"}
     assert ds[0]["expected_output"] == {"answer": "Rome"}
@@ -918,14 +1021,16 @@ def test_dataset_delete_after_append(llmobs, test_dataset):
     test_dataset.delete(0)
     # all that remains should be Italy and Sweden questions
     assert len(test_dataset) == 2
-    assert test_dataset._version == 1
+    assert test_dataset.latest_version == 1
+    assert test_dataset.version == 1
 
     assert len(test_dataset._new_records_by_record_id) == 1
     assert len(test_dataset._deleted_record_ids) == 1
 
     wait_for_backend()
     test_dataset.push()
-    assert test_dataset._version == 2
+    assert test_dataset.latest_version == 2
+    assert test_dataset.version == 2
     assert len(test_dataset) == 2
     assert test_dataset[0]["input_data"] == {"prompt": "What is the capital of Italy?"}
     assert test_dataset[0]["expected_output"] == {"answer": "Rome"}
@@ -937,7 +1042,8 @@ def test_dataset_delete_after_append(llmobs, test_dataset):
     # check that a pulled dataset matches the pushed dataset
     wait_for_backend()
     ds = llmobs.pull_dataset(dataset_name=test_dataset.name)
-    assert ds._version == 2
+    assert ds.latest_version == 2
+    assert ds.version == 2
     assert len(ds) == 2
     sds = sorted(ds, key=lambda r: r["input_data"]["prompt"])
     assert sds[0]["input_data"] == {"prompt": "What is the capital of Italy?"}
@@ -1106,7 +1212,7 @@ def test_experiment_create(llmobs, test_dataset_one_record):
     project = llmobs._instance._dne_client.project_create_or_get("test-project")
     project_id = project.get("_id")
     exp_id, exp_run_name = llmobs._instance._dne_client.experiment_create(
-        exp.name, exp._dataset._id, project_id, exp._dataset._version, exp._config
+        exp.name, exp._dataset._id, project_id, exp._dataset.latest_version, exp._config
     )
     assert exp_id is not None
     assert exp_run_name.startswith("test_experiment")
@@ -1131,7 +1237,7 @@ def test_experiment_run_task(llmobs, test_dataset, test_dataset_records):
         [dummy_evaluator],
         config={"models": ["gpt-4.1"]},
     )
-    task_results = exp._run_task(1, raise_errors=False)
+    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
     assert len(task_results) == 2
     assert task_results[0] == {
         "idx": 0,
@@ -1163,7 +1269,7 @@ def test_experiment_run_task(llmobs, test_dataset, test_dataset_records):
 
 def test_experiment_run_task_error(llmobs, test_dataset_one_record):
     exp = llmobs.experiment("test_experiment", faulty_task, test_dataset_one_record, [dummy_evaluator])
-    task_results = exp._run_task(1, raise_errors=False)
+    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
     assert len(task_results) == 1
     assert task_results == [
         {
@@ -1191,12 +1297,12 @@ def test_experiment_run_task_error_raises(llmobs, test_dataset_one_record):
         RuntimeError,
         match=re.compile("Error on record 0: This is a test error\n.*ValueError.*in faulty_task.*", flags=re.DOTALL),
     ):
-        exp._run_task(1, raise_errors=True)
+        exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=True)
 
 
 def test_experiment_run_evaluators(llmobs, test_dataset_one_record):
     exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
-    task_results = exp._run_task(1, raise_errors=False)
+    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
     assert len(task_results) == 1
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
     assert len(eval_results) == 1
@@ -1211,7 +1317,7 @@ def test_experiment_run_summary_evaluators(llmobs, test_dataset_one_record):
         [dummy_evaluator],
         summary_evaluators=[dummy_summary_evaluator],
     )
-    task_results = exp._run_task(1, raise_errors=False)
+    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
     assert len(task_results) == 1
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
     assert len(eval_results) == 1
@@ -1226,7 +1332,7 @@ def test_experiment_run_summary_evaluators(llmobs, test_dataset_one_record):
 
 def test_experiment_run_evaluators_error(llmobs, test_dataset_one_record):
     exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [faulty_evaluator])
-    task_results = exp._run_task(1, raise_errors=False)
+    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
     assert len(task_results) == 1
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
     assert len(eval_results) == 1
@@ -1245,7 +1351,7 @@ def test_experiment_run_summary_evaluators_error(llmobs, test_dataset_one_record
         [dummy_evaluator],
         summary_evaluators=[faulty_summary_evaluator],
     )
-    task_results = exp._run_task(1, raise_errors=False)
+    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
     assert len(task_results) == 1
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
     assert len(eval_results) == 1
@@ -1269,7 +1375,7 @@ def test_experiment_summary_evaluators_missing_eval_error(llmobs, test_dataset_o
         [dummy_evaluator],
         summary_evaluators=[dummy_summary_evaluator_using_missing_eval_results],
     )
-    task_results = exp._run_task(1, raise_errors=False)
+    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
     assert len(task_results) == 1
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
     assert len(eval_results) == 1
@@ -1287,7 +1393,7 @@ def test_experiment_summary_evaluators_missing_eval_error(llmobs, test_dataset_o
 
 def test_experiment_run_evaluators_error_raises(llmobs, test_dataset_one_record):
     exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [faulty_evaluator])
-    task_results = exp._run_task(1, raise_errors=False)
+    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
     assert len(task_results) == 1
     with pytest.raises(RuntimeError, match="Evaluator faulty_evaluator failed on row 0"):
         exp._run_evaluators(task_results, raise_errors=True)
@@ -1301,7 +1407,7 @@ def test_experiment_run_summary_evaluators_error_raises(llmobs, test_dataset_one
         [dummy_evaluator],
         summary_evaluators=[faulty_summary_evaluator],
     )
-    task_results = exp._run_task(1, raise_errors=False)
+    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
     assert len(task_results) == 1
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
     with pytest.raises(RuntimeError, match="Summary evaluator faulty_summary_evaluator failed"):
@@ -1316,7 +1422,7 @@ def test_experiment_summary_eval_missing_results_raises(llmobs, test_dataset_one
         [dummy_evaluator],
         summary_evaluators=[dummy_summary_evaluator_using_missing_eval_results],
     )
-    task_results = exp._run_task(1, raise_errors=False)
+    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
     assert len(task_results) == 1
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
     with pytest.raises(
@@ -1327,12 +1433,14 @@ def test_experiment_summary_eval_missing_results_raises(llmobs, test_dataset_one
 
 def test_experiment_merge_results(llmobs, test_dataset_one_record):
     exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
-    task_results = exp._run_task(1, raise_errors=False)
+    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
-    merged_results = exp._merge_results(task_results, eval_results, None)
+    merged_results = exp._merge_results(run_info_with_stable_id(0), task_results, eval_results, None)
 
-    assert len(merged_results["rows"]) == 1
-    exp_result = merged_results["rows"][0]
+    assert len(merged_results.rows) == 1
+    assert merged_results.run_iteration == 1
+    assert merged_results.run_id is not None
+    exp_result = merged_results.rows[0]
     assert exp_result["idx"] == 0
     assert exp_result["record_id"] != ""
     assert exp_result["input"] == {"prompt": "What is the capital of France?"}
@@ -1354,12 +1462,14 @@ def test_experiment_merge_results(llmobs, test_dataset_one_record):
 
 def test_experiment_merge_err_results(llmobs, test_dataset_one_record):
     exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [faulty_evaluator])
-    task_results = exp._run_task(1, raise_errors=False)
+    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
-    merged_results = exp._merge_results(task_results, eval_results, None)
+    merged_results = exp._merge_results(run_info_with_stable_id(0), task_results, eval_results, None)
 
-    assert len(merged_results["rows"]) == 1
-    exp_result = merged_results["rows"][0]
+    assert len(merged_results.rows) == 1
+    assert merged_results.run_iteration == 1
+    assert merged_results.run_id is not None
+    exp_result = merged_results.rows[0]
     assert exp_result["idx"] == 0
     assert exp_result["record_id"] != ""
     assert exp_result["input"] == {"prompt": "What is the capital of France?"}
@@ -1400,13 +1510,19 @@ def test_experiment_run(llmobs, test_dataset_one_record):
             },
             "error": {"message": None, "type": None, "stack": None},
         }
-        exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
-        exp._tags = {"ddtrace.version": "1.2.3"}  # FIXME: this is a hack to set the tags for the experiment
-        exp_results = exp.run()
+        with mock.patch("ddtrace.llmobs._experiment._ExperimentRunInfo") as mock_experiment_run_info:
+            # this is to ensure that the UUID for the run is always the same
+            mock_experiment_run_info.return_value = run_info_with_stable_id(0)
+            exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
+            exp._tags = {"ddtrace.version": "1.2.3"}  # FIXME: this is a hack to set the tags for the experiment
+            exp_results = exp.run()
 
-    assert len(exp_results["summary_evaluations"]) == 0
-    assert len(exp_results["rows"]) == 1
-    exp_result = exp_results["rows"][0]
+    assert len(exp_results.get("summary_evaluations")) == 0
+    assert len(exp_results.get("rows")) == 1
+    assert len(exp_results.get("runs")) == 1
+    assert len(exp_results.get("runs")[0].summary_evaluations) == 0
+    assert len(exp_results.get("runs")[0].rows) == 1
+    exp_result = exp_results.get("rows")[0]
     assert exp_result["idx"] == 0
     assert exp_result["input"] == {"prompt": "What is the capital of France?"}
     assert exp_result["output"] == {"prompt": "What is the capital of France?"}
@@ -1436,15 +1552,18 @@ def test_experiment_run_w_different_project(llmobs, test_dataset_one_record):
             },
             "error": {"message": None, "type": None, "stack": None},
         }
-        exp = llmobs.experiment(
-            "test_experiment",
-            dummy_task,
-            test_dataset_one_record,
-            [dummy_evaluator],
-            project_name="new-different-project",
-        )
-        exp._tags = {"ddtrace.version": "1.2.3"}  # FIXME: this is a hack to set the tags for the experiment
-        exp_results = exp.run()
+        with mock.patch("ddtrace.llmobs._experiment._ExperimentRunInfo") as mock_experiment_run_info:
+            # this is to ensure that the UUID for the run is always the same
+            mock_experiment_run_info.return_value = run_info_with_stable_id(0)
+            exp = llmobs.experiment(
+                "test_experiment",
+                dummy_task,
+                test_dataset_one_record,
+                [dummy_evaluator],
+                project_name="new-different-project",
+            )
+            exp._tags = {"ddtrace.version": "1.2.3"}  # FIXME: this is a hack to set the tags for the experiment
+            exp_results = exp.run()
 
     assert len(exp_results["summary_evaluations"]) == 0
     assert len(exp_results["rows"]) == 1
@@ -1478,15 +1597,18 @@ def test_experiment_run_w_summary(llmobs, test_dataset_one_record):
             },
             "error": {"message": None, "type": None, "stack": None},
         }
-        exp = llmobs.experiment(
-            "test_experiment",
-            dummy_task,
-            test_dataset_one_record,
-            [dummy_evaluator],
-            summary_evaluators=[dummy_summary_evaluator],
-        )
-        exp._tags = {"ddtrace.version": "1.2.3"}  # FIXME: this is a hack to set the tags for the experiment
-        exp_results = exp.run()
+        with mock.patch("ddtrace.llmobs._experiment._ExperimentRunInfo") as mock_experiment_run_info:
+            # this is to ensure that the UUID for the run is always the same
+            mock_experiment_run_info.return_value = run_info_with_stable_id(0)
+            exp = llmobs.experiment(
+                "test_experiment",
+                dummy_task,
+                test_dataset_one_record,
+                [dummy_evaluator],
+                summary_evaluators=[dummy_summary_evaluator],
+            )
+            exp._tags = {"ddtrace.version": "1.2.3"}  # FIXME: this is a hack to set the tags for the experiment
+            exp_results = exp.run()
 
     assert len(exp_results["summary_evaluations"]) == 1
     summary_eval = exp_results["summary_evaluations"]["dummy_summary_evaluator"]
@@ -1505,7 +1627,7 @@ def test_experiment_span_written_to_experiment_scope(llmobs, llmobs_events, test
     """Assert that the experiment span includes expected output field and includes the experiment scope."""
     exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
     exp._id = "1234567890"
-    exp._run_task(1, raise_errors=False)
+    exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
     assert len(llmobs_events) == 1
     event = llmobs_events[0]
     assert event["name"] == "dummy_task"
@@ -1518,4 +1640,30 @@ def test_experiment_span_written_to_experiment_scope(llmobs, llmobs_events, test
     assert "dataset_id:{}".format(test_dataset_one_record._id) in event["tags"]
     assert "dataset_record_id:{}".format(test_dataset_one_record._records[0]["record_id"]) in event["tags"]
     assert "experiment_id:1234567890" in event["tags"]
+    assert f"run_id:{DUMMY_EXPERIMENT_FIRST_RUN_ID}" in event["tags"]
+    assert "run_iteration:1" in event["tags"]
+    assert f"ddtrace.version:{ddtrace.__version__}" in event["tags"]
     assert event["_dd"]["scope"] == "experiments"
+
+
+def test_experiment_span_multi_run_tags(llmobs, llmobs_events, test_dataset_one_record):
+    exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
+    exp._id = "1234567890"
+    for i in range(2):
+        exp._run_task(1, run=run_info_with_stable_id(i), raise_errors=False)
+        assert len(llmobs_events) == i + 1
+        event = llmobs_events[i]
+        assert event["name"] == "dummy_task"
+        for key in ("span_id", "trace_id", "parent_id", "start_ns", "duration", "metrics"):
+            assert event[key] == mock.ANY
+        assert event["status"] == "ok"
+        assert event["meta"]["input"] == '{"prompt": "What is the capital of France?"}'
+        assert event["meta"]["output"] == '{"prompt": "What is the capital of France?"}'
+        assert event["meta"]["expected_output"] == '{"answer": "Paris"}'
+        assert "dataset_id:{}".format(test_dataset_one_record._id) in event["tags"]
+        assert "dataset_record_id:{}".format(test_dataset_one_record._records[0]["record_id"]) in event["tags"]
+        assert "experiment_id:1234567890" in event["tags"]
+        assert f"run_id:{DUMMY_EXPERIMENT_FIRST_RUN_ID}" in event["tags"]
+        assert f"run_iteration:{i + 1}" in event["tags"]
+        assert f"ddtrace.version:{ddtrace.__version__}" in event["tags"]
+        assert event["_dd"]["scope"] == "experiments"

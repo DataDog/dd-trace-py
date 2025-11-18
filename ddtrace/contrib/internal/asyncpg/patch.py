@@ -47,13 +47,12 @@ config._add(
 log = get_logger(__name__)
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(asyncpg, "__version__", "")
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"asyncpg": ">=0.22.0"}
+    return {"asyncpg": ">=0.23.0"}
 
 
 def _get_connection_tags(conn):
@@ -100,11 +99,11 @@ async def _traced_connect(asyncpg, pin, func, instance, args, kwargs):
     with pin.tracer.trace(
         "postgres.connect", span_type=SpanTypes.SQL, service=ext_service(pin, config.asyncpg)
     ) as span:
-        span.set_tag_str(COMPONENT, config.asyncpg.integration_name)
-        span.set_tag_str(db.SYSTEM, DBMS_NAME)
+        span._set_tag_str(COMPONENT, config.asyncpg.integration_name)
+        span._set_tag_str(db.SYSTEM, DBMS_NAME)
 
         # set span.kind to the type of request being performed
-        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         raw_conn = await func(*args, **kwargs)
         if is_pool_context:
@@ -132,11 +131,11 @@ async def _traced_query(pin, method, query, args, kwargs):
         service=ext_service(pin, config.asyncpg),
         span_type=SpanTypes.SQL,
     ) as span:
-        span.set_tag_str(COMPONENT, config.asyncpg.integration_name)
-        span.set_tag_str(db.SYSTEM, DBMS_NAME)
+        span._set_tag_str(COMPONENT, config.asyncpg.integration_name)
+        span._set_tag_str(db.SYSTEM, DBMS_NAME)
 
         # set span.kind to the type of request being performed
-        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
         # PERF: avoid setting via Span.set_tag
         span.set_metric(_SPAN_MEASURED_KEY, 1)
         span.set_tags(pin.tags)

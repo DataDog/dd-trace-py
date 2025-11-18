@@ -23,6 +23,7 @@ from ddtrace.internal.flare.flare import FlareSendRequest
 from ddtrace.internal.flare.handler import _handle_tracer_flare
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
+from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from tests.utils import remote_config_build_payload as build_payload
 
 
@@ -214,6 +215,7 @@ class TracerFlareTests(TestCase):
         self.flare.clean_up_files()
         self.flare.revert_configs()
 
+    @fibonacci_backoff_with_jitter(attempts=5, initial_wait=0.1)
     def confirm_cleanup(self):
         assert not self.flare.flare_dir.exists(), f"The directory {self.flare.flare_dir} still exists"
         # Only check for file handler cleanup if prepare() was called
@@ -848,3 +850,35 @@ class TracerFlareSubscriberTests(TestCase):
         assert (
             self.tracer_flare_sub.current_request_start == original_request_start
         ), "Original request should not have been updated with newer request start time"
+
+
+def test_native_logs(tmp_path):
+    """
+    Validate that the flare collects native logs if native writer is enabled.
+    The native logs cannot be collected with Pyfakefs so we use tmp_path.
+    """
+    import os
+
+    from ddtrace import config
+    from ddtrace.internal.native._native import logger as native_logger
+
+    config._trace_writer_native = True
+    flare = Flare(
+        trace_agent_url=TRACE_AGENT_URL,
+        flare_dir=tmp_path,
+        ddconfig={"config": "testconfig"},
+    )
+
+    flare.prepare("DEBUG")
+
+    native_logger.log("debug", "debug log")
+
+    native_flare_file_path = tmp_path / f"tracer_native_{os.getpid()}.log"
+    assert os.path.exists(native_flare_file_path)
+
+    with open(native_flare_file_path, "r") as file:
+        assert "debug log" in file.readline()
+
+    # Sends request to testagent
+    # This just validates the request params
+    flare.send(MOCK_FLARE_SEND_REQUEST)

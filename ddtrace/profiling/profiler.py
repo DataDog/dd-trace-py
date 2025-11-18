@@ -16,6 +16,8 @@ from ddtrace.internal import service
 from ddtrace.internal import uwsgi
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.settings.profiling import config as profiling_config
+from ddtrace.internal.settings.profiling import config_str
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.profiling import collector
@@ -25,9 +27,9 @@ from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import pytorch
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
-from ddtrace.settings.profiling import config as profiling_config
-from ddtrace.settings.profiling import config_str
 
+
+# TODO(vlad): add type annotations
 
 LOG = logging.getLogger(__name__)
 
@@ -122,7 +124,6 @@ class _ProfilerInstance(service.Service):
         api_key: Optional[str] = None,
         _memory_collector_enabled: bool = profiling_config.memory.enabled,
         _stack_collector_enabled: bool = profiling_config.stack.enabled,
-        _stack_v2_enabled: bool = profiling_config.stack.v2_enabled,
         _lock_collector_enabled: bool = profiling_config.lock.enabled,
         _pytorch_collector_enabled: bool = profiling_config.pytorch.enabled,
         enable_code_provenance: bool = profiling_config.code_provenance,
@@ -138,7 +139,6 @@ class _ProfilerInstance(service.Service):
         self.api_key: Optional[str] = api_key if api_key is not None else config._dd_api_key
         self._memory_collector_enabled: bool = _memory_collector_enabled
         self._stack_collector_enabled: bool = _stack_collector_enabled
-        self._stack_v2_enabled: bool = _stack_v2_enabled
         self._lock_collector_enabled: bool = _lock_collector_enabled
         self._pytorch_collector_enabled: bool = _pytorch_collector_enabled
         self.enable_code_provenance: bool = enable_code_provenance
@@ -181,6 +181,7 @@ class _ProfilerInstance(service.Service):
             timeline_enabled=profiling_config.timeline_enabled,
             output_filename=profiling_config.output_pprof,
             sample_pool_capacity=profiling_config.sample_pool_capacity,
+            timeout=profiling_config.api_timeout_ms,
         )
         ddup.start()
 
@@ -190,12 +191,7 @@ class _ProfilerInstance(service.Service):
         if self._stack_collector_enabled:
             LOG.debug("Profiling collector (stack) enabled")
             try:
-                self._collectors.append(
-                    stack.StackCollector(
-                        tracer=self.tracer,
-                        endpoint_collection_enabled=self.endpoint_collection_enabled,
-                    )
-                )
+                self._collectors.append(stack.StackCollector(tracer=self.tracer))
                 LOG.debug("Profiling collector (stack) initialized")
             except Exception:
                 LOG.error("Failed to start stack collector, disabling.", exc_info=True)
@@ -223,6 +219,7 @@ class _ProfilerInstance(service.Service):
 
             self._collectors_on_import = [
                 ("threading", lambda _: start_collector(threading.ThreadingLockCollector)),
+                ("threading", lambda _: start_collector(threading.ThreadingRLockCollector)),
                 ("asyncio", lambda _: start_collector(asyncio.AsyncioLockCollector)),
             ]
 

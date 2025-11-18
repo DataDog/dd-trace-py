@@ -522,6 +522,7 @@ def test_trace_with_invalid_payload_generates_error_log():
                     0,
                     "http://localhost:8126/v0.5/traces",
                     "Invalid format: Unable to read payload len",
+                    extra={"send_to_telemetry": False},
                 )
             ]
         )
@@ -557,6 +558,7 @@ def test_trace_with_invalid_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
                     "http://localhost:8126/v0.5/traces",
                     "Invalid format: Unable to read payload len",
                     "6261645f7061796c6f6164",
+                    extra={"send_to_telemetry": False},
                 )
             ]
         )
@@ -808,8 +810,8 @@ def test_logging_during_tracer_init_succeeds_when_debug_logging_and_logs_injecti
     assert out == b"", "an empty program should generate no logs under ddtrace-run"
 
     assert (
-        b"[dd.service=ddtrace_subprocess_dir dd.env= dd.version= dd.trace_id=0 dd.span_id=0]" in err
-    ), "stderr should contain debug output when DD_TRACE_DEBUG is set"
+        b"[dd.service=ddtrace_subprocess_dir dd.env= dd.version= dd.trace_id=0 dd.span_id=0]" not in err
+    ), "stderr should not contain debug output when DD_TRACE_DEBUG is set"
 
     assert b"KeyError: 'dd.service'" not in err, "stderr should not contain any exception logs"
     assert (
@@ -817,7 +819,7 @@ def test_logging_during_tracer_init_succeeds_when_debug_logging_and_logs_injecti
     ), "stderr should not contain any exception logs"
 
 
-@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 9), reason="Python 3.8 throws a deprecation warning")
+@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 10), reason="ddtrace under Python 3.9 is deprecated")
 def test_no_warnings_when_Wall():
     env = os.environ.copy()
     # Have to disable sqlite3 as coverage uses it on process shutdown

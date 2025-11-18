@@ -4,6 +4,8 @@ import json
 import random
 import string
 import threading
+from typing import Any
+from typing import Dict
 from unittest import TestCase
 
 from hypothesis import given
@@ -233,7 +235,7 @@ def test_encode_meta_struct():
     super_span = Span(name="client.testing", trace_id=1)
     payload = {"tttt": {"iuopç": [{"abcd": 1, "bcde": True}, {}]}, "zzzz": b"\x93\x01\x02\x03", "ZZZZ": [1, 2, 3]}
 
-    super_span.set_struct_tag("payload", payload)
+    super_span._set_struct_tag("payload", payload)
     super_span.set_tag("payload", "meta_payload")
     encoder.put(
         [
@@ -299,7 +301,7 @@ def test_msgpack_encoding_after_an_exception_was_raised():
     trace = gen_trace(nspans=1, ntags=100, nmetrics=100, key_size=10, value_size=10)
     rand_string = rands(size=20, chars=string.ascii_letters)
     # trace only has one span
-    trace[0].set_tag_str("some_tag", rand_string)
+    trace[0]._set_tag_str("some_tag", rand_string)
     try:
         # Encode a trace that will trigger a rollback/BufferItemTooLarge exception
         # BufferFull is not raised since only one span is being encoded
@@ -311,7 +313,7 @@ def test_msgpack_encoding_after_an_exception_was_raised():
     # Successfully encode a small trace
     small_trace = gen_trace(nspans=1, ntags=0, nmetrics=0)
     # Add a tag to the small trace that was previously encoded in the encoder's StringTable
-    small_trace[0].set_tag_str("previously_encoded_string", rand_string)
+    small_trace[0]._set_tag_str("previously_encoded_string", rand_string)
     rolledback_encoder.put(small_trace)
 
     # Encode a trace without triggering a rollback/BufferFull exception
@@ -937,13 +939,9 @@ def _value():
         {"start_ns": []},
         {"duration_ns": {}},
         {"span_type": 100},
-        {"_meta": {"num": 100}},
-        # Validating behavior with a context manager is a customer regression
-        {"_meta": {"key": _value()}},
-        {"_metrics": {"key": "value"}},
     ],
 )
-def test_encoding_invalid_data(data):
+def test_encoding_invalid_data_raises(data):
     encoder = MsgpackEncoderV04(1 << 20, 1 << 20)
 
     span = Span(name="test")
@@ -957,6 +955,41 @@ def test_encoding_invalid_data(data):
     assert e.match(r"failed to pack span: Span\(name="), e
     encoded_traces = encoder.encode()
     assert (not encoded_traces) or (encoded_traces[0][0] is None)
+
+
+@pytest.mark.parametrize(
+    "meta,metrics",
+    [
+        ({"num": 100}, {}),
+        # Validating behavior with a context manager is a customer regression
+        ({"key": _value()}, {}),
+        ({}, {"key": "value"}),
+    ],
+)
+def test_encoding_invalid_data_ok(meta: Dict[str, Any], metrics: Dict[str, Any]):
+    """Encoding invalid meta/metrics data should not raise an exception"""
+    encoder = MsgpackEncoderV04(1 << 20, 1 << 20)
+
+    span = Span(name="test")
+    span._meta = meta  # type: ignore
+    span._metrics = metrics  # type: ignore
+
+    trace = [span]
+    encoder.put(trace)
+
+    encoded_payloads = encoder.encode()
+    assert len(encoded_payloads) == 1
+
+    # Ensure it can be decoded properly
+    traces = msgpack.unpackb(encoded_payloads[0][0], raw=False)
+    assert len(traces) == 1
+    assert len(traces[0]) == 1
+
+    # We didn't encode the invalid meta/metrics
+    for key in meta.keys():
+        assert key not in traces[0][0]["meta"]
+    for key in metrics.keys():
+        assert key not in traces[0][0]["metrics"]
 
 
 @allencodings

@@ -16,12 +16,15 @@ from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import _constants as asm_constants
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import constants
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.utils.http import _format_template
 import tests.appsec.rules as rules
 from tests.utils import DummyTracer
 from tests.utils import override_env
 from tests.utils import override_global_config
 
+
+SECID: str = "[security_response_id]"
 
 try:
     from ddtrace.appsec import track_user_sdk as _track_user_sdk  # noqa: F401
@@ -86,7 +89,7 @@ class Contrib_TestClass_For_Threats:
         raise NotImplementedError
 
     def get_stack_trace(self, entry_span, namespace):
-        appsec_traces = entry_span().get_struct_tag(asm_constants.STACK_TRACE.TAG) or {}
+        appsec_traces = entry_span()._get_struct_tag(asm_constants.STACK_TRACE.TAG) or {}
         stacks = appsec_traces.get(namespace, [])
         return stacks
 
@@ -98,11 +101,12 @@ class Contrib_TestClass_For_Threats:
         assert stack_ids == stack_id_in_triggers, f"stack_ids={stack_ids}, stack_id_in_triggers={stack_id_in_triggers}"
         return exploit
 
-    def check_single_rule_triggered(self, rule_id: str, entry_span):
+    def check_single_rule_triggered(self, rule_id: str, entry_span) -> str:
         triggers = get_triggers(entry_span())
         assert triggers is not None, "no appsec struct in root span"
         result = [t["rule"]["id"] for t in triggers]
         assert result == [rule_id], f"result={result}, expected={[rule_id]}"
+        return triggers[0].get("security_response_id", None)
 
     def check_rules_triggered(self, rule_id: List[str], entry_span):
         triggers = get_triggers(entry_span())
@@ -144,7 +148,7 @@ class Contrib_TestClass_For_Threats:
             response = interface.client.get("/")
             assert self.status(response) == 200, "healthcheck failed"
             assert self.body(response) == "ok ASM"
-            from ddtrace.settings.asm import config as asm_config
+            from ddtrace.internal.settings.asm import config as asm_config
 
             assert asm_config._asm_enabled is asm_enabled
             assert get_entry_span_tag("http.status_code") == "200"
@@ -532,12 +536,14 @@ class Contrib_TestClass_For_Threats:
             response = interface.client.get("/", headers=headers)
             if blocked and asm_enabled:
                 assert self.status(response) == 403
-                assert self.body(response) == getattr(constants, body, None)
                 assert get_entry_span_tag("actor.ip") == rules._IP.BLOCKED
                 assert get_entry_span_tag(http.STATUS_CODE) == "403"
                 assert get_entry_span_tag(http.URL) == "http://localhost:8000/"
                 assert get_entry_span_tag(http.METHOD) == "GET"
-                self.check_single_rule_triggered("blk-001-001", entry_span)
+                block_id = self.check_single_rule_triggered("blk-001-001", entry_span)
+                assert self.body(response) == _format_template(getattr(constants, body, ""), block_id), self.body(
+                    response
+                )
                 assert (
                     get_entry_span_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type")
                     == content_type
@@ -671,8 +677,8 @@ class Contrib_TestClass_For_Threats:
             if asm_enabled and method == "get":
                 assert self.status(response) == 403
                 assert get_entry_span_tag(http.STATUS_CODE) == "403"
-                assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
-                self.check_single_rule_triggered("tst-037-006", entry_span)
+                block_id = self.check_single_rule_triggered("tst-037-006", entry_span)
+                assert self.body(response) == _format_template(constants.BLOCKED_RESPONSE_JSON, block_id)
                 assert (
                     get_entry_span_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type")
                     == "application/json"
@@ -704,8 +710,8 @@ class Contrib_TestClass_For_Threats:
             if asm_enabled and blocked:
                 assert self.status(response) == 403
                 assert get_entry_span_tag(http.STATUS_CODE) == "403"
-                assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
-                self.check_single_rule_triggered("tst-037-002", entry_span)
+                block_id = self.check_single_rule_triggered("tst-037-002", entry_span)
+                assert self.body(response) == _format_template(constants.BLOCKED_RESPONSE_JSON, block_id)
                 assert (
                     get_entry_span_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type")
                     == "application/json"
@@ -767,8 +773,8 @@ class Contrib_TestClass_For_Threats:
             if asm_enabled and blocked:
                 assert self.status(response) == 403
                 assert get_entry_span_tag(http.STATUS_CODE) == "403"
-                assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
-                self.check_single_rule_triggered("tst-037-007", entry_span)
+                block_id = self.check_single_rule_triggered("tst-037-007", entry_span)
+                assert self.body(response) == _format_template(constants.BLOCKED_RESPONSE_JSON, block_id)
                 assert (
                     get_entry_span_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type")
                     == "application/json"
@@ -811,8 +817,8 @@ class Contrib_TestClass_For_Threats:
             if asm_enabled and blocked:
                 assert self.status(response) == 403
                 assert get_entry_span_tag(http.STATUS_CODE) == "403"
-                assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
-                self.check_single_rule_triggered("tst-037-001", entry_span)
+                block_id = self.check_single_rule_triggered("tst-037-001", entry_span)
+                assert self.body(response) == _format_template(constants.BLOCKED_RESPONSE_JSON, block_id)
                 assert (
                     get_entry_span_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type")
                     == "application/json"
@@ -850,8 +856,8 @@ class Contrib_TestClass_For_Threats:
             if asm_enabled and blocked:
                 assert self.status(response) == 403
                 assert get_entry_span_tag(http.STATUS_CODE) == "403"
-                assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
-                self.check_single_rule_triggered("tst-037-004", entry_span)
+                block_id = self.check_single_rule_triggered("tst-037-004", entry_span)
+                assert self.body(response) == _format_template(constants.BLOCKED_RESPONSE_JSON, block_id)
                 assert (
                     get_entry_span_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type")
                     == "application/json"
@@ -889,8 +895,8 @@ class Contrib_TestClass_For_Threats:
             if asm_enabled and blocked:
                 assert self.status(response) == 403
                 assert get_entry_span_tag(http.STATUS_CODE) == "403"
-                assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
-                self.check_single_rule_triggered("tst-037-008", entry_span)
+                block_id = self.check_single_rule_triggered("tst-037-008", entry_span)
+                assert self.body(response) == _format_template(constants.BLOCKED_RESPONSE_JSON, block_id)
                 assert (
                     get_entry_span_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type")
                     == "application/json"
@@ -932,8 +938,8 @@ class Contrib_TestClass_For_Threats:
             if asm_enabled and blocked:
                 assert self.status(response) == 403
                 assert get_entry_span_tag(http.STATUS_CODE) == "403"
-                assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
-                self.check_single_rule_triggered(blocked, entry_span)
+                block_id = self.check_single_rule_triggered(blocked, entry_span)
+                assert self.body(response) == _format_template(constants.BLOCKED_RESPONSE_JSON, block_id)
                 assert (
                     get_entry_span_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type")
                     == "application/json"
@@ -985,8 +991,8 @@ class Contrib_TestClass_For_Threats:
             if asm_enabled and blocked:
                 assert self.status(response) == 403
                 assert get_entry_span_tag(http.STATUS_CODE) == "403"
-                assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
-                self.check_single_rule_triggered(blocked, entry_span)
+                block_id = self.check_single_rule_triggered(blocked, entry_span)
+                assert self.body(response) == _format_template(constants.BLOCKED_RESPONSE_JSON, block_id)
                 assert (
                     get_entry_span_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type")
                     == "application/json"
@@ -1056,8 +1062,8 @@ class Contrib_TestClass_For_Threats:
             if asm_enabled and blocked:
                 assert self.status(response) == 403
                 assert get_entry_span_tag(http.STATUS_CODE) == "403"
-                assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
-                self.check_single_rule_triggered(blocked, entry_span)
+                block_id = self.check_single_rule_triggered(blocked, entry_span)
+                assert self.body(response) == _format_template(constants.BLOCKED_RESPONSE_JSON, block_id)
                 assert (
                     get_entry_span_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type")
                     == "application/json"
@@ -1683,7 +1689,13 @@ class Contrib_TestClass_For_Threats:
                 # assert mocked.call_args_list == []
                 expected_rule_type = "command_injection" if endpoint == "shell_injection" else endpoint
                 expected_variant = (
-                    "exec" if endpoint == "command_injection" else "shell" if endpoint == "shell_injection" else None
+                    "exec"
+                    if endpoint == "command_injection"
+                    else "shell"
+                    if endpoint == "shell_injection"
+                    else "request"
+                    if endpoint == "ssrf"
+                    else None
                 )
                 matches = [t for c, n, t in telemetry_calls if c == "count" and n == "appsec.rasp.rule.match"]
                 # import delayed to get the correct version

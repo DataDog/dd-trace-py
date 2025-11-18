@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 class TraceCiVisibilityFilter(TraceFilter):
     def __init__(self, tags, service):
-        # type: (Dict[Union[str, bytes], str], str) -> None
+        # type: (Dict[str, str], str) -> None
         self._tags = tags
         self._service = service
 
@@ -35,6 +35,6 @@ class TraceCiVisibilityFilter(TraceFilter):
         _set_sampling_tags(local_root, True, 1.0, SamplingMechanism.DEFAULT)
         for span in trace:
             span.set_tags(self._tags)
-            span.set_tag_str(ci.LIBRARY_VERSION, ddtrace.__version__)
+            span._set_tag_str(ci.LIBRARY_VERSION, ddtrace.__version__)
 
         return trace

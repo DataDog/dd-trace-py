@@ -70,6 +70,7 @@ class APPSEC(metaclass=Constant_Class):
     RASP_DURATION_EXT: Literal["_dd.appsec.rasp.duration_ext"] = "_dd.appsec.rasp.duration_ext"
     RASP_RULE_EVAL: Literal["_dd.appsec.rasp.rule.eval"] = "_dd.appsec.rasp.rule.eval"
     RASP_TIMEOUTS: Literal["_dd.appsec.rasp.timeout"] = "_dd.appsec.rasp.timeout"
+    DOWNSTREAM_REQUESTS: Literal["_dd.appsec.downstream_request"] = "_dd.appsec.downstream_request"
     RC_PRODUCTS: Literal["_dd.appsec.rc_products"] = "_dd.appsec.rc_products"
     TRUNCATION_STRING_LENGTH: Literal["_dd.appsec.truncated.string_length"] = "_dd.appsec.truncated.string_length"
     TRUNCATION_CONTAINER_SIZE: Literal["_dd.appsec.truncated.container_size"] = "_dd.appsec.truncated.container_size"
@@ -124,6 +125,7 @@ class APPSEC(metaclass=Constant_Class):
     ERROR_MESSAGE: Literal["_dd.appsec.error.message"] = "_dd.appsec.error.message"
     UNSUPPORTED_EVENT_TYPE: Literal["_dd.appsec.unsupported_event_type"] = "_dd.appsec.unsupported_event_type"
     SERVERLESS_TRACER_ENABLED: Literal["_dd.appsec.serverless.tracer"] = "_dd.appsec.serverless.tracer"
+    SECURITY_RESPONSE_ID: Literal["[security_response_id]"] = "[security_response_id]"
 
 
 TELEMETRY_OFF_NAME = "OFF"
@@ -383,6 +385,8 @@ class EXPLOIT_PREVENTION(metaclass=Constant_Class):
         SHI: Literal["shell_injection"] = "shell_injection"
         LFI: Literal["lfi"] = "lfi"
         SSRF: Literal["ssrf"] = "ssrf"
+        SSRF_REQ: Literal["ssrf_req"] = "ssrf_req"
+        SSRF_RES: Literal["ssrf_res"] = "ssrf_res"
         SQLI: Literal["sql_injection"] = "sql_injection"
 
     class ADDRESS(metaclass=Constant_Class):

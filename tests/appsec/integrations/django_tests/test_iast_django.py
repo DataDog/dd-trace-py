@@ -16,7 +16,7 @@ from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.appsec._iast.constants import VULN_SSRF
 from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
 from ddtrace.appsec._iast.constants import VULN_UNVALIDATED_REDIRECT
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.appsec.iast.iast_utils import load_iast_report
 from tests.appsec.integrations.django_tests.utils import _aux_appsec_get_root_span
@@ -28,7 +28,7 @@ TEST_FILE = "tests/appsec/integrations/django_tests/django_app/views.py"
 
 
 def get_iast_stack_trace(root_span):
-    appsec_traces = root_span.get_struct_tag(STACK_TRACE.TAG) or {}
+    appsec_traces = root_span._get_struct_tag(STACK_TRACE.TAG) or {}
     stacks = appsec_traces.get("vulnerability", [])
     return stacks
 

@@ -24,10 +24,10 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.settings._config import _get_config
 from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import set_blocked
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.settings._config import _get_config
 from ddtrace.trace import Span
 
 
@@ -110,7 +110,7 @@ def _extract_headers(scope: Mapping[str, Any]) -> Mapping[str, Any]:
 
 def _default_handle_exception_span(exc, span):
     """Default handler for exception for span"""
-    span.set_tag_str(http.STATUS_CODE, "500")
+    span._set_tag_str(http.STATUS_CODE, "500")
 
 
 def span_from_scope(scope: Mapping[str, Any]) -> Optional[Span]:
@@ -287,7 +287,7 @@ class TraceMiddleware:
             )
             tags = _extract_versions_from_scope(scope, self.integration_config)
             for name, value in tags.items():
-                span.set_tag_str(name, value)
+                span._set_tag_str(name, value)
 
             @wraps(receive)
             async def wrapped_receive():

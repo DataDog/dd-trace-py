@@ -52,15 +52,13 @@ from ddtrace.internal.peer_service.processor import PeerServiceProcessor
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.schema.processor import BaseServiceProcessor
+from ddtrace.internal.settings._config import config
+from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.settings.peer_service import _ps_config
 from ddtrace.internal.utils import _get_metas_to_propagate
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import HTTPWriter
-from ddtrace.settings._config import config
-from ddtrace.settings.asm import config as asm_config
-from ddtrace.settings.peer_service import _ps_config
-from ddtrace.vendor.debtcollector.removals import remove
 from ddtrace.version import get_version
 
 
@@ -172,6 +170,8 @@ class Tracer(object):
             service_name=config.service or None,
             service_env=config.env or None,
             service_version=config.version or None,
+            process_tags=None,
+            container_id=None,
         )
         try:
             self._config_on_disk = store_metadata(metadata)
@@ -198,37 +198,6 @@ class Tracer(object):
             key,
         )
         self.shutdown(timeout=self.SHUTDOWN_TIMEOUT)
-
-    @remove(
-        message="on_start_span is being removed with no replacement",
-        removal_version="4.0.0",
-        category=DDTraceDeprecationWarning,
-    )
-    def on_start_span(self, func: Callable[[Span], None]) -> Callable[[Span], None]:
-        """Register a function to execute when a span start.
-
-        Can be used as a decorator.
-
-        :param func: The function to call when starting a span.
-                     The started span will be passed as argument.
-        """
-        core.on("trace.span_start", callback=func)
-        return func
-
-    @remove(
-        message="deregister_on_start_span is being removed with no replacement",
-        removal_version="4.0.0",
-        category=DDTraceDeprecationWarning,
-    )
-    def deregister_on_start_span(self, func: Callable[[Span], None]) -> Callable[[Span], None]:
-        """Unregister a function registered to execute when a span starts.
-
-        Can be used as a decorator.
-
-        :param func: The function to stop calling when starting a span.
-        """
-        core.reset_listeners("trace.span_start", callback=func)
-        return func
 
     def sample(self, span):
         self._sampler.sample(span)
@@ -547,10 +516,10 @@ class Tracer(object):
                 on_finish=[self._on_span_finish],
             )
             if config._report_hostname:
-                span.set_tag_str(_HOSTNAME_KEY, hostname.get_hostname())
+                span._set_tag_str(_HOSTNAME_KEY, hostname.get_hostname())
 
         if not span._parent:
-            span.set_tag_str("runtime-id", get_runtime_id())
+            span._set_tag_str("runtime-id", get_runtime_id())
             span._metrics[PID] = self._pid
 
         # Apply default global tags.
@@ -558,7 +527,7 @@ class Tracer(object):
             span.set_tags(self._tags)
 
         if config.env:
-            span.set_tag_str(ENV_KEY, config.env)
+            span._set_tag_str(ENV_KEY, config.env)
 
         # Only set the version tag on internal spans.
         if config.version:
@@ -570,7 +539,7 @@ class Tracer(object):
             if (root_span is None and service == config.service) or (
                 root_span and root_span.service == service and root_span.get_tag(VERSION_KEY) is not None
             ):
-                span.set_tag_str(VERSION_KEY, config.version)
+                span._set_tag_str(VERSION_KEY, config.version)
 
         if activate:
             self.context_provider.activate(span)

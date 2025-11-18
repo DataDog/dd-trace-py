@@ -23,7 +23,7 @@ from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal._unpatched import _gc as gc
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
@@ -49,6 +49,11 @@ def patch_common_modules():
     if _is_patched:
         return
 
+    try_wrap_function_wrapper(
+        "urllib3.connectionpool", "HTTPConnectionPool._make_request", wrapped_urllib3_make_request
+    )
+    try_wrap_function_wrapper("urllib3._request_methods", "RequestMethods.request", wrapped_request_D8CB81E472AF98A2)
+    try_wrap_function_wrapper("urllib3.request", "RequestMethods.request", wrapped_request_D8CB81E472AF98A2)
     try_wrap_function_wrapper("builtins", "open", wrapped_open_CFDDB7ABBA9081B6)
     try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF)
     try_wrap_function_wrapper("http.client", "HTTPConnection.request", wrapped_request)
@@ -62,6 +67,9 @@ def unpatch_common_modules():
     if not _is_patched:
         return
 
+    try_unwrap("urllib3.connectionpool", "HTTPConnectionPool._make_request")
+    try_unwrap("urllib3._request_methods", "RequestMethods.request")
+    try_unwrap("urllib3.request", "RequestMethods.request")
     try_unwrap("builtins", "open")
     try_unwrap("urllib.request", "OpenerDirector.open")
     try_unwrap("_io", "BytesIO.read")
@@ -170,7 +178,7 @@ def wrapped_request(original_request_callable, instance, args, kwargs):
         res = call_waf_callback(
             addresses,
             crop_trace="wrapped_open_ED4CF71136E15EBF",
-            rule_type=EXPLOIT_PREVENTION.TYPE.SSRF,
+            rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_REQ,
         )
         if res and _must_block(res.actions):
             raise BlockingException(get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, full_url)
@@ -223,7 +231,7 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
                         }
                         if use_body:
                             addresses["DOWN_RES_BODY"] = _parse_http_response_body(response)
-                        call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF)
+                        call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES)
                     return response
                 except Exception as e:
                     # api10 response handler for error responses
@@ -239,7 +247,7 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
                         if status_code is not None or response_headers is not None:
                             call_waf_callback(
                                 {"DOWN_RES_STATUS": str(status_code), "DOWN_RES_HEADERS": response_headers},
-                                rule_type=EXPLOIT_PREVENTION.TYPE.SSRF,
+                                rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES,
                             )
                     raise
         elif valid_url:
@@ -273,7 +281,7 @@ def wrapped_urllib3_make_request(original_request_callable, instance, args, kwar
         res = call_waf_callback(
             addresses,
             crop_trace="wrapped_request_D8CB81E472AF98A2",
-            rule_type=EXPLOIT_PREVENTION.TYPE.SSRF,
+            rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_REQ,
         )
         core.discard_item("full_url")
         if res and _must_block(res.actions):
@@ -315,7 +323,7 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
                                 addresses["DOWN_RES_BODY"] = response.json()
                             except Exception:
                                 pass  # nosec
-                        call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF)
+                        call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES)
                     return response
                 except Exception:
                     raise

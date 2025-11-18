@@ -6,7 +6,7 @@ pub mod logger {
     use pyo3::types::PyDict;
     use pyo3::{exceptions::PyValueError, PyResult};
 
-    use datadog_log::logger::{
+    use libdd_log::logger::{
         logger_configure_file, logger_configure_std, logger_disable_file, logger_disable_std,
         logger_set_log_level, FileConfig, LogEventLevel, StdConfig, StdTarget,
     };
@@ -88,7 +88,7 @@ pub mod logger {
             "trace" => LogEventLevel::Trace,
             "debug" => LogEventLevel::Debug,
             "info" => LogEventLevel::Info,
-            "warn" => LogEventLevel::Warn,
+            "warning" => LogEventLevel::Warn,
             "error" => LogEventLevel::Error,
             other => return Err(PyValueError::new_err(format!("Invalid log level: {other}"))),
         };
@@ -102,7 +102,7 @@ pub mod logger {
             "trace" => trace!("{}", message),
             "debug" => debug!("{}", message),
             "info" => info!("{}", message),
-            "warn" => warn!("{}", message),
+            "warning" => warn!("{}", message),
             "error" => error!("{}", message),
             other => return Err(PyValueError::new_err(format!("Invalid log level: {other}"))),
         }

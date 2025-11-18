@@ -8,9 +8,9 @@ import opentelemetry.version
 from ddtrace import config
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings._opentelemetry import otel_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
-from ddtrace.settings._opentelemetry import otel_config
 
 
 log = get_logger(__name__)
@@ -157,7 +157,7 @@ def _import_exporter(protocol):
             )
             return None
 
-        return _dd_logs_exporter(OTLPLogExporter, protocol, "protobuf")
+        return _dd_logs_exporter(OTLPLogExporter, protocol.split("/")[0], "protobuf")
 
     except ImportError as e:
         log.warning(
