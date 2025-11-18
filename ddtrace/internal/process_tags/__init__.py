@@ -45,7 +45,6 @@ def normalize_tag_value(value: str) -> str:
 
 
 def generate_process_tags() -> Optional[str]:
-    print(config._process_tags_enabled)
     if not config._process_tags_enabled:
         return None
 
