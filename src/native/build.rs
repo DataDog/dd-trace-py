@@ -47,8 +47,32 @@ fn main() {
             .to_string();
 
         // Get the config directory path where static library is located
+        // Try multiple possible config directory patterns since sysconfig.get_platform()
+        // can be inconsistent with actual directory names across platforms
         let config_dir_output = std::process::Command::new(python_executable)
-            .args(["-c", "import sysconfig; print(sysconfig.get_path('stdlib') + '/config-' + sysconfig.get_config_var('LDVERSION') + '-' + sysconfig.get_platform())"])
+            .args(["-c", r#"
+import sysconfig
+import os
+import glob
+
+stdlib = sysconfig.get_path('stdlib')
+ldversion = sysconfig.get_config_var('LDVERSION')
+
+# Try to find the actual config directory by globbing
+config_pattern = os.path.join(stdlib, f'config-{ldversion}-*')
+config_dirs = glob.glob(config_pattern)
+
+if config_dirs:
+    print(config_dirs[0])
+else:
+    # Fallback
+    platform = sysconfig.get_platform()
+    fallback_dir = os.path.join(stdlib, f'config-{ldversion}-{platform}')
+    if os.path.exists(fallback_dir):
+        print(fallback_dir)
+    else:
+        print('')
+"#])
             .output()
             .expect("Failed to get Python config directory");
 
@@ -60,6 +84,12 @@ fn main() {
 
             // Check if static library exists and link it
             if std::path::Path::new(&static_lib_path).exists() {
+                // TEMPORARY: Disable static linking to test if it's causing GIL issues
+                println!(
+                    "cargo:warning=Static linking DISABLED for debugging: {}",
+                    static_lib_path
+                );
+
                 // Add search path and link to Python static library
                 println!("cargo:rustc-link-search=native={}", config_dir);
                 println!("cargo:rustc-link-lib=static=python{}", python_version);
@@ -70,28 +100,10 @@ fn main() {
                     println!("cargo:rustc-link-lib=m");
                     println!("cargo:rustc-link-lib=pthread");
                 }
-
-                println!(
-                    "cargo:warning=Static linking enabled for Python {}: {}",
-                    python_version, static_lib_path
-                );
-            } else {
-                // Static library not available - fallback to faulthandler only
-                println!(
-                    "cargo:warning=Static library not found at {}, using faulthandler fallback only",
-                    static_lib_path
-                );
             }
-        } else {
-            // Fallback: faulthandler only
-            println!(
-                "cargo:warning=Failed to get config directory, using faulthandler fallback only"
-            );
         }
-    } else {
-        // Fallback: faulthandler only
-        println!("cargo:warning=Failed to get Python version, using faulthandler fallback only");
     }
+
 
     println!("cargo:rerun-if-changed=cpython_internal.c");
     println!("cargo:rerun-if-changed=cpython_internal.h");
