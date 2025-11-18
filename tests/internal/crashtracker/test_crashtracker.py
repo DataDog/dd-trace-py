@@ -455,6 +455,35 @@ def test_crashtracker_tags_required():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess()
+def test_crashtracker_runtime_stacktrace_required():
+    # Tests tag ingestion in the core API
+    import ctypes
+    import os
+
+    import tests.internal.crashtracker.utils as utils
+
+    with utils.with_test_agent() as client:
+        pid = os.fork()
+        if pid == 0:
+            ct = utils.CrashtrackerWrapper(base_name="runtime_stacktrace_required")
+            assert ct.start()
+            stdout_msg, stderr_msg = ct.logs()
+            assert not stdout_msg
+            assert not stderr_msg
+
+            ctypes.string_at(0)
+            sys.exit(-1)
+
+        # Check for crash ping
+        _ping = utils.get_crash_ping(client)
+
+        # Check for crash report
+        report = utils.get_crash_report(client)
+        assert b"stacktrace_string" in report["body"]
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 def test_crashtracker_user_tags_envvar(run_python_code_in_subprocess):
     # Call the program
     with utils.with_test_agent() as client:
