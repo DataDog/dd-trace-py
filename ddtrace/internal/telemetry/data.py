@@ -7,6 +7,7 @@ from typing import Iterable  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Tuple  # noqa:F401
 
+from ddtrace.internal import process_tags
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.packages import get_module_distribution_versions
 from ddtrace.internal.runtime.container import get_container_info
@@ -56,9 +57,6 @@ def _get_application(key):
     This helper packs and unpacks get_application arguments to support caching.
     Cached() annotation only supports functions with one argument
     """
-    # avoid circular dependency
-    from ddtrace.internal import process_tags
-
     service, version, env = key
 
     application = {
