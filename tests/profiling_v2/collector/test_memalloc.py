@@ -215,7 +215,7 @@ def get_heap_info(heap, funcs):
     return got
 
 
-def has_function_in_profile_sample(profile, sample, function_name):
+def has_function_in_profile_sample(profile, sample, function_name: str) -> bool:
     """Check if a pprof profile sample contains a function in its stack trace."""
     for location_id in sample.location_id:
         location = pprof_utils.get_location_with_id(profile, location_id)
