@@ -324,15 +324,6 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="profile-diff",
-            command="python scripts/diff.py {cmdargs}",
-            pys="3",
-            pkgs={
-                "austin-python": "~=1.0",
-                "rich": latest,
-            },
-        ),
-        Venv(
             name="appsec_iast_default",
             command="pytest -v {cmdargs} tests/appsec/iast/",
             pys=select_pys(max_version="3.13"),  # pycryptodome doesn't publish 3.14 wheels
@@ -3233,7 +3224,7 @@ venv = Venv(
             pys=select_pys(),
         ),
         Venv(
-            name="profile-v2",
+            name="profile",
             # NB riot commands that use this Venv must include --pass-env to work properly
             command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable --ignore='tests/profiling/collector/test_memalloc.py' {cmdargs} tests/profiling",  # noqa: E501
             env={
@@ -3257,7 +3248,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    name="profile-v2-uwsgi",
+                    name="profile-uwsgi",
                     command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling/test_uwsgi.py",  # noqa: E501
                     pys=select_pys(max_version="3.13"),
                     pkgs={
@@ -3375,7 +3366,7 @@ venv = Venv(
                     ],
                 ),
                 Venv(
-                    name="profile-v2-memalloc",
+                    name="profile-memalloc",
                     command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling/collector/test_memalloc.py",  # noqa: E501
                     # skipping v3.14 for now due to an unstable `lz4 ` lib issue: https://gitlab.ddbuild.io/DataDog/apm-reliability/dd-trace-py/-/jobs/1163312347
                     pys=select_pys(max_version="3.13"),
