@@ -39,7 +39,7 @@ TEST_WORKDIR_PATH = "/path/to/workdir"
         (":::test", ":::test"),
         ("contiguous_____underscores", "contiguous_underscores"),
         ("foo_", "foo"),
-        ("\u017Fodd_\u017Fcase\u017F", "\u017Fodd_\u017Fcase\u017F"),
+        ("\u017fodd_\u017fcase\u017f", "\u017fodd_\u017fcase\u017f"),
         ("", ""),
         (" ", ""),
         ("ok", "ok"),
@@ -129,9 +129,9 @@ class TestProcessTags(TracerTestCase):
                     # Check if debug log was called
                     mock_log.debug.assert_called_once()
                     call_args = mock_log.debug.call_args[0]
-                    assert (
-                        "failed to get process_tags" in call_args[0]
-                    ), f"Expected error message not found. Got: {call_args[0]}"
+                    assert "failed to get process_tags" in call_args[0], (
+                        f"Expected error message not found. Got: {call_args[0]}"
+                    )
 
     @pytest.mark.snapshot
     @run_in_subprocess(env_overrides=dict(DD_TRACE_PARTIAL_FLUSH_ENABLED="true", DD_TRACE_PARTIAL_FLUSH_MIN_SPANS="2"))
