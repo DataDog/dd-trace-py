@@ -1,7 +1,7 @@
 import sys
 
-from Crypto.Cipher import AES
-from Crypto.Cipher import ARC4
+from cryptography.hazmat.primitives.ciphers import Cipher
+from cryptography.hazmat.primitives.ciphers.algorithms import ARC4
 from flask import Flask
 from flask import request
 
@@ -41,9 +41,10 @@ def create_app():
 
         key = b"Sixteen byte key"
         data = b"abcdefgh"
-        crypt_obj = AES.new(key, AES.MODE_EAX)
-        crypt_obj.encrypt(data)
-
+        algorithm = ARC4(key)
+        cipher = Cipher(algorithm)
+        encryptor = cipher.encryptor()
+        encryptor.update(data)
         response = ResultResponse(param)
         report = get_iast_reporter()
         if report:
