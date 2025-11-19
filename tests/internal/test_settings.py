@@ -682,6 +682,6 @@ def test_remoteconfig_debug_logging():
             rc_configs,
         ),
     ]
-    assert sorted(mock_log.debug.call_args_list) == sorted(
-        expected_logs
-    ), f"expected: {expected_logs} got: {mock_log.debug.call_args_list}"
+    assert sorted(mock_log.debug.call_args_list) == sorted(expected_logs), (
+        f"expected: {expected_logs} got: {mock_log.debug.call_args_list}"
+    )

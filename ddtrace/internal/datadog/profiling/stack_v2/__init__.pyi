@@ -1,6 +1,8 @@
 import asyncio
 from types import FrameType
-from typing import Optional, Sequence, Union
+from typing import Optional
+from typing import Sequence
+from typing import Union
 
 from ddtrace._trace import context
 from ddtrace._trace import span as ddspan

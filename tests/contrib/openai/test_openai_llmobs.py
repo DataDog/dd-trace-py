@@ -207,7 +207,9 @@ class TestLLMObsOpenaiV1:
         self, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, mock_tracer
     ):
         prompt = "why do some languages have words that can't directly be translated to other languages?"
-        expected_output = '". The answer is that languages are not just a collection of words, but also a collection of cultural'  # noqa: E501
+        expected_output = (
+            '". The answer is that languages are not just a collection of words, but also a collection of cultural'  # noqa: E501
+        )
         with get_openai_vcr(subdirectory_name="v1").use_cassette("azure_completion.yaml"):
             azure_client = openai.AzureOpenAI(
                 api_version=azure_openai_config["api_version"],
@@ -241,7 +243,9 @@ class TestLLMObsOpenaiV1:
         self, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, mock_tracer
     ):
         prompt = "why do some languages have words that can't directly be translated to other languages?"
-        expected_output = '". The answer is that languages are not just a collection of words, but also a collection of cultural'  # noqa: E501
+        expected_output = (
+            '". The answer is that languages are not just a collection of words, but also a collection of cultural'  # noqa: E501
+        )
         with get_openai_vcr(subdirectory_name="v1").use_cassette("azure_completion.yaml"):
             azure_client = openai.AsyncAzureOpenAI(
                 api_version=azure_openai_config["api_version"],

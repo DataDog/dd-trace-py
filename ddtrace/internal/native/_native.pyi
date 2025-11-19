@@ -1,5 +1,9 @@
-from typing import Dict, List, Literal, Optional, Any
 from enum import Enum
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Literal
+from typing import Optional
 
 class DDSketch:
     def __init__(self): ...

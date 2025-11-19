@@ -233,8 +233,9 @@ def mock_embed_content(genai):
         mock_response.body = "{}"
         return mock_response
 
-    with mock_patch.object(genai.types.EmbedContentResponse, "_from_response", _fake_from_response), mock_patch.object(
-        genai._api_client.BaseApiClient, "request", _fake_request
+    with (
+        mock_patch.object(genai.types.EmbedContentResponse, "_from_response", _fake_from_response),
+        mock_patch.object(genai._api_client.BaseApiClient, "request", _fake_request),
     ):
         yield
 
@@ -250,7 +251,8 @@ def mock_async_embed_content(genai):
         mock_response.body = "{}"
         return mock_response
 
-    with mock_patch.object(genai.types.EmbedContentResponse, "_from_response", _fake_from_response), mock_patch.object(
-        genai._api_client.BaseApiClient, "async_request", _fake_async_request
+    with (
+        mock_patch.object(genai.types.EmbedContentResponse, "_from_response", _fake_from_response),
+        mock_patch.object(genai._api_client.BaseApiClient, "async_request", _fake_async_request),
     ):
         yield
