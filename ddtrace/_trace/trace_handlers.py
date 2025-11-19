@@ -1240,6 +1240,7 @@ def _on_asgi_request(ctx: core.ExecutionContext) -> None:
 
 
 def _on_aiokafka_send_start(
+    _topic: str,
     send_value: Optional[bytes],
     send_key: Optional[bytes],
     headers: List[Tuple[str, bytes]],
@@ -1269,6 +1270,7 @@ def _on_aiokafka_send_complete(
 
 
 def _on_aiokafka_getone_message(
+    _instance: Any,
     ctx: core.ExecutionContext,
     start_ns: int,
     message: Optional[Any],
@@ -1298,6 +1300,7 @@ def _on_aiokafka_getone_message(
 
 
 def _on_aiokafka_getmany_message(
+    _instance: Any,
     ctx: core.ExecutionContext,
     messages: Optional[Dict[Any, List[Any]]],
 ) -> None:
@@ -1324,108 +1327,6 @@ def _on_aiokafka_getmany_message(
         for topic, partitions in topics_partitions.items():
             partition_list = ",".join(map(str, sorted(partitions)))
             span._set_tag_str(f"kafka.partitions.{topic}", partition_list)
-
-        for topic_partition, records in messages.items():
-            for record in records:
-                if config.aiokafka.distributed_tracing_enabled and record.headers:
-                    dd_headers = {
-                        key: (val.decode("utf-8", errors="ignore") if isinstance(val, (bytes, bytearray)) else str(val))
-                        for key, val in record.headers
-                        if val is not None
-                    }
-                    context = HTTPPropagator.extract(dd_headers)
-
-                    span.link_span(context)
-
-
-def _on_aiokafka_send_start(
-    _topic,
-    send_value: Optional[bytes],
-    send_key: Optional[bytes],
-    headers: List[Tuple[str, bytes]],
-    ctx: core.ExecutionContext,
-    partition: Optional[int],
-) -> None:
-    span = ctx.span
-
-    span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
-    span.set_tag_str(MESSAGE_KEY, str(send_key))
-    span.set_tag_str(PARTITION, str(partition))
-    span.set_tag_str(TOMBSTONE, str(send_value is None))
-    span.set_metric(_SPAN_MEASURED_KEY, 1)
-
-    if config.aiokafka.distributed_tracing_enabled:
-        # inject headers with Datadog tags:
-        tracing_headers: Dict[str, str] = {}
-        HTTPPropagator.inject(span.context, tracing_headers)
-        for key, value in tracing_headers.items():
-            headers.append((key, value.encode("utf-8")))
-
-
-def _on_aiokafka_send_complete(
-    ctx: core.ExecutionContext, exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]], _
-) -> None:
-    _finish_span(ctx, exc_info)
-
-
-def _on_aiokafka_getone_message(
-    _instance,
-    ctx: core.ExecutionContext,
-    start_ns: int,
-    message: Optional[Any],
-    err: Optional[BaseException],
-) -> None:
-    span = ctx.span
-
-    span.start_ns = start_ns
-    span.set_tag_str(RECEIVED_MESSAGE, str(message is not None))
-    span.set_metric(_SPAN_MEASURED_KEY, 1)
-
-    if message is not None:
-        message_key = message.key or ""
-        message_offset = message.offset or -1
-        topic = str(message.topic)
-        span.set_tag_str(TOPIC, topic)
-
-        if isinstance(message_key, str) or isinstance(message_key, bytes):
-            span.set_tag_str(MESSAGE_KEY, message_key)
-
-        span.set_tag_str(TOMBSTONE, str(message.value is None))
-        span.set_tag_str(PARTITION, str(message.partition))
-        span.set_tag_str(MESSAGE_OFFSET, str(message_offset))
-
-    if err is not None:
-        span.set_exc_info(type(err), err, err.__traceback__)
-
-
-def _on_aiokafka_getmany_message(
-    _instance,
-    ctx: core.ExecutionContext,
-    messages: Optional[Dict[Any, List[Any]]],
-) -> None:
-    span = ctx.span
-
-    span.set_tag_str(RECEIVED_MESSAGE, str(messages is not None))
-    span.set_metric(_SPAN_MEASURED_KEY, 1)
-
-    if messages is not None:
-        first_topic = next(iter(messages)).topic
-        span.set_tag_str(MESSAGING_DESTINATION_NAME, first_topic)
-
-        topics_partitions: Dict[str, List[int]] = {}
-        for topic_partition in messages.keys():
-            topic = topic_partition.topic
-            partition = topic_partition.partition
-            if topic not in topics_partitions:
-                topics_partitions[topic] = []
-            topics_partitions[topic].append(partition)
-
-        all_topics = list(topics_partitions.keys())
-        span.set_tag(TOPIC, ",".join(all_topics))
-
-        for topic, partitions in topics_partitions.items():
-            partition_list = ",".join(map(str, sorted(partitions)))
-            span.set_tag_str(f"kafka.partitions.{topic}", partition_list)
 
         for topic_partition, records in messages.items():
             for record in records:
