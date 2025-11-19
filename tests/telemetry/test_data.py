@@ -13,7 +13,6 @@ from ddtrace.internal.telemetry.data import _get_os_version
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.data import get_hostname
-from tests.utils import process_tag_reload
 
 
 def test_get_application():
@@ -44,18 +43,12 @@ def test_get_application_with_values():
     assert application["env"] == "staging"
 
 
+@pytest.mark.subprocess(env={"DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED": "True"})
 def test_get_application_with_process_tags():
-    from ddtrace.internal.settings._config import config
+    from ddtrace.internal.telemetry.data import get_application
 
-    try:
-        config._process_tags_enabled = True
-        process_tag_reload()
-
-        application = get_application("", "", "")
-        assert "process_tags" in application
-    finally:
-        config._process_tags_enabled = False
-        process_tag_reload()
+    application = get_application("", "", "")
+    assert "process_tags" in application
 
 
 def test_application_with_setenv(run_python_code_in_subprocess, monkeypatch):
