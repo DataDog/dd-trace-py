@@ -1,24 +1,6 @@
-#ifndef _DDTRACE_MEMALLOC_REENTRANT_H
-#define _DDTRACE_MEMALLOC_REENTRANT_H
+#pragma once
 
-#ifdef _WIN32
-#include <windows.h>
-#else
-#define _POSIX_C_SOURCE 200809L
-#include <errno.h>
-#include <pthread.h>
-#include <stdatomic.h>
-#include <time.h>
-#include <unistd.h>
-#endif
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdlib.h>
-
-// Cross-platform macro for defining thread-local storage
-#if defined(_MSC_VER) // Check for MSVC compiler
-#define MEMALLOC_TLS __declspec(thread)
-#elif defined(__GNUC__) || defined(__clang__) // GCC or Clang
+// Thread-local storage macro for Unix (GCC/Clang)
 // NB - we explicitly specify global-dynamic on Unix because the others are problematic.
 // See e.g. https://fuchsia.dev/fuchsia-src/development/kernel/threads/tls for
 // an explanation of thread-local storage access models. global-dynamic is the
@@ -28,27 +10,47 @@
 // sees we're building a shared library. But we've been bit by issues related
 // to this before, and it doesn't hurt to explicitly declare the model here.
 #define MEMALLOC_TLS __attribute__((tls_model("global-dynamic"))) __thread
-#else
-#error "Unsupported compiler for thread-local storage"
-#endif
 extern MEMALLOC_TLS bool _MEMALLOC_ON_THREAD;
 
-static inline bool
-memalloc_take_guard()
+/* RAII guard for reentrancy protection. Automatically acquires the guard in the
+ * constructor and releases it in the destructor.
+ *
+ * Ordinarily, a process-wide semaphore would require a CAS, but since this is
+ * thread-local we can just set it.  */
+class memalloc_reentrant_guard_t
 {
-    // Ordinarilly, a process-wide semaphore would require a CAS, but since this is thread-local we can just set it.
-    if (_MEMALLOC_ON_THREAD)
-        return false;
-    _MEMALLOC_ON_THREAD = true;
-    return true;
-}
+  public:
+    memalloc_reentrant_guard_t()
+      : acquired_(false)
+    {
+        if (!_MEMALLOC_ON_THREAD) {
+            _MEMALLOC_ON_THREAD = true;
+            acquired_ = true;
+        }
+    }
 
-static inline void
-memalloc_yield_guard(void)
-{
-    // Ideally, we'd actually capture the old state within an object and restore it, but since this is
-    // a coarse-grained lock, we just set it to false.
-    _MEMALLOC_ON_THREAD = false;
-}
+    ~memalloc_reentrant_guard_t()
+    {
+        /* We only release _MEMALLOC_ON_THREAD if this guard object successfully
+         * acquired it (acquired_ == true). This is important because if acquisition failed
+         * (we're already in a reentrant call), we don't own the lock and shouldn't release it. */
+        if (acquired_) {
+            _MEMALLOC_ON_THREAD = false;
+        }
+    }
 
-#endif
+    // Non-copyable, non-movable
+    memalloc_reentrant_guard_t(const memalloc_reentrant_guard_t&) = delete;
+    memalloc_reentrant_guard_t& operator=(const memalloc_reentrant_guard_t&) = delete;
+    memalloc_reentrant_guard_t(memalloc_reentrant_guard_t&&) = delete;
+    memalloc_reentrant_guard_t& operator=(memalloc_reentrant_guard_t&&) = delete;
+
+    /* Check if the guard was successfully acquired */
+    bool acquired() const { return acquired_; }
+
+    /* Implicit conversion to bool for easy checking */
+    operator bool() const { return acquired_; }
+
+  private:
+    bool acquired_;
+};

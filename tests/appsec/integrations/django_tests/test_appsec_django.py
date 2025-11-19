@@ -13,7 +13,7 @@ from ddtrace.appsec._processor import AppSecSpanProcessor  # noqa: F401
 from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal import constants
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
 from tests.appsec.integrations.django_tests.utils import _aux_appsec_get_root_span
 import tests.appsec.rules as rules
 from tests.utils import override_global_config
@@ -179,15 +179,18 @@ def test_django_login_sucess_identification(client, test_spans, tracer, use_logi
     from django.contrib.auth import get_user
     from django.contrib.auth.models import User
 
-    with override_global_config(
-        dict(
-            _asm_enabled=True,
-            _auto_user_instrumentation_local_mode=LOGIN_EVENTS_MODE.IDENT,
-            _django_include_user_email=use_email,
-            _django_include_user_login=use_login,
-            _django_include_user_realname=use_realname,
-        )
-    ), update_django_config():
+    with (
+        override_global_config(
+            dict(
+                _asm_enabled=True,
+                _auto_user_instrumentation_local_mode=LOGIN_EVENTS_MODE.IDENT,
+                _django_include_user_email=use_email,
+                _django_include_user_login=use_login,
+                _django_include_user_realname=use_realname,
+            )
+        ),
+        update_django_config(),
+    ):
         # update django config for tests
         test_user = User.objects.create(username="fred", first_name="Fred", email="fred@test.com")
         test_user.set_password("secret")
@@ -226,15 +229,18 @@ def test_django_login_sucess_anonymization(client, test_spans, tracer, use_login
     from django.contrib.auth import get_user
     from django.contrib.auth.models import User
 
-    with override_global_config(
-        dict(
-            _asm_enabled=True,
-            _auto_user_instrumentation_local_mode=LOGIN_EVENTS_MODE.ANON,
-            _django_include_user_email=use_email,
-            _django_include_user_login=use_login,
-            _django_include_user_realname=use_realname,
-        )
-    ), update_django_config():
+    with (
+        override_global_config(
+            dict(
+                _asm_enabled=True,
+                _auto_user_instrumentation_local_mode=LOGIN_EVENTS_MODE.ANON,
+                _django_include_user_email=use_email,
+                _django_include_user_login=use_login,
+                _django_include_user_realname=use_realname,
+            )
+        ),
+        update_django_config(),
+    ):
         test_user = User.objects.create(username="fred2")
         test_user.set_password("secret")
         test_user.save()

@@ -65,12 +65,13 @@ To set configuration options for all requests made with a ``requests.Session`` o
 use the config API::
 
     from ddtrace import config
-    from ddtrace.trace import Pin
+    from ddtrace._trace.pin import Pin
     from requests import Session
 
     session = Session()
     Pin.override(session, service='auth-api')
 """
+
 from ddtrace.contrib.internal.requests.patch import TracedSession
 
 

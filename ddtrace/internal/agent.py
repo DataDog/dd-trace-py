@@ -4,7 +4,7 @@ import typing as t
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import ForksafeAwakeablePeriodicService
-from ddtrace.settings._agent import config
+from ddtrace.internal.settings._agent import config
 
 from .utils.http import get_connection
 
@@ -41,8 +41,7 @@ class AgentCheckPeriodicService(ForksafeAwakeablePeriodicService, metaclass=abc.
         self._state = self._agent_check
 
     @abc.abstractmethod
-    def info_check(self, agent_info: t.Optional[dict]) -> bool:
-        ...
+    def info_check(self, agent_info: t.Optional[dict]) -> bool: ...
 
     def _agent_check(self) -> None:
         try:
@@ -62,8 +61,7 @@ class AgentCheckPeriodicService(ForksafeAwakeablePeriodicService, metaclass=abc.
             log.debug("Error during online operation, reverting to agent check", exc_info=True)
 
     @abc.abstractmethod
-    def online(self) -> None:
-        ...
+    def online(self) -> None: ...
 
     def periodic(self) -> None:
         return self._state()

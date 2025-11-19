@@ -2,7 +2,7 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
-use datadog_ddsketch::DDSketch;
+use libdd_ddsketch::DDSketch;
 
 #[pyclass(name = "DDSketch", module = "ddtrace.internal._native")]
 pub struct DDSketchPy {
