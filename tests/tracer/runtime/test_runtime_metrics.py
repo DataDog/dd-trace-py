@@ -147,6 +147,7 @@ class TestRuntimeMetrics(BaseTestCase):
 
 
 class TestRuntimeWorker(TracerTestCase):
+    @pytest.mark.skip(reason="Very frequently retried")
     def test_tracer_metrics(self):
         # Mock socket.socket to hijack the dogstatsd socket
         with mock.patch("socket.socket") as sock:

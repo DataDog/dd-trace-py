@@ -16,14 +16,32 @@ ENTRYPOINT_TYPE_TAG = "entrypoint.type"
 ENTRYPOINT_TYPE_SCRIPT = "script"
 ENTRYPOINT_BASEDIR_TAG = "entrypoint.basedir"
 
-_INVALID_CHARS_PATTERN = re.compile(r"[^a-z0-9/._-]")
 _CONSECUTIVE_UNDERSCORES_PATTERN = re.compile(r"_{2,}")
+_ALLOWED_CHARS = _ALLOWED_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789/:._-")
+MAX_LENGTH = 200
 
 
-def normalize_tag(value: str) -> str:
-    normalized = _INVALID_CHARS_PATTERN.sub("_", value.lower())
-    normalized = _CONSECUTIVE_UNDERSCORES_PATTERN.sub("_", normalized)
-    return normalized.strip("_")
+def normalize_tag_value(value: str) -> str:
+    # we copy the behavior of the agent which
+    # checks the size on the original value and not on
+    # an intermediary normalized step
+    if len(value) > MAX_LENGTH:
+        value = value[:MAX_LENGTH]
+
+    result = value.lower()
+
+    def is_allowed_char(char: str) -> str:
+        # ASCII alphanumeric and special chars: / : . _ -
+        if char in _ALLOWED_CHARS:
+            return char
+        # Unicode letters and digits
+        if char.isalpha() or char.isdigit():
+            return char
+        return "_"
+
+    result = "".join(is_allowed_char(char) for char in result)
+    result = _CONSECUTIVE_UNDERSCORES_PATTERN.sub("_", result)
+    return result.strip("_")
 
 
 def generate_process_tags() -> Optional[str]:
@@ -32,7 +50,7 @@ def generate_process_tags() -> Optional[str]:
 
     try:
         return ",".join(
-            f"{key}:{normalize_tag(value)}"
+            f"{key}:{normalize_tag_value(value)}"
             for key, value in sorted(
                 [
                     (ENTRYPOINT_WORKDIR_TAG, os.path.basename(os.getcwd())),

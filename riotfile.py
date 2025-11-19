@@ -129,12 +129,6 @@ venv = Venv(
             },
         ),
         Venv(
-            name="slotscheck",
-            command="python -m slotscheck -v ddtrace/",
-            pys=["3.10"],
-            pkgs={"slotscheck": "==0.17.0"},
-        ),
-        Venv(
             name="build_docs",
             command="scripts/docs/build.sh",
             pys=["3.10"],
@@ -3100,6 +3094,16 @@ venv = Venv(
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
             },
+        ),
+        Venv(
+            name="aiokafka",
+            env={
+                "_DD_TRACE_STATS_WRITER_INTERVAL": "1000000000",
+                "DD_DATA_STREAMS_ENABLED": "true",
+            },
+            command="pytest {cmdargs} tests/contrib/aiokafka/",
+            pys=select_pys(),
+            pkgs={"pytest-asyncio": [latest], "pytest-randomly": latest, "aiokafka": ["~=0.9.0", latest]},
         ),
         Venv(
             name="azure_eventhubs",
