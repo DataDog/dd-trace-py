@@ -8,8 +8,8 @@ use std::time::Duration;
 
 use libdd_common::Endpoint;
 use libdd_crashtracker::{
-    is_runtime_callback_registered, register_runtime_stacktrace_string_callback, CallbackError,
-    CrashtrackerConfiguration, CrashtrackerReceiverConfig, Metadata, StacktraceCollection,
+    register_runtime_stacktrace_string_callback, CallbackError, CrashtrackerConfiguration,
+    CrashtrackerReceiverConfig, Metadata, StacktraceCollection,
 };
 use pyo3::prelude::*;
 
@@ -404,10 +404,4 @@ pub fn crashtracker_register_native_runtime_callback() -> CallbackResult {
         Ok(()) => CallbackResult::Ok,
         Err(e) => e.into(),
     }
-}
-
-/// Check if a runtime callback is currently registered
-#[pyfunction(name = "crashtracker_is_runtime_callback_registered")]
-pub fn crashtracker_is_runtime_callback_registered() -> bool {
-    is_runtime_callback_registered()
 }

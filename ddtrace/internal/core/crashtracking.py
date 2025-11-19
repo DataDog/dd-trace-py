@@ -26,7 +26,6 @@ try:
     from ddtrace.internal.native._native import CrashtrackerStatus
     from ddtrace.internal.native._native import StacktraceCollection
     from ddtrace.internal.native._native import crashtracker_init
-    from ddtrace.internal.native._native import crashtracker_is_runtime_callback_registered
     from ddtrace.internal.native._native import crashtracker_on_fork
     from ddtrace.internal.native._native import crashtracker_register_native_runtime_callback
     from ddtrace.internal.native._native import crashtracker_status
@@ -181,25 +180,3 @@ def start(additional_tags: Optional[Dict[str, str]] = None) -> bool:
         print(f"Failed to start crashtracker: {e}", file=sys.stderr)
         return False
     return True
-
-
-def register_runtime_callback() -> bool:
-    if not is_available:
-        return False
-
-    try:
-        result = crashtracker_register_native_runtime_callback()
-        return result == CallbackResult.Ok
-    except Exception as e:
-        print(f"Failed to register runtime callback: {e}", file=sys.stderr)
-        return False
-
-
-def is_runtime_callback_registered() -> bool:
-    if not is_available:
-        return False
-
-    try:
-        return crashtracker_is_runtime_callback_registered()
-    except Exception:
-        return False
