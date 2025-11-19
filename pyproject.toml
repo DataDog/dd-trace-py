@@ -10,11 +10,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ddtrace"
-dynamic = ["version"]
+# DEV: to directly override the version specifier, comment this...
+#dynamic = ["version"]
+# ...and uncomment this
+version = "4.1.0dev"
 description = "Datadog APM client library"
 readme = "README.md"
 license = { text = "LICENSE.BSD3" }
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 authors = [
     { name = "Datadog, Inc.", email = "dev@datadoghq.com" },
 ]
@@ -32,27 +35,22 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
-    "bytecode>=0.17.0; python_version>='3.14.0'",
-    "bytecode>=0.16.0; python_version>='3.13.0'",
-    "bytecode>=0.15.1; python_version~='3.12.0'",
-    "bytecode>=0.14.0; python_version~='3.11.0'",
-    "bytecode>=0.13.0; python_version<'3.11'",
+    "bytecode>=0.17.0,<1; python_version>='3.14.0'",
+    "bytecode>=0.16.0,<1; python_version>='3.13.0'",
+    "bytecode>=0.15.1,<1; python_version~='3.12.0'",
+    "bytecode>=0.14.0,<1; python_version~='3.11.0'",
+    "bytecode>=0.13.0,<1; python_version<'3.11'",
     "envier~=0.6.1",
-    "legacy-cgi>=2.0.0; python_version>='3.13.0'",
-    "opentelemetry-api>=1",
-    "protobuf>=3",
-    "wrapt>=1",
+    "opentelemetry-api>=1,<2",
+    "wrapt>=1,<3",
 ]
 
 [project.optional-dependencies]
 opentracing = [
-    "opentracing>=2.0.0",
+    "opentracing>=2,<3",
 ]
 opentelemetry = [
-    "opentelemetry-exporter-otlp>=1.0.0",
-]
-openai = [
-    "tiktoken",
+    "opentelemetry-exporter-otlp>=1,<2",
 ]
 
 [project.scripts]
@@ -64,8 +62,6 @@ ddcontextvars_context = "ddtrace.internal.opentelemetry.context:DDRuntimeContext
 
 [project.entry-points.pytest11]
 ddtrace = "ddtrace.contrib.internal.pytest.plugin"
-"ddtrace.pytest_bdd" = "ddtrace.contrib.internal.pytest_bdd.plugin"
-"ddtrace.pytest_benchmark" = "ddtrace.contrib.internal.pytest_benchmark.plugin"
 
 [project.entry-points.'ddtrace.products']
 "apm-tracing-rc" = "ddtrace.internal.remoteconfig.products.apm_tracing"
@@ -104,47 +100,6 @@ exclude = '''
 )
 '''
 
-[tool.black]
-line-length = 120
-target_version = ['py37', 'py38', 'py39', 'py310', 'py311', 'py312']
-include = '''\.py[ix]?$'''
-exclude = '''
-(
-  \.worktrees/
-  | .venv*
-  | \.sg
-  | \.riot/
-  | ddtrace/appsec/_ddwaf.pyx$
-  | ddtrace/internal/_encoding.pyx$
-  | ddtrace/internal/_rand.pyx$
-  | ddtrace/internal/_tagset.pyx$
-  | ddtrace/internal/telemetry/metrics_namespaces.pyx$
-  | ddtrace/profiling/collector/_traceback.pyx$
-  | ddtrace/profiling/collector/_task.pyx$
-  | ddtrace/profiling/_threading.pyx$
-  | ddtrace/profiling/collector/stack.pyx$
-  | ddtrace/profiling/exporter/pprof.pyx$
-  | ddtrace/internal/datadog/profiling/ddup/_ddup.pyx$
-  | ddtrace/vendor/
-  | ddtrace/appsec/_iast/_taint_tracking/_vendor/
-  | ddtrace/appsec/_iast/_taint_tracking/cmake-build-debug/
-  | ddtrace/_version.py
-  | \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.nox
-  | \.tox
-  | \.venv
-  | _build/
-  | buck-out/
-  | build/
-  | dist/
-  | tests/lib-injection/dd-lib-python-init-test-protobuf-old/addressbook_pb2.py$
-  | tests/profiling/collector/pprof_.*_pb2.py$
-)
-'''
-
 [tool.pyright]
 exclude = [
   "**/__pycache__",
@@ -157,48 +112,6 @@ exclude = [
   ".venv",
   ".worktrees",
 ]
-
-[tool.slotscheck]
-exclude-modules = '''
-(
-  ^ddtrace.(contrib|vendor)
-  | ^tests.(contrib|vendor)
-  # avoid sitecustomize modules as they start services
-  | ddtrace.bootstrap.sitecustomize
-  | ddtrace.profiling.bootstrap.sitecustomize
-  | ddtrace.profiling.auto
-  # also ignore preload module to avoid exception after moving ddtrace.tracing module
-  | ddtrace.bootstrap.preload
-  # protobuf file fails to import
-  | tests.profiling.collector.pprof_3_pb2
-  | tests.profiling.collector.pprof_312_pb2
-  | tests.profiling.collector.pprof_319_pb2
-  | tests.profiling.collector.pprof_421_pb2
-  # TODO: resolve slot inheritance issues with profiling
-  | ddtrace.profiling.collector
-  | ddtrace.profiling._gevent
-  | ddtrace,appsec,iast,_taint_tracking.vendor
-  | ddtrace.appsec._ddwaf.ddwaf_types
-  | ddtrace.appsec._iast._taint_tracking
-  | ddtrace.appsec._iast._ast.aspects
-  | ddtrace.appsec._iast._taint_utils
-  | ddtrace.appsec._iast.taint_sinks.sql_injection
-  # DSM specific contribs
-  | ddtrace.internal.datastreams.kafka
-  # libdd_wrapper is a common native dependency, not a module
-  | ddtrace.internal.datadog.profiling.libdd_wrapper
-  # _ddup and _stack_v2 miss a runtime dependency in slotscheck, but ddup and stack_v2 are fine
-  | ddtrace.internal.datadog.profiling.ddup._ddup
-  | ddtrace.internal.datadog.profiling.stack_v2._stack_v2
-  # coverage has version-specific checks that prevent import
-  | ddtrace.internal.coverage.instrumentation_py3_8
-  | ddtrace.internal.coverage.instrumentation_py3_10
-  | ddtrace.internal.coverage.instrumentation_py3_11
-  | ddtrace.internal.coverage.instrumentation_py3_12
-  | ddtrace.internal.coverage.instrumentation_py3_13
-  | ddtrace.internal.coverage.instrumentation_py3_14
-)
-'''
 
 [tool.bandit]
 targets = ["ddtrace/"]
@@ -219,6 +132,7 @@ exclude_dirs = [
 ]
 
 [tool.ruff]
+# This exclude list applies to both linting and formatting
 exclude = [
     ".riot",
     ".ddriot",
@@ -270,6 +184,11 @@ lint.ignore = [
     "G201",
 ]
 line-length = 120
+
+# Allow experimental/preview checks
+lint.preview = true
+lint.explicit-preview-rules = true
+
 lint.select = [
     "A",
     "D",
@@ -277,11 +196,22 @@ lint.select = [
     "F",
     "G",
     "I",
+    "PLW0244",  # redefined-slots-in-subclass
     "W",
 ]
 lint.unfixable =[
   "F401",
 ]
+
+
+[tool.ruff.format]
+# Formatter-specific settings
+# The exclude list from [tool.ruff] is inherited automatically
+# Additional formatter options can be added here if needed
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
 
 [tool.ruff.lint.pydocstyle]
 convention = "pep257"
@@ -292,8 +222,3 @@ lines-after-imports = 2
 force-sort-within-sections = true
 known-first-party = [ "ddtrace" ]
 relative-imports-order = "furthest-to-closest"
-
-[tool.ruff.lint.per-file-ignores]
-# Exclude typing stubs as vertical line spacing incompatibility with black
-# See: https://github.com/astral-sh/ruff/pull/6501
-"*.pyi" = ["I001"]

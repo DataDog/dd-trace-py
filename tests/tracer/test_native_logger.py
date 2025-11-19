@@ -68,7 +68,7 @@ LEVELS = ["trace", "debug", "info", "warning", "error"]
 cases = [(config, msg, LEVELS.index(msg) >= LEVELS.index(config)) for config in LEVELS for msg in LEVELS]
 
 
-@pytest.mark.parametrize("backend", ["stdout", "stderr", "file"])
+@pytest.mark.parametrize("backend", ["", "stdout", "stderr", "file"])
 @pytest.mark.parametrize("configured_level, message_level, should_log", cases)
 def test_logger_subprocess(
     backend, configured_level, message_level, should_log, tmp_path, ddtrace_run_python_code_in_subprocess
@@ -87,13 +87,15 @@ from ddtrace.internal.native._native import logger
 
 message_level = f"{}"
 logger.log(message_level, f"{}")
-    """.format(
-        message_level, message
-    )
+    """.format(message_level, message)
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
 
     assert status == 0
-    if backend == "stdout":
+    if backend == "":
+        assert out == b""
+        assert err == b""
+        assert not log_path.exists()
+    elif backend == "stdout":
         found = message in out.decode("utf8")
         assert err == b""
         assert found == should_log

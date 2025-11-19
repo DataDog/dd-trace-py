@@ -2,8 +2,8 @@
 components:
   debugging:
     - ddtrace/debugging/*
-    - ddtrace/settings/dynamic_instrumentation.py
-    - ddtrace/settings/exception_replay.py
+    - ddtrace/internal/settings/dynamic_instrumentation.py
+    - ddtrace/internal/settings/exception_replay.py
 suites:
   debugger:
     parallelism: 1

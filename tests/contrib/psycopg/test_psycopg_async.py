@@ -10,7 +10,6 @@ from ddtrace.contrib.internal.psycopg.patch import patch
 from ddtrace.contrib.internal.psycopg.patch import unpatch
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.config import POSTGRES_CONFIG
-from tests.opentracer.utils import init_tracer
 from tests.utils import assert_is_measured
 
 
@@ -126,47 +125,6 @@ class PsycopgCore(AsyncioTestCase):
         assert_is_measured(root)
         self.assertIsNone(root.get_tag("sql.query"))
         self.reset()
-
-    async def test_opentracing_propagation(self):
-        # ensure OpenTracing plays well with our integration
-        query = """SELECT 'tracing'"""
-
-        db = await self._get_conn()
-        ot_tracer = init_tracer("psycopg-svc", self.tracer)
-
-        with ot_tracer.start_active_span("db.access"):
-            cursor = db.cursor()
-            await cursor.execute(query)
-            rows = await cursor.fetchall()
-
-        self.assertEqual(rows, [("tracing",)])
-
-        self.assert_structure(
-            dict(name="db.access", service="psycopg-svc"),
-            (dict(name="postgres.query", resource=query, service="postgres", error=0, span_type="sql"),),
-        )
-        assert_is_measured(self.get_spans()[1])
-        self.reset()
-
-        with self.override_config("psycopg", dict(trace_fetch_methods=True)):
-            db = await self._get_conn()
-            ot_tracer = init_tracer("psycopg-svc", self.tracer)
-
-            with ot_tracer.start_active_span("db.access"):
-                cursor = db.cursor()
-                await cursor.execute(query)
-                rows = await cursor.fetchall()
-
-            self.assertEqual(rows, [("tracing",)])
-
-            self.assert_structure(
-                dict(name="db.access", service="psycopg-svc"),
-                (
-                    dict(name="postgres.query", resource=query, service="postgres", error=0, span_type="sql"),
-                    dict(name="postgres.query.fetchall", resource=query, service="postgres", error=0, span_type="sql"),
-                ),
-            )
-            assert_is_measured(self.get_spans()[1])
 
     async def test_cursor_ctx_manager(self):
         # ensure cursors work with context managers
@@ -306,7 +264,7 @@ class PsycopgCore(AsyncioTestCase):
         """Checks whether connection context manager works as normal."""
 
         query = SQL("""select 'one' as x""")
-        async with (await psycopg.AsyncConnection.connect(**POSTGRES_CONFIG)) as conn:
+        async with await psycopg.AsyncConnection.connect(**POSTGRES_CONFIG) as conn:
             cur = await conn.execute(query)
             rows = await cur.fetchall()
 

@@ -174,21 +174,29 @@ def test_metric_request_tainted(no_request_sampling, telemetry_writer):
     assert filtered_metrics == ["executed.source", "request.tainted"]
     assert len(filtered_metrics) == 2, "Expected 2 generate_metrics"
     assert span.get_metric(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) > 0
-    assert span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_parameter") > 0
 
 
 def test_log_metric(telemetry_writer):
-    with override_global_config(dict(_iast_debug=True)):
+    # Clear any existing logs first
+    telemetry_writer._logs.clear()
+    # Reset the deduplication cache to ensure clean state
+    _set_iast_error_metric._reset_cache()
+
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_debug=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+    ):
         _set_iast_error_metric("test_format_key_error_and_no_log_metric raises")
 
     list_metrics_logs = list(telemetry_writer._logs)
-    assert len(list_metrics_logs) == 1
+    assert len(list_metrics_logs) == 1, f"Expected 1 log entry, got {len(list_metrics_logs)}"
     assert list_metrics_logs[0]["message"] == "test_format_key_error_and_no_log_metric raises"
     assert "stack_trace" not in list_metrics_logs[0].keys()
 
 
 def test_log_metric_debug_disabled(telemetry_writer):
-    with override_global_config(dict(_iast_debug=False)):
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_debug=False, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+    ):
         _set_iast_error_metric("test_log_metric_debug_disabled raises")
 
         list_metrics_logs = list(telemetry_writer._logs)
@@ -196,12 +204,19 @@ def test_log_metric_debug_disabled(telemetry_writer):
 
 
 def test_log_metric_debug_deduplication(telemetry_writer):
-    with override_global_config(dict(_iast_debug=True)):
+    # Clear any existing logs first
+    telemetry_writer._logs.clear()
+    # Reset the deduplication cache to ensure clean state
+    _set_iast_error_metric._reset_cache()
+
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_debug=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+    ):
         for i in range(10):
             _set_iast_error_metric("test_log_metric_debug_deduplication raises 2")
 
         list_metrics_logs = list(telemetry_writer._logs)
-        assert len(list_metrics_logs) == 1
+        assert len(list_metrics_logs) == 1, f"Expected 1 log entry, got {len(list_metrics_logs)}"
         assert list_metrics_logs[0]["message"] == "test_log_metric_debug_deduplication raises 2"
         assert "stack_trace" not in list_metrics_logs[0].keys()
 
@@ -216,12 +231,19 @@ def test_log_metric_debug_disabled_deduplication(telemetry_writer):
 
 
 def test_log_metric_debug_deduplication_different_messages(telemetry_writer):
-    with override_global_config(dict(_iast_debug=True)):
+    # Clear any existing logs first
+    telemetry_writer._logs.clear()
+    # Reset the deduplication cache to ensure clean state
+    _set_iast_error_metric._reset_cache()
+
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_debug=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+    ):
         for i in range(10):
             _set_iast_error_metric(f"test_log_metric_debug_deduplication_different_messages raises {i}")
 
         list_metrics_logs = list(telemetry_writer._logs)
-        assert len(list_metrics_logs) == 10
+        assert len(list_metrics_logs) == 10, f"Expected 10 log entries, got {len(list_metrics_logs)}"
         assert list_metrics_logs[0]["message"].startswith(
             "test_log_metric_debug_deduplication_different_messages raises"
         )

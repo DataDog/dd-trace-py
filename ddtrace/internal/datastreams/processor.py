@@ -19,9 +19,9 @@ from ddtrace.internal import compat
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.native import DDSketch
+from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings._config import config
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
-from ddtrace.settings._agent import config as agent_config
-from ddtrace.settings._config import config
 from ddtrace.version import get_version
 
 from .._encoding import packb
@@ -70,28 +70,6 @@ PathwayAggrKey = typing.Tuple[
 ]
 
 
-class SumCount:
-    """Helper class to keep track of sum and count of values."""
-
-    __slots__ = ("_sum", "_count")
-
-    def __init__(self) -> None:
-        self._sum: float = 0.0
-        self._count: int = 0
-
-    def add(self, value: float) -> None:
-        self._sum += value
-        self._count += 1
-
-    @property
-    def sum(self) -> float:
-        return self._sum
-
-    @property
-    def count(self) -> int:
-        return self._count
-
-
 class PathwayStats(object):
     """Aggregated pathway statistics."""
 
@@ -100,7 +78,7 @@ class PathwayStats(object):
     def __init__(self):
         self.full_pathway_latency = DDSketch()
         self.edge_latency = DDSketch()
-        self.payload_size = SumCount()
+        self.payload_size = DDSketch()
 
 
 PartitionKey = NamedTuple("PartitionKey", [("topic", str), ("partition", int)])
@@ -134,9 +112,7 @@ class DataStreamsProcessor(PeriodicService):
         self._timeout = timeout
         # Have the bucket size match the interval in which flushes occur.
         self._bucket_size_ns = int(interval * 1e9)  # type: int
-        self._buckets = defaultdict(
-            lambda: Bucket(defaultdict(PathwayStats), defaultdict(int), defaultdict(int))
-        )  # type: DefaultDict[int, Bucket]
+        self._buckets = defaultdict(lambda: Bucket(defaultdict(PathwayStats), defaultdict(int), defaultdict(int)))  # type: DefaultDict[int, Bucket]
         self._version = get_version()
         self._headers = {
             "Datadog-Meta-Lang": "python",
@@ -229,6 +205,7 @@ class DataStreamsProcessor(PeriodicService):
                     "ParentHash": parent_hash,
                     "PathwayLatency": stat_aggr.full_pathway_latency.to_proto(),
                     "EdgeLatency": stat_aggr.edge_latency.to_proto(),
+                    "PayloadSize": stat_aggr.payload_size.to_proto(),
                 }
                 bucket_aggr_stats.append(serialized_bucket)
             for consumer_key, offset in bucket.latest_commit_offsets.items():
@@ -294,7 +271,6 @@ class DataStreamsProcessor(PeriodicService):
 
     def periodic(self):
         # type: () -> None
-
         with self._lock:
             serialized_stats = self._serialize_buckets()
 

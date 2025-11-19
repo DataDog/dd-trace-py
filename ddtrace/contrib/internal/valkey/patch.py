@@ -55,7 +55,7 @@ Instance Configuration
 To configure particular valkey instances use the :class:`Pin <ddtrace.Pin>` API::
 
     import valkey
-    from ddtrace.trace import Pin
+    from ddtrace._trace.pin import Pin
 
     client = valkey.StrictValkey(host="localhost", port=6379)
 
@@ -66,6 +66,7 @@ To configure particular valkey instances use the :class:`Pin <ddtrace.Pin>` API:
     # as the service name.
     client.get("my-key")
 """
+
 import os
 from typing import Dict
 

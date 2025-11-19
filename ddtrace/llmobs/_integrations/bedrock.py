@@ -238,13 +238,11 @@ class BedrockIntegration(BaseLLMIntegration):
         return get_messages_from_converse_content(role, content)
 
     @staticmethod
-    def _converse_output_stream_processor() -> (
-        Generator[
-            None,
-            Dict[str, Any],
-            Tuple[List[Message], Dict[str, str], Dict[str, int]],
-        ]
-    ):
+    def _converse_output_stream_processor() -> Generator[
+        None,
+        Dict[str, Any],
+        Tuple[List[Message], Dict[str, str], Dict[str, int]],
+    ]:
         """
         Listens for output chunks from a converse streamed response and builds a
         list of output messages, usage metrics, and metadata.
@@ -371,13 +369,14 @@ class BedrockIntegration(BaseLLMIntegration):
         """Extract output messages from the stored response.
         Anthropic allows for chat messages, which requires some special casing.
         """
-        if isinstance(response["text"], str):
-            return [Message(content=response["text"])]
-        if isinstance(response["text"], list):
-            if isinstance(response["text"][0], str):
-                return [Message(content=str(content)) for content in response["text"]]
-            if isinstance(response["text"][0], dict):
-                return [Message(content=response["text"][0].get("text", ""))]
+        resp_text = response.get("text", "")
+        if isinstance(resp_text, str):
+            return [Message(content=resp_text)]
+        if resp_text and isinstance(resp_text, list):
+            if isinstance(resp_text[0], str):
+                return [Message(content=str(content)) for content in resp_text]
+            if isinstance(resp_text[0], dict):
+                return [Message(content=resp_text[0].get("text", ""))]
         return []
 
     def _get_base_url(self, **kwargs: Dict[str, Any]) -> Optional[str]:

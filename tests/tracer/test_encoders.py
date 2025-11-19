@@ -4,6 +4,8 @@ import json
 import random
 import string
 import threading
+from typing import Any
+from typing import Dict
 from unittest import TestCase
 
 from hypothesis import given
@@ -937,13 +939,9 @@ def _value():
         {"start_ns": []},
         {"duration_ns": {}},
         {"span_type": 100},
-        {"_meta": {"num": 100}},
-        # Validating behavior with a context manager is a customer regression
-        {"_meta": {"key": _value()}},
-        {"_metrics": {"key": "value"}},
     ],
 )
-def test_encoding_invalid_data(data):
+def test_encoding_invalid_data_raises(data):
     encoder = MsgpackEncoderV04(1 << 20, 1 << 20)
 
     span = Span(name="test")
@@ -957,6 +955,41 @@ def test_encoding_invalid_data(data):
     assert e.match(r"failed to pack span: Span\(name="), e
     encoded_traces = encoder.encode()
     assert (not encoded_traces) or (encoded_traces[0][0] is None)
+
+
+@pytest.mark.parametrize(
+    "meta,metrics",
+    [
+        ({"num": 100}, {}),
+        # Validating behavior with a context manager is a customer regression
+        ({"key": _value()}, {}),
+        ({}, {"key": "value"}),
+    ],
+)
+def test_encoding_invalid_data_ok(meta: Dict[str, Any], metrics: Dict[str, Any]):
+    """Encoding invalid meta/metrics data should not raise an exception"""
+    encoder = MsgpackEncoderV04(1 << 20, 1 << 20)
+
+    span = Span(name="test")
+    span._meta = meta  # type: ignore
+    span._metrics = metrics  # type: ignore
+
+    trace = [span]
+    encoder.put(trace)
+
+    encoded_payloads = encoder.encode()
+    assert len(encoded_payloads) == 1
+
+    # Ensure it can be decoded properly
+    traces = msgpack.unpackb(encoded_payloads[0][0], raw=False)
+    assert len(traces) == 1
+    assert len(traces[0]) == 1
+
+    # We didn't encode the invalid meta/metrics
+    for key in meta.keys():
+        assert key not in traces[0][0]["meta"]
+    for key in metrics.keys():
+        assert key not in traces[0][0]["metrics"]
 
 
 @allencodings

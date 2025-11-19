@@ -2,6 +2,7 @@
 """
 An API to provide atexit functionalities
 """
+
 from __future__ import absolute_import
 
 import atexit

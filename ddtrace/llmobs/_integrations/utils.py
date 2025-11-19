@@ -16,6 +16,7 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import INPUT_MESSAGES
+from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
@@ -26,6 +27,7 @@ from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import safe_load_json
@@ -34,13 +36,6 @@ from ddtrace.llmobs.types import ToolCall
 from ddtrace.llmobs.types import ToolDefinition
 from ddtrace.llmobs.types import ToolResult
 
-
-try:
-    from tiktoken import encoding_for_model
-
-    tiktoken_available = True
-except ModuleNotFoundError:
-    tiktoken_available = False
 
 logger = get_logger(__name__)
 
@@ -745,9 +740,78 @@ def openai_get_metadata_from_response(
     return metadata
 
 
+def _extract_chat_template_from_instructions(
+    instructions: List[Any], variables: Dict[str, Any]
+) -> List[Dict[str, str]]:
+    """
+    Extract a chat template from OpenAI response instructions by replacing variable values with placeholders.
+
+    Args:
+        instructions: List of instruction messages from the OpenAI response
+        variables: Dictionary of variables used in the prompt
+
+    Returns:
+        List of chat template messages with placeholders (e.g., {{variable_name}})
+    """
+    chat_template = []
+
+    # Create a mapping of variable values to placeholder names
+    value_to_placeholder = {}
+    for var_name, var_value in variables.items():
+        if hasattr(var_value, "text"):  # ResponseInputText
+            value_str = str(var_value.text)
+        else:
+            value_str = str(var_value)
+
+        # Skip empty values
+        if not value_str:
+            continue
+
+        value_to_placeholder[value_str] = f"{{{{{var_name}}}}}"
+
+    # Sort by length (longest first) to handle overlapping values correctly
+    sorted_values = sorted(value_to_placeholder.keys(), key=len, reverse=True)
+
+    for instruction in instructions:
+        role = _get_attr(instruction, "role", "")
+        if not role:
+            continue
+
+        content_items = _get_attr(instruction, "content", [])
+        if not content_items:
+            continue
+
+        text_parts = []
+        for content_item in content_items:
+            text = _get_attr(content_item, "text", "")
+            if text:
+                text_parts.append(str(text))
+
+        if not text_parts:
+            continue
+
+        full_text = "".join(text_parts)
+
+        # Replace variable values with placeholders (longest first)
+        for value_str in sorted_values:
+            placeholder = value_to_placeholder[value_str]
+            full_text = full_text.replace(value_str, placeholder)
+
+        chat_template.append({"role": role, "content": full_text})
+
+    return chat_template
+
+
 def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], response: Optional[Any]) -> None:
     """Extract input/output tags from response and set them as temporary "_ml_obs.meta.*" tags."""
     input_data = kwargs.get("input", [])
+
+    # For reusable prompts, input may not be in kwargs, extract from response.instructions
+    if not input_data and response and "prompt" in kwargs:
+        instructions = _get_attr(response, "instructions", [])
+        if instructions:
+            input_data = load_data_value(instructions)
+
     input_messages = openai_get_input_messages_from_response_input(input_data)
 
     if "instructions" in kwargs:
@@ -759,6 +823,25 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], respo
             METADATA: openai_get_metadata_from_response(response, kwargs),
         }
     )
+
+    if "prompt" in kwargs:
+        prompt_data = kwargs.get("prompt")
+        if prompt_data:
+            try:
+                # Extract chat_template from response instructions if available
+                if response and not prompt_data.get("chat_template") and not prompt_data.get("template"):
+                    instructions = _get_attr(response, "instructions", None)
+                    variables = prompt_data.get("variables", {})
+                    if instructions and variables:
+                        chat_template = _extract_chat_template_from_instructions(instructions, variables)
+                        if chat_template:
+                            prompt_data = dict(prompt_data)  # Make a copy to avoid modifying the original
+                            prompt_data["chat_template"] = chat_template
+
+                validated_prompt = _validate_prompt(prompt_data, strict_validation=False)
+                span._set_ctx_item(INPUT_PROMPT, validated_prompt)
+            except (TypeError, ValueError, AttributeError) as e:
+                logger.debug("Failed to validate prompt for OpenAI response: %s", e)
 
     if span.error or not response:
         span._set_ctx_item(OUTPUT_MESSAGES, [Message(content="")])
@@ -1257,76 +1340,41 @@ def get_final_message_converse_stream_message(
 _punc_regex = re.compile(r"[\w']+|[.,!?;~@#$%^&*()+/-]")
 
 
-def _compute_prompt_tokens(model_name, prompts=None, messages=None):
+def _compute_prompt_tokens(prompts=None, messages=None):
     """Compute token span metrics on streamed chat/completion requests.
     Only required if token usage is not provided in the streamed response.
     """
     num_prompt_tokens = 0
-    estimated = False
     if messages:
         for m in messages:
-            estimated, prompt_tokens = _compute_token_count(m.get("content", ""), model_name)
+            prompt_tokens = _est_tokens(m.get("content", ""))
             num_prompt_tokens += prompt_tokens
     elif prompts:
         if isinstance(prompts, str) or isinstance(prompts, list) and isinstance(prompts[0], int):
             prompts = [prompts]
         for prompt in prompts:
-            estimated, prompt_tokens = _compute_token_count(prompt, model_name)
+            prompt_tokens = _est_tokens(prompt)
             num_prompt_tokens += prompt_tokens
-    return estimated, num_prompt_tokens
+    return num_prompt_tokens
 
 
-def _compute_completion_tokens(completions_or_messages, model_name):
+def _compute_completion_tokens(completions_or_messages):
     """Compute/Estimate the completion token count from the streamed response."""
-    if not completions_or_messages:
-        return False, 0
-    estimated = False
     num_completion_tokens = 0
     for choice in completions_or_messages:
         content = choice.get("content", "") or choice.get("text", "")
-        estimated, completion_tokens = _compute_token_count(content, model_name)
+        completion_tokens = _est_tokens(content)
         num_completion_tokens += completion_tokens
-    return estimated, num_completion_tokens
+    return num_completion_tokens
 
 
-def _compute_token_count(content, model):
-    # type: (Union[str, List[int]], Optional[str]) -> Tuple[bool, int]
-    """
-    Takes in prompt/response(s) and model pair, and returns a tuple of whether or not the number of prompt
-    tokens was estimated, and the estimated/calculated prompt token count.
-    """
-    num_prompt_tokens = 0
-    estimated = False
-    if model is not None and tiktoken_available is True:
-        try:
-            enc = encoding_for_model(model)
-            if isinstance(content, str):
-                num_prompt_tokens += len(enc.encode(content))
-            elif content and isinstance(content, list) and isinstance(content[0], int):
-                num_prompt_tokens += len(content)
-            return estimated, num_prompt_tokens
-        except KeyError:
-            # tiktoken.encoding_for_model() will raise a KeyError if it doesn't have a tokenizer for the model
-            estimated = True
-    else:
-        estimated = True
-
-    # If model is unavailable or tiktoken is not imported, then provide a very rough estimate of the number of tokens
-    return estimated, _est_tokens(content)
-
-
-def _est_tokens(prompt):
-    # type: (Union[str, List[int]]) -> int
+def _est_tokens(prompt: Union[str, List[int]]) -> int:
     """
     Provide a very rough estimate of the number of tokens in a string prompt.
     Note that if the prompt is passed in as a token array (list of ints), the token count
     is just the length of the token array.
+    Assumes 1) English text, 2) 1 token ~= 4 chars, and 3) 1 token ~= ¾ words
     """
-    # If model is unavailable or tiktoken is not imported, then provide a very rough estimate of the number of tokens
-    # Approximate using the following assumptions:
-    #    * English text
-    #    * 1 token ~= 4 chars
-    #    * 1 token ~= ¾ words
     if not prompt:
         return 0
     est_tokens = 0

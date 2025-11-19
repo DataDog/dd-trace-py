@@ -23,7 +23,7 @@ from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal._unpatched import _gc as gc
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
@@ -49,6 +49,11 @@ def patch_common_modules():
     if _is_patched:
         return
 
+    try_wrap_function_wrapper(
+        "urllib3.connectionpool", "HTTPConnectionPool._make_request", wrapped_urllib3_make_request
+    )
+    try_wrap_function_wrapper("urllib3._request_methods", "RequestMethods.request", wrapped_request_D8CB81E472AF98A2)
+    try_wrap_function_wrapper("urllib3.request", "RequestMethods.request", wrapped_request_D8CB81E472AF98A2)
     try_wrap_function_wrapper("builtins", "open", wrapped_open_CFDDB7ABBA9081B6)
     try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF)
     try_wrap_function_wrapper("http.client", "HTTPConnection.request", wrapped_request)
@@ -62,6 +67,9 @@ def unpatch_common_modules():
     if not _is_patched:
         return
 
+    try_unwrap("urllib3.connectionpool", "HTTPConnectionPool._make_request")
+    try_unwrap("urllib3._request_methods", "RequestMethods.request")
+    try_unwrap("urllib3.request", "RequestMethods.request")
     try_unwrap("builtins", "open")
     try_unwrap("urllib.request", "OpenerDirector.open")
     try_unwrap("_io", "BytesIO.read")

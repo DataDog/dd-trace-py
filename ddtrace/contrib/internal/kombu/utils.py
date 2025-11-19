@@ -1,6 +1,7 @@
 """
 Some utils used by the dogtrace kombu integration
 """
+
 from ddtrace.ext import kombu as kombux
 from ddtrace.ext import net
 

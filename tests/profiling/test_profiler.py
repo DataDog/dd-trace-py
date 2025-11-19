@@ -1,11 +1,10 @@
 import logging
 import time
+from unittest import mock
 
-import mock
 import pytest
 
 import ddtrace
-from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.profiling import collector
 from ddtrace.profiling import profiler
 from ddtrace.profiling import scheduler
@@ -106,7 +105,7 @@ def test_failed_start_collector(caplog, monkeypatch):
 
     class TestProfiler(profiler._ProfilerInstance):
         def _build_default_exporters(self, *args, **kargs):
-            return []
+            return None
 
     p = TestProfiler()
     err_collector = mock.MagicMock(wraps=ErrCollect())
@@ -141,30 +140,7 @@ def test_default_collectors():
 
 
 def test_profiler_serverless(monkeypatch):
-    # type: (...) -> None
     monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "foobar")
     p = profiler.Profiler()
     assert isinstance(p._scheduler, scheduler.ServerlessScheduler)
     assert p.tags["functionname"] == "foobar"
-
-
-@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 9), reason="Python 3.8 throws a deprecation warning")
-@pytest.mark.subprocess()
-def test_profiler_ddtrace_deprecation():
-    """
-    ddtrace interfaces loaded by the profiler can be marked deprecated, and we should update
-    them when this happens.  As reported by https://github.com/DataDog/dd-trace-py/issues/8881
-    """
-    import warnings
-
-    with warnings.catch_warnings():
-        warnings.simplefilter("error", DeprecationWarning)
-        from ddtrace.profiling import _threading  # noqa:F401
-        from ddtrace.profiling import event  # noqa:F401
-        from ddtrace.profiling import profiler  # noqa:F401
-        from ddtrace.profiling import scheduler  # noqa:F401
-        from ddtrace.profiling.collector import _lock  # noqa:F401
-        from ddtrace.profiling.collector import _task  # noqa:F401
-        from ddtrace.profiling.collector import _traceback  # noqa:F401
-        from ddtrace.profiling.collector import memalloc  # noqa:F401
-        from ddtrace.profiling.collector import stack  # noqa:F401

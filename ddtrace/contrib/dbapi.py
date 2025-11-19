@@ -1,6 +1,7 @@
 """
 Generic dbapi tracing code.
 """
+
 import wrapt
 
 from ddtrace import config
@@ -10,13 +11,13 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 
+from .._trace.pin import Pin
 from ..constants import _SPAN_MEASURED_KEY
 from ..constants import SPAN_KIND
 from ..ext import SpanKind
 from ..ext import SpanTypes
 from ..ext import db
 from ..ext import sql
-from ..trace import Pin
 from .internal.trace_utils import ext_service
 from .internal.trace_utils import iswrapped
 

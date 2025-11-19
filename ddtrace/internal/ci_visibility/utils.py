@@ -1,8 +1,11 @@
+from functools import wraps
 import inspect
 import logging
 import os
+import random
 import re
-import typing
+from time import sleep
+import typing as t
 
 import ddtrace
 from ddtrace import config as ddconfig
@@ -28,7 +31,7 @@ def get_relative_or_absolute_path_for_path(path: str, start_directory: str):
     return relative_path
 
 
-def get_source_file_path_for_test_method(test_method_object, repo_directory: str) -> typing.Union[str, None]:
+def get_source_file_path_for_test_method(test_method_object, repo_directory: str) -> t.Union[str, None]:
     try:
         file_object = inspect.getfile(test_method_object)
     except TypeError:
@@ -39,7 +42,7 @@ def get_source_file_path_for_test_method(test_method_object, repo_directory: str
 
 def get_source_lines_for_test_method(
     test_method_object,
-) -> typing.Union[typing.Tuple[int, int], typing.Tuple[None, None]]:
+) -> t.Union[t.Tuple[int, int], t.Tuple[None, None]]:
     try:
         source_lines_tuple = inspect.getsourcelines(test_method_object)
     except (TypeError, OSError):
@@ -70,9 +73,9 @@ def _add_start_end_source_file_path_data_to_span(
         log.debug("Tried to collect source start/end lines for test method %s but an exception was raised", test_name)
     span._set_tag_str(test.SOURCE_FILE, source_file_path)
     if start_line:
-        span.set_tag(test.SOURCE_START, start_line)
+        span.set_metric(test.SOURCE_START, start_line)
     if end_line:
-        span.set_tag(test.SOURCE_END, end_line)
+        span.set_metric(test.SOURCE_END, end_line)
 
 
 def _add_pct_covered_to_span(coverage_data: dict, span: ddtrace.trace.Span):
@@ -83,7 +86,7 @@ def _add_pct_covered_to_span(coverage_data: dict, span: ddtrace.trace.Span):
     if not isinstance(lines_pct_value, float):
         log.warning("Tried to add total covered percentage to session span but the format was unexpected")
         return
-    span.set_tag(test.TEST_LINES_PCT, lines_pct_value)
+    span.set_metric(test.TEST_LINES_PCT, lines_pct_value)
 
 
 def _generate_fully_qualified_test_name(test_module_path: str, test_suite_name: str, test_name: str) -> str:
@@ -156,3 +159,42 @@ def _get_test_framework_telemetry_name(test_framework: str) -> TEST_FRAMEWORKS:
         if framework.value == test_framework:
             return framework
     return TEST_FRAMEWORKS.MANUAL
+
+
+def retry_on_exceptions(
+    after: t.Iterable[float],
+    exceptions: t.Tuple[t.Type[BaseException], ...],
+) -> t.Callable:
+    """
+    Decorator to automatically retry a function if it raises specified exceptions.
+    """
+
+    def retry_decorator(f):
+        @wraps(f)
+        def retry_wrapped(*args, **kwargs):
+            for delay in after:
+                try:
+                    return f(*args, **kwargs)
+                except Exception as e:
+                    if not isinstance(e, exceptions):
+                        raise  # Not a retriable exception, don't keep retrying.
+                    sleep(delay)
+
+            # Last chance to succeed. If it fails, we don't catch the exception.
+            return f(*args, **kwargs)
+
+        return retry_wrapped
+
+    return retry_decorator
+
+
+def fibonacci_backoff_with_jitter_on_exceptions(
+    attempts: int, exceptions: t.Tuple[t.Type[BaseException], ...]
+) -> t.Callable:
+    """
+    Decorator to automatically retry a function if it raises specified exceptions, with exponential backoff delays.
+    """
+    return retry_on_exceptions(
+        after=[random.uniform(0, 1.618**i) for i in range(attempts - 1)],  # nosec
+        exceptions=exceptions,
+    )
