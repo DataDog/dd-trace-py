@@ -184,7 +184,9 @@ def tracer(use_global_tracer):
     if use_global_tracer:
         return ddtrace.tracer
     else:
-        return DummyTracer()
+        t = DummyTracer()
+        yield t
+        t.shutdown()
 
 
 @pytest.fixture

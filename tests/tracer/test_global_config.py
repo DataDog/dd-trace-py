@@ -7,7 +7,6 @@ from ddtrace import config as global_config
 from ddtrace.internal.settings._config import Config
 from ddtrace.internal.settings.integration import IntegrationConfig
 
-from ..utils import DummyTracer
 from ..utils import override_env
 
 
@@ -17,7 +16,6 @@ class GlobalConfigTestCase(TestCase):
     def setUp(self):
         self.config = Config()
         self.config.web = IntegrationConfig(self.config, "web")
-        self.tracer = DummyTracer()
 
     def test_registration(self):
         # ensure an integration can register a new list of settings
@@ -112,7 +110,7 @@ class GlobalConfigTestCase(TestCase):
         assert self.config.requests["a"]["b"]["c"] is True
         assert self.config.requests["a"]["b"]["d"] is True
 
-    def test_settings_hook(self):
+    def test_settings_hook(self, tracer):
         """
         When calling `Hooks.emit()`
             When there is a hook registered
@@ -125,7 +123,7 @@ class GlobalConfigTestCase(TestCase):
             span.set_tag("web.request", "/")
 
         # Create our span
-        with self.tracer.start_span("web.request") as span:
+        with tracer.start_span("web.request") as span:
             assert "web.request" not in span.get_tags()
 
             # Emit the span
@@ -134,7 +132,7 @@ class GlobalConfigTestCase(TestCase):
             # Assert we updated the span as expected
             assert span.get_tag("web.request") == "/"
 
-    def test_settings_hook_args(self):
+    def test_settings_hook_args(self, tracer):
         """
         When calling `Hooks.emit()` with arguments
             When there is a hook registered
@@ -148,7 +146,7 @@ class GlobalConfigTestCase(TestCase):
             span.set_tag("web.response", response)
 
         # Create our span
-        with self.tracer.start_span("web.request") as span:
+        with tracer.start_span("web.request") as span:
             assert "web.request" not in span.get_tags()
 
             # Emit the span
@@ -159,7 +157,7 @@ class GlobalConfigTestCase(TestCase):
             assert span.get_tag("web.request") == "request"
             assert span.get_tag("web.response") == "response"
 
-    def test_settings_hook_args_failure(self):
+    def test_settings_hook_args_failure(self, tracer):
         """
         When calling `Hooks.emit()` with arguments
             When there is a hook registered that is missing parameters
@@ -173,7 +171,7 @@ class GlobalConfigTestCase(TestCase):
             span.set_tag("web.request", request)
 
         # Create our span
-        with self.tracer.start_span("web.request") as span:
+        with tracer.start_span("web.request") as span:
             assert "web.request" not in span.get_tags()
 
             # Emit the span
@@ -183,7 +181,7 @@ class GlobalConfigTestCase(TestCase):
             # Assert we did not update the span
             assert "web.request" not in span.get_tags()
 
-    def test_settings_multiple_hooks(self):
+    def test_settings_multiple_hooks(self, tracer):
         """
         When calling `Hooks.emit()`
             When there are multiple hooks registered
@@ -204,7 +202,7 @@ class GlobalConfigTestCase(TestCase):
             span.set_tag("web.method", "GET")
 
         # Create our span
-        with self.tracer.start_span("web.request") as span:
+        with tracer.start_span("web.request") as span:
             assert "web.request" not in span.get_tags()
             assert "web.status" not in span.get_metrics()
             assert "web.method" not in span.get_tags()
@@ -217,7 +215,7 @@ class GlobalConfigTestCase(TestCase):
             assert span.get_metric("web.status") == 200
             assert span.get_tag("web.method") == "GET"
 
-    def test_settings_hook_failure(self):
+    def test_settings_hook_failure(self, tracer):
         """
         When calling `Hooks.emit()`
             When the hook raises an exception
@@ -228,20 +226,20 @@ class GlobalConfigTestCase(TestCase):
         self.config.web.hooks.register("request")(on_web_request)
 
         # Create our span
-        with self.tracer.start_span("web.request") as span:
+        with tracer.start_span("web.request") as span:
             # Emit the span
             # DEV: This is the test, to ensure no exceptions are raised
             self.config.web.hooks.emit("request", span)
             on_web_request.assert_called()
 
-    def test_settings_no_hook(self):
+    def test_settings_no_hook(self, tracer):
         """
         When calling `Hooks.emit()`
             When no hook is registered
                 we do not raise an exception
         """
         # Create our span
-        with self.tracer.start_span("web.request") as span:
+        with tracer.start_span("web.request") as span:
             # Emit the span
             # DEV: This is the test, to ensure no exceptions are raised
             self.config.web.hooks.emit("request", span)
