@@ -3,6 +3,11 @@ from unittest.mock import patch
 import pytest
 
 from ddtrace.internal import process_tags
+from ddtrace.internal.constants import PROCESS_TAGS
+from ddtrace.internal.process_tags import ENTRYPOINT_BASEDIR_TAG
+from ddtrace.internal.process_tags import ENTRYPOINT_NAME_TAG
+from ddtrace.internal.process_tags import ENTRYPOINT_TYPE_TAG
+from ddtrace.internal.process_tags import ENTRYPOINT_WORKDIR_TAG
 from ddtrace.internal.process_tags import normalize_tag_value
 from ddtrace.internal.settings._config import config
 from tests.subprocesstest import run_in_subprocess
@@ -17,7 +22,6 @@ TEST_WORKDIR_PATH = "/path/to/workdir"
 @pytest.mark.parametrize(
     "input_tag,expected",
     [
-        # # Additional test cases from Go implementation
         ("#test_starting_hash", "test_starting_hash"),
         ("TestCAPSandSuch", "testcapsandsuch"),
         ("Test Conversion Of Weird !@#$%^&**() Characters", "test_conversion_of_weird_characters"),
@@ -142,3 +146,19 @@ class TestProcessTags(TracerTestCase):
                         pass
                     with self.tracer.trace("child2"):
                         pass
+
+    @run_in_subprocess(env_overrides=dict(DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED="True"))
+    def test_process_tags_activated_with_env(self):
+        with self.tracer.trace("test"):
+            pass
+
+        span = self.get_spans()[0]
+
+        assert span is not None
+        assert PROCESS_TAGS in span._meta
+
+        process_tags = span._meta[PROCESS_TAGS]
+        assert ENTRYPOINT_BASEDIR_TAG in process_tags
+        assert ENTRYPOINT_NAME_TAG in process_tags
+        assert ENTRYPOINT_TYPE_TAG in process_tags
+        assert ENTRYPOINT_WORKDIR_TAG in process_tags
