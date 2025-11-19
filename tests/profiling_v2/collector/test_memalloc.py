@@ -2,6 +2,7 @@ import inspect
 import os
 import sys
 import threading
+from pathlib import Path
 
 import pytest
 
@@ -20,7 +21,7 @@ def _allocate_1k():
 _ALLOC_LINE_NUMBER = _allocate_1k.__code__.co_firstlineno + 1
 
 
-def _setup_profiling_prelude(tmp_path, test_name):
+def _setup_profiling_prelude(tmp_path: Path, test_name: str) -> str:
     """Setup ddup configuration and return the output filename for pprof parsing.
 
     Args:
