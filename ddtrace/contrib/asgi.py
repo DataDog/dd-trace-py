@@ -89,7 +89,6 @@ Configuration
 .. __: https://asgi.readthedocs.io/
 """
 
-
 from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.internal.asgi.middleware import span_from_scope
 
