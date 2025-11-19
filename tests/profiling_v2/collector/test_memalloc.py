@@ -797,20 +797,32 @@ def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(
         del second_batch
 
 
-def test_memory_collector_exception_handling():
+def test_memory_collector_exception_handling(tmp_path):
+    test_name = "test_memory_collector_exception_handling"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    ddup.config(
+        service=test_name,
+        version="test",
+        env="test",
+        output_filename=pprof_prefix,
+    )
+    ddup.start()
+
     mc = memalloc.MemoryCollector(heap_sample_size=256)
 
     with pytest.raises(ValueError):
         with mc:
             _allocate_1k()
-            samples = mc.test_snapshot()
-            assert isinstance(samples, tuple)
+            profile = mc.snapshot_and_parse_pprof(output_filename)
+            assert profile is not None
             raise ValueError("Test exception")
 
     with mc:
         _allocate_1k()
-        samples = mc.test_snapshot()
-        assert isinstance(samples, tuple)
+        profile = mc.snapshot_and_parse_pprof(output_filename)
+        assert profile is not None
 
 
 def test_memory_collector_allocation_during_shutdown():
@@ -901,10 +913,22 @@ def test_memory_collector_buffer_pool_exhaustion():
         )
 
 
-def test_memory_collector_thread_lifecycle():
+def test_memory_collector_thread_lifecycle(tmp_path):
     """Test that continuously creates and destroys threads while they perform allocations,
     verifying that the collector can track allocations across changing thread contexts.
     """
+    test_name = "test_memory_collector_thread_lifecycle"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    ddup.config(
+        service=test_name,
+        version="test",
+        env="test",
+        output_filename=pprof_prefix,
+    )
+    ddup.start()
+
     mc = memalloc.MemoryCollector(heap_sample_size=8)
 
     with mc:
@@ -927,14 +951,12 @@ def test_memory_collector_thread_lifecycle():
         for t in threads:
             t.join()
 
-        samples = mc.test_snapshot()
+        profile = mc.snapshot_and_parse_pprof(output_filename)
 
         worker_samples = 0
-        for sample in samples:
-            for frame in sample.frames:
-                if frame.function_name == "worker":
-                    worker_samples += 1
-                    break
+        for sample in profile.sample:
+            if has_function_in_profile_sample(profile, sample, "worker"):
+                worker_samples += 1
 
         assert (
             worker_samples > 0
