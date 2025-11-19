@@ -523,9 +523,9 @@ def test_memory_collector_allocation_tracking_across_snapshots():
 
         samples = mc.test_snapshot()
 
-        assert all(
-            sample.alloc_size > 0 for sample in samples
-        ), "Initial snapshot should have alloc_size>0 (new allocations)"
+        assert all(sample.alloc_size > 0 for sample in samples), (
+            "Initial snapshot should have alloc_size>0 (new allocations)"
+        )
 
         freed_samples = [s for s in samples if s.in_use_size == 0]
         live_samples = [s for s in samples if s.in_use_size > 0]
@@ -582,9 +582,9 @@ def test_memory_collector_python_interface_with_allocation_tracking():
 
         one_samples_in_final = [sample for sample in final_samples if has_function_in_traceback(sample.frames, "one")]
 
-        assert (
-            len(one_samples_in_final) == 0
-        ), f"Should have no samples with 'one' in traceback in final_samples, got {len(one_samples_in_final)}"
+        assert len(one_samples_in_final) == 0, (
+            f"Should have no samples with 'one' in traceback in final_samples, got {len(one_samples_in_final)}"
+        )
 
         batch_two_live_samples = [
             sample
@@ -592,9 +592,9 @@ def test_memory_collector_python_interface_with_allocation_tracking():
             if has_function_in_traceback(sample.frames, "two") and sample.in_use_size > 0
         ]
 
-        assert (
-            len(batch_two_live_samples) > 0
-        ), f"Should have live samples from batch two, got {len(batch_two_live_samples)}"
+        assert len(batch_two_live_samples) > 0, (
+            f"Should have live samples from batch two, got {len(batch_two_live_samples)}"
+        )
         assert all(sample.in_use_size > 0 and sample.alloc_size > 0 for sample in batch_two_live_samples)
 
         del second_batch
@@ -641,12 +641,12 @@ def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(
             if has_function_in_traceback(sample.frames, "two") and sample.in_use_size > 0
         ]
 
-        assert (
-            len(batch_one_live_samples) > 0
-        ), f"Should have live samples from batch one, got {len(batch_one_live_samples)}"
-        assert (
-            len(batch_two_live_samples) > 0
-        ), f"Should have live samples from batch two, got {len(batch_two_live_samples)}"
+        assert len(batch_one_live_samples) > 0, (
+            f"Should have live samples from batch one, got {len(batch_one_live_samples)}"
+        )
+        assert len(batch_two_live_samples) > 0, (
+            f"Should have live samples from batch two, got {len(batch_two_live_samples)}"
+        )
 
         assert all(sample.in_use_size > 0 and sample.alloc_size == 0 for sample in batch_one_live_samples)
         assert all(sample.in_use_size > 0 and sample.alloc_size > 0 for sample in batch_two_live_samples)
@@ -749,9 +749,9 @@ def test_memory_collector_buffer_pool_exhaustion():
                     deep_alloc_count += 1
                     break
 
-        assert (
-            deep_alloc_count >= 10
-        ), f"Buffer pool test: Expected many allocations from concurrent threads, got {deep_alloc_count}"
+        assert deep_alloc_count >= 10, (
+            f"Buffer pool test: Expected many allocations from concurrent threads, got {deep_alloc_count}"
+        )
 
         assert max_stack_depth >= 50, (
             f"Buffer pool test: Stack traces should be preserved even under stress (expecting at least 50 frames), "
@@ -794,6 +794,6 @@ def test_memory_collector_thread_lifecycle():
                     worker_samples += 1
                     break
 
-        assert (
-            worker_samples > 0
-        ), "Thread lifecycle test: Should capture allocations even as threads are created/destroyed"
+        assert worker_samples > 0, (
+            "Thread lifecycle test: Should capture allocations even as threads are created/destroyed"
+        )

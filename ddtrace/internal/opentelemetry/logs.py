@@ -142,7 +142,7 @@ def _import_exporter(protocol):
             from opentelemetry.exporter.otlp.proto.http.version import __version__ as exporter_version
         else:
             log.warning(
-                "OpenTelemetry Logs exporter protocol '%s' is not supported. " "Use 'grpc' or 'http/protobuf'.",
+                "OpenTelemetry Logs exporter protocol '%s' is not supported. Use 'grpc' or 'http/protobuf'.",
                 protocol,
             )
             return None
