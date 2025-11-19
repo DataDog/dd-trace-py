@@ -733,7 +733,6 @@ def _openai_parse_output_response_messages(
                 tool_id=call_id,
                 type="mcp_tool_result",
             )
-            create_mcp_tool_span(call_id, name, arguments, output, integration)
             message.update(
                 {
                     "tool_calls": [tool_call_info],
@@ -1494,28 +1493,3 @@ def extract_instance_metadata_from_stack(
     except Exception:
         logger.warning("Failed to extract prompt variable name")
         return default_variable_name, default_module_name
-
-
-def create_mcp_tool_span(
-    tool_id,
-    tool_name,
-    tool_arguments,
-    tool_output,
-    integration: Any = None,
-) -> None:
-    """
-    Creates and submits a tool span to LLMObs to represent a server-side MCP tool call.
-    """
-    if hasattr(integration, "_openai") and hasattr(integration._openai, "_datadog_pin"):
-        pin = integration._openai._datadog_pin
-    else:
-        return
-
-    with integration.trace(pin, "server_tool_call", submit_to_llmobs=True, kind="tool") as span:
-        integration.llmobs_set_tags(
-            span,
-            args=[],
-            kwargs={"name": tool_name, "arguments": tool_arguments, "tool_id": tool_id},
-            response=tool_output,
-            operation="tool",
-        )
