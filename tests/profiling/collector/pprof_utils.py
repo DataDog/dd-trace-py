@@ -310,11 +310,16 @@ def assert_sample_has_locations(profile, sample, expected_locations: Optional[Li
         sample_loc_strs.append(f"{filename}:{function_name}:{line_no}")
 
         if expected_locations_idx < len(expected_locations):
-            if (
-                function_name.endswith(expected_locations[expected_locations_idx].function_name)
-                and re.fullmatch(expected_locations[expected_locations_idx].filename, filename)
-                and line_no == expected_locations[expected_locations_idx].line_no
-            ):
+            function_name_matches = function_name.endswith(expected_locations[expected_locations_idx].function_name)
+            filename_matches = expected_locations[expected_locations_idx].filename == "" or re.fullmatch(
+                expected_locations[expected_locations_idx].filename, filename
+            )
+            line_no_matches = (
+                expected_locations[expected_locations_idx].line_no == -1
+                or line_no == expected_locations[expected_locations_idx].line_no
+            )
+
+            if function_name_matches and filename_matches and line_no_matches:
                 expected_locations_idx += 1
                 if expected_locations_idx == len(expected_locations):
                     checked = True
