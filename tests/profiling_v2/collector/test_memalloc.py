@@ -22,11 +22,11 @@ _ALLOC_LINE_NUMBER = _allocate_1k.__code__.co_firstlineno + 1
 
 def _setup_profiling_prelude(tmp_path, test_name):
     """Setup ddup configuration and return the output filename for pprof parsing.
-    
+
     Args:
         tmp_path: pytest tmp_path fixture
         test_name: Name of the test (used for service name and output filename)
-        
+
     Returns:
         output_filename: The full path to the pprof output file (with PID suffix)
     """
@@ -40,7 +40,7 @@ def _setup_profiling_prelude(tmp_path, test_name):
         output_filename=pprof_prefix,
     )
     ddup.start()
-    
+
     return output_filename
 
 
@@ -606,7 +606,9 @@ def test_memory_collector_allocation_tracking_across_snapshots(tmp_path):
 
 
 def test_memory_collector_python_interface_with_allocation_tracking(tmp_path):
-    output_filename = _setup_profiling_prelude(tmp_path, "test_memory_collector_python_interface_with_allocation_tracking")
+    output_filename = _setup_profiling_prelude(
+        tmp_path, "test_memory_collector_python_interface_with_allocation_tracking"
+    )
 
     mc = memalloc.MemoryCollector(heap_sample_size=128)
 
@@ -676,7 +678,9 @@ def test_memory_collector_python_interface_with_allocation_tracking(tmp_path):
 
 
 def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(tmp_path):
-    output_filename = _setup_profiling_prelude(tmp_path, "test_memory_collector_python_interface_with_allocation_tracking_no_deletion")
+    output_filename = _setup_profiling_prelude(
+        tmp_path, "test_memory_collector_python_interface_with_allocation_tracking_no_deletion"
+    )
 
     mc = memalloc.MemoryCollector(heap_sample_size=128)
 
