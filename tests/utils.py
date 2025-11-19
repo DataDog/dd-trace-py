@@ -644,6 +644,9 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
         spans = DummyWriterMixin.pop(self)
         if self._trace_flush_enabled:
             flush_test_tracer_spans(self)
+        # Stop the writer threads in case the writer is no longer used.
+        # Otherwise we risk accumulating threads and file descriptors causing crashes
+        # In case the writer is used again it will be restarted by native side.
         self._inner_writer.before_fork()
         return spans
 
@@ -746,9 +749,6 @@ class DummyTracer(Tracer):
     def pop(self):
         # type: () -> List[Span]
         spans = self._span_aggregator.writer.pop()
-        # Stop the writer threads in case the writer is no longer used.
-        # Otherwise we risk accumulating threads and file descriptors causing crashes
-        # In case the writer is used again it will be restarted by native side.
         return spans
 
     def pop_traces(self):
