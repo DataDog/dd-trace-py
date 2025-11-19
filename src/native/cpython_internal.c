@@ -4,8 +4,7 @@
 #include <string.h>
 
 /*
-    Optional internal CPython function.
-    On Python 3.13+, this symbol may not be exported from shared libraries.
+    On Python 3.13+, this symbol is not exported from shared libraries.
     Using weak linking so module loads even if symbol isn't available.
 */
 #ifdef _WIN32
@@ -31,8 +30,8 @@ crashtracker_dump_traceback_threads(int fd, PyInterpreterState* interp, PyThread
 #endif
 
     // Symbol not available (Python 3.13+ shared library) - return error for now
-    // TODO: Implement faulthandler fallback
-    return "Internal symbol not available - faulthandler fallback not implemented yet";
+    // TODO: Implement stack walking fallback
+    return "Internal symbol not available - fallback not implemented yet";
 }
 
 PyThreadState*
