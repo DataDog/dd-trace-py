@@ -1,6 +1,5 @@
 from functools import partial
 from pathlib import Path
-import time
 import typing as t
 
 import pytest
@@ -186,7 +185,7 @@ def test_instrument_view_benchmark(benchmark):
             def realistic_view(request_arg, *args, **kwargs):
                 """A realistic view function with actual code."""
                 import json
-                import os
+                import os  # noqa
 
                 data = {"status": "ok", "items": []}
                 for i in range(10):

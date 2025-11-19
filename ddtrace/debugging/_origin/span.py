@@ -26,7 +26,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.settings.code_origin import config as co_config
-from ddtrace.internal.wrapping.context import WrappingContext
+from ddtrace.internal.wrapping.context import LazyWrappingContext
 from ddtrace.trace import Span
 
 
@@ -110,7 +110,14 @@ class EntrySpanLocation:
     probe: EntrySpanProbe
 
 
-class EntrySpanWrappingContext(WrappingContext):
+class EntrySpanWrappingContext(LazyWrappingContext):
+    """Entry span wrapping context.
+
+    This context is lazy to avoid paid any upfront instrumentation costs for
+    large functions that might not get invoked. Instead, the actual wrapping
+    will be performed on the first invocation.
+    """
+
     __enabled__ = False
     __priority__ = 199
 
@@ -224,7 +231,7 @@ class SpanCodeOriginProcessorEntry:
         _f = t.cast(FunctionType, f)
         if not EntrySpanWrappingContext.is_wrapped(_f):
             log.debug("Lazy wrapping entrypoint %r for code origin", f)
-            EntrySpanWrappingContext(cls.__uploader__, _f).wrap_lazy()
+            EntrySpanWrappingContext(cls.__uploader__, _f).wrap()
 
     @classmethod
     def enable(cls):
