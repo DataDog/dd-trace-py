@@ -182,7 +182,7 @@ class MemoryCollector:
         self.snapshot()
 
         # Upload to write profile to disk
-        ddup.upload()  # type: ignore[attr-defined]
+        ddup.upload()
 
         # Parse the profile (only available in test environment)
         try:
