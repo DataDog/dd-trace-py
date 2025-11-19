@@ -3,11 +3,13 @@ from enum import Enum
 import glob
 import os
 import re
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
+from typing import TypeAlias
 from typing import Union
 
 import zstandard as zstd
@@ -28,18 +30,32 @@ def _protobuf_version() -> Tuple[int, int, int]:
     return parse_version(google.protobuf.__version__)
 
 
-# Load the appropriate pprof_pb2 module
+# Load the appropriate pprof_pb2 module based on protobuf version
 _pb_version = _protobuf_version()
-for v in [(4, 21), (3, 19), (3, 12)]:
-    if _pb_version >= v:
-        import sys
-
-        pprof_module = "tests.profiling.collector.pprof_%s%s_pb2" % v
-        __import__(pprof_module)
-        pprof_pb2 = sys.modules[pprof_module]
-        break
+if _pb_version >= (4, 21):
+    from tests.profiling.collector import pprof_421_pb2 as pprof_pb2
+elif _pb_version >= (3, 19):
+    from tests.profiling.collector import pprof_319_pb2 as pprof_pb2  # type: ignore[no-redef]
+elif _pb_version >= (3, 12):
+    from tests.profiling.collector import pprof_312_pb2 as pprof_pb2  # type: ignore[no-redef]
 else:
     from tests.profiling.collector import pprof_3_pb2 as pprof_pb2  # type: ignore[no-redef]
+
+if TYPE_CHECKING:
+    # For type checking, use the actual protobuf types
+    # Protobuf-generated modules use dynamic attributes, so we need type: ignore
+    PprofProfile: TypeAlias = pprof_pb2.Profile  # type: ignore[name-defined,attr-defined]
+    PprofSample: TypeAlias = pprof_pb2.Sample  # type: ignore[name-defined,attr-defined]
+    PprofLabel: TypeAlias = pprof_pb2.Label  # type: ignore[name-defined,attr-defined]
+    PprofLocation: TypeAlias = pprof_pb2.Location  # type: ignore[name-defined,attr-defined]
+    PprofFunction: TypeAlias = pprof_pb2.Function  # type: ignore[name-defined,attr-defined]
+else:
+    # At runtime, use Any for type annotations since types are determined dynamically
+    PprofProfile: TypeAlias = Any
+    PprofSample: TypeAlias = Any
+    PprofLabel: TypeAlias = Any
+    PprofLocation: TypeAlias = Any
+    PprofFunction: TypeAlias = Any
 
 
 # Clamp the value to the range [0, UINT64_MAX] as done in clamp_to_uint64_unsigned
@@ -135,7 +151,7 @@ class LockReleaseEvent(LockEvent):
         super().__init__(event_type=LockEventType.RELEASE, *args, **kwargs)
 
 
-def parse_newest_profile(filename_prefix: str) -> pprof_pb2.Profile:
+def parse_newest_profile(filename_prefix: str) -> PprofProfile:
     """Parse the newest profile that has given filename prefix. The profiler
     outputs profile file with following naming convention:
     <filename_prefix>.<pid>.<counter>.pprof, and in tests, we'd want to parse
@@ -149,41 +165,41 @@ def parse_newest_profile(filename_prefix: str) -> pprof_pb2.Profile:
     with open(filename, "rb") as fp:
         dctx = zstd.ZstdDecompressor()
         serialized_data = dctx.stream_reader(fp).read()
-    profile = pprof_pb2.Profile()
+    profile = pprof_pb2.Profile()  # type: ignore[attr-defined]
     profile.ParseFromString(serialized_data)
     assert len(profile.sample) > 0, "No samples found in profile"
     return profile
 
 
-def get_sample_type_index(profile: pprof_pb2.Profile, value_type: str) -> int:
+def get_sample_type_index(profile: PprofProfile, value_type: str) -> int:
     return next(
         i for i, sample_type in enumerate(profile.sample_type) if profile.string_table[sample_type.type] == value_type
     )
 
 
-def get_samples_with_value_type(profile: pprof_pb2.Profile, value_type: str) -> List[pprof_pb2.Sample]:
+def get_samples_with_value_type(profile: PprofProfile, value_type: str) -> List[PprofSample]:
     value_type_idx = get_sample_type_index(profile, value_type)
     return [sample for sample in profile.sample if sample.value[value_type_idx] > 0]
 
 
-def get_samples_with_label_key(profile: pprof_pb2.Profile, key: str) -> List[pprof_pb2.Sample]:
+def get_samples_with_label_key(profile: PprofProfile, key: str) -> List[PprofSample]:
     return [sample for sample in profile.sample if get_label_with_key(profile.string_table, sample, key)]
 
 
-def get_label_with_key(string_table: Dict[int, str], sample: pprof_pb2.Sample, key: str) -> pprof_pb2.Label:
+def get_label_with_key(string_table: Dict[int, str], sample: PprofSample, key: str) -> PprofLabel:
     return next((label for label in sample.label if string_table[label.key] == key), None)
 
 
-def get_location_with_id(profile: pprof_pb2.Profile, location_id: int) -> pprof_pb2.Location:
+def get_location_with_id(profile: PprofProfile, location_id: int) -> PprofLocation:
     return next(location for location in profile.location if location.id == location_id)
 
 
-def get_function_with_id(profile: pprof_pb2.Profile, function_id: int) -> pprof_pb2.Function:
+def get_function_with_id(profile: PprofProfile, function_id: int) -> PprofFunction:
     return next(function for function in profile.function if function.id == function_id)
 
 
 def assert_lock_events_of_type(
-    profile: pprof_pb2.Profile,
+    profile: PprofProfile,
     expected_events: List[LockEvent],
     event_type: LockEventType,
 ):
@@ -196,10 +212,10 @@ def assert_lock_events_of_type(
 
     # sort the samples and expected events by lock name, which is <filename>:<line>:<lock_name>
     # when the lock_name exists, otherwise <filename>:<line>
-    assert all(get_label_with_key(profile.string_table, sample, "lock name") for sample in samples), (
-        "All samples should have the label 'lock name'"
-    )
-    samples = {
+    assert all(
+        get_label_with_key(profile.string_table, sample, "lock name") for sample in samples
+    ), "All samples should have the label 'lock name'"
+    samples_dict: Dict[str, PprofSample] = {
         profile.string_table[get_label_with_key(profile.string_table, sample, "lock name").str]: sample
         for sample in samples
     }
@@ -208,12 +224,12 @@ def assert_lock_events_of_type(
             key = "{}:{}".format(expected_event.filename, expected_event.linenos.create)
         else:
             key = "{}:{}:{}".format(expected_event.filename, expected_event.linenos.create, expected_event.lock_name)
-        assert key in samples, "Expected lock event {} not found".format(key)
-        assert_lock_event(profile, samples[key], expected_event)
+        assert key in samples_dict, "Expected lock event {} not found".format(key)
+        assert_lock_event(profile, samples_dict[key], expected_event)
 
 
 def assert_lock_events(
-    profile: pprof_pb2.Profile,
+    profile: PprofProfile,
     expected_acquire_events: Union[List[LockEvent], None] = None,
     expected_release_events: Union[List[LockEvent], None] = None,
 ):
@@ -240,7 +256,7 @@ def assert_num_label(string_table: Dict[int, str], sample, key: str, expected_va
         assert label.num == expected_value, "Expected {} got {} for label {}".format(expected_value, label.num, key)
 
 
-def assert_base_event(string_table: Dict[int, str], sample: pprof_pb2.Sample, expected_event: EventBaseClass):
+def assert_base_event(string_table: Dict[int, str], sample: PprofSample, expected_event: EventBaseClass):
     assert_num_label(string_table, sample, "span id", expected_event.span_id)
     assert_num_label(string_table, sample, "local root span id", expected_event.local_root_span_id)
     assert_str_label(string_table, sample, "trace type", expected_event.trace_type)
@@ -252,7 +268,7 @@ def assert_base_event(string_table: Dict[int, str], sample: pprof_pb2.Sample, ex
     assert_str_label(string_table, sample, "task name", expected_event.task_name)
 
 
-def assert_lock_event(profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, expected_event: LockEvent):
+def assert_lock_event(profile: PprofProfile, sample: PprofSample, expected_event: LockEvent):
     # Check that the sample has label "lock name" with value
     # filename:self.lock_linenos.create:lock_name
     lock_name_label = get_label_with_key(profile.string_table, sample, "lock name")
@@ -328,7 +344,7 @@ def assert_sample_has_locations(profile, sample, expected_locations: Optional[Li
     )
 
 
-def assert_stack_event(profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, expected_event: StackEvent):
+def assert_stack_event(profile: PprofProfile, sample: PprofSample, expected_event: StackEvent):
     # Check that the sample has label "exception type" with value
     assert_str_label(profile.string_table, sample, "exception type", expected_event.exception_type)
     assert_sample_has_locations(profile, sample, expected_event.locations)
@@ -336,8 +352,8 @@ def assert_stack_event(profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, exp
 
 
 def assert_profile_has_sample(
-    profile: pprof_pb2.Profile,
-    samples: List[pprof_pb2.Sample],
+    profile: PprofProfile,
+    samples: List[PprofSample],
     expected_sample: StackEvent,
 ):
     found = False
