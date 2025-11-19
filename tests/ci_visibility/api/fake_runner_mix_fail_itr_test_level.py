@@ -15,6 +15,7 @@ ITR coverage data is added at the test level.
 
 Comment lines in the test start/finish lines are there for visual distinction.
 """
+
 import json
 from multiprocessing import freeze_support
 from pathlib import Path
