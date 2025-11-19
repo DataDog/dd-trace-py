@@ -813,6 +813,8 @@ def test_remote_config_payload_not_includes_process_tags():
 
 @pytest.mark.subprocess(env={"DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED": "True"})
 def test_remote_config_payload_includes_process_tags():
+    import os
+    import sys
     from unittest.mock import patch
 
     from ddtrace.internal.process_tags import ENTRYPOINT_BASEDIR_TAG
@@ -823,7 +825,9 @@ def test_remote_config_payload_includes_process_tags():
     from ddtrace.internal.remoteconfig.client import RemoteConfigClient
     from tests.utils import process_tag_reload
 
-    with patch("sys.argv", ["/path/to/test_script.py"]), patch("os.getcwd", return_value="/path/to/workdir"):
+    with patch.object(sys, "argv", ["/path/to/test_script.py"]), patch.object(
+        os, "getcwd", return_value="/path/to/workdir"
+    ):
         process_tag_reload()
 
         client = RemoteConfigClient()
