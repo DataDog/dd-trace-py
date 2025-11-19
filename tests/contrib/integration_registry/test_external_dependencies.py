@@ -151,8 +151,7 @@ def test_external_dependencies_exist_on_pypi(registry_data: list[dict]):
         for dep_name in dependency_names:
             if not isinstance(dep_name, str) or not dep_name:
                 errors.append(
-                    f"External integration '{integration_name}' has invalid item in dependency_names list: "
-                    f"{dep_name}"
+                    f"External integration '{integration_name}' has invalid item in dependency_names list: {dep_name}"
                 )
                 continue
 

@@ -114,6 +114,7 @@ suites:
       - tests/llmobs/*
     runner: riot
     snapshot: true
+    parallelism: 5
   mcp:
     parallelism: 1
     paths:

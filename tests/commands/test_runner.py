@@ -529,12 +529,12 @@ def test_ddtrace_auto_atexit():
             raise AssertionError("Duplicate unregistered function: %s" % func)
         unregistered_funcs.add(func)
 
-    with patch("ddtrace.internal.atexit.register", side_effect=mock_register), patch(
-        "ddtrace.internal.atexit.unregister", side_effect=mock_unregister
-    ), patch("ddtrace.internal.atexit.register_on_exit_signal", side_effect=mock_register), patch(
-        "atexit.register", side_effect=mock_register
-    ), patch(
-        "atexit.unregister", side_effect=mock_unregister
+    with (
+        patch("ddtrace.internal.atexit.register", side_effect=mock_register),
+        patch("ddtrace.internal.atexit.unregister", side_effect=mock_unregister),
+        patch("ddtrace.internal.atexit.register_on_exit_signal", side_effect=mock_register),
+        patch("atexit.register", side_effect=mock_register),
+        patch("atexit.unregister", side_effect=mock_unregister),
     ):
         # Create and shutdown a tracer
         import ddtrace.auto  # noqa: F401

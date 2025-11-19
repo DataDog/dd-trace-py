@@ -4,6 +4,7 @@ FFE (Feature Flagging and Experimentation) product implementation.
 This product receives feature flag configuration rules from Remote Configuration
 and processes them through the native FFE processor.
 """
+
 import enum
 import os
 import typing as t

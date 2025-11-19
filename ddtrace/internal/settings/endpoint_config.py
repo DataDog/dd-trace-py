@@ -3,6 +3,7 @@ This module contains the logic to configure ddtrace products from a configuratio
 The configuration endpoint is a URL that returns a JSON object with the configuration for the products.
 It takes precedence over environment variables and configuration files.
 """
+
 import os
 
 from ddtrace.constants import _CONFIG_ENDPOINT_ENV

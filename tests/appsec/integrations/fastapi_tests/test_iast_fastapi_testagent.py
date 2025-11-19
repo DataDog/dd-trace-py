@@ -15,7 +15,7 @@ from tests.appsec.integrations.utils_testagent import _get_span
 
 # Common environment configuration for IAST tests
 IAST_ENV = {
-    "_DD_IAST_PATCH_MODULES": ("benchmarks.," "tests.appsec.," "tests.appsec.integrations.fastapi_tests.app."),
+    "_DD_IAST_PATCH_MODULES": ("benchmarks.,tests.appsec.,tests.appsec.integrations.fastapi_tests.app."),
 }
 
 

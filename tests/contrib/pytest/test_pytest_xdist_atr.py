@@ -2,6 +2,7 @@
 
 The tests in this module only validate the exit status from pytest-xdist.
 """
+
 import os  # Just for the RIOT env var check
 from unittest import mock
 
