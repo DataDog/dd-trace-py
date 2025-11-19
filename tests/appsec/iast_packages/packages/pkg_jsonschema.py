@@ -2,6 +2,7 @@
 jsonschema==4.22.0
 https://pypi.org/project/jsonschema/
 """
+
 from flask import Blueprint
 from flask import request
 

@@ -766,12 +766,12 @@ def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(
             sample for sample in live_samples if has_function_in_profile_sample(final_profile, sample, "two")
         ]
 
-        assert (
-            len(batch_one_live_samples) > 0
-        ), f"Should have live samples from batch one, got {len(batch_one_live_samples)}"
-        assert (
-            len(batch_two_live_samples) > 0
-        ), f"Should have live samples from batch two, got {len(batch_two_live_samples)}"
+        assert len(batch_one_live_samples) > 0, (
+            f"Should have live samples from batch one, got {len(batch_one_live_samples)}"
+        )
+        assert len(batch_two_live_samples) > 0, (
+            f"Should have live samples from batch two, got {len(batch_two_live_samples)}"
+        )
 
         # batch_one samples were reported in first snapshot, so alloc-space should be 0 in later snapshots
         # batch_two samples are new allocations, so alloc-space should be > 0
@@ -964,6 +964,6 @@ def test_memory_collector_thread_lifecycle(tmp_path):
             if has_function_in_profile_sample(profile, sample, "worker"):
                 worker_samples += 1
 
-        assert (
-            worker_samples > 0
-        ), "Thread lifecycle test: Should capture allocations even as threads are created/destroyed"
+        assert worker_samples > 0, (
+            "Thread lifecycle test: Should capture allocations even as threads are created/destroyed"
+        )

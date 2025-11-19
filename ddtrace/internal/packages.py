@@ -358,8 +358,7 @@ def _get_toplevel_name(name) -> str:
     """
     return _topmost(name) or (
         # python/typeshed#10328
-        inspect.getmodulename(name)
-        or str(name)
+        inspect.getmodulename(name) or str(name)
     )
 
 

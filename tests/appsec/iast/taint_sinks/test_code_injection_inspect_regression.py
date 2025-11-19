@@ -5,6 +5,7 @@ These tests verify that code injection instrumentation handles edge cases where
 inspect.currentframe() returns None, preventing AttributeError when accessing
 f_back and other crashes.
 """
+
 import sys
 from unittest import mock
 

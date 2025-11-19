@@ -2,6 +2,7 @@
 
 Any `sampled = False` trace won't be written, and can be ignored by the instrumentation.
 """
+
 import json
 from json.decoder import JSONDecodeError
 from typing import Dict
