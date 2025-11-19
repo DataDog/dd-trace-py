@@ -87,6 +87,9 @@ class Block_config(Protocol):
     location: str
     content_type: str
 
+    def get(self, method_name: str, default: Any = None) -> Union[str, int]:
+        ...
+
 
 def get_blocked() -> Optional[Block_config]:
     # local import to avoid circular dependency
