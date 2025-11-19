@@ -60,8 +60,15 @@ class Flare:
         # Use a fixed boundary for consistency
         self._BOUNDARY = "83CAD6AA-8A24-462C-8B3D-FF9CC683B51B"
 
-        # Lazy-initialize native manager to avoid pickling issues with multiprocessing
-        self._native_manager = None
+        # Initialize native manager eagerly to fail fast if there's an issue
+        try:
+            self._native_manager = native_flare.TracerFlareManager(
+                agent_url=self.url,
+                language="python"
+            )
+        except Exception as e:
+            log.error("Failed to initialize native tracer flare manager: %s", e)
+            raise
 
     def prepare(self, log_level: str) -> bool:
         """
@@ -74,7 +81,6 @@ class Flare:
             log.error("Flare prepare: failed to create %s directory: %s", self.flare_dir, e)
             return False
 
-        # Validate log_level is a string
         if not isinstance(log_level, str):
             log.error("Flare prepare: Invalid log level provided: %s (must be a string)", log_level)
             return False
@@ -84,7 +90,6 @@ class Flare:
             log.error("Flare prepare: Invalid log level provided: %s", log_level)
             return False
 
-        # Setup logging and create config file
         pid = self._setup_flare_logging(flare_log_level_int)
         self._generate_config_file(pid)
         return True
@@ -106,15 +111,6 @@ class Flare:
         finally:
             self.clean_up_files()
 
-    def _get_native_manager(self):
-        """Lazy-initialize the native manager."""
-        if self._native_manager is None:
-            self._native_manager = native_flare.TracerFlareManager(
-                agent_url=self.url,
-                language="python"
-            )
-        return self._native_manager
-
     def _generate_config_file(self, pid: int):
         config_file = self.flare_dir / f"tracer_config_{pid}.json"
 
@@ -132,14 +128,16 @@ class Flare:
             default=lambda obj: obj.__repr__() if hasattr(obj, "__repr__") else obj.__dict__,
         )
 
-        # Use native implementation
         try:
-            native_manager = self._get_native_manager()
-            native_manager.write_config_file(str(config_file), config_json)
+            self._native_manager.write_config_file(str(config_file), config_json)
         except Exception as e:
-            log.warning("Failed to generate %s: %s", config_file, e)
+            log.warning("Failed to write config file %s: %s", config_file, e)
+            # Clean up partial file if it exists
             if os.path.exists(config_file):
-                os.remove(config_file)
+                try:
+                    os.remove(config_file)
+                except Exception as cleanup_error:
+                    log.debug("Failed to clean up partial config file: %s", cleanup_error)
 
     def revert_configs(self):
         ddlogger = get_logger("ddtrace")
@@ -162,11 +160,9 @@ class Flare:
             log.warning("Case ID cannot be 0, skipping flare send")
             return False
 
-        # Allow pure numeric strings (unit tests)
         if case_id.isdigit():
             return True
 
-        # Allow specific system test patterns (like "12345-with-debug")
         import re
 
         if re.match(r"^\d+-(with-debug|with-content)$", case_id):
@@ -215,10 +211,6 @@ class Flare:
         return pid
 
     def _create_zip_content(self) -> bytes:
-        """
-        Create ZIP file content containing all flare files.
-        Returns the ZIP file content as bytes.
-        """
         zip_stream = io.BytesIO()
         with zipfile.ZipFile(zip_stream, mode="w", compression=zipfile.ZIP_DEFLATED) as zipf:
             for flare_file_name in self.flare_dir.iterdir():
@@ -237,7 +229,7 @@ class Flare:
         Generate the multipart form-data payload for the flare request.
         """
 
-        # Create the multipart form data in the same order:
+        # Create the multipart form data in the same order as the .NET implementation:
         # source, case_id, hostname, email, uuid, flare_file
         body = io.BytesIO()
         self._write_body_field(body, "source", "tracer_python")
@@ -273,45 +265,46 @@ class Flare:
         return min(valid_original_level, flare_log_level)
 
     def _send_flare_request(self, flare_send_req: FlareSendRequest):
-        """
-        Send the flare request to the agent.
-        """
         # We only want the flare to be sent once, even if there are
         # multiple tracer instances
         lock_path = self.flare_dir / TRACER_FLARE_LOCK
         if not os.path.exists(lock_path):
             open(lock_path, "w").close()
 
-            # Use native implementation
-            native_manager = self._get_native_manager()
-
             # Collect all files in the flare directory
             files_to_send = [str(f) for f in self.flare_dir.iterdir() if f.is_file()]
 
             # Create AgentTaskFile for the send action
-            # Convert case_id to integer, handling test patterns
-            case_id_int = int(flare_send_req.case_id.split('-')[0]) if '-' in flare_send_req.case_id else int(flare_send_req.case_id)
+            try:
+                # Convert case_id to integer, handling test patterns
+                case_id_int = int(flare_send_req.case_id.split('-')[0]) if '-' in flare_send_req.case_id else int(flare_send_req.case_id)
 
-            agent_task = native_flare.AgentTaskFile(
-                case_id=case_id_int,
-                hostname=flare_send_req.hostname,
-                user_handle=flare_send_req.email,
-                task_type="tracer_flare",
-                uuid=flare_send_req.uuid
-            )
+                agent_task = native_flare.AgentTaskFile(
+                    case_id=case_id_int,
+                    hostname=flare_send_req.hostname,
+                    user_handle=flare_send_req.email,
+                    task_type="tracer_flare",
+                    uuid=flare_send_req.uuid
+                )
 
-            # Create ReturnAction.Send
-            send_action = native_flare.ReturnAction.send(agent_task)
+                # Create ReturnAction.Send
+                send_action = native_flare.ReturnAction.send(agent_task)
+            except Exception as e:
+                log.error("Failed to create flare send request: %s", e)
+                raise
 
             # Use native zip_and_send
-            native_manager.zip_and_send(files_to_send, send_action)
-            log.info("Successfully sent the flare to Zendesk ticket %s", flare_send_req.case_id)
+            try:
+                self._native_manager.zip_and_send(files_to_send, send_action)
+                log.info("Successfully sent the flare to Zendesk ticket %s", flare_send_req.case_id)
+            except Exception as e:
+                log.error("Failed to send tracer flare to Zendesk ticket %s: %s", flare_send_req.case_id, e)
+                raise
 
     def clean_up_files(self):
         # Use native implementation with Python fallback
         try:
-            native_manager = self._get_native_manager()
-            native_manager.cleanup_directory(str(self.flare_dir))
+            self._native_manager.cleanup_directory(str(self.flare_dir))
         except Exception as e:
             log.debug("Native cleanup failed, falling back to Python: %s", e)
             # Fallback to Python implementation

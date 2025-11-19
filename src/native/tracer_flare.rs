@@ -296,8 +296,6 @@ impl TracerFlareManagerPy {
         }
     }
 
-
-
     /// Zips the specified files and sends them to the agent.
     ///
     /// Args:
