@@ -183,6 +183,7 @@ venv = Venv(
                 "requests": latest,
                 "SQLAlchemy": latest,
                 "psycopg2-binary": "~=2.9.9",
+                "psycopg": latest,
                 "pymysql": latest,
                 "mysqlclient": "==2.1.1",
                 "mysql-connector-python": latest,
