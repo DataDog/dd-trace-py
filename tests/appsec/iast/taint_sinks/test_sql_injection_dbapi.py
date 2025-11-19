@@ -41,13 +41,16 @@ class TestTracedCursor(TracerTestCase):
         from ddtrace.appsec._iast._taint_tracking import OriginType
         from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 
-        with override_global_config(
-            dict(
-                _iast_enabled=True,
-            )
-        ), mock.patch(
-            "ddtrace.appsec._iast.taint_sinks.sql_injection.SqlInjection.report"
-        ) as mock_sql_injection_report:
+        with (
+            override_global_config(
+                dict(
+                    _iast_enabled=True,
+                )
+            ),
+            mock.patch(
+                "ddtrace.appsec._iast.taint_sinks.sql_injection.SqlInjection.report"
+            ) as mock_sql_injection_report,
+        ):
             query = "SELECT * FROM db;"
             query = taint_pyobject(query, source_name="query", source_value=query, source_origin=OriginType.PARAMETER)
 

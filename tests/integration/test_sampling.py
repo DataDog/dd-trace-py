@@ -69,9 +69,9 @@ def test_unsupported_sampling_mechanism():
     meta = {SAMPLING_DECISION_TRACE_TAG_KEY: "-999999999999"}
     sampling_decision_validation = validate_sampling_decision(meta)
     decoding_error_result = {"_dd.propagation_error": "decoding_error"}
-    assert (
-        sampling_decision_validation == decoding_error_result
-    ), f"Instead of getting {decoding_error_result}, received {sampling_decision_validation}"
+    assert sampling_decision_validation == decoding_error_result, (
+        f"Instead of getting {decoding_error_result}, received {sampling_decision_validation}"
+    )
 
 
 @pytest.mark.snapshot()

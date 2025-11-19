@@ -269,12 +269,10 @@ class Dataset:
         return size
 
     @overload
-    def __getitem__(self, index: int) -> DatasetRecord:
-        ...
+    def __getitem__(self, index: int) -> DatasetRecord: ...
 
     @overload
-    def __getitem__(self, index: slice) -> List[DatasetRecord]:
-        ...
+    def __getitem__(self, index: slice) -> List[DatasetRecord]: ...
 
     def __getitem__(self, index: Union[int, slice]) -> Union[DatasetRecord, List[DatasetRecord]]:
         return self._records.__getitem__(index)

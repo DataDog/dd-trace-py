@@ -196,9 +196,9 @@ def assert_lock_events_of_type(
 
     # sort the samples and expected events by lock name, which is <filename>:<line>:<lock_name>
     # when the lock_name exists, otherwise <filename>:<line>
-    assert all(
-        get_label_with_key(profile.string_table, sample, "lock name") for sample in samples
-    ), "All samples should have the label 'lock name'"
+    assert all(get_label_with_key(profile.string_table, sample, "lock name") for sample in samples), (
+        "All samples should have the label 'lock name'"
+    )
     samples = {
         profile.string_table[get_label_with_key(profile.string_table, sample, "lock name").str]: sample
         for sample in samples
@@ -310,11 +310,16 @@ def assert_sample_has_locations(profile, sample, expected_locations: Optional[Li
         sample_loc_strs.append(f"{filename}:{function_name}:{line_no}")
 
         if expected_locations_idx < len(expected_locations):
-            if (
-                function_name.endswith(expected_locations[expected_locations_idx].function_name)
-                and re.fullmatch(expected_locations[expected_locations_idx].filename, filename)
-                and line_no == expected_locations[expected_locations_idx].line_no
-            ):
+            function_name_matches = function_name.endswith(expected_locations[expected_locations_idx].function_name)
+            filename_matches = expected_locations[expected_locations_idx].filename == "" or re.fullmatch(
+                expected_locations[expected_locations_idx].filename, filename
+            )
+            line_no_matches = (
+                expected_locations[expected_locations_idx].line_no == -1
+                or line_no == expected_locations[expected_locations_idx].line_no
+            )
+
+            if function_name_matches and filename_matches and line_no_matches:
                 expected_locations_idx += 1
                 if expected_locations_idx == len(expected_locations):
                     checked = True

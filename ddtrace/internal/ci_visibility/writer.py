@@ -130,9 +130,7 @@ class CIVisibilityWriter(HTTPWriter):
             intake_url = "%s.%s" % (AGENTLESS_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
 
         self._use_evp = use_evp
-        clients = (
-            [CIVisibilityProxiedEventClient()] if self._use_evp else [CIVisibilityAgentlessEventClient()]
-        )  # type: List[WriterClientBase]
+        clients = [CIVisibilityProxiedEventClient()] if self._use_evp else [CIVisibilityAgentlessEventClient()]  # type: List[WriterClientBase]
         self._coverage_enabled = coverage_enabled
         self._itr_suite_skipping_mode = itr_suite_skipping_mode
         if self._coverage_enabled:

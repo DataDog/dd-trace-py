@@ -131,6 +131,7 @@ def _propagate_venv_names_to_child_venvs(all_venvs: typing.List[riotfile.Venv]) 
     venvs are nested within each other, we will get a consistent integration name for each venv / child venv. Also
     lowercase the package names to ensure consistent lookups.
     """
+
     def _lower_pkg_names(venv: riotfile.Venv):
         venv.pkgs = {k.lower(): v for k, v in venv.pkgs.items()}
 
@@ -200,7 +201,7 @@ def _get_riot_hash_to_venv_name() -> typing.Dict[str, str]:
 
     hash_to_name = {}
     for line in output.splitlines():
-        match = re.match(r'\[#\d+\]\s+([a-f0-9]+)\s+(\S+)', line)
+        match = re.match(r"\[#\d+\]\s+([a-f0-9]+)\s+(\S+)", line)
         if match:
             venv_hash, venv_name = match.groups()
             hash_to_name[venv_hash] = venv_name.lower()
@@ -229,6 +230,7 @@ def _get_package_versions_from(
                 return integration, dependencies
             else:
                 return None, []
+
         integration, dependencies = get_integration_and_dependencies(venv_name)
 
     for line in lockfile_content:
