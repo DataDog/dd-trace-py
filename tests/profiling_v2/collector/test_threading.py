@@ -214,7 +214,12 @@ def test_lock_gevent_tasks() -> None:
     test_name: str = "test_lock_gevent_tasks"
     pprof_prefix: str = "/tmp" + os.sep + test_name
     output_filename: str = pprof_prefix + "." + str(os.getpid())
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)  # pyright: ignore[reportCallIssue]
+    ddup.config(
+        env="test",
+        service=test_name,
+        version="my_version",
+        output_filename=pprof_prefix,
+    )  # pyright: ignore[reportCallIssue]
     ddup.start()
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
@@ -302,7 +307,12 @@ def test_rlock_gevent_tasks() -> None:
     test_name: str = "test_rlock_gevent_tasks"
     pprof_prefix: str = "/tmp" + os.sep + test_name
     output_filename: str = pprof_prefix + "." + str(os.getpid())
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)  # pyright: ignore[reportCallIssue]
+    ddup.config(
+        env="test",
+        service=test_name,
+        version="my_version",
+        output_filename=pprof_prefix,
+    )  # pyright: ignore[reportCallIssue]
     ddup.start()
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
@@ -376,7 +386,12 @@ def test_assertion_error_raised_with_enable_asserts():
 
     # Initialize ddup (required before using collectors)
     assert ddup.is_available, "ddup is not available"
-    ddup.config(env="test", service="test_asserts", version="1.0", output_filename="/tmp/test_asserts")
+    ddup.config(
+        env="test",
+        service="test_asserts",
+        version="1.0",
+        output_filename="/tmp/test_asserts",
+    )
     ddup.start()
 
     with ThreadingLockCollector(capture_pct=100):
@@ -405,7 +420,12 @@ def test_all_exceptions_suppressed_by_default() -> None:
 
     # Initialize ddup (required before using collectors)
     assert ddup.is_available, "ddup is not available"
-    ddup.config(env="test", service="test_exceptions", version="1.0", output_filename="/tmp/test_exceptions")
+    ddup.config(
+        env="test",
+        service="test_exceptions",
+        version="1.0",
+        output_filename="/tmp/test_exceptions",
+    )
     ddup.start()
 
     with ThreadingLockCollector(capture_pct=100):
@@ -449,7 +469,12 @@ class BaseThreadingLockCollectorTest:
 
         # ddup is available when the native module is compiled
         assert ddup.is_available, "ddup is not available"
-        ddup.config(env="test", service=self.test_name, version="my_version", output_filename=self.pprof_prefix)  # pyright: ignore[reportCallIssue]
+        ddup.config(
+            env="test",
+            service=self.test_name,
+            version="my_version",
+            output_filename=self.pprof_prefix,
+        )  # pyright: ignore[reportCallIssue]
         ddup.start()
 
     def teardown_method(self, method: Callable[..., None]) -> None:
@@ -794,7 +819,10 @@ class BaseThreadingLockCollectorTest:
         [True, False],
     )
     def test_class_member_lock(self, inspect_dir_enabled: bool) -> None:
-        with mock.patch("ddtrace.internal.settings.profiling.config.lock.name_inspect_dir", inspect_dir_enabled):
+        with mock.patch(
+            "ddtrace.internal.settings.profiling.config.lock.name_inspect_dir",
+            inspect_dir_enabled,
+        ):
             expected_lock_name: Optional[str] = "foo_lock" if inspect_dir_enabled else None
 
             with self.collector_class(capture_pct=100):
