@@ -9,6 +9,7 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 from typing import Union
+from typing import cast
 
 import zstandard as zstd
 
@@ -103,6 +104,9 @@ class StackEvent(EventBaseClass):
         self.locations = locations
         self.exception_type = exception_type
         super().__init__(*args, **kwargs)
+
+    def __str__(self):
+        return f"StackEvent(locations={self.locations}, exception_type={self.exception_type})"
 
 
 # A simple class to hold the expected attributes of a lock sample.
@@ -296,7 +300,7 @@ def assert_sample_has_locations(profile, sample, expected_locations: Optional[Li
     checked = False
 
     # For debug printing
-    sample_loc_strs = []
+    sample_loc_strs: list[str] = []
     # in a sample there can be multiple locations, we need to check
     # whether there's a consecutive subsequence of locations that match
     # the expected locations
@@ -304,17 +308,23 @@ def assert_sample_has_locations(profile, sample, expected_locations: Optional[Li
         location = get_location_with_id(profile, location_id)
         line = location.line[0]
         function = get_function_with_id(profile, line.function_id)
-        function_name = profile.string_table[function.name]
-        filename = os.path.basename(profile.string_table[function.filename])
-        line_no = line.line
+        function_name = cast(str, profile.string_table[function.name])
+        filename = os.path.basename(cast(str, profile.string_table[function.filename]))
+        line_no = cast(int, line.line)
         sample_loc_strs.append(f"{filename}:{function_name}:{line_no}")
 
         if expected_locations_idx < len(expected_locations):
-            if (
-                function_name.endswith(expected_locations[expected_locations_idx].function_name)
-                and re.fullmatch(expected_locations[expected_locations_idx].filename, filename)
-                and line_no == expected_locations[expected_locations_idx].line_no
-            ):
+            function_matches = function_name.endswith(expected_locations[expected_locations_idx].function_name)
+            filename_matches = bool(
+                expected_locations[expected_locations_idx].filename == ""
+                or re.fullmatch(expected_locations[expected_locations_idx].filename, filename)
+            )
+            line_no_matches = bool(
+                expected_locations[expected_locations_idx].line_no == -1
+                or line_no == expected_locations[expected_locations_idx].line_no
+            )
+
+            if function_matches and filename_matches and line_no_matches:
                 expected_locations_idx += 1
                 if expected_locations_idx == len(expected_locations):
                     checked = True
@@ -351,4 +361,4 @@ def assert_profile_has_sample(
             if DEBUG_TEST:
                 print(e)
 
-    assert found, "Expected samples not found in profile"
+    assert found, f"Expected samples not found in profile, {str(expected_sample)}"
