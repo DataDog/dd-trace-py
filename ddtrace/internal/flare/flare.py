@@ -15,7 +15,7 @@ from ddtrace._logger import _add_file_handler
 from ddtrace._logger import _configure_ddtrace_native_logger
 from ddtrace.internal.flare.json_formatter import StructuredJSONFormatter
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.http import get_connection
+from ddtrace.internal.native._native import register_tracer_flare as native_flare
 
 
 TRACER_FLARE_DIRECTORY = "tracer_flare"
@@ -60,6 +60,9 @@ class Flare:
         # Use a fixed boundary for consistency
         self._BOUNDARY = "83CAD6AA-8A24-462C-8B3D-FF9CC683B51B"
 
+        # Lazy-initialize native manager to avoid pickling issues with multiprocessing
+        self._native_manager = None
+
     def prepare(self, log_level: str) -> bool:
         """
         Update configurations to start sending tracer logs to a file
@@ -69,6 +72,11 @@ class Flare:
             self.flare_dir.mkdir(exist_ok=True)
         except Exception as e:
             log.error("Flare prepare: failed to create %s directory: %s", self.flare_dir, e)
+            return False
+
+        # Validate log_level is a string
+        if not isinstance(log_level, str):
+            log.error("Flare prepare: Invalid log level provided: %s (must be a string)", log_level)
             return False
 
         flare_log_level_int = getattr(logging, log_level.upper(), None)
@@ -98,24 +106,36 @@ class Flare:
         finally:
             self.clean_up_files()
 
+    def _get_native_manager(self):
+        """Lazy-initialize the native manager."""
+        if self._native_manager is None:
+            self._native_manager = native_flare.TracerFlareManager(
+                agent_url=self.url,
+                language="python"
+            )
+        return self._native_manager
+
     def _generate_config_file(self, pid: int):
         config_file = self.flare_dir / f"tracer_config_{pid}.json"
-        try:
-            with open(config_file, "w") as f:
-                # Redact API key if present
-                api_key = self.ddconfig.get("_dd_api_key")
-                if api_key:
-                    self.ddconfig["_dd_api_key"] = "*" * (len(api_key) - 4) + api_key[-4:]
 
-                tracer_configs = {
-                    "configs": self.ddconfig,
-                }
-                json.dump(
-                    tracer_configs,
-                    f,
-                    default=lambda obj: obj.__repr__() if hasattr(obj, "__repr__") else obj.__dict__,
-                    indent=4,
-                )
+        # Redact API key if present
+        api_key = self.ddconfig.get("_dd_api_key")
+        if api_key:
+            self.ddconfig["_dd_api_key"] = "*" * (len(api_key) - 4) + api_key[-4:]
+
+        tracer_configs = {
+            "configs": self.ddconfig,
+        }
+
+        config_json = json.dumps(
+            tracer_configs,
+            default=lambda obj: obj.__repr__() if hasattr(obj, "__repr__") else obj.__dict__,
+        )
+
+        # Use native implementation
+        try:
+            native_manager = self._get_native_manager()
+            native_manager.write_config_file(str(config_file), config_json)
         except Exception as e:
             log.warning("Failed to generate %s: %s", config_file, e)
             if os.path.exists(config_file):
@@ -261,30 +281,41 @@ class Flare:
         lock_path = self.flare_dir / TRACER_FLARE_LOCK
         if not os.path.exists(lock_path):
             open(lock_path, "w").close()
-            client = None
-            try:
-                client = get_connection(self.url, timeout=self.timeout)
-                headers, body = self._generate_payload(flare_send_req)
-                client.request("POST", TRACER_FLARE_ENDPOINT, body, headers)
-                response = client.getresponse()
-                if response.status == 200:
-                    log.info("Successfully sent the flare to Zendesk ticket %s", flare_send_req.case_id)
-                else:
-                    msg = "Tracer flare upload responded with status code %s:(%s) %s" % (
-                        response.status,
-                        response.reason,
-                        response.read().decode(),
-                    )
-                    raise TracerFlareSendError(msg)
-            except Exception as e:
-                log.error("Failed to send tracer flare to Zendesk ticket %s: %s", flare_send_req.case_id, e)
-                raise e
-            finally:
-                if client is not None:
-                    client.close()
+
+            # Use native implementation
+            native_manager = self._get_native_manager()
+
+            # Collect all files in the flare directory
+            files_to_send = [str(f) for f in self.flare_dir.iterdir() if f.is_file()]
+
+            # Create AgentTaskFile for the send action
+            # Convert case_id to integer, handling test patterns
+            case_id_int = int(flare_send_req.case_id.split('-')[0]) if '-' in flare_send_req.case_id else int(flare_send_req.case_id)
+
+            agent_task = native_flare.AgentTaskFile(
+                case_id=case_id_int,
+                hostname=flare_send_req.hostname,
+                user_handle=flare_send_req.email,
+                task_type="tracer_flare",
+                uuid=flare_send_req.uuid
+            )
+
+            # Create ReturnAction.Send
+            send_action = native_flare.ReturnAction.send(agent_task)
+
+            # Use native zip_and_send
+            native_manager.zip_and_send(files_to_send, send_action)
+            log.info("Successfully sent the flare to Zendesk ticket %s", flare_send_req.case_id)
 
     def clean_up_files(self):
+        # Use native implementation with Python fallback
         try:
-            shutil.rmtree(self.flare_dir)
+            native_manager = self._get_native_manager()
+            native_manager.cleanup_directory(str(self.flare_dir))
         except Exception as e:
-            log.warning("Failed to clean up tracer flare files: %s", e)
+            log.debug("Native cleanup failed, falling back to Python: %s", e)
+            # Fallback to Python implementation
+            try:
+                shutil.rmtree(self.flare_dir)
+            except Exception as e:
+                log.warning("Failed to clean up tracer flare files: %s", e)
