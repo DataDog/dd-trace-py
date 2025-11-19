@@ -271,6 +271,11 @@ def gen_pre_checks() -> None:
         command="scripts/check-dependency-bounds",
         paths={"pyproject.toml"},
     )
+    check(
+        name="Check for namespace packages",
+        command="scripts/check-for-namespace-packages.sh",
+        paths={"*"},
+    )
     if not checks:
         return
 
