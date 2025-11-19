@@ -20,6 +20,30 @@ def _allocate_1k():
 _ALLOC_LINE_NUMBER = _allocate_1k.__code__.co_firstlineno + 1
 
 
+def _setup_profiling_prelude(tmp_path, test_name):
+    """Setup ddup configuration and return the output filename for pprof parsing.
+    
+    Args:
+        tmp_path: pytest tmp_path fixture
+        test_name: Name of the test (used for service name and output filename)
+        
+    Returns:
+        output_filename: The full path to the pprof output file (with PID suffix)
+    """
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    ddup.config(
+        service=test_name,
+        version="test",
+        env="test",
+        output_filename=pprof_prefix,
+    )
+    ddup.start()
+    
+    return output_filename
+
+
 # This test is marked as subprocess as it changes default heap sample size
 @pytest.mark.subprocess(
     env=dict(DD_PROFILING_HEAP_SAMPLE_SIZE="1024", DD_PROFILING_OUTPUT_PPROF="/tmp/test_heap_samples_collected")
@@ -46,17 +70,7 @@ def test_heap_samples_collected():
 
 
 def test_memory_collector(tmp_path):
-    test_name = "test_memory_collector"
-    pprof_prefix = str(tmp_path / test_name)
-    output_filename = pprof_prefix + "." + str(os.getpid())
-
-    ddup.config(
-        service=test_name,
-        version="test",
-        env="test",
-        output_filename=pprof_prefix,
-    )
-    ddup.start()
+    output_filename = _setup_profiling_prelude(tmp_path, "test_memory_collector")
 
     mc = memalloc.MemoryCollector(heap_sample_size=256)
     with mc:
@@ -94,17 +108,7 @@ def test_memory_collector(tmp_path):
 
 
 def test_memory_collector_ignore_profiler(tmp_path):
-    test_name = "test_memory_collector_ignore_profiler"
-    pprof_prefix = str(tmp_path / test_name)
-    output_filename = pprof_prefix + "." + str(os.getpid())
-
-    ddup.config(
-        service=test_name,
-        version="test",
-        env="test",
-        output_filename=pprof_prefix,
-    )
-    ddup.start()
+    output_filename = _setup_profiling_prelude(tmp_path, "test_memory_collector_ignore_profiler")
 
     mc = memalloc.MemoryCollector(ignore_profiler=True)
     quit_thread = threading.Event()
@@ -404,16 +408,7 @@ def test_memory_collector_allocation_accuracy_with_tracemalloc(sample_interval, 
     import tracemalloc
 
     test_name = f"test_memory_collector_allocation_accuracy_with_tracemalloc_{sample_interval}"
-    pprof_prefix = str(tmp_path / test_name)
-    output_filename = pprof_prefix + "." + str(os.getpid())
-
-    ddup.config(
-        service=test_name,
-        version="test",
-        env="test",
-        output_filename=pprof_prefix,
-    )
-    ddup.start()
+    output_filename = _setup_profiling_prelude(tmp_path, test_name)
 
     old = os.environ.get("_DD_MEMALLOC_DEBUG_RNG_SEED")
     os.environ["_DD_MEMALLOC_DEBUG_RNG_SEED"] = "42"
@@ -542,17 +537,7 @@ def test_memory_collector_allocation_accuracy_with_tracemalloc(sample_interval, 
 
 
 def test_memory_collector_allocation_tracking_across_snapshots(tmp_path):
-    test_name = "test_memory_collector_allocation_tracking_across_snapshots"
-    pprof_prefix = str(tmp_path / test_name)
-    output_filename = pprof_prefix + "." + str(os.getpid())
-
-    ddup.config(
-        service=test_name,
-        version="test",
-        env="test",
-        output_filename=pprof_prefix,
-    )
-    ddup.start()
+    output_filename = _setup_profiling_prelude(tmp_path, "test_memory_collector_allocation_tracking_across_snapshots")
 
     mc = memalloc.MemoryCollector(heap_sample_size=64)
 
@@ -621,17 +606,7 @@ def test_memory_collector_allocation_tracking_across_snapshots(tmp_path):
 
 
 def test_memory_collector_python_interface_with_allocation_tracking(tmp_path):
-    test_name = "test_memory_collector_python_interface_with_allocation_tracking"
-    pprof_prefix = str(tmp_path / test_name)
-    output_filename = pprof_prefix + "." + str(os.getpid())
-
-    ddup.config(
-        service=test_name,
-        version="test",
-        env="test",
-        output_filename=pprof_prefix,
-    )
-    ddup.start()
+    output_filename = _setup_profiling_prelude(tmp_path, "test_memory_collector_python_interface_with_allocation_tracking")
 
     mc = memalloc.MemoryCollector(heap_sample_size=128)
 
@@ -701,17 +676,7 @@ def test_memory_collector_python_interface_with_allocation_tracking(tmp_path):
 
 
 def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(tmp_path):
-    test_name = "test_memory_collector_python_interface_with_allocation_tracking_no_deletion"
-    pprof_prefix = str(tmp_path / test_name)
-    output_filename = pprof_prefix + "." + str(os.getpid())
-
-    ddup.config(
-        service=test_name,
-        version="test",
-        env="test",
-        output_filename=pprof_prefix,
-    )
-    ddup.start()
+    output_filename = _setup_profiling_prelude(tmp_path, "test_memory_collector_python_interface_with_allocation_tracking_no_deletion")
 
     mc = memalloc.MemoryCollector(heap_sample_size=128)
 
@@ -787,17 +752,7 @@ def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(
 
 
 def test_memory_collector_exception_handling(tmp_path):
-    test_name = "test_memory_collector_exception_handling"
-    pprof_prefix = str(tmp_path / test_name)
-    output_filename = pprof_prefix + "." + str(os.getpid())
-
-    ddup.config(
-        service=test_name,
-        version="test",
-        env="test",
-        output_filename=pprof_prefix,
-    )
-    ddup.start()
+    output_filename = _setup_profiling_prelude(tmp_path, "test_memory_collector_exception_handling")
 
     mc = memalloc.MemoryCollector(heap_sample_size=256)
 
@@ -852,17 +807,7 @@ def test_memory_collector_buffer_pool_exhaustion(tmp_path):
     This test creates multiple threads that simultaneously allocate with very deep
     stack traces, which could potentially exhaust internal buffer pools.
     """
-    test_name = "test_memory_collector_buffer_pool_exhaustion"
-    pprof_prefix = str(tmp_path / test_name)
-    output_filename = pprof_prefix + "." + str(os.getpid())
-
-    ddup.config(
-        service=test_name,
-        version="test",
-        env="test",
-        output_filename=pprof_prefix,
-    )
-    ddup.start()
+    output_filename = _setup_profiling_prelude(tmp_path, "test_memory_collector_buffer_pool_exhaustion")
 
     mc = memalloc.MemoryCollector(heap_sample_size=64)
 
@@ -923,17 +868,7 @@ def test_memory_collector_thread_lifecycle(tmp_path):
     """Test that continuously creates and destroys threads while they perform allocations,
     verifying that the collector can track allocations across changing thread contexts.
     """
-    test_name = "test_memory_collector_thread_lifecycle"
-    pprof_prefix = str(tmp_path / test_name)
-    output_filename = pprof_prefix + "." + str(os.getpid())
-
-    ddup.config(
-        service=test_name,
-        version="test",
-        env="test",
-        output_filename=pprof_prefix,
-    )
-    ddup.start()
+    output_filename = _setup_profiling_prelude(tmp_path, "test_memory_collector_thread_lifecycle")
 
     mc = memalloc.MemoryCollector(heap_sample_size=8)
 
