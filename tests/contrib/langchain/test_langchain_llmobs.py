@@ -871,9 +871,9 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         for span_kind, call in zip(span_kinds, calls):
             call_args = call.args[0]
 
-            assert (
-                call_args["meta"]["span"]["kind"] == span_kind
-            ), f"Span kind is {call_args['meta']['span']['kind']} but expected {span_kind}"
+            assert call_args["meta"]["span"]["kind"] == span_kind, (
+                f"Span kind is {call_args['meta']['span']['kind']} but expected {span_kind}"
+            )
             if span_kind == "workflow":
                 assert len(call_args["meta"]["input"]["value"]) > 0
                 assert len(call_args["meta"]["output"]["value"]) > 0

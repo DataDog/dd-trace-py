@@ -1202,6 +1202,6 @@ def test_fastapi_iast_sampling(fastapi_application, client, tracer, test_spans):
                     list_vulnerabilities.append(vuln["location"]["line"])
             else:
                 assert loaded is None
-        assert (
-            len(list_vulnerabilities) == 16
-        ), f"Num vulnerabilities: ({len(list_vulnerabilities)}): {list_vulnerabilities}"
+        assert len(list_vulnerabilities) == 16, (
+            f"Num vulnerabilities: ({len(list_vulnerabilities)}): {list_vulnerabilities}"
+        )

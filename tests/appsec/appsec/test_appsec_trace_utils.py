@@ -145,9 +145,10 @@ class EventsSDKTestCase(TracerTestCase):
             assert entry_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == str(LOGIN_EVENTS_MODE.IDENT)
 
     def test_track_user_login_event_success_with_metadata(self):
-        with mock_patch.object(
-            ddtrace.internal.telemetry.telemetry_writer, "_namespace", MagicMock()
-        ) as telemetry_mock, asm_context(tracer=self.tracer, span_name="test_success2", config=config_asm) as span:
+        with (
+            mock_patch.object(ddtrace.internal.telemetry.telemetry_writer, "_namespace", MagicMock()) as telemetry_mock,
+            asm_context(tracer=self.tracer, span_name="test_success2", config=config_asm) as span,
+        ):
             track_user_login_success_event(self.tracer, "1234", metadata={"foo": "bar"})
             entry_span = span._service_entry_span
             assert entry_span.get_tag("appsec.events.users.login.success.track") == "true"
@@ -210,9 +211,10 @@ class EventsSDKTestCase(TracerTestCase):
             assert not entry_span.get_tag(user.SESSION_ID)
 
     def test_track_user_login_event_failure_user_doesnt_exists(self):
-        with mock_patch.object(
-            ddtrace.internal.telemetry.telemetry_writer, "_namespace", MagicMock()
-        ) as telemetry_mock, self.trace("test_failure") as span:
+        with (
+            mock_patch.object(ddtrace.internal.telemetry.telemetry_writer, "_namespace", MagicMock()) as telemetry_mock,
+            self.trace("test_failure") as span,
+        ):
             track_user_login_failure_event(
                 self.tracer,
                 "john",
@@ -228,9 +230,10 @@ class EventsSDKTestCase(TracerTestCase):
             ]
 
     def test_track_user_signup_event_exists(self):
-        with mock_patch.object(
-            ddtrace.internal.telemetry.telemetry_writer, "_namespace", MagicMock()
-        ) as telemetry_mock, self.trace("test_signup_exists") as span:
+        with (
+            mock_patch.object(ddtrace.internal.telemetry.telemetry_writer, "_namespace", MagicMock()) as telemetry_mock,
+            self.trace("test_signup_exists") as span,
+        ):
             track_user_signup_event(self.tracer, "john", True)
             entry_span = span._service_entry_span
             assert entry_span.get_tag(APPSEC.USER_SIGNUP_EVENT) == "true"
@@ -239,9 +242,10 @@ class EventsSDKTestCase(TracerTestCase):
             assert metrics == [("count", "appsec", "sdk.event", 1, (("event_type", "signup"), ("sdk_version", "v1")))]
 
     def test_custom_event(self):
-        with mock_patch.object(
-            ddtrace.internal.telemetry.telemetry_writer, "_namespace", MagicMock()
-        ) as telemetry_mock, self.trace("test_custom") as span:
+        with (
+            mock_patch.object(ddtrace.internal.telemetry.telemetry_writer, "_namespace", MagicMock()) as telemetry_mock,
+            self.trace("test_custom") as span,
+        ):
             event = "some_event"
             track_custom_event(self.tracer, event, {"foo": "bar"})
             entry_span = span._service_entry_span

@@ -55,7 +55,7 @@ def test_iast_cmdi_bodies(body, content_type, server):
         token=token,
         env={
             "_DD_IAST_PATCH_MODULES": (
-                "benchmarks.," "tests.appsec.," "tests.appsec.integrations.django_tests.django_app.views."
+                "benchmarks.,tests.appsec.,tests.appsec.integrations.django_tests.django_app.views."
             ),
         },
     ) as context:
@@ -110,7 +110,7 @@ def test_iast_untrusted_serialization_yaml(server, iast_test_token):
         token=iast_test_token,
         env={
             "_DD_IAST_PATCH_MODULES": (
-                "benchmarks.," "tests.appsec.," "tests.appsec.integrations.django_tests.django_app.views."
+                "benchmarks.,tests.appsec.,tests.appsec.integrations.django_tests.django_app.views."
             ),
         },
     ) as context:
@@ -339,7 +339,7 @@ def test_iast_header_injection(iast_test_token):
         token=iast_test_token,
         env={
             "_DD_IAST_PATCH_MODULES": (
-                "benchmarks.," "tests.appsec.," "tests.appsec.integrations.django_tests.django_app.views."
+                "benchmarks.,tests.appsec.,tests.appsec.integrations.django_tests.django_app.views."
             ),
         },
     ) as context:

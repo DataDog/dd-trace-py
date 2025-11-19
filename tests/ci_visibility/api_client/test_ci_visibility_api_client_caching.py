@@ -150,9 +150,10 @@ class TestAPIClientCaching:
         expected_parsed_response = json.loads(api_response.body)
 
         # Mock _do_request to return the response without making actual HTTP call
-        with patch(
-            "ddtrace.internal.ci_visibility._api_responses_cache._is_response_cache_enabled", return_value=True
-        ), patch.object(client, "_do_request", return_value=api_response) as mock_do_request:
+        with (
+            patch("ddtrace.internal.ci_visibility._api_responses_cache._is_response_cache_enabled", return_value=True),
+            patch.object(client, "_do_request", return_value=api_response) as mock_do_request,
+        ):
             metric_names = APIRequestMetricNames(
                 count="test.count", duration="test.duration", response_bytes=None, error="test.error"
             )
@@ -196,9 +197,10 @@ class TestAPIClientCaching:
         expected_parsed_response = json.loads(api_response.body)
 
         # Mock _do_request to return the response without making actual HTTP call
-        with patch(
-            "ddtrace.internal.ci_visibility._api_responses_cache._is_response_cache_enabled", return_value=True
-        ), patch.object(client, "_do_request", return_value=api_response) as mock_do_request:
+        with (
+            patch("ddtrace.internal.ci_visibility._api_responses_cache._is_response_cache_enabled", return_value=True),
+            patch.object(client, "_do_request", return_value=api_response) as mock_do_request,
+        ):
             metric_names = APIRequestMetricNames(
                 count="test.count", duration="test.duration", response_bytes=None, error="test.error"
             )
@@ -264,9 +266,10 @@ class TestAPIClientCaching:
         expected_parsed_response2 = json.loads(response2.body)
 
         # Mock _do_request to return different responses based on payload
-        with patch(
-            "ddtrace.internal.ci_visibility._api_responses_cache._is_response_cache_enabled", return_value=True
-        ), patch.object(client, "_do_request", side_effect=[response1, response2]) as mock_do_request:
+        with (
+            patch("ddtrace.internal.ci_visibility._api_responses_cache._is_response_cache_enabled", return_value=True),
+            patch.object(client, "_do_request", side_effect=[response1, response2]) as mock_do_request,
+        ):
             metric_names = APIRequestMetricNames(
                 count="test.count", duration="test.duration", response_bytes=None, error="test.error"
             )

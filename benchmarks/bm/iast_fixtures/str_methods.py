@@ -832,7 +832,7 @@ def get_random_string_join(mystring: str) -> Text:
 
 def get_random_string_seed(
     length=12,
-    allowed_chars="abcdefghijklmnopqrstuvwxyz" "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+    allowed_chars="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
 ):  # type: (int, str) -> str
     """
     Returns a securely generated random string.
@@ -1180,13 +1180,13 @@ def do_add_re_compile():
     import re
 
     invalid_unicode_no_surrogate = (
-        "[\u0001-\u0008\u000B\u000E-\u001F\u007F-\u009F\uFDD0-\uFDEF"
-        "\uFFFE\uFFFF\U0001FFFE\U0001FFFF\U0002FFFE\U0002FFFF"
-        "\U0003FFFE\U0003FFFF\U0004FFFE\U0004FFFF\U0005FFFE\U0005FFFF"
-        "\U0006FFFE\U0006FFFF\U0007FFFE\U0007FFFF\U0008FFFE\U0008FFFF"
-        "\U0009FFFE\U0009FFFF\U000AFFFE\U000AFFFF\U000BFFFE\U000BFFFF"
-        "\U000CFFFE\U000CFFFF\U000DFFFE\U000DFFFF\U000EFFFE\U000EFFFF"
-        "\U000FFFFE\U000FFFFF\U0010FFFE\U0010FFFF]"
+        "[\u0001-\u0008\u000b\u000e-\u001f\u007f-\u009f\ufdd0-\ufdef"
+        "\ufffe\uffff\U0001fffe\U0001ffff\U0002fffe\U0002ffff"
+        "\U0003fffe\U0003ffff\U0004fffe\U0004ffff\U0005fffe\U0005ffff"
+        "\U0006fffe\U0006ffff\U0007fffe\U0007ffff\U0008fffe\U0008ffff"
+        "\U0009fffe\U0009ffff\U000afffe\U000affff\U000bfffe\U000bffff"
+        "\U000cfffe\U000cffff\U000dfffe\U000dffff\U000efffe\U000effff"
+        "\U000ffffe\U000fffff\U0010fffe\U0010ffff]"
     )  # noqa:F401
     _ = re.compile(invalid_unicode_no_surrogate[:-1] + eval('"\\uD800-\\uDFFF"') + "]")  # pylint:disable=eval-used
 
