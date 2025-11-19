@@ -2,7 +2,6 @@
 detached = true
 python = "3.10"
 dependencies = [
-    "black==23.10.1",
     "click==8.1.7",
     "cython-lint==0.15.0",
     "codespell==2.4.1",
@@ -26,8 +25,8 @@ dependencies = [
 ]
 
 [envs.lint.scripts]
-black_check = [
-    "black --check {args:.}",
+format_check = [
+    "ruff format --check {args:.}",
 ]
 cmakeformat_check = [
     "bash scripts/cmake-format.sh"
@@ -36,14 +35,14 @@ cformat_check = [
     "bash scripts/cformat.sh"
 ]
 style = [
-    "black_check",
+    "format_check",
     "ruff check {args:.}",
     "cython-lint {args:.}",
     "cformat_check",
     "cmakeformat_check",
 ]
 fmt = [
-    "black {args:.}",
+    "ruff format {args:.}",
     "ruff check --fix {args:.}",
     "style",
 ]

@@ -220,9 +220,9 @@ class TestKombuSchematization(TracerTestCase):
     def test_schematized_unspecified_service_name_v1(self):
         spans = self._create_schematized_spans()
         for span in spans:
-            assert (
-                span.service == DEFAULT_SPAN_SERVICE_NAME
-            ), "Expected internal.schema.DEFAULT_SPAN_SERVICE_NAME got {}".format(span.service)
+            assert span.service == DEFAULT_SPAN_SERVICE_NAME, (
+                "Expected internal.schema.DEFAULT_SPAN_SERVICE_NAME got {}".format(span.service)
+            )
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_operation_name_v0(self):

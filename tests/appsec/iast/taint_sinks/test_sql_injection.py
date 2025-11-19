@@ -89,11 +89,10 @@ def test_check_and_report_sqli_metrics(args, integration_name, expected_result, 
         args[0], source_name="request_body", source_value=args[0], source_origin=OriginType.PARAMETER
     )
 
-    with mock.patch(
-        "ddtrace.appsec._iast.taint_sinks.sql_injection.increment_iast_span_metric"
-    ) as mock_increment, mock.patch(
-        "ddtrace.appsec._iast.taint_sinks.sql_injection._set_metric_iast_executed_sink"
-    ) as mock_set_metric:
+    with (
+        mock.patch("ddtrace.appsec._iast.taint_sinks.sql_injection.increment_iast_span_metric") as mock_increment,
+        mock.patch("ddtrace.appsec._iast.taint_sinks.sql_injection._set_metric_iast_executed_sink") as mock_set_metric,
+    ):
         # Call with tainted argument that should trigger metrics
         result = _on_report_sqli(args, {}, integration_name, cursor.execute)
 
@@ -127,11 +126,10 @@ def test_check_and_report_sqli_no_metrics(args, integration_name, iast_context_d
     cursor = mock.Mock()
     cursor.execute.__name__ = "execute"
 
-    with mock.patch(
-        "ddtrace.appsec._iast.taint_sinks.sql_injection.increment_iast_span_metric"
-    ) as mock_increment, mock.patch(
-        "ddtrace.appsec._iast.taint_sinks.sql_injection._set_metric_iast_executed_sink"
-    ) as mock_set_metric:
+    with (
+        mock.patch("ddtrace.appsec._iast.taint_sinks.sql_injection.increment_iast_span_metric") as mock_increment,
+        mock.patch("ddtrace.appsec._iast.taint_sinks.sql_injection._set_metric_iast_executed_sink") as mock_set_metric,
+    ):
         # Call with untainted argument that should not trigger metrics
         result = _on_report_sqli(args, {}, integration_name, cursor.execute)
 

@@ -100,46 +100,6 @@ exclude = '''
 )
 '''
 
-[tool.black]
-line-length = 120
-target_version = ['py39', 'py310', 'py311', 'py312']
-include = '''\.py[ix]?$'''
-exclude = '''
-(
-  \.worktrees/
-  | .venv*
-  | \.sg
-  | \.riot/
-  | ddtrace/appsec/_ddwaf.pyx$
-  | ddtrace/internal/_encoding.pyx$
-  | ddtrace/internal/_rand.pyx$
-  | ddtrace/internal/_tagset.pyx$
-  | ddtrace/internal/telemetry/metrics_namespaces.pyx$
-  | ddtrace/profiling/collector/_traceback.pyx$
-  | ddtrace/profiling/collector/_task.pyx$
-  | ddtrace/profiling/_threading.pyx$
-  | ddtrace/profiling/exporter/pprof.pyx$
-  | ddtrace/internal/datadog/profiling/ddup/_ddup.pyx$
-  | ddtrace/vendor/
-  | ddtrace/appsec/_iast/_taint_tracking/_vendor/
-  | ddtrace/appsec/_iast/_taint_tracking/cmake-build-debug/
-  | ddtrace/_version.py
-  | \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.nox
-  | \.tox
-  | \.venv
-  | _build/
-  | buck-out/
-  | build/
-  | dist/
-  | tests/lib-injection/dd-lib-python-init-test-protobuf-old/addressbook_pb2.py$
-  | tests/profiling/collector/pprof_.*_pb2.py$
-)
-'''
-
 [tool.pyright]
 exclude = [
   "**/__pycache__",
@@ -172,6 +132,7 @@ exclude_dirs = [
 ]
 
 [tool.ruff]
+# This exclude list applies to both linting and formatting
 exclude = [
     ".riot",
     ".ddriot",
@@ -241,6 +202,16 @@ lint.unfixable =[
   "F401",
 ]
 
+
+[tool.ruff.format]
+# Formatter-specific settings
+# The exclude list from [tool.ruff] is inherited automatically
+# Additional formatter options can be added here if needed
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
 [tool.ruff.lint.pydocstyle]
 convention = "pep257"
 
@@ -250,8 +221,3 @@ lines-after-imports = 2
 force-sort-within-sections = true
 known-first-party = [ "ddtrace" ]
 relative-imports-order = "furthest-to-closest"
-
-[tool.ruff.lint.per-file-ignores]
-# Exclude typing stubs as vertical line spacing incompatibility with black
-# See: https://github.com/astral-sh/ruff/pull/6501
-"*.pyi" = ["I001"]

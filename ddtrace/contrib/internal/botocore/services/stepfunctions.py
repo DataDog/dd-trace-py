@@ -61,19 +61,24 @@ def patched_stepfunction_api_call(original_func, instance, args, kwargs: Dict, f
     else:
         call_name = trace_operation
 
-    with core.context_with_data(
-        "botocore.patched_stepfunctions_api_call",
-        span_name=call_name,
-        service=schematize_service_name("{}.{}".format(ext_service(pin, int_config=config.botocore), endpoint_name)),
-        span_type=SpanTypes.HTTP,
-        span_key="patched_stepfunctions_api_call",
-        instance=instance,
-        args=args,
-        params=params,
-        endpoint_name=endpoint_name,
-        operation=operation,
-        pin=pin,
-    ) as ctx, ctx.span:
+    with (
+        core.context_with_data(
+            "botocore.patched_stepfunctions_api_call",
+            span_name=call_name,
+            service=schematize_service_name(
+                "{}.{}".format(ext_service(pin, int_config=config.botocore), endpoint_name)
+            ),
+            span_type=SpanTypes.HTTP,
+            span_key="patched_stepfunctions_api_call",
+            instance=instance,
+            args=args,
+            params=params,
+            endpoint_name=endpoint_name,
+            operation=operation,
+            pin=pin,
+        ) as ctx,
+        ctx.span,
+    ):
         core.dispatch("botocore.patched_stepfunctions_api_call.started", [ctx])
 
         if should_update_input:

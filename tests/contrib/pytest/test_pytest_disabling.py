@@ -1,4 +1,5 @@
 """Tests Disabling functionality"""
+
 from unittest import mock
 
 import pytest
@@ -56,15 +57,18 @@ def test_pass():
 class PytestDisablingTestCase(PytestTestCaseBase):
     @pytest.fixture(autouse=True, scope="function")
     def set_up_test_management(self):
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=TestVisibilityAPISettings(
-                test_management=TestManagementSettings(enabled=True),
-                flaky_test_retries_enabled=False,
+        with (
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+                return_value=TestVisibilityAPISettings(
+                    test_management=TestManagementSettings(enabled=True),
+                    flaky_test_retries_enabled=False,
+                ),
             ),
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_test_management_tests",
-            return_value=_TEST_PROPERTIES,
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_test_management_tests",
+                return_value=_TEST_PROPERTIES,
+            ),
         ):
             yield
 

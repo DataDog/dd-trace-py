@@ -453,18 +453,21 @@ class TestLLMObsBedrock:
             {"cachePoint": {"type": "default"}},
         ]
         with request_vcr.use_cassette("bedrock_converse_prompt_caching.yaml"):
-            _, _ = bedrock_client.converse(
-                **create_bedrock_converse_request(
-                    system=large_system_content,
-                    user_message="What is a service",
-                    modelId="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
-                )
-            ), bedrock_client.converse(
-                **create_bedrock_converse_request(
-                    system=large_system_content,
-                    user_message="What is a ml app",
-                    modelId="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
-                )
+            _, _ = (
+                bedrock_client.converse(
+                    **create_bedrock_converse_request(
+                        system=large_system_content,
+                        user_message="What is a service",
+                        modelId="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+                    )
+                ),
+                bedrock_client.converse(
+                    **create_bedrock_converse_request(
+                        system=large_system_content,
+                        user_message="What is a ml app",
+                        modelId="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+                    )
+                ),
             )
             assert len(llmobs_events) == 2
             spans = mock_tracer.pop_traces()
