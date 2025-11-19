@@ -2080,9 +2080,9 @@ Lorem Ipsum Foobar
                         list_vulnerabilities.append(vuln["location"]["line"])
                 else:
                     assert loaded is None
-            assert (
-                len(list_vulnerabilities) == 16
-            ), f"Num vulnerabilities: ({len(list_vulnerabilities)}): {list_vulnerabilities}"
+            assert len(list_vulnerabilities) == 16, (
+                f"Num vulnerabilities: ({len(list_vulnerabilities)}): {list_vulnerabilities}"
+            )
 
 
 class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):

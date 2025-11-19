@@ -84,9 +84,9 @@ async def test_agent_with_tool_usage(test_runner, mock_tracer, request_vcr):
     assert len(runner_spans) >= 1, f"Expected Runner.run_async spans, got spans: {[s.resource for s in spans]}"
 
     tool_spans = [s for s in spans if "FunctionTool.__call_tool_async" in s.resource]
-    assert (
-        len(tool_spans) >= 1
-    ), f"Expected FunctionTool.__call_tool_async spans, got spans: {[s.resource for s in spans]}"
+    assert len(tool_spans) >= 1, (
+        f"Expected FunctionTool.__call_tool_async spans, got spans: {[s.resource for s in spans]}"
+    )
 
     runner_span = runner_spans[0]
     assert runner_span.name == "google_adk.request"
@@ -147,9 +147,9 @@ async def test_agent_with_tool_calculation(test_runner, mock_tracer, request_vcr
     assert len(runner_spans) >= 1, f"Expected Runner.run_async spans, got spans: {[s.resource for s in spans]}"
 
     tool_spans = [s for s in spans if "FunctionTool.__call_tool_async" in s.resource]
-    assert (
-        len(tool_spans) >= 1
-    ), f"Expected FunctionTool.__call_tool_async spans, got spans: {[s.resource for s in spans]}"
+    assert len(tool_spans) >= 1, (
+        f"Expected FunctionTool.__call_tool_async spans, got spans: {[s.resource for s in spans]}"
+    )
 
     runner_span = runner_spans[0]
     assert runner_span.name == "google_adk.request"
