@@ -1,0 +1,6 @@
+---
+prelude: >
+    **Breaking change** for Code Origin for Spans: Outgoing requests are no longer included with code origin for spans.
+fixes:
+  - |
+    Code Origin for Spans: Outgoing requests are no longer included with code origin for spans.
