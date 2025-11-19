@@ -645,45 +645,70 @@ def test_memory_collector_python_interface_with_allocation_tracking(tmp_path):
         del second_batch
 
 
-def test_memory_collector_python_interface_with_allocation_tracking_no_deletion():
+def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(tmp_path):
+    test_name = "test_memory_collector_python_interface_with_allocation_tracking_no_deletion"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    ddup.config(
+        service=test_name,
+        version="test",
+        env="test",
+        output_filename=pprof_prefix,
+    )
+    ddup.start()
+
     mc = memalloc.MemoryCollector(heap_sample_size=128)
 
     with mc:
-        initial_samples = mc.test_snapshot()
-        initial_count = len(initial_samples)
+        initial_profile = mc.snapshot_and_parse_pprof(output_filename)
+        initial_count = len(initial_profile.sample)
 
         first_batch = []
         for i in range(20):
             first_batch.append(one(256))
 
-        after_first_batch = mc.test_snapshot()
+        after_first_batch_profile = mc.snapshot_and_parse_pprof(output_filename)
 
         second_batch = []
         for i in range(15):
             second_batch.append(two(512))
 
-        final_samples = mc.test_snapshot()
+        final_profile = mc.snapshot_and_parse_pprof(output_filename)
 
-        assert len(after_first_batch) >= initial_count, "Should have at least as many samples after first batch"
-        assert len(final_samples) >= 0, "Final snapshot should be valid"
+        assert len(after_first_batch_profile.sample) >= initial_count, "Should have at least as many samples after first batch"
+        assert len(final_profile.sample) >= 0, "Final snapshot should be valid"
 
-        for samples in [initial_samples, after_first_batch, final_samples]:
-            for sample in samples:
-                assert sample.size > 0, f"Size should be positive int, got {sample.size}"
-                assert sample.count > 0, f"Count should be positive int, got {sample.count}"
-                assert sample.in_use_size >= 0, f"in_use_size should be non-negative int, got {sample.in_use_size}"
-                assert sample.alloc_size >= 0, f"alloc_size should be non-negative int, got {sample.alloc_size}"
+        # Get sample type indices for final profile
+        heap_space_idx = pprof_utils.get_sample_type_index(final_profile, "heap-space")
+        alloc_space_idx = pprof_utils.get_sample_type_index(final_profile, "alloc-space")
+        alloc_count_idx = pprof_utils.get_sample_type_index(final_profile, "alloc-samples")
+
+        # Assert that required sample types exist
+        assert heap_space_idx >= 0, "heap-space sample type not found in profile"
+        assert alloc_space_idx >= 0, "alloc-space sample type not found in profile"
+        assert alloc_count_idx >= 0, "alloc-samples sample type not found in profile"
+
+        # Validate all samples in final profile have valid values
+        for sample in final_profile.sample:
+            has_heap = sample.value[heap_space_idx] > 0
+            has_alloc = sample.value[alloc_space_idx] > 0
+            assert has_heap or has_alloc, "Sample should have either heap-space or alloc-space > 0"
+            assert sample.value[alloc_count_idx] >= 0, f"alloc-samples should be non-negative, got {sample.value[alloc_count_idx]}"
+
+        # Get live samples (heap-space > 0)
+        live_samples = [s for s in final_profile.sample if s.value[heap_space_idx] > 0]
 
         batch_one_live_samples = [
             sample
-            for sample in final_samples
-            if has_function_in_traceback(sample.frames, "one") and sample.in_use_size > 0
+            for sample in live_samples
+            if has_function_in_profile_sample(final_profile, sample, "one")
         ]
 
         batch_two_live_samples = [
             sample
-            for sample in final_samples
-            if has_function_in_traceback(sample.frames, "two") and sample.in_use_size > 0
+            for sample in live_samples
+            if has_function_in_profile_sample(final_profile, sample, "two")
         ]
 
         assert (
@@ -693,8 +718,16 @@ def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(
             len(batch_two_live_samples) > 0
         ), f"Should have live samples from batch two, got {len(batch_two_live_samples)}"
 
-        assert all(sample.in_use_size > 0 and sample.alloc_size == 0 for sample in batch_one_live_samples)
-        assert all(sample.in_use_size > 0 and sample.alloc_size > 0 for sample in batch_two_live_samples)
+        # batch_one samples were reported in first snapshot, so alloc-space should be 0 in later snapshots
+        # batch_two samples are new allocations, so alloc-space should be > 0
+        assert all(
+            sample.value[heap_space_idx] > 0 and sample.value[alloc_space_idx] == 0
+            for sample in batch_one_live_samples
+        )
+        assert all(
+            sample.value[heap_space_idx] > 0 and sample.value[alloc_space_idx] > 0
+            for sample in batch_two_live_samples
+        )
 
         del first_batch
         del second_batch
