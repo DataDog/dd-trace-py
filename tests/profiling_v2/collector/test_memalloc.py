@@ -858,11 +858,23 @@ def test_memory_collector_allocation_during_shutdown():
             allocation_thread.join(timeout=1)
 
 
-def test_memory_collector_buffer_pool_exhaustion():
+def test_memory_collector_buffer_pool_exhaustion(tmp_path):
     """Test that the memory collector handles buffer pool exhaustion.
     This test creates multiple threads that simultaneously allocate with very deep
     stack traces, which could potentially exhaust internal buffer pools.
     """
+    test_name = "test_memory_collector_buffer_pool_exhaustion"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    ddup.config(
+        service=test_name,
+        version="test",
+        env="test",
+        output_filename=pprof_prefix,
+    )
+    ddup.start()
+
     mc = memalloc.MemoryCollector(heap_sample_size=64)
 
     with mc:
@@ -888,24 +900,29 @@ def test_memory_collector_buffer_pool_exhaustion():
         for t in threads:
             t.join()
 
-        samples = mc.test_snapshot()
+        profile = mc.snapshot_and_parse_pprof(output_filename)
 
-        deep_alloc_count = 0
+        # Get sample type indices
+        alloc_count_idx = pprof_utils.get_sample_type_index(profile, "alloc-samples")
+        assert alloc_count_idx >= 0, "alloc-samples sample type not found in profile"
+
+        deep_alloc_total_count = 0
         max_stack_depth = 0
 
-        for sample in samples:
-            assert sample.frames is not None, "Buffer pool test: All samples should have stack frames"
-            stack_depth = len(sample.frames)
+        for sample in profile.sample:
+            # Buffer pool test: All samples should have stack frames
+            assert len(sample.location_id) > 0, "Buffer pool test: All samples should have stack frames"
+            stack_depth = len(sample.location_id)
             max_stack_depth = max(max_stack_depth, stack_depth)
 
-            for frame in sample.frames:
-                if frame.function_name == "deep_alloc":
-                    deep_alloc_count += 1
-                    break
+            if has_function_in_profile_sample(profile, sample, "deep_alloc"):
+                # Samples with identical stack traces are merged in pprof profiles,
+                # so we need to sum the alloc-samples count value
+                deep_alloc_total_count += sample.value[alloc_count_idx]
 
         assert (
-            deep_alloc_count >= 10
-        ), f"Buffer pool test: Expected many allocations from concurrent threads, got {deep_alloc_count}"
+            deep_alloc_total_count >= 10
+        ), f"Buffer pool test: Expected many allocations from concurrent threads, got {deep_alloc_total_count}"
 
         assert max_stack_depth >= 50, (
             f"Buffer pool test: Stack traces should be preserved even under stress (expecting at least 50 frames), "
