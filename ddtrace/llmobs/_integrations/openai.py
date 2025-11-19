@@ -36,11 +36,7 @@ from ddtrace.trace import Span
 
 log = get_logger(__name__)
 
-OPENAI_LLM_OPERATIONS = (
-    "completion",
-    "chat",
-    "response"
-)
+OPENAI_LLM_OPERATIONS = ("completion", "chat", "response")
 
 
 class OpenAIIntegration(BaseLLMIntegration):
@@ -116,7 +112,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         span_kind = (
             "workflow"
             if span._get_ctx_item(PROXY_REQUEST)
-            else "llm" 
+            else "llm"
             if operation in OPENAI_LLM_OPERATIONS
             else operation
         )
