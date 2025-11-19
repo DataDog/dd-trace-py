@@ -199,8 +199,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_iast_packages",
-            # FIXME: GrpcIO is hanging with 3.13 on CI + hatch for some reason
-            pys=["3.9", "3.10", "3.11", "3.12"],
+            pys=["3.11", "3.12", "3.13", "3.14"],
             command="pytest {cmdargs} tests/appsec/iast_packages/",
             pkgs={
                 "requests": latest,
