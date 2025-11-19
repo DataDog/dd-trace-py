@@ -1,23 +1,22 @@
-# -*- encoding: utf-8 -*-
+from importlib.metadata import version
 import os
 import re
 import signal
 from subprocess import TimeoutExpired
 import sys
-import tempfile
 import time
 
 import pytest
 
 from tests.contrib.uwsgi import run_uwsgi
-
-from . import utils
+from tests.profiling.collector import pprof_utils
 
 
 # uwsgi is not available on Windows
 if sys.platform == "win32":
     pytestmark = pytest.mark.skip
 
+TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
 THREADS_MSG = (
     b"ddtrace.internal.uwsgi.uWSGIConfigError: enable-threads option must be set to true, or a positive "
     b"number of threads must be set"
@@ -27,12 +26,22 @@ uwsgi_app = os.path.join(os.path.dirname(__file__), "uwsgi-app.py")
 
 
 @pytest.fixture
-def uwsgi(monkeypatch):
+def uwsgi(monkeypatch, tmp_path):
     # Do not ignore profiler so we have samples in the output pprof
     monkeypatch.setenv("DD_PROFILING_IGNORE_PROFILER", "0")
     # Do not use pytest tmpdir fixtures which generate directories longer than allowed for a socket file name
-    socket_name = tempfile.mktemp()
-    cmd = ["uwsgi", "--need-app", "--die-on-term", "--socket", socket_name, "--wsgi-file", uwsgi_app]
+    socket_name = str(tmp_path / "uwsgi.sock")
+    import os
+
+    cmd = [
+        "uwsgi",
+        "--need-app",
+        "--die-on-term",
+        "--socket",
+        socket_name,
+        "--wsgi-file",
+        uwsgi_app,
+    ]
 
     try:
         yield run_uwsgi(cmd)
@@ -67,10 +76,12 @@ def test_uwsgi_threads_enabled(uwsgi, tmp_path, monkeypatch):
     proc.terminate()
     assert proc.wait() == 30
     for pid in worker_pids:
-        utils.check_pprof_file("%s.%d" % (filename, pid))
+        profile = pprof_utils.parse_newest_profile("%s.%d" % (filename, pid))
+        samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+        assert len(samples) > 0
 
 
-def test_uwsgi_threads_processes_no_master(uwsgi, monkeypatch):
+def test_uwsgi_threads_processes_no_primary(uwsgi, monkeypatch):
     proc = uwsgi("--enable-threads", "--processes", "2")
     stdout, _ = proc.communicate()
     assert (
@@ -99,7 +110,7 @@ def _get_worker_pids(stdout, num_worker, num_app_started=1):
     return worker_pids
 
 
-def test_uwsgi_threads_processes_master(uwsgi, tmp_path, monkeypatch):
+def test_uwsgi_threads_processes_primary(uwsgi, tmp_path, monkeypatch):
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
     proc = uwsgi("--enable-threads", "--master", "--py-call-uwsgi-fork-hooks", "--processes", "2")
@@ -109,42 +120,109 @@ def test_uwsgi_threads_processes_master(uwsgi, tmp_path, monkeypatch):
     proc.terminate()
     assert proc.wait() == 0
     for pid in worker_pids:
-        utils.check_pprof_file("%s.%d" % (filename, pid))
+        profile = pprof_utils.parse_newest_profile("%s.%d" % (filename, pid))
+        samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+        assert len(samples) > 0
 
 
-def test_uwsgi_threads_processes_master_lazy_apps(uwsgi, tmp_path, monkeypatch):
+def test_uwsgi_threads_processes_primary_lazy_apps(uwsgi, tmp_path, monkeypatch):
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
-    proc = uwsgi("--enable-threads", "--master", "--processes", "2", "--lazy-apps")
+    monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "1")
+    # For uwsgi<2.0.30, --skip-atexit is required to avoid crashes when
+    # the child process exits.
+    proc = uwsgi("--enable-threads", "--master", "--processes", "2", "--lazy-apps", "--skip-atexit")
     worker_pids = _get_worker_pids(proc.stdout, 2, 2)
-    # Give some time to child to actually startup
+    # Give some time to child to actually startup and output a profile
     time.sleep(3)
     proc.terminate()
     assert proc.wait() == 0
     for pid in worker_pids:
-        utils.check_pprof_file("%s.%d" % (filename, pid))
+        profile = pprof_utils.parse_newest_profile("%s.%d" % (filename, pid))
+        samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+        assert len(samples) > 0
 
 
-def test_uwsgi_threads_processes_no_master_lazy_apps(uwsgi, tmp_path, monkeypatch):
+def test_uwsgi_threads_processes_no_primary_lazy_apps(uwsgi, tmp_path, monkeypatch):
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
-    proc = uwsgi("--enable-threads", "--processes", "2", "--lazy-apps")
+    monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "1")
+    # For uwsgi<2.0.30, --skip-atexit is required to avoid crashes when
+    # the child process exits.
+    proc = uwsgi("--enable-threads", "--processes", "2", "--lazy-apps", "--skip-atexit")
     worker_pids = _get_worker_pids(proc.stdout, 2, 2)
-    # Give some time to child to actually startup
+    assert len(worker_pids) == 2
+
+    # Give some time to child to actually startup and output a profile
     time.sleep(3)
-    # The processes are started without a master/parent so killing one does not kill the other:
-    # Kill them all and wait until they die.
+
+    # Kill master process
+    parent_pid: int = worker_pids[0]
+    os.kill(parent_pid, signal.SIGTERM)
+
+    # Wait for master to exit
+    res_pid, res_status = os.waitpid(parent_pid, 0)
+    print("")
+    print(f"INFO: Master process {parent_pid} exited with status {res_status} and pid {res_pid}")
+
+    # Attempt to kill worker proc once
+    worker_pid: int = worker_pids[1]
+    print(f"DEBUG: Checking worker {worker_pid} status after master exit:")
+    try:
+        os.kill(worker_pid, 0)
+        print(f"WARNING: Worker {worker_pid} is a zombie (will be cleaned up by init).")
+
+        os.kill(worker_pid, signal.SIGKILL)
+        print(f"WARNING: Worker {worker_pid} could not be killed with SIGKILL (will be cleaned up by init).")
+    except OSError:
+        print(f"INFO: Worker {worker_pid} was successfully killed.")
+
+    for pid in worker_pids:
+        profile = pprof_utils.parse_newest_profile("%s.%d" % (filename, pid))
+        samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+        assert len(samples) > 0
+
+
+@pytest.mark.parametrize("lazy_flag", ["--lazy-apps", "--lazy"])
+@pytest.mark.skipif(
+    tuple(int(x) for x in version("uwsgi").split(".")) >= (2, 0, 30),
+    reason="uwsgi>=2.0.30 does not require --skip-atexit",
+)
+def test_uwsgi_require_skip_atexit_when_lazy_with_master(uwsgi, lazy_flag):
+    expected_warning = b"ddtrace.internal.uwsgi.uWSGIConfigDeprecationWarning: skip-atexit option must be set"
+
+    proc = uwsgi("--enable-threads", "--master", "--processes", "2", lazy_flag)
+    time.sleep(1)
+    proc.terminate()
+    stdout, _ = proc.communicate()
+    assert expected_warning in stdout
+
+
+@pytest.mark.parametrize("lazy_flag", ["--lazy-apps", "--lazy"])
+@pytest.mark.skipif(
+    tuple(int(x) for x in version("uwsgi").split(".")) >= (2, 0, 30),
+    reason="uwsgi>=2.0.30 does not require --skip-atexit",
+)
+def test_uwsgi_require_skip_atexit_when_lazy_without_master(uwsgi, lazy_flag):
+    expected_warning = b"ddtrace.internal.uwsgi.uWSGIConfigDeprecationWarning: skip-atexit option must be set"
+    num_workers = 2
+    proc = uwsgi("--enable-threads", "--processes", str(num_workers), lazy_flag)
+
+    worker_pids = []
+    logged_warning = 0
+    while True:
+        line = proc.stdout.readline()
+        if line == b"":
+            break
+        if expected_warning in line:
+            logged_warning += 1
+        else:
+            m = re.match(r"^spawned uWSGI worker \d+ .*\(pid: (\d+),", line.decode())
+            if m:
+                worker_pids.append(int(m.group(1)))
+
+        if logged_warning == num_workers:
+            break
+
     for pid in worker_pids:
         os.kill(pid, signal.SIGTERM)
-    # The first worker is our child, we can wait for it "normally"
-    os.waitpid(worker_pids[0], 0)
-    # The other ones are grandchildren, we can't wait for it with `waitpid`
-    for pid in worker_pids[1:]:
-        # Wait for the uwsgi workers to all die
-        while True:
-            try:
-                os.kill(pid, 0)
-            except OSError:
-                break
-    for pid in worker_pids:
-        utils.check_pprof_file("%s.%d" % (filename, pid))
