@@ -1,7 +1,9 @@
 import sys
 
 from cryptography.hazmat.primitives.ciphers import Cipher
+from cryptography.hazmat.primitives.ciphers.algorithms import AES
 from cryptography.hazmat.primitives.ciphers.algorithms import ARC4
+from cryptography.hazmat.primitives.ciphers.modes import CBC
 from flask import Flask
 from flask import request
 
@@ -40,15 +42,17 @@ def create_app():
         param = request.args.get("param", "param")
 
         key = b"Sixteen byte key"
+        iv = b"SixteenByteIVvvv"
         data = b"abcdefgh"
-        algorithm = ARC4(key)
-        cipher = Cipher(algorithm)
+        algorithm = AES(key)
+        cipher = Cipher(algorithm, mode=CBC(iv))
         encryptor = cipher.encryptor()
         encryptor.update(data)
         response = ResultResponse(param)
         report = get_iast_reporter()
         if report:
-            response.sources = report.sources[0].value
+            if report.sources:
+                response.sources = report.sources[0].value
             response.vulnerabilities = list(report.vulnerabilities)[0].type
 
         return response.json()
@@ -59,8 +63,10 @@ def create_app():
 
         password = b"12345678"
         data = b"abcdefgh"
-        crypt_obj = ARC4.new(password)
-        crypt_obj.encrypt(data)
+        algorithm = ARC4(password)
+        cipher = Cipher(algorithm, mode=None)
+        encryptor = cipher.encryptor()
+        encryptor.update(data)
 
         response = ResultResponse(param)
         report = get_iast_reporter()

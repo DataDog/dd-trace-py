@@ -13,13 +13,16 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 def propagation_no_path(origin_string):
-    from Crypto.Cipher import AES
+    from cryptography.hazmat.primitives.ciphers import Cipher
+    from cryptography.hazmat.primitives.ciphers.algorithms import Blowfish
 
     key = b"Sixteen byte key"
     data = b"abcdefgh"
-    crypt_obj = AES.new(key, AES.MODE_EAX)
+    algorithm = Blowfish(key)
+    cipher = Cipher(algorithm, mode=None)
+    encryptor = cipher.encryptor()
     # label propagation_no_path
-    result = crypt_obj.encrypt(data)
+    result = encryptor.update(data)
     return result
 
 
