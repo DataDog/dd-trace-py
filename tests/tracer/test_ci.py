@@ -272,11 +272,12 @@ def test_os_runtime_metadata_tagging():
 
 
 def test_get_rev_list_no_args_git_ge_223(git_repo):
-    with mock.patch(
-        "ddtrace.ext.git._git_subprocess_cmd_with_details",
-        return_value=git._GitSubprocessDetails("commithash1\ncommithash2\n", "", 10, 0),
-    ) as mock_git_subprocess_cmd_with_details, mock.patch(
-        "ddtrace.ext.git.extract_git_version", return_value=(2, 23, 0)
+    with (
+        mock.patch(
+            "ddtrace.ext.git._git_subprocess_cmd_with_details",
+            return_value=git._GitSubprocessDetails("commithash1\ncommithash2\n", "", 10, 0),
+        ) as mock_git_subprocess_cmd_with_details,
+        mock.patch("ddtrace.ext.git.extract_git_version", return_value=(2, 23, 0)),
     ):
         assert git._get_rev_list(cwd=git_repo) == "commithash1\ncommithash2\n"
         mock_git_subprocess_cmd_with_details.assert_called_once_with(
@@ -291,11 +292,12 @@ def test_get_rev_list_no_args_git_ge_223(git_repo):
 
 
 def test_get_rev_list_git_lt_223(git_repo):
-    with mock.patch(
-        "ddtrace.ext.git._git_subprocess_cmd_with_details",
-        return_value=git._GitSubprocessDetails("commithash1\ncommithash2\n", "", 10, 0),
-    ) as mock_git_subprocess_cmd_with_details, mock.patch(
-        "ddtrace.ext.git.extract_git_version", return_value=(2, 22, 0)
+    with (
+        mock.patch(
+            "ddtrace.ext.git._git_subprocess_cmd_with_details",
+            return_value=git._GitSubprocessDetails("commithash1\ncommithash2\n", "", 10, 0),
+        ) as mock_git_subprocess_cmd_with_details,
+        mock.patch("ddtrace.ext.git.extract_git_version", return_value=(2, 22, 0)),
     ):
         assert (
             git._get_rev_list(
@@ -517,13 +519,14 @@ def test_extract_git_head_metadata():
         "committer": ("Committer", "c@committer.com", "date2"),
     }
 
-    with mock.patch(
-        "ddtrace.ext.git._is_shallow_repository_with_details", return_value=(True, 0.1, 0)
-    ) as mock_is_shallow, mock.patch("ddtrace.ext.git._unshallow_repository") as mock_unshallow_repository, mock.patch(
-        "ddtrace.ext.git.extract_user_info", return_value=fake_user_info
-    ), mock.patch(
-        "ddtrace.ext.git._git_subprocess_cmd", return_value="commit message"
-    ) as mock_git_subprocess_cmd:
+    with (
+        mock.patch(
+            "ddtrace.ext.git._is_shallow_repository_with_details", return_value=(True, 0.1, 0)
+        ) as mock_is_shallow,
+        mock.patch("ddtrace.ext.git._unshallow_repository") as mock_unshallow_repository,
+        mock.patch("ddtrace.ext.git.extract_user_info", return_value=fake_user_info),
+        mock.patch("ddtrace.ext.git._git_subprocess_cmd", return_value="commit message") as mock_git_subprocess_cmd,
+    ):
         tags = git.extract_git_head_metadata("sha123", cwd="/repo")
 
     mock_is_shallow.assert_called_once()

@@ -6,6 +6,7 @@ are checked.
 - The same known tests are used to override fetching of known tests.
 - The session object is patched to never be a faulty session, by default.
 """
+
 from unittest import mock
 from xml.etree import ElementTree
 
@@ -169,11 +170,12 @@ class PytestATRTestCase(PytestTestCaseBase):
         self.testdir.makepyfile(test_errors=_TEST_ERRORS_CONTENT)
         self.testdir.makepyfile(test_pass_on_retries=_TEST_PASS_ON_RETRIES_CONTENT)
         self.testdir.makepyfile(test_skip=_TEST_SKIP_CONTENT)
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=TestVisibilityAPISettings(flaky_test_retries_enabled=False),
+        with (
+            mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+                return_value=TestVisibilityAPISettings(flaky_test_retries_enabled=False),
+            ),
         ):
             rec = self.inline_run("--ddtrace", extra_env={"DD_CIVISIBILITY_FLAKY_RETRY_ENABLED": "1"})
             rec.assertoutcome(passed=3, failed=9, skipped=4)
