@@ -118,8 +118,9 @@ class LoggingTestCase(TracerTestCase):
                 span.finish()
             return span
 
-        with self.override_config("logging", dict(tracer=self.tracer)), self.override_global_config(
-            dict(_logs_injection=enabled)
+        with (
+            self.override_config("logging", dict(tracer=self.tracer)),
+            self.override_global_config(dict(_logs_injection=enabled)),
         ):
             # with format string for trace info
             output, span = capture_function_log(func)
@@ -241,8 +242,9 @@ class LoggingTestCase(TracerTestCase):
                 return span
 
         for fmt, style in ((DEFAULT_FORMAT, None), (DEFAULT_FORMAT, "%"), (BRACE_FORMAT, "{")):
-            with self.override_config("logging", dict(tracer=self.tracer)), self.override_global_config(
-                dict(_logs_injection="true")
+            with (
+                self.override_config("logging", dict(tracer=self.tracer)),
+                self.override_global_config(dict(_logs_injection="true")),
             ):
                 output, span = capture_function_log(func, fmt=fmt, fmt_style=style)
 
@@ -270,8 +272,9 @@ class LoggingTestCase(TracerTestCase):
                 logger.info("Hello!")
                 return span
 
-        with self.override_config("logging", dict(tracer=self.tracer)), self.override_global_config(
-            dict(_logs_injection="true")
+        with (
+            self.override_config("logging", dict(tracer=self.tracer)),
+            self.override_global_config(dict(_logs_injection="true")),
         ):
             with pytest.raises(ValueError) as exc:
                 _, _ = capture_function_log(func, fmt=DOLLAR_FORMAT, fmt_style="$")
@@ -286,8 +289,9 @@ class LoggingTestCase(TracerTestCase):
         )
         formatter = logging.StrFormatStyle(fmt)
 
-        with self.override_config("logging", dict(tracer=self.tracer)), self.override_global_config(
-            dict(_logs_injection="true")
+        with (
+            self.override_config("logging", dict(tracer=self.tracer)),
+            self.override_global_config(dict(_logs_injection="true")),
         ):
             with self.tracer.trace("test.logging") as span:
                 record = logger.makeRecord("name", "INFO", "func", 534, "Manual log record", (), None)

@@ -3,6 +3,7 @@ aiosignal==1.2.0
 
 https://pypi.org/project/aiosignal/
 """
+
 import asyncio
 
 from flask import Blueprint
