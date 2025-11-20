@@ -12,6 +12,7 @@ Stable values of module, suite, test names, and parameters, are a necessity for 
 
 All types and methods for interacting with the API are provided and documented in this file.
 """
+
 from enum import Enum
 from pathlib import Path
 from typing import Any

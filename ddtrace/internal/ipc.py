@@ -19,11 +19,9 @@ class BaseLock:
     def __init__(self, file: typing.IO[typing.Any]):
         self.file = file
 
-    def acquire(self):
-        ...
+    def acquire(self): ...
 
-    def release(self):
-        ...
+    def release(self): ...
 
     def __enter__(self):
         self.acquire()
@@ -181,3 +179,7 @@ class SharedStringFile:
             return
         with open_file(self.filename, "r+b") as f, WriteLock(f):
             yield f
+            # Flush before releasing the lock. Here we first release the lock,
+            # then close the file. If a read happens in between these two
+            # operations, the reader might see outdated data.
+            f.flush()

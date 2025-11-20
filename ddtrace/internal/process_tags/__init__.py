@@ -5,7 +5,7 @@ import sys
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.settings._config import config
+from ddtrace.internal.settings.process_tags import process_tags_config as config
 
 
 log = get_logger(__name__)
@@ -45,7 +45,7 @@ def normalize_tag_value(value: str) -> str:
 
 
 def generate_process_tags() -> Optional[str]:
-    if not config._process_tags_enabled:
+    if not config.enabled:
         return None
 
     try:
