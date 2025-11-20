@@ -1,6 +1,5 @@
 import itertools
 import math
-import os
 import sys
 import typing as t
 
@@ -10,6 +9,7 @@ from ddtrace.ext.git import REPOSITORY_URL
 from ddtrace.internal import compat
 from ddtrace.internal import gitmetadata
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import _env
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.telemetry import report_configuration
 from ddtrace.internal.telemetry import telemetry_writer
@@ -71,8 +71,8 @@ def _parse_profiling_enabled(raw: str) -> bool:
     # Try to derive whether we're enabled via DD_INJECTION_ENABLED
     # - Are we injected (DD_INJECTION_ENABLED set)
     # - Is profiling enabled ("profiler" in the list)
-    if os.environ.get("DD_INJECTION_ENABLED") is not None:
-        for tok in os.environ.get("DD_INJECTION_ENABLED", "").split(","):
+    if _env.getenv("DD_INJECTION_ENABLED") is not None:
+        for tok in _env.getenv("DD_INJECTION_ENABLED", "").split(","):
             if tok.strip().lower() == "profiler":
                 return True
 
@@ -105,7 +105,7 @@ def _enrich_tags(tags) -> t.Dict[str, str]:
     tags = {
         k: compat.ensure_text(v, "utf-8")
         for k, v in itertools.chain(
-            _update_git_metadata_tags(parse_tags_str(os.environ.get("DD_TAGS"))).items(),
+            _update_git_metadata_tags(parse_tags_str(_env.getenv("DD_TAGS"))).items(),
             tags.items(),
         )
     }

@@ -1,4 +1,3 @@
-import os
 from typing import Any
 from typing import Optional
 from typing import Type
@@ -8,6 +7,7 @@ import opentelemetry.version
 from ddtrace import config
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import _env
 from ddtrace.internal.settings._opentelemetry import otel_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
@@ -185,13 +185,16 @@ def _initialize_metrics(exporter_class, protocol, resource):
         from opentelemetry.sdk._configuration import _init_metrics
 
         # Ensure metrics exporter is configured to send payloads to a Datadog Agent.
-        if "OTEL_EXPORTER_OTLP_ENDPOINT" not in os.environ and "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT" not in os.environ:
-            os.environ["OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"] = otel_config.exporter.METRICS_ENDPOINT
-        os.environ["OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE"] = (
+        if (
+            "OTEL_EXPORTER_OTLP_ENDPOINT" not in _env.environ
+            and "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT" not in _env.environ
+        ):
+            _env.environ["OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"] = otel_config.exporter.METRICS_ENDPOINT
+        _env.environ["OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE"] = (
             otel_config.exporter.METRICS_TEMPORALITY_PREFERENCE
         )
-        os.environ["OTEL_METRIC_EXPORT_INTERVAL"] = str(otel_config.exporter.METRICS_METRIC_READER_EXPORT_INTERVAL)
-        os.environ["OTEL_METRIC_EXPORT_TIMEOUT"] = str(otel_config.exporter.METRICS_METRIC_READER_EXPORT_TIMEOUT)
+        _env.environ["OTEL_METRIC_EXPORT_INTERVAL"] = str(otel_config.exporter.METRICS_METRIC_READER_EXPORT_INTERVAL)
+        _env.environ["OTEL_METRIC_EXPORT_TIMEOUT"] = str(otel_config.exporter.METRICS_METRIC_READER_EXPORT_TIMEOUT)
         _init_metrics({protocol: exporter_class}, resource=resource)
         return True
     except ImportError as e:

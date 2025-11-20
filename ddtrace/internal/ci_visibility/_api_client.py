@@ -4,7 +4,6 @@ import dataclasses
 from http.client import RemoteDisconnected
 import json
 from json import JSONDecodeError
-import os
 import socket
 import typing as t
 from typing import TypedDict  # noqa:F401
@@ -48,6 +47,7 @@ from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_API_VALUE
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import _env
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.http import ConnectionType
@@ -406,7 +406,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             require_git = attributes["require_git"]
             itr_enabled = attributes["itr_enabled"]
             flaky_test_retries_enabled = attributes["flaky_test_retries_enabled"] or asbool(
-                os.getenv("_DD_TEST_FORCE_ENABLE_ATR")
+                _env.getenv("_DD_TEST_FORCE_ENABLE_ATR")
             )
             known_tests_enabled = attributes["known_tests_enabled"]
 
@@ -424,7 +424,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
 
             test_management_attributes = attributes.get("test_management", {})
             test_management_enabled = test_management_attributes.get("enabled", False)
-            attempt_to_fix_retries_env = os.getenv("DD_TEST_MANAGEMENT_ATTEMPT_TO_FIX_RETRIES")
+            attempt_to_fix_retries_env = _env.getenv("DD_TEST_MANAGEMENT_ATTEMPT_TO_FIX_RETRIES")
             if attempt_to_fix_retries_env and attempt_to_fix_retries_env.isdigit():
                 attempt_to_fix_retries = int(attempt_to_fix_retries_env)
                 log.debug("Number of Attempt to Fix retries obtained from environment: %d", attempt_to_fix_retries)
@@ -435,7 +435,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                 log.debug("Number of Attempt to Fix retries obtained from API: %d", attempt_to_fix_retries)
 
             test_management = TestManagementSettings(
-                enabled=test_management_enabled or asbool(os.getenv("_DD_TEST_FORCE_ENABLE_TEST_MANAGEMENT")),
+                enabled=test_management_enabled or asbool(_env.getenv("_DD_TEST_FORCE_ENABLE_TEST_MANAGEMENT")),
                 attempt_to_fix_retries=attempt_to_fix_retries,
             )
 

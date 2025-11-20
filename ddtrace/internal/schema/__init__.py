@@ -1,6 +1,6 @@
 import logging
-import os
 
+from ddtrace.internal.settings import _env
 from ddtrace.internal.utils.formats import asbool
 
 from .span_attribute_schema import _DEFAULT_SPAN_SERVICE_NAMES
@@ -29,14 +29,14 @@ def _validate_schema(version):
 
 
 def _get_schema_version():
-    version = os.getenv("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", default="v0")
+    version = _env.getenv("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", default="v0")
     if not _validate_schema(version):
         version = "v0"
     return version
 
 
 SCHEMA_VERSION = _get_schema_version()
-_remove_client_service_names = asbool(os.getenv("DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED", default=False))
+_remove_client_service_names = asbool(_env.getenv("DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED", default=False))
 _service_name_schema_version = "v0" if SCHEMA_VERSION == "v0" and not _remove_client_service_names else "v1"
 
 DEFAULT_SPAN_SERVICE_NAME = _DEFAULT_SPAN_SERVICE_NAMES[_service_name_schema_version]
