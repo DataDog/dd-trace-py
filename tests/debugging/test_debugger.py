@@ -765,9 +765,9 @@ def test_debugger_condition_eval_then_rate_limit(stuff):
         assert d.signal_state_counter[SignalState.SKIP_COND] == 99
         assert d.signal_state_counter[SignalState.DONE] == 1
 
-        assert (
-            "42" == snapshot["debugger"]["snapshot"]["captures"]["lines"]["36"]["arguments"]["bar"]["value"]
-        ), snapshot
+        assert "42" == snapshot["debugger"]["snapshot"]["captures"]["lines"]["36"]["arguments"]["bar"]["value"], (
+            snapshot
+        )
 
 
 def test_debugger_condition_eval_error_get_reported_once(stuff):

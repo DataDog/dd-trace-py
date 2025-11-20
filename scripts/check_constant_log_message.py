@@ -108,7 +108,7 @@ def main() -> int:
     for filepath in python_files:
         errors = check_file(filepath)
         for line_no, col_no in errors:
-            print(f"{filepath}:{line_no}:{col_no}: " "LOG001 first argument to logging call must be a constant string")
+            print(f"{filepath}:{line_no}:{col_no}: LOG001 first argument to logging call must be a constant string")
             total_errors += 1
 
     if total_errors > 0:
