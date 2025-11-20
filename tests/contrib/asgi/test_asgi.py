@@ -229,9 +229,7 @@ async def test(scope, tracer, test_spans):
 if __name__ == "__main__":
     import sys
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(
-        expected_span_name
-    )
+    """.format(expected_span_name)
     env = os.environ.copy()
     if schema_version:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
@@ -288,9 +286,7 @@ async def test(scope, tracer, test_spans):
 if __name__ == "__main__":
     import sys
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(
-        expected_service_name
-    )
+    """.format(expected_service_name)
     env = os.environ.copy()
     if global_service_name:
         env["DD_SERVICE"] = global_service_name

@@ -264,7 +264,7 @@ class PsycopgCore(AsyncioTestCase):
         """Checks whether connection context manager works as normal."""
 
         query = SQL("""select 'one' as x""")
-        async with (await psycopg.AsyncConnection.connect(**POSTGRES_CONFIG)) as conn:
+        async with await psycopg.AsyncConnection.connect(**POSTGRES_CONFIG) as conn:
             cur = await conn.execute(query)
             rows = await cur.fetchall()
 

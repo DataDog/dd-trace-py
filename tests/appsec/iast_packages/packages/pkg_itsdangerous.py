@@ -3,6 +3,7 @@ itsdangerous==2.2.0
 
 https://pypi.org/project/itsdangerous/
 """
+
 from flask import Blueprint
 from flask import request
 
