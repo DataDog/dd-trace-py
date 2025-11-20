@@ -1713,6 +1713,10 @@ class LLMObs(Service):
                 error = "invalid_metric_label"
                 raise ValueError("label must be the specified name of the evaluation metric.")
 
+            if "." in label:
+                error = "invalid_label_value"
+                raise ValueError("label value must not contain a '.'.")
+
             metric_type = metric_type.lower()
             if metric_type not in ("categorical", "score", "boolean"):
                 error = "invalid_metric_type"
