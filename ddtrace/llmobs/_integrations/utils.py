@@ -776,6 +776,29 @@ def openai_get_metadata_from_response(
     return metadata
 
 
+def _normalize_prompt_variables(variables: Dict[str, Any]) -> Dict[str, Any]:
+    """Normalizes prompt variables by extracting meaningful values from OpenAI's response objects."""
+    if not variables or not isinstance(variables, dict):
+        return {}
+
+    normalized = {}
+    for key, value in variables.items():
+        if hasattr(value, "text"):  # ResponseInputText
+            normalized[key] = value.text
+        elif getattr(value, "type", None) == "input_image":  # ResponseInputImage
+            normalized[key] = getattr(value, "image_url", None) or getattr(value, "file_id", None) or "[image]"
+        elif getattr(value, "type", None) == "input_file":  # ResponseInputFile
+            normalized[key] = (
+                getattr(value, "file_url", None)
+                or getattr(value, "file_id", None)
+                or getattr(value, "filename", None)
+                or "[file]"
+            )
+        else:
+            normalized[key] = value
+    return normalized
+
+
 def _extract_chat_template_from_instructions(
     instructions: List[Any], variables: Dict[str, Any]
 ) -> List[Dict[str, str]]:
@@ -862,24 +885,18 @@ def openai_set_meta_tags_from_response(
         }
     )
 
-    if "prompt" in kwargs:
-        prompt_data = kwargs.get("prompt")
-        if prompt_data:
-            try:
-                # Extract chat_template from response instructions if available
-                if response and not prompt_data.get("chat_template") and not prompt_data.get("template"):
-                    instructions = _get_attr(response, "instructions", None)
-                    variables = prompt_data.get("variables", {})
-                    if instructions and variables:
-                        chat_template = _extract_chat_template_from_instructions(instructions, variables)
-                        if chat_template:
-                            prompt_data = dict(prompt_data)  # Make a copy to avoid modifying the original
-                            prompt_data["chat_template"] = chat_template
-
-                validated_prompt = _validate_prompt(prompt_data, strict_validation=False)
-                span._set_ctx_item(INPUT_PROMPT, validated_prompt)
-            except (TypeError, ValueError, AttributeError) as e:
-                logger.debug("Failed to validate prompt for OpenAI response: %s", e)
+    prompt_data = kwargs.get("prompt")
+    if prompt_data:
+        prompt_data = dict(prompt_data) # Make a copy to avoid modifying the original
+        
+        instructions = _get_attr(response, "instructions", None)
+        if instructions:
+            variables = prompt_data.get("variables", {})
+            prompt_data["chat_template"] = _extract_chat_template_from_instructions(instructions, variables)
+            prompt_data["variables"] = _normalize_prompt_variables(variables)
+        
+        validated_prompt = _validate_prompt(prompt_data, strict_validation=False)
+        span._set_ctx_item(INPUT_PROMPT, validated_prompt)
 
     if span.error or not response:
         span._set_ctx_item(OUTPUT_MESSAGES, [Message(content="")])
