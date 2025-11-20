@@ -54,6 +54,7 @@ General notes:
 This module implements taint sink detection to track and block cases where tainted data
 is passed to header-setting APIs without proper sanitization.
 """  # noqa: D301
+
 import typing
 from typing import Text
 

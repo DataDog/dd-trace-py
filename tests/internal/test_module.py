@@ -516,9 +516,9 @@ def test_module_watchdog_does_not_rewrap_get_code():
     reload(ns_module)
     reload(ns_module)
     new_get_code = ns_module.__loader__.get_code
-    assert (
-        new_get_code is initial_get_code
-    ), f"module loader get_code (id: {id(new_get_code)}is not initial get_code (id: {id(initial_get_code)})"
+    assert new_get_code is initial_get_code, (
+        f"module loader get_code (id: {id(new_get_code)}is not initial get_code (id: {id(initial_get_code)})"
+    )
 
 
 @pytest.mark.subprocess
