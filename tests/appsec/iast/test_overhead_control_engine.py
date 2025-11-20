@@ -112,9 +112,10 @@ def test_oce_reset_vulnerabilities_report(iast_context_deduplication_enabled):
                 f"DEBUG: vulnerability_budget={env.vulnerability_budget}, "
                 f"vulnerabilities_request_limit={env.vulnerabilities_request_limit}"
             )
-        assert (
-            False
-        ), f"IAST reporter should exist before reset. IAST enabled: {is_iast_request_enabled()}, env: {env is not None}"
+        assert False, (
+            f"IAST reporter should exist before reset. IAST enabled: {is_iast_request_enabled()}, "
+            "env: {env is not None}"
+        )
 
     initial_count = len(span_report.vulnerabilities)
     assert initial_count == asm_config._iast_max_vulnerabilities_per_requests

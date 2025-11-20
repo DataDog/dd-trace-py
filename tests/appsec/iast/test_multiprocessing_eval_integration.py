@@ -5,6 +5,7 @@ This test simulates the real-world scenario from dd-source that was causing
 segmentation faults: a web server using multiprocessing workers with IAST enabled
 performing code evaluation.
 """
+
 from multiprocessing import Process
 from multiprocessing import Queue
 import os

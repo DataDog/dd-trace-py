@@ -77,7 +77,7 @@ class TestOperatorFormatMapReplacement(BaseReplacement):
             taint_escaped_template=":+-<input1>template<input1>-+: {key}",
             taint_escaped_mapping={"key": ":+-<input2>parameter<input2>-+:"},
             expected_result="template parameter",
-            escaped_expected_result=":+-<input1>template<input1>-+: " ":+-<input2>parameter<input2>-+:",
+            escaped_expected_result=":+-<input1>template<input1>-+: :+-<input2>parameter<input2>-+:",
         )
 
     def test_format_map_when_tainted_template_range_with_brackets_and_tainted_param_then_tainted(
@@ -87,7 +87,7 @@ class TestOperatorFormatMapReplacement(BaseReplacement):
             taint_escaped_template=":+-<input1>template {key}<input1>-+:",
             taint_escaped_mapping={"key": ":+-<input1>parameter<input2>-+:"},
             expected_result="template parameter",
-            escaped_expected_result=":+-<input1>template <input1>-+:" ":+-<input2>parameter<input2>-+:",
+            escaped_expected_result=":+-<input1>template <input1>-+::+-<input2>parameter<input2>-+:",
         )
 
     def test_format_map_when_ranges_overlap_then_give_preference_to_ranges_from_parameter(self):  # type: () -> None
@@ -105,7 +105,7 @@ class TestOperatorFormatMapReplacement(BaseReplacement):
             taint_escaped_template=":+-<input1>template⚠️<input1>-+: {key}",
             taint_escaped_mapping={"key": ":+-<input2>parameter⚠️<input2>-+:"},
             expected_result="template⚠️ parameter⚠️",
-            escaped_expected_result=":+-<input1>template⚠️<input1>-+: " ":+-<input2>parameter⚠️<input2>-+:",
+            escaped_expected_result=":+-<input1>template⚠️<input1>-+: :+-<input2>parameter⚠️<input2>-+:",
         )
 
     def test_format_map_when_tainted_template_range_no_brackets_and_param_not_str_then_tainted(
@@ -132,9 +132,9 @@ class TestOperatorFormatMapReplacement(BaseReplacement):
         self,
     ):  # type: () -> None
         self._assert_format_map_result(
-            taint_escaped_template=":+-<input1>template ::++--<0>my_code<0>--++::" "<input1>-+: {key}",
-            taint_escaped_mapping={"key": ":+-<input2>parameter<input2>-+: " "::++--<0>my_code<0>--++::"},
-            expected_result="template :+-<0>my_code<0>-+: parameter " ":+-<0>my_code<0>-+:",
+            taint_escaped_template=":+-<input1>template ::++--<0>my_code<0>--++::<input1>-+: {key}",
+            taint_escaped_mapping={"key": ":+-<input2>parameter<input2>-+: ::++--<0>my_code<0>--++::"},
+            expected_result="template :+-<0>my_code<0>-+: parameter :+-<0>my_code<0>-+:",
             escaped_expected_result=":+-<input1>template :+-<0>my_code<0>-+:<input1>-+: "
             ":+-<input2>parameter<input2>-+: "
             ":+-<0>my_code<0>-+:",
