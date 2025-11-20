@@ -10,6 +10,7 @@ It implements the wrapper classes and utilities needed to:
 The module uses wrapt's function wrapping capabilities to intercept calls to security-sensitive
 functions and enable taint tracking and vulnerability detection.
 """
+
 import functools
 from typing import Callable
 from typing import Optional
@@ -110,12 +111,7 @@ class IASTFunction:
 
     def __repr__(self):
         """Return a string representation of the IASTFunction instance."""
-        return (
-            f"IASTFunction(name={self.name}, "
-            f"function={self.function}, "
-            f"hook={self.hook}, "
-            f"force={self.force})"
-        )
+        return f"IASTFunction(name={self.name}, function={self.function}, hook={self.hook}, force={self.force})"
 
 
 class WrapFunctonsForIAST:

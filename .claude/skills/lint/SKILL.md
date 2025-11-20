@@ -48,7 +48,7 @@ hatch run lint:typing -- path/to/file.py
 ### Code Formatting
 
 #### `fmt` - Format code (recommended for most edits)
-Formats and validates code style using Black and Ruff.
+Formats and validates code style using Ruff.
 
 **Usage:**
 ```bash
@@ -63,7 +63,7 @@ hatch run lint:fmt -- ddtrace/contrib/flask/
 ```
 
 **What it does:**
-1. Runs Black formatter
+1. Runs the Ruff formatter
 2. Runs Ruff with --fix to auto-fix issues
 3. Re-validates with style checks
 
@@ -94,7 +94,7 @@ hatch run lint:style -- ddtrace/
 ```
 
 **What it validates:**
-- Black formatting
+- Ruff formatting
 - Ruff linting rules
 - Cython linting
 - C code formatting
@@ -102,12 +102,13 @@ hatch run lint:style -- ddtrace/
 
 **When to use:** To verify style compliance before committing without auto-fixes.
 
-#### `black_check` - Check Black formatting
-Validates Python code formatting with Black (no auto-fix).
+#### `format_check` - Check formatting
+
+Validates Python code formatting with `ruff format` (no auto-fix).
 
 **Usage:**
 ```bash
-hatch run lint:black_check -- ddtrace/tracer.py
+hatch run lint:format_check -- ddtrace/tracer.py
 ```
 
 **When to use:** Quick check of Python formatting before committing.

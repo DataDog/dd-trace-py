@@ -54,10 +54,13 @@ standard_blocklist = [
     "ddtrace.internal._file_queue",
     "secrets",
 ]
-expanded_blocklist = standard_blocklist + [
-    # wrapt 2.0 is importing importlib.metada
-    # "importlib.metadata",
-]
+expanded_blocklist = (
+    standard_blocklist
+    + [
+        # wrapt 2.0 is importing importlib.metada
+        # "importlib.metadata",
+    ]
+)
 
 
 @pytest.mark.parametrize(

@@ -49,16 +49,19 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
 
     env.update({"DD_IAST_DEDUPLICATION_ENABLED": str(deduplication)})
     # env.update({"DD_IAST_MAX_CONCURRENT_REQUESTS": "100"})
-    with override_global_config(
-        dict(
-            _asm_enabled=asm_enabled,
-            _iast_enabled=True,
-            _iast_is_testing=True,
-            _iast_deduplication_enabled=deduplication,
-            _iast_max_vulnerabilities_per_requests=vulnerabilities_per_requests,
-            _iast_request_sampling=request_sampling,
-        )
-    ), override_env(env):
+    with (
+        override_global_config(
+            dict(
+                _asm_enabled=asm_enabled,
+                _iast_enabled=True,
+                _iast_is_testing=True,
+                _iast_deduplication_enabled=deduplication,
+                _iast_max_vulnerabilities_per_requests=vulnerabilities_per_requests,
+                _iast_request_sampling=request_sampling,
+            )
+        ),
+        override_env(env),
+    ):
         assert debug_context_array_size() == 2
         assert debug_context_array_free_slots_number() > 0
         span = MockSpan()

@@ -13,6 +13,7 @@ These tests verify that IAST correctly handles two types of forks:
 
 The fork handler detects which type of fork occurred by checking for active contexts.
 """
+
 from multiprocessing import Process
 from multiprocessing import Queue
 import os
@@ -108,9 +109,7 @@ def test_multiprocessing_with_iast_no_segfault(iast_context_defaults):
 
     # Parent setup - IAST works normally
     _start_iast_context_and_oce()
-    _ = taint_pyobject(
-        "parent_data", source_name="parent", source_value="value", source_origin=OriginType.HEADER_NAME
-    )  # noqa: F841
+    _ = taint_pyobject("parent_data", source_name="parent", source_value="value", source_origin=OriginType.HEADER_NAME)  # noqa: F841
 
     # Fork a child process
     queue = Queue()
