@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    tornado: Updated minimum supported version to v6.1+. The Tornado integration now uses ``contextvars`` for context management instead of a custom stack-based provider.
