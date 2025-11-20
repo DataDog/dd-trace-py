@@ -212,6 +212,7 @@ def test_weak_cipher_deduplication(iast_context_deduplication_enabled):
         _end_iast_context_and_oce()
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 14), reason="pycryptodome is not compatible with Python 3.14")
 def test_weak_cipher_secure(iast_context_defaults):
     cipher_secure()
     span_report = get_iast_reporter()
@@ -219,6 +220,7 @@ def test_weak_cipher_secure(iast_context_defaults):
     assert span_report is None
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 14), reason="pycryptodome is not compatible with Python 3.14")
 def test_weak_cipher_secure_multiple_calls_error(iast_context_defaults):
     for _ in range(50):
         cipher_secure()

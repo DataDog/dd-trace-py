@@ -199,7 +199,8 @@ venv = Venv(
         ),
         Venv(
             name="appsec_iast_packages",
-            pys=["3.11", "3.12", "3.13", "3.14"],
+            # TODO(APPSEC-60019): virtualenv-clone doesn't support Python 3.14
+            pys=["3.11", "3.12", "3.13"],
             command="pytest {cmdargs} tests/appsec/iast_packages/",
             pkgs={
                 "requests": latest,
