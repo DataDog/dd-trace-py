@@ -887,14 +887,14 @@ def openai_set_meta_tags_from_response(
 
     prompt_data = kwargs.get("prompt")
     if prompt_data:
-        prompt_data = dict(prompt_data) # Make a copy to avoid modifying the original
-        
+        prompt_data = dict(prompt_data)  # Make a copy to avoid modifying the original
+
         instructions = _get_attr(response, "instructions", None)
         if instructions:
             variables = prompt_data.get("variables", {})
             prompt_data["chat_template"] = _extract_chat_template_from_instructions(instructions, variables)
             prompt_data["variables"] = _normalize_prompt_variables(variables)
-        
+
         validated_prompt = _validate_prompt(prompt_data, strict_validation=False)
         span._set_ctx_item(INPUT_PROMPT, validated_prompt)
 
