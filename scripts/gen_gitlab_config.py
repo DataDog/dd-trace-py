@@ -151,6 +151,7 @@ def calculate_dynamic_parallelism(suite_name: str, suite_config: dict) -> t.Opti
         return None
 
     import math
+
     import riotfile
 
     pattern = suite_config.get("pattern", suite_name)
