@@ -69,6 +69,7 @@ def run(scenario_py: str, cname: str, cvars: dict[str, Any], output_dir: str, cp
         scenario_py,
         # necessary to copy PYTHONPATH for venvs
         "--copy-env",
+        "--output",
         os.path.join(output_dir, f"results.{cname}.json"),
         "--name",
         cname,

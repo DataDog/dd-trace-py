@@ -43,6 +43,10 @@ variables:
         run-benchmarks.sh
       fi
 
+      # Join all config results into a single results.json
+      .gitlab/benchmarks/steps/combine-results.sh "/artifacts/${CI_JOB_ID}-${SCENARIO}/candidate/"
+      .gitlab/benchmarks/steps/combine-results.sh "/artifacts/${CI_JOB_ID}-${SCENARIO}/baseline/"
+
       analyze-results.sh
       upload-results-to-s3.sh || :
     done
