@@ -87,8 +87,11 @@ class Block_config(Protocol):
     location: str
     content_type: str
 
-    def get(self, method_name: str, default: Any = None) -> Union[str, int]:
-        ...
+    def get(self, key: str, default: Any = None) -> Union[str, int]: ...
+
+    def __getitem__(self, key: str) -> Optional[Union[str, int]]: ...
+
+    def __contains__(self, key: str) -> bool: ...
 
 
 def get_blocked() -> Optional[Block_config]:
