@@ -93,6 +93,6 @@ def test_otel_metrics_disabled_and_unset():
     from opentelemetry.metrics import get_meter_provider
 
     meter_provider = get_meter_provider()
-    assert (meter_provider is None) or (
-        type(meter_provider).__name__ == "_ProxyMeterProvider"
-    ), "OpenTelemetry mterics exporter should not be configured automatically."
+    assert (meter_provider is None) or (type(meter_provider).__name__ == "_ProxyMeterProvider"), (
+        "OpenTelemetry mterics exporter should not be configured automatically."
+    )

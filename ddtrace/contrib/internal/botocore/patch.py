@@ -176,12 +176,15 @@ def patched_lib_fn(original_func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled() or not config.botocore["instrument_internals"]:
         return original_func(*args, **kwargs)
-    with core.context_with_data(
-        "botocore.instrumented_lib_function",
-        span_name="{}.{}".format(original_func.__module__, original_func.__name__),
-        tags={COMPONENT: config.botocore.integration_name, SPAN_KIND: SpanKind.CLIENT},
-        pin=pin,
-    ) as ctx, ctx.span:
+    with (
+        core.context_with_data(
+            "botocore.instrumented_lib_function",
+            span_name="{}.{}".format(original_func.__module__, original_func.__name__),
+            tags={COMPONENT: config.botocore.integration_name, SPAN_KIND: SpanKind.CLIENT},
+            pin=pin,
+        ) as ctx,
+        ctx.span,
+    ):
         return original_func(*args, **kwargs)
 
 
@@ -260,19 +263,24 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
     endpoint_name = function_vars.get("endpoint_name")
     operation = function_vars.get("operation")
 
-    with core.context_with_data(
-        "botocore.instrumented_api_call",
-        instance=instance,
-        args=args,
-        params=params,
-        endpoint_name=endpoint_name,
-        operation=operation,
-        service=schematize_service_name("{}.{}".format(ext_service(pin, int_config=config.botocore), endpoint_name)),
-        pin=pin,
-        span_name=function_vars.get("trace_operation"),
-        span_type=SpanTypes.HTTP,
-        span_key="instrumented_api_call",
-    ) as ctx, ctx.span:
+    with (
+        core.context_with_data(
+            "botocore.instrumented_api_call",
+            instance=instance,
+            args=args,
+            params=params,
+            endpoint_name=endpoint_name,
+            operation=operation,
+            service=schematize_service_name(
+                "{}.{}".format(ext_service(pin, int_config=config.botocore), endpoint_name)
+            ),
+            pin=pin,
+            span_name=function_vars.get("trace_operation"),
+            span_type=SpanTypes.HTTP,
+            span_key="instrumented_api_call",
+        ) as ctx,
+        ctx.span,
+    ):
         core.dispatch("botocore.patched_api_call.started", [ctx])
         if args and config.botocore["distributed_tracing"]:
             prep_context_injection(ctx, endpoint_name, operation, trace_operation, params)

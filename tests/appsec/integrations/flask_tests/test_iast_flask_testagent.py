@@ -66,9 +66,9 @@ def test_iast_stacktrace_error(iast_test_token):
             "/iast-stacktrace-leak-vulnerability", headers={"X-Datadog-Test-Session-Token": iast_test_token}
         )
         assert response.status_code == 500
-        assert (
-            b"<title>ValueError: Check my stacktrace!" in response.content
-        ), f"Exception doesn't found in CONTENT: {response.content}"
+        assert b"<title>ValueError: Check my stacktrace!" in response.content, (
+            f"Exception doesn't found in CONTENT: {response.content}"
+        )
 
     response_tracer = _get_span(iast_test_token)
     spans_with_iast = []

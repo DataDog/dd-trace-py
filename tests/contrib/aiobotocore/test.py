@@ -402,9 +402,7 @@ def test(tracer):
 if __name__ == "__main__":
     import sys
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(
-        expected_service_name, expected_operation_name
-    )
+    """.format(expected_service_name, expected_operation_name)
     env = os.environ.copy()
     if service_name:
         env["DD_SERVICE"] = service_name
