@@ -591,8 +591,9 @@ def test_ddwaf_run_contained_typeerror(tracer, caplog):
     config = rules.Config()
     config.http_tag_query_string = True
 
-    with caplog.at_level(logging.DEBUG), mock.patch(
-        "ddtrace.appsec._ddwaf.waf.ddwaf_run", side_effect=TypeError("expected c_long instead of int")
+    with (
+        caplog.at_level(logging.DEBUG),
+        mock.patch("ddtrace.appsec._ddwaf.waf.ddwaf_run", side_effect=TypeError("expected c_long instead of int")),
     ):
         with asm_context(tracer=tracer, config=config_asm) as span:
             set_http_meta(
@@ -627,8 +628,9 @@ def test_ddwaf_run_contained_oserror(tracer, caplog):
     config = rules.Config()
     config.http_tag_query_string = True
 
-    with caplog.at_level(logging.DEBUG), mock.patch(
-        "ddtrace.appsec._ddwaf.waf.ddwaf_run", side_effect=OSError("ddwaf run failed")
+    with (
+        caplog.at_level(logging.DEBUG),
+        mock.patch("ddtrace.appsec._ddwaf.waf.ddwaf_run", side_effect=OSError("ddwaf run failed")),
     ):
         with asm_context(tracer=tracer, config=config_asm) as span:
             set_http_meta(

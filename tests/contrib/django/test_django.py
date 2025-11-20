@@ -1664,9 +1664,7 @@ def test(client, test_spans):
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(
-        expected_service_name
-    )
+    """.format(expected_service_name)
 
     env = os.environ.copy()
     if schema_version is not None:
@@ -1714,9 +1712,7 @@ with with_django_db(test_spans):
     assert span.span_type == "sql"
     assert span.get_tag("django.db.vendor") == "sqlite"
     assert span.get_tag("django.db.alias") == "default"
-    """.format(
-        expected_service_name
-    )
+    """.format(expected_service_name)
 
     env = os.environ.copy()
     env["DD_DJANGO_INSTRUMENT_DATABASES"] = "true"
@@ -1759,9 +1755,7 @@ def test(client, test_spans):
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(
-        expected_operation_name
-    )
+    """.format(expected_operation_name)
 
     env = os.environ.copy()
     if schema_version is not None:
