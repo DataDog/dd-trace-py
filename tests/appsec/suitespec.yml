@@ -27,7 +27,7 @@ suites:
     runner: riot
     snapshot: true
   appsec_iast_default:
-    parallelism: 10
+    parallelism: 6
     paths:
       - '@bootstrap'
       - '@core'
