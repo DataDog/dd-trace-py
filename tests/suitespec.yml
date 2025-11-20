@@ -254,7 +254,6 @@ suites:
       DD_TRACE_AGENT_URL: http://localhost:8126
       KUBERNETES_MEMORY_REQUEST: "4Gi"
       KUBERNETES_MEMORY_LIMIT: "4Gi"
-    parallelism: 9
     paths:
       - '@tracing'
       - '@bootstrap'
@@ -269,6 +268,7 @@ suites:
       - tests/snapshots/test_*
     retry: 2
     runner: riot
+    venvs_per_job: 1
   vendor:
     parallelism: 1
     paths:

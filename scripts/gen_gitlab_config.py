@@ -1,9 +1,19 @@
-# This script is used to generate the GitLab dynamic config file in
-# .gitlab/tests.yml.
-#
-# To add new configuration manipulations that are based on top of the template
-# file in .gitlab/tests.yml, add a function named gen_<name> to this
-# file. The function will be called automatically when this script is run.
+#!/usr/bin/env scripts/uv-run-script
+# -*- mode: python -*-
+# /// script
+# requires-python = ">=3.8"
+# dependencies = [
+#     "riot>=0.20.1",
+#     "ruamel.yaml>=0.17.21",
+#     "lxml>=4.9.0",
+# ]
+# ///
+"""Generate the GitLab dynamic config file in .gitlab/tests.yml.
+
+To add new configuration manipulations that are based on top of the template
+file in .gitlab/tests.yml, add a function named gen_<name> to this file.
+The function will be called automatically when this script is run.
+"""
 
 from dataclasses import dataclass
 import datetime
@@ -23,6 +33,7 @@ class JobSpec:
     services: t.Optional[t.List[str]] = None
     env: t.Optional[t.Dict[str, str]] = None
     parallelism: t.Optional[int] = None
+    venvs_per_job: t.Optional[int] = None
     retry: t.Optional[int] = None
     timeout: t.Optional[int] = None
     skip: bool = False
@@ -117,6 +128,68 @@ class JobSpec:
         return "\n".join(lines)
 
 
+def calculate_dynamic_parallelism(suite_name: str, suite_config: dict) -> t.Optional[int]:
+    """Calculate parallelism based on venvs_per_job configuration.
+
+    Packs N venvs per parallel job, scaling automatically with venv count changes.
+    Only applies to riot runner suites with venvs_per_job configured.
+
+    Args:
+        suite_name: The name of the test suite
+        suite_config: The suite configuration dict from suitespec
+
+    Returns:
+        The calculated parallelism value (1 to 20), or None if venvs_per_job not configured
+    """
+    # Only for riot suites
+    if suite_config.get("runner") != "riot":
+        return None
+
+    # Check if venvs_per_job is configured
+    venvs_per_job = suite_config.get("venvs_per_job")
+    if venvs_per_job is None:
+        return None
+
+    import math
+    import riotfile
+
+    pattern = suite_config.get("pattern", suite_name)
+    try:
+        pattern_regex = re.compile(pattern)
+    except re.error:
+        LOGGER.warning("Invalid pattern for suite %s: %s", suite_name, pattern)
+        return None
+
+    venv_count = sum(
+        (
+            1  # type: ignore[misc]
+            for inst in riotfile.venv.instances()  # type: ignore[attr-defined]
+            if inst.name and inst.matches_pattern(pattern_regex)
+        ),
+        0,
+    )
+
+    if venv_count == 0:
+        LOGGER.warning("No riot venvs found for suite %s with pattern %s", suite_name, pattern)
+        return None
+
+    # Calculate parallelism: ceil(venv_count / venvs_per_job)
+    calculated = math.ceil(venv_count / venvs_per_job)
+
+    # Cap at 20 to avoid over-parallelization
+    MAX_PARALLELISM = 20
+    calculated = min(calculated, MAX_PARALLELISM)
+
+    LOGGER.debug(
+        "Suite %s: %d venvs, %d venvs_per_job -> parallelism %d",
+        suite_name,
+        venv_count,
+        venvs_per_job,
+        calculated,
+    )
+    return calculated
+
+
 def gen_required_suites() -> None:
     """Generate the list of test suites that need to be run."""
     from needs_testrun import extract_git_commit_selections
@@ -180,6 +253,15 @@ def gen_required_suites() -> None:
             if jobspec.skip:
                 LOGGER.debug("Skipping suite %s", suite)
                 continue
+
+            # Calculate dynamic parallelism for riot suites without explicit value
+            if jobspec.parallelism is None and suite_config.get("runner") == "riot":
+                calculated = calculate_dynamic_parallelism(suite, suite_config)
+                if calculated is not None:
+                    jobspec.parallelism = calculated
+                    LOGGER.info("Suite %s: calculated parallelism=%d", suite, calculated)
+                else:
+                    LOGGER.debug("Suite %s: no venvs_per_job config, using GitLab default", suite)
 
             print(str(jobspec), file=f)
 
