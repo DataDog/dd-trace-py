@@ -25,13 +25,7 @@
       "mcp__github__pull_request_read",
       "WebFetch(domain:github.com)",
       "Skill(run-tests)",
-      "Bash(scripts/run-tests:*)",
-      "Bash(uv pip install:*)",
-      "Bash(python3:*)",
-      "Bash(for:*)",
-      "Bash(do echo \"=== Run $i ===\")",
-      "Bash(done)",
-      "Bash(pytest:*)"
+      "Bash(scripts/run-tests:*)"
     ],
     "deny": []
   }
