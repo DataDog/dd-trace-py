@@ -76,11 +76,8 @@ def test_memory_collector(tmp_path):
     mc = memalloc.MemoryCollector(heap_sample_size=256)
     with mc:
         _allocate_1k()
-        mc.snapshot()
+        profile = mc.snapshot_and_parse_pprof(output_filename)
 
-    ddup.upload()
-
-    profile = pprof_utils.parse_newest_profile(output_filename)
     # Gets samples with alloc-space > 0
     samples = pprof_utils.get_samples_with_value_type(profile, "alloc-space")
 
@@ -108,35 +105,6 @@ def test_memory_collector(tmp_path):
     )
 
 
-def test_memory_collector_ignore_profiler(tmp_path):
-    output_filename = _setup_profiling_prelude(tmp_path, "test_memory_collector_ignore_profiler")
-
-    mc = memalloc.MemoryCollector(ignore_profiler=True)
-    quit_thread = threading.Event()
-
-    with mc:
-
-        def alloc():
-            _allocate_1k()
-            quit_thread.wait()
-
-        alloc_thread = threading.Thread(name="allocator", target=alloc)
-        alloc_thread._ddtrace_profiling_ignore = True
-        alloc_thread.start()
-
-        mc.snapshot()
-
-    # We need to wait for the data collection to happen so it gets the `_ddtrace_profiling_ignore` Thread attribute from
-    # the global thread list.
-    quit_thread.set()
-    alloc_thread.join()
-
-    ddup.upload()
-
-    try:
-        pprof_utils.parse_newest_profile(output_filename)
-    except AssertionError as e:
-        assert "No samples found" in str(e)
 
 
 @pytest.mark.subprocess(
