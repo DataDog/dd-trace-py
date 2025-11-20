@@ -311,14 +311,21 @@ class Flare:
                 log.error("Failed to send tracer flare to Zendesk ticket %s: %s", flare_send_req.case_id, e)
                 raise
 
+    def _cleanup_directory_python(self):
+        """Clean up the flare directory using Python's shutil."""
+        try:
+            shutil.rmtree(self.flare_dir)
+        except Exception as e:
+            log.warning("Failed to clean up tracer flare files: %s", e)
+
     def clean_up_files(self):
         # Use native implementation with Python fallback
         try:
             self._native_manager.cleanup_directory(str(self.flare_dir))
+            # Check if directory was actually deleted
+            if self.flare_dir.exists():
+                log.debug("Native cleanup succeeded but directory still exists, cleaning up with Python")
+                self._cleanup_directory_python()
         except Exception as e:
             log.debug("Native cleanup failed, falling back to Python: %s", e)
-            # Fallback to Python implementation
-            try:
-                shutil.rmtree(self.flare_dir)
-            except Exception as e:
-                log.warning("Failed to clean up tracer flare files: %s", e)
+            self._cleanup_directory_python()
