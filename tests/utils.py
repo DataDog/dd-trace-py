@@ -29,6 +29,7 @@ from ddtrace import config as dd_config
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal import core
+from ddtrace.internal import process_tags
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.encoding import JSONEncoder
@@ -1619,3 +1620,7 @@ def override_third_party_packages(packages: List[str]):
 
         filename_to_package.cache_clear()
         is_third_party.cache_clear()
+
+
+def process_tag_reload():
+    process_tags.process_tags = process_tags.generate_process_tags()
