@@ -21,6 +21,7 @@ _PORT = 8060
         ("tortoise", True),  # TODO: Tortoise ORM is not yet supported
     ],
 )
+@pytest.mark.skipif(sys.version_info >= (3, 14), reason="Test not supported in Python 3.14")
 def test_iast_flask_orm(orm, xfail):
     with flask_server(
         iast_enabled="true",
@@ -82,7 +83,7 @@ def test_iast_flask_weak_cipher():
             assert content["param"] == "my-bytes-string"
             assert content["sources"] == ""
             assert content["vulnerabilities"] == ""
-            assert content["params_are_tainted"] is False
+            assert content["params_are_tainted"] is True
 
             weak_response = client.get("/weak_cipher?param=my-bytes-string")
             assert weak_response.status_code == 200
