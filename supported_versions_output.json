@@ -475,7 +475,7 @@
         "integration": "protobuf",
         "minimum_tracer_supported": "6.30.1",
         "max_tracer_supported": "6.32.0",
-        "auto-instrumented": false
+        "auto-instrumented": true
     },
     {
         "dependency": "psycopg",

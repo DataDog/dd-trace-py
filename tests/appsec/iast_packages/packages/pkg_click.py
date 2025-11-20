@@ -3,6 +3,7 @@ click==8.1.3
 
 https://pypi.org/project/click/
 """
+
 from flask import Blueprint
 from flask import request
 

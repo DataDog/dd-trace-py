@@ -3086,6 +3086,16 @@ venv = Venv(
             },
         ),
         Venv(
+            name="aiokafka",
+            env={
+                "_DD_TRACE_STATS_WRITER_INTERVAL": "1000000000",
+                "DD_DATA_STREAMS_ENABLED": "true",
+            },
+            command="pytest {cmdargs} tests/contrib/aiokafka/",
+            pys=select_pys(),
+            pkgs={"pytest-asyncio": [latest], "pytest-randomly": latest, "aiokafka": ["~=0.9.0", latest]},
+        ),
+        Venv(
             name="azure_eventhubs",
             command="pytest {cmdargs} tests/contrib/azure_eventhubs",
             pys=select_pys(min_version="3.9", max_version="3.13"),

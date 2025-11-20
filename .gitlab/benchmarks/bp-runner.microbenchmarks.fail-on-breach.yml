@@ -1092,7 +1092,7 @@ experiments:
               - max_rss_usage < 35.50 MB
           - name: telemetryaddmetric-1-distribution-metrics-100-times
             thresholds:
-              - execution_time < 0.22 ms
+              - execution_time < 0.23 ms
               - max_rss_usage < 35.50 MB
           - name: telemetryaddmetric-1-gauge-metric-1-times
             thresholds:

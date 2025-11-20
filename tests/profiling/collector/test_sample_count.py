@@ -66,6 +66,6 @@ def test_sample_count():
             if internal_metadata["sample_count"] > internal_metadata["sampling_event_count"]:
                 found_at_least_one_with_more_samples_than_sampling_events = True
 
-    assert (
-        found_at_least_one_with_more_samples_than_sampling_events
-    ), "Expected at least one file with more samples than sampling events"
+    assert found_at_least_one_with_more_samples_than_sampling_events, (
+        "Expected at least one file with more samples than sampling events"
+    )
