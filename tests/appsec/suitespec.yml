@@ -27,7 +27,7 @@ suites:
     runner: riot
     snapshot: true
   appsec_iast_default:
-    parallelism: 6
+    parallelism: 10
     paths:
       - '@bootstrap'
       - '@core'
@@ -74,7 +74,7 @@ suites:
     runner: hatch
     timeout: 50m
   appsec_iast_packages:
-    parallelism: 6
+    parallelism: 4
     paths:
       - '@appsec_iast'
       - tests/appsec/iast_packages/*
