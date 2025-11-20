@@ -1,0 +1,95 @@
+id: os-environ-usage
+message: Use `ddtrace.settings._env.environ` instead of `os.environ`, or `ddtrace.settings._env.get_env()` instead of `os.getenv()`
+severity: error
+language: python
+files:
+  - "ddtrace/**"
+ignores:
+  - "ddtrace/settings/_env.py"
+rule:
+  any:
+    # Match os.environ access patterns
+    - pattern: os.environ
+    - pattern: os.environ[$$$ARGS]
+    - pattern: os.environ.get($$$ARGS)
+    - pattern: os.environ.keys($$$ARGS)
+    - pattern: os.environ.values($$$ARGS)
+    - pattern: os.environ.items($$$ARGS)
+    - pattern: os.environ.copy($$$ARGS)
+    - pattern: os.environ.clear($$$ARGS)
+    - pattern: os.environ.update($$$ARGS)
+    - pattern: os.environ.pop($$$ARGS)
+    - pattern: os.environ.setdefault($$$ARGS)
+
+    # Match os.getenv() calls
+    - pattern: os.getenv($$$ARGS)
+
+    # Match direct imports and usage of environ
+    - pattern: from os import environ
+    - pattern: from os import environ as $ALIAS
+    - pattern: from os import $$$IMPORTS, environ
+    - pattern: from os import $$$IMPORTS, environ as $ALIAS
+    - pattern: from os import environ, $$$IMPORTS
+    - pattern: from os import environ as $ALIAS, $$$IMPORTS
+
+    # Match direct imports and usage of getenv
+    - pattern: from os import getenv
+    - pattern: from os import getenv as $ALIAS
+    - pattern: from os import $$$IMPORTS, getenv
+    - pattern: from os import $$$IMPORTS, getenv as $ALIAS
+    - pattern: from os import getenv, $$$IMPORTS
+    - pattern: from os import getenv as $ALIAS, $$$IMPORTS
+
+    # Match usage of imported environ (direct name access)
+    - pattern: environ[$$$ARGS]
+      has:
+        kind: module
+        pattern: |
+          from os import environ
+    - pattern: environ.get($$$ARGS)
+      has:
+        kind: module
+        pattern: |
+          from os import environ
+    - pattern: environ.keys($$$ARGS)
+      has:
+        kind: module
+        pattern: |
+          from os import environ
+    - pattern: environ.values($$$ARGS)
+      has:
+        kind: module
+        pattern: |
+          from os import environ
+    - pattern: environ.items($$$ARGS)
+      has:
+        kind: module
+        pattern: |
+          from os import environ
+
+    # Match usage of imported getenv
+    - pattern: getenv($$$ARGS)
+      has:
+        kind: module
+        pattern: |
+          from os import getenv
+
+note: |
+  Direct access to os.environ or os.getenv is not allowed in this codebase.
+
+  Instead, use the centralized environment variable helpers:
+  - For environ: `from ddtrace.settings._env import environ`
+  - For getenv: `from ddtrace.settings._env import get_env`
+
+  Before:
+    import os
+    value = os.environ["HOME"]
+    debug = os.getenv("DEBUG", "false")
+
+  After:
+    from ddtrace.settings._env import environ, get_env
+    value = environ["HOME"]
+    debug = get_env("DEBUG", "false")
+
+  This ensures consistent environment variable handling across the codebase.
+
