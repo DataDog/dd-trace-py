@@ -21,9 +21,10 @@ def setup_tracing():
         tracing_helper._global_is_tracing_enabled = False
 
 
-def configure_logging(log_level=logging.INFO):
+def configure_logging(log_level=None):
     root_logger = logging.getLogger()
-    root_logger.setLevel(log_level)
+    if log_level:
+        root_logger.setLevel(log_level)
 
     if root_logger.hasHandlers():
         root_logger.handlers.clear()
