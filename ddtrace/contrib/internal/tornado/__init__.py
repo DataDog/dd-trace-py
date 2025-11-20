@@ -3,40 +3,42 @@ The Tornado integration traces all ``RequestHandler`` defined in a Tornado web a
 Auto instrumentation is available using the ``patch`` function that **must be called before**
 importing the tornado library.
 
+This integration supports Tornado >=6.1, which is asyncio-based. The integration properly
+handles async/await coroutines and functions that return Futures, ensuring accurate span
+durations and correct context propagation.
+
 The following is an example::
 
     # patch before importing tornado and concurrent.futures
-    from ddtrace.trace import tracer, patch
-    patch(tornado=True)
-
+    import asyncio
     import tornado.web
-    import tornado.gen
-    import tornado.ioloop
+    import tornado.httpserver
 
-    # create your handlers
     class MainHandler(tornado.web.RequestHandler):
-        @tornado.gen.coroutine
         def get(self):
             self.write("Hello, world")
 
-    # create your application
-    app = tornado.web.Application([
-        (r'/', MainHandler),
-    ])
+    async def main():
+        app = tornado.web.Application([
+            (r"/", MainHandler),
+        ])
+        server = tornado.httpserver.HTTPServer(app)
+        server.listen(8888)
 
-    # and run it as usual
-    app.listen(8888)
-    tornado.ioloop.IOLoop.current().start()
+        # Let the asyncio loop run forever
+        await asyncio.Event().wait()
+
+    if __name__ == "__main__":
+        asyncio.run(main())
 
 When any type of ``RequestHandler`` is hit, a request root span is automatically created. If
 you want to trace more parts of your application, you can use the ``wrap()`` decorator and
 the ``trace()`` method as usual::
 
     class MainHandler(tornado.web.RequestHandler):
-        @tornado.gen.coroutine
-        def get(self):
-            yield self.notify()
-            yield self.blocking_method()
+        async def get(self):
+            await self.notify()
+            await self.blocking_method()
             with tracer.trace('tornado.before_write') as span:
                 # trace more work in the handler
 
@@ -46,8 +48,7 @@ the ``trace()`` method as usual::
             # do something expensive
 
         @tracer.wrap('tornado.notify', service='tornado-notification')
-        @tornado.gen.coroutine
-        def notify(self):
+        async def notify(self):
             # do something
 
 If you are overriding the ``on_finish`` or ``log_exception`` methods on a
@@ -55,8 +56,7 @@ If you are overriding the ``on_finish`` or ``log_exception`` methods on a
 tracer's patched methods are called::
 
     class MainHandler(tornado.web.RequestHandler):
-        @tornado.gen.coroutine
-        def get(self):
+        async def get(self):
             self.write("Hello, world")
 
         def on_finish(self):

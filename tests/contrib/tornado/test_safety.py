@@ -1,8 +1,8 @@
+import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import threading
 
 from tornado import httpclient
-from tornado.gen import sleep as tornado_sleep
 from tornado.testing import gen_test
 
 from ddtrace.contrib.internal.tornado.patch import patch
@@ -19,7 +19,7 @@ class TestAsyncConcurrency(TornadoTestCase):
     """
 
     @gen_test
-    def test_concurrent_requests(self):
+    async def test_concurrent_requests(self):
         REQUESTS_NUMBER = 25
         responses = []
 
@@ -41,7 +41,7 @@ class TestAsyncConcurrency(TornadoTestCase):
             t.start()
 
         while len(responses) < REQUESTS_NUMBER:
-            yield tornado_sleep(0.001)
+            await asyncio.sleep(0.001)
 
         for t in threads:
             t.join()
