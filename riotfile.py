@@ -334,7 +334,6 @@ venv = Venv(
         Venv(
             name="appsec_iast_default",
             command="pytest -v {cmdargs} tests/appsec/iast/",
-            pys=select_pys(max_version="3.13"),  # pycryptodome doesn't publish 3.14 wheels
             pkgs={
                 "requests": latest,
                 "urllib3": latest,
@@ -1375,8 +1374,9 @@ venv = Venv(
                 "urllib3": latest,
                 "cryptography": latest,
                 "pytest-memray": latest,
-                "psycopg2-binary": "~=2.9.9",
+                "pytest-asyncio": latest,
                 "pytest-randomly": latest,
+                "psycopg2-binary": "~=2.9.9",
             },
             env={
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
