@@ -105,8 +105,6 @@ def test_memory_collector(tmp_path):
     )
 
 
-
-
 @pytest.mark.subprocess(
     env=dict(DD_PROFILING_HEAP_SAMPLE_SIZE="8", DD_PROFILING_OUTPUT_PPROF="/tmp/test_heap_profiler_large_heap_overhead")
 )

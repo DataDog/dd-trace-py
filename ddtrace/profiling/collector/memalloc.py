@@ -23,7 +23,6 @@ except ImportError:
 
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import config
-from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
 
 
@@ -61,6 +60,11 @@ class MemoryCollector:
         """Start collecting memory profiles."""
         if _memalloc is None:
             raise collector.CollectorUnavailable
+
+        # Ensure _threading module is imported before starting memalloc
+        # This ensures that the C++ code can access thread name functions
+        # when it initializes during memalloc_start()
+        import ddtrace.profiling._threading  # noqa: F401
 
         try:
             _memalloc.start(self.max_nframe, self.heap_sample_size)
@@ -124,11 +128,10 @@ class MemoryCollector:
                 if alloc_size > 0:
                     handle.push_alloc(alloc_size, count)
 
-                handle.push_threadinfo(
-                    thread_id,
-                    _threading.get_thread_native_id(thread_id),
-                    _threading.get_thread_name(thread_id),
-                )
+                # Note: Thread info is already pushed by C++ code during traceback construction
+                # in _memalloc_tb.cpp::push_threadinfo_to_sample(). We don't need to push it again here.
+                # Calling _threading functions here can crash if Python state was corrupted by
+                # calling Python functions from C++ during allocation tracking.
                 try:
                     for frame in frames:
                         handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)

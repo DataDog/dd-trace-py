@@ -212,9 +212,10 @@ heap_tracker_t::untrack_no_cpython(void* ptr)
     if (!frozen) {
         traceback_t* tb = allocs_m.remove(ptr);
         if (tb && !tb->reported) {
-            /* If the sample hasn't been reported yet, add it to the allocation list */
-            unreported_samples.push_back(tb);
-            return nullptr;
+            /* If the sample hasn't been reported yet, set heap size to zero and export it */
+            tb->sample.reset_heap();
+            tb->sample.export_sample();
+            tb->reported = true;
         }
         return tb;
     }

@@ -9,13 +9,6 @@
 #include "_memalloc_tb.h"
 #include "_pymacro.h"
 
-// Platform-specific includes for thread APIs
-#include <pthread.h>
-#include <sys/syscall.h>
-#if defined(__linux__)
-    #include <unistd.h>
-#endif
-
 /* A string containing "<unknown>" just in case we can't store the real function
  * or file name. */
 static PyObject* unknown_name = NULL;
@@ -24,36 +17,10 @@ static PyObject* empty_string = NULL;
 
 static PyObject* ddframe_class = NULL;
 
-bool
-memalloc_ddframe_class_init()
-{
-    // If this is double-initialized for some reason, then clean up what we had
-    if (ddframe_class) {
-        Py_DECREF(ddframe_class);
-        ddframe_class = NULL;
-    }
-
-    // Import the module that contains the DDFrame class
-    PyObject* mod_path = PyUnicode_DecodeFSDefault("ddtrace.profiling.event");
-    PyObject* mod = PyImport_Import(mod_path);
-    Py_XDECREF(mod_path);
-    if (mod == NULL) {
-        PyErr_Print();
-        return false;
-    }
-
-    // Get the DDFrame class object
-    ddframe_class = PyObject_GetAttrString(mod, "DDFrame");
-    Py_XDECREF(mod);
-
-    // Basic sanity check that the object is the type of object we actually want
-    if (ddframe_class == NULL || !PyCallable_Check(ddframe_class)) {
-        PyErr_Print();
-        return false;
-    }
-
-    return true;
-}
+// Cached references to _threading module functions
+static PyObject* threading_module = NULL;
+static PyObject* get_thread_name_func = NULL;
+static PyObject* get_thread_native_id_func = NULL;
 
 bool
 traceback_t::init()
@@ -72,73 +39,100 @@ traceback_t::init()
         PyUnicode_InternInPlace(&empty_string);
     }
 
+    // Initialize DDFrame class reference
+    if (ddframe_class == NULL) {
+        // Import the module that contains the DDFrame class
+        PyObject* mod_path = PyUnicode_DecodeFSDefault("ddtrace.profiling.event");
+        PyObject* mod = PyImport_Import(mod_path);
+        Py_XDECREF(mod_path);
+        if (mod == NULL) {
+            // Error is already set by PyImport_Import
+            return false;
+        }
+
+        // Get the DDFrame class object
+        ddframe_class = PyObject_GetAttrString(mod, "DDFrame");
+        Py_DECREF(mod);
+
+        // Basic sanity check that the object is the type of object we actually want
+        if (ddframe_class == NULL || !PyCallable_Check(ddframe_class)) {
+            PyErr_SetString(PyExc_RuntimeError, "Failed to get DDFrame from ddtrace.profiling.event");
+            return false;
+        }
+    }
+
+    // Initialize threading function references
+    // Note: MemoryCollector.start() ensures _threading is imported before calling
+    // _memalloc.start(), so this should normally succeed. If it fails, we return false
+    // and the error will be handled up the stack.
+    if (threading_module == NULL) {
+        // Import the _threading module
+        PyObject* mod_path = PyUnicode_DecodeFSDefault("ddtrace.profiling._threading");
+        threading_module = PyImport_Import(mod_path);
+        Py_XDECREF(mod_path);
+        if (threading_module == NULL) {
+            // Error is already set by PyImport_Import
+            return false;
+        }
+
+        // Get the get_thread_name function
+        get_thread_name_func = PyObject_GetAttrString(threading_module, "get_thread_name");
+        if (get_thread_name_func == NULL || !PyCallable_Check(get_thread_name_func)) {
+            Py_XDECREF(threading_module);
+            threading_module = NULL;
+            PyErr_SetString(PyExc_RuntimeError, "Failed to get get_thread_name from ddtrace.profiling._threading");
+            return false;
+        }
+        // INCREF since we're storing this in a static variable
+        Py_INCREF(get_thread_name_func);
+
+        // Get the get_thread_native_id function
+        get_thread_native_id_func = PyObject_GetAttrString(threading_module, "get_thread_native_id");
+        if (get_thread_native_id_func == NULL || !PyCallable_Check(get_thread_native_id_func)) {
+            Py_XDECREF(threading_module);
+            Py_DECREF(get_thread_name_func);
+            threading_module = NULL;
+            get_thread_name_func = NULL;
+            PyErr_SetString(PyExc_RuntimeError, "Failed to get get_thread_native_id from ddtrace.profiling._threading");
+            return false;
+        }
+        // INCREF since we're storing this in a static variable
+        Py_INCREF(get_thread_native_id_func);
+    }
+
     return true;
 }
 
 void
 traceback_t::deinit()
 {
-    // No cleanup needed for platform-specific APIs
+    // Clean up DDFrame class reference
+    if (ddframe_class) {
+        Py_DECREF(ddframe_class);
+        ddframe_class = NULL;
+    }
+
+    // Clean up threading function references
+    if (get_thread_name_func) {
+        Py_DECREF(get_thread_name_func);
+        get_thread_name_func = NULL;
+    }
+    if (get_thread_native_id_func) {
+        Py_DECREF(get_thread_native_id_func);
+        get_thread_native_id_func = NULL;
+    }
+    if (threading_module) {
+        Py_DECREF(threading_module);
+        threading_module = NULL;
+    }
 }
 
-/* Platform-specific helper to get thread native ID.
- * Returns 0 if unable to determine.
- * 
- * Note: Linux and macOS use different APIs due to their threading models:
- * - Linux: Uses 1:1 threading (each pthread maps to a kernel thread), so we use
- *   syscall(SYS_gettid) to directly get the kernel thread ID.
- * - macOS: Uses M:N threading (multiple user threads multiplexed onto fewer kernel threads),
- *   so we use pthread_threadid_np() to get the native thread ID.
- */
-static int64_t
-get_thread_native_id_platform()
-{
-#if defined(__APPLE__) || defined(__MACH__)
-    // macOS: Use pthread_threadid_np
-    uint64_t native_id = 0;
-    if (pthread_threadid_np(pthread_self(), &native_id) == 0) {
-        return (int64_t)native_id;
-    }
-    return 0;
-#elif defined(__linux__)
-    // Linux: Use syscall(SYS_gettid)
-    pid_t tid = syscall(SYS_gettid);
-    return (int64_t)tid;
-#else
-    // Unsupported platform
-    return 0;
-#endif
-}
-
-/* Helper to get thread name using pthread_getname_np().
- * Returns empty string if unable to determine.
- * Note: thread_name_buffer must be at least 16 bytes (pthread name limit).
- * Both Linux and macOS support pthread_getname_np().
- */
-static void
-get_thread_name_platform(char* thread_name_buffer, size_t buffer_size)
-{
-    if (thread_name_buffer == NULL || buffer_size == 0) {
-        return;
-    }
-    
-    thread_name_buffer[0] = '\0';  // Initialize to empty string
-    
-    // Both macOS and Linux use pthread_getname_np
-    if (pthread_getname_np(pthread_self(), thread_name_buffer, buffer_size) == 0) {
-        return;
-    }
-    
-    // If we get here, we couldn't get the thread name
-    thread_name_buffer[0] = '\0';
-}
-
-/* Helper function to get thread native_id and name using platform-specific APIs
+/* Helper function to get thread native_id and name from Python's _threading module
  * and push threadinfo to the sample.
- * 
+ *
  * NOTE: This is called during traceback construction, which happens during allocation
- * tracking. We use platform-specific C APIs instead of Python calls to avoid
- * reentrancy issues.
+ * tracking. We're already inside a reentrancy guard and GC is disabled, so it's safe
+ * to call Python functions here (similar to how we call PyUnicode_AsUTF8String for frames).
  */
 static void
 push_threadinfo_to_sample(Datadog::Sample& sample, unsigned long thread_id)
@@ -148,15 +142,71 @@ push_threadinfo_to_sample(Datadog::Sample& sample, unsigned long thread_id)
         return;
     }
 
-    // Get native thread ID using platform-specific APIs
-    int64_t thread_native_id = get_thread_native_id_platform();
+    // If threading functions aren't initialized, this is an error condition
+    // (should not happen if initialization succeeded)
+    if (!get_thread_name_func || !get_thread_native_id_func) {
+        // This should not happen - initialization should have failed if functions weren't available
+        // Push empty thread info as fallback
+        int64_t thread_native_id = 0;
+        std::string thread_name("");
+        sample.push_threadinfo(thread_id, thread_native_id, thread_name);
+        return;
+    }
 
-    // Get thread name using platform-specific APIs
-    // pthread names are limited to 16 bytes (including null terminator)
-    char thread_name_buffer[16];
-    get_thread_name_platform(thread_name_buffer, sizeof(thread_name_buffer));
-    std::string_view thread_name(thread_name_buffer);
+    // Get thread native ID from Python
+    int64_t thread_native_id = 0;
+    PyObject* thread_id_obj = PyLong_FromUnsignedLong(thread_id);
+    if (thread_id_obj != NULL) {
+        PyObject* native_id_obj = PyObject_CallFunctionObjArgs(get_thread_native_id_func, thread_id_obj, NULL);
+        Py_DECREF(thread_id_obj);
+        if (native_id_obj != NULL) {
+            if (PyLong_Check(native_id_obj)) {
+                thread_native_id = PyLong_AsLongLong(native_id_obj);
+            } else {
+                // get_thread_native_id should return a PyLong, but handle gracefully if it doesn't
+                // Use thread_id as fallback
+                thread_native_id = (int64_t)thread_id;
+            }
+            Py_DECREF(native_id_obj);
+        } else {
+            // Call failed, clear any exception that was set
+            PyErr_Clear();
+            // Use thread_id as fallback (get_thread_native_id returns thread_id if thread not found)
+            thread_native_id = (int64_t)thread_id;
+        }
+    }
 
+    // Get thread name from Python
+    std::string thread_name;
+    PyObject* thread_id_obj2 = PyLong_FromUnsignedLong(thread_id);
+    if (thread_id_obj2 != NULL) {
+        PyObject* name_obj = PyObject_CallFunctionObjArgs(get_thread_name_func, thread_id_obj2, NULL);
+        Py_DECREF(thread_id_obj2);
+        if (name_obj != NULL) {
+            // get_thread_name can return None if thread is not found
+            if (name_obj != Py_None && PyUnicode_Check(name_obj)) {
+                // Convert Unicode to UTF-8 bytes, similar to how we handle frame names
+                PyObject* name_bytes = PyUnicode_AsUTF8String(name_obj);
+                if (name_bytes != NULL) {
+                    const char* name_ptr = PyBytes_AsString(name_bytes);
+                    if (name_ptr != NULL) {
+                        Py_ssize_t name_len = PyBytes_Size(name_bytes);
+                        // Store the thread name in a std::string
+                        thread_name = std::string(name_ptr, name_len);
+                    }
+                    Py_DECREF(name_bytes);
+                } else {
+                    // PyUnicode_AsUTF8String failed, clear any exception
+                    PyErr_Clear();
+                }
+            }
+            // Note: If name_obj is None or not a Unicode string, thread_name remains empty
+            Py_DECREF(name_obj);
+        } else {
+            // Call failed, clear any exception that was set
+            PyErr_Clear();
+        }
+    }
     // Push threadinfo to sample with all data
     sample.push_threadinfo(thread_id, thread_native_id, thread_name);
 }
@@ -225,15 +275,15 @@ traceback_t::traceback_t(void* ptr,
     // Push heap info - use actual size (not weighted) for heap tracking
     // TODO(dsn): figure out if this actually makes sense, or if we should use the weighted size
     sample.push_heap(size);
-    
+
     // Get thread native_id and name from Python's _threading module and push to sample
     push_threadinfo_to_sample(sample, thread_id);
 
     // Collect frames from the Python frame chain and push to Sample
     // We push frames as we collect them (root to leaf order).
     // Note: Sample.push_frame() comment says it "Assumes frames are pushed in leaf-order",
-    // but we push root-to-leaf. When flushing the sample, use flush_sample(reverse_locations=true)
-    // to reverse the order if needed.
+    // but we push root-to-leaf. Set reverse_locations so the sample will be reversed when exported.
+    sample.set_reverse_locations(true);
     size_t total_nframe = 0;
     for (PyFrameObject* frame = pyframe; frame != NULL;) {
         if (frames.size() < max_nframe) {

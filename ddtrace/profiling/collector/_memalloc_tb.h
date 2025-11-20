@@ -77,8 +77,5 @@ class traceback_t
 /* The maximum number of frames we can store in `traceback_t.frames` */
 #define TRACEBACK_MAX_NFRAME UINT16_MAX
 
-bool
-memalloc_ddframe_class_init();
-
 /* The maximum number of traceback samples we can store in the heap profiler */
 #define TRACEBACK_ARRAY_MAX_COUNT UINT16_MAX
