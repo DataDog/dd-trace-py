@@ -123,6 +123,31 @@ def test_dbm_propagation_full_mode():
 @pytest.mark.subprocess(
     env=dict(
         DD_DBM_PROPAGATION_MODE="service",
+        DD_DBM_INJECT_SQL_BASEHASH="False",
+        DD_SERVICE="orders-app",
+        DD_ENV="staging",
+        DD_VERSION="v7343437-d7ac743",
+        DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED="true",
+    )
+)
+def test_dbm_comment_includes_container_hash_when_deactivated():
+    from ddtrace.internal import process_tags
+    from ddtrace.propagation import _database_monitoring
+    from ddtrace.trace import tracer
+
+    process_tags.update_base_hash("abc123")
+    assert process_tags.base_hash == "abc123"
+
+    with tracer.trace("dbspan", service="orders-db") as dbspan:
+        dbm_popagator = _database_monitoring._DBM_Propagator(0, "query")
+        sqlcomment = dbm_popagator._get_dbm_comment(dbspan)
+
+        assert "ddsh" not in sqlcomment
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_DBM_PROPAGATION_MODE="service",
         DD_DBM_INJECT_SQL_BASEHASH="True",
         DD_SERVICE="orders-app",
         DD_ENV="staging",
@@ -130,7 +155,7 @@ def test_dbm_propagation_full_mode():
         DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED="true",
     )
 )
-def test_dbm_comment_includes_service_hash_when_process_tags_enabled():
+def test_dbm_comment_includes_container_hash_when_enabled():
     from ddtrace.internal.process_tags import update_base_hash
     from ddtrace.propagation import _database_monitoring
     from ddtrace.trace import tracer
@@ -147,20 +172,21 @@ def test_dbm_comment_includes_service_hash_when_process_tags_enabled():
 @pytest.mark.subprocess(
     env=dict(
         DD_DBM_PROPAGATION_MODE="service",
+        DD_DBM_INJECT_SQL_BASEHASH="True",
         DD_SERVICE="orders-app",
         DD_ENV="staging",
         DD_VERSION="v7343437-d7ac743",
         DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED="false",
     )
 )
-def test_dbm_comment_excludes_service_hash_when_process_tags_disabled():
+def test_dbm_comment_excludes_container_hash_when_process_tags_disabled():
     from ddtrace.internal import process_tags
     from ddtrace.internal.process_tags import update_base_hash
     from ddtrace.propagation import _database_monitoring
     from ddtrace.trace import tracer
 
     update_base_hash("abc123")
-    assert process_tags.base_hash == 0
+    assert process_tags.base_hash == ""
 
     with tracer.trace("dbspan", service="orders-db") as dbspan:
         dbm_popagator = _database_monitoring._DBM_Propagator(0, "query")
