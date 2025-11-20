@@ -2,9 +2,9 @@ import os
 from pathlib import Path
 import re
 import sys
+from typing import List
 from typing import Optional
 from typing import Tuple
-from typing import List
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.process_tags import process_tags_config as config

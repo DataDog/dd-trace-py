@@ -825,8 +825,9 @@ def test_remote_config_payload_includes_process_tags():
     from ddtrace.internal.remoteconfig.client import RemoteConfigClient
     from tests.utils import process_tag_reload
 
-    with patch.object(sys, "argv", ["/path/to/test_script.py"]), patch.object(
-        os, "getcwd", return_value="/path/to/workdir"
+    with (
+        patch.object(sys, "argv", ["/path/to/test_script.py"]),
+        patch.object(os, "getcwd", return_value="/path/to/workdir"),
     ):
         process_tag_reload()
 
