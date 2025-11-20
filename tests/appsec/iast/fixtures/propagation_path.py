@@ -14,12 +14,14 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def propagation_no_path(origin_string):
     from cryptography.hazmat.primitives.ciphers import Cipher
-    from cryptography.hazmat.primitives.ciphers.algorithms import Blowfish
+    from cryptography.hazmat.primitives.ciphers.algorithms import AES
+    from cryptography.hazmat.primitives.ciphers.modes import CBC
 
     key = b"Sixteen byte key"
+    iv = b"SixteenByteIVvvv"
     data = b"abcdefgh"
-    algorithm = Blowfish(key)
-    cipher = Cipher(algorithm, mode=None)
+    algorithm = AES(key)
+    cipher = Cipher(algorithm, mode=CBC(iv))
     encryptor = cipher.encryptor()
     # label propagation_no_path
     result = encryptor.update(data)
