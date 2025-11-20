@@ -335,9 +335,9 @@ class TestPyODBCPatch(PyODBCTest, TracerTestCase):
         spans = tracer.pop()
         assert len(spans) == 1
         span = spans[0]
-        assert (
-            span.service == DEFAULT_SPAN_SERVICE_NAME
-        ), "Expected service name to be internal.schema.DEFAULT_SPAN_SERVICE_NAME but was '{}'".format(span.service)
+        assert span.service == DEFAULT_SPAN_SERVICE_NAME, (
+            "Expected service name to be internal.schema.DEFAULT_SPAN_SERVICE_NAME but was '{}'".format(span.service)
+        )
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_operation_name_v0(self):

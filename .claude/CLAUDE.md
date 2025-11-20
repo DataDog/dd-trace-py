@@ -23,7 +23,7 @@ This project has custom skills that provide specialized workflows. **Always chec
 **Use whenever:** Formatting code, validating style/types/security, or before committing changes.
 
 **Purpose:** Runs targeted linting and code quality checks using `hatch run lint:*`:
-- Formats code with Black and Ruff auto-fixes
+- Formats code with `ruff check` and `ruff format`
 - Validates style, types, and security
 - Checks spelling and documentation
 - Validates test infrastructure (suitespec, riotfile, etc.)

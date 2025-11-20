@@ -1,0 +1,3 @@
+features:
+  - |
+    profiling: The stack sampler supports async generators and ``asyncio.wait``. 

@@ -184,11 +184,14 @@ def test_libdd_failure_telemetry_logging():
 
     from unittest import mock
 
-    with mock.patch.multiple(
-        "ddtrace.internal.datadog.profiling.ddup",
-        failure_msg="mock failure message",
-        is_available=False,
-    ), mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_log") as mock_add_log:
+    with (
+        mock.patch.multiple(
+            "ddtrace.internal.datadog.profiling.ddup",
+            failure_msg="mock failure message",
+            is_available=False,
+        ),
+        mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_log") as mock_add_log,
+    ):
         from ddtrace.internal.settings.profiling import config  # noqa:F401
         from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 
@@ -208,11 +211,14 @@ def test_libdd_failure_telemetry_logging():
 def test_libdd_failure_telemetry_logging_with_auto():
     from unittest import mock
 
-    with mock.patch.multiple(
-        "ddtrace.internal.datadog.profiling.ddup",
-        failure_msg="mock failure message",
-        is_available=False,
-    ), mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_log") as mock_add_log:
+    with (
+        mock.patch.multiple(
+            "ddtrace.internal.datadog.profiling.ddup",
+            failure_msg="mock failure message",
+            is_available=False,
+        ),
+        mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_log") as mock_add_log,
+    ):
         from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
         import ddtrace.profiling.auto  # noqa: F401
 
@@ -235,11 +241,14 @@ def test_stack_v2_failure_telemetry_logging():
 
     from unittest import mock
 
-    with mock.patch.multiple(
-        "ddtrace.internal.datadog.profiling.stack_v2",
-        failure_msg="mock failure message",
-        is_available=False,
-    ), mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_log") as mock_add_log:
+    with (
+        mock.patch.multiple(
+            "ddtrace.internal.datadog.profiling.stack_v2",
+            failure_msg="mock failure message",
+            is_available=False,
+        ),
+        mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_log") as mock_add_log,
+    ):
         from ddtrace.internal.settings.profiling import config  # noqa: F401
         from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 
@@ -259,11 +268,14 @@ def test_stack_v2_failure_telemetry_logging():
 def test_stack_v2_failure_telemetry_logging_with_auto():
     from unittest import mock
 
-    with mock.patch.multiple(
-        "ddtrace.internal.datadog.profiling.stack_v2",
-        failure_msg="mock failure message",
-        is_available=False,
-    ), mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_log") as mock_add_log:
+    with (
+        mock.patch.multiple(
+            "ddtrace.internal.datadog.profiling.stack_v2",
+            failure_msg="mock failure message",
+            is_available=False,
+        ),
+        mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_log") as mock_add_log,
+    ):
         from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
         import ddtrace.profiling.auto  # noqa: F401
 

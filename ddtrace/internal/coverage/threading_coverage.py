@@ -12,6 +12,7 @@ its include_paths are set.
 Session-level coverage does not need special-casing since the ModuleCodeCollector behavior is process-wide and
 thread-safe.
 """
+
 import pickle  # nosec: B403  -- pickle is only used to serialize coverage data from a spawned thread to the main thread
 from queue import Queue
 import threading
