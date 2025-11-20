@@ -25,6 +25,7 @@ from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
+from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.llmobs import _telemetry as telemetry
@@ -48,7 +49,6 @@ from ddtrace.llmobs._http import get_connection
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import _Meta
 from ddtrace.llmobs.types import _SpanLink
-from ddtrace.settings._agent import config as agent_config
 
 
 logger = get_logger(__name__)
@@ -639,6 +639,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         exp_config: Optional[Dict[str, JSONType]] = None,
         tags: Optional[List[str]] = None,
         description: Optional[str] = None,
+        runs: Optional[int] = 1,
     ) -> Tuple[str, str]:
         path = "/api/unstable/llm-obs/v1/experiments"
         resp = self.request(
@@ -656,6 +657,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                         "config": exp_config or {},
                         "metadata": {"tags": cast(JSONType, tags or [])},
                         "ensure_unique": True,
+                        "run_count": runs,
                     },
                 }
             },

@@ -10,7 +10,7 @@ from ddtrace.internal.ci_visibility.recorder import CIVisibilityTracer
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_ENDPOINT
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_EVENT_VALUE
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
-from ddtrace.settings._agent import config as agent_config
+from ddtrace.internal.settings._agent import config as agent_config
 from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.utils import override_env
 
@@ -33,9 +33,10 @@ def _dummy_check_enabled_features():
 
 @pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support evp proxy.")
 def test_civisibility_intake_with_evp_available():
-    with override_env(
-        dict(DD_API_KEY="foobar.baz", DD_SITE="foo.bar", DD_CIVISIBILITY_AGENTLESS_ENABLED="0")
-    ), mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()):
+    with (
+        override_env(dict(DD_API_KEY="foobar.baz", DD_SITE="foo.bar", DD_CIVISIBILITY_AGENTLESS_ENABLED="0")),
+        mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()),
+    ):
         t = CIVisibilityTracer()
         CIVisibility.enable(tracer=t)
         assert CIVisibility._instance.tracer._span_aggregator.writer._endpoint == EVP_PROXY_AGENT_ENDPOINT
@@ -50,8 +51,9 @@ def test_civisibility_intake_with_evp_available():
 def test_civisibility_intake_with_missing_apikey():
     with override_env(dict(DD_SITE="foobar.baz", DD_CIVISIBILITY_AGENTLESS_ENABLED="1")):
         with mock.patch.object(CIVisibility, "__init__", return_value=None) as mock_CIVisibility_init:
-            with mock.patch.object(CIVisibility, "start") as mock_CIVisibility_start, mock.patch(
-                "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
+            with (
+                mock.patch.object(CIVisibility, "start") as mock_CIVisibility_start,
+                mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()),
             ):
                 CIVisibility.enable()
                 assert CIVisibility.enabled is False
@@ -61,9 +63,10 @@ def test_civisibility_intake_with_missing_apikey():
 
 
 def test_civisibility_intake_with_apikey():
-    with override_env(
-        dict(DD_API_KEY="foobar.baz", DD_SITE="foo.bar", DD_CIVISIBILITY_AGENTLESS_ENABLED="1")
-    ), mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()):
+    with (
+        override_env(dict(DD_API_KEY="foobar.baz", DD_SITE="foo.bar", DD_CIVISIBILITY_AGENTLESS_ENABLED="1")),
+        mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()),
+    ):
         t = CIVisibilityTracer()
         CIVisibility.enable(tracer=t)
         assert CIVisibility._instance.tracer._span_aggregator.writer._endpoint == AGENTLESS_ENDPOINT
@@ -103,10 +106,10 @@ def test_civisibility_intake_payloads():
             t.shutdown()
         assert 2 <= conn.request.call_count <= 3
         assert conn.request.call_args_list[0].args[1] == "api/v2/citestcycle"
-        assert b"svc-no-cov" in gzip.decompress(
-            conn.request.call_args_list[0].args[2]
-        ), "requests to the cycle endpoint should include non-coverage spans"
+        assert b"svc-no-cov" in gzip.decompress(conn.request.call_args_list[0].args[2]), (
+            "requests to the cycle endpoint should include non-coverage spans"
+        )
         assert conn.request.call_args_list[1].args[1] == "api/v2/citestcov"
-        assert b"svc-no-cov" not in gzip.decompress(
-            conn.request.call_args_list[1].args[2]
-        ), "requests to the coverage endpoint should not include non-coverage spans"
+        assert b"svc-no-cov" not in gzip.decompress(conn.request.call_args_list[1].args[2]), (
+            "requests to the coverage endpoint should not include non-coverage spans"
+        )

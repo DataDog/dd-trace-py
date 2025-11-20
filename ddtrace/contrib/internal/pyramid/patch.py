@@ -1,12 +1,12 @@
 from typing import Dict
 
 import pyramid
-import pyramid.config
+import pyramid.config  # noqa: F401
 import wrapt
 
 from ddtrace import config
+from ddtrace.internal.settings._config import _get_config
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.settings._config import _get_config
 
 from .constants import SETTINGS_DISTRIBUTED_TRACING
 from .constants import SETTINGS_SERVICE

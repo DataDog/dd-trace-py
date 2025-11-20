@@ -16,7 +16,7 @@ from ddtrace.appsec._constants import APPSEC
 from ddtrace.contrib.internal.trace_utils_base import _get_header_value_case_insensitive
 from ddtrace.internal._unpatched import unpatched_json_loads
 from ddtrace.internal.logger import get_logger
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
@@ -172,6 +172,27 @@ class Block_config:
         self.type: str = type
         self.location = location.replace(APPSEC.SECURITY_RESPONSE_ID, security_response_id)
         self.content_type: str = "application/json"
+
+    def get(self, key: str, default: Any = None) -> Union[str, int]:
+        """
+        Dictionary-like get method for backward compatibility with Lambda integration.
+
+        Returns the attribute value if it exists, otherwise returns the default value.
+        This allows Block_config to be used in contexts that expect dictionary-like access.
+        """
+        if key == "content-type":
+            key = "content_type"
+        return getattr(self, key, default)
+
+    def __getitem__(self, key: str) -> Optional[Union[str, int]]:
+        if key == "content-type":
+            key = "content_type"
+        return getattr(self, key, None)
+
+    def __contains__(self, key: str) -> bool:
+        if key == "content-type":
+            key = "content_type"
+        return bool(getattr(self, key, None))
 
 
 class Telemetry_result:
@@ -350,13 +371,13 @@ class _UserInfoRetriever:
 
 def has_triggers(span) -> bool:
     if asm_config._use_metastruct_for_triggers:
-        return (span.get_struct_tag(APPSEC.STRUCT) or {}).get("triggers", None) is not None
+        return (span._get_struct_tag(APPSEC.STRUCT) or {}).get("triggers", None) is not None
     return span.get_tag(APPSEC.JSON) is not None
 
 
 def get_triggers(span) -> Any:
     if asm_config._use_metastruct_for_triggers:
-        return (span.get_struct_tag(APPSEC.STRUCT) or {}).get("triggers", None)
+        return (span._get_struct_tag(APPSEC.STRUCT) or {}).get("triggers", None)
     json_payload = span.get_tag(APPSEC.JSON)
     if json_payload:
         try:

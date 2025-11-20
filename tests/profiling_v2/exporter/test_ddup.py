@@ -46,7 +46,7 @@ def test_tags_propagated():
 
     from ddtrace.profiling.profiler import Profiler  # noqa: I001
     from ddtrace.internal.datadog.profiling import ddup
-    from ddtrace.settings.profiling import config
+    from ddtrace.internal.settings.profiling import config
 
     # DD_PROFILING_TAGS should override DD_TAGS
     assert config.tags["hello"] == "python"
@@ -62,3 +62,47 @@ def test_tags_propagated():
     # Profiler could add tags, so check that tags is a superset of config.tags
     for k, v in config.tags.items():
         assert tags[k] == v
+
+
+@pytest.mark.subprocess()
+def test_process_tags_deactivated():
+    import sys
+    from unittest import mock
+
+    sys.modules["ddtrace.internal.datadog.profiling.ddup"] = mock.Mock()
+
+    from ddtrace.profiling.profiler import Profiler  # noqa: I001
+    from ddtrace.internal.datadog.profiling import ddup
+
+    # When Profiler is instantiated and libdd is enabled, it should call ddup.config
+    Profiler()
+
+    ddup.config.assert_called()
+
+    tags = ddup.config.call_args.kwargs["tags"]
+
+    assert "process_tags" not in tags
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED="true",
+    )
+)
+def test_process_tags_activated():
+    import sys
+    from unittest import mock
+
+    sys.modules["ddtrace.internal.datadog.profiling.ddup"] = mock.Mock()
+
+    from ddtrace.profiling.profiler import Profiler  # noqa: I001
+    from ddtrace.internal.datadog.profiling import ddup
+
+    # When Profiler is instantiated and libdd is enabled, it should call ddup.config
+    Profiler()
+
+    ddup.config.assert_called()
+
+    tags = ddup.config.call_args.kwargs["tags"]
+
+    assert "process_tags" in tags

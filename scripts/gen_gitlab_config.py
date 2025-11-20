@@ -266,6 +266,16 @@ def gen_pre_checks() -> None:
         command="hatch run lint:error-log-check",
         paths={"ddtrace/contrib/**/*.py"},
     )
+    check(
+        name="Check project dependency bounds",
+        command="scripts/check-dependency-bounds",
+        paths={"pyproject.toml"},
+    )
+    check(
+        name="Check for namespace packages",
+        command="scripts/check-for-namespace-packages.sh",
+        paths={"*"},
+    )
     if not checks:
         return
 

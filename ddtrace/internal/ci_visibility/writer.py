@@ -12,8 +12,8 @@ from ddtrace.ext.test import TEST_SESSION_NAME
 from ddtrace.internal.ci_visibility.constants import MODULE_TYPE
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE
+from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.utils.time import StopWatch
-from ddtrace.settings._agent import config as agent_config
 from ddtrace.vendor.dogstatsd import DogStatsd  # noqa:F401
 
 from .. import service
@@ -130,9 +130,7 @@ class CIVisibilityWriter(HTTPWriter):
             intake_url = "%s.%s" % (AGENTLESS_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
 
         self._use_evp = use_evp
-        clients = (
-            [CIVisibilityProxiedEventClient()] if self._use_evp else [CIVisibilityAgentlessEventClient()]
-        )  # type: List[WriterClientBase]
+        clients = [CIVisibilityProxiedEventClient()] if self._use_evp else [CIVisibilityAgentlessEventClient()]  # type: List[WriterClientBase]
         self._coverage_enabled = coverage_enabled
         self._itr_suite_skipping_mode = itr_suite_skipping_mode
         if self._coverage_enabled:

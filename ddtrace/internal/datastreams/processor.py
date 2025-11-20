@@ -19,9 +19,9 @@ from ddtrace.internal import compat
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.native import DDSketch
+from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings._config import config
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
-from ddtrace.settings._agent import config as agent_config
-from ddtrace.settings._config import config
 from ddtrace.version import get_version
 
 from .._encoding import packb
@@ -112,9 +112,7 @@ class DataStreamsProcessor(PeriodicService):
         self._timeout = timeout
         # Have the bucket size match the interval in which flushes occur.
         self._bucket_size_ns = int(interval * 1e9)  # type: int
-        self._buckets = defaultdict(
-            lambda: Bucket(defaultdict(PathwayStats), defaultdict(int), defaultdict(int))
-        )  # type: DefaultDict[int, Bucket]
+        self._buckets = defaultdict(lambda: Bucket(defaultdict(PathwayStats), defaultdict(int), defaultdict(int)))  # type: DefaultDict[int, Bucket]
         self._version = get_version()
         self._headers = {
             "Datadog-Meta-Lang": "python",

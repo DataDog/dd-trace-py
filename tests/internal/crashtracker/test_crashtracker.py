@@ -36,7 +36,7 @@ def test_crashtracker_config_bytes():
     import pytest
 
     from ddtrace.internal.core import crashtracking
-    from ddtrace.settings.crashtracker import config as crashtracker_config
+    from ddtrace.internal.settings.crashtracker import config as crashtracker_config
     from tests.internal.crashtracker.utils import read_files
 
     # Delete the stdout and stderr files if they exist
@@ -453,6 +453,8 @@ def test_crashtracker_tags_required():
             assert k.encode() in report["body"], k
             assert v.encode() in report["body"], v
 
+        assert "process_tags".encode() not in report["body"]
+
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 def test_crashtracker_user_tags_envvar(run_python_code_in_subprocess):
@@ -591,6 +593,39 @@ def test_crashtracker_user_tags_core():
         for k, v in tags.items():
             assert k.encode() in report["body"]
             assert v.encode() in report["body"]
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess(env={"DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED": "True"})
+def test_crashtracker_process_tags():
+    # Tests process_tag ingestion in the core API
+    import ctypes
+    import os
+    import sys
+
+    import tests.internal.crashtracker.utils as utils
+
+    with utils.with_test_agent() as client:
+        pid = os.fork()
+        if pid == 0:
+            ct = utils.CrashtrackerWrapper(base_name="tags_required")
+            assert ct.start()
+            stdout_msg, stderr_msg = ct.logs()
+            assert not stdout_msg
+            assert not stderr_msg
+
+            ctypes.string_at(0)
+            sys.exit(-1)
+
+        # Check for crash ping
+        _ping = utils.get_crash_ping(client)
+
+        # Check for crash report
+        report = utils.get_crash_report(client)
+        assert b"string_at" in report["body"]
+
+        # Verify process_tags are present in crash report
+        assert "process_tags".encode() in report["body"]
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")

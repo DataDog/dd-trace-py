@@ -24,8 +24,12 @@ SPEC_PATTERNS = {_ for suite in spec.get_suites() for _ in spec.get_patterns(sui
 
 # Ignore any embedded documentation
 IGNORE_PATTERNS.add("**/*.md")
-# The aioredis integration is deprecated and untested
-IGNORE_PATTERNS.add("ddtrace/contrib/aioredis/*")
+# Ignore stub files
+IGNORE_PATTERNS.add("tests/profiling/collector/pprof_pb2.pyi")
+# TODO(taegyunkim): remove these after merging profiling v2 tests back to profiling
+IGNORE_PATTERNS.add("tests/profiling/*.py")
+IGNORE_PATTERNS.add("tests/profiling/*/*.py")
+IGNORE_PATTERNS.add("tests/profiling/*/*.proto")
 
 
 def owners(path: str) -> str:
@@ -39,7 +43,9 @@ def filter_ignored(paths: t.Iterable[Path]) -> set[Path]:
 
 
 def uncovered(path: Path) -> set[str]:
-    return {str(f) for f in filter_ignored(path.glob("**/*")) if not any(fnmatch.fnmatch(f, p) for p in SPEC_PATTERNS)}
+    return {
+        str(f) for f in filter_ignored(path.glob("**/*")) if not any(fnmatch.fnmatch(str(f), p) for p in SPEC_PATTERNS)
+    }
 
 
 def unmatched() -> set[str]:
