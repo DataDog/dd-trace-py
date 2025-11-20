@@ -310,3 +310,4 @@ class LockCollector(collector.CaptureSamplerCollector):
     def unpatch(self) -> None:
         """Unpatch the threading module for tracking lock allocation."""
         self._set_patch_target(self._original_lock)
+
