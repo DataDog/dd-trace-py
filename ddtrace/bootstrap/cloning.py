@@ -1,11 +1,11 @@
 import logging
-import os
 import sys
 import warnings
 
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import is_module_installed
 from ddtrace.internal.utils.formats import asbool  # noqa:F401
+from ddtrace.settings._env import get_env as _get_env
 
 
 MODULES_REQUIRING_CLEANUP = ("gevent",)
@@ -13,7 +13,7 @@ MODULES_REQUIRING_CLEANUP = ("gevent",)
 
 enabled = (
     any(is_module_installed(m) for m in MODULES_REQUIRING_CLEANUP)
-    if (_unload_modules := os.getenv("DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE", default="auto").lower()) == "auto"
+    if (_unload_modules := _get_env("DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE", default="auto").lower()) == "auto"
     else asbool(_unload_modules)
 )
 

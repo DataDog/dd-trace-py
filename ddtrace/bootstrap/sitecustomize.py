@@ -21,6 +21,7 @@ import sys
 import ddtrace.bootstrap.cloning as cloning
 from ddtrace.internal.logger import get_logger  # noqa:F401
 from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.settings._env import get_env as _get_env
 
 
 log = get_logger(__name__)
@@ -67,7 +68,7 @@ try:
         else:
             log.debug("additional sitecustomize found in: %s", sys.path)
 
-    if os.getenv("_DD_PY_SSI_INJECT") == "1":
+    if _get_env("_DD_PY_SSI_INJECT") == "1":
         # _DD_PY_SSI_INJECT is set to `1` in lib-injection/sources/sitecustomize.py when ssi is started
         # and doesn't abort.
         source = "ssi"
