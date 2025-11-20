@@ -2,6 +2,7 @@
 packaging==24.0
 https://pypi.org/project/packaging/
 """
+
 from flask import Blueprint
 from flask import request
 

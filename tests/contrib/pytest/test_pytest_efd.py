@@ -6,6 +6,7 @@ are checked.
 - The same known tests are used to override fetching of known tests.
 - The session object is patched to never be a faulty session, by default.
 """
+
 from unittest import mock
 from xml.etree import ElementTree
 
@@ -108,14 +109,17 @@ def test_fails_teardown_01(fails_teardown):
 class PytestEFDTestCase(PytestTestCaseBase):
     @pytest.fixture(autouse=True, scope="function")
     def set_up_efd(self):
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_known_tests",
-            return_value=_KNOWN_TEST_IDS,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=TestVisibilityAPISettings(
-                early_flake_detection=EarlyFlakeDetectionSettings(enabled=True, faulty_session_threshold=90),
-                known_tests_enabled=True,
+        with (
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_known_tests",
+                return_value=_KNOWN_TEST_IDS,
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+                return_value=TestVisibilityAPISettings(
+                    early_flake_detection=EarlyFlakeDetectionSettings(enabled=True, faulty_session_threshold=90),
+                    known_tests_enabled=True,
+                ),
             ),
         ):
             yield
@@ -151,8 +155,9 @@ class PytestEFDTestCase(PytestTestCaseBase):
         self.testdir.makepyfile(test_new_pass=_TEST_NEW_PASS_CONTENT)
         self.testdir.makepyfile(test_new_fail=_TEST_NEW_FAIL_CONTENT)
         self.testdir.makepyfile(test_new_flaky=_TEST_NEW_FLAKY_CONTENT)
-        with override_env({"DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED": "0"}), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
+        with (
+            override_env({"DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED": "0"}),
+            mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()),
         ):
             rec = self.inline_run("--ddtrace")
             rec.assertoutcome(passed=4, failed=3)
@@ -163,11 +168,15 @@ class PytestEFDTestCase(PytestTestCaseBase):
         self.testdir.makepyfile(test_new_pass=_TEST_NEW_PASS_CONTENT)
         self.testdir.makepyfile(test_new_fail=_TEST_NEW_FAIL_CONTENT)
         self.testdir.makepyfile(test_new_flaky=_TEST_NEW_FLAKY_CONTENT)
-        with override_env({"DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED": "1"}), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=TestVisibilityAPISettings(early_flake_detection=EarlyFlakeDetectionSettings(enabled=False)),
+        with (
+            override_env({"DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED": "1"}),
+            mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+                return_value=TestVisibilityAPISettings(
+                    early_flake_detection=EarlyFlakeDetectionSettings(enabled=False)
+                ),
+            ),
         ):
             rec = self.inline_run("--ddtrace")
             rec.assertoutcome(passed=4, failed=3)
@@ -281,13 +290,15 @@ class PytestEFDTestCase(PytestTestCaseBase):
         self.testdir.makepyfile(test_known_pass=_TEST_KNOWN_PASS_CONTENT)
         self.testdir.makepyfile(test_new_pass=_TEST_NEW_PASS_CONTENT)
         self.testdir.makepyfile(test_new_flaky=_TEST_NEW_FLAKY_CONTENT)
-        with override_env({"DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED": "0"}), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=TestVisibilityAPISettings(
-                early_flake_detection=EarlyFlakeDetectionSettings(enabled=True, faulty_session_threshold=90),
-                known_tests_enabled=True,
+        with (
+            override_env({"DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED": "0"}),
+            mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+                return_value=TestVisibilityAPISettings(
+                    early_flake_detection=EarlyFlakeDetectionSettings(enabled=True, faulty_session_threshold=90),
+                    known_tests_enabled=True,
+                ),
             ),
         ):
             rec = self.inline_run("--ddtrace")

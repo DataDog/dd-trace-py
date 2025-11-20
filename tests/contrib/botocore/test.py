@@ -250,9 +250,9 @@ class BotocoreTest(TracerTestCase):
 
         spans = self.get_spans()
         span = spans[0]
-        assert (
-            span.service == DEFAULT_SPAN_SERVICE_NAME
-        ), "Expected 'internal.schema.DEFAULT_SPAN_SERVICE_NAME' but got {}".format(span.service)
+        assert span.service == DEFAULT_SPAN_SERVICE_NAME, (
+            "Expected 'internal.schema.DEFAULT_SPAN_SERVICE_NAME' but got {}".format(span.service)
+        )
         assert span.name == "aws.ec2.request"
 
     @mock_dynamodb
@@ -1425,8 +1425,11 @@ class BotocoreTest(TracerTestCase):
     @mock_sqs
     def _test_data_streams_sns_to_sqs(self, use_raw_delivery):
         # DEV: We want to mock time to ensure we only create a single bucket
-        with mock.patch("time.time") as mt, mock.patch(
-            "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
+        with (
+            mock.patch("time.time") as mt,
+            mock.patch(
+                "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
+            ),
         ):
             mt.return_value = 1642544540
 
@@ -1518,8 +1521,11 @@ class BotocoreTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sqs(self):
         # DEV: We want to mock time to ensure we only create a single bucket
-        with mock.patch("time.time") as mt, mock.patch(
-            "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
+        with (
+            mock.patch("time.time") as mt,
+            mock.patch(
+                "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
+            ),
         ):
             mt.return_value = 1642544540
 
@@ -1579,8 +1585,11 @@ class BotocoreTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sqs_batch(self):
         # DEV: We want to mock time to ensure we only create a single bucket
-        with mock.patch("time.time") as mt, mock.patch(
-            "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
+        with (
+            mock.patch("time.time") as mt,
+            mock.patch(
+                "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
+            ),
         ):
             mt.return_value = 1642544540
 
@@ -1659,8 +1668,11 @@ class BotocoreTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sqs_no_header(self):
         # DEV: We want to mock time to ensure we only create a single bucket
-        with mock.patch("time.time") as mt, mock.patch(
-            "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
+        with (
+            mock.patch("time.time") as mt,
+            mock.patch(
+                "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
+            ),
         ):
             mt.return_value = 1642544540
 

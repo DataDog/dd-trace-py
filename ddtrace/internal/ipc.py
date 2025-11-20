@@ -19,11 +19,9 @@ class BaseLock:
     def __init__(self, file: typing.IO[typing.Any]):
         self.file = file
 
-    def acquire(self):
-        ...
+    def acquire(self): ...
 
-    def release(self):
-        ...
+    def release(self): ...
 
     def __enter__(self):
         self.acquire()

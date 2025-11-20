@@ -272,9 +272,7 @@ def test(tracer, single_cache, test_spans):
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(
-        expected_service, expected_operation
-    )
+    """.format(expected_service, expected_operation)
     env = os.environ.copy()
     if service_override:
         env["DD_SERVICE"] = service_override

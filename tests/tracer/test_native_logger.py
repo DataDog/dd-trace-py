@@ -87,9 +87,7 @@ from ddtrace.internal.native._native import logger
 
 message_level = f"{}"
 logger.log(message_level, f"{}")
-    """.format(
-        message_level, message
-    )
+    """.format(message_level, message)
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
 
     assert status == 0
