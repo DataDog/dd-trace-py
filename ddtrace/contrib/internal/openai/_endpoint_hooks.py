@@ -543,16 +543,16 @@ class _ResponseHook(_BaseCompletionHook):
             for item in messages:
                 message_type = _get_attr(item, "type", "")
                 if message_type == "mcp_call":
-                    call_id = str(_get_attr(item, "id", ""))
-                    name = str(_get_attr(item, "name", ""))
-                    raw_arguments = _get_attr(item, "arguments", OAI_HANDOFF_TOOL_ARG)
-                    arguments = safe_load_json(str(raw_arguments))
-                    output = str(_get_attr(item, "output", ""))
-                    self._create_mcp_tool_span(call_id, name, arguments, output, integration, pin)
+                    self._create_mcp_tool_span(item, integration, pin)
 
-    def _create_mcp_tool_span(self, tool_id, tool_name, tool_arguments, tool_output, integration, pin):
+    def _create_mcp_tool_span(self, item, integration, pin):
         """Creates and submits a tool span to LLMObs to represent a server-side MCP tool call."""
         with integration.trace(pin, "server_tool_call", submit_to_llmobs=True, kind="tool") as span:
+            tool_id = str(_get_attr(item, "id", ""))
+            tool_name = str(_get_attr(item, "name", ""))
+            raw_arguments = _get_attr(item, "arguments", OAI_HANDOFF_TOOL_ARG)
+            tool_arguments = safe_load_json(str(raw_arguments))
+            tool_output = str(_get_attr(item, "output", ""))
             integration.llmobs_set_tags(
                 span,
                 args=[],
