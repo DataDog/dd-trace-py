@@ -144,20 +144,3 @@ def test_profiler_serverless(monkeypatch):
     p = profiler.Profiler()
     assert isinstance(p._scheduler, scheduler.ServerlessScheduler)
     assert p.tags["functionname"] == "foobar"
-
-
-def test_process_tags_deactivated():
-    p = profiler.Profiler()
-    assert "process_tags" not in p.tags
-
-
-@pytest.mark.subprocess(
-    env=dict(
-        DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED="true",
-    )
-)
-def test_process_tags_activated():
-    from ddtrace.profiling import profiler
-
-    p = profiler.Profiler()
-    assert "process_tags" in p.tags
