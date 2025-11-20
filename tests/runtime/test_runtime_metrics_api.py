@@ -260,6 +260,6 @@ def test_runtime_metrics_experimental_metric_type():
     if "DD_RUNTIME_METRICS_ENABLED" in os.environ["DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED"]:
         assert worker_instance.send_metric == worker_instance._dogstatsd_client.gauge, worker_instance.send_metric
     else:
-        assert (
-            worker_instance.send_metric == worker_instance._dogstatsd_client.distribution
-        ), worker_instance.send_metric
+        assert worker_instance.send_metric == worker_instance._dogstatsd_client.distribution, (
+            worker_instance.send_metric
+        )

@@ -39,6 +39,7 @@ explicitly to the list. For example::
 :ref:`All HTTP tags <http-tagging>` are supported for this integration.
 
 """
+
 from ddtrace.contrib.internal.pyramid.trace import includeme
 from ddtrace.contrib.internal.pyramid.trace import trace_pyramid
 from ddtrace.contrib.internal.pyramid.trace import trace_tween_factory

@@ -2,12 +2,12 @@ import os
 from pathlib import Path
 import re
 import sys
-from typing import List
 from typing import Optional
 from typing import Tuple
+from typing import List
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.settings._config import config
+from ddtrace.internal.settings.process_tags import process_tags_config as config
 
 
 log = get_logger(__name__)
@@ -47,7 +47,7 @@ def normalize_tag_value(value: str) -> str:
 
 
 def generate_process_tags() -> Tuple[Optional[str], Optional[List[str]]]:
-    if not config._process_tags_enabled:
+    if not config.enabled:
         return None, None
 
     try:

@@ -8,13 +8,16 @@ from tests.utils import override_global_config
 
 # `pytest` automatically calls this function once when tests are run.
 def pytest_configure():
-    with override_global_config(
-        dict(
-            _iast_enabled=True,
-            _iast_deduplication_enabled=False,
-            _iast_request_sampling=100.0,
-        )
-    ), override_env(dict(_DD_IAST_PATCH_MODULES="tests.appsec.integrations")):
+    with (
+        override_global_config(
+            dict(
+                _iast_enabled=True,
+                _iast_deduplication_enabled=False,
+                _iast_request_sampling=100.0,
+            )
+        ),
+        override_env(dict(_DD_IAST_PATCH_MODULES="tests.appsec.integrations")),
+    ):
         patch_iast()
         enable_iast_propagation()
         # load_iast needs to happen before langchain_patch call, so that

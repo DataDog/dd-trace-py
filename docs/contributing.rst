@@ -35,7 +35,7 @@ suite passes.
 Within a few business days, one of the maintainers will respond with a code review. The review will
 primarily focus on idiomatic Python usage, efficiency, testing, and adherence to the versioning policy.
 Correctness and code style are automatically checked in continuous integration, with style linting managed by
-various tools including Flake8, Black, and MyPy. This means that code reviews don't need to worry about style
+various tools including Flake8, Ruff, and MyPy. This means that code reviews don't need to worry about style
 and can focus on substance.
 
 Pull Request Requirements
