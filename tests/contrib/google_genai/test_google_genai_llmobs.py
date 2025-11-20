@@ -518,8 +518,7 @@ def expected_llmobs_tool_response_span_event(span):
         output_messages=[
             {
                 "content": (
-                    "The weather in Boston is sunny with a light breeze and the temperature is "
-                    "72 degrees Fahrenheit."
+                    "The weather in Boston is sunny with a light breeze and the temperature is 72 degrees Fahrenheit."
                 ),
                 "role": "assistant",
             }

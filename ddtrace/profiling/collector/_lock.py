@@ -276,12 +276,10 @@ class LockCollector(collector.CaptureSamplerCollector):
         self._original_lock: Any = None
 
     @abc.abstractmethod
-    def _get_patch_target(self) -> Callable[..., Any]:
-        ...
+    def _get_patch_target(self) -> Callable[..., Any]: ...
 
     @abc.abstractmethod
-    def _set_patch_target(self, value: Any) -> None:
-        ...
+    def _set_patch_target(self, value: Any) -> None: ...
 
     def _start_service(self) -> None:
         """Start collecting lock usage."""

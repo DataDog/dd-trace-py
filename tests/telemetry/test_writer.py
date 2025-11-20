@@ -244,6 +244,7 @@ import opentelemetry
         {"name": "DD_ERROR_TRACKING_HANDLED_ERRORS_INCLUDE", "origin": "default", "value": ""},
         {"name": "DD_EXCEPTION_REPLAY_CAPTURE_MAX_FRAMES", "origin": "default", "value": 8},
         {"name": "DD_EXCEPTION_REPLAY_ENABLED", "origin": "env_var", "value": True},
+        {"name": "DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED", "origin": "default", "value": False},
         {"name": "DD_FASTAPI_ASYNC_BODY_TIMEOUT_SECONDS", "origin": "default", "value": 0.1},
         {"name": "DD_IAST_DEDUPLICATION_ENABLED", "origin": "default", "value": True},
         {"name": "DD_IAST_ENABLED", "origin": "default", "value": False},
