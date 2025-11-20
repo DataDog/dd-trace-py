@@ -90,6 +90,7 @@ class Flare:
             log.error("Flare prepare: Invalid log level provided: %s", log_level)
             return False
 
+        # Setup logging and create config file
         pid = self._setup_flare_logging(flare_log_level_int)
         self._generate_config_file(pid)
         return True
@@ -160,9 +161,11 @@ class Flare:
             log.warning("Case ID cannot be 0, skipping flare send")
             return False
 
+        # Allow pure numeric strings (unit tests)
         if case_id.isdigit():
             return True
 
+        # Allow specific system test patterns (like "12345-with-debug")
         import re
 
         if re.match(r"^\d+-(with-debug|with-content)$", case_id):
@@ -211,6 +214,10 @@ class Flare:
         return pid
 
     def _create_zip_content(self) -> bytes:
+        """
+        Create ZIP file content containing all flare files.
+        Returns the ZIP file content as bytes.
+        """
         zip_stream = io.BytesIO()
         with zipfile.ZipFile(zip_stream, mode="w", compression=zipfile.ZIP_DEFLATED) as zipf:
             for flare_file_name in self.flare_dir.iterdir():
@@ -265,6 +272,9 @@ class Flare:
         return min(valid_original_level, flare_log_level)
 
     def _send_flare_request(self, flare_send_req: FlareSendRequest):
+        """
+        Send the flare request to the agent.
+        """
         # We only want the flare to be sent once, even if there are
         # multiple tracer instances
         lock_path = self.flare_dir / TRACER_FLARE_LOCK
