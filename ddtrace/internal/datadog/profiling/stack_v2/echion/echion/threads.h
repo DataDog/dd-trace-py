@@ -190,10 +190,9 @@ ThreadInfo::unwind(PyThreadState* tstate)
 {
     unwind_python_stack(tstate);
     if (asyncio_loop) {
-        auto unwind_tasks_success = unwind_tasks();
-        if (!unwind_tasks_success) {
-            // If we fail, that's OK
-        }
+        // unwind_tasks returns a [[nodiscard]] Result<void>.
+        // We cast it to void to ignore failures.
+        (void)unwind_tasks();
     }
 
     // We make the assumption that gevent and asyncio are not mixed
