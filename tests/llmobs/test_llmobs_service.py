@@ -1630,6 +1630,13 @@ def test_submit_evaluation_empty_label_raises_error(llmobs, mock_llmobs_logs):
         )
 
 
+def test_submit_evaluation_label_value_with_a_period_raises_error(llmobs, mock_llmobs_logs):
+    with pytest.raises(ValueError, match="label value must not contain a '.'."):
+        llmobs.submit_evaluation(
+            span={"span_id": "123", "trace_id": "456"}, label="toxicity.0", metric_type="categorical", value="high"
+        )
+
+
 def test_submit_evaluation_incorrect_metric_type_raises_error(llmobs, mock_llmobs_logs):
     with pytest.raises(ValueError, match="metric_type must be one of 'categorical', 'score', or 'boolean'."):
         llmobs.submit_evaluation(
