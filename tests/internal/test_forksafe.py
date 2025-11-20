@@ -231,9 +231,9 @@ def test_lock_unpatched():
     assert lock_collector is not None, "ThreadingLockCollector not found in profiler collectors"
 
     lock = forksafe.Lock()
-    assert (
-        lock_collector._get_patch_target() is not lock._self_wrapped_class
-    ), "forksafe.Lock is using the same class that is patched by ThreadingLockCollector"
+    assert lock_collector._get_patch_target() is not lock._self_wrapped_class, (
+        "forksafe.Lock is using the same class that is patched by ThreadingLockCollector"
+    )
 
 
 def test_rlock_basic():

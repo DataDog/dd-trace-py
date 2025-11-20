@@ -42,10 +42,12 @@ def test_constants_module_toplevel_import_tracked():
 
     # Get coverage with and without imports
     covered = _get_relpath_dict(
-        cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=False)  # type: ignore[union-attr]
+        cwd_path,
+        ModuleCodeCollector._instance._get_covered_lines(include_imported=False),  # type: ignore[union-attr]
     )
     covered_with_imports = _get_relpath_dict(
-        cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=True)  # type: ignore[union-attr]
+        cwd_path,
+        ModuleCodeCollector._instance._get_covered_lines(include_imported=True),  # type: ignore[union-attr]
     )
 
     # Verify runtime coverage (without imports)
@@ -65,8 +67,7 @@ def test_constants_module_toplevel_import_tracked():
     # Verify it includes the constant declarations (lines 4, 5, 6)
     expected_constant_lines = {4, 5, 6}
     assert expected_constant_lines.issubset(constants_lines), (
-        f"Expected constant declaration lines {expected_constant_lines} in coverage, "
-        f"but got: {sorted(constants_lines)}"
+        f"Expected constant declaration lines {expected_constant_lines} in coverage, but got: {sorted(constants_lines)}"
     )
 
 
@@ -101,10 +102,12 @@ def test_constants_module_dynamic_import_tracked():
 
     # Get coverage with and without imports
     covered = _get_relpath_dict(
-        cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=False)  # type: ignore[union-attr]
+        cwd_path,
+        ModuleCodeCollector._instance._get_covered_lines(include_imported=False),  # type: ignore[union-attr]
     )
     covered_with_imports = _get_relpath_dict(
-        cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=True)  # type: ignore[union-attr]
+        cwd_path,
+        ModuleCodeCollector._instance._get_covered_lines(include_imported=True),  # type: ignore[union-attr]
     )
 
     # Verify runtime coverage (without imports)
@@ -121,8 +124,7 @@ def test_constants_module_dynamic_import_tracked():
     # Verify it includes the constant declarations (lines 4, 5)
     expected_constant_lines = {4, 5}
     assert expected_constant_lines.issubset(constants_lines), (
-        f"Expected constant declaration lines {expected_constant_lines} in coverage, "
-        f"but got: {sorted(constants_lines)}"
+        f"Expected constant declaration lines {expected_constant_lines} in coverage, but got: {sorted(constants_lines)}"
     )
 
 
@@ -155,7 +157,8 @@ def test_constants_module_reinstrumentation():
     ModuleCodeCollector.stop_coverage()
 
     first_covered_with_imports = _get_relpath_dict(
-        cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=True)  # type: ignore[union-attr]
+        cwd_path,
+        ModuleCodeCollector._instance._get_covered_lines(include_imported=True),  # type: ignore[union-attr]
     )
 
     # Clear coverage to simulate new test
@@ -167,16 +170,17 @@ def test_constants_module_reinstrumentation():
     ModuleCodeCollector.stop_coverage()
 
     second_covered_with_imports = _get_relpath_dict(
-        cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=True)  # type: ignore[union-attr]
+        cwd_path,
+        ModuleCodeCollector._instance._get_covered_lines(include_imported=True),  # type: ignore[union-attr]
     )
 
     # CRITICAL: Both collections should track the constants module
-    assert (
-        "tests/coverage/included_path/constants_toplevel.py" in first_covered_with_imports
-    ), "First collection missing constants_toplevel.py"
-    assert (
-        "tests/coverage/included_path/constants_toplevel.py" in second_covered_with_imports
-    ), "Second collection missing constants_toplevel.py - re-instrumentation failed for constant modules!"
+    assert "tests/coverage/included_path/constants_toplevel.py" in first_covered_with_imports, (
+        "First collection missing constants_toplevel.py"
+    )
+    assert "tests/coverage/included_path/constants_toplevel.py" in second_covered_with_imports, (
+        "Second collection missing constants_toplevel.py - re-instrumentation failed for constant modules!"
+    )
 
     # Both should have the same lines for the constants module
     first_constants = first_covered_with_imports["tests/coverage/included_path/constants_toplevel.py"]
@@ -190,6 +194,6 @@ def test_constants_module_reinstrumentation():
 
     # Verify the constants are actually tracked
     expected_lines = {4, 5, 6}
-    assert expected_lines.issubset(
-        second_constants
-    ), f"Expected constant lines {expected_lines} in second collection, got: {sorted(second_constants)}"
+    assert expected_lines.issubset(second_constants), (
+        f"Expected constant lines {expected_lines} in second collection, got: {sorted(second_constants)}"
+    )
