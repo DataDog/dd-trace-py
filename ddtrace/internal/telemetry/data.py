@@ -7,6 +7,7 @@ from typing import Iterable  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Tuple  # noqa:F401
 
+from ddtrace.internal import process_tags
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.packages import get_module_distribution_versions
 from ddtrace.internal.runtime.container import get_container_info
@@ -58,7 +59,7 @@ def _get_application(key):
     """
     service, version, env = key
 
-    return {
+    application = {
         "service_name": service or DEFAULT_SERVICE_NAME,  # mandatory field, can not be empty
         "service_version": version or "",
         "env": env or "",
@@ -68,6 +69,11 @@ def _get_application(key):
         "runtime_name": platform.python_implementation(),
         "runtime_version": _format_version_info(sys.implementation.version),
     }
+
+    if p_tags := process_tags.process_tags:
+        application["process_tags"] = p_tags
+
+    return application
 
 
 def update_imported_dependencies(already_imported: Dict[str, str], new_modules: Iterable[str]) -> List[Dict[str, str]]:
