@@ -115,10 +115,11 @@ def test_collector_repr(
         (
             ThreadingSemaphoreCollector,
             "Semaphore",
-            # Two possible formats across Python versions:
-            # 1. <unlocked _thread.Semaphore object owner=0 count=0 at 0x...> (pre-3.13)
-            # 2. <threading.Semaphore at 0x...: value=1> (3.13+)
-            r"<_ProfiledLock\((<unlocked _thread\.Semaphore object owner=0 count=0 at 0x[0-9a-f]+>|<threading\.Semaphore at 0x[0-9a-f]+: value=\d+>)\) at test_threading\.py:{lineno}>",  # noqa: E501
+            # Multiple possible formats across Python versions:
+            # 1. <unlocked _thread.Semaphore object owner=0 count=0 at 0x...> (pre-3.10)
+            # 2. <threading.Semaphore object at 0x...> (3.10-3.12)
+            # 3. <threading.Semaphore at 0x...: value=1> (3.13+)
+            r"<_ProfiledLock\((<unlocked _thread\.Semaphore object owner=0 count=0 at 0x[0-9a-f]+>|<threading\.Semaphore( object)? at 0x[0-9a-f]+(: value=\d+)?)\) at test_threading\.py:{lineno}>",  # noqa: E501
         ),
     ],
 )
