@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -eo pipefail
+set -exo pipefail
 
 ARTIFACTS_DIR="${1}"
 
@@ -9,7 +9,7 @@ files=($ARTIFACTS_DIR/results*.json)
 last="${files[-1]}"
 unset 'files[-1]'
 
-cmd=(pyperf convert --stdout)
+cmd=(/app/benchmarks/.venv_candidate/bin/pyperf convert --stdout)
 
 for f in "${files[@]}"; do
     cmd+=(--add "$f")
@@ -17,4 +17,7 @@ done
 
 cmd+=("$last")
 
-printf '%q ' "${cmd[@]}" > "${ARTIFACTS_DIR}/results.json"
+printf '%q ' "${cmd[@]}"
+"${cmd[@]}" > "${ARTIFACTS_DIR}/results.json"
+
+cat "${ARTIFACTS_DIR}/results.json"
