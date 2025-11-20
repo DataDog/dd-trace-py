@@ -43,6 +43,14 @@ def test_get_application_with_values():
     assert application["env"] == "staging"
 
 
+@pytest.mark.subprocess(env={"DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED": "True"})
+def test_get_application_with_process_tags():
+    from ddtrace.internal.telemetry.data import get_application
+
+    application = get_application("", "", "")
+    assert "process_tags" in application
+
+
 def test_application_with_setenv(run_python_code_in_subprocess, monkeypatch):
     """
     validates the return value of get_application when DD_SERVICE, DD_VERSION, and DD_ENV environment variables are set
