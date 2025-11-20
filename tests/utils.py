@@ -1623,4 +1623,4 @@ def override_third_party_packages(packages: List[str]):
 
 
 def process_tag_reload():
-    process_tags.process_tags = process_tags.generate_process_tags()
+    process_tags.process_tags, process_tags.process_tags_list = process_tags.generate_process_tags()

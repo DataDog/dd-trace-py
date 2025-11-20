@@ -187,6 +187,7 @@ benchmarks-pr-comment:
   image: $MICROBENCHMARKS_CI_IMAGE
   tags: ["arch:amd64"]
   stage: report
+  needs: [ "check-slo-breaches" ]
   when: always
   allow_failure: true
   script: |
@@ -211,7 +212,6 @@ benchmarks-pr-comment:
 
 check-slo-breaches:
   stage: gate
-  when: always
   tags: ["arch:amd64"]
   image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:latest
   artifacts:
