@@ -350,7 +350,7 @@ class _TracedAsyncPaginator:
                     g.send((resp, err))
                 except StopIteration as e:
                     if err is None:
-                        return e.value
+                        resp = e.value
             return resp
 
         return _trace_and_await().__await__()
