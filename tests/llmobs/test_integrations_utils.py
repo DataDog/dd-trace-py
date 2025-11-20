@@ -1,4 +1,5 @@
 from ddtrace.llmobs._integrations.utils import _extract_chat_template_from_instructions
+from ddtrace.llmobs._integrations.utils import _normalize_prompt_variables
 
 
 def test_basic_functionality():
@@ -112,3 +113,42 @@ def test_response_input_text_objects():
 
     # Also tests that multiple content items are concatenated
     assert result[0]["content"] == "Part one Question: {{question}}"
+
+
+def test_normalize_prompt_variables():
+    """Test normalization of complex variable types."""
+
+    class ResponseInputText:
+        def __init__(self, text):
+            self.text = text
+
+    class ResponseInputImage:
+        def __init__(self, image_url=None, file_id=None):
+            self.type = "input_image"
+            self.image_url = image_url
+            self.file_id = file_id
+
+    class ResponseInputFile:
+        def __init__(self, file_url=None, file_id=None, filename=None):
+            self.type = "input_file"
+            self.file_url = file_url
+            self.file_id = file_id
+            self.filename = filename
+
+    variables = {
+        "plain_string": "hello",
+        "text_obj": ResponseInputText("world"),
+        "image_url": ResponseInputImage(image_url="https://example.com/img.png"),
+        "image_file": ResponseInputImage(file_id="file-123"),
+        "file_url": ResponseInputFile(file_url="https://example.com/doc.pdf"),
+        "file_name": ResponseInputFile(filename="report.pdf"),
+    }
+
+    result = _normalize_prompt_variables(variables)
+
+    assert result["plain_string"] == "hello"
+    assert result["text_obj"] == "world"
+    assert result["image_url"] == "https://example.com/img.png"
+    assert result["image_file"] == "file-123"
+    assert result["file_url"] == "https://example.com/doc.pdf"
+    assert result["file_name"] == "report.pdf"
