@@ -1,5 +1,7 @@
+import json
 import logging
 
+from pythonjsonlogger.json import JsonFormatter
 from ray.util.tracing import tracing_helper
 from ray.util.tracing.tracing_helper import _is_tracing_enabled
 
@@ -20,7 +22,16 @@ def setup_tracing():
         tracing_helper._global_is_tracing_enabled = False
 
 
-def setup_logging():
-    from ddtrace import patch
+def configure_logging(log_level=logging.INFO):
+    root_logger = logging.getLogger()
+    root_logger.setLevel(log_level)
 
-    patch(logging=True)
+    if root_logger.hasHandlers():
+        root_logger.handlers.clear()
+
+    formatter = JsonFormatter()
+
+    log_handler = logging.StreamHandler()
+    log_handler.setFormatter(formatter)
+
+    root_logger.addHandler(log_handler)
