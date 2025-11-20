@@ -1,11 +1,20 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include <frameobject.h>
+#include <string>
 #include <string_view>
 
 #include "_memalloc_debug.h"
+#include "_memalloc_reentrant.h"
 #include "_memalloc_tb.h"
 #include "_pymacro.h"
+
+// Platform-specific includes for thread APIs
+#include <pthread.h>
+#include <sys/syscall.h>
+#if defined(__linux__)
+    #include <unistd.h>
+#endif
 
 /* A string containing "<unknown>" just in case we can't store the real function
  * or file name. */
@@ -62,13 +71,94 @@ traceback_t::init()
             return false;
         PyUnicode_InternInPlace(&empty_string);
     }
+
     return true;
 }
 
 void
 traceback_t::deinit()
 {
-    // Nothing to clean up - tracebacks are managed by their owners
+    // No cleanup needed for platform-specific APIs
+}
+
+/* Platform-specific helper to get thread native ID.
+ * Returns 0 if unable to determine.
+ * 
+ * Note: Linux and macOS use different APIs due to their threading models:
+ * - Linux: Uses 1:1 threading (each pthread maps to a kernel thread), so we use
+ *   syscall(SYS_gettid) to directly get the kernel thread ID.
+ * - macOS: Uses M:N threading (multiple user threads multiplexed onto fewer kernel threads),
+ *   so we use pthread_threadid_np() to get the native thread ID.
+ */
+static int64_t
+get_thread_native_id_platform()
+{
+#if defined(__APPLE__) || defined(__MACH__)
+    // macOS: Use pthread_threadid_np
+    uint64_t native_id = 0;
+    if (pthread_threadid_np(pthread_self(), &native_id) == 0) {
+        return (int64_t)native_id;
+    }
+    return 0;
+#elif defined(__linux__)
+    // Linux: Use syscall(SYS_gettid)
+    pid_t tid = syscall(SYS_gettid);
+    return (int64_t)tid;
+#else
+    // Unsupported platform
+    return 0;
+#endif
+}
+
+/* Helper to get thread name using pthread_getname_np().
+ * Returns empty string if unable to determine.
+ * Note: thread_name_buffer must be at least 16 bytes (pthread name limit).
+ * Both Linux and macOS support pthread_getname_np().
+ */
+static void
+get_thread_name_platform(char* thread_name_buffer, size_t buffer_size)
+{
+    if (thread_name_buffer == NULL || buffer_size == 0) {
+        return;
+    }
+    
+    thread_name_buffer[0] = '\0';  // Initialize to empty string
+    
+    // Both macOS and Linux use pthread_getname_np
+    if (pthread_getname_np(pthread_self(), thread_name_buffer, buffer_size) == 0) {
+        return;
+    }
+    
+    // If we get here, we couldn't get the thread name
+    thread_name_buffer[0] = '\0';
+}
+
+/* Helper function to get thread native_id and name using platform-specific APIs
+ * and push threadinfo to the sample.
+ * 
+ * NOTE: This is called during traceback construction, which happens during allocation
+ * tracking. We use platform-specific C APIs instead of Python calls to avoid
+ * reentrancy issues.
+ */
+static void
+push_threadinfo_to_sample(Datadog::Sample& sample, unsigned long thread_id)
+{
+    // If we don't have a valid thread_id, don't push anything
+    if (thread_id == 0) {
+        return;
+    }
+
+    // Get native thread ID using platform-specific APIs
+    int64_t thread_native_id = get_thread_native_id_platform();
+
+    // Get thread name using platform-specific APIs
+    // pthread names are limited to 16 bytes (including null terminator)
+    char thread_name_buffer[16];
+    get_thread_name_platform(thread_name_buffer, sizeof(thread_name_buffer));
+    std::string_view thread_name(thread_name_buffer);
+
+    // Push threadinfo to sample with all data
+    sample.push_threadinfo(thread_id, thread_native_id, thread_name);
 }
 
 frame_t::frame_t(PyFrameObject* pyframe)
@@ -135,7 +225,9 @@ traceback_t::traceback_t(void* ptr,
     // Push heap info - use actual size (not weighted) for heap tracking
     // TODO(dsn): figure out if this actually makes sense, or if we should use the weighted size
     sample.push_heap(size);
-    sample.push_threadinfo(thread_id, 0, ""); // thread_native_id and thread_name not available here
+    
+    // Get thread native_id and name from Python's _threading module and push to sample
+    push_threadinfo_to_sample(sample, thread_id);
 
     // Collect frames from the Python frame chain and push to Sample
     // We push frames as we collect them (root to leaf order).
