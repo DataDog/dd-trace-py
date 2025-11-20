@@ -4,6 +4,7 @@ Verify pytest-xdist context propagation functionality.
 These tests verifies that the XdistHooks class properly extracts and passes span IDs
 and that worker processes can create proper contexts from received span IDs.
 """
+
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
@@ -83,14 +84,13 @@ def test_pytest_sessionstart_extracts_context_from_valid_workerinput():
     mock_session.config.workerinput = {"root_span": "54321"}
 
     # Mock all the dependencies
-    with patch("ddtrace.contrib.internal.pytest._plugin_v2.is_test_visibility_enabled", return_value=True), patch(
-        "ddtrace.contrib.internal.pytest._utils._get_session_command", return_value="pytest"
-    ), patch("ddtrace.internal.test_visibility.api.InternalTestSession.discover"), patch(
-        "ddtrace.internal.test_visibility.api.InternalTestSession.set_library_capabilities"
-    ), patch(
-        "ddtrace.internal.test_visibility.api.InternalTestSession.start"
-    ) as mock_start, patch(
-        "ddtrace.internal.test_visibility.api.InternalTestSession.efd_enabled", return_value=False
+    with (
+        patch("ddtrace.contrib.internal.pytest._plugin_v2.is_test_visibility_enabled", return_value=True),
+        patch("ddtrace.contrib.internal.pytest._utils._get_session_command", return_value="pytest"),
+        patch("ddtrace.internal.test_visibility.api.InternalTestSession.discover"),
+        patch("ddtrace.internal.test_visibility.api.InternalTestSession.set_library_capabilities"),
+        patch("ddtrace.internal.test_visibility.api.InternalTestSession.start") as mock_start,
+        patch("ddtrace.internal.test_visibility.api.InternalTestSession.efd_enabled", return_value=False),
     ):
         pytest_sessionstart(mock_session)
 
@@ -113,14 +113,13 @@ def test_pytest_sessionstart_handles_invalid_span_id_gracefully():
     mock_session.config.workerinput = {"root_span": "not_a_number"}
 
     # Mock all the dependencies
-    with patch("ddtrace.contrib.internal.pytest._plugin_v2.is_test_visibility_enabled", return_value=True), patch(
-        "ddtrace.contrib.internal.pytest._utils._get_session_command", return_value="pytest"
-    ), patch("ddtrace.internal.test_visibility.api.InternalTestSession.discover"), patch(
-        "ddtrace.internal.test_visibility.api.InternalTestSession.set_library_capabilities"
-    ), patch(
-        "ddtrace.internal.test_visibility.api.InternalTestSession.start"
-    ) as mock_start, patch(
-        "ddtrace.internal.test_visibility.api.InternalTestSession.efd_enabled", return_value=False
+    with (
+        patch("ddtrace.contrib.internal.pytest._plugin_v2.is_test_visibility_enabled", return_value=True),
+        patch("ddtrace.contrib.internal.pytest._utils._get_session_command", return_value="pytest"),
+        patch("ddtrace.internal.test_visibility.api.InternalTestSession.discover"),
+        patch("ddtrace.internal.test_visibility.api.InternalTestSession.set_library_capabilities"),
+        patch("ddtrace.internal.test_visibility.api.InternalTestSession.start") as mock_start,
+        patch("ddtrace.internal.test_visibility.api.InternalTestSession.efd_enabled", return_value=False),
     ):
         pytest_sessionstart(mock_session)
 
@@ -148,16 +147,14 @@ def test_pytest_sessionstart_handles_missing_workerinput():
         return original_hasattr(obj, name)
 
     # Mock all the dependencies
-    with patch("ddtrace.contrib.internal.pytest._plugin_v2.is_test_visibility_enabled", return_value=True), patch(
-        "ddtrace.contrib.internal.pytest._utils._get_session_command", return_value="pytest"
-    ), patch("ddtrace.internal.test_visibility.api.InternalTestSession.discover"), patch(
-        "ddtrace.internal.test_visibility.api.InternalTestSession.set_library_capabilities"
-    ), patch(
-        "ddtrace.internal.test_visibility.api.InternalTestSession.start"
-    ) as mock_start, patch(
-        "ddtrace.internal.test_visibility.api.InternalTestSession.efd_enabled", return_value=False
-    ), patch(
-        "builtins.hasattr", side_effect=mock_hasattr
+    with (
+        patch("ddtrace.contrib.internal.pytest._plugin_v2.is_test_visibility_enabled", return_value=True),
+        patch("ddtrace.contrib.internal.pytest._utils._get_session_command", return_value="pytest"),
+        patch("ddtrace.internal.test_visibility.api.InternalTestSession.discover"),
+        patch("ddtrace.internal.test_visibility.api.InternalTestSession.set_library_capabilities"),
+        patch("ddtrace.internal.test_visibility.api.InternalTestSession.start") as mock_start,
+        patch("ddtrace.internal.test_visibility.api.InternalTestSession.efd_enabled", return_value=False),
+        patch("builtins.hasattr", side_effect=mock_hasattr),
     ):
         pytest_sessionstart(mock_session)
 
@@ -187,16 +184,14 @@ def test_pytest_sessionstart_handles_missing_workerinput_with_global_worker_resu
         return original_hasattr(obj, name)
 
     # Mock all the dependencies
-    with patch("ddtrace.contrib.internal.pytest._plugin_v2.is_test_visibility_enabled", return_value=True), patch(
-        "ddtrace.contrib.internal.pytest._utils._get_session_command", return_value="pytest"
-    ), patch("ddtrace.internal.test_visibility.api.InternalTestSession.discover"), patch(
-        "ddtrace.internal.test_visibility.api.InternalTestSession.set_library_capabilities"
-    ), patch(
-        "ddtrace.internal.test_visibility.api.InternalTestSession.start"
-    ) as mock_start, patch(
-        "ddtrace.internal.test_visibility.api.InternalTestSession.efd_enabled", return_value=False
-    ), patch(
-        "builtins.hasattr", side_effect=mock_hasattr
+    with (
+        patch("ddtrace.contrib.internal.pytest._plugin_v2.is_test_visibility_enabled", return_value=True),
+        patch("ddtrace.contrib.internal.pytest._utils._get_session_command", return_value="pytest"),
+        patch("ddtrace.internal.test_visibility.api.InternalTestSession.discover"),
+        patch("ddtrace.internal.test_visibility.api.InternalTestSession.set_library_capabilities"),
+        patch("ddtrace.internal.test_visibility.api.InternalTestSession.start") as mock_start,
+        patch("ddtrace.internal.test_visibility.api.InternalTestSession.efd_enabled", return_value=False),
+        patch("builtins.hasattr", side_effect=mock_hasattr),
     ):
         pytest_sessionstart(mock_session)
 

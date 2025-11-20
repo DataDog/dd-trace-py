@@ -54,8 +54,7 @@ class AgentCheckPeriodicService(ForksafeAwakeablePeriodicService, metaclass=abc.
         self._state = self._agent_check
 
     @abc.abstractmethod
-    def info_check(self, agent_info: t.Optional[dict]) -> bool:
-        ...
+    def info_check(self, agent_info: t.Optional[dict]) -> bool: ...
 
     def _agent_check(self) -> None:
         try:
@@ -75,8 +74,7 @@ class AgentCheckPeriodicService(ForksafeAwakeablePeriodicService, metaclass=abc.
             log.debug("Error during online operation, reverting to agent check", exc_info=True)
 
     @abc.abstractmethod
-    def online(self) -> None:
-        ...
+    def online(self) -> None: ...
 
     def periodic(self) -> None:
         return self._state()

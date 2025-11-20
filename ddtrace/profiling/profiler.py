@@ -12,6 +12,7 @@ import ddtrace
 from ddtrace import config
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
+from ddtrace.internal import process_tags
 from ddtrace.internal import service
 from ddtrace.internal import uwsgi
 from ddtrace.internal.datadog.profiling import ddup
@@ -168,6 +169,9 @@ class _ProfilerInstance(service.Service):
         profiler_config = config_str(profiling_config)
         self.tags.update({"profiler_config": profiler_config})
 
+        if p_tags := process_tags.process_tags:
+            self.tags.update({"process_tags": p_tags})
+
         endpoint_call_counter_span_processor = self.tracer._endpoint_call_counter_span_processor
         if self.endpoint_collection_enabled:
             endpoint_call_counter_span_processor.enable()
@@ -191,12 +195,7 @@ class _ProfilerInstance(service.Service):
         if self._stack_collector_enabled:
             LOG.debug("Profiling collector (stack) enabled")
             try:
-                self._collectors.append(
-                    stack.StackCollector(
-                        tracer=self.tracer,
-                        endpoint_collection_enabled=self.endpoint_collection_enabled,
-                    )
-                )
+                self._collectors.append(stack.StackCollector(tracer=self.tracer))
                 LOG.debug("Profiling collector (stack) initialized")
             except Exception:
                 LOG.error("Failed to start stack collector, disabling.", exc_info=True)
@@ -263,9 +262,7 @@ class _ProfilerInstance(service.Service):
 
         self._build_default_exporters()
 
-        scheduler_class = (
-            scheduler.ServerlessScheduler if self._lambda_function_name else scheduler.Scheduler
-        )  # type: (Type[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]])
+        scheduler_class = scheduler.ServerlessScheduler if self._lambda_function_name else scheduler.Scheduler  # type: (Type[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]])
 
         self._scheduler = scheduler_class(
             before_flush=self._collectors_snapshot,
