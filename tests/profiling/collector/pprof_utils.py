@@ -204,7 +204,7 @@ def assert_lock_events_of_type(
     assert all(get_label_with_key(profile.string_table, sample, "lock name") for sample in samples), (
         "All samples should have the label 'lock name'"
     )
-    samples = {
+    samples_dict = {
         profile.string_table[
             cast(pprof_pb2.Label, get_label_with_key(profile.string_table, sample, "lock name")).str
         ]: sample
@@ -215,8 +215,8 @@ def assert_lock_events_of_type(
             key = "{}:{}".format(expected_event.filename, expected_event.linenos.create)
         else:
             key = "{}:{}:{}".format(expected_event.filename, expected_event.linenos.create, expected_event.lock_name)
-        assert key in samples, "Expected lock event {} not found".format(key)
-        assert_lock_event(profile, samples[key], expected_event)
+        assert key in samples_dict, "Expected lock event {} not found".format(key)
+        assert_lock_event(profile, samples_dict[key], expected_event)
 
 
 def assert_lock_events(

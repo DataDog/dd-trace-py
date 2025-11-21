@@ -9,7 +9,7 @@ from ddtrace.internal.process_tags import ENTRYPOINT_NAME_TAG
 from ddtrace.internal.process_tags import ENTRYPOINT_TYPE_TAG
 from ddtrace.internal.process_tags import ENTRYPOINT_WORKDIR_TAG
 from ddtrace.internal.process_tags import normalize_tag_value
-from ddtrace.internal.settings._config import config
+from ddtrace.internal.settings.process_tags import process_tags_config as config
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 from tests.utils import process_tag_reload
@@ -79,17 +79,19 @@ def test_normalize_tag(input_tag, expected):
 class TestProcessTags(TracerTestCase):
     def setUp(self):
         super(TestProcessTags, self).setUp()
-        self._original_process_tags_enabled = config._process_tags_enabled
+        self._original_process_tags_enabled = config.enabled
         self._original_process_tags = process_tags.process_tags
+        self._original_process_tags_list = process_tags.process_tags_list
 
     def tearDown(self):
-        config._process_tags_enabled = self._original_process_tags_enabled
+        config.enabled = self._original_process_tags_enabled
         process_tags.process_tags = self._original_process_tags
+        process_tags.process_tags_list = self._original_process_tags_list
         super().tearDown()
 
     @pytest.mark.snapshot
     def test_process_tags_deactivated(self):
-        config._process_tags_enabled = False
+        config.enabled = False  # type: ignore[assignment]
         process_tag_reload()
 
         with self.tracer.trace("test"):
@@ -98,7 +100,7 @@ class TestProcessTags(TracerTestCase):
     @pytest.mark.snapshot
     def test_process_tags_activated(self):
         with patch("sys.argv", [TEST_SCRIPT_PATH]), patch("os.getcwd", return_value=TEST_WORKDIR_PATH):
-            config._process_tags_enabled = True
+            config.enabled = True  # type: ignore[assignment]
             process_tag_reload()
 
             with self.tracer.trace("parent"):
@@ -108,7 +110,7 @@ class TestProcessTags(TracerTestCase):
     @pytest.mark.snapshot
     def test_process_tags_edge_case(self):
         with patch("sys.argv", ["/test_script"]), patch("os.getcwd", return_value=TEST_WORKDIR_PATH):
-            config._process_tags_enabled = True
+            config.enabled = True  # type: ignore[assignment]
             process_tag_reload()
 
             with self.tracer.trace("span"):
@@ -117,7 +119,7 @@ class TestProcessTags(TracerTestCase):
     @pytest.mark.snapshot
     def test_process_tags_error(self):
         with patch("sys.argv", []), patch("os.getcwd", return_value=TEST_WORKDIR_PATH):
-            config._process_tags_enabled = True
+            config.enabled = True  # type: ignore[assignment]
 
             with self.override_global_config(dict(_telemetry_enabled=False)):
                 with patch("ddtrace.internal.process_tags.log") as mock_log:
@@ -137,7 +139,7 @@ class TestProcessTags(TracerTestCase):
     @run_in_subprocess(env_overrides=dict(DD_TRACE_PARTIAL_FLUSH_ENABLED="true", DD_TRACE_PARTIAL_FLUSH_MIN_SPANS="2"))
     def test_process_tags_partial_flush(self):
         with patch("sys.argv", [TEST_SCRIPT_PATH]), patch("os.getcwd", return_value=TEST_WORKDIR_PATH):
-            config._process_tags_enabled = True
+            config.enabled = True  # type: ignore[assignment]
             process_tag_reload()
 
             with self.override_global_config(dict(_partial_flush_enabled=True, _partial_flush_min_spans=2)):
