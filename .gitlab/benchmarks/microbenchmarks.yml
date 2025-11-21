@@ -10,6 +10,7 @@ variables:
   PACKAGE_IMAGE: registry.ddbuild.io/images/mirror/pypa/manylinux2014_x86_64:2025-04-12-5990e2d
   GITHUB_CLI_IMAGE: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
   BENCHMARKING_BRANCH: dd-trace-py
+  BENCHMARKING_COMMIT_SHA: e7bbac96e1ae9bfb5f8906dcdf103b08f5ca0805
 
 .benchmarks:
   stage: test
@@ -30,6 +31,7 @@ variables:
       git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     fi
     git clone --branch "${BENCHMARKING_BRANCH}" https://github.com/DataDog/benchmarking-platform /platform
+    (cd /platform && git reset --hard "${BENCHMARKING_COMMIT_SHA}")
     export PATH="$PATH:/platform/steps"
 
     capture-hardware-software-info.sh
@@ -163,8 +165,7 @@ microbenchmarks:
         # Flaky timeouts on starting up
         # - "appsec_iast_django_startup"
         # TOOD: Re-enable when this issue is resolved:
-        #   AttributeError: 'OverheadControl' object has no attribute 'release_request'
-        # - "appsec_iast_propagation"
+        - "appsec_iast_propagation"
         - "errortracking_django_simple"
         # They take a long time to run and frequently time out
         # TODO: Make benchmarks faster, or run less frequently, or as macrobenchmarks

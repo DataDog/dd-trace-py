@@ -11,7 +11,6 @@ from ddtrace.internal.utils.config import get_application_name
 from ddtrace.version import __version__
 
 
-DEFAULT_MAX_PROBES = 100
 DEFAULT_GLOBAL_RATE_LIMIT = 100.0
 
 
@@ -49,7 +48,6 @@ class DynamicInstrumentationConfig(DDConfig):
 
     service_name = DDConfig.d(str, lambda _: ddconfig.service or get_application_name() or DEFAULT_SERVICE_NAME)
     _intake_url = DDConfig.d(str, lambda _: agent_config.trace_agent_url)
-    max_probes = DDConfig.d(int, lambda _: DEFAULT_MAX_PROBES)
     global_rate_limit = DDConfig.d(float, lambda _: DEFAULT_GLOBAL_RATE_LIMIT)
     _tags_in_qs = DDConfig.d(bool, lambda _: True)
     tags = DDConfig.d(str, _derive_tags)
