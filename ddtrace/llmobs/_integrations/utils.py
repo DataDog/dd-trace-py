@@ -789,7 +789,16 @@ def openai_get_metadata_from_response(
 
 
 def _normalize_prompt_variables(variables: Dict[str, Any]) -> Dict[str, Any]:
-    """Normalizes prompt variables by extracting meaningful values from OpenAI's response objects."""
+    """Normalizes prompt variables by extracting meaningful values from OpenAI's response objects.
+
+    Converts complex OpenAI SDK response objects into simple key-value pairs suitable for LLMObs spans.
+
+    Example:
+        Input:  {"msg": ResponseInputText(text="Hello"), "doc": ResponseInputFile(file_id="file-123")}
+        Output: {"msg": "Hello", "doc": "file-123"}
+
+        Note: image_url is often stripped by OpenAI for security, resulting in "[image]" fallback.
+    """
     if not variables or not isinstance(variables, dict):
         return {}
 

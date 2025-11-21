@@ -109,7 +109,9 @@ def test_response_input_text_objects():
     ]
     variables = {"question": ResponseInputText("What is AI?")}
 
-    result = _extract_chat_template_from_instructions(instructions, variables)
+    # Normalize variables before extraction (as done in openai_set_meta_tags_from_response)
+    normalized_vars = _normalize_prompt_variables(variables)
+    result = _extract_chat_template_from_instructions(instructions, normalized_vars)
 
     # Also tests that multiple content items are concatenated
     assert result[0]["content"] == "Part one Question: {{question}}"
