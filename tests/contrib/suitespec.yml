@@ -175,7 +175,6 @@ components:
   subprocess:
     - ddtrace/contrib/internal/subprocess/*
   tornado:
-    - ddtrace/contrib/tornado.py
     - ddtrace/contrib/internal/tornado/*
   urllib3:
     - ddtrace/contrib/internal/urllib3/*

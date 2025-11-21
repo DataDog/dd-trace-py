@@ -42,7 +42,7 @@ suites:
   appsec_iast_memcheck:
     env:
       CI_DEBUG_TRACE: 'true'
-    parallelism: 4
+    parallelism: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -74,6 +74,7 @@ suites:
     runner: hatch
     timeout: 50m
   appsec_iast_packages:
+    parallelism: 2
     paths:
       - '@appsec_iast'
       - tests/appsec/iast_packages/*
