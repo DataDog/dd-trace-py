@@ -19,6 +19,7 @@ from ddtrace import ext
 from ddtrace._trace.span import Span
 from ddtrace._trace.tracer import Tracer
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.profiling.collector.threading import ThreadingBoundedSemaphoreCollector
 from ddtrace.profiling.collector.threading import ThreadingLockCollector
 from ddtrace.profiling.collector.threading import ThreadingRLockCollector
 from ddtrace.profiling.collector.threading import ThreadingSemaphoreCollector
@@ -31,19 +32,24 @@ from tests.profiling.collector.pprof_utils import pprof_pb2
 
 
 # Type aliases for supported classes
-LockTypeClass = Union[Type[threading.Lock], Type[threading.RLock], Type[threading.Semaphore]]
+LockTypeClass = Union[
+    Type[threading.Lock], Type[threading.RLock], Type[threading.Semaphore], Type[threading.BoundedSemaphore]
+]
 # threading.Lock and threading.RLock are factory functions that return _thread types.
 # We reference the underlying _thread types directly to avoid creating instances at import time.
-# threading.Semaphore is a Python class, not a factory function.
-LockTypeInst = Union[_thread.LockType, _thread.RLock, threading.Semaphore]
+# threading.Semaphore and threading.BoundedSemaphore are Python classes, not factory functions.
+LockTypeInst = Union[_thread.LockType, _thread.RLock, threading.Semaphore, threading.BoundedSemaphore]
 
 CollectorTypeClass = Union[
     Type[ThreadingLockCollector],
     Type[ThreadingRLockCollector],
     Type[ThreadingSemaphoreCollector],
+    Type[ThreadingBoundedSemaphoreCollector],
 ]
 # Type alias for collector instances
-CollectorTypeInst = Union[ThreadingLockCollector, ThreadingRLockCollector, ThreadingSemaphoreCollector]
+CollectorTypeInst = Union[
+    ThreadingLockCollector, ThreadingRLockCollector, ThreadingSemaphoreCollector, ThreadingBoundedSemaphoreCollector
+]
 
 # Module-level globals for testing global lock profiling
 _test_global_lock: LockTypeInst
@@ -90,6 +96,10 @@ class Bar:
             ThreadingSemaphoreCollector,
             "ThreadingSemaphoreCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, nframes=64, tracer=None)",  # noqa: E501
         ),
+        (
+            ThreadingBoundedSemaphoreCollector,
+            "ThreadingBoundedSemaphoreCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, nframes=64, tracer=None)",  # noqa: E501
+        ),
     ],
 )
 def test_collector_repr(
@@ -120,6 +130,15 @@ def test_collector_repr(
             # 2. <threading.Semaphore object at 0x...> (3.10-3.12)
             # 3. <threading.Semaphore at 0x...: value=1> (3.13+)
             r"<_ProfiledLock\((<unlocked _thread\.Semaphore object owner=0 count=0 at 0x[0-9a-f]+>|<threading\.Semaphore( object)? at 0x[0-9a-f]+(: value=\d+)?)\) at test_threading\.py:{lineno}>",  # noqa: E501
+        ),
+        (
+            ThreadingBoundedSemaphoreCollector,
+            "BoundedSemaphore",
+            # Multiple possible formats across Python versions:
+            # 1. <unlocked _thread.BoundedSemaphore object owner=0 count=0 at 0x...> (pre-3.10)
+            # 2. <threading.BoundedSemaphore object at 0x...> (3.10-3.12)
+            # 3. <threading.BoundedSemaphore at 0x...: value=1/1> (3.13+)
+            r"<_ProfiledLock\((<unlocked _thread\.BoundedSemaphore object owner=0 count=0 at 0x[0-9a-f]+>|<threading\.BoundedSemaphore( object)? at 0x[0-9a-f]+(: value=\d+/\d+)?)\) at test_threading\.py:{lineno}>",  # noqa: E501
         ),
     ],
 )
@@ -1247,7 +1266,149 @@ class TestThreadingRLockCollector(BaseThreadingLockCollectorTest):
             assert not lock._is_owned()
 
 
-class TestThreadingSemaphoreCollector(BaseThreadingLockCollectorTest):
+class BaseSemaphoreTest(BaseThreadingLockCollectorTest):
+    """Base test class for Semaphore-like locks (Semaphore and BoundedSemaphore).
+
+    Contains tests that apply to both regular Semaphore and BoundedSemaphore,
+    particularly those related to internal lock detection and Condition-based implementation.
+    """
+
+    def _verify_no_double_counting(self, marker_name: str, lock_var_name: str) -> None:
+        """Helper method to verify no double-counting in profile output.
+
+        Args:
+            marker_name: The marker name used in !CREATE! comments (e.g., "test_no_double_counting")
+            lock_var_name: The lock variable name to check in profile (e.g., "sem")
+        """
+        ddup.upload()
+
+        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
+
+        # Count lock events (we expect 1 and only 1 acquire / release pair of samples.)
+        acquire_samples_count: int = len(pprof_utils.get_samples_with_value_type(profile, "lock-acquire"))
+        release_samples_count: int = len(pprof_utils.get_samples_with_value_type(profile, "lock-release"))
+
+        # Should have exactly 1 event!
+        # 1 event = Semaphore-like lock profiled, internal Lock skipped (correct)
+        # 2+ events = Both Semaphore-like AND internal Lock profiled (double-counting bug)
+        lock_type_name: str = self.lock_class.__name__
+        assert acquire_samples_count == 1, (
+            f"Expected 1 acquire event ({lock_type_name} only), got {acquire_samples_count}."
+        )
+        assert release_samples_count == 1, (
+            f"Expected 1 release event ({lock_type_name} only), got {release_samples_count}."
+        )
+
+        # Verify the single event is the Semaphore-like lock (not the internal Lock)
+        linenos: LineNo = get_lock_linenos(marker_name)
+        pprof_utils.assert_lock_events(
+            profile,
+            expected_acquire_events=[
+                pprof_utils.LockAcquireEvent(
+                    caller_name=self.test_name,
+                    filename=os.path.basename(__file__),
+                    linenos=linenos,
+                    lock_name=lock_var_name,
+                ),
+            ],
+            expected_release_events=[
+                pprof_utils.LockReleaseEvent(
+                    caller_name=self.test_name,
+                    filename=os.path.basename(__file__),
+                    linenos=linenos,
+                    lock_name=lock_var_name,
+                ),
+            ],
+        )
+
+    def _verify_stack_trace_to_user_code(self, marker_name: str, lock_var_name: str) -> None:
+        """Helper method to verify stack traces point to user code, not threading.py internals.
+
+        Args:
+            marker_name: The marker name used in !CREATE! comments
+            lock_var_name: The lock variable name to check in profile
+        """
+        ddup.upload()
+
+        linenos: LineNo = get_lock_linenos(marker_name)
+        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
+
+        # stack traces should show test_threading.py (this file),
+        # not threading.py (where Condition/Semaphore internals live)
+        pprof_utils.assert_lock_events(
+            profile,
+            expected_acquire_events=[
+                pprof_utils.LockAcquireEvent(
+                    caller_name=self.test_name,
+                    filename=os.path.basename(__file__),
+                    linenos=linenos,
+                    lock_name=lock_var_name,
+                ),
+            ],
+            expected_release_events=[
+                pprof_utils.LockReleaseEvent(
+                    caller_name=self.test_name,
+                    filename=os.path.basename(__file__),
+                    linenos=linenos,
+                    lock_name=lock_var_name,
+                ),
+            ],
+        )
+
+    def test_internal_lock_marked_correctly(self) -> None:
+        """Verify that locks created internally by threading.py are marked as internal (`self.is_internal == True`."""
+        from ddtrace.profiling.collector.threading import ThreadingLockCollector
+
+        lock_type_name: str = self.lock_class.__name__
+
+        # Start Lock and Semaphore-like collectors to capture both lock types
+        with ThreadingLockCollector(capture_pct=100), self.collector_class(capture_pct=100):
+            # Create a regular lock from user code
+            regular_lock: LockTypeInst = threading.Lock()
+            assert hasattr(regular_lock, "is_internal"), "Lock should be wrapped with is_internal attribute"
+            assert not regular_lock.is_internal, f"Regular lock should NOT be internal, got: {regular_lock.is_internal}"  # pyright: ignore[reportAttributeAccessIssue]
+
+            # Create a semaphore-like lock - it should NOT be internal
+            sem: LockTypeInst = self.lock_class(1)
+            assert not sem.is_internal, f"{lock_type_name} should NOT be internal, got: {sem.is_internal}"  # pyright: ignore[reportAttributeAccessIssue]
+
+            # Access the internal lock (Semaphore-like -> Condition -> Lock)
+            # The Condition is at sem._cond, and its lock is at sem._cond._lock
+            internal_lock: LockTypeInst = sem._cond._lock  # pyright: ignore[reportAttributeAccessIssue]
+            assert hasattr(internal_lock, "is_internal"), "Internal lock should be wrapped"
+            assert internal_lock.is_internal, (  # pyright: ignore[reportAttributeAccessIssue]
+                "Lock created by threading.py (inside Condition) SHOULD be marked as internal."
+            )
+
+    def test_acquire_return_values_preserved(self) -> None:
+        """Test that profiling wrapper preserves acquire() return values (transparency test).
+
+        This verifies the wrapper doesn't break different acquire() modes.
+        Both Semaphore and BoundedSemaphore have identical acquire() behavior.
+
+        Note: We use capture_pct=0 because we only care about behavior, not profile output.
+        """
+        with self.collector_class(capture_pct=0):
+            sem: LockTypeInst = self.lock_class(1)
+
+            # Test that blocking acquire succeeds
+            result1 = sem.acquire(blocking=True)
+            assert result1 in (True, None), "Wrapper must preserve blocking acquire return value"
+
+            # Test that non-blocking acquire on unavailable semaphore returns False
+            result2 = sem.acquire(blocking=False)
+            assert result2 is False, "Wrapper must preserve non-blocking acquire return value (False when unavailable)"
+
+            sem.release()
+
+            # Test that non-blocking acquire on available semaphore returns True
+            result3 = sem.acquire(blocking=False)
+            assert result3 is True, "Wrapper must preserve non-blocking acquire return value (True when available)"
+
+            sem.release()
+
+
+class TestThreadingSemaphoreCollector(BaseSemaphoreTest):
     """Test Semaphore profiling"""
 
     @property
@@ -1259,112 +1420,93 @@ class TestThreadingSemaphoreCollector(BaseThreadingLockCollectorTest):
         return threading.Semaphore
 
     def test_stack_trace_points_to_user_code(self) -> None:
-        """
-        Verify that Semaphore stack traces point to USER CODE,  i.e. test_threading.py,
-        not threading.py internals (like Condition.__enter__).
-        """
+        """Verify Semaphore stack traces point to user code (uses Semaphore-specific markers)."""
         with self.collector_class(capture_pct=100):
-            sem: LockTypeInst = self.lock_class(2)  # !CREATE! test_stack_trace_points_to_user_code
-            sem.acquire()  # !ACQUIRE! test_stack_trace_points_to_user_code
-            sem.release()  # !RELEASE! test_stack_trace_points_to_user_code
+            sem: LockTypeInst = self.lock_class(2)  # !CREATE! test_stack_trace_sem
+            sem.acquire()  # !ACQUIRE! test_stack_trace_sem
+            sem.release()  # !RELEASE! test_stack_trace_sem
 
-        ddup.upload()
-
-        linenos: LineNo = get_lock_linenos("test_stack_trace_points_to_user_code")
-        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
-
-        # stack traces should show test_threading.py (this file),
-        # not threading.py (where Condition/Semaphore internals live)
-        pprof_utils.assert_lock_events(
-            profile,
-            expected_acquire_events=[
-                pprof_utils.LockAcquireEvent(
-                    caller_name=self.test_name,  # Should be test function name
-                    filename=os.path.basename(__file__),
-                    linenos=linenos,
-                    lock_name="sem",
-                ),
-            ],
-            expected_release_events=[
-                pprof_utils.LockReleaseEvent(
-                    caller_name=self.test_name,
-                    filename=os.path.basename(__file__),
-                    linenos=linenos,
-                    lock_name="sem",
-                ),
-            ],
-        )
-
-    def test_internal_lock_marked_correctly(self) -> None:
-        """Verify that locks created internally by threading.py are marked as internal (`self.is_internal == True`."""
-        from ddtrace.profiling.collector.threading import ThreadingLockCollector
-
-        # Start Lock and Semaphore collectors to capture both lock types
-        with ThreadingLockCollector(capture_pct=100), self.collector_class(capture_pct=100):
-            # Create a regular lock from user code
-            regular_lock: LockTypeInst = threading.Lock()
-            assert hasattr(regular_lock, "is_internal"), "Lock should be wrapped with is_internal attribute"
-            assert not regular_lock.is_internal, f"Regular lock should NOT be internal, got: {regular_lock.is_internal}"  # pyright: ignore[reportAttributeAccessIssue]
-
-            # Create a semaphore - it should NOT be internal
-            sem: LockTypeInst = self.lock_class(1)
-            assert not sem.is_internal, f"Semaphore should NOT be internal, got: {sem.is_internal}"  # pyright: ignore[reportAttributeAccessIssue]
-
-            # Access the internal lock (Semaphore -> Condition -> Lock)
-            # The Condition is at sem._cond, and its lock is at sem._cond._lock
-            internal_lock: LockTypeInst = sem._cond._lock  # pyright: ignore[reportAttributeAccessIssue]
-            assert hasattr(internal_lock, "is_internal"), "Internal lock should be wrapped"
-            assert internal_lock.is_internal, (  # pyright: ignore[reportAttributeAccessIssue]
-                "Lock created by threading.py (inside Condition) SHOULD be marked as internal."
-            )
+        self._verify_stack_trace_to_user_code("test_stack_trace_sem", "sem")
 
     def test_no_double_counting_with_lock_collector(self) -> None:
-        """
-        Verify that we don't double-count Lock() objects with wrapped Semaphore objects,
-        since Semaphore internally uses Condition which uses Lock.
-        """
+        """Verify no double-counting with Semaphore (uses Semaphore-specific markers)."""
         from ddtrace.profiling.collector.threading import ThreadingLockCollector
 
-        # Start Lock and Semaphore collectors to capture both lock types
         with ThreadingLockCollector(capture_pct=100), self.collector_class(capture_pct=100):
-            # Internally, this creates: Semaphore -> Condition -> Lock
-            # Both the Semaphore AND the internal Lock are wrapped, but only Semaphore should be profiled
             sem: LockTypeInst = self.lock_class(1)  # !CREATE! test_no_double_counting
             sem.acquire()  # !ACQUIRE! test_no_double_counting
             sem.release()  # !RELEASE! test_no_double_counting
 
-        ddup.upload()
+        self._verify_no_double_counting("test_no_double_counting", "sem")
 
-        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
+    def test_unbounded_behavior_preserved(self) -> None:
+        """Test that profiling wrapper preserves Semaphore's unbounded behavior (transparency test).
 
-        # Count lock events (we expect 1 and only 1 acquire / release pair of samples.)
-        acquire_samples_count: int = len(pprof_utils.get_samples_with_value_type(profile, "lock-acquire"))
-        release_samples_count: int = len(pprof_utils.get_samples_with_value_type(profile, "lock-release"))
+        Unlike BoundedSemaphore, regular Semaphore allows unlimited releases (no ValueError).
+        This verifies our profiling wrapper preserves this behavior.
 
-        # Should have exactly 1 event!
-        # 1 event = Semaphore profiled, internal Lock skipped (correct)
-        # 2+ events = Both Semaphore AND internal Lock profiled (double-counting bug)
-        assert acquire_samples_count == 1, f"Expected 1 acquire event (Semaphore only), got {acquire_samples_count}."
-        assert release_samples_count == 1, f"Expected 1 release event (Semaphore only), got {release_samples_count}."
+        Note: We use capture_pct=0 because we only care about behavior, not profile output.
+        """
+        with self.collector_class(capture_pct=0):
+            sem: LockTypeInst = self.lock_class(1)
 
-        # Verify the single event is the Semaphore (not the internal Lock)
-        linenos: LineNo = get_lock_linenos("test_no_double_counting")
-        pprof_utils.assert_lock_events(
-            profile,
-            expected_acquire_events=[
-                pprof_utils.LockAcquireEvent(
-                    caller_name=self.test_name,
-                    filename=os.path.basename(__file__),
-                    linenos=linenos,
-                    lock_name="sem",
-                ),
-            ],
-            expected_release_events=[
-                pprof_utils.LockReleaseEvent(
-                    caller_name=self.test_name,
-                    filename=os.path.basename(__file__),
-                    linenos=linenos,
-                    lock_name="sem",
-                ),
-            ],
-        )
+            # Acquire and release normally
+            sem.acquire()
+            sem.release()
+
+            # Regular Semaphore allows releasing beyond initial value (no exception)
+            # This is the key difference from BoundedSemaphore
+            sem.release()  # Should NOT raise ValueError
+            sem.release()  # Can keep releasing
+
+            # Verify we can still acquire (value has increased)
+            assert sem.acquire(blocking=False) is True, "Semaphore should allow acquire after extra releases"
+
+
+class TestThreadingBoundedSemaphoreCollector(BaseSemaphoreTest):
+    """Test BoundedSemaphore profiling"""
+
+    @property
+    def collector_class(self) -> Type[ThreadingBoundedSemaphoreCollector]:
+        return ThreadingBoundedSemaphoreCollector
+
+    @property
+    def lock_class(self) -> Type[threading.BoundedSemaphore]:
+        return threading.BoundedSemaphore
+
+    def test_stack_trace_points_to_user_code(self) -> None:
+        """Verify BoundedSemaphore stack traces point to user code (uses BoundedSemaphore-specific markers)."""
+        with self.collector_class(capture_pct=100):
+            bsem: LockTypeInst = self.lock_class(2)  # !CREATE! test_stack_trace_bsem
+            bsem.acquire()  # !ACQUIRE! test_stack_trace_bsem
+            bsem.release()  # !RELEASE! test_stack_trace_bsem
+
+        self._verify_stack_trace_to_user_code("test_stack_trace_bsem", "bsem")
+
+    def test_no_double_counting_with_lock_collector(self) -> None:
+        """Verify no double-counting with BoundedSemaphore (uses BoundedSemaphore-specific markers)."""
+        from ddtrace.profiling.collector.threading import ThreadingLockCollector
+
+        with ThreadingLockCollector(capture_pct=100), self.collector_class(capture_pct=100):
+            bsem: LockTypeInst = self.lock_class(1)  # !CREATE! test_no_double_counting_bounded
+            bsem.acquire()  # !ACQUIRE! test_no_double_counting_bounded
+            bsem.release()  # !RELEASE! test_no_double_counting_bounded
+
+        self._verify_no_double_counting("test_no_double_counting_bounded", "bsem")
+
+    def test_bounded_behavior_preserved(self) -> None:
+        """Test that profiling wrapper preserves BoundedSemaphore's bounded behavior (transparency test).
+
+        This verifies the wrapper doesn't interfere with BoundedSemaphore's unique characteristic:
+        raising ValueError when releasing beyond the initial value.
+
+        Note: We use capture_pct=0 because we only care about behavior, not profile output.
+        """
+        with self.collector_class(capture_pct=0):
+            sem: LockTypeInst = self.lock_class(1)
+            sem.acquire()
+            sem.release()
+            # BoundedSemaphore should raise ValueError when releasing more than initial value
+            # This proves our profiling wrapper doesn't break BoundedSemaphore's behavior
+            with pytest.raises(ValueError, match="Semaphore released too many times"):
+                sem.release()
