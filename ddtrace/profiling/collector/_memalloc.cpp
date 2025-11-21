@@ -83,7 +83,7 @@ memalloc_realloc(void* ctx, void* ptr, size_t new_size)
 {
     memalloc_context_t* memalloc_ctx = (memalloc_context_t*)ctx;
     void* ptr2 = memalloc_ctx->pymem_allocator_obj.realloc(memalloc_ctx->pymem_allocator_obj.ctx, ptr, new_size);
-
+    // TODO(dsn) is the GIL held here? Can there be a race between the realloc and the untrack of the old value?
     if (ptr2) {
         memalloc_heap_untrack_no_cpython(ptr);
         memalloc_heap_track(memalloc_ctx->max_nframe, ptr2, new_size, memalloc_ctx->domain);

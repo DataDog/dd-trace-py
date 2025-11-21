@@ -40,10 +40,18 @@ memalloc_heap_map::insert(void* key, traceback_t* value)
     HeapSamples_Insert res = HeapSamples_insert(&map, &k);
     if (!res.inserted) {
         /* This should not happen. It means we did not properly remove a previously-tracked
-         * allocation from the map. This should probably be an assertion. Delete the previous
-         * entry and replace it with the new value. */
+         * allocation from the map. Assert to detect if this edge case occurs in practice.
+         * Export the previous entry if it hasn't been reported yet, then delete it and
+         * replace it with the new value. */
+        exit(-1);
+        assert(false && "memalloc_heap_map::insert: found existing entry for key that should have been removed");
         HeapSamples_Entry* e = HeapSamples_Iter_get(&res.iter);
         traceback_t* prev = e->val;
+        if (prev && !prev->reported) {
+            /* If the sample hasn't been reported yet, export it before deleting */
+            prev->sample.export_sample();
+            prev->reported = true;
+        }
         e->val = value;
         delete prev;
     }
