@@ -200,8 +200,9 @@ venv = Venv(
         ),
         Venv(
             name="appsec_iast_packages",
+            # TODO(APPSEC-60019): virtualenv-clone doesn't support Python 3.14
             # FIXME: GrpcIO is hanging with 3.13 on CI + hatch for some reason
-            pys=["3.9", "3.10", "3.11", "3.12"],
+            pys=["3.11", "3.12"],
             command="pytest {cmdargs} tests/appsec/iast_packages/",
             pkgs={
                 "requests": latest,
@@ -217,12 +218,12 @@ venv = Venv(
         ),
         Venv(
             name="iast_tdd_propagation",
-            pys=select_pys(min_version="3.9", max_version="3.13"),  # pycryptodome doesn't publish 3.14 wheels
+            pys=select_pys(),
             command="pytest {cmdargs} tests/appsec/iast_tdd_propagation/",
             pkgs={
                 "requests": latest,
                 "flask": latest,
-                "pycryptodome": latest,
+                "cryptography": latest,
                 "sqlalchemy": "~=2.0.23",
                 "pony": latest,
                 "aiosqlite": latest,
@@ -336,11 +337,9 @@ venv = Venv(
         Venv(
             name="appsec_iast_default",
             command="pytest -v {cmdargs} tests/appsec/iast/",
-            pys=select_pys(max_version="3.13"),  # pycryptodome doesn't publish 3.14 wheels
             pkgs={
                 "requests": latest,
                 "urllib3": latest,
-                "pycryptodome": latest,
                 "cryptography": latest,
                 "astunparse": latest,
                 "simplejson": latest,
@@ -355,6 +354,17 @@ venv = Venv(
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "PYTHONFAULTHANDLER": "1",
             },
+            venvs=[
+                Venv(
+                    pys=select_pys(max_version="3.13"),
+                    pkgs={
+                        "pycryptodome": latest,
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.14"),
+                ),
+            ],
         ),
         Venv(
             name="tracer",
@@ -1361,15 +1371,15 @@ venv = Venv(
         Venv(
             name="appsec_iast_memcheck",
             command="pytest --memray --stacks=35 {cmdargs} tests/appsec/iast_memcheck/",
-            pys=select_pys(max_version="3.13"),  # pycryptodome doesn't publish 3.14 wheels
+            pys=select_pys(),
             pkgs={
                 "requests": latest,
                 "urllib3": latest,
-                "pycryptodome": latest,
                 "cryptography": latest,
                 "pytest-memray": latest,
-                "psycopg2-binary": "~=2.9.9",
+                "pytest-asyncio": latest,
                 "pytest-randomly": latest,
+                "psycopg2-binary": "~=2.9.9",
             },
             env={
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
