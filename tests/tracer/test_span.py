@@ -302,9 +302,9 @@ class SpanTestCase(TracerTestCase):
                 #      ZeroDivisionError: division by zero
                 header_and_footer_lines += 1
 
-            assert (
-                len(stack.splitlines()) == tb_length_limit * multiplier + header_and_footer_lines
-            ), "stacktrace should contain two lines per entry"
+            assert len(stack.splitlines()) == tb_length_limit * multiplier + header_and_footer_lines, (
+                "stacktrace should contain two lines per entry"
+            )
 
     def test_ctx_mgr(self):
         s = Span("bar")

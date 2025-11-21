@@ -303,7 +303,10 @@ def test_extract(tracer):  # noqa: F811
 @pytest.mark.parametrize("appsec_enabled", [True, False])
 @pytest.mark.parametrize("iast_enabled", [True, False])
 def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(
-    tracer, sca_enabled, appsec_enabled, iast_enabled  # noqa: F811
+    tracer,  # noqa: F811
+    sca_enabled,
+    appsec_enabled,
+    iast_enabled,  # noqa: F811
 ):
     if not appsec_enabled and not iast_enabled and sca_enabled == "false":
         pytest.skip("SCA, AppSec or IAST must be enabled")
@@ -361,7 +364,10 @@ def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(
 @pytest.mark.parametrize("appsec_enabled", [True, False])
 @pytest.mark.parametrize("iast_enabled", [True, False])
 def test_asm_standalone_missing_propagation_tags_no_appsec_event_trace_dropped(
-    tracer, sca_enabled, appsec_enabled, iast_enabled  # noqa: F811
+    tracer,  # noqa: F811
+    sca_enabled,
+    appsec_enabled,
+    iast_enabled,  # noqa: F811
 ):
     if not appsec_enabled and not iast_enabled and sca_enabled == "false":
         pytest.skip("SCA, AppSec or IAST must be enabled")
@@ -440,7 +446,10 @@ def test_asm_standalone_missing_propagation_tags_appsec_event_present_trace_kept
 @pytest.mark.parametrize("appsec_enabled", [True, False])
 @pytest.mark.parametrize("iast_enabled", [True, False])
 def test_asm_standalone_missing_appsec_tag_no_appsec_event_propagation_resets(
-    tracer, sca_enabled, appsec_enabled, iast_enabled  # noqa: F811
+    tracer,  # noqa: F811
+    sca_enabled,
+    appsec_enabled,
+    iast_enabled,  # noqa: F811
 ):
     if not appsec_enabled and not iast_enabled and sca_enabled == "false":
         pytest.skip("SCA, AppSec or IAST must be enabled")
@@ -548,7 +557,11 @@ def test_asm_standalone_missing_appsec_tag_appsec_event_present_trace_kept(
 @pytest.mark.parametrize("appsec_enabled", [True, False])
 @pytest.mark.parametrize("iast_enabled", [True, False])
 def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_set_to_user_keep(
-    tracer, upstream_priority, sca_enabled, appsec_enabled, iast_enabled  # noqa: F811
+    tracer,  # noqa: F811
+    upstream_priority,
+    sca_enabled,
+    appsec_enabled,
+    iast_enabled,  # noqa: F811
 ):
     if not appsec_enabled and not iast_enabled and sca_enabled == "false":
         pytest.skip("SCA, AppSec or IAST must be enabled")
@@ -616,7 +629,11 @@ def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_set_to_us
 @pytest.mark.parametrize("appsec_enabled", [True, False])
 @pytest.mark.parametrize("iast_enabled", [True, False])
 def test_asm_standalone_present_appsec_tag_appsec_event_present_propagation_force_keep(
-    tracer, upstream_priority, sca_enabled, appsec_enabled, iast_enabled  # noqa: F811
+    tracer,  # noqa: F811
+    upstream_priority,
+    sca_enabled,
+    appsec_enabled,
+    iast_enabled,  # noqa: F811
 ):
     if not appsec_enabled and not iast_enabled and sca_enabled == "false":
         pytest.skip("SCA, AppSec or IAST must be enabled")
@@ -2568,9 +2585,7 @@ else:
       "sampling_priority": context.sampling_priority,
       "dd_origin": context.dd_origin,
     }}))
-    """.format(
-        headers
-    )
+    """.format(headers)
     env = os.environ.copy()
     if styles is not None:
         env["DD_TRACE_PROPAGATION_STYLE"] = ",".join(styles)
@@ -3272,9 +3287,7 @@ headers = {{}}
 HTTPPropagator.inject(context, headers)
 
 print(json.dumps(headers))
-    """.format(
-        context
-    )
+    """.format(context)
 
     env = os.environ.copy()
     if styles is not None:
@@ -3339,9 +3352,7 @@ headers = {{}}
 HTTPPropagator.inject(context, headers)
 
 print(json.dumps(headers))
-    """.format(
-        context
-    )
+    """.format(context)
 
     env = os.environ.copy()
     if styles is not None:
@@ -3422,9 +3433,9 @@ def test_baggageheader_maxbytes_inject():
     # multiple baggage items to test dropping items when the total size exceeds the limit
     headers = {}
     baggage_items = {
-        "key1": "a" * ((DD_TRACE_BAGGAGE_MAX_BYTES // 3)),
-        "key2": "b" * ((DD_TRACE_BAGGAGE_MAX_BYTES // 3)),
-        "key3": "c" * ((DD_TRACE_BAGGAGE_MAX_BYTES // 3)),
+        "key1": "a" * (DD_TRACE_BAGGAGE_MAX_BYTES // 3),
+        "key2": "b" * (DD_TRACE_BAGGAGE_MAX_BYTES // 3),
+        "key3": "c" * (DD_TRACE_BAGGAGE_MAX_BYTES // 3),
         "key4": "d",
     }
     span_context = Context(baggage=baggage_items)

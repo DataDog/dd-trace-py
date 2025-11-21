@@ -1,6 +1,7 @@
 """
 Generic dbapi tracing code.
 """
+
 import wrapt
 
 from ddtrace import config
