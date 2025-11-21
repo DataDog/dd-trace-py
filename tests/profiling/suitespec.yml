@@ -82,7 +82,7 @@ suites:
     env:
       DD_TRACE_AGENT_URL: ''
     # `riot list --hash-only profile-v2$ | wc -1` = 19
-    parallelism: 16
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
