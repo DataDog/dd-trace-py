@@ -198,8 +198,7 @@ def mock_response_mcp_tool_call():
                         "name": "dice_roll",
                         "annotations": {"read_only": False},
                         "description": (
-                            "Roll dice using standard notation. "
-                            "IMPORTANT: For D&D advantage use '2d20kh1' (NOT '2d20')"
+                            "Roll dice using standard notation. IMPORTANT: For D&D advantage use '2d20kh1' (NOT '2d20')"
                         ),
                     },
                 ],
