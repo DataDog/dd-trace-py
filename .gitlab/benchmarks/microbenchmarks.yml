@@ -9,7 +9,8 @@ variables:
   MICROBENCHMARKS_CI_IMAGE: $BENCHMARKING_IMAGE_REGISTRY/ci/benchmarking-platform:dd-trace-py
   PACKAGE_IMAGE: registry.ddbuild.io/images/mirror/pypa/manylinux2014_x86_64:2025-04-12-5990e2d
   GITHUB_CLI_IMAGE: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
-  BENCHMARKING_BRANCH: brettlangdon/dd-trace-py.affinity
+  BENCHMARKING_BRANCH: dd-trace-py
+  BENCHMARKING_COMMIT_SHA: 32681a9f805f4d62cf6bd7d205ddeb83ab72288d
 
 .benchmarks:
   stage: test
@@ -28,6 +29,7 @@ variables:
       git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     fi
     git clone --branch "${BENCHMARKING_BRANCH}" https://github.com/DataDog/benchmarking-platform /platform
+    (cd /platform && git reset --hard "${BENCHMARKING_COMMIT_SHA}")
     export PATH="$PATH:/platform/steps"
 
     for SCENARIO in $(echo "$SCENARIOS" | tr -s '[:space:]' ' ');
