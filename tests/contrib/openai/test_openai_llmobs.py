@@ -2155,6 +2155,19 @@ MUL: "*"
             )
         )
 
+    def _assert_prompt_tracking(
+        self, span_event, prompt_id, prompt_version, variables, expected_chat_template, expected_messages
+    ):
+        """Helper to assert prompt tracking metadata and template extraction."""
+        assert "prompt" in span_event["meta"]["input"]
+        actual_prompt = span_event["meta"]["input"]["prompt"]
+        assert actual_prompt["id"] == prompt_id
+        assert actual_prompt["version"] == prompt_version
+        assert actual_prompt["variables"] == variables
+        assert "chat_template" in actual_prompt
+        assert actual_prompt["chat_template"] == expected_chat_template
+        assert span_event["meta"]["input"]["messages"] == expected_messages
+
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 80),
         reason="Full OpenAI MCP support only available with openai >= 1.80",
@@ -2302,37 +2315,89 @@ MUL: "*"
         mock_tracer.pop_traces()
         assert mock_llmobs_writer.enqueue.call_count == 1
 
-        call_args = mock_llmobs_writer.enqueue.call_args[0][0]
+        self._assert_prompt_tracking(
+            span_event=mock_llmobs_writer.enqueue.call_args[0][0],
+            prompt_id="pmpt_690b24669d8c81948acc0e98da10e6490190feb3a62eee0b",
+            prompt_version="4",
+            variables={"question": "What is machine learning?"},
+            expected_chat_template=[
+                {"role": "developer", "content": "Direct & Conversational tone"},
+                {"role": "user", "content": "You are a helpful assistant. Please answer this question: {{question}}"},
+            ],
+            expected_messages=[
+                {"role": "developer", "content": "Direct & Conversational tone"},
+                {
+                    "role": "user",
+                    "content": "You are a helpful assistant. Please answer this question: What is machine learning?",
+                },
+            ],
+        )
 
-        # Verify prompt metadata is captured
-        assert "prompt" in call_args["meta"]["input"]
-        actual_prompt = call_args["meta"]["input"]["prompt"]
-        assert actual_prompt["id"] == "pmpt_690b24669d8c81948acc0e98da10e6490190feb3a62eee0b"
-        assert actual_prompt["version"] == "4"
-        assert actual_prompt["variables"] == {"question": "What is machine learning?"}
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 87),
+        reason="Reusable prompts only available in openai >= 1.87",
+    )
+    def test_response_with_mixed_input_prompt_tracking(self, openai, mock_llmobs_writer, mock_tracer):
+        """Test that mixed input types (text, image, file) are normalized and tracked correctly."""
+        from openai.types.responses import ResponseInputFile
+        from openai.types.responses import ResponseInputImage
+        from openai.types.responses import ResponseInputText
 
-        # Verify chat_template is extracted with variable placeholders
-        assert "chat_template" in actual_prompt
-        chat_template = actual_prompt["chat_template"]
-        assert len(chat_template) == 2
-        # First message: developer role
-        assert chat_template[0]["role"] == "developer"
-        assert chat_template[0]["content"] == "Direct & Conversational tone"
-        # Second message: user role with variable placeholder
-        assert chat_template[1]["role"] == "user"
-        assert chat_template[1]["content"] == "You are a helpful assistant. Please answer this question: {{question}}"
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("response_with_mixed_prompt.yaml"):
+            client = openai.OpenAI()
+            client.responses.create(
+                prompt={
+                    "id": "pmpt_69201db75c4c81959c01ea6987ab023c070192cd2843dec0",
+                    "version": "1",
+                    "variables": {
+                        "user_message": ResponseInputText(type="input_text", text="Analyze this image and document"),
+                        "user_image": ResponseInputImage(
+                            type="input_image",
+                            image_url="https://imgix.datadoghq.com/img/about/presskit/logo-v/dd_vertical_white.png",
+                            detail="auto",
+                        ),
+                        "user_file": ResponseInputFile(type="input_file", file_id="file-LXG16g7US1sG6MQM7KQY1i"),
+                    },
+                }
+            )
+        mock_tracer.pop_traces()
+        assert mock_llmobs_writer.enqueue.call_count == 1
 
-        # Verify the actual prompt content is captured in input messages
-        input_messages = call_args["meta"]["input"]["messages"]
-        assert len(input_messages) == 2
-        # Developer message
-        assert input_messages[0]["role"] == "developer"
-        assert input_messages[0]["content"] == "Direct & Conversational tone"
-        # User message with rendered variables
-        assert input_messages[1]["role"] == "user"
-        assert (
-            input_messages[1]["content"]
-            == "You are a helpful assistant. Please answer this question: What is machine learning?"
+        self._assert_prompt_tracking(
+            span_event=mock_llmobs_writer.enqueue.call_args[0][0],
+            prompt_id="pmpt_69201db75c4c81959c01ea6987ab023c070192cd2843dec0",
+            prompt_version="1",
+            variables={
+                "user_message": "Analyze this image and document",
+                "user_image": "https://imgix.datadoghq.com/img/about/presskit/logo-v/dd_vertical_white.png",
+                "user_file": "file-LXG16g7US1sG6MQM7KQY1i",
+            },
+            expected_chat_template=[
+                {
+                    "role": "user",
+                    # OpenAI strips image_url for security, so we get [image] marker
+                    "content": (
+                        "Analyze the following content from the user:\n\n"
+                        "Text message: {{user_message}}\n"
+                        "Image reference: [image]\n"
+                        "Document reference: {{user_file}}\n\n"
+                        "Please provide a comprehensive analysis."
+                    ),
+                }
+            ],
+            expected_messages=[
+                {
+                    "role": "user",
+                    # OpenAI strips image_url from response.instructions, so we get [image] marker
+                    "content": (
+                        "Analyze the following content from the user:\n\n"
+                        "Text message: Analyze this image and document\n"
+                        "Image reference: [image]\n"
+                        "Document reference: file-LXG16g7US1sG6MQM7KQY1i\n\n"
+                        "Please provide a comprehensive analysis."
+                    ),
+                }
+            ],
         )
 
 

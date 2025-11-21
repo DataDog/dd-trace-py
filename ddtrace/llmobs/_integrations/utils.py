@@ -581,6 +581,18 @@ def _openai_parse_input_response_messages(
                 for content in item["content"]:
                     processed_item_content += str(content.get("text", "") or "")
                     processed_item_content += str(content.get("refusal", "") or "")
+
+                    item_type = content.get("type", None)
+                    if item_type == "input_image":
+                        image_url = content.get("image_url", None)
+                        processed_item_content += image_url if image_url else "[image]"
+                    elif item_type == "input_file":
+                        file_ref = (
+                            content.get("file_id", None)
+                            or content.get("file_url", None)
+                            or content.get("filename", None)
+                        )
+                        processed_item_content += file_ref if file_ref else "[file]"
             else:
                 processed_item_content = item["content"]
             if processed_item_content:
@@ -788,11 +800,12 @@ def _normalize_prompt_variables(variables: Dict[str, Any]) -> Dict[str, Any]:
         elif getattr(value, "type", None) == "input_image":  # ResponseInputImage
             normalized[key] = getattr(value, "image_url", None) or getattr(value, "file_id", None) or "[image]"
         elif getattr(value, "type", None) == "input_file":  # ResponseInputFile
+            file_data = getattr(value, "file_data", None)
             normalized[key] = (
                 getattr(value, "file_url", None)
                 or getattr(value, "file_id", None)
                 or getattr(value, "filename", None)
-                or "[file]"
+                or ("[file_data]" if file_data else "[file]")
             )
         else:
             normalized[key] = value
@@ -814,19 +827,12 @@ def _extract_chat_template_from_instructions(
     """
     chat_template = []
 
-    # Create a mapping of variable values to placeholder names
+    # Build value→placeholder map from normalized variables
     value_to_placeholder = {}
     for var_name, var_value in variables.items():
-        if hasattr(var_value, "text"):  # ResponseInputText
-            value_str = str(var_value.text)
-        else:
-            value_str = str(var_value)
-
-        # Skip empty values
-        if not value_str:
-            continue
-
-        value_to_placeholder[value_str] = f"{{{{{var_name}}}}}"
+        value_str = str(var_value) if var_value else ""
+        if value_str:
+            value_to_placeholder[value_str] = f"{{{{{var_name}}}}}"
 
     # Sort by length (longest first) to handle overlapping values correctly
     sorted_values = sorted(value_to_placeholder.keys(), key=len, reverse=True)
@@ -840,18 +846,34 @@ def _extract_chat_template_from_instructions(
         if not content_items:
             continue
 
+        # Extract text from all content items
         text_parts = []
         for content_item in content_items:
+            # Extract text content
             text = _get_attr(content_item, "text", "")
             if text:
                 text_parts.append(str(text))
+                continue
+
+            # For image/file items, try to extract the reference value
+            # OpenAI usually includes file_id/file_url but may omit image_url for security
+            item_type = _get_attr(content_item, "type", None)
+            if item_type == "input_image":
+                image_url = _get_attr(content_item, "image_url", None)
+                text_parts.append(str(image_url) if image_url else "[image]")
+            elif item_type == "input_file":
+                file_ref = (
+                    _get_attr(content_item, "file_id", None)
+                    or _get_attr(content_item, "file_url", None)
+                    or _get_attr(content_item, "filename", None)
+                )
+                text_parts.append(str(file_ref) if file_ref else "[file]")
 
         if not text_parts:
             continue
 
+        # Combine text and replace variable values with placeholders (longest first)
         full_text = "".join(text_parts)
-
-        # Replace variable values with placeholders (longest first)
         for value_str in sorted_values:
             placeholder = value_to_placeholder[value_str]
             full_text = full_text.replace(value_str, placeholder)
@@ -892,8 +914,9 @@ def openai_set_meta_tags_from_response(
         instructions = _get_attr(response, "instructions", None)
         if instructions:
             variables = prompt_data.get("variables", {})
-            prompt_data["chat_template"] = _extract_chat_template_from_instructions(instructions, variables)
-            prompt_data["variables"] = _normalize_prompt_variables(variables)
+            normalized_variables = _normalize_prompt_variables(variables)
+            prompt_data["chat_template"] = _extract_chat_template_from_instructions(instructions, normalized_variables)
+            prompt_data["variables"] = normalized_variables
 
         validated_prompt = _validate_prompt(prompt_data, strict_validation=False)
         span._set_ctx_item(INPUT_PROMPT, validated_prompt)
