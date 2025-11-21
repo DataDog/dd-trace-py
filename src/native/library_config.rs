@@ -47,7 +47,7 @@ impl PyConfigurator {
                 // in v21.0.0, we changed the behavior to buffer them and return
                 // them in the logs returned by this `LoggedResult`.
                 for log_msg in logs.iter() {
-                    eprintln!("{}", log_msg);
+                    eprintln!("{log_msg}");
                 }
                 let list = PyList::empty(py);
                 for c in config.iter() {

@@ -52,7 +52,6 @@ pub fn register_exceptions(m: &Bound<'_, PyModule>) -> PyResult<()> {
 }
 
 /// LIB
-
 /// Python wrapper for LogLevel enum
 #[pyclass(name = "LogLevel")]
 #[derive(Clone, Copy)]
@@ -224,7 +223,7 @@ impl ReturnActionPy {
                     task.args.case_id, task.uuid
                 )
             }
-            ReturnAction::Set(level) => format!("ReturnAction.Set({:?})", level),
+            ReturnAction::Set(level) => format!("ReturnAction.Set({level:?})"),
             ReturnAction::Unset => "ReturnAction.Unset".to_string(),
             ReturnAction::None => "ReturnAction.None".to_string(),
         }
@@ -326,12 +325,13 @@ impl TracerFlareManagerPy {
                 .enable_io()
                 .build()
                 .map_err(|e| {
-                    PyException::new_err(format!("Failed to create tokio runtime: {}", e))
+                    PyException::new_err(format!("Failed to create tokio runtime: {e}"))
                 })?;
 
+            #[allow(clippy::await_holding_lock)]
             rt.block_on(async move {
                 let manager_guard = manager_arc.lock().map_err(|e| {
-                    PyException::new_err(format!("Failed to acquire manager lock: {}", e))
+                    PyException::new_err(format!("Failed to acquire manager lock: {e}"))
                 })?;
                 let manager = manager_guard
                     .as_ref()
@@ -362,18 +362,18 @@ impl TracerFlareManagerPy {
 
         // Validate JSON
         let json_value: serde_json::Value = serde_json::from_str(config_dict)
-            .map_err(|e| ParsingError::new_err(format!("Invalid config JSON: {}", e)))?;
+            .map_err(|e| ParsingError::new_err(format!("Invalid config JSON: {e}")))?;
 
         // Write to file
         let mut file = File::create(file_path)
-            .map_err(|e| ZipError::new_err(format!("Failed to create config file: {}", e)))?;
+            .map_err(|e| ZipError::new_err(format!("Failed to create config file: {e}")))?;
 
         let json_string = serde_json::to_string_pretty(&json_value).map_err(|e| {
-            ParsingError::new_err(format!("Failed to serialize config JSON: {}", e))
+            ParsingError::new_err(format!("Failed to serialize config JSON: {e}"))
         })?;
 
         file.write_all(json_string.as_bytes())
-            .map_err(|e| ZipError::new_err(format!("Failed to write config file: {}", e)))?;
+            .map_err(|e| ZipError::new_err(format!("Failed to write config file: {e}")))?;
 
         Ok(())
     }
@@ -395,7 +395,7 @@ impl TracerFlareManagerPy {
         let path = Path::new(directory);
         if path.exists() {
             fs::remove_dir_all(path)
-                .map_err(|e| ZipError::new_err(format!("Failed to clean up directory: {}", e)))?;
+                .map_err(|e| ZipError::new_err(format!("Failed to clean up directory: {e}")))?;
         }
         Ok(())
     }
