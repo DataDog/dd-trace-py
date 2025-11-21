@@ -93,7 +93,7 @@ class heap_tracker_t
      * is deleted internally. */
     void add_sample_no_cpython(traceback_t* tb);
 
-    PyObject* export_heap();
+    void export_heap_no_cpython();
 
     /* Global instance of the heap tracker */
     static heap_tracker_t* instance;
@@ -197,8 +197,8 @@ heap_tracker_t::add_sample_no_cpython(traceback_t* tb)
     current_sample_size = next_sample_size(sample_size);
 }
 
-PyObject*
-heap_tracker_t::export_heap()
+void
+heap_tracker_t::export_heap_no_cpython()
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
 
@@ -212,9 +212,6 @@ heap_tracker_t::export_heap()
         tb->sample.export_sample();
         tb->reported = true;
     }
-
-    /* Return empty list - samples are exported to pprof via Python snapshot() method */
-    return PyList_New(0);
 }
 
 // Static member definition
@@ -321,6 +318,6 @@ void
 memalloc_heap(void)
 {
     if (heap_tracker_t::instance) {
-        heap_tracker_t::instance->export_heap();
+        heap_tracker_t::instance->export_heap_no_cpython();
     }
 }
