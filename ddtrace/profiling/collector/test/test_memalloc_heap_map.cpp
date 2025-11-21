@@ -120,14 +120,12 @@ TEST_F(MemallocHeapMapTest, InsertAndSize)
     ASSERT_NE(tb2, nullptr);
 
     // Insert first entry
-    traceback_t* prev = map.insert(ptr1, tb1);
-    EXPECT_EQ(prev, nullptr); // Should be nullptr for new insertion
+    map.insert(ptr1, tb1);
     EXPECT_EQ(map.size(), 1);
     EXPECT_TRUE(map.contains(ptr1));
 
     // Insert second entry
-    prev = map.insert(ptr2, tb2);
-    EXPECT_EQ(prev, nullptr);
+    map.insert(ptr2, tb2);
     EXPECT_EQ(map.size(), 2);
     EXPECT_TRUE(map.contains(ptr2));
 
@@ -151,17 +149,14 @@ TEST_F(MemallocHeapMapTest, InsertReplace)
     ASSERT_NE(tb2, nullptr);
 
     // Insert first traceback
-    traceback_t* prev = map.insert(ptr, tb1);
-    EXPECT_EQ(prev, nullptr);
+    map.insert(ptr, tb1);
     EXPECT_EQ(map.size(), 1);
+    EXPECT_TRUE(map.contains(ptr));
 
-    // Replace with second traceback
-    prev = map.insert(ptr, tb2);
-    EXPECT_EQ(prev, tb1);     // Should return old value
+    // Replace with second traceback (old one will be deleted automatically)
+    map.insert(ptr, tb2);
     EXPECT_EQ(map.size(), 1); // Size should remain 1
-
-    // Clean up old traceback that was replaced
-    delete tb1;
+    EXPECT_TRUE(map.contains(ptr));
 
     free(ptr);
 }

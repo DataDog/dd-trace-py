@@ -186,10 +186,7 @@ void
 heap_tracker_t::add_sample_no_cpython(traceback_t* tb)
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
-    traceback_t* old = allocs_m.insert(tb->ptr, tb);
-    if (old) {
-        delete old;
-    }
+    allocs_m.insert(tb->ptr, tb);
 
     /* Reset the counter to 0 */
     allocated_memory = 0;

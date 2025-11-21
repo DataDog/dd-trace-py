@@ -33,21 +33,20 @@ memalloc_heap_map::size() const
     return HeapSamples_size(&map);
 }
 
-traceback_t*
+void
 memalloc_heap_map::insert(void* key, traceback_t* value)
 {
     HeapSamples_Entry k = { .key = key, .val = value };
     HeapSamples_Insert res = HeapSamples_insert(&map, &k);
-    traceback_t* prev = nullptr;
     if (!res.inserted) {
         /* This should not happen. It means we did not properly remove a previously-tracked
-         * allocation from the map. This should probably be an assertion. Return the previous
-         * entry as it is for an allocation that has been freed. */
+         * allocation from the map. This should probably be an assertion. Delete the previous
+         * entry and replace it with the new value. */
         HeapSamples_Entry* e = HeapSamples_Iter_get(&res.iter);
-        prev = e->val;
+        traceback_t* prev = e->val;
         e->val = value;
+        delete prev;
     }
-    return prev;
 }
 
 bool
