@@ -70,30 +70,6 @@ memalloc_heap_map::remove(void* key)
     return res;
 }
 
-PyObject*
-memalloc_heap_map::export_to_python() const
-{
-    PyObject* heap_list = PyList_New(HeapSamples_size(&map));
-    if (heap_list == nullptr) {
-        return nullptr;
-    }
-
-    int i = 0;
-    HeapSamples_CIter it = HeapSamples_citer(&map);
-    for (const HeapSamples_Entry* e = HeapSamples_CIter_get(&it); e != nullptr; e = HeapSamples_CIter_next(&it)) {
-        traceback_t* tb = e->val;
-
-        PyObject* tb_and_size = PyTuple_New(2);
-        PyTuple_SET_ITEM(tb_and_size, 0, tb->to_tuple());
-        PyTuple_SET_ITEM(tb_and_size, 1, PyLong_FromSize_t(tb->size));
-        PyList_SET_ITEM(heap_list, i, tb_and_size);
-        i++;
-
-        memalloc_debug_gil_release();
-    }
-    return heap_list;
-}
-
 void
 memalloc_heap_map::destructive_copy_from(memalloc_heap_map& src)
 {

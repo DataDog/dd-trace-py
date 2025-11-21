@@ -447,39 +447,6 @@ TEST_F(MemallocHeapMapTest, DestructorCleansUp)
     // see memory leaks or crashes
 }
 
-// Test export_to_python() - basic functionality
-// Note: This test requires Python to be initialized and may return nullptr
-// if Python objects can't be created
-TEST_F(MemallocHeapMapTest, ExportToPython)
-{
-    memalloc_heap_map map;
-
-    // Empty map should return empty list
-    PyObject* result = map.export_to_python();
-    if (result != nullptr) {
-        EXPECT_TRUE(PyList_Check(result));
-        EXPECT_EQ(PyList_Size(result), 0);
-        Py_DECREF(result);
-    }
-
-    // Add an entry
-    void* ptr = malloc(100);
-    traceback_t* tb = create_mock_traceback(ptr, 100);
-
-    if (tb != nullptr) {
-        map.insert(ptr, tb);
-
-        result = map.export_to_python();
-        if (result != nullptr) {
-            EXPECT_TRUE(PyList_Check(result));
-            EXPECT_EQ(PyList_Size(result), 1);
-            Py_DECREF(result);
-        }
-    }
-
-    free(ptr);
-}
-
 int
 main(int argc, char** argv)
 {

@@ -65,9 +65,6 @@
    formula if more testing shows us to be too inaccurate.
  */
 
-// Forward declaration
-PyObject*
-memalloc_sample_to_tuple(traceback_t* tb, bool is_live);
 
 class heap_tracker_t
 {
@@ -286,13 +283,7 @@ heap_tracker_t::export_heap()
      * tracked in allocs_m which are freed will be added to a list to be removed when
      * the profiler is thawed. */
 
-    = PyObject* heap_list = PyList_New(0);
-    if (heap_list == nullptr) {
-        thaw();
-        return nullptr;
-    }
-
-    /* Iterate over live samples using the iterator API */
+    /* Iterate over live samples and mark them as reported */
     for (const auto& pair : allocs_m) {
         traceback_t* tb = pair.second;
 
@@ -305,7 +296,8 @@ heap_tracker_t::export_heap()
 
     thaw();
 
-    return heap_list;
+    /* Return empty list - samples are exported to pprof via Python snapshot() method */
+    return PyList_New(0);
 }
 
 // Static member definition
@@ -414,36 +406,6 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
     if (to_free) {
         delete to_free;
     }
-}
-
-PyObject*
-memalloc_sample_to_tuple(traceback_t* tb, bool is_live)
-{
-    PyObject* tb_and_info = PyTuple_New(4);
-    if (tb_and_info == nullptr) {
-        return nullptr;
-    }
-
-    size_t in_use_size;
-    size_t alloc_size;
-
-    if (is_live) {
-        /* alloc_size tracks new allocations since the last heap snapshot. Once
-         * we report it (tb->reported == true), we set the value to 0 to avoid
-         * double-counting allocations across multiple snapshots. */
-        in_use_size = tb->size;
-        alloc_size = tb->reported ? 0 : tb->size;
-    } else {
-        in_use_size = 0;
-        alloc_size = tb->size;
-    }
-
-    PyTuple_SET_ITEM(tb_and_info, 0, tb->to_tuple());
-    PyTuple_SET_ITEM(tb_and_info, 1, PyLong_FromSize_t(in_use_size));
-    PyTuple_SET_ITEM(tb_and_info, 2, PyLong_FromSize_t(alloc_size));
-    PyTuple_SET_ITEM(tb_and_info, 3, PyLong_FromSize_t(tb->count));
-
-    return tb_and_info;
 }
 
 PyObject*

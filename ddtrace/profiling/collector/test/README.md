@@ -54,7 +54,6 @@ The tests cover:
 - **remove()**: Removing entries and handling non-existent keys
 - **Iterator operations**: begin(), end(), iteration, post-increment
 - **destructive_copy_from()**: Copying between maps and clearing source
-- **export_to_python()**: Basic Python export functionality
 
 ## Notes
 

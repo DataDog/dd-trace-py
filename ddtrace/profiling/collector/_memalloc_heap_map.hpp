@@ -50,8 +50,6 @@ class memalloc_heap_map
      * Returns nullptr if the allocation wasn't found */
     traceback_t* remove(void* key);
 
-    PyObject* export_to_python() const;
-
     /* Copy the contents of src into this map, removing the items from src */
     void destructive_copy_from(memalloc_heap_map& src);
 

@@ -211,36 +211,6 @@ push_threadinfo_to_sample(Datadog::Sample& sample, unsigned long thread_id)
     sample.push_threadinfo(thread_id, thread_native_id, thread_name);
 }
 
-frame_t::frame_t(PyFrameObject* pyframe)
-{
-    int lineno_val = PyFrame_GetLineNumber(pyframe);
-    if (lineno_val < 0)
-        lineno_val = 0;
-
-    lineno = (unsigned int)lineno_val;
-
-#ifdef _PY39_AND_LATER
-    PyCodeObject* code = PyFrame_GetCode(pyframe);
-#else
-    PyCodeObject* code = pyframe->f_code;
-#endif
-
-    if (code == NULL) {
-        name = unknown_name;
-        filename = unknown_name;
-    } else {
-        name = code->co_name ? code->co_name : unknown_name;
-        filename = code->co_filename ? code->co_filename : unknown_name;
-    }
-
-    Py_INCREF(name);
-    Py_INCREF(filename);
-
-#ifdef _PY39_AND_LATER
-    Py_XDECREF(code);
-#endif
-}
-
 traceback_t::traceback_t(void* ptr,
                          size_t size,
                          PyMemAllocatorDomain domain,
@@ -284,13 +254,8 @@ traceback_t::traceback_t(void* ptr,
     // Note: Sample.push_frame() comment says it "Assumes frames are pushed in leaf-order",
     // but we push root-to-leaf. Set reverse_locations so the sample will be reversed when exported.
     sample.set_reverse_locations(true);
-    size_t total_nframe = 0;
     for (PyFrameObject* frame = pyframe; frame != NULL;) {
-        if (frames.size() < max_nframe) {
-            frames.emplace_back(frame);
-        }
         // TODO(dsn): add a truncated frame to the traceback if we exceed the max_nframe
-        total_nframe++;
 
         // Extract frame info for Sample
         int lineno_val = PyFrame_GetLineNumber(frame);
@@ -359,18 +324,10 @@ traceback_t::traceback_t(void* ptr,
 #endif
         memalloc_debug_gil_release();
     }
-
-    // Shrink to actual size to save memory
-    frames.shrink_to_fit();
 }
 
 traceback_t::~traceback_t()
 {
-    // Clean up Python references in frames
-    for (const frame_t& frame : frames) {
-        Py_DECREF(frame.filename);
-        Py_DECREF(frame.name);
-    }
     // Sample object is a member variable and will be automatically destroyed
     // No explicit cleanup needed - its destructor will handle internal cleanup
 }
@@ -397,45 +354,4 @@ traceback_t::get_traceback(uint16_t max_nframe,
         return NULL;
 
     return new traceback_t(ptr, size, domain, weighted_size, pyframe, max_nframe);
-}
-
-PyObject*
-traceback_t::to_tuple() const
-{
-    /* Convert stack into a tuple of tuple */
-    PyObject* stack = PyTuple_New(frames.size());
-
-    for (size_t nframe = 0; nframe < frames.size(); nframe++) {
-        PyObject* frame_tuple = PyTuple_New(4);
-
-        const frame_t& frame = frames[nframe];
-
-        Py_INCREF(frame.filename);
-        PyTuple_SET_ITEM(frame_tuple, 0, frame.filename);
-        PyTuple_SET_ITEM(frame_tuple, 1, PyLong_FromUnsignedLong(frame.lineno));
-        Py_INCREF(frame.name);
-        PyTuple_SET_ITEM(frame_tuple, 2, frame.name);
-        /* Class name */
-        Py_INCREF(empty_string);
-        PyTuple_SET_ITEM(frame_tuple, 3, empty_string);
-
-        // Try to set the class.  If we cannot (e.g., if the sofile is reloaded
-        // without module initialization), then this will result in an error if
-        // the underlying object is used via attributes
-        if (ddframe_class) {
-#if PY_VERSION_HEX >= 0x03090000
-            Py_SET_TYPE(frame_tuple, (PyTypeObject*)ddframe_class);
-#else
-            Py_TYPE(frame_tuple) = (PyTypeObject*)ddframe_class;
-#endif
-            Py_INCREF(ddframe_class);
-        }
-
-        PyTuple_SET_ITEM(stack, nframe, frame_tuple);
-    }
-
-    PyObject* tuple = PyTuple_New(2);
-    PyTuple_SET_ITEM(tuple, 0, stack);
-    PyTuple_SET_ITEM(tuple, 1, PyLong_FromUnsignedLong(thread_id));
-    return tuple;
 }
