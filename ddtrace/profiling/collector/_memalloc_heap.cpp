@@ -68,6 +68,7 @@
 class heap_tracker_t
 {
   public:
+    /* Constructor - does not make any C Python API calls */
     heap_tracker_t(uint32_t sample_size_val);
     ~heap_tracker_t();
 
@@ -220,7 +221,7 @@ heap_tracker_t* heap_tracker_t::instance = nullptr;
 /* Public API */
 
 bool
-memalloc_heap_tracker_init(uint32_t sample_size)
+memalloc_heap_tracker_init_no_cpython(uint32_t sample_size)
 {
     // TODO(dsn): what should we do it this was already initialized?
     if (!heap_tracker_t::instance) {
@@ -231,7 +232,7 @@ memalloc_heap_tracker_init(uint32_t sample_size)
 }
 
 void
-memalloc_heap_tracker_deinit(void)
+memalloc_heap_tracker_deinit_no_cpython(void)
 {
     // Delete the instance and set to nullptr. We set to nullptr first so that
     // if the destructor releases the GIL, we can use nullptr as a sentinel.
@@ -241,7 +242,7 @@ memalloc_heap_tracker_deinit(void)
 }
 
 void
-memalloc_heap_untrack(void* ptr)
+memalloc_heap_untrack_no_cpython(void* ptr)
 {
     if (heap_tracker_t::instance) {
         heap_tracker_t::instance->untrack_no_cpython(ptr);
@@ -315,7 +316,7 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
 }
 
 void
-memalloc_heap(void)
+memalloc_heap_no_cpython(void)
 {
     if (heap_tracker_t::instance) {
         heap_tracker_t::instance->export_heap_no_cpython();

@@ -43,7 +43,7 @@ memalloc_free(void* ctx, void* ptr)
     if (ptr == NULL)
         return;
 
-    memalloc_heap_untrack(ptr);
+    memalloc_heap_untrack_no_cpython(ptr);
 
     alloc->free(alloc->ctx, ptr);
 }
@@ -85,7 +85,7 @@ memalloc_realloc(void* ctx, void* ptr, size_t new_size)
     void* ptr2 = memalloc_ctx->pymem_allocator_obj.realloc(memalloc_ctx->pymem_allocator_obj.ctx, ptr, new_size);
 
     if (ptr2) {
-        memalloc_heap_untrack(ptr);
+        memalloc_heap_untrack_no_cpython(ptr);
         memalloc_heap_track(memalloc_ctx->max_nframe, ptr2, new_size, memalloc_ctx->domain);
     }
 
@@ -152,7 +152,7 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
         PyUnicode_InternInPlace(&object_string);
     }
 
-    if (!memalloc_heap_tracker_init((uint32_t)heap_sample_size))
+    if (!memalloc_heap_tracker_init_no_cpython((uint32_t)heap_sample_size))
         return NULL;
 
     PyMemAllocatorEx alloc;
@@ -195,7 +195,7 @@ memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
      * or memalloc_heap. The higher-level collector deals with this. */
     PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &global_memalloc_ctx.pymem_allocator_obj);
 
-    memalloc_heap_tracker_deinit();
+    memalloc_heap_tracker_deinit_no_cpython();
 
     /* Finally, we know in-progress sampling won't use the buffer pool, so clear it out */
     traceback_t::deinit();
@@ -209,7 +209,7 @@ PyDoc_STRVAR(memalloc_heap_py__doc__,
              "heap($module, /)\n"
              "--\n"
              "\n"
-             "Get the sampled heap representation.\n");
+             "Export sampled heap allocations to the pprof profile.\n");
 static PyObject*
 memalloc_heap_py(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
 {
@@ -218,7 +218,7 @@ memalloc_heap_py(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
         return NULL;
     }
 
-    memalloc_heap();
+    memalloc_heap_no_cpython();
     Py_RETURN_NONE;
 }
 
