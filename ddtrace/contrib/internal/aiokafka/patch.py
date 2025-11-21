@@ -1,5 +1,4 @@
 import os
-from re import A
 from time import time_ns
 from typing import Dict
 
@@ -171,6 +170,7 @@ async def traced_commit(func, instance, args, kwargs):
     core.dispatch("aiokafka.commit.end", (instance, args, kwargs))
     return result
 
+
 def patch():
     if getattr(aiokafka, "_datadog_patch", False):
         return
@@ -186,11 +186,9 @@ def unpatch():
     if not getattr(aiokafka, "_datadog_patch", False):
         return
 
-    from aiokafka.consumer import group_coordinator
-
     aiokafka._datadog_patch = False
 
     _u(aiokafka.AIOKafkaProducer, "send")
     _u(aiokafka.AIOKafkaConsumer, "getone")
     _u(aiokafka.AIOKafkaConsumer, "getmany")
-    _u(group_coordinator.GroupCoordinator, "commit_offsets")
+    _u(aiokafka.consumer.group_coordinator.GroupCoordinator, "commit_offsets")
