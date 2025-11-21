@@ -165,14 +165,14 @@ def calculate_dynamic_parallelism(suite_name: str, suite_config: dict) -> t.Opti
         LOGGER.warning("Invalid pattern for suite %s: %s", suite_name, pattern)
         return None
 
-    venv_count = sum(
-        (
-            1  # type: ignore[misc]
-            for inst in riotfile.venv.instances()  # type: ignore[attr-defined]
-            if inst.name and inst.matches_pattern(pattern_regex)
-        ),
-        0,
-    )
+    # Collect unique venv hashes by matching pattern (mimics riot's --hash-only logic)
+    venv_hashes = set()
+    for inst in riotfile.venv.instances():  # type: ignore[attr-defined]
+        if not inst.name or not inst.matches_pattern(pattern_regex):  # type: ignore[attr-defined]
+            continue
+        venv_hashes.add(inst.short_hash)  # type: ignore[attr-defined]
+
+    venv_count = len(venv_hashes)
 
     if venv_count == 0:
         LOGGER.warning("No riot venvs found for suite %s with pattern %s", suite_name, pattern)
