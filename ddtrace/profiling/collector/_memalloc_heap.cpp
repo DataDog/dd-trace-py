@@ -127,8 +127,6 @@ class heap_tracker_t
     /* Contains the ongoing heap allocation/deallocation while frozen */
     memalloc_heap_map freezer_allocs_m;
     std::vector<void*> freezer_frees;
-    /* List of freed samples that haven't been reported yet */
-    std::vector<traceback_t*> unreported_samples;
 
     /* Debug guard to assert that GIL-protected critical sections are maintained
      * while accessing the profiler's state */
@@ -288,48 +286,22 @@ heap_tracker_t::export_heap()
      * tracked in allocs_m which are freed will be added to a list to be removed when
      * the profiler is thawed. */
 
-    /* Calculate total number of samples: live + freed */
-    size_t live_count = allocs_m.size();
-    size_t freed_count = unreported_samples.size();
-    size_t total_count = live_count + freed_count;
-
-    PyObject* heap_list = PyList_New(total_count);
+    = PyObject* heap_list = PyList_New(0);
     if (heap_list == nullptr) {
         thaw();
         return nullptr;
     }
 
-    int list_index = 0;
-
-    /* First, iterate over live samples using the iterator API */
+    /* Iterate over live samples using the iterator API */
     for (const auto& pair : allocs_m) {
         traceback_t* tb = pair.second;
 
-        PyObject* tb_and_info = memalloc_sample_to_tuple(tb, true);
-
-        PyList_SET_ITEM(heap_list, list_index, tb_and_info);
-        list_index++;
-
-        /* Mark as reported */
+        if (tb->reported) {
+            tb->sample.reset_alloc();
+        }
+        tb->sample.export_sample();
         tb->reported = true;
     }
-
-    /* Second, iterate over freed samples from unreported_samples */
-    for (traceback_t* tb : unreported_samples) {
-        PyObject* tb_and_info = memalloc_sample_to_tuple(tb, false);
-
-        PyList_SET_ITEM(heap_list, list_index, tb_and_info);
-        list_index++;
-    }
-
-    /* Free all tracebacks in unreported_samples after reporting them */
-    for (traceback_t* tb : unreported_samples) {
-        if (tb != nullptr) {
-            delete tb;
-        }
-    }
-    /* Clear the vector so we can reuse the memory */
-    unreported_samples.clear();
 
     thaw();
 
