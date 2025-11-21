@@ -74,10 +74,11 @@ class AIGuardClientError(Exception):
 class AIGuardAbortError(Exception):
     """Exception to abort current execution due to security policy."""
 
-    def __init__(self, action: str, reason: str):
+    def __init__(self, action: str, reason: str, tags: Optional[List[str]] = None):
         self.action = action
         self.reason = reason
-        super().__init__(f"AIGuardAbortError(action='{action}', reason='{reason}')")
+        self.tags = tags
+        super().__init__(f"AIGuardAbortError(action='{action}', reason='{reason}', tags='{tags}')")
 
 
 class AIGuardClient:
@@ -264,7 +265,7 @@ class AIGuardClient:
 
                 if should_block:
                     span.set_tag(AI_GUARD.BLOCKED_TAG, "true")
-                    raise AIGuardAbortError(action=action, reason=reason)
+                    raise AIGuardAbortError(action=action, reason=reason, tags=tags)
 
                 return Evaluation(action=action, reason=reason)
 

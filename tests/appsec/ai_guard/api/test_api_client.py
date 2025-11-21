@@ -104,6 +104,7 @@ def test_evaluate_method(
             ai_guard_client.evaluate(messages, Options(block=blocking))
         assert exc_info.value.action == action
         assert exc_info.value.reason == reason
+        assert exc_info.value.tags == tags
     else:
         result = ai_guard_client.evaluate(messages, Options(block=blocking))
         assert result["action"] == action
