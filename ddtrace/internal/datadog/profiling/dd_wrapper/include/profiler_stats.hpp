@@ -3,7 +3,6 @@
 #include <cstddef>
 
 #include <string>
-#include <string_view>
 
 namespace Datadog {
 
@@ -17,8 +16,6 @@ a mutex to protect access to the data.
 class ProfilerStats
 {
   private:
-    std::string internal_metadata_json;
-
     // Number of samples collected (one per thread)
     size_t sample_count = 0;
 
@@ -37,9 +34,7 @@ class ProfilerStats
 
     // Returns a JSON string containing relevant Profiler Stats to be included
     // in the libdatadog payload.
-    // The function returned a string_view to a statically allocated string that
-    // is updated every time the function is called.
-    std::string_view get_internal_metadata_json();
+    std::string get_internal_metadata_json();
 
     void reset_state();
 };

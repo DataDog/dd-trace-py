@@ -289,6 +289,8 @@ class DataStreamsProcessor(PeriodicService):
             raw_payload["Env"] = compat.ensure_text(config.env)
         if config.version:
             raw_payload["Version"] = compat.ensure_text(config.version)
+        if p_tags := process_tags.process_tags:
+            raw_payload["ProcessTags"] = compat.ensure_text(p_tags)
 
         payload = packb(raw_payload)
         compressed = gzip_compress(payload)

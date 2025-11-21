@@ -60,10 +60,6 @@ def _is_identifier(name: str) -> bool:
     return isinstance(name, str) and name.isidentifier()
 
 
-IN_OPERATOR_INSTR = Instr("COMPARE_OP", Compare.IN) if PY < (3, 9) else Instr("CONTAINS_OP", 0)
-NOT_IN_OPERATOR_INSTR = Instr("COMPARE_OP", Compare.NOT_IN) if PY < (3, 9) else Instr("CONTAINS_OP", 1)
-
-
 def short_circuit_instrs(op: str, label: Label) -> List[Instr]:
     value = "FALSE" if op == "and" else "TRUE"
     if PY >= (3, 13):
@@ -156,7 +152,7 @@ class DDCompiler:
 
         if _type == "isDefined":
             value.append(Instr("LOAD_FAST", "_locals"))
-            value.append(IN_OPERATOR_INSTR)
+            value.append(Instr("CONTAINS_OP", 0))
         else:
             if PY >= (3, 13):
                 # UNARY_NOT requires a boolean value
@@ -201,7 +197,7 @@ class DDCompiler:
                 raise ValueError("Invalid argument: %r" % a)
             if cb is None:
                 raise ValueError("Invalid argument: %r" % b)
-            return cb + ca + [IN_OPERATOR_INSTR]
+            return cb + ca + [Instr("CONTAINS_OP", 0)]
 
         if _type in {"any", "all"}:
             a, b = args
