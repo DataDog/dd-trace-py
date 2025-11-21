@@ -1240,6 +1240,7 @@ def _on_asgi_request(ctx: core.ExecutionContext) -> None:
 
 
 def _on_aiokafka_send_start(
+    _topic: str,
     send_value: Optional[bytes],
     send_key: Optional[bytes],
     headers: List[Tuple[str, bytes]],
@@ -1269,6 +1270,7 @@ def _on_aiokafka_send_complete(
 
 
 def _on_aiokafka_getone_message(
+    _instance: Any,
     ctx: core.ExecutionContext,
     start_ns: int,
     message: Optional[Any],
@@ -1298,6 +1300,7 @@ def _on_aiokafka_getone_message(
 
 
 def _on_aiokafka_getmany_message(
+    _instance: Any,
     ctx: core.ExecutionContext,
     messages: Optional[Dict[Any, List[Any]]],
 ) -> None:
