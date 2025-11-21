@@ -36,7 +36,10 @@ if __name__ == "__main__":
         # Enabled by env var but then disabled with ``tracer.configure``
         assert not asm_config._iast_enabled
         # Module was loaded before
-        assert "ddtrace.appsec._iast.processor" in sys.modules
+        if sys.version_info[:2] < (3, 14):
+            assert "ddtrace.appsec._iast.processor" in sys.modules
+        else:
+            assert "ddtrace.appsec._iast.processor" not in sys.modules
         # But processor is not used by the tracer
         for i in tracer._span_processors:
             assert i.__class__.__name__ != "AppSecIastSpanProcessor"
