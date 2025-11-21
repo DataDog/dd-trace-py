@@ -206,6 +206,7 @@ suites:
       - tests/internal/*
       - tests/submod/*
       - tests/cache/*
+      - tests/snapshots/tests.internal.*
     runner: riot
     snapshot: true
   lib_injection:
@@ -253,7 +254,7 @@ suites:
       DD_TRACE_AGENT_URL: http://localhost:8126
       KUBERNETES_MEMORY_REQUEST: "4Gi"
       KUBERNETES_MEMORY_LIMIT: "4Gi"
-    parallelism: 9
+    parallelism: 14
     paths:
       - '@tracing'
       - '@bootstrap'

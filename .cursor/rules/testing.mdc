@@ -15,10 +15,10 @@ Always use the **`run-tests` skill** for validating code changes. This skill int
 ## Key Principles
 
 1. **Always use the run-tests skill** when testing code changes - it's optimized for intelligent suite discovery
-2. **Never run pytest directly** - bypasses the project's test infrastructure
-3. **Never use `hatch run tests:test`** - doesn't use the suite discovery system
-4. **Minimal venvs for iteration** - run 1-2 venvs initially, expand only if needed
-5. **Use `--dry-run` first** - see what would run before executing
+2. **Never run pytest directly** - bypasses the project's test infrastructure (use `scripts/run-tests` or `riot` via `scripts/ddtest`)
+3. **Minimal venvs for iteration** - run 1-2 venvs initially, expand only if needed
+4. **Use `--dry-run` first** - see what would run before executing
+5. **Follow official docs** - `docs/contributing-testing.rst` is the source of truth for testing procedures
 
 ## When Tests Fail
 
