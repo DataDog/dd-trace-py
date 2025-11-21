@@ -18,6 +18,8 @@
 #include <echion/errors.h>
 #include <echion/vm.h>
 
+const constexpr size_t MAX_CHUNK_SIZE = 256 * 1024; // 256KB
+
 // ----------------------------------------------------------------------------
 class StackChunk
 {
@@ -42,6 +44,13 @@ StackChunk::update(_PyStackChunk* chunk_addr)
     _PyStackChunk chunk;
 
     if (copy_type(chunk_addr, chunk)) {
+        return ErrorKind::StackChunkError;
+    }
+
+    // It's possible that the memory we read is corrupted/not valid anymore and the
+    // chunk.size is not meaningful. Weed out those cases here to make sure we don't
+    // try to allocate absurd amounts of memory.
+    if (chunk.size > MAX_CHUNK_SIZE) {
         return ErrorKind::StackChunkError;
     }
 
