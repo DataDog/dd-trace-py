@@ -33,7 +33,6 @@ class UploaderProduct(str, Enum):
     DEBUGGER = "dynamic_instrumentation"
     EXCEPTION_REPLAY = "exception_replay"
     CODE_ORIGIN_SPAN_ENTRY = "code_origin.span.entry"
-    CODE_ORIGIN_SPAN_EXIT = "code_origin.span.exit"
 
 
 @dataclass
