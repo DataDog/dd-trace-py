@@ -2,6 +2,7 @@
 CAVEAT: the line number is important to some IAST tests, be careful to modify this file and update the tests if you
 make some changes
 """
+
 import _io
 import asyncio
 import os
@@ -13,13 +14,18 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 def propagation_no_path(origin_string):
-    from Crypto.Cipher import AES
+    from cryptography.hazmat.primitives.ciphers import Cipher
+    from cryptography.hazmat.primitives.ciphers.algorithms import AES
+    from cryptography.hazmat.primitives.ciphers.modes import CBC
 
     key = b"Sixteen byte key"
+    iv = b"SixteenByteIVvvv"
     data = b"abcdefgh"
-    crypt_obj = AES.new(key, AES.MODE_EAX)
+    algorithm = AES(key)
+    cipher = Cipher(algorithm, mode=CBC(iv))
+    encryptor = cipher.encryptor()
     # label propagation_no_path
-    result = crypt_obj.encrypt(data)
+    result = encryptor.update(data)
     return result
 
 

@@ -50,14 +50,17 @@ def _set_span_tags(
 @contextmanager
 def _instrument_valkey_cmd(pin, config_integration, instance, args):
     query = stringify_cache_args(args, cmd_max_len=config_integration.cmd_max_length)
-    with core.context_with_data(
-        "valkey.command",
-        span_name=schematize_cache_operation(valkeyx.CMD, cache_provider=valkeyx.APP),
-        pin=pin,
-        service=trace_utils.ext_service(pin, config_integration),
-        span_type=SpanTypes.VALKEY,
-        resource=query.split(" ")[0] if config_integration.resource_only_command else query,
-    ) as ctx, ctx.span as span:
+    with (
+        core.context_with_data(
+            "valkey.command",
+            span_name=schematize_cache_operation(valkeyx.CMD, cache_provider=valkeyx.APP),
+            pin=pin,
+            service=trace_utils.ext_service(pin, config_integration),
+            span_type=SpanTypes.VALKEY,
+            resource=query.split(" ")[0] if config_integration.resource_only_command else query,
+        ) as ctx,
+        ctx.span as span,
+    ):
         _set_span_tags(span, pin, config_integration, args, instance, query)
         yield ctx
 

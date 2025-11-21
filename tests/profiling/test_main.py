@@ -22,9 +22,8 @@ def test_call_script(monkeypatch):
         assert exitcode == 0, (stdout, stderr)
     else:
         assert exitcode == 42, (stdout, stderr)
-    hello, interval, _ = list(s.strip() for s in cast(bytes, stdout).decode().strip().split("\n"))
-    assert hello == "hello world", cast(bytes, stdout).decode().strip()
-    assert float(interval) >= 0.01, cast(bytes, stdout).decode().strip()
+    hello, pid = list(s.strip() for s in cast(bytes, stdout).decode().strip().split("\n"))
+    assert hello == "hello world", stdout.decode().strip()
 
 
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT", False), reason="Not testing gevent")
@@ -52,7 +51,7 @@ def test_call_script_pprof_output(tmp_path, monkeypatch):
         assert exitcode == 0, (stdout, stderr)
     else:
         assert exitcode == 42, (stdout, stderr)
-    hello, interval, pid = list(s.strip() for s in cast(bytes, stdout).decode().strip().split("\n"))
+    hello, pid = list(s.strip() for s in cast(bytes, stdout).decode().strip().split("\n"))
     utils.check_pprof_file(filename + "." + str(pid))
 
 

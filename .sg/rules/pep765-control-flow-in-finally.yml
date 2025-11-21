@@ -1,6 +1,6 @@
 id: pep765-control-flow-in-finally
 message: Control flow statement in finally block (PEP 765)
-severity: warning
+severity: error
 language: python
 rule:
   any:
