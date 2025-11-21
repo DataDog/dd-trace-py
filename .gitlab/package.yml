@@ -6,6 +6,8 @@ compute_library_version:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
   script: |
+    set -eo pipefail
+
     if [ -z ${GH_TOKEN} ]
     then
       # Use dd-octo-sts to get GitHub token
