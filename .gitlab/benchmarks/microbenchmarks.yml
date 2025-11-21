@@ -30,6 +30,7 @@ variables:
       git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     fi
     git clone --branch "${BENCHMARKING_BRANCH}" https://github.com/DataDog/benchmarking-platform /platform
+    git reset --hard e7bbac96e1ae9bfb5f8906dcdf103b08f5ca0805
     export PATH="$PATH:/platform/steps"
 
     capture-hardware-software-info.sh
