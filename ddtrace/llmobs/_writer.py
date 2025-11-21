@@ -639,6 +639,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         exp_config: Optional[Dict[str, JSONType]] = None,
         tags: Optional[List[str]] = None,
         description: Optional[str] = None,
+        runs: Optional[int] = 1,
     ) -> Tuple[str, str]:
         path = "/api/unstable/llm-obs/v1/experiments"
         resp = self.request(
@@ -656,6 +657,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                         "config": exp_config or {},
                         "metadata": {"tags": cast(JSONType, tags or [])},
                         "ensure_unique": True,
+                        "run_count": runs,
                     },
                 }
             },

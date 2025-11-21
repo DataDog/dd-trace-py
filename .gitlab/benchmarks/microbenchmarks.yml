@@ -159,7 +159,9 @@ microbenchmarks:
         - "appsec_iast_aspects_split"
         # Flaky timeouts on starting up
         # - "appsec_iast_django_startup"
-        - "appsec_iast_propagation"
+        # TOOD: Re-enable when this issue is resolved:
+        #   AttributeError: 'OverheadControl' object has no attribute 'release_request'
+        # - "appsec_iast_propagation"
         - "errortracking_django_simple"
         # They take a long time to run and frequently time out
         # TODO: Make benchmarks faster, or run less frequently, or as macrobenchmarks
