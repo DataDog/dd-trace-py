@@ -584,8 +584,10 @@ def _openai_parse_input_response_messages(
 
                     item_type = content.get("type", None)
                     if item_type == "input_image":
+                        # Images can be referenced via image_url or file_id
                         image_url = content.get("image_url", None)
-                        processed_item_content += image_url if image_url else "[image]"
+                        file_id = content.get("file_id", None)
+                        processed_item_content += image_url if image_url else (file_id if file_id else "[image]")
                     elif item_type == "input_file":
                         file_ref = (
                             content.get("file_id", None)
@@ -840,7 +842,8 @@ def _extract_chat_template_from_instructions(
     value_to_placeholder = {}
     for var_name, var_value in variables.items():
         value_str = str(var_value) if var_value else ""
-        if value_str:
+        # Exclude fallback markers ([image], [file]) as they represent missing data
+        if value_str and value_str not in ("[image]", "[file]"):
             value_to_placeholder[value_str] = f"{{{{{var_name}}}}}"
 
     # Sort by length (longest first) to handle overlapping values correctly
@@ -868,8 +871,10 @@ def _extract_chat_template_from_instructions(
             # OpenAI usually includes file_id/file_url but may omit image_url for security
             item_type = _get_attr(content_item, "type", None)
             if item_type == "input_image":
+                # Images can be referenced via image_url or file_id
                 image_url = _get_attr(content_item, "image_url", None)
-                text_parts.append(str(image_url) if image_url else "[image]")
+                file_id = _get_attr(content_item, "file_id", None)
+                text_parts.append(str(image_url) if image_url else (str(file_id) if file_id else "[image]"))
             elif item_type == "input_file":
                 file_ref = (
                     _get_attr(content_item, "file_id", None)

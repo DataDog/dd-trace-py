@@ -2348,15 +2348,20 @@ MUL: "*"
             client.responses.create(
                 prompt={
                     "id": "pmpt_69201db75c4c81959c01ea6987ab023c070192cd2843dec0",
-                    "version": "1",
+                    "version": "2",
                     "variables": {
-                        "user_message": ResponseInputText(type="input_text", text="Analyze this image and document"),
-                        "user_image": ResponseInputImage(
+                        "user_message": ResponseInputText(type="input_text", text="Analyze these images and document"),
+                        "user_image_1": ResponseInputImage(
                             type="input_image",
-                            image_url="https://imgix.datadoghq.com/img/about/presskit/logo-v/dd_vertical_white.png",
+                            image_url="https://raw.githubusercontent.com/github/explore/main/topics/python/python.png",
                             detail="auto",
                         ),
                         "user_file": ResponseInputFile(type="input_file", file_id="file-LXG16g7US1sG6MQM7KQY1i"),
+                        "user_image_2": ResponseInputImage(
+                            type="input_image",
+                            file_id="file-BCuhT1HQ24kmtsuuzF1mh2",
+                            detail="auto",
+                        ),
                     },
                 }
             )
@@ -2366,21 +2371,22 @@ MUL: "*"
         self._assert_prompt_tracking(
             span_event=mock_llmobs_writer.enqueue.call_args[0][0],
             prompt_id="pmpt_69201db75c4c81959c01ea6987ab023c070192cd2843dec0",
-            prompt_version="1",
+            prompt_version="2",
             variables={
-                "user_message": "Analyze this image and document",
-                "user_image": "https://imgix.datadoghq.com/img/about/presskit/logo-v/dd_vertical_white.png",
+                "user_message": "Analyze these images and document",
+                "user_image_1": "https://raw.githubusercontent.com/github/explore/main/topics/python/python.png",
                 "user_file": "file-LXG16g7US1sG6MQM7KQY1i",
+                "user_image_2": "file-BCuhT1HQ24kmtsuuzF1mh2",
             },
             expected_chat_template=[
                 {
                     "role": "user",
-                    # OpenAI strips image_url for security, so we get [image] marker
                     "content": (
                         "Analyze the following content from the user:\n\n"
                         "Text message: {{user_message}}\n"
-                        "Image reference: [image]\n"
-                        "Document reference: {{user_file}}\n\n"
+                        "Image reference 1: [image]\n"
+                        "Document reference: {{user_file}}\n"
+                        "Image reference 2: {{user_image_2}}\n\n"
                         "Please provide a comprehensive analysis."
                     ),
                 }
@@ -2388,12 +2394,97 @@ MUL: "*"
             expected_messages=[
                 {
                     "role": "user",
-                    # OpenAI strips image_url from response.instructions, so we get [image] marker
                     "content": (
                         "Analyze the following content from the user:\n\n"
-                        "Text message: Analyze this image and document\n"
-                        "Image reference: [image]\n"
-                        "Document reference: file-LXG16g7US1sG6MQM7KQY1i\n\n"
+                        "Text message: Analyze these images and document\n"
+                        "Image reference 1: [image]\n"
+                        "Document reference: file-LXG16g7US1sG6MQM7KQY1i\n"
+                        "Image reference 2: file-BCuhT1HQ24kmtsuuzF1mh2\n\n"
+                        "Please provide a comprehensive analysis."
+                    ),
+                }
+            ],
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 87),
+        reason="Reusable prompts only available in openai >= 1.87",
+    )
+    def test_response_with_file_url_and_filename_prompt_tracking(self, openai, mock_llmobs_writer, mock_tracer):
+        """Test that file_url, filename, and file_data are correctly normalized and tracked."""
+        from openai.types.responses import ResponseInputFile
+        from openai.types.responses import ResponseInputText
+
+        # Using different file_urls to test proper variable replacement
+        file_url_1 = "https://www.berkshirehathaway.com/letters/2024ltr.pdf"
+        file_url_2 = "https://www.berkshirehathaway.com/letters/2023ltr.pdf"
+        # fmt: off
+        dummy_pdf_base64 = (
+            "data:application/pdf;base64,JVBERi0xLjQKMSAwIG9iago8PC9UeXBlIC9DYXRhbG9nCi9QYWdlcyAyIDAgUgo+PgplbmRvYmoK"
+            "MiAwIG9iago8PC9UeXBlIC9QYWdlcwovS2lkcyBbMyAwIFJdCi9Db3VudCAxCj4+CmVuZG9iagozIDAgb2JqCjw8L1R5cGUgL1BhZ2UK"
+            "L1BhcmVudCAyIDAgUgovTWVkaWFCb3ggWzAgMCA1OTUgODQyXQovQ29udGVudHMgNSAwIFIKL1Jlc291cmNlcyA8PC9Qcm9jU2V0IFsv"
+            "UERGIC9UZXh0XQovRm9udCA8PC9GMSA0IDAgUj4+Cj4+Cj4+CmVuZG9iago0IDAgb2JqCjw8L1R5cGUgL0ZvbnQKL1N1YnR5cGUgL1R5"
+            "cGUxCi9OYW1lIC9GMQovQmFzZUZvbnQgL0hlbHZldGljYQovRW5jb2RpbmcgL01hY1JvbWFuRW5jb2RpbmcKPj4KZW5kb2JqCjUgMCBv"
+            "YmoKPDwvTGVuZ3RoIDUzCj4+CnN0cmVhbQpCVAovRjEgMjAgVGYKMjIwIDQwMCBUZAooRHVtbXkgUERGKSBUagpFVAplbmRzdHJlYW0K"
+            "ZW5kb2JqCnhyZWYKMCA2CjAwMDAwMDAwMDAgNjU1MzUgZgowMDAwMDAwMDA5IDAwMDAwIG4KMDAwMDAwMDA2MyAwMDAwMCBuCjAwMDAw"
+            "MDAxMjQgMDAwMDAgbgowMDAwMDAwMjc3IDAwMDAwIG4KMDAwMDAwMDM5MiAwMDAwMCBuCnRyYWlsZXIKPDwvU2l6ZSA2Ci9Sb290IDAg"
+            "MSBSCT4+CnN0YXJ0eHJlZgo0OTUKJSVFT0YK"
+        )
+        # fmt: on
+
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("response_with_file_inputs.yaml"):
+            client = openai.OpenAI()
+            client.responses.create(
+                prompt={
+                    "id": "pmpt_69201db75c4c81959c01ea6987ab023c070192cd2843dec0",
+                    "version": "2",
+                    "variables": {
+                        "user_message": ResponseInputText(type="input_text", text="Analyze these documents"),
+                        "user_image_1": ResponseInputFile(
+                            type="input_file",
+                            filename="dummy.pdf",
+                            file_data=dummy_pdf_base64,
+                        ),
+                        "user_file": ResponseInputFile(type="input_file", file_url=file_url_1),
+                        "user_image_2": ResponseInputFile(type="input_file", file_url=file_url_2),
+                    },
+                }
+            )
+        mock_tracer.pop_traces()
+        assert mock_llmobs_writer.enqueue.call_count == 1
+
+        self._assert_prompt_tracking(
+            span_event=mock_llmobs_writer.enqueue.call_args[0][0],
+            prompt_id="pmpt_69201db75c4c81959c01ea6987ab023c070192cd2843dec0",
+            prompt_version="2",
+            variables={
+                "user_message": "Analyze these documents",
+                "user_image_1": "dummy.pdf",
+                "user_file": file_url_1,
+                "user_image_2": file_url_2,
+            },
+            expected_chat_template=[
+                {
+                    "role": "user",
+                    "content": (
+                        "Analyze the following content from the user:\n\n"
+                        "Text message: {{user_message}}\n"
+                        "Image reference 1: {{user_image_1}}\n"
+                        "Document reference: {{user_file}}\n"
+                        "Image reference 2: {{user_image_2}}\n\n"
+                        "Please provide a comprehensive analysis."
+                    ),
+                }
+            ],
+            expected_messages=[
+                {
+                    "role": "user",
+                    "content": (
+                        "Analyze the following content from the user:\n\n"
+                        "Text message: Analyze these documents\n"
+                        "Image reference 1: dummy.pdf\n"
+                        f"Document reference: {file_url_1}\n"
+                        f"Image reference 2: {file_url_2}\n\n"
                         "Please provide a comprehensive analysis."
                     ),
                 }
