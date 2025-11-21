@@ -106,65 +106,30 @@ class MemoryCollector:
         }
 
     def snapshot(self) -> Tuple[MemorySample, ...]:
-        thread_id_ignore_set = self._get_thread_id_ignore_set()
-
         try:
             if _memalloc is None:
                 raise ValueError("Memalloc is not initialized")
-            events = _memalloc.heap()
+            _memalloc.heap()  # Samples are exported directly to pprof, no return value needed
         except (RuntimeError, ValueError):
             # DEV: This can happen if either _memalloc has not been started or has been stopped.
             LOG.debug("Unable to collect heap events from process %d", os.getpid(), exc_info=True)
             return tuple()
 
-        for event in events:
-            (frames, thread_id), in_use_size, alloc_size, count = event
-
-            if not self.ignore_profiler or thread_id not in thread_id_ignore_set:
-                handle = ddup.SampleHandle()
-
-                if in_use_size > 0:
-                    handle.push_heap(in_use_size)
-                if alloc_size > 0:
-                    handle.push_alloc(alloc_size, count)
-
-                # Note: Thread info is already pushed by C++ code during traceback construction
-                # in _memalloc_tb.cpp::push_threadinfo_to_sample(). We don't need to push it again here.
-                # Calling _threading functions here can crash if Python state was corrupted by
-                # calling Python functions from C++ during allocation tracking.
-                try:
-                    for frame in frames:
-                        handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
-                    handle.flush_sample()
-                except AttributeError:
-                    # DEV: This might happen if the memalloc sofile is unlinked and relinked without module
-                    #      re-initialization.
-                    LOG.debug("Invalid state detected in memalloc module, suppressing profile")
-
+        # Note: events are now exported directly to pprof, so we return empty samples
         return tuple()
 
     def test_snapshot(self) -> Tuple[MemorySample, ...]:
-        thread_id_ignore_set = self._get_thread_id_ignore_set()
-
         try:
             if _memalloc is None:
                 raise ValueError("Memalloc is not initialized")
-            events = _memalloc.heap()
+            _memalloc.heap()  # Samples are exported directly to pprof, no return value needed
         except (RuntimeError, ValueError):
             # DEV: This can happen if either _memalloc has not been started or has been stopped.
             LOG.debug("Unable to collect heap events from process %d", os.getpid(), exc_info=True)
             return tuple()
 
-        samples: List[MemorySample] = []
-        for event in events:
-            (frames, thread_id), in_use_size, alloc_size, count = event
-
-            if not self.ignore_profiler or thread_id not in thread_id_ignore_set:
-                size = in_use_size if in_use_size > 0 else alloc_size
-
-                samples.append(MemorySample(frames, size, count, in_use_size, alloc_size, thread_id))
-
-        return tuple(samples)
+        # Note: events are now exported directly to pprof, so we return empty samples
+        return tuple()
 
     def snapshot_and_parse_pprof(self, output_filename: str) -> Any:
         """Export samples to profile, upload, and parse the pprof profile.

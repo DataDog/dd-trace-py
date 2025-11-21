@@ -218,7 +218,8 @@ memalloc_heap_py(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
         return NULL;
     }
 
-    return memalloc_heap();
+    memalloc_heap();
+    Py_RETURN_NONE;
 }
 
 static PyMethodDef module_methods[] = { { "start", (PyCFunction)memalloc_start, METH_VARARGS, memalloc_start__doc__ },

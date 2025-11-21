@@ -14,7 +14,7 @@ memalloc_heap_tracker_init(uint32_t sample_size);
 void
 memalloc_heap_tracker_deinit(void);
 
-PyObject*
+void
 memalloc_heap();
 
 void
