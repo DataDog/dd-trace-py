@@ -3,21 +3,20 @@ set -exo pipefail
 
 ARTIFACTS_DIR="${1}"
 
-files=($ARTIFACTS_DIR/results*.json)
-
-# Pop the last one off the array
-last="${files[-1]}"
-unset 'files[-1]'
-
-cmd=(/app/benchmarks/.venv_candidate/bin/pyperf convert --stdout)
-
-for f in "${files[@]}"; do
-    cmd+=(--add "$f")
-done
-
-cmd+=("$last")
-
-printf '%q ' "${cmd[@]}"
-"${cmd[@]}" > "${ARTIFACTS_DIR}/results.json"
-
-cat "${ARTIFACTS_DIR}/results.json"
+jq -s '
+  map(
+    . as $file
+    | .benchmarks |= map(
+        .metadata = ($file.metadata | { name, loops, cpu_affinity, cpu_config, cpu_freq } )
+      )
+    | {
+        benchmarks: .benchmarks,
+        leftover_meta: (.metadata | del(.name, .loops, .cpu_affinity, .cpu_config, .cpu_freq))
+      }
+  )
+  |
+  {
+    benchmarks: (map(.benchmarks) | add),
+    metadata:   (first | .leftover_meta)
+  }
+' $ARTIFACTS_DIR/results.*.json > "${ARTIFACTS_DIR}/results.json"
