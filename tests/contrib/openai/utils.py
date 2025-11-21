@@ -8,16 +8,10 @@ mock_openai_completions_response = openai.types.Completion(
     id="chatcmpl-B7PuLoKEQgMd5DQzzN9i4mBJ7OwwO",
     choices=[
         openai.types.CompletionChoice(
-            finish_reason="stop",
-            index=0,
-            logprobs=None,
-            text="Hello! How can I assist you today?",
+            finish_reason="stop", index=0, logprobs=None, text="Hello! How can I assist you today?"
         ),
         openai.types.CompletionChoice(
-            finish_reason="stop",
-            index=1,
-            logprobs=None,
-            text="Hello! How can I assist you today?",
+            finish_reason="stop", index=1, logprobs=None, text="Hello! How can I assist you today?"
         ),
     ],
     created=1741107585,
@@ -67,10 +61,7 @@ multi_message_input = [
         "role": "system",
     },
     {"content": "Who won the world series in 2020?", "role": "user"},
-    {
-        "content": "The Los Angeles Dodgers won the World Series in 2020.",
-        "role": "assistant",
-    },
+    {"content": "The Los Angeles Dodgers won the World Series in 2020.", "role": "assistant"},
     {"content": "Where was it played?", "role": "user"},
 ]
 
@@ -95,10 +86,7 @@ chat_completion_custom_functions = [
                     "clubs": {
                         "type": "array",
                         "description": "School clubs for extracurricular activities. ",
-                        "items": {
-                            "type": "string",
-                            "description": "Name of School Club",
-                        },
+                        "items": {"type": "string", "description": "Name of School Club"},
                     },
                 },
             },
@@ -271,9 +259,7 @@ def mock_response_mcp_tool_call():
 #       between cassettes generated for requests and aiohttp.
 def get_openai_vcr(subdirectory_name=""):
     return vcr.VCR(
-        cassette_library_dir=os.path.join(
-            os.path.dirname(__file__), "cassettes/%s" % subdirectory_name
-        ),
+        cassette_library_dir=os.path.join(os.path.dirname(__file__), "cassettes/%s" % subdirectory_name),
         record_mode="once",
         match_on=["path"],
         filter_headers=["authorization", "OpenAI-Organization", "api-key"],
