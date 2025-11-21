@@ -1,4 +1,5 @@
 from functools import lru_cache as cached
+from pathlib import Path
 import sys
 import types
 from types import ModuleType
@@ -6,7 +7,6 @@ from types import ModuleType
 from ddtrace.errortracking._handled_exceptions.bytecode_injector import _inject_handled_exception_reporting
 from ddtrace.errortracking._handled_exceptions.callbacks import _default_bytecode_exc_callback
 from ddtrace.internal.bytecode_injection.core import CallbackType
-from ddtrace.internal.compat import Path
 from ddtrace.internal.module import BaseModuleWatchdog
 from ddtrace.internal.packages import is_stdlib
 from ddtrace.internal.packages import is_third_party

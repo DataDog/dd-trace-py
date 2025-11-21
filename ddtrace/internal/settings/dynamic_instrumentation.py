@@ -1,9 +1,9 @@
+from pathlib import Path
 import re
 import typing as t
 
 from ddtrace import config as ddconfig
 from ddtrace.internal import gitmetadata
-from ddtrace.internal.compat import Path
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._core import DDConfig

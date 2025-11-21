@@ -1,4 +1,5 @@
 from functools import lru_cache as cached
+from pathlib import Path
 import sys
 from types import CodeType
 from types import ModuleType
@@ -6,7 +7,6 @@ from typing import Callable
 
 from ddtrace import tracer
 from ddtrace.errortracking._handled_exceptions.callbacks import _default_errortracking_exc_callback
-from ddtrace.internal.compat import Path
 from ddtrace.internal.module import BaseModuleWatchdog
 from ddtrace.internal.packages import filename_to_package  # noqa: F401
 from ddtrace.internal.packages import is_stdlib  # noqa: F401

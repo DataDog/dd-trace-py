@@ -3,12 +3,12 @@ from contextvars import ContextVar
 from copy import deepcopy
 from inspect import getmodule
 import os
+from pathlib import Path
 import sys
 from types import CodeType
 from types import ModuleType
 import typing as t
 
-from ddtrace.internal.compat import Path
 from ddtrace.internal.coverage.instrumentation import instrument_all_lines
 from ddtrace.internal.coverage.report import gen_json_report
 from ddtrace.internal.coverage.report import print_coverage_report

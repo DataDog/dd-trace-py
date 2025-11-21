@@ -1,5 +1,6 @@
 from collections import deque
 from dataclasses import dataclass
+from pathlib import Path
 from threading import current_thread
 from types import FrameType
 from types import TracebackType
@@ -14,7 +15,6 @@ from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.debugging._uploader import UploaderProduct
 from ddtrace.internal import core
-from ddtrace.internal.compat import Path
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter

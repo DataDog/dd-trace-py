@@ -44,7 +44,6 @@ def test_auto():
         assert uds.socket.socket is not None
 
 
-@pytest.mark.skipif(sys.version_info < (3, 8), reason="Test requires Python 3.8+")
 def test_pytest_with_gevent_and_ddtrace_auto():
     """
     Test that pytest works when a module imports ddtrace.auto and gevent is installed.
