@@ -33,21 +33,28 @@ memalloc_heap_map::size() const
     return HeapSamples_size(&map);
 }
 
-traceback_t*
+void
 memalloc_heap_map::insert(void* key, traceback_t* value)
 {
     HeapSamples_Entry k = { .key = key, .val = value };
     HeapSamples_Insert res = HeapSamples_insert(&map, &k);
-    traceback_t* prev = nullptr;
     if (!res.inserted) {
         /* This should not happen. It means we did not properly remove a previously-tracked
-         * allocation from the map. This should probably be an assertion. Return the previous
-         * entry as it is for an allocation that has been freed. */
+         * allocation from the map. Assert to detect if this edge case occurs in practice.
+         * Export the previous entry if it hasn't been reported yet, then delete it and
+         * replace it with the new value. */
+        exit(-1);
+        assert(false && "memalloc_heap_map::insert: found existing entry for key that should have been removed");
         HeapSamples_Entry* e = HeapSamples_Iter_get(&res.iter);
-        prev = e->val;
+        traceback_t* prev = e->val;
+        if (prev && !prev->reported) {
+            /* If the sample hasn't been reported yet, export it before deleting */
+            prev->sample.export_sample();
+            prev->reported = true;
+        }
         e->val = value;
+        delete prev;
     }
-    return prev;
 }
 
 bool
@@ -68,30 +75,6 @@ memalloc_heap_map::remove(void* key)
         HeapSamples_erase_at(it);
     }
     return res;
-}
-
-PyObject*
-memalloc_heap_map::export_to_python() const
-{
-    PyObject* heap_list = PyList_New(HeapSamples_size(&map));
-    if (heap_list == nullptr) {
-        return nullptr;
-    }
-
-    int i = 0;
-    HeapSamples_CIter it = HeapSamples_citer(&map);
-    for (const HeapSamples_Entry* e = HeapSamples_CIter_get(&it); e != nullptr; e = HeapSamples_CIter_next(&it)) {
-        traceback_t* tb = e->val;
-
-        PyObject* tb_and_size = PyTuple_New(2);
-        PyTuple_SET_ITEM(tb_and_size, 0, tb->to_tuple());
-        PyTuple_SET_ITEM(tb_and_size, 1, PyLong_FromSize_t(tb->size));
-        PyList_SET_ITEM(heap_list, i, tb_and_size);
-        i++;
-
-        memalloc_debug_gil_release();
-    }
-    return heap_list;
 }
 
 void

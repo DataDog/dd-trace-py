@@ -41,16 +41,14 @@ class memalloc_heap_map
 
     /* Insert a traceback for a sampled allocation with the given address.
      * If there is already an entry for the given key, the old value will be
-     * replaced with the given value, and the old value will be returned */
-    traceback_t* insert(void* key, traceback_t* value);
+     * replaced with the given value and deleted. */
+    void insert(void* key, traceback_t* value);
 
     bool contains(void* key) const;
 
     /* Retrieve the sampled allocation with the given address from m.
      * Returns nullptr if the allocation wasn't found */
     traceback_t* remove(void* key);
-
-    PyObject* export_to_python() const;
 
     /* Copy the contents of src into this map, removing the items from src */
     void destructive_copy_from(memalloc_heap_map& src);
