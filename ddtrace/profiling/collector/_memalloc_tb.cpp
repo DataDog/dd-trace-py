@@ -17,10 +17,11 @@ static PyObject* empty_string = NULL;
 
 static PyObject* ddframe_class = NULL;
 
-// Cached references to _threading module functions
+// Cached references to threading module structures
 static PyObject* threading_module = NULL;
-static PyObject* get_thread_name_func = NULL;
-static PyObject* get_thread_native_id_func = NULL;
+static PyObject* threading_active = NULL;
+static PyObject* threading_limbo = NULL;
+static PyObject* periodic_threads_dict = NULL;
 
 bool
 traceback_t::init()
@@ -61,43 +62,76 @@ traceback_t::init()
         }
     }
 
-    // Initialize threading function references
+    // Initialize threading module structure references
     // Note: MemoryCollector.start() ensures _threading is imported before calling
     // _memalloc.start(), so this should normally succeed. If it fails, we return false
     // and the error will be handled up the stack.
     if (threading_module == NULL) {
-        // Import the _threading module
-        PyObject* mod_path = PyUnicode_DecodeFSDefault("ddtrace.profiling._threading");
-        threading_module = PyImport_Import(mod_path);
-        Py_XDECREF(mod_path);
+        // Import the threading module (or use ddtrace's unpatched version)
+        PyObject* sys_modules = PyImport_GetModuleDict();
+        if (sys_modules == NULL) {
+            PyErr_SetString(PyExc_RuntimeError, "Failed to get sys.modules");
+            return false;
+        }
+
+        // Try to get threading module from sys.modules (don't force import)
+        PyObject* threading_mod_name = PyUnicode_FromString("threading");
+        if (threading_mod_name == NULL) {
+            return false;
+        }
+        threading_module = PyDict_GetItem(sys_modules, threading_mod_name);
+        Py_DECREF(threading_mod_name);
+
+        // If threading not in sys.modules, try ddtrace.internal._unpatched._threading
         if (threading_module == NULL) {
-            // Error is already set by PyImport_Import
-            return false;
+            PyObject* mod_path = PyUnicode_DecodeFSDefault("ddtrace.internal._unpatched._threading");
+            threading_module = PyImport_Import(mod_path);
+            Py_XDECREF(mod_path);
+            if (threading_module == NULL) {
+                // Error is already set by PyImport_Import
+                return false;
+            }
+        } else {
+            Py_INCREF(threading_module); // PyDict_GetItem returns borrowed reference
         }
 
-        // Get the get_thread_name function
-        get_thread_name_func = PyObject_GetAttrString(threading_module, "get_thread_name");
-        if (get_thread_name_func == NULL || !PyCallable_Check(get_thread_name_func)) {
+        // Get threading._active dictionary
+        threading_active = PyObject_GetAttrString(threading_module, "_active");
+        if (threading_active == NULL || !PyDict_Check(threading_active)) {
             Py_XDECREF(threading_module);
             threading_module = NULL;
-            PyErr_SetString(PyExc_RuntimeError, "Failed to get get_thread_name from ddtrace.profiling._threading");
+            PyErr_SetString(PyExc_RuntimeError, "Failed to get threading._active");
             return false;
         }
-        // INCREF since we're storing this in a static variable
-        Py_INCREF(get_thread_name_func);
+        Py_INCREF(threading_active); // PyObject_GetAttrString returns new reference, but we want to keep it
 
-        // Get the get_thread_native_id function
-        get_thread_native_id_func = PyObject_GetAttrString(threading_module, "get_thread_native_id");
-        if (get_thread_native_id_func == NULL || !PyCallable_Check(get_thread_native_id_func)) {
-            Py_XDECREF(threading_module);
-            Py_DECREF(get_thread_name_func);
-            threading_module = NULL;
-            get_thread_name_func = NULL;
-            PyErr_SetString(PyExc_RuntimeError, "Failed to get get_thread_native_id from ddtrace.profiling._threading");
-            return false;
+        // Get threading._limbo dictionary (may not exist in all Python versions)
+        threading_limbo = PyObject_GetAttrString(threading_module, "_limbo");
+        if (threading_limbo != NULL && PyDict_Check(threading_limbo)) {
+            Py_INCREF(threading_limbo); // Keep reference if it exists
+        } else {
+            Py_XDECREF(threading_limbo); // Clean up if it doesn't exist or isn't a dict
+            threading_limbo = NULL;
+            PyErr_Clear(); // Clear error if _limbo doesn't exist
         }
-        // INCREF since we're storing this in a static variable
-        Py_INCREF(get_thread_native_id_func);
+
+        // Get periodic_threads dictionary from ddtrace.internal._threads
+        PyObject* threads_mod_path = PyUnicode_DecodeFSDefault("ddtrace.internal._threads");
+        PyObject* threads_module = PyImport_Import(threads_mod_path);
+        Py_XDECREF(threads_mod_path);
+        if (threads_module != NULL) {
+            periodic_threads_dict = PyObject_GetAttrString(threads_module, "periodic_threads");
+            Py_DECREF(threads_module);
+            if (periodic_threads_dict != NULL && PyDict_Check(periodic_threads_dict)) {
+                Py_INCREF(periodic_threads_dict); // Keep reference
+            } else {
+                Py_XDECREF(periodic_threads_dict);
+                periodic_threads_dict = NULL;
+                PyErr_Clear(); // Clear error if periodic_threads doesn't exist
+            }
+        } else {
+            PyErr_Clear(); // Clear error if module import fails (not critical)
+        }
     }
 
     return true;
@@ -106,28 +140,107 @@ traceback_t::init()
 void
 traceback_t::deinit()
 {
-    // Clean up DDFrame class reference
-    if (ddframe_class) {
-        Py_DECREF(ddframe_class);
+    // Check if Python is finalizing. If so, skip cleanup to avoid segfaults.
+    // During finalization, Python objects may be in an invalid state.
+#if PY_VERSION_HEX >= 0x030d0000
+    if (Py_IsFinalizing()) {
+#else
+    if (_Py_IsFinalizing()) {
+#endif
+        // Just clear the pointers without decrementing references
         ddframe_class = NULL;
+        periodic_threads_dict = NULL;
+        threading_limbo = NULL;
+        threading_active = NULL;
+        threading_module = NULL;
+        return;
     }
 
-    // Clean up threading function references
-    if (get_thread_name_func) {
-        Py_DECREF(get_thread_name_func);
-        get_thread_name_func = NULL;
-    }
-    if (get_thread_native_id_func) {
-        Py_DECREF(get_thread_native_id_func);
-        get_thread_native_id_func = NULL;
-    }
-    if (threading_module) {
-        Py_DECREF(threading_module);
-        threading_module = NULL;
+    // Save exception state before cleanup, then restore it afterward.
+    // This is important because deinit() may be called during exception handling
+    // (e.g., when MemoryCollector.__exit__ is called with an exception), and
+    // we need to preserve the exception for pytest.raises() and similar mechanisms.
+    // We temporarily clear it during cleanup to avoid issues with Py_DECREF().
+    PyObject* saved_exc_type = NULL;
+    PyObject* saved_exc_value = NULL;
+    PyObject* saved_exc_traceback = NULL;
+    PyErr_Fetch(&saved_exc_type, &saved_exc_value, &saved_exc_traceback);
+
+    // Use Py_XDECREF for all cleanup to safely handle NULL pointers.
+    // During exception handling, objects may have been invalidated or set to NULL.
+    PyObject* old_ddframe_class = ddframe_class;
+    ddframe_class = NULL;
+    Py_XDECREF(old_ddframe_class);
+
+    PyObject* old_periodic_threads_dict = periodic_threads_dict;
+    periodic_threads_dict = NULL;
+    Py_XDECREF(old_periodic_threads_dict);
+
+    PyObject* old_threading_limbo = threading_limbo;
+    threading_limbo = NULL;
+    Py_XDECREF(old_threading_limbo);
+
+    PyObject* old_threading_active = threading_active;
+    threading_active = NULL;
+    Py_XDECREF(old_threading_active);
+
+    PyObject* old_threading_module = threading_module;
+    threading_module = NULL;
+    Py_XDECREF(old_threading_module);
+
+    // Restore the exception state if there was one
+    if (saved_exc_type != NULL || saved_exc_value != NULL || saved_exc_traceback != NULL) {
+        PyErr_Restore(saved_exc_type, saved_exc_value, saved_exc_traceback);
     }
 }
 
-/* Helper function to get thread native_id and name from Python's _threading module
+/* Helper function to get thread object by ID from Python's threading dictionaries.
+ * Checks periodic_threads, threading._active, and threading._limbo in that order.
+ * Returns borrowed reference or NULL if not found.
+ */
+static PyObject*
+get_thread_by_id(unsigned long thread_id)
+{
+    PyObject* thread_id_obj = PyLong_FromUnsignedLong(thread_id);
+    if (thread_id_obj == NULL) {
+        PyErr_Clear();
+        return NULL;
+    }
+
+    PyObject* thread = NULL;
+
+    // First check periodic_threads dictionary
+    if (periodic_threads_dict != NULL) {
+        thread = PyDict_GetItem(periodic_threads_dict, thread_id_obj);
+        if (thread != NULL) {
+            Py_DECREF(thread_id_obj);
+            return thread; // Borrowed reference
+        }
+    }
+
+    // Then check threading._active
+    if (threading_active != NULL) {
+        thread = PyDict_GetItem(threading_active, thread_id_obj);
+        if (thread != NULL) {
+            Py_DECREF(thread_id_obj);
+            return thread; // Borrowed reference
+        }
+    }
+
+    // Finally check threading._limbo
+    if (threading_limbo != NULL) {
+        thread = PyDict_GetItem(threading_limbo, thread_id_obj);
+        if (thread != NULL) {
+            Py_DECREF(thread_id_obj);
+            return thread; // Borrowed reference
+        }
+    }
+
+    Py_DECREF(thread_id_obj);
+    return NULL;
+}
+
+/* Helper function to get thread native_id and name from Python's threading module
  * and push threadinfo to the sample.
  *
  * NOTE: This is called during traceback construction, which happens during allocation
@@ -142,71 +255,89 @@ push_threadinfo_to_sample(Datadog::Sample& sample, unsigned long thread_id)
         return;
     }
 
-    // If threading functions aren't initialized, this is an error condition
-    // (should not happen if initialization succeeded)
-    if (!get_thread_name_func || !get_thread_native_id_func) {
-        // This should not happen - initialization should have failed if functions weren't available
-        // Push empty thread info as fallback
-        int64_t thread_native_id = 0;
-        std::string thread_name("");
+    // Default values
+    int64_t thread_native_id = (int64_t)thread_id; // Fallback to thread_id
+    std::string thread_name;
+
+    PyObject* thread_id_obj = PyLong_FromUnsignedLong(thread_id);
+    if (thread_id_obj == NULL) {
+        PyErr_Clear();
         sample.push_threadinfo(thread_id, thread_native_id, thread_name);
         return;
     }
 
-    // Get thread native ID from Python
-    int64_t thread_native_id = 0;
-    PyObject* thread_id_obj = PyLong_FromUnsignedLong(thread_id);
-    if (thread_id_obj != NULL) {
-        PyObject* native_id_obj = PyObject_CallFunctionObjArgs(get_thread_native_id_func, thread_id_obj, NULL);
-        Py_DECREF(thread_id_obj);
-        if (native_id_obj != NULL) {
-            if (PyLong_Check(native_id_obj)) {
-                thread_native_id = PyLong_AsLongLong(native_id_obj);
-            } else {
-                // get_thread_native_id should return a PyLong, but handle gracefully if it doesn't
-                // Use thread_id as fallback
-                thread_native_id = (int64_t)thread_id;
-            }
-            Py_DECREF(native_id_obj);
-        } else {
-            // Call failed, clear any exception that was set
-            PyErr_Clear();
-            // Use thread_id as fallback (get_thread_native_id returns thread_id if thread not found)
-            thread_native_id = (int64_t)thread_id;
-        }
-    }
+    PyObject* thread = NULL;
 
-    // Get thread name from Python
-    std::string thread_name;
-    PyObject* thread_id_obj2 = PyLong_FromUnsignedLong(thread_id);
-    if (thread_id_obj2 != NULL) {
-        PyObject* name_obj = PyObject_CallFunctionObjArgs(get_thread_name_func, thread_id_obj2, NULL);
-        Py_DECREF(thread_id_obj2);
-        if (name_obj != NULL) {
-            // get_thread_name can return None if thread is not found
-            if (name_obj != Py_None && PyUnicode_Check(name_obj)) {
-                // Convert Unicode to UTF-8 bytes, similar to how we handle frame names
+    // First try to get thread name from periodic_threads (if available)
+    if (periodic_threads_dict != NULL) {
+        PyObject* periodic_thread = PyDict_GetItem(periodic_threads_dict, thread_id_obj);
+        if (periodic_thread != NULL) {
+            // Get name attribute from periodic_thread
+            PyObject* name_obj = PyObject_GetAttrString(periodic_thread, "name");
+            if (name_obj != NULL && name_obj != Py_None && PyUnicode_Check(name_obj)) {
                 PyObject* name_bytes = PyUnicode_AsUTF8String(name_obj);
+                Py_DECREF(name_obj);
                 if (name_bytes != NULL) {
                     const char* name_ptr = PyBytes_AsString(name_bytes);
                     if (name_ptr != NULL) {
                         Py_ssize_t name_len = PyBytes_Size(name_bytes);
-                        // Store the thread name in a std::string
                         thread_name = std::string(name_ptr, name_len);
                     }
                     Py_DECREF(name_bytes);
                 } else {
-                    // PyUnicode_AsUTF8String failed, clear any exception
                     PyErr_Clear();
                 }
+            } else {
+                if (name_obj != NULL) {
+                    Py_DECREF(name_obj);
+                }
             }
-            // Note: If name_obj is None or not a Unicode string, thread_name remains empty
-            Py_DECREF(name_obj);
+        }
+    }
+
+    // Get thread from threading module (checks _active and _limbo)
+    // This will also find periodic_threads if they're in threading._active
+    thread = get_thread_by_id(thread_id);
+
+    // If we have a thread object, get name and native_id
+    if (thread != NULL) {
+        // Get thread.name attribute (if we didn't already get it from periodic_threads)
+        if (thread_name.empty()) {
+            PyObject* name_obj = PyObject_GetAttrString(thread, "name");
+            if (name_obj != NULL && name_obj != Py_None && PyUnicode_Check(name_obj)) {
+                PyObject* name_bytes = PyUnicode_AsUTF8String(name_obj);
+                Py_DECREF(name_obj);
+                if (name_bytes != NULL) {
+                    const char* name_ptr = PyBytes_AsString(name_bytes);
+                    if (name_ptr != NULL) {
+                        Py_ssize_t name_len = PyBytes_Size(name_bytes);
+                        thread_name = std::string(name_ptr, name_len);
+                    }
+                    Py_DECREF(name_bytes);
+                } else {
+                    PyErr_Clear();
+                }
+            } else {
+                if (name_obj != NULL) {
+                    Py_DECREF(name_obj);
+                }
+            }
+        }
+
+        // Get thread.native_id attribute
+        PyObject* native_id_obj = PyObject_GetAttrString(thread, "native_id");
+        if (native_id_obj != NULL) {
+            if (PyLong_Check(native_id_obj)) {
+                thread_native_id = PyLong_AsLongLong(native_id_obj);
+            }
+            Py_DECREF(native_id_obj);
         } else {
-            // Call failed, clear any exception that was set
             PyErr_Clear();
         }
     }
+
+    Py_DECREF(thread_id_obj);
+
     // Push threadinfo to sample with all data
     sample.push_threadinfo(thread_id, thread_native_id, thread_name);
 }
@@ -253,10 +384,9 @@ traceback_t::traceback_t(void* ptr,
     // We push frames as we collect them (root to leaf order).
     // Note: Sample.push_frame() comment says it "Assumes frames are pushed in leaf-order",
     // but we push root-to-leaf. Set reverse_locations so the sample will be reversed when exported.
+    // Note: Sample.push_frame() automatically enforces the max_nframe limit and tracks dropped frames.
     sample.set_reverse_locations(true);
     for (PyFrameObject* frame = pyframe; frame != NULL;) {
-        // TODO(dsn): add a truncated frame to the traceback if we exceed the max_nframe
-
         // Extract frame info for Sample
         int lineno_val = PyFrame_GetLineNumber(frame);
         if (lineno_val < 0)
