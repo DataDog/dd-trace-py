@@ -201,5 +201,6 @@ tests/appsec/iast/fixtures/taint_sinks/not_exists.txt
 *.debug
 *.dSYM/
 
-# Rust build artifacts
+# Rust build artifacts and dependencies
 src/native/target*
+src/native/Cargo.lock
