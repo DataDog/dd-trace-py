@@ -34,7 +34,10 @@ COROUTINE_ASSEMBLY = Assembly()
 ASYNC_GEN_ASSEMBLY = Assembly()
 ASYNC_HEAD_ASSEMBLY = None
 
-if PY >= (3, 14):
+if PY >= (3, 15):
+    raise NotImplementedError("This version of CPython is not supported yet")
+
+elif PY >= (3, 14):
     ASYNC_HEAD_ASSEMBLY = Assembly()
     ASYNC_HEAD_ASSEMBLY.parse(
         r"""
@@ -50,7 +53,7 @@ if PY >= (3, 14):
 
         presend:
             send                            @send
-            yield_value                     2
+            yield_value                     0
             resume                          3
             jump_backward_no_interrupt      @presend
         send:
@@ -77,7 +80,7 @@ if PY >= (3, 14):
         tried
 
         try                                 @genexit lasti
-            yield_value                     3
+            yield_value                     0
             resume                          3
             jump_backward_no_interrupt      @loop
         send0:
@@ -85,12 +88,11 @@ if PY >= (3, 14):
 
         yield:
             call_intrinsic_1                asm.Intrinsic1Op.INTRINSIC_ASYNC_GEN_WRAP
-            yield_value                     3
+            yield_value                     0
             resume                          1
             push_null
-            swap                            2
             load_fast                       $__ddgensend
-            swap                            2
+            swap                            3
             call                            1
             jump_backward                   @loop
         tried
@@ -110,7 +112,7 @@ if PY >= (3, 14):
 
         presend1:
             send                            @send1
-            yield_value                     4
+            yield_value                     0
             resume                          3
             jump_backward_no_interrupt      @presend1
         send1:
@@ -122,19 +124,20 @@ if PY >= (3, 14):
 
         exc:
             pop_top
-            push_null
             load_fast                       $__ddgen
             load_attr                       (False, 'athrow')
             push_null
             load_const                      sys.exc_info
+            push_null
             call                            0
+            push_null
             call_function_ex
             get_awaitable                   0
             load_const                      None
 
         presend2:
             send                            @send2
-            yield_value                     4
+            yield_value                     0
             resume                          3
             jump_backward_no_interrupt      @presend2
         send2:
@@ -159,6 +162,129 @@ if PY >= (3, 14):
         """
     )
 
+elif PY >= (3, 13):
+    ASYNC_HEAD_ASSEMBLY = Assembly()
+    ASYNC_HEAD_ASSEMBLY.parse(
+        r"""
+            return_generator
+            pop_top
+        """
+    )
+
+    COROUTINE_ASSEMBLY.parse(
+        r"""
+            get_awaitable                   0
+            load_const                      None
+
+        presend:
+            send                            @send
+            yield_value                     0
+            resume                          3
+            jump_backward_no_interrupt      @presend
+        send:
+            end_send
+        """
+    )
+
+    ASYNC_GEN_ASSEMBLY.parse(
+        r"""
+        try                                 @stopiter
+            copy                            1
+            store_fast                      $__ddgen
+            load_attr                       (False, 'asend')
+            store_fast                      $__ddgensend
+            load_fast                       $__ddgen
+            load_attr                       (True, '__anext__')
+            call                            0
+
+        loop:
+            get_awaitable                   0
+            load_const                      None
+        presend0:
+            send                            @send0
+        tried
+
+        try                                 @genexit lasti
+            yield_value                     0
+            resume                          3
+            jump_backward_no_interrupt      @loop
+        send0:
+            end_send
+
+        yield:
+            call_intrinsic_1                asm.Intrinsic1Op.INTRINSIC_ASYNC_GEN_WRAP
+            yield_value                     0
+            resume                          1
+            push_null
+            load_fast                       $__ddgensend
+            swap                            3
+            call                            1
+            jump_backward                   @loop
+        tried
+
+        genexit:
+        try                                 @stopiter
+            push_exc_info
+            load_const                      GeneratorExit
+            check_exc_match
+            pop_jump_if_false               @exc
+            pop_top
+            load_fast                       $__ddgen
+            load_attr                       (True, 'aclose')
+            call                            0
+            get_awaitable                   0
+            load_const                      None
+
+        presend1:
+            send                            @send1
+            yield_value                     0
+            resume                          3
+            jump_backward_no_interrupt      @presend1
+        send1:
+            end_send
+            pop_top
+            pop_except
+            load_const                      None
+            return_value
+
+        exc:
+            pop_top
+            load_fast                       $__ddgen
+            load_attr                       (False, 'athrow')
+            push_null
+            load_const                      sys.exc_info
+            push_null
+            call                            0
+            call_function_ex                0
+            get_awaitable                   0
+            load_const                      None
+
+        presend2:
+            send                            @send2
+            yield_value                     0
+            resume                          3
+            jump_backward_no_interrupt      @presend2
+        send2:
+            end_send
+            swap                            2
+            pop_except
+            jump_backward                   @yield
+        tried
+
+        stopiter:
+            push_exc_info
+            load_const                      StopAsyncIteration
+            check_exc_match
+            pop_jump_if_false               @propagate
+            pop_top
+            pop_except
+            load_const                      None
+            return_value
+
+        propagate:
+            reraise                         0
+        """
+    )
 
 elif PY >= (3, 12):
     ASYNC_HEAD_ASSEMBLY = Assembly()
