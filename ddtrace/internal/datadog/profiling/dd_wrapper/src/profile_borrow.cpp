@@ -46,5 +46,5 @@ Datadog::ProfileBorrow::profile()
 Datadog::ProfilerStats&
 Datadog::ProfileBorrow::stats()
 {
-    return profile_ptr->profiler_stats;
+    return profile_ptr->cur_profiler_stats;
 }
