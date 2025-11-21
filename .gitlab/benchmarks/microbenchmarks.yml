@@ -49,6 +49,8 @@ variables:
 
       analyze-results.sh
       upload-results-to-s3.sh || :
+      # Copy converted JSON reports to common location
+      cp $REPORTS_DIR/candidate*.converted.json $(pwd)/reports/
     done
 
     # We have to move artifacts to ${CI_PROJECT_DIR} if we want to attach as GitLab artifact
