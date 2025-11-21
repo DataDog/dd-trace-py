@@ -3,6 +3,11 @@ set -exo pipefail
 
 ARTIFACTS_DIR="${1}"
 
+# Combine all the individual results into a single results fule.
+# We need:
+#   - to merge all the benchmarks into a single list
+#   - to keep only one copy of the metadata, removing fields that are per-benchmark specific
+#   - add benchmark specific metadata into each benchmark entry
 jq -s '
   map(
     . as $file
