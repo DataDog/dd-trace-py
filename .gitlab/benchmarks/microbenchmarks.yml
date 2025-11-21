@@ -217,5 +217,4 @@ check-slo-breaches:
     expire_in: 3 months
   script:
     - export ARTIFACTS_DIR="$(pwd)/reports/"
-    - ls "${ARTIFACTS_DIR}"
     - bp-runner .gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml
