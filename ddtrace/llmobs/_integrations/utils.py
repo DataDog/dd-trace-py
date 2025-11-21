@@ -581,6 +581,20 @@ def _openai_parse_input_response_messages(
                 for content in item["content"]:
                     processed_item_content += str(content.get("text", "") or "")
                     processed_item_content += str(content.get("refusal", "") or "")
+
+                    item_type = content.get("type", None)
+                    if item_type == "input_image":
+                        # Images can be referenced via image_url or file_id
+                        image_url = content.get("image_url", None)
+                        file_id = content.get("file_id", None)
+                        processed_item_content += image_url if image_url else (file_id if file_id else "[image]")
+                    elif item_type == "input_file":
+                        file_ref = (
+                            content.get("file_id", None)
+                            or content.get("file_url", None)
+                            or content.get("filename", None)
+                        )
+                        processed_item_content += file_ref if file_ref else "[file]"
             else:
                 processed_item_content = item["content"]
             if processed_item_content:
@@ -776,6 +790,39 @@ def openai_get_metadata_from_response(
     return metadata
 
 
+def _normalize_prompt_variables(variables: Dict[str, Any]) -> Dict[str, Any]:
+    """Normalizes prompt variables by extracting meaningful values from OpenAI's response objects.
+
+    Converts complex OpenAI SDK response objects into simple key-value pairs suitable for LLMObs spans.
+
+    Example:
+        Input:  {"msg": ResponseInputText(text="Hello"), "doc": ResponseInputFile(file_id="file-123")}
+        Output: {"msg": "Hello", "doc": "file-123"}
+
+        Note: image_url is often stripped by OpenAI for security, resulting in "[image]" fallback.
+    """
+    if not variables or not isinstance(variables, dict):
+        return {}
+
+    normalized = {}
+    for key, value in variables.items():
+        if hasattr(value, "text"):  # ResponseInputText
+            normalized[key] = value.text
+        elif getattr(value, "type", None) == "input_image":  # ResponseInputImage
+            normalized[key] = getattr(value, "image_url", None) or getattr(value, "file_id", None) or "[image]"
+        elif getattr(value, "type", None) == "input_file":  # ResponseInputFile
+            file_data = getattr(value, "file_data", None)
+            normalized[key] = (
+                getattr(value, "file_url", None)
+                or getattr(value, "file_id", None)
+                or getattr(value, "filename", None)
+                or ("[file_data]" if file_data else "[file]")
+            )
+        else:
+            normalized[key] = value
+    return normalized
+
+
 def _extract_chat_template_from_instructions(
     instructions: List[Any], variables: Dict[str, Any]
 ) -> List[Dict[str, str]]:
@@ -791,19 +838,13 @@ def _extract_chat_template_from_instructions(
     """
     chat_template = []
 
-    # Create a mapping of variable values to placeholder names
+    # Build value→placeholder map from normalized variables
     value_to_placeholder = {}
     for var_name, var_value in variables.items():
-        if hasattr(var_value, "text"):  # ResponseInputText
-            value_str = str(var_value.text)
-        else:
-            value_str = str(var_value)
-
-        # Skip empty values
-        if not value_str:
-            continue
-
-        value_to_placeholder[value_str] = f"{{{{{var_name}}}}}"
+        value_str = str(var_value) if var_value else ""
+        # Exclude fallback markers ([image], [file]) as they represent missing data
+        if value_str and value_str not in ("[image]", "[file]"):
+            value_to_placeholder[value_str] = f"{{{{{var_name}}}}}"
 
     # Sort by length (longest first) to handle overlapping values correctly
     sorted_values = sorted(value_to_placeholder.keys(), key=len, reverse=True)
@@ -817,18 +858,36 @@ def _extract_chat_template_from_instructions(
         if not content_items:
             continue
 
+        # Extract text from all content items
         text_parts = []
         for content_item in content_items:
+            # Extract text content
             text = _get_attr(content_item, "text", "")
             if text:
                 text_parts.append(str(text))
+                continue
+
+            # For image/file items, try to extract the reference value
+            # OpenAI usually includes file_id/file_url but may omit image_url for security
+            item_type = _get_attr(content_item, "type", None)
+            if item_type == "input_image":
+                # Images can be referenced via image_url or file_id
+                image_url = _get_attr(content_item, "image_url", None)
+                file_id = _get_attr(content_item, "file_id", None)
+                text_parts.append(str(image_url) if image_url else (str(file_id) if file_id else "[image]"))
+            elif item_type == "input_file":
+                file_ref = (
+                    _get_attr(content_item, "file_id", None)
+                    or _get_attr(content_item, "file_url", None)
+                    or _get_attr(content_item, "filename", None)
+                )
+                text_parts.append(str(file_ref) if file_ref else "[file]")
 
         if not text_parts:
             continue
 
+        # Combine text and replace variable values with placeholders (longest first)
         full_text = "".join(text_parts)
-
-        # Replace variable values with placeholders (longest first)
         for value_str in sorted_values:
             placeholder = value_to_placeholder[value_str]
             full_text = full_text.replace(value_str, placeholder)
@@ -862,24 +921,19 @@ def openai_set_meta_tags_from_response(
         }
     )
 
-    if "prompt" in kwargs:
-        prompt_data = kwargs.get("prompt")
-        if prompt_data:
-            try:
-                # Extract chat_template from response instructions if available
-                if response and not prompt_data.get("chat_template") and not prompt_data.get("template"):
-                    instructions = _get_attr(response, "instructions", None)
-                    variables = prompt_data.get("variables", {})
-                    if instructions and variables:
-                        chat_template = _extract_chat_template_from_instructions(instructions, variables)
-                        if chat_template:
-                            prompt_data = dict(prompt_data)  # Make a copy to avoid modifying the original
-                            prompt_data["chat_template"] = chat_template
+    prompt_data = kwargs.get("prompt")
+    if prompt_data:
+        prompt_data = dict(prompt_data)  # Make a copy to avoid modifying the original
 
-                validated_prompt = _validate_prompt(prompt_data, strict_validation=False)
-                span._set_ctx_item(INPUT_PROMPT, validated_prompt)
-            except (TypeError, ValueError, AttributeError) as e:
-                logger.debug("Failed to validate prompt for OpenAI response: %s", e)
+        instructions = _get_attr(response, "instructions", None)
+        if instructions:
+            variables = prompt_data.get("variables", {})
+            normalized_variables = _normalize_prompt_variables(variables)
+            prompt_data["chat_template"] = _extract_chat_template_from_instructions(instructions, normalized_variables)
+            prompt_data["variables"] = normalized_variables
+
+        validated_prompt = _validate_prompt(prompt_data, strict_validation=False)
+        span._set_ctx_item(INPUT_PROMPT, validated_prompt)
 
     if span.error or not response:
         span._set_ctx_item(OUTPUT_MESSAGES, [Message(content="")])

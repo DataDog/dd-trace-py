@@ -2155,6 +2155,19 @@ MUL: "*"
             )
         )
 
+    def _assert_prompt_tracking(
+        self, span_event, prompt_id, prompt_version, variables, expected_chat_template, expected_messages
+    ):
+        """Helper to assert prompt tracking metadata and template extraction."""
+        assert "prompt" in span_event["meta"]["input"]
+        actual_prompt = span_event["meta"]["input"]["prompt"]
+        assert actual_prompt["id"] == prompt_id
+        assert actual_prompt["version"] == prompt_version
+        assert actual_prompt["variables"] == variables
+        assert "chat_template" in actual_prompt
+        assert actual_prompt["chat_template"] == expected_chat_template
+        assert span_event["meta"]["input"]["messages"] == expected_messages
+
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 80),
         reason="Full OpenAI MCP support only available with openai >= 1.80",
@@ -2302,37 +2315,180 @@ MUL: "*"
         mock_tracer.pop_traces()
         assert mock_llmobs_writer.enqueue.call_count == 1
 
-        call_args = mock_llmobs_writer.enqueue.call_args[0][0]
+        self._assert_prompt_tracking(
+            span_event=mock_llmobs_writer.enqueue.call_args[0][0],
+            prompt_id="pmpt_690b24669d8c81948acc0e98da10e6490190feb3a62eee0b",
+            prompt_version="4",
+            variables={"question": "What is machine learning?"},
+            expected_chat_template=[
+                {"role": "developer", "content": "Direct & Conversational tone"},
+                {"role": "user", "content": "You are a helpful assistant. Please answer this question: {{question}}"},
+            ],
+            expected_messages=[
+                {"role": "developer", "content": "Direct & Conversational tone"},
+                {
+                    "role": "user",
+                    "content": "You are a helpful assistant. Please answer this question: What is machine learning?",
+                },
+            ],
+        )
 
-        # Verify prompt metadata is captured
-        assert "prompt" in call_args["meta"]["input"]
-        actual_prompt = call_args["meta"]["input"]["prompt"]
-        assert actual_prompt["id"] == "pmpt_690b24669d8c81948acc0e98da10e6490190feb3a62eee0b"
-        assert actual_prompt["version"] == "4"
-        assert actual_prompt["variables"] == {"question": "What is machine learning?"}
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 87),
+        reason="Reusable prompts only available in openai >= 1.87",
+    )
+    def test_response_with_mixed_input_prompt_tracking(self, openai, mock_llmobs_writer, mock_tracer):
+        """Test that mixed input types (text, image, file) are normalized and tracked correctly."""
+        from openai.types.responses import ResponseInputFile
+        from openai.types.responses import ResponseInputImage
+        from openai.types.responses import ResponseInputText
 
-        # Verify chat_template is extracted with variable placeholders
-        assert "chat_template" in actual_prompt
-        chat_template = actual_prompt["chat_template"]
-        assert len(chat_template) == 2
-        # First message: developer role
-        assert chat_template[0]["role"] == "developer"
-        assert chat_template[0]["content"] == "Direct & Conversational tone"
-        # Second message: user role with variable placeholder
-        assert chat_template[1]["role"] == "user"
-        assert chat_template[1]["content"] == "You are a helpful assistant. Please answer this question: {{question}}"
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("response_with_mixed_prompt.yaml"):
+            client = openai.OpenAI()
+            client.responses.create(
+                prompt={
+                    "id": "pmpt_69201db75c4c81959c01ea6987ab023c070192cd2843dec0",
+                    "version": "2",
+                    "variables": {
+                        "user_message": ResponseInputText(type="input_text", text="Analyze these images and document"),
+                        "user_image_1": ResponseInputImage(
+                            type="input_image",
+                            image_url="https://raw.githubusercontent.com/github/explore/main/topics/python/python.png",
+                            detail="auto",
+                        ),
+                        "user_file": ResponseInputFile(type="input_file", file_id="file-LXG16g7US1sG6MQM7KQY1i"),
+                        "user_image_2": ResponseInputImage(
+                            type="input_image",
+                            file_id="file-BCuhT1HQ24kmtsuuzF1mh2",
+                            detail="auto",
+                        ),
+                    },
+                }
+            )
+        mock_tracer.pop_traces()
+        assert mock_llmobs_writer.enqueue.call_count == 1
 
-        # Verify the actual prompt content is captured in input messages
-        input_messages = call_args["meta"]["input"]["messages"]
-        assert len(input_messages) == 2
-        # Developer message
-        assert input_messages[0]["role"] == "developer"
-        assert input_messages[0]["content"] == "Direct & Conversational tone"
-        # User message with rendered variables
-        assert input_messages[1]["role"] == "user"
-        assert (
-            input_messages[1]["content"]
-            == "You are a helpful assistant. Please answer this question: What is machine learning?"
+        self._assert_prompt_tracking(
+            span_event=mock_llmobs_writer.enqueue.call_args[0][0],
+            prompt_id="pmpt_69201db75c4c81959c01ea6987ab023c070192cd2843dec0",
+            prompt_version="2",
+            variables={
+                "user_message": "Analyze these images and document",
+                "user_image_1": "https://raw.githubusercontent.com/github/explore/main/topics/python/python.png",
+                "user_file": "file-LXG16g7US1sG6MQM7KQY1i",
+                "user_image_2": "file-BCuhT1HQ24kmtsuuzF1mh2",
+            },
+            expected_chat_template=[
+                {
+                    "role": "user",
+                    "content": (
+                        "Analyze the following content from the user:\n\n"
+                        "Text message: {{user_message}}\n"
+                        "Image reference 1: [image]\n"
+                        "Document reference: {{user_file}}\n"
+                        "Image reference 2: {{user_image_2}}\n\n"
+                        "Please provide a comprehensive analysis."
+                    ),
+                }
+            ],
+            expected_messages=[
+                {
+                    "role": "user",
+                    "content": (
+                        "Analyze the following content from the user:\n\n"
+                        "Text message: Analyze these images and document\n"
+                        "Image reference 1: [image]\n"
+                        "Document reference: file-LXG16g7US1sG6MQM7KQY1i\n"
+                        "Image reference 2: file-BCuhT1HQ24kmtsuuzF1mh2\n\n"
+                        "Please provide a comprehensive analysis."
+                    ),
+                }
+            ],
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 87),
+        reason="Reusable prompts only available in openai >= 1.87",
+    )
+    def test_response_with_file_url_and_filename_prompt_tracking(self, openai, mock_llmobs_writer, mock_tracer):
+        """Test that file_url, filename, and file_data are correctly normalized and tracked."""
+        from openai.types.responses import ResponseInputFile
+        from openai.types.responses import ResponseInputText
+
+        # Using different file_urls to test proper variable replacement
+        file_url_1 = "https://www.berkshirehathaway.com/letters/2024ltr.pdf"
+        file_url_2 = "https://www.berkshirehathaway.com/letters/2023ltr.pdf"
+        # fmt: off
+        dummy_pdf_base64 = (
+            "data:application/pdf;base64,JVBERi0xLjQKMSAwIG9iago8PC9UeXBlIC9DYXRhbG9nCi9QYWdlcyAyIDAgUgo+PgplbmRvYmoK"
+            "MiAwIG9iago8PC9UeXBlIC9QYWdlcwovS2lkcyBbMyAwIFJdCi9Db3VudCAxCj4+CmVuZG9iagozIDAgb2JqCjw8L1R5cGUgL1BhZ2UK"
+            "L1BhcmVudCAyIDAgUgovTWVkaWFCb3ggWzAgMCA1OTUgODQyXQovQ29udGVudHMgNSAwIFIKL1Jlc291cmNlcyA8PC9Qcm9jU2V0IFsv"
+            "UERGIC9UZXh0XQovRm9udCA8PC9GMSA0IDAgUj4+Cj4+Cj4+CmVuZG9iago0IDAgb2JqCjw8L1R5cGUgL0ZvbnQKL1N1YnR5cGUgL1R5"
+            "cGUxCi9OYW1lIC9GMQovQmFzZUZvbnQgL0hlbHZldGljYQovRW5jb2RpbmcgL01hY1JvbWFuRW5jb2RpbmcKPj4KZW5kb2JqCjUgMCBv"
+            "YmoKPDwvTGVuZ3RoIDUzCj4+CnN0cmVhbQpCVAovRjEgMjAgVGYKMjIwIDQwMCBUZAooRHVtbXkgUERGKSBUagpFVAplbmRzdHJlYW0K"
+            "ZW5kb2JqCnhyZWYKMCA2CjAwMDAwMDAwMDAgNjU1MzUgZgowMDAwMDAwMDA5IDAwMDAwIG4KMDAwMDAwMDA2MyAwMDAwMCBuCjAwMDAw"
+            "MDAxMjQgMDAwMDAgbgowMDAwMDAwMjc3IDAwMDAwIG4KMDAwMDAwMDM5MiAwMDAwMCBuCnRyYWlsZXIKPDwvU2l6ZSA2Ci9Sb290IDAg"
+            "MSBSCT4+CnN0YXJ0eHJlZgo0OTUKJSVFT0YK"
+        )
+        # fmt: on
+
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("response_with_file_inputs.yaml"):
+            client = openai.OpenAI()
+            client.responses.create(
+                prompt={
+                    "id": "pmpt_69201db75c4c81959c01ea6987ab023c070192cd2843dec0",
+                    "version": "2",
+                    "variables": {
+                        "user_message": ResponseInputText(type="input_text", text="Analyze these documents"),
+                        "user_image_1": ResponseInputFile(
+                            type="input_file",
+                            filename="dummy.pdf",
+                            file_data=dummy_pdf_base64,
+                        ),
+                        "user_file": ResponseInputFile(type="input_file", file_url=file_url_1),
+                        "user_image_2": ResponseInputFile(type="input_file", file_url=file_url_2),
+                    },
+                }
+            )
+        mock_tracer.pop_traces()
+        assert mock_llmobs_writer.enqueue.call_count == 1
+
+        self._assert_prompt_tracking(
+            span_event=mock_llmobs_writer.enqueue.call_args[0][0],
+            prompt_id="pmpt_69201db75c4c81959c01ea6987ab023c070192cd2843dec0",
+            prompt_version="2",
+            variables={
+                "user_message": "Analyze these documents",
+                "user_image_1": "dummy.pdf",
+                "user_file": file_url_1,
+                "user_image_2": file_url_2,
+            },
+            expected_chat_template=[
+                {
+                    "role": "user",
+                    "content": (
+                        "Analyze the following content from the user:\n\n"
+                        "Text message: {{user_message}}\n"
+                        "Image reference 1: {{user_image_1}}\n"
+                        "Document reference: {{user_file}}\n"
+                        "Image reference 2: {{user_image_2}}\n\n"
+                        "Please provide a comprehensive analysis."
+                    ),
+                }
+            ],
+            expected_messages=[
+                {
+                    "role": "user",
+                    "content": (
+                        "Analyze the following content from the user:\n\n"
+                        "Text message: Analyze these documents\n"
+                        "Image reference 1: dummy.pdf\n"
+                        f"Document reference: {file_url_1}\n"
+                        f"Image reference 2: {file_url_2}\n\n"
+                        "Please provide a comprehensive analysis."
+                    ),
+                }
+            ],
         )
 
 
