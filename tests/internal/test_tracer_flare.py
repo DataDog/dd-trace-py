@@ -44,8 +44,9 @@ def create_mock_native_manager():
 
     # Make write_config_file actually write the file
     def write_config_side_effect(file_path, config_json):
-        with open(file_path, 'w') as f:
+        with open(file_path, "w") as f:
             f.write(config_json)
+
     mock_manager.write_config_file = mock.MagicMock(side_effect=write_config_side_effect)
 
     mock_manager.zip_and_send = mock.MagicMock()
@@ -53,8 +54,10 @@ def create_mock_native_manager():
     # Make cleanup_directory actually remove the directory
     def cleanup_side_effect(directory):
         import shutil
+
         if os.path.exists(directory):
             shutil.rmtree(directory)
+
     mock_manager.cleanup_directory = mock.MagicMock(side_effect=cleanup_side_effect)
 
     return mock_manager
@@ -94,7 +97,13 @@ def _multiproc_handle_agent_task(trace_agent_url: str, shared_dir: pathlib.Path,
         errors.put(e)
 
 
-def _multiproc_do_tracer_flare(log_level: str, send_request: FlareSendRequest, trace_agent_url: str, shared_dir: pathlib.Path, errors: multiprocessing.Queue):
+def _multiproc_do_tracer_flare(
+    log_level: str,
+    send_request: FlareSendRequest,
+    trace_agent_url: str,
+    shared_dir: pathlib.Path,
+    errors: multiprocessing.Queue,
+):
     """Helper for multiprocessing partial failure test."""
     try:
         # Create Flare object inside the process to avoid pickling issues
@@ -131,8 +140,7 @@ class TracerFlareTests(unittest.TestCase):
         # Mock the native manager class before creating Flare object
         self.mock_native_manager = create_mock_native_manager()
         self.native_manager_patcher = mock.patch(
-            'ddtrace.internal.flare.flare.native_flare.TracerFlareManager',
-            return_value=self.mock_native_manager
+            "ddtrace.internal.flare.flare.native_flare.TracerFlareManager", return_value=self.mock_native_manager
         )
         self.native_manager_patcher.start()
 
@@ -704,8 +712,7 @@ class TracerFlareMultiprocessTests(unittest.TestCase):
 
         # Patch the native manager module-wide so it works across processes
         self.native_manager_patcher = mock.patch(
-            'ddtrace.internal.flare.flare.native_flare.TracerFlareManager',
-            return_value=create_mock_native_manager()
+            "ddtrace.internal.flare.flare.native_flare.TracerFlareManager", return_value=create_mock_native_manager()
         )
         self.native_manager_patcher.start()
 
@@ -722,14 +729,18 @@ class TracerFlareMultiprocessTests(unittest.TestCase):
         # Create multiple processes - use module-level function for pickling
         # Flare objects are created inside the process to avoid pickling issues
         for i in range(num_processes):
-            p = multiprocessing.Process(target=_multiproc_handle_agent_config, args=(TRACE_AGENT_URL, self.shared_dir, self.errors))
+            p = multiprocessing.Process(
+                target=_multiproc_handle_agent_config, args=(TRACE_AGENT_URL, self.shared_dir, self.errors)
+            )
             processes.append(p)
             p.start()
         for p in processes:
             p.join()
 
         for i in range(num_processes):
-            p = multiprocessing.Process(target=_multiproc_handle_agent_task, args=(TRACE_AGENT_URL, self.shared_dir, self.errors))
+            p = multiprocessing.Process(
+                target=_multiproc_handle_agent_task, args=(TRACE_AGENT_URL, self.shared_dir, self.errors)
+            )
             processes.append(p)
             p.start()
         for p in processes:
@@ -753,11 +764,17 @@ class TracerFlareMultiprocessTests(unittest.TestCase):
 
         # Create successful process - use module-level function for pickling
         # Flare objects are created inside the process to avoid pickling issues
-        p = multiprocessing.Process(target=_multiproc_do_tracer_flare, args=("DEBUG", MOCK_FLARE_SEND_REQUEST, TRACE_AGENT_URL, self.shared_dir, self.errors))
+        p = multiprocessing.Process(
+            target=_multiproc_do_tracer_flare,
+            args=("DEBUG", MOCK_FLARE_SEND_REQUEST, TRACE_AGENT_URL, self.shared_dir, self.errors),
+        )
         processes.append(p)
         p.start()
         # Create failing process
-        p = multiprocessing.Process(target=_multiproc_do_tracer_flare, args=(None, MOCK_FLARE_SEND_REQUEST, TRACE_AGENT_URL, self.shared_dir, self.errors))
+        p = multiprocessing.Process(
+            target=_multiproc_do_tracer_flare,
+            args=(None, MOCK_FLARE_SEND_REQUEST, TRACE_AGENT_URL, self.shared_dir, self.errors),
+        )
         processes.append(p)
         p.start()
         for p in processes:

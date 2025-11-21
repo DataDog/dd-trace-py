@@ -4,6 +4,7 @@ Tests for native tracer flare bindings.
 These tests verify that the Rust-based tracer flare functionality is properly
 exposed to Python and works as expected.
 """
+
 import pytest
 
 
@@ -14,6 +15,7 @@ class TestTracerFlareNativeBindings:
         """Verify that the native tracer flare module can be imported"""
         try:
             from ddtrace.internal.native._native import register_tracer_flare
+
             assert register_tracer_flare is not None
         except ImportError as e:
             pytest.skip(f"Native tracer flare module not available: {e}")
@@ -25,10 +27,7 @@ class TestTracerFlareNativeBindings:
         except ImportError:
             pytest.skip("Native tracer flare module not available")
 
-        manager = register_tracer_flare.TracerFlareManager(
-            agent_url="http://localhost:8126",
-            language="python"
-        )
+        manager = register_tracer_flare.TracerFlareManager(agent_url="http://localhost:8126", language="python")
         assert manager is not None
         assert "TracerFlareManager" in repr(manager)
 
@@ -40,13 +39,13 @@ class TestTracerFlareNativeBindings:
             pytest.skip("Native tracer flare module not available")
 
         # Verify all log levels exist
-        assert hasattr(register_tracer_flare.LogLevel, 'TRACE')
-        assert hasattr(register_tracer_flare.LogLevel, 'DEBUG')
-        assert hasattr(register_tracer_flare.LogLevel, 'INFO')
-        assert hasattr(register_tracer_flare.LogLevel, 'WARN')
-        assert hasattr(register_tracer_flare.LogLevel, 'ERROR')
-        assert hasattr(register_tracer_flare.LogLevel, 'CRITICAL')
-        assert hasattr(register_tracer_flare.LogLevel, 'OFF')
+        assert hasattr(register_tracer_flare.LogLevel, "TRACE")
+        assert hasattr(register_tracer_flare.LogLevel, "DEBUG")
+        assert hasattr(register_tracer_flare.LogLevel, "INFO")
+        assert hasattr(register_tracer_flare.LogLevel, "WARN")
+        assert hasattr(register_tracer_flare.LogLevel, "ERROR")
+        assert hasattr(register_tracer_flare.LogLevel, "CRITICAL")
+        assert hasattr(register_tracer_flare.LogLevel, "OFF")
 
     def test_return_action_static_constructors(self):
         """Test that ReturnAction static constructors work"""
@@ -73,7 +72,7 @@ class TestTracerFlareNativeBindings:
             hostname="test-host",
             user_handle="test@example.com",
             task_type="tracer_flare",
-            uuid="test-uuid-123"
+            uuid="test-uuid-123",
         )
         send_action = register_tracer_flare.ReturnAction.send(task)
         assert send_action.is_send() is True
@@ -87,7 +86,7 @@ class TestTracerFlareNativeBindings:
             pytest.skip("Native tracer flare module not available")
 
         # AgentTaskFile should be accessible as a class
-        assert hasattr(register_tracer_flare, 'AgentTaskFile')
+        assert hasattr(register_tracer_flare, "AgentTaskFile")
 
     def test_exceptions_available(self):
         """Test that all exception types are available"""
@@ -97,10 +96,10 @@ class TestTracerFlareNativeBindings:
             pytest.skip("Native tracer flare module not available")
 
         # Verify all exception types exist
-        assert hasattr(register_tracer_flare, 'ListeningError')
-        assert hasattr(register_tracer_flare, 'ParsingError')
-        assert hasattr(register_tracer_flare, 'SendError')
-        assert hasattr(register_tracer_flare, 'ZipError')
+        assert hasattr(register_tracer_flare, "ListeningError")
+        assert hasattr(register_tracer_flare, "ParsingError")
+        assert hasattr(register_tracer_flare, "SendError")
+        assert hasattr(register_tracer_flare, "ZipError")
 
     def test_agent_task_file_creation(self):
         """Test creating AgentTaskFile instances"""
@@ -115,7 +114,7 @@ class TestTracerFlareNativeBindings:
             hostname="test-host",
             user_handle="user@example.com",
             task_type="tracer_flare",
-            uuid="test-uuid-123"
+            uuid="test-uuid-123",
         )
 
         # Verify attributes are accessible

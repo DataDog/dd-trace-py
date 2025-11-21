@@ -62,10 +62,7 @@ class Flare:
 
         # Initialize native manager eagerly to fail fast if there's an issue
         try:
-            self._native_manager = native_flare.TracerFlareManager(
-                agent_url=self.url,
-                language="python"
-            )
+            self._native_manager = native_flare.TracerFlareManager(agent_url=self.url, language="python")
         except Exception as e:
             log.error("Failed to initialize native tracer flare manager: %s", e)
             raise
@@ -287,14 +284,18 @@ class Flare:
             # Create AgentTaskFile for the send action
             try:
                 # Convert case_id to integer, handling test patterns
-                case_id_int = int(flare_send_req.case_id.split('-')[0]) if '-' in flare_send_req.case_id else int(flare_send_req.case_id)
+                case_id_int = (
+                    int(flare_send_req.case_id.split("-")[0])
+                    if "-" in flare_send_req.case_id
+                    else int(flare_send_req.case_id)
+                )
 
                 agent_task = native_flare.AgentTaskFile(
                     case_id=case_id_int,
                     hostname=flare_send_req.hostname,
                     user_handle=flare_send_req.email,
                     task_type="tracer_flare",
-                    uuid=flare_send_req.uuid
+                    uuid=flare_send_req.uuid,
                 )
 
                 # Create ReturnAction.Send
