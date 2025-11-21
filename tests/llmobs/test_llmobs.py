@@ -207,6 +207,7 @@ class TestLLMIOProcessing:
                 if s.get_tag("scrub_values") == "1":
                     s.input = [{"content": "scrubbed"}]
                     s.output = [{"content": "scrubbed"}]
+                    s.metadata = {"link_to_scubbed_data": "https://example.com/scrubbed/1"}
                 return s
 
             LLMObs.register_processor(span_processor)
@@ -228,9 +229,11 @@ class TestLLMIOProcessing:
         assert "scrub_values:1" in traces[0]["spans"][0]["tags"]
         assert traces[0]["spans"][0]["meta"]["input"]["messages"][0]["content"] == "scrubbed"
         assert traces[0]["spans"][0]["meta"]["output"]["messages"][0]["content"] == "scrubbed"
+        assert traces[0]["spans"][0]["meta"]["metadata"]["link_to_scubbed_data"] == "https://example.com/scrubbed/1"
         assert "scrub_values:0" in traces[1]["spans"][0]["tags"]
         assert traces[1]["spans"][0]["meta"]["input"]["messages"][0]["content"] == "value"
         assert traces[1]["spans"][0]["meta"]["output"]["messages"][0]["content"] == "value"
+        assert "link_to_scubbed_data" not in traces[1]["spans"][0]["meta"].get("metadata", {})
 
     def test_register_unregister_processor(self, llmobs, llmobs_events):
         def _sp(s):
