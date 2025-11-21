@@ -178,7 +178,7 @@ def calculate_dynamic_parallelism(suite_name: str, suite_config: dict) -> t.Opti
         LOGGER.warning("No riot venvs found for suite %s with pattern %s", suite_name, pattern)
         return None
 
-    # Calculate parallelism: ceil(venv_count / venvs_per_job)
+    # Calculate parallelism
     calculated = math.ceil(venv_count / venvs_per_job)
 
     # Cap at 20 to avoid over-parallelization
