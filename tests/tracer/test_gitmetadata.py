@@ -2,6 +2,7 @@
 """
 tests for git metadata embedding and processing.
 """
+
 import glob
 import os
 import subprocess

@@ -171,9 +171,7 @@ async def test(tracer, test_spans):
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(
-        expected_service, expected_operation
-    )
+    """.format(expected_service, expected_operation)
     env = os.environ.copy()
     if service:
         env["DD_SERVICE"] = service

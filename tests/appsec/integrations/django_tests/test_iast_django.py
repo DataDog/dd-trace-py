@@ -205,9 +205,9 @@ def test_django_sqli_http_request_parameter_metrics_disabled(client, iast_spans_
         url="/appsec/sqli_http_request_parameter_name_post/",
         headers={"HTTP_USER_AGENT": "test/1.2.3"},
     )
-    assert (
-        root_span.get_metric(IAST.ENABLED) == 0.0
-    ), f"IAST should be disabled. Metric: {root_span.get_metric(IAST.ENABLED)}"
+    assert root_span.get_metric(IAST.ENABLED) == 0.0, (
+        f"IAST should be disabled. Metric: {root_span.get_metric(IAST.ENABLED)}"
+    )
     assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) is None
     assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK + ".sql_injection") is None
     assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK + ".header_injection") is None
@@ -989,14 +989,14 @@ def test_django_command_injection_subprocess(client, iast_span, tracer):
 
     line, hash_value = get_line_and_hash("iast_command_injection_subprocess", VULN_CMDI, filename=TEST_FILE)
 
-    assert loaded["sources"] == [
-        {"name": "cmd", "origin": "http.request.body", "value": "ls"}
-    ], f'Assertion error: {loaded["sources"]}'
+    assert loaded["sources"] == [{"name": "cmd", "origin": "http.request.body", "value": "ls"}], (
+        f"Assertion error: {loaded['sources']}"
+    )
     assert loaded["vulnerabilities"][0]["type"] == VULN_CMDI
     assert loaded["vulnerabilities"][0]["hash"] == hash_value
     assert loaded["vulnerabilities"][0]["evidence"] == {
         "valueParts": [{"value": "ls", "source": 0}, {"value": " "}, {"redacted": True}]
-    }, f'Assertion error: {loaded["vulnerabilities"][0]["evidence"]}'
+    }, f"Assertion error: {loaded['vulnerabilities'][0]['evidence']}"
     assert loaded["vulnerabilities"][0]["location"]["line"] == line
     assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
 
@@ -1628,9 +1628,9 @@ def test_django_iast_sampling(client, test_spans_2_vuln_per_request_deduplicatio
         for vuln in loaded["vulnerabilities"]:
             assert vuln["type"] == VULN_SQL_INJECTION
             list_vulnerabilities.append(vuln["location"]["line"])
-    assert (
-        len(list_vulnerabilities) == 10
-    ), f"Num vulnerabilities: ({len(list_vulnerabilities)}): {list_vulnerabilities}"
+    assert len(list_vulnerabilities) == 10, (
+        f"Num vulnerabilities: ({len(list_vulnerabilities)}): {list_vulnerabilities}"
+    )
 
 
 @pytest.mark.django_db()
@@ -1684,9 +1684,9 @@ def test_django_iast_sampling_by_route_method(client, test_spans_2_vuln_per_requ
             for vuln in loaded["vulnerabilities"]:
                 assert vuln["type"] == VULN_SQL_INJECTION
                 list_vulnerabilities.append(vuln["location"]["line"])
-    assert (
-        len(list_vulnerabilities) == 16
-    ), f"Num vulnerabilities: ({len(list_vulnerabilities)}): {list_vulnerabilities}"
+    assert len(list_vulnerabilities) == 16, (
+        f"Num vulnerabilities: ({len(list_vulnerabilities)}): {list_vulnerabilities}"
+    )
 
 
 @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")

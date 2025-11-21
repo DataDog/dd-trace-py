@@ -1,10 +1,12 @@
 from typing import Dict
 from typing import Optional
 from typing import Union
-from .._types import StringType
+
+import ddtrace
 from ddtrace._trace.span import Span
 from ddtrace._trace.tracer import Tracer
-import ddtrace
+
+from .._types import StringType
 
 def config(
     env: StringType = None,
