@@ -6,6 +6,7 @@ files:
   - "ddtrace/**"
 ignores:
   - "ddtrace/settings/_env.py"
+  - "ddtrace/commands/ddtrace_run.py"
 rule:
   any:
     # Match os.environ access patterns
