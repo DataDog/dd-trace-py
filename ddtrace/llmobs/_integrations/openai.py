@@ -172,7 +172,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         tool_arguments = kwargs.get("arguments")
         tool_output = response
 
-        span_name = "MCP Server Tool Execute: {}".format(tool_name)
+        span_name = "MCP Client Tool Call: {}".format(tool_name)
         span.name = span_name
 
         span._set_ctx_items(
