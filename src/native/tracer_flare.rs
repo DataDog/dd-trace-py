@@ -1,8 +1,7 @@
-use datadog_tracer_flare::{error::FlareError, LogLevel, ReturnAction, TracerFlareManager};
 use datadog_remote_config::config::agent_task::AgentTaskFile;
+use datadog_tracer_flare::{error::FlareError, LogLevel, ReturnAction, TracerFlareManager};
 
 /// ERROR
-
 use pyo3::{create_exception, exceptions::PyException, prelude::*, PyErr};
 
 create_exception!(
@@ -23,12 +22,7 @@ create_exception!(
     PyException,
     "Send error"
 );
-create_exception!(
-    tracer_flare_exceptions,
-    ZipError,
-    PyException,
-    "Zip error"
-);
+create_exception!(tracer_flare_exceptions, ZipError, PyException, "Zip error");
 
 pub struct FlareErrorPy(pub FlareError);
 
@@ -146,7 +140,13 @@ impl AgentTaskFilePy {
     /// Returns:
     ///     AgentTaskFile instance
     #[new]
-    fn new(case_id: u64, hostname: String, user_handle: String, task_type: String, uuid: String) -> Self {
+    fn new(
+        case_id: u64,
+        hostname: String,
+        user_handle: String,
+        task_type: String,
+        uuid: String,
+    ) -> Self {
         AgentTaskFilePy {
             case_id,
             hostname,
@@ -219,7 +219,10 @@ impl ReturnActionPy {
     fn __repr__(&self) -> String {
         match &self.inner {
             ReturnAction::Send(task) => {
-                format!("ReturnAction.Send(case_id={}, uuid={})", task.args.case_id, task.uuid)
+                format!(
+                    "ReturnAction.Send(case_id={}, uuid={})",
+                    task.args.case_id, task.uuid
+                )
             }
             ReturnAction::Set(level) => format!("ReturnAction.Set({:?})", level),
             ReturnAction::Unset => "ReturnAction.Unset".to_string(),
@@ -308,11 +311,7 @@ impl TracerFlareManagerPy {
     /// Raises:
     ///     ZipError: If zipping fails
     ///     SendError: If sending fails
-    fn zip_and_send(
-        &self,
-        files: Vec<String>,
-        send_action: Py<PyAny>,
-    ) -> PyResult<()> {
+    fn zip_and_send(&self, files: Vec<String>, send_action: Py<PyAny>) -> PyResult<()> {
         Python::with_gil(|py| {
             let send_action_obj = send_action.extract::<ReturnActionPy>(py)?;
             let rust_action: ReturnAction = send_action_obj.into();
@@ -326,12 +325,14 @@ impl TracerFlareManagerPy {
                 .enable_time()
                 .enable_io()
                 .build()
-                .map_err(|e| PyException::new_err(format!("Failed to create tokio runtime: {}", e)))?;
+                .map_err(|e| {
+                    PyException::new_err(format!("Failed to create tokio runtime: {}", e))
+                })?;
 
             rt.block_on(async move {
-                let manager_guard = manager_arc
-                    .lock()
-                    .map_err(|e| PyException::new_err(format!("Failed to acquire manager lock: {}", e)))?;
+                let manager_guard = manager_arc.lock().map_err(|e| {
+                    PyException::new_err(format!("Failed to acquire manager lock: {}", e))
+                })?;
                 let manager = manager_guard
                     .as_ref()
                     .ok_or_else(|| PyException::new_err("Manager not initialized"))?;
@@ -367,8 +368,9 @@ impl TracerFlareManagerPy {
         let mut file = File::create(file_path)
             .map_err(|e| ZipError::new_err(format!("Failed to create config file: {}", e)))?;
 
-        let json_string = serde_json::to_string_pretty(&json_value)
-            .map_err(|e| ParsingError::new_err(format!("Failed to serialize config JSON: {}", e)))?;
+        let json_string = serde_json::to_string_pretty(&json_value).map_err(|e| {
+            ParsingError::new_err(format!("Failed to serialize config JSON: {}", e))
+        })?;
 
         file.write_all(json_string.as_bytes())
             .map_err(|e| ZipError::new_err(format!("Failed to write config file: {}", e)))?;
@@ -402,7 +404,6 @@ impl TracerFlareManagerPy {
         "TracerFlareManager".to_string()
     }
 }
-
 
 /// END
 
