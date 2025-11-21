@@ -152,8 +152,10 @@ def calculate_dynamic_parallelism(suite_name: str, suite_config: dict) -> t.Opti
     if venvs_per_job is None:
         return None
 
+    # Only import when needed
     import math
 
+    # Importing will load/evaluate the whole riotfile.py
     import riotfile
 
     pattern = suite_config.get("pattern", suite_name)
