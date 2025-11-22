@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Added support for uWSGI with gevent when threads are also patched. The use
+    of the keyword argument ``thread=False`` is no longer required when
+    performing monkey-patching with gevent via ``gevent.monkey.patch_all``.
