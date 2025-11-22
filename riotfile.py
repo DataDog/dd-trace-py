@@ -3011,6 +3011,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/ray",
             pys=select_pys(min_version="3.11", max_version="3.13"),
             pkgs={
+                "python-json-logger": latest,
                 "ray[default]": ["~=2.46.0", latest],
             },
         ),
