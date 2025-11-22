@@ -522,7 +522,8 @@ def test_memory_collector_allocation_accuracy_with_tracemalloc(sample_interval, 
         actual_rel_count = actual_count / actual_count_total
 
         print(
-            f"{func}\t{got.count}\t{got.size}\t{actual_size}\t{actual_count}\t{rel_size:.3f}\t{actual_rel_size:.3f}\t{rel_count:.3f}\t{actual_rel_count:.3f}"
+            f"{func}\t{got.count}\t{got.size}\t{actual_size}\t{actual_count}\t"
+            f"{rel_size:.3f}\t{actual_rel_size:.3f}\t{rel_count:.3f}\t{actual_rel_count:.3f}"
         )
 
         assert abs(rel_size - actual_rel_size) < 0.10
@@ -560,8 +561,10 @@ def test_memory_collector_allocation_tracking_across_snapshots(tmp_path):
         assert alloc_space_idx >= 0, "alloc-space sample type not found in profile"
         assert alloc_count_idx >= 0, "alloc-samples sample type not found in profile"
 
-        assert all(sample.value[alloc_space_idx] > 0 for sample in profile.sample), (
-            "Initial snapshot should have alloc-space>0 (new allocations)"
+        failing_samples = [s for s in profile.sample if s.value[alloc_space_idx] <= 0]
+        assert len(failing_samples) == 0, (
+            f"Initial snapshot should have alloc-space>0 (new allocations), "
+            f"but {len(failing_samples)}/{len(profile.sample)} samples have alloc-space<=0"
         )
 
         # Get freed samples (alloc-space > 0, heap-space == 0)
@@ -587,15 +590,25 @@ def test_memory_collector_allocation_tracking_across_snapshots(tmp_path):
         ]
 
         assert len(one_freed_samples) > 0, "Should have freed samples from function 'one'"
-        assert all(
-            sample.value[heap_space_idx] == 0 and sample.value[alloc_space_idx] > 0 for sample in one_freed_samples
+        failing_one_freed = [
+            s for s in one_freed_samples if not (s.value[heap_space_idx] == 0 and s.value[alloc_space_idx] > 0)
+        ]
+        assert len(failing_one_freed) == 0, (
+            f"Expected all one_freed samples to have heap-space==0 and alloc-space>0, "
+            f"but {len(failing_one_freed)}/{len(one_freed_samples)} samples failed. "
+            f"Failing samples: {[(s.value[heap_space_idx], s.value[alloc_space_idx]) for s in failing_one_freed[:5]]}"
         )
 
         two_live_samples = [sample for sample in live_samples if has_function_in_profile_sample(profile, sample, "two")]
 
         assert len(two_live_samples) > 0, "Should have live samples from function 'two'"
-        assert all(
-            sample.value[heap_space_idx] > 0 and sample.value[alloc_space_idx] > 0 for sample in two_live_samples
+        failing_two_live = [
+            s for s in two_live_samples if not (s.value[heap_space_idx] > 0 and s.value[alloc_space_idx] > 0)
+        ]
+        assert len(failing_two_live) == 0, (
+            f"Expected all two_live samples to have heap-space>0 and alloc-space>0, "
+            f"but {len(failing_two_live)}/{len(two_live_samples)} samples failed. "
+            f"Failing samples: {[(s.value[heap_space_idx], s.value[alloc_space_idx]) for s in failing_two_live[:5]]}"
         )
 
         del data_to_keep
@@ -666,8 +679,13 @@ def test_memory_collector_python_interface_with_allocation_tracking(tmp_path):
         assert len(batch_two_live_samples) > 0, (
             f"Should have live samples from batch two, got {len(batch_two_live_samples)}"
         )
-        assert all(
-            sample.value[heap_space_idx] > 0 and sample.value[alloc_space_idx] >= 0 for sample in batch_two_live_samples
+        failing_batch_two = [
+            s for s in batch_two_live_samples if not (s.value[heap_space_idx] > 0 and s.value[alloc_space_idx] >= 0)
+        ]
+        assert len(failing_batch_two) == 0, (
+            f"Expected all batch_two samples to have heap-space>0 and alloc-space>=0, "
+            f"but {len(failing_batch_two)}/{len(batch_two_live_samples)} samples failed. "
+            f"Failing samples: {[(s.value[heap_space_idx], s.value[alloc_space_idx]) for s in failing_batch_two[:5]]}"
         )
 
         del second_batch
@@ -696,10 +714,14 @@ def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(
 
         final_profile = mc.snapshot_and_parse_pprof(output_filename)
 
-        assert len(after_first_batch_profile.sample) >= initial_count, (
-            "Should have at least as many samples after first batch"
+        # Extract values early to avoid pytest introspecting large objects
+        after_first_batch_count = len(after_first_batch_profile.sample)
+        final_sample_count = len(final_profile.sample)
+
+        assert after_first_batch_count >= initial_count, (
+            f"Should have at least as many samples after first batch, got {after_first_batch_count} >= {initial_count}"
         )
-        assert len(final_profile.sample) >= 0, "Final snapshot should be valid"
+        assert final_sample_count >= 0, f"Final snapshot should be valid, got {final_sample_count} samples"
 
         # Get sample type indices for final profile
         heap_space_idx = pprof_utils.get_sample_type_index(final_profile, "heap-space")
@@ -712,39 +734,59 @@ def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(
         assert alloc_count_idx >= 0, "alloc-samples sample type not found in profile"
 
         # Validate all samples in final profile have valid values
-        for sample in final_profile.sample:
-            has_heap = sample.value[heap_space_idx] > 0
-            has_alloc = sample.value[alloc_space_idx] > 0
-            assert has_heap or has_alloc, "Sample should have either heap-space or alloc-space > 0"
-            assert sample.value[alloc_count_idx] >= 0, (
-                f"alloc-samples should be non-negative, got {sample.value[alloc_count_idx]}"
+        # Extract values first to avoid pytest introspecting large objects
+        for idx, sample in enumerate(final_profile.sample):
+            heap_val = sample.value[heap_space_idx]
+            alloc_val = sample.value[alloc_space_idx]
+            count_val = sample.value[alloc_count_idx]
+
+            has_heap = heap_val > 0
+            has_alloc = alloc_val > 0
+            assert has_heap or has_alloc, (
+                f"Sample {idx} should have either heap-space>0 or alloc-space>0, got heap={heap_val}, alloc={alloc_val}"
             )
+            assert count_val >= 0, f"Sample {idx}: alloc-samples should be non-negative, got {count_val}"
 
-        # Get live samples (heap-space > 0)
-        live_samples = [s for s in final_profile.sample if s.value[heap_space_idx] > 0]
+        # Get live samples (heap-space > 0) - extract values immediately to avoid pytest introspection
+        # Extract all sample data first to avoid referencing profile objects in assertions
+        batch_one_values = []
+        batch_two_values = []
 
-        batch_one_live_samples = [
-            sample for sample in live_samples if has_function_in_profile_sample(final_profile, sample, "one")
-        ]
+        # Extract all samples into a list of tuples to avoid pytest introspecting profile objects
+        sample_data = []
+        for sample in final_profile.sample:
+            heap_val = sample.value[heap_space_idx]
+            alloc_val = sample.value[alloc_space_idx]
+            sample_data.append((heap_val, alloc_val, sample))
 
-        batch_two_live_samples = [
-            sample for sample in live_samples if has_function_in_profile_sample(final_profile, sample, "two")
-        ]
+        # Now process the extracted data without referencing final_profile in the loop
+        for heap_val, alloc_val, sample in sample_data:
+            if heap_val > 0:  # Live sample
+                if has_function_in_profile_sample(final_profile, sample, "one"):
+                    batch_one_values.append((heap_val, alloc_val))
+                elif has_function_in_profile_sample(final_profile, sample, "two"):
+                    batch_two_values.append((heap_val, alloc_val))
 
-        assert len(batch_one_live_samples) > 0, (
-            f"Should have live samples from batch one, got {len(batch_one_live_samples)}"
-        )
-        assert len(batch_two_live_samples) > 0, (
-            f"Should have live samples from batch two, got {len(batch_two_live_samples)}"
-        )
+        batch_one_count = len(batch_one_values)
+        batch_two_count = len(batch_two_values)
+
+        assert batch_one_count > 0, f"Should have live samples from batch one, got {batch_one_count}"
+        assert batch_two_count > 0, f"Should have live samples from batch two, got {batch_two_count}"
 
         # batch_one samples were reported in first snapshot, so alloc-space should be 0 in later snapshots
         # batch_two samples are new allocations, so alloc-space should be > 0
-        assert all(
-            sample.value[heap_space_idx] > 0 and sample.value[alloc_space_idx] == 0 for sample in batch_one_live_samples
+        failing_batch_one = [(h, a) for h, a in batch_one_values if not (h > 0 and a == 0)]
+        assert len(failing_batch_one) == 0, (
+            f"Expected all batch_one samples to have heap-space>0 and alloc-space==0, "
+            f"but {len(failing_batch_one)}/{batch_one_count} samples failed. "
+            f"Failing samples (heap, alloc): {failing_batch_one[:5]}"
         )
-        assert all(
-            sample.value[heap_space_idx] > 0 and sample.value[alloc_space_idx] > 0 for sample in batch_two_live_samples
+
+        failing_batch_two = [(h, a) for h, a in batch_two_values if not (h > 0 and a > 0)]
+        assert len(failing_batch_two) == 0, (
+            f"Expected all batch_two samples to have heap-space>0 and alloc-space>0, "
+            f"but {len(failing_batch_two)}/{batch_two_count} samples failed. "
+            f"Failing samples (heap, alloc): {failing_batch_two[:5]}"
         )
 
         del first_batch

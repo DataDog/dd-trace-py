@@ -4,6 +4,37 @@
 #include <string>
 #include <string_view>
 
+#if PY_VERSION_HEX >= 0x030b0000 && PY_VERSION_HEX < 0x030d0000
+// We can't include internal/pycore_frame.h because it requires Py_BUILD_CORE
+// Instead, we define minimal structures matching CPython's internal layout
+// These structures are internal to CPython but we need to access them
+// to avoid allocations from PyFrameObject creation
+// Note: Python 3.13+ has different internal structures, so we only use this for 3.11-3.12
+extern "C"
+{
+    // Minimal structure definition matching _PyInterpreterFrame layout
+    // Based on CPython's Include/internal/pycore_frame.h
+    typedef struct _PyInterpreterFrame
+    {
+        PyObject* f_executable;
+        void* prev_instr; // _Py_CODEUNIT* - pointer to instruction
+        struct _PyInterpreterFrame* previous;
+        // Note: There are other fields, but we only need these three
+    } _PyInterpreterFrame;
+
+    // Minimal structure definition matching _PyCFrame layout
+    // Based on CPython's Include/internal/pycore_frame.h
+    typedef struct _PyCFrame
+    {
+        struct _PyInterpreterFrame* current_frame;
+        // Note: There are other fields, but we only need current_frame
+    } _PyCFrame;
+
+    // _Py_CODEUNIT is uint16_t in Python 3.11+
+    typedef uint16_t _Py_CODEUNIT;
+}
+#endif
+
 #include "_memalloc_debug.h"
 #include "_memalloc_reentrant.h"
 #include "_memalloc_tb.h"
@@ -342,6 +373,119 @@ push_threadinfo_to_sample(Datadog::Sample& sample, unsigned long thread_id)
     sample.push_threadinfo(thread_id, thread_native_id, thread_name);
 }
 
+/* Helper function to extract code object and line number from a PyFrameObject */
+static void
+extract_frame_info_from_pyframe(PyFrameObject* frame, PyCodeObject** code_out, int* lineno_out)
+{
+    *code_out = NULL;
+    *lineno_out = 0;
+
+    int lineno_val = PyFrame_GetLineNumber(frame);
+    if (lineno_val < 0)
+        lineno_val = 0;
+
+#ifdef _PY39_AND_LATER
+    PyCodeObject* code = PyFrame_GetCode(frame);
+#else
+    PyCodeObject* code = frame->f_code;
+#endif
+
+    *code_out = code;
+    *lineno_out = lineno_val;
+}
+
+#if PY_VERSION_HEX >= 0x030b0000 && PY_VERSION_HEX < 0x030d0000
+/* Helper function to extract code object and line number from a _PyInterpreterFrame
+ * Only available for Python 3.11-3.12. Python 3.13+ uses different internal structures. */
+static void
+extract_frame_info_from_interpreter_frame(_PyInterpreterFrame* frame, PyCodeObject** code_out, int* lineno_out)
+{
+    *code_out = NULL;
+    *lineno_out = 0;
+
+    // Extract code object from interpreter frame
+    // Python 3.11-3.12: f_executable is always a code object
+    PyObject* f_executable = frame->f_executable;
+    PyCodeObject* code = (PyCodeObject*)f_executable;
+
+    if (code == NULL)
+        return;
+
+    // Calculate line number from interpreter frame
+    // Use PyCode_Addr2Line with the frame's instruction pointer
+    int lineno_val = 0;
+    if (frame->prev_instr != NULL) {
+        // Calculate bytecode offset from instruction pointer
+        // frame->prev_instr is a pointer to _Py_CODEUNIT (uint16_t, 2 bytes per instruction in Python 3.11+)
+        // We need to calculate the offset in code units
+        // Python 3.11-3.12: co_code is directly accessible
+        PyObject* code_bytes = code->co_code;
+        Py_INCREF(code_bytes); // Borrowed reference, need to INCREF for consistency
+        if (code_bytes != NULL) {
+            const uint8_t* code_start = (const uint8_t*)PyBytes_AS_STRING(code_bytes);
+            const _Py_CODEUNIT* instr_ptr = (const _Py_CODEUNIT*)frame->prev_instr;
+            if (instr_ptr >= (const _Py_CODEUNIT*)code_start) {
+                Py_ssize_t offset = instr_ptr - (const _Py_CODEUNIT*)code_start;
+                lineno_val = PyCode_Addr2Line(code, offset);
+            }
+            Py_DECREF(code_bytes);
+        }
+    }
+    if (lineno_val < 0)
+        lineno_val = 0;
+
+    *code_out = code;
+    *lineno_out = lineno_val;
+}
+#endif
+
+/* Helper function to push frame info to sample */
+static void
+push_frame_to_sample(Datadog::Sample& sample, PyCodeObject* code, int lineno_val)
+{
+    // Extract frame info for Sample
+    // Create string_views directly from bytes buffers, push_frame copies them immediately,
+    // then we can safely DECREF the bytes objects
+    std::string_view name_sv = "<unknown>";
+    std::string_view filename_sv = "<unknown>";
+
+    PyObject* name_bytes = nullptr;
+    PyObject* filename_bytes = nullptr;
+
+    if (code != NULL) {
+        if (code->co_name) {
+            name_bytes = PyUnicode_AsUTF8String(code->co_name);
+            if (name_bytes) {
+                const char* name_ptr = PyBytes_AsString(name_bytes);
+                if (name_ptr) {
+                    Py_ssize_t name_len = PyBytes_Size(name_bytes);
+                    name_sv = std::string_view(name_ptr, name_len);
+                }
+            }
+        }
+
+        if (code->co_filename) {
+            filename_bytes = PyUnicode_AsUTF8String(code->co_filename);
+            if (filename_bytes) {
+                const char* filename_ptr = PyBytes_AsString(filename_bytes);
+                if (filename_ptr) {
+                    Py_ssize_t filename_len = PyBytes_Size(filename_bytes);
+                    filename_sv = std::string_view(filename_ptr, filename_len);
+                }
+            }
+        }
+    }
+
+    // Push frame to Sample (root to leaf order)
+    // push_frame copies the strings immediately into its StringArena, so it's safe to
+    // DECREF the bytes objects after this call
+    sample.push_frame(name_sv, filename_sv, 0, lineno_val);
+
+    // Now safe to release the bytes objects since push_frame has copied the strings
+    Py_XDECREF(name_bytes);
+    Py_XDECREF(filename_bytes);
+}
+
 traceback_t::traceback_t(void* ptr,
                          size_t size,
                          PyMemAllocatorDomain domain,
@@ -387,58 +531,14 @@ traceback_t::traceback_t(void* ptr,
     // Note: Sample.push_frame() automatically enforces the max_nframe limit and tracks dropped frames.
     sample.set_reverse_locations(true);
     for (PyFrameObject* frame = pyframe; frame != NULL;) {
-        // Extract frame info for Sample
-        int lineno_val = PyFrame_GetLineNumber(frame);
-        if (lineno_val < 0)
-            lineno_val = 0;
+        PyCodeObject* code = NULL;
+        int lineno_val = 0;
 
-#ifdef _PY39_AND_LATER
-        PyCodeObject* code = PyFrame_GetCode(frame);
-#else
-        PyCodeObject* code = frame->f_code;
-#endif
-
-        // Extract frame info for Sample
-        // Create string_views directly from bytes buffers, push_frame copies them immediately,
-        // then we can safely DECREF the bytes objects
-        std::string_view name_sv = "<unknown>";
-        std::string_view filename_sv = "<unknown>";
-
-        PyObject* name_bytes = nullptr;
-        PyObject* filename_bytes = nullptr;
+        extract_frame_info_from_pyframe(frame, &code, &lineno_val);
 
         if (code != NULL) {
-            if (code->co_name) {
-                name_bytes = PyUnicode_AsUTF8String(code->co_name);
-                if (name_bytes) {
-                    const char* name_ptr = PyBytes_AsString(name_bytes);
-                    if (name_ptr) {
-                        Py_ssize_t name_len = PyBytes_Size(name_bytes);
-                        name_sv = std::string_view(name_ptr, name_len);
-                    }
-                }
-            }
-
-            if (code->co_filename) {
-                filename_bytes = PyUnicode_AsUTF8String(code->co_filename);
-                if (filename_bytes) {
-                    const char* filename_ptr = PyBytes_AsString(filename_bytes);
-                    if (filename_ptr) {
-                        Py_ssize_t filename_len = PyBytes_Size(filename_bytes);
-                        filename_sv = std::string_view(filename_ptr, filename_len);
-                    }
-                }
-            }
+            push_frame_to_sample(sample, code, lineno_val);
         }
-
-        // Push frame to Sample (root to leaf order)
-        // push_frame copies the strings immediately into its StringArena, so it's safe to
-        // DECREF the bytes objects after this call
-        sample.push_frame(name_sv, filename_sv, 0, lineno_val);
-
-        // Now safe to release the bytes objects since push_frame has copied the strings
-        Py_XDECREF(name_bytes);
-        Py_XDECREF(filename_bytes);
 
 #ifdef _PY39_AND_LATER
         Py_XDECREF(code);
@@ -455,6 +555,79 @@ traceback_t::traceback_t(void* ptr,
         memalloc_debug_gil_release();
     }
 }
+
+#if PY_VERSION_HEX >= 0x030b0000 && PY_VERSION_HEX < 0x030d0000
+// Constructor for Python 3.11-3.12 - uses _PyInterpreterFrame directly to avoid allocations
+// Note: Python 3.13+ has different internal structures, so we use PyFrameObject instead
+traceback_t::traceback_t(void* ptr,
+                         size_t size,
+                         PyMemAllocatorDomain domain,
+                         size_t weighted_size,
+                         PyThreadState* tstate,
+                         uint16_t max_nframe)
+  : ptr(ptr)
+  , size(weighted_size)
+  , domain(domain)
+  , thread_id(PyThread_get_thread_ident())
+  , reported(false)
+  , count(0)
+  , sample(static_cast<Datadog::SampleType>(Datadog::SampleType::Allocation | Datadog::SampleType::Heap), max_nframe)
+{
+    // Size 0 allocations are legal and we can hypothetically sample them,
+    // e.g. if an allocation during sampling pushes us over the next sampling threshold,
+    // but we can't sample it, so we sample the next allocation which happens to be 0
+    // bytes. Defensively make sure size isn't 0.
+    size_t adjusted_size = size > 0 ? size : 1;
+    double scaled_count = ((double)weighted_size) / ((double)adjusted_size);
+    count = (size_t)scaled_count;
+
+    // Validate Sample object is in a valid state before use
+    if (max_nframe == 0) {
+        // Should not happen, but defensive check
+        return;
+    }
+
+    // Push allocation info to sample
+    // Note: profile_state is initialized in memalloc_start() before any traceback_t objects are created
+    sample.push_alloc(weighted_size, count);
+    // Push heap info - use actual size (not weighted) for heap tracking
+    // TODO(dsn): figure out if this actually makes sense, or if we should use the weighted size
+    sample.push_heap(size);
+
+    // Get thread native_id and name from Python's _threading module and push to sample
+    push_threadinfo_to_sample(sample, thread_id);
+
+    // Collect frames from the Python interpreter frame chain and push to Sample
+    // We push frames as we collect them (root to leaf order).
+    // Note: Sample.push_frame() comment says it "Assumes frames are pushed in leaf-order",
+    // but we push root-to-leaf. Set reverse_locations so the sample will be reversed when exported.
+    // Note: Sample.push_frame() automatically enforces the max_nframe limit and tracks dropped frames.
+    sample.set_reverse_locations(true);
+
+    // Access interpreter frames directly from tstate->cframe to avoid creating PyFrameObjects
+    _PyCFrame* cframe = tstate->cframe;
+    if (cframe == NULL)
+        return;
+
+    _PyInterpreterFrame* frame = cframe->current_frame;
+    if (frame == NULL)
+        return;
+
+    // Walk interpreter frames using frame->previous (avoids allocations)
+    for (; frame != NULL; frame = frame->previous) {
+        PyCodeObject* code = NULL;
+        int lineno_val = 0;
+
+        extract_frame_info_from_interpreter_frame(frame, &code, &lineno_val);
+
+        if (code != NULL) {
+            push_frame_to_sample(sample, code, lineno_val);
+        }
+
+        memalloc_debug_gil_release();
+    }
+}
+#endif
 
 traceback_t::~traceback_t()
 {
@@ -474,6 +647,23 @@ traceback_t::get_traceback(uint16_t max_nframe,
     if (tstate == NULL)
         return NULL;
 
+#if PY_VERSION_HEX >= 0x030b0000 && PY_VERSION_HEX < 0x030d0000
+    // For Python 3.11-3.12, use _PyInterpreterFrame directly to avoid allocations
+    // Access the interpreter frame from tstate->cframe instead of creating PyFrameObject
+    // Note: Python 3.13+ has different internal structures, so we fall back to PyFrameObject
+    _PyCFrame* cframe = tstate->cframe;
+    if (cframe == NULL)
+        return NULL;
+
+    return new traceback_t(ptr, size, domain, weighted_size, tstate, max_nframe);
+#elif PY_VERSION_HEX >= 0x030d0000
+    // Python 3.13+: internal structures changed, use PyFrameObject API
+    PyFrameObject* pyframe = PyThreadState_GetFrame(tstate);
+    if (pyframe == NULL)
+        return NULL;
+    return new traceback_t(ptr, size, domain, weighted_size, pyframe, max_nframe);
+#else
+    // For older Python versions, use PyFrameObject
 #ifdef _PY39_AND_LATER
     PyFrameObject* pyframe = PyThreadState_GetFrame(tstate);
 #else
@@ -484,4 +674,5 @@ traceback_t::get_traceback(uint16_t max_nframe,
         return NULL;
 
     return new traceback_t(ptr, size, domain, weighted_size, pyframe, max_nframe);
+#endif
 }
