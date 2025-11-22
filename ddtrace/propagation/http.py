@@ -814,7 +814,7 @@ class _TraceContext:
                 return None
             trace_id, span_id, trace_flag = _TraceContext._get_traceparent_values(tp)
         except (ValueError, AssertionError):
-            log.exception("received invalid w3c traceparent: %s ", tp)
+            log.exception("received invalid w3c traceparent: %s ", tp, extra={"send_to_telemetry": False})
             return None
 
         meta = {W3C_TRACEPARENT_KEY: tp}
