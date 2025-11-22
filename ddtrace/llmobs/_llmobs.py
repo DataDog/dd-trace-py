@@ -204,6 +204,7 @@ class LLMObsSpan:
 
     input: List[Message] = field(default_factory=list)
     output: List[Message] = field(default_factory=list)
+    metadata: Dict[str, Any] = field(default_factory=dict)
     _tags: Dict[str, str] = field(default_factory=dict)
 
     def get_tag(self, key: str) -> Optional[str]:
@@ -410,6 +411,8 @@ class LLMObs(Service):
                 meta["output"]["messages"] = llmobs_span.output
             elif output_type == "value":
                 meta["output"]["value"] = llmobs_span.output[0].get("content", "")
+        if llmobs_span.metadata:
+            meta["metadata"].update(llmobs_span.metadata)
 
         if not meta["input"]:
             meta.pop("input")
