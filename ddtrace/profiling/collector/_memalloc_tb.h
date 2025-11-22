@@ -17,8 +17,6 @@ class traceback_t
     size_t size;
     /* Domain allocated */
     PyMemAllocatorDomain domain;
-    /* Thread ID */
-    unsigned long thread_id;
     /* True if this sample has been reported previously */
     bool reported;
     /* Count of allocations this sample represents (for scaling) */

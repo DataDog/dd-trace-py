@@ -700,6 +700,18 @@ def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(
 
     with mc:
         initial_profile = mc.snapshot_and_parse_pprof(output_filename)
+
+        # Get sample type indices for initial profile
+        heap_space_idx = pprof_utils.get_sample_type_index(initial_profile, "heap-space")
+        alloc_space_idx = pprof_utils.get_sample_type_index(initial_profile, "alloc-space")
+
+        # Split initial samples into allocation-only vs live heap
+        initial_alloc_only = sum(
+            1
+            for s in initial_profile.sample
+            if s.value[alloc_space_idx] > 0 and s.value[heap_space_idx] == 0
+        )
+        initial_live_heap = sum(1 for s in initial_profile.sample if s.value[heap_space_idx] > 0)
         initial_count = len(initial_profile.sample)
 
         first_batch = []
@@ -708,6 +720,17 @@ def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(
 
         after_first_batch_profile = mc.snapshot_and_parse_pprof(output_filename)
 
+        # Split after_first_batch samples
+        after_first_batch_alloc_only = sum(
+            1
+            for s in after_first_batch_profile.sample
+            if s.value[alloc_space_idx] > 0 and s.value[heap_space_idx] == 0
+        )
+        after_first_batch_live_heap = sum(
+            1 for s in after_first_batch_profile.sample if s.value[heap_space_idx] > 0
+        )
+        after_first_batch_count = len(after_first_batch_profile.sample)
+
         second_batch = []
         for i in range(15):
             second_batch.append(two(512))
@@ -715,11 +738,27 @@ def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(
         final_profile = mc.snapshot_and_parse_pprof(output_filename)
 
         # Extract values early to avoid pytest introspecting large objects
-        after_first_batch_count = len(after_first_batch_profile.sample)
         final_sample_count = len(final_profile.sample)
 
-        assert after_first_batch_count >= initial_count, (
-            f"Should have at least as many samples after first batch, got {after_first_batch_count} >= {initial_count}"
+        # Split final samples
+        final_alloc_only = sum(
+            1
+            for s in final_profile.sample
+            if s.value[alloc_space_idx] > 0 and s.value[heap_space_idx] == 0
+        )
+        final_live_heap = sum(1 for s in final_profile.sample if s.value[heap_space_idx] > 0)
+
+        # Print counts for debugging
+        print(f"Initial: total={initial_count}, alloc_only={initial_alloc_only}, live_heap={initial_live_heap}")
+        print(
+            f"After first batch: total={after_first_batch_count}, "
+            f"alloc_only={after_first_batch_alloc_only}, live_heap={after_first_batch_live_heap}"
+        )
+        print(f"Final: total={final_sample_count}, alloc_only={final_alloc_only}, live_heap={final_live_heap}")
+
+        assert final_live_heap >= after_first_batch_live_heap, (
+            f"Should have at least as many live heap samples after second batch, "
+            f"got {final_live_heap} >= {after_first_batch_live_heap}"
         )
         assert final_sample_count >= 0, f"Final snapshot should be valid, got {final_sample_count} samples"
 
