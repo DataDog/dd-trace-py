@@ -146,20 +146,28 @@ class PythonErrorRestorer
   public:
     PythonErrorRestorer()
     {
+#if PY_VERSION_HEX >= 0x030c0000
+        // Python 3.12+: Use the new API that returns a single exception object
+        saved_exception = PyErr_GetRaisedException();
+#else
+        // Python < 3.12: Use the old API with separate type, value, traceback
         PyErr_Fetch(&saved_exc_type, &saved_exc_value, &saved_exc_traceback);
-        had_error = (saved_exc_type != NULL || saved_exc_value != NULL || saved_exc_traceback != NULL);
+#endif
     }
 
     ~PythonErrorRestorer()
     {
-        if (had_error) {
-            PyErr_Restore(saved_exc_type, saved_exc_value, saved_exc_traceback);
-        } else {
-            // No error was present; safely decrement reference counts
-            Py_XDECREF(saved_exc_type);
-            Py_XDECREF(saved_exc_value);
-            Py_XDECREF(saved_exc_traceback);
+#if PY_VERSION_HEX >= 0x030c0000
+        // Python 3.12+: Restore using the new API if there was an exception
+        if (saved_exception != NULL) {
+            PyErr_SetRaisedException(saved_exception);
         }
+#else
+        // Python < 3.12: Restore using the old API if there was an exception
+        if (saved_exc_type != NULL || saved_exc_value != NULL || saved_exc_traceback != NULL) {
+            PyErr_Restore(saved_exc_type, saved_exc_value, saved_exc_traceback);
+        }
+#endif
     }
 
     // Non-copyable, non-movable
@@ -169,10 +177,13 @@ class PythonErrorRestorer
     PythonErrorRestorer& operator=(PythonErrorRestorer&&) = delete;
 
   private:
+#if PY_VERSION_HEX >= 0x030c0000
+    PyObject* saved_exception;
+#else
     PyObject* saved_exc_type;
     PyObject* saved_exc_value;
     PyObject* saved_exc_traceback;
-    bool had_error;
+#endif
 };
 
 void
@@ -430,6 +441,9 @@ traceback_t::traceback_t(void* ptr,
   , count(0)
   , sample(static_cast<Datadog::SampleType>(Datadog::SampleType::Allocation | Datadog::SampleType::Heap), max_nframe)
 {
+    // Save any existing error state to avoid masking errors during traceback construction
+    PythonErrorRestorer error_restorer;
+
     // Size 0 allocations are legal and we can hypothetically sample them,
     // e.g. if an allocation during sampling pushes us over the next sampling threshold,
     // but we can't sample it, so we sample the next allocation which happens to be 0
@@ -502,6 +516,9 @@ traceback_t::traceback_t(void* ptr,
   , count(0)
   , sample(static_cast<Datadog::SampleType>(Datadog::SampleType::Allocation | Datadog::SampleType::Heap), max_nframe)
 {
+    // Save any existing error state to avoid masking errors during traceback construction
+    PythonErrorRestorer error_restorer;
+
     // Size 0 allocations are legal and we can hypothetically sample them,
     // e.g. if an allocation during sampling pushes us over the next sampling threshold,
     // but we can't sample it, so we sample the next allocation which happens to be 0
@@ -571,6 +588,9 @@ traceback_t::get_traceback(uint16_t max_nframe,
                            PyMemAllocatorDomain domain,
                            size_t weighted_size)
 {
+    // Save any existing error state to avoid masking errors during traceback creation
+    PythonErrorRestorer error_restorer;
+
     PyThreadState* tstate = PyThreadState_Get();
 
     if (tstate == NULL)
