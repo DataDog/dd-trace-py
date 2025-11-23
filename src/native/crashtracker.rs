@@ -1,14 +1,34 @@
 use anyhow;
 use std::collections::HashMap;
+use std::ffi::{c_char, c_int, c_void};
+use std::ptr;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Once;
 use std::time::Duration;
 
 use libdd_common::Endpoint;
 use libdd_crashtracker::{
-    CrashtrackerConfiguration, CrashtrackerReceiverConfig, Metadata, StacktraceCollection,
+    register_runtime_stacktrace_string_callback, CallbackError, CrashtrackerConfiguration,
+    CrashtrackerReceiverConfig, Metadata, StacktraceCollection,
 };
 use pyo3::prelude::*;
+
+// // Function pointer type for _Py_DumpTracebackThreads
+// type PyDumpTracebackThreadsFn = unsafe extern "C" fn(
+//     fd: c_int,
+//     interp: *mut pyo3_ffi::PyInterpreterState,
+//     current_tstate: *mut pyo3_ffi::PyThreadState,
+// ) -> *const c_char;
+
+extern "C" {
+    fn pipe(pipefd: *mut [c_int; 2]) -> c_int;
+    fn read(fd: c_int, buf: *mut c_void, count: usize) -> isize;
+    fn close(fd: c_int) -> c_int;
+    fn fcntl(fd: c_int, cmd: c_int, arg: c_int) -> c_int;
+}
+
+const F_SETFL: c_int = 4;
+const O_NONBLOCK: c_int = 0o4000;
 
 pub trait RustWrapper {
     type Inner;
@@ -287,4 +307,177 @@ pub fn crashtracker_status() -> anyhow::Result<CrashtrackerStatus> {
 #[pyfunction(name = "crashtracker_receiver")]
 pub fn crashtracker_receiver() -> anyhow::Result<()> {
     libdd_crashtracker::receiver_entry_point_stdin()
+}
+
+/// Result type for runtime callback operations
+#[pyclass(
+    eq,
+    eq_int,
+    name = "CallbackResult",
+    module = "datadog.internal._native"
+)]
+#[derive(Debug, PartialEq, Eq)]
+pub enum CallbackResult {
+    Ok,
+    Error,
+}
+
+impl From<CallbackError> for CallbackResult {
+    fn from(_error: CallbackError) -> Self {
+        CallbackResult::Error
+    }
+}
+
+const MAX_TRACEBACK_SIZE: usize = 8 * 1024; // 8KB
+
+// Attempt to resolve _Py_DumpTracebackThreads at runtime
+// Returns None if symbol is not available
+unsafe fn get_dump_traceback_fn() -> Option<PyDumpTracebackThreadsFn> {
+    // Try to get the symbol from the current process using dlsym
+    #[cfg(unix)]
+    {
+        use std::ffi::CString;
+
+        extern "C" {
+            fn dlsym(
+                handle: *mut std::ffi::c_void,
+                symbol: *const std::ffi::c_char,
+            ) -> *mut std::ffi::c_void;
+        }
+
+        const RTLD_DEFAULT: *mut std::ffi::c_void = ptr::null_mut();
+
+        let symbol_name = match CString::new("_Py_DumpTracebackThreads") {
+            Ok(name) => name,
+            Err(_) => return None,
+        };
+
+        let symbol_ptr = dlsym(RTLD_DEFAULT, symbol_name.as_ptr());
+
+        if symbol_ptr.is_null() {
+            None
+        } else {
+            Some(std::mem::transmute(symbol_ptr))
+        }
+    }
+
+    #[cfg(not(unix))]
+    {
+        None
+    }
+}
+
+unsafe fn dump_python_traceback_as_string(
+    emit_stacktrace_string: unsafe extern "C" fn(*const c_char),
+) {
+    emit_stacktrace_string(b"DEBUG: Should exit early here\0".as_ptr() as *const c_char);
+    return;
+    // Python version check using Py_GetVersion()
+    let ver_cstr = pyo3_ffi::Py_GetVersion();
+    let (mut major, mut minor) = (0, 0);
+
+    if !ver_cstr.is_null() {
+        if let Ok(ver_str) = std::ffi::CStr::from_ptr(ver_cstr).to_str() {
+            // Format: "3.14.0 (tags/...)"
+            let mut parts = ver_str.split('.');
+            major = parts
+                .next()
+                .and_then(|m| m.parse::<i32>().ok())
+                .unwrap_or(0);
+            minor = parts
+                .next()
+                .and_then(|m| m.parse::<i32>().ok())
+                .unwrap_or(0);
+        }
+    }
+
+    // Python ≥ 3.13 → Internal traceback APIs removed/hidden
+    if major > 3 || (major == 3 && minor >= 13) {
+        emit_stacktrace_string(
+            "<python_runtime_stacktrace_unavailable>\0".as_ptr() as *const c_char
+        );
+        return;
+    }
+
+    // Try to get the dump traceback function
+    let dump_fn = match get_dump_traceback_fn() {
+        Some(func) => func,
+        None => {
+            emit_stacktrace_string(
+                "<python_runtime_stacktrace_unavailable>\0".as_ptr() as *const c_char
+            );
+            return;
+        }
+    };
+
+    // Create a pipe to capture CPython internal traceback dump. _Py_DumpTracebackThreads writes to
+    // a fd. Reading and writing to pipe is signal-safe. We stack allocate a buffer in the beginning,
+    // and use it to read the output
+    let mut pipefd: [c_int; 2] = [0, 0];
+    if pipe(&mut pipefd as *mut [c_int; 2]) != 0 {
+        emit_stacktrace_string("<pipe_creation_failed>\0".as_ptr() as *const c_char);
+        return;
+    }
+
+    let read_fd = pipefd[0];
+    let write_fd = pipefd[1];
+
+    // Make the read end non-blocking
+    fcntl(read_fd, F_SETFL, O_NONBLOCK);
+
+    // Get current thread state using PyO3's GIL state API
+    let current_tstate = pyo3_ffi::PyGILState_GetThisThreadState();
+
+    let error_msg = dump_fn(write_fd, ptr::null_mut(), current_tstate);
+
+    close(write_fd);
+
+    if !error_msg.is_null() {
+        close(read_fd);
+        emit_stacktrace_string(error_msg as *const c_char);
+        return;
+    }
+
+    let mut buffer = [0u8; MAX_TRACEBACK_SIZE];
+    let bytes_read = read(
+        read_fd,
+        buffer.as_mut_ptr() as *mut c_void,
+        MAX_TRACEBACK_SIZE,
+    );
+
+    close(read_fd);
+
+    if bytes_read > 0 {
+        let bytes_read = bytes_read as usize;
+        if bytes_read < MAX_TRACEBACK_SIZE {
+            buffer[bytes_read] = 0;
+        } else {
+            // Buffer is full; add truncation indicator
+            let truncation_msg = b"\n[TRUNCATED]\0";
+            let msg_len = truncation_msg.len();
+            if MAX_TRACEBACK_SIZE >= msg_len {
+                let start_pos = MAX_TRACEBACK_SIZE - msg_len;
+                buffer[start_pos..].copy_from_slice(truncation_msg);
+            }
+        }
+        emit_stacktrace_string(buffer.as_ptr() as *const c_char);
+        return;
+    }
+
+    emit_stacktrace_string("<traceback_read_failed>\0".as_ptr() as *const c_char);
+}
+
+unsafe extern "C" fn native_runtime_stack_callback(
+    emit_stacktrace_string: unsafe extern "C" fn(*const c_char),
+) {
+    dump_python_traceback_as_string(emit_stacktrace_string);
+}
+
+/// Register the native runtime stack collection callback (string-based)
+#[pyfunction(name = "crashtracker_register_native_runtime_callback")]
+pub fn crashtracker_register_native_runtime_callback() -> CallbackResult {
+    match register_runtime_stacktrace_string_callback(native_runtime_stack_callback) {
+        Ok(()) => CallbackResult::Ok,
+        Err(e) => e.into(),
+    }
 }
