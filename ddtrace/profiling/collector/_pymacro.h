@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Python.h>
+
 #if PY_VERSION_HEX >= 0x030d0000
 #define _PY313_AND_LATER
 #endif
