@@ -368,9 +368,8 @@ impl TracerFlareManagerPy {
         let mut file = File::create(file_path)
             .map_err(|e| ZipError::new_err(format!("Failed to create config file: {e}")))?;
 
-        let json_string = serde_json::to_string_pretty(&json_value).map_err(|e| {
-            ParsingError::new_err(format!("Failed to serialize config JSON: {e}"))
-        })?;
+        let json_string = serde_json::to_string_pretty(&json_value)
+            .map_err(|e| ParsingError::new_err(format!("Failed to serialize config JSON: {e}")))?;
 
         file.write_all(json_string.as_bytes())
             .map_err(|e| ZipError::new_err(format!("Failed to write config file: {e}")))?;
