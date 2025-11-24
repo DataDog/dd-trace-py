@@ -71,7 +71,7 @@ ROLE_MAPPING = {
     "system": "system",
 }
 
-SUPPORTED_OPERATIONS = ["llm", "chat", "chain", "embedding", "retrieval", "tool"]
+SUPPORTED_OPERATIONS = ["llm", "chat", "chain", "embedding", "retrieval", "tool", "runnable_lambda"]
 LANGCHAIN_BASE_URL_FIELDS = [
     "api_base",
     "api_host",
@@ -211,6 +211,8 @@ class LangChainIntegration(BaseLLMIntegration):
             self._llmobs_set_meta_tags_from_similarity_search(span, args, kwargs, response, is_workflow=is_workflow)
         elif operation == "tool":
             self._llmobs_set_meta_tags_from_tool(span, tool_inputs=kwargs, tool_output=response)
+        elif operation == "runnable_lambda":
+            self._llmobs_set_meta_tags_from_runnable_lambda(span, args, kwargs, response)
 
     def _set_links(self, span: Span) -> None:
         """
@@ -760,6 +762,17 @@ class LangChainIntegration(BaseLLMIntegration):
                 METADATA: metadata,
                 INPUT_VALUE: formatted_input,
                 OUTPUT_VALUE: formatted_outputs,
+            }
+        )
+
+    def _llmobs_set_meta_tags_from_runnable_lambda(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any) -> None:
+        inputs = get_argument_value(args, kwargs, 0, "inputs")
+
+        span._set_ctx_items(
+            {
+                SPAN_KIND: "task",
+                INPUT_VALUE: safe_json(inputs),
+                OUTPUT_VALUE: safe_json(response),
             }
         )
 

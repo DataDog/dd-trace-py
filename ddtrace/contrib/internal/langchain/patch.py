@@ -21,6 +21,8 @@ from ddtrace.llmobs._integrations import LangChainIntegration
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.trace import Span
 
+import inspect
+
 
 log = get_logger(__name__)
 
@@ -612,6 +614,113 @@ def patched_vectorstore_init_subclass(func, instance, args, kwargs):
         log.warning("Unable to patch LangChain VectorStore class %s", str(cls))
 
 
+@with_traced_module
+def traced_runnable_lambda_invoke(langchain_core, pin, func, instance, args, kwargs):
+    integration: LangChainIntegration = langchain_core._datadog_integration
+    span = integration.trace(
+        pin,
+        getattr(instance, "name", f"{instance.__class__.__name__}.{func.__name__}"),
+        submit_to_llmobs=True,
+        interface_type="runnable_lambda",
+        instance=instance,
+    )
+
+    result = None
+
+    try:
+        result = func(*args, **kwargs)
+        return result
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        raise
+    finally:
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="runnable_lambda")
+        span.finish()
+
+@with_traced_module
+async def traced_runnable_lambda_ainvoke(langchain_core, pin, func, instance, args, kwargs):
+    integration: LangChainIntegration = langchain_core._datadog_integration
+    span = integration.trace(
+        pin,
+        getattr(instance, "name", f"{instance.__class__.__name__}.{func.__name__}"),
+        submit_to_llmobs=True,
+        interface_type="runnable_lambda",
+        instance=instance,
+    )
+
+    result = None
+
+    try:
+        result = await func(*args, **kwargs)
+        return result
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        raise
+    finally:
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="runnable_lambda")
+        span.finish()
+
+
+@with_traced_module
+def traced_runnable_lambda_batch(langchain_core, pin, func, instance, args, kwargs):
+    integration: LangChainIntegration = langchain_core._datadog_integration
+
+    if hasattr(instance, "name"):
+        name = f"{instance.name}_batch"
+    else:
+        name = f"{instance.__class__.__name__}.{func.__name__}"
+
+    span = integration.trace(
+        pin,
+        name,
+        submit_to_llmobs=True,
+        interface_type="runnable_lambda",
+        instance=instance,
+    )
+
+    result = None
+
+    try:
+        result = func(*args, **kwargs)
+        return result
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        raise
+    finally:
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="runnable_lambda")
+        span.finish()
+
+
+@with_traced_module
+async def traced_runnable_lambda_abatch(langchain_core, pin, func, instance, args, kwargs):
+    integration: LangChainIntegration = langchain_core._datadog_integration
+
+    if hasattr(instance, "name"):
+        name = f"{instance.name}_batch"
+    else:
+        name = f"{instance.__class__.__name__}.{func.__name__}"
+
+    span = integration.trace(
+        pin,
+        name,
+        submit_to_llmobs=True,
+        interface_type="runnable_lambda",
+        instance=instance,
+    )
+
+    result = None
+
+    try:
+        result = await func(*args, **kwargs)
+        return result
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        raise
+    finally:
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="runnable_lambda")
+        span.finish()
+
+
 def patch():
     if getattr(langchain_core, "_datadog_patch", False):
         return
@@ -626,6 +735,7 @@ def patch():
     from langchain_core.language_models.chat_models import BaseChatModel
     from langchain_core.language_models.llms import BaseLLM
     from langchain_core.prompts.base import BasePromptTemplate
+    from langchain_core.runnables.base import RunnableLambda
     from langchain_core.runnables.base import RunnableSequence
     from langchain_core.tools import BaseTool
     from langchain_core.vectorstores import VectorStore
@@ -650,6 +760,11 @@ def patch():
     wrap(RunnableSequence, "abatch", traced_lcel_runnable_sequence_async(langchain_core))
     wrap(RunnableSequence, "stream", traced_chain_stream(langchain_core))
     wrap(RunnableSequence, "astream", traced_chain_stream(langchain_core))
+
+    wrap(RunnableLambda, "invoke", traced_runnable_lambda_invoke(langchain_core))
+    wrap(RunnableLambda, "ainvoke", traced_runnable_lambda_ainvoke(langchain_core))
+    wrap(RunnableLambda, "batch", traced_runnable_lambda_batch(langchain_core))
+    wrap(RunnableLambda, "abatch", traced_runnable_lambda_abatch(langchain_core))
 
     wrap(BasePromptTemplate, "invoke", patched_base_prompt_template_invoke(langchain_core))
     wrap(BasePromptTemplate, "ainvoke", patched_base_prompt_template_ainvoke(langchain_core))

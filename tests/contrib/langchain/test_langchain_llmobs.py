@@ -3,6 +3,7 @@ import json
 from operator import itemgetter
 import os
 import sys
+from typing import Generator
 
 import mock
 import pytest
@@ -822,6 +823,128 @@ def test_llmobs_set_tags_with_none_response(langchain_core):
         response=None,
         operation="chat",
     )
+
+
+def test_llmobs_runnable_lambda_invoke(langchain_core, llmobs_events, tracer):
+    def add(inputs: dict) -> int:
+        return inputs["a"] + inputs["b"]
+
+    runnable_lambda = langchain_core.runnables.RunnableLambda(add)
+    result = runnable_lambda.invoke(dict(a=1, b=2))
+    assert result == 3
+
+    span = tracer.pop_traces()[0][0]
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
+        span,
+        span_kind="task",
+        input_value=json.dumps({"a": 1, "b": 2}),
+        output_value="3",
+        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
+    )
+
+
+async def test_llmobs_runnable_lambda_ainvoke(langchain_core, llmobs_events, tracer):
+    async def add(inputs: dict) -> int:
+        return inputs["a"] + inputs["b"]
+
+    runnable_lambda = langchain_core.runnables.RunnableLambda(add)
+    result = await runnable_lambda.ainvoke(dict(a=1, b=2))
+    assert result == 3
+
+    span = tracer.pop_traces()[0][0]
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
+        span,
+        span_kind="task",
+        input_value=json.dumps({"a": 1, "b": 2}),
+        output_value="3",
+        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
+    )
+
+
+def test_llmobs_runnable_lambda_batch(langchain_core, llmobs_events):
+    def add(inputs: dict) -> int:
+        return inputs["a"] + inputs["b"]
+
+    runnable_lambda = langchain_core.runnables.RunnableLambda(add)
+    result = runnable_lambda.batch([dict(a=1, b=2), dict(a=3, b=4), dict(a=5, b=6)])
+    assert result == [3, 7, 11]
+
+    assert len(llmobs_events) == 4
+    
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+
+    # parent should be batch span
+    assert llmobs_events[0]["parent_id"] == "undefined"
+    assert llmobs_events[0]["name"] == "add_batch"
+    assert llmobs_events[0]["meta"]["span"]["kind"] == "task"
+    assert llmobs_events[0]["meta"]["input"]["value"] == json.dumps([{"a": 1, "b": 2}, {"a": 3, "b": 4}, {"a": 5, "b": 6}])
+    assert llmobs_events[0]["meta"]["output"]["value"] == json.dumps([3, 7, 11])
+
+    # assert all children have batch as the parent
+    # however, order of children is not guaranteed
+    # loosely check that the children have the correct input and output values
+    for i in range(1, 4):
+        assert llmobs_events[i]["parent_id"] == llmobs_events[0]["span_id"]
+        assert llmobs_events[i]["name"] == "add"
+        assert llmobs_events[i]["meta"]["span"]["kind"] == "task"
+        
+        input_value = json.loads(llmobs_events[i]["meta"]["input"]["value"])
+        output_value = json.loads(llmobs_events[i]["meta"]["output"]["value"])
+        assert "a" in input_value
+        assert "b" in input_value
+        assert isinstance(output_value, int)
+
+
+async def test_llmobs_runnable_lambda_abatch(langchain_core, llmobs_events):
+    async def add(inputs: dict) -> int:
+        return inputs["a"] + inputs["b"]
+
+    runnable_lambda = langchain_core.runnables.RunnableLambda(add)
+    result = await runnable_lambda.abatch([dict(a=1, b=2), dict(a=3, b=4), dict(a=5, b=6)])
+    assert result == [3, 7, 11]
+
+    assert len(llmobs_events) == 4
+    
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+
+    # parent should be batch span
+    assert llmobs_events[0]["parent_id"] == "undefined"
+    assert llmobs_events[0]["name"] == "add_batch"
+    assert llmobs_events[0]["meta"]["span"]["kind"] == "task"
+    assert llmobs_events[0]["meta"]["input"]["value"] == json.dumps([{"a": 1, "b": 2}, {"a": 3, "b": 4}, {"a": 5, "b": 6}])
+    assert llmobs_events[0]["meta"]["output"]["value"] == json.dumps([3, 7, 11])
+
+    # assert all children have batch as the parent
+    # however, order of children is not guaranteed
+    # loosely check that the children have the correct input and output values
+    for i in range(1, 4):
+        assert llmobs_events[i]["parent_id"] == llmobs_events[0]["span_id"]
+        assert llmobs_events[i]["name"] == "add"
+        assert llmobs_events[i]["meta"]["span"]["kind"] == "task"
+        
+        input_value = json.loads(llmobs_events[i]["meta"]["input"]["value"])
+        output_value = json.loads(llmobs_events[i]["meta"]["output"]["value"])
+        assert "a" in input_value
+        assert "b" in input_value
+        assert isinstance(output_value, int)
+
+
+def test_llmobs_runnable_lambda_stream(langchain_core, llmobs_events):
+    def add(inputs: dict) -> Generator[str, None, None]:
+        string = inputs["string"]
+        for char in string:
+            yield char
+
+    runnable_lambda = langchain_core.runnables.RunnableLambda(add)
+    for result in runnable_lambda.stream(dict(string="hello")):
+        breakpoint()
+    
+
+
+async def test_llmobs_runnable_lambda_astream(langchain_core, llmobs_events):
+    pass
 
 
 class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
