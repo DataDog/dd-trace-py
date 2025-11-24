@@ -7,6 +7,7 @@ files:
 ignores:
   - "ddtrace/settings/_env.py"
   - "ddtrace/commands/ddtrace_run.py"
+  - "ddtrace/settings/_inferred_base_service.py" # Not sure which env var are used in this file - Needs to be investigated
 rule:
   any:
     # Match os.environ access patterns

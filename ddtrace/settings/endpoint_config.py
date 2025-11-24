@@ -3,8 +3,6 @@ This module contains the logic to configure ddtrace products from a configuratio
 The configuration endpoint is a URL that returns a JSON object with the configuration for the products.
 It takes precedence over environment variables and configuration files.
 """
-import os
-
 from ddtrace.constants import _CONFIG_ENDPOINT_ENV
 from ddtrace.constants import _CONFIG_ENDPOINT_RETRIES_ENV
 from ddtrace.constants import _CONFIG_ENDPOINT_TIMEOUT_ENV
@@ -14,14 +12,16 @@ from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
 from ddtrace.internal.utils.http import verify_url
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
+from ddtrace.settings._env import environ as _environ
+from ddtrace.settings._env import get_env as _get_env
 
 
 log = get_logger(__name__)
 
 RETRIES = 1
 try:
-    if _CONFIG_ENDPOINT_RETRIES_ENV in os.environ:
-        RETRIES = int(os.getenv(_CONFIG_ENDPOINT_RETRIES_ENV, str(RETRIES)))
+    if _CONFIG_ENDPOINT_RETRIES_ENV in _environ:
+        RETRIES = int(_get_env(_CONFIG_ENDPOINT_RETRIES_ENV, str(RETRIES)))
 except ValueError:
     log.error("Invalid value for %s. Using default value: %s", _CONFIG_ENDPOINT_RETRIES_ENV, RETRIES)
 
@@ -32,8 +32,8 @@ def _get_retries():
 
 TIMEOUT = DEFAULT_TIMEOUT
 try:
-    if _CONFIG_ENDPOINT_TIMEOUT_ENV in os.environ:
-        TIMEOUT = int(os.getenv(_CONFIG_ENDPOINT_TIMEOUT_ENV, str(TIMEOUT)))
+    if _CONFIG_ENDPOINT_TIMEOUT_ENV in _environ:
+        TIMEOUT = int(_get_env(_CONFIG_ENDPOINT_TIMEOUT_ENV, str(TIMEOUT)))
 except ValueError:
     log.error("Invalid value for %s. Using default value: %s", _CONFIG_ENDPOINT_TIMEOUT_ENV, TIMEOUT)
 
@@ -59,7 +59,7 @@ def fetch_config_from_endpoint() -> dict:
     """
     Fetch the configuration from the configuration endpoint.
     """
-    config_endpoint = os.getenv(_CONFIG_ENDPOINT_ENV, None)
+    config_endpoint = _get_env(_CONFIG_ENDPOINT_ENV, None)
 
     if config_endpoint is None:
         return {}

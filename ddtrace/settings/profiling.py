@@ -1,6 +1,5 @@
 import itertools
 import math
-import os
 import sys
 import typing as t
 
@@ -15,6 +14,7 @@ from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.settings._core import DDConfig
+from ddtrace.settings._env import get_env as _get_env
 
 
 logger = get_logger(__name__)
@@ -71,8 +71,8 @@ def _parse_profiling_enabled(raw: str) -> bool:
     # Try to derive whether we're enabled via DD_INJECTION_ENABLED
     # - Are we injected (DD_INJECTION_ENABLED set)
     # - Is profiling enabled ("profiler" in the list)
-    if os.environ.get("DD_INJECTION_ENABLED") is not None:
-        for tok in os.environ.get("DD_INJECTION_ENABLED", "").split(","):
+    if _get_env("DD_INJECTION_ENABLED") is not None:
+        for tok in _get_env("DD_INJECTION_ENABLED").split(","):
             if tok.strip().lower() == "profiler":
                 return True
 
@@ -112,7 +112,7 @@ def _parse_v2_enabled(raw: str) -> bool:
 
 def _parse_api_timeout_ms(raw: str) -> int:
     # Check if the deprecated DD_PROFILING_API_TIMEOUT is set (in seconds)
-    deprecated_timeout = os.environ.get("DD_PROFILING_API_TIMEOUT")
+    deprecated_timeout = _get_env("DD_PROFILING_API_TIMEOUT")
     if deprecated_timeout is not None:
         from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
         from ddtrace.vendor.debtcollector import deprecate
@@ -151,7 +151,7 @@ def _enrich_tags(tags) -> t.Dict[str, str]:
     tags = {
         k: compat.ensure_text(v, "utf-8")
         for k, v in itertools.chain(
-            _update_git_metadata_tags(parse_tags_str(os.environ.get("DD_TAGS"))).items(),
+            _update_git_metadata_tags(parse_tags_str(_get_env("DD_TAGS"))).items(),
             tags.items(),
         )
     }
