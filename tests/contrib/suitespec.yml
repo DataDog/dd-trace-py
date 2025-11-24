@@ -204,6 +204,7 @@ suites:
     env:
       TEST_MOTO_PORT: '3000'
     snapshot: true
+    venvs_per_job: 2
   aiohttp:
     parallelism: 3
     paths:
@@ -269,6 +270,7 @@ suites:
     snapshot: true
     services:
       - postgres
+    venvs_per_job: 2
   algoliasearch:
     parallelism: 2
     paths:
@@ -296,7 +298,7 @@ suites:
       - redis
     snapshot: true
   asgi:
-    parallelism: 6
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -486,6 +488,7 @@ suites:
       - rabbitmq
       - redis
     snapshot: true
+    venvs_per_job: 1
   cherrypy:
     paths:
       - '@bootstrap'
@@ -497,6 +500,7 @@ suites:
       - tests/snapshots/tests.{suite}.*
     runner: riot
     snapshot: true
+    venvs_per_job: 2
   consul:
     parallelism: 1
     paths:
@@ -604,6 +608,7 @@ suites:
       - tests/contrib/dogpile_cache/*
     runner: riot
     snapshot: true
+    venvs_per_job: 3
   dramatiq:
     env:
       TEST_REDIS_HOST: redis
@@ -625,7 +630,7 @@ suites:
     env:
       TEST_ELASTICSEARCH_HOST: elasticsearch
       TEST_OPENSEARCH_HOST: opensearch
-    parallelism: 17
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -649,6 +654,7 @@ suites:
       - tests/contrib/falcon/*
     runner: riot
     snapshot: true
+    venvs_per_job: 2
   fastapi:
     paths:
       - '@bootstrap'
@@ -664,11 +670,12 @@ suites:
       - tests/snapshots/tests.{suite}.*
     runner: riot
     snapshot: true
+    venvs_per_job: 2
   flask:
     env:
       TEST_MEMCACHED_HOST: memcached
       TEST_REDIS_HOST: redis
-    parallelism: 11
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -699,6 +706,7 @@ suites:
       - tests/contrib/gevent/*
     runner: riot
     snapshot: false
+    venvs_per_job: 2
   graphql:graphene:
     parallelism: 1
     paths:
@@ -735,6 +743,7 @@ suites:
       - tests/snapshots/tests.contrib.grpc.*
     runner: riot
     snapshot: true
+    venvs_per_job: 3
   gunicorn:
     parallelism: 6
     paths:
@@ -759,6 +768,7 @@ suites:
     services:
       - httpbin
     snapshot: true
+    venvs_per_job: 1
   httpx:
     parallelism: 3
     paths:
@@ -872,6 +882,7 @@ suites:
     services:
       - mariadb
     snapshot: true
+    venvs_per_job: 2
   molten:
     parallelism: 1
     paths:
@@ -938,6 +949,7 @@ suites:
     services:
       - postgres
     snapshot: true
+    venvs_per_job: 2
   pylibmc:
     parallelism: 1
     paths:
@@ -976,6 +988,7 @@ suites:
     services:
       - mongo
     snapshot: true
+    venvs_per_job: 2
   pymysql:
     parallelism: 1
     paths:
@@ -1109,6 +1122,7 @@ suites:
       - tests/snapshots/tests.contrib.sanic.*
     runner: riot
     snapshot: true
+    venvs_per_job: 2
   snowflake:
     paths:
       - '@bootstrap'
@@ -1121,6 +1135,7 @@ suites:
       - tests/snapshots/tests.contrib.snowflake.*
     runner: riot
     snapshot: true
+    venvs_per_job: 2
   sourcecode:
     parallelism: 1
     paths:
@@ -1157,6 +1172,7 @@ suites:
       - tests/contrib/starlette/*
     runner: riot
     snapshot: true
+    venvs_per_job: 2
   stdlib:
     parallelism: 2
     paths:
