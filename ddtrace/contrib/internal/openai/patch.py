@@ -1,4 +1,3 @@
-import os
 import sys
 from typing import Dict
 
@@ -14,6 +13,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations import OpenAIIntegration
+from ddtrace.settings._env import get_env as _get_env
 
 
 log = get_logger(__name__)
@@ -22,8 +22,8 @@ log = get_logger(__name__)
 config._add(
     "openai",
     {
-        "span_prompt_completion_sample_rate": float(os.getenv("DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
-        "span_char_limit": int(os.getenv("DD_OPENAI_SPAN_CHAR_LIMIT", 128)),
+        "span_prompt_completion_sample_rate": float(_get_env("DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
+        "span_char_limit": int(_get_env("DD_OPENAI_SPAN_CHAR_LIMIT", 128)),
     },
 )
 

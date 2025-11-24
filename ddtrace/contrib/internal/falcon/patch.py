@@ -1,4 +1,3 @@
-import os
 from typing import Dict
 
 import falcon
@@ -7,6 +6,7 @@ import wrapt
 from ddtrace import config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.settings._env import get_env as _get_env
 from ddtrace.trace import tracer
 
 from .middleware import TraceMiddleware
@@ -18,7 +18,7 @@ FALCON_VERSION = parse_version(falcon.__version__)
 config._add(
     "falcon",
     dict(
-        distributed_tracing=asbool(os.getenv("DD_FALCON_DISTRIBUTED_TRACING", default=True)),
+        distributed_tracing=asbool(_get_env("DD_FALCON_DISTRIBUTED_TRACING", default=True)),
     ),
 )
 

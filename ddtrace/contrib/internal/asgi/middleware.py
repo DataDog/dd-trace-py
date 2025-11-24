@@ -1,5 +1,4 @@
 from functools import wraps
-import os
 import sys
 from typing import Any
 from typing import Callable
@@ -28,12 +27,13 @@ from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import set_blocked
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings._config import _get_config
+from ddtrace.settings._env import get_env as _get_env
 from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
 
-if os.getenv("DD_ASGI_TRACE_WEBSOCKET") is not None:
+if _get_env("DD_ASGI_TRACE_WEBSOCKET") is not None:
     log.warning(
         "DD_ASGI_TRACE_WEBSOCKET is deprecated and will be removed in a future version. "
         "Use DD_TRACE_WEBSOCKET_MESSAGES_ENABLED instead."

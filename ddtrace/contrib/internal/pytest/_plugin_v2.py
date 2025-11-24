@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 import typing as t
 
@@ -71,6 +70,7 @@ from ddtrace.internal.test_visibility.api import InternalTestSession
 from ddtrace.internal.test_visibility.api import InternalTestSuite
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.settings._env import get_env as _get_env
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.debtcollector import deprecate
 
@@ -180,7 +180,7 @@ def _handle_test_management(item, test_id):
     is_disabled = InternalTest.is_disabled_test(test_id)
     is_attempt_to_fix = InternalTest.is_attempt_to_fix(test_id)
 
-    if is_quarantined and asbool(os.getenv("_DD_TEST_SKIP_QUARANTINED_TESTS")):
+    if is_quarantined and asbool(_get_env("_DD_TEST_SKIP_QUARANTINED_TESTS")):
         # For internal use: treat quarantined tests as disabled.
         is_disabled = True
 
@@ -379,7 +379,7 @@ def _is_pytest_cov_enabled(config) -> bool:
 def pytest_configure(config: pytest_Config) -> None:
     global skip_pytest_runtest_protocol
 
-    if os.getenv("DD_PYTEST_USE_NEW_PLUGIN_BETA"):
+    if _get_env("DD_PYTEST_USE_NEW_PLUGIN_BETA"):
         # Logging the warning at this point ensures it shows up in output regardless of the use of the -s flag.
         deprecate(
             "the DD_PYTEST_USE_NEW_PLUGIN_BETA environment variable is deprecated",

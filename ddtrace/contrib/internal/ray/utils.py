@@ -24,6 +24,7 @@ from ddtrace.constants import _FILTER_KEPT_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.propagation.http import _TraceContext
+from ddtrace.settings._env import environ as _environ
 
 from .constants import DD_RAY_TRACE_CTX
 from .constants import RAY_ACTOR_ID
@@ -71,16 +72,16 @@ def _inject_context_in_kwargs(context: Context, kwargs: Dict[str, Any]) -> None:
 def _inject_context_in_env(context: Context) -> None:
     headers = {}
     _TraceContext._inject(context, headers)
-    os.environ["traceparent"] = headers.get("traceparent", "")
-    os.environ["tracestate"] = headers.get("tracestate", "")
+    _environ["traceparent"] = headers.get("traceparent", "")
+    _environ["tracestate"] = headers.get("tracestate", "")
 
 
 def _extract_tracing_context_from_env() -> Optional[Context]:
-    if os.environ.get("traceparent") is not None and os.environ.get("tracestate") is not None:
+    if _environ.get("traceparent") is not None and _environ.get("tracestate") is not None:
         return _TraceContext._extract(
             {
-                "traceparent": os.environ.get("traceparent"),
-                "tracestate": os.environ.get("tracestate"),
+                "traceparent": _environ.get("traceparent"),
+                "tracestate": _environ.get("tracestate"),
             }
         )
     return None
@@ -95,7 +96,7 @@ def _inject_ray_span_tags_and_metrics(span: Span) -> None:
     span.set_metric(_SPAN_MEASURED_KEY, 1)
     span.set_metric(_SAMPLING_PRIORITY_KEY, 2)
 
-    submission_id = os.environ.get(RAY_SUBMISSION_ID)
+    submission_id = _environ.get(RAY_SUBMISSION_ID)
     if submission_id is not None:
         span._set_tag_str(RAY_SUBMISSION_ID_TAG, submission_id)
 
@@ -237,7 +238,7 @@ def get_signature(func: Any) -> inspect.Signature:
     it is relatively stable. Future versions of Python may allow overloading
     the inspect 'isfunction' and 'ismethod' functions / create ABC for Python
     functions. Until then, it appears that Cython won't do anything about
-    compatability with the inspect module.
+    compatibility with the inspect module.
 
     Args:
         func: The function whose signature should be checked.

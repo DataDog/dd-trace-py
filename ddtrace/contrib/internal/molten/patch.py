@@ -1,4 +1,3 @@
-import os
 from typing import Dict
 from urllib.parse import urlencode
 
@@ -17,6 +16,7 @@ from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.importlib import func_name
+from ddtrace.settings._env import get_env as _get_env
 
 from .wrappers import WrapperComponent
 from .wrappers import WrapperMiddleware
@@ -28,7 +28,7 @@ config._add(
     "molten",
     dict(
         _default_service=schematize_service_name("molten"),
-        distributed_tracing=asbool(os.getenv("DD_MOLTEN_DISTRIBUTED_TRACING", default=True)),
+        distributed_tracing=asbool(_get_env("DD_MOLTEN_DISTRIBUTED_TRACING", default=True)),
     ),
 )
 

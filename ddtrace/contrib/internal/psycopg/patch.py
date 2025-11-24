@@ -1,6 +1,5 @@
 from importlib import import_module
 import inspect
-import os
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
 
@@ -24,6 +23,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.propagation._database_monitoring import default_sql_injector as _default_sql_injector
+from ddtrace.settings._env import get_env as _get_env
 
 
 # These will be initialized lazily to avoid circular imports
@@ -63,12 +63,11 @@ config._add(
         _dbapi_span_operation_name=schematize_database_operation("postgres.query", database_provider="postgresql"),
         _patched_modules=set(),
         trace_fetch_methods=asbool(
-            os.getenv("DD_PSYCOPG_TRACE_FETCH_METHODS", default=False)
-            or os.getenv("DD_PSYCOPG2_TRACE_FETCH_METHODS", default=False)
+            _get_env("DD_PSYCOPG_TRACE_FETCH_METHODS", default=False)
+            or _get_env("DD_PSYCOPG2_TRACE_FETCH_METHODS", default=False)
         ),
         trace_connect=asbool(
-            os.getenv("DD_PSYCOPG_TRACE_CONNECT", default=False)
-            or os.getenv("DD_PSYCOPG2_TRACE_CONNECT", default=False)
+            _get_env("DD_PSYCOPG_TRACE_CONNECT", default=False) or _get_env("DD_PSYCOPG2_TRACE_CONNECT", default=False)
         ),
         _dbm_propagator=_DBM_Propagator(0, "query", _psycopg_sql_injector),
         dbms_name="postgresql",

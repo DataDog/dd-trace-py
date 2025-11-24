@@ -1,5 +1,4 @@
 import inspect
-import os
 from typing import Dict
 
 from boto import __version__
@@ -22,6 +21,7 @@ from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap
+from ddtrace.settings._env import get_env as _get_env
 
 
 # Original boto client class
@@ -44,7 +44,7 @@ AWS_AUTH_TRACED_ARGS = {"path", "data", "host"}
 config._add(
     "boto",
     {
-        "tag_no_params": asbool(os.getenv("DD_AWS_TAG_NO_PARAMS", default=False)),
+        "tag_no_params": asbool(_get_env("DD_AWS_TAG_NO_PARAMS", default=False)),
     },
 )
 

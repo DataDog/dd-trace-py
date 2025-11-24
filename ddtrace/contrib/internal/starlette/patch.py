@@ -1,5 +1,4 @@
 import inspect
-import os
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
@@ -42,7 +41,7 @@ config._add(
         _default_service=schematize_service_name("starlette"),
         request_span_name="starlette.request",
         distributed_tracing=True,
-        obfuscate_404_resource=os.getenv("DD_ASGI_OBFUSCATE_404_RESOURCE", default=False),
+        obfuscate_404_resource=_get_config("DD_ASGI_OBFUSCATE_404_RESOURCE", default=False),
         trace_asgi_websocket_messages=asbool(
             _get_config("DD_TRACE_WEBSOCKET_MESSAGES_ENABLED", default=_get_config("DD_ASGI_TRACE_WEBSOCKET", False))
         ),

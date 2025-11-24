@@ -1,5 +1,4 @@
 from io import StringIO
-import os
 import re
 import sys
 import traceback
@@ -42,6 +41,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
+from ddtrace.settings._env import get_env as _get_env
 
 
 _graphql_version_str = graphql.__version__
@@ -74,8 +74,8 @@ config._add(
     "graphql",
     dict(
         _default_service=schematize_service_name("graphql"),
-        resolvers_enabled=asbool(os.getenv("DD_TRACE_GRAPHQL_RESOLVERS_ENABLED", default=False)),
-        _error_extensions=_parse_error_extensions(os.getenv("DD_TRACE_GRAPHQL_ERROR_EXTENSIONS")),
+        resolvers_enabled=asbool(_get_env("DD_TRACE_GRAPHQL_RESOLVERS_ENABLED", default=False)),
+        _error_extensions=_parse_error_extensions(_get_env("DD_TRACE_GRAPHQL_ERROR_EXTENSIONS")),
     ),
 )
 
