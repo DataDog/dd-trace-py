@@ -584,17 +584,10 @@ def _openai_parse_input_response_messages(
 
                     item_type = content.get("type", None)
                     if item_type == "input_image":
-                        processed_item_content += (
-                            content.get("image_url") 
-                            or content.get("file_id") 
-                            or "[image]"
-                        )
+                        processed_item_content += content.get("image_url") or content.get("file_id") or "[image]"
                     elif item_type == "input_file":
                         processed_item_content += (
-                            content.get("file_id") 
-                            or content.get("file_url") 
-                            or content.get("filename") 
-                            or "[file]"
+                            content.get("file_id") or content.get("file_url") or content.get("filename") or "[file]"
                         )
             else:
                 processed_item_content = item["content"]
@@ -808,11 +801,7 @@ def _normalize_prompt_variables(variables: Dict[str, Any]) -> Dict[str, Any]:
         if hasattr(value, "text"):  # ResponseInputText
             normalized[key] = value.text
         elif getattr(value, "type", None) == "input_image":  # ResponseInputImage
-            normalized[key] = (
-                getattr(value, "image_url", None) 
-                or getattr(value, "file_id", None) 
-                or "[image]"
-            )
+            normalized[key] = getattr(value, "image_url", None) or getattr(value, "file_id", None) or "[image]"
         elif getattr(value, "type", None) == "input_file":  # ResponseInputFile
             normalized[key] = (
                 getattr(value, "file_url", None)
