@@ -4,36 +4,8 @@
 #include <string>
 #include <string_view>
 
-#if PY_VERSION_HEX >= 0x030b0000 && PY_VERSION_HEX < 0x030d0000
-// We can't include internal/pycore_frame.h because it requires Py_BUILD_CORE
-// Instead, we define minimal structures matching CPython's internal layout
-// These structures are internal to CPython but we need to access them
-// to avoid allocations from PyFrameObject creation
-// Note: Python 3.13+ has different internal structures, so we only use this for 3.11-3.12
-extern "C"
-{
-    // Minimal structure definition matching _PyInterpreterFrame layout
-    // Based on CPython's Include/internal/pycore_frame.h
-    typedef struct _PyInterpreterFrame
-    {
-        PyObject* f_executable;
-        void* prev_instr; // _Py_CODEUNIT* - pointer to instruction
-        struct _PyInterpreterFrame* previous;
-        // Note: There are other fields, but we only need these three
-    } _PyInterpreterFrame;
-
-    // Minimal structure definition matching _PyCFrame layout
-    // Based on CPython's Include/internal/pycore_frame.h
-    typedef struct _PyCFrame
-    {
-        struct _PyInterpreterFrame* current_frame;
-        // Note: There are other fields, but we only need current_frame
-    } _PyCFrame;
-
-    // _Py_CODEUNIT is uint16_t in Python 3.11+
-    typedef uint16_t _Py_CODEUNIT;
-}
-#endif
+// Note: We use _PyInterpreterFrame when the structures are available in public headers
+// (cpython/pystate.h, cpython/code.h). For Python 3.11, we use PyFrameObject instead.
 
 #include "_memalloc_debug.h"
 #include "_memalloc_reentrant.h"
@@ -146,7 +118,7 @@ class PythonErrorRestorer
   public:
     PythonErrorRestorer()
     {
-#if PY_VERSION_HEX >= 0x030c0000
+#ifdef _PY312_AND_LATER
         // Python 3.12+: Use the new API that returns a single exception object
         saved_exception = PyErr_GetRaisedException();
 #else
@@ -157,7 +129,7 @@ class PythonErrorRestorer
 
     ~PythonErrorRestorer()
     {
-#if PY_VERSION_HEX >= 0x030c0000
+#ifdef _PY312_AND_LATER
         // Python 3.12+: Restore using the new API if there was an exception
         if (saved_exception != NULL) {
             PyErr_SetRaisedException(saved_exception);
@@ -177,7 +149,7 @@ class PythonErrorRestorer
     PythonErrorRestorer& operator=(PythonErrorRestorer&&) = delete;
 
   private:
-#if PY_VERSION_HEX >= 0x030c0000
+#ifdef _PY312_AND_LATER
     PyObject* saved_exception;
 #else
     PyObject* saved_exc_type;
@@ -191,7 +163,7 @@ traceback_t::deinit()
 {
     // Check if Python is finalizing. If so, skip cleanup to avoid segfaults.
     // During finalization, Python objects may be in an invalid state.
-#if PY_VERSION_HEX >= 0x030d0000
+#ifdef _PY313_AND_LATER
     if (Py_IsFinalizing()) {
 #else
     if (_Py_IsFinalizing()) {
@@ -336,9 +308,9 @@ extract_frame_info_from_pyframe(PyFrameObject* frame, PyCodeObject** code_out, i
     *lineno_out = lineno_val;
 }
 
-#if PY_VERSION_HEX >= 0x030b0000 && PY_VERSION_HEX < 0x030d0000
+#if defined(_PY312_AND_LATER) && !defined(_PY313_AND_LATER)
 /* Helper function to extract code object and line number from a _PyInterpreterFrame
- * Only available for Python 3.11-3.12. Python 3.13+ uses different internal structures. */
+ * Only available for Python 3.12 when structures are in public headers (cpython/pystate.h, cpython/code.h). */
 static void
 extract_frame_info_from_interpreter_frame(_PyInterpreterFrame* frame, PyCodeObject** code_out, int* lineno_out)
 {
@@ -346,7 +318,7 @@ extract_frame_info_from_interpreter_frame(_PyInterpreterFrame* frame, PyCodeObje
     *lineno_out = 0;
 
     // Extract code object from interpreter frame
-    // Python 3.11-3.12: f_executable is always a code object
+    // For Python 3.12, f_executable is always a code object
     PyObject* f_executable = frame->f_executable;
     PyCodeObject* code = (PyCodeObject*)f_executable;
 
@@ -358,11 +330,10 @@ extract_frame_info_from_interpreter_frame(_PyInterpreterFrame* frame, PyCodeObje
     int lineno_val = 0;
     if (frame->prev_instr != NULL) {
         // Calculate bytecode offset from instruction pointer
-        // frame->prev_instr is a pointer to _Py_CODEUNIT (uint16_t, 2 bytes per instruction in Python 3.11+)
+        // frame->prev_instr is a pointer to _Py_CODEUNIT (uint16_t, 2 bytes per instruction)
         // We need to calculate the offset in code units
-        // Python 3.11-3.12: co_code is directly accessible
-        PyObject* code_bytes = code->co_code;
-        Py_INCREF(code_bytes); // Borrowed reference, need to INCREF for consistency
+        // co_code structure changed in Python 3.12+, use PyObject_GetAttrString to access it
+        PyObject* code_bytes = PyObject_GetAttrString((PyObject*)code, "co_code");
         if (code_bytes != NULL) {
             const uint8_t* code_start = (const uint8_t*)PyBytes_AS_STRING(code_bytes);
             const _Py_CODEUNIT* instr_ptr = (const _Py_CODEUNIT*)frame->prev_instr;
@@ -428,12 +399,85 @@ push_frame_to_sample(Datadog::Sample& sample, PyCodeObject* code, int lineno_val
     Py_XDECREF(filename_bytes);
 }
 
-traceback_t::traceback_t(void* ptr,
-                         size_t size,
-                         PyMemAllocatorDomain domain,
-                         size_t weighted_size,
-                         PyFrameObject* pyframe,
-                         uint16_t max_nframe)
+#if defined(_PY312_AND_LATER) && !defined(_PY313_AND_LATER)
+/* Helper function to collect frames from _PyInterpreterFrame chain and push to sample
+ * Only available for Python 3.12 when structures are in public headers (cpython/pystate.h, cpython/code.h) */
+static void
+push_stacktrace_to_sample(Datadog::Sample& sample)
+{
+    PyThreadState* tstate = PyThreadState_Get();
+    if (tstate == NULL)
+        return;
+
+    // Access interpreter frames directly from tstate->cframe to avoid creating PyFrameObjects
+    _PyCFrame* cframe = tstate->cframe;
+    if (cframe == NULL)
+        return;
+
+    _PyInterpreterFrame* frame = cframe->current_frame;
+    if (frame == NULL)
+        return;
+
+    // Walk interpreter frames using frame->previous (avoids allocations)
+    for (; frame != NULL; frame = frame->previous) {
+        PyCodeObject* code = NULL;
+        int lineno_val = 0;
+
+        extract_frame_info_from_interpreter_frame(frame, &code, &lineno_val);
+
+        if (code != NULL) {
+            push_frame_to_sample(sample, code, lineno_val);
+        }
+
+        memalloc_debug_gil_release();
+    }
+}
+#else
+/* Helper function to collect frames from PyFrameObject chain and push to sample */
+static void
+push_stacktrace_to_sample(Datadog::Sample& sample)
+{
+    PyThreadState* tstate = PyThreadState_Get();
+    if (tstate == NULL)
+        return;
+
+#ifdef _PY39_AND_LATER
+    PyFrameObject* pyframe = PyThreadState_GetFrame(tstate);
+#else
+    PyFrameObject* pyframe = tstate->frame;
+#endif
+
+    if (pyframe == NULL)
+        return;
+
+    for (PyFrameObject* frame = pyframe; frame != NULL;) {
+        PyCodeObject* code = NULL;
+        int lineno_val = 0;
+
+        extract_frame_info_from_pyframe(frame, &code, &lineno_val);
+
+        if (code != NULL) {
+            push_frame_to_sample(sample, code, lineno_val);
+        }
+
+#ifdef _PY39_AND_LATER
+        Py_XDECREF(code);
+#endif
+
+#ifdef _PY39_AND_LATER
+        PyFrameObject* back = PyFrame_GetBack(frame);
+        Py_DECREF(frame); // Release reference - pyframe from PyThreadState_GetFrame is a new reference, and back frames
+                          // from GetBack are also new references
+        frame = back;
+#else
+        frame = frame->f_back;
+#endif
+        memalloc_debug_gil_release();
+    }
+}
+#endif
+
+traceback_t::traceback_t(void* ptr, size_t size, PyMemAllocatorDomain domain, size_t weighted_size, uint16_t max_nframe)
   : ptr(ptr)
   , size(weighted_size)
   , domain(domain)
@@ -474,154 +518,11 @@ traceback_t::traceback_t(void* ptr,
     // but we push root-to-leaf. Set reverse_locations so the sample will be reversed when exported.
     // Note: Sample.push_frame() automatically enforces the max_nframe limit and tracks dropped frames.
     sample.set_reverse_locations(true);
-    for (PyFrameObject* frame = pyframe; frame != NULL;) {
-        PyCodeObject* code = NULL;
-        int lineno_val = 0;
-
-        extract_frame_info_from_pyframe(frame, &code, &lineno_val);
-
-        if (code != NULL) {
-            push_frame_to_sample(sample, code, lineno_val);
-        }
-
-#ifdef _PY39_AND_LATER
-        Py_XDECREF(code);
-#endif
-
-#ifdef _PY39_AND_LATER
-        PyFrameObject* back = PyFrame_GetBack(frame);
-        Py_DECREF(frame); // Release reference - pyframe from PyThreadState_GetFrame is a new reference, and back frames
-                          // from GetBack are also new references
-        frame = back;
-#else
-        frame = frame->f_back;
-#endif
-        memalloc_debug_gil_release();
-    }
+    push_stacktrace_to_sample(sample);
 }
-
-#if PY_VERSION_HEX >= 0x030b0000 && PY_VERSION_HEX < 0x030d0000
-// Constructor for Python 3.11-3.12 - uses _PyInterpreterFrame directly to avoid allocations
-// Note: Python 3.13+ has different internal structures, so we use PyFrameObject instead
-traceback_t::traceback_t(void* ptr,
-                         size_t size,
-                         PyMemAllocatorDomain domain,
-                         size_t weighted_size,
-                         PyThreadState* tstate,
-                         uint16_t max_nframe)
-  : ptr(ptr)
-  , size(weighted_size)
-  , domain(domain)
-  , reported(false)
-  , count(0)
-  , sample(static_cast<Datadog::SampleType>(Datadog::SampleType::Allocation | Datadog::SampleType::Heap), max_nframe)
-{
-    // Save any existing error state to avoid masking errors during traceback construction
-    PythonErrorRestorer error_restorer;
-
-    // Size 0 allocations are legal and we can hypothetically sample them,
-    // e.g. if an allocation during sampling pushes us over the next sampling threshold,
-    // but we can't sample it, so we sample the next allocation which happens to be 0
-    // bytes. Defensively make sure size isn't 0.
-    size_t adjusted_size = size > 0 ? size : 1;
-    double scaled_count = ((double)weighted_size) / ((double)adjusted_size);
-    count = (size_t)scaled_count;
-
-    // Validate Sample object is in a valid state before use
-    if (max_nframe == 0) {
-        // Should not happen, but defensive check
-        return;
-    }
-
-    // Push allocation info to sample
-    // Note: profile_state is initialized in memalloc_start() before any traceback_t objects are created
-    sample.push_alloc(weighted_size, count);
-    // Push heap info - use actual size (not weighted) for heap tracking
-    // TODO(dsn): figure out if this actually makes sense, or if we should use the weighted size
-    sample.push_heap(size);
-
-    // Get thread native_id and name from Python's threading module and push to sample
-    push_threadinfo_to_sample(sample);
-
-    // Collect frames from the Python interpreter frame chain and push to Sample
-    // We push frames as we collect them (root to leaf order).
-    // Note: Sample.push_frame() comment says it "Assumes frames are pushed in leaf-order",
-    // but we push root-to-leaf. Set reverse_locations so the sample will be reversed when exported.
-    // Note: Sample.push_frame() automatically enforces the max_nframe limit and tracks dropped frames.
-    sample.set_reverse_locations(true);
-
-    // Access interpreter frames directly from tstate->cframe to avoid creating PyFrameObjects
-    _PyCFrame* cframe = tstate->cframe;
-    if (cframe == NULL)
-        return;
-
-    _PyInterpreterFrame* frame = cframe->current_frame;
-    if (frame == NULL)
-        return;
-
-    // Walk interpreter frames using frame->previous (avoids allocations)
-    for (; frame != NULL; frame = frame->previous) {
-        PyCodeObject* code = NULL;
-        int lineno_val = 0;
-
-        extract_frame_info_from_interpreter_frame(frame, &code, &lineno_val);
-
-        if (code != NULL) {
-            push_frame_to_sample(sample, code, lineno_val);
-        }
-
-        memalloc_debug_gil_release();
-    }
-}
-#endif
 
 traceback_t::~traceback_t()
 {
     // Sample object is a member variable and will be automatically destroyed
     // No explicit cleanup needed - its destructor will handle internal cleanup
-}
-
-traceback_t*
-traceback_t::get_traceback(uint16_t max_nframe,
-                           void* ptr,
-                           size_t size,
-                           PyMemAllocatorDomain domain,
-                           size_t weighted_size)
-{
-    // Save any existing error state to avoid masking errors during traceback creation
-    PythonErrorRestorer error_restorer;
-
-    PyThreadState* tstate = PyThreadState_Get();
-
-    if (tstate == NULL)
-        return NULL;
-
-#if PY_VERSION_HEX >= 0x030b0000 && PY_VERSION_HEX < 0x030d0000
-    // For Python 3.11-3.12, use _PyInterpreterFrame directly to avoid allocations
-    // Access the interpreter frame from tstate->cframe instead of creating PyFrameObject
-    // Note: Python 3.13+ has different internal structures, so we fall back to PyFrameObject
-    _PyCFrame* cframe = tstate->cframe;
-    if (cframe == NULL)
-        return NULL;
-
-    return new traceback_t(ptr, size, domain, weighted_size, tstate, max_nframe);
-#elif PY_VERSION_HEX >= 0x030d0000
-    // Python 3.13+: internal structures changed, use PyFrameObject API
-    PyFrameObject* pyframe = PyThreadState_GetFrame(tstate);
-    if (pyframe == NULL)
-        return NULL;
-    return new traceback_t(ptr, size, domain, weighted_size, pyframe, max_nframe);
-#else
-    // For older Python versions, use PyFrameObject
-#ifdef _PY39_AND_LATER
-    PyFrameObject* pyframe = PyThreadState_GetFrame(tstate);
-#else
-    PyFrameObject* pyframe = tstate->frame;
-#endif
-
-    if (pyframe == NULL)
-        return NULL;
-
-    return new traceback_t(ptr, size, domain, weighted_size, pyframe, max_nframe);
-#endif
 }

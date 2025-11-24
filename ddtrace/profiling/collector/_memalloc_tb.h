@@ -25,33 +25,10 @@ class traceback_t
     Datadog::Sample sample;
 
     /* Constructor - also collects frames from the current Python frame chain */
-    traceback_t(void* ptr,
-                size_t size,
-                PyMemAllocatorDomain domain,
-                size_t weighted_size,
-                PyFrameObject* pyframe,
-                uint16_t max_nframe);
-
-#if PY_VERSION_HEX >= 0x030b0000 && PY_VERSION_HEX < 0x030d0000
-    /* Constructor for Python 3.11-3.12 - uses _PyInterpreterFrame directly to avoid allocations
-     * Note: Python 3.13+ has different internal structures, so we use PyFrameObject instead */
-    traceback_t(void* ptr,
-                size_t size,
-                PyMemAllocatorDomain domain,
-                size_t weighted_size,
-                PyThreadState* tstate,
-                uint16_t max_nframe);
-#endif
+    traceback_t(void* ptr, size_t size, PyMemAllocatorDomain domain, size_t weighted_size, uint16_t max_nframe);
 
     /* Destructor - cleans up Python references */
     ~traceback_t();
-
-    /* Factory method - creates a traceback from the current Python frame chain */
-    static traceback_t* get_traceback(uint16_t max_nframe,
-                                      void* ptr,
-                                      size_t size,
-                                      PyMemAllocatorDomain domain,
-                                      size_t weighted_size);
 
     /* Initialize traceback module (creates interned strings)
      * Returns true on success, false otherwise */

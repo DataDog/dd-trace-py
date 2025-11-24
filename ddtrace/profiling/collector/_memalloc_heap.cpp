@@ -292,7 +292,7 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
        will tend to be larger for large allocations and smaller for small
        allocations, and close to the average sampling interval so that the sum
        of sample live allocations stays close to the actual heap size */
-    traceback_t* tb = traceback_t::get_traceback(max_nframe, ptr, size, domain, allocated_memory_val);
+    traceback_t* tb = new traceback_t(ptr, size, domain, allocated_memory_val, max_nframe);
 
 #if defined(_PY310_AND_LATER) && !defined(_PY312_AND_LATER)
     if (gc_enabled) {
@@ -300,11 +300,7 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
     }
 #endif
 
-    if (!tb) {
-        return;
-    }
-
-    // Check that instance is still valid after GIL release in get_traceback
+    // Check that instance is still valid after GIL release in constructor
     if (heap_tracker_t::instance) {
         heap_tracker_t::instance->add_sample_no_cpython(tb);
     } else {

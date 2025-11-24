@@ -19,7 +19,7 @@ extern "C"
     static PyObject* test_create_traceback_callback(PyObject* self, PyObject* args)
     {
         // We're now executing in Python context, so we should have a frame
-        g_test_traceback = traceback_t::get_traceback(10, g_test_ptr, g_test_size, PYMEM_DOMAIN_OBJ, g_test_size);
+        g_test_traceback = new traceback_t(g_test_ptr, g_test_size, PYMEM_DOMAIN_OBJ, g_test_size, 10);
         Py_RETURN_NONE;
     }
 
