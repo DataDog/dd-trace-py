@@ -1,6 +1,5 @@
 import functools
 import http.client as httplib
-import os
 import sys
 from typing import Dict
 from urllib import parse
@@ -21,6 +20,7 @@ from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.settings._env import get_env as _get_env
 from ddtrace.settings.asm import config as asm_config
 
 
@@ -33,7 +33,7 @@ log = get_logger(__name__)
 config._add(
     "httplib",
     {
-        "distributed_tracing": asbool(os.getenv("DD_HTTPLIB_DISTRIBUTED_TRACING", default=True)),
+        "distributed_tracing": asbool(_get_env("DD_HTTPLIB_DISTRIBUTED_TRACING", default=True)),
         "default_http_tag_query_string": config._http_client_tag_query_string,
     },
 )

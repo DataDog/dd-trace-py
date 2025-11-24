@@ -1,4 +1,3 @@
-import os
 from typing import Dict
 
 import fastapi
@@ -29,7 +28,7 @@ config._add(
         request_span_name="fastapi.request",
         distributed_tracing=True,
         trace_query_string=None,  # Default to global config
-        obfuscate_404_resource=os.getenv("DD_ASGI_OBFUSCATE_404_RESOURCE", default=False),
+        obfuscate_404_resource=_get_config("DD_ASGI_OBFUSCATE_404_RESOURCE", default=False, modifier=asbool),
         trace_asgi_websocket_messages=_get_config(
             "DD_TRACE_WEBSOCKET_MESSAGES_ENABLED",
             default=_get_config("DD_ASGI_TRACE_WEBSOCKET", default=False, modifier=asbool),

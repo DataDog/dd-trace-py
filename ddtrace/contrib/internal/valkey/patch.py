@@ -66,7 +66,6 @@ To configure particular valkey instances use the :class:`Pin <ddtrace.Pin>` API:
     # as the service name.
     client.get("my-key")
 """
-import os
 from typing import Dict
 
 import valkey
@@ -84,14 +83,15 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import CMD_MAX_LEN
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import stringify_cache_args
+from ddtrace.settings._env import get_env as _get_env
 
 
 config._add(
     "valkey",
     {
         "_default_service": schematize_service_name("valkey"),
-        "cmd_max_length": int(os.getenv("DD_VALKEY_CMD_MAX_LENGTH", CMD_MAX_LEN)),
-        "resource_only_command": asbool(os.getenv("DD_VALKEY_RESOURCE_ONLY_COMMAND", True)),
+        "cmd_max_length": int(_get_env("DD_VALKEY_CMD_MAX_LENGTH", CMD_MAX_LEN)),
+        "resource_only_command": asbool(_get_env("DD_VALKEY_RESOURCE_ONLY_COMMAND", True)),
     },
 )
 

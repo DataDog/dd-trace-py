@@ -5,7 +5,6 @@ This module contains all logic related to pytest-xdist parallelization mode dete
 for ITR skipping level configuration.
 """
 
-import os
 import typing as t
 
 import pytest
@@ -15,7 +14,7 @@ from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility.api import InternalTestSession
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.settings._config import _get_env
+from ddtrace.settings._env import get_env as _get_env
 
 
 log = get_logger(__name__)
@@ -113,7 +112,7 @@ def _skipping_level_for_xdist_parallelization_mode(
         ITR_SKIPPING_LEVEL.TEST for test-level parallelization modes (default, worksteal)
     """
     # Priority 1: Check if env var is explicitly set (not using default)
-    explicit_suite_mode = os.getenv("_DD_CIVISIBILITY_ITR_SUITE_MODE")
+    explicit_suite_mode = _get_env("_DD_CIVISIBILITY_ITR_SUITE_MODE")
     if explicit_suite_mode is not None:
         result = ITR_SKIPPING_LEVEL.SUITE if asbool(explicit_suite_mode) else ITR_SKIPPING_LEVEL.TEST
         log.debug(
