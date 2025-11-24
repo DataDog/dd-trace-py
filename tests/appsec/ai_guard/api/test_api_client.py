@@ -116,7 +116,7 @@ def test_evaluate_method(
     if action != "ALLOW" and blocking:
         expected_tags.update({"ai_guard.blocked": "true"})
     expected_meta_struct = {"messages": messages}
-    if len(tags) > 0:
+    if tags:
         expected_meta_struct.update({"attack_categories": tags})
     assert_ai_guard_span(
         tracer,
