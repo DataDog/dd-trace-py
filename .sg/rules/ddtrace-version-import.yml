@@ -1,0 +1,50 @@
+id: ddtrace-version-import
+message: Import `__version__` from `ddtrace.version` instead of `ddtrace`
+severity: error
+language: python
+ignores:
+  - "tests/**"
+  - "benchmarks/**"
+rule:
+  any:
+    # Match: from ddtrace import __version__ (using variable with constraint)
+    - pattern: from $MOD import __version__
+    # Match: from ddtrace import __version__ as $ALIAS
+    - pattern: from $MOD import __version__ as $ALIAS
+    # Match: from ddtrace import $$$IMPORTS, __version__
+    - pattern: from $MOD import $$$IMPORTS, __version__
+    # Match: from ddtrace import $$$IMPORTS, __version__ as $ALIAS
+    - pattern: from $MOD import $$$IMPORTS, __version__ as $ALIAS
+    # Match: from ddtrace import __version__, $$$IMPORTS
+    - pattern: from $MOD import __version__, $$$IMPORTS
+    # Match: from ddtrace import __version__ as $ALIAS, $$$IMPORTS
+    - pattern: from $MOD import __version__ as $ALIAS, $$$IMPORTS
+    # Match: from ddtrace import $$$IMPORTS, __version__, $$$IMPORTS (middle case)
+    - pattern: from $MOD import $$$IMPORTS, __version__, $$$IMPORTS
+    # Match: from ddtrace import $$$IMPORTS, __version__ as $ALIAS, $$$IMPORTS (middle case with alias)
+    - pattern: from $MOD import $$$IMPORTS, __version__ as $ALIAS, $$$IMPORTS
+    # Match: ddtrace.__version__ usage
+    - pattern: ddtrace.__version__
+constraints:
+  MOD:
+    regex: "^ddtrace$"
+  ALIAS:
+    regex: ".*"
+note: |
+  The `__version__` attribute should be imported from `ddtrace.version` to avoid circular dependencies and ensure proper version management.
+
+  Change your imports as follows:
+
+  **Before:**
+  ```python
+  from ddtrace import __version__
+  import ddtrace
+  version = ddtrace.__version__
+  ```
+
+  **After:**
+  ```python
+  from ddtrace.version import __version__
+  ```
+
+  This ensures that `__version__` is accessed from the dedicated version module, preventing circular import issues and making version management more explicit.

@@ -37,7 +37,9 @@ def filter_ignored(paths: t.Iterable[Path]) -> set[Path]:
 
 
 def uncovered(path: Path) -> set[str]:
-    return {str(f) for f in filter_ignored(path.glob("**/*")) if not any(fnmatch.fnmatch(f, p) for p in SPEC_PATTERNS)}
+    return {
+        str(f) for f in filter_ignored(path.glob("**/*")) if not any(fnmatch.fnmatch(str(f), p) for p in SPEC_PATTERNS)
+    }
 
 
 def unmatched() -> set[str]:
