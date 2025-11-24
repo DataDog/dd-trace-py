@@ -15,7 +15,8 @@ allowed-tools:
 
 # Test Suite Validation Skill
 
-This skill helps you efficiently validate code changes by running the appropriate subset of the test suite. It uses `scripts/run-tests` to intelligently discover affected tests and run only what's necessary for validation.
+This skill helps you efficiently validate code changes by running the appropriate subset of the test suite. 
+It uses `scripts/run-tests` to intelligently discover affected tests and run only what's necessary for validation.
 
 ## When to Use This Skill
 
@@ -50,7 +51,8 @@ This outputs JSON showing:
 
 ### Step 3: Intelligently Select Venvs
 
-Rather than running ALL available venvs (which could take hours), I'll select the **minimal set** needed to validate your changes:
+Rather than running ALL available venvs (which could take hours), I'll select the **minimal set** needed to validate 
+your changes:
 
 #### For Core/Tracing Changes (Broad Impact)
 When you modify files like:
@@ -69,7 +71,7 @@ When you modify files like:
 - `ddtrace/contrib/*/patch.py` or integration-specific code
 
 **Strategy:** Run ONLY the affected integration suite with **1-2 venvs**
-- Example: Flask changes → run `contrib::flask` suite with latest Python
+- Example: Flask changes -> run `contrib::flask` suite with latest Python
 - If change involves multiple versions (e.g., Django 3.x and 4.x), pick 1 venv per major version
 - Skip unrelated integrations
 
@@ -175,7 +177,8 @@ When you have a specific venv hash you want to run, you can use it directly with
 scripts/run-tests --venv e06abee
 ```
 
-The `--venv` flag automatically searches **all available venvs** across all suites, so it works regardless of what files you have locally changed. This is useful when:
+The `--venv` flag automatically searches **all available venvs** across all suites, so it works regardless of what 
+files you have locally changed. This is useful when:
 - You know exactly which venv you want to test
 - You have unrelated local changes that would otherwise limit suite matching
 - You want to quickly re-run a specific venv without file path arguments
@@ -254,6 +257,35 @@ scripts/run-tests --venv flask_py311 -- -vv -k test_view_called_twice
 - **Ignore service requirements**: Some suites need Docker services up
 - **Run tests without changes saved**: Make sure edits are saved first
 - **Iterate blindly**: Understand what's failing before re-running
+
+## Additional Testing Resources
+
+**For comprehensive testing guidance, refer to the contributing documentation:**
+
+- **[docs/contributing-testing.rst](../../docs/contributing-testing.rst)** - Detailed testing guidelines
+  - What kind of tests to write (unit tests, integration tests, e2e tests)
+  - When to write tests (feature development, bug fixes)
+  - Where to put tests in the repository
+  - Prerequisites (Docker, uv)
+  - Complete `scripts/run-tests` usage examples
+  - Riot environment management details
+  - Running specific test files and functions
+  - Test debugging strategies
+
+- **[docs/contributing.rst](../../docs/contributing.rst)** - PR and testing requirements
+  - All changes need tests or documented testing strategy
+  - How tests fit into the PR review process
+  - Testing expectations for different types of changes
+
+- **[docs/contributing-design.rst](../../docs/contributing-design.rst)** - Test architecture context
+  - How products, integrations, and core interact
+  - Where different types of tests should live
+  - Testing patterns for each library component
+
+**When to reference these docs:**
+- First time writing tests for this project -> Read `contributing-testing.rst`
+- Understanding test requirements for PRs -> Read `contributing.rst`
+- Need context on test architecture -> Read `contributing-design.rst`
 
 ## Troubleshooting
 
