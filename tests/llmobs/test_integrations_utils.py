@@ -159,5 +159,5 @@ def test_normalize_prompt_variables():
     assert result["image_fallback"] == "[image]"
     assert result["file_url"] == "https://example.com/doc.pdf"
     assert result["file_name"] == "report.pdf"
-    assert result["file_data"] == "[file_data]"
+    assert result["file_data"] == "[file]"
     assert result["file_fallback"] == "[file]"

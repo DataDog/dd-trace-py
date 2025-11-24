@@ -584,17 +584,18 @@ def _openai_parse_input_response_messages(
 
                     item_type = content.get("type", None)
                     if item_type == "input_image":
-                        # Images can be referenced via image_url or file_id
-                        image_url = content.get("image_url", None)
-                        file_id = content.get("file_id", None)
-                        processed_item_content += image_url if image_url else (file_id if file_id else "[image]")
-                    elif item_type == "input_file":
-                        file_ref = (
-                            content.get("file_id", None)
-                            or content.get("file_url", None)
-                            or content.get("filename", None)
+                        processed_item_content += (
+                            content.get("image_url") 
+                            or content.get("file_id") 
+                            or "[image]"
                         )
-                        processed_item_content += file_ref if file_ref else "[file]"
+                    elif item_type == "input_file":
+                        processed_item_content += (
+                            content.get("file_id") 
+                            or content.get("file_url") 
+                            or content.get("filename") 
+                            or "[file]"
+                        )
             else:
                 processed_item_content = item["content"]
             if processed_item_content:
@@ -791,9 +792,7 @@ def openai_get_metadata_from_response(
 
 
 def _normalize_prompt_variables(variables: Dict[str, Any]) -> Dict[str, Any]:
-    """Normalizes prompt variables by extracting meaningful values from OpenAI's response objects.
-
-    Converts complex OpenAI SDK response objects into simple key-value pairs suitable for LLMObs spans.
+    """Converts OpenAI SDK response objects into simple key-value pairs.
 
     Example:
         Input:  {"msg": ResponseInputText(text="Hello"), "doc": ResponseInputFile(file_id="file-123")}
@@ -809,14 +808,17 @@ def _normalize_prompt_variables(variables: Dict[str, Any]) -> Dict[str, Any]:
         if hasattr(value, "text"):  # ResponseInputText
             normalized[key] = value.text
         elif getattr(value, "type", None) == "input_image":  # ResponseInputImage
-            normalized[key] = getattr(value, "image_url", None) or getattr(value, "file_id", None) or "[image]"
+            normalized[key] = (
+                getattr(value, "image_url", None) 
+                or getattr(value, "file_id", None) 
+                or "[image]"
+            )
         elif getattr(value, "type", None) == "input_file":  # ResponseInputFile
-            file_data = getattr(value, "file_data", None)
             normalized[key] = (
                 getattr(value, "file_url", None)
                 or getattr(value, "file_id", None)
                 or getattr(value, "filename", None)
-                or ("[file_data]" if file_data else "[file]")
+                or "[file]"
             )
         else:
             normalized[key] = value
@@ -844,7 +846,7 @@ def _extract_chat_template_from_instructions(
     value_to_placeholder = {}
     for var_name, var_value in variables.items():
         value_str = str(var_value) if var_value else ""
-        if value_str and value_str not in ("[image]", "[file]", "[file_data]"):
+        if value_str and value_str not in ("[image]", "[file]"):
             value_to_placeholder[value_str] = f"{{{{{var_name}}}}}"
 
     # Sort by length (longest first) to handle overlapping values correctly
@@ -859,16 +861,13 @@ def _extract_chat_template_from_instructions(
         if not content_items:
             continue
 
-        # Extract text from all content items
         text_parts = []
         for content_item in content_items:
-            # Extract text content
             text = _get_attr(content_item, "text", "")
             if text:
                 text_parts.append(str(text))
                 continue
 
-            # For image/file items, use generic markers for deterministic templates
             item_type = _get_attr(content_item, "type", None)
             if item_type == "input_image":
                 text_parts.append("[image]")
