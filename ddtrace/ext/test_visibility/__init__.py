@@ -2,12 +2,12 @@
 NOTE: BETA - this API is currently in development and is subject to change.
 """
 
-import os
 import typing as t
 
 from ddtrace import config
 from ddtrace.ext.test_visibility._constants import ITR_SKIPPING_LEVEL
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.settings._env import get_env as _get_env
 
 
 def _get_default_test_visibility_contrib_config() -> t.Dict[str, t.Any]:
@@ -15,7 +15,7 @@ def _get_default_test_visibility_contrib_config() -> t.Dict[str, t.Any]:
         _default_service="default_test_visibility_service",
         itr_skipping_level=(
             ITR_SKIPPING_LEVEL.SUITE
-            if asbool(os.getenv("_DD_CIVISIBILITY_ITR_SUITE_MODE", True))
+            if asbool(_get_env("_DD_CIVISIBILITY_ITR_SUITE_MODE", True))
             else ITR_SKIPPING_LEVEL.TEST
         ),
         _itr_skipping_ignore_parameters=False,
