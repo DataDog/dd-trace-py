@@ -706,9 +706,7 @@ def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(
 
         # Split initial samples into allocation-only vs live heap
         initial_alloc_only = sum(
-            1
-            for s in initial_profile.sample
-            if s.value[alloc_space_idx] > 0 and s.value[heap_space_idx] == 0
+            1 for s in initial_profile.sample if s.value[alloc_space_idx] > 0 and s.value[heap_space_idx] == 0
         )
         initial_live_heap = sum(1 for s in initial_profile.sample if s.value[heap_space_idx] > 0)
         initial_count = len(initial_profile.sample)
@@ -721,13 +719,9 @@ def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(
 
         # Split after_first_batch samples
         after_first_batch_alloc_only = sum(
-            1
-            for s in after_first_batch_profile.sample
-            if s.value[alloc_space_idx] > 0 and s.value[heap_space_idx] == 0
+            1 for s in after_first_batch_profile.sample if s.value[alloc_space_idx] > 0 and s.value[heap_space_idx] == 0
         )
-        after_first_batch_live_heap = sum(
-            1 for s in after_first_batch_profile.sample if s.value[heap_space_idx] > 0
-        )
+        after_first_batch_live_heap = sum(1 for s in after_first_batch_profile.sample if s.value[heap_space_idx] > 0)
         after_first_batch_count = len(after_first_batch_profile.sample)
 
         second_batch = []
@@ -741,9 +735,7 @@ def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(
 
         # Split final samples
         final_alloc_only = sum(
-            1
-            for s in final_profile.sample
-            if s.value[alloc_space_idx] > 0 and s.value[heap_space_idx] == 0
+            1 for s in final_profile.sample if s.value[alloc_space_idx] > 0 and s.value[heap_space_idx] == 0
         )
         final_live_heap = sum(1 for s in final_profile.sample if s.value[heap_space_idx] > 0)
 

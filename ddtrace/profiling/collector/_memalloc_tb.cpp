@@ -4,8 +4,12 @@
 #include <string>
 #include <string_view>
 
-// Note: We use _PyInterpreterFrame when the structures are available in public headers
-// (cpython/pystate.h, cpython/code.h). For Python 3.11, we use PyFrameObject instead.
+// Include internal headers to access _PyInterpreterFrame for Python 3.11-3.12 only
+// Python 3.13+ restricts access to these structures even with Py_BUILD_CORE
+#if defined(_PY311_AND_LATER) && !defined(_PY313_AND_LATER)
+#define Py_BUILD_CORE
+#include <internal/pycore_frame.h>
+#endif
 
 #include "_memalloc_debug.h"
 #include "_memalloc_reentrant.h"
@@ -308,9 +312,10 @@ extract_frame_info_from_pyframe(PyFrameObject* frame, PyCodeObject** code_out, i
     *lineno_out = lineno_val;
 }
 
-#if defined(_PY312_AND_LATER) && !defined(_PY313_AND_LATER)
+#if defined(_PY311_AND_LATER) && !defined(_PY313_AND_LATER)
 /* Helper function to extract code object and line number from a _PyInterpreterFrame
- * Only available for Python 3.12 when structures are in public headers (cpython/pystate.h, cpython/code.h). */
+ * Uses Py_BUILD_CORE to access internal headers (only for Python 3.11-3.12)
+ * Python 3.13+ restricts access to these structures, so we use PyFrameObject instead */
 static void
 extract_frame_info_from_interpreter_frame(_PyInterpreterFrame* frame, PyCodeObject** code_out, int* lineno_out)
 {
@@ -318,9 +323,8 @@ extract_frame_info_from_interpreter_frame(_PyInterpreterFrame* frame, PyCodeObje
     *lineno_out = 0;
 
     // Extract code object from interpreter frame
-    // For Python 3.12, f_executable is always a code object
-    PyObject* f_executable = frame->f_executable;
-    PyCodeObject* code = (PyCodeObject*)f_executable;
+    // Python 3.11-3.12: f_code is directly available
+    PyCodeObject* code = frame->f_code;
 
     if (code == NULL)
         return;
@@ -331,18 +335,8 @@ extract_frame_info_from_interpreter_frame(_PyInterpreterFrame* frame, PyCodeObje
     if (frame->prev_instr != NULL) {
         // Calculate bytecode offset from instruction pointer
         // frame->prev_instr is a pointer to _Py_CODEUNIT (uint16_t, 2 bytes per instruction)
-        // We need to calculate the offset in code units
-        // co_code structure changed in Python 3.12+, use PyObject_GetAttrString to access it
-        PyObject* code_bytes = PyObject_GetAttrString((PyObject*)code, "co_code");
-        if (code_bytes != NULL) {
-            const uint8_t* code_start = (const uint8_t*)PyBytes_AS_STRING(code_bytes);
-            const _Py_CODEUNIT* instr_ptr = (const _Py_CODEUNIT*)frame->prev_instr;
-            if (instr_ptr >= (const _Py_CODEUNIT*)code_start) {
-                Py_ssize_t offset = instr_ptr - (const _Py_CODEUNIT*)code_start;
-                lineno_val = PyCode_Addr2Line(code, offset);
-            }
-            Py_DECREF(code_bytes);
-        }
+        const int lasti = _PyInterpreterFrame_LASTI(frame);
+        lineno_val = PyCode_Addr2Line(code, lasti << 1);
     }
     if (lineno_val < 0)
         lineno_val = 0;
@@ -399,9 +393,10 @@ push_frame_to_sample(Datadog::Sample& sample, PyCodeObject* code, int lineno_val
     Py_XDECREF(filename_bytes);
 }
 
-#if defined(_PY312_AND_LATER) && !defined(_PY313_AND_LATER)
+#if defined(_PY311_AND_LATER) && !defined(_PY313_AND_LATER)
 /* Helper function to collect frames from _PyInterpreterFrame chain and push to sample
- * Only available for Python 3.12 when structures are in public headers (cpython/pystate.h, cpython/code.h) */
+ * Uses Py_BUILD_CORE to access internal headers (only for Python 3.11-3.12)
+ * Python 3.13+ restricts access to these structures, so we use PyFrameObject instead */
 static void
 push_stacktrace_to_sample(Datadog::Sample& sample)
 {
