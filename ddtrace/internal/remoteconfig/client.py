@@ -34,6 +34,7 @@ from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.utils.version import _pep440_to_semver
 from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings._core import DDConfig
+from ddtrace.settings._env import environ as _environ
 
 
 log = get_logger(__name__)
@@ -207,7 +208,7 @@ class RemoteConfigClient:
         self.agent_url = agent_config.trace_agent_url
 
         self._headers = {"content-type": "application/json"}
-        additional_header_str = os.environ.get("_DD_REMOTE_CONFIGURATION_ADDITIONAL_HEADERS")
+        additional_header_str = _environ.get("_DD_REMOTE_CONFIGURATION_ADDITIONAL_HEADERS")
         if additional_header_str is not None:
             self._headers.update(parse_tags_str(additional_header_str))
 

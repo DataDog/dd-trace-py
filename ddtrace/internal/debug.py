@@ -1,6 +1,5 @@
 import datetime
 import logging
-import os
 import platform
 import sys
 from typing import TYPE_CHECKING  # noqa:F401
@@ -14,6 +13,8 @@ from ddtrace.internal.utils.cache import callonce
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import LogWriter
 from ddtrace.settings._agent import config as agent_config
+from ddtrace.settings._env import environ as _environ
+from ddtrace.settings._env import get_env as _get_env
 from ddtrace.settings.asm import config as asm_config
 
 from .logger import get_logger
@@ -35,7 +36,7 @@ def in_venv():
     # Works with both venv and virtualenv
     # https://stackoverflow.com/a/42580137
     return (
-        "VIRTUAL_ENV" in os.environ
+        "VIRTUAL_ENV" in _environ
         or hasattr(sys, "real_prefix")
         or (hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix)
     )
@@ -132,7 +133,7 @@ def collect(tracer):
         sampling_rules=sampling_rules,
         service=ddtrace.config.service or "",
         debug=logger.isEnabledFor(logging.DEBUG),
-        enabled_cli="ddtrace" in os.getenv("PYTHONPATH", ""),
+        enabled_cli="ddtrace" in _get_env("PYTHONPATH", ""),
         log_injection_enabled=ddtrace.config._logs_injection,
         health_metrics_enabled=ddtrace.config._health_metrics_enabled,
         runtime_metrics_enabled=RuntimeWorker.enabled,

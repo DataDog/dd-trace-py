@@ -1,4 +1,3 @@
-import os
 from os import environ
 from os import path
 
@@ -34,6 +33,4 @@ def in_gcp_function():
 def in_azure_function():
     # type: () -> bool
     """Returns whether the environment is an Azure Function."""
-    return (
-        os.environ.get("FUNCTIONS_WORKER_RUNTIME", "") != "" and os.environ.get("FUNCTIONS_EXTENSION_VERSION", "") != ""
-    )
+    return environ.get("FUNCTIONS_WORKER_RUNTIME", "") != "" and environ.get("FUNCTIONS_EXTENSION_VERSION", "") != ""
