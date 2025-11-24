@@ -20,7 +20,7 @@ ENTRYPOINT_TYPE_SCRIPT = "script"
 ENTRYPOINT_BASEDIR_TAG = "entrypoint.basedir"
 
 _CONSECUTIVE_UNDERSCORES_PATTERN = re.compile(r"_{2,}")
-_ALLOWED_CHARS = _ALLOWED_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789/:._-")
+_ALLOWED_CHARS = _ALLOWED_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789/._-")
 MAX_LENGTH = 100
 
 
