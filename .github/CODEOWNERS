@@ -112,6 +112,7 @@ tests/internal/symbol_db/           @DataDog/debugger-python
 .gitlab/tests/debugging.yml         @DataDog/debugger-python
 
 # ASM
+.cursor/rules/iast.mdc              @DataDog/asm-python
 .gitlab/tests/appsec.yml            @DataDog/asm-python
 benchmarks/appsec*                  @DataDog/asm-python
 benchmarks/bm/iast_utils*           @DataDog/asm-python
