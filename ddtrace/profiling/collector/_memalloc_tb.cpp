@@ -4,6 +4,8 @@
 #include <string>
 #include <string_view>
 
+#include "_pymacro.h"
+
 // Include internal headers to access _PyInterpreterFrame for Python 3.11 only
 // Python 3.12+ restricts access to these structures even with Py_BUILD_CORE
 #if defined(_PY311_AND_LATER) && !defined(_PY312_AND_LATER)
@@ -14,7 +16,6 @@
 #include "_memalloc_debug.h"
 #include "_memalloc_reentrant.h"
 #include "_memalloc_tb.h"
-#include "_pymacro.h"
 
 /* A string containing "<unknown>" just in case we can't store the real function
  * or file name. */
