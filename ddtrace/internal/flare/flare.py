@@ -133,7 +133,10 @@ class Flare:
 
         # Restore native logger configuration from env vars
         if config._trace_writer_native:
-            native_logger.disable("file")
+            try:
+                native_logger.disable("file")
+            except ValueError:
+                log.debug("Native file logger is not enabled")
             _configure_ddtrace_native_logger()
 
     def _validate_case_id(self, case_id: str) -> bool:
