@@ -9,6 +9,7 @@
 #include "_memalloc_heap_map.h"
 #include "_memalloc_reentrant.h"
 #include "_memalloc_tb.h"
+#include "_pymacro.h"
 
 /*
    How heap profiler sampling works:
