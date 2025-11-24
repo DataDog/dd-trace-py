@@ -6,25 +6,25 @@ import typing as t
 from ddtrace.testing.internal.utils import asbool
 
 
-ddtrace.testing_logger = logging.getLogger("ddtrace.testing")
+testing_logger = logging.getLogger("ddtrace.testing")
 
 F = t.TypeVar("F", bound=t.Callable[..., t.Any])
 
 
 def setup_logging() -> None:
-    ddtrace.testing_logger.propagate = False
+    testing_logger.propagate = False
 
     log_level = logging.DEBUG if asbool(os.getenv("DD_TEST_DEBUG")) else logging.INFO
-    ddtrace.testing_logger.setLevel(log_level)
+    testing_logger.setLevel(log_level)
 
-    for handler in list(ddtrace.testing_logger.handlers):
-        ddtrace.testing_logger.removeHandler(handler)
+    for handler in list(testing_logger.handlers):
+        testing_logger.removeHandler(handler)
 
     handler = logging.StreamHandler()
     handler.setFormatter(
         logging.Formatter("[Datadog Test Optimization] %(levelname)-8s %(name)s:%(filename)s:%(lineno)d %(message)s")
     )
-    ddtrace.testing_logger.addHandler(handler)
+    testing_logger.addHandler(handler)
 
 
 def catch_and_log_exceptions() -> t.Callable[[F], F]:
@@ -34,7 +34,7 @@ def catch_and_log_exceptions() -> t.Callable[[F], F]:
             try:
                 return f(*args, **kwargs)
             except Exception:
-                ddtrace.testing_logger.exception("Error while calling %s", f.__name__)
+                testing_logger.exception("Error while calling %s", f.__name__)
                 return None
 
         return t.cast(F, wrapper)

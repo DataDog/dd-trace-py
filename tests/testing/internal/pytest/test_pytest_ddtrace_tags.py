@@ -12,7 +12,7 @@ from tests.testing.mocks import setup_standard_mocks
 
 class TestDDTraceTags:
     @pytest.mark.slow
-    def test_ddtrace_tags_are_reflected_in_ddtrace.testing_events(self, pytester: Pytester) -> None:
+    def test_ddtrace_tags_are_reflected_in_testing_events(self, pytester: Pytester) -> None:
         pytester.makepyfile(
             test_foo="""
             def test_set_ddtrace_tags():
