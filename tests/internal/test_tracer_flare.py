@@ -6,17 +6,15 @@ import os
 import pathlib
 import re
 import shutil
-import tempfile
-import unittest
 from typing import Dict
 from typing import Optional
 from typing import Union
 from typing import cast
+import unittest
 from unittest import mock
 
 import pytest
 
-from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.flare._subscribers import TracerFlareSubscriber
 from ddtrace.internal.flare.flare import TRACER_FLARE_FILE_HANDLER_NAME
 from ddtrace.internal.flare.flare import Flare
@@ -158,7 +156,7 @@ class TracerFlareTests(unittest.TestCase):
         # Ensure we always revert configs to clean up handlers
         try:
             self.flare.revert_configs()
-        except:
+        except Exception:
             pass
         self.native_manager_patcher.stop()
         self.confirm_cleanup()
@@ -751,7 +749,7 @@ class TracerFlareMultiprocessTests(unittest.TestCase):
         while not self.errors.empty():
             try:
                 errors_list.append(self.errors.get_nowait())
-            except:
+            except Exception:
                 break
         assert len(errors_list) == 0, f"Expected no errors, got: {errors_list}"
 
@@ -784,7 +782,7 @@ class TracerFlareMultiprocessTests(unittest.TestCase):
         while not self.errors.empty():
             try:
                 errors_list.append(self.errors.get_nowait())
-            except:
+            except Exception:
                 break
         assert len(errors_list) == 1, f"Expected 1 error, got {len(errors_list)}: {errors_list}"
 
