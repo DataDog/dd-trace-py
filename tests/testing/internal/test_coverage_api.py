@@ -2,7 +2,7 @@ from pathlib import Path
 from unittest import mock
 
 from ddtrace.testing.internal.coverage_api import coverage_collection
-from ddtrace.testing.vendor.ddtrace_coverage.code import ModuleCodeCollector
+from ddtrace.internal.coverage.code import ModuleCodeCollector
 
 
 def test_get_coverage_bitmaps() -> None:
