@@ -5,6 +5,4 @@ fn main() {
     if cfg!(target_os = "macos") {
         pyo3_build_config::add_extension_module_link_args();
     }
-    println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-changed=crashtracker.rs");
 }

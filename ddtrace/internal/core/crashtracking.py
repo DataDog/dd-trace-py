@@ -19,7 +19,6 @@ from ddtrace.internal.settings.profiling import config_str
 
 is_available = True
 try:
-    from ddtrace.internal.native._native import CallbackResult
     from ddtrace.internal.native._native import CrashtrackerConfiguration
     from ddtrace.internal.native._native import CrashtrackerMetadata
     from ddtrace.internal.native._native import CrashtrackerReceiverConfig
@@ -27,7 +26,6 @@ try:
     from ddtrace.internal.native._native import StacktraceCollection
     from ddtrace.internal.native._native import crashtracker_init
     from ddtrace.internal.native._native import crashtracker_on_fork
-    from ddtrace.internal.native._native import crashtracker_register_native_runtime_callback
     from ddtrace.internal.native._native import crashtracker_status
 except ImportError:
     is_available = False
@@ -156,12 +154,6 @@ def start(additional_tags: Optional[Dict[str, str]] = None) -> bool:
             return False
 
         crashtracker_init(config, receiver_config, metadata)
-
-        if crashtracker_config.stacktrace_resolver is not None and crashtracker_config.stacktrace_resolver != "none":
-            result = crashtracker_register_native_runtime_callback()
-            # Shouldn't block on this, but log an error if it fails
-            if result != CallbackResult.Ok:
-                print(f"Failed to register runtime callback: {result}", file=sys.stderr)
 
         def crashtracker_fork_handler():
             # We recreate the args here mainly to pass updated runtime_id after
