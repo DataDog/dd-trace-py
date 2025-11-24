@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    LLMObs: This update introduces the ability for users to add custom metadata to LLMObs spans 
+    by setting a `metadata` attribute on the `LLMObsSpan` object passed to their registered 
+    span processors. 
