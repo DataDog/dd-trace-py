@@ -7,10 +7,7 @@ from tests.utils import DummyTracer
 
 @pytest.fixture(scope="function")
 def mock_integration_config(ddtrace_global_config):
-    mock_config = mock.Mock()
-    mock_config.span_char_limit = 10
-    mock_config.span_prompt_completion_sample_rate = 1.0
-    yield mock_config
+    yield mock.Mock()
 
 
 @pytest.fixture(scope="function")
@@ -30,12 +27,6 @@ def mock_pin():
     yield mock_pin
 
 
-def test_integration_truncate(mock_integration_config):
-    integration = BaseLLMIntegration(mock_integration_config)
-    assert integration.trunc("1" * 128) == "1111111111..."
-    assert integration.trunc("123") == "123"
-
-
 @mock.patch("ddtrace.llmobs._integrations.base.LLMObs")
 def test_integration_llmobs_enabled(mock_llmobs, mock_integration_config):
     mock_llmobs.enabled = True
@@ -44,19 +35,6 @@ def test_integration_llmobs_enabled(mock_llmobs, mock_integration_config):
     mock_llmobs.enabled = False
     integration = BaseLLMIntegration(mock_integration_config)
     assert integration.llmobs_enabled is False
-
-
-def test_pc_span_sampling(mock_integration_config, mock_pin):
-    integration = BaseLLMIntegration(mock_integration_config)
-    integration.pin = mock_pin
-    with mock_pin.tracer.trace("Dummy span") as mock_span:
-        assert integration.is_pc_sampled_span(mock_span) is True
-
-    mock_integration_config.span_prompt_completion_sample_rate = 0.0
-    integration = BaseLLMIntegration(mock_integration_config)
-    integration.pin = mock_pin
-    with mock_pin.tracer.trace("Dummy span") as mock_span:
-        assert integration.is_pc_sampled_span(mock_span) is False
 
 
 @mock.patch("ddtrace.llmobs._integrations.base.LLMObs")
