@@ -16,12 +16,12 @@ from urllib.parse import ParseResult
 from urllib.parse import urlparse
 import uuid
 
-from ddtestpy.internal.constants import DEFAULT_AGENT_HOSTNAME
-from ddtestpy.internal.constants import DEFAULT_AGENT_PORT
-from ddtestpy.internal.constants import DEFAULT_AGENT_SOCKET_FILE
-from ddtestpy.internal.constants import DEFAULT_SITE
-from ddtestpy.internal.errors import SetupError
-from ddtestpy.internal.utils import asbool
+from ddtrace.testing.internal.constants import DEFAULT_AGENT_HOSTNAME
+from ddtrace.testing.internal.constants import DEFAULT_AGENT_PORT
+from ddtrace.testing.internal.constants import DEFAULT_AGENT_SOCKET_FILE
+from ddtrace.testing.internal.constants import DEFAULT_SITE
+from ddtrace.testing.internal.errors import SetupError
+from ddtrace.testing.internal.utils import asbool
 
 
 DEFAULT_TIMEOUT_SECONDS = 15.0

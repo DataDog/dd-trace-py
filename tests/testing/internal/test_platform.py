@@ -1,9 +1,9 @@
-"""Tests for ddtestpy.internal.platform module."""
+"""Tests for ddtrace.testing.internal.platform module."""
 
 import platform
 
-from ddtestpy.internal.platform import PlatformTag
-from ddtestpy.internal.platform import get_platform_tags
+from ddtrace.testing.internal.platform import PlatformTag
+from ddtrace.testing.internal.platform import get_platform_tags
 
 
 class TestPlatformTag:

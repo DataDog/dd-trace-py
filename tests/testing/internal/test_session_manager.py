@@ -2,12 +2,12 @@ import os
 
 import pytest
 
-from ddtestpy.internal.ci import CITag
-from ddtestpy.internal.test_data import ModuleRef
-from ddtestpy.internal.test_data import SuiteRef
-from ddtestpy.internal.test_data import TestRef
-from tests.mocks import MockDefaults
-from tests.mocks import session_manager_mock
+from ddtrace.testing.internal.ci import CITag
+from ddtrace.testing.internal.test_data import ModuleRef
+from ddtrace.testing.internal.test_data import SuiteRef
+from ddtrace.testing.internal.test_data import TestRef
+from tests.testing.mocks import MockDefaults
+from tests.testing.mocks import session_manager_mock
 
 
 class TestSessionManagerIsSkippableTest:

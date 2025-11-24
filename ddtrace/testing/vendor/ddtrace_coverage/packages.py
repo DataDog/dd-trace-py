@@ -198,7 +198,7 @@ def _third_party_packages() -> set:
     from importlib.resources import read_binary
 
     return (
-        set(decompress(read_binary("ddtestpy.internal.coverage", "third-party.tar.gz")).decode("utf-8").splitlines())
+        set(decompress(read_binary("ddtrace.testing.internal.coverage", "third-party.tar.gz")).decode("utf-8").splitlines())
         # ꙮ | tp_config.includes
     )  # ꙮ - tp_config.excludes
 

@@ -1,26 +1,26 @@
-"""Tests for ddtestpy.internal.writer module."""
+"""Tests for ddtrace.testing.internal.writer module."""
 
 from unittest.mock import Mock
 from unittest.mock import patch
 
-from ddtestpy.internal.http import BackendConnectorAgentlessSetup
-from ddtestpy.internal.test_data import TestModule
-from ddtestpy.internal.test_data import TestRun
-from ddtestpy.internal.test_data import TestSession
-from ddtestpy.internal.test_data import TestStatus
-from ddtestpy.internal.test_data import TestSuite
-from ddtestpy.internal.writer import Event
-from ddtestpy.internal.writer import TestCoverageWriter
-from ddtestpy.internal.writer import TestOptWriter
-from ddtestpy.internal.writer import serialize_module
-from ddtestpy.internal.writer import serialize_session
-from ddtestpy.internal.writer import serialize_suite
-from ddtestpy.internal.writer import serialize_test_run
-from tests.mocks import TestDataFactory
-from tests.mocks import mock_test_module
-from tests.mocks import mock_test_run
-from tests.mocks import mock_test_session
-from tests.mocks import mock_test_suite
+from ddtrace.testing.internal.http import BackendConnectorAgentlessSetup
+from ddtrace.testing.internal.test_data import TestModule
+from ddtrace.testing.internal.test_data import TestRun
+from ddtrace.testing.internal.test_data import TestSession
+from ddtrace.testing.internal.test_data import TestStatus
+from ddtrace.testing.internal.test_data import TestSuite
+from ddtrace.testing.internal.writer import Event
+from ddtrace.testing.internal.writer import TestCoverageWriter
+from ddtrace.testing.internal.writer import TestOptWriter
+from ddtrace.testing.internal.writer import serialize_module
+from ddtrace.testing.internal.writer import serialize_session
+from ddtrace.testing.internal.writer import serialize_suite
+from ddtrace.testing.internal.writer import serialize_test_run
+from tests.testing.mocks import TestDataFactory
+from tests.testing.mocks import mock_test_module
+from tests.testing.mocks import mock_test_run
+from tests.testing.mocks import mock_test_session
+from tests.testing.mocks import mock_test_suite
 
 
 class TestEvent:
@@ -43,7 +43,7 @@ class TestEvent:
 class TestTestOptWriter:
     """Tests for TestOptWriter class."""
 
-    @patch("ddtestpy.internal.http.BackendConnector")
+    @patch("ddtrace.testing.internal.http.BackendConnector")
     def test_testopt_writer_initialization(self, mock_backend_connector: Mock) -> None:
         """Test TestOptWriter initialization."""
         mock_connector = Mock()
@@ -67,7 +67,7 @@ class TestTestOptWriter:
         assert TestModule in writer.serializers
         assert TestSession in writer.serializers
 
-    @patch("ddtestpy.internal.http.BackendConnector")
+    @patch("ddtrace.testing.internal.http.BackendConnector")
     @patch("msgpack.packb")
     def test_send_events(self, mock_packb: Mock, mock_backend_connector: Mock) -> None:
         """Test sending events to backend."""
@@ -103,7 +103,7 @@ class TestTestOptWriter:
 class TestTestCoverageWriter:
     """Tests for TestCoverageWriter class."""
 
-    @patch("ddtestpy.internal.http.BackendConnector")
+    @patch("ddtrace.testing.internal.http.BackendConnector")
     def test_coverage_writer_initialization(self, mock_backend_connector: Mock) -> None:
         """Test TestCoverageWriter initialization."""
         mock_connector = Mock()
@@ -118,7 +118,7 @@ class TestTestCoverageWriter:
             url="https://citestcov-intake.datadoghq.com", default_headers={"dd-api-key": "test_key"}, use_gzip=True
         )
 
-    @patch("ddtestpy.internal.http.BackendConnector")
+    @patch("ddtrace.testing.internal.http.BackendConnector")
     def test_put_coverage(self, mock_backend_connector: Mock) -> None:
         """Test putting coverage data."""
         writer = TestCoverageWriter(BackendConnectorAgentlessSetup(site="test", api_key="key"))
@@ -144,7 +144,7 @@ class TestTestCoverageWriter:
         assert event["span_id"] == 789
         assert len(event["files"]) == 2
 
-    @patch("ddtestpy.internal.http.BackendConnector")
+    @patch("ddtrace.testing.internal.http.BackendConnector")
     @patch("msgpack.packb")
     def test_send_coverage_events(self, mock_packb: Mock, mock_backend_connector: Mock) -> None:
         """Test sending coverage events."""

@@ -1,8 +1,8 @@
-"""Tests for ddtestpy.internal.utils module."""
+"""Tests for ddtrace.testing.internal.utils module."""
 
-from ddtestpy.internal.utils import PlainTestContext
-from ddtestpy.internal.utils import _gen_item_id
-from ddtestpy.internal.utils import asbool
+from ddtrace.testing.internal.utils import PlainTestContext
+from ddtrace.testing.internal.utils import _gen_item_id
+from ddtrace.testing.internal.utils import asbool
 
 
 class TestGenItemId:

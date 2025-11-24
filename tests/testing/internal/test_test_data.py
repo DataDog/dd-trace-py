@@ -1,16 +1,16 @@
-"""Tests for ddtestpy.internal.test_data module."""
+"""Tests for ddtrace.testing.internal.test_data module."""
 
 from typing import Any
 from unittest.mock import patch
 
 import pytest
 
-from ddtestpy.internal.constants import DEFAULT_SERVICE_NAME
-from ddtestpy.internal.test_data import ModuleRef
-from ddtestpy.internal.test_data import SuiteRef
-from ddtestpy.internal.test_data import TestItem
-from ddtestpy.internal.test_data import TestRef
-from ddtestpy.internal.test_data import TestStatus
+from ddtrace.testing.internal.constants import DEFAULT_SERVICE_NAME
+from ddtrace.testing.internal.test_data import ModuleRef
+from ddtrace.testing.internal.test_data import SuiteRef
+from ddtrace.testing.internal.test_data import TestItem
+from ddtrace.testing.internal.test_data import TestRef
+from ddtrace.testing.internal.test_data import TestStatus
 
 
 class TestModuleRef:

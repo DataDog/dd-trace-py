@@ -1,12 +1,12 @@
 import os
 import typing as t
 
-from ddtestpy.internal import ci
-from ddtestpy.internal import git
-from ddtestpy.internal.ci import CITag
-from ddtestpy.internal.git import GitTag
-from ddtestpy.internal.git import get_workspace_path
-from ddtestpy.internal.utils import _filter_sensitive_info
+from ddtrace.testing.internal import ci
+from ddtrace.testing.internal import git
+from ddtrace.testing.internal.ci import CITag
+from ddtrace.testing.internal.git import GitTag
+from ddtrace.testing.internal.git import get_workspace_path
+from ddtrace.testing.internal.utils import _filter_sensitive_info
 
 
 _TagDict = t.Dict[str, t.Optional[str]]

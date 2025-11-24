@@ -3,9 +3,9 @@ import logging
 import re
 import typing as t
 
-from ddtestpy.internal import git
-from ddtestpy.internal.git import GitTag
-from ddtestpy.internal.utils import _filter_sensitive_info
+from ddtrace.testing.internal import git
+from ddtrace.testing.internal.git import GitTag
+from ddtrace.testing.internal.utils import _filter_sensitive_info
 
 
 log = logging.getLogger(__name__)

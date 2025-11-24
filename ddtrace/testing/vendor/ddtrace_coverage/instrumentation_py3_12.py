@@ -23,7 +23,7 @@ EMPTY_MODULE_BYTES = bytes([RESUME, 0, RETURN_CONST, 0])
 
 _CODE_HOOKS: t.Dict[int, t.Tuple[HookType, str, t.Dict[int, t.Tuple[str, t.Optional[t.Tuple[str]]]]]] = {}
 
-COVERAGE_TOOL_NAME = "ddtestpy"
+COVERAGE_TOOL_NAME = "ddtrace.testing"
 COVERAGE_TOOL_ID = 4
 
 

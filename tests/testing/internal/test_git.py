@@ -1,16 +1,16 @@
-"""Tests for ddtestpy.internal.git module."""
+"""Tests for ddtrace.testing.internal.git module."""
 
 from unittest.mock import Mock
 from unittest.mock import patch
 
 import pytest
 
-from ddtestpy.internal.git import Git
-from ddtestpy.internal.git import GitTag
-from ddtestpy.internal.git import GitUserInfo
-from ddtestpy.internal.git import _GitSubprocessDetails
-from ddtestpy.internal.git import get_git_head_tags_from_git_command
-from ddtestpy.internal.git import get_git_tags_from_git_command
+from ddtrace.testing.internal.git import Git
+from ddtrace.testing.internal.git import GitTag
+from ddtrace.testing.internal.git import GitUserInfo
+from ddtrace.testing.internal.git import _GitSubprocessDetails
+from ddtrace.testing.internal.git import get_git_head_tags_from_git_command
+from ddtrace.testing.internal.git import get_git_tags_from_git_command
 
 
 class TestGitTag:
@@ -232,7 +232,7 @@ class TestGit:
 class TestGetGitTags:
     """Tests for get_git_tags_from_git_command function."""
 
-    @patch("ddtestpy.internal.git.Git")
+    @patch("ddtrace.testing.internal.git.Git")
     def test_get_git_tags_success(self, mock_git_class: Mock) -> None:
         """Test get_git_tags_from_git_command with successful Git operations."""
         mock_git = Mock()
@@ -266,8 +266,8 @@ class TestGetGitTags:
         }
         assert result == expected
 
-    @patch("ddtestpy.internal.git.Git")
-    @patch("ddtestpy.internal.git.log")
+    @patch("ddtrace.testing.internal.git.Git")
+    @patch("ddtrace.testing.internal.git.log")
     def test_get_git_tags_git_not_available(self, mock_log: Mock, mock_git_class: Mock) -> None:
         """Test get_git_tags_from_git_command when Git is not available."""
         mock_git_class.side_effect = RuntimeError("git command not found")
@@ -277,7 +277,7 @@ class TestGetGitTags:
         assert result == {}
         mock_log.warning.assert_called_once_with("Error getting git data: %s", mock_git_class.side_effect)
 
-    @patch("ddtestpy.internal.git.Git")
+    @patch("ddtrace.testing.internal.git.Git")
     def test_get_git_head_tags_success(self, mock_git_class: Mock) -> None:
         """Test get_git_head_tags_from_git_command with successful Git operations."""
         mock_parent_user = GitUserInfo(
@@ -319,7 +319,7 @@ class TestGetGitTags:
         }
         assert result == expected
 
-    @patch("ddtestpy.internal.git.Git")
+    @patch("ddtrace.testing.internal.git.Git")
     def test_get_git_head_tags_with_no_user_info_available(self, mock_git_class: Mock) -> None:
         """Test get_git_head_tags_from_git_command with no user info available."""
         mock_git = Mock()
@@ -344,9 +344,9 @@ class TestGitUnshallow:
     @pytest.mark.parametrize("return_code", [0, 1])
     def test_git_unshallow_repository(self, return_code: int) -> None:
         with patch(
-            "ddtestpy.internal.git.Git._call_git",
+            "ddtrace.testing.internal.git.Git._call_git",
             return_value=_GitSubprocessDetails(stdout="", stderr="", return_code=return_code),
-        ) as call_git_mock, patch("ddtestpy.internal.git.Git.get_remote_name", return_value="some-remote"):
+        ) as call_git_mock, patch("ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"):
             result = Git().unshallow_repository("some-sha")
 
         assert result == (return_code == 0)
@@ -366,9 +366,9 @@ class TestGitUnshallow:
     @pytest.mark.parametrize("return_code", [0, 1])
     def test_git_unshallow_repository_parent_only(self, return_code: int) -> None:
         with patch(
-            "ddtestpy.internal.git.Git._call_git",
+            "ddtrace.testing.internal.git.Git._call_git",
             return_value=_GitSubprocessDetails(stdout="", stderr="", return_code=return_code),
-        ) as call_git_mock, patch("ddtestpy.internal.git.Git.get_remote_name", return_value="some-remote"):
+        ) as call_git_mock, patch("ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"):
             result = Git().unshallow_repository(parent_only=True)
 
         assert result == (return_code == 0)
@@ -387,10 +387,10 @@ class TestGitUnshallow:
     @pytest.mark.parametrize("return_code", [0, 1])
     def test_git_unshallow_repository_to_local_head(self, return_code: int) -> None:
         with patch(
-            "ddtestpy.internal.git.Git._call_git",
+            "ddtrace.testing.internal.git.Git._call_git",
             return_value=_GitSubprocessDetails(stdout="", stderr="", return_code=return_code),
-        ) as call_git_mock, patch("ddtestpy.internal.git.Git.get_remote_name", return_value="some-remote"), patch(
-            "ddtestpy.internal.git.Git.get_commit_sha", return_value="head-sha"
+        ) as call_git_mock, patch("ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"), patch(
+            "ddtrace.testing.internal.git.Git.get_commit_sha", return_value="head-sha"
         ):
             result = Git().unshallow_repository_to_local_head()
 
@@ -411,10 +411,10 @@ class TestGitUnshallow:
     @pytest.mark.parametrize("return_code", [0, 1])
     def test_git_unshallow_repository_to_upstream(self, return_code: int) -> None:
         with patch(
-            "ddtestpy.internal.git.Git._call_git",
+            "ddtrace.testing.internal.git.Git._call_git",
             return_value=_GitSubprocessDetails(stdout="", stderr="", return_code=return_code),
-        ) as call_git_mock, patch("ddtestpy.internal.git.Git.get_remote_name", return_value="some-remote"), patch(
-            "ddtestpy.internal.git.Git.get_upstream_sha", return_value="upstream-sha"
+        ) as call_git_mock, patch("ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"), patch(
+            "ddtrace.testing.internal.git.Git.get_upstream_sha", return_value="upstream-sha"
         ):
             result = Git().unshallow_repository_to_upstream()
 
@@ -437,10 +437,10 @@ class TestGitUnshallow:
             _GitSubprocessDetails(stdout="", stderr="", return_code=0),
         ]
 
-        with patch("ddtestpy.internal.git.Git._call_git", side_effect=call_git_results) as call_git_mock, patch(
-            "ddtestpy.internal.git.Git.get_remote_name", return_value="some-remote"
-        ), patch("ddtestpy.internal.git.Git.get_commit_sha", return_value="head-sha"), patch(
-            "ddtestpy.internal.git.Git.get_upstream_sha", return_value="upstream-sha"
+        with patch("ddtrace.testing.internal.git.Git._call_git", side_effect=call_git_results) as call_git_mock, patch(
+            "ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"
+        ), patch("ddtrace.testing.internal.git.Git.get_commit_sha", return_value="head-sha"), patch(
+            "ddtrace.testing.internal.git.Git.get_upstream_sha", return_value="upstream-sha"
         ):
             result = Git().try_all_unshallow_repository_methods()
 
@@ -466,10 +466,10 @@ class TestGitUnshallow:
             _GitSubprocessDetails(stdout="", stderr="", return_code=0),
         ]
 
-        with patch("ddtestpy.internal.git.Git._call_git", side_effect=call_git_results) as call_git_mock, patch(
-            "ddtestpy.internal.git.Git.get_remote_name", return_value="some-remote"
-        ), patch("ddtestpy.internal.git.Git.get_commit_sha", return_value="head-sha"), patch(
-            "ddtestpy.internal.git.Git.get_upstream_sha", return_value="upstream-sha"
+        with patch("ddtrace.testing.internal.git.Git._call_git", side_effect=call_git_results) as call_git_mock, patch(
+            "ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"
+        ), patch("ddtrace.testing.internal.git.Git.get_commit_sha", return_value="head-sha"), patch(
+            "ddtrace.testing.internal.git.Git.get_upstream_sha", return_value="upstream-sha"
         ):
             result = Git().try_all_unshallow_repository_methods()
 
@@ -506,10 +506,10 @@ class TestGitUnshallow:
             _GitSubprocessDetails(stdout="", stderr="", return_code=0),
         ]
 
-        with patch("ddtestpy.internal.git.Git._call_git", side_effect=call_git_results) as call_git_mock, patch(
-            "ddtestpy.internal.git.Git.get_remote_name", return_value="some-remote"
-        ), patch("ddtestpy.internal.git.Git.get_commit_sha", return_value="head-sha"), patch(
-            "ddtestpy.internal.git.Git.get_upstream_sha", return_value="upstream-sha"
+        with patch("ddtrace.testing.internal.git.Git._call_git", side_effect=call_git_results) as call_git_mock, patch(
+            "ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"
+        ), patch("ddtrace.testing.internal.git.Git.get_commit_sha", return_value="head-sha"), patch(
+            "ddtrace.testing.internal.git.Git.get_upstream_sha", return_value="upstream-sha"
         ):
             result = Git().try_all_unshallow_repository_methods()
 
@@ -555,10 +555,10 @@ class TestGitUnshallow:
             _GitSubprocessDetails(stdout="", stderr="", return_code=1),
         ]
 
-        with patch("ddtestpy.internal.git.Git._call_git", side_effect=call_git_results) as call_git_mock, patch(
-            "ddtestpy.internal.git.Git.get_remote_name", return_value="some-remote"
-        ), patch("ddtestpy.internal.git.Git.get_commit_sha", return_value="head-sha"), patch(
-            "ddtestpy.internal.git.Git.get_upstream_sha", return_value="upstream-sha"
+        with patch("ddtrace.testing.internal.git.Git._call_git", side_effect=call_git_results) as call_git_mock, patch(
+            "ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"
+        ), patch("ddtrace.testing.internal.git.Git.get_commit_sha", return_value="head-sha"), patch(
+            "ddtrace.testing.internal.git.Git.get_upstream_sha", return_value="upstream-sha"
         ):
             result = Git().try_all_unshallow_repository_methods()
 

@@ -7,12 +7,12 @@ from unittest import mock
 
 import pytest
 
-from ddtestpy.internal.ci import CITag
-from ddtestpy.internal.env_tags import get_env_tags
-from ddtestpy.internal.git import Git
-from ddtestpy.internal.git import GitTag
-from ddtestpy.internal.git import get_git_tags_from_git_command
-from ddtestpy.internal.utils import _filter_sensitive_info
+from ddtrace.testing.internal.ci import CITag
+from ddtrace.testing.internal.env_tags import get_env_tags
+from ddtrace.testing.internal.git import Git
+from ddtrace.testing.internal.git import GitTag
+from ddtrace.testing.internal.git import get_git_tags_from_git_command
+from ddtrace.testing.internal.utils import _filter_sensitive_info
 
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "ci"
@@ -32,7 +32,7 @@ def test_ci_providers(
     """Make sure all provided environment variables from each CI provider are tagged correctly."""
     monkeypatch.setattr(os, "environ", environment)
 
-    with mock.patch("ddtestpy.internal.git.get_git_tags_from_git_command", return_value={}):
+    with mock.patch("ddtrace.testing.internal.git.get_git_tags_from_git_command", return_value={}):
         extracted_tags = get_env_tags()
 
     for key, value in tags.items():
@@ -258,7 +258,7 @@ def test_git_executable_not_found_error(monkeypatch: pytest.MonkeyPatch, git_rep
     monkeypatch.setattr(os, "environ", {})
     monkeypatch.chdir(git_repo)
 
-    with mock.patch("ddtestpy.internal.git.log") as log:
+    with mock.patch("ddtrace.testing.internal.git.log") as log:
         with mock.patch("shutil.which", return_value=None):
             tags = get_git_tags_from_git_command()
 

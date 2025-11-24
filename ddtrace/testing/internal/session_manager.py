@@ -5,32 +5,32 @@ from pathlib import Path
 import re
 import typing as t
 
-from ddtestpy.internal.api_client import APIClient
-from ddtestpy.internal.api_client import TestProperties
-from ddtestpy.internal.ci import CITag
-from ddtestpy.internal.codeowners import Codeowners
-from ddtestpy.internal.constants import DEFAULT_ENV_NAME
-from ddtestpy.internal.constants import DEFAULT_SERVICE_NAME
-from ddtestpy.internal.env_tags import get_env_tags
-from ddtestpy.internal.git import Git
-from ddtestpy.internal.git import GitTag
-from ddtestpy.internal.http import BackendConnectorSetup
-from ddtestpy.internal.platform import get_platform_tags
-from ddtestpy.internal.retry_handlers import AttemptToFixHandler
-from ddtestpy.internal.retry_handlers import AutoTestRetriesHandler
-from ddtestpy.internal.retry_handlers import EarlyFlakeDetectionHandler
-from ddtestpy.internal.retry_handlers import RetryHandler
-from ddtestpy.internal.test_data import ITRSkippingLevel
-from ddtestpy.internal.test_data import SuiteRef
-from ddtestpy.internal.test_data import Test
-from ddtestpy.internal.test_data import TestModule
-from ddtestpy.internal.test_data import TestRef
-from ddtestpy.internal.test_data import TestSession
-from ddtestpy.internal.test_data import TestSuite
-from ddtestpy.internal.test_data import TestTag
-from ddtestpy.internal.utils import asbool
-from ddtestpy.internal.writer import TestCoverageWriter
-from ddtestpy.internal.writer import TestOptWriter
+from ddtrace.testing.internal.api_client import APIClient
+from ddtrace.testing.internal.api_client import TestProperties
+from ddtrace.testing.internal.ci import CITag
+from ddtrace.testing.internal.codeowners import Codeowners
+from ddtrace.testing.internal.constants import DEFAULT_ENV_NAME
+from ddtrace.testing.internal.constants import DEFAULT_SERVICE_NAME
+from ddtrace.testing.internal.env_tags import get_env_tags
+from ddtrace.testing.internal.git import Git
+from ddtrace.testing.internal.git import GitTag
+from ddtrace.testing.internal.http import BackendConnectorSetup
+from ddtrace.testing.internal.platform import get_platform_tags
+from ddtrace.testing.internal.retry_handlers import AttemptToFixHandler
+from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
+from ddtrace.testing.internal.retry_handlers import EarlyFlakeDetectionHandler
+from ddtrace.testing.internal.retry_handlers import RetryHandler
+from ddtrace.testing.internal.test_data import ITRSkippingLevel
+from ddtrace.testing.internal.test_data import SuiteRef
+from ddtrace.testing.internal.test_data import Test
+from ddtrace.testing.internal.test_data import TestModule
+from ddtrace.testing.internal.test_data import TestRef
+from ddtrace.testing.internal.test_data import TestSession
+from ddtrace.testing.internal.test_data import TestSuite
+from ddtrace.testing.internal.test_data import TestTag
+from ddtrace.testing.internal.utils import asbool
+from ddtrace.testing.internal.writer import TestCoverageWriter
+from ddtrace.testing.internal.writer import TestOptWriter
 
 
 log = logging.getLogger(__name__)

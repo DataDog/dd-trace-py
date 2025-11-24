@@ -4,9 +4,9 @@ from unittest.mock import patch
 from _pytest.pytester import Pytester
 import pytest
 
-from tests.mocks import EventCapture
-from tests.mocks import mock_api_client_settings
-from tests.mocks import setup_standard_mocks
+from tests.testing.mocks import EventCapture
+from tests.testing.mocks import mock_api_client_settings
+from tests.testing.mocks import setup_standard_mocks
 
 
 class TestCodeowners:
@@ -39,11 +39,11 @@ class TestCodeowners:
         )
 
         with patch(
-            "ddtestpy.internal.session_manager.APIClient",
+            "ddtrace.testing.internal.session_manager.APIClient",
             return_value=mock_api_client_settings(),
         ), setup_standard_mocks():
             with EventCapture.capture() as event_capture:
-                result = pytester.inline_run("--ddtestpy", "-p", "no:ddtrace", "-v", "-s")
+                result = pytester.inline_run("--ddtrace.testing", "-p", "no:ddtrace", "-v", "-s")
 
         assert result.ret == 0
         result.assertoutcome(passed=2)

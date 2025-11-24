@@ -1,20 +1,20 @@
 """
-API for code coverage collection for use by ddtestpy.
+API for code coverage collection for use by ddtrace.testing.
 
-The rest of ddtestpy should only use the interface exposed in this file to set up code coverage and get coverage data.
+The rest of ddtrace.testing should only use the interface exposed in this file to set up code coverage and get coverage data.
 """
 
 import contextlib
 from pathlib import Path
 import typing as t
 
-from ddtestpy.vendor.ddtrace_coverage.code import ModuleCodeCollector
-from ddtestpy.vendor.ddtrace_coverage.coverage_lines import CoverageLines
-import ddtestpy.vendor.ddtrace_coverage.installer
+from ddtrace.testing.vendor.ddtrace_coverage.code import ModuleCodeCollector
+from ddtrace.testing.vendor.ddtrace_coverage.coverage_lines import CoverageLines
+import ddtrace.testing.vendor.ddtrace_coverage.installer
 
 
 def install_coverage(workspace_path: Path) -> None:
-    ddtestpy.vendor.ddtrace_coverage.installer.install(
+    ddtrace.testing.vendor.ddtrace_coverage.installer.install(
         include_paths=[workspace_path], collect_import_time_coverage=True
     )
     ModuleCodeCollector.start_coverage()  # type: ignore[no-untyped-call]

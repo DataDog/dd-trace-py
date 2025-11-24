@@ -1,4 +1,4 @@
-"""Tests for ddtestpy.internal.logging module."""
+"""Tests for ddtrace.testing.internal.logging module."""
 
 import logging
 import os
@@ -6,9 +6,9 @@ from typing import Optional
 from unittest.mock import Mock
 from unittest.mock import patch
 
-from ddtestpy.internal.logging import catch_and_log_exceptions
-from ddtestpy.internal.logging import ddtestpy_logger
-from ddtestpy.internal.logging import setup_logging
+from ddtrace.testing.internal.logging import catch_and_log_exceptions
+from ddtrace.testing.internal.logging import ddtrace.testing_logger
+from ddtrace.testing.internal.logging import setup_logging
 
 
 class TestSetupLogging:
@@ -17,22 +17,22 @@ class TestSetupLogging:
     def teardown_method(self) -> None:
         """Clean up logger state after each test."""
         # Remove all handlers
-        for handler in ddtestpy_logger.handlers[:]:
-            ddtestpy_logger.removeHandler(handler)
+        for handler in ddtrace.testing_logger.handlers[:]:
+            ddtrace.testing_logger.removeHandler(handler)
         # Reset logger state
-        ddtestpy_logger.propagate = True
-        ddtestpy_logger.setLevel(logging.NOTSET)
+        ddtrace.testing_logger.propagate = True
+        ddtrace.testing_logger.setLevel(logging.NOTSET)
 
     @patch.dict(os.environ, {}, clear=True)
     def test_setup_logging_default_level(self) -> None:
         """Test setup_logging with default (INFO) level."""
         setup_logging()
 
-        assert ddtestpy_logger.propagate is False
-        assert ddtestpy_logger.level == logging.INFO
-        assert len(ddtestpy_logger.handlers) == 1
+        assert ddtrace.testing_logger.propagate is False
+        assert ddtrace.testing_logger.level == logging.INFO
+        assert len(ddtrace.testing_logger.handlers) == 1
 
-        handler = ddtestpy_logger.handlers[0]
+        handler = ddtrace.testing_logger.handlers[0]
         assert isinstance(handler, logging.StreamHandler)
 
     @patch.dict(os.environ, {"DD_TEST_DEBUG": "true"})
@@ -40,36 +40,36 @@ class TestSetupLogging:
         """Test setup_logging with DEBUG level enabled via true."""
         setup_logging()
 
-        assert ddtestpy_logger.propagate is False
-        assert ddtestpy_logger.level == logging.DEBUG
-        assert len(ddtestpy_logger.handlers) == 1
+        assert ddtrace.testing_logger.propagate is False
+        assert ddtrace.testing_logger.level == logging.DEBUG
+        assert len(ddtrace.testing_logger.handlers) == 1
 
     @patch.dict(os.environ, {"DD_TEST_DEBUG": "1"})
     def test_setup_logging_debug_level_one(self) -> None:
         """Test setup_logging with DEBUG level enabled via 1."""
         setup_logging()
 
-        assert ddtestpy_logger.level == logging.DEBUG
+        assert ddtrace.testing_logger.level == logging.DEBUG
 
     @patch.dict(os.environ, {"DD_TEST_DEBUG": "false"})
     def test_setup_logging_debug_level_false(self) -> None:
         """Test setup_logging with DEBUG level disabled."""
         setup_logging()
 
-        assert ddtestpy_logger.level == logging.INFO
+        assert ddtrace.testing_logger.level == logging.INFO
 
     @patch.dict(os.environ, {"DD_TEST_DEBUG": "0"})
     def test_setup_logging_debug_level_zero(self) -> None:
         """Test setup_logging with DEBUG level disabled via 0."""
         setup_logging()
 
-        assert ddtestpy_logger.level == logging.INFO
+        assert ddtrace.testing_logger.level == logging.INFO
 
     def test_setup_logging_formatter(self) -> None:
         """Test that the formatter is correctly configured."""
         setup_logging()
 
-        handler = ddtestpy_logger.handlers[0]
+        handler = ddtrace.testing_logger.handlers[0]
         formatter = handler.formatter
         assert formatter is not None
 
@@ -86,12 +86,12 @@ class TestSetupLogging:
     def test_setup_logging_multiple_calls(self) -> None:
         """Test that calling setup_logging multiple times doesn't add duplicate handlers."""
         setup_logging()
-        initial_handler_count = len(ddtestpy_logger.handlers)
+        initial_handler_count = len(ddtrace.testing_logger.handlers)
 
         setup_logging()
         # Should still have the same number of handlers (assuming no duplicate prevention logic)
         # This test documents current behavior - if duplicate prevention is added, adjust accordingly
-        assert len(ddtestpy_logger.handlers) >= initial_handler_count
+        assert len(ddtrace.testing_logger.handlers) >= initial_handler_count
 
 
 class TestCatchAndLogExceptions:
@@ -107,7 +107,7 @@ class TestCatchAndLogExceptions:
         result = successful_function(2, 3)
         assert result == 5
 
-    @patch.object(ddtestpy_logger, "exception")
+    @patch.object(ddtrace.testing_logger, "exception")
     def test_decorator_exception_logging(self, mock_exception: Mock) -> None:
         """Test decorator catches and logs exceptions."""
 
@@ -120,7 +120,7 @@ class TestCatchAndLogExceptions:
         assert result is None
         mock_exception.assert_called_once_with("Error while calling %s", "failing_function")
 
-    @patch.object(ddtestpy_logger, "exception")
+    @patch.object(ddtrace.testing_logger, "exception")
     def test_decorator_with_arguments(self, mock_exception: Mock) -> None:
         """Test decorator works with function arguments."""
 
@@ -139,7 +139,7 @@ class TestCatchAndLogExceptions:
         assert result is None
         mock_exception.assert_called_once_with("Error while calling %s", "function_with_args")  # type: ignore[unreachable]
 
-    @patch.object(ddtestpy_logger, "exception")
+    @patch.object(ddtrace.testing_logger, "exception")
     def test_decorator_preserves_function_metadata(self, mock_exception: Mock) -> None:
         """Test decorator preserves original function metadata."""
 

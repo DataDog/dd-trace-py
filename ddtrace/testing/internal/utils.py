@@ -9,7 +9,7 @@ if t.TYPE_CHECKING:
     from ddtrace.trace import Span
 
 
-DDTESTOPT_ROOT_SPAN_RESOURCE = "ddtestpy_root_span"
+DDTESTOPT_ROOT_SPAN_RESOURCE = "ddtrace.testing_root_span"
 
 
 def _gen_item_id() -> int:

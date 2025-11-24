@@ -7,15 +7,15 @@ import uuid
 
 import msgpack  # type: ignore
 
-import ddtestpy
-from ddtestpy.internal.http import BackendConnectorSetup
-from ddtestpy.internal.http import FileAttachment
-from ddtestpy.internal.test_data import TestItem
-from ddtestpy.internal.test_data import TestModule
-from ddtestpy.internal.test_data import TestRun
-from ddtestpy.internal.test_data import TestSession
-from ddtestpy.internal.test_data import TestStatus
-from ddtestpy.internal.test_data import TestSuite
+import ddtrace.testing
+from ddtrace.testing.internal.http import BackendConnectorSetup
+from ddtrace.testing.internal.http import FileAttachment
+from ddtrace.testing.internal.test_data import TestItem
+from ddtrace.testing.internal.test_data import TestModule
+from ddtrace.testing.internal.test_data import TestRun
+from ddtrace.testing.internal.test_data import TestSession
+from ddtrace.testing.internal.test_data import TestStatus
+from ddtrace.testing.internal.test_data import TestSuite
 
 
 log = logging.getLogger(__name__)
@@ -90,7 +90,7 @@ class TestOptWriter(BaseWriter):
             "*": {
                 "language": "python",
                 "runtime-id": uuid.uuid4().hex,
-                "library_version": f"{ddtestpy.__version__}+ddtestpy",
+                "library_version": f"{ddtrace.testing.__version__}+ddtrace.testing",
                 "_dd.origin": "ciapp-test",
                 "_dd.p.dm": "-0",  # what is this?
             },

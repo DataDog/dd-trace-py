@@ -12,28 +12,28 @@ from _pytest.runner import runtestprotocol
 import pluggy
 import pytest
 
-from ddtestpy.internal.constants import EMPTY_NAME
-from ddtestpy.internal.coverage_api import coverage_collection
-from ddtestpy.internal.coverage_api import install_coverage
-from ddtestpy.internal.ddtrace import install_global_trace_filter
-from ddtestpy.internal.ddtrace import trace_context
-from ddtestpy.internal.errors import SetupError
-from ddtestpy.internal.git import get_workspace_path
-from ddtestpy.internal.logging import catch_and_log_exceptions
-from ddtestpy.internal.logging import setup_logging
-from ddtestpy.internal.retry_handlers import RetryHandler
-from ddtestpy.internal.session_manager import SessionManager
-from ddtestpy.internal.test_data import ModuleRef
-from ddtestpy.internal.test_data import SuiteRef
-from ddtestpy.internal.test_data import Test
-from ddtestpy.internal.test_data import TestModule
-from ddtestpy.internal.test_data import TestRef
-from ddtestpy.internal.test_data import TestRun
-from ddtestpy.internal.test_data import TestSession
-from ddtestpy.internal.test_data import TestStatus
-from ddtestpy.internal.test_data import TestSuite
-from ddtestpy.internal.test_data import TestTag
-from ddtestpy.internal.utils import TestContext
+from ddtrace.testing.internal.constants import EMPTY_NAME
+from ddtrace.testing.internal.coverage_api import coverage_collection
+from ddtrace.testing.internal.coverage_api import install_coverage
+from ddtrace.testing.internal.ddtrace import install_global_trace_filter
+from ddtrace.testing.internal.ddtrace import trace_context
+from ddtrace.testing.internal.errors import SetupError
+from ddtrace.testing.internal.git import get_workspace_path
+from ddtrace.testing.internal.logging import catch_and_log_exceptions
+from ddtrace.testing.internal.logging import setup_logging
+from ddtrace.testing.internal.retry_handlers import RetryHandler
+from ddtrace.testing.internal.session_manager import SessionManager
+from ddtrace.testing.internal.test_data import ModuleRef
+from ddtrace.testing.internal.test_data import SuiteRef
+from ddtrace.testing.internal.test_data import Test
+from ddtrace.testing.internal.test_data import TestModule
+from ddtrace.testing.internal.test_data import TestRef
+from ddtrace.testing.internal.test_data import TestRun
+from ddtrace.testing.internal.test_data import TestSession
+from ddtrace.testing.internal.test_data import TestStatus
+from ddtrace.testing.internal.test_data import TestSuite
+from ddtrace.testing.internal.test_data import TestTag
+from ddtrace.testing.internal.utils import TestContext
 
 
 _NODEID_REGEX = re.compile("^(((?P<module>.*)/)?(?P<suite>[^/]*?))::(?P<name>.*?)$")
@@ -148,7 +148,7 @@ class TestOptPlugin:
                 self.session.set_session_id(session_id)
                 self.is_xdist_worker = True
 
-        if session.config.getoption("ddtestpy-with-ddtrace"):
+        if session.config.getoption("ddtrace.testing-with-ddtrace"):
             self.enable_ddtrace = True
 
         self.session.start()
@@ -570,43 +570,43 @@ def _make_reports_dict(reports: t.List[pytest.TestReport]) -> _ReportGroup:
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
-    """Add ddtestpy options."""
-    group = parser.getgroup("ddtestpy")
+    """Add ddtrace.testing options."""
+    group = parser.getgroup("ddtrace.testing")
 
     group.addoption(
-        "--ddtestpy",
+        "--ddtrace.testing",
         action="store_true",
-        dest="ddtestpy",
+        dest="ddtrace.testing",
         default=False,
         help="Enable Datadog Test Optimization",
     )
 
     group.addoption(
-        "--no-ddtestpy",
+        "--no-ddtrace.testing",
         action="store_true",
-        dest="no-ddtestpy",
+        dest="no-ddtrace.testing",
         default=False,
-        help="Disable Datadog Test Optimization (overrides --ddtestpy)",
+        help="Disable Datadog Test Optimization (overrides --ddtrace.testing)",
     )
 
     group.addoption(
-        "--ddtestpy-with-ddtrace",
+        "--ddtrace.testing-with-ddtrace",
         action="store_true",
-        dest="ddtestpy-with-ddtrace",
+        dest="ddtrace.testing-with-ddtrace",
         default=False,
         help="Enable all integrations with ddtrace",
     )
 
-    parser.addini("ddtestpy", "Enable Datadog Test Optimization", type="bool")
-    parser.addini("no-ddtestpy", "Disable Datadog Test Optimization (overrides 'ddtestpy')", type="bool")
-    parser.addini("ddtestpy-with-ddtrace", "Enable all integrations with ddtrace", type="bool")
+    parser.addini("ddtrace.testing", "Enable Datadog Test Optimization", type="bool")
+    parser.addini("no-ddtrace.testing", "Disable Datadog Test Optimization (overrides 'ddtrace.testing')", type="bool")
+    parser.addini("ddtrace.testing-with-ddtrace", "Enable all integrations with ddtrace", type="bool")
 
 
 def _is_enabled_early(early_config: pytest.Config, args: t.List[str]) -> bool:
-    if _is_option_true("no-ddtestpy", early_config, args):
+    if _is_option_true("no-ddtrace.testing", early_config, args):
         return False
 
-    return _is_option_true("ddtestpy", early_config, args)
+    return _is_option_true("ddtrace.testing", early_config, args)
 
 
 def _is_option_true(option: str, early_config: pytest.Config, args: t.List[str]) -> bool:

@@ -1,8 +1,8 @@
 """Basic test to ensure the package imports correctly."""
 
 
-def test_import_ddtestpy() -> None:
+def test_import_ddtrace.testing() -> None:
     """Test that the main package can be imported."""
-    import ddtestpy
+    import ddtrace.testing
 
-    assert isinstance(ddtestpy.__version__, str)
+    assert isinstance(ddtrace.testing.__version__, str)
