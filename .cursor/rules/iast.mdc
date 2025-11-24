@@ -1,7 +1,14 @@
 ---
 description: IAST (Interactive Application Security Testing) - How it works and development guidelines
 globs:
-alwaysApply: true
+  - "**/appsec/_iast/**"
+  - "**/appsec/iast/**"
+  - "**/tests/appsec/iast/**"
+  - "**/tests/appsec/iast_aggregated_memcheck/**"
+  - "**/tests/appsec/iast_memcheck/**"
+  - "**/tests/appsec/iast_packages/**"
+  - "**/tests/appsec/iast_tdd_propagation/**"
+  - "**/tests/appsec/integrations/**"
 ---
 
 # IAST Development Guide
@@ -14,19 +21,12 @@ alwaysApply: true
 
 IAST (Interactive Application Security Testing) analyzes running Python applications for security vulnerabilities by:
 1. **Taint tracking** - Performing taint analysis on data from untrusted sources (user input, HTTP requests, etc.)
-2. **Monitoring propagation** - Following how tainted data flows through the application
-3. **Detecting vulnerabilities** - Identifying when tainted data reaches security-sensitive functions (sinks)
+2. **Detecting vulnerabilities** - Identifying when tainted data reaches security-sensitive functions (sinks)
 
 **Official Documentation**: 
 - [Datadog Code Security (IAST) Overview](https://docs.datadoghq.com/security/code_security/iast/)
 - [Getting Started with Code Security](https://docs.datadoghq.com/security/code_security/iast/setup/)
 - [Understanding Vulnerability Types](https://docs.datadoghq.com/security/code_security/iast/troubleshooting/)
-
-IAST combines static and dynamic analysis techniques to identify vulnerabilities while the application runs, providing:
-- **Real-time detection** - Find vulnerabilities during development, testing, or production
-- **Low false positives** - Only reports issues with actual execution paths
-- **Contextual evidence** - Shows the exact data flow and tainted values
-- **Production-safe** - Overhead Control Engine ensures minimal performance impact
 
 ## How IAST Works: High-Level Architecture
 
@@ -76,18 +76,18 @@ IAST wraps security-sensitive functions to detect vulnerabilities:
 **Location**: `ddtrace/appsec/_iast/_patch_modules.py`
 
 **Supported Vulnerability Types** (`ddtrace/appsec/_iast/taint_sinks/`):
-- `sql_injection.py` - SQL injection detection
-- `command_injection.py` - OS command injection
-- `path_traversal.py` - Path traversal attacks
-- `ssrf.py` - Server-Side Request Forgery
-- `code_injection.py` - Code injection (eval, exec)
-- `header_injection.py` - HTTP header injection
-- `weak_hash.py` - Weak cryptographic hashes
-- `weak_cipher.py` - Weak encryption algorithms
-- `weak_randomness.py` - Weak random number generation
-- `insecure_cookie.py` - Insecure cookie settings
-- `unvalidated_redirect.py` - Open redirect vulnerabilities
-- `untrusted_serialization.py` - Insecure deserialization
+- `sql_injection.py`
+- `command_injection.py`
+- `path_traversal.py`
+- `ssrf.py`
+- `code_injection.py`
+- `header_injection.py`
+- `weak_hash.py`
+- `weak_cipher.py`
+- `weak_randomness.py`
+- `insecure_cookie.py`
+- `unvalidated_redirect.py`
+- `untrusted_serialization.py`
 
 ### 4. Overhead Control Engine (OCE)
 
@@ -100,7 +100,7 @@ Performance optimization to limit IAST overhead:
 
 **Location**: `ddtrace/appsec/_iast/_overhead_control_engine.py`
 
-**Configuration**: See [Code Security Configuration](https://ddtrace.readthedocs.io/en/stable/configuration.html#code-security) for environment variables that control OCE behavior (request sampling, vulnerability limits, concurrent requests, etc.)
+**Configuration**: Settings defined in `ddtrace/internal/settings/asm.py` (e.g., `_iast_request_sampling`, `_iast_sink_points_enabled`)
 
 ### 5. Vulnerability Reporting
 
