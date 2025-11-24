@@ -644,7 +644,7 @@ def test_stress_threads_run_as_thread(tmp_path):
     ddup.upload()
 
     profile = pprof_utils.parse_newest_profile(output_filename)
-    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
     assert len(samples) > 0
 
 
