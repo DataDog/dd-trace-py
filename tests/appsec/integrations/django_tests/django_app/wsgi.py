@@ -3,6 +3,7 @@
 This enables running the Django test app under Gunicorn using the
 ``tests.appsec.integrations.django_tests.django_app.wsgi:application`` target.
 """
+
 import ddtrace.auto  # noqa: F401  # isort: skip
 import os
 

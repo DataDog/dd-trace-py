@@ -209,22 +209,25 @@ class TraceMiddleware:
         if scope["type"] == "http":
             operation_name = schematize_url_operation(operation_name, direction=SpanDirection.INBOUND, protocol="http")
 
-        with core.context_with_data(
-            "asgi.request",
-            remote_addr=scope.get("REMOTE_ADDR"),
-            headers=headers,
-            headers_case_sensitive=True,
-            environ=scope,
-            middleware=self,
-            span_name=operation_name,
-            resource=resource,
-            span_type=SpanTypes.WEB,
-            service=trace_utils.int_service(None, self.integration_config),
-            distributed_headers=headers,
-            activate_distributed_headers=True,
-            scope=scope,
-            integration_config=self.integration_config,
-        ) as ctx, ctx.span as span:
+        with (
+            core.context_with_data(
+                "asgi.request",
+                remote_addr=scope.get("REMOTE_ADDR"),
+                headers=headers,
+                headers_case_sensitive=True,
+                environ=scope,
+                middleware=self,
+                span_name=operation_name,
+                resource=resource,
+                span_type=SpanTypes.WEB,
+                service=trace_utils.int_service(None, self.integration_config),
+                distributed_headers=headers,
+                activate_distributed_headers=True,
+                scope=scope,
+                integration_config=self.integration_config,
+            ) as ctx,
+            ctx.span as span,
+        ):
             if self.span_modifier:
                 self.span_modifier(span, scope)
 

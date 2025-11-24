@@ -15,7 +15,6 @@ import urllib
 from urllib.parse import quote
 from urllib.parse import urlparse
 
-import ddtrace
 from ddtrace import config
 from ddtrace.internal import agent
 from ddtrace.internal import forksafe
@@ -49,6 +48,7 @@ from ddtrace.llmobs._http import get_connection
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import _Meta
 from ddtrace.llmobs.types import _SpanLink
+from ddtrace.version import __version__
 
 
 logger = get_logger(__name__)
@@ -639,6 +639,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         exp_config: Optional[Dict[str, JSONType]] = None,
         tags: Optional[List[str]] = None,
         description: Optional[str] = None,
+        runs: Optional[int] = 1,
     ) -> Tuple[str, str]:
         path = "/api/unstable/llm-obs/v1/experiments"
         resp = self.request(
@@ -656,6 +657,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                         "config": exp_config or {},
                         "metadata": {"tags": cast(JSONType, tags or [])},
                         "ensure_unique": True,
+                        "run_count": runs,
                     },
                 }
             },
@@ -721,7 +723,7 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
         for event in events:
             event_data = {
                 "_dd.stage": "raw",
-                "_dd.tracer_version": ddtrace.__version__,
+                "_dd.tracer_version": __version__,
                 "event_type": "span",
                 "spans": [event],
             }

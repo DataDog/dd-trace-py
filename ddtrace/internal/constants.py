@@ -67,9 +67,11 @@ HTTP_REQUEST_HEADER_NAME = "http.request.header.name"
 HTTP_REQUEST_HEADER = "http.request.header"
 HTTP_REQUEST_PARAMETER = "http.request.parameter"
 HTTP_REQUEST_BODY = "http.request.body"
+HTTP_REQUEST_UPGRADED = "http.upgraded"
 HTTP_REQUEST_PATH_PARAMETER = "http.request.path.parameter"
 REQUEST_PATH_PARAMS = "http.request.path_params"
 STATUS_403_TYPE_AUTO = {"status_code": 403, "type": "auto"}
+PROCESS_TAGS = "_dd.tags.process"
 
 CONTAINER_ID_HEADER_NAME = "Datadog-Container-Id"
 

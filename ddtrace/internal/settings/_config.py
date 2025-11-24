@@ -196,6 +196,7 @@ INTEGRATION_CONFIGS = frozenset(
         "openai_agents",
         "mcp",
         "ray",
+        "aiokafka",
     }
 )
 
@@ -663,6 +664,9 @@ class Config(object):
         )
         self._trace_resource_renaming_always_simplified_endpoint = _get_config(
             "DD_TRACE_RESOURCE_RENAMING_ALWAYS_SIMPLIFIED_ENDPOINT", default=False, modifier=asbool
+        )
+        self._process_tags_enabled = _get_config(
+            "DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED", default=False, modifier=asbool
         )
 
         # Long-running span interval configurations

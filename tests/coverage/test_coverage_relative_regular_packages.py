@@ -57,13 +57,14 @@ def test_coverage_regular_package_import_normal():
         "tests/coverage/included_path/rpb/normal_import_const.py": {1},
     }
 
-    assert (
-        executable == expected_executable
-    ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
+    assert executable == expected_executable, (
+        f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
+    )
     assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
-    assert (
-        covered_with_imports == expected_covered_with_imports
-    ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+    assert covered_with_imports == expected_covered_with_imports, (
+        f"Covered lines with imports mismatch: expected={expected_covered_with_imports} "
+        f"vs actual={covered_with_imports}"
+    )
 
 
 @pytest.mark.subprocess
@@ -140,13 +141,14 @@ def test_coverage_regular_package_import_late():
         "tests/coverage/included_path/rpb/normal_import_const.py": {1},
     }
 
-    assert (
-        executable == expected_executable
-    ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
+    assert executable == expected_executable, (
+        f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
+    )
     assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
-    assert (
-        covered_with_imports == expected_covered_with_imports
-    ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+    assert covered_with_imports == expected_covered_with_imports, (
+        f"Covered lines with imports mismatch: expected={expected_covered_with_imports} "
+        f"vs actual={covered_with_imports}"
+    )
 
 
 @pytest.mark.subprocess
@@ -184,22 +186,23 @@ def test_coverage_regular_package_rpa_import_parent_normal():
     expected_executable = {
         "tests/coverage/included_path/normal_import_const.py": {1},
         "tests/coverage/included_path/rpa/__init__.py": {_empty_init_lineno},
-        "tests/coverage/included_path/rpa/rpa_imports_parent.py": {1, 2, 5, 6, 9, 10, 12},
+        "tests/coverage/included_path/rpa/rpa_imports_parent.py": {1, 3, 6, 7, 10, 11, 13},
     }
-    expected_covered = {"tests/coverage/included_path/rpa/rpa_imports_parent.py": {6}}
+    expected_covered = {"tests/coverage/included_path/rpa/rpa_imports_parent.py": {7}}
     expected_covered_with_imports = {
         "tests/coverage/included_path/normal_import_const.py": {1},
         "tests/coverage/included_path/rpa/__init__.py": {_empty_init_lineno},
-        "tests/coverage/included_path/rpa/rpa_imports_parent.py": {1, 2, 5, 6, 9},
+        "tests/coverage/included_path/rpa/rpa_imports_parent.py": {1, 3, 6, 7, 10},
     }
 
-    assert (
-        executable == expected_executable
-    ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
+    assert executable == expected_executable, (
+        f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
+    )
     assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
-    assert (
-        covered_with_imports == expected_covered_with_imports
-    ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+    assert covered_with_imports == expected_covered_with_imports, (
+        f"Covered lines with imports mismatch: expected={expected_covered_with_imports} "
+        f"vs actual={covered_with_imports}"
+    )
 
 
 @pytest.mark.subprocess
@@ -238,26 +241,27 @@ def test_coverage_regular_package_rpa_import_parent_late():
         "tests/coverage/included_path/late_import_const.py": {1},
         "tests/coverage/included_path/normal_import_const.py": {1},
         "tests/coverage/included_path/rpa/__init__.py": {_empty_init_lineno},
-        "tests/coverage/included_path/rpa/rpa_imports_parent.py": {1, 2, 5, 6, 9, 10, 12},
+        "tests/coverage/included_path/rpa/rpa_imports_parent.py": {1, 3, 6, 7, 10, 11, 13},
     }
     expected_covered = {
         "tests/coverage/included_path/late_import_const.py": {1},
-        "tests/coverage/included_path/rpa/rpa_imports_parent.py": {10, 12},
+        "tests/coverage/included_path/rpa/rpa_imports_parent.py": {11, 13},
     }
     expected_covered_with_imports = {
         "tests/coverage/included_path/late_import_const.py": {1},
         "tests/coverage/included_path/normal_import_const.py": {1},
         "tests/coverage/included_path/rpa/__init__.py": {_empty_init_lineno},
-        "tests/coverage/included_path/rpa/rpa_imports_parent.py": {1, 2, 5, 9, 10, 12},
+        "tests/coverage/included_path/rpa/rpa_imports_parent.py": {1, 3, 6, 10, 11, 13},
     }
 
-    assert (
-        executable == expected_executable
-    ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
+    assert executable == expected_executable, (
+        f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
+    )
     assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
-    assert (
-        covered_with_imports == expected_covered_with_imports
-    ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+    assert covered_with_imports == expected_covered_with_imports, (
+        f"Covered lines with imports mismatch: expected={expected_covered_with_imports} "
+        f"vs actual={covered_with_imports}"
+    )
 
 
 @pytest.mark.subprocess
@@ -312,13 +316,14 @@ def test_coverage_regular_package_rpa_import_dot_normal():
         "tests/coverage/included_path/rpa/rpb/normal_import_const.py": {1},
     }
 
-    assert (
-        executable == expected_executable
-    ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
+    assert executable == expected_executable, (
+        f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
+    )
     assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
-    assert (
-        covered_with_imports == expected_covered_with_imports
-    ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+    assert covered_with_imports == expected_covered_with_imports, (
+        f"Covered lines with imports mismatch: expected={expected_covered_with_imports} "
+        f"vs actual={covered_with_imports}"
+    )
 
 
 @pytest.mark.subprocess
@@ -385,10 +390,11 @@ def test_coverage_regular_package_rpa_import_dot_late():
         "tests/coverage/included_path/rpa/rpb/normal_import_const.py": {1},
     }
 
-    assert (
-        executable == expected_executable
-    ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
+    assert executable == expected_executable, (
+        f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
+    )
     assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
-    assert (
-        covered_with_imports == expected_covered_with_imports
-    ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+    assert covered_with_imports == expected_covered_with_imports, (
+        f"Covered lines with imports mismatch: expected={expected_covered_with_imports} "
+        f"vs actual={covered_with_imports}"
+    )

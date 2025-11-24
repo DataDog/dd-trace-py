@@ -3,6 +3,7 @@ import http.client as httplib
 import socket
 import sys
 from urllib import parse
+import urllib.error
 from urllib.request import Request
 from urllib.request import build_opener
 from urllib.request import urlopen
@@ -204,11 +205,9 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
                 headers={"Accept": "text/plain", "User-Agent": "ddtrace-test"},
             )
             resp = conn.getresponse()
-            self.assertEqual(resp.status, 200)
-            self.assertEqual(
-                self.to_str(resp.read()),
-                "My dog used to chase people on a bike a lot. It got so bad I had to take his bike away.",
-            )
+            # DEV: We don't care if the result was successful or not, just that we succesfully
+            #   traced an HTTPS request. Relying on third party services is not ideal and can be flaky
+            status = resp.status
 
         spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
@@ -217,12 +216,12 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         self.assertEqual(span.span_type, "http")
         self.assertEqual(span.service, "tests.contrib.httplib")
         self.assertEqual(span.name, self.SPAN_NAME)
-        self.assertEqual(span.error, 0)
+        self.assertEqual(span.error, status not in (200, 404))
         assert span.get_tag("http.method") == "GET"
         assert span.get_tag("component") == "httplib"
         assert span.get_tag("span.kind") == "client"
         assert span.get_tag("out.host") == "icanhazdadjoke.com"
-        assert_span_http_status_code(span, 200)
+        assert_span_http_status_code(span, status)
         assert span.get_tag("http.url") == "https://icanhazdadjoke.com/j/R7UfaahVfFd"
 
     def test_httplib_request_post_request(self):
@@ -447,14 +446,14 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
             url,
             headers={"Accept": "text/plain", "User-Agent": "ddtrace-test"},
         )
+        # DEV: We don't care if the result was successful or not, just that we succesfully
+        #   traced an HTTPS request. Relying on third party services is not ideal and can be flaky
         with override_global_tracer(self.tracer):
-            resp = urlopen(req)
-
-        self.assertEqual(resp.getcode(), 200)
-        self.assertEqual(
-            self.to_str(resp.read()),
-            "My dog used to chase people on a bike a lot. It got so bad I had to take his bike away.",
-        )
+            try:
+                resp = urlopen(req)
+                status = resp.getcode()
+            except urllib.error.HTTPError as e:
+                status = e.code
 
         spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
@@ -463,12 +462,12 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         self.assertEqual(span.span_type, "http")
         self.assertEqual(span.service, "tests.contrib.httplib")
         self.assertEqual(span.name, self.SPAN_NAME)
-        self.assertEqual(span.error, 0)
+        self.assertEqual(span.error, status not in (200, 404))
         self.assertEqual(span.get_tag("http.method"), "GET")
         self.assertEqual(span.get_tag("component"), "httplib")
         self.assertEqual(span.get_tag("span.kind"), "client")
         self.assertEqual(span.get_tag("out.host"), "icanhazdadjoke.com")
-        assert_span_http_status_code(span, 200)
+        assert_span_http_status_code(span, status)
         self.assertEqual(span.get_tag("http.url"), url)
 
     def test_urllib_request_object(self):

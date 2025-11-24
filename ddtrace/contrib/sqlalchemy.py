@@ -20,6 +20,7 @@ using the patch method that **must be called before** importing sqlalchemy::
     # Use a PIN to specify metadata related to this engine
     Pin.override(engine, service='replica-db')
 """
+
 from ddtrace.contrib.internal.sqlalchemy.engine import trace_engine
 
 

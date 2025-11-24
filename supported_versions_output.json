@@ -475,7 +475,7 @@
         "integration": "protobuf",
         "minimum_tracer_supported": "6.30.1",
         "max_tracer_supported": "6.32.0",
-        "auto-instrumented": false
+        "auto-instrumented": true
     },
     {
         "dependency": "psycopg",
@@ -645,7 +645,7 @@
     {
         "dependency": "tornado",
         "integration": "tornado",
-        "minimum_tracer_supported": "6.0.4",
+        "minimum_tracer_supported": "6.1",
         "max_tracer_supported": "6.5.1",
         "pinned": "true",
         "auto-instrumented": false

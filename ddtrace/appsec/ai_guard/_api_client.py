@@ -7,7 +7,6 @@ from typing import Literal
 from typing import Optional  # noqa:F401
 from typing import TypedDict
 
-import ddtrace
 from ddtrace import config
 from ddtrace import tracer as ddtracer
 from ddtrace._trace.tracer import Tracer
@@ -19,6 +18,7 @@ from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.metrics_namespaces import MetricTagType
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
+from ddtrace.version import __version__
 
 
 logger = ddlogger.get_logger(__name__)
@@ -99,7 +99,7 @@ class AIGuardClient:
             "Content-Type": "application/json",
             "DD-API-KEY": api_key,
             "DD-APPLICATION-KEY": app_key,
-            "DD-AI-GUARD-VERSION": ddtrace.__version__,
+            "DD-AI-GUARD-VERSION": __version__,
             "DD-AI-GUARD-SOURCE": "SDK",
             "DD-AI-GUARD-LANGUAGE": "python",
         }
