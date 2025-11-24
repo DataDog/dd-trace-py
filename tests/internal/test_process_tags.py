@@ -57,17 +57,15 @@ TEST_WORKDIR_PATH = "/path/to/workdir"
         ("AlsO:œ#@ö))œk", "also:œ_ö_œk"),
         ("test\x99\x8faaa", "test_aaa"),
         ("test\x99\x8f", "test"),
-        ("a" * 888, "a" * 200),
+        ("a" * 888, "a" * 100),
         ("a" + "🐶" * 799 + "b", "a"),
         ("a" + "\ufffd", "a"),
         ("a" + "\ufffd" + "\ufffd", "a"),
         ("a" + "\ufffd" + "\ufffd" + "b", "a_b"),
         (
-            "A00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
-            "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
-            " 000000000000",
-            "a00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
-            "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+            "A0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+            " 00000000000",
+            "a0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
             "_0",
         ),
     ],
@@ -129,11 +127,24 @@ class TestProcessTags(TracerTestCase):
                         pass
 
                     # Check if debug log was called
-                    mock_log.debug.assert_called_once()
-                    call_args = mock_log.debug.call_args[0]
-                    assert "failed to get process_tags" in call_args[0], (
-                        f"Expected error message not found. Got: {call_args[0]}"
+                    assert mock_log.debug.call_count == 2
+                    call_args1 = mock_log.debug.call_args_list[0][0]
+                    call_args2 = mock_log.debug.call_args_list[1][0]
+
+                    assert "failed to get process tag" in call_args1[0], (
+                        f"Expected error message not found. Got: {call_args1[0]}"
                     )
+                    assert call_args1[1] == "entrypoint.basedir", (
+                        f"Expected tag key not found. Got: {call_args1[1]}"
+                    )
+
+                    assert "failed to get process tag" in call_args2[0], (
+                        f"Expected error message not found. Got: {call_args2[0]}"
+                    )
+                    assert call_args2[1] == "entrypoint.name", (
+                        f"Expected tag key not found. Got: {call_args2[1]}"
+                    )
+
 
     @pytest.mark.snapshot
     @run_in_subprocess(env_overrides=dict(DD_TRACE_PARTIAL_FLUSH_ENABLED="true", DD_TRACE_PARTIAL_FLUSH_MIN_SPANS="2"))
