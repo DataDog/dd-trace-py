@@ -29,11 +29,9 @@ libdd-common = { git = "https://github.com/DataDog/libdatadog", rev = "v24.0.0" 
 pyo3 = { version = "0.25", features = ["extension-module", "anyhow"] }
 tracing = { version = "0.1", default-features = false }
 pyo3-ffi = "0.25"
-libc = "0.2.177"
 
 [build-dependencies]
 pyo3-build-config = "0.25"
-cc = "1.2.39"
 build_common = { git = "https://github.com/DataDog/libdatadog", rev = "v24.0.0", features = [
     "cbindgen",
 ] }

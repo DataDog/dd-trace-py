@@ -460,6 +460,7 @@ def test_crashtracker_runtime_stacktrace_required():
     # Tests tag ingestion in the core API
     import ctypes
     import os
+    import sys
 
     import tests.internal.crashtracker.utils as utils
 
@@ -481,6 +482,11 @@ def test_crashtracker_runtime_stacktrace_required():
         # Check for crash report
         report = utils.get_crash_report(client)
         assert b"stacktrace_string" in report["body"]
+
+        version = sys.version_info[:2]
+        # Runtime stacktrace is available only on Python 3.11 and 3.12
+        expected = b"in string_at" if (3, 11) <= version <= (3, 12) else b"<python_runtime_stacktrace_unavailable>"
+        assert expected in report["body"], report["body"]
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
