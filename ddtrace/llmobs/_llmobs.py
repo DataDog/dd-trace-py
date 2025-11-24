@@ -3,7 +3,6 @@ from dataclasses import dataclass
 from dataclasses import field
 import inspect
 import json
-import os
 import time
 from typing import Any
 from typing import Callable
@@ -120,6 +119,7 @@ from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import Messages
 from ddtrace.llmobs.utils import extract_tool_definitions
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.settings._env import environ as _environ
 
 
 log = get_logger(__name__)
@@ -187,8 +187,8 @@ class LLMObsSpan:
 class LLMObs(Service):
     _instance = None  # type: LLMObs
     enabled = False
-    _app_key: str = os.getenv("DD_APP_KEY", "")
-    _project_name: str = os.getenv("DD_LLMOBS_PROJECT_NAME", DEFAULT_PROJECT_NAME)
+    _app_key: str = _environ.get("DD_APP_KEY", "")
+    _project_name: str = _environ.get("DD_LLMOBS_PROJECT_NAME", DEFAULT_PROJECT_NAME)
 
     def __init__(
         self,
@@ -201,22 +201,22 @@ class LLMObs(Service):
         self._user_span_processor = span_processor
         agentless_enabled = config._llmobs_agentless_enabled if config._llmobs_agentless_enabled is not None else True
         self._llmobs_span_writer = LLMObsSpanWriter(
-            interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
-            timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
+            interval=float(_environ.get("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
+            timeout=float(_environ.get("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
             is_agentless=agentless_enabled,
         )
         self._llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
-            interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
-            timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
+            interval=float(_environ.get("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
+            timeout=float(_environ.get("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
             is_agentless=agentless_enabled,
         )
         self._evaluator_runner = EvaluatorRunner(
-            interval=float(os.getenv("_DD_LLMOBS_EVALUATOR_INTERVAL", 1.0)),
+            interval=float(_environ.get("_DD_LLMOBS_EVALUATOR_INTERVAL", 1.0)),
             llmobs_service=self,
         )
         self._dne_client = LLMObsExperimentsClient(
-            interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
-            timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
+            interval=float(_environ.get("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
+            timeout=float(_environ.get("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
             _app_key=self._app_key,
             _default_project=Project(name=self._project_name, _id=""),
             is_agentless=True,  # agent proxy doesn't seem to work for experiments
@@ -558,7 +558,7 @@ class LLMObs(Service):
             log.debug("%s already enabled", cls.__name__)
             return
 
-        if os.getenv("DD_LLMOBS_ENABLED") and not asbool(os.getenv("DD_LLMOBS_ENABLED")):
+        if _environ.get("DD_LLMOBS_ENABLED") and not asbool(_environ.get("DD_LLMOBS_ENABLED")):
             log.debug("LLMObs.enable() called when DD_LLMOBS_ENABLED is set to false or 0, not starting LLMObs service")
             return
         # grab required values for LLMObs
@@ -594,7 +594,7 @@ class LLMObs(Service):
                         "DD_SITE is required for sending LLMObs data when agentless mode is enabled. "
                         "Ensure this configuration is set before running your application."
                     )
-                if not os.getenv("DD_REMOTE_CONFIG_ENABLED"):
+                if not _environ.get("DD_REMOTE_CONFIG_ENABLED"):
                     config._remote_config_enabled = False
                     log.debug("Remote configuration disabled because DD_LLMOBS_AGENTLESS_ENABLED is set to true.")
                     remoteconfig_poller.disable()
@@ -992,9 +992,9 @@ class LLMObs(Service):
         }
         for module, _ in integrations_to_patch.items():
             env_var = "DD_TRACE_%s_ENABLED" % module.upper()
-            if env_var in os.environ:
-                integrations_to_patch[module] = asbool(os.environ[env_var])
-        dd_patch_modules = os.getenv("DD_PATCH_MODULES")
+            if env_var in _environ:
+                integrations_to_patch[module] = asbool(_environ[env_var])
+        dd_patch_modules = _environ.get("DD_PATCH_MODULES")
         dd_patch_modules_to_str = parse_tags_str(dd_patch_modules)
         integrations_to_patch.update(
             {k: asbool(v) for k, v in dd_patch_modules_to_str.items() if k in SUPPORTED_LLMOBS_INTEGRATIONS.values()}
