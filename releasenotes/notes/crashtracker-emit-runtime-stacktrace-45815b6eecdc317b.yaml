@@ -1,3 +1,0 @@
-features:
-  - |
-    Crashtracker: Allows for the collection of runtime stacktrace when a crash occurs.

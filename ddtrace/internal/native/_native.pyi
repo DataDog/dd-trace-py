@@ -91,10 +91,6 @@ class CrashtrackerStatus:
     Initialized: "CrashtrackerStatus"
     FailedToInitialize: "CrashtrackerStatus"
 
-class CallbackResult:
-    Ok: "CallbackResult"
-    UnknownError: "CallbackResult"
-
 def crashtracker_init(
     config: CrashtrackerConfiguration, receiver_config: CrashtrackerReceiverConfig, metadata: CrashtrackerMetadata
 ) -> None: ...
@@ -103,7 +99,6 @@ def crashtracker_on_fork(
 ) -> None: ...
 def crashtracker_status() -> CrashtrackerStatus: ...
 def crashtracker_receiver() -> None: ...
-def crashtracker_register_native_runtime_callback() -> CallbackResult: ...
 
 class PyTracerMetadata:
     """

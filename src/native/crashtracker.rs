@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use libdd_common::Endpoint;
 use libdd_crashtracker::{
-    register_runtime_stacktrace_string_callback, CallbackError, CrashtrackerConfiguration,
+    register_runtime_stacktrace_string_callback, CrashtrackerConfiguration,
     CrashtrackerReceiverConfig, Metadata, StacktraceCollection,
 };
 use pyo3::prelude::*;
@@ -20,15 +20,16 @@ type PyDumpTracebackThreadsFn = unsafe extern "C" fn(
     current_tstate: *mut pyo3_ffi::PyThreadState,
 ) -> *const c_char;
 
+// Cached function pointer to avoid dlsym during crash
+static mut DUMP_TRACEBACK_FN: Option<PyDumpTracebackThreadsFn> = None;
+static DUMP_TRACEBACK_INIT: std::sync::Once = std::sync::Once::new();
+
 extern "C" {
     fn pipe(pipefd: *mut [c_int; 2]) -> c_int;
     fn read(fd: c_int, buf: *mut c_void, count: usize) -> isize;
     fn close(fd: c_int) -> c_int;
     fn fcntl(fd: c_int, cmd: c_int, arg: c_int) -> c_int;
 }
-
-const F_SETFL: c_int = 4;
-const O_NONBLOCK: c_int = 0o4000;
 
 pub trait RustWrapper {
     type Inner;
@@ -255,9 +256,18 @@ pub fn crashtracker_init<'py>(
         if let (Some(config), Some(receiver_config), Some(metadata)) =
             (config_opt, receiver_config_opt, metadata_opt)
         {
+            let runtime_stacktrace_enabled = std::env::var("DD_CRASHTRACKER_EMIT_RUNTIME_STACKS").unwrap_or_default();
+            if runtime_stacktrace_enabled == "true" || runtime_stacktrace_enabled == "1" {
+                unsafe {
+                    init_dump_traceback_fn();
+                }
+                if let Err(e) = register_runtime_stacktrace_string_callback(native_runtime_stack_callback) {
+                    eprintln!("Failed to register runtime callback: {}", e);
+                }
+            }
             match libdd_crashtracker::init(config, receiver_config, metadata) {
-                Ok(_) => CRASHTRACKER_STATUS
-                    .store(CrashtrackerStatus::Initialized as u8, Ordering::SeqCst),
+                Ok(_) =>
+                    CRASHTRACKER_STATUS.store(CrashtrackerStatus::Initialized as u8, Ordering::SeqCst),
                 Err(e) => {
                     eprintln!("Failed to initialize crashtracker: {}", e);
                     CRASHTRACKER_STATUS.store(
@@ -309,64 +319,50 @@ pub fn crashtracker_receiver() -> anyhow::Result<()> {
     libdd_crashtracker::receiver_entry_point_stdin()
 }
 
-/// Result type for runtime callback operations
-#[pyclass(
-    eq,
-    eq_int,
-    name = "CallbackResult",
-    module = "datadog.internal._native"
-)]
-#[derive(Debug, PartialEq, Eq)]
-pub enum CallbackResult {
-    Ok,
-    Error,
-}
-
-impl From<CallbackError> for CallbackResult {
-    fn from(_error: CallbackError) -> Self {
-        CallbackResult::Error
-    }
-}
-
 const MAX_TRACEBACK_SIZE: usize = 8 * 1024; // 8KB
 
 // Attempt to resolve _Py_DumpTracebackThreads at runtime
-// Returns None if symbol is not available
-unsafe fn get_dump_traceback_fn() -> Option<PyDumpTracebackThreadsFn> {
-    #[cfg(unix)]
-    {
-        extern "C" {
-            fn dlsym(
-                handle: *mut std::ffi::c_void,
-                symbol: *const std::ffi::c_char,
-            ) -> *mut std::ffi::c_void;
+// Try to link once during registration
+unsafe fn init_dump_traceback_fn() {
+    DUMP_TRACEBACK_INIT.call_once(|| {
+        #[cfg(unix)]
+        {
+            extern "C" {
+                fn dlsym(
+                    handle: *mut std::ffi::c_void,
+                    symbol: *const std::ffi::c_char,
+                ) -> *mut std::ffi::c_void;
+            }
+
+            const RTLD_DEFAULT: *mut std::ffi::c_void = ptr::null_mut();
+
+            let symbol_ptr = dlsym(
+                RTLD_DEFAULT,
+                b"_Py_DumpTracebackThreads\0".as_ptr() as *const std::ffi::c_char,
+            );
+
+            if !symbol_ptr.is_null() {
+                DUMP_TRACEBACK_FN = Some(std::mem::transmute(symbol_ptr));
+            }
         }
 
-        const RTLD_DEFAULT: *mut std::ffi::c_void = ptr::null_mut();
-
-        let symbol_ptr = dlsym(
-            RTLD_DEFAULT,
-            b"_Py_DumpTracebackThreads\0".as_ptr() as *const std::ffi::c_char,
-        );
-
-        if symbol_ptr.is_null() {
-            None
-        } else {
-            Some(std::mem::transmute(symbol_ptr))
+        #[cfg(not(unix))]
+        {
+            // DUMP_TRACEBACK_FN remains None on non-Unix platforms
         }
-    }
+    });
+}
 
-    #[cfg(not(unix))]
-    {
-        None
-    }
+// Get the cached function pointer; should only be called after init_dump_traceback_fn
+unsafe fn get_cached_dump_traceback_fn() -> Option<PyDumpTracebackThreadsFn> {
+    DUMP_TRACEBACK_FN
 }
 
 unsafe fn dump_python_traceback_as_string(
     emit_stacktrace_string: unsafe extern "C" fn(*const c_char),
 ) {
-    // Try to get the dump traceback function
-    let dump_fn = match get_dump_traceback_fn() {
+    // Use function linked during registration
+    let dump_fn = match get_cached_dump_traceback_fn() {
         Some(func) => func,
         None => {
             emit_stacktrace_string(
@@ -388,11 +384,10 @@ unsafe fn dump_python_traceback_as_string(
     let read_fd = pipefd[0];
     let write_fd = pipefd[1];
 
-    fcntl(read_fd, F_SETFL, O_NONBLOCK);
+    fcntl(read_fd, libc::F_SETFL as c_int, libc::O_NONBLOCK as c_int);
 
-    let current_tstate = pyo3_ffi::PyGILState_GetThisThreadState();
-
-    let error_msg = dump_fn(write_fd, ptr::null_mut(), current_tstate);
+    // Use null thread state for signal-safety; CPython will dump all threads.
+    let error_msg = dump_fn(write_fd, ptr::null_mut(), ptr::null_mut());
 
     close(write_fd);
 
@@ -435,13 +430,4 @@ unsafe extern "C" fn native_runtime_stack_callback(
     emit_stacktrace_string: unsafe extern "C" fn(*const c_char),
 ) {
     dump_python_traceback_as_string(emit_stacktrace_string);
-}
-
-/// Register the native runtime stack collection callback
-#[pyfunction(name = "crashtracker_register_native_runtime_callback")]
-pub fn crashtracker_register_native_runtime_callback() -> CallbackResult {
-    match register_runtime_stacktrace_string_callback(native_runtime_stack_callback) {
-        Ok(()) => CallbackResult::Ok,
-        Err(e) => e.into(),
-    }
 }
