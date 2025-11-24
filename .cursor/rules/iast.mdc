@@ -13,7 +13,7 @@ alwaysApply: true
 ## What is IAST?
 
 IAST (Interactive Application Security Testing) analyzes running Python applications for security vulnerabilities by:
-1. **Tracking tainted data** - Data from untrusted sources (user input, HTTP requests, etc.)
+1. **Taint tracking** - Performing taint analysis on data from untrusted sources (user input, HTTP requests, etc.)
 2. **Monitoring propagation** - Following how tainted data flows through the application
 3. **Detecting vulnerabilities** - Identifying when tainted data reaches security-sensitive functions (sinks)
 
