@@ -58,6 +58,7 @@ ddcontextvars_context = "ddtrace.internal.opentelemetry.context:DDRuntimeContext
 
 [project.entry-points.pytest11]
 ddtrace = "ddtrace.contrib.internal.pytest.plugin"
+ddtestpy = "ddtrace.testing.internal.pytest.plugin"
 
 [project.entry-points.'ddtrace.products']
 "apm-tracing-rc" = "ddtrace.internal.remoteconfig.products.apm_tracing"

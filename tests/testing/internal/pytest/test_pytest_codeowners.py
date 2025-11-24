@@ -43,7 +43,7 @@ class TestCodeowners:
             return_value=mock_api_client_settings(),
         ), setup_standard_mocks():
             with EventCapture.capture() as event_capture:
-                result = pytester.inline_run("--ddtrace.testing", "-p", "no:ddtrace", "-v", "-s")
+                result = pytester.inline_run("--ddtestpy", "-p", "no:ddtrace", "-v", "-s")
 
         assert result.ret == 0
         result.assertoutcome(passed=2)

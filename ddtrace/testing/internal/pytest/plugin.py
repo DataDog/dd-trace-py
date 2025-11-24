@@ -574,7 +574,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     group = parser.getgroup("ddtrace.testing")
 
     group.addoption(
-        "--ddtrace.testing",
+        "--ddtestpy",
         action="store_true",
         dest="ddtrace.testing",
         default=False,
@@ -586,11 +586,11 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         action="store_true",
         dest="no-ddtrace.testing",
         default=False,
-        help="Disable Datadog Test Optimization (overrides --ddtrace.testing)",
+        help="Disable Datadog Test Optimization (overrides --ddtestpy)",
     )
 
     group.addoption(
-        "--ddtrace.testing-with-ddtrace",
+        "--ddtestpy-with-ddtrace",
         action="store_true",
         dest="ddtrace.testing-with-ddtrace",
         default=False,
