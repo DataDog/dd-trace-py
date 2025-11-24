@@ -63,16 +63,16 @@ class PlatformTagCollector(RuntimeTagCollector):
     - ``tracer_version`` e.g. ``0.29.0``
     """
 
-    required_modules = ["platform", "ddtrace"]
+    required_modules = ["platform", "ddtrace.version"]
 
     def collect_fn(self, keys):
         platform = self.modules.get("platform")
-        ddtrace = self.modules.get("ddtrace")
+        version = self.modules.get("ddtrace.version")
         tags = [
             (LANG, "python"),
             (LANG_INTERPRETER, platform.python_implementation()),
             (LANG_VERSION, platform.python_version()),
-            (TRACER_VERSION, ddtrace.__version__),
+            (TRACER_VERSION, version.__version__),
         ]
         return tags
 

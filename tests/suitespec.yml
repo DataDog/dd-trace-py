@@ -76,7 +76,6 @@ components:
     - ddtrace/__init__.py
     - ddtrace/py.typed
     - ddtrace/version.py
-    - ddtrace/_version.py
     - ddtrace/internal/settings/_config.py
     - src/native/*
   datastreams:
@@ -254,7 +253,7 @@ suites:
       DD_TRACE_AGENT_URL: http://localhost:8126
       KUBERNETES_MEMORY_REQUEST: "4Gi"
       KUBERNETES_MEMORY_LIMIT: "4Gi"
-    parallelism: 9
+    parallelism: 14
     paths:
       - '@tracing'
       - '@bootstrap'
