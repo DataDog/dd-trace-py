@@ -13,6 +13,7 @@ from typing import Optional  # noqa:F401
 
 from ddtrace.ext import git
 from ddtrace.internal.logger import get_logger
+from ddtrace.settings._env import environ as _environ
 
 
 # CI app dd_origin tag
@@ -97,7 +98,7 @@ def _get_runtime_and_os_metadata():
 def tags(env=None, cwd=None):
     # type: (Optional[MutableMapping[str, str]], Optional[str]) -> Dict[str, str]
     """Extract and set tags from provider environ, as well as git metadata."""
-    env = os.environ if env is None else env
+    env = _environ if env is None else env
     tags = {}  # type: Dict[str, Optional[str]]
     for key, extract in PROVIDERS:
         if key in env:
