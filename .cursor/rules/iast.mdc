@@ -6,7 +6,7 @@ alwaysApply: true
 
 # IAST Development Guide
 
-**Note:** General development patterns, code style, and testing guidelines are in `.claude/CLAUDE.md` under "IAST/AppSec Development".
+**Note:** General development patterns, code style, and testing guidelines are in `AGENTS.md` under "IAST/AppSec Development".
 
 **Synonyms:** IAST = Code Security = Runtime Code Analysis (all refer to the same product)
 
