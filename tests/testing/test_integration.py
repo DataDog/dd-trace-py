@@ -50,7 +50,7 @@ class TestFeaturesWithMocking:
 
     @pytest.mark.slow
     def test_simple_plugin_disabled(self, pytester: Pytester) -> None:
-        """Test that plugin does not run when --no-ddtrace.testing is used."""
+        """Test that plugin does not run when --no-ddtestpy is used."""
         # Create a simple test file
         pytester.makepyfile(
             """
@@ -64,7 +64,7 @@ class TestFeaturesWithMocking:
         with network_mocks(), patch("ddtrace.testing.internal.session_manager.APIClient") as mock_api_client:
             mock_api_client.return_value = mock_api_client_settings()
 
-            result = pytester.runpytest("--no-ddtrace.testing", "-p", "no:ddtrace", "-v")
+            result = pytester.runpytest("--no-ddtestpy", "-p", "no:ddtrace", "-v")
 
         assert mock_api_client.call_count == 0
 
@@ -74,7 +74,7 @@ class TestFeaturesWithMocking:
 
     @pytest.mark.slow
     def test_simple_plugin_not_explicitly_enabled(self, pytester: Pytester) -> None:
-        """Test that plugin does not run when neither --ddtestpy nor --no-ddtrace.testing is used."""
+        """Test that plugin does not run when neither --ddtestpy nor --no-ddtestpy is used."""
         # Create a simple test file
         pytester.makepyfile(
             """
@@ -98,7 +98,7 @@ class TestFeaturesWithMocking:
 
     @pytest.mark.slow
     def test_simple_plugin_disabled_overrides_enabled(self, pytester: Pytester) -> None:
-        """Test that plugin does not run when both --ddtestpy nor --no-ddtrace.testing is used."""
+        """Test that plugin does not run when both --ddtestpy nor --no-ddtestpy is used."""
         # Create a simple test file
         pytester.makepyfile(
             """
@@ -112,7 +112,7 @@ class TestFeaturesWithMocking:
         with network_mocks(), patch("ddtrace.testing.internal.session_manager.APIClient") as mock_api_client:
             mock_api_client.return_value = mock_api_client_settings()
 
-            result = pytester.runpytest("--ddtestpy", "--no-ddtrace.testing", "-p", "no:ddtrace", "-v")
+            result = pytester.runpytest("--ddtestpy", "--no-ddtestpy", "-p", "no:ddtrace", "-v")
 
         assert mock_api_client.call_count == 0
 

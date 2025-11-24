@@ -148,7 +148,7 @@ class TestOptPlugin:
                 self.session.set_session_id(session_id)
                 self.is_xdist_worker = True
 
-        if session.config.getoption("ddtrace.testing-with-ddtrace"):
+        if session.config.getoption("ddtestpy-with-ddtrace"):
             self.enable_ddtrace = True
 
         self.session.start()
@@ -570,21 +570,21 @@ def _make_reports_dict(reports: t.List[pytest.TestReport]) -> _ReportGroup:
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
-    """Add ddtrace.testing options."""
-    group = parser.getgroup("ddtrace.testing")
+    """Add ddtestpy options."""
+    group = parser.getgroup("ddtestpy")
 
     group.addoption(
         "--ddtestpy",
         action="store_true",
-        dest="ddtrace.testing",
+        dest="ddtestpy",
         default=False,
         help="Enable Datadog Test Optimization",
     )
 
     group.addoption(
-        "--no-ddtrace.testing",
+        "--no-ddtestpy",
         action="store_true",
-        dest="no-ddtrace.testing",
+        dest="no-ddtestpy",
         default=False,
         help="Disable Datadog Test Optimization (overrides --ddtestpy)",
     )
@@ -592,21 +592,21 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     group.addoption(
         "--ddtestpy-with-ddtrace",
         action="store_true",
-        dest="ddtrace.testing-with-ddtrace",
+        dest="ddtestpy-with-ddtrace",
         default=False,
         help="Enable all integrations with ddtrace",
     )
 
-    parser.addini("ddtrace.testing", "Enable Datadog Test Optimization", type="bool")
-    parser.addini("no-ddtrace.testing", "Disable Datadog Test Optimization (overrides 'ddtrace.testing')", type="bool")
-    parser.addini("ddtrace.testing-with-ddtrace", "Enable all integrations with ddtrace", type="bool")
+    parser.addini("ddtestpy", "Enable Datadog Test Optimization", type="bool")
+    parser.addini("no-ddtestpy", "Disable Datadog Test Optimization (overrides 'ddtestpy')", type="bool")
+    parser.addini("ddtestpy-with-ddtrace", "Enable all integrations with ddtrace", type="bool")
 
 
 def _is_enabled_early(early_config: pytest.Config, args: t.List[str]) -> bool:
-    if _is_option_true("no-ddtrace.testing", early_config, args):
+    if _is_option_true("no-ddtestpy", early_config, args):
         return False
 
-    return _is_option_true("ddtrace.testing", early_config, args)
+    return _is_option_true("ddtestpy", early_config, args)
 
 
 def _is_option_true(option: str, early_config: pytest.Config, args: t.List[str]) -> bool:
