@@ -8,6 +8,7 @@ from ddtrace.internal.process_tags import ENTRYPOINT_BASEDIR_TAG
 from ddtrace.internal.process_tags import ENTRYPOINT_NAME_TAG
 from ddtrace.internal.process_tags import ENTRYPOINT_TYPE_TAG
 from ddtrace.internal.process_tags import ENTRYPOINT_WORKDIR_TAG
+from ddtrace.internal.process_tags import _compute_process_tag
 from ddtrace.internal.process_tags import normalize_tag_value
 from ddtrace.internal.settings.process_tags import process_tags_config as config
 from tests.subprocesstest import run_in_subprocess
@@ -65,13 +66,21 @@ TEST_WORKDIR_PATH = "/path/to/workdir"
         (
             "A0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
             " 00000000000",
-            "a0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
-            "_0",
+            "a0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000_0",
         ),
     ],
 )
 def test_normalize_tag(input_tag, expected):
     assert normalize_tag_value(input_tag) == expected
+
+
+@pytest.mark.parametrize(
+    "excluded_value",
+    ["/", "\\", "bin", "", None],
+)
+def test_compute_process_tag_excluded_values(excluded_value):
+    result = _compute_process_tag("test_key", lambda: excluded_value)
+    assert result is None
 
 
 class TestProcessTags(TracerTestCase):
@@ -134,17 +143,12 @@ class TestProcessTags(TracerTestCase):
                     assert "failed to get process tag" in call_args1[0], (
                         f"Expected error message not found. Got: {call_args1[0]}"
                     )
-                    assert call_args1[1] == "entrypoint.basedir", (
-                        f"Expected tag key not found. Got: {call_args1[1]}"
-                    )
+                    assert call_args1[1] == "entrypoint.basedir", f"Expected tag key not found. Got: {call_args1[1]}"
 
                     assert "failed to get process tag" in call_args2[0], (
                         f"Expected error message not found. Got: {call_args2[0]}"
                     )
-                    assert call_args2[1] == "entrypoint.name", (
-                        f"Expected tag key not found. Got: {call_args2[1]}"
-                    )
-
+                    assert call_args2[1] == "entrypoint.name", f"Expected tag key not found. Got: {call_args2[1]}"
 
     @pytest.mark.snapshot
     @run_in_subprocess(env_overrides=dict(DD_TRACE_PARTIAL_FLUSH_ENABLED="true", DD_TRACE_PARTIAL_FLUSH_MIN_SPANS="2"))

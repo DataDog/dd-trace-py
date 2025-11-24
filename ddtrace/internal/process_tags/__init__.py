@@ -50,7 +50,9 @@ def normalize_tag_value(value: str) -> str:
 def _compute_process_tag(key: str, compute_value: Callable):
     try:
         value = compute_value()
-        return normalize_tag_value(value) if value else None
+        if value and value not in ("/", "\\", "bin"):
+            return normalize_tag_value(value)
+        return None
     except Exception as e:
         log.debug("failed to get process tag %s : %s", key, e)
         return None
@@ -67,11 +69,13 @@ def generate_process_tags() -> Tuple[Optional[str], Optional[List[str]]]:
         (ENTRYPOINT_TYPE_TAG, lambda: ENTRYPOINT_TYPE_SCRIPT),
     ]
 
-    process_tags_list = sorted([
-        f"{key}:{value}"
-        for key, compute_value in tag_definitions
-        if (value := _compute_process_tag(key, compute_value)) is not None
-    ])
+    process_tags_list = sorted(
+        [
+            f"{key}:{value}"
+            for key, compute_value in tag_definitions
+            if (value := _compute_process_tag(key, compute_value)) is not None
+        ]
+    )
 
     # process_tags_list cannot be empty as one of the tag is a constant
     process_tags = ",".join(process_tags_list)
