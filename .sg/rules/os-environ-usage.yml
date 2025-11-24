@@ -8,6 +8,9 @@ ignores:
   - "ddtrace/settings/_env.py"
   - "ddtrace/commands/ddtrace_run.py"
   - "ddtrace/settings/_inferred_base_service.py" # Not sure which env var are used in this file - Needs to be investigated
+  - "ddtrace/internal/serverless/__init__.py" # Serverless providers env vars only in this file
+  - "ddtrace/internal/native/__init__.py" # Needs to be investigated, only DD_TRACE_DEBUG is used in this file
+  - "ddtrace/internal/dist_computing/utils.py" # Ray specific env var
 rule:
   any:
     # Match os.environ access patterns
