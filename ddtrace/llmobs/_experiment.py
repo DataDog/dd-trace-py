@@ -17,7 +17,6 @@ from typing import cast
 from typing import overload
 import uuid
 
-import ddtrace
 from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -27,6 +26,7 @@ from ddtrace.llmobs._constants import DD_SITES_NEEDING_APP_SUBDOMAIN
 from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
 from ddtrace.llmobs._utils import convert_tags_dict_to_list
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.version import __version__
 
 
 if TYPE_CHECKING:
@@ -360,7 +360,7 @@ class Experiment:
         self._summary_evaluators = summary_evaluators or []
         self._description = description
         self._tags: Dict[str, str] = tags or {}
-        self._tags["ddtrace.version"] = str(ddtrace.__version__)
+        self._tags["ddtrace.version"] = str(__version__)
         self._config: Dict[str, JSONType] = config or {}
         self._runs: int = runs or 1
         self._llmobs_instance = _llmobs_instance

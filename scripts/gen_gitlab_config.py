@@ -1,9 +1,21 @@
-# This script is used to generate the GitLab dynamic config file in
-# .gitlab/tests.yml.
-#
-# To add new configuration manipulations that are based on top of the template
-# file in .gitlab/tests.yml, add a function named gen_<name> to this
-# file. The function will be called automatically when this script is run.
+#!/usr/bin/env scripts/uv-run-script
+# -*- mode: python -*-
+# /// script
+# requires-python = ">=3.9"
+# dependencies = [
+#     "riot>=0.20.1",
+#     "ruamel.yaml>=0.17.21",
+#     "lxml>=4.9.0",
+# ]
+# ///
+"""
+This script is used to generate the GitLab dynamic config file in
+.gitlab/tests.yml.
+
+To add new configuration manipulations that are based on top of the template
+file in .gitlab/tests.yml, add a function named gen_<name> to this
+file. The function will be called automatically when this script is run.
+"""
 
 from dataclasses import dataclass
 import datetime
@@ -269,6 +281,11 @@ def gen_pre_checks() -> None:
     check(
         name="Check project dependency bounds",
         command="scripts/check-dependency-bounds",
+        paths={"pyproject.toml"},
+    )
+    check(
+        name="Check package version",
+        command="scripts/verify-package-version",
         paths={"pyproject.toml"},
     )
     check(

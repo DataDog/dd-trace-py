@@ -7,7 +7,10 @@ from ddtrace.contrib.internal.openai.utils import _is_generator
 from ddtrace.contrib.internal.openai.utils import _loop_handler
 from ddtrace.contrib.internal.openai.utils import _process_finished_stream
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._constants import OAI_HANDOFF_TOOL_ARG
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
+from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._utils import safe_load_json
 
 
 API_VERSION = "v1"
@@ -520,6 +523,7 @@ class _ResponseHook(_BaseCompletionHook):
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
+        self._trace_mcp_tool_usage(pin, integration, resp)
         if not resp:
             integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="response")
             return resp
@@ -527,6 +531,35 @@ class _ResponseHook(_BaseCompletionHook):
             return self._handle_streamed_response(integration, span, kwargs, resp, operation_type="response")
         integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="response")
         return resp
+
+    def _trace_mcp_tool_usage(self, pin, integration, resp):
+        """Detect and trace server-side MCP tool usage in the response."""
+        if not resp:
+            return
+
+        messages = _get_attr(resp, "output", [])
+
+        if messages and isinstance(messages, list):
+            for item in messages:
+                message_type = _get_attr(item, "type", "")
+                if message_type == "mcp_call":
+                    self._create_mcp_tool_span(item, integration, pin)
+
+    def _create_mcp_tool_span(self, item, integration, pin):
+        """Creates and submits a tool span to LLMObs to represent a server-side MCP tool call."""
+        with integration.trace(pin, "client_tool_call", submit_to_llmobs=True, kind="tool") as span:
+            tool_id = str(_get_attr(item, "id", ""))
+            tool_name = str(_get_attr(item, "name", ""))
+            raw_arguments = _get_attr(item, "arguments", OAI_HANDOFF_TOOL_ARG)
+            tool_arguments = safe_load_json(str(raw_arguments))
+            tool_output = str(_get_attr(item, "output", ""))
+            integration.llmobs_set_tags(
+                span,
+                args=[],
+                kwargs={"name": tool_name, "arguments": tool_arguments, "tool_id": tool_id},
+                response=tool_output,
+                operation="tool",
+            )
 
 
 class _ResponseParseHook(_ResponseHook):
