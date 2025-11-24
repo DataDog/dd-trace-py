@@ -27,6 +27,7 @@ from ddtrace.ext.git import extract_workspace_path
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.settings._agent import config as agent_config
+from ddtrace.settings._env import get_env as _get_env
 from ddtrace.settings._telemetry import config as telemetry_config
 from ddtrace.trace import Tracer  # noqa: F401
 
@@ -100,7 +101,7 @@ class CIVisibilityGitClient(object):
         elif self._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
             self._base_url = urljoin(
                 "https://api.{}".format(
-                    os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE),
+                    _get_env("DD_SITE", AGENTLESS_DEFAULT_SITE),
                 ),
                 GIT_API_BASE_PATH,
             )

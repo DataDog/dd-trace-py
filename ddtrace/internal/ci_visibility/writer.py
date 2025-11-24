@@ -1,5 +1,4 @@
 from http.client import RemoteDisconnected
-import os
 import socket
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Dict
@@ -14,6 +13,7 @@ from ddtrace.internal.ci_visibility.constants import SESSION_TYPE
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE
 from ddtrace.internal.utils.time import StopWatch
 from ddtrace.settings._agent import config as agent_config
+from ddtrace.settings._env import get_env as _get_env
 from ddtrace.vendor.dogstatsd import DogStatsd  # noqa:F401
 
 from .. import service
@@ -51,7 +51,7 @@ class CIVisibilityEventClient(WriterClientBase):
             "*",
             {
                 "language": "python",
-                "env": os.getenv("_CI_DD_ENV", config.env),
+                "env": _get_env("_CI_DD_ENV", config.env),
                 "runtime-id": get_runtime_id(),
                 "library_version": ddtrace.__version__,
                 "_dd.test.is_user_provided_service": "true" if config._is_user_provided_service else "false",
@@ -127,7 +127,7 @@ class CIVisibilityWriter(HTTPWriter):
             intake_url = intake_url if intake_url else config._ci_visibility_agentless_url
             intake_cov_url = intake_url
         if not intake_url:
-            intake_url = "%s.%s" % (AGENTLESS_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
+            intake_url = "%s.%s" % (AGENTLESS_BASE_URL, _get_env("DD_SITE", AGENTLESS_DEFAULT_SITE))
 
         self._use_evp = use_evp
         clients = (
@@ -137,7 +137,7 @@ class CIVisibilityWriter(HTTPWriter):
         self._itr_suite_skipping_mode = itr_suite_skipping_mode
         if self._coverage_enabled:
             if not intake_cov_url:
-                intake_cov_url = "%s.%s" % (AGENTLESS_COVERAGE_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
+                intake_cov_url = "%s.%s" % (AGENTLESS_COVERAGE_BASE_URL, _get_env("DD_SITE", AGENTLESS_DEFAULT_SITE))
             clients.append(
                 CIVisibilityProxiedCoverageClient(
                     intake_url=intake_cov_url,

@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 from time import time_ns
 from typing import ContextManager
@@ -44,6 +43,7 @@ from ddtrace.internal.test_visibility._benchmark_mixin import BenchmarkDurationD
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.settings._env import get_env as _get_env
 
 
 log = get_logger(__name__)
@@ -114,7 +114,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
     def _start_span(self, context: Optional[Context] = None) -> None:
         super()._start_span(context)
 
-        if asbool(os.getenv("DD_CIVISIBILITY_USE_BETA_WRITER")) and self._span:
+        if asbool(_get_env("DD_CIVISIBILITY_USE_BETA_WRITER")) and self._span:
             self._main_tracer_context = ddtrace.tracer._activate_context(
                 Context(trace_id=self._span.trace_id, span_id=self._span.span_id)
             )
@@ -123,7 +123,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
     def _finish_span(self, override_finish_time: Optional[float] = None) -> None:
         super()._finish_span(override_finish_time)
 
-        if asbool(os.getenv("DD_CIVISIBILITY_USE_BETA_WRITER")) and self._main_tracer_context:
+        if asbool(_get_env("DD_CIVISIBILITY_USE_BETA_WRITER")) and self._main_tracer_context:
             self._main_tracer_context.__exit__(None, None, None)
 
     def __repr__(self) -> str:
