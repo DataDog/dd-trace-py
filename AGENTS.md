@@ -58,6 +58,36 @@ This project has custom skills that provide specialized workflows. **Always chec
 
 **Usage:** Use the Skill tool with command "lint"
 
+### bootstrap
+
+**Use whenever:** Setting up the development environment for the first time, onboarding new developers, or troubleshooting environment issues.
+
+**Purpose:** Guides through complete dd-trace-py development environment setup:
+- Installs Python version manager (uv or pyenv)
+- Installs required Python versions (3.9-3.14)
+- Installs build dependencies (cmake, cython, setuptools-rust, etc.)
+- Builds native extensions (Cython, C++, Rust)
+- Sets up Docker services for testing (testagent, redis, postgres, etc.)
+- Validates installation and runs first tests
+
+**Prerequisites:**
+- Git installed
+- Docker Desktop installed and running
+- Build tools for your platform:
+  - **Linux**: `gcc`, `g++`, `make`, `cmake`, `pkg-config`
+  - **macOS**: Xcode Command Line Tools (`xcode-select --install`)
+  - **Windows**: Visual Studio with C++ build tools (or use WSL2)
+
+**When to use:**
+- First-time contributor setting up the project
+- Rebuilding environment after system changes
+- Setting up CI/CD runners or containers
+- Troubleshooting environment-related issues
+
+**Important:** After bootstrap, use `scripts/run-tests` as your main development workflow - it automatically manages virtual environments and dependencies.
+
+**Usage:** Use the Skill tool with command "bootstrap"
+
 ---
 
 <!-- Add more skills below as they are created -->
