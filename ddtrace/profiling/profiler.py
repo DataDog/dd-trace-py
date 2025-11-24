@@ -1,6 +1,5 @@
 # -*- encoding: utf-8 -*-
 import logging
-import os
 from typing import Any
 from typing import Dict
 from typing import List  # noqa:F401
@@ -25,6 +24,7 @@ from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import pytorch
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
+from ddtrace.settings._env import environ as _environ
 from ddtrace.settings.profiling import config as profiling_config
 from ddtrace.settings.profiling import config_str
 
@@ -150,7 +150,7 @@ class _ProfilerInstance(service.Service):
         self._collectors: List[Union[stack.StackCollector, memalloc.MemoryCollector]] = []
         self._collectors_on_import: Any = None
         self._scheduler: Optional[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]] = None
-        self._lambda_function_name: Optional[str] = os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
+        self._lambda_function_name: Optional[str] = _environ.get("AWS_LAMBDA_FUNCTION_NAME")
 
         self.__post_init__()
 

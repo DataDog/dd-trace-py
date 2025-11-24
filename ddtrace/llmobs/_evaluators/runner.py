@@ -1,5 +1,4 @@
 from concurrent import futures
-import os
 from typing import List
 from typing import Tuple
 
@@ -14,6 +13,7 @@ from ddtrace.llmobs._evaluators.ragas.context_precision import RagasContextPreci
 from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
 from ddtrace.llmobs._evaluators.sampler import EvaluatorRunnerSampler
 from ddtrace.llmobs._writer import LLMObsSpanEvent
+from ddtrace.settings._env import environ as _environ
 from ddtrace.trace import Span
 
 
@@ -50,7 +50,7 @@ class EvaluatorRunner(PeriodicService):
         if len(self.evaluators) > 0:
             return
 
-        evaluator_str = os.getenv(self.EVALUATORS_ENV_VAR)
+        evaluator_str = _environ.get(self.EVALUATORS_ENV_VAR)
         if evaluator_str is None:
             return
 
