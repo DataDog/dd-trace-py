@@ -1,4 +1,3 @@
-import os
 from typing import Dict
 
 import jinja2
@@ -12,6 +11,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.settings._env import get_env as _get_env
 
 from .constants import DEFAULT_TEMPLATE_NAME
 
@@ -20,7 +20,7 @@ from .constants import DEFAULT_TEMPLATE_NAME
 config._add(
     "jinja2",
     {
-        "service_name": os.getenv("DD_JINJA2_SERVICE_NAME"),
+        "service_name": _get_env("DD_JINJA2_SERVICE_NAME"),
     },
 )
 
