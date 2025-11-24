@@ -827,23 +827,24 @@ def _extract_chat_template_from_instructions(
     instructions: List[Any], variables: Dict[str, Any]
 ) -> List[Dict[str, str]]:
     """
-    Extract a chat template from OpenAI response instructions by replacing variable values with placeholders.
+    Extract a chat template from OpenAI response instructions by replacing text variable values with placeholders.
+
+    Images and files always use generic [image] and [file] markers for deterministic templating.
 
     Args:
         instructions: List of instruction messages from the OpenAI response
         variables: Dictionary of variables used in the prompt
 
     Returns:
-        List of chat template messages with placeholders (e.g., {{variable_name}})
+        List of chat template messages with placeholders (e.g., {{variable_name}} for text, [image], [file])
     """
     chat_template = []
 
-    # Build value→placeholder map from normalized variables
+    # Build value:placeholder map only for text variables (exclude images/files for deterministic templates)
     value_to_placeholder = {}
     for var_name, var_value in variables.items():
         value_str = str(var_value) if var_value else ""
-        # Exclude fallback markers ([image], [file]) as they represent missing data
-        if value_str and value_str not in ("[image]", "[file]"):
+        if value_str and value_str not in ("[image]", "[file]", "[file_data]"):
             value_to_placeholder[value_str] = f"{{{{{var_name}}}}}"
 
     # Sort by length (longest first) to handle overlapping values correctly
@@ -867,26 +868,17 @@ def _extract_chat_template_from_instructions(
                 text_parts.append(str(text))
                 continue
 
-            # For image/file items, try to extract the reference value
-            # OpenAI usually includes file_id/file_url but may omit image_url for security
+            # For image/file items, use generic markers for deterministic templates
             item_type = _get_attr(content_item, "type", None)
             if item_type == "input_image":
-                # Images can be referenced via image_url or file_id
-                image_url = _get_attr(content_item, "image_url", None)
-                file_id = _get_attr(content_item, "file_id", None)
-                text_parts.append(str(image_url) if image_url else (str(file_id) if file_id else "[image]"))
+                text_parts.append("[image]")
             elif item_type == "input_file":
-                file_ref = (
-                    _get_attr(content_item, "file_id", None)
-                    or _get_attr(content_item, "file_url", None)
-                    or _get_attr(content_item, "filename", None)
-                )
-                text_parts.append(str(file_ref) if file_ref else "[file]")
+                text_parts.append("[file]")
 
         if not text_parts:
             continue
 
-        # Combine text and replace variable values with placeholders (longest first)
+        # Combine text and replace only text variable values with placeholders (longest first)
         full_text = "".join(text_parts)
         for value_str in sorted_values:
             placeholder = value_to_placeholder[value_str]
