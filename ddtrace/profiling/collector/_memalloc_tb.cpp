@@ -4,9 +4,9 @@
 #include <string>
 #include <string_view>
 
-// Include internal headers to access _PyInterpreterFrame for Python 3.11-3.12 only
-// Python 3.13+ restricts access to these structures even with Py_BUILD_CORE
-#if defined(_PY311_AND_LATER) && !defined(_PY313_AND_LATER)
+// Include internal headers to access _PyInterpreterFrame for Python 3.11 only
+// Python 3.12+ restricts access to these structures even with Py_BUILD_CORE
+#if defined(_PY311_AND_LATER) && !defined(_PY312_AND_LATER)
 #define Py_BUILD_CORE
 #include <internal/pycore_frame.h>
 #endif
@@ -312,10 +312,10 @@ extract_frame_info_from_pyframe(PyFrameObject* frame, PyCodeObject** code_out, i
     *lineno_out = lineno_val;
 }
 
-#if defined(_PY311_AND_LATER) && !defined(_PY313_AND_LATER)
+#if defined(_PY311_AND_LATER) && !defined(_PY312_AND_LATER)
 /* Helper function to extract code object and line number from a _PyInterpreterFrame
- * Uses Py_BUILD_CORE to access internal headers (only for Python 3.11-3.12)
- * Python 3.13+ restricts access to these structures, so we use PyFrameObject instead */
+ * Uses Py_BUILD_CORE to access internal headers (only for Python 3.11)
+ * Python 3.12+ restricts access to these structures, so we use PyFrameObject instead */
 static void
 extract_frame_info_from_interpreter_frame(_PyInterpreterFrame* frame, PyCodeObject** code_out, int* lineno_out)
 {
@@ -393,10 +393,10 @@ push_frame_to_sample(Datadog::Sample& sample, PyCodeObject* code, int lineno_val
     Py_XDECREF(filename_bytes);
 }
 
-#if defined(_PY311_AND_LATER) && !defined(_PY313_AND_LATER)
+#if defined(_PY311_AND_LATER) && !defined(_PY312_AND_LATER)
 /* Helper function to collect frames from _PyInterpreterFrame chain and push to sample
- * Uses Py_BUILD_CORE to access internal headers (only for Python 3.11-3.12)
- * Python 3.13+ restricts access to these structures, so we use PyFrameObject instead */
+ * Uses Py_BUILD_CORE to access internal headers (only for Python 3.11)
+ * Python 3.12+ restricts access to these structures, so we use PyFrameObject instead */
 static void
 push_stacktrace_to_sample(Datadog::Sample& sample)
 {

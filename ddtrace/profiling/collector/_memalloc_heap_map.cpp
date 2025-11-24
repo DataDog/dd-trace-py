@@ -43,7 +43,6 @@ memalloc_heap_map::insert(void* key, traceback_t* value)
          * allocation from the map. Assert to detect if this edge case occurs in practice.
          * Export the previous entry if it hasn't been reported yet, then delete it and
          * replace it with the new value. */
-        exit(-1);
         assert(false && "memalloc_heap_map::insert: found existing entry for key that should have been removed");
         HeapSamples_Entry* e = HeapSamples_Iter_get(&res.iter);
         traceback_t* prev = e->val;
