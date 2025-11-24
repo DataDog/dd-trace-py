@@ -333,11 +333,8 @@ const MAX_TRACEBACK_SIZE: usize = 8 * 1024; // 8KB
 // Attempt to resolve _Py_DumpTracebackThreads at runtime
 // Returns None if symbol is not available
 unsafe fn get_dump_traceback_fn() -> Option<PyDumpTracebackThreadsFn> {
-    // Try to get the symbol from the current process using dlsym
     #[cfg(unix)]
     {
-        use std::ffi::CString;
-
         extern "C" {
             fn dlsym(
                 handle: *mut std::ffi::c_void,
@@ -347,12 +344,10 @@ unsafe fn get_dump_traceback_fn() -> Option<PyDumpTracebackThreadsFn> {
 
         const RTLD_DEFAULT: *mut std::ffi::c_void = ptr::null_mut();
 
-        let symbol_name = match CString::new("_Py_DumpTracebackThreads") {
-            Ok(name) => name,
-            Err(_) => return None,
-        };
-
-        let symbol_ptr = dlsym(RTLD_DEFAULT, symbol_name.as_ptr());
+        let symbol_ptr = dlsym(
+            RTLD_DEFAULT,
+            b"_Py_DumpTracebackThreads\0".as_ptr() as *const std::ffi::c_char,
+        );
 
         if symbol_ptr.is_null() {
             None
@@ -370,33 +365,6 @@ unsafe fn get_dump_traceback_fn() -> Option<PyDumpTracebackThreadsFn> {
 unsafe fn dump_python_traceback_as_string(
     emit_stacktrace_string: unsafe extern "C" fn(*const c_char),
 ) {
-    // Python version check using Py_GetVersion()
-    let ver_cstr = pyo3_ffi::Py_GetVersion();
-    let (mut major, mut minor) = (0, 0);
-
-    if !ver_cstr.is_null() {
-        if let Ok(ver_str) = std::ffi::CStr::from_ptr(ver_cstr).to_str() {
-            // Format: "3.14.0 (tags/...)"
-            let mut parts = ver_str.split('.');
-            major = parts
-                .next()
-                .and_then(|m| m.parse::<i32>().ok())
-                .unwrap_or(0);
-            minor = parts
-                .next()
-                .and_then(|m| m.parse::<i32>().ok())
-                .unwrap_or(0);
-        }
-    }
-
-    // Python ≥ 3.13 → Internal traceback APIs removed/hidden
-    if major > 3 || (major == 3 && minor >= 13) {
-        emit_stacktrace_string(
-            "<python_runtime_stacktrace_unavailable>\0".as_ptr() as *const c_char
-        );
-        return;
-    }
-
     // Try to get the dump traceback function
     let dump_fn = match get_dump_traceback_fn() {
         Some(func) => func,
@@ -420,10 +388,8 @@ unsafe fn dump_python_traceback_as_string(
     let read_fd = pipefd[0];
     let write_fd = pipefd[1];
 
-    // Make the read end non-blocking
     fcntl(read_fd, F_SETFL, O_NONBLOCK);
 
-    // Get current thread state using PyO3's GIL state API
     let current_tstate = pyo3_ffi::PyGILState_GetThisThreadState();
 
     let error_msg = dump_fn(write_fd, ptr::null_mut(), current_tstate);
@@ -471,7 +437,7 @@ unsafe extern "C" fn native_runtime_stack_callback(
     dump_python_traceback_as_string(emit_stacktrace_string);
 }
 
-/// Register the native runtime stack collection callback (string-based)
+/// Register the native runtime stack collection callback
 #[pyfunction(name = "crashtracker_register_native_runtime_callback")]
 pub fn crashtracker_register_native_runtime_callback() -> CallbackResult {
     match register_runtime_stacktrace_string_callback(native_runtime_stack_callback) {
