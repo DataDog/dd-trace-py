@@ -7,6 +7,8 @@ import typing as t
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.settings._env import environ as _environ
+from ddtrace.settings._env import get_env as _get_env
 
 
 log = get_logger(__name__)
@@ -15,7 +17,7 @@ _API_RESPONSE_CACHE_DIR = os.path.join(os.getcwd(), ".ddtrace_api_cache")
 
 
 def _is_response_cache_enabled():
-    return asbool(os.getenv("_DD_CIVISIBILITY_RESPONSE_CACHE_ENABLED", "false").lower())
+    return asbool(_get_env("_DD_CIVISIBILITY_RESPONSE_CACHE_ENABLED", "false").lower())
 
 
 def _get_cache_file_path(cache_key: str) -> str:
@@ -68,5 +70,5 @@ def _clean_api_response_cache_dir():
         shutil.rmtree(_API_RESPONSE_CACHE_DIR)
 
 
-if os.environ.get("PYTEST_XDIST_WORKER") is None:  # Not an xdist worker
+if _environ.get("PYTEST_XDIST_WORKER") is None:  # Not an xdist worker
     atexit.register(_clean_api_response_cache_dir)

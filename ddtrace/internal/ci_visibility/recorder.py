@@ -72,6 +72,8 @@ from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabi
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.settings._agent import config as agent_config
+from ddtrace.settings._env import environ as _environ
+from ddtrace.settings._env import get_env as _get_env
 from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.trace import Span
 from ddtrace.trace import TraceFilter
@@ -163,21 +165,21 @@ class CIVisibility(Service):
         if tracer:
             self.tracer = tracer
         else:
-            if asbool(os.getenv("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")):
+            if asbool(_get_env("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")):
                 log.debug("Using DD CI context provider: test traces may be incomplete, telemetry may be inaccurate")
                 # Create a new CI tracer, using a specific URL if provided (only useful when testing the tracer itself)
                 self.tracer = CIVisibilityTracer()
 
-                if ci_dd_tags := os.getenv("_CI_DD_TAGS"):
+                if ci_dd_tags := _get_env("_CI_DD_TAGS"):
                     log.debug("Using _CI_DD_TAGS for CI Visibility tracer: %s", ci_dd_tags)
                     self.tracer._tags.update(parse_tags_str(ci_dd_tags))
 
-                env_agent_url = os.getenv("_CI_DD_AGENT_URL")
+                env_agent_url = _get_env("_CI_DD_AGENT_URL")
                 if env_agent_url is not None:
                     log.debug("Using _CI_DD_AGENT_URL for CI Visibility tracer: %s", env_agent_url)
                     self.tracer._span_aggregator.writer.intake_url = env_agent_url  # type: ignore[attr-defined]
                 self.tracer.context_provider = CIContextProvider()
-            elif asbool(os.getenv("DD_CIVISIBILITY_USE_BETA_WRITER")):
+            elif asbool(_get_env("DD_CIVISIBILITY_USE_BETA_WRITER")):
                 self.tracer = CIVisibilityTracer()
                 self.tracer.context_provider = CIContextProvider()
             else:
@@ -204,9 +206,9 @@ class CIVisibility(Service):
         if custom_configurations:
             self._configurations["custom"] = custom_configurations
 
-        self._api_key = os.getenv("_CI_DD_API_KEY", os.getenv("DD_API_KEY"))
+        self._api_key = _get_env("_CI_DD_API_KEY", _get_env("DD_API_KEY"))
 
-        self._dd_site = os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE)
+        self._dd_site = _get_env("DD_SITE", AGENTLESS_DEFAULT_SITE)
         self.config = config or ddconfig.test_visibility  # type: Optional[IntegrationConfig]
         self._itr_skipping_level: ITR_SKIPPING_LEVEL = ddconfig.test_visibility.itr_skipping_level
         self._itr_skipping_ignore_parameters: bool = ddconfig.test_visibility._itr_skipping_ignore_parameters
@@ -220,7 +222,7 @@ class CIVisibility(Service):
             self._itr_skipping_level = ITR_SKIPPING_LEVEL.TEST
         self._suite_skipping_mode = ddconfig.test_visibility.itr_skipping_level == ITR_SKIPPING_LEVEL.SUITE
         self._tags: Dict[str, str] = ci.tags(cwd=_get_git_repo())
-        self._is_auto_injected = bool(os.getenv("DD_CIVISIBILITY_AUTO_INSTRUMENTATION_PROVIDER", ""))
+        self._is_auto_injected = bool(_get_env("DD_CIVISIBILITY_AUTO_INSTRUMENTATION_PROVIDER", ""))
         self._service = service
         self._codeowners = None
         self._root_dir = None
@@ -249,7 +251,7 @@ class CIVisibility(Service):
 
         self._git_data: GitData = get_git_data_from_tags(self._tags)
 
-        self._dd_env = os.getenv("_CI_DD_ENV", ddconfig.env)
+        self._dd_env = _get_env("_CI_DD_ENV", ddconfig.env)
         dd_env_msg = ""
 
         if ddconfig._ci_visibility_agentless_enabled:
@@ -339,7 +341,7 @@ class CIVisibility(Service):
     @staticmethod
     def _should_collect_coverage(coverage_enabled_by_api):
         if not coverage_enabled_by_api and not asbool(
-            os.getenv("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", default=False)
+            _get_env("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", default=False)
         ):
             return False
         return True
@@ -420,7 +422,7 @@ class CIVisibility(Service):
             self.tracer._recreate()
 
     def _agent_evp_proxy_base_url(self) -> Optional[str]:
-        if asbool(os.getenv("_DD_CIVISIBILITY_DISABLE_EVP_PROXY")):
+        if asbool(_get_env("_DD_CIVISIBILITY_DISABLE_EVP_PROXY")):
             return None
 
         try:
@@ -466,7 +468,7 @@ class CIVisibility(Service):
         if (
             not cls.enabled
             or cls._instance is None
-            or asbool(os.getenv("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", default=False))
+            or asbool(_get_env("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", default=False))
         ):
             return False
         return cls._instance._api_settings.skipping_enabled
@@ -492,7 +494,7 @@ class CIVisibility(Service):
         if cls._instance is None:
             return False
         return cls._instance._api_settings.flaky_test_retries_enabled and asbool(
-            os.getenv("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", default=True)
+            _get_env("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", default=True)
         )
 
     @classmethod
@@ -500,7 +502,7 @@ class CIVisibility(Service):
         if cls._instance is None:
             return False
         return cls._instance._api_settings.test_management.enabled and asbool(
-            os.getenv("DD_TEST_MANAGEMENT_ENABLED", default=True)
+            _get_env("DD_TEST_MANAGEMENT_ENABLED", default=True)
         )
 
     @classmethod
@@ -508,7 +510,7 @@ class CIVisibility(Service):
         if cls._instance is None:
             return False
         return cls._instance._api_settings.coverage_enabled or asbool(
-            os.getenv("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", default=False)
+            _get_env("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", default=False)
         )
 
     def _fetch_tests_to_skip(self) -> None:
@@ -593,7 +595,7 @@ class CIVisibility(Service):
             return
 
         if ddconfig._ci_visibility_agentless_enabled:
-            if not os.getenv("_CI_DD_API_KEY", os.getenv("DD_API_KEY")):
+            if not _get_env("_CI_DD_API_KEY", _get_env("DD_API_KEY")):
                 log.critical(
                     "%s disabled: environment variable DD_CIVISIBILITY_AGENTLESS_ENABLED is true but"
                     " DD_API_KEY is not set",
@@ -658,7 +660,7 @@ class CIVisibility(Service):
             tracer_filters += [TraceCiVisibilityFilter(self._tags, self._service)]  # type: ignore[arg-type]
             self.tracer.configure(trace_processors=tracer_filters)
 
-        if asbool(os.getenv("DD_CIVISIBILITY_USE_BETA_WRITER")):
+        if asbool(_get_env("DD_CIVISIBILITY_USE_BETA_WRITER")):
             self._set_global_span_forwarder(CIVisibilitySpanForwarder(self.tracer))
 
         def _task_fetch_tests_to_skip():
@@ -703,7 +705,7 @@ class CIVisibility(Service):
             pool.submit(_task_fetch_test_management_tests)
 
         if self._api_settings.flaky_test_retries_enabled and not asbool(
-            os.environ.get("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", True)
+            _environ.get("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", True)
         ):
             log.warning(
                 "Auto Test Retries is enabled by API but disabled by "
@@ -725,7 +727,7 @@ class CIVisibility(Service):
         except Exception:
             log.warning("Failed to shutdown tracer", exc_info=True)
 
-        if asbool(os.getenv("DD_CIVISIBILITY_USE_BETA_WRITER")):
+        if asbool(_get_env("DD_CIVISIBILITY_USE_BETA_WRITER")):
             self._set_global_span_forwarder(None)
 
     def _set_global_span_forwarder(self, span_forwarder: Optional[TraceFilter]) -> None:
@@ -869,7 +871,7 @@ class CIVisibility(Service):
             max_retries = 5
             max_session_total_retries = 1000
 
-            env_max_retries = os.environ.get("DD_CIVISIBILITY_FLAKY_RETRY_COUNT")
+            env_max_retries = _environ.get("DD_CIVISIBILITY_FLAKY_RETRY_COUNT")
             if env_max_retries is not None:
                 try:
                     max_retries = int(env_max_retries)
@@ -878,7 +880,7 @@ class CIVisibility(Service):
                         "Failed to parse DD_CIVISIBILITY_FLAKY_RETRY_COUNT, using default value: %s", max_retries
                     )
 
-            env_max_session_total_retries = os.environ.get("DD_CIVISIBILITY_TOTAL_FLAKY_RETRY_COUNT")
+            env_max_session_total_retries = _environ.get("DD_CIVISIBILITY_TOTAL_FLAKY_RETRY_COUNT")
             if env_max_session_total_retries is not None:
                 try:
                     max_session_total_retries = int(env_max_session_total_retries)
