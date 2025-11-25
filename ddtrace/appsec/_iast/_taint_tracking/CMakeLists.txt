@@ -86,9 +86,10 @@ message(STATUS "PYTHON_EXECUTABLE = ${PYTHON_EXECUTABLE}")
 message(STATUS "PYTHON_INCLUDE_DIRS = ${PYTHON_INCLUDE_DIRS}")
 # message(STATUS "ICU_LIBRARIES = ${ICU_LIBRARIES}") message(STATUS "ICU_INCLUDE_DIRS = ${ICU_INCLUDE_DIRS}")
 
-# For pybind11 3.0+: Find Python with only Development.Module component (not Development.Embed)
-# This must be done BEFORE including pybind11 to avoid the "Python::Python not defined" error
-find_package(Python3 REQUIRED COMPONENTS Interpreter Development.Module)
+# For pybind11 3.0+: Find Python with Development component
+# Note: We use "Development" (not "Development.Module") to ensure Python3::Python target is available
+# This is required by pybind11 3.0's new CMake tools even though we're building an extension module
+find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
 
 # Set legacy variables expected elsewhere in the project
 set(PYTHON_EXECUTABLE ${Python3_EXECUTABLE})
