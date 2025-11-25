@@ -15,7 +15,7 @@ from ddtrace.testing.internal.git import get_git_tags_from_git_command
 from ddtrace.testing.internal.utils import _filter_sensitive_info
 
 
-FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "ci"
+FIXTURES_DIR = Path(__file__).parent.parent.parent / "tracer" / "fixtures" / "ci"
 
 
 def _ci_fixtures() -> t.Iterable[t.Tuple[str, int, t.Dict[str, str], t.Dict[str, str]]]:
