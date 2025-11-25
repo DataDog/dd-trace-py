@@ -1,3 +1,33 @@
+stages:
+  - package
+
+.PYTHON_TAGS: &PYTHON_TAGS
+  - "cp39-cp39"
+  - "cp310-cp310"
+  - "cp311-cp311"
+  - "cp312-cp312"
+  - "cp313-cp313"
+  - "cp314-cp314"
+
+"build linux":
+  image: registry.ddbuild.io/images/mirror/pypa/manylinux2014_${IMAGE_ARCH}:2025-04-12-5990e2d"
+  tags: [ "arch:$ARCH_TAG" ]
+  stage: package
+  parallel:
+    matrix:
+    - IMAGE_ARCH: "x86_64"
+      ARCH_TAG: "amd64"
+      PYTHON_TAG: *PYTHON_TAGS
+    - IMAGE_ARCH: "aarch64"
+      ARCH_TAG: "arm64"
+      PYTHON_TAG: *PYTHON_TAGS
+  variables:
+    CMAKE_BUILD_PARALLEL_LEVEL: "24"
+    CARGO_BUILD_JOBS: "24"
+    CMAKE_ARGS: "-DNATIVE_TESTING=OFF"
+  script:
+    - .gitlab/build-wheels-manylinux.sh
+
 download_ddtrace_artifacts:
   image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
   tags: [ "arch:amd64" ]
