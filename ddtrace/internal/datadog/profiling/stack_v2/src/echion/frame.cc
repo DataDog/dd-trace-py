@@ -46,40 +46,6 @@ reset_frame_cache()
 }
 
 // ------------------------------------------------------------------------
-Frame::Frame(PyObject* frame)
-{
-#if PY_VERSION_HEX >= 0x030b0000
-
-#if PY_VERSION_HEX >= 0x030d0000
-    _PyInterpreterFrame* iframe = reinterpret_cast<_PyInterpreterFrame*>(frame);
-    const int lasti = _PyInterpreterFrame_LASTI(iframe);
-    PyCodeObject* code = reinterpret_cast<PyCodeObject*>(iframe->f_executable);
-#else
-    const _PyInterpreterFrame* iframe = reinterpret_cast<_PyInterpreterFrame*>(frame);
-    const int lasti = _PyInterpreterFrame_LASTI(iframe);
-    PyCodeObject* code = iframe->f_code;
-#endif // PY_VERSION_HEX >= 0x030d0000
-    PyCode_Addr2Location(code, lasti << 1, &location.line, &location.column, &location.line_end, &location.column_end);
-    location.column++;
-    location.column_end++;
-    name = string_table.key_unsafe(code->co_qualname);
-#if PY_VERSION_HEX >= 0x030c0000
-    is_entry = (iframe->owner == FRAME_OWNED_BY_CSTACK); // Shim frame
-#else
-    is_entry = iframe->is_entry;
-#endif
-
-#else
-    PyFrameObject* py_frame = reinterpret_cast<PyFrameObject*>(frame);
-    PyCodeObject* code = py_frame->f_code;
-
-    location.line = PyFrame_GetLineNumber(py_frame);
-    name = string_table.key_unsafe(code->co_name);
-#endif
-    filename = string_table.key_unsafe(code->co_filename);
-}
-
-// ------------------------------------------------------------------------
 Result<Frame::Ptr>
 Frame::create(PyCodeObject* code, int lasti)
 {
@@ -241,26 +207,6 @@ Frame::key(PyCodeObject* code, int lasti)
     return ((static_cast<uintptr_t>(((reinterpret_cast<uintptr_t>(code)))) << 16) | lasti);
 }
 
-// ----------------------------------------------------------------------------
-Frame::Key
-Frame::key(PyObject* frame)
-{
-#if PY_VERSION_HEX >= 0x030d0000
-    _PyInterpreterFrame* iframe = reinterpret_cast<_PyInterpreterFrame*>(frame);
-    const int lasti = _PyInterpreterFrame_LASTI(iframe);
-    PyCodeObject* code = reinterpret_cast<PyCodeObject*>(iframe->f_executable);
-#elif PY_VERSION_HEX >= 0x030b0000
-    const _PyInterpreterFrame* iframe = reinterpret_cast<_PyInterpreterFrame*>(frame);
-    const int lasti = _PyInterpreterFrame_LASTI(iframe);
-    PyCodeObject* code = iframe->f_code;
-#else
-    const PyFrameObject* py_frame = reinterpret_cast<PyFrameObject*>(frame);
-    const int lasti = py_frame->f_lasti;
-    PyCodeObject* code = py_frame->f_code;
-#endif
-    return key(code, lasti);
-}
-
 // ------------------------------------------------------------------------
 #if PY_VERSION_HEX >= 0x030b0000
 Result<std::reference_wrapper<Frame>>
@@ -387,31 +333,6 @@ Frame::get(PyCodeObject* code_addr, int lasti)
                           new_frame->location.column_end);
     frame_cache->store(frame_key, std::move(new_frame));
     return std::ref(f);
-}
-
-// ----------------------------------------------------------------------------
-Frame&
-Frame::get(PyObject* frame)
-{
-    auto frame_key = Frame::key(frame);
-
-    auto maybe_frame = frame_cache->lookup(frame_key);
-    if (maybe_frame) {
-        return *maybe_frame;
-    }
-
-    auto new_frame = std::make_unique<Frame>(frame);
-    new_frame->cache_key = frame_key;
-    auto& f = *new_frame;
-    Renderer::get().frame(frame_key,
-                          new_frame->filename,
-                          new_frame->name,
-                          new_frame->location.line,
-                          new_frame->location.line_end,
-                          new_frame->location.column,
-                          new_frame->location.column_end);
-    frame_cache->store(frame_key, std::move(new_frame));
-    return f;
 }
 
 // ----------------------------------------------------------------------------
