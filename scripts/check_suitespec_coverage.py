@@ -24,12 +24,6 @@ SPEC_PATTERNS = {_ for suite in spec.get_suites() for _ in spec.get_patterns(sui
 
 # Ignore any embedded documentation
 IGNORE_PATTERNS.add("**/*.md")
-# Ignore stub files
-IGNORE_PATTERNS.add("tests/profiling/collector/pprof_pb2.pyi")
-# TODO(taegyunkim): remove these after merging profiling v2 tests back to profiling
-IGNORE_PATTERNS.add("tests/profiling/*.py")
-IGNORE_PATTERNS.add("tests/profiling/*/*.py")
-IGNORE_PATTERNS.add("tests/profiling/*/*.proto")
 
 
 def owners(path: str) -> str:

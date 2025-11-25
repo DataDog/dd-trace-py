@@ -158,7 +158,7 @@ DD_PROFILING_PYTORCH_ENABLED = "true"
 test = [
     "uname -a",
     "pip freeze",
-    "python -m pytest tests/profiling_v2/test_pytorch.py -vvv --capture=tee-sys",
+    "python -m pytest tests/profiling/test_pytorch.py -vvv --capture=tee-sys",
 ]
 
 [[envs.profiling_pytorch.matrix]]
