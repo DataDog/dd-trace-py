@@ -6,7 +6,6 @@ from types import TracebackType
 from typing import Any
 from typing import Optional
 from typing import Set
-from typing import Tuple
 from typing import Type
 from typing import cast
 
@@ -86,7 +85,7 @@ class MemoryCollector:
             if getattr(thread, "_ddtrace_profiling_ignore", False) and thread.ident is not None
         }
 
-    def snapshot(self) -> Tuple[()]:
+    def snapshot(self) -> None:
         thread_id_ignore_set = self._get_thread_id_ignore_set()
 
         try:
@@ -96,7 +95,7 @@ class MemoryCollector:
         except (RuntimeError, ValueError):
             # DEV: This can happen if either _memalloc has not been started or has been stopped.
             LOG.debug("Unable to collect heap events from process %d", os.getpid(), exc_info=True)
-            return tuple()
+            return
 
         for event in events:
             (frames, thread_id), in_use_size, alloc_size, count = event
@@ -122,8 +121,6 @@ class MemoryCollector:
                     # DEV: This might happen if the memalloc sofile is unlinked and relinked without module
                     #      re-initialization.
                     LOG.debug("Invalid state detected in memalloc module, suppressing profile")
-
-        return tuple()
 
     def snapshot_and_parse_pprof(self, output_filename: str) -> Any:
         """Export samples to profile, upload, and parse the pprof profile.
@@ -155,6 +152,3 @@ class MemoryCollector:
             )
 
         return pprof_utils.parse_newest_profile(output_filename)
-
-    def collect(self) -> Tuple[()]:
-        return tuple()
