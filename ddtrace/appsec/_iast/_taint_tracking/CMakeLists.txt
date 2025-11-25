@@ -86,6 +86,10 @@ message(STATUS "PYTHON_EXECUTABLE = ${PYTHON_EXECUTABLE}")
 message(STATUS "PYTHON_INCLUDE_DIRS = ${PYTHON_INCLUDE_DIRS}")
 # message(STATUS "ICU_LIBRARIES = ${ICU_LIBRARIES}") message(STATUS "ICU_INCLUDE_DIRS = ${ICU_INCLUDE_DIRS}")
 
+# For pybind11 3.0+: Use the new FindPython mechanism
+# This ensures we only request Development.Module (not Development.Embed) which is correct for extension modules
+set(PYBIND11_FINDPYTHON ON)
+
 add_subdirectory(_vendor/pybind11)
 if(NATIVE_TESTING)
     find_package(
