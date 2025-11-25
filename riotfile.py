@@ -534,6 +534,7 @@ venv = Venv(
                 "pyfakefs": latest,
                 "pytest-benchmark": latest,
                 "wrapt": [latest, "<2.0.0"],
+                "uwsgi": latest,
             },
             venvs=[
                 Venv(
