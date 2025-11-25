@@ -203,6 +203,9 @@ benchmarks-pr-comment:
     UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME # The branch or tag name for which project is built.
     UPSTREAM_COMMIT_SHA: $CI_COMMIT_SHA # The commit revision the project is built for.
 
+# Unlike pre-release SLO checks that run unconditionally, this PR-level check
+# runs only if benchmarks succeed. Benchmark failures block the PR directly;
+# this job blocks the PR if there are specific SLO breaches.
 check-slo-breaches:
   stage: gate
   tags: ["arch:amd64"]
