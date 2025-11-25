@@ -106,9 +106,11 @@ class _ProfiledLock:
 
     def _acquire(self, inner_func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         if not self.capture_sampler.capture():
-            # `acquired_time` remains None (unlike when we sample the event, when it's set to the current time).
-            # This prevents bogus release samples when acquire wasn't sampled.
-            return inner_func(*args, **kwargs)
+            if config.enable_asserts:
+                # Ensure acquired_time is not set to a valid timestamp when acquire is not sampled (else a bogus release sample is produced).
+                assert self.acquired_time is None, (
+                    f"Expected acquired_time to be None when acquire is not sampled, got {self.acquired_time!r}"
+                )
 
         start: int = time.monotonic_ns()
         try:
