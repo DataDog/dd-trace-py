@@ -10,7 +10,7 @@ stages:
   - "cp314-cp314"
 
 "build manylinux":
-  image: registry.ddbuild.io/images/mirror/pypa/manylinux2014_${IMAGE_ARCH}:2025-04-12-5990e2d"
+  image: registry.ddbuild.io/images/mirror/pypa/manylinux2014_${IMAGE_ARCH}:2025-04-12-5990e2d
   tags: [ "arch:$ARCH_TAG" ]
   stage: package
   parallel:
