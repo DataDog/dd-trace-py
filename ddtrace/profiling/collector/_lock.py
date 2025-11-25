@@ -69,7 +69,7 @@ class _ProfiledLock:
         frame: FrameType = sys._getframe(3)
         code: CodeType = frame.f_code
         self.init_location: str = f"{os.path.basename(code.co_filename)}:{frame.f_lineno}"
-        self.acquired_time: int = 0
+        self.acquired_time: Optional[int] = None
         self.name: Optional[str] = None
 
     ### DUNDER methods ###
@@ -106,6 +106,8 @@ class _ProfiledLock:
 
     def _acquire(self, inner_func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         if not self.capture_sampler.capture():
+            # `acquired_time` remains None (unlike when we sample the event, when it's set to the current time).
+            # This prevents bogus release samples when acquire wasn't sampled.
             return inner_func(*args, **kwargs)
 
         start: int = time.monotonic_ns()
@@ -136,21 +138,12 @@ class _ProfiledLock:
 
     def _release(self, inner_func: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
         start: Optional[int] = getattr(self, "acquired_time", None)
-        try:
-            # Though it should generally be avoided to call release() from
-            # multiple threads, it is possible to do so. In that scenario, the
-            # following statement code will raise an AttributeError. This should
-            # not be propagated to the caller and to the users. The inner_func
-            # will raise an RuntimeError as the threads are trying to release()
-            # and unlocked lock, and the expected behavior is to propagate that.
-            del self.acquired_time
-        except AttributeError:
-            pass
+        self.acquired_time = None
 
         try:
             return inner_func(*args, **kwargs)
         finally:
-            if start is not None:
+            if start:
                 self._flush_sample(start, end=time.monotonic_ns(), is_acquire=False)
 
     def _flush_sample(self, start: int, end: int, is_acquire: bool) -> None:
