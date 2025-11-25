@@ -1252,7 +1252,7 @@ class BaseThreadingLockCollectorTest:
         """Test that lock release events are NOT sampled if their corresponding acquire was not sampled."""
         # Use capture_pct=0 to ensure acquire is NEVER sampled
         with self.collector_class(capture_pct=0):
-            lock: LockClassInst = self.lock_class()
+            lock: LockTypeInst = self.lock_class()
             # Do multiple acquire/release cycles
             for _ in range(10):
                 lock.acquire()

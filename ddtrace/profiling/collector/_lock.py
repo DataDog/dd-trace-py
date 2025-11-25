@@ -269,7 +269,7 @@ class LockCollector(collector.CaptureSamplerCollector):
     """Record lock usage."""
 
     PROFILED_LOCK_CLASS: Type[Any]
-    MODULE: Any  # e.g., threading module
+    MODULE: ModuleType  # e.g., threading module
     PATCHED_LOCK_NAME: str  # e.g., "Lock", "RLock", "Semaphore"
 
     def __init__(
