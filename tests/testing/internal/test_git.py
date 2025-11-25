@@ -343,10 +343,13 @@ class TestGitUnshallow:
 
     @pytest.mark.parametrize("return_code", [0, 1])
     def test_git_unshallow_repository(self, return_code: int) -> None:
-        with patch(
-            "ddtrace.testing.internal.git.Git._call_git",
-            return_value=_GitSubprocessDetails(stdout="", stderr="", return_code=return_code),
-        ) as call_git_mock, patch("ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"):
+        with (
+            patch(
+                "ddtrace.testing.internal.git.Git._call_git",
+                return_value=_GitSubprocessDetails(stdout="", stderr="", return_code=return_code),
+            ) as call_git_mock,
+            patch("ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"),
+        ):
             result = Git().unshallow_repository("some-sha")
 
         assert result == (return_code == 0)
@@ -365,10 +368,13 @@ class TestGitUnshallow:
 
     @pytest.mark.parametrize("return_code", [0, 1])
     def test_git_unshallow_repository_parent_only(self, return_code: int) -> None:
-        with patch(
-            "ddtrace.testing.internal.git.Git._call_git",
-            return_value=_GitSubprocessDetails(stdout="", stderr="", return_code=return_code),
-        ) as call_git_mock, patch("ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"):
+        with (
+            patch(
+                "ddtrace.testing.internal.git.Git._call_git",
+                return_value=_GitSubprocessDetails(stdout="", stderr="", return_code=return_code),
+            ) as call_git_mock,
+            patch("ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"),
+        ):
             result = Git().unshallow_repository(parent_only=True)
 
         assert result == (return_code == 0)
@@ -386,11 +392,13 @@ class TestGitUnshallow:
 
     @pytest.mark.parametrize("return_code", [0, 1])
     def test_git_unshallow_repository_to_local_head(self, return_code: int) -> None:
-        with patch(
-            "ddtrace.testing.internal.git.Git._call_git",
-            return_value=_GitSubprocessDetails(stdout="", stderr="", return_code=return_code),
-        ) as call_git_mock, patch("ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"), patch(
-            "ddtrace.testing.internal.git.Git.get_commit_sha", return_value="head-sha"
+        with (
+            patch(
+                "ddtrace.testing.internal.git.Git._call_git",
+                return_value=_GitSubprocessDetails(stdout="", stderr="", return_code=return_code),
+            ) as call_git_mock,
+            patch("ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"),
+            patch("ddtrace.testing.internal.git.Git.get_commit_sha", return_value="head-sha"),
         ):
             result = Git().unshallow_repository_to_local_head()
 
@@ -410,11 +418,13 @@ class TestGitUnshallow:
 
     @pytest.mark.parametrize("return_code", [0, 1])
     def test_git_unshallow_repository_to_upstream(self, return_code: int) -> None:
-        with patch(
-            "ddtrace.testing.internal.git.Git._call_git",
-            return_value=_GitSubprocessDetails(stdout="", stderr="", return_code=return_code),
-        ) as call_git_mock, patch("ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"), patch(
-            "ddtrace.testing.internal.git.Git.get_upstream_sha", return_value="upstream-sha"
+        with (
+            patch(
+                "ddtrace.testing.internal.git.Git._call_git",
+                return_value=_GitSubprocessDetails(stdout="", stderr="", return_code=return_code),
+            ) as call_git_mock,
+            patch("ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"),
+            patch("ddtrace.testing.internal.git.Git.get_upstream_sha", return_value="upstream-sha"),
         ):
             result = Git().unshallow_repository_to_upstream()
 
@@ -437,10 +447,11 @@ class TestGitUnshallow:
             _GitSubprocessDetails(stdout="", stderr="", return_code=0),
         ]
 
-        with patch("ddtrace.testing.internal.git.Git._call_git", side_effect=call_git_results) as call_git_mock, patch(
-            "ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"
-        ), patch("ddtrace.testing.internal.git.Git.get_commit_sha", return_value="head-sha"), patch(
-            "ddtrace.testing.internal.git.Git.get_upstream_sha", return_value="upstream-sha"
+        with (
+            patch("ddtrace.testing.internal.git.Git._call_git", side_effect=call_git_results) as call_git_mock,
+            patch("ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"),
+            patch("ddtrace.testing.internal.git.Git.get_commit_sha", return_value="head-sha"),
+            patch("ddtrace.testing.internal.git.Git.get_upstream_sha", return_value="upstream-sha"),
         ):
             result = Git().try_all_unshallow_repository_methods()
 
@@ -466,10 +477,11 @@ class TestGitUnshallow:
             _GitSubprocessDetails(stdout="", stderr="", return_code=0),
         ]
 
-        with patch("ddtrace.testing.internal.git.Git._call_git", side_effect=call_git_results) as call_git_mock, patch(
-            "ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"
-        ), patch("ddtrace.testing.internal.git.Git.get_commit_sha", return_value="head-sha"), patch(
-            "ddtrace.testing.internal.git.Git.get_upstream_sha", return_value="upstream-sha"
+        with (
+            patch("ddtrace.testing.internal.git.Git._call_git", side_effect=call_git_results) as call_git_mock,
+            patch("ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"),
+            patch("ddtrace.testing.internal.git.Git.get_commit_sha", return_value="head-sha"),
+            patch("ddtrace.testing.internal.git.Git.get_upstream_sha", return_value="upstream-sha"),
         ):
             result = Git().try_all_unshallow_repository_methods()
 
@@ -506,10 +518,11 @@ class TestGitUnshallow:
             _GitSubprocessDetails(stdout="", stderr="", return_code=0),
         ]
 
-        with patch("ddtrace.testing.internal.git.Git._call_git", side_effect=call_git_results) as call_git_mock, patch(
-            "ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"
-        ), patch("ddtrace.testing.internal.git.Git.get_commit_sha", return_value="head-sha"), patch(
-            "ddtrace.testing.internal.git.Git.get_upstream_sha", return_value="upstream-sha"
+        with (
+            patch("ddtrace.testing.internal.git.Git._call_git", side_effect=call_git_results) as call_git_mock,
+            patch("ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"),
+            patch("ddtrace.testing.internal.git.Git.get_commit_sha", return_value="head-sha"),
+            patch("ddtrace.testing.internal.git.Git.get_upstream_sha", return_value="upstream-sha"),
         ):
             result = Git().try_all_unshallow_repository_methods()
 
@@ -555,10 +568,11 @@ class TestGitUnshallow:
             _GitSubprocessDetails(stdout="", stderr="", return_code=1),
         ]
 
-        with patch("ddtrace.testing.internal.git.Git._call_git", side_effect=call_git_results) as call_git_mock, patch(
-            "ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"
-        ), patch("ddtrace.testing.internal.git.Git.get_commit_sha", return_value="head-sha"), patch(
-            "ddtrace.testing.internal.git.Git.get_upstream_sha", return_value="upstream-sha"
+        with (
+            patch("ddtrace.testing.internal.git.Git._call_git", side_effect=call_git_results) as call_git_mock,
+            patch("ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"),
+            patch("ddtrace.testing.internal.git.Git.get_commit_sha", return_value="head-sha"),
+            patch("ddtrace.testing.internal.git.Git.get_upstream_sha", return_value="upstream-sha"),
         ):
             result = Git().try_all_unshallow_repository_methods()
 

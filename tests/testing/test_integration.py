@@ -189,13 +189,15 @@ class TestFeaturesWithMocking:
         known_test_ref = TestRef(known_suite, "test_known_test")
 
         # Use unified mock setup with EFD enabled
-        with patch(
-            "ddtrace.testing.internal.session_manager.APIClient",
-            return_value=mock_api_client_settings(
-                efd_enabled=True, known_tests_enabled=True, known_tests={known_test_ref}
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(
+                    efd_enabled=True, known_tests_enabled=True, known_tests={known_test_ref}
+                ),
             ),
-        ), setup_standard_mocks():
-
+            setup_standard_mocks(),
+        ):
             result = pytester.runpytest("--ddtestpy", "-p", "no:ddtrace", "-v", "-s")
 
         # Check that the test failed after EFD retries
@@ -244,11 +246,13 @@ class TestFeaturesWithMocking:
         skippable_test_ref = TestRef(skippable_suite, "test_should_be_skipped")
 
         # Use unified mock setup with ITR enabled
-        with patch(
-            "ddtrace.testing.internal.session_manager.APIClient",
-            return_value=mock_api_client_settings(skipping_enabled=True, skippable_items={skippable_test_ref}),
-        ), setup_standard_mocks():
-
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(skipping_enabled=True, skippable_items={skippable_test_ref}),
+            ),
+            setup_standard_mocks(),
+        ):
             result = pytester.runpytest("--ddtestpy", "-p", "no:ddtrace", "-v", "-s")
 
         # Check that tests completed successfully
@@ -291,10 +295,10 @@ class TestPytestPluginIntegration:
         )
 
         # Set up mocks and environment
-        with patch(
-            "ddtrace.testing.internal.session_manager.APIClient", return_value=mock_api_client_settings()
-        ), setup_standard_mocks():
-
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_api_client_settings()),
+            setup_standard_mocks(),
+        ):
             result = pytester.runpytest("--ddtestpy", "-p", "no:ddtrace", "-v")
 
         # Check that tests ran successfully
@@ -318,10 +322,10 @@ class TestPytestPluginIntegration:
         )
 
         # Set up mocks and environment
-        with patch(
-            "ddtrace.testing.internal.session_manager.APIClient", return_value=mock_api_client_settings()
-        ), setup_standard_mocks():
-
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_api_client_settings()),
+            setup_standard_mocks(),
+        ):
             result = pytester.runpytest("--ddtestpy", "-p", "no:ddtrace", "-v")
 
         # Check that one test failed and one passed
@@ -341,10 +345,10 @@ class TestPytestPluginIntegration:
         )
 
         # Set up mocks and environment
-        with patch(
-            "ddtrace.testing.internal.session_manager.APIClient", return_value=mock_api_client_settings()
-        ), setup_standard_mocks():
-
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_api_client_settings()),
+            setup_standard_mocks(),
+        ):
             result = pytester.runpytest("--ddtestpy", "-p", "no:ddtrace", "--tb=short", "-v")
 
         # Should run without plugin loading errors
@@ -368,10 +372,10 @@ class TestPytestPluginIntegration:
         )
 
         # Set up mocks and environment
-        with patch(
-            "ddtrace.testing.internal.session_manager.APIClient", return_value=mock_api_client_settings()
-        ), setup_standard_mocks():
-
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_api_client_settings()),
+            setup_standard_mocks(),
+        ):
             # Run with specific arguments that should be captured
             result = pytester.runpytest("--ddtestpy", "-p", "no:ddtrace", "--tb=short", "-x", "-v")
 
@@ -398,9 +402,10 @@ class TestPytestPluginIntegration:
         )
 
         # Set up mocks and environment (including retry env vars)
-        with patch(
-            "ddtrace.testing.internal.session_manager.APIClient", return_value=mock_api_client_settings()
-        ), setup_standard_mocks():
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_api_client_settings()),
+            setup_standard_mocks(),
+        ):
             # Set all environment variables via monkeypatch
 
             monkeypatch.setenv("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", "true")
@@ -421,18 +426,22 @@ class TestRetryHandler:
     def test_retry_handler_configuration(self) -> None:
         """Test that AutoTestRetriesHandler is configured correctly with mocked settings."""
         # Use unified mock setup with auto retries enabled
-        with patch(
-            "ddtrace.testing.internal.session_manager.APIClient",
-            return_value=mock_api_client_settings(auto_retries_enabled=True),
-        ), setup_standard_mocks(), patch.dict(
-            os.environ,  # Mock environment variables
-            {
-                "DD_API_KEY": "test-key",
-                "DD_CIVISIBILITY_AGENTLESS_ENABLED": "true",
-                "DD_CIVISIBILITY_FLAKY_RETRY_ENABLED": "true",
-                "DD_CIVISIBILITY_FLAKY_RETRY_COUNT": "3",
-                "DD_CIVISIBILITY_TOTAL_FLAKY_RETRY_COUNT": "10",
-            },
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(auto_retries_enabled=True),
+            ),
+            setup_standard_mocks(),
+            patch.dict(
+                os.environ,  # Mock environment variables
+                {
+                    "DD_API_KEY": "test-key",
+                    "DD_CIVISIBILITY_AGENTLESS_ENABLED": "true",
+                    "DD_CIVISIBILITY_FLAKY_RETRY_ENABLED": "true",
+                    "DD_CIVISIBILITY_FLAKY_RETRY_COUNT": "3",
+                    "DD_CIVISIBILITY_TOTAL_FLAKY_RETRY_COUNT": "10",
+                },
+            ),
         ):
             # Create a test session with proper attributes
             test_session = TestSession(name="test")

@@ -57,10 +57,10 @@ class TestSkippingAndITRFeatures:
         mock_item = pytest_item_mock("test_module/test_suite.py::test_function").build()
 
         # Mock the trace_context and coverage_collection context managers
-        with patch("ddtrace.testing.internal.pytest.plugin.trace_context"), patch(
-            "ddtrace.testing.internal.pytest.plugin.coverage_collection"
+        with (
+            patch("ddtrace.testing.internal.pytest.plugin.trace_context"),
+            patch("ddtrace.testing.internal.pytest.plugin.coverage_collection"),
         ):
-
             # Call the method that applies skipping logic
             list(plugin.pytest_runtest_protocol_wrapper(mock_item, None))
 
@@ -91,10 +91,10 @@ class TestSkippingAndITRFeatures:
         mock_item = pytest_item_mock("test_module/test_suite.py::test_function").build()
 
         # Mock the trace_context and coverage_collection context managers
-        with patch("ddtrace.testing.internal.pytest.plugin.trace_context"), patch(
-            "ddtrace.testing.internal.pytest.plugin.coverage_collection"
+        with (
+            patch("ddtrace.testing.internal.pytest.plugin.trace_context"),
+            patch("ddtrace.testing.internal.pytest.plugin.coverage_collection"),
         ):
-
             # Call the method that applies skipping logic
             list(plugin.pytest_runtest_protocol_wrapper(mock_item, None))
 
@@ -135,10 +135,10 @@ class TestSkippingAndITRFeatures:
         mock_item = pytest_item_mock("test_module/test_suite.py::test_function").build()
 
         # Mock the trace_context and coverage_collection context managers
-        with patch("ddtrace.testing.internal.pytest.plugin.trace_context"), patch(
-            "ddtrace.testing.internal.pytest.plugin.coverage_collection"
+        with (
+            patch("ddtrace.testing.internal.pytest.plugin.trace_context"),
+            patch("ddtrace.testing.internal.pytest.plugin.coverage_collection"),
         ):
-
             # Call the method that applies skipping logic
             list(plugin.pytest_runtest_protocol_wrapper(mock_item, None))
 
@@ -169,10 +169,10 @@ class TestSkippingAndITRFeatures:
         mock_item = pytest_item_mock("test_module/test_suite.py::test_function").build()
 
         # Mock the trace_context and coverage_collection context managers
-        with patch("ddtrace.testing.internal.pytest.plugin.trace_context"), patch(
-            "ddtrace.testing.internal.pytest.plugin.coverage_collection"
+        with (
+            patch("ddtrace.testing.internal.pytest.plugin.trace_context"),
+            patch("ddtrace.testing.internal.pytest.plugin.coverage_collection"),
         ):
-
             # Call the method that applies skipping logic
             list(plugin.pytest_runtest_protocol_wrapper(mock_item, None))
 

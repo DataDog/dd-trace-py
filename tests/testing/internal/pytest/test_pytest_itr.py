@@ -38,10 +38,13 @@ class TestITR:
             TestRef(SuiteRef(ModuleRef("."), "test_foo.py"), "test_should_be_skipped"),
         }
 
-        with patch(
-            "ddtrace.testing.internal.session_manager.APIClient",
-            return_value=mock_api_client_settings(skipping_enabled=True, skippable_items=skippable_items),
-        ), setup_standard_mocks():
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(skipping_enabled=True, skippable_items=skippable_items),
+            ),
+            setup_standard_mocks(),
+        ):
             with EventCapture.capture() as event_capture:
                 result = pytester.inline_run("--ddtestpy", "-p", "no:ddtrace", "-v", "-s")
 
@@ -92,10 +95,13 @@ class TestITR:
             TestRef(SuiteRef(ModuleRef("."), "test_foo.py"), "test_should_be_skipped"),
         }
 
-        with patch(
-            "ddtrace.testing.internal.session_manager.APIClient",
-            return_value=mock_api_client_settings(skipping_enabled=False, skippable_items=skippable_items),
-        ), setup_standard_mocks():
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(skipping_enabled=False, skippable_items=skippable_items),
+            ),
+            setup_standard_mocks(),
+        ):
             with EventCapture.capture() as event_capture:
                 result = pytester.inline_run("--ddtestpy", "-p", "no:ddtrace", "-v", "-s")
 
@@ -154,10 +160,13 @@ class TestITR:
             TestRef(SuiteRef(ModuleRef("."), "test_foo.py"), "test_unskippable"),
         }
 
-        with patch(
-            "ddtrace.testing.internal.session_manager.APIClient",
-            return_value=mock_api_client_settings(skipping_enabled=True, skippable_items=skippable_items),
-        ), setup_standard_mocks():
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(skipping_enabled=True, skippable_items=skippable_items),
+            ),
+            setup_standard_mocks(),
+        ):
             with EventCapture.capture() as event_capture:
                 result = pytester.inline_run("--ddtestpy", "-p", "no:ddtrace", "-v", "-s")
 
@@ -208,10 +217,13 @@ class TestITR:
                 assert ANSWER == 42
             """,
         )
-        with patch(
-            "ddtrace.testing.internal.session_manager.APIClient",
-            return_value=mock_api_client_settings(coverage_enabled=True),
-        ), setup_standard_mocks():
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(coverage_enabled=True),
+            ),
+            setup_standard_mocks(),
+        ):
             with patch.object(TestCoverageWriter, "put_event") as put_event_mock:
                 pytester.inline_run("--ddtestpy", "-p", "no:ddtrace", "-v", "-s")
 
@@ -233,10 +245,13 @@ class TestITR:
                 assert ANSWER == 42
             """,
         )
-        with patch(
-            "ddtrace.testing.internal.session_manager.APIClient",
-            return_value=mock_api_client_settings(coverage_enabled=False),
-        ), setup_standard_mocks():
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(coverage_enabled=False),
+            ),
+            setup_standard_mocks(),
+        ):
             with patch.object(TestCoverageWriter, "put_event") as put_event_mock:
                 pytester.inline_run("--ddtestpy", "-p", "no:ddtrace", "-v", "-s")
 

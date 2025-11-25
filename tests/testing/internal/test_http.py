@@ -219,7 +219,9 @@ class TestBackendConnectorSetup:
     def test_detect_evp_proxy_mode_no_agent(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(os, "environ", {})
 
-        with patch("ddtrace.testing.internal.http.BackendConnector.get_json", side_effect=ConnectionRefusedError("no bueno")):
+        with patch(
+            "ddtrace.testing.internal.http.BackendConnector.get_json", side_effect=ConnectionRefusedError("no bueno")
+        ):
             with pytest.raises(SetupError, match="Error connecting to Datadog agent.*no bueno"):
                 BackendConnectorSetup.detect_setup()
 

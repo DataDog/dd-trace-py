@@ -9,14 +9,12 @@ from pathlib import Path
 import typing as t
 
 from ddtrace.internal.coverage.code import ModuleCodeCollector
-from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 import ddtrace.internal.coverage.installer
+from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
 
 def install_coverage(workspace_path: Path) -> None:
-    ddtrace.internal.coverage.installer.install(
-        include_paths=[workspace_path], collect_import_time_coverage=True
-    )
+    ddtrace.internal.coverage.installer.install(include_paths=[workspace_path], collect_import_time_coverage=True)
     ModuleCodeCollector.start_coverage()  # type: ignore[no-untyped-call]
 
 

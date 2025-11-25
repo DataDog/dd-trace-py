@@ -7,8 +7,8 @@ from unittest.mock import Mock
 from unittest.mock import patch
 
 from ddtrace.testing.internal.logging import catch_and_log_exceptions
-from ddtrace.testing.internal.logging import testing_logger
 from ddtrace.testing.internal.logging import setup_logging
+from ddtrace.testing.internal.logging import testing_logger
 
 
 class TestSetupLogging:

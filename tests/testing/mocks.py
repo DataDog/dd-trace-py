@@ -188,12 +188,12 @@ class SessionManagerMockBuilder:
             mock_client.get_skippable_tests.return_value = (self._skippable_items, None)
             mock_api_client.return_value = mock_client
 
-            with patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value=self._env_tags), patch(
-                "ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}
-            ), patch("ddtrace.testing.internal.session_manager.Git", return_value=get_mock_git_instance()), patch.dict(
-                os.environ, test_env
+            with (
+                patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value=self._env_tags),
+                patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
+                patch("ddtrace.testing.internal.session_manager.Git", return_value=get_mock_git_instance()),
+                patch.dict(os.environ, test_env),
             ):
-
                 # Create session manager
                 test_session = MockDefaults.test_session()
                 session_manager = SessionManager(session=test_session)
@@ -561,12 +561,15 @@ class BackendConnectorMockSetup:
 @contextlib.contextmanager
 def setup_standard_mocks() -> t.Generator[None, None, None]:
     """Mock calls used by the session manager to get git and platform tags."""
-    with patch.multiple(
-        "ddtrace.testing.internal.session_manager",
-        get_env_tags=Mock(return_value={}),
-        get_platform_tags=Mock(return_value={}),
-        Git=Mock(return_value=get_mock_git_instance()),
-    ), patch.object(BackendConnectorSetup, "detect_setup", return_value=BackendConnectorMockSetup()):
+    with (
+        patch.multiple(
+            "ddtrace.testing.internal.session_manager",
+            get_env_tags=Mock(return_value={}),
+            get_platform_tags=Mock(return_value={}),
+            Git=Mock(return_value=get_mock_git_instance()),
+        ),
+        patch.object(BackendConnectorSetup, "detect_setup", return_value=BackendConnectorMockSetup()),
+    ):
         yield
 
 
