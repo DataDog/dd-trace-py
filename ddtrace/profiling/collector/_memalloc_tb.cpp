@@ -7,14 +7,17 @@
 #include "_pymacro.h"
 
 // Include internal headers to access _PyInterpreterFrame
-// Python 3.11: Use Py_BUILD_CORE
-// Python 3.12+: Try Py_BUILD_CORE_MODULE (less restrictive, may work)
-#if defined(_PY311_AND_LATER) && !defined(_PY312_AND_LATER)
-#define Py_BUILD_CORE
-#include <internal/pycore_frame.h>
-#elif defined(_PY312_AND_LATER)
-// Test if Py_BUILD_CORE_MODULE gives access to internal frame structures
+// Python 3.11-3.12: Use internal frame structures to avoid allocations
+// Python 3.13+: Internal structures changed significantly, use standard API
+#if defined(_PY311_AND_LATER) && !defined(_PY313_AND_LATER)
+#if defined(_PY312_AND_LATER)
+// Python 3.12: Try Py_BUILD_CORE_MODULE (less restrictive)
 #define Py_BUILD_CORE_MODULE
+#define Py_BUILD_CORE
+#else
+// Python 3.11: Use Py_BUILD_CORE
+#define Py_BUILD_CORE
+#endif
 #include <internal/pycore_frame.h>
 #endif
 
@@ -318,9 +321,10 @@ extract_frame_info_from_pyframe(PyFrameObject* frame, PyCodeObject** code_out, i
     *lineno_out = lineno_val;
 }
 
-#if defined(_PY311_AND_LATER)
+#if defined(_PY311_AND_LATER) && !defined(_PY313_AND_LATER)
 /* Helper function to extract code object and line number from a _PyInterpreterFrame
- * Uses Py_BUILD_CORE (3.11) or Py_BUILD_CORE_MODULE (3.12+) to access internal headers */
+ * Python 3.11-3.12: Uses internal headers to access frame structures directly
+ * This avoids allocations by not creating PyFrameObject wrappers */
 static void
 extract_frame_info_from_interpreter_frame(_PyInterpreterFrame* frame, PyCodeObject** code_out, int* lineno_out)
 {
@@ -398,9 +402,9 @@ push_frame_to_sample(Datadog::Sample& sample, PyCodeObject* code, int lineno_val
     Py_XDECREF(filename_bytes);
 }
 
-#if defined(_PY311_AND_LATER)
+#if defined(_PY311_AND_LATER) && !defined(_PY313_AND_LATER)
 /* Helper function to collect frames from _PyInterpreterFrame chain and push to sample
- * Uses Py_BUILD_CORE (3.11) or Py_BUILD_CORE_MODULE (3.12+) to access internal headers
+ * Python 3.11-3.12: Uses internal headers to access frame structures directly
  * This avoids creating PyFrameObject wrappers, reducing allocations during profiling */
 static void
 push_stacktrace_to_sample(Datadog::Sample& sample)
