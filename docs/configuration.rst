@@ -744,6 +744,17 @@ Test Visibility
      version_added:
         v3.12.0:
 
+   DD_PYTEST_USE_NEW_PLUGIN:
+     type: Boolean
+     default: False
+
+     description: |
+        Configures the ``CIVisibility`` service to use a new experimental version of the pytest plugin, with architectural
+        improvements.
+
+     version_added:
+        v4.1.0:
+
    DD_CIVISIBILITY_ENABLED:
      type: Boolean
      default: True
