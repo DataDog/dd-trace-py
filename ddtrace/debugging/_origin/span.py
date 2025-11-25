@@ -6,6 +6,7 @@ from threading import current_thread
 from time import monotonic_ns
 from types import FrameType
 from types import FunctionType
+from types import MethodType
 import typing as t
 import uuid
 
@@ -210,8 +211,11 @@ class SpanCodeOriginProcessorEntry:
     _lock = Lock()
 
     @classmethod
-    def instrument_view(cls, f):
+    def instrument_view(cls, f: t.Union[FunctionType, MethodType]) -> None:
+        if isinstance(f, MethodType):
+            f = t.cast(FunctionType, f.__func__)
         if not _isinstance(f, FunctionType):
+            log.warning("Cannot instrument view %r: not a function", f)
             return
 
         with cls._lock:
