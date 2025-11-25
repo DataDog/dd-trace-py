@@ -4,7 +4,7 @@ from pathlib import Path
 import random
 import re
 import shutil
-import subprocess
+import subprocess  # nosec: B404
 import tempfile
 import typing as t
 
@@ -103,7 +103,7 @@ class Git:
         git_cmd = [self.git_command, *args]
         log.debug("Running git command: %r", git_cmd)
 
-        process = subprocess.Popen(
+        process = subprocess.Popen(  # nosec: B603
             git_cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -248,7 +248,7 @@ class Git:
         return False
 
     def pack_objects(self, revisions: t.List[str]) -> t.Iterable[Path]:
-        base_name = str(random.randint(1, 1000000))
+        base_name = str(random.randint(1, 1000000))  # nosec: B311
         revisions_text = "\n".join(revisions)
 
         cwd = Path(self.cwd) if self.cwd is not None else Path.cwd()

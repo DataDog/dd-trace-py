@@ -13,7 +13,7 @@ DDTESTOPT_ROOT_SPAN_RESOURCE = "testing_root_span"
 
 
 def _gen_item_id() -> int:
-    return random.randint(1, (1 << 64) - 1)
+    return random.randint(1, (1 << 64) - 1)  # nosec: B311
 
 
 def asbool(value: t.Union[str, bool, None]) -> bool:

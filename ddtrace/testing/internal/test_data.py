@@ -34,7 +34,7 @@ class TestRef:
 
 
 class TestStatus(Enum):
-    PASS = "pass"
+    PASS = "pass"  # nosec: B105
     FAIL = "fail"
     SKIP = "skip"
     __test__ = False
