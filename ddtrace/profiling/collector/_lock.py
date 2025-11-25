@@ -107,7 +107,7 @@ class _ProfiledLock:
     def _acquire(self, inner_func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         if not self.capture_sampler.capture():
             if config.enable_asserts:
-                # Ensure acquired_time is not set to a valid timestamp when acquire is not sampled
+                # Ensure acquired_time is not set when acquire is not sampled
                 # (else a bogus release sample is produced)
                 assert self.acquired_time is None, (
                     f"Expected acquired_time to be None when acquire is not sampled, got {self.acquired_time!r}"
