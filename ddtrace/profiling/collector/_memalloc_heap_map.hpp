@@ -7,22 +7,22 @@
 #include "_memalloc_tb.h"
 #include <Python.h>
 
-/* cwisstable.h provides a C implementation of SwissTables hash maps, originally
- * implemented in the Abseil C++ library.
+/* Use Abseil's flat_hash_map for tracking sampled allocations.
+ * flat_hash_map provides excellent performance with low memory overhead,
+ * using the Swiss Tables algorithm from Abseil.
  *
- * This header is was generated from https://github.com/google/cwisstable
- * at commit 6de0e5f2e55f90017534a3366198ce7d3e3b7fef
- * and lightly modified for our use.
- * See "BEGIN MODIFICATION" and "END MODIFICATION" in the header.
- *
- * The following macro will expand to a type-safe implementation with void* keys
- * and traceback_t* values for use by the heap profiler. We encapsulate this
- * implementation in a wrapper specialized for use by the heap profiler, both to
- * keep compilation fast (the cwisstables header is big) and to allow us to swap
- * out the implementation if we want.
+ * We use a conditional compilation to fall back to std::unordered_map
+ * when Abseil is not available (e.g., in Debug builds).
  */
-#include "vendor/cwisstable.h"
-CWISS_DECLARE_FLAT_HASHMAP(HeapSamples, void*, traceback_t*);
+#if defined(NDEBUG) && !defined(DONT_COMPILE_ABSEIL)
+#include "absl/container/flat_hash_map.h"
+template<typename K, typename V>
+using HeapMapType = absl::flat_hash_map<K, V>;
+#else
+#include <unordered_map>
+template<typename K, typename V>
+using HeapMapType = std::unordered_map<K, V>;
+#endif
 
 /* memalloc_heap_map tracks sampled allocations by their address.
  * C++ interface - implementation is in _memalloc_heap_map.cpp
@@ -66,7 +66,8 @@ class memalloc_heap_map
         using reference = value_type&;
 
         iterator();
-        iterator(const memalloc_heap_map& map);
+        iterator(HeapMapType<void*, traceback_t*>::const_iterator it,
+                 HeapMapType<void*, traceback_t*>::const_iterator end);
         ~iterator() = default;
 
         // Iterator operations
@@ -77,7 +78,8 @@ class memalloc_heap_map
         bool operator!=(const iterator& other) const;
 
       private:
-        HeapSamples_CIter iter;
+        HeapMapType<void*, traceback_t*>::const_iterator current;
+        HeapMapType<void*, traceback_t*>::const_iterator end_iter;
         friend class memalloc_heap_map;
     };
 
@@ -85,5 +87,5 @@ class memalloc_heap_map
     iterator end() const;
 
   private:
-    HeapSamples map;
+    HeapMapType<void*, traceback_t*> map;
 };
