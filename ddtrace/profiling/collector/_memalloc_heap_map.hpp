@@ -30,62 +30,42 @@ using HeapMapType = std::unordered_map<K, V>;
 class memalloc_heap_map
 {
   public:
-    memalloc_heap_map();
+    using map_type = HeapMapType<void*, traceback_t*>;
+    using iterator = map_type::const_iterator;
+    using const_iterator = map_type::const_iterator;
+
+    memalloc_heap_map() = default;
     ~memalloc_heap_map();
 
     // Delete copy constructor and assignment operator
     memalloc_heap_map(const memalloc_heap_map&) = delete;
     memalloc_heap_map& operator=(const memalloc_heap_map&) = delete;
 
-    size_t size() const;
+    /* Size of the map */
+    size_t size() const { return map.size(); }
+
+    /* Check if key exists in the map */
+    bool contains(void* key) const { return map.find(key) != map.end(); }
 
     /* Insert a traceback for a sampled allocation with the given address.
      * If there is already an entry for the given key, the old value will be
      * replaced with the given value, and the old value will be returned */
     traceback_t* insert(void* key, traceback_t* value);
 
-    bool contains(void* key) const;
-
-    /* Retrieve the sampled allocation with the given address from m.
+    /* Retrieve the sampled allocation with the given address from the map.
      * Returns nullptr if the allocation wasn't found */
     traceback_t* remove(void* key);
 
+    /* Export the map contents to a Python list */
     PyObject* export_to_python() const;
 
     /* Copy the contents of src into this map, removing the items from src */
     void destructive_copy_from(memalloc_heap_map& src);
 
-    class iterator
-    {
-      public:
-        // Iterator traits
-        using iterator_category = std::forward_iterator_tag;
-        using value_type = std::pair<void*, traceback_t*>;
-        using difference_type = std::ptrdiff_t;
-        using pointer = value_type*;
-        using reference = value_type&;
-
-        iterator();
-        iterator(HeapMapType<void*, traceback_t*>::const_iterator it,
-                 HeapMapType<void*, traceback_t*>::const_iterator end);
-        ~iterator() = default;
-
-        // Iterator operations
-        iterator& operator++();
-        iterator operator++(int);
-        value_type operator*() const;
-        bool operator==(const iterator& other) const;
-        bool operator!=(const iterator& other) const;
-
-      private:
-        HeapMapType<void*, traceback_t*>::const_iterator current;
-        HeapMapType<void*, traceback_t*>::const_iterator end_iter;
-        friend class memalloc_heap_map;
-    };
-
-    iterator begin() const;
-    iterator end() const;
+    /* Iterators for range-based for loops */
+    const_iterator begin() const { return map.begin(); }
+    const_iterator end() const { return map.end(); }
 
   private:
-    HeapMapType<void*, traceback_t*> map;
+    map_type map;
 };

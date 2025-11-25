@@ -2,11 +2,22 @@ cmake_minimum_required(VERSION 3.19)
 
 # Download and configure Google Test
 include(FetchContent)
+
+# Prevent Google Test from installing (it tries to install to /usr/local which fails in CI)
+set(INSTALL_GTEST
+    OFF
+    CACHE BOOL "" FORCE)
+set(INSTALL_GMOCK
+    OFF
+    CACHE BOOL "" FORCE)
+
 FetchContent_Declare(googletest URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip)
+
 # For Windows: Prevent overriding the parent project's compiler/linker settings
 set(gtest_force_shared_crt
     ON
     CACHE BOOL "" FORCE)
+
 FetchContent_MakeAvailable(googletest)
 
 # Find Python

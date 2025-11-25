@@ -48,8 +48,8 @@ if(NOT Python3_INCLUDE_DIRS)
     endif()
 endif()
 
-# Python3::Python target might not exist in all build environments
-# so we'll link using include dirs and let the linker find Python dynamically
+# Python3::Python target might not exist in all build environments so we'll link using include dirs and let the linker
+# find Python dynamically
 if(NOT TARGET Python3::Python)
     message(STATUS "Python3::Python target not found, using include dirs only")
 endif()
@@ -81,9 +81,8 @@ target_include_directories(
     ${FULL_EXTENSION_NAME} PRIVATE ${Python3_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR}
                                    ${CMAKE_CURRENT_SOURCE_DIR}/../../internal/datadog/profiling/dd_wrapper/include)
 
-# Link libraries
-# Python3::Python target might not exist in all build environments (e.g., manylinux)
-# Python modules should use -undefined dynamic_lookup on macOS and not link to libpython on Linux
+# Link libraries Python3::Python target might not exist in all build environments (e.g., manylinux) Python modules
+# should use -undefined dynamic_lookup on macOS and not link to libpython on Linux
 if(TARGET Python3::Python AND NOT APPLE)
     target_link_libraries(${FULL_EXTENSION_NAME} PRIVATE Python3::Python)
 endif()
@@ -97,10 +96,12 @@ endif()
 
 # Platform-specific settings
 if(APPLE)
-    # macOS specific - set rpath for libdd_wrapper
+    # macOS specific - set rpath for libdd_wrapper and use dynamic lookup for Python symbols
     set_target_properties(
-        ${FULL_EXTENSION_NAME} PROPERTIES BUILD_WITH_INSTALL_RPATH TRUE INSTALL_RPATH
-                                                                        "@loader_path/../../internal/datadog/profiling")
+        ${FULL_EXTENSION_NAME}
+        PROPERTIES BUILD_WITH_INSTALL_RPATH TRUE
+                   INSTALL_RPATH "@loader_path/../../internal/datadog/profiling"
+                   LINK_FLAGS "-undefined dynamic_lookup")
 elseif(UNIX)
     # Linux specific
     target_link_libraries(${FULL_EXTENSION_NAME} PRIVATE atomic)

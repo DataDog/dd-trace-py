@@ -12,46 +12,31 @@
  */
 
 // memalloc_heap_map implementation
-memalloc_heap_map::memalloc_heap_map() = default;
-
 memalloc_heap_map::~memalloc_heap_map()
 {
     // Delete all traceback objects before map is destroyed
-    for (auto& pair : map) {
-        delete pair.second;
+    for (auto& [key, tb] : map) {
+        delete tb;
     }
-}
-
-size_t
-memalloc_heap_map::size() const
-{
-    return map.size();
 }
 
 traceback_t*
 memalloc_heap_map::insert(void* key, traceback_t* value)
 {
-    traceback_t* prev = nullptr;
-
     // Try to insert the new value
-    auto result = map.insert({ key, value });
+    auto [it, inserted] = map.insert({ key, value });
 
-    if (!result.second) {
+    if (!inserted) {
         // Key already existed, replace the value
         /* This should not happen. It means we did not properly remove a previously-tracked
          * allocation from the map. This should probably be an assertion. Return the previous
          * entry as it is for an allocation that has been freed. */
-        prev = result.first->second;
-        result.first->second = value;
+        traceback_t* prev = it->second;
+        it->second = value;
+        return prev;
     }
 
-    return prev;
-}
-
-bool
-memalloc_heap_map::contains(void* key) const
-{
-    return map.find(key) != map.end();
+    return nullptr;
 }
 
 traceback_t*
@@ -75,15 +60,12 @@ memalloc_heap_map::export_to_python() const
         return nullptr;
     }
 
-    int i = 0;
-    for (const auto& pair : map) {
-        traceback_t* tb = pair.second;
-
+    size_t i = 0;
+    for (const auto& [key, tb] : map) {
         PyObject* tb_and_size = PyTuple_New(2);
         PyTuple_SET_ITEM(tb_and_size, 0, tb->to_tuple());
         PyTuple_SET_ITEM(tb_and_size, 1, PyLong_FromSize_t(tb->size));
-        PyList_SET_ITEM(heap_list, i, tb_and_size);
-        i++;
+        PyList_SET_ITEM(heap_list, i++, tb_and_size);
 
         memalloc_debug_gil_release();
     }
@@ -93,76 +75,10 @@ memalloc_heap_map::export_to_python() const
 void
 memalloc_heap_map::destructive_copy_from(memalloc_heap_map& src)
 {
-    // Move all entries from src to this map
-    for (auto& pair : src.map) {
-        map.insert(pair);
-    }
+    // Move all entries from src to this map using merge (C++17)
+    // This efficiently transfers ownership without copying
+    map.merge(src.map);
 
-    // Clear the source map without deleting the tracebacks
-    // (they now belong to this map)
+    // Clear any remaining entries in src (shouldn't be any after merge)
     src.map.clear();
-}
-
-// Iterator implementation
-memalloc_heap_map::iterator::iterator()
-  : current()
-  , end_iter()
-{
-}
-
-memalloc_heap_map::iterator::iterator(HeapMapType<void*, traceback_t*>::const_iterator it,
-                                      HeapMapType<void*, traceback_t*>::const_iterator end)
-  : current(it)
-  , end_iter(end)
-{
-}
-
-memalloc_heap_map::iterator&
-memalloc_heap_map::iterator::operator++()
-{
-    if (current != end_iter) {
-        ++current;
-    }
-    return *this;
-}
-
-memalloc_heap_map::iterator
-memalloc_heap_map::iterator::operator++(int)
-{
-    iterator tmp = *this;
-    ++(*this);
-    return tmp;
-}
-
-memalloc_heap_map::iterator::value_type
-memalloc_heap_map::iterator::operator*() const
-{
-    if (current == end_iter) {
-        return { nullptr, nullptr };
-    }
-    return { current->first, current->second };
-}
-
-bool
-memalloc_heap_map::iterator::operator==(const iterator& other) const
-{
-    return current == other.current;
-}
-
-bool
-memalloc_heap_map::iterator::operator!=(const iterator& other) const
-{
-    return current != other.current;
-}
-
-memalloc_heap_map::iterator
-memalloc_heap_map::begin() const
-{
-    return iterator(map.begin(), map.end());
-}
-
-memalloc_heap_map::iterator
-memalloc_heap_map::end() const
-{
-    return iterator(map.end(), map.end());
 }
