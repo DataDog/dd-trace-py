@@ -482,11 +482,7 @@ push_stacktrace_to_sample(Datadog::Sample& sample)
 #endif
 
 traceback_t::traceback_t(void* ptr, size_t size, PyMemAllocatorDomain domain, size_t weighted_size, uint16_t max_nframe)
-  : ptr(ptr)
-  , size(weighted_size)
-  , domain(domain)
-  , reported(false)
-  , count(0)
+  : reported(false)
   , sample(static_cast<Datadog::SampleType>(Datadog::SampleType::Allocation | Datadog::SampleType::Heap), max_nframe)
 {
     // Save any existing error state to avoid masking errors during traceback construction
@@ -498,7 +494,7 @@ traceback_t::traceback_t(void* ptr, size_t size, PyMemAllocatorDomain domain, si
     // bytes. Defensively make sure size isn't 0.
     size_t adjusted_size = size > 0 ? size : 1;
     double scaled_count = ((double)weighted_size) / ((double)adjusted_size);
-    count = (size_t)scaled_count;
+    size_t count = (size_t)scaled_count;
 
     // Validate Sample object is in a valid state before use
     if (max_nframe == 0) {

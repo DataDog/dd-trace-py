@@ -93,7 +93,7 @@ class heap_tracker_t
      * must be called with the GIL held and without making any C Python API calls.
      * If an allocation at the same address is already tracked, the old traceback
      * is deleted internally. */
-    void add_sample_no_cpython(traceback_t* tb);
+    void add_sample_no_cpython(void* ptr, traceback_t* tb);
 
     void export_heap_no_cpython();
 
@@ -184,10 +184,10 @@ heap_tracker_t::should_sample_no_cpython(size_t size, uint64_t* allocated_memory
 }
 
 void
-heap_tracker_t::add_sample_no_cpython(traceback_t* tb)
+heap_tracker_t::add_sample_no_cpython(void* ptr, traceback_t* tb)
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
-    allocs_m.insert(tb->ptr, tb);
+    allocs_m.insert(ptr, tb);
 
     /* Reset the counter to 0 */
     allocated_memory = 0;
@@ -303,7 +303,7 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
 
     // Check that instance is still valid after GIL release in constructor
     if (heap_tracker_t::instance) {
-        heap_tracker_t::instance->add_sample_no_cpython(tb);
+        heap_tracker_t::instance->add_sample_no_cpython(ptr, tb);
     } else {
         delete tb;
     }
