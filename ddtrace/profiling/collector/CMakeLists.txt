@@ -35,11 +35,24 @@ else()
     FetchContent_MakeAvailable(absl)
 endif()
 
-# Find Python
-find_package(
-    Python3
-    COMPONENTS Interpreter Development
-    REQUIRED)
+# Find Python (be flexible about what's available in build environments)
+find_package(Python3 COMPONENTS Interpreter Development)
+
+# Make sure we have necessary Python variables
+if(NOT Python3_INCLUDE_DIRS)
+    # Fallback to PYTHON_INCLUDE_DIRS if Python3_INCLUDE_DIRS not found
+    if(PYTHON_INCLUDE_DIRS)
+        set(Python3_INCLUDE_DIRS ${PYTHON_INCLUDE_DIRS})
+    else()
+        message(FATAL_ERROR "Python3_INCLUDE_DIRS not found")
+    endif()
+endif()
+
+# Python3::Python target might not exist in all build environments
+# so we'll link using include dirs and let the linker find Python dynamically
+if(NOT TARGET Python3::Python)
+    message(STATUS "Python3::Python target not found, using include dirs only")
+endif()
 
 # Source files for the extension
 set(SOURCE_FILES _memalloc.cpp _memalloc_tb.cpp _memalloc_heap.cpp _memalloc_reentrant.cpp _memalloc_heap_map.cpp)
@@ -69,7 +82,11 @@ target_include_directories(
                                    ${CMAKE_CURRENT_SOURCE_DIR}/../../internal/datadog/profiling/dd_wrapper/include)
 
 # Link libraries
-target_link_libraries(${FULL_EXTENSION_NAME} PRIVATE Python3::Python)
+# Python3::Python target might not exist in all build environments (e.g., manylinux)
+# Python modules should use -undefined dynamic_lookup on macOS and not link to libpython on Linux
+if(TARGET Python3::Python AND NOT APPLE)
+    target_link_libraries(${FULL_EXTENSION_NAME} PRIVATE Python3::Python)
+endif()
 
 # Link Abseil if available
 if(NOT (CMAKE_BUILD_TYPE STREQUAL "Debug"
