@@ -9,7 +9,7 @@ stages:
   - "cp313-cp313"
   - "cp314-cp314"
 
-"build linux":
+"build manylinux":
   image: registry.ddbuild.io/images/mirror/pypa/manylinux2014_${IMAGE_ARCH}:2025-04-12-5990e2d"
   tags: [ "arch:$ARCH_TAG" ]
   stage: package
@@ -25,6 +25,8 @@ stages:
     CMAKE_BUILD_PARALLEL_LEVEL: "24"
     CARGO_BUILD_JOBS: "24"
     CMAKE_ARGS: "-DNATIVE_TESTING=OFF"
+    # DEV: Hack to make ASM CMake able to find the Python3 library
+    CIBW_BUILD: "1"
   script:
     - .gitlab/build-wheels-manylinux.sh
 
