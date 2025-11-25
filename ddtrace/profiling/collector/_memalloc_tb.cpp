@@ -25,12 +25,6 @@
 #include "_memalloc_reentrant.h"
 #include "_memalloc_tb.h"
 
-/* A string containing "<unknown>" just in case we can't store the real function
- * or file name. */
-static PyObject* unknown_name = NULL;
-/* A string containing "" */
-static PyObject* empty_string = NULL;
-
 static PyObject* ddframe_class = NULL;
 
 // Cached reference to threading module and current_thread function
@@ -40,20 +34,6 @@ static PyObject* threading_current_thread = NULL;
 bool
 traceback_t::init()
 {
-    if (unknown_name == NULL) {
-        unknown_name = PyUnicode_FromString("<unknown>");
-        if (unknown_name == NULL)
-            return false;
-        PyUnicode_InternInPlace(&unknown_name);
-    }
-
-    if (empty_string == NULL) {
-        empty_string = PyUnicode_FromString("");
-        if (empty_string == NULL)
-            return false;
-        PyUnicode_InternInPlace(&empty_string);
-    }
-
     // Initialize DDFrame class reference
     if (ddframe_class == NULL) {
         // Import the module that contains the DDFrame class
