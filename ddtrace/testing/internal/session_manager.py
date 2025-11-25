@@ -5,10 +5,10 @@ from pathlib import Path
 import re
 import typing as t
 
+from ddtrace.internal.codeowners import Codeowners
 from ddtrace.testing.internal.api_client import APIClient
 from ddtrace.testing.internal.api_client import TestProperties
 from ddtrace.testing.internal.ci import CITag
-from ddtrace.testing.internal.codeowners import Codeowners
 from ddtrace.testing.internal.constants import DEFAULT_ENV_NAME
 from ddtrace.testing.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.testing.internal.env_tags import get_env_tags
