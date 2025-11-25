@@ -25,24 +25,24 @@ class ThreadingLockCollector(_lock.LockCollector):
     """Record threading.Lock usage."""
 
     PROFILED_LOCK_CLASS = _ProfiledThreadingLock
-    PATCH_MODULE = threading
-    PATCH_ATTR_NAME = "Lock"
+    MODULE = threading
+    PATCHED_LOCK_NAME = "Lock"
 
 
 class ThreadingRLockCollector(_lock.LockCollector):
     """Record threading.RLock usage."""
 
     PROFILED_LOCK_CLASS = _ProfiledThreadingRLock
-    PATCH_MODULE = threading
-    PATCH_ATTR_NAME = "RLock"
+    MODULE = threading
+    PATCHED_LOCK_NAME = "RLock"
 
 
 class ThreadingSemaphoreCollector(_lock.LockCollector):
     """Record threading.Semaphore usage."""
 
     PROFILED_LOCK_CLASS = _ProfiledThreadingSemaphore
-    PATCH_MODULE = threading
-    PATCH_ATTR_NAME = "Semaphore"
+    MODULE = threading
+    PATCHED_LOCK_NAME = "Semaphore"
 
 
 # Also patch threading.Thread so echion can track thread lifetimes

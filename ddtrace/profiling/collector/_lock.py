@@ -269,8 +269,8 @@ class LockCollector(collector.CaptureSamplerCollector):
     """Record lock usage."""
 
     PROFILED_LOCK_CLASS: Type[Any]
-    PATCH_MODULE: Any  # e.g., threading module
-    PATCH_ATTR_NAME: str  # e.g., "Lock", "RLock", "Semaphore"
+    MODULE: Any  # e.g., threading module
+    PATCHED_LOCK_NAME: str  # e.g., "Lock", "RLock", "Semaphore"
 
     def __init__(
         self,
@@ -285,10 +285,10 @@ class LockCollector(collector.CaptureSamplerCollector):
         self._original_lock: Any = None
 
     def _get_patch_target(self) -> Callable[..., Any]:
-        return getattr(self.PATCH_MODULE, self.PATCH_ATTR_NAME)
+        return getattr(self.MODULE, self.PATCHED_LOCK_NAME)
 
     def _set_patch_target(self, value: Any) -> None:
-        setattr(self.PATCH_MODULE, self.PATCH_ATTR_NAME, value)
+        setattr(self.MODULE, self.PATCHED_LOCK_NAME, value)
 
     def _start_service(self) -> None:
         """Start collecting lock usage."""
