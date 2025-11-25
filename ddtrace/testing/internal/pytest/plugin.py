@@ -15,8 +15,6 @@ import pytest
 from ddtrace.testing.internal.constants import EMPTY_NAME
 from ddtrace.testing.internal.coverage_api import coverage_collection
 from ddtrace.testing.internal.coverage_api import install_coverage
-from ddtrace.testing.internal.ddtrace import install_global_trace_filter
-from ddtrace.testing.internal.ddtrace import trace_context
 from ddtrace.testing.internal.errors import SetupError
 from ddtrace.testing.internal.git import get_workspace_path
 from ddtrace.testing.internal.logging import catch_and_log_exceptions
@@ -33,6 +31,8 @@ from ddtrace.testing.internal.test_data import TestSession
 from ddtrace.testing.internal.test_data import TestStatus
 from ddtrace.testing.internal.test_data import TestSuite
 from ddtrace.testing.internal.test_data import TestTag
+from ddtrace.testing.internal.tracing_layer import install_global_trace_filter
+from ddtrace.testing.internal.tracing_layer import trace_context
 from ddtrace.testing.internal.utils import TestContext
 
 
