@@ -217,6 +217,7 @@ check-slo-breaches:
       - artifacts/
       - reports/
     expire_in: 3 months
-  script:
-    - export ARTIFACTS_DIR="$(pwd)/reports/"
-    - bp-runner .gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml
+  variables:
+    DDOCTOSTS_POLICY: "gitlab.github-access.read"
+    ARTIFACTS_DIR: "reports/"
+    SLO_FILE: ".gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml"
