@@ -86,6 +86,9 @@ message(STATUS "PYTHON_EXECUTABLE = ${PYTHON_EXECUTABLE}")
 message(STATUS "PYTHON_INCLUDE_DIRS = ${PYTHON_INCLUDE_DIRS}")
 # message(STATUS "ICU_LIBRARIES = ${ICU_LIBRARIES}") message(STATUS "ICU_INCLUDE_DIRS = ${ICU_INCLUDE_DIRS}")
 
+# For pybind11 3.0: Use legacy Python detection (compatible with wheel building)
+set(PYBIND11_FINDPYTHON OFF)
+
 add_subdirectory(_vendor/pybind11)
 if(NATIVE_TESTING)
     find_package(
@@ -102,7 +105,6 @@ endif()
 
 # Set verbose mode so compiler and args are shown
 set(CMAKE_VERBOSE_MAKEFILE ON)
-set(PYBIND11_FINDPYTHON ON)
 
 pybind11_add_module(_native SHARED ${SOURCE_FILES} ${HEADER_FILES})
 get_filename_component(PARENT_DIR ${CMAKE_CURRENT_LIST_DIR} DIRECTORY)
