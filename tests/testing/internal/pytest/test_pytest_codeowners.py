@@ -46,7 +46,7 @@ class TestCodeowners:
             setup_standard_mocks(),
         ):
             with EventCapture.capture() as event_capture:
-                result = pytester.inline_run("--ddtrace", "-p", "no:ddtrace", "-v", "-s")
+                result = pytester.inline_run("--ddtrace", "-v", "-s")
 
         assert result.ret == 0
         result.assertoutcome(passed=2)
