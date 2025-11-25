@@ -301,9 +301,7 @@ if WINDOWS:
     ext = Extension(
         "psutil._psutil_windows",
         sources=(
-            sources
-            + [os.path.join(HERE, "_psutil_windows.c")]
-            + glob.glob(os.path.join(HERE, "arch/windows/*.c"))
+            sources + [os.path.join(HERE, "_psutil_windows.c")] + glob.glob(os.path.join(HERE, "arch/windows/*.c"))
         ),
         define_macros=macros,
         libraries=[
@@ -407,9 +405,7 @@ elif LINUX:
     macros.append(("PSUTIL_LINUX", 1))
     ext = Extension(
         "psutil._psutil_linux",
-        sources=(
-            sources + [os.path.join(HERE, "_psutil_linux.c")] + glob.glob(os.path.join(HERE, "arch/linux/*.c"))
-        ),
+        sources=(sources + [os.path.join(HERE, "_psutil_linux.c")] + glob.glob(os.path.join(HERE, "arch/linux/*.c"))),
         define_macros=macros,
         # fmt: off
         # python 2.7 compatibility requires no comma
@@ -580,17 +576,17 @@ def get_extensions():
         new_sources = []
         for src in original_ext.sources:
             if os.path.isabs(src):
-                # Convert absolute path to relative from project root
-                # Extract the part after .../ddtrace/vendor/psutil/
-                psutil_idx = src.find('ddtrace/vendor/psutil/')
-                if psutil_idx != -1:
-                    new_sources.append(src[psutil_idx:])
-                else:
-                    # Fallback: get relative path from HERE
-                    new_sources.append(os.path.join('ddtrace/vendor/psutil', os.path.basename(src)))
+                # Convert absolute path to relative path
+                # Get the relative path from HERE
+                rel_from_here = os.path.relpath(src, HERE)
+                # Combine with ddtrace/vendor/psutil prefix
+                new_path = os.path.join("ddtrace", "vendor", "psutil", rel_from_here)
+                # Normalize to forward slashes for setuptools (works on all platforms)
+                new_sources.append(new_path.replace(os.sep, "/"))
             else:
-                # Already relative, just add prefix
-                new_sources.append("ddtrace/vendor/psutil/" + src)
+                # Already relative, just add prefix and normalize
+                new_path = os.path.join("ddtrace", "vendor", "psutil", src)
+                new_sources.append(new_path.replace(os.sep, "/"))
 
         # Create new extension with updated name and sources
         adapted = Extension(
@@ -634,13 +630,14 @@ def get_extensions():
         posix_sources = []
         for src in sources:
             if os.path.isabs(src):
-                psutil_idx = src.find('ddtrace/vendor/psutil/')
-                if psutil_idx != -1:
-                    posix_sources.append(src[psutil_idx:])
-                else:
-                    posix_sources.append(os.path.join('ddtrace/vendor/psutil', os.path.basename(src)))
+                # Convert absolute path to relative path
+                rel_from_here = os.path.relpath(src, HERE)
+                new_path = os.path.join("ddtrace", "vendor", "psutil", rel_from_here)
+                # Normalize to forward slashes for setuptools
+                posix_sources.append(new_path.replace(os.sep, "/"))
             else:
-                posix_sources.append("ddtrace/vendor/psutil/" + src)
+                new_path = os.path.join("ddtrace", "vendor", "psutil", src)
+                posix_sources.append(new_path.replace(os.sep, "/"))
 
         posix_ext = Extension(
             "ddtrace.vendor.psutil._psutil_posix",
