@@ -96,6 +96,9 @@ tests/contrib/freezegun                               @DataDog/ci-app-libraries
 ddtrace/internal/selenium                             @DataDog/ci-app-libraries
 tests/contrib/selenium                                @DataDog/ci-app-libraries
 tests/snapshots/test_selenium_*                       @DataDog/ci-app-libraries
+# New Test Optimization plugin
+ddtrace/testing/*                                     @DataDog/ci-app-libraries
+tests/testing/*                                       @DataDog/ci-app-libraries
 
 # Debugger
 ddtrace/debugging/                  @DataDog/debugger-python
