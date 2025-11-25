@@ -86,20 +86,19 @@ message(STATUS "PYTHON_EXECUTABLE = ${PYTHON_EXECUTABLE}")
 message(STATUS "PYTHON_INCLUDE_DIRS = ${PYTHON_INCLUDE_DIRS}")
 # message(STATUS "ICU_LIBRARIES = ${ICU_LIBRARIES}") message(STATUS "ICU_INCLUDE_DIRS = ${ICU_INCLUDE_DIRS}")
 
-# For pybind11 3.0+: Use the new FindPython mechanism
-# This ensures we only request Development.Module (not Development.Embed) which is correct for extension modules
-set(PYBIND11_FINDPYTHON ON)
+# For pybind11 3.0+: Find Python with only Development.Module component (not Development.Embed)
+# This must be done BEFORE including pybind11 to avoid the "Python::Python not defined" error
+find_package(Python3 REQUIRED COMPONENTS Interpreter Development.Module)
+
+# Set legacy variables expected elsewhere in the project
+set(PYTHON_EXECUTABLE ${Python3_EXECUTABLE})
+set(PYTHON_INCLUDE_DIRS ${Python3_INCLUDE_DIRS})
+set(PYTHON_LIBRARIES ${Python3_LIBRARIES})
 
 add_subdirectory(_vendor/pybind11)
 if(NATIVE_TESTING)
-    find_package(
-        Python3
-        COMPONENTS Interpreter Development
-        REQUIRED)
-    # Legacy variables expected elsewhere in the project/tests
-    set(PYTHON_EXECUTABLE ${Python3_EXECUTABLE})
-    set(PYTHON_INCLUDE_DIRS ${Python3_INCLUDE_DIRS})
-    set(PYTHON_LIBRARIES ${Python3_LIBRARIES})
+    # Python is already found above, just ensure we have Development component for tests
+    # Note: The first find_package call already provides what we need
 
     add_subdirectory(tests EXCLUDE_FROM_ALL)
 endif()
