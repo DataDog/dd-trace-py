@@ -2337,16 +2337,15 @@ MUL: "*"
         parse_version(openai_module.version.VERSION) < (1, 87),
         reason="Reusable prompts only available in openai >= 1.87",
     )
-    def test_response_with_mixed_input_prompt_tracking(self, openai, mock_llmobs_writer, mock_tracer):
-        """Test that mixed input types (text, image, file) are normalized and tracked correctly."""
+    def test_response_with_mixed_input_prompt_tracking_url_stripped(self, openai, mock_llmobs_writer, mock_tracer):
+        """Test default behavior: image_url is stripped, file_id is preserved."""
         from openai.types.responses import ResponseInputFile
         from openai.types.responses import ResponseInputImage
         from openai.types.responses import ResponseInputText
 
-        with get_openai_vcr(subdirectory_name="v1").use_cassette("response_with_mixed_prompt.yaml"):
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("response_with_mixed_prompt_url_stripped.yaml"):
             client = openai.OpenAI()
             client.responses.create(
-                include=["message.input_image.image_url"],
                 prompt={
                     "id": "pmpt_69201db75c4c81959c01ea6987ab023c070192cd2843dec0",
                     "version": "2",
@@ -2357,7 +2356,10 @@ MUL: "*"
                             image_url="https://raw.githubusercontent.com/github/explore/main/topics/python/python.png",
                             detail="auto",
                         ),
-                        "user_file": ResponseInputFile(type="input_file", file_id="file-LXG16g7US1sG6MQM7KQY1i"),
+                        "user_file": ResponseInputFile(
+                            type="input_file",
+                            file_url="https://www.berkshirehathaway.com/letters/2024ltr.pdf",
+                        ),
                         "user_image_2": ResponseInputImage(
                             type="input_image",
                             file_id="file-BCuhT1HQ24kmtsuuzF1mh2",
@@ -2376,7 +2378,84 @@ MUL: "*"
             variables={
                 "user_message": "Analyze these images and document",
                 "user_image_1": "https://raw.githubusercontent.com/github/explore/main/topics/python/python.png",
-                "user_file": "file-LXG16g7US1sG6MQM7KQY1i",
+                "user_file": "https://www.berkshirehathaway.com/letters/2024ltr.pdf",
+                "user_image_2": "file-BCuhT1HQ24kmtsuuzF1mh2",
+            },
+            expected_chat_template=[
+                {
+                    "role": "user",
+                    "content": (
+                        "Analyze the following content from the user:\n\n"
+                        "Text message: {{user_message}}\n"
+                        "Image reference 1: [image]\n"
+                        "Document reference: {{user_file}}\n"
+                        "Image reference 2: {{user_image_2}}\n\n"
+                        "Please provide a comprehensive analysis."
+                    ),
+                }
+            ],
+            expected_messages=[
+                {
+                    "role": "user",
+                    "content": (
+                        "Analyze the following content from the user:\n\n"
+                        "Text message: Analyze these images and document\n"
+                        "Image reference 1: [image]\n"
+                        "Document reference: https://www.berkshirehathaway.com/letters/2024ltr.pdf\n"
+                        "Image reference 2: file-BCuhT1HQ24kmtsuuzF1mh2\n\n"
+                        "Please provide a comprehensive analysis."
+                    ),
+                }
+            ],
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 87),
+        reason="Reusable prompts only available in openai >= 1.87",
+    )
+    def test_response_with_mixed_input_prompt_tracking_url_preserved(self, openai, mock_llmobs_writer, mock_tracer):
+        """Test with include parameter: image_url is preserved."""
+        from openai.types.responses import ResponseInputFile
+        from openai.types.responses import ResponseInputImage
+        from openai.types.responses import ResponseInputText
+
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("response_with_mixed_prompt_url_preserved.yaml"):
+            client = openai.OpenAI()
+            client.responses.create(
+                include=["message.input_image.image_url"],
+                prompt={
+                    "id": "pmpt_69201db75c4c81959c01ea6987ab023c070192cd2843dec0",
+                    "version": "2",
+                    "variables": {
+                        "user_message": ResponseInputText(type="input_text", text="Analyze these images and document"),
+                        "user_image_1": ResponseInputImage(
+                            type="input_image",
+                            image_url="https://raw.githubusercontent.com/github/explore/main/topics/python/python.png",
+                            detail="auto",
+                        ),
+                        "user_file": ResponseInputFile(
+                            type="input_file",
+                            file_url="https://www.berkshirehathaway.com/letters/2024ltr.pdf",
+                        ),
+                        "user_image_2": ResponseInputImage(
+                            type="input_image",
+                            file_id="file-BCuhT1HQ24kmtsuuzF1mh2",
+                            detail="auto",
+                        ),
+                    },
+                },
+            )
+        mock_tracer.pop_traces()
+        assert mock_llmobs_writer.enqueue.call_count == 1
+
+        self._assert_prompt_tracking(
+            span_event=mock_llmobs_writer.enqueue.call_args[0][0],
+            prompt_id="pmpt_69201db75c4c81959c01ea6987ab023c070192cd2843dec0",
+            prompt_version="2",
+            variables={
+                "user_message": "Analyze these images and document",
+                "user_image_1": "https://raw.githubusercontent.com/github/explore/main/topics/python/python.png",
+                "user_file": "https://www.berkshirehathaway.com/letters/2024ltr.pdf",
                 "user_image_2": "file-BCuhT1HQ24kmtsuuzF1mh2",
             },
             expected_chat_template=[
@@ -2399,7 +2478,7 @@ MUL: "*"
                         "Analyze the following content from the user:\n\n"
                         "Text message: Analyze these images and document\n"
                         "Image reference 1: https://raw.githubusercontent.com/github/explore/main/topics/python/python.png\n"
-                        "Document reference: file-LXG16g7US1sG6MQM7KQY1i\n"
+                        "Document reference: https://www.berkshirehathaway.com/letters/2024ltr.pdf\n"
                         "Image reference 2: file-BCuhT1HQ24kmtsuuzF1mh2\n\n"
                         "Please provide a comprehensive analysis."
                     ),
