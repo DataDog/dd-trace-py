@@ -25,8 +25,6 @@
 #include "_memalloc_reentrant.h"
 #include "_memalloc_tb.h"
 
-static PyObject* ddframe_class = NULL;
-
 // Cached reference to threading module and current_thread function
 static PyObject* threading_module = NULL;
 static PyObject* threading_current_thread = NULL;
@@ -34,28 +32,6 @@ static PyObject* threading_current_thread = NULL;
 bool
 traceback_t::init()
 {
-    // Initialize DDFrame class reference
-    if (ddframe_class == NULL) {
-        // Import the module that contains the DDFrame class
-        PyObject* mod_path = PyUnicode_DecodeFSDefault("ddtrace.profiling.event");
-        PyObject* mod = PyImport_Import(mod_path);
-        Py_XDECREF(mod_path);
-        if (mod == NULL) {
-            // Error is already set by PyImport_Import
-            return false;
-        }
-
-        // Get the DDFrame class object
-        ddframe_class = PyObject_GetAttrString(mod, "DDFrame");
-        Py_DECREF(mod);
-
-        // Basic sanity check that the object is the type of object we actually want
-        if (ddframe_class == NULL || !PyCallable_Check(ddframe_class)) {
-            PyErr_SetString(PyExc_RuntimeError, "Failed to get DDFrame from ddtrace.profiling.event");
-            return false;
-        }
-    }
-
     // Initialize threading module structure references
     // Note: MemoryCollector.start() ensures _threading is imported before calling
     // _memalloc.start(), so this should normally succeed. If it fails, we return false
@@ -162,7 +138,6 @@ traceback_t::deinit()
     if (_Py_IsFinalizing()) {
 #endif
         // Just clear the pointers without decrementing references
-        ddframe_class = NULL;
         threading_current_thread = NULL;
         threading_module = NULL;
         return;
@@ -177,10 +152,6 @@ traceback_t::deinit()
 
     // Use Py_XDECREF for all cleanup to safely handle NULL pointers.
     // During exception handling, objects may have been invalidated or set to NULL.
-    PyObject* old_ddframe_class = ddframe_class;
-    ddframe_class = NULL;
-    Py_XDECREF(old_ddframe_class);
-
     PyObject* old_threading_current_thread = threading_current_thread;
     threading_current_thread = NULL;
     Py_XDECREF(old_threading_current_thread);
