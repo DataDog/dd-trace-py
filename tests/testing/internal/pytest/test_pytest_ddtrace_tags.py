@@ -3,7 +3,6 @@ from __future__ import annotations
 from unittest.mock import patch
 
 from _pytest.pytester import Pytester
-import pytest
 
 from tests.testing.mocks import EventCapture
 from tests.testing.mocks import mock_api_client_settings
@@ -11,7 +10,6 @@ from tests.testing.mocks import setup_standard_mocks
 
 
 class TestDDTraceTags:
-    @pytest.mark.slow
     def test_ddtrace_tags_are_reflected_in_testing_events(self, pytester: Pytester) -> None:
         pytester.makepyfile(
             test_foo="""
