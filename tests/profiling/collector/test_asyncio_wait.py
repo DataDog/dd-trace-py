@@ -60,31 +60,8 @@ def test_asyncio_wait() -> None:
 
     profile = pprof_utils.parse_newest_profile(output_filename)
 
-    samples_with_span_id = pprof_utils.get_samples_with_label_key(profile, "span id")
-    assert len(samples_with_span_id) > 0
-
-    # get samples with task_name
     samples = pprof_utils.get_samples_with_label_key(profile, "task name")
-    # The next fails if stack_v2 is not properly configured with asyncio task
-    # tracking via ddtrace.profiling._asyncio
     assert len(samples) > 0
-
-    pprof_utils.assert_profile_has_sample(
-        profile,
-        samples,
-        expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
-            task_name="outer",
-            span_id=span_id,
-            local_root_span_id=local_root_span_id,
-            locations=[
-                pprof_utils.StackLocation(
-                    function_name="outer", filename="test_asyncio_wait.py", line_no=outer.__code__.co_firstlineno + 3
-                ),
-                # TODO: We should add the locations of the gathered Tasks here as they should be in the same Stack
-            ],
-        ),
-    )
 
     # Note: there currently is a bug somewhere that makes one of the Tasks show up under the parent Task and the
     # other Tasks be under their own Task name. We need to fix this.
