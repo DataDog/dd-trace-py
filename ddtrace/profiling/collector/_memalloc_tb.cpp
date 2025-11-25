@@ -432,11 +432,10 @@ push_stacktrace_to_sample(Datadog::Sample& sample)
 }
 #endif
 
-traceback_t::traceback_t(void* ptr, size_t size, PyMemAllocatorDomain domain, size_t weighted_size, uint16_t max_nframe)
-  : reported(false)
-  , sample(static_cast<Datadog::SampleType>(Datadog::SampleType::Allocation | Datadog::SampleType::Heap), max_nframe)
+void
+traceback_t::init_sample(size_t size, size_t weighted_size)
 {
-    // Save any existing error state to avoid masking errors during traceback construction
+    // Save any existing error state to avoid masking errors during traceback construction/reset
     PythonErrorRestorer error_restorer;
 
     // Size 0 allocations are legal and we can hypothetically sample them,
@@ -446,12 +445,6 @@ traceback_t::traceback_t(void* ptr, size_t size, PyMemAllocatorDomain domain, si
     size_t adjusted_size = size > 0 ? size : 1;
     double scaled_count = ((double)weighted_size) / ((double)adjusted_size);
     size_t count = (size_t)scaled_count;
-
-    // Validate Sample object is in a valid state before use
-    if (max_nframe == 0) {
-        // Should not happen, but defensive check
-        return;
-    }
 
     // Push allocation info to sample
     // Note: profile_state is initialized in memalloc_start() before any traceback_t objects are created
@@ -472,8 +465,29 @@ traceback_t::traceback_t(void* ptr, size_t size, PyMemAllocatorDomain domain, si
     push_stacktrace_to_sample(sample);
 }
 
+traceback_t::traceback_t(size_t size, size_t weighted_size, uint16_t max_nframe)
+  : reported(false)
+  , sample(static_cast<Datadog::SampleType>(Datadog::SampleType::Allocation | Datadog::SampleType::Heap), max_nframe)
+{
+    // Validate Sample object is in a valid state before use
+    if (max_nframe == 0) {
+        // Should not happen, but defensive check
+        return;
+    }
+
+    init_sample(size, weighted_size);
+}
+
 traceback_t::~traceback_t()
 {
     // Sample object is a member variable and will be automatically destroyed
     // No explicit cleanup needed - its destructor will handle internal cleanup
+}
+
+void
+traceback_t::reset(size_t size, size_t weighted_size)
+{
+    sample.clear_buffers();
+    reported = false;
+    init_sample(size, weighted_size);
 }

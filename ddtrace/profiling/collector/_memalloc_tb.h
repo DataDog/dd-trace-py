@@ -17,9 +17,13 @@ class traceback_t
     Datadog::Sample sample;
 
     /* Constructor - also collects frames from the current Python frame chain */
-    traceback_t(void* ptr, size_t size, PyMemAllocatorDomain domain, size_t weighted_size, uint16_t max_nframe);
+    traceback_t(size_t size, size_t weighted_size, uint16_t max_nframe);
 
     ~traceback_t();
+
+    /* Reset/clear this traceback for reuse with a new allocation
+     * Clears all sample data and re-collects frames from the current Python frame chain */
+    void reset(size_t size, size_t weighted_size);
 
     /* Initialize traceback module (creates interned strings)
      * Returns true on success, false otherwise */
@@ -32,6 +36,10 @@ class traceback_t
     traceback_t& operator=(const traceback_t&) = delete;
     traceback_t(traceback_t&&) = delete;
     traceback_t& operator=(traceback_t&&) = delete;
+
+  private:
+    /* Common initialization logic shared by constructor and reset */
+    void init_sample(size_t size, size_t weighted_size);
 };
 
 /* The maximum number of frames we can collect for a traceback */

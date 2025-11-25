@@ -293,7 +293,7 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
        will tend to be larger for large allocations and smaller for small
        allocations, and close to the average sampling interval so that the sum
        of sample live allocations stays close to the actual heap size */
-    traceback_t* tb = new traceback_t(ptr, size, domain, allocated_memory_val, max_nframe);
+    traceback_t* tb = new traceback_t(size, allocated_memory_val, max_nframe);
 
 #if defined(_PY310_AND_LATER) && !defined(_PY312_AND_LATER)
     if (gc_enabled) {
