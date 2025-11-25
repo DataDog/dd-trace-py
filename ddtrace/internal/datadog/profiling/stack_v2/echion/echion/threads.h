@@ -248,11 +248,6 @@ ThreadInfo::unwind_tasks()
         if (task->waiter != NULL)
             waitee_map.emplace(task->waiter->origin, std::ref(*task));
         else if (parent_tasks.find(task->origin) == parent_tasks.end()) {
-            if (cpu && ignore_non_running_threads && !task->coro->is_running) {
-                // This task is not running, so we skip it if we are
-                // interested in just CPU time.
-                continue;
-            }
             leaf_tasks.push_back(std::ref(*task));
         }
     }
@@ -352,12 +347,6 @@ ThreadInfo::unwind_greenlets(PyThreadState* tstate, unsigned long cur_native_id)
         }
 
         bool on_cpu = frame == Py_None;
-        if (cpu && ignore_non_running_threads && !on_cpu) {
-            // Only the currently-running greenlet has a None in its frame
-            // cell. If we are interested in CPU time, we skip all greenlets
-            // that have an actual frame, as they are not running.
-            continue;
-        }
 
         auto stack_info = std::make_unique<StackInfo>(greenlet->name, on_cpu);
         auto& stack = stack_info->stack;
@@ -396,20 +385,15 @@ ThreadInfo::sample(int64_t iid, PyThreadState* tstate, microsecond_t delta)
 {
     Renderer::get().render_thread_begin(tstate, name, delta, thread_id, native_id);
 
-    if (cpu) {
-        microsecond_t previous_cpu_time = cpu_time;
-        auto update_cpu_time_success = update_cpu_time();
-        if (!update_cpu_time_success) {
-            return ErrorKind::CpuTimeError;
-        }
-
-        bool thread_is_running = is_running();
-        if (!thread_is_running && ignore_non_running_threads) {
-            return Result<void>::ok();
-        }
-
-        Renderer::get().render_cpu_time(thread_is_running ? cpu_time - previous_cpu_time : 0);
+    microsecond_t previous_cpu_time = cpu_time;
+    auto update_cpu_time_success = update_cpu_time();
+    if (!update_cpu_time_success) {
+        return ErrorKind::CpuTimeError;
     }
+
+    bool thread_is_running = is_running();
+
+    Renderer::get().render_cpu_time(thread_is_running ? cpu_time - previous_cpu_time : 0);
 
     unwind(tstate);
 
