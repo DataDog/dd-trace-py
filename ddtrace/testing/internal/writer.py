@@ -5,8 +5,8 @@ import threading
 import typing as t
 import uuid
 
+import ddtrace
 from ddtrace.internal._encoding import packb as msgpack_packb
-import ddtrace.testing
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import FileAttachment
 from ddtrace.testing.internal.test_data import TestItem
@@ -87,7 +87,7 @@ class TestOptWriter(BaseWriter):
             "*": {
                 "language": "python",
                 "runtime-id": uuid.uuid4().hex,
-                "library_version": f"{ddtrace.testing.__version__}+ddtrace.testing",
+                "library_version": f"{ddtrace.__version__}",
                 "_dd.origin": "ciapp-test",
                 "_dd.p.dm": "-0",  # what is this?
             },
