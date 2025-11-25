@@ -219,7 +219,7 @@ def create_and_strip_debug_symbols(so_file: str) -> Union[str, None]:
             # Verify that the debug file was created and contains debug symbols
             if verify_debug_file(Path(debug_out)):
                 # Strip the debug symbols from the .so file
-                subprocess.run([strip, "-g", so_file], check=True)
+                # subprocess.run([strip, "-g", so_file], check=True)
 
                 # Link the debug symbols to the .so file
                 subprocess.run([objcopy, "--add-gnu-debuglink", debug_out, so_file], check=True)
@@ -242,11 +242,11 @@ def create_and_strip_debug_symbols(so_file: str) -> Union[str, None]:
             # 1) Emit dSYM - let dsymutil handle the detection
             debug_path = create_dsym_bundle(so_file, dsymutil)
 
-        if strip:
-            # Strip DWARF + local symbols
-            subprocess.run([strip, "-S", "-x", so_file], check=True)
-        else:
-            print("WARNING: strip not found, skipping symbol stripping", file=sys.stderr)
+        # if strip:
+        #     # Strip DWARF + local symbols
+        #     subprocess.run([strip, "-S", "-x", so_file], check=True)
+        # else:
+        #     print("WARNING: strip not found, skipping symbol stripping", file=sys.stderr)
 
         return debug_path
 

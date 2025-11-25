@@ -6,7 +6,7 @@ rustflags = [
     "-Cllvm-args=-sanitizer-coverage-trace-pc-guard",
     "-Cdebuginfo=2",
     "-Csplit-debuginfo=unpacked",
-    "-Clink-args=-Wl,--build-id",
+    # "-Clink-args=-Wl,--build-id",
     "-Crelocation-model=pic",
     "-L/usr/lib/",
     "-lvoidstar",
