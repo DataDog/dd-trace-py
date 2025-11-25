@@ -2346,6 +2346,7 @@ MUL: "*"
         with get_openai_vcr(subdirectory_name="v1").use_cassette("response_with_mixed_prompt.yaml"):
             client = openai.OpenAI()
             client.responses.create(
+                include=["message.input_image.image_url"],
                 prompt={
                     "id": "pmpt_69201db75c4c81959c01ea6987ab023c070192cd2843dec0",
                     "version": "2",
@@ -2363,7 +2364,7 @@ MUL: "*"
                             detail="auto",
                         ),
                     },
-                }
+                },
             )
         mock_tracer.pop_traces()
         assert mock_llmobs_writer.enqueue.call_count == 1
@@ -2384,9 +2385,9 @@ MUL: "*"
                     "content": (
                         "Analyze the following content from the user:\n\n"
                         "Text message: {{user_message}}\n"
-                        "Image reference 1: [image]\n"
-                        "Document reference: [file]\n"
-                        "Image reference 2: [image]\n\n"
+                        "Image reference 1: {{user_image_1}}\n"
+                        "Document reference: {{user_file}}\n"
+                        "Image reference 2: {{user_image_2}}\n\n"
                         "Please provide a comprehensive analysis."
                     ),
                 }
@@ -2397,7 +2398,7 @@ MUL: "*"
                     "content": (
                         "Analyze the following content from the user:\n\n"
                         "Text message: Analyze these images and document\n"
-                        "Image reference 1: [image]\n"
+                        "Image reference 1: https://raw.githubusercontent.com/github/explore/main/topics/python/python.png\n"
                         "Document reference: file-LXG16g7US1sG6MQM7KQY1i\n"
                         "Image reference 2: file-BCuhT1HQ24kmtsuuzF1mh2\n\n"
                         "Please provide a comprehensive analysis."

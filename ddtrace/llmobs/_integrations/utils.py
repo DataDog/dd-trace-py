@@ -818,20 +818,21 @@ def _extract_chat_template_from_instructions(
     instructions: List[Any], variables: Dict[str, Any]
 ) -> List[Dict[str, str]]:
     """
-    Extract a chat template from OpenAI response instructions by replacing text variable values with placeholders.
+    Extract a chat template from OpenAI response instructions by replacing variable values with placeholders.
 
-    Images and files always use generic [image] and [file] markers for deterministic templating.
+    Uses {{variable_name}} when values are available. Falls back to [image]/[file] markers when
+    OpenAI strips the values (e.g., by default URL stripping behavior).
 
     Args:
         instructions: List of instruction messages from the OpenAI response
         variables: Dictionary of variables used in the prompt
 
     Returns:
-        List of chat template messages with placeholders (e.g., {{variable_name}} for text, [image], [file])
+        List of chat template messages with placeholders (e.g., {{variable_name}}, [image], [file])
     """
     chat_template = []
 
-    # Build value:placeholder map only for text variables (exclude images/files for deterministic templates)
+    # Build value:placeholder map - exclude fallback markers so they remain as-is in the template
     value_to_placeholder = {}
     for var_name, var_value in variables.items():
         value_str = str(var_value) if var_value else ""
@@ -859,14 +860,23 @@ def _extract_chat_template_from_instructions(
 
             item_type = _get_attr(content_item, "type", None)
             if item_type == "input_image":
-                text_parts.append("[image]")
+                image_ref = (
+                    _get_attr(content_item, "image_url", None) or _get_attr(content_item, "file_id", None) or "[image]"
+                )
+                text_parts.append(str(image_ref))
             elif item_type == "input_file":
-                text_parts.append("[file]")
+                file_ref = (
+                    _get_attr(content_item, "file_id", None)
+                    or _get_attr(content_item, "file_url", None)
+                    or _get_attr(content_item, "filename", None)
+                    or "[file]"
+                )
+                text_parts.append(str(file_ref))
 
         if not text_parts:
             continue
 
-        # Combine text and replace only text variable values with placeholders (longest first)
+        # Combine text and replace variable values with placeholders (longest first)
         full_text = "".join(text_parts)
         for value_str in sorted_values:
             placeholder = value_to_placeholder[value_str]
