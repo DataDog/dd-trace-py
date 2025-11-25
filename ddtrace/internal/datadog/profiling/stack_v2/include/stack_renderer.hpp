@@ -39,10 +39,10 @@ class StackRenderer : public RendererInterface
     void header() override {}
     void metadata(const std::string&, const std::string&) override {}
     void frame(uintptr_t, uintptr_t, uintptr_t, int, int, int, int) override {};
-    void frame_ref(uintptr_t) override {};
+    void frame_ref(uintptr_t) override{};
     void frame_kernel(const std::string&) override {};
     void string(uintptr_t, const std::string&) override {};
-    void string_ref(uintptr_t) override {};
+    void string_ref(uintptr_t) override{};
 
     virtual void render_message(std::string_view msg) override;
     virtual void render_thread_begin(PyThreadState* tstate,
