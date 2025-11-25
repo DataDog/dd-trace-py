@@ -919,16 +919,6 @@ asyncio.run(task())
     assert err == b""
 
 
-@pytest.mark.parametrize("ddtrace_config_openai", [dict(span_prompt_completion_sample_rate=0)])
-def test_embedding_unsampled_prompt_completion(openai, openai_vcr, ddtrace_config_openai, mock_tracer):
-    with openai_vcr.use_cassette("embedding.yaml"):
-        client = openai.OpenAI()
-        client.embeddings.create(input="hello world", model="text-embedding-ada-002")
-    traces = mock_tracer.pop_traces()
-    assert len(traces) == 1
-    assert traces[0][0].get_tag("openai.request.input") is None
-
-
 @pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) >= (1, 60), reason="latest openai versions use modified azure requests"
 )

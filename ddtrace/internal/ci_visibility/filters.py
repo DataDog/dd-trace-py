@@ -4,12 +4,12 @@ from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 
-import ddtrace
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import ci
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.sampling import _set_sampling_tags
 from ddtrace.trace import TraceFilter
+from ddtrace.version import __version__
 
 
 if TYPE_CHECKING:
@@ -35,6 +35,6 @@ class TraceCiVisibilityFilter(TraceFilter):
         _set_sampling_tags(local_root, True, 1.0, SamplingMechanism.DEFAULT)
         for span in trace:
             span.set_tags(self._tags)
-            span._set_tag_str(ci.LIBRARY_VERSION, ddtrace.__version__)
+            span._set_tag_str(ci.LIBRARY_VERSION, __version__)
 
         return trace

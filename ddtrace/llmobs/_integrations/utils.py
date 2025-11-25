@@ -628,32 +628,38 @@ def _openai_parse_input_response_messages(
     return processed, tool_call_ids
 
 
-def openai_get_output_messages_from_response(response: Optional[Any]) -> List[Message]:
+def openai_get_output_messages_from_response(
+    response: Optional[Any], integration: Any = None
+) -> Tuple[List[Message], List[ToolDefinition]]:
     """
-    Parses the output to openai responses api into a list of output messages
+    Parses the output to openai responses api into a list of output messages and a list of
+    MCP tool definitions returned from the MCP server.
 
     Args:
         response: An OpenAI response object or dictionary containing output messages
 
     Returns:
         - A list of processed messages
+        - A list of MCP tool definitions
     """
     if not response:
-        return []
+        return [], []
 
     messages = _get_attr(response, "output", [])
     if not messages:
-        return []
+        return [], []
 
-    processed_messages, _ = _openai_parse_output_response_messages(messages)
+    processed_messages, _, mcp_tool_definitions = _openai_parse_output_response_messages(messages, integration)
 
-    return processed_messages
+    return processed_messages, mcp_tool_definitions
 
 
-def _openai_parse_output_response_messages(messages: List[Any]) -> Tuple[List[Message], List[ToolCall]]:
+def _openai_parse_output_response_messages(
+    messages: List[Any], integration: Any = None
+) -> Tuple[List[Message], List[ToolCall], List[ToolDefinition]]:
     """
     Parses output messages from the openai responses api into a list of processed messages
-    and a list of tool call outputs.
+    and a list of tool call outputs and a list of MCP tool definitions.
 
     Args:
         messages: A list of output messages
@@ -664,6 +670,7 @@ def _openai_parse_output_response_messages(messages: List[Any]) -> Tuple[List[Me
     """
     processed: List[Message] = []
     tool_call_outputs: List[ToolCall] = []
+    mcp_tool_definitions: List[ToolDefinition] = []
 
     for item in messages:
         message: Message = Message()
@@ -707,12 +714,41 @@ def _openai_parse_output_response_messages(messages: List[Any]) -> Tuple[List[Me
                     "role": "assistant",
                 }
             )
+        elif message_type == "mcp_call":
+            call_id = str(_get_attr(item, "id", ""))
+            name = str(_get_attr(item, "name", ""))
+            raw_arguments = _get_attr(item, "arguments", OAI_HANDOFF_TOOL_ARG)
+            arguments = safe_load_json(str(raw_arguments))
+            output = str(_get_attr(item, "output", ""))
+            tool_call_info = ToolCall(
+                tool_id=call_id,
+                arguments=arguments,
+                name=name,
+                type=str(message_type),
+            )
+            tool_call_outputs.append(tool_call_info)
+            tool_result_info = ToolResult(
+                name=name,
+                result=output,
+                tool_id=call_id,
+                type="mcp_tool_result",
+            )
+            message.update(
+                {
+                    "tool_calls": [tool_call_info],
+                    "tool_results": [tool_result_info],
+                    "role": "assistant",
+                }
+            )
+        elif message_type == "mcp_list_tools":
+            mcp_tool_definitions.extend(_openai_get_tool_definitions(_get_attr(item, "tools", [])))
+            continue
         else:
             message.update({"content": str(item), "role": "assistant"})
 
         processed.append(message)
 
-    return processed, tool_call_outputs
+    return processed, tool_call_outputs, mcp_tool_definitions
 
 
 def openai_get_metadata_from_response(
@@ -802,7 +838,9 @@ def _extract_chat_template_from_instructions(
     return chat_template
 
 
-def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], response: Optional[Any]) -> None:
+def openai_set_meta_tags_from_response(
+    span: Span, kwargs: Dict[str, Any], response: Optional[Any], integration: Any = None
+) -> None:
     """Extract input/output tags from response and set them as temporary "_ml_obs.meta.*" tags."""
     input_data = kwargs.get("input", [])
 
@@ -851,11 +889,11 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], respo
     metadata = span._get_ctx_item(METADATA) or {}
     metadata.update(openai_get_metadata_from_response(response))
     span._set_ctx_item(METADATA, metadata)
-    output_messages: List[Message] = openai_get_output_messages_from_response(response)
+    output_messages, mcp_tool_definitions = openai_get_output_messages_from_response(response, integration)
     span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
     tools = _openai_get_tool_definitions(kwargs.get("tools") or [])
-    if tools:
-        span._set_ctx_item(TOOL_DEFINITIONS, tools)
+    if mcp_tool_definitions or tools:
+        span._set_ctx_item(TOOL_DEFINITIONS, tools + mcp_tool_definitions)
 
 
 def _openai_get_tool_definitions(tools: List[Any]) -> List[ToolDefinition]:
@@ -878,12 +916,14 @@ def _openai_get_tool_definitions(tools: List[Any]) -> List[ToolDefinition]:
                 schema=_get_attr(custom_tool, "format", {}),  # format is a dict
             )
         # chat API function access and response API tool access
-        # only handles FunctionToolParam and CustomToolParam for response API for now
+        # only handles FunctionToolParam, CustomToolParam and McpListToolsTool for response API for now
         else:
             tool_definition = ToolDefinition(
                 name=str(_get_attr(tool, "name", "")),
                 description=str(_get_attr(tool, "description", "")),
-                schema=_get_attr(tool, "parameters", {}) or _get_attr(tool, "format", {}),
+                schema=_get_attr(tool, "parameters", {})
+                or _get_attr(tool, "format", {})
+                or _get_attr(tool, "input_schema", {}),
             )
         if not any(tool_definition.values()):
             continue
@@ -1198,19 +1238,20 @@ class OaiSpanAdapter:
         """
         return _openai_parse_input_response_messages(self.input, self.response_system_instructions)
 
-    def llmobs_output_messages(self) -> Tuple[List[Message], List[ToolCall]]:
+    def llmobs_output_messages(self) -> Tuple[List[Message], List[ToolCall], List[ToolDefinition]]:
         """Returns processed output messages for LLM Obs LLM spans.
 
         Returns:
             - A list of processed messages
             - A list of tool calls for span linking purposes
+            - A list of MCP tool definitions
         """
         if not self.response or not self.response.output:
-            return [], []
+            return [], [], []
 
         messages: List[Any] = self.response.output
         if not messages:
-            return [], []
+            return [], [], []
 
         if not isinstance(messages, list):
             messages = [messages]
