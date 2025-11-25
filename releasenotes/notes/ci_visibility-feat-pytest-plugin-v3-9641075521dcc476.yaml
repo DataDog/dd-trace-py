@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    CI Visibility: This introduces a new experimental version of the pytest plugin, with architectural improvements.
+    This experimental version is disabled by default, and can be enabled by setting the ``DD_PYTEST_USE_NEW_PLUGIN``
+    environment variable to ``true``.
