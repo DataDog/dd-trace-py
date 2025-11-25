@@ -20,9 +20,7 @@ from ddtrace.testing.internal.test_data import TestSuite
 log = logging.getLogger(__name__)
 
 
-class Event(dict[str, t.Any]):
-    pass
-
+Event = dict[str, t.Any]
 
 TSerializable = t.TypeVar("TSerializable", bound=TestItem[t.Any, t.Any])
 
