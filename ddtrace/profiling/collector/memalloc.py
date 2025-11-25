@@ -1,18 +1,11 @@
 # -*- encoding: utf-8 -*-
 import logging
 import os
-import threading
 from types import TracebackType
 from typing import Any
-from typing import List
-from typing import NamedTuple
 from typing import Optional
-from typing import Set
-from typing import Tuple
 from typing import Type
 from typing import cast
-
-from ddtrace.profiling.event import DDFrame
 
 
 try:
@@ -27,17 +20,6 @@ from ddtrace.profiling import collector
 
 
 LOG = logging.getLogger(__name__)
-
-
-class MemorySample(NamedTuple):
-    frames: List[DDFrame]
-    size: int
-    count: (  # pyright: ignore[reportIncompatibleMethodOverride] (count is a method of tuple)
-        int  # type: ignore[assignment]
-    )
-    in_use_size: int
-    alloc_size: int
-    thread_id: int
 
 
 class MemoryCollector:
@@ -98,16 +80,7 @@ class MemoryCollector:
             except RuntimeError:
                 LOG.debug("Failed to stop memalloc profiling on shutdown", exc_info=True)
 
-    def _get_thread_id_ignore_set(self) -> Set[int]:
-        # This method is not perfect and prone to race condition in theory, but very little in practice.
-        # Anyhow it's not a big deal — it's a best effort feature.
-        return {
-            thread.ident
-            for thread in threading.enumerate()
-            if getattr(thread, "_ddtrace_profiling_ignore", False) and thread.ident is not None
-        }
-
-    def snapshot(self) -> Tuple[MemorySample, ...]:
+    def snapshot(self) -> None:
         try:
             if _memalloc is None:
                 raise ValueError("Memalloc is not initialized")
@@ -115,23 +88,6 @@ class MemoryCollector:
         except (RuntimeError, ValueError):
             # DEV: This can happen if either _memalloc has not been started or has been stopped.
             LOG.debug("Unable to collect heap events from process %d", os.getpid(), exc_info=True)
-            return tuple()
-
-        # Note: events are now exported directly to pprof, so we return empty samples
-        return tuple()
-
-    def test_snapshot(self) -> Tuple[MemorySample, ...]:
-        try:
-            if _memalloc is None:
-                raise ValueError("Memalloc is not initialized")
-            _memalloc.heap()  # Samples are exported directly to pprof, no return value needed
-        except (RuntimeError, ValueError):
-            # DEV: This can happen if either _memalloc has not been started or has been stopped.
-            LOG.debug("Unable to collect heap events from process %d", os.getpid(), exc_info=True)
-            return tuple()
-
-        # Note: events are now exported directly to pprof, so we return empty samples
-        return tuple()
 
     def snapshot_and_parse_pprof(self, output_filename: str) -> Any:
         """Export samples to profile, upload, and parse the pprof profile.
@@ -163,6 +119,3 @@ class MemoryCollector:
             )
 
         return pprof_utils.parse_newest_profile(output_filename)
-
-    def collect(self) -> Tuple[MemorySample, ...]:
-        return tuple()

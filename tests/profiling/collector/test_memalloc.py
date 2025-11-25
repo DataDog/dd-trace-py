@@ -9,7 +9,6 @@ import pytest
 
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling.collector import memalloc
-from ddtrace.profiling.event import DDFrame
 from tests.profiling.collector import pprof_utils
 
 
@@ -253,90 +252,6 @@ def get_tracemalloc_stats_per_func(stats, funcs):
     return actual_sizes, actual_counts
 
 
-# TODO: higher sampling intervals have a lot more variance and are flaky
-# but would be nice to test since our default is 1MiB
-# COVERAGE: This test is covered by test_memory_collector_allocation_accuracy_with_tracemalloc()
-# which validates sampling accuracy using tracemalloc as ground truth with the new pprof-based approach.
-@pytest.mark.skip(reason="_memalloc.heap() is deprecated - needs refactoring to use snapshot_and_parse_pprof()")
-@pytest.mark.parametrize("sample_interval", (8, 512, 1024))
-def test_heap_profiler_sampling_accuracy(sample_interval):
-    # tracemalloc lets us get ground truth on how many allocations there were
-    import tracemalloc
-
-    # TODO(nick): use Profiler instead of _memalloc
-    from ddtrace.profiling.collector import _memalloc
-
-    # We seed the RNG to reduce flakiness. This doesn't actually diminish the
-    # quality of the test much. A broken sampling implementation is unlikely to
-    # pass for an arbitrary seed.
-    old = os.environ.get("_DD_MEMALLOC_DEBUG_RNG_SEED")
-    os.environ["_DD_MEMALLOC_DEBUG_RNG_SEED"] = "42"
-    _memalloc.start(32, sample_interval)
-    # Put the env var back in the state we found it
-    if old is not None:
-        os.environ["_DD_MEMALLOC_DEBUG_RNG_SEED"] = old
-    else:
-        del os.environ["_DD_MEMALLOC_DEBUG_RNG_SEED"]
-
-    tracemalloc.start()
-
-    junk = []
-    for i in range(1000):
-        size = 256
-        junk.append(one(size))
-        junk.append(two(2 * size))
-        junk.append(three(3 * size))
-        junk.append(four(4 * size))
-
-    # TODO(nick): randomly remove things from junk to see if the profile is
-    # still accurate
-
-    # Stop tracemalloc before collecting the heap sample, since tracemalloc
-    # is _really_ slow when the _memalloc.heap() call does lots of allocs for
-    # lower sample intervals (i.e. more sampled allocations)
-    stats = tracemalloc.take_snapshot().statistics("traceback")
-    tracemalloc.stop()
-
-    heap = _memalloc.heap()
-    # Important: stop _memalloc _after_ tracemalloc. Need to remove allocator
-    # hooks in LIFO order.
-    _memalloc.stop()
-
-    actual_sizes, _ = get_tracemalloc_stats_per_func(stats, (one, two, three, four))
-    actual_total = sum(actual_sizes.values())
-
-    del junk
-
-    sizes = get_heap_info(heap, {"one", "two", "three", "four"})
-
-    total = sum(v.size for v in sizes.values())
-    print(f"observed total: {total} actual total: {actual_total} error: {abs(total - actual_total) / actual_total}")
-    # 20% error in actual size feels pretty generous
-    # TODO(nick): justify in terms of variance of sampling?
-    assert abs(1 - total / actual_total) <= 0.20
-
-    print("func\tcount\tsize\tactual\trel\tactual\tdiff")
-    for func in ("one", "two", "three", "four"):
-        got = sizes[func]
-        actual_size = actual_sizes[func]
-
-        # Relative portion of the bytes in the profile for this function
-        # out of the functions we're interested in
-        rel = got.size / total
-        actual_rel = actual_size / actual_total
-
-        print(
-            f"{func}\t{got.count}\t{got.size}\t{actual_size}\t{rel:.3f}\t{actual_rel:.3f}\t{abs(rel - actual_rel):.3f}"
-        )
-
-        # Assert that the reported portion of this function in the profile is
-        # pretty close to the actual portion. So, if it's actually ~20% of the
-        # profile then we'd accept anything between 10% and 30%, which is
-        # probably too generous for low sampling intervals but at least won't be
-        # flaky.
-        assert abs(rel - actual_rel) < 0.10
-
-
 @pytest.mark.skip(reason="too slow, indeterministic")
 @pytest.mark.subprocess(
     env=dict(
@@ -348,7 +263,6 @@ def test_heap_profiler_sampling_accuracy(sample_interval):
     ),
 )
 def test_memealloc_data_race_regression():
-    import gc
     import threading
     import time
 
@@ -532,7 +446,8 @@ def test_memory_collector_allocation_accuracy_with_tracemalloc(sample_interval, 
         actual_rel_count = actual_count / actual_count_total
 
         print(
-            f"{func}\t{got.count}\t{got.size}\t{actual_size}\t{actual_count}\t{rel_size:.3f}\t{actual_rel_size:.3f}\t{rel_count:.3f}\t{actual_rel_count:.3f}"
+            f"{func}\t{got.count}\t{got.size}\t{actual_size}\t{actual_count}\t"
+            f"{rel_size:.3f}\t{actual_rel_size:.3f}\t{rel_count:.3f}\t{actual_rel_count:.3f}"
         )
 
         assert abs(rel_size - actual_rel_size) < 0.10
@@ -599,7 +514,9 @@ def test_memory_collector_allocation_tracking_across_snapshots(tmp_path):
         one_freed_samples_valid = all(
             sample.value[heap_space_idx] == 0 and sample.value[alloc_space_idx] > 0 for sample in one_freed_samples
         )
-        assert one_freed_samples_valid, "Freed samples from function 'one' should have heap-space == 0 and alloc-space > 0"
+        assert one_freed_samples_valid, (
+            "Freed samples from function 'one' should have heap-space == 0 and alloc-space > 0"
+        )
 
         two_live_samples = [sample for sample in live_samples if has_function_in_profile_sample(profile, sample, "two")]
 
@@ -712,7 +629,7 @@ def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(
         # So after_first_batch should have samples from the 20 allocations since last snapshot
         after_first_batch_count = len(after_first_batch_profile.sample)
         final_count = len(final_profile.sample)
-        
+
         assert after_first_batch_count > 0, (
             f"Should have samples from first batch allocations. Got {after_first_batch_count}"
         )
@@ -730,11 +647,9 @@ def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(
 
         # Since no objects were deleted, heap samples should accumulate (first_batch + second_batch)
         # Count heap samples in both profiles
-        after_first_heap_samples = [
-            s for s in after_first_batch_profile.sample if s.value[heap_space_idx] > 0
-        ]
+        after_first_heap_samples = [s for s in after_first_batch_profile.sample if s.value[heap_space_idx] > 0]
         final_heap_samples = [s for s in final_profile.sample if s.value[heap_space_idx] > 0]
-        
+
         assert len(final_heap_samples) > len(after_first_heap_samples), (
             f"Final should have more heap samples than after first batch (nothing deleted). "
             f"Got final={len(final_heap_samples)}, after_first={len(after_first_heap_samples)}"
@@ -773,7 +688,6 @@ def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(
             sample.value[heap_space_idx] > 0 and sample.value[alloc_space_idx] == 0 for sample in batch_one_live_samples
         )
         assert batch_one_valid, "Batch one samples should have heap-space > 0 and alloc-space == 0 (already reported)"
-        
         batch_two_valid = all(
             sample.value[heap_space_idx] > 0 and sample.value[alloc_space_idx] > 0 for sample in batch_two_live_samples
         )
@@ -936,126 +850,6 @@ def test_memory_collector_thread_lifecycle(tmp_path):
         )
 
 
-# Tests from tests/profiling/collector/test_memalloc.py (v1)
-def _pre_allocate_1k():
-    return _allocate_1k()
-
-
-# COVERAGE: This helper function (and test_heap() which calls it) is covered by:
-# - test_memory_collector_allocation_tracking_across_snapshots() - validates heap vs freed samples with deletions
-# - test_memory_collector_python_interface_with_allocation_tracking() - validates multiple snapshot cycles
-def _test_heap_impl(collector, max_nframe):
-    x = _allocate_1k()
-    samples = collector.test_snapshot()
-
-    alloc_samples = [s for s in samples if s.in_use_size > 0]
-
-    # Check that at least one sample comes from the main thread
-    thread_found = False
-
-    for sample in alloc_samples:
-        stack = sample.frames
-        thread_id = sample.thread_id
-        size = sample.in_use_size
-
-        assert 0 < len(stack) <= max_nframe
-        assert size > 0
-
-        if thread_id == threading.main_thread().ident:
-            thread_found = True
-        assert isinstance(thread_id, int)
-        if stack[0] == DDFrame(
-            __file__,
-            _ALLOC_LINE_NUMBER,
-            "<listcomp>" if sys.version_info < (3, 12) else "_allocate_1k",
-            "",
-        ):
-            break
-    else:
-        pytest.fail("No trace of allocation in heap")
-    assert thread_found, "Main thread not found"
-
-    y = _pre_allocate_1k()
-    samples = collector.test_snapshot()
-
-    alloc_samples = [s for s in samples if s.in_use_size > 0]
-
-    for sample in alloc_samples:
-        stack = sample.frames
-        thread_id = sample.thread_id
-        size = sample.in_use_size
-
-        assert 0 < len(stack) <= max_nframe
-        assert size > 0
-        assert isinstance(thread_id, int)
-        if stack[0] == DDFrame(
-            __file__,
-            _ALLOC_LINE_NUMBER,
-            "<listcomp>" if sys.version_info < (3, 12) else "_allocate_1k",
-            "",
-        ):
-            break
-    else:
-        pytest.fail("No trace of allocation in heap")
-
-    del x
-    gc.collect()
-
-    samples = collector.test_snapshot()
-
-    alloc_samples = [s for s in samples if s.in_use_size > 0]
-
-    for sample in alloc_samples:
-        stack = sample.frames
-        thread_id = sample.thread_id
-        size = sample.in_use_size
-
-        assert 0 < len(stack) <= max_nframe
-        assert size > 0
-        assert isinstance(thread_id, int)
-        entry = 2 if sys.version_info < (3, 12) else 1
-        if (
-            len(stack) > entry
-            and stack[0]
-            == DDFrame(
-                __file__,
-                _ALLOC_LINE_NUMBER,
-                "<listcomp>" if sys.version_info < (3, 12) else "_allocate_1k",
-                "",
-            )
-            and stack[entry].function_name == "_test_heap_impl"
-        ):
-            pytest.fail("Allocated memory still in heap")
-
-    del y
-    gc.collect()
-
-    samples = collector.test_snapshot()
-
-    alloc_samples = [s for s in samples if s.in_use_size > 0]
-
-    for sample in alloc_samples:
-        stack = sample.frames
-        thread_id = sample.thread_id
-        size = sample.in_use_size
-
-        assert 0 < len(stack) <= max_nframe
-        assert size > 0
-        assert isinstance(thread_id, int)
-        if (
-            len(stack) >= 3
-            and stack[0].file_name == __file__
-            and stack[0].lineno == _ALLOC_LINE_NUMBER
-            and stack[0].function_name in ("<listcomp>", "_allocate_1k")
-            and stack[1].file_name == __file__
-            and stack[1].lineno == _ALLOC_LINE_NUMBER
-            and stack[1].function_name == "_allocate_1k"
-            and stack[2].file_name == __file__
-            and stack[2].function_name == "_pre_allocate_1k"
-        ):
-            pytest.fail("Allocated memory still in heap")
-
-
 def test_start_twice():
     from ddtrace.profiling.collector import _memalloc
 
@@ -1095,147 +889,6 @@ def test_start_stop():
 
     _memalloc.start(1, 1)
     _memalloc.stop()
-
-
-# COVERAGE: This test is covered by:
-# - test_memory_collector() - validates allocation capture and sample structure
-# - test_memory_collector_allocation_accuracy_with_tracemalloc() - validates allocation counts and accuracy
-@pytest.mark.skip(reason="test_snapshot() is deprecated - needs refactoring to use snapshot_and_parse_pprof()")
-def test_iter_events():
-    from ddtrace.profiling.event import DDFrame
-
-    max_nframe = 32
-    collector = memalloc.MemoryCollector(max_nframe=max_nframe, heap_sample_size=64)
-    with collector:
-        _allocate_1k()
-        samples = collector.test_snapshot()
-    alloc_samples = [s for s in samples if s.alloc_size > 0]
-
-    total_alloc_count = sum(s.count for s in alloc_samples)
-
-    assert total_alloc_count >= 1000
-    # Watchout: if we dropped samples the test will likely fail
-
-    object_count = 0
-    for sample in alloc_samples:
-        stack = sample.frames
-        thread_id = sample.thread_id
-        size = sample.alloc_size
-
-        assert 0 < len(stack) <= max_nframe
-        assert size >= 1  # size depends on the object size
-        last_call = stack[0]
-        if last_call == DDFrame(
-            __file__,
-            _ALLOC_LINE_NUMBER,
-            "<listcomp>" if sys.version_info < (3, 12) else "_allocate_1k",
-            "",
-        ):
-            assert thread_id == threading.main_thread().ident
-            if sys.version_info < (3, 12) and len(stack) > 1:
-                assert stack[1] == DDFrame(__file__, _ALLOC_LINE_NUMBER, "_allocate_1k", "")
-            object_count += sample.count
-
-    assert object_count >= 1000
-
-
-# COVERAGE: This test is covered by:
-# - test_memory_collector() - validates that allocations are captured
-# - test_memory_collector_allocation_accuracy_with_tracemalloc() - validates allocation counts
-@pytest.mark.skip(reason="test_snapshot() is deprecated - needs refactoring to use snapshot_and_parse_pprof()")
-def test_iter_events_dropped():
-    max_nframe = 32
-    collector = memalloc.MemoryCollector(max_nframe=max_nframe, heap_sample_size=64)
-    with collector:
-        _allocate_1k()
-        samples = collector.test_snapshot()
-    alloc_samples = [s for s in samples if s.alloc_size > 0]
-
-    total_alloc_count = sum(s.count for s in alloc_samples)
-
-    assert len(alloc_samples) > 0
-    assert total_alloc_count >= 1000
-
-
-# COVERAGE: This edge case (collector not started) is not explicitly covered by other tests.
-# However, the new snapshot_and_parse_pprof() method would throw an error rather than
-# returning an empty tuple, making this test case less relevant for the new API.
-@pytest.mark.skip(reason="test_snapshot() is deprecated - needs refactoring to use snapshot_and_parse_pprof()")
-def test_iter_events_not_started():
-    collector = memalloc.MemoryCollector()
-    samples = collector.test_snapshot()
-    assert samples == ()
-
-
-# COVERAGE: This test is covered by:
-# - test_memory_collector_thread_lifecycle() - validates allocations across multiple threads
-# - test_memory_collector_buffer_pool_exhaustion() - validates concurrent thread allocations
-@pytest.mark.skip(reason="test_snapshot() is deprecated - needs refactoring to use snapshot_and_parse_pprof()")
-@pytest.mark.skipif(
-    os.getenv("DD_PROFILE_TEST_GEVENT", False),
-    reason="Test not compatible with gevent",
-)
-def test_iter_events_multi_thread():
-    from ddtrace.profiling.event import DDFrame
-
-    max_nframe = 32
-    t = threading.Thread(target=_allocate_1k)
-    collector = memalloc.MemoryCollector(max_nframe=max_nframe, heap_sample_size=64)
-    with collector:
-        _allocate_1k()
-        t.start()
-        t.join()
-
-        samples = collector.test_snapshot()
-    alloc_samples = [s for s in samples if s.alloc_size > 0]
-
-    total_alloc_count = sum(s.count for s in alloc_samples)
-
-    assert total_alloc_count >= 1000
-
-    # Watchout: if we dropped samples the test will likely fail
-
-    count_object = 0
-    count_thread = 0
-    for sample in alloc_samples:
-        stack = sample.frames
-        thread_id = sample.thread_id
-        size = sample.alloc_size
-
-        assert 0 < len(stack) <= max_nframe
-        assert size >= 1  # size depends on the object size
-        last_call = stack[0]
-        if last_call == DDFrame(
-            __file__,
-            _ALLOC_LINE_NUMBER,
-            "<listcomp>" if sys.version_info < (3, 12) else "_allocate_1k",
-            "",
-        ):
-            if thread_id == threading.main_thread().ident:
-                count_object += sample.count
-                if sys.version_info < (3, 12) and len(stack) > 1:
-                    assert stack[1] == DDFrame(__file__, _ALLOC_LINE_NUMBER, "_allocate_1k", "")
-            elif thread_id == t.ident:
-                count_thread += sample.count
-                entry = 2 if sys.version_info < (3, 12) else 1
-                if entry < len(stack):
-                    assert stack[entry].file_name == threading.__file__
-                    assert stack[entry].lineno > 0
-                    assert stack[entry].function_name == "run"
-
-    assert count_object >= 1000
-    assert count_thread >= 1000
-
-
-# COVERAGE: This test is covered by:
-# - test_memory_collector_allocation_tracking_across_snapshots() - validates heap vs freed samples with deletions
-# - test_memory_collector_python_interface_with_allocation_tracking() - validates multiple snapshot cycles
-@pytest.mark.skip(reason="test_snapshot() is deprecated - needs refactoring to use snapshot_and_parse_pprof()")
-def test_heap():
-    max_nframe = 32
-    collector = memalloc.MemoryCollector(max_nframe=max_nframe, heap_sample_size=1024)
-    with collector:
-        _test_heap_impl(collector, max_nframe)
 
 
 def test_heap_stress():
