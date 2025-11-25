@@ -86,15 +86,37 @@ message(STATUS "PYTHON_EXECUTABLE = ${PYTHON_EXECUTABLE}")
 message(STATUS "PYTHON_INCLUDE_DIRS = ${PYTHON_INCLUDE_DIRS}")
 # message(STATUS "ICU_LIBRARIES = ${ICU_LIBRARIES}") message(STATUS "ICU_INCLUDE_DIRS = ${ICU_INCLUDE_DIRS}")
 
-# For pybind11 3.0+: Find Python with Development component
-# Note: We use "Development" (not "Development.Module") to ensure Python3::Python target is available
-# This is required by pybind11 3.0's new CMake tools even though we're building an extension module
-find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
+# For pybind11 3.0+: Try to find Python with Development component
+# If not available (e.g., in minimal build environments), fall back to using environment variables
+find_package(Python3 COMPONENTS Interpreter Development)
 
-# Set legacy variables expected elsewhere in the project
-set(PYTHON_EXECUTABLE ${Python3_EXECUTABLE})
-set(PYTHON_INCLUDE_DIRS ${Python3_INCLUDE_DIRS})
-set(PYTHON_LIBRARIES ${Python3_LIBRARIES})
+if(Python3_FOUND AND Python3_Development_FOUND)
+    # Set legacy variables from FindPython3
+    set(PYTHON_EXECUTABLE ${Python3_EXECUTABLE})
+    set(PYTHON_INCLUDE_DIRS ${Python3_INCLUDE_DIRS})
+    set(PYTHON_LIBRARIES ${Python3_LIBRARIES})
+    message(STATUS "Found Python3 with Development component")
+else()
+    # Fallback: Use Python interpreter to get include dirs
+    message(STATUS "Python3 Development not found, using fallback method")
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
+
+    # Get Python include directory from sysconfig
+    execute_process(
+        COMMAND "${Python3_EXECUTABLE}" -c "import sysconfig; print(sysconfig.get_path('include'))"
+        OUTPUT_VARIABLE PYTHON_INCLUDE_DIRS
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+
+    set(PYTHON_EXECUTABLE ${Python3_EXECUTABLE})
+    set(PYTHON_LIBRARIES "")  # Not needed for extension modules
+
+    # Make Python include directories available
+    include_directories(${PYTHON_INCLUDE_DIRS})
+
+    # Tell pybind11 to use old-style Python detection
+    set(PYBIND11_NOPYTHON ON)
+endif()
 
 add_subdirectory(_vendor/pybind11)
 if(NATIVE_TESTING)
